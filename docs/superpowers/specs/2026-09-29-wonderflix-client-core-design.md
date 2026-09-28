@@ -58,7 +58,7 @@ Jellyfin **10.11.9**, un solo indirizzo pubblico HTTPS.
 | Video | `media_kit` (libmpv): decodifica, libass, hwdec `auto-safe` (d3d11va) |
 | Stato | Riverpod |
 | Routing | go_router |
-| HTTP / API | client Dart-dio generato dallo spec OpenAPI di Jellyfin 10.11 (spec salvato nel repo) |
+| HTTP / API | `dio` + client Jellyfin tipizzato scritto a mano, limitato agli endpoint usati (lo spec OpenAPI 10.11 fa da riferimento). Un client generato è stato scartato: migliaia di file, `build_runner`, e crash di deserializzazione quando il server aggiunge nuovi valori agli enum. |
 | Storage segreto | `flutter_secure_storage` (Gestore credenziali di Windows) |
 | Preferenze locali | `shared_preferences` |
 | Localizzazione | `flutter gen-l10n`, file ARB `it` / `en` |
@@ -83,7 +83,7 @@ Quattro strati. Ogni strato usa solo quello sotto.
    - `DiscordPresence`
    - `UpdateService`
    - `SettingsStore`
-3. **Infrastruttura:** `JellyfinClient` (generato), `VideoEngine` (interfaccia sopra media_kit), `SecureStorage`, IPC Discord (named pipe `\\.\pipe\discord-ipc-N`), logger.
+3. **Infrastruttura:** `JellyfinHttp` (dio con header di autenticazione e mappatura degli errori) e le API tipizzate per area (`AuthApi`, `LibraryApi`, `PlaybackApi`…), `VideoEngine` (interfaccia sopra media_kit), `SecureStorage`, IPC Discord (named pipe `\\.\pipe\discord-ipc-N`), logger.
 4. **AppConfig (build-time):** valori iniettati con `--dart-define-from-file=config/wonderflix.json`.
 
 ```json
@@ -370,7 +370,7 @@ Da riportare anche in `docs/RELEASING.md`.
 ## 12. Struttura del progetto e test
 
 ```
-lib/
+lib/                (API Jellyfin in lib/core/jellyfin/, niente package generati)
   main.dart
   app/            router, tema, icone, localizzazione
   config/         AppConfig
@@ -378,8 +378,6 @@ lib/
   features/
     auth/ home/ library/ detail/ person/ search/ favorites/
     player/ settings/ update/ discord/
-packages/
-  jellyfin_api/   client generato da OpenAPI (spec 10.11 salvato nel repo)
 assets/brand/     logo, banner, icona .ico
 assets/fonts/     Bebas Neue, Inter
 l10n/             app_it.arb, app_en.arb
