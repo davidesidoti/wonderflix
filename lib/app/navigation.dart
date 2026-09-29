@@ -28,3 +28,14 @@ void openItem(BuildContext context, JellyfinItem item) =>
 
 void openPerson(BuildContext context, PersonRef person) =>
     context.push('/person/${person.id}');
+
+/// Percorso del player; [start] è la posizione di partenza.
+String playerRoute(String itemId, {Duration start = Duration.zero}) => Uri(
+      path: '/play/$itemId',
+      queryParameters:
+          start > Duration.zero ? {'start': '${start.inMilliseconds}'} : null,
+    ).toString();
+
+/// Posizione di partenza dal parametro `start` (millisecondi) del percorso.
+Duration playerStartFrom(Uri uri) => Duration(
+    milliseconds: int.tryParse(uri.queryParameters['start'] ?? '') ?? 0);

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -186,7 +188,7 @@ class EpisodeTile extends ConsumerWidget {
     final overview = episode.overview;
 
     return InkWell(
-      onTap: () => playItem(context, episode),
+      onTap: () => unawaited(playItem(context, ref, episode)),
       child: Container(
         color: highlighted ? WfColors.surface : null,
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),

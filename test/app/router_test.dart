@@ -30,4 +30,11 @@ void main() {
     expect(sessionRedirect(signedIn, '/unreachable'), '/home');
     expect(sessionRedirect(signedIn, '/home'), isNull);
   });
+
+  test('il player resta aperto da autenticati, porta al login da disconnessi',
+      () {
+    expect(sessionRedirect(signedIn, '/play/m1'), isNull);
+    expect(sessionRedirect(const SessionSignedOut(expired: true), '/play/m1'),
+        '/login');
+  });
 }

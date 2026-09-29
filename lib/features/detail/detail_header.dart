@@ -129,14 +129,16 @@ class DetailHeader extends ConsumerWidget {
                       WfButton.primary(
                         label: primaryActionLabel(l, action),
                         icon: LucideIcons.play,
-                        onPressed: () => playItem(context, action.target),
+                        onPressed: () =>
+                            unawaited(playItem(context, ref, action.target)),
                       ),
                     if (action is ResumeAction)
                       WfButton.secondary(
                         label: l.actionRestart,
                         icon: LucideIcons.rotateCcw,
-                        onPressed: () =>
-                            playItem(context, action.target, fromStart: true),
+                        onPressed: () => unawaited(playItem(
+                            context, ref, action.target,
+                            fromStart: true)),
                       ),
                     if (trailerUri != null)
                       WfButton.secondary(

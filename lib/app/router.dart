@@ -10,11 +10,13 @@ import '../features/detail/item_detail_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/mylist/my_list_screen.dart';
 import '../features/person/person_screen.dart';
+import '../features/player/player_screen.dart';
 import '../features/search/search_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/startup/splash_screen.dart';
 import '../features/startup/unreachable_screen.dart';
 import 'app_shell.dart';
+import 'navigation.dart';
 
 const _entryRoutes = {'/splash', '/login', '/unreachable'};
 
@@ -45,6 +47,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/unreachable',
           builder: (context, state) => const UnreachableScreen()),
+      GoRoute(
+        path: '/play/:id',
+        builder: (context, state) => PlayerScreen(
+          key: ValueKey(state.uri.toString()),
+          args: (
+            itemId: state.pathParameters['id']!,
+            start: playerStartFrom(state.uri),
+          ),
+        ),
+      ),
       ShellRoute(
         builder: (context, state, child) =>
             AppShell(location: state.matchedLocation, child: child),

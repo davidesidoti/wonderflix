@@ -53,7 +53,6 @@
   "actionRemoveFromList": "Rimuovi da La mia lista",
   "actionMarkWatched": "Segna come visto",
   "actionMarkUnwatched": "Segna come non visto",
-  "playbackComingSoon": "La riproduzione arriva con il prossimo aggiornamento.",
   "detailCast": "Cast",
   "detailSimilar": "Simili",
   "detailSeasons": "{count, plural, =1{1 stagione} other{{count} stagioni}}",

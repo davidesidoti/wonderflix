@@ -204,7 +204,7 @@ class _HeroSlide extends ConsumerWidget {
                   WfButton.primary(
                     label: l.actionPlay,
                     icon: LucideIcons.play,
-                    onPressed: () => playItem(context, item),
+                    onPressed: () => unawaited(playItem(context, ref, item)),
                   ),
                   WfButton.secondary(
                     label: l.actionDetails,

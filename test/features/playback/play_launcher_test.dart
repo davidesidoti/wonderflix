@@ -1,0 +1,114 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:wonderflix/app/theme.dart';
+import 'package:wonderflix/core/jellyfin/item_models.dart';
+import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/features/library/user_data.dart';
+import 'package:wonderflix/features/playback/play_launcher.dart';
+import 'package:wonderflix/l10n/gen/app_localizations.dart';
+
+import '../../support/fake_session_controller.dart';
+import '../../support/library_fakes.dart';
+import '../../support/test_data.dart';
+
+void main() {
+  late FakeLibraryApi library;
+
+  setUp(() => library = FakeLibraryApi());
+
+  /// Pulsante "play" che chiama [playItem]; la route del player mostra id e
+  /// posizione di partenza ricevuti.
+  Future<void> pumpLauncher(WidgetTester tester, JellyfinItem item,
+      {bool fromStart = false}) async {
+    final router = GoRouter(routes: [
+      GoRoute(
+        path: '/',
+        builder: (context, state) => Scaffold(
+          body: Consumer(
+            builder: (context, ref, _) => TextButton(
+              onPressed: () => playItem(context, ref, item, fromStart: fromStart),
+              child: const Text('play'),
+            ),
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/play/:id',
+        builder: (context, state) => Text(
+            'player ${state.pathParameters['id']} ${state.uri.queryParameters['start'] ?? '-'}'),
+      ),
+    ]);
+    addTearDown(router.dispose);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        libraryApiProvider.overrideWithValue(library),
+        sessionControllerProvider.overrideWith(
+            () => FakeSessionController(const SessionSignedIn(testUser))),
+      ],
+      retry: (_, _) => null,
+      child: MaterialApp.router(
+        theme: buildWonderflixTheme(),
+        locale: const Locale('it'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        routerConfig: router,
+      ),
+    ));
+  }
+
+  Future<void> tapPlay(WidgetTester tester) async {
+    await tester.tap(find.text('play'));
+    await tester.pumpAndSettle();
+  }
+
+  const minutes23 = 23 * 60 * 10000000;
+
+  testWidgets('film iniziato: riprende dal minutaggio', (tester) async {
+    await pumpLauncher(tester, testItem(id: 'm1', positionTicks: minutes23));
+    await tapPlay(tester);
+    expect(find.text('player m1 1380000'), findsOneWidget);
+  });
+
+  testWidgets('Ricomincia: dall\'inizio', (tester) async {
+    await pumpLauncher(tester, testItem(id: 'm1', positionTicks: minutes23),
+        fromStart: true);
+    await tapPlay(tester);
+    expect(find.text('player m1 -'), findsOneWidget);
+  });
+
+  testWidgets('film già visto: dall\'inizio', (tester) async {
+    await pumpLauncher(
+        tester, testItem(id: 'm1', played: true, positionTicks: minutes23));
+    await tapPlay(tester);
+    expect(find.text('player m1 -'), findsOneWidget);
+  });
+
+  testWidgets('i dati utente aggiornati hanno la precedenza', (tester) async {
+    await pumpLauncher(tester, testItem(id: 'm1'));
+    ProviderScope.containerOf(tester.element(find.text('play')))
+        .read(userDataOverridesProvider.notifier)
+        .apply('m1', const UserItemData(playbackPositionTicks: minutes23));
+    await tapPlay(tester);
+    expect(find.text('player m1 1380000'), findsOneWidget);
+  });
+
+  testWidgets('serie: riproduce il prossimo episodio', (tester) async {
+    library.nextUpItems = [
+      testItem(id: 'e5', kind: ItemKind.episode, seriesId: 's1'),
+    ];
+    await pumpLauncher(tester, testItem(id: 's1', kind: ItemKind.series));
+    await tapPlay(tester);
+    expect(find.text('player e5 -'), findsOneWidget);
+    expect(library.nextUpCalls, ['s1']);
+  });
+
+  testWidgets('serie senza episodi: avviso', (tester) async {
+    await pumpLauncher(tester, testItem(id: 's1', kind: ItemKind.series));
+    await tapPlay(tester);
+    expect(find.text('Nessun episodio disponibile.'), findsOneWidget);
+    expect(find.text('play'), findsOneWidget);
+  });
+}

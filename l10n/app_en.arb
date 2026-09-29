@@ -45,7 +45,6 @@
   "actionRemoveFromList": "Remove from My List",
   "actionMarkWatched": "Mark as watched",
   "actionMarkUnwatched": "Mark as unwatched",
-  "playbackComingSoon": "Playback is coming in the next update.",
   "detailCast": "Cast",
   "detailSimilar": "More like this",
   "detailSeasons": "{count, plural, =1{1 season} other{{count} seasons}}",
