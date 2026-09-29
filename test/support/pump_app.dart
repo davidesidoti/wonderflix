@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/config/app_config.dart';
+import 'package:wonderflix/features/library/server_events_binding.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
 final testAppConfig = AppConfig(
@@ -23,7 +24,12 @@ Future<void> pumpApp(
   await tester.binding.setSurfaceSize(const Size(1440, 900));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(ProviderScope(
-    overrides: [appConfigProvider.overrideWithValue(testAppConfig), ...overrides],
+    overrides: [
+      appConfigProvider.overrideWithValue(testAppConfig),
+      // Nessun WebSocket reale nei widget test.
+      serverEventsBindingProvider.overrideWithValue(null),
+      ...overrides,
+    ],
     retry: (_, _) => null,
     child: MaterialApp(
       theme: buildWonderflixTheme(),
