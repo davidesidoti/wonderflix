@@ -21,6 +21,7 @@ import 'core/jellyfin/client_info.dart';
 import 'core/logging/app_log.dart';
 import 'core/logging/rotating_file_sink.dart';
 import 'core/media_session/smtc_media_session.dart';
+import 'features/discord/discord_providers.dart';
 import 'features/player/player_providers.dart';
 
 final _log = Logger('startup');
@@ -83,11 +84,12 @@ Future<void> main() async {
           version: package.version,
         )),
         if (smtcReady)
-          mediaSessionProvider.overrideWith((ref) {
+          systemMediaSessionProvider.overrideWith((ref) {
             final session = SmtcMediaSession();
             ref.onDispose(() => unawaited(session.dispose()));
             return session;
           }),
+        discordSessionProvider.overrideWith(createDiscordPresence),
       ],
       // Nessun retry automatico: gli errori li gestiscono le schermate.
       retry: (_, _) => null,

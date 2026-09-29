@@ -7,9 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../core/jellyfin/playback_api.dart';
 import '../../core/media_session/media_session.dart';
+import '../../core/media_session/mirrored_media_session.dart';
 import '../../core/video/media_kit_engine.dart';
 import '../../core/video/video_engine.dart';
 import '../../ui/wf_image.dart';
+import '../discord/discord_providers.dart';
 import 'playback_service.dart';
 import 'player_settings.dart';
 import 'player_window.dart';
@@ -49,11 +51,19 @@ final authImageProvider = Provider<ImageProvider Function(String url)>((ref) {
       );
 });
 
-/// Sessione media condivisa da tutta l'app (una sola, anche passando da un
-/// episodio all'altro). Di default non fa nulla; `main` la sostituisce con
-/// SMTC se è disponibile.
-final mediaSessionProvider = Provider<MediaSession>((ref) {
+/// Pannello media di sistema. Di default non fa nulla; `main` lo sostituisce
+/// con SMTC se è disponibile.
+final systemMediaSessionProvider = Provider<MediaSession>((ref) {
   final session = NoopMediaSession();
   ref.onDispose(() => unawaited(session.dispose()));
   return session;
 });
+
+/// Sessione media condivisa da tutta l'app (una sola, anche passando da un
+/// episodio all'altro): il pannello di sistema, che gestisce anche i tasti,
+/// più l'attività su Discord.
+final mediaSessionProvider = Provider<MediaSession>((ref) =>
+    MirroredMediaSession(
+      primary: ref.watch(systemMediaSessionProvider),
+      mirrors: [ref.watch(discordSessionProvider)],
+    ));
