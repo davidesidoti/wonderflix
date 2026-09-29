@@ -34,8 +34,20 @@ class _HeroCarouselState extends State<HeroCarousel> {
   @override
   void initState() {
     super.initState();
-    if (widget.items.length > 1) {
-      _timer = Timer.periodic(HeroCarousel.interval, (_) => _next());
+    _startTimer();
+  }
+
+  @override
+  void didUpdateWidget(HeroCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.items.length == widget.items.length) return;
+    _startTimer();
+    final last = widget.items.length - 1;
+    if (last >= 0 && _index > last) {
+      _index = last;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _controller.hasClients) _controller.jumpToPage(last);
+      });
     }
   }
 
@@ -46,11 +58,24 @@ class _HeroCarouselState extends State<HeroCarousel> {
     super.dispose();
   }
 
-  void _next() {
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = widget.items.length > 1
+        ? Timer.periodic(HeroCarousel.interval, (_) => _next())
+        : null;
+  }
+
+  void _goTo(int page) {
     if (!_controller.hasClients) return;
-    final next = (_index + 1) % widget.items.length;
-    _controller.animateToPage(next,
+    _controller.animateToPage(page,
         duration: const Duration(milliseconds: 600), curve: Curves.easeInOut);
+  }
+
+  void _next() {
+    // La Home è coperta da un'altra pagina: niente animazioni nascoste.
+    if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? true)) return;
+    if (widget.items.isEmpty) return;
+    _goTo((_index + 1) % widget.items.length);
   }
 
   @override
@@ -71,13 +96,25 @@ class _HeroCarouselState extends State<HeroCarousel> {
             child: Row(
               children: [
                 for (var i = 0; i < widget.items.length; i++)
-                  Container(
-                    width: i == _index ? 18 : 6,
-                    height: 6,
-                    margin: const EdgeInsets.only(left: 6),
-                    decoration: BoxDecoration(
-                      color: i == _index ? WfColors.gold : WfColors.creamMuted,
-                      borderRadius: BorderRadius.circular(3),
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      key: ValueKey('hero-dot-$i'),
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => _goTo(i),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(3, 8, 3, 8),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          width: i == _index ? 18 : 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color:
+                                i == _index ? WfColors.gold : WfColors.creamMuted,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
               ],

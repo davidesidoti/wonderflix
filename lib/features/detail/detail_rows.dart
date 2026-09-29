@@ -20,12 +20,17 @@ class CastRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final urls = ref.watch(imageUrlsProvider);
+    // Solo il cast: regista, sceneggiatore e produttore non sono attori.
+    final cast = people
+        .where((p) => p.type == null || p.type == 'Actor' || p.type == 'GuestStar')
+        .toList();
+    if (cast.isEmpty) return const SizedBox.shrink();
     return MediaRow(
       title: AppLocalizations.of(context).detailCast,
       height: 170,
-      itemCount: people.length,
+      itemCount: cast.length,
       itemBuilder: (context, i) {
-        final person = people[i];
+        final person = cast[i];
         final role = person.role;
         return GestureDetector(
           onTap: () => openPerson(context, person),

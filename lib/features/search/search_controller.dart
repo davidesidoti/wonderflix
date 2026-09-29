@@ -62,17 +62,18 @@ class SearchController extends Notifier<SearchState> {
 
   Future<void> _search(String term) async {
     final cancel = _cancel = CancelToken();
-    final api = ref.read(libraryApiProvider);
-    final userId = ref.read(currentUserIdProvider);
-    Future<List<JellyfinItem>> items(ItemKind kind) async => (await api.items(
-          ItemQuery(kinds: {kind}, searchTerm: term),
-          userId: userId,
-          startIndex: 0,
-          limit: 24,
-          cancelToken: cancel,
-        ))
-            .items;
     try {
+      // Letti qui dentro: un timer scattato dopo il logout non deve lanciare.
+      final api = ref.read(libraryApiProvider);
+      final userId = ref.read(currentUserIdProvider);
+      Future<List<JellyfinItem>> items(ItemKind kind) async => (await api.items(
+            ItemQuery(kinds: {kind}, searchTerm: term),
+            userId: userId,
+            startIndex: 0,
+            limit: 24,
+            cancelToken: cancel,
+          ))
+              .items;
       final results = await Future.wait([
         items(ItemKind.movie),
         items(ItemKind.series),

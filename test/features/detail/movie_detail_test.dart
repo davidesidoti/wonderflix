@@ -22,6 +22,7 @@ void main() {
         playedPercentage: 20,
         people: [
           {'Id': 'p9', 'Name': 'Zendaya', 'Role': 'Chani', 'Type': 'Actor'},
+          {'Id': 'p8', 'Name': 'Denis Villeneuve', 'Type': 'Director'},
         ],
         trailers: [
           {'Url': 'https://youtube.com/watch?v=x'},
@@ -53,6 +54,8 @@ void main() {
     expect(find.text('Trailer'), findsOneWidget);
     expect(find.text('Zendaya'), findsOneWidget);
     expect(find.text('Chani'), findsOneWidget);
+    expect(find.text('Denis Villeneuve'), findsNothing,
+        reason: 'il regista non è nel cast');
     expect(find.text('Simili'), findsOneWidget);
     expect(find.text('Arrival'), findsOneWidget);
   });
