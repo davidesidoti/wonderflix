@@ -7,9 +7,11 @@ environment:
   sdk: ^3.9.2
 
 dependencies:
+  cached_network_image: ^4.0.2
   dio: ^5.11.1
   flutter:
     sdk: flutter
+  flutter_blurhash: ^0.9.1
   flutter_localizations:
     sdk: flutter
   flutter_riverpod: ^3.3.2
