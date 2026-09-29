@@ -29,12 +29,20 @@ void openItem(BuildContext context, JellyfinItem item) =>
 void openPerson(BuildContext context, PersonRef person) =>
     context.push('/person/${person.id}');
 
-/// Percorso del player; [start] è la posizione di partenza.
-String playerRoute(String itemId, {Duration start = Duration.zero}) => Uri(
-      path: '/play/$itemId',
-      queryParameters:
-          start > Duration.zero ? {'start': '${start.inMilliseconds}'} : null,
-    ).toString();
+/// Percorso del player; [start] è la posizione di partenza, [fullscreen]
+/// dice che la finestra è già a schermo intero (passaggio all'episodio
+/// successivo).
+String playerRoute(String itemId,
+    {Duration start = Duration.zero, bool fullscreen = false}) {
+  final query = {
+    if (start > Duration.zero) 'start': '${start.inMilliseconds}',
+    if (fullscreen) 'fs': '1',
+  };
+  return Uri(
+    path: '/play/$itemId',
+    queryParameters: query.isEmpty ? null : query,
+  ).toString();
+}
 
 /// Posizione di partenza dal parametro `start` (millisecondi) del percorso.
 Duration playerStartFrom(Uri uri) => Duration(

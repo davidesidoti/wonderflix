@@ -19,6 +19,7 @@ enum PlayerCommand {
   toggleMute,
   subtitleDelayDown,
   subtitleDelayUp,
+  nextEpisode,
 
   /// Esc: chiude il pannello, poi esce dallo schermo intero, poi dal player.
   escape,
@@ -39,6 +40,8 @@ final _commands = <LogicalKeyboardKey, PlayerCommand>{
   LogicalKeyboardKey.keyM: PlayerCommand.toggleMute,
   LogicalKeyboardKey.keyG: PlayerCommand.subtitleDelayDown,
   LogicalKeyboardKey.keyH: PlayerCommand.subtitleDelayUp,
+  LogicalKeyboardKey.keyN: PlayerCommand.nextEpisode,
+  LogicalKeyboardKey.mediaTrackNext: PlayerCommand.nextEpisode,
   LogicalKeyboardKey.escape: PlayerCommand.escape,
   LogicalKeyboardKey.browserBack: PlayerCommand.exit,
   LogicalKeyboardKey.mediaStop: PlayerCommand.exit,

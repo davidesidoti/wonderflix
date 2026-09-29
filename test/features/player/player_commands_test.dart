@@ -45,6 +45,10 @@ void main() {
         PlayerCommand.exit);
     expect(playerCommandFor(down(LogicalKeyboardKey.mediaStop)),
         PlayerCommand.exit);
+    expect(playerCommandFor(down(LogicalKeyboardKey.keyN)),
+        PlayerCommand.nextEpisode);
+    expect(playerCommandFor(down(LogicalKeyboardKey.mediaTrackNext)),
+        PlayerCommand.nextEpisode);
     expect(playerCommandFor(down(LogicalKeyboardKey.keyQ)), isNull);
   });
 

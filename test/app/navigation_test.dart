@@ -31,4 +31,11 @@ void main() {
     expect(playerStartFrom(Uri.parse('/play/m1')), Duration.zero);
     expect(playerStartFrom(Uri.parse('/play/m1?start=abc')), Duration.zero);
   });
+
+  test('playerRoute con schermo intero', () {
+    expect(playerRoute('e5', fullscreen: true), '/play/e5?fs=1');
+    expect(
+        playerRoute('e5', start: const Duration(seconds: 1), fullscreen: true),
+        '/play/e5?start=1000&fs=1');
+  });
 }

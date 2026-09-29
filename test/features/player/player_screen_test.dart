@@ -6,25 +6,33 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wonderflix/app/navigation.dart';
+import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
+import 'package:wonderflix/core/jellyfin/playback_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/player/playback_service.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
+import 'package:wonderflix/features/player/seek_bar.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
+import 'package:wonderflix/ui/wf_image.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
 import '../../support/playback_fakes.dart';
+import '../../support/pump_app.dart';
 import '../../support/test_data.dart';
 
 void main() {
   late FakeVideoEngine engine;
   late FakePlaybackApi playback;
   late FakePlayerWindow window;
+  late FakeLibraryApi library;
+  late List<String> authImageUrls;
   var settings = const PlayerSettings();
 
   setUp(() {
@@ -32,11 +40,7 @@ void main() {
     playback = FakePlaybackApi();
     window = FakePlayerWindow();
     settings = const PlayerSettings();
-  });
-
-  /// Home ('/') con il player aperto sopra, come nell'app.
-  Future<void> pumpPlayer(WidgetTester tester) async {
-    final library = FakeLibraryApi()
+    library = FakeLibraryApi()
       ..itemsById['e4'] = testItem(
         id: 'e4',
         name: 'Pilot',
@@ -46,6 +50,11 @@ void main() {
         index: 4,
         seasonIndex: 1,
       );
+    authImageUrls = [];
+  });
+
+  /// Home ('/') con il player aperto sopra, come nell'app.
+  Future<void> pumpPlayer(WidgetTester tester) async {
     final router = GoRouter(routes: [
       GoRoute(
           path: '/',
@@ -53,7 +62,13 @@ void main() {
       GoRoute(
         path: '/play/:id',
         builder: (context, state) => PlayerScreen(
-            args: (itemId: state.pathParameters['id']!, start: Duration.zero)),
+          key: ValueKey(state.uri.toString()),
+          args: (
+            itemId: state.pathParameters['id']!,
+            start: playerStartFrom(state.uri),
+          ),
+          fullscreen: state.uri.queryParameters['fs'] == '1',
+        ),
       ),
     ]);
     addTearDown(router.dispose);
@@ -73,6 +88,13 @@ void main() {
         playerSettingsProvider.overrideWith(() => FakePlayerSettings(settings)),
         sessionControllerProvider.overrideWith(
             () => FakeSessionController(const SessionSignedIn(testUser))),
+        appConfigProvider.overrideWithValue(testAppConfig),
+        imageBuilderProvider
+            .overrideWithValue((image, fit) => const ColoredBox(color: Color(0xFF333333))),
+        authImageProvider.overrideWithValue((url) {
+          authImageUrls.add(url);
+          return MemoryImage(Uint8List.fromList(transparentPng));
+        }),
       ],
       retry: (_, _) => null,
       child: MaterialApp.router(
@@ -236,6 +258,143 @@ void main() {
     await closing;
     expect(playback.stopped.single.position, const Duration(minutes: 5));
     expect(window.destroyed, isTrue);
+    await unmount(tester);
+  });
+
+  JellyfinItem episode5() => testItem(
+        id: 'e5',
+        name: 'Cat in the Bag',
+        kind: ItemKind.episode,
+        seriesName: 'Breaking Bad',
+        seriesId: 's1',
+        index: 5,
+        seasonIndex: 1,
+      );
+
+  void withNextEpisode() {
+    final next = episode5();
+    library.itemsById['e5'] = next;
+    library.nextEpisodes['e4'] = next;
+  }
+
+  testWidgets('salta intro: pulsante durante l\'intro', (tester) async {
+    playback.segments = const [
+      MediaSegment(
+          type: MediaSegmentType.intro,
+          start: Duration(seconds: 10),
+          end: Duration(seconds: 90)),
+    ];
+    await pumpPlayer(tester);
+    engine.emitPosition(const Duration(seconds: 20));
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.text('Salta intro'));
+    await tester.pump();
+    expect(engine.seeks.last, const Duration(seconds: 90));
+    await unmount(tester);
+  });
+
+  testWidgets('prossimo episodio: scheda e conto alla rovescia', (tester) async {
+    withNextEpisode();
+    await pumpPlayer(tester);
+    engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+    expect(find.text('Inizia tra 10 s'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 10));
+    await tester.pumpAndSettle();
+    expect(find.text('S1:E5 · Cat in the Bag'), findsOneWidget);
+    expect(playback.stopped.first.itemId, 'e4');
+    await unmount(tester);
+  });
+
+  testWidgets('Annulla: a fine episodio si esce', (tester) async {
+    withNextEpisode();
+    await pumpPlayer(tester);
+    engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.text('Annulla'));
+    await tester.pump();
+    expect(find.text('PROSSIMO EPISODIO'), findsNothing);
+
+    engine.emitCompleted();
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('home'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('fine episodio: parte il successivo', (tester) async {
+    withNextEpisode();
+    await pumpPlayer(tester);
+    engine.emitCompleted();
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('S1:E5 · Cat in the Bag'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('riproduzione automatica spenta: niente conto alla rovescia',
+      (tester) async {
+    settings = const PlayerSettings(autoplayNext: false);
+    withNextEpisode();
+    await pumpPlayer(tester);
+    engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+    expect(find.textContaining('Inizia tra'), findsNothing);
+
+    engine.emitCompleted();
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('home'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('N a schermo intero: il successivo resta a schermo intero',
+      (tester) async {
+    withNextEpisode();
+    await pumpPlayer(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+    await tester.pumpAndSettle();
+    expect(find.text('S1:E5 · Cat in the Bag'), findsOneWidget);
+    expect(window.fullScreenCalls, [true], reason: 'mai uscito');
+    expect(find.byTooltip('Esci da schermo intero'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('anteprima trickplay sulla barra', (tester) async {
+    library.itemsById['e4'] = JellyfinItem.fromJson({
+      'Id': 'e4',
+      'Name': 'Pilot',
+      'Type': 'Episode',
+      'Trickplay': {
+        'ms1': {
+          '320': {
+            'Width': 320,
+            'Height': 180,
+            'TileWidth': 10,
+            'TileHeight': 10,
+            'ThumbnailCount': 700,
+            'Interval': 10000,
+          },
+        },
+      },
+    });
+    await pumpPlayer(tester);
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: Offset.zero);
+    addTearDown(gesture.removePointer);
+    await gesture.moveTo(tester.getCenter(find.byType(SeekBar)));
+    await tester.pump();
+    expect(authImageUrls.last,
+        'https://media.example.com/Videos/e4/Trickplay/320/3.jpg?mediaSourceId=ms1');
     await unmount(tester);
   });
 }

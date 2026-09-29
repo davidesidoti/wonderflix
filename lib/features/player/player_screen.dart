@@ -8,23 +8,36 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/error_text.dart';
+import '../../app/navigation.dart';
+import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_buttons.dart';
+import '../detail/primary_action.dart';
+import '../library/user_data.dart';
 import 'player_commands.dart';
 import 'player_controller.dart';
+import 'player_extras.dart';
 import 'player_overlay.dart';
 import 'player_providers.dart';
+import 'player_settings.dart';
 import 'player_window.dart';
+import 'segments.dart';
 import 'tracks_panel.dart';
+import 'trickplay.dart';
+import 'trickplay_preview.dart';
 
 /// Schermata del player: video a tutta finestra, controlli in
-/// sovrimpressione, tastiera, schermo intero e chiusura sicura della
-/// finestra (prima si segnala la fine a Jellyfin).
+/// sovrimpressione, tastiera, schermo intero, salta intro, prossimo
+/// episodio e chiusura sicura della finestra (prima si segnala la fine a
+/// Jellyfin).
 class PlayerScreen extends ConsumerStatefulWidget {
-  const PlayerScreen({super.key, required this.args});
+  const PlayerScreen({super.key, required this.args, this.fullscreen = false});
 
   final PlayerArgs args;
+
+  /// La finestra è già a schermo intero (arrivo dall'episodio precedente).
+  final bool fullscreen;
 
   /// Inattività del mouse dopo cui i controlli spariscono.
   static const hideDelay = Duration(seconds: 3);
@@ -41,8 +54,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Timer? _hideTimer;
   bool _controlsVisible = true;
   bool _tracksOpen = false;
-  bool _fullscreen = false;
+  late bool _fullscreen = widget.fullscreen;
   bool _leaving = false;
+
+  /// Si passa all'episodio successivo: la finestra resta com'è.
+  bool _handingOver = false;
+
+  /// L'utente ha chiuso la scheda "Prossimo episodio".
+  bool _nextCardDismissed = false;
 
   PlayerController get _controller =>
       ref.read(playerControllerProvider(widget.args).notifier);
@@ -61,7 +80,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _hideTimer?.cancel();
     _window.removeCloseListener(_onWindowClose);
     unawaited(_window.setPreventClose(false));
-    if (_fullscreen) unawaited(_window.setFullScreen(false));
+    if (_fullscreen && !_handingOver) unawaited(_window.setFullScreen(false));
     super.dispose();
   }
 
@@ -117,6 +136,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
+  /// Passa all'episodio successivo (da dove era rimasto, se iniziato),
+  /// mantenendo lo schermo intero.
+  void _playNext() {
+    final next = ref.read(playerControllerProvider(widget.args)).nextEpisode;
+    if (next == null || _leaving) return;
+    _leaving = true;
+    _handingOver = true;
+    unawaited(_controller.close());
+    ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
+    final userData =
+        ref.read(userDataOverridesProvider)[next.id] ?? next.userData;
+    final action = primaryActionFor(next, userData);
+    final start = action is ResumeAction ? action.position : Duration.zero;
+    context.pushReplacement(
+        playerRoute(next.id, start: start, fullscreen: _fullscreen));
+  }
+
+  /// Fine del video: episodio successivo se previsto, altrimenti uscita.
+  void _onFinished() {
+    final view = ref.read(playerControllerProvider(widget.args));
+    final autoplay = ref.read(playerSettingsProvider).autoplayNext;
+    if (view.nextEpisode != null && autoplay && !_nextCardDismissed) {
+      _playNext();
+    } else {
+      _exit();
+    }
+  }
+
   void _escape() {
     if (_tracksOpen) {
       setState(() => _tracksOpen = false);
@@ -156,6 +203,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         unawaited(controller.shiftSubtitleDelay(subtitleDelayStep));
       case PlayerCommand.toggleFullscreen:
         unawaited(_toggleFullscreen());
+      case PlayerCommand.nextEpisode:
+        _playNext();
+        return;
       case PlayerCommand.escape:
         _escape();
         return;
@@ -166,15 +216,41 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _showControls();
   }
 
+  /// Anteprima trickplay per la barra; `null` se il server non ne ha.
+  Widget? Function(Duration)? _previewFor(PlayerViewState view) {
+    final item = view.item;
+    final plan = view.plan;
+    if (item == null || plan == null) return null;
+    final mediaSourceId = plan.mediaSource.id;
+    final info = pickTrickplay(item, mediaSourceId);
+    if (info == null) return null;
+    final serverUrl = ref.read(appConfigProvider).serverUrl;
+    return (position) {
+      final tile = trickplayTileAt(info, position);
+      if (tile == null) return null;
+      return TrickplayPreview(
+        url: trickplaySheetUrl(serverUrl,
+            itemId: item.id,
+            width: info.width,
+            sheet: tile.sheet,
+            mediaSourceId: mediaSourceId),
+        info: info,
+        tile: tile,
+      );
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final provider = playerControllerProvider(widget.args);
     final view = ref.watch(provider);
     final controller = ref.read(provider.notifier);
+    final settings = ref.watch(playerSettingsProvider);
+    final next = view.nextEpisode;
 
     ref.listen(provider.select((s) => s.finished), (_, finished) {
-      if (finished) _exit();
+      if (finished) _onFinished();
     });
     ref.listen(provider.select((s) => s.playing), (_, playing) {
       if (playing) _scheduleHide();
@@ -255,10 +331,62 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           onToggleTracks: _toggleTracks,
                           onToggleFullscreen: () =>
                               unawaited(_toggleFullscreen()),
+                          onNextEpisode: next == null ? null : _playNext,
+                          chapters: view.item?.chapters ?? const [],
+                          preview: _previewFor(view),
                         ),
                       ),
                     ),
                   ),
+                if (view.status == PlayerStatus.ready) ...[
+                  // Salta intro / riassunto: visibile anche a controlli
+                  // nascosti.
+                  Positioned(
+                    right: 32,
+                    bottom: 150,
+                    child: ExcludeFocus(
+                      child: PositionSelector<SkipKind?>(
+                        engine: controller.engine,
+                        select: (position) =>
+                            skipTargetAt(view.segments, position)?.kind,
+                        builder: (context, kind) => kind == null
+                            ? const SizedBox.shrink()
+                            : WfButton.secondary(
+                                label: kind == SkipKind.intro
+                                    ? l.playerSkipIntro
+                                    : l.playerSkipRecap,
+                                icon: LucideIcons.skipForward,
+                                onPressed: () =>
+                                    unawaited(controller.skipCurrentSegment()),
+                              ),
+                      ),
+                    ),
+                  ),
+                  if (next != null && !_nextCardDismissed)
+                    Positioned(
+                      right: 32,
+                      bottom: 150,
+                      child: ExcludeFocus(
+                        child: PositionSelector<bool>(
+                          engine: controller.engine,
+                          select: (position) {
+                            final from = nextEpisodeCardFrom(
+                                view.segments, controller.engine.duration);
+                            return from != null && position >= from;
+                          },
+                          builder: (context, show) => show
+                              ? NextEpisodeCard(
+                                  episode: next,
+                                  countdown: settings.autoplayNext,
+                                  onPlay: _playNext,
+                                  onCancel: () =>
+                                      setState(() => _nextCardDismissed = true),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                      ),
+                    ),
+                ],
                 if (_tracksOpen && view.plan != null)
                   Positioned(
                     right: 24,
