@@ -69,6 +69,45 @@ void main() {
     expect(played, 1);
   });
 
+  testWidgets('scheda: in pausa il conto alla rovescia si ferma',
+      (tester) async {
+    var played = 0;
+    final paused = ValueNotifier(false);
+    addTearDown(paused.dispose);
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: Center(
+          child: ValueListenableBuilder<bool>(
+            valueListenable: paused,
+            builder: (context, value, _) => NextEpisodeCard(
+              episode: episode,
+              countdown: true,
+              paused: value,
+              onPlay: () => played++,
+              onCancel: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(seconds: 3));
+    expect(find.text('Inizia tra 7 s'), findsOneWidget);
+
+    paused.value = true;
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 20));
+    expect(find.text('Inizia tra 7 s'), findsOneWidget);
+    expect(played, 0);
+
+    paused.value = false;
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 6));
+    expect(find.text('Inizia tra 1 s'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1));
+    expect(played, 1);
+  });
+
   testWidgets('scheda senza conto alla rovescia: solo i pulsanti',
       (tester) async {
     var played = 0;

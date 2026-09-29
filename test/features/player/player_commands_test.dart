@@ -74,6 +74,23 @@ void main() {
         isNull);
   });
 
+  test('tasti multimediali ignorati se li gestisce la sessione media', () {
+    for (final key in [
+      LogicalKeyboardKey.mediaPlayPause,
+      LogicalKeyboardKey.mediaTrackNext,
+      LogicalKeyboardKey.mediaStop,
+    ]) {
+      expect(playerCommandFor(down(key), mediaKeys: false), isNull);
+    }
+    expect(playerCommandFor(down(LogicalKeyboardKey.space), mediaKeys: false),
+        PlayerCommand.togglePlay);
+    expect(playerCommandFor(down(LogicalKeyboardKey.keyN), mediaKeys: false),
+        PlayerCommand.nextEpisode);
+    expect(
+        playerCommandFor(down(LogicalKeyboardKey.escape), mediaKeys: false),
+        PlayerCommand.escape);
+  });
+
   test('il rilascio del tasto non fa nulla', () {
     expect(playerCommandFor(up(LogicalKeyboardKey.space)), isNull);
   });

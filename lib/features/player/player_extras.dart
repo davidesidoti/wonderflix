@@ -63,7 +63,8 @@ class _PositionSelectorState<T> extends State<PositionSelector<T>> {
 }
 
 /// Scheda "Prossimo episodio": con [countdown] parte da sola dopo
-/// [countdownFrom] secondi.
+/// [countdownFrom] secondi di riproduzione (il conto si ferma in pausa e
+/// durante il caricamento).
 class NextEpisodeCard extends ConsumerStatefulWidget {
   const NextEpisodeCard({
     super.key,
@@ -71,10 +72,14 @@ class NextEpisodeCard extends ConsumerStatefulWidget {
     required this.countdown,
     required this.onPlay,
     required this.onCancel,
+    this.paused = false,
   });
 
   final JellyfinItem episode;
   final bool countdown;
+
+  /// Video in pausa o in caricamento: il conto alla rovescia è fermo.
+  final bool paused;
   final VoidCallback onPlay;
   final VoidCallback onCancel;
 
@@ -92,7 +97,9 @@ class _NextEpisodeCardState extends ConsumerState<NextEpisodeCard> {
   void initState() {
     super.initState();
     if (widget.countdown) {
+      // Un solo timer: i secondi in pausa non contano.
       _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (widget.paused) return;
         if (_left <= 1) {
           timer.cancel();
           widget.onPlay();

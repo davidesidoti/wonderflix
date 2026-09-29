@@ -152,6 +152,41 @@ void main() {
     expect(playback.stopped, hasLength(1));
   });
 
+  test('close(watched: true): episodio segnato come visto', () async {
+    final controller = await start();
+    engine.emitPosition(const Duration(minutes: 119));
+    playback.userDataResult = const UserItemData(played: true);
+
+    await controller.close(watched: true);
+    expect(playback.stopped.single.position, const Duration(minutes: 119));
+    expect(library.playedCalls, [('m1', true)]);
+    expect(container.read(userDataOverridesProvider)['m1']?.played, isTrue);
+    expect(container.read(userDataRevisionProvider), 1);
+  });
+
+  test('close senza watched: nessun "visto"', () async {
+    final controller = await start();
+    await controller.close();
+    expect(library.playedCalls, isEmpty);
+  });
+
+  test('close(watched: true) senza rete: minutaggio aggiornato lo stesso',
+      () async {
+    final controller = await start();
+    library.error = const ServerUnreachableException();
+    await controller.close(watched: true);
+    expect(library.playedCalls, [('m1', true)]);
+    expect(container.read(userDataRevisionProvider), 1);
+  });
+
+  test('watched chiesto mentre la chiusura è già partita', () async {
+    final controller = await start();
+    final closing = controller.close();
+    await controller.close(watched: true);
+    await closing;
+    expect(library.playedCalls, [('m1', true)]);
+  });
+
   test('close senza rete: stima locale del minutaggio', () async {
     final controller = await start();
     engine.emitPosition(const Duration(minutes: 30));
@@ -362,6 +397,22 @@ void main() {
     await controller.shiftSubtitleDelay(const Duration(milliseconds: 100));
     expect(engine.subtitleDelays.last, const Duration(milliseconds: 200));
     expect(view().subtitleDelay, const Duration(milliseconds: 200));
+  });
+
+  test('play e pause: idempotenti; prima della partenza non fanno nulla',
+      () async {
+    container.listen(provider, (_, _) {});
+    final controller = container.read(provider.notifier);
+    await controller.pause();
+    expect(engine.calls, isNot(contains('pause')));
+    await pumpEventQueue();
+
+    await controller.pause();
+    await controller.pause();
+    expect(engine.playing, isFalse);
+    await controller.play();
+    await controller.play();
+    expect(engine.playing, isTrue);
   });
 
   test('qualità scelta: bitrate massimo nella richiesta', () async {

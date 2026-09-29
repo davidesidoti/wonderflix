@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -47,7 +49,11 @@ final authImageProvider = Provider<ImageProvider Function(String url)>((ref) {
       );
 });
 
-/// Crea la sessione media di ogni riproduzione. Di default non fa nulla;
-/// `main` la sostituisce con SMTC se è disponibile.
-final mediaSessionFactoryProvider =
-    Provider<MediaSession Function()>((ref) => NoopMediaSession.new);
+/// Sessione media condivisa da tutta l'app (una sola, anche passando da un
+/// episodio all'altro). Di default non fa nulla; `main` la sostituisce con
+/// SMTC se è disponibile.
+final mediaSessionProvider = Provider<MediaSession>((ref) {
+  final session = NoopMediaSession();
+  ref.onDispose(() => unawaited(session.dispose()));
+  return session;
+});

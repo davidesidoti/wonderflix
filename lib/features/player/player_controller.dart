@@ -150,6 +150,9 @@ class PlayerController extends Notifier<PlayerViewState> {
   /// Coda delle operazioni sulle tracce (vedi [_serialized]).
   Future<void> _trackQueue = Future.value();
   Future<void>? _closing;
+
+  /// Alla chiusura l'elemento va segnato come visto (vedi [close]).
+  bool _markWatched = false;
   int _generation = 0;
   Duration _resumeAt = Duration.zero;
   bool _forceTranscode = false;
@@ -425,6 +428,19 @@ class PlayerController extends Notifier<PlayerViewState> {
     await (_engine.playing ? _engine.pause() : _engine.play());
   }
 
+  /// Riprende la riproduzione; se è già in corso non cambia nulla (tasti
+  /// del pannello media, che possono arrivare su uno stato non aggiornato).
+  Future<void> play() async {
+    if (!_ready) return;
+    await _engine.play();
+  }
+
+  /// Mette in pausa; se lo è già non cambia nulla.
+  Future<void> pause() async {
+    if (!_ready) return;
+    await _engine.pause();
+  }
+
   /// Salta a [position], entro i limiti del video.
   Future<void> seekTo(Duration position) async {
     if (!_ready) return;
@@ -554,7 +570,15 @@ class PlayerController extends Notifier<PlayerViewState> {
   /// Chiude la riproduzione: segnala la fine a Jellyfin (attesa massima 2 s),
   /// libera il motore e aggiorna il minutaggio locale. Si può chiamare più
   /// volte.
-  Future<void> close() => _closing ??= _shutdown();
+  ///
+  /// Con [watched] l'elemento viene anche segnato come visto (si passa
+  /// all'episodio successivo durante i titoli di coda: altrimenti resterebbe
+  /// "in corso"). Vale anche se la chiusura è già partita, finché non è
+  /// arrivato quel punto.
+  Future<void> close({bool watched = false}) {
+    if (watched) _markWatched = true;
+    return _closing ??= _shutdown();
+  }
 
   Future<void> _shutdown() async {
     _generation++;
@@ -572,25 +596,42 @@ class PlayerController extends Notifier<PlayerViewState> {
       debugPrint('[player] chiusura del motore: $error');
     }
     if (reporter != null && item != null) {
-      await _refreshUserData(item, position);
+      final watched = _markWatched && await _setPlayed(item);
+      await _refreshUserData(item, position, watched: watched);
+    }
+  }
+
+  /// Segna [item] come visto, dopo il report di fine (che altrimenti
+  /// riscriverebbe il minutaggio). Tentativo singolo: `false` se non riesce.
+  Future<bool> _setPlayed(JellyfinItem item) async {
+    try {
+      await _library.setPlayed(_userId, item.id, played: true);
+      return true;
+    } on Object catch (error) {
+      debugPrint('[player] "visto" non salvato: $error');
+      return false;
     }
   }
 
   /// Aggiorna subito minutaggio e percentuale in tutta l'app (Home, schede,
   /// prossimo episodio) senza aspettare il WebSocket: prima una stima
   /// locale, poi i dati del server se raggiungibile.
-  Future<void> _refreshUserData(JellyfinItem item, Duration position) async {
+  Future<void> _refreshUserData(JellyfinItem item, Duration position,
+      {bool watched = false}) async {
     try {
       final ticks = durationToTicks(position);
       final runtime = item.runTimeTicks;
+      final current = _overrides.effective(item);
       _overrides.apply(
         item.id,
-        _overrides.effective(item).copyWith(
-              playbackPositionTicks: ticks,
-              playedPercentage: runtime == null || runtime == 0
-                  ? null
-                  : ticks / runtime * 100,
-            ),
+        watched
+            ? current.copyWith(played: true)
+            : current.copyWith(
+                playbackPositionTicks: ticks,
+                playedPercentage: runtime == null || runtime == 0
+                    ? null
+                    : ticks / runtime * 100,
+              ),
       );
       try {
         _overrides.apply(item.id, await _api.userData(_userId, item.id));

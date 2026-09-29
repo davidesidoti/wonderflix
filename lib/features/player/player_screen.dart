@@ -80,7 +80,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _window = ref.read(playerWindowProvider);
     _window.addCloseListener(_onWindowClose);
     unawaited(_window.setPreventClose(true));
-    _mediaSession = ref.read(mediaSessionFactoryProvider)();
+    // Sessione condivisa: con l'episodio successivo la nuova schermata
+    // parte prima che la vecchia sia chiusa.
+    _mediaSession = ref.read(mediaSessionProvider);
     _mediaButtons = _mediaSession.buttons.listen(_onMediaButton);
     _timelineTimer =
         Timer.periodic(const Duration(seconds: 5), (_) => _sendTimeline());
@@ -95,7 +97,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (_fullscreen && !_handingOver) unawaited(_window.setFullScreen(false));
     _timelineTimer?.cancel();
     unawaited(_mediaButtons?.cancel());
-    unawaited(_mediaSession.dispose());
+    // Uscendo dal player il pannello media sparisce; passando all'episodio
+    // successivo resta alla nuova schermata. Non si chiude mai: è dell'app.
+    if (!_handingOver) unawaited(_mediaSession.clear());
     super.dispose();
   }
 
@@ -152,13 +156,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   /// Passa all'episodio successivo (da dove era rimasto, se iniziato),
-  /// mantenendo lo schermo intero.
-  void _playNext() {
-    final next = ref.read(playerControllerProvider(widget.args)).nextEpisode;
+  /// mantenendo lo schermo intero. Se l'episodio in corso è finito, o si è
+  /// già nei titoli di coda (da dove compare la scheda "Prossimo
+  /// episodio"), lo si segna come visto: altrimenti resterebbe "in corso".
+  void _playNext({bool finished = false}) {
+    final view = ref.read(playerControllerProvider(widget.args));
+    final next = view.nextEpisode;
     if (next == null || _leaving) return;
     _leaving = true;
     _handingOver = true;
-    unawaited(_controller.close());
+    final engine = _controller.engine;
+    final from = nextEpisodeCardFrom(view.segments, engine.duration);
+    final watched = finished || (from != null && engine.position >= from);
+    unawaited(_controller.close(watched: watched));
     ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
     final userData =
         ref.read(userDataOverridesProvider)[next.id] ?? next.userData;
@@ -173,7 +183,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final view = ref.read(playerControllerProvider(widget.args));
     final autoplay = ref.read(playerSettingsProvider).autoplayNext;
     if (view.nextEpisode != null && autoplay && !_nextCardDismissed) {
-      _playNext();
+      _playNext(finished: true);
     } else {
       _exit();
     }
@@ -200,13 +210,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   /// Tasti del pannello media e della tastiera multimediale.
   void _onMediaButton(MediaButton button) {
-    if (!mounted) return;
-    final playing = ref.read(playerControllerProvider(widget.args)).playing;
+    if (!mounted || _leaving) return;
     switch (button) {
       case MediaButton.play:
-        if (!playing) unawaited(_controller.togglePlay());
+        unawaited(_controller.play());
       case MediaButton.pause:
-        if (playing) unawaited(_controller.togglePlay());
+        unawaited(_controller.pause());
       case MediaButton.next:
         _playNext();
       case MediaButton.stop:
@@ -226,7 +235,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     final command = playerCommandFor(event,
-        altPressed: HardwareKeyboard.instance.isAltPressed);
+        altPressed: HardwareKeyboard.instance.isAltPressed,
+        mediaKeys: !_mediaSession.handlesMediaKeys);
     if (command == null) return KeyEventResult.ignored;
     _run(command);
     return KeyEventResult.handled;
@@ -435,6 +445,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               ? NextEpisodeCard(
                                   episode: next,
                                   countdown: settings.autoplayNext,
+                                  paused: !view.playing || view.buffering,
                                   onPlay: _playNext,
                                   onCancel: () =>
                                       setState(() => _nextCardDismissed = true),

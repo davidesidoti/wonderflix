@@ -3,7 +3,16 @@ enum MediaButton { play, pause, next, stop }
 
 /// Pannello media di sistema (su Windows: SMTC): titolo, immagine, stato
 /// e tasti multimediali, attivi anche con l'app in secondo piano.
+///
+/// Una sola sessione per tutta l'app (il pannello di sistema è uno per
+/// processo): ogni schermata del player la aggiorna e ascolta [buttons];
+/// uscendo dal player la si nasconde con [clear], senza chiuderla.
 abstract class MediaSession {
+  /// `true` se la sessione riceve già i tasti multimediali della tastiera
+  /// (play/pausa, successivo, stop): il player non deve gestirli una
+  /// seconda volta.
+  bool get handlesMediaKeys;
+
   Future<void> setMetadata({
     required String title,
     String? subtitle,
@@ -21,11 +30,19 @@ abstract class MediaSession {
 
   Stream<MediaButton> get buttons;
 
+  /// Nasconde e disattiva il pannello (uscita dal player); il prossimo
+  /// [setMetadata] lo mostra di nuovo.
+  Future<void> clear();
+
+  /// Libera le risorse: solo alla chiusura dell'app.
   Future<void> dispose();
 }
 
 /// Nessun pannello (test, o SMTC non disponibile).
 class NoopMediaSession implements MediaSession {
+  @override
+  bool get handlesMediaKeys => false;
+
   @override
   Future<void> setMetadata(
       {required String title, String? subtitle, String? thumbnailUrl}) async {}
@@ -42,6 +59,9 @@ class NoopMediaSession implements MediaSession {
 
   @override
   Stream<MediaButton> get buttons => const Stream.empty();
+
+  @override
+  Future<void> clear() async {}
 
   @override
   Future<void> dispose() async {}

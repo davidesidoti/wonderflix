@@ -29,7 +29,11 @@ import '../../support/pump_app.dart';
 import '../../support/test_data.dart';
 
 void main() {
+  /// Motore della prima schermata; ogni episodio successivo ne ha uno nuovo.
   late FakeVideoEngine engine;
+
+  /// Motori creati, uno per schermata del player, in ordine.
+  late List<FakeVideoEngine> engines;
   late FakePlaybackApi playback;
   late FakePlayerWindow window;
   late FakeLibraryApi library;
@@ -39,6 +43,7 @@ void main() {
 
   setUp(() {
     engine = FakeVideoEngine()..engineTracks = testEngineTracks;
+    engines = [];
     playback = FakePlaybackApi();
     window = FakePlayerWindow();
     mediaSession = FakeMediaSession();
@@ -86,9 +91,15 @@ void main() {
           serverUrl: testServerUrl,
           authorization: () => 'MediaBrowser Token="t1"',
         )),
-        videoEngineFactoryProvider.overrideWithValue(() => engine),
+        videoEngineFactoryProvider.overrideWithValue(() {
+          final created = engines.isEmpty
+              ? engine
+              : (FakeVideoEngine()..engineTracks = testEngineTracks);
+          engines.add(created);
+          return created;
+        }),
         playerWindowProvider.overrideWithValue(window),
-        mediaSessionFactoryProvider.overrideWithValue(() => mediaSession),
+        mediaSessionProvider.overrideWithValue(mediaSession),
         playerSettingsProvider.overrideWith(() => FakePlayerSettings(settings)),
         sessionControllerProvider.overrideWith(
             () => FakeSessionController(const SessionSignedIn(testUser))),
@@ -311,6 +322,60 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('S1:E5 · Cat in the Bag'), findsOneWidget);
     expect(playback.stopped.first.itemId, 'e4');
+    expect(engines, hasLength(2), reason: 'un motore per episodio');
+    expect(engine.disposed, isTrue);
+    expect(engines.last.disposed, isFalse);
+    expect(library.playedCalls, [('e4', true)],
+        reason: 'nei titoli di coda: episodio visto');
+    // La nuova schermata blocca la chiusura prima che la vecchia la
+    // rilasci: le richieste si contano, quindi resta bloccata.
+    expect(window.preventCloseCalls, [true, true, false]);
+    await unmount(tester);
+  });
+
+  testWidgets('conto alla rovescia fermo in pausa', (tester) async {
+    withNextEpisode();
+    await pumpPlayer(tester);
+    engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
+    await tester.pump();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 15));
+    expect(find.text('Inizia tra 10 s'), findsOneWidget);
+    expect(find.text('S1:E5 · Cat in the Bag'), findsOneWidget,
+        reason: 'solo nella scheda');
+    expect(engines, hasLength(1));
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
+    expect(find.text('Inizia tra 7 s'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('episodio successivo già iniziato: riprende da dove era',
+      (tester) async {
+    final next = testItem(
+      id: 'e5',
+      name: 'Cat in the Bag',
+      kind: ItemKind.episode,
+      seriesName: 'Breaking Bad',
+      seriesId: 's1',
+      index: 5,
+      seasonIndex: 1,
+      positionTicks: durationToTicks(const Duration(minutes: 12)),
+      playedPercentage: 25,
+    );
+    library.itemsById['e5'] = next;
+    library.nextEpisodes['e4'] = next;
+    await pumpPlayer(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+    await tester.pumpAndSettle();
+    expect(engines, hasLength(2));
+    expect(engines.last.opened.single.start, const Duration(minutes: 12));
+    expect(library.playedCalls, isEmpty,
+        reason: 'lasciato a metà: resta in corso');
     await unmount(tester);
   });
 
@@ -427,7 +492,38 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
     expect(find.text('home'), findsOneWidget);
-    expect(mediaSession.disposed, isTrue);
+    expect(mediaSession.cleared, 1, reason: 'uscendo il pannello sparisce');
+    expect(mediaSession.disposed, isFalse, reason: 'la sessione è dell\'app');
+    await unmount(tester);
+  });
+
+  testWidgets('pannello media: pausa e play non invertono uno stato vecchio',
+      (tester) async {
+    await pumpPlayer(tester);
+    mediaSession.press(MediaButton.play);
+    await tester.pump();
+    await tester.pump();
+    expect(engine.playing, isTrue, reason: 'già in riproduzione');
+
+    mediaSession
+      ..press(MediaButton.pause)
+      ..press(MediaButton.pause);
+    await tester.pump();
+    await tester.pump();
+    expect(engine.playing, isFalse);
+    await unmount(tester);
+  });
+
+  testWidgets('tasti multimediali: ignorati se li gestisce la sessione',
+      (tester) async {
+    mediaSession.handlesMediaKeys = true;
+    await pumpPlayer(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.mediaPlayPause);
+    await tester.pump();
+    expect(engine.playing, isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.mediaStop);
+    await tester.pumpAndSettle();
+    expect(find.text('home'), findsNothing);
     await unmount(tester);
   });
 
@@ -440,6 +536,21 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
     expect(find.text('S1:E5 · Cat in the Bag'), findsOneWidget);
+    expect(mediaSession.cleared, 0,
+        reason: 'passando all\'episodio successivo il pannello resta');
+    expect(mediaSession.metadata.last.subtitle, 'S1:E5 · Cat in the Bag');
+
+    // Il pannello comanda il nuovo episodio.
+    mediaSession.press(MediaButton.pause);
+    await tester.pump();
+    await tester.pump();
+    expect(engines.last.playing, isFalse);
+
+    mediaSession.press(MediaButton.stop);
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('home'), findsOneWidget);
+    expect(mediaSession.cleared, 1);
     await unmount(tester);
   });
 }

@@ -457,7 +457,13 @@ class FakeMediaSession implements MediaSession {
   final playingStates = <bool>[];
   final timelines = <Duration>[];
   final nextEnabled = <bool>[];
+
+  /// Volte in cui il pannello è stato nascosto ([clear]).
+  int cleared = 0;
   bool disposed = false;
+
+  @override
+  bool handlesMediaKeys = false;
   final _buttons = StreamController<MediaButton>.broadcast();
 
   void press(MediaButton button) => _buttons.add(button);
@@ -481,6 +487,9 @@ class FakeMediaSession implements MediaSession {
 
   @override
   Stream<MediaButton> get buttons => _buttons.stream;
+
+  @override
+  Future<void> clear() async => cleared++;
 
   @override
   Future<void> dispose() async {

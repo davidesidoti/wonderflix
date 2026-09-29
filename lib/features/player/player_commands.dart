@@ -57,9 +57,20 @@ const _repeatable = {
   PlayerCommand.subtitleDelayUp,
 };
 
+/// Tasti multimediali della tastiera: con [playerCommandFor] `mediaKeys:
+/// false` li gestisce la sessione media di sistema.
+final _mediaKeys = {
+  LogicalKeyboardKey.mediaPlayPause,
+  LogicalKeyboardKey.mediaTrackNext,
+  LogicalKeyboardKey.mediaStop,
+};
+
 /// Comando del player per un evento di tastiera; `null` se il tasto non è
-/// gestito. Con Alt premuto vale solo Alt+← (esci).
-PlayerCommand? playerCommandFor(KeyEvent event, {bool altPressed = false}) {
+/// gestito. Con Alt premuto vale solo Alt+← (esci). Con [mediaKeys] `false`
+/// i tasti multimediali sono ignorati (li riceve già la sessione media: non
+/// vanno eseguiti due volte).
+PlayerCommand? playerCommandFor(KeyEvent event,
+    {bool altPressed = false, bool mediaKeys = true}) {
   if (event is KeyUpEvent) return null;
   final repeat = event is KeyRepeatEvent;
   if (altPressed) {
@@ -67,6 +78,7 @@ PlayerCommand? playerCommandFor(KeyEvent event, {bool altPressed = false}) {
         ? PlayerCommand.exit
         : null;
   }
+  if (!mediaKeys && _mediaKeys.contains(event.logicalKey)) return null;
   final command = _commands[event.logicalKey];
   if (command == null || (repeat && !_repeatable.contains(command))) {
     return null;
