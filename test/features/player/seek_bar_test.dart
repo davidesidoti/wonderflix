@@ -1,5 +1,7 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/player/seek_bar.dart';
 
 import '../../support/playback_fakes.dart';
@@ -44,5 +46,83 @@ void main() {
     await tester.pump(); // consegna gli eventi degli stream
     await tester.pump();
     expect(find.text('12:03 / 1:45:00'), findsOneWidget);
+  });
+
+  testWidgets('tacche dei capitoli (non quella all\'inizio)', (tester) async {
+    final engine = FakeVideoEngine();
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: Padding(
+          padding: const EdgeInsets.all(40),
+          child: SeekBar(
+            engine: engine,
+            onSeek: (_) {},
+            chapters: const [
+              ChapterMark(start: Duration.zero, name: 'Inizio'),
+              ChapterMark(start: Duration(minutes: 30), name: 'Arrakis'),
+              ChapterMark(start: Duration(hours: 1), name: 'Deserto'),
+            ],
+          ),
+        ),
+      ),
+    );
+    engine.emitDuration(const Duration(hours: 2));
+    await tester.pump();
+    await tester.pump();
+    final paint = tester.widget<CustomPaint>(find.byKey(const Key('chapter-ticks')));
+    expect((paint.painter! as ChapterTicksPainter).fractions, [0.25, 0.5]);
+  });
+
+  testWidgets('anteprima al passaggio del mouse: tempo, capitolo, immagine',
+      (tester) async {
+    final engine = FakeVideoEngine();
+    final previews = <Duration>[];
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: Padding(
+          padding: const EdgeInsets.fromLTRB(40, 300, 40, 40),
+          child: SeekBar(
+            engine: engine,
+            onSeek: (_) {},
+            chapters: const [
+              ChapterMark(start: Duration.zero, name: 'Inizio'),
+              ChapterMark(start: Duration(minutes: 45), name: 'Arrakis'),
+            ],
+            preview: (position) {
+              previews.add(position);
+              return const SizedBox(
+                  key: Key('preview-image'), width: 240, height: 135);
+            },
+          ),
+        ),
+      ),
+    );
+    engine.emitDuration(const Duration(hours: 2));
+    await tester.pump();
+    await tester.pump();
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: Offset.zero);
+    addTearDown(gesture.removePointer);
+    await gesture.moveTo(tester.getCenter(find.byType(SeekBar)));
+    await tester.pump();
+    expect(find.text('1:00:00 · Arrakis'), findsOneWidget);
+    expect(find.byKey(const Key('preview-image')), findsOneWidget);
+    expect(previews.last, const Duration(hours: 1));
+
+    await gesture.moveTo(Offset.zero);
+    await tester.pump();
+    expect(find.text('1:00:00 · Arrakis'), findsNothing);
+  });
+
+  test('chapterAt', () {
+    const chapters = [
+      ChapterMark(start: Duration.zero, name: 'A'),
+      ChapterMark(start: Duration(minutes: 10), name: 'B'),
+    ];
+    expect(chapterAt(chapters, const Duration(minutes: 5))?.name, 'A');
+    expect(chapterAt(chapters, const Duration(minutes: 10))?.name, 'B');
+    expect(chapterAt(const [], Duration.zero), isNull);
   });
 }
