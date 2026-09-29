@@ -132,22 +132,6 @@ class _SeekBarState extends State<SeekBar> {
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            if (durationSeconds > 0 && widget.chapters.isNotEmpty)
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: CustomPaint(
-                    key: const Key('chapter-ticks'),
-                    painter: ChapterTicksPainter(
-                      fractions: [
-                        for (final chapter in widget.chapters)
-                          if (chapter.start > Duration.zero)
-                            _seconds(chapter.start) / durationSeconds,
-                      ],
-                      inset: SeekBar.trackInset,
-                    ),
-                  ),
-                ),
-              ),
             SliderTheme(
               data: SliderTheme.of(context).copyWith(
                 trackHeight: 4,
@@ -176,6 +160,23 @@ class _SeekBarState extends State<SeekBar> {
                 },
               ),
             ),
+            // Sopra lo Slider, altrimenti la traccia le copre.
+            if (durationSeconds > 0 && widget.chapters.isNotEmpty)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    key: const Key('chapter-ticks'),
+                    painter: ChapterTicksPainter(
+                      fractions: [
+                        for (final chapter in widget.chapters)
+                          if (chapter.start > Duration.zero)
+                            _seconds(chapter.start) / durationSeconds,
+                      ],
+                      inset: SeekBar.trackInset,
+                    ),
+                  ),
+                ),
+              ),
             if (hoverX != null && hovered != null)
               Positioned(
                 left: (hoverX - SeekBar.previewWidth / 2).clamp(

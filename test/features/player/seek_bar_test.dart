@@ -67,11 +67,20 @@ void main() {
         ),
       ),
     );
-    engine.emitDuration(const Duration(hours: 2));
-    await tester.pump();
-    await tester.pump();
     final paint = tester.widget<CustomPaint>(find.byKey(const Key('chapter-ticks')));
     expect((paint.painter! as ChapterTicksPainter).fractions, [0.25, 0.5]);
+
+    // Disegnate sopra la traccia, non sotto.
+    final layers = tester
+        .widget<Stack>(find.descendant(
+            of: find.byType(SeekBar), matching: find.byType(Stack)).first)
+        .children;
+    int layerOf(Finder finder) => layers.indexWhere((layer) => find
+        .descendant(of: find.byWidget(layer), matching: finder)
+        .evaluate()
+        .isNotEmpty);
+    expect(layerOf(find.byKey(const Key('chapter-ticks'))),
+        greaterThan(layerOf(find.byType(Slider))));
   });
 
   testWidgets('anteprima al passaggio del mouse: tempo, capitolo, immagine',
@@ -99,9 +108,6 @@ void main() {
         ),
       ),
     );
-    engine.emitDuration(const Duration(hours: 2));
-    await tester.pump();
-    await tester.pump();
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await gesture.addPointer(location: Offset.zero);
     addTearDown(gesture.removePointer);
@@ -111,9 +117,18 @@ void main() {
     expect(find.byKey(const Key('preview-image')), findsOneWidget);
     expect(previews.last, const Duration(hours: 1));
 
+    // A un quarto della traccia (che inizia dopo il margine dello Slider).
+    final bar = tester.getRect(find.byType(SeekBar));
+    final track = bar.width - 2 * SeekBar.trackInset;
+    await gesture.moveTo(
+        Offset(bar.left + SeekBar.trackInset + 0.25 * track, bar.center.dy));
+    await tester.pump();
+    expect(find.text('30:00 · Inizio'), findsOneWidget);
+    expect(previews.last, const Duration(minutes: 30));
+
     await gesture.moveTo(Offset.zero);
     await tester.pump();
-    expect(find.text('1:00:00 · Arrakis'), findsNothing);
+    expect(find.textContaining('· Inizio'), findsNothing);
   });
 
   test('chapterAt', () {
