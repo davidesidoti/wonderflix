@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/error_text.dart';
 import '../../app/theme.dart';
@@ -17,16 +16,6 @@ import '../library/library_providers.dart';
 import '../library/user_data.dart';
 import '../playback/play_launcher.dart';
 import 'primary_action.dart';
-
-/// Primo trailer con indirizzo web valido (solo `http`/`https`), se esiste.
-Uri? _trailerUri(JellyfinItem item) {
-  if (item.remoteTrailers.isEmpty) return null;
-  final uri = Uri.tryParse(item.remoteTrailers.first.url);
-  if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https')) {
-    return null;
-  }
-  return uri;
-}
 
 /// Parte alta di una scheda: sfondo, logo o titolo, dati, trama, azioni.
 class DetailHeader extends ConsumerWidget {
@@ -56,7 +45,8 @@ class DetailHeader extends ConsumerWidget {
     final logo = urls.logo(item);
     final action = primary;
     final overview = item.overview;
-    final trailerUri = _trailerUri(item);
+    final hasTrailer =
+        item.localTrailerCount > 0 || remoteTrailerUri(item) != null;
 
     return SizedBox(
       height: 560,
@@ -140,14 +130,12 @@ class DetailHeader extends ConsumerWidget {
                             context, ref, action.target,
                             fromStart: true)),
                       ),
-                    if (trailerUri != null)
+                    if (hasTrailer)
                       WfButton.secondary(
                         label: l.actionTrailer,
                         icon: LucideIcons.clapperboard,
-                        onPressed: () => unawaited(launchUrl(
-                          trailerUri,
-                          mode: LaunchMode.externalApplication,
-                        )),
+                        onPressed: () =>
+                            unawaited(playTrailer(context, ref, item)),
                       ),
                     WfIconToggle(
                       icon: LucideIcons.heart,

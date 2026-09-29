@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/error_text.dart';
 import '../../app/navigation.dart';
@@ -78,9 +79,56 @@ Future<void> playItem(
     final action = primaryActionFor(target, userData);
     final start =
         !fromStart && action is ResumeAction ? action.position : Duration.zero;
-    final opened = context.push<void>(playerRoute(target.id, start: start));
-    launch.pushed = true;
-    await opened;
+    await _open(context, launch, playerRoute(target.id, start: start));
+  } finally {
+    if (identical(_launch, launch)) _launch = null;
+  }
+}
+
+/// Apre il player e aspetta che l'utente ne esca.
+Future<void> _open(BuildContext context, _Launch launch, String route) async {
+  final opened = context.push<void>(route);
+  launch.pushed = true;
+  await opened;
+}
+
+/// Primo trailer remoto con indirizzo web valido (solo `http`/`https`).
+Uri? remoteTrailerUri(JellyfinItem item) {
+  if (item.remoteTrailers.isEmpty) return null;
+  final uri = Uri.tryParse(item.remoteTrailers.first.url);
+  if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https')) {
+    return null;
+  }
+  return uri;
+}
+
+/// Trailer di [item]: quello salvato sul server nel player, altrimenti il
+/// trailer remoto (YouTube) nel browser.
+Future<void> playTrailer(
+    BuildContext context, WidgetRef ref, JellyfinItem item) async {
+  if (_launchInProgress(context)) return;
+  final launch = _launch = _Launch();
+  try {
+    if (item.localTrailerCount > 0) {
+      List<JellyfinItem> trailers;
+      try {
+        trailers = await ref
+            .read(libraryApiProvider)
+            .localTrailers(ref.read(currentUserIdProvider), item.id);
+      } on Object catch (error) {
+        debugPrint('Trailer locali non disponibili: $error');
+        trailers = const [];
+      }
+      if (!context.mounted) return;
+      if (trailers.isNotEmpty) {
+        await _open(context, launch, playerRoute(trailers.first.id));
+        return;
+      }
+    }
+    final remote = remoteTrailerUri(item);
+    if (remote != null) {
+      await launchUrl(remote, mode: LaunchMode.externalApplication);
+    }
   } finally {
     if (identical(_launch, launch)) _launch = null;
   }

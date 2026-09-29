@@ -22,14 +22,16 @@ void main() {
   /// Pulsante "play" che chiama [playItem]; la route del player mostra id e
   /// posizione di partenza ricevuti.
   Future<GoRouter> pumpLauncher(WidgetTester tester, JellyfinItem item,
-      {bool fromStart = false}) async {
+      {bool fromStart = false, bool trailer = false}) async {
     final router = GoRouter(routes: [
       GoRoute(
         path: '/',
         builder: (context, state) => Scaffold(
           body: Consumer(
             builder: (context, ref, _) => TextButton(
-              onPressed: () => playItem(context, ref, item, fromStart: fromStart),
+              onPressed: () => trailer
+                  ? playTrailer(context, ref, item)
+                  : playItem(context, ref, item, fromStart: fromStart),
               child: const Text('play'),
             ),
           ),
@@ -144,5 +146,17 @@ void main() {
     await tapPlay(tester);
     expect(find.text('Nessun episodio disponibile.'), findsOneWidget);
     expect(find.text('play'), findsOneWidget);
+  });
+
+  testWidgets('trailer locale: si apre nel player dall\'inizio',
+      (tester) async {
+    library.localTrailerItems['m1'] = [
+      testItem(id: 't1', kind: ItemKind.other),
+    ];
+    await pumpLauncher(
+        tester, testItem(id: 'm1', localTrailers: 1, positionTicks: minutes23),
+        trailer: true);
+    await tapPlay(tester);
+    expect(find.text('player t1 -'), findsOneWidget);
   });
 }

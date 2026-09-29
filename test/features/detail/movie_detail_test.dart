@@ -89,4 +89,10 @@ void main() {
     await pumpDetail(tester);
     expect(find.text('Riprova'), findsOneWidget);
   });
+
+  testWidgets('solo trailer locale: pulsante presente', (tester) async {
+    api.itemsById['m1'] = testItem(id: 'm1', localTrailers: 1);
+    await pumpDetail(tester);
+    expect(find.text('Trailer'), findsOneWidget);
+  });
 }
