@@ -113,8 +113,10 @@ class UpdateController extends Notifier<UpdateState> {
           '${mandatory ? ' (obbligatorio)' : ''}');
     } on Object catch (error) {
       _log.warning('aggiornamento non riuscito: $error');
+      // Un errore temporaneo non sblocca un aggiornamento già obbligatorio.
       final release = state.release;
-      _set(mandatory && release != null
+      final keep = (mandatory || state.mandatory) && release != null;
+      _set(keep
           ? UpdateState(release: release, mandatory: true, failed: true)
           : const UpdateState());
     } finally {

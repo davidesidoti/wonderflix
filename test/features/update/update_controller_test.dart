@@ -134,6 +134,30 @@ void main() {
     expect(c.read(updateControllerProvider).ready, isTrue);
   });
 
+  /// Aspetta che [done] sia vero (il controllo scrive su disco).
+  Future<void> waitFor(ProviderContainer c, bool Function(UpdateState) done) async {
+    for (var i = 0; i < 100 && !done(c.read(updateControllerProvider)); i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+  }
+
+  test('obbligatorio: un errore di rete al nuovo tentativo non sblocca l\'app',
+      () async {
+    api.latest = latestJson('0.2.0',
+        body: '<!-- wonderflix:min-version=0.2.0 -->');
+    api.downloadError = const SocketException('offline');
+    final c = container();
+    await checked(c);
+
+    api.latestError = const SocketException('offline');
+    c.read(updateControllerProvider.notifier).retry();
+    await waitFor(c, (s) => s.failed || s.release == null);
+    final state = c.read(updateControllerProvider);
+    expect(state.mandatory, isTrue);
+    expect(state.failed, isTrue);
+    expect(state.release, isNotNull);
+  });
+
   test('facoltativo con errore di rete: nessun segno per l\'utente', () async {
     api.latestError = const SocketException('offline');
     final state = await checked(container());
