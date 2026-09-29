@@ -129,4 +129,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create $env:GITHUB_REF_NAME dist/* --draft --title "WonderFlix ${{ steps.version.outputs.version }}" --notes "Scrivi qui le note di rilascio (docs/RELEASING.md)."
+          # Pipeline rilanciata sullo stesso tag: la release esiste già, si
+          # sostituiscono solo i file (note e stato restano).
+          gh release view $env:GITHUB_REF_NAME *> $null
+          $exists = $LASTEXITCODE -eq 0
+          $global:LASTEXITCODE = 0
+          # Elenco esplicito dei file: su Windows `dist/*` non è espanso da pwsh.
+          $assets = (Get-ChildItem dist -File).FullName
+          if ($exists) {
+            gh release upload $env:GITHUB_REF_NAME $assets --clobber
+          } else {
+            gh release create $env:GITHUB_REF_NAME $assets --draft --title "WonderFlix ${{ steps.version.outputs.version }}" --notes "Scrivi qui le note di rilascio (docs/RELEASING.md)."
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

@@ -29,7 +29,7 @@ Firma del codice (per ora spenta in `release.yml`): `WONDERFLIX_SIGNING_CERT` (c
    git push origin v0.1.1
    ```
    Il tag deve essere esattamente `v` + la versione di `pubspec.yaml`, altrimenti la pipeline si ferma.
-4. Attendi la fine di **Release** in *Actions*: la pipeline crea una GitHub Release in **bozza** con `WonderFlix-Setup-0.1.1.exe` e il suo `.sha256`.
+4. Attendi la fine di **Release** in *Actions*: la pipeline crea una GitHub Release in **bozza** con `WonderFlix-Setup-0.1.1.exe` e il suo `.sha256`. Se la rilanci sullo stesso tag (*Re-run jobs*), la release esiste già: la pipeline sostituisce solo i due file (`gh release upload --clobber`), note e stato restano.
 5. Scrivi le note di rilascio nella bozza (markdown: l'app le mostra così).
 6. **Solo se l'aggiornamento è obbligatorio** (compatibilità col server, bug gravi): aggiungi alle note la riga
    ```
