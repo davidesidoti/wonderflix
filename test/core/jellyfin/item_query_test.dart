@@ -31,7 +31,7 @@ void main() {
     ).toQueryParameters(userId: 'u1', startIndex: 0, limit: 20);
     expect(params['includeItemTypes'], 'Movie,Series');
     expect(params['sortBy'], 'ProductionYear,SortName');
-    expect(params['sortOrder'], 'Descending');
+    expect(params['sortOrder'], 'Descending,Ascending');
     expect(params['genres'], 'Azione|Dramma');
     expect(params['years'], '2023');
     expect(params['isPlayed'], false);
@@ -46,6 +46,18 @@ void main() {
             .toQueryParameters(userId: 'u', startIndex: 0, limit: 1);
     expect(p({ItemKind.movie})['sortBy'], 'DateCreated,SortName');
     expect(p({ItemKind.series})['sortBy'], 'DateLastContentAdded,SortName');
+  });
+
+  test('ordinamenti a due chiavi: un ordine per chiave', () {
+    for (final sort in [
+      CatalogSort.dateAdded,
+      CatalogSort.year,
+      CatalogSort.rating,
+    ]) {
+      final params = ItemQuery(kinds: const {ItemKind.movie}, sort: sort)
+          .toQueryParameters(userId: 'u', startIndex: 0, limit: 1);
+      expect(params['sortOrder'], 'Descending,Ascending', reason: '$sort');
+    }
   });
 
   test('copyWith e hasFilters', () {

@@ -57,6 +57,15 @@ void main() {
     expect(find.text('Arrival'), findsOneWidget);
   });
 
+  testWidgets('trailer con schema non web: nessun pulsante', (tester) async {
+    api.itemsById['m1'] = testItem(id: 'm1', trailers: [
+      {'Url': 'javascript:alert(1)'},
+    ]);
+    await pumpDetail(tester);
+    expect(find.text('DUNE: PARTE DUE'), findsOneWidget);
+    expect(find.text('Trailer'), findsNothing);
+  });
+
   testWidgets('cuore: aggiunge a La mia lista', (tester) async {
     await pumpDetail(tester);
     await tester.tap(find.byTooltip('Aggiungi a La mia lista'));

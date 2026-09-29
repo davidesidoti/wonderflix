@@ -47,6 +47,20 @@ void main() {
     expect(item.localTrailerCount, 1);
   });
 
+  test('trailer senza indirizzo vengono scartati', () {
+    final item = JellyfinItem.fromJson({
+      'Id': 'm1',
+      'Name': 'X',
+      'Type': 'Movie',
+      'RemoteTrailers': [
+        {'Url': null},
+        {'Url': ''},
+        {'Url': 'https://y'},
+      ],
+    });
+    expect(item.remoteTrailers.single.url, 'https://y');
+  });
+
   test('episodio', () {
     final item = JellyfinItem.fromJson({
       'Id': 'e4',

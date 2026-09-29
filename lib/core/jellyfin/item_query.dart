@@ -62,14 +62,16 @@ class ItemQuery {
     required int limit,
   }) {
     final onlySeries = kinds.length == 1 && kinds.contains(ItemKind.series);
+    // Jellyfin applica il primo `sortOrder` a ogni chiave senza un ordine
+    // proprio: per gli ordinamenti a due chiavi ne serve uno per chiave.
     final (sortBy, sortOrder) = switch (sort) {
       CatalogSort.title => ('SortName', 'Ascending'),
       CatalogSort.dateAdded => (
           onlySeries ? 'DateLastContentAdded,SortName' : 'DateCreated,SortName',
-          'Descending'
+          'Descending,Ascending'
         ),
-      CatalogSort.year => ('ProductionYear,SortName', 'Descending'),
-      CatalogSort.rating => ('CommunityRating,SortName', 'Descending'),
+      CatalogSort.year => ('ProductionYear,SortName', 'Descending,Ascending'),
+      CatalogSort.rating => ('CommunityRating,SortName', 'Descending,Ascending'),
     };
     final term = searchTerm;
     return {

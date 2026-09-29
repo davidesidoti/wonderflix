@@ -17,6 +17,16 @@ import '../library/user_data.dart';
 import '../playback/play_launcher.dart';
 import 'primary_action.dart';
 
+/// Primo trailer con indirizzo web valido (solo `http`/`https`), se esiste.
+Uri? _trailerUri(JellyfinItem item) {
+  if (item.remoteTrailers.isEmpty) return null;
+  final uri = Uri.tryParse(item.remoteTrailers.first.url);
+  if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https')) {
+    return null;
+  }
+  return uri;
+}
+
 /// Parte alta di una scheda: sfondo, logo o titolo, dati, trama, azioni.
 class DetailHeader extends ConsumerWidget {
   const DetailHeader({super.key, required this.item, required this.primary});
@@ -45,6 +55,7 @@ class DetailHeader extends ConsumerWidget {
     final logo = urls.logo(item);
     final action = primary;
     final overview = item.overview;
+    final trailerUri = _trailerUri(item);
 
     return SizedBox(
       height: 560,
@@ -126,12 +137,12 @@ class DetailHeader extends ConsumerWidget {
                         onPressed: () =>
                             playItem(context, action.target, fromStart: true),
                       ),
-                    if (item.remoteTrailers.isNotEmpty)
+                    if (trailerUri != null)
                       WfButton.secondary(
                         label: l.actionTrailer,
                         icon: LucideIcons.clapperboard,
                         onPressed: () => unawaited(launchUrl(
-                          Uri.parse(item.remoteTrailers.first.url),
+                          trailerUri,
                           mode: LaunchMode.externalApplication,
                         )),
                       ),

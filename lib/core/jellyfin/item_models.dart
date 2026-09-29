@@ -187,8 +187,11 @@ class JellyfinItem {
       parentIndexNumber: _int(json['ParentIndexNumber']),
       userData: UserItemData.fromJson(json['UserData'] as Map<String, dynamic>?),
       people: _objectList(json['People']).map(PersonRef.fromJson).toList(),
-      remoteTrailers:
-          _objectList(json['RemoteTrailers']).map(TrailerLink.fromJson).toList(),
+      // `MediaUrl.Url` è nullable nell'API: scarta i trailer senza indirizzo.
+      remoteTrailers: _objectList(json['RemoteTrailers'])
+          .where((t) => t['Url'] is String && (t['Url'] as String).isNotEmpty)
+          .map(TrailerLink.fromJson)
+          .toList(),
       localTrailerCount: _int(json['LocalTrailerCount']) ?? 0,
       childCount: _int(json['ChildCount']),
     );
