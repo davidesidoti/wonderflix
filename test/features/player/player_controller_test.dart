@@ -165,4 +165,96 @@ void main() {
     expect(playback.stopped, hasLength(1));
     expect(engine.disposed, isTrue);
   });
+
+  test('sottotitoli: esterno caricato una volta, interni, nessuno', () async {
+    final controller = await start();
+    await controller.selectSubtitle(5);
+    expect(engine.addedSubtitles,
+        ['https://media.example.com/Videos/m1/ms1/Subtitles/5/0/Stream.srt']);
+    expect(view().subtitleIndex, 5);
+
+    await controller.selectSubtitle(4);
+    expect(engine.selectedSubtitle.last, '2');
+
+    await controller.selectSubtitle(5);
+    expect(engine.addedSubtitles, hasLength(1), reason: 'già caricato');
+    expect(engine.selectedSubtitle.last, '100');
+
+    await controller.selectSubtitle(null);
+    expect(engine.selectedSubtitle.last, isNull);
+    expect(view().subtitleIndex, isNull);
+    expect(playback.progress, isNotEmpty);
+  });
+
+  test('audio in direct play: cambia traccia senza riaprire', () async {
+    final controller = await start();
+    await controller.selectAudio(2);
+    expect(engine.selectedAudio.last, '2');
+    expect(view().audioIndex, 2);
+    expect(engine.opened, hasLength(1));
+  });
+
+  test('audio in transcodifica: riapre la conversione dal punto attuale',
+      () async {
+    playback.onPlaybackInfo = (_) => testPlaybackInfo(directPlay: false);
+    final controller = await start();
+    engine.emitPosition(const Duration(minutes: 10));
+
+    await controller.selectAudio(2);
+    await pumpEventQueue();
+    final call = playback.playbackInfoCalls.last;
+    expect(call.allowDirect, isFalse);
+    expect(call.audioStreamIndex, 2);
+    expect(call.subtitleStreamIndex, 3);
+    expect(call.start, const Duration(minutes: 10));
+    expect(engine.opened, hasLength(2));
+    expect(playback.stopped, hasLength(1),
+        reason: 'la sessione precedente viene chiusa');
+    expect(view().audioIndex, 2);
+    expect(view().status, PlayerStatus.ready);
+  });
+
+  test('transcodifica: un sottotitolo bruciato richiede una nuova conversione',
+      () async {
+    playback.onPlaybackInfo = (_) => testPlaybackInfo(directPlay: false);
+    final controller = await start();
+
+    await controller.selectSubtitle(4);
+    expect(playback.playbackInfoCalls.last.subtitleStreamIndex, 4);
+    expect(engine.opened, hasLength(2));
+    expect(view().subtitleIndex, 4);
+
+    await controller.selectSubtitle(null);
+    expect(playback.playbackInfoCalls.last.subtitleStreamIndex, -1);
+    expect(engine.opened, hasLength(3));
+    expect(view().subtitleIndex, isNull);
+  });
+
+  test('comandi: pausa, salti nei limiti, volume, muto, ritardo', () async {
+    final controller = await start();
+    await controller.togglePlay();
+    expect(engine.playing, isFalse);
+    await controller.togglePlay();
+    expect(engine.playing, isTrue);
+
+    await controller.seekBy(const Duration(minutes: -10));
+    expect(engine.seeks.last, Duration.zero);
+    await controller.seekTo(const Duration(hours: 3));
+    expect(engine.seeks.last, const Duration(hours: 2));
+
+    await controller.setVolume(150);
+    expect(engine.volumes.last, 100);
+    await controller.changeVolumeBy(-5);
+    expect(engine.volumes.last, 95);
+    await controller.toggleMute();
+    expect(engine.volumes.last, 0);
+    expect(view().muted, isTrue);
+    await controller.toggleMute();
+    expect(engine.volumes.last, 95);
+
+    await controller.shiftSubtitleDelay(const Duration(milliseconds: 100));
+    await controller.shiftSubtitleDelay(const Duration(milliseconds: 100));
+    expect(engine.subtitleDelays.last, const Duration(milliseconds: 200));
+    expect(view().subtitleDelay, const Duration(milliseconds: 200));
+  });
 }

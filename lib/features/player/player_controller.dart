@@ -138,6 +138,8 @@ class PlayerController extends Notifier<PlayerViewState> {
 
   VideoEngine get engine => _engine;
 
+  bool get _ready => _view.status == PlayerStatus.ready && _closing == null;
+
   @override
   PlayerViewState build() {
     _engine = ref.read(videoEngineFactoryProvider)();
@@ -318,6 +320,81 @@ class PlayerController extends Notifier<PlayerViewState> {
       audioIndex: hadPlan ? _view.audioIndex : null,
       subtitleIndex: hadPlan ? (_view.subtitleIndex ?? -1) : null,
     );
+  }
+
+  Future<void> togglePlay() async {
+    if (!_ready) return;
+    await (_engine.playing ? _engine.pause() : _engine.play());
+  }
+
+  /// Salta a [position], entro i limiti del video.
+  Future<void> seekTo(Duration position) async {
+    if (!_ready) return;
+    final duration = _engine.duration;
+    var target = position < Duration.zero ? Duration.zero : position;
+    if (duration > Duration.zero && target > duration) target = duration;
+    await _engine.seek(target);
+    _reporter?.onEvent();
+  }
+
+  Future<void> seekBy(Duration offset) => seekTo(_engine.position + offset);
+
+  /// 0–100. Toglie anche il muto.
+  Future<void> setVolume(double volume) async {
+    final value = volume.clamp(0.0, 100.0);
+    _emit(_view.copyWith(volume: value, muted: false));
+    await _engine.setVolume(value);
+  }
+
+  Future<void> changeVolumeBy(double delta) => setVolume(_view.volume + delta);
+
+  Future<void> toggleMute() async {
+    final muted = !_view.muted;
+    _emit(_view.copyWith(muted: muted));
+    await _engine.setVolume(muted ? 0 : _view.volume);
+    _reporter?.onEvent();
+  }
+
+  Future<void> selectAudio(int index) async {
+    final plan = _view.plan;
+    if (plan == null || !_ready || index == _view.audioIndex) return;
+    if (plan.isTranscode) {
+      // L'audio è scelto dal server nella conversione: va rifatta.
+      return _start(_engine.position,
+          forceTranscode: true,
+          audioIndex: index,
+          subtitleIndex: _view.subtitleIndex ?? -1);
+    }
+    final stream = plan.mediaSource.stream(index);
+    final track =
+        stream == null ? null : engineTrackFor(stream, await _engine.tracks());
+    if (track == null) return;
+    await _engine.selectAudio(track.id);
+    _emit(_view.copyWith(audioIndex: index));
+    _reporter?.onEvent();
+  }
+
+  /// `null` = nessun sottotitolo.
+  Future<void> selectSubtitle(int? index) async {
+    final plan = _view.plan;
+    if (plan == null || !_ready || index == _view.subtitleIndex) return;
+    if (plan.burnsIn(_view.subtitleIndex) || plan.burnsIn(index)) {
+      // Sottotitolo bruciato nel video: il server deve rifare la conversione.
+      return _start(_engine.position,
+          forceTranscode: true,
+          audioIndex: _view.audioIndex,
+          subtitleIndex: index ?? -1);
+    }
+    await _showSubtitle(plan, index);
+    _emit(_view.copyWith(subtitleIndex: index));
+    _reporter?.onEvent();
+  }
+
+  /// Positivo = sottotitoli più tardi.
+  Future<void> shiftSubtitleDelay(Duration step) async {
+    final delay = _view.subtitleDelay + step;
+    _emit(_view.copyWith(subtitleDelay: delay));
+    await _engine.setSubtitleDelay(delay);
   }
 
   /// Chiude la riproduzione: segnala la fine a Jellyfin (attesa massima 2 s),
