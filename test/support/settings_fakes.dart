@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:wonderflix/core/jellyfin/system_api.dart';
 import 'package:wonderflix/core/jellyfin/user_config_api.dart';
 
 /// `UserConfigApi` in memoria.
@@ -40,5 +41,17 @@ class FakeUserConfigApi implements UserConfigApi {
     }
     saved.add((userId, configuration));
     config = Map<String, dynamic>.of(configuration);
+  }
+}
+
+/// `SystemApi` in memoria; con [version] `null` il server non risponde.
+class FakeSystemApi implements SystemApi {
+  String? version = '10.11.9';
+
+  @override
+  Future<String> serverVersion() async {
+    final current = version;
+    if (current == null) throw StateError('server non raggiungibile');
+    return current;
   }
 }

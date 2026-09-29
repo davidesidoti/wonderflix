@@ -5,6 +5,7 @@ import '../config/app_config.dart';
 import '../core/jellyfin/auth_api.dart';
 import '../core/jellyfin/client_info.dart';
 import '../core/jellyfin/jellyfin_http.dart';
+import '../core/jellyfin/system_api.dart';
 import '../core/storage/session_store.dart';
 import '../features/auth/auth_service.dart';
 
@@ -30,6 +31,9 @@ final jellyfinHttpProvider = Provider<JellyfinHttp>((ref) {
 
 final authApiProvider =
     Provider<AuthApi>((ref) => AuthApi(ref.watch(jellyfinHttpProvider)));
+
+final systemApiProvider =
+    Provider<SystemApi>((ref) => SystemApi(ref.watch(jellyfinHttpProvider)));
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService(
       http: ref.watch(jellyfinHttpProvider),
