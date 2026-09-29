@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/error_text.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
+import 'package:wonderflix/core/video/video_engine.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
 void main() {
@@ -18,5 +19,12 @@ void main() {
         'Qualcosa è andato storto. Riprova.');
     expect(describeError(l, StateError('x')),
         'Qualcosa è andato storto. Riprova.');
+  });
+
+  test('errori della riproduzione', () {
+    expect(describeError(l, const PlaybackUnavailableException('NotAllowed')),
+        'Questo contenuto non si può riprodurre.');
+    expect(describeError(l, const EngineOpenException('x')),
+        'Il video non si è avviato.');
   });
 }
