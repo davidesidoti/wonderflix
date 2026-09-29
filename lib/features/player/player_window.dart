@@ -8,6 +8,8 @@ abstract class PlayerWindow {
 
   /// Con `true` la finestra non si chiude da sola: vengono chiamati gli
   /// ascoltatori di [addCloseListener], che poi devono chiamare [destroy].
+  /// Ogni `true` va bilanciato da un `false`: la chiusura torna libera solo
+  /// dopo l'ultimo.
   Future<void> setPreventClose(bool value);
 
   Future<void> destroy();
@@ -20,12 +22,26 @@ abstract class PlayerWindow {
 class WindowManagerPlayerWindow implements PlayerWindow {
   final _listeners = <Future<void> Function(), _CloseListener>{};
 
+  /// Richieste di [setPreventClose] attive. Un nuovo player può montarsi
+  /// prima che il precedente venga smontato: la chiusura resta bloccata
+  /// finché l'ultimo non la rilascia.
+  int _preventCloseRequests = 0;
+
   @override
   Future<void> setFullScreen(bool value) => windowManager.setFullScreen(value);
 
   @override
-  Future<void> setPreventClose(bool value) =>
-      windowManager.setPreventClose(value);
+  Future<void> setPreventClose(bool value) async {
+    if (value) {
+      if (_preventCloseRequests++ == 0) {
+        await windowManager.setPreventClose(true);
+      }
+    } else if (_preventCloseRequests > 0) {
+      if (--_preventCloseRequests == 0) {
+        await windowManager.setPreventClose(false);
+      }
+    }
+  }
 
   @override
   Future<void> destroy() => windowManager.destroy();

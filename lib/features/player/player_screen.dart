@@ -107,6 +107,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _fullscreen = false;
       unawaited(_window.setFullScreen(false));
     }
+    // Gli avvisi di conversione riguardano il player: non devono restare
+    // (né arrivare dalla coda) sulla schermata a cui si torna.
+    ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
     if (context.canPop()) {
       context.pop();
     } else {

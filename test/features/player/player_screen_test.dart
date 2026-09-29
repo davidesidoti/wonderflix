@@ -189,6 +189,19 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('avviso di conversione: non resta sulla Home all\'uscita',
+      (tester) async {
+    engine.failOpens = 1;
+    await pumpPlayer(tester);
+    expect(find.text('Il server sta convertendo questo video.'), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('home'), findsOneWidget);
+    expect(find.text('Il server sta convertendo questo video.'), findsNothing);
+    await unmount(tester);
+  });
+
   testWidgets('errore: Riprova riavvia', (tester) async {
     engine.failOpens = 2;
     await pumpPlayer(tester);
