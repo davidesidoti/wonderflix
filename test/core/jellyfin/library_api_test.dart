@@ -1,0 +1,114 @@
+import 'package:dio/dio.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/item_models.dart';
+import 'package:wonderflix/core/jellyfin/item_query.dart';
+import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
+import 'package:wonderflix/core/jellyfin/library_api.dart';
+
+import '../../support/fake_adapter.dart';
+import '../../support/test_data.dart';
+
+Map<String, dynamic> itemsResult(List<String> ids, {int? total}) => {
+      'Items': [
+        for (final id in ids) {'Id': id, 'Name': 'N$id', 'Type': 'Movie'},
+      ],
+      'TotalRecordCount': total ?? ids.length,
+    };
+
+void main() {
+  late FakeAdapter adapter;
+  late LibraryApi api;
+
+  setUp(() {
+    adapter = FakeAdapter((_) => FakeResponse(200, itemsResult(['a', 'b'])));
+    api = LibraryApi(JellyfinHttp(
+        baseUrl: testServerUrl, clientInfo: testClientInfo, adapter: adapter));
+  });
+
+  RequestOptionsView last() => RequestOptionsView(adapter.requests.last);
+
+  test('items usa ItemQuery e legge il totale', () async {
+    adapter.handler = (_) => FakeResponse(200, itemsResult(['a'], total: 250));
+    final page = await api.items(const ItemQuery(kinds: {ItemKind.movie}),
+        userId: 'u1', startIndex: 0, limit: 100);
+    expect(last().path, '/Items');
+    expect(last().query['includeItemTypes'], 'Movie');
+    expect(page.items.single.id, 'a');
+    expect(page.totalCount, 250);
+  });
+
+  test('resume e nextUp', () async {
+    await api.resume('u1', limit: 10);
+    expect(last().path, '/UserItems/Resume');
+    expect(last().query['includeItemTypes'], 'Movie,Episode');
+    expect(last().query['limit'], 10);
+
+    await api.nextUp('u1', seriesId: 's1', limit: 1, enableResumable: true);
+    expect(last().path, '/Shows/NextUp');
+    expect(last().query['seriesId'], 's1');
+    expect(last().query['enableResumable'], true);
+  });
+
+  test('item, stagioni, episodi, simili', () async {
+    adapter.handler = (_) => const FakeResponse(200, {'Id': 'm1', 'Name': 'Dune', 'Type': 'Movie'});
+    final item = await api.item('u1', 'm1');
+    expect(last().path, '/Items/m1');
+    expect(last().query['userId'], 'u1');
+    expect(item.name, 'Dune');
+
+    adapter.handler = (_) => FakeResponse(200, itemsResult(['x']));
+    await api.seasons('u1', 's1');
+    expect(last().path, '/Shows/s1/Seasons');
+    await api.episodes('u1', 's1', 'se1');
+    expect(last().path, '/Shows/s1/Episodes');
+    expect(last().query['seasonId'], 'se1');
+    await api.similar('u1', 'm1', limit: 12);
+    expect(last().path, '/Items/m1/Similar');
+  });
+
+  test('filtri: generi e anni (dal più recente)', () async {
+    adapter.handler = (_) => const FakeResponse(200, {
+          'Genres': ['Dramma', 'Azione'],
+          'Years': [1999, 2024, 2010],
+        });
+    final filters = await api.filters('u1', ItemKind.series);
+    expect(last().path, '/Items/Filters');
+    expect(last().query['includeItemTypes'], 'Series');
+    expect(filters.genres, ['Dramma', 'Azione']);
+    expect(filters.years, [2024, 2010, 1999]);
+  });
+
+  test('ricerca persone', () async {
+    await api.searchPeople('u1', 'zen', limit: 12);
+    expect(last().path, '/Persons');
+    expect(last().query['searchTerm'], 'zen');
+  });
+
+  test('preferiti e visti: POST per attivare, DELETE per disattivare', () async {
+    adapter.handler = (_) => const FakeResponse(200, {'IsFavorite': true, 'Played': true});
+    final fav = await api.setFavorite('u1', 'm1', favorite: true);
+    expect(last().method, 'POST');
+    expect(last().path, '/UserFavoriteItems/m1');
+    expect(fav.isFavorite, isTrue);
+
+    await api.setFavorite('u1', 'm1', favorite: false);
+    expect(last().method, 'DELETE');
+
+    await api.setPlayed('u1', 'm1', played: true);
+    expect(last().method, 'POST');
+    expect(last().path, '/UserPlayedItems/m1');
+    await api.setPlayed('u1', 'm1', played: false);
+    expect(last().method, 'DELETE');
+  });
+}
+
+/// Accesso comodo a metodo, percorso e query di una richiesta registrata.
+class RequestOptionsView {
+  RequestOptionsView(this._options);
+
+  final RequestOptions _options;
+
+  String get method => _options.method;
+  String get path => _options.path;
+  Map<String, dynamic> get query => _options.queryParameters;
+}

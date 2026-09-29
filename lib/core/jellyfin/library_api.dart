@@ -1,0 +1,121 @@
+import 'package:dio/dio.dart';
+
+import 'item_models.dart';
+import 'item_query.dart';
+import 'jellyfin_http.dart';
+
+/// Endpoint della libreria (Jellyfin 10.11). Lancia solo `ApiException`.
+class LibraryApi {
+  LibraryApi(this._http);
+
+  final JellyfinHttp _http;
+
+  Future<ItemPage> items(
+    ItemQuery query, {
+    required String userId,
+    required int startIndex,
+    required int limit,
+    CancelToken? cancelToken,
+  }) async {
+    final data = await _http.get('/Items',
+        query: query.toQueryParameters(
+            userId: userId, startIndex: startIndex, limit: limit),
+        cancelToken: cancelToken);
+    return parseJson(
+        data,
+        (json) => ItemPage(
+            _items(json), (json['TotalRecordCount'] as num?)?.toInt() ?? 0));
+  }
+
+  Future<List<JellyfinItem>> resume(String userId, {int limit = 20}) async =>
+      _list(await _http.get('/UserItems/Resume', query: {
+        ...cardImageParams,
+        'userId': userId,
+        'limit': limit,
+        'mediaTypes': 'Video',
+        'includeItemTypes': 'Movie,Episode',
+      }));
+
+  Future<List<JellyfinItem>> nextUp(
+    String userId, {
+    String? seriesId,
+    int limit = 20,
+    bool enableResumable = false,
+  }) async =>
+      _list(await _http.get('/Shows/NextUp', query: {
+        ...cardImageParams,
+        'userId': userId,
+        'limit': limit,
+        'enableResumable': enableResumable,
+        'seriesId': ?seriesId,
+      }));
+
+  Future<JellyfinItem> item(String userId, String itemId) async => parseJson(
+      await _http.get('/Items/$itemId', query: {'userId': userId}),
+      JellyfinItem.fromJson);
+
+  Future<List<JellyfinItem>> seasons(String userId, String seriesId) async =>
+      _list(await _http.get('/Shows/$seriesId/Seasons',
+          query: {...cardImageParams, 'userId': userId}));
+
+  Future<List<JellyfinItem>> episodes(
+          String userId, String seriesId, String seasonId) async =>
+      _list(await _http.get('/Shows/$seriesId/Episodes', query: {
+        ...cardImageParams,
+        'userId': userId,
+        'seasonId': seasonId,
+        'fields': 'Overview,PrimaryImageAspectRatio',
+      }));
+
+  Future<List<JellyfinItem>> similar(String userId, String itemId,
+          {int limit = 12}) async =>
+      _list(await _http.get('/Items/$itemId/Similar',
+          query: {...cardImageParams, 'userId': userId, 'limit': limit}));
+
+  Future<LibraryFilters> filters(String userId, ItemKind kind) async =>
+      parseJson(
+        await _http.get('/Items/Filters',
+            query: {'userId': userId, 'includeItemTypes': kind.apiName}),
+        (json) => LibraryFilters(
+          genres: (json['Genres'] as List? ?? const []).cast<String>().toList(),
+          years: (json['Years'] as List? ?? const [])
+              .map((y) => (y as num).toInt())
+              .toList()
+            ..sort((a, b) => b.compareTo(a)),
+        ),
+      );
+
+  Future<List<JellyfinItem>> searchPeople(
+    String userId,
+    String term, {
+    int limit = 12,
+    CancelToken? cancelToken,
+  }) async =>
+      _list(await _http.get('/Persons',
+          query: {'userId': userId, 'searchTerm': term, 'limit': limit},
+          cancelToken: cancelToken));
+
+  Future<UserItemData> setFavorite(String userId, String itemId,
+          {required bool favorite}) =>
+      _toggle('/UserFavoriteItems/$itemId', userId, favorite);
+
+  Future<UserItemData> setPlayed(String userId, String itemId,
+          {required bool played}) =>
+      _toggle('/UserPlayedItems/$itemId', userId, played);
+
+  Future<UserItemData> _toggle(String path, String userId, bool on) async {
+    final query = {'userId': userId};
+    final data = on
+        ? await _http.post(path, query: query)
+        : await _http.delete(path, query: query);
+    return parseJson(data, UserItemData.fromJson);
+  }
+}
+
+List<JellyfinItem> _items(Map<String, dynamic> json) =>
+    (json['Items'] as List? ?? const [])
+        .cast<Map<String, dynamic>>()
+        .map(JellyfinItem.fromJson)
+        .toList();
+
+List<JellyfinItem> _list(Object? data) => parseJson(data, _items);
