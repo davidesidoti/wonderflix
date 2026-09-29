@@ -145,5 +145,6 @@
   "settingsSupportHint": "To ask for help, copy the diagnostics and paste them into your message.",
   "settingsCopyDiagnostics": "Copy diagnostics",
   "settingsDiagnosticsCopied": "Diagnostics copied to the clipboard",
+  "settingsDiagnosticsCopyError": "Couldn't copy the diagnostics.",
   "settingsOpenLogs": "Open the log folder"
 }

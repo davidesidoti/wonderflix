@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
@@ -319,5 +320,37 @@ void main() {
     await tester.tap(find.text('Apri la cartella dei log'));
     await tester.pump();
     expect(opened, 1);
+  });
+
+  testWidgets('sezione Supporto: errore nel raccogliere la diagnostica',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final warnings = <LogRecord>[];
+    final sub = Logger.root.onRecord
+        .where((r) => r.level >= Level.WARNING)
+        .listen(warnings.add);
+    addTearDown(sub.cancel);
+
+    await pumpApp(tester, const Scaffold(body: SettingsScreen()),
+        surfaceSize: const Size(1440, 2400),
+        overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      clientInfoProvider.overrideWithValue(testClientInfo),
+      sessionControllerProvider.overrideWith(
+          () => FakeSessionController(const SessionSignedIn(testUser))),
+      userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
+      collectDiagnosticsProvider
+          .overrideWithValue(() async => throw StateError('boom')),
+    ]);
+
+    final copy = find.text('Copia diagnostica');
+    await tester.ensureVisible(copy);
+    await tester.tap(copy);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Impossibile copiare la diagnostica.'), findsOneWidget);
+    expect(find.text('Diagnostica copiata negli appunti'), findsNothing);
+    expect(warnings, hasLength(1));
   });
 }

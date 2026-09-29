@@ -18,5 +18,8 @@ void main() {
     expect(en.settingsCopyDiagnostics, 'Copy diagnostics');
     expect(it.settingsDiagnosticsCopied, 'Diagnostica copiata negli appunti');
     expect(en.settingsOpenLogs, 'Open the log folder');
+    expect(it.settingsDiagnosticsCopyError,
+        'Impossibile copiare la diagnostica.');
+    expect(en.settingsDiagnosticsCopyError, "Couldn't copy the diagnostics.");
   });
 }

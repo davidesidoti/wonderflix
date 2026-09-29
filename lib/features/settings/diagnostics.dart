@@ -77,7 +77,10 @@ final openLogsFolderProvider =
           final directory = ref.read(logsDirectoryProvider);
           try {
             directory.createSync(recursive: true);
-            await launchUrl(Uri.file(directory.path, windows: true));
+            if (!await launchUrl(Uri.file(directory.path, windows: true))) {
+              _log.warning('cartella dei log non aperta: launchUrl ha '
+                  'restituito false');
+            }
           } on Object catch (error) {
             _log.warning('cartella dei log non aperta: $error');
           }

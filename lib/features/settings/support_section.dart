@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/theme.dart';
@@ -10,17 +11,26 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_buttons.dart';
 import 'diagnostics.dart';
 
+final _log = Logger('diagnostics');
+
 /// Diagnostica da incollare nelle richieste di aiuto e cartella dei log.
 class SupportSection extends ConsumerWidget {
   const SupportSection({super.key});
 
   Future<void> _copy(BuildContext context, WidgetRef ref) async {
     final l = AppLocalizations.of(context);
-    final text = await ref.read(collectDiagnosticsProvider)();
-    await Clipboard.setData(ClipboardData(text: text));
+    String message;
+    try {
+      final text = await ref.read(collectDiagnosticsProvider)();
+      await Clipboard.setData(ClipboardData(text: text));
+      message = l.settingsDiagnosticsCopied;
+    } on Object catch (error, stack) {
+      _log.warning('diagnostica non copiata', error, stack);
+      message = l.settingsDiagnosticsCopyError;
+    }
     if (!context.mounted) return;
     ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(l.settingsDiagnosticsCopied)));
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
