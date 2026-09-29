@@ -42,3 +42,5 @@ app.*.map.json
 
 # Worktree locali
 .claude/worktrees/
+# Installer generati (installer/wonderflix.iss)
+/dist/

@@ -1,0 +1,123 @@
+﻿; WonderFlix: installer per utente (nessun UAC).
+; Compilazione (dalla root del repository, dopo la build release):
+;   ISCC.exe /DAppVersion=X.Y.Z installer\wonderflix.iss
+; Risultato: dist\WonderFlix-Setup-X.Y.Z.exe
+
+#ifndef AppVersion
+  #error Passa la versione: ISCC.exe /DAppVersion=X.Y.Z installer\wonderflix.iss
+#endif
+
+#define AppName "WonderFlix"
+#define AppExe "wonderflix.exe"
+; Stesso mutex di windows\runner\main.cpp (una sola istanza).
+#define AppMutex "Local\WonderFlix.SingleInstance"
+; Stesso AppUserModelID di windows\runner\main.cpp.
+#define AppUserModelId "it.wonderflix.WonderFlix"
+
+[Setup]
+; Non cambiare mai AppId: identifica l'installazione per aggiornamenti e
+; disinstallazione.
+AppId={{04C266E9-CC09-4851-91D0-CD9EFEC2D109}
+AppName={#AppName}
+AppVersion={#AppVersion}
+AppVerName={#AppName} {#AppVersion}
+AppPublisher={#AppName}
+VersionInfoVersion={#AppVersion}
+DefaultDirName={localappdata}\Programs\{#AppName}
+DefaultGroupName={#AppName}
+DisableDirPage=yes
+DisableProgramGroupPage=yes
+PrivilegesRequired=lowest
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+OutputDir=..\dist
+OutputBaseFilename=WonderFlix-Setup-{#AppVersion}
+SetupIconFile=..\windows\runner\resources\app_icon.ico
+UninstallDisplayIcon={app}\{#AppExe}
+UninstallDisplayName={#AppName}
+Compression=lzma2
+SolidCompression=yes
+WizardStyle=modern
+; L'attesa della chiusura dell'app è in [Code]. Niente AppMutex: in modalità
+; silenziosa il suo messaggio risponderebbe "Annulla".
+CloseApplications=no
+
+[Languages]
+Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
+Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[CustomMessages]
+italian.CloseWonderFlix=WonderFlix è aperto. Chiudilo e premi Riprova.
+english.CloseWonderFlix=WonderFlix is running. Close it and press Retry.
+
+[Tasks]
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
+
+[InstallDelete]
+; Aggiornamento: via i file della versione precedente.
+Type: filesandordirs; Name: "{app}\data"
+
+[Files]
+Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[Icons]
+Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"; AppUserModelID: "{#AppUserModelId}"
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; AppUserModelID: "{#AppUserModelId}"; Tasks: desktopicon
+
+[Run]
+; Installazione normale: casella "Avvia WonderFlix" alla fine.
+Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
+; Aggiornamento dall'app (silenzioso): riapre l'app.
+Filename: "{app}\{#AppExe}"; Flags: nowait skipifnotsilent
+
+[UninstallDelete]
+Type: filesandordirs; Name: "{app}"
+
+[Code]
+const
+  WaitStepMs = 500;
+  WaitSteps = 60; { 30 secondi }
+
+function AppRunning(): Boolean;
+begin
+  Result := CheckForMutexes('{#AppMutex}');
+end;
+
+{ Aggiornamento silenzioso: l'app avvia l'installer e poi si chiude, quindi
+  si aspetta fino a 30 secondi. Installazione normale: si chiede di chiuderla. }
+function InitializeSetup(): Boolean;
+var
+  I: Integer;
+begin
+  if WizardSilent() then
+  begin
+    I := 0;
+    while AppRunning() and (I < WaitSteps) do
+    begin
+      Sleep(WaitStepMs);
+      I := I + 1;
+    end;
+    Result := not AppRunning();
+    if not Result then
+      Log('WonderFlix è ancora aperto: installazione annullata.');
+    Exit;
+  end;
+  while AppRunning() do
+    if MsgBox(CustomMessage('CloseWonderFlix'), mbError, MB_RETRYCANCEL) = IDCANCEL then
+    begin
+      Result := False;
+      Exit;
+    end;
+  Result := True;
+end;
+
+function InitializeUninstall(): Boolean;
+begin
+  while AppRunning() do
+    if SuppressibleMsgBox(CustomMessage('CloseWonderFlix'), mbError, MB_RETRYCANCEL, IDCANCEL) = IDCANCEL then
+    begin
+      Result := False;
+      Exit;
+    end;
+  Result := True;
+end;
