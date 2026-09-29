@@ -14,6 +14,7 @@ import 'playback_service.dart';
 import 'player_providers.dart';
 import 'player_settings.dart';
 import 'progress_reporter.dart';
+import 'segments.dart';
 import 'track_mapping.dart';
 
 /// Elemento da riprodurre e posizione di partenza (chiave del provider).
@@ -36,6 +37,8 @@ class PlayerViewState {
     this.subtitleDelay = Duration.zero,
     this.transcodingFallback = false,
     this.finished = false,
+    this.segments = const [],
+    this.nextEpisode,
   });
 
   final PlayerStatus status;
@@ -61,6 +64,12 @@ class PlayerViewState {
   /// Il video è arrivato alla fine: la schermata esce dal player.
   final bool finished;
 
+  /// Intro, riassunto, crediti… (vuoto finché non sono caricati).
+  final List<MediaSegment> segments;
+
+  /// Episodio che segue quello in riproduzione (solo per le serie).
+  final JellyfinItem? nextEpisode;
+
   List<MediaStreamInfo> get audioStreams =>
       plan?.mediaSource.audioStreams ?? const [];
 
@@ -84,6 +93,8 @@ class PlayerViewState {
     Duration? subtitleDelay,
     bool? transcodingFallback,
     bool? finished,
+    List<MediaSegment>? segments,
+    JellyfinItem? nextEpisode,
   }) =>
       PlayerViewState(
         status: status ?? this.status,
@@ -102,6 +113,8 @@ class PlayerViewState {
         subtitleDelay: subtitleDelay ?? this.subtitleDelay,
         transcodingFallback: transcodingFallback ?? this.transcodingFallback,
         finished: finished ?? this.finished,
+        segments: segments ?? this.segments,
+        nextEpisode: nextEpisode ?? this.nextEpisode,
       );
 }
 
@@ -146,6 +159,12 @@ class PlayerController extends Notifier<PlayerViewState> {
   int? _requestedAudio;
   int? _requestedSubtitle;
 
+  /// Segmenti ed episodio successivo si caricano una volta sola.
+  bool _extrasRequested = false;
+
+  /// Inizio dei segmenti già saltati in automatico.
+  final _autoSkipped = <Duration>{};
+
   VideoEngine get engine => _engine;
 
   bool get _ready => _view.status == PlayerStatus.ready && _closing == null;
@@ -187,6 +206,7 @@ class PlayerController extends Notifier<PlayerViewState> {
       }),
       _engine.errorStream
           .listen((message) => debugPrint('[player] motore: $message')),
+      _engine.positionStream.listen(_onPosition),
     ]);
   }
 
@@ -251,6 +271,10 @@ class PlayerController extends Notifier<PlayerViewState> {
         subtitleIndex: plan.subtitleIndex,
         playing: _engine.playing,
       ));
+      if (!_extrasRequested) {
+        _extrasRequested = true;
+        unawaited(_loadExtras(item));
+      }
       final reporter =
           _reporter = ProgressReporter(api: _api, snapshot: _report);
       final reporting = reporter.start();
@@ -482,6 +506,49 @@ class PlayerController extends Notifier<PlayerViewState> {
     final delay = _view.subtitleDelay + step;
     _emit(_view.copyWith(subtitleDelay: delay));
     await _engine.setSubtitleDelay(delay);
+  }
+
+  /// Salta l'intro o il riassunto in corso.
+  Future<void> skipCurrentSegment() async {
+    final target = skipTargetAt(_view.segments, _engine.position);
+    if (target != null) await seekTo(target.end);
+  }
+
+  /// Salto automatico di intro e riassunti (se attivo nelle impostazioni):
+  /// una volta per segmento, così tornando indietro lo si può rivedere.
+  void _onPosition(Duration position) {
+    if (!_settings.autoSkipIntro || !_ready) return;
+    final target = skipTargetAt(_view.segments, position);
+    if (target == null || !_autoSkipped.add(target.segment.start)) return;
+    unawaited(seekTo(target.end));
+  }
+
+  /// Segmenti ed episodio successivo, a riproduzione già partita: se non
+  /// arrivano il player funziona lo stesso, senza pulsanti extra.
+  Future<void> _loadExtras(JellyfinItem item) async {
+    Future<T> safely<T>(
+        Future<T> Function() load, T fallback, String what) async {
+      try {
+        return await load();
+      } on Object catch (error) {
+        debugPrint('[player] $what non disponibili: $error');
+        return fallback;
+      }
+    }
+
+    final seriesId = item.seriesId;
+    final segments = safely(
+        () => _api.mediaSegments(item.id), const <MediaSegment>[], 'segmenti');
+    final next = item.kind == ItemKind.episode && seriesId != null
+        ? safely<JellyfinItem?>(
+            () => _library.nextEpisode(_userId, seriesId, item.id),
+            null,
+            'episodio successivo')
+        : Future<JellyfinItem?>.value();
+    final loadedSegments = await segments;
+    final loadedNext = await next;
+    if (_closing != null) return;
+    _emit(_view.copyWith(segments: loadedSegments, nextEpisode: loadedNext));
   }
 
   /// Chiude la riproduzione: segnala la fine a Jellyfin (attesa massima 2 s),

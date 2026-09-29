@@ -380,4 +380,77 @@ void main() {
     await start();
     expect(engine.subtitleScales, isEmpty);
   });
+
+  test('segmenti ed episodio successivo caricati dopo la partenza', () async {
+    library.itemsById['m1'] =
+        testItem(id: 'm1', kind: ItemKind.episode, seriesId: 's1');
+    library.nextEpisodes['m1'] =
+        testItem(id: 'm2', kind: ItemKind.episode, seriesId: 's1');
+    playback.segments = const [
+      MediaSegment(
+          type: MediaSegmentType.intro,
+          start: Duration(seconds: 10),
+          end: Duration(seconds: 90)),
+    ];
+    await start();
+    expect(view().segments.single.type, MediaSegmentType.intro);
+    expect(view().nextEpisode?.id, 'm2');
+    expect(library.nextEpisodeCalls, ['m1']);
+    expect(playback.segmentsCalls, ['m1']);
+  });
+
+  test('film: nessun episodio successivo; segmenti non disponibili ignorati',
+      () async {
+    playback.segmentsError = const ServerUnreachableException();
+    await start();
+    expect(view().status, PlayerStatus.ready);
+    expect(view().segments, isEmpty);
+    expect(view().nextEpisode, isNull);
+    expect(library.nextEpisodeCalls, isEmpty);
+  });
+
+  test('salta il segmento in corso', () async {
+    playback.segments = const [
+      MediaSegment(
+          type: MediaSegmentType.recap,
+          start: Duration.zero,
+          end: Duration(seconds: 60)),
+    ];
+    final controller = await start();
+    engine.emitPosition(const Duration(seconds: 5));
+    await controller.skipCurrentSegment();
+    expect(engine.seeks.last, const Duration(seconds: 60));
+  });
+
+  test('salto automatico dell\'intro: una volta sola', () async {
+    settings = const PlayerSettings(autoSkipIntro: true);
+    playback.segments = const [
+      MediaSegment(
+          type: MediaSegmentType.intro,
+          start: Duration(seconds: 10),
+          end: Duration(seconds: 90)),
+    ];
+    await start();
+    engine.emitPosition(const Duration(seconds: 20));
+    await pumpEventQueue();
+    expect(engine.seeks, [const Duration(seconds: 90)]);
+
+    // Tornando indietro nell'intro non la salta più.
+    engine.emitPosition(const Duration(seconds: 30));
+    await pumpEventQueue();
+    expect(engine.seeks, hasLength(1));
+  });
+
+  test('salto automatico spento: nessun salto', () async {
+    playback.segments = const [
+      MediaSegment(
+          type: MediaSegmentType.intro,
+          start: Duration(seconds: 10),
+          end: Duration(seconds: 90)),
+    ];
+    await start();
+    engine.emitPosition(const Duration(seconds: 20));
+    await pumpEventQueue();
+    expect(engine.seeks, isEmpty);
+  });
 }
