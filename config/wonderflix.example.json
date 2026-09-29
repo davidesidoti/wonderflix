@@ -2,5 +2,6 @@
   "serverUrl": "https://media.example.com",
   "githubRepo": "davidesidoti/wonderflix",
   "discordAppId": "000000000000000000",
-  "supportUrl": "https://discord.gg/INVITO"
+  "supportUrl": "https://discord.gg/INVITO",
+  "accessRequestUrl": "https://discord.com/users/000000000000000000"
 }

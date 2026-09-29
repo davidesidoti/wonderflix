@@ -8,11 +8,11 @@ void main() {
     final en = lookupAppLocalizations(const Locale('en'));
     expect(it.discordPaused, 'In pausa');
     expect(en.discordPaused, 'Paused');
-    expect(it.discordJoinButton, 'Entra in WonderFlix');
-    expect(en.discordJoinButton, 'Join WonderFlix');
+    expect(it.discordAccessButton, "Chiedi l'accesso");
+    expect(en.discordAccessButton, 'Ask for access');
     // Limite di Discord per le etichette dei pulsanti.
-    expect(it.discordJoinButton.length, lessThanOrEqualTo(32));
-    expect(en.discordJoinButton.length, lessThanOrEqualTo(32));
+    expect(it.discordAccessButton.length, lessThanOrEqualTo(32));
+    expect(en.discordAccessButton.length, lessThanOrEqualTo(32));
     expect(it.settingsDiscordEnabled, 'Mostra su Discord cosa sto guardando');
     expect(it.settingsCopyDiagnostics, 'Copia diagnostica');
     expect(en.settingsCopyDiagnostics, 'Copy diagnostics');

@@ -6,6 +6,7 @@ class AppConfig {
     required this.githubRepo,
     required this.discordAppId,
     required this.supportUrl,
+    this.accessRequestUrl,
   });
 
   /// Indirizzo HTTPS del server Jellyfin, senza slash finale.
@@ -20,11 +21,16 @@ class AppConfig {
   /// Link per "Password dimenticata?" (es. invito Discord). Opzionale.
   final Uri? supportUrl;
 
+  /// Link del pulsante «Chiedi l'accesso» nell'attività su Discord (es. il
+  /// profilo Discord del proprietario). Opzionale.
+  final Uri? accessRequestUrl;
+
   static AppConfig fromEnvironment() => AppConfig.parse(
         serverUrl: const String.fromEnvironment('serverUrl'),
         githubRepo: const String.fromEnvironment('githubRepo'),
         discordAppId: const String.fromEnvironment('discordAppId'),
         supportUrl: const String.fromEnvironment('supportUrl'),
+        accessRequestUrl: const String.fromEnvironment('accessRequestUrl'),
       );
 
   static AppConfig parse({
@@ -32,6 +38,7 @@ class AppConfig {
     required String githubRepo,
     required String discordAppId,
     required String supportUrl,
+    String accessRequestUrl = '',
   }) {
     final server = Uri.tryParse(serverUrl.trim());
     if (server == null || server.scheme != 'https' || server.host.isEmpty) {
@@ -41,11 +48,16 @@ class AppConfig {
     final normalized =
         server.replace(path: server.path.replaceAll(RegExp(r'/+$'), ''));
     final support = supportUrl.trim();
+    final access = Uri.tryParse(accessRequestUrl.trim());
     return AppConfig(
       serverUrl: normalized,
       githubRepo: githubRepo.trim(),
       discordAppId: discordAppId.trim(),
       supportUrl: support.isEmpty ? null : Uri.tryParse(support),
+      accessRequestUrl: access != null &&
+              (access.isScheme('https') || access.isScheme('http'))
+          ? access
+          : null,
     );
   }
 }

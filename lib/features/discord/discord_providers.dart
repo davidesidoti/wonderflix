@@ -21,7 +21,7 @@ final discordLabelsProvider = Provider<DiscordLabels>((ref) {
       basicLocaleListResolution(PlatformDispatcher.instance.locales,
           AppLocalizations.supportedLocales);
   final l = lookupAppLocalizations(locale);
-  return DiscordLabels(paused: l.discordPaused, button: l.discordJoinButton);
+  return DiscordLabels(paused: l.discordPaused, button: l.discordAccessButton);
 });
 
 /// Crea la pipe verso Discord; nei test si usa una pipe finta.
@@ -49,7 +49,7 @@ MediaSession createDiscordPresence(Ref ref) {
     createClient: () => DiscordIpcClient(createPipe(), clientId: appId),
     settings: () => ref.read(discordSettingsProvider),
     labels: () => ref.read(discordLabelsProvider),
-    supportUrl: config.supportUrl,
+    buttonUrl: config.accessRequestUrl,
   );
   ref.listen(discordSettingsProvider, (_, _) => presence.refresh());
   ref.listen(discordLabelsProvider, (_, _) => presence.refresh());

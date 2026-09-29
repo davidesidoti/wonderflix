@@ -135,7 +135,7 @@
   "settingsSubtitleModeSmart": "When the audio is in another language",
   "settingsSaveError": "Couldn't save. Try again.",
   "discordPaused": "Paused",
-  "discordJoinButton": "Join WonderFlix",
+  "discordAccessButton": "Ask for access",
   "settingsDiscord": "Discord",
   "settingsDiscordEnabled": "Show what I'm watching on Discord",
   "settingsDiscordShowTitle": "Show the title",

@@ -41,6 +41,6 @@ void main() {
     expect(c.read(discordLabelsProvider).paused, 'Paused');
     await c.read(localeProvider.notifier).set(const Locale('it'));
     expect(c.read(discordLabelsProvider).paused, 'In pausa');
-    expect(c.read(discordLabelsProvider).button, 'Entra in WonderFlix');
+    expect(c.read(discordLabelsProvider).button, "Chiedi l'accesso");
   });
 }

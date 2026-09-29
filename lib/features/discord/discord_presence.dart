@@ -26,20 +26,20 @@ class DiscordPresence implements MediaSession {
     required DiscordIpcClient Function() createClient,
     required DiscordSettings Function() settings,
     required DiscordLabels Function() labels,
-    required Uri? supportUrl,
+    required Uri? buttonUrl,
     int? processId,
     this.retryInterval = const Duration(seconds: 30),
     this.minSendInterval = const Duration(seconds: 5),
   })  : _createClient = createClient,
         _settings = settings,
         _labels = labels,
-        _supportUrl = supportUrl,
+        _buttonUrl = buttonUrl,
         _pid = processId ?? io.pid;
 
   final DiscordIpcClient Function() _createClient;
   final DiscordSettings Function() _settings;
   final DiscordLabels Function() _labels;
-  final Uri? _supportUrl;
+  final Uri? _buttonUrl;
   final int _pid;
   final Duration retryInterval;
   final Duration minSendInterval;
@@ -159,7 +159,7 @@ class DiscordPresence implements MediaSession {
         duration: _duration,
         settings: _settings(),
         labels: _labels(),
-        supportUrl: _supportUrl,
+        buttonUrl: _buttonUrl,
       ),
       start: start,
     );

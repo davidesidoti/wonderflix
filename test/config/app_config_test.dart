@@ -4,12 +4,14 @@ import 'package:wonderflix/config/app_config.dart';
 AppConfig parse({
   String serverUrl = 'https://media.example.com',
   String supportUrl = 'https://discord.gg/abc',
+  String accessRequestUrl = '',
 }) =>
     AppConfig.parse(
       serverUrl: serverUrl,
       githubRepo: ' owner/repo ',
       discordAppId: '123',
       supportUrl: supportUrl,
+      accessRequestUrl: accessRequestUrl,
     );
 
 void main() {
@@ -29,6 +31,24 @@ void main() {
 
     test('supportUrl vuoto diventa null', () {
       expect(parse(supportUrl: '  ').supportUrl, isNull);
+    });
+
+    test('accessRequestUrl https letto correttamente', () {
+      final config =
+          parse(accessRequestUrl: 'https://discord.com/users/1');
+      expect(config.accessRequestUrl, Uri.parse('https://discord.com/users/1'));
+    });
+
+    test('accessRequestUrl vuoto diventa null', () {
+      expect(parse(accessRequestUrl: '  ').accessRequestUrl, isNull);
+      expect(parse().accessRequestUrl, isNull);
+    });
+
+    test('accessRequestUrl senza schema http(s) diventa null', () {
+      expect(parse(accessRequestUrl: 'discord.com/users/1').accessRequestUrl,
+          isNull);
+      expect(parse(accessRequestUrl: 'javascript:alert(1)').accessRequestUrl,
+          isNull);
     });
 
     test('rifiuta indirizzi non https', () {

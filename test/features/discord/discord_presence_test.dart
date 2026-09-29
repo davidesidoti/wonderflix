@@ -14,7 +14,7 @@ import '../../support/discord_fakes.dart';
 void main() {
   late FakeDiscordPipe pipe;
   late DiscordSettings settings;
-  const labels = DiscordLabels(paused: 'In pausa', button: 'Entra in WonderFlix');
+  const labels = DiscordLabels(paused: 'In pausa', button: "Chiedi l'accesso");
   const poster = 'https://media.example.com/p.jpg';
 
   setUp(() {
@@ -27,7 +27,7 @@ void main() {
             clientId: '123', pollInterval: const Duration(milliseconds: 10)),
         settings: () => settings,
         labels: () => labels,
-        supportUrl: Uri.parse('https://discord.gg/abc'),
+        buttonUrl: Uri.parse('https://discord.gg/abc'),
         processId: 42,
       );
 
@@ -52,7 +52,7 @@ void main() {
         'state': 'S1:E4 · Pilot',
         'assets': {'large_image': poster, 'large_text': 'Breaking Bad'},
         'buttons': [
-          {'label': 'Entra in WonderFlix', 'url': 'https://discord.gg/abc'},
+          {'label': "Chiedi l'accesso", 'url': 'https://discord.gg/abc'},
         ],
       });
       expect(pipe.pids.single, 42);
@@ -280,7 +280,7 @@ void main() {
         },
         settings: () => settings,
         labels: () => labels,
-        supportUrl: null,
+        buttonUrl: null,
         processId: 42,
       );
       unawaited(p.setMetadata(title: 'Breaking Bad'));

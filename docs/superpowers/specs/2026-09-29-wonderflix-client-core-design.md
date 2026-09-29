@@ -91,7 +91,8 @@ Quattro strati. Ogni strato usa solo quello sotto.
   "serverUrl": "https://…",
   "githubRepo": "owner/repo",
   "discordAppId": "…",
-  "supportUrl": "https://discord.gg/…"
+  "supportUrl": "https://discord.gg/…",
+  "accessRequestUrl": "https://discord.com/users/…"
 }
 ```
 
@@ -302,7 +303,7 @@ Parte da sola dopo 300 ms senza digitazione. Risultati raggruppati in Film, Seri
   - `state`: "S1:E4 · titolo dell'episodio" per le serie, l'anno per i film;
   - timestamp di inizio e fine, per la barra di avanzamento di Discord;
   - immagine grande: il poster (URL dell'immagine sul server) oppure il logo;
-  - pulsante "Entra in WonderFlix" che apre `supportUrl`.
+  - pulsante "Chiedi l'accesso" che apre `accessRequestUrl` (il profilo Discord del proprietario, da cui chiedere l'accesso al server); senza `accessRequestUrl` nessun pulsante.
 - **In pausa:** stato "In pausa", senza timestamp.
 - **Fuori dal player:** l'attività viene cancellata.
 - **Discord non avviato:** nuovo tentativo silenzioso ogni 30 s.

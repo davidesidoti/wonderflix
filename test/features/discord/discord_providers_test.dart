@@ -15,12 +15,59 @@ import '../../support/discord_fakes.dart';
 import '../../support/test_data.dart';
 
 void main() {
-  AppConfig config(String discordAppId) => AppConfig(
+  AppConfig config(String discordAppId,
+          {Uri? supportUrl, Uri? accessRequestUrl}) =>
+      AppConfig(
         serverUrl: testServerUrl,
         githubRepo: 'owner/repo',
         discordAppId: discordAppId,
-        supportUrl: null,
+        supportUrl: supportUrl,
+        accessRequestUrl: accessRequestUrl,
       );
+
+  /// L'attività inviata a Discord con [config] mentre si guarda un titolo.
+  Future<Map<String, Object?>> sentActivity(AppConfig config) async {
+    SharedPreferences.setMockInitialValues({'locale': 'it'});
+    final prefs = await SharedPreferences.getInstance();
+    final pipe = FakeDiscordPipe();
+    late Map<String, Object?> activity;
+    fakeAsync((async) {
+      final container = ProviderContainer(overrides: [
+        appConfigProvider.overrideWithValue(config),
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        discordPipeFactoryProvider.overrideWithValue(() => pipe),
+        discordSessionProvider.overrideWith(createDiscordPresence),
+      ]);
+      unawaited(container
+          .read(mediaSessionProvider)
+          .setMetadata(title: 'Heat', subtitle: '1995'));
+      async.flushMicrotasks();
+      activity = pipe.activities.single!;
+      container.dispose();
+      async.flushMicrotasks();
+    });
+    return activity;
+  }
+
+  test('il pulsante non usa supportUrl: senza accessRequestUrl nessun '
+      'pulsante', () async {
+    final activity = await sentActivity(config('123456789012345678',
+        supportUrl: Uri.parse('https://discord.gg/abc')));
+    expect(activity.containsKey('buttons'), isFalse);
+  });
+
+  test('il pulsante apre accessRequestUrl', () async {
+    final activity = await sentActivity(config('123456789012345678',
+        supportUrl: Uri.parse('https://discord.gg/abc'),
+        accessRequestUrl:
+            Uri.parse('https://discord.com/users/390840489290760192')));
+    expect(activity['buttons'], [
+      {
+        'label': "Chiedi l'accesso",
+        'url': 'https://discord.com/users/390840489290760192',
+      },
+    ]);
+  });
 
   test('Application ID valido: il player aggiorna Discord, che segue le '
       'impostazioni', () async {

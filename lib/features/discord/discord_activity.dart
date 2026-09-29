@@ -12,7 +12,7 @@ class DiscordLabels {
 
   final String paused;
 
-  /// Etichetta del pulsante verso `supportUrl` (max 32 caratteri).
+  /// Etichetta del pulsante verso `buttonUrl` (max 32 caratteri).
   final String button;
 }
 
@@ -30,7 +30,7 @@ Map<String, Object?> buildDiscordActivity({
   Duration? duration,
   required DiscordSettings settings,
   required DiscordLabels labels,
-  Uri? supportUrl,
+  Uri? buttonUrl,
 }) {
   final showTitle = settings.showTitle;
   // La locandina svela il titolo: senza titolo, sempre il logo.
@@ -54,10 +54,10 @@ Map<String, Object?> buildDiscordActivity({
       'large_text': showTitle ? discordText(title) : 'WonderFlix',
     },
     // Discord accetta solo link web nei pulsanti.
-    if (supportUrl != null &&
-        (supportUrl.isScheme('https') || supportUrl.isScheme('http')))
+    if (buttonUrl != null &&
+        (buttonUrl.isScheme('https') || buttonUrl.isScheme('http')))
       'buttons': [
-        {'label': labels.button, 'url': supportUrl.toString()},
+        {'label': labels.button, 'url': buttonUrl.toString()},
       ],
   };
 }

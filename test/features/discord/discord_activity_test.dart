@@ -3,8 +3,8 @@ import 'package:wonderflix/features/discord/discord_activity.dart';
 import 'package:wonderflix/features/discord/discord_settings.dart';
 
 void main() {
-  const labels = DiscordLabels(paused: 'In pausa', button: 'Entra in WonderFlix');
-  final support = Uri.parse('https://discord.gg/abc');
+  const labels = DiscordLabels(paused: 'In pausa', button: "Chiedi l'accesso");
+  final button = Uri.parse('https://discord.gg/abc');
   final start = DateTime.utc(2026, 9, 29, 21);
 
   Map<String, Object?> build({
@@ -14,7 +14,7 @@ void main() {
     DateTime? begin,
     Duration? duration,
     DiscordSettings settings = const DiscordSettings(),
-    Uri? supportUrl,
+    Uri? buttonUrl,
   }) =>
       buildDiscordActivity(
         title: 'Breaking Bad',
@@ -25,7 +25,7 @@ void main() {
         duration: duration,
         settings: settings,
         labels: labels,
-        supportUrl: supportUrl,
+        buttonUrl: buttonUrl,
       );
 
   test('in riproduzione: titolo, episodio, tempi, locandina, pulsante', () {
@@ -33,7 +33,7 @@ void main() {
         build(
             begin: start,
             duration: const Duration(minutes: 47),
-            supportUrl: support),
+            buttonUrl: button),
         {
           'type': 3,
           'details': 'Breaking Bad',
@@ -47,7 +47,7 @@ void main() {
             'large_text': 'Breaking Bad',
           },
           'buttons': [
-            {'label': 'Entra in WonderFlix', 'url': 'https://discord.gg/abc'},
+            {'label': "Chiedi l'accesso", 'url': 'https://discord.gg/abc'},
           ],
         });
   });
@@ -79,19 +79,19 @@ void main() {
         {'large_image': 'logo', 'large_text': 'WonderFlix'});
   });
 
-  test('senza supportUrl: nessun pulsante', () {
+  test('senza buttonUrl: nessun pulsante', () {
     expect(build().containsKey('buttons'), isFalse);
   });
 
-  test('supportUrl non http(s): nessun pulsante', () {
-    expect(build(supportUrl: Uri.parse('discord.gg/abc')).containsKey('buttons'),
+  test('buttonUrl non http(s): nessun pulsante', () {
+    expect(build(buttonUrl: Uri.parse('discord.gg/abc')).containsKey('buttons'),
         isFalse);
     expect(
-        build(supportUrl: Uri.parse('javascript:alert(1)'))
+        build(buttonUrl: Uri.parse('javascript:alert(1)'))
             .containsKey('buttons'),
         isFalse);
     expect(
-        build(supportUrl: Uri.parse('http://example.com'))
+        build(buttonUrl: Uri.parse('http://example.com'))
             .containsKey('buttons'),
         isTrue);
   });
