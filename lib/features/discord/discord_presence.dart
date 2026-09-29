@@ -66,6 +66,10 @@ class DiscordPresence implements MediaSession {
   DateTime? _start;
   Duration? _duration;
 
+  /// Ultima posizione ricevuta: in pausa non avanza, alla ripresa l'inizio
+  /// si ricalcola da qui.
+  Duration? _position;
+
   @override
   bool get handlesMediaKeys => false;
 
@@ -83,12 +87,15 @@ class DiscordPresence implements MediaSession {
     _playing = true;
     _start = null;
     _duration = null;
+    _position = null;
     _sync();
   }
 
   @override
   Future<void> setPlaying(bool playing) async {
     _playing = playing;
+    final position = _position;
+    if (playing && position != null) _start = clock.now().subtract(position);
     _sync();
   }
 
@@ -96,6 +103,7 @@ class DiscordPresence implements MediaSession {
   Future<void> setTimeline(
       {required Duration position, required Duration duration}) async {
     _start = clock.now().subtract(position);
+    _position = position;
     _duration = duration;
     _sync();
   }
@@ -108,6 +116,7 @@ class DiscordPresence implements MediaSession {
     _active = false;
     _start = null;
     _duration = null;
+    _position = null;
     _sync();
   }
 

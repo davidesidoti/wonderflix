@@ -116,6 +116,24 @@ void main() {
     });
   });
 
+  test('ripresa dopo la pausa: inizio dalla posizione, non dall\'ultimo tick',
+      () {
+    fakeAsync((async) {
+      final t0 = clock.now();
+      final p = started(async);
+      unawaited(p.setTimeline(
+          position: const Duration(seconds: 52),
+          duration: const Duration(minutes: 47)));
+      unawaited(p.setPlaying(false));
+      async.elapse(const Duration(seconds: 3));
+      unawaited(p.setPlaying(true));
+      async.elapse(const Duration(seconds: 2));
+      final resumed = t0.add(const Duration(seconds: 3));
+      expect((pipe.activities.last!['timestamps'] as Map)['start'],
+          resumed.subtract(const Duration(seconds: 52)).millisecondsSinceEpoch);
+    });
+  });
+
   test('uscita dal player: attività cancellata', () {
     fakeAsync((async) {
       final p = started(async);
