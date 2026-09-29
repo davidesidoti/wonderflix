@@ -11,6 +11,7 @@ import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/playback_models.dart';
+import 'package:wonderflix/core/media_session/media_session.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/player/playback_service.dart';
@@ -32,6 +33,7 @@ void main() {
   late FakePlaybackApi playback;
   late FakePlayerWindow window;
   late FakeLibraryApi library;
+  late FakeMediaSession mediaSession;
   late List<String> authImageUrls;
   var settings = const PlayerSettings();
 
@@ -39,6 +41,7 @@ void main() {
     engine = FakeVideoEngine()..engineTracks = testEngineTracks;
     playback = FakePlaybackApi();
     window = FakePlayerWindow();
+    mediaSession = FakeMediaSession();
     settings = const PlayerSettings();
     library = FakeLibraryApi()
       ..itemsById['e4'] = testItem(
@@ -85,6 +88,7 @@ void main() {
         )),
         videoEngineFactoryProvider.overrideWithValue(() => engine),
         playerWindowProvider.overrideWithValue(window),
+        mediaSessionFactoryProvider.overrideWithValue(() => mediaSession),
         playerSettingsProvider.overrideWith(() => FakePlayerSettings(settings)),
         sessionControllerProvider.overrideWith(
             () => FakeSessionController(const SessionSignedIn(testUser))),
@@ -395,6 +399,47 @@ void main() {
     await tester.pump();
     expect(authImageUrls.last,
         'https://media.example.com/Videos/e4/Trickplay/320/3.jpg?mediaSourceId=ms1');
+    await unmount(tester);
+  });
+
+  testWidgets('pannello media: titolo, stato, tasti e chiusura',
+      (tester) async {
+    await pumpPlayer(tester);
+    expect(mediaSession.metadata.last.title, 'Breaking Bad');
+    expect(mediaSession.metadata.last.subtitle, 'S1:E4 · Pilot');
+    expect(mediaSession.metadata.last.thumbnailUrl, isNotNull);
+    expect(mediaSession.playingStates.last, isTrue);
+
+    await tester.pump(const Duration(seconds: 5));
+    expect(mediaSession.timelines, isNotEmpty);
+
+    mediaSession.press(MediaButton.pause);
+    await tester.pump();
+    await tester.pump();
+    expect(engine.playing, isFalse);
+
+    mediaSession.press(MediaButton.play);
+    await tester.pump();
+    await tester.pump();
+    expect(engine.playing, isTrue);
+
+    mediaSession.press(MediaButton.stop);
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('home'), findsOneWidget);
+    expect(mediaSession.disposed, isTrue);
+    await unmount(tester);
+  });
+
+  testWidgets('pannello media: "successivo" solo se c\'è un episodio dopo',
+      (tester) async {
+    withNextEpisode();
+    await pumpPlayer(tester);
+    expect(mediaSession.nextEnabled.last, isTrue);
+    mediaSession.press(MediaButton.next);
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('S1:E5 · Cat in the Bag'), findsOneWidget);
     await unmount(tester);
   });
 }

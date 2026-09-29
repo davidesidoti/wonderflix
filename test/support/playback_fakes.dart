@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/playback_api.dart';
 import 'package:wonderflix/core/jellyfin/playback_models.dart';
+import 'package:wonderflix/core/media_session/media_session.dart';
 import 'package:wonderflix/core/video/video_engine.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
 import 'package:wonderflix/features/player/player_window.dart';
@@ -449,3 +450,40 @@ const transparentPng = <int>[
   0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
   0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
 ];
+
+/// Sessione media in memoria: registra gli aggiornamenti e simula i tasti.
+class FakeMediaSession implements MediaSession {
+  final metadata = <({String title, String? subtitle, String? thumbnailUrl})>[];
+  final playingStates = <bool>[];
+  final timelines = <Duration>[];
+  final nextEnabled = <bool>[];
+  bool disposed = false;
+  final _buttons = StreamController<MediaButton>.broadcast();
+
+  void press(MediaButton button) => _buttons.add(button);
+
+  @override
+  Future<void> setMetadata(
+      {required String title, String? subtitle, String? thumbnailUrl}) async {
+    metadata.add((title: title, subtitle: subtitle, thumbnailUrl: thumbnailUrl));
+  }
+
+  @override
+  Future<void> setPlaying(bool playing) async => playingStates.add(playing);
+
+  @override
+  Future<void> setTimeline(
+          {required Duration position, required Duration duration}) async =>
+      timelines.add(position);
+
+  @override
+  Future<void> setNextEnabled(bool enabled) async => nextEnabled.add(enabled);
+
+  @override
+  Stream<MediaButton> get buttons => _buttons.stream;
+
+  @override
+  Future<void> dispose() async {
+    disposed = true;
+  }
+}

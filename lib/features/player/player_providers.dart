@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../core/jellyfin/playback_api.dart';
+import '../../core/media_session/media_session.dart';
 import '../../core/video/media_kit_engine.dart';
 import '../../core/video/video_engine.dart';
 import '../../ui/wf_image.dart';
@@ -45,3 +46,8 @@ final authImageProvider = Provider<ImageProvider Function(String url)>((ref) {
         cacheManager: wonderflixImageCache,
       );
 });
+
+/// Crea la sessione media di ogni riproduzione. Di default non fa nulla;
+/// `main` la sostituisce con SMTC se è disponibile.
+final mediaSessionFactoryProvider =
+    Provider<MediaSession Function()>((ref) => NoopMediaSession.new);

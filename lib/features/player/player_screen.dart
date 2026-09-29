@@ -11,9 +11,13 @@ import '../../app/error_text.dart';
 import '../../app/navigation.dart';
 import '../../app/providers.dart';
 import '../../app/theme.dart';
+import '../../core/jellyfin/item_models.dart';
+import '../../core/media_session/media_session.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_buttons.dart';
 import '../detail/primary_action.dart';
+import '../library/item_labels.dart';
+import '../library/library_providers.dart';
 import '../library/user_data.dart';
 import 'player_commands.dart';
 import 'player_controller.dart';
@@ -63,6 +67,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// L'utente ha chiuso la scheda "Prossimo episodio".
   bool _nextCardDismissed = false;
 
+  late final MediaSession _mediaSession;
+  StreamSubscription<MediaButton>? _mediaButtons;
+  Timer? _timelineTimer;
+
   PlayerController get _controller =>
       ref.read(playerControllerProvider(widget.args).notifier);
 
@@ -72,6 +80,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _window = ref.read(playerWindowProvider);
     _window.addCloseListener(_onWindowClose);
     unawaited(_window.setPreventClose(true));
+    _mediaSession = ref.read(mediaSessionFactoryProvider)();
+    _mediaButtons = _mediaSession.buttons.listen(_onMediaButton);
+    _timelineTimer =
+        Timer.periodic(const Duration(seconds: 5), (_) => _sendTimeline());
     _scheduleHide();
   }
 
@@ -81,6 +93,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _window.removeCloseListener(_onWindowClose);
     unawaited(_window.setPreventClose(false));
     if (_fullscreen && !_handingOver) unawaited(_window.setFullScreen(false));
+    _timelineTimer?.cancel();
+    unawaited(_mediaButtons?.cancel());
+    unawaited(_mediaSession.dispose());
     super.dispose();
   }
 
@@ -161,6 +176,41 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _playNext();
     } else {
       _exit();
+    }
+  }
+
+  void _publishMetadata(JellyfinItem item) {
+    unawaited(_mediaSession.setMetadata(
+      title: cardTitle(item),
+      subtitle: cardSubtitle(item),
+      thumbnailUrl: ref.read(imageUrlsProvider).poster(item)?.url,
+    ));
+  }
+
+  void _sendTimeline() {
+    if (!mounted) return;
+    if (ref.read(playerControllerProvider(widget.args)).status !=
+        PlayerStatus.ready) {
+      return;
+    }
+    final engine = _controller.engine;
+    unawaited(_mediaSession.setTimeline(
+        position: engine.position, duration: engine.duration));
+  }
+
+  /// Tasti del pannello media e della tastiera multimediale.
+  void _onMediaButton(MediaButton button) {
+    if (!mounted) return;
+    final playing = ref.read(playerControllerProvider(widget.args)).playing;
+    switch (button) {
+      case MediaButton.play:
+        if (!playing) unawaited(_controller.togglePlay());
+      case MediaButton.pause:
+        if (playing) unawaited(_controller.togglePlay());
+      case MediaButton.next:
+        _playNext();
+      case MediaButton.stop:
+        _exit();
     }
   }
 
@@ -254,6 +304,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     });
     ref.listen(provider.select((s) => s.playing), (_, playing) {
       if (playing) _scheduleHide();
+      unawaited(_mediaSession.setPlaying(playing));
+    });
+    ref.listen(provider.select((s) => s.item), (_, item) {
+      if (item != null) _publishMetadata(item);
+    });
+    ref.listen(provider.select((s) => s.nextEpisode != null), (_, hasNext) {
+      unawaited(_mediaSession.setNextEnabled(hasNext));
     });
     ref.listen(provider.select((s) => s.transcodingFallback), (_, fallback) {
       if (fallback) {
