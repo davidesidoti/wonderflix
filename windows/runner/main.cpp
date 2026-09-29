@@ -1,6 +1,7 @@
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
 #include <windows.h>
+#include <shobjidl.h>
 
 #include "flutter_window.h"
 #include "utils.h"
@@ -18,6 +19,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     }
     return EXIT_SUCCESS;
   }
+
+  // Identità dell'app per Windows (pannello media, barra delle applicazioni).
+  // È la stessa dei collegamenti creati dall'installer (installer/wonderflix.iss):
+  // senza collegamento, in sviluppo, il pannello media mostra "Unknown app".
+  ::SetCurrentProcessExplicitAppUserModelID(L"it.wonderflix.WonderFlix");
 
   // Attach to console when present (e.g., 'flutter run') or create a
   // new console when running with a debugger.
