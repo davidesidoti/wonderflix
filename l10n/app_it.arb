@@ -1,0 +1,31 @@
+{
+  "@@locale": "it",
+  "appTitle": "WonderFlix",
+  "loginTabPassword": "Password",
+  "loginTabQuickConnect": "Quick Connect",
+  "loginUsername": "Nome utente",
+  "loginPassword": "Password",
+  "loginSubmit": "ACCEDI",
+  "loginForgotPassword": "Password dimenticata?",
+  "loginContactAdmin": "Scrivi all'admin",
+  "sessionExpired": "Sessione scaduta, accedi di nuovo.",
+  "errorInvalidCredentials": "Nome utente o password errati.",
+  "errorAccountDisabled": "Account disabilitato o accesso non consentito.",
+  "errorServerUnreachable": "WonderFlix non è raggiungibile. Controlla la connessione.",
+  "errorGeneric": "Qualcosa è andato storto. Riprova.",
+  "quickConnectYourCode": "Il tuo codice:",
+  "quickConnectWaiting": "In attesa di approvazione…",
+  "quickConnectHelp": "Da telefono o browser già collegati a WonderFlix apri Impostazioni → Quick Connect e inserisci il codice.",
+  "quickConnectDisabled": "Quick Connect non è attivo su questo server.",
+  "retry": "Riprova",
+  "unreachableTitle": "WonderFlix non è raggiungibile",
+  "unreachableBody": "Nuovo tentativo automatico ogni 15 secondi.",
+  "navHome": "Home",
+  "menuLogout": "Esci",
+  "homeWelcome": "Ciao, {name}",
+  "@homeWelcome": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  }
+}
