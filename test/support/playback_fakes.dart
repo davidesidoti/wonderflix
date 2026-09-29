@@ -5,6 +5,7 @@ import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/playback_api.dart';
 import 'package:wonderflix/core/jellyfin/playback_models.dart';
 import 'package:wonderflix/core/video/video_engine.dart';
+import 'package:wonderflix/features/player/player_settings.dart';
 import 'package:wonderflix/features/player/player_window.dart';
 
 /// Stream del file di prova, come li restituisce Jellyfin. In transcodifica
@@ -415,4 +416,19 @@ class FakePlayerWindow implements PlayerWindow {
   /// Simula il clic sulla X della finestra.
   Future<void> simulateClose() =>
       Future.wait([for (final listener in [..._closeListeners]) listener()]);
+}
+
+/// Impostazioni del player in memoria (senza shared_preferences).
+class FakePlayerSettings extends PlayerSettingsController {
+  FakePlayerSettings([this.initial = const PlayerSettings()]);
+
+  final PlayerSettings initial;
+
+  @override
+  PlayerSettings build() => initial;
+
+  @override
+  Future<void> update(PlayerSettings next) async {
+    state = next;
+  }
 }
