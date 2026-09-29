@@ -1,0 +1,43 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/playback_models.dart';
+import 'package:wonderflix/features/player/segments.dart';
+
+void main() {
+  const recap = MediaSegment(
+      type: MediaSegmentType.recap,
+      start: Duration.zero,
+      end: Duration(seconds: 8));
+  const intro = MediaSegment(
+      type: MediaSegmentType.intro,
+      start: Duration(seconds: 10),
+      end: Duration(seconds: 90));
+  const outro = MediaSegment(
+      type: MediaSegmentType.outro,
+      start: Duration(minutes: 40),
+      end: Duration(minutes: 42));
+  const all = [recap, intro, outro];
+
+  test('pulsante durante riassunto e intro', () {
+    expect(skipTargetAt(all, const Duration(seconds: 3))?.kind, SkipKind.recap);
+    final target = skipTargetAt(all, const Duration(seconds: 20));
+    expect(target?.kind, SkipKind.intro);
+    expect(target?.end, const Duration(seconds: 90));
+    expect(skipTargetAt(all, const Duration(seconds: 89, milliseconds: 500)),
+        isNull,
+        reason: 'nell\'ultimo secondo il pulsante non serve');
+    expect(skipTargetAt(all, const Duration(minutes: 41)), isNull,
+        reason: 'i crediti portano alla scheda, non al pulsante');
+    expect(skipTargetAt(const [], Duration.zero), isNull);
+  });
+
+  test('scheda del prossimo episodio: crediti o ultimi 30 s', () {
+    expect(nextEpisodeCardFrom([intro, outro], const Duration(minutes: 42)),
+        const Duration(minutes: 40));
+    expect(nextEpisodeCardFrom([intro], const Duration(minutes: 42)),
+        const Duration(minutes: 41, seconds: 30));
+    expect(nextEpisodeCardFrom(const [], const Duration(seconds: 20)),
+        Duration.zero);
+    expect(nextEpisodeCardFrom(const [], Duration.zero), isNull,
+        reason: 'durata non ancora nota');
+  });
+}
