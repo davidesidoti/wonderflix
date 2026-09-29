@@ -26,6 +26,9 @@ class PlayerOverlay extends StatelessWidget {
     required this.onToggleMute,
     required this.onToggleTracks,
     required this.onToggleFullscreen,
+    this.onNextEpisode,
+    this.chapters = const [],
+    this.preview,
   });
 
   final PlayerViewState view;
@@ -39,6 +42,11 @@ class PlayerOverlay extends StatelessWidget {
   final VoidCallback onToggleMute;
   final VoidCallback onToggleTracks;
   final VoidCallback onToggleFullscreen;
+
+  /// `null` se non c'è un episodio successivo.
+  final VoidCallback? onNextEpisode;
+  final List<ChapterMark> chapters;
+  final Widget? Function(Duration position)? preview;
 
   @override
   Widget build(BuildContext context) {
@@ -117,7 +125,12 @@ class PlayerOverlay extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    SeekBar(engine: engine, onSeek: onSeekTo),
+                    SeekBar(
+                      engine: engine,
+                      onSeek: onSeekTo,
+                      chapters: chapters,
+                      preview: preview,
+                    ),
                     Row(
                       children: [
                         IconButton(
@@ -170,6 +183,12 @@ class PlayerOverlay extends StatelessWidget {
                         const SizedBox(width: 12),
                         TimeLabel(engine: engine),
                         const Spacer(),
+                        if (onNextEpisode != null)
+                          IconButton(
+                            icon: const Icon(LucideIcons.skipForward),
+                            tooltip: l.playerNextEpisode,
+                            onPressed: onNextEpisode,
+                          ),
                         IconButton(
                           icon: const Icon(LucideIcons.captions),
                           tooltip: l.playerAudioAndSubtitles,

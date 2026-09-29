@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/player/player_controller.dart';
 import 'package:wonderflix/features/player/player_overlay.dart';
+import 'package:wonderflix/features/player/seek_bar.dart';
 
 import '../../support/library_fakes.dart';
 import '../../support/playback_fakes.dart';
@@ -80,5 +81,41 @@ void main() {
     expect(find.byIcon(LucideIcons.volumeX), findsOneWidget);
     expect(
         tester.widget<Slider>(find.byKey(const Key('volume-slider'))).value, 0);
+  });
+
+  testWidgets('episodio successivo, capitoli e anteprima', (tester) async {
+    var next = 0;
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: PlayerOverlay(
+          view: const PlayerViewState(status: PlayerStatus.ready, playing: true),
+          engine: FakeVideoEngine(),
+          fullscreen: false,
+          onBack: () {},
+          onTogglePlay: () {},
+          onSeekBy: (_) {},
+          onSeekTo: (_) {},
+          onVolume: (_) {},
+          onToggleMute: () {},
+          onToggleTracks: () {},
+          onToggleFullscreen: () {},
+          onNextEpisode: () => next++,
+          chapters: const [ChapterMark(start: Duration(minutes: 10))],
+          preview: (_) => const SizedBox(),
+        ),
+      ),
+    );
+    await tester.tap(find.byTooltip('Episodio successivo'));
+    expect(next, 1);
+    final bar = tester.widget<SeekBar>(find.byType(SeekBar));
+    expect(bar.chapters, hasLength(1));
+    expect(bar.preview, isNotNull);
+  });
+
+  testWidgets('senza episodio successivo: nessun pulsante', (tester) async {
+    await pumpOverlay(tester,
+        const PlayerViewState(status: PlayerStatus.ready, playing: true));
+    expect(find.byTooltip('Episodio successivo'), findsNothing);
   });
 }
