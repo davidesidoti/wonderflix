@@ -25,6 +25,9 @@ enum ItemKind {
 /// 1 tick Jellyfin = 100 ns.
 Duration ticksToDuration(int ticks) => Duration(microseconds: ticks ~/ 10);
 
+/// Inverso di [ticksToDuration].
+int durationToTicks(Duration duration) => duration.inMicroseconds * 10;
+
 Map<String, String> _stringMap(Object? value) => value is Map
     ? {for (final e in value.entries) '${e.key}': '${e.value}'}
     : const {};
@@ -76,11 +79,18 @@ class UserItemData {
     return (percentage / 100).clamp(0.0, 1.0);
   }
 
-  UserItemData copyWith({bool? played, bool? isFavorite}) => UserItemData(
+  UserItemData copyWith({
+    bool? played,
+    bool? isFavorite,
+    int? playbackPositionTicks,
+    double? playedPercentage,
+  }) =>
+      UserItemData(
         played: played ?? this.played,
         isFavorite: isFavorite ?? this.isFavorite,
-        playbackPositionTicks: playbackPositionTicks,
-        playedPercentage: playedPercentage,
+        playbackPositionTicks:
+            playbackPositionTicks ?? this.playbackPositionTicks,
+        playedPercentage: playedPercentage ?? this.playedPercentage,
         unplayedItemCount: unplayedItemCount,
       );
 }

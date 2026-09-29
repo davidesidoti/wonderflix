@@ -103,4 +103,21 @@ void main() {
     expect(ItemKind.parse(''), ItemKind.other);
     expect(ItemKind.parse(null), ItemKind.other);
   });
+
+  test('durationToTicks è l\'inverso di ticksToDuration', () {
+    expect(durationToTicks(const Duration(seconds: 90)), 900000000);
+    expect(ticksToDuration(durationToTicks(const Duration(minutes: 23))),
+        const Duration(minutes: 23));
+  });
+
+  test('copyWith aggiorna minutaggio e percentuale', () {
+    const data = UserItemData(
+        isFavorite: true, playbackPositionTicks: 10, playedPercentage: 1);
+    final next =
+        data.copyWith(playbackPositionTicks: 600000000, playedPercentage: 50);
+    expect(next.playbackPositionTicks, 600000000);
+    expect(next.playedPercentage, 50);
+    expect(next.isFavorite, isTrue);
+    expect(data.copyWith(played: true).playbackPositionTicks, 10);
+  });
 }
