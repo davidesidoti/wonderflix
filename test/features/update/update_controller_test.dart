@@ -158,6 +158,23 @@ void main() {
     expect(state.release, isNotNull);
   });
 
+  test('obbligatorio fallito e release sparita: "Riprova" torna allo stato vuoto',
+      () async {
+    api.latest = latestJson('0.2.0',
+        body: '<!-- wonderflix:min-version=0.2.0 -->');
+    api.downloadError = const SocketException('offline');
+    final c = container();
+    await checked(c);
+
+    api.latest = null;
+    c.read(updateControllerProvider.notifier).retry();
+    await waitFor(c, (s) => s.release == null);
+    final state = c.read(updateControllerProvider);
+    expect(state.release, isNull);
+    expect(state.mandatory, isFalse);
+    expect(state.progress, isNull);
+  });
+
   test('installer pronto: una nuova versione obbligatoria viene comunque vista',
       () async {
     api.latest = latestJson('0.2.0');

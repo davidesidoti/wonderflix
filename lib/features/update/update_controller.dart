@@ -100,9 +100,16 @@ class UpdateController extends Notifier<UpdateState> {
       final api = ref.read(githubReleasesApiProvider);
       final json = await api.latestRelease(repo);
       final release = json == null ? null : parseRelease(json);
-      if (release == null) return;
+      // Nessun aggiornamento: si azzera lo stato (anche quello di "Riprova").
+      if (release == null) {
+        _set(const UpdateState());
+        return;
+      }
       final current = Version.parse(ref.read(clientInfoProvider).version);
-      if (release.version <= current) return;
+      if (release.version <= current) {
+        _set(const UpdateState());
+        return;
+      }
       final minVersion = release.minVersion;
       mandatory = minVersion != null && current < minVersion;
       // Installer di questa versione già pronto e ancora su disco: aggiorna
