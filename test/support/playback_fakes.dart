@@ -189,6 +189,12 @@ class FakeVideoEngine implements VideoEngine {
   int failOpens = 0;
   List<EngineTrack> engineTracks = const [];
 
+  /// I sottotitoli esterni non si caricano (`addSubtitle` restituisce `null`).
+  bool failAddSubtitle = false;
+
+  /// Se valorizzato, `addSubtitle` resta in attesa finché non si completa.
+  Completer<void>? addSubtitleGate;
+
   final opened = <VideoSource>[];
 
   /// Comandi ricevuti, in ordine (es. `open`, `audio 1`, `play`).
@@ -298,6 +304,9 @@ class FakeVideoEngine implements VideoEngine {
       {String? title, String? language}) async {
     calls.add('add $url');
     addedSubtitles.add(url);
+    await addSubtitleGate?.future;
+    // Come mpv quando `sub-add` fallisce: resta selezionato quello di prima.
+    if (failAddSubtitle) return null;
     final id = '${_nextSubtitleId++}';
     selectedSubtitle.add(id);
     return id;

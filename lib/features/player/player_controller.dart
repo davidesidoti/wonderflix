@@ -131,6 +131,9 @@ class PlayerController extends Notifier<PlayerViewState> {
 
   /// Sottotitoli esterni già caricati nel motore: indice Jellyfin → id.
   final _externalSubtitles = <int, String>{};
+
+  /// Coda delle operazioni sulle tracce (vedi [_serialized]).
+  Future<void> _trackQueue = Future.value();
   Future<void>? _closing;
   int _generation = 0;
   Duration _resumeAt = Duration.zero;
@@ -222,7 +225,7 @@ class PlayerController extends Notifier<PlayerViewState> {
       if (_view.subtitleDelay != Duration.zero) {
         await _engine.setSubtitleDelay(_view.subtitleDelay);
       }
-      await _applyTracks(plan);
+      final pendingSubtitle = await _applyTracks(plan);
       if (stale()) return;
       // Il file è aperto in pausa: parte solo con le tracce già scelte.
       await _engine.play();
@@ -236,7 +239,13 @@ class PlayerController extends Notifier<PlayerViewState> {
       ));
       final reporter =
           _reporter = ProgressReporter(api: _api, snapshot: _report);
-      await reporter.start();
+      final reporting = reporter.start();
+      if (pendingSubtitle != null) {
+        final started = plan;
+        unawaited(_serialized(
+            () => _loadPendingSubtitle(started, pendingSubtitle, stale)));
+      }
+      await reporting;
     } on EngineOpenException catch (error) {
       if (stale()) return;
       if (plan != null && !plan.isTranscode) {
@@ -263,9 +272,14 @@ class PlayerController extends Notifier<PlayerViewState> {
     _emit(_view.copyWith(status: PlayerStatus.error, error: error));
   }
 
-  /// Seleziona nel motore le tracce del piano. In transcodifica l'audio è già
-  /// quello scelto dal server.
-  Future<void> _applyTracks(PlaybackPlan plan) async {
+  /// Seleziona nel motore le tracce del piano, prima della partenza. In
+  /// transcodifica l'audio è già quello scelto dal server.
+  ///
+  /// Un sottotitolo consegnato a parte non viene caricato qui: scaricarlo (o
+  /// estrarlo sul server) può richiedere tempo e non deve ritardare la
+  /// partenza. Restituisce il suo indice, da caricare dopo con
+  /// [_loadPendingSubtitle].
+  Future<int?> _applyTracks(PlaybackPlan plan) async {
     final audioIndex = plan.audioIndex;
     if (!plan.isTranscode && audioIndex != null) {
       final stream = plan.mediaSource.stream(audioIndex);
@@ -273,7 +287,40 @@ class PlayerController extends Notifier<PlayerViewState> {
           stream == null ? null : engineTrackFor(stream, await _engine.tracks());
       if (track != null) await _engine.selectAudio(track.id);
     }
-    await _showSubtitle(plan, plan.subtitleIndex);
+    final index = plan.subtitleIndex;
+    final stream = index == null ? null : plan.mediaSource.stream(index);
+    if (stream != null && stream.deliveredExternally) {
+      // Intanto nessun sottotitolo (mpv potrebbe sceglierne uno del file).
+      await _engine.selectSubtitle(null);
+      return index;
+    }
+    await _showSubtitle(plan, index);
+    return null;
+  }
+
+  /// Carica il sottotitolo iniziale consegnato a parte, a riproduzione già
+  /// partita. Se nel frattempo l'utente ne ha scelto un altro (o il player
+  /// è stato riaperto o chiuso) non fa nulla.
+  Future<void> _loadPendingSubtitle(
+      PlaybackPlan plan, int index, bool Function() stale) async {
+    if (stale() || _view.subtitleIndex != index) return;
+    final shown = await _showSubtitle(plan, index);
+    if (stale() || shown) return;
+    debugPrint('[player] sottotitolo $index non caricato');
+    if (_view.subtitleIndex == index) {
+      _emit(_view.copyWith(subtitleIndex: null));
+      _reporter?.onEvent();
+    }
+  }
+
+  /// Esegue le operazioni sulle tracce una alla volta, nell'ordine in cui
+  /// sono chieste: due clic rapidi non si sovrappongono.
+  Future<void> _serialized(Future<void> Function() task) {
+    final run = _trackQueue.then((_) => task());
+    _trackQueue = run.then((_) {}, onError: (Object error) {
+      debugPrint('[player] tracce: $error');
+    });
+    return run;
   }
 
   /// Mostra il sottotitolo Jellyfin [index] (`null` = nessuno):
@@ -281,20 +328,31 @@ class PlayerController extends Notifier<PlayerViewState> {
   ///   volta dal suo URL, poi riusato;
   /// - interno in direct play: la traccia del file con lo stesso `ff-index`;
   /// - bruciato in transcodifica: è già nel video, non c'è nulla da fare.
-  Future<void> _showSubtitle(PlaybackPlan plan, int? index) async {
+  ///
+  /// `false` se il sottotitolo esterno non si è caricato: nel motore resta
+  /// quello di prima.
+  Future<bool> _showSubtitle(PlaybackPlan plan, int? index) async {
     final stream = index == null ? null : plan.mediaSource.stream(index);
-    if (stream == null) return _engine.selectSubtitle(null);
+    if (stream == null) {
+      await _engine.selectSubtitle(null);
+      return true;
+    }
     if (stream.deliveredExternally) {
       final known = _externalSubtitles[stream.index];
-      if (known != null) return _engine.selectSubtitle(known);
+      if (known != null) {
+        await _engine.selectSubtitle(known);
+        return true;
+      }
       final id = await _engine.addSubtitle(_service.subtitleUrl(stream),
           title: stream.displayTitle, language: stream.language);
-      if (id != null) _externalSubtitles[stream.index] = id;
-      return;
+      if (id == null) return false;
+      _externalSubtitles[stream.index] = id;
+      return true;
     }
-    if (plan.isTranscode) return;
+    if (plan.isTranscode) return true;
     final track = engineTrackFor(stream, await _engine.tracks());
     await _engine.selectSubtitle(track?.id);
+    return true;
   }
 
   PlaybackReport _report() {
@@ -358,40 +416,53 @@ class PlayerController extends Notifier<PlayerViewState> {
     _reporter?.onEvent();
   }
 
-  Future<void> selectAudio(int index) async {
-    final plan = _view.plan;
-    if (plan == null || !_ready || index == _view.audioIndex) return;
-    if (plan.isTranscode) {
-      // L'audio è scelto dal server nella conversione: va rifatta.
-      return _start(_engine.position,
-          forceTranscode: true,
-          audioIndex: index,
-          subtitleIndex: _view.subtitleIndex ?? -1);
-    }
-    final stream = plan.mediaSource.stream(index);
-    final track =
-        stream == null ? null : engineTrackFor(stream, await _engine.tracks());
-    if (track == null) return;
-    await _engine.selectAudio(track.id);
-    _emit(_view.copyWith(audioIndex: index));
-    _reporter?.onEvent();
-  }
+  /// `true` se [plan] è ancora quello in riproduzione (dopo un'attesa).
+  bool _current(PlaybackPlan plan) => _ready && identical(_view.plan, plan);
 
-  /// `null` = nessun sottotitolo.
-  Future<void> selectSubtitle(int? index) async {
-    final plan = _view.plan;
-    if (plan == null || !_ready || index == _view.subtitleIndex) return;
-    if (plan.burnsIn(_view.subtitleIndex) || plan.burnsIn(index)) {
-      // Sottotitolo bruciato nel video: il server deve rifare la conversione.
-      return _start(_engine.position,
-          forceTranscode: true,
-          audioIndex: _view.audioIndex,
-          subtitleIndex: index ?? -1);
-    }
-    await _showSubtitle(plan, index);
-    _emit(_view.copyWith(subtitleIndex: index));
-    _reporter?.onEvent();
-  }
+  Future<void> selectAudio(int index) => _serialized(() async {
+        final plan = _view.plan;
+        if (plan == null || !_ready || index == _view.audioIndex) return;
+        if (plan.isTranscode) {
+          // L'audio è scelto dal server nella conversione: va rifatta.
+          return _start(_engine.position,
+              forceTranscode: true,
+              audioIndex: index,
+              subtitleIndex: _view.subtitleIndex ?? -1);
+        }
+        final stream = plan.mediaSource.stream(index);
+        final track = stream == null
+            ? null
+            : engineTrackFor(stream, await _engine.tracks());
+        if (track == null || !_current(plan)) return;
+        await _engine.selectAudio(track.id);
+        if (!_current(plan)) return;
+        _emit(_view.copyWith(audioIndex: index));
+        _reporter?.onEvent();
+      });
+
+  /// `null` = nessun sottotitolo. Se il sottotitolo non si carica resta
+  /// quello di prima.
+  Future<void> selectSubtitle(int? index) => _serialized(() async {
+        final plan = _view.plan;
+        if (plan == null || !_ready || index == _view.subtitleIndex) return;
+        if (plan.burnsIn(_view.subtitleIndex) || plan.burnsIn(index)) {
+          // Sottotitolo bruciato nel video: il server deve rifare la
+          // conversione.
+          return _start(_engine.position,
+              forceTranscode: true,
+              audioIndex: _view.audioIndex,
+              subtitleIndex: index ?? -1);
+        }
+        final shown = await _showSubtitle(plan, index);
+        if (!_current(plan)) return;
+        if (!shown) {
+          debugPrint('[player] sottotitolo $index non caricato: resta il '
+              'precedente');
+          return;
+        }
+        _emit(_view.copyWith(subtitleIndex: index));
+        _reporter?.onEvent();
+      });
 
   /// Positivo = sottotitoli più tardi.
   Future<void> shiftSubtitleDelay(Duration step) async {

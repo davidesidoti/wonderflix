@@ -149,13 +149,42 @@ class MediaKitEngine implements VideoEngine {
   Future<void> selectSubtitle(String? id) =>
       _native.setProperty('sid', id ?? 'no');
 
+  /// media_kit non segnala se `sub-add` fallisce (lo scrive solo nel log) e
+  /// in quel caso `sid` resta il precedente: la traccia aggiunta si cerca
+  /// quindi in `track-list`, tra quelle che prima non c'erano.
   @override
   Future<String?> addSubtitle(String url,
       {String? title, String? language}) async {
+    final before = {for (final track in await _externalSubtitles()) track.id};
     await _native.command(
         ['sub-add', url, 'select', title ?? 'external', language ?? 'auto']);
-    final id = await _native.getProperty('sid');
-    return id.isEmpty || id == 'no' ? null : id;
+    final added = [
+      for (final track in await _externalSubtitles())
+        if (!before.contains(track.id)) track,
+    ];
+    for (final track in added) {
+      if (track.filename == url) return track.id;
+    }
+    // mpv potrebbe aver riscritto l'URL: basta che la traccia nuova sia una.
+    return added.length == 1 ? added.single.id : null;
+  }
+
+  /// Sottotitoli esterni in `track-list`: id e file di provenienza.
+  Future<List<({String id, String filename})>> _externalSubtitles() async {
+    final count =
+        int.tryParse(await _native.getProperty('track-list/count')) ?? 0;
+    final result = <({String id, String filename})>[];
+    for (var i = 0; i < count; i++) {
+      Future<String> property(String name) =>
+          _native.getProperty('track-list/$i/$name');
+      if (await property('type') != 'sub') continue;
+      if (await property('external') != 'yes') continue;
+      result.add((
+        id: await property('id'),
+        filename: await property('external-filename'),
+      ));
+    }
+    return result;
   }
 
   @override

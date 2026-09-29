@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
@@ -186,6 +188,67 @@ void main() {
     expect(engine.selectedSubtitle.last, isNull);
     expect(view().subtitleIndex, isNull);
     expect(playback.progress, isNotEmpty);
+  });
+
+  const assUrl = 'https://media.example.com/Videos/m1/ms1/Subtitles/3/0/Stream.ass';
+  const srtUrl = 'https://media.example.com/Videos/m1/ms1/Subtitles/5/0/Stream.srt';
+
+  test('sottotitolo consegnato a parte: caricato dopo la partenza', () async {
+    playback.onPlaybackInfo = (_) => testPlaybackInfo(directPlay: false);
+    final gate = engine.addSubtitleGate = Completer<void>();
+    await start();
+    expect(view().status, PlayerStatus.ready);
+    expect(view().playing, isTrue);
+    expect(playback.started, hasLength(1));
+    expect(engine.calls, ['open', 'subtitle null', 'play', 'add $assUrl']);
+
+    gate.complete();
+    await pumpEventQueue();
+    expect(engine.selectedSubtitle.last, '100');
+    expect(view().subtitleIndex, 3);
+  });
+
+  test('sottotitolo iniziale non caricato: nessun sottotitolo', () async {
+    playback.onPlaybackInfo = (_) => testPlaybackInfo(directPlay: false);
+    engine.failAddSubtitle = true;
+    await start();
+    expect(view().status, PlayerStatus.ready);
+    expect(engine.addedSubtitles, [assUrl]);
+    expect(view().subtitleIndex, isNull);
+  });
+
+  test('scelta durante il caricamento iniziale: vince quella dell\'utente',
+      () async {
+    playback.onPlaybackInfo = (_) => testPlaybackInfo(directPlay: false);
+    final gate = engine.addSubtitleGate = Completer<void>();
+    final controller = await start();
+    final choice = controller.selectSubtitle(null);
+    await pumpEventQueue();
+    gate.complete();
+    await choice;
+    expect(engine.calls.last, 'subtitle null');
+    expect(view().subtitleIndex, isNull);
+  });
+
+  test('sottotitolo esterno non caricato: resta quello di prima', () async {
+    final controller = await start();
+    engine.failAddSubtitle = true;
+    await controller.selectSubtitle(5);
+    expect(engine.addedSubtitles, [srtUrl]);
+    expect(engine.selectedSubtitle, ['1']);
+    expect(view().subtitleIndex, 3);
+  });
+
+  test('due scelte rapide: applicate una dopo l\'altra', () async {
+    final controller = await start();
+    final gate = engine.addSubtitleGate = Completer<void>();
+    final first = controller.selectSubtitle(5);
+    final second = controller.selectSubtitle(4);
+    await pumpEventQueue();
+    gate.complete();
+    await Future.wait([first, second]);
+    expect(engine.selectedSubtitle.last, '2');
+    expect(view().subtitleIndex, 4);
   });
 
   test('audio in direct play: cambia traccia senza riaprire', () async {

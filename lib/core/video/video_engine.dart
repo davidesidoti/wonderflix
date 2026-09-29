@@ -74,7 +74,8 @@ abstract class VideoEngine {
 
   Future<void> selectSubtitle(String? id);
 
-  /// Carica e seleziona un sottotitolo esterno. Restituisce il suo id.
+  /// Carica e seleziona un sottotitolo esterno. Restituisce il suo id, o
+  /// `null` se non si è caricato (resta selezionato quello di prima).
   Future<String?> addSubtitle(String url, {String? title, String? language});
 
   /// Positivo = sottotitoli più tardi.
