@@ -40,6 +40,17 @@ final class RequestCancelledException extends ApiException {
   const RequestCancelledException();
 }
 
+/// Il server non consente di riprodurre l'elemento (`PlaybackInfo.ErrorCode`:
+/// `NotAllowed`, `NoCompatibleStream`, `RateLimitExceeded`) oppure non
+/// propone nessun modo di riprodurlo.
+final class PlaybackUnavailableException extends ApiException {
+  const PlaybackUnavailableException(this.code);
+  final String? code;
+
+  @override
+  String toString() => 'PlaybackUnavailableException($code)';
+}
+
 ApiException mapDioException(DioException e) {
   switch (e.type) {
     case DioExceptionType.badResponse:
