@@ -81,5 +81,6 @@ List<JellyfinItem> pickFeatured(
 
 final homeProvider = FutureProvider.autoDispose<HomeData>((ref) {
   ref.watch(libraryRevisionProvider);
+  ref.watch(userDataRevisionProvider);
   return loadHome(ref.watch(libraryApiProvider), ref.watch(currentUserIdProvider));
 });

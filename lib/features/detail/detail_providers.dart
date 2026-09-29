@@ -34,6 +34,7 @@ final episodesProvider = FutureProvider.autoDispose
 final seriesNextEpisodeProvider =
     FutureProvider.autoDispose.family<JellyfinItem?, String>((ref, seriesId) async {
   ref.watch(libraryRevisionProvider);
+  ref.watch(userDataRevisionProvider);
   final api = ref.watch(libraryApiProvider);
   final userId = ref.watch(currentUserIdProvider);
   final next =

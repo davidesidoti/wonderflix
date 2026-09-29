@@ -21,6 +21,15 @@ final class LibraryChanged extends ServerEvent {
   const LibraryChanged();
 }
 
+/// Socket stabilito. [isReconnect] è `false` per la prima connessione dopo
+/// `start()`, `true` per le successive: nel frattempo potremmo aver perso
+/// eventi.
+final class ServerConnected extends ServerEvent {
+  const ServerConnected(this.isReconnect);
+
+  final bool isReconnect;
+}
+
 /// Il server chiede un `KeepAlive` entro [seconds] secondi.
 final class ForceKeepAlive extends ServerEvent {
   const ForceKeepAlive(this.seconds);
@@ -72,8 +81,12 @@ abstract interface class EventSocket {
 typedef EventSocketConnector = Future<EventSocket> Function(
     Uri uri, Map<String, String> headers);
 
-Future<EventSocket> connectIoSocket(Uri uri, Map<String, String> headers) async =>
-    _IoEventSocket(await WebSocket.connect(uri.toString(), headers: headers));
+Future<EventSocket> connectIoSocket(Uri uri, Map<String, String> headers) async {
+  final ws = await WebSocket.connect(uri.toString(), headers: headers);
+  // Ping di livello protocollo: rileva le connessioni cadute in silenzio.
+  ws.pingInterval = const Duration(seconds: 30);
+  return _IoEventSocket(ws);
+}
 
 class _IoEventSocket implements EventSocket {
   _IoEventSocket(this._socket);
@@ -118,18 +131,26 @@ class ServerEventsClient {
   Timer? _keepAlive;
   Timer? _retry;
   bool _running = false;
+  bool _hasConnected = false;
   int _attempt = 0;
+
+  /// Cambia a ogni `start()`/`stop()`: le connessioni e i callback di un ciclo
+  /// precedente si riconoscono e vengono ignorati.
+  int _epoch = 0;
 
   Stream<ServerEvent> get events => _events.stream;
 
   void start() {
     if (_running) return;
     _running = true;
+    _hasConnected = false;
+    _epoch++;
     unawaited(_connect());
   }
 
   Future<void> stop() async {
     _running = false;
+    _epoch++;
     _retry?.cancel();
     _keepAlive?.cancel();
     final subscription = _subscription;
@@ -151,10 +172,11 @@ class ServerEventsClient {
 
   Future<void> _connect() async {
     if (!_running) return;
+    final epoch = _epoch;
     try {
       final socket =
           await _connector(_uri, {'Authorization': _authorizationHeader()});
-      if (!_running) {
+      if (epoch != _epoch || !_running) {
         await socket.close();
         return;
       }
@@ -162,13 +184,20 @@ class ServerEventsClient {
       _attempt = 0;
       _subscription = socket.stream.listen(
         _onMessage,
-        onDone: _scheduleReconnect,
-        onError: (Object _) => _scheduleReconnect(),
+        onDone: () => _onClosed(epoch),
+        onError: (Object _) => _onClosed(epoch),
         cancelOnError: true,
       );
+      final isReconnect = _hasConnected;
+      _hasConnected = true;
+      if (!_events.isClosed) _events.add(ServerConnected(isReconnect));
     } on Object {
-      _scheduleReconnect();
+      if (epoch == _epoch) _scheduleReconnect();
     }
+  }
+
+  void _onClosed(int epoch) {
+    if (epoch == _epoch) _scheduleReconnect();
   }
 
   void _onMessage(dynamic raw) {

@@ -16,8 +16,20 @@ class UserDataOverrides extends Notifier<Map<String, UserItemData>> {
     return const {};
   }
 
+  /// Richieste di modifica in corso, per id elemento.
+  final _pending = <String>{};
+
   void apply(String itemId, UserItemData data) =>
       state = {...state, itemId: data};
+
+  /// Applica più modifiche con un solo aggiornamento dello stato.
+  void applyAll(Map<String, UserItemData> changes) {
+    if (changes.isEmpty) return;
+    state = {...state, ...changes};
+  }
+
+  /// Dimentica tutte le modifiche (es. dopo una riconnessione).
+  void clear() => state = const {};
 
   UserItemData effective(JellyfinItem item) => state[item.id] ?? item.userData;
 
@@ -40,16 +52,22 @@ class UserDataOverrides extends Notifier<Map<String, UserItemData>> {
     Future<UserItemData> Function(LibraryApi api, String userId, UserItemData next)
         send,
   ) async {
+    // Un secondo tocco mentre la richiesta è in corso viene ignorato.
+    if (!_pending.add(item.id)) return;
     final before = effective(item);
     final next = change(before);
     apply(item.id, next);
     try {
       final confirmed = await send(ref.read(libraryApiProvider),
           ref.read(currentUserIdProvider), next);
+      if (!ref.mounted) return;
       apply(item.id, confirmed);
     } on Object {
+      if (!ref.mounted) return;
       apply(item.id, before);
       rethrow;
+    } finally {
+      _pending.remove(item.id);
     }
   }
 }

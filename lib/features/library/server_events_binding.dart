@@ -17,6 +17,9 @@ final serverEventsClientProvider = Provider<ServerEventsClient>((ref) {
   return client;
 });
 
+const _libraryDebounce = Duration(seconds: 5);
+const _userDataDebounce = Duration(seconds: 2);
+
 String _normalizeId(String id) => id.replaceAll('-', '').toLowerCase();
 
 /// Tiene aperto il WebSocket finché l'utente è autenticato e ne applica gli
@@ -27,14 +30,28 @@ final serverEventsBindingProvider = Provider<void>((ref) {
   if (userId == null) return;
 
   final client = ref.watch(serverEventsClientProvider);
+  Timer? libraryTimer;
+  Timer? userDataTimer;
   final subscription = client.events.listen((event) {
     switch (event) {
       case UserDataChanged(userId: final changedUser, :final changes)
           when changedUser.isEmpty ||
               _normalizeId(changedUser) == _normalizeId(userId):
-        final overrides = ref.read(userDataOverridesProvider.notifier);
-        changes.forEach(overrides.apply);
+        ref.read(userDataOverridesProvider.notifier).applyAll(changes);
+        // Le righe "Continua a guardare" e simili si ricaricano con calma.
+        userDataTimer?.cancel();
+        userDataTimer = Timer(_userDataDebounce, () {
+          if (ref.mounted) ref.read(userDataRevisionProvider.notifier).bump();
+        });
       case LibraryChanged():
+        // Le scansioni della libreria mandano raffiche di eventi.
+        libraryTimer?.cancel();
+        libraryTimer = Timer(_libraryDebounce, () {
+          if (ref.mounted) ref.read(libraryRevisionProvider.notifier).bump();
+        });
+      case ServerConnected(isReconnect: true):
+        // Durante la disconnessione potremmo aver perso degli eventi.
+        ref.read(userDataOverridesProvider.notifier).clear();
         ref.read(libraryRevisionProvider.notifier).bump();
       default:
         break;
@@ -42,6 +59,8 @@ final serverEventsBindingProvider = Provider<void>((ref) {
   });
   client.start();
   ref.onDispose(() {
+    libraryTimer?.cancel();
+    userDataTimer?.cancel();
     unawaited(subscription.cancel());
     unawaited(client.stop());
   });

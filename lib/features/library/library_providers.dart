@@ -30,3 +30,16 @@ class LibraryRevision extends Notifier<int> {
 
 final libraryRevisionProvider =
     NotifierProvider<LibraryRevision, int>(LibraryRevision.new);
+
+/// Aumenta (con un piccolo ritardo) quando cambiano i dati utente sul server,
+/// ad esempio l'avanzamento di un film: le righe "Continua a guardare" e simili
+/// si ricaricano.
+class UserDataRevision extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void bump() => state++;
+}
+
+final userDataRevisionProvider =
+    NotifierProvider<UserDataRevision, int>(UserDataRevision.new);

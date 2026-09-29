@@ -48,6 +48,30 @@ void main() {
     expect(overrides().effective(item).played, isFalse);
   });
 
+  test('secondo tocco mentre il primo è in corso: ignorato', () async {
+    final item = testItem(favorite: false);
+    final first = overrides().toggleFavorite(item);
+    final second = overrides().toggleFavorite(item);
+    await Future.wait([first, second]);
+    expect(api.favoriteCalls, [('m1', true)], reason: 'una sola richiesta');
+    expect(overrides().effective(item).isFavorite, isTrue);
+
+    // Finita la richiesta si può di nuovo cambiare.
+    await overrides().toggleFavorite(item);
+    expect(api.favoriteCalls.last, ('m1', false));
+  });
+
+  test('applyAll e clear', () {
+    final data = testItem().userData;
+    overrides().applyAll({
+      'a': data.copyWith(played: true),
+      'b': data.copyWith(isFavorite: true),
+    });
+    expect(container.read(userDataOverridesProvider).keys, ['a', 'b']);
+    overrides().clear();
+    expect(container.read(userDataOverridesProvider), isEmpty);
+  });
+
   test('apply da evento server', () {
     final item = testItem();
     overrides().apply('m1', item.userData.copyWith(played: true));

@@ -74,6 +74,7 @@ void main() {
 
       client.start();
       async.flushMicrotasks();
+      expect(events.whereType<ServerConnected>().single.isReconnect, isFalse);
       expect(requests.single.$1.toString(), 'wss://media.example.com/jf/socket');
       expect(requests.single.$2['Authorization'], 'MediaBrowser Token="tok"');
 
@@ -94,12 +95,57 @@ void main() {
       async.flushMicrotasks();
       async.elapse(const Duration(seconds: 2));
       expect(requests, hasLength(2));
+      expect(events.whereType<ServerConnected>().map((e) => e.isReconnect),
+          [false, true]);
 
       unawaited(client.stop());
       async.flushMicrotasks();
       expect(sockets.last.closed, isTrue);
       async.elapse(const Duration(minutes: 5));
       expect(requests, hasLength(2), reason: 'dopo stop niente riconnessioni');
+    });
+  });
+
+  test('stop e start mentre la prima connessione è in corso: socket scartato',
+      () {
+    fakeAsync((async) {
+      final pending = <Completer<EventSocket>>[];
+      final client = ServerEventsClient(
+        serverUrl: Uri.parse('https://media.example.com'),
+        authorizationHeader: () => 'x',
+        connector: (uri, headers) {
+          final completer = Completer<EventSocket>();
+          pending.add(completer);
+          return completer.future;
+        },
+      );
+      final events = <ServerEvent>[];
+      client.events.listen(events.add);
+
+      client.start();
+      async.flushMicrotasks();
+      unawaited(client.stop());
+      client.start();
+      async.flushMicrotasks();
+      expect(pending, hasLength(2));
+
+      final stale = FakeSocket();
+      pending[0].complete(stale);
+      async.flushMicrotasks();
+      expect(stale.closed, isTrue);
+      expect(events, isEmpty, reason: 'il socket vecchio non viene usato');
+
+      final fresh = FakeSocket();
+      pending[1].complete(fresh);
+      async.flushMicrotasks();
+      expect(fresh.closed, isFalse);
+      fresh.controller.add('{"MessageType":"LibraryChanged","Data":{}}');
+      async.flushMicrotasks();
+      expect(events.whereType<LibraryChanged>(), hasLength(1));
+      expect(events.whereType<ServerConnected>(), hasLength(1));
+
+      unawaited(client.stop());
+      async.flushMicrotasks();
     });
   });
 
