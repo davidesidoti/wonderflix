@@ -20,6 +20,12 @@ void main() {
     await pumpApp(tester, const BackdropImage(backdrop: null, fallback: poster));
     expect(find.byType(ImageFiltered), findsOneWidget);
     expect(find.byIcon(LucideIcons.film), findsNothing);
+    // La sfocatura disegna oltre i bordi: va ritagliata, altrimenti "sbava"
+    // sulle sezioni sotto il banner.
+    expect(
+      find.ancestor(of: find.byType(ImageFiltered), matching: find.byType(ClipRect)),
+      findsOneWidget,
+    );
   });
 
   testWidgets('senza immagini: solo sfondo scuro, niente icona', (tester) async {

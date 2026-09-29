@@ -22,15 +22,20 @@ class BackdropImage extends StatelessWidget {
     if (image != null) return WfImage(image: image);
     final poster = fallback;
     if (poster == null) return const ColoredBox(color: WfColors.bg);
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        ImageFiltered(
-          imageFilter: ImageFilter.blur(sigmaX: 40, sigmaY: 40, tileMode: TileMode.clamp),
-          child: WfImage(image: poster, fallbackIcon: null),
-        ),
-        const ColoredBox(color: Color(0x730A0A0A)),
-      ],
+    // ClipRect: la sfocatura disegna oltre i bordi e coprirebbe le sezioni
+    // sotto il banner.
+    return ClipRect(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ImageFiltered(
+            imageFilter:
+                ImageFilter.blur(sigmaX: 40, sigmaY: 40, tileMode: TileMode.clamp),
+            child: WfImage(image: poster, fallbackIcon: null),
+          ),
+          const ColoredBox(color: Color(0x730A0A0A)),
+        ],
+      ),
     );
   }
 }
