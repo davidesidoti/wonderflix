@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,6 +11,7 @@ import '../../ui/landscape_card.dart';
 import '../../ui/media_row.dart';
 import '../../ui/poster_card.dart';
 import '../../ui/states.dart';
+import '../playback/play_launcher.dart';
 import 'hero_carousel.dart';
 import 'home_data.dart';
 
@@ -35,20 +38,20 @@ class HomeScreen extends ConsumerWidget {
           children: [
             if (data.featured.isNotEmpty) HeroCarousel(items: data.featured),
             if (data.resume.isNotEmpty)
-              _landscapeRow(l.homeContinueWatching, data.resume),
-            if (data.nextUp.isNotEmpty) _landscapeRow(l.homeNextUp, data.nextUp),
+              _landscapeRow(ref, l.homeContinueWatching, data.resume),
+            if (data.nextUp.isNotEmpty) _landscapeRow(ref, l.homeNextUp, data.nextUp),
             if (data.latestMovies.isNotEmpty)
-              _posterRow(l.homeLatestMovies, data.latestMovies),
+              _posterRow(ref, l.homeLatestMovies, data.latestMovies),
             if (data.latestSeries.isNotEmpty)
-              _posterRow(l.homeLatestSeries, data.latestSeries),
-            if (data.favorites.isNotEmpty) _posterRow(l.navMyList, data.favorites),
+              _posterRow(ref, l.homeLatestSeries, data.latestSeries),
+            if (data.favorites.isNotEmpty) _posterRow(ref, l.navMyList, data.favorites),
           ],
         );
       },
     );
   }
 
-  Widget _posterRow(String title, List<JellyfinItem> items) => MediaRow(
+  Widget _posterRow(WidgetRef ref, String title, List<JellyfinItem> items) => MediaRow(
         title: title,
         height: 300,
         itemCount: items.length,
@@ -56,16 +59,18 @@ class HomeScreen extends ConsumerWidget {
           item: items[i],
           width: 160,
           onTap: () => openItem(context, items[i]),
+          onPlay: () => unawaited(playItem(context, ref, items[i])),
         ),
       );
 
-  Widget _landscapeRow(String title, List<JellyfinItem> items) => MediaRow(
+  Widget _landscapeRow(WidgetRef ref, String title, List<JellyfinItem> items) => MediaRow(
         title: title,
         height: 230,
         itemCount: items.length,
         itemBuilder: (context, i) => LandscapeCard(
           item: items[i],
           onTap: () => openItem(context, items[i]),
+          onPlay: () => unawaited(playItem(context, ref, items[i])),
         ),
       );
 }

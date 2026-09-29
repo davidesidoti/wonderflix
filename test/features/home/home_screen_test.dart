@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
@@ -5,6 +6,8 @@ import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/home/home_screen.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/ui/landscape_card.dart';
+import 'package:wonderflix/ui/poster_card.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
@@ -60,5 +63,30 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.text('Film aggiunti di recente'), findsOneWidget);
+  });
+
+  testWidgets('le card delle righe mostrano il play al passaggio del mouse',
+      (tester) async {
+    api
+      ..resumeItems = [testItem(id: 'r1', name: 'Oppenheimer', playedPercentage: 30)]
+      ..onItems = (query, start, limit) => query.kinds.contains(ItemKind.series)
+          ? pageOf([testItem(id: 's1', name: 'The Bear', kind: ItemKind.series)])
+          : pageOf([testItem(id: 'm1', name: 'Dune')]);
+    await pumpHome(tester, height: 1600);
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: Offset.zero);
+    addTearDown(gesture.removePointer);
+
+    for (final cardType in [LandscapeCard, PosterCard]) {
+      final card = find.byType(cardType).first;
+      final play = find.descendant(of: card, matching: find.byTooltip('Riproduci'));
+      expect(play, findsNothing, reason: '$cardType: niente play senza hover');
+      await gesture.moveTo(tester.getCenter(card));
+      await tester.pumpAndSettle();
+      expect(play, findsOneWidget, reason: '$cardType: play con hover');
+      await gesture.moveTo(Offset.zero);
+      await tester.pumpAndSettle();
+    }
   });
 }

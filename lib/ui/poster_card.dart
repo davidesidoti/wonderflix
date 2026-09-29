@@ -6,6 +6,7 @@ import '../app/theme.dart';
 import '../core/jellyfin/item_models.dart';
 import '../features/library/library_providers.dart';
 import '../features/library/user_data.dart';
+import 'card_play_button.dart';
 import 'wf_image.dart';
 
 /// Locandina 2:3 con titolo, anno, avanzamento e badge "visto".
@@ -15,11 +16,15 @@ class PosterCard extends ConsumerStatefulWidget {
     super.key,
     required this.item,
     required this.onTap,
+    this.onPlay,
     this.width,
   });
 
   final JellyfinItem item;
   final VoidCallback onTap;
+
+  /// Se presente, al passaggio del mouse compare il pulsante play.
+  final VoidCallback? onPlay;
   final double? width;
 
   @override
@@ -72,6 +77,9 @@ class _PosterCardState extends ConsumerState<PosterCard> {
                         else if (item.kind == ItemKind.series && unplayed > 0)
                           Positioned(
                               top: 6, right: 6, child: CountBadge(count: unplayed)),
+                        if (_hover && widget.onPlay != null)
+                          Center(
+                              child: CardPlayButton(onPressed: widget.onPlay!)),
                       ],
                     ),
                   ),

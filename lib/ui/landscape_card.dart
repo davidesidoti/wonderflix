@@ -6,6 +6,7 @@ import '../core/jellyfin/item_models.dart';
 import '../features/library/item_labels.dart';
 import '../features/library/library_providers.dart';
 import '../features/library/user_data.dart';
+import 'card_play_button.dart';
 import 'poster_card.dart';
 import 'wf_image.dart';
 
@@ -15,11 +16,15 @@ class LandscapeCard extends ConsumerStatefulWidget {
     super.key,
     required this.item,
     required this.onTap,
+    this.onPlay,
     this.width = 300,
   });
 
   final JellyfinItem item;
   final VoidCallback onTap;
+
+  /// Se presente, al passaggio del mouse compare il pulsante play.
+  final VoidCallback? onPlay;
   final double width;
 
   @override
@@ -68,6 +73,9 @@ class _LandscapeCardState extends ConsumerState<LandscapeCard> {
                         if (progress != null) ProgressStrip(progress: progress),
                         if (userData.played)
                           const Positioned(top: 6, right: 6, child: WatchedBadge()),
+                        if (_hover && widget.onPlay != null)
+                          Center(
+                              child: CardPlayButton(onPressed: widget.onPlay!)),
                       ],
                     ),
                   ),

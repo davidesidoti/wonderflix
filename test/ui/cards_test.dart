@@ -1,11 +1,15 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/ui/landscape_card.dart';
+import 'package:wonderflix/ui/card_play_button.dart';
 import 'package:wonderflix/ui/media_row.dart';
 import 'package:wonderflix/ui/poster_card.dart';
 import 'package:wonderflix/ui/wf_buttons.dart';
+import 'package:wonderflix/ui/wf_image.dart';
 
 import '../support/fake_session_controller.dart';
 import '../support/library_fakes.dart';
@@ -95,5 +99,83 @@ void main() {
     );
     expect(tester.takeException(), isNull);
     expect(find.text('Riproduci'), findsOneWidget);
+  });
+
+  group('pulsante play al passaggio del mouse', () {
+    final playButton = find.byTooltip('Riproduci');
+
+    Future<TestGesture> hoverImage(WidgetTester tester) async {
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(tester.getCenter(find.byType(WfImage)));
+      await tester.pumpAndSettle();
+      return gesture;
+    }
+
+    Widget posterCard({VoidCallback? onTap, VoidCallback? onPlay}) => Center(
+          child: PosterCard(
+              item: testItem(),
+              width: 160,
+              onTap: onTap ?? () {},
+              onPlay: onPlay),
+        );
+
+    Widget landscapeCard({VoidCallback? onTap, VoidCallback? onPlay}) => Center(
+          child: LandscapeCard(
+              item: testItem(), onTap: onTap ?? () {}, onPlay: onPlay),
+        );
+
+    final builders = <String, Widget Function({VoidCallback? onTap, VoidCallback? onPlay})>{
+      'PosterCard': posterCard,
+      'LandscapeCard': landscapeCard,
+    };
+
+    for (final entry in builders.entries) {
+      testWidgets('${entry.key}: compare solo con il mouse sopra', (tester) async {
+        await pumpApp(tester, entry.value(onPlay: () {}), overrides: [signedIn]);
+        expect(playButton, findsNothing);
+        expect(find.byType(CardPlayButton), findsNothing);
+
+        final gesture = await hoverImage(tester);
+        expect(playButton, findsOneWidget);
+        expect(find.byIcon(LucideIcons.play), findsOneWidget);
+
+        await gesture.moveTo(const Offset(2, 2));
+        await tester.pumpAndSettle();
+        expect(playButton, findsNothing);
+      });
+
+      testWidgets('${entry.key}: il tap sul pulsante chiama solo onPlay',
+          (tester) async {
+        var taps = 0;
+        var plays = 0;
+        await pumpApp(
+          tester,
+          entry.value(onTap: () => taps++, onPlay: () => plays++),
+          overrides: [signedIn],
+        );
+        await hoverImage(tester);
+        await tester.tap(playButton);
+        await tester.pumpAndSettle();
+        expect(plays, 1);
+        expect(taps, 0);
+
+        // Fuori dal pulsante il tap apre ancora la card.
+        final image = find.byType(WfImage);
+        await tester.tapAt(tester.getTopLeft(image) + const Offset(8, 8));
+        await tester.pumpAndSettle();
+        expect(taps, 1);
+        expect(plays, 1);
+      });
+
+      testWidgets('${entry.key}: senza onPlay il pulsante non compare mai',
+          (tester) async {
+        await pumpApp(tester, entry.value(), overrides: [signedIn]);
+        await hoverImage(tester);
+        expect(playButton, findsNothing);
+        expect(find.byType(CardPlayButton), findsNothing);
+      });
+    }
   });
 }
