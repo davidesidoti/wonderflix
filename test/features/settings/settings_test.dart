@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -146,5 +148,97 @@ void main() {
         'Default',
         reason: 'torna al valore di prima');
     expect(configApi.saved, isEmpty);
+  });
+
+  group('LanguagePreferencesController', () {
+    late FakeUserConfigApi configApi;
+    late ProviderContainer container;
+
+    setUp(() {
+      configApi = FakeUserConfigApi();
+      container = ProviderContainer.test(overrides: [
+        userConfigApiProvider.overrideWithValue(configApi),
+        sessionControllerProvider.overrideWith(
+            () => FakeSessionController(const SessionSignedIn(testUser))),
+      ]);
+      container.listen(languagePreferencesProvider, (_, _) {});
+    });
+
+    test('salvataggi in fila; un errore non annulla una scelta successiva',
+        () async {
+      final initial = await container.read(languagePreferencesProvider.future);
+      final modes = <String?>[];
+      container.listen(languagePreferencesProvider,
+          (_, next) => modes.add(next.value?.subtitleMode));
+      final notifier = container.read(languagePreferencesProvider.notifier);
+      configApi
+        ..saveGate = Completer<void>()
+        ..failSaves = 1;
+
+      final first = notifier.save(initial.copyWith(subtitleMode: 'Always'));
+      final second = notifier.save(initial.copyWith(subtitleMode: 'None'));
+      configApi.saveGate!.complete();
+      await expectLater(first, throwsStateError);
+      await second;
+
+      expect(modes, ['Always', 'None'],
+          reason: 'la scelta più recente resta visibile');
+      expect(configApi.saved.single.$2['SubtitleMode'], 'None');
+    });
+
+    test('errore sull\'ultima scelta: torna al valore salvato', () async {
+      final initial = await container.read(languagePreferencesProvider.future);
+      configApi.failSaves = 1;
+      await expectLater(
+          container
+              .read(languagePreferencesProvider.notifier)
+              .save(initial.copyWith(subtitleMode: 'Always')),
+          throwsStateError);
+      expect(container.read(languagePreferencesProvider).value?.subtitleMode,
+          'Default');
+    });
+
+    test('prima di salvare rilegge la configurazione dal server', () async {
+      final initial = await container.read(languagePreferencesProvider.future);
+      // Modificata da un altro client dopo l'apertura delle impostazioni.
+      configApi.config = {
+        ...configApi.config,
+        'HidePlayedInLatest': false,
+        'EnableNextEpisodeAutoPlay': false,
+      };
+      await container
+          .read(languagePreferencesProvider.notifier)
+          .save(initial.copyWith(subtitleMode: 'Smart'));
+      final saved = configApi.saved.single.$2;
+      expect(saved['SubtitleMode'], 'Smart');
+      expect(saved['HidePlayedInLatest'], isFalse);
+      expect(saved['EnableNextEpisodeAutoPlay'], isFalse);
+    });
+  });
+
+  testWidgets('lingue: la sezione resta caricata scorrendo la pagina',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final configApi = FakeUserConfigApi();
+    await pumpApp(tester, const Scaffold(body: SettingsScreen()),
+        surfaceSize: const Size(1440, 300),
+        overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      clientInfoProvider.overrideWithValue(testClientInfo),
+      sessionControllerProvider.overrideWith(
+          () => FakeSessionController(const SessionSignedIn(testUser))),
+      userConfigApiProvider.overrideWithValue(configApi),
+    ]);
+    final scrollable = find.byType(Scrollable).first;
+    for (var i = 0; i < 2; i++) {
+      await tester.drag(scrollable, const Offset(0, -3000));
+      await tester.pumpAndSettle();
+      await tester.drag(scrollable, const Offset(0, 3000));
+      await tester.pumpAndSettle();
+    }
+    await tester.drag(scrollable, const Offset(0, -3000));
+    await tester.pumpAndSettle();
+    expect(configApi.configurationCalls, 1);
   });
 }
