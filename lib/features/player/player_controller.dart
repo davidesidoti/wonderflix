@@ -139,6 +139,11 @@ class PlayerController extends Notifier<PlayerViewState> {
   Duration _resumeAt = Duration.zero;
   bool _forceTranscode = false;
 
+  /// Tracce chieste all'ultima apertura (`null` = predefinite del server),
+  /// riusate da [retry].
+  int? _requestedAudio;
+  int? _requestedSubtitle;
+
   VideoEngine get engine => _engine;
 
   bool get _ready => _view.status == PlayerStatus.ready && _closing == null;
@@ -196,6 +201,8 @@ class PlayerController extends Notifier<PlayerViewState> {
         !ref.mounted || generation != _generation || _closing != null;
     _resumeAt = start;
     _forceTranscode = forceTranscode;
+    _requestedAudio = audioIndex;
+    _requestedSubtitle = subtitleIndex;
     final previous = _reporter;
     _reporter = null;
     _emit(_view.copyWith(
@@ -371,17 +378,16 @@ class PlayerController extends Notifier<PlayerViewState> {
     );
   }
 
-  /// Dopo un errore: stesso punto, stesso metodo (direct play o
-  /// transcodifica), stesse tracce se erano già state scelte.
-  Future<void> retry() {
-    final hadPlan = _view.plan != null;
-    return _start(
-      _resumeAt,
-      forceTranscode: _forceTranscode,
-      audioIndex: hadPlan ? _view.audioIndex : null,
-      subtitleIndex: hadPlan ? (_view.subtitleIndex ?? -1) : null,
-    );
-  }
+  /// Dopo un errore ripete l'ultima apertura: stesso punto, stesso metodo
+  /// (direct play o transcodifica), stesse tracce chieste (anche quelle di
+  /// un cambio di traccia non riuscito; alla prima apertura, le predefinite
+  /// del server).
+  Future<void> retry() => _start(
+        _resumeAt,
+        forceTranscode: _forceTranscode,
+        audioIndex: _requestedAudio,
+        subtitleIndex: _requestedSubtitle,
+      );
 
   Future<void> togglePlay() async {
     if (!_ready) return;

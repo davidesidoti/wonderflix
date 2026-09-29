@@ -279,6 +279,26 @@ void main() {
     expect(view().status, PlayerStatus.ready);
   });
 
+  test('Riprova dopo un cambio di traccia non riuscito: tiene la scelta',
+      () async {
+    playback.onPlaybackInfo = (_) => testPlaybackInfo(directPlay: false);
+    final controller = await start();
+    engine.emitPosition(const Duration(minutes: 10));
+    engine.failOpens = 1;
+
+    await controller.selectAudio(2);
+    expect(view().status, PlayerStatus.error);
+
+    await controller.retry();
+    final call = playback.playbackInfoCalls.last;
+    expect(call.allowDirect, isFalse);
+    expect(call.audioStreamIndex, 2);
+    expect(call.subtitleStreamIndex, 3);
+    expect(call.start, const Duration(minutes: 10));
+    expect(view().status, PlayerStatus.ready);
+    expect(view().audioIndex, 2);
+  });
+
   test('transcodifica: un sottotitolo bruciato richiede una nuova conversione',
       () async {
     playback.onPlaybackInfo = (_) => testPlaybackInfo(directPlay: false);
