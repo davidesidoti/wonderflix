@@ -147,5 +147,17 @@
   "settingsSubtitleModeOnlyForced": "Solo forzati",
   "settingsSubtitleModeNone": "Mai",
   "settingsSubtitleModeSmart": "Se l'audio è in un'altra lingua",
-  "settingsSaveError": "Impossibile salvare. Riprova."
+  "settingsSaveError": "Impossibile salvare. Riprova.",
+  "discordPaused": "In pausa",
+  "discordJoinButton": "Entra in WonderFlix",
+  "settingsDiscord": "Discord",
+  "settingsDiscordEnabled": "Mostra su Discord cosa sto guardando",
+  "settingsDiscordShowTitle": "Mostra il titolo",
+  "settingsDiscordShowPoster": "Mostra la locandina",
+  "settingsDiscordPosterHint": "La locandina rende visibile agli amici su Discord l'indirizzo del server.",
+  "settingsSupport": "Supporto",
+  "settingsSupportHint": "Per chiedere aiuto, copia la diagnostica e incollala nel messaggio.",
+  "settingsCopyDiagnostics": "Copia diagnostica",
+  "settingsDiagnosticsCopied": "Diagnostica copiata negli appunti",
+  "settingsOpenLogs": "Apri la cartella dei log"
 }

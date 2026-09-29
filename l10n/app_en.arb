@@ -133,5 +133,17 @@
   "settingsSubtitleModeOnlyForced": "Forced only",
   "settingsSubtitleModeNone": "Never",
   "settingsSubtitleModeSmart": "When the audio is in another language",
-  "settingsSaveError": "Couldn't save. Try again."
+  "settingsSaveError": "Couldn't save. Try again.",
+  "discordPaused": "Paused",
+  "discordJoinButton": "Join WonderFlix",
+  "settingsDiscord": "Discord",
+  "settingsDiscordEnabled": "Show what I'm watching on Discord",
+  "settingsDiscordShowTitle": "Show the title",
+  "settingsDiscordShowPoster": "Show the poster",
+  "settingsDiscordPosterHint": "The poster lets your Discord friends see the server address.",
+  "settingsSupport": "Support",
+  "settingsSupportHint": "To ask for help, copy the diagnostics and paste them into your message.",
+  "settingsCopyDiagnostics": "Copy diagnostics",
+  "settingsDiagnosticsCopied": "Diagnostics copied to the clipboard",
+  "settingsOpenLogs": "Open the log folder"
 }
