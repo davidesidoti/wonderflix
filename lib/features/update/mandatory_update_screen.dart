@@ -60,15 +60,21 @@ class MandatoryUpdateScreen extends StatelessWidget {
                   Text(l.updateDownloading(((progress ?? 0) * 100).round())),
                 ],
                 const SizedBox(height: 16),
+                // Chiavi diverse: il pulsante si ricrea quando diventa
+                // attivo e l'autofocus scatta di nuovo (Invio lo preme).
                 if (update.failed)
                   WfButton.primary(
+                      key: const ValueKey('retry'),
                       label: l.retry,
                       icon: LucideIcons.refreshCw,
+                      autofocus: true,
                       onPressed: onRetry)
                 else
                   WfButton.primary(
+                    key: ValueKey('install-${update.ready}'),
                     label: l.updateInstallNow,
                     icon: LucideIcons.download,
+                    autofocus: true,
                     onPressed: update.ready ? onInstall : null,
                   ),
               ],

@@ -10,6 +10,7 @@ class WfButton extends StatelessWidget {
     required this.label,
     required this.icon,
     required this.onPressed,
+    this.autofocus = false,
   }) : primary = true;
 
   const WfButton.secondary({
@@ -17,12 +18,16 @@ class WfButton extends StatelessWidget {
     required this.label,
     required this.icon,
     required this.onPressed,
+    this.autofocus = false,
   }) : primary = false;
 
   final String label;
   final IconData icon;
   final VoidCallback? onPressed;
   final bool primary;
+
+  /// Prende il fuoco appena compare (Invio lo preme).
+  final bool autofocus;
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +37,7 @@ class WfButton extends StatelessWidget {
     if (primary) {
       return FilledButton.icon(
         onPressed: onPressed,
+        autofocus: autofocus,
         style: FilledButton.styleFrom(
             minimumSize: size, padding: padding, shape: shape),
         icon: Icon(icon, size: 18),
@@ -40,6 +46,7 @@ class WfButton extends StatelessWidget {
     }
     return OutlinedButton.icon(
       onPressed: onPressed,
+      autofocus: autofocus,
       style: OutlinedButton.styleFrom(
         minimumSize: size,
         padding: padding,

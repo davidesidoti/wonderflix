@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/features/player/player_active.dart';
@@ -106,6 +107,32 @@ void main() {
             mandatory: true,
             installer: installer));
     await tester.tap(find.text('Aggiorna ora'));
+    await tester.pump();
+    expect(controller.installs, 1);
+  });
+
+  testWidgets('obbligatorio pronto: Invio installa (pulsante già a fuoco)',
+      (tester) async {
+    await pumpGate(
+        tester,
+        UpdateState(
+            release: testRelease(minVersion: '0.2.0'),
+            mandatory: true,
+            installer: installer));
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(controller.installs, 1);
+  });
+
+  testWidgets('obbligatorio: a download finito Invio installa', (tester) async {
+    final release = testRelease(minVersion: '0.2.0');
+    await pumpGate(
+        tester, UpdateState(release: release, mandatory: true, progress: 0.5));
+    controller.emit(
+        UpdateState(release: release, mandatory: true, installer: installer));
+    await tester.pump();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pump();
     expect(controller.installs, 1);
   });

@@ -37,46 +37,49 @@ class _UpdateBannerState extends State<UpdateBanner> {
         color: WfColors.surfaceHigh,
         elevation: 8,
         borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (_notesOpen && notes.isNotEmpty) ...[
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 260),
-                  child: SingleChildScrollView(
-                      child: ReleaseNotes(markdown: notes)),
-                ),
-                const SizedBox(height: 12),
-              ],
-              Row(
-                children: [
-                  const Icon(LucideIcons.download, color: WfColors.gold),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      l.updateReadyTitle(widget.release.version.toString()),
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
+        // Tab percorre prima i pulsanti della barra, poi il resto dell'app.
+        child: FocusTraversalGroup(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_notesOpen && notes.isNotEmpty) ...[
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 260),
+                    child: SingleChildScrollView(
+                        child: ReleaseNotes(markdown: notes)),
                   ),
-                  if (notes.isNotEmpty)
-                    TextButton(
-                      onPressed: () => setState(() => _notesOpen = !_notesOpen),
-                      child: Text(l.updateWhatsNew),
-                    ),
-                  TextButton(
-                      onPressed: widget.onLater, child: Text(l.updateLater)),
-                  const SizedBox(width: 8),
-                  WfButton.primary(
-                    label: l.updateRestartNow,
-                    icon: LucideIcons.rotateCw,
-                    onPressed: widget.onRestart,
-                  ),
+                  const SizedBox(height: 12),
                 ],
-              ),
-            ],
+                Row(
+                  children: [
+                    const Icon(LucideIcons.download, color: WfColors.gold),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        l.updateReadyTitle(widget.release.version.toString()),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    if (notes.isNotEmpty)
+                      TextButton(
+                        onPressed: () => setState(() => _notesOpen = !_notesOpen),
+                        child: Text(l.updateWhatsNew),
+                      ),
+                    TextButton(
+                        onPressed: widget.onLater, child: Text(l.updateLater)),
+                    const SizedBox(width: 8),
+                    WfButton.primary(
+                      label: l.updateRestartNow,
+                      icon: LucideIcons.rotateCw,
+                      onPressed: widget.onRestart,
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
