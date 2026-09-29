@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/jellyfin/item_models.dart';
 import '../../ui/states.dart';
 import 'detail_providers.dart';
 import 'movie_detail_view.dart';
+import 'series_detail_view.dart';
 
 class ItemDetailScreen extends ConsumerWidget {
   const ItemDetailScreen({super.key, required this.itemId, this.seasonId});
@@ -19,7 +21,9 @@ class ItemDetailScreen extends ConsumerWidget {
           loading: () => const LoadingView(),
           error: (error, _) => ErrorView(
               error: error, onRetry: () => ref.invalidate(itemProvider(itemId))),
-          data: (item) => MovieDetailView(item: item),
+          data: (item) => item.kind == ItemKind.series
+              ? SeriesDetailView(series: item, initialSeasonId: seasonId)
+              : MovieDetailView(item: item),
         );
   }
 }
