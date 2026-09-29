@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -32,6 +32,24 @@ String? sessionRedirect(SessionState session, String location) {
   };
 }
 
+/// Pagina del player. Con l'episodio successivo il nuovo player sostituisce
+/// il precedente (`pushReplacement`, pagina nuova): con la transizione
+/// predefinita, mentre compare, si vedrebbe la pagina sotto (dettaglio o
+/// Home). Qui dal primo fotogramma c'è uno sfondo nero opaco e il player
+/// appare in dissolvenza sopra.
+Page<void> playerPage(GoRouterState state, Widget child) =>
+    CustomTransitionPage<void>(
+      key: state.pageKey,
+      child: child,
+      transitionDuration: const Duration(milliseconds: 150),
+      reverseTransitionDuration: const Duration(milliseconds: 150),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+          ColoredBox(
+        color: Colors.black,
+        child: FadeTransition(opacity: animation, child: child),
+      ),
+    );
+
 final routerProvider = Provider<GoRouter>((ref) {
   final session = ValueNotifier<SessionState>(ref.read(sessionControllerProvider));
   ref.listen(sessionControllerProvider, (_, next) => session.value = next);
@@ -49,13 +67,16 @@ final routerProvider = Provider<GoRouter>((ref) {
           builder: (context, state) => const UnreachableScreen()),
       GoRoute(
         path: '/play/:id',
-        builder: (context, state) => PlayerScreen(
-          key: ValueKey(state.uri.toString()),
-          args: (
-            itemId: state.pathParameters['id']!,
-            start: playerStartFrom(state.uri),
+        pageBuilder: (context, state) => playerPage(
+          state,
+          PlayerScreen(
+            key: ValueKey(state.uri.toString()),
+            args: (
+              itemId: state.pathParameters['id']!,
+              start: playerStartFrom(state.uri),
+            ),
+            fullscreen: state.uri.queryParameters['fs'] == '1',
           ),
-          fullscreen: state.uri.queryParameters['fs'] == '1',
         ),
       ),
       ShellRoute(

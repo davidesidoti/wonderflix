@@ -44,7 +44,12 @@ bool _launchInProgress(BuildContext context) {
 /// - Doppio clic: finché la chiamata precedente è in corso le altre vengono
 ///   ignorate, così si apre un solo player.
 ///
-/// Si completa quando l'utente esce dal player.
+/// Si completa quando l'utente esce dal player. Eccezione: se il player
+/// passa all'episodio successivo (`pushReplacement`) la push originale non
+/// si completa più e la chiamata resta in sospeso. Non è un problema: una
+/// volta aperto il player, [_launchInProgress] non guarda più la chiamata ma
+/// la posizione del router (`/play/…`), quindi uscendo dal player si può
+/// riprodurre di nuovo.
 Future<void> playItem(
   BuildContext context,
   WidgetRef ref,
