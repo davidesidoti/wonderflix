@@ -19,10 +19,14 @@ final clientInfoProvider = Provider<ClientInfo>(
 final sessionStoreProvider =
     Provider<SessionStore>((ref) => SecureSessionStore());
 
-final jellyfinHttpProvider = Provider<JellyfinHttp>((ref) => JellyfinHttp(
-      baseUrl: ref.watch(appConfigProvider).serverUrl,
-      clientInfo: ref.watch(clientInfoProvider),
-    ));
+final jellyfinHttpProvider = Provider<JellyfinHttp>((ref) {
+  final http = JellyfinHttp(
+    baseUrl: ref.watch(appConfigProvider).serverUrl,
+    clientInfo: ref.watch(clientInfoProvider),
+  );
+  ref.onDispose(() => http.dio.close());
+  return http;
+});
 
 final authApiProvider =
     Provider<AuthApi>((ref) => AuthApi(ref.watch(jellyfinHttpProvider)));

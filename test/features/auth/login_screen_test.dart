@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
@@ -59,5 +61,26 @@ void main() {
   testWidgets('link di supporto visibile', (tester) async {
     await pumpLogin(tester);
     expect(find.text('Scrivi all\'admin'), findsOneWidget);
+  });
+
+  testWidgets(
+      'mentre verifica Quick Connect mostra uno spinner e non perde il testo digitato',
+      (tester) async {
+    final completer = Completer<bool>();
+    final fake = FakeSessionController(const SessionSignedOut());
+    await pumpApp(tester, const LoginScreen(), overrides: [
+      sessionControllerProvider.overrideWith(() => fake),
+      quickConnectEnabledProvider.overrideWith((ref) => completer.future),
+    ]);
+    await tester.pump();
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byKey(const Key('login-username')), findsNothing);
+
+    completer.complete(true);
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Quick Connect'), findsOneWidget);
   });
 }

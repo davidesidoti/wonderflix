@@ -57,7 +57,15 @@ class QuickConnectFlow implements QuickConnectRunner {
         return;
       }
       while (true) {
-        final session = await _api.initiateQuickConnect();
+        final QuickConnectState session;
+        try {
+          session = await _api.initiateQuickConnect();
+        } on UnauthorizedException {
+          // Il server ha Quick Connect disattivato (può cambiare tra la
+          // verifica iniziale e questa chiamata).
+          yield const QcDisabled();
+          return;
+        }
         yield QcWaiting(session.code);
 
         var expired = false;
@@ -66,6 +74,10 @@ class QuickConnectFlow implements QuickConnectRunner {
           try {
             final state = await _api.quickConnectState(session.secret);
             if (state.authenticated) {
+              // Se l'iscrizione viene cancellata qui (utente che chiude la
+              // schermata), il generatore si ferma a questo yield e non
+              // completa mai il login.
+              yield const QcLoading();
               yield QcApproved(await _auth.completeQuickConnect(session.secret));
               return;
             }

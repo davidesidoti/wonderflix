@@ -15,7 +15,7 @@ class LoginScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final session = ref.watch(sessionControllerProvider);
-    final quickConnect = ref.watch(quickConnectEnabledProvider).value ?? false;
+    final quickConnectAsync = ref.watch(quickConnectEnabledProvider);
     final expired = session is SessionSignedOut && session.expired;
 
     return Scaffold(
@@ -43,7 +43,18 @@ class LoginScreen extends ConsumerWidget {
                       ErrorBanner(l.sessionExpired),
                       const SizedBox(height: 12),
                     ],
-                    if (quickConnect)
+                    if (quickConnectAsync.isLoading)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: Center(
+                          child: SizedBox(
+                            width: 28,
+                            height: 28,
+                            child: CircularProgressIndicator(strokeWidth: 2.5),
+                          ),
+                        ),
+                      )
+                    else if (quickConnectAsync.value ?? false)
                       DefaultTabController(
                         length: 2,
                         child: Column(

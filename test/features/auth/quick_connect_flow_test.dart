@@ -98,6 +98,41 @@ void main() {
     });
   });
 
+  test('Quick Connect disattivato durante l\'avvio (401 su initiate)', () {
+    fakeAsync((async) {
+      when(() => api.quickConnectEnabled()).thenAnswer((_) async => true);
+      when(() => api.initiateQuickConnect())
+          .thenThrow(const UnauthorizedException());
+
+      final states = <QcState>[];
+      flow.run().listen(states.add);
+      async.flushMicrotasks();
+
+      expect(states.map((s) => s.runtimeType), [QcLoading, QcDisabled]);
+    });
+  });
+
+  test('la cancellazione dell\'iscrizione non completa il login in silenzio', () {
+    fakeAsync((async) {
+      when(() => api.quickConnectEnabled()).thenAnswer((_) async => true);
+      when(() => api.initiateQuickConnect())
+          .thenAnswer((_) async => qc('482913', 's1'));
+      when(() => api.quickConnectState('s1'))
+          .thenAnswer((_) async => qc('482913', 's1', ok: true));
+      when(() => auth.completeQuickConnect('s1'))
+          .thenAnswer((_) async => testUser);
+
+      final states = <QcState>[];
+      final subscription = flow.run().listen(states.add);
+      async.flushMicrotasks();
+
+      subscription.cancel();
+      async.elapse(const Duration(seconds: 3));
+
+      verifyNever(() => auth.completeQuickConnect(any()));
+    });
+  });
+
   test('errore imprevisto (non ApiException): stato di errore', () {
     fakeAsync((async) {
       var polls = 0;
