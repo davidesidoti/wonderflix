@@ -79,6 +79,23 @@ jobs:
           [IO.File]::WriteAllBytes('cert.pfx', [Convert]::FromBase64String('${{ secrets.WONDERFLIX_SIGNING_CERT }}'))
           signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f cert.pfx /p '${{ secrets.WONDERFLIX_SIGNING_PASSWORD }}' build\windows\x64\runner\Release\wonderflix.exe
 
+      # Versione fissa: un aggiornamento dell'immagine del runner non cambia
+      # l'installer senza che ce ne accorgiamo.
+      - name: Inno Setup 6.7.1
+        shell: pwsh
+        run: |
+          choco install innosetup --version=6.7.1 -y --no-progress --allow-downgrade
+          if ($LASTEXITCODE -notin 0, 1641, 3010) {
+            Write-Error "Installazione di Inno Setup 6.7.1 non riuscita (codice $LASTEXITCODE)"
+            exit 1
+          }
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            Write-Error "ISCC.exe non trovato in $iscc dopo l'installazione di Inno Setup"
+            exit 1
+          }
+          exit 0
+
       - name: Installer
         shell: pwsh
         run: |
