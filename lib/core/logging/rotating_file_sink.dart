@@ -31,19 +31,36 @@ class RotatingFileSink {
       directory.createSync(recursive: true);
       final file = current;
       final size = file.existsSync() ? file.lengthSync() : 0;
-      if (size > 0 && size + bytes.length > maxBytes) _rotate();
+      if (size > 0 && size + bytes.length > maxBytes) {
+        try {
+          _rotate();
+        } on FileSystemException {
+          // File bloccato (antivirus, editor): si continua ad aggiungere al
+          // file attuale, anche oltre il massimo, e si riprova alla riga dopo.
+        }
+      }
       current.writeAsBytesSync(bytes, mode: FileMode.append);
     } on FileSystemException {
       // Riga persa: meglio che un errore mentre si registra un errore.
     }
   }
 
+  /// Prima sposta il file attuale in un nome temporaneo: se non si può
+  /// (file bloccato) non si cancella né si sposta nient'altro.
   void _rotate() {
+    final rotating = File('${directory.path}${Platform.pathSeparator}'
+        '$baseName.rotating.log');
+    current.renameSync(rotating.path);
     final oldest = _file(maxFiles - 1);
-    if (oldest.existsSync()) oldest.deleteSync();
-    for (var i = maxFiles - 2; i >= 0; i--) {
+    if (maxFiles > 1 && oldest.existsSync()) oldest.deleteSync();
+    for (var i = maxFiles - 2; i >= 1; i--) {
       final file = _file(i);
       if (file.existsSync()) file.renameSync(_file(i + 1).path);
+    }
+    if (maxFiles > 1) {
+      rotating.renameSync(_file(1).path);
+    } else {
+      rotating.deleteSync();
     }
   }
 }
