@@ -10,7 +10,7 @@
 - Riverpod collega i servizi e contiene `SessionController`, la macchina a stati della sessione.
 - go_router decide la schermata in base allo stato della sessione.
 
-**Tech Stack:** Flutter 3.35.6 / Dart 3.9.2, flutter_riverpod 3, go_router, dio 5, flutter_secure_storage, shared_preferences, window_manager, url_launcher, lucide_icons_flutter, gen-l10n; test con flutter_test, mocktail, fake_async.
+**Tech Stack:** Flutter 3.47.5 (aggiornato da 3.35.6 per supportare VS Build Tools 2026), flutter_riverpod 3, go_router, dio 5, flutter_secure_storage, shared_preferences, window_manager, url_launcher, lucide_icons_flutter, gen-l10n; test con flutter_test, mocktail, fake_async.
 
 **Spec:** `docs/superpowers/specs/2026-09-29-wonderflix-client-core-design.md`
 
@@ -3778,7 +3778,7 @@ Client desktop Windows per il server Jellyfin WonderFlix.
 
 ## Sviluppo
 
-Requisiti: Flutter 3.35.x (stable) con Visual Studio Build Tools (workload "Desktop development with C++").
+Requisiti: Flutter 3.47.x (stable) con Visual Studio Build Tools (workload "Desktop development with C++" + componente "C++ ATL", richiesto da flutter_secure_storage).
 
 1. Copia `config/wonderflix.example.json` in `config/wonderflix.json` e inserisci l'indirizzo del server (il file è in `.gitignore`).
 2. Avvia:
@@ -3848,7 +3848,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.35.6
+          flutter-version: 3.47.5
           cache: true
 
       - run: flutter pub get
