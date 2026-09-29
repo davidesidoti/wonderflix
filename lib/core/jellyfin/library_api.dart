@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import 'api_exception.dart';
 import 'item_models.dart';
 import 'item_query.dart';
 import 'jellyfin_http.dart';
@@ -36,11 +37,13 @@ class LibraryApi {
         'includeItemTypes': 'Movie,Episode',
       }));
 
+  /// [dateCutoff]: ignora le serie non guardate da prima di questa data.
   Future<List<JellyfinItem>> nextUp(
     String userId, {
     String? seriesId,
     int limit = 20,
     bool enableResumable = false,
+    DateTime? dateCutoff,
   }) async =>
       _list(await _http.get('/Shows/NextUp', query: {
         ...cardImageParams,
@@ -48,6 +51,7 @@ class LibraryApi {
         'limit': limit,
         'enableResumable': enableResumable,
         'seriesId': ?seriesId,
+        'nextUpDateCutoff': ?dateCutoff?.toUtc().toIso8601String(),
       }));
 
   Future<JellyfinItem> item(String userId, String itemId) async => parseJson(
@@ -66,6 +70,33 @@ class LibraryApi {
         'seasonId': seasonId,
         'fields': 'Overview,PrimaryImageAspectRatio',
       }));
+
+  /// Episodio che segue [episodeId] nella serie, anche nella stagione dopo;
+  /// `null` se è l'ultimo.
+  Future<JellyfinItem?> nextEpisode(
+      String userId, String seriesId, String episodeId) async {
+    final episodes = _list(await _http.get('/Shows/$seriesId/Episodes', query: {
+      ...cardImageParams,
+      'userId': userId,
+      'startItemId': episodeId,
+      'limit': 2,
+      'isMissing': false,
+      'fields': 'Overview,PrimaryImageAspectRatio',
+    }));
+    final index = episodes.indexWhere((e) => e.id == episodeId);
+    return index >= 0 && index + 1 < episodes.length ? episodes[index + 1] : null;
+  }
+
+  /// Trailer salvati sul server accanto all'elemento.
+  Future<List<JellyfinItem>> localTrailers(String userId, String itemId) async {
+    final data = await _http
+        .get('/Items/$itemId/LocalTrailers', query: {'userId': userId});
+    if (data is! List) throw const ServerErrorException(null);
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(JellyfinItem.fromJson)
+        .toList();
+  }
 
   Future<List<JellyfinItem>> similar(String userId, String itemId,
           {int limit = 12}) async =>

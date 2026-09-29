@@ -24,6 +24,13 @@ class FakeLibraryApi implements LibraryApi {
   Duration delay = Duration.zero;
 
   final itemQueries = <ItemQuery>[];
+  /// Episodio successivo, per id dell'episodio corrente.
+  final Map<String, JellyfinItem> nextEpisodes = {};
+
+  /// Trailer locali, per id dell'elemento.
+  final Map<String, List<JellyfinItem>> localTrailerItems = {};
+  final nextEpisodeCalls = <String>[];
+  final nextUpCutoffs = <DateTime?>[];
   final nextUpCalls = <String?>[];
   final favoriteCalls = <(String, bool)>[];
   final playedCalls = <(String, bool)>[];
@@ -51,10 +58,25 @@ class FakeLibraryApi implements LibraryApi {
 
   @override
   Future<List<JellyfinItem>> nextUp(String userId,
-      {String? seriesId, int limit = 20, bool enableResumable = false}) {
+      {String? seriesId,
+      int limit = 20,
+      bool enableResumable = false,
+      DateTime? dateCutoff}) {
     nextUpCalls.add(seriesId);
+    nextUpCutoffs.add(dateCutoff);
     return _answer(() => nextUpItems);
   }
+
+  @override
+  Future<JellyfinItem?> nextEpisode(
+      String userId, String seriesId, String episodeId) {
+    nextEpisodeCalls.add(episodeId);
+    return _answer(() => nextEpisodes[episodeId]);
+  }
+
+  @override
+  Future<List<JellyfinItem>> localTrailers(String userId, String itemId) =>
+      _answer(() => localTrailerItems[itemId] ?? const []);
 
   @override
   Future<JellyfinItem> item(String userId, String itemId) =>

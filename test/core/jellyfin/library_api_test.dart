@@ -100,6 +100,40 @@ void main() {
     await api.setPlayed('u1', 'm1', played: false);
     expect(last().method, 'DELETE');
   });
+
+  test('nextEpisode: l\'episodio dopo quello indicato', () async {
+    adapter.handler = (_) => FakeResponse(200, itemsResult(['e4', 'e5']));
+    final next = await api.nextEpisode('u1', 's1', 'e4');
+    expect(last().path, '/Shows/s1/Episodes');
+    expect(last().query['startItemId'], 'e4');
+    expect(last().query['limit'], 2);
+    expect(last().query['isMissing'], false);
+    expect(last().query['userId'], 'u1');
+    expect(next?.id, 'e5');
+
+    adapter.handler = (_) => FakeResponse(200, itemsResult(['e9']));
+    expect(await api.nextEpisode('u1', 's1', 'e9'), isNull,
+        reason: 'ultimo episodio');
+  });
+
+  test('localTrailers: array di elementi', () async {
+    adapter.handler = (_) => const FakeResponse(200, [
+          {'Id': 't1', 'Name': 'Trailer', 'Type': 'Trailer'},
+        ]);
+    final trailers = await api.localTrailers('u1', 'm1');
+    expect(last().path, '/Items/m1/LocalTrailers');
+    expect(last().query['userId'], 'u1');
+    expect(trailers.single.id, 't1');
+  });
+
+  test('nextUp con limite di data', () async {
+    await api.nextUp('u1',
+        limit: 20, dateCutoff: DateTime.utc(2025, 9, 29, 10, 30));
+    expect(last().query['nextUpDateCutoff'], '2025-09-29T10:30:00.000Z');
+
+    await api.nextUp('u1', limit: 20);
+    expect(last().query.containsKey('nextUpDateCutoff'), isFalse);
+  });
 }
 
 /// Accesso comodo a metodo, percorso e query di una richiesta registrata.
