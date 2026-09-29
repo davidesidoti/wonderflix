@@ -40,7 +40,7 @@ Documento per riprendere il lavoro in una nuova sessione. Tutto quello che segue
 
 - **Flutter 3.47.5**, non 3.35.6 come dicono spec e Piano 1: è stato aggiornato perché la 3.35 non riconosce i Visual Studio Build Tools 2026.
 - **Build Tools 2026 con il componente ATL** installato (serve a `flutter_secure_storage`).
-- **`config/wonderflix.json`** esiste solo in locale (è in `.gitignore`): server `https://hashvps.proton.usbx.me/jellyfin`. Va copiato nel worktree nuovo (`cp config/wonderflix.json .claude/worktrees/<nome>/config/`).
+- **`config/wonderflix.json`** esiste solo in locale (è in `.gitignore`) e contiene l'indirizzo del server. Va copiato nel worktree nuovo (`cp config/wonderflix.json .claude/worktrees/<nome>/config/`).
 - **File generati con modifiche false:** `flutter pub get` / `flutter test` riscrivono `windows/flutter/generated_plugin*` con soli cambi di fine riga. Se `git diff` non mostra cambi di contenuto: `git checkout -- windows/flutter/`, senza committarli. Se un nuovo plugin nativo cambia davvero il contenuto, vanno committati.
 - **App aperta durante il riavvio:** fermare un `flutter run` in background non chiude la finestra, e una build successiva fallisce con `LNK1168` (exe bloccato). Soluzione: `taskkill //IM wonderflix.exe //F` prima di rilanciare.
 - **Shell nei worktree:** i comandi git vanno eseguiti dal worktree. Non lanciare `git worktree remove` stando dentro la cartella da rimuovere.
