@@ -282,7 +282,7 @@ Le azioni dell'utente passano da un'interfaccia: pulsanti, tastiera, pannello me
 - **`GroupAuthority`:**
   - `pause()` manda `Pause` e **mette subito in pausa anche il motore**, così la risposta è immediata. Il comando del gruppo poi allinea la posizione.
   - `play()` manda `Unpause`; il motore riparte con il comando del gruppo.
-  - `seekTo()` manda `Seek`. La barra mostra subito la posizione scelta, e il motore si sposta con il comando del gruppo.
+  - `seekTo()` manda `Seek` e intanto mette in pausa il motore sulla posizione scelta, così la barra la mostra subito. La ripresa arriva con il comando del gruppo.
   - `nextEpisode()` manda `NextItem`.
   - "Salta intro" è un `seekTo()`.
   - Se il gruppo è in `Waiting`, `play()` corrisponde a "Riprendi senza aspettare".
