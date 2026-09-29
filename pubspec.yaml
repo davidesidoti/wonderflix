@@ -16,6 +16,9 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   flutter_riverpod: ^3.3.2
+  # Versione esatta usata per generare smtc_windows 1.1.0 (il crate Rust è
+  # fissato a =2.11.1): con un'altra versione SMTC non si inizializza.
+  flutter_rust_bridge: 2.11.1
   flutter_secure_storage: ^11.2.0
   go_router: ^18.0.2
   intl: any
