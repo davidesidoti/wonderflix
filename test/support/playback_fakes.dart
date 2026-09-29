@@ -236,6 +236,12 @@ class FakeVideoEngine implements VideoEngine {
   final subtitleScales = <double>[];
   final seeks = <Duration>[];
   final volumes = <double>[];
+
+  /// Velocità chieste con [setRate], in ordine (non registrate in [calls]).
+  final rates = <double>[];
+
+  /// Ultima velocità impostata.
+  double currentRate = 1.0;
   bool disposed = false;
   int _nextSubtitleId = 100;
 
@@ -314,6 +320,12 @@ class FakeVideoEngine implements VideoEngine {
 
   @override
   Future<void> setVolume(double volume) async => volumes.add(volume);
+
+  @override
+  Future<void> setRate(double rate) async {
+    rates.add(rate);
+    currentRate = rate;
+  }
 
   @override
   Future<List<EngineTrack>> tracks() async => engineTracks;

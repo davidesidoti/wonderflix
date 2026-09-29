@@ -67,6 +67,10 @@ abstract class VideoEngine {
   /// 0–100.
   Future<void> setVolume(double volume);
 
+  /// Velocità di riproduzione (1.0 = normale). L'audio mantiene il tono. Il
+  /// watch party la usa per recuperare piccoli scarti senza salti.
+  Future<void> setRate(double rate);
+
   Future<List<EngineTrack>> tracks();
 
   /// Id da [tracks]; `null` = nessuna traccia.

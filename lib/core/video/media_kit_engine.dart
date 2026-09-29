@@ -115,6 +115,11 @@ class MediaKitEngine implements VideoEngine {
   @override
   Future<void> setVolume(double volume) => _player.setVolume(volume);
 
+  /// Con `PlayerConfiguration.pitch` a `false` media_kit imposta `speed` di
+  /// mpv, che mantiene il tono dell'audio (`audio-pitch-correction`).
+  @override
+  Future<void> setRate(double rate) => _player.setRate(rate);
+
   @override
   Future<List<EngineTrack>> tracks() async {
     final count =
