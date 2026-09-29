@@ -8,6 +8,7 @@ import 'package:wonderflix/features/discord/discord_settings.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
 import 'package:wonderflix/features/settings/diagnostics.dart';
 
+import '../../support/pump_app.dart';
 import '../../support/settings_fakes.dart';
 import '../../support/test_data.dart';
 
@@ -50,9 +51,13 @@ void main() {
   Future<ProviderContainer> container(FakeSystemApi system) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
-    final log = AppLog()..add(LogRecord(Level.SEVERE, 'boom', 'player'));
+    final log = AppLog()
+      ..add(LogRecord(Level.SEVERE, 'boom', 'player'))
+      ..add(LogRecord(Level.WARNING,
+          'GET https://media.example.com/Items/1 -> 404', 'jellyfin'));
     return ProviderContainer.test(overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
+      appConfigProvider.overrideWithValue(testAppConfig),
       clientInfoProvider.overrideWithValue(testClientInfo),
       systemApiProvider.overrideWithValue(system),
       appLogProvider.overrideWithValue(log),
@@ -68,6 +73,14 @@ void main() {
     expect(text, contains('Player: quality=original'));
     expect(text, contains('Discord: enabled=true'));
     expect(text, contains('[player] boom'));
+  });
+
+  test('collectDiagnostics: l\'host del server negli errori diventa <server>',
+      () async {
+    final c = await container(FakeSystemApi());
+    final text = await c.read(collectDiagnosticsProvider)();
+    expect(text, contains('GET https://<server>/Items/1 -> 404'));
+    expect(text, isNot(contains('media.example.com')));
   });
 
   test('collectDiagnostics: server offline', () async {

@@ -11,8 +11,9 @@ import '../player/player_settings.dart';
 
 final _log = Logger('diagnostics');
 
-/// Testo da incollare nelle richieste di aiuto. Non contiene l'indirizzo del
-/// server né dati dell'account; gli errori sono già senza segreti.
+/// Testo da incollare nelle richieste di aiuto. Non contiene dati
+/// dell'account; gli errori sono già senza segreti. L'host del server negli
+/// errori lo toglie [collectDiagnosticsProvider].
 String buildDiagnostics({
   required String appVersion,
   required String windowsVersion,
@@ -54,13 +55,19 @@ final collectDiagnosticsProvider =
           } on Object catch (error) {
             _log.info('versione del server non disponibile: $error');
           }
+          // L'indirizzo del server può comparire dentro gli errori.
+          final host = ref.read(appConfigProvider).serverUrl.host;
+          final errors = [
+            for (final error in ref.read(appLogProvider).recentErrors)
+              host.isEmpty ? error : error.replaceAll(host, '<server>'),
+          ];
           return buildDiagnostics(
             appVersion: ref.read(clientInfoProvider).version,
             windowsVersion: Platform.operatingSystemVersion,
             serverVersion: server,
             player: ref.read(playerSettingsProvider),
             discord: ref.read(discordSettingsProvider),
-            recentErrors: ref.read(appLogProvider).recentErrors,
+            recentErrors: errors,
           );
         });
 
