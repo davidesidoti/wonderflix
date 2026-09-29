@@ -1,17 +1,20 @@
+import 'api_exception.dart';
 import 'jellyfin_http.dart';
 
-/// Lingue proposte nelle impostazioni (codici ISO 639-2 usati da Jellyfin),
-/// con il nome nella lingua stessa.
+/// Lingue proposte nelle impostazioni, con il nome nella lingua stessa.
+/// Codici ISO 639-2/B, come li salva jellyfin-web (`ThreeLetterISOLanguageName`
+/// delle culture del server): per francese, tedesco e cinese sono `fre`,
+/// `ger` e `chi`, non `fra`, `deu` e `zho`.
 const playbackLanguages = <String, String>{
   'ita': 'Italiano',
   'eng': 'English',
   'jpn': '日本語',
-  'fra': 'Français',
-  'deu': 'Deutsch',
+  'fre': 'Français',
+  'ger': 'Deutsch',
   'spa': 'Español',
   'por': 'Português',
   'kor': '한국어',
-  'zho': '中文',
+  'chi': '中文',
 };
 
 /// Modi dei sottotitoli di Jellyfin (`SubtitlePlaybackMode`).
@@ -23,13 +26,16 @@ class UserConfigApi {
 
   final JellyfinHttp _http;
 
-  /// Configurazione completa, compresi i campi che l'app non usa.
+  /// Configurazione completa, compresi i campi che l'app non usa. Se la
+  /// risposta non la contiene è un errore: salvare una configurazione vuota
+  /// cancellerebbe quella sul server.
   Future<Map<String, dynamic>> configuration() async {
     final me = asJsonMap(await _http.get('/Users/Me'));
     final config = me['Configuration'];
-    return config is Map<String, dynamic>
-        ? Map<String, dynamic>.of(config)
-        : <String, dynamic>{};
+    if (config is! Map<String, dynamic>) {
+      throw const ServerErrorException(null);
+    }
+    return Map<String, dynamic>.of(config);
   }
 
   /// Il server sostituisce tutta la configurazione: [configuration] deve

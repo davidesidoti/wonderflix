@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
 import 'package:wonderflix/core/jellyfin/user_config_api.dart';
 
@@ -32,6 +33,22 @@ void main() {
       'SubtitleMode': 'Smart',
       'HidePlayedInLatest': true,
     });
+  });
+
+  test('configuration senza "Configuration": errore, non una mappa vuota',
+      () async {
+    // Salvare una configurazione vuota cancellerebbe quella sul server.
+    adapter.handler =
+        (_) => const FakeResponse(200, {'Id': 'u1', 'Name': 'Mario'});
+    await expectLater(
+        api.configuration(), throwsA(isA<ServerErrorException>()));
+  });
+
+  test('lingue con i codici ISO 639-2/B usati da Jellyfin', () {
+    expect(playbackLanguages.keys, containsAll(['fre', 'ger', 'chi']));
+    expect(playbackLanguages.keys, isNot(contains('fra')));
+    expect(playbackLanguages.keys, isNot(contains('deu')));
+    expect(playbackLanguages.keys, isNot(contains('zho')));
   });
 
   test('saveConfiguration invia la configurazione completa', () async {
