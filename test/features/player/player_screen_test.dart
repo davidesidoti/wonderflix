@@ -15,6 +15,7 @@ import 'package:wonderflix/core/media_session/media_session.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/player/playback_service.dart';
+import 'package:wonderflix/features/player/player_active.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
@@ -583,6 +584,20 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('home'), findsOneWidget);
     expect(mediaSession.cleared, 1);
+    await unmount(tester);
+  });
+
+  testWidgets('segnala il player aperto finché non si esce', (tester) async {
+    await pumpPlayer(tester);
+    final container =
+        ProviderScope.containerOf(tester.element(find.byType(PlayerScreen)));
+    expect(container.read(playerActiveProvider), isTrue);
+
+    mediaSession.press(MediaButton.stop);
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('home'), findsOneWidget);
+    expect(container.read(playerActiveProvider), isFalse);
     await unmount(tester);
   });
 }

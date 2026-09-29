@@ -22,6 +22,7 @@ import '../library/user_data.dart';
 import 'player_commands.dart';
 import 'player_controller.dart';
 import 'player_extras.dart';
+import 'player_active.dart';
 import 'player_overlay.dart';
 import 'player_providers.dart';
 import 'player_settings.dart';
@@ -67,6 +68,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// L'utente ha chiuso la scheda "Prossimo episodio".
   bool _nextCardDismissed = false;
 
+  late final PlayerActiveController _playerActive;
   late final MediaSession _mediaSession;
   StreamSubscription<MediaButton>? _mediaButtons;
   Timer? _timelineTimer;
@@ -77,6 +79,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void initState() {
     super.initState();
+    _playerActive = ref.read(playerActiveProvider.notifier)..enter();
     _window = ref.read(playerWindowProvider);
     _window.addCloseListener(_onWindowClose);
     unawaited(_window.setPreventClose(true));
@@ -103,6 +106,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // Uscendo dal player il pannello media sparisce; passando all'episodio
     // successivo resta alla nuova schermata. Non si chiude mai: è dell'app.
     if (!_handingOver) unawaited(_mediaSession.clear());
+    _playerActive.leave();
     super.dispose();
   }
 
