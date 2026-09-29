@@ -96,6 +96,8 @@ class UpdateController extends Notifier<UpdateState> {
     _checking = true;
     var mandatory = false;
     try {
+      final current = Version.parse(ref.read(clientInfoProvider).version);
+      _deleteInstalledInstallers(current);
       final repo = ref.read(appConfigProvider).githubRepo;
       if (!_repoPattern.hasMatch(repo)) return;
       final api = ref.read(githubReleasesApiProvider);
@@ -106,7 +108,6 @@ class UpdateController extends Notifier<UpdateState> {
         _set(const UpdateState());
         return;
       }
-      final current = Version.parse(ref.read(clientInfoProvider).version);
       if (release.version <= current) {
         _set(const UpdateState());
         return;
@@ -199,6 +200,39 @@ class UpdateController extends Notifier<UpdateState> {
     }
     if (await target.exists()) await target.delete();
     return partial.rename(target.path);
+  }
+
+  static final _installerFile =
+      RegExp(r'^WonderFlix-Setup-(.+)\.exe(\.part)?$');
+
+  /// Installer (anche parziali) di versioni già installate o precedenti:
+  /// l'aggiornamento è riuscito, non servono più. Sincrona: la cartella
+  /// contiene al massimo pochi file.
+  void _deleteInstalledInstallers(Version current) {
+    final directory = ref.read(updateDownloadDirectoryProvider);
+    try {
+      if (!directory.existsSync()) return;
+      for (final entity in directory.listSync()) {
+        if (entity is! File) continue;
+        final match =
+            _installerFile.firstMatch(entity.uri.pathSegments.last);
+        if (match == null) continue;
+        final Version version;
+        try {
+          version = Version.parse(match[1]!);
+        } on FormatException {
+          continue;
+        }
+        if (version > current) continue;
+        try {
+          entity.deleteSync();
+        } on FileSystemException {
+          // In uso o già eliminato: non importa.
+        }
+      }
+    } on FileSystemException {
+      // Cartella non leggibile: si riprova al prossimo controllo.
+    }
   }
 
   /// Installer di versioni precedenti rimasti in `%TEMP%\WonderFlix`.

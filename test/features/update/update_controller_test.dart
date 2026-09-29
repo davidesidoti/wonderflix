@@ -114,6 +114,31 @@ void main() {
     expect(old.existsSync(), isFalse);
   });
 
+  test('toglie gli installer della versione installata anche senza release',
+      () async {
+    api.latest = null;
+    String path(String name) => '${downloads.path}${Platform.pathSeparator}$name';
+    final installedVersion = File(path('WonderFlix-Setup-0.1.0.exe'))
+      ..writeAsBytesSync(const [0]);
+    final older = File(path('WonderFlix-Setup-0.0.9.exe.part'))
+      ..writeAsBytesSync(const [0]);
+    final newer = File(path('WonderFlix-Setup-0.2.0.exe'))
+      ..writeAsBytesSync(const [0]);
+    final unknown = File(path('WonderFlix-Setup-nuovo.exe'))
+      ..writeAsBytesSync(const [0]);
+    await checked(container());
+    expect(installedVersion.existsSync(), isFalse);
+    expect(older.existsSync(), isFalse);
+    expect(newer.existsSync(), isTrue);
+    expect(unknown.existsSync(), isTrue);
+  });
+
+  test('cartella dei download assente: nessun errore', () async {
+    downloads.deleteSync(recursive: true);
+    api.latest = null;
+    expect((await checked(container())).release, isNull);
+  });
+
   test('obbligatorio con download fallito: "failed", poi riprova', () async {
     api.latest = latestJson('0.2.0',
         body: '<!-- wonderflix:min-version=0.2.0 -->');
