@@ -35,4 +35,16 @@ void main() {
     expect(pickFeatured(movies, series).map((i) => i.id),
         ['m0', 's0', 'm1', 'm2', 'm3']);
   });
+
+  test('prossimi episodi: solo serie guardate nell\'ultimo anno', () async {
+    final api = FakeLibraryApi();
+    final before = DateTime.now();
+    await loadHome(api, 'u1');
+    final cutoff = api.nextUpCutoffs.single!;
+    expect(before.difference(cutoff).inDays, inInclusiveRange(364, 365));
+  });
+
+  test('nextUpCutoff', () {
+    expect(nextUpCutoff(DateTime.utc(2026, 9, 29)), DateTime.utc(2025, 9, 29));
+  });
 }

@@ -30,6 +30,10 @@ class HomeData {
       favorites.isEmpty;
 }
 
+/// Come jellyfin-web: nei "Prossimi episodi" solo le serie guardate negli
+/// ultimi 365 giorni.
+DateTime nextUpCutoff(DateTime now) => now.subtract(const Duration(days: 365));
+
 /// Carica tutte le righe della Home in parallelo.
 Future<HomeData> loadHome(LibraryApi api, String userId) async {
   Future<List<JellyfinItem>> latest(ItemQuery query) async =>
@@ -37,7 +41,7 @@ Future<HomeData> loadHome(LibraryApi api, String userId) async {
 
   final results = await Future.wait<List<JellyfinItem>>([
     api.resume(userId, limit: 20),
-    api.nextUp(userId, limit: 20),
+    api.nextUp(userId, limit: 20, dateCutoff: nextUpCutoff(DateTime.now())),
     latest(const ItemQuery(kinds: {ItemKind.movie}, sort: CatalogSort.dateAdded)),
     latest(const ItemQuery(kinds: {ItemKind.series}, sort: CatalogSort.dateAdded)),
     latest(const ItemQuery(
