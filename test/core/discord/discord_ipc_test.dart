@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 import 'package:wonderflix/core/discord/discord_ipc.dart';
 
 import '../../support/discord_fakes.dart';
@@ -165,6 +166,53 @@ void main() {
       expect(client.poll(), isTrue);
       expect(client.takeCommandError(), isTrue);
       expect(client.takeCommandError(), isFalse);
+    });
+
+    test('ERROR ripetuti: un solo warning finché il testo non cambia',
+        () async {
+      final previousLevel = Logger.root.level;
+      Logger.root.level = Level.ALL;
+      addTearDown(() => Logger.root.level = previousLevel);
+      final records = <LogRecord>[];
+      final sub = Logger.root.onRecord
+          .where((r) => r.message.contains('activity fails'))
+          .listen(records.add);
+      addTearDown(sub.cancel);
+
+      void rejected(String reason) {
+        client.setActivity({'type': 3}, pid: 1);
+        pipe.push(DiscordOpcode.frame, {
+          'cmd': 'SET_ACTIVITY',
+          'evt': 'ERROR',
+          'data': {'code': 4000, 'message': 'activity fails: $reason'},
+        });
+        client.poll();
+      }
+
+      await client.connect();
+      rejected('a');
+      rejected('a');
+      rejected('a');
+      await Future<void>.delayed(Duration.zero);
+      expect(records.map((r) => r.level),
+          [Level.WARNING, Level.FINE, Level.FINE]);
+
+      rejected('b');
+      await Future<void>.delayed(Duration.zero);
+      expect(records.last.level, Level.WARNING);
+
+      // Un invio riuscito: lo stesso errore, più tardi, si registra di nuovo.
+      client.setActivity({'type': 3}, pid: 1);
+      client.poll();
+      rejected('b');
+      await Future<void>.delayed(Duration.zero);
+      expect(records.map((r) => r.level), [
+        Level.WARNING,
+        Level.FINE,
+        Level.FINE,
+        Level.WARNING,
+        Level.WARNING,
+      ]);
     });
 
     test('poll: Discord chiude la connessione', () async {

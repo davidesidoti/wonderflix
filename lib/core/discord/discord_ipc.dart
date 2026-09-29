@@ -106,6 +106,13 @@ class DiscordIpcClient {
   bool _commandError = false;
   Object? _closeCode;
 
+  /// Testo dell'ultimo `ERROR` registrato come warning: quelli uguali che
+  /// seguono vanno a livello fine. Si azzera dopo un invio riuscito.
+  String? _lastError;
+
+  /// Inviata un'attività di cui [poll] non ha ancora visto l'esito.
+  bool _awaitingReply = false;
+
   bool get connected => _connected;
 
   /// Discord ha rifiutato l'Application ID all'handshake (close con codice
@@ -167,6 +174,7 @@ class DiscordIpcClient {
         'args': {'pid': pid, 'activity': ?activity},
         'nonce': '${++_nonce}',
       }));
+      _awaitingReply = true;
       return true;
     } on DiscordPipeException catch (e) {
       _log.fine('pipe di Discord: $e');
@@ -180,7 +188,10 @@ class DiscordIpcClient {
   bool poll() {
     if (!_connected) return false;
     try {
-      _drain();
+      final error = _drain();
+      // Invio riuscito: un errore che torna più tardi si registra di nuovo.
+      if (_awaitingReply && !error) _lastError = null;
+      _awaitingReply = false;
     } on DiscordPipeException catch (e) {
       _log.fine('pipe di Discord: $e');
       close();
@@ -195,8 +206,9 @@ class DiscordIpcClient {
   }
 
   /// Legge quello che Discord ha mandato nel frattempo: ping, chiusura,
-  /// errori sui comandi.
-  void _drain() {
+  /// errori sui comandi. `true` se è arrivato un `ERROR`.
+  bool _drain() {
+    var error = false;
     _reader.add(_pipe.read());
     for (final frame in _reader.takeFrames()) {
       switch (frame.opcode) {
@@ -205,16 +217,24 @@ class DiscordIpcClient {
         case DiscordOpcode.close:
           _log.info('Discord ha chiuso la connessione: ${frame.json}');
           close();
-          return;
+          return error;
         case DiscordOpcode.frame:
           if (frame.json['evt'] == 'ERROR') {
-            _log.warning('Discord: ${frame.json['data']}');
+            final text = '${frame.json['data']}';
+            if (text == _lastError) {
+              _log.fine('Discord (errore ripetuto): $text');
+            } else {
+              _log.warning('Discord: $text');
+              _lastError = text;
+            }
             _commandError = true;
+            error = true;
           }
         case DiscordOpcode.handshake:
         case DiscordOpcode.pong:
           break;
       }
     }
+    return error;
   }
 }
