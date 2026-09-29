@@ -138,6 +138,21 @@ class FakePlaybackApi implements PlaybackApi {
   final stopped = <PlaybackReport>[];
   final userDataCalls = <String>[];
 
+  /// Segmenti restituiti da [mediaSegments].
+  List<MediaSegment> segments = const [];
+
+  /// Se valorizzato, solo [mediaSegments] lancia questo errore.
+  Object? segmentsError;
+  final segmentsCalls = <String>[];
+
+  @override
+  Future<List<MediaSegment>> mediaSegments(String itemId) async {
+    segmentsCalls.add(itemId);
+    final failure = segmentsError;
+    if (failure != null) throw failure;
+    return segments;
+  }
+
   Future<T> _answer<T>(T Function() value) async {
     if (delay > Duration.zero) await Future<void>.delayed(delay);
     final failure = error;

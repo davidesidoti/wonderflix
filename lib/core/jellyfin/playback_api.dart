@@ -51,6 +51,16 @@ class PlaybackApi {
     await _http.post('/Sessions/Playing/Stopped', body: report.toStoppedJson());
   }
 
+  /// Intro, riassunti, crediti… dell'elemento. Vuota se il server non ha un
+  /// plugin che li riconosce.
+  Future<List<MediaSegment>> mediaSegments(String itemId) async => parseJson(
+        await _http.get('/MediaSegments/$itemId'),
+        (json) => (json['Items'] as List? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(MediaSegment.fromJson)
+            .toList(),
+      );
+
   /// Dati utente aggiornati di un elemento (minutaggio, visto).
   Future<UserItemData> userData(String userId, String itemId) async =>
       parseJson(

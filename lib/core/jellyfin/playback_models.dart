@@ -215,6 +215,46 @@ class PlaybackReport {
       };
 }
 
+/// Tipo di segmento del video (valore `Type` di `MediaSegmentDto`).
+enum MediaSegmentType {
+  intro('Intro'),
+  recap('Recap'),
+  outro('Outro'),
+  preview('Preview'),
+  commercial('Commercial'),
+  unknown('Unknown');
+
+  const MediaSegmentType(this.apiName);
+
+  final String apiName;
+
+  static MediaSegmentType parse(Object? value) {
+    for (final type in values) {
+      if (type.apiName == value) return type;
+    }
+    return unknown;
+  }
+}
+
+/// Parte del video riconosciuta dal server (intro, riassunto, crediti…).
+class MediaSegment {
+  const MediaSegment({
+    required this.type,
+    required this.start,
+    required this.end,
+  });
+
+  factory MediaSegment.fromJson(Map<String, dynamic> json) => MediaSegment(
+        type: MediaSegmentType.parse(json['Type']),
+        start: ticksToDuration(_int(json['StartTicks']) ?? 0),
+        end: ticksToDuration(_int(json['EndTicks']) ?? 0),
+      );
+
+  final MediaSegmentType type;
+  final Duration start;
+  final Duration end;
+}
+
 /// URL assoluto per un percorso restituito dal server (`TranscodingUrl`,
 /// `DeliveryUrl`). I percorsi relativi vanno sotto l'indirizzo del server,
 /// compreso l'eventuale sotto-percorso (es. `/jellyfin`): per questo non si

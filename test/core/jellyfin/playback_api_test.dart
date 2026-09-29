@@ -121,4 +121,25 @@ void main() {
     expect(data.playbackPositionTicks, 5);
     expect(data.playedPercentage, 12.5);
   });
+
+  test('mediaSegments: intro, crediti e tipi sconosciuti', () async {
+    adapter.handler = (_) => const FakeResponse(200, {
+          'Items': [
+            {'Type': 'Intro', 'StartTicks': 100000000, 'EndTicks': 900000000},
+            {'Type': 'Outro', 'StartTicks': 24000000000, 'EndTicks': 25200000000},
+            {'Type': 'Nuovo', 'StartTicks': 0, 'EndTicks': 10},
+          ],
+          'TotalRecordCount': 3,
+        });
+    final segments = await api.mediaSegments('e4');
+    expect(adapter.requests.last.path, '/MediaSegments/e4');
+    expect(segments.map((s) => s.type), [
+      MediaSegmentType.intro,
+      MediaSegmentType.outro,
+      MediaSegmentType.unknown,
+    ]);
+    expect(segments.first.start, const Duration(seconds: 10));
+    expect(segments.first.end, const Duration(seconds: 90));
+    expect(segments[1].start, const Duration(minutes: 40));
+  });
 }
