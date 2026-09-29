@@ -1,0 +1,221 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io' as io show pid;
+
+import 'package:clock/clock.dart';
+import 'package:logging/logging.dart';
+
+import '../../core/discord/discord_ipc.dart';
+import '../../core/media_session/media_session.dart';
+import 'discord_activity.dart';
+import 'discord_settings.dart';
+
+final _log = Logger('discord');
+
+/// Attività "Watching" su Discord (Rich Presence). Il player la aggiorna
+/// come il pannello media di sistema, attraverso [MediaSession].
+///
+/// - Si collega a Discord solo quando c'è qualcosa da mostrare; se Discord
+///   non è aperto (o si chiude) riprova ogni [retryInterval].
+/// - Invia al massimo un aggiornamento ogni [minSendInterval] (limite di
+///   Discord: 5 ogni 20 s), sempre con lo stato più recente.
+/// - Non invia di nuovo un'attività uguale all'ultima; l'inizio del video
+///   (adesso meno la posizione) si considera uguale entro [startTolerance].
+class DiscordPresence implements MediaSession {
+  DiscordPresence({
+    required DiscordIpcClient Function() createClient,
+    required DiscordSettings Function() settings,
+    required DiscordLabels Function() labels,
+    required Uri? supportUrl,
+    int? processId,
+    this.retryInterval = const Duration(seconds: 30),
+    this.minSendInterval = const Duration(seconds: 5),
+  })  : _createClient = createClient,
+        _settings = settings,
+        _labels = labels,
+        _supportUrl = supportUrl,
+        _pid = processId ?? io.pid;
+
+  final DiscordIpcClient Function() _createClient;
+  final DiscordSettings Function() _settings;
+  final DiscordLabels Function() _labels;
+  final Uri? _supportUrl;
+  final int _pid;
+  final Duration retryInterval;
+  final Duration minSendInterval;
+
+  static const startTolerance = Duration(seconds: 2);
+
+  DiscordIpcClient? _client;
+  bool _connecting = false;
+  bool _disposed = false;
+  Timer? _retryTimer;
+  Timer? _sendTimer;
+  DateTime? _lastSendAt;
+
+  /// Ultima attività inviata, in JSON (`null` = nessuna) e il suo inizio.
+  String? _sentJson;
+  DateTime? _sentStart;
+
+  // Cosa si sta guardando.
+  bool _active = false;
+  String _title = '';
+  String? _subtitle;
+  String? _posterUrl;
+  bool _playing = true;
+  DateTime? _start;
+  Duration? _duration;
+
+  @override
+  bool get handlesMediaKeys => false;
+
+  @override
+  Stream<MediaButton> get buttons => const Stream.empty();
+
+  @override
+  Future<void> setMetadata(
+      {required String title, String? subtitle, String? thumbnailUrl}) async {
+    _active = true;
+    _title = title;
+    _subtitle = subtitle;
+    _posterUrl = thumbnailUrl;
+    // Nuovo video: parte in riproduzione, i tempi arrivano con la timeline.
+    _playing = true;
+    _start = null;
+    _duration = null;
+    _sync();
+  }
+
+  @override
+  Future<void> setPlaying(bool playing) async {
+    _playing = playing;
+    _sync();
+  }
+
+  @override
+  Future<void> setTimeline(
+      {required Duration position, required Duration duration}) async {
+    _start = clock.now().subtract(position);
+    _duration = duration;
+    _sync();
+  }
+
+  @override
+  Future<void> setNextEnabled(bool enabled) async {}
+
+  @override
+  Future<void> clear() async {
+    _active = false;
+    _start = null;
+    _duration = null;
+    _sync();
+  }
+
+  /// Impostazioni o lingua cambiate.
+  void refresh() => _sync();
+
+  @override
+  Future<void> dispose() async {
+    _disposed = true;
+    _retryTimer?.cancel();
+    _sendTimer?.cancel();
+    final client = _client;
+    _client = null;
+    if (client != null && client.connected) {
+      client.setActivity(null, pid: _pid);
+      client.close();
+    }
+  }
+
+  ({Map<String, Object?> activity, DateTime? start})? _desired() {
+    if (!_active || !_settings().enabled) return null;
+    var start = _playing ? _start : null;
+    final sentStart = _sentStart;
+    if (start != null &&
+        sentStart != null &&
+        start.difference(sentStart).abs() <= startTolerance) {
+      start = sentStart;
+    }
+    return (
+      activity: buildDiscordActivity(
+        title: _title,
+        subtitle: _subtitle,
+        posterUrl: _posterUrl,
+        playing: _playing,
+        start: start,
+        duration: _duration,
+        settings: _settings(),
+        labels: _labels(),
+        supportUrl: _supportUrl,
+      ),
+      start: start,
+    );
+  }
+
+  void _sync() {
+    if (_disposed) return;
+    final desired = _desired();
+    final json = desired == null ? null : jsonEncode(desired.activity);
+    if (json == _sentJson) return;
+    final client = _client;
+    if (client == null || !client.connected) {
+      if (desired != null) unawaited(_connect());
+      return;
+    }
+    final last = _lastSendAt;
+    if (last != null) {
+      final wait = minSendInterval - clock.now().difference(last);
+      if (wait > Duration.zero) {
+        _sendTimer ??= Timer(wait, () {
+          _sendTimer = null;
+          _sync();
+        });
+        return;
+      }
+    }
+    _lastSendAt = clock.now();
+    if (client.setActivity(desired?.activity, pid: _pid)) {
+      _sentJson = json;
+      _sentStart = desired?.start;
+    } else {
+      _log.info('connessione a Discord interrotta');
+      _client = null;
+      _sentJson = null;
+      _sentStart = null;
+      _scheduleRetry();
+    }
+  }
+
+  Future<void> _connect() async {
+    if (_connecting || _retryTimer != null) return;
+    _connecting = true;
+    final client = _createClient();
+    final ok = await client.connect();
+    _connecting = false;
+    if (_disposed) {
+      client.close();
+      return;
+    }
+    if (!ok) {
+      _log.fine('Discord non raggiungibile: nuovo tentativo tra '
+          '${retryInterval.inSeconds} s');
+      client.close();
+      _scheduleRetry();
+      return;
+    }
+    _log.info('collegato a Discord');
+    _client = client;
+    // Connessione nuova: Discord non ha ancora nessuna nostra attività.
+    _sentJson = null;
+    _sentStart = null;
+    _sync();
+  }
+
+  void _scheduleRetry() {
+    _retryTimer?.cancel();
+    _retryTimer = Timer(retryInterval, () {
+      _retryTimer = null;
+      _sync();
+    });
+  }
+}
