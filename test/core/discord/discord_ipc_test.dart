@@ -81,8 +81,16 @@ void main() {
         opcode: DiscordOpcode.close,
         json: {'code': 4000, 'message': 'Invalid Client ID'},
       );
+      expect(client.rejected, isFalse);
       expect(await client.connect(), isFalse);
       expect(pipe.closed, isTrue);
+      expect(client.rejected, isTrue);
+    });
+
+    test('Discord chiuso: non è un rifiuto dell\'ID', () async {
+      pipe.available = false;
+      await client.connect();
+      expect(client.rejected, isFalse);
     });
 
     test('nessuna risposta: rinuncia dopo readyTimeout', () async {

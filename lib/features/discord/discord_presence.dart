@@ -49,6 +49,10 @@ class DiscordPresence implements MediaSession {
   DiscordIpcClient? _client;
   bool _connecting = false;
   bool _disposed = false;
+
+  /// Discord ha rifiutato l'Application ID: niente più tentativi fino al
+  /// riavvio dell'app.
+  bool _rejected = false;
   Timer? _retryTimer;
   Timer? _sendTimer;
   DateTime? _lastSendAt;
@@ -214,12 +218,19 @@ class DiscordPresence implements MediaSession {
   }
 
   Future<void> _connect() async {
-    if (_connecting || _retryTimer != null) return;
+    if (_rejected || _connecting || _retryTimer != null) return;
     _connecting = true;
     final client = _createClient();
     final ok = await client.connect();
     _connecting = false;
     if (_disposed) {
+      client.close();
+      return;
+    }
+    if (!ok && client.rejected) {
+      _log.warning('Discord ha rifiutato l\'Application ID: Rich Presence '
+          'disattivata fino al riavvio');
+      _rejected = true;
       client.close();
       return;
     }

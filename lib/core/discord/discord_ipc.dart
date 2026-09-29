@@ -104,8 +104,13 @@ class DiscordIpcClient {
   bool _connected = false;
   int _nonce = 0;
   bool _commandError = false;
+  Object? _closeCode;
 
   bool get connected => _connected;
+
+  /// Discord ha rifiutato l'Application ID all'handshake (close con codice
+  /// 4000): riprovare non serve.
+  bool get rejected => _closeCode == 4000;
 
   /// `true` (una volta sola) se dall'ultima chiamata Discord ha risposto
   /// `ERROR` a un comando: l'attività inviata non è stata applicata.
@@ -132,8 +137,9 @@ class DiscordIpcClient {
             return true;
           }
           if (frame.opcode == DiscordOpcode.close) {
-            _log.warning('Discord ha rifiutato la connessione: '
-                '${frame.json['message']}');
+            // Chi usa il client decide se e come segnalarlo (vedi [rejected]).
+            _log.fine('Discord ha rifiutato la connessione: ${frame.json}');
+            _closeCode = frame.json['code'];
             _pipe.close();
             return false;
           }

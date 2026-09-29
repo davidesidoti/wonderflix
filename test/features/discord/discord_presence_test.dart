@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:clock/clock.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 import 'package:wonderflix/core/discord/discord_ipc.dart';
 import 'package:wonderflix/features/discord/discord_activity.dart';
 import 'package:wonderflix/features/discord/discord_presence.dart';
@@ -240,6 +241,31 @@ void main() {
           duration: const Duration(minutes: 47)));
       async.elapse(const Duration(seconds: 5));
       expect(pipe.activities, hasLength(3));
+    });
+  });
+
+  test('Application ID rifiutato: un solo avviso e nessun altro tentativo',
+      () {
+    fakeAsync((async) {
+      final warnings = <LogRecord>[];
+      final sub = Logger.root.onRecord
+          .where((r) => r.level >= Level.WARNING)
+          .listen(warnings.add);
+      addTearDown(sub.cancel);
+      pipe.handshakeReply = (
+        opcode: DiscordOpcode.close,
+        json: {'code': 4000, 'message': 'Invalid Client ID'},
+      );
+      final p = started(async);
+      var position = Duration.zero;
+      for (var i = 0; i < 24; i++) {
+        unawaited(p.setTimeline(
+            position: position, duration: const Duration(minutes: 47)));
+        async.elapse(const Duration(seconds: 5));
+        position += const Duration(seconds: 5);
+      }
+      expect(pipe.opens, 1);
+      expect(warnings, hasLength(1));
     });
   });
 
