@@ -29,42 +29,75 @@ class MediaKitEngine implements VideoEngine {
   /// La transcodifica sul server può impiegare parecchi secondi a partire.
   static const openTimeout = Duration(seconds: 60);
 
+  /// Timeout di rete di mpv (secondi), valido anche per i sottotitoli
+  /// caricati a parte.
+  static const networkTimeoutSeconds = 60;
+
   final Player _player;
   late final VideoController _video;
+  bool _configured = false;
 
   NativePlayer get _native => _player.platform! as NativePlayer;
 
   @override
   Future<void> open(VideoSource source) async {
+    await _configure();
     // Azzera lo stato del file precedente (durata compresa) prima di aprire.
     await _player.stop();
     final loaded = Completer<void>();
     // L'eventuale errore viene letto più sotto: evita che risulti "non gestito".
     loaded.future.ignore();
+    // Gli errori arrivati prima che l'apertura sia stata chiesta riguardano
+    // la chiusura del file precedente, non questo.
+    var opened = false;
     final subscriptions = [
       _player.stream.duration.listen((duration) {
         if (duration > Duration.zero && !loaded.isCompleted) loaded.complete();
       }),
       // Un errore prima che la durata sia nota = il file non si è aperto.
       _player.stream.error.listen((message) {
-        if (!loaded.isCompleted) {
+        if (opened && !loaded.isCompleted) {
           loaded.completeError(EngineOpenException(message));
         }
       }),
     ];
     try {
-      await _player.open(Media(
-        source.url,
-        httpHeaders: source.headers,
-        start: source.start > Duration.zero ? source.start : null,
-      ));
+      // In pausa: la riproduzione parte con play(), dopo la scelta delle
+      // tracce.
+      await _player.open(
+        Media(
+          source.url,
+          httpHeaders: source.headers,
+          start: source.start > Duration.zero ? source.start : null,
+        ),
+        play: false,
+      );
+      opened = true;
       await loaded.future.timeout(openTimeout,
           onTimeout: () => throw const EngineOpenException('timeout'));
+    } on Object {
+      // Dopo un errore il file non deve restare caricato (né scaricare dati).
+      try {
+        await _player.stop();
+      } on Object catch (error) {
+        debugPrint('[player] stop dopo apertura non riuscita: $error');
+      }
+      rethrow;
     } finally {
       for (final subscription in subscriptions) {
         await subscription.cancel();
       }
     }
+  }
+
+  /// Opzioni di mpv impostate una volta sola, a player inizializzato: così
+  /// non vengono sovrascritte da quelle che media_kit scrive all'avvio.
+  Future<void> _configure() async {
+    if (_configured) return;
+    _configured = true;
+    // media_kit usa 5 s: pochi per l'avvio della transcodifica HLS o per
+    // l'estrazione di un sottotitolo su un server lento.
+    await _native.setProperty('network-timeout', '$networkTimeoutSeconds');
   }
 
   @override

@@ -224,6 +224,9 @@ class PlayerController extends Notifier<PlayerViewState> {
       }
       await _applyTracks(plan);
       if (stale()) return;
+      // Il file è aperto in pausa: parte solo con le tracce già scelte.
+      await _engine.play();
+      if (stale()) return;
       _emit(_view.copyWith(
         status: PlayerStatus.ready,
         plan: plan,

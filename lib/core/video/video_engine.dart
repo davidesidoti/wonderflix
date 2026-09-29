@@ -52,8 +52,10 @@ class EngineOpenException implements Exception {
 /// il player con un motore finto e, nello Spec B (watch party), a
 /// controllarne posizione e velocità.
 abstract class VideoEngine {
-  /// Apre [source] e avvia la riproduzione. Si completa quando il file è
-  /// caricato; lancia [EngineOpenException] se non si apre.
+  /// Apre [source] in pausa: la riproduzione parte con [play], dopo aver
+  /// scelto le tracce. Si completa quando il file è caricato; lancia
+  /// [EngineOpenException] se non si apre (e in quel caso non lascia nulla
+  /// di caricato).
   Future<void> open(VideoSource source);
 
   Future<void> play();

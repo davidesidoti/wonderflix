@@ -70,6 +70,8 @@ void main() {
     expect(view().audioIndex, 1);
     expect(view().subtitleIndex, 3);
     expect(view().playing, isTrue);
+    // Il file si apre in pausa e parte solo con le tracce già scelte.
+    expect(engine.calls, ['open', 'audio 1', 'subtitle 1', 'play']);
     final started = playback.started.single;
     expect(started.playMethod, PlayMethod.directPlay);
     expect(started.playSessionId, 'ps1');

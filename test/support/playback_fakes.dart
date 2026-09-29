@@ -190,6 +190,9 @@ class FakeVideoEngine implements VideoEngine {
   List<EngineTrack> engineTracks = const [];
 
   final opened = <VideoSource>[];
+
+  /// Comandi ricevuti, in ordine (es. `open`, `audio 1`, `play`).
+  final calls = <String>[];
   final selectedAudio = <String?>[];
   final selectedSubtitle = <String?>[];
   final addedSubtitles = <String>[];
@@ -244,19 +247,27 @@ class FakeVideoEngine implements VideoEngine {
   @override
   Future<void> open(VideoSource source) async {
     opened.add(source);
+    calls.add('open');
     if (failOpens > 0) {
       failOpens--;
       throw const EngineOpenException('apertura simulata non riuscita');
     }
+    // Come mpv: il file si apre in pausa.
     _position = source.start;
+    _setPlaying(false);
+  }
+
+  @override
+  Future<void> play() async {
+    calls.add('play');
     _setPlaying(true);
   }
 
   @override
-  Future<void> play() async => _setPlaying(true);
-
-  @override
-  Future<void> pause() async => _setPlaying(false);
+  Future<void> pause() async {
+    calls.add('pause');
+    _setPlaying(false);
+  }
 
   @override
   Future<void> seek(Duration position) async {
@@ -271,14 +282,21 @@ class FakeVideoEngine implements VideoEngine {
   Future<List<EngineTrack>> tracks() async => engineTracks;
 
   @override
-  Future<void> selectAudio(String? id) async => selectedAudio.add(id);
+  Future<void> selectAudio(String? id) async {
+    calls.add('audio $id');
+    selectedAudio.add(id);
+  }
 
   @override
-  Future<void> selectSubtitle(String? id) async => selectedSubtitle.add(id);
+  Future<void> selectSubtitle(String? id) async {
+    calls.add('subtitle $id');
+    selectedSubtitle.add(id);
+  }
 
   @override
   Future<String?> addSubtitle(String url,
       {String? title, String? language}) async {
+    calls.add('add $url');
     addedSubtitles.add(url);
     final id = '${_nextSubtitleId++}';
     selectedSubtitle.add(id);
