@@ -220,9 +220,20 @@ class DiscordPresence implements MediaSession {
   Future<void> _connect() async {
     if (_rejected || _connecting || _retryTimer != null) return;
     _connecting = true;
-    final client = _createClient();
-    final ok = await client.connect();
-    _connecting = false;
+    DiscordIpcClient? created;
+    final bool ok;
+    try {
+      created = _createClient();
+      ok = await created.connect();
+    } on Object catch (e, stack) {
+      created?.close();
+      _log.warning('collegamento a Discord non riuscito', e, stack);
+      if (!_disposed) _scheduleRetry();
+      return;
+    } finally {
+      _connecting = false;
+    }
+    final client = created;
     if (_disposed) {
       client.close();
       return;

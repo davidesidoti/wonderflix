@@ -269,6 +269,31 @@ void main() {
     });
   });
 
+  test('errore imprevisto nel collegarsi: riprova dopo 30 s', () {
+    fakeAsync((async) {
+      var attempts = 0;
+      final p = DiscordPresence(
+        createClient: () {
+          if (attempts++ == 0) throw StateError('boom');
+          return DiscordIpcClient(pipe,
+              clientId: '123', pollInterval: const Duration(milliseconds: 10));
+        },
+        settings: () => settings,
+        labels: () => labels,
+        supportUrl: null,
+        processId: 42,
+      );
+      unawaited(p.setMetadata(title: 'Breaking Bad'));
+      async.flushMicrotasks();
+      expect(attempts, 1);
+      expect(pipe.activities, isEmpty);
+
+      async.elapse(const Duration(seconds: 30));
+      expect(attempts, 2);
+      expect(pipe.activities.single!['details'], 'Breaking Bad');
+    });
+  });
+
   test('niente da mostrare: non si collega', () {
     fakeAsync((async) {
       final p = presence();
