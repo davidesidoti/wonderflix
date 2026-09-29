@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "it.wonderflix" "\0"
-            VALUE "FileDescription", "wonderflix" "\0"
+            VALUE "FileDescription", "WonderFlix" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "wonderflix" "\0"
+            VALUE "InternalName", "WonderFlix" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 it.wonderflix. All rights reserved." "\0"
             VALUE "OriginalFilename", "wonderflix.exe" "\0"
-            VALUE "ProductName", "wonderflix" "\0"
+            VALUE "ProductName", "WonderFlix" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
