@@ -1,12 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/settings/diagnostics.dart';
 import 'package:wonderflix/features/settings/language_preferences.dart';
 import 'package:wonderflix/features/settings/locale_controller.dart';
 import 'package:wonderflix/features/settings/settings_screen.dart';
@@ -240,5 +242,82 @@ void main() {
     await tester.drag(scrollable, const Offset(0, -3000));
     await tester.pumpAndSettle();
     expect(configApi.configurationCalls, 1);
+  });
+
+  testWidgets('sezione Discord: interruttori salvati e collegati tra loro',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await pumpApp(tester, const Scaffold(body: SettingsScreen()),
+        surfaceSize: const Size(1440, 2400),
+        overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      clientInfoProvider.overrideWithValue(testClientInfo),
+      sessionControllerProvider.overrideWith(
+          () => FakeSessionController(const SessionSignedIn(testUser))),
+      userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
+    ]);
+
+    final enabled = find.byKey(const Key('discord-enabled'));
+    final showTitle = find.byKey(const Key('discord-show-title'));
+    final showPoster = find.byKey(const Key('discord-show-poster'));
+    expect(find.text('Mostra su Discord cosa sto guardando'), findsOneWidget);
+
+    await tester.ensureVisible(showPoster);
+    await tester.tap(showPoster);
+    await tester.pump();
+    expect(prefs.getBool('discord.showPoster'), isFalse);
+
+    await tester.tap(showTitle);
+    await tester.pump();
+    expect(prefs.getBool('discord.showTitle'), isFalse);
+    // Senza titolo la locandina non si può attivare.
+    expect(tester.widget<SwitchListTile>(showPoster).onChanged, isNull);
+
+    await tester.tap(enabled);
+    await tester.pump();
+    expect(prefs.getBool('discord.enabled'), isFalse);
+    expect(tester.widget<SwitchListTile>(showTitle).onChanged, isNull);
+  });
+
+  testWidgets('sezione Supporto: copia la diagnostica e apre i log',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final copied = <String>[];
+    tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied.add((call.arguments as Map)['text'] as String);
+      }
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null));
+    var opened = 0;
+
+    await pumpApp(tester, const Scaffold(body: SettingsScreen()),
+        surfaceSize: const Size(1440, 2400),
+        overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      clientInfoProvider.overrideWithValue(testClientInfo),
+      sessionControllerProvider.overrideWith(
+          () => FakeSessionController(const SessionSignedIn(testUser))),
+      userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
+      collectDiagnosticsProvider.overrideWithValue(() async => 'DIAGNOSTICA'),
+      openLogsFolderProvider.overrideWithValue(() async => opened++),
+    ]);
+
+    final copy = find.text('Copia diagnostica');
+    await tester.ensureVisible(copy);
+    await tester.tap(copy);
+    await tester.pump();
+    await tester.pump();
+    expect(copied, ['DIAGNOSTICA']);
+    expect(find.text('Diagnostica copiata negli appunti'), findsOneWidget);
+
+    await tester.tap(find.text('Apri la cartella dei log'));
+    await tester.pump();
+    expect(opened, 1);
   });
 }
