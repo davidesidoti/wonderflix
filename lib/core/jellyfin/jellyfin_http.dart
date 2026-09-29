@@ -1,7 +1,10 @@
 import 'package:dio/dio.dart';
+import 'package:logging/logging.dart';
 
 import 'api_exception.dart';
 import 'client_info.dart';
+
+final _log = Logger('http');
 
 /// Accesso HTTP a Jellyfin: aggiunge l'header di autenticazione, converte gli
 /// errori in [ApiException] e segnala i 401 di una sessione attiva.
@@ -60,6 +63,12 @@ class JellyfinHttp {
       final response = await request();
       return response.data;
     } on DioException catch (e) {
+      // Solo metodo, percorso ed esito: query e header possono contenere
+      // token. Le richieste annullate non sono errori.
+      if (e.type != DioExceptionType.cancel) {
+        _log.warning('${e.requestOptions.method} ${e.requestOptions.path}: '
+            '${e.response?.statusCode ?? e.type.name}');
+      }
       final mapped = mapDioException(e);
       if (mapped is UnauthorizedException &&
           sentToken != null &&

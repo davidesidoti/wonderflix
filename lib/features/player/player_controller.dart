@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/library_api.dart';
@@ -16,6 +16,8 @@ import 'player_settings.dart';
 import 'progress_reporter.dart';
 import 'segments.dart';
 import 'track_mapping.dart';
+
+final _log = Logger('player');
 
 /// Elemento da riprodurre e posizione di partenza (chiave del provider).
 typedef PlayerArgs = ({String itemId, Duration start});
@@ -208,7 +210,7 @@ class PlayerController extends Notifier<PlayerViewState> {
         }
       }),
       _engine.errorStream
-          .listen((message) => debugPrint('[player] motore: $message')),
+          .listen((message) => _log.warning('motore: $message')),
       _engine.positionStream.listen(_onPosition),
     ]);
   }
@@ -290,8 +292,8 @@ class PlayerController extends Notifier<PlayerViewState> {
     } on EngineOpenException catch (error) {
       if (stale()) return;
       if (plan != null && !plan.isTranscode) {
-        debugPrint(
-            '[player] direct play non riuscito ($error): provo la transcodifica');
+        _log.info(
+            'direct play non riuscito ($error): provo la transcodifica');
         _emit(_view.copyWith(transcodingFallback: true));
         return _start(
           start,
@@ -309,7 +311,7 @@ class PlayerController extends Notifier<PlayerViewState> {
   }
 
   void _fail(Object error) {
-    debugPrint('[player] errore: $error');
+    _log.severe('errore: $error');
     _emit(_view.copyWith(status: PlayerStatus.error, error: error));
   }
 
@@ -347,7 +349,7 @@ class PlayerController extends Notifier<PlayerViewState> {
     if (stale() || _view.subtitleIndex != index) return;
     final shown = await _showSubtitle(plan, index);
     if (stale() || shown) return;
-    debugPrint('[player] sottotitolo $index non caricato');
+    _log.warning('sottotitolo $index non caricato');
     if (_view.subtitleIndex == index) {
       _emit(_view.copyWith(subtitleIndex: null));
       _reporter?.onEvent();
@@ -359,7 +361,7 @@ class PlayerController extends Notifier<PlayerViewState> {
   Future<void> _serialized(Future<void> Function() task) {
     final run = _trackQueue.then((_) => task());
     _trackQueue = run.then((_) {}, onError: (Object error) {
-      debugPrint('[player] tracce: $error');
+      _log.warning('tracce: $error');
     });
     return run;
   }
@@ -509,7 +511,7 @@ class PlayerController extends Notifier<PlayerViewState> {
         final shown = await _showSubtitle(plan, index);
         if (!_current(plan)) return;
         if (!shown) {
-          debugPrint('[player] sottotitolo $index non caricato: resta il '
+          _log.warning('sottotitolo $index non caricato: resta il '
               'precedente');
           return;
         }
@@ -547,7 +549,7 @@ class PlayerController extends Notifier<PlayerViewState> {
       try {
         return await load();
       } on Object catch (error) {
-        debugPrint('[player] $what non disponibili: $error');
+        _log.warning('$what non disponibili: $error');
         return fallback;
       }
     }
@@ -593,7 +595,7 @@ class PlayerController extends Notifier<PlayerViewState> {
     try {
       await _engine.dispose();
     } on Object catch (error) {
-      debugPrint('[player] chiusura del motore: $error');
+      _log.warning('chiusura del motore: $error');
     }
     if (reporter != null && item != null) {
       final watched = _markWatched && await _setPlayed(item);
@@ -608,7 +610,7 @@ class PlayerController extends Notifier<PlayerViewState> {
       await _library.setPlayed(_userId, item.id, played: true);
       return true;
     } on Object catch (error) {
-      debugPrint('[player] "visto" non salvato: $error');
+      _log.warning('"visto" non salvato: $error');
       return false;
     }
   }
@@ -636,12 +638,12 @@ class PlayerController extends Notifier<PlayerViewState> {
       try {
         _overrides.apply(item.id, await _api.userData(_userId, item.id));
       } on Object catch (error) {
-        debugPrint('[player] dati utente non aggiornati dal server: $error');
+        _log.info('dati utente non aggiornati dal server: $error');
       }
       _userDataRevision.bump();
     } on Object catch (error) {
       // Es. utente disconnesso nel frattempo: non c'è nulla da aggiornare.
-      debugPrint('[player] dati utente non aggiornati: $error');
+      _log.info('dati utente non aggiornati: $error');
     }
   }
 }

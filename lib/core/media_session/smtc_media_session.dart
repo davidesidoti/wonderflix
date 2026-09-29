@@ -1,9 +1,11 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:logging/logging.dart';
 import 'package:smtc_windows/smtc_windows.dart';
 
 import 'media_session.dart';
+
+final _log = Logger('smtc');
 
 /// [MediaSession] sul pannello media di Windows (System Media Transport
 /// Controls). Richiede `SMTCWindows.initialize()` all'avvio.
@@ -38,7 +40,7 @@ class SmtcMediaSession implements MediaSession {
         await action();
       } on Object catch (e) {
         // Il pannello è accessorio: un suo errore non deve fermare il player.
-        debugPrint('SMTC: $e');
+        _log.warning('pannello media: $e');
       }
     });
     _queue = next;
@@ -84,7 +86,7 @@ class SmtcMediaSession implements MediaSession {
   @override
   Stream<MediaButton> get buttons => _smtc.buttonPressStream
       // Pulsanti che smtc_windows non conosce: ignorati.
-      .handleError((Object error) => debugPrint('SMTC: $error'))
+      .handleError((Object error) => _log.fine('pulsante non gestito: $error'))
       .map(_button)
       .where((button) => button != null)
       .cast<MediaButton>();

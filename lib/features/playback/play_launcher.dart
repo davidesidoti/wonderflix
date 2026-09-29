@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:logging/logging.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/error_text.dart';
@@ -11,6 +12,8 @@ import '../detail/detail_providers.dart';
 import '../detail/primary_action.dart';
 import '../library/library_providers.dart';
 import '../library/user_data.dart';
+
+final _log = Logger('trailer');
 
 /// Chiamata di [playItem] in corso: dalla scelta di cosa riprodurre fino
 /// all'uscita dal player.
@@ -121,7 +124,7 @@ Future<void> playTrailer(
             .read(libraryApiProvider)
             .localTrailers(ref.read(currentUserIdProvider), item.id);
       } on Object catch (error) {
-        debugPrint('Trailer locali non disponibili: $error');
+        _log.warning('trailer locali non disponibili: $error');
         trailers = const [];
       }
       if (!context.mounted) return;

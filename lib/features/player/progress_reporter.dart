@@ -1,9 +1,11 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:logging/logging.dart';
 
 import '../../core/jellyfin/playback_api.dart';
 import '../../core/jellyfin/playback_models.dart';
+
+final _log = Logger('player');
 
 /// Invia a Jellyfin l'inizio, l'avanzamento (ogni [interval] e a ogni
 /// evento) e la fine della riproduzione. Gli errori di rete vengono solo
@@ -58,7 +60,7 @@ class ProgressReporter {
     try {
       await request();
     } on Object catch (error) {
-      debugPrint('[player] report non inviato: $error');
+      _log.warning('report non inviato: $error');
     }
   }
 }

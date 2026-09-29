@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
 
@@ -105,5 +106,21 @@ void main() {
     final token = CancelToken()..cancel();
     await expectLater(http.get('/a', cancelToken: token),
         throwsA(isA<RequestCancelledException>()));
+  });
+
+  test('registra le richieste fallite, senza query né header', () async {
+    final records = <LogRecord>[];
+    Logger.root.level = Level.ALL;
+    final subscription = Logger.root.onRecord.listen(records.add);
+    addTearDown(subscription.cancel);
+    http.token = 'tok';
+    adapter.handler = (_) => const FakeResponse(500);
+
+    await expectLater(http.get('/Items/x', query: {'api_key': 'k'}),
+        throwsA(isA<ApiException>()));
+
+    expect(records.single.loggerName, 'http');
+    expect(records.single.level, Level.WARNING);
+    expect(records.single.message, 'GET /Items/x: 500');
   });
 }

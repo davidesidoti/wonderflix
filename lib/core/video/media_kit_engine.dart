@@ -1,10 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import 'video_engine.dart';
+
+final _log = Logger('player');
 
 /// [VideoEngine] sopra media_kit (libmpv).
 /// - Sottotitoli disegnati da libass dentro il video (niente widget Flutter).
@@ -80,7 +83,7 @@ class MediaKitEngine implements VideoEngine {
       try {
         await _player.stop();
       } on Object catch (error) {
-        debugPrint('[player] stop dopo apertura non riuscita: $error');
+        _log.warning('stop dopo apertura non riuscita: $error');
       }
       rethrow;
     } finally {
