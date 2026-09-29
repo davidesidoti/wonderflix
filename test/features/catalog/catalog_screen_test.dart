@@ -69,4 +69,18 @@ void main() {
     await tester.pump();
     expect(find.text('Dune'), findsOneWidget);
   });
+
+  testWidgets('pagina che non riempie la finestra: carica la successiva',
+      (tester) async {
+    // Due titoli per richiesta su 4 totali: la finestra non si riempie mai,
+    // quindi senza scroll il caricamento successivo deve partire da solo.
+    api.onItems = (query, start, limit) => pageOf(
+        [for (var i = start; i < start + 2; i++) testItem(id: 'm$i', name: 'T$i')],
+        4);
+    await pumpCatalog(tester);
+    await tester.pump();
+    await tester.pump();
+    expect(api.itemQueries, hasLength(2));
+    expect(find.text('T3'), findsOneWidget);
+  });
 }

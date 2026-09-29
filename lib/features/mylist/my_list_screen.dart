@@ -42,25 +42,40 @@ class MyListScreen extends ConsumerWidget {
             final visible = items
                 .where((i) => (overrides[i.id] ?? i.userData).isFavorite)
                 .toList();
-            return ListView(
-              padding: const EdgeInsets.all(32),
-              children: [
-                Text(l.navMyList.toUpperCase(), style: WfText.display(40)),
-                const SizedBox(height: 20),
+            return CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(32, 32, 32, 20),
+                  sliver: SliverToBoxAdapter(
+                    child: Text(l.navMyList.toUpperCase(), style: WfText.display(40)),
+                  ),
+                ),
                 if (visible.isEmpty)
-                  Text(l.myListEmpty, style: const TextStyle(color: WfColors.creamMuted))
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    sliver: SliverToBoxAdapter(
+                      child: Text(l.myListEmpty,
+                          style: const TextStyle(color: WfColors.creamMuted)),
+                    ),
+                  )
                 else
-                  Wrap(
-                    spacing: 16,
-                    runSpacing: 24,
-                    children: [
-                      for (final item in visible)
-                        PosterCard(
-                          item: item,
-                          width: 160,
-                          onTap: () => openItem(context, item),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
+                    sliver: SliverGrid(
+                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 180,
+              mainAxisSpacing: 24,
+              crossAxisSpacing: 16,
+              childAspectRatio: 0.55,
+            ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, i) => PosterCard(
+                          item: visible[i],
+                          onTap: () => openItem(context, visible[i]),
                         ),
-                    ],
+                        childCount: visible.length,
+                      ),
+                    ),
                   ),
               ],
             );

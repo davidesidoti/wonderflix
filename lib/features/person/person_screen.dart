@@ -44,61 +44,81 @@ class PersonScreen extends ConsumerWidget {
           data: (person) {
             final films = ref.watch(filmographyProvider(personId));
             final bio = person.overview;
-            return ListView(
-              padding: const EdgeInsets.all(32),
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: SizedBox(
-                        width: 200,
-                        height: 300,
-                        child: WfImage(
-                          image: ref.watch(imageUrlsProvider).poster(person),
-                          fallbackIcon: LucideIcons.user,
+            return CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(32, 32, 32, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: SizedBox(
+                            width: 200,
+                            height: 300,
+                            child: WfImage(
+                              image: ref.watch(imageUrlsProvider).poster(person),
+                              fallbackIcon: LucideIcons.user,
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 32),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(person.name.toUpperCase(),
+                                  style: WfText.display(48)),
+                              if (bio != null) ...[
+                                const SizedBox(height: 12),
+                                Text(bio,
+                                    maxLines: 10,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(height: 1.5)),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 32),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(person.name.toUpperCase(), style: WfText.display(48)),
-                          if (bio != null) ...[
-                            const SizedBox(height: 12),
-                            Text(bio,
-                                maxLines: 10,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(height: 1.5)),
-                          ],
-                        ],
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(32, 32, 32, 16),
+                  sliver: SliverToBoxAdapter(
+                    child: Text(l.personOnServer, style: WfText.display(28)),
+                  ),
+                ),
+                ...films.when(
+                  loading: () => const [SliverToBoxAdapter(child: LoadingView())],
+                  error: (error, _) => [
+                    SliverToBoxAdapter(
+                      child: ErrorView(
+                          error: error,
+                          onRetry: () => ref.invalidate(filmographyProvider(personId))),
+                    ),
+                  ],
+                  data: (items) => [
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
+                      sliver: SliverGrid(
+                        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 180,
+              mainAxisSpacing: 24,
+              crossAxisSpacing: 16,
+              childAspectRatio: 0.55,
+            ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, i) => PosterCard(
+                            item: items[i],
+                            onTap: () => openItem(context, items[i]),
+                          ),
+                          childCount: items.length,
+                        ),
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 32),
-                Text(l.personOnServer, style: WfText.display(28)),
-                const SizedBox(height: 16),
-                films.when(
-                  loading: () => const LoadingView(),
-                  error: (error, _) => ErrorView(
-                      error: error,
-                      onRetry: () => ref.invalidate(filmographyProvider(personId))),
-                  data: (items) => Wrap(
-                    spacing: 16,
-                    runSpacing: 24,
-                    children: [
-                      for (final item in items)
-                        PosterCard(
-                          item: item,
-                          width: 160,
-                          onTap: () => openItem(context, item),
-                        ),
-                    ],
-                  ),
                 ),
               ],
             );

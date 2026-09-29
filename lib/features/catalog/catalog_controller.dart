@@ -44,7 +44,8 @@ class CatalogController extends Notifier<CatalogState> {
   Future<void> setQuery(ItemQuery query) => _load(query, reset: true);
 
   Future<void> loadMore() async {
-    if (state.loading || !state.hasMore) return;
+    // Dopo un errore si riprova solo dal pulsante, non a ogni scroll.
+    if (state.loading || !state.hasMore || state.error != null) return;
     await _load(state.query, reset: false);
   }
 

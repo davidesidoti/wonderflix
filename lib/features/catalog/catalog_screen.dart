@@ -25,6 +25,10 @@ class CatalogScreen extends ConsumerStatefulWidget {
 class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   final _scroll = ScrollController();
 
+  /// Numero di elementi al momento dell'ultimo caricamento automatico: evita
+  /// un ciclo infinito se il server risponde con pagine vuote.
+  int _autoLoadedAt = -1;
+
   @override
   void initState() {
     super.initState();
@@ -49,6 +53,22 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
     final state = ref.watch(provider);
     final controller = ref.read(provider.notifier);
     final title = widget.kind == ItemKind.series ? l.navSeries : l.navMovies;
+
+    // Su schermi grandi la prima pagina può non riempire la finestra: senza
+    // scroll non scatterebbe mai il caricamento successivo.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scroll.hasClients) return;
+      final current = ref.read(provider);
+      if (current.items.isEmpty) _autoLoadedAt = -1; // nuova query
+      if (_scroll.position.maxScrollExtent == 0 &&
+          current.hasMore &&
+          !current.loading &&
+          current.error == null &&
+          current.items.length != _autoLoadedAt) {
+        _autoLoadedAt = current.items.length;
+        unawaited(controller.loadMore());
+      }
+    });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

@@ -82,6 +82,23 @@ void main() {
     expect(container.read(provider).error, isNull);
   });
 
+  test('dopo un errore di pagina loadMore non fa richieste', () async {
+    start();
+    await settle();
+    api.error = const ServerUnreachableException();
+    await container.read(provider.notifier).loadMore();
+    expect(container.read(provider).error, isA<ServerUnreachableException>());
+    final requests = api.itemQueries.length;
+    api.error = null;
+    await container.read(provider.notifier).loadMore();
+    expect(api.itemQueries, hasLength(requests));
+    expect(container.read(provider).items, hasLength(100));
+
+    // Il pulsante "Riprova" invece funziona.
+    await container.read(provider.notifier).retry();
+    expect(container.read(provider).items, hasLength(150));
+  });
+
   test('una risposta superata da una query più recente viene ignorata', () async {
     start();
     await settle();

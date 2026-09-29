@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -9,12 +10,31 @@ import '../core/jellyfin/image_urls.dart';
 
 typedef ImageBuilderFn = Widget Function(ImageRef image, BoxFit fit);
 
-Widget _networkImage(ImageRef image, BoxFit fit) => CachedNetworkImage(
-      imageUrl: image.url,
-      fit: fit,
-      fadeInDuration: const Duration(milliseconds: 200),
-      placeholder: (context, url) => ImagePlaceholder(blurHash: image.blurHash),
-      errorWidget: (context, url, error) => const ImagePlaceholder(),
+/// Cache su disco dedicata alle immagini della libreria: più capiente e con
+/// scadenza più lunga di quella predefinita.
+final wonderflixImageCache = CacheManager(Config(
+  'wonderflixImages',
+  stalePeriod: const Duration(days: 30),
+  maxNrOfCacheObjects: 5000,
+));
+
+Widget _networkImage(ImageRef image, BoxFit fit) => LayoutBuilder(
+      builder: (context, constraints) {
+        // Decodifica alla dimensione mostrata, non a quella originale.
+        final width = constraints.maxWidth;
+        final memWidth = width.isFinite && width > 0
+            ? (width * MediaQuery.devicePixelRatioOf(context)).round()
+            : null;
+        return CachedNetworkImage(
+          imageUrl: image.url,
+          cacheManager: wonderflixImageCache,
+          memCacheWidth: memWidth,
+          fit: fit,
+          fadeInDuration: const Duration(milliseconds: 200),
+          placeholder: (context, url) => ImagePlaceholder(blurHash: image.blurHash),
+          errorWidget: (context, url, error) => const ImagePlaceholder(),
+        );
+      },
     );
 
 /// Come si disegna un'immagine di rete (sostituito nei widget test).
