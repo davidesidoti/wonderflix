@@ -28,6 +28,14 @@ void main() {
         thumbnailCount: 0,
         interval: Duration(seconds: 10));
     expect(trickplayTileAt(empty, Duration.zero), isNull);
+    const noSize = TrickplayInfo(
+        width: 0,
+        height: 180,
+        tileWidth: 10,
+        tileHeight: 10,
+        thumbnailCount: 100,
+        interval: Duration(seconds: 10));
+    expect(trickplayTileAt(noSize, Duration.zero), isNull);
   });
 
   test('URL del mosaico sotto il sotto-percorso del server', () {
@@ -56,11 +64,16 @@ void main() {
         'ms2': {'480': width(480)},
       },
     });
-    expect(pickTrickplay(item, 'ms1')?.width, 320);
-    expect(pickTrickplay(item, 'ms1', preferredWidth: 600)?.width, 640);
-    expect(pickTrickplay(item, 'ms2')?.width, 480);
-    expect(pickTrickplay(item, 'altra')?.width, 320,
+    expect(pickTrickplay(item, 'ms1')?.info.width, 320);
+    expect(pickTrickplay(item, 'ms1')?.mediaSourceId, 'ms1');
+    expect(pickTrickplay(item, 'ms1', preferredWidth: 600)?.info.width, 640);
+    expect(pickTrickplay(item, 'ms2')?.info.width, 480);
+    expect(pickTrickplay(item, 'ms2')?.mediaSourceId, 'ms2');
+    final fallback = pickTrickplay(item, 'altra');
+    expect(fallback?.info.width, 320,
         reason: 'sorgente sconosciuta: la prima disponibile');
+    expect(fallback?.mediaSourceId, 'ms1',
+        reason: 'le anteprime vanno chieste per la loro sorgente');
     expect(
         pickTrickplay(
             JellyfinItem.fromJson({'Id': 'x', 'Name': 'x', 'Type': 'Movie'}),

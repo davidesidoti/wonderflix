@@ -22,6 +22,7 @@ class TrickplayPreview extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (info.width <= 0 || info.height <= 0) return const SizedBox.shrink();
     final scale = width / info.width;
     final cellWidth = info.width * scale;
     final cellHeight = info.height * scale;
@@ -39,12 +40,21 @@ class TrickplayPreview extends ConsumerWidget {
           maxHeight: sheetHeight,
           child: Transform.translate(
             offset: Offset(-tile.column * cellWidth, -tile.row * cellHeight),
+            // - solo la larghezza: l'ultimo mosaico può avere meno righe e
+            //   non va deformato;
+            // - chiave per URL: mentre carica un mosaico nuovo non si vede il
+            //   vecchio con le coordinate della cella nuova;
+            // - decodificato alla larghezza mostrata (mai oltre quella
+            //   originale), per non tenere in memoria mosaici più grandi del
+            //   necessario.
             child: Image(
-              image: ref.watch(authImageProvider)(url),
+              key: ValueKey(url),
+              image: ResizeImage(ref.watch(authImageProvider)(url),
+                  width: (sheetWidth * MediaQuery.devicePixelRatioOf(context))
+                      .round()),
               width: sheetWidth,
-              height: sheetHeight,
-              fit: BoxFit.fill,
-              gaplessPlayback: true,
+              fit: BoxFit.fitWidth,
+              alignment: Alignment.topLeft,
             ),
           ),
         ),

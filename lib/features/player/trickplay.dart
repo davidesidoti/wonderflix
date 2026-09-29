@@ -14,27 +14,33 @@ class TrickplayTile {
 }
 
 /// Anteprime della sorgente [mediaSourceId] (o della prima disponibile),
-/// nella larghezza più vicina a [preferredWidth].
-TrickplayInfo? pickTrickplay(JellyfinItem item, String mediaSourceId,
+/// nella larghezza più vicina a [preferredWidth], con la sorgente a cui
+/// appartengono: è quella da indicare nell'URL dei mosaici.
+({String mediaSourceId, TrickplayInfo info})? pickTrickplay(
+    JellyfinItem item, String mediaSourceId,
     {int preferredWidth = 320}) {
-  final byWidth =
-      item.trickplay[mediaSourceId] ?? item.trickplay.values.firstOrNull;
-  if (byWidth == null) return null;
+  final sourceId = item.trickplay.containsKey(mediaSourceId)
+      ? mediaSourceId
+      : item.trickplay.keys.firstOrNull;
+  if (sourceId == null) return null;
   TrickplayInfo? best;
-  for (final info in byWidth.values) {
+  for (final info in item.trickplay[sourceId]!.values) {
     if (best == null ||
         (info.width - preferredWidth).abs() <
             (best.width - preferredWidth).abs()) {
       best = info;
     }
   }
-  return best;
+  return best == null ? null : (mediaSourceId: sourceId, info: best);
 }
 
-/// Anteprima da mostrare per [position]; `null` se non ci sono anteprime.
+/// Anteprima da mostrare per [position]; `null` se non ci sono anteprime (o
+/// i dati non sono validi).
 TrickplayTile? trickplayTileAt(TrickplayInfo info, Duration position) {
   final perSheet = info.tileWidth * info.tileHeight;
-  if (info.interval <= Duration.zero ||
+  if (info.width <= 0 ||
+      info.height <= 0 ||
+      info.interval <= Duration.zero ||
       info.thumbnailCount <= 0 ||
       perSheet <= 0) {
     return null;

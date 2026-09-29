@@ -467,6 +467,36 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('anteprime di un\'altra sorgente: URL con quella sorgente',
+      (tester) async {
+    library.itemsById['e4'] = JellyfinItem.fromJson({
+      'Id': 'e4',
+      'Name': 'Pilot',
+      'Type': 'Episode',
+      'Trickplay': {
+        'ms2': {
+          '320': {
+            'Width': 320,
+            'Height': 180,
+            'TileWidth': 10,
+            'TileHeight': 10,
+            'ThumbnailCount': 700,
+            'Interval': 10000,
+          },
+        },
+      },
+    });
+    await pumpPlayer(tester);
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: Offset.zero);
+    addTearDown(gesture.removePointer);
+    await gesture.moveTo(tester.getCenter(find.byType(SeekBar)));
+    await tester.pump();
+    expect(authImageUrls.last,
+        'https://media.example.com/Videos/e4/Trickplay/320/3.jpg?mediaSourceId=ms2');
+    await unmount(tester);
+  });
+
   testWidgets('pannello media: titolo, stato, tasti e chiusura',
       (tester) async {
     await pumpPlayer(tester);

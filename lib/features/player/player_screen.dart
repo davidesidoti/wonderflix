@@ -281,9 +281,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final item = view.item;
     final plan = view.plan;
     if (item == null || plan == null) return null;
-    final mediaSourceId = plan.mediaSource.id;
-    final info = pickTrickplay(item, mediaSourceId);
-    if (info == null) return null;
+    final trickplay = pickTrickplay(item, plan.mediaSource.id);
+    if (trickplay == null) return null;
+    final (:mediaSourceId, :info) = trickplay;
     final serverUrl = ref.read(appConfigProvider).serverUrl;
     return (position) {
       final tile = trickplayTileAt(info, position);
