@@ -7,6 +7,7 @@ import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/config/app_config.dart';
 import 'package:wonderflix/features/library/server_events_binding.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
+import 'package:wonderflix/ui/wf_image.dart';
 
 final testAppConfig = AppConfig(
   serverUrl: Uri.parse('https://media.example.com'),
@@ -28,6 +29,9 @@ Future<void> pumpApp(
       appConfigProvider.overrideWithValue(testAppConfig),
       // Nessun WebSocket reale nei widget test.
       serverEventsBindingProvider.overrideWithValue(null),
+      // Nessuna immagine di rete nei widget test.
+      imageBuilderProvider.overrideWithValue(
+          (image, fit) => const ColoredBox(color: Color(0xFF333333))),
       ...overrides,
     ],
     retry: (_, _) => null,
