@@ -4,6 +4,8 @@ L'app controlla gli aggiornamenti su `https://api.github.com/repos/davidesidoti/
 
 ## Una volta sola: i Secrets
 
+Il repository deve essere **pubblico**: l'app legge le release senza token, e con un repository privato GitHub risponde 404 e l'app non si aggiorna mai.
+
 Su GitHub: *Settings → Secrets and variables → Actions → New repository secret*.
 
 | Secret | Valore | Obbligatorio |

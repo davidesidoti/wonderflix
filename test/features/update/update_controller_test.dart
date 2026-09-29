@@ -67,6 +67,17 @@ void main() {
     expect((await checked(container())).release, isNull);
   });
 
+  test('nessuna release utilizzabile: una riga nel log', () async {
+    final records = <LogRecord>[];
+    Logger.root.level = Level.ALL;
+    final sub = Logger.root.onRecord.listen(records.add);
+    addTearDown(sub.cancel);
+    api.latest = null;
+    await checked(container());
+    expect(records.map((r) => r.message),
+        contains('nessuna release utilizzabile su owner/repo'));
+  });
+
   test('min-version sopra la versione installata: obbligatorio', () async {
     api.latest = latestJson('0.2.0',
         body: 'Importante <!-- wonderflix:min-version=0.2.0 -->');

@@ -105,6 +105,7 @@ class UpdateController extends Notifier<UpdateState> {
       final release = json == null ? null : parseRelease(json);
       // Nessun aggiornamento: si azzera lo stato (anche quello di "Riprova").
       if (release == null) {
+        _log.info('nessuna release utilizzabile su $repo');
         _set(const UpdateState());
         return;
       }
