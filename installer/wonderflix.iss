@@ -44,6 +44,9 @@ CloseApplications=no
 ; Una sola installazione alla volta (doppio clic su "Riavvia ora"): in
 ; modalità silenziosa la seconda si chiude da sola.
 SetupMutex=WonderFlixSetup
+; A fine installazione avvisa Windows che le icone sono cambiate: senza, la
+; barra delle applicazioni può mostrare l'icona della versione precedente.
+ChangesAssociations=yes
 
 [Languages]
 Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
