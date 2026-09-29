@@ -14,4 +14,40 @@ void main() {
     expect(parseBounds('a,b,c,d'), isNull);
     expect(parseBounds('0,0,100,100'), isNull);
   });
+
+  group('isVisibleOnAnyDisplay', () {
+    const display = Rect.fromLTWH(0, 0, 1920, 1080);
+
+    test('finestra interamente dentro un display', () {
+      expect(
+        isVisibleOnAnyDisplay(
+            const Rect.fromLTWH(100, 100, 800, 600), [display]),
+        isTrue,
+      );
+    });
+
+    test('finestra parzialmente dentro, con almeno 100x100 px visibili', () {
+      expect(
+        isVisibleOnAnyDisplay(
+            const Rect.fromLTWH(1800, 100, 800, 600), [display]),
+        isTrue,
+      );
+    });
+
+    test('finestra completamente fuori da ogni display', () {
+      expect(
+        isVisibleOnAnyDisplay(
+            const Rect.fromLTWH(3000, 3000, 800, 600), [display]),
+        isFalse,
+      );
+    });
+
+    test('solo una sottile fetta visibile: non basta', () {
+      expect(
+        isVisibleOnAnyDisplay(
+            const Rect.fromLTWH(1910, 100, 800, 600), [display]),
+        isFalse,
+      );
+    });
+  });
 }

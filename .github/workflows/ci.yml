@@ -21,3 +21,4 @@ jobs:
       - run: flutter gen-l10n
       - run: flutter analyze
       - run: flutter test
+      - run: flutter build windows --debug

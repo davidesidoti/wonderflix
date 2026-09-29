@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 
+import 'package:screen_retriever/screen_retriever.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -19,6 +20,24 @@ Rect? parseBounds(String? value) {
   return rect;
 }
 
+/// `true` se il rettangolo [bounds] è visibile per almeno 100x100 px su
+/// almeno uno dei [displays] (posizione salvata di un monitor non più
+/// collegato, es. portatile scollegato dal docking).
+bool isVisibleOnAnyDisplay(Rect bounds, List<Rect> displays) {
+  for (final display in displays) {
+    final intersection = bounds.intersect(display);
+    if (intersection.width >= 100 && intersection.height >= 100) return true;
+  }
+  return false;
+}
+
+Future<List<Rect>> _currentDisplayRects() async {
+  final displays = await screenRetriever.getAllDisplays();
+  return displays
+      .map((d) => (d.visiblePosition ?? Offset.zero) & (d.visibleSize ?? d.size))
+      .toList();
+}
+
 /// Titolo, dimensione minima, posizione ricordata. La finestra viene mostrata
 /// solo quando è pronta (niente lampo bianco all'avvio).
 Future<void> setupWindow(SharedPreferences prefs) async {
@@ -32,7 +51,9 @@ Future<void> setupWindow(SharedPreferences prefs) async {
     backgroundColor: Color(0xFF0A0A0A),
   );
   await windowManager.waitUntilReadyToShow(options, () async {
-    if (saved != null) await windowManager.setBounds(saved);
+    if (saved != null && isVisibleOnAnyDisplay(saved, await _currentDisplayRects())) {
+      await windowManager.setBounds(saved);
+    }
     await windowManager.show();
     await windowManager.focus();
   });
@@ -45,6 +66,7 @@ class _BoundsSaver with WindowListener {
   final SharedPreferences _prefs;
 
   Future<void> _save() async {
+    if (await windowManager.isMinimized()) return;
     if (await windowManager.isMaximized() || await windowManager.isFullScreen()) {
       return;
     }

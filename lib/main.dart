@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'app/app.dart';
 import 'app/config_error_app.dart';
@@ -14,33 +15,45 @@ import 'core/jellyfin/client_info.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final prefs = await SharedPreferences.getInstance();
-  await setupWindow(prefs);
-
-  final AppConfig config;
   try {
-    config = AppConfig.fromEnvironment();
-  } on AppConfigException catch (e) {
-    runApp(ConfigErrorApp(message: e.message));
-    return;
+    final prefs = await SharedPreferences.getInstance();
+    await setupWindow(prefs);
+
+    final AppConfig config;
+    try {
+      config = AppConfig.fromEnvironment();
+    } on AppConfigException catch (e) {
+      runApp(ConfigErrorApp(message: e.message));
+      return;
+    }
+
+    final identity = await DeviceIdentity.load(prefs);
+    final package = await PackageInfo.fromPlatform();
+
+    runApp(ProviderScope(
+      overrides: [
+        appConfigProvider.overrideWithValue(config),
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        clientInfoProvider.overrideWithValue(ClientInfo(
+          client: 'WonderFlix',
+          device: identity.deviceName,
+          deviceId: identity.deviceId,
+          version: package.version,
+        )),
+      ],
+      // Nessun retry automatico: gli errori li gestiscono le schermate.
+      retry: (_, _) => null,
+      child: const WonderflixApp(),
+    ));
+  } catch (e, st) {
+    // Nessun errore di avvio deve lasciare una finestra nascosta in giro:
+    // mostrala comunque, con un messaggio, invece di restare invisibile.
+    try {
+      await windowManager.show();
+    } on Object {
+      // Ignora: proviamo comunque a mostrare l'errore.
+    }
+    runApp(ConfigErrorApp(message: 'Errore di avvio: $e'));
+    debugPrint('Errore di avvio: $e\n$st');
   }
-
-  final identity = await DeviceIdentity.load(prefs);
-  final package = await PackageInfo.fromPlatform();
-
-  runApp(ProviderScope(
-    overrides: [
-      appConfigProvider.overrideWithValue(config),
-      sharedPreferencesProvider.overrideWithValue(prefs),
-      clientInfoProvider.overrideWithValue(ClientInfo(
-        client: 'WonderFlix',
-        device: identity.deviceName,
-        deviceId: identity.deviceId,
-        version: package.version,
-      )),
-    ],
-    // Nessun retry automatico: gli errori li gestiscono le schermate.
-    retry: (_, _) => null,
-    child: const WonderflixApp(),
-  ));
 }

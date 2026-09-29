@@ -13,7 +13,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   if (instance_mutex != nullptr && ::GetLastError() == ERROR_ALREADY_EXISTS) {
     HWND existing = ::FindWindowW(L"FLUTTER_RUNNER_WIN32_WINDOW", L"WonderFlix");
     if (existing != nullptr) {
-      ::ShowWindow(existing, SW_RESTORE);
+      if (::IsIconic(existing)) ::ShowWindow(existing, SW_RESTORE);
       ::SetForegroundWindow(existing);
     }
     return EXIT_SUCCESS;
