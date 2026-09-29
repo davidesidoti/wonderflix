@@ -160,5 +160,17 @@
   "settingsCopyDiagnostics": "Copia diagnostica",
   "settingsDiagnosticsCopied": "Diagnostica copiata negli appunti",
   "settingsDiagnosticsCopyError": "Impossibile copiare la diagnostica.",
-  "settingsOpenLogs": "Apri la cartella dei log"
+  "settingsOpenLogs": "Apri la cartella dei log",
+  "updateReadyTitle": "Aggiornamento pronto: WonderFlix {version}",
+  "@updateReadyTitle": {"placeholders": {"version": {"type": "String"}}},
+  "updateRestartNow": "Riavvia ora",
+  "updateWhatsNew": "Novità",
+  "updateLater": "Più tardi",
+  "updateRequiredTitle": "Aggiornamento necessario",
+  "updateRequiredBody": "Questa versione di WonderFlix non è più supportata. Installa la versione {version} per continuare.",
+  "@updateRequiredBody": {"placeholders": {"version": {"type": "String"}}},
+  "updateDownloading": "Download in corso… {percent}%",
+  "@updateDownloading": {"placeholders": {"percent": {"type": "int"}}},
+  "updateInstallNow": "Aggiorna ora",
+  "updateDownloadFailed": "Download non riuscito. Controlla la connessione e riprova."
 }

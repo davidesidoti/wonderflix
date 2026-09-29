@@ -146,5 +146,14 @@
   "settingsCopyDiagnostics": "Copy diagnostics",
   "settingsDiagnosticsCopied": "Diagnostics copied to the clipboard",
   "settingsDiagnosticsCopyError": "Couldn't copy the diagnostics.",
-  "settingsOpenLogs": "Open the log folder"
+  "settingsOpenLogs": "Open the log folder",
+  "updateReadyTitle": "Update ready: WonderFlix {version}",
+  "updateRestartNow": "Restart now",
+  "updateWhatsNew": "What's new",
+  "updateLater": "Later",
+  "updateRequiredTitle": "Update required",
+  "updateRequiredBody": "This version of WonderFlix is no longer supported. Install version {version} to continue.",
+  "updateDownloading": "Downloading… {percent}%",
+  "updateInstallNow": "Update now",
+  "updateDownloadFailed": "Download failed. Check your connection and try again."
 }
