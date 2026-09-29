@@ -1,0 +1,111 @@
+name: Release
+
+# Parte con un tag vX.Y.Z (deve coincidere con la versione di pubspec.yaml).
+# La GitHub Release viene creata come bozza: la pubblicazione è manuale
+# (docs/RELEASING.md).
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.5
+          cache: true
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Versione
+        id: version
+        shell: pwsh
+        run: |
+          $line = Select-String -Path pubspec.yaml -Pattern '^version:\s*(\S+)' | Select-Object -First 1
+          $version = ($line.Matches[0].Groups[1].Value -split '\+')[0]
+          if ($env:GITHUB_REF_NAME -ne "v$version") {
+            Write-Error "Il tag $env:GITHUB_REF_NAME non corrisponde alla versione di pubspec.yaml ($version)"
+            exit 1
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Configurazione dai Secrets
+        shell: pwsh
+        env:
+          SERVER_URL: ${{ secrets.WONDERFLIX_SERVER_URL }}
+          DISCORD_APP_ID: ${{ secrets.WONDERFLIX_DISCORD_APP_ID }}
+          SUPPORT_URL: ${{ secrets.WONDERFLIX_SUPPORT_URL }}
+          ACCESS_REQUEST_URL: ${{ secrets.WONDERFLIX_ACCESS_REQUEST_URL }}
+        run: |
+          if (-not $env:SERVER_URL) {
+            Write-Error 'Manca il Secret WONDERFLIX_SERVER_URL (docs/RELEASING.md)'
+            exit 1
+          }
+          [ordered]@{
+            serverUrl        = $env:SERVER_URL
+            githubRepo       = $env:GITHUB_REPOSITORY
+            discordAppId     = "$env:DISCORD_APP_ID"
+            supportUrl       = "$env:SUPPORT_URL"
+            accessRequestUrl = "$env:ACCESS_REQUEST_URL"
+          } | ConvertTo-Json | Set-Content -Encoding utf8NoBOM config/wonderflix.json
+
+      - run: flutter pub get
+      - run: flutter gen-l10n
+      - run: flutter analyze
+      - run: flutter test
+
+      - run: flutter build windows --release --dart-define-from-file=config/wonderflix.json
+
+      - name: Runtime di Visual C++ accanto all'exe
+        shell: pwsh
+        run: |
+          foreach ($dll in 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll') {
+            Copy-Item "$env:WINDIR\System32\$dll" build\windows\x64\runner\Release\
+          }
+
+      # Firma del codice: pronta ma spenta finché non c'è un certificato
+      # (Secrets WONDERFLIX_SIGNING_CERT in base64 e WONDERFLIX_SIGNING_PASSWORD).
+      - name: Firma dell'app (disattivata)
+        if: ${{ false }}
+        shell: pwsh
+        run: |
+          [IO.File]::WriteAllBytes('cert.pfx', [Convert]::FromBase64String('${{ secrets.WONDERFLIX_SIGNING_CERT }}'))
+          signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f cert.pfx /p '${{ secrets.WONDERFLIX_SIGNING_PASSWORD }}' build\windows\x64\runner\Release\wonderflix.exe
+
+      - name: Installer
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ steps.version.outputs.version }}" installer\wonderflix.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Firma dell'installer (disattivata)
+        if: ${{ false }}
+        shell: pwsh
+        run: |
+          signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f cert.pfx /p '${{ secrets.WONDERFLIX_SIGNING_PASSWORD }}' "dist\WonderFlix-Setup-${{ steps.version.outputs.version }}.exe"
+
+      - name: SHA-256
+        shell: pwsh
+        run: |
+          $name = "WonderFlix-Setup-${{ steps.version.outputs.version }}.exe"
+          $hash = (Get-FileHash "dist\$name" -Algorithm SHA256).Hash.ToLower()
+          Set-Content -Encoding ascii -NoNewline -Path "dist\$name.sha256" -Value "$hash  $name"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wonderflix-setup
+          path: dist/*
+
+      - name: GitHub Release (bozza)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME dist/* --draft --title "WonderFlix ${{ steps.version.outputs.version }}" --notes "Scrivi qui le note di rilascio (docs/RELEASING.md)."
