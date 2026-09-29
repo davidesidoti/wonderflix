@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
@@ -87,5 +89,27 @@ void main() {
     final c = await container(FakeSystemApi()..version = null);
     final text = await c.read(collectDiagnosticsProvider)();
     expect(text, contains('Jellyfin: non raggiungibile\n'));
+  });
+
+  test('openLogsFolder: crea la cartella e la apre con Esplora risorse',
+      () async {
+    final temp = Directory.systemTemp.createTempSync('wonderflix_logs_');
+    addTearDown(() => temp.deleteSync(recursive: true));
+    final logs = Directory('${temp.path}${Platform.pathSeparator}logs');
+    final started = <List<String>>[];
+    final c = ProviderContainer.test(overrides: [
+      logsDirectoryProvider.overrideWithValue(logs),
+      processStarterProvider.overrideWithValue((executable, args) async {
+        started.add([executable, ...args]);
+        return null;
+      }),
+    ]);
+
+    await c.read(openLogsFolderProvider)();
+
+    expect(logs.existsSync(), isTrue);
+    expect(started, [
+      ['explorer.exe', logs.path],
+    ]);
   });
 }

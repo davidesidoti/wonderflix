@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/providers.dart';
 import '../../core/logging/app_log.dart';
@@ -71,16 +70,20 @@ final collectDiagnosticsProvider =
           );
         });
 
+/// Avvia un processo esterno senza aspettarne la fine. Sostituibile nei test.
+final processStarterProvider =
+    Provider<Future<Object?> Function(String executable, List<String> args)>(
+        (ref) => (executable, args) =>
+            Process.start(executable, args, mode: ProcessStartMode.detached));
+
 /// Apre la cartella dei log in Esplora risorse.
 final openLogsFolderProvider =
     Provider<Future<void> Function()>((ref) => () async {
           final directory = ref.read(logsDirectoryProvider);
           try {
             directory.createSync(recursive: true);
-            if (!await launchUrl(Uri.file(directory.path, windows: true))) {
-              _log.warning('cartella dei log non aperta: launchUrl ha '
-                  'restituito false');
-            }
+            await ref
+                .read(processStarterProvider)('explorer.exe', [directory.path]);
           } on Object catch (error) {
             _log.warning('cartella dei log non aperta: $error');
           }
