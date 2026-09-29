@@ -159,6 +159,7 @@ class DiscordPresence implements MediaSession {
     // La connessione caduta si vede solo leggendo: si controlla a ogni
     // aggiornamento, anche quando l'attività non cambia.
     if (_client != null && !_client!.poll()) _lost();
+    _checkCommandError();
     if (json == _sentJson) return;
     final client = _client;
     if (client == null || !client.connected) {
@@ -180,8 +181,18 @@ class DiscordPresence implements MediaSession {
     if (client.setActivity(desired?.activity, pid: _pid)) {
       _sentJson = json;
       _sentStart = desired?.start;
+      _checkCommandError();
     } else {
       _lost();
+    }
+  }
+
+  /// Discord ha rifiutato un'attività: si rimanda lo stato al prossimo
+  /// aggiornamento (mai subito, per non entrare in un ciclo).
+  void _checkCommandError() {
+    if (_client?.takeCommandError() ?? false) {
+      _sentJson = null;
+      _sentStart = null;
     }
   }
 

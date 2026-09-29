@@ -53,7 +53,9 @@ Map<String, Object?> buildDiscordActivity({
       'large_image': poster ?? discordLogoAsset,
       'large_text': showTitle ? discordText(title) : 'WonderFlix',
     },
-    if (supportUrl != null)
+    // Discord accetta solo link web nei pulsanti.
+    if (supportUrl != null &&
+        (supportUrl.isScheme('https') || supportUrl.isScheme('http')))
       'buttons': [
         {'label': labels.button, 'url': supportUrl.toString()},
       ],

@@ -144,6 +144,21 @@ void main() {
           {'n': 3});
     });
 
+    test('ERROR su un comando: takeCommandError lo segnala una volta',
+        () async {
+      await client.connect();
+      expect(client.takeCommandError(), isFalse);
+      client.setActivity({'type': 3}, pid: 1);
+      pipe.push(DiscordOpcode.frame, {
+        'cmd': 'SET_ACTIVITY',
+        'evt': 'ERROR',
+        'data': {'code': 4000, 'message': 'bad'},
+      });
+      expect(client.poll(), isTrue);
+      expect(client.takeCommandError(), isTrue);
+      expect(client.takeCommandError(), isFalse);
+    });
+
     test('poll: Discord chiude la connessione', () async {
       await client.connect();
       pipe.push(DiscordOpcode.close, {'code': 1000});

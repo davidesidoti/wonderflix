@@ -103,8 +103,17 @@ class DiscordIpcClient {
   final _reader = DiscordFrameReader();
   bool _connected = false;
   int _nonce = 0;
+  bool _commandError = false;
 
   bool get connected => _connected;
+
+  /// `true` (una volta sola) se dall'ultima chiamata Discord ha risposto
+  /// `ERROR` a un comando: l'attività inviata non è stata applicata.
+  bool takeCommandError() {
+    final error = _commandError;
+    _commandError = false;
+    return error;
+  }
 
   /// `true` quando Discord ha risposto `READY`; `false` se non è aperto,
   /// rifiuta l'Application ID o non risponde entro [readyTimeout].
@@ -194,6 +203,7 @@ class DiscordIpcClient {
         case DiscordOpcode.frame:
           if (frame.json['evt'] == 'ERROR') {
             _log.warning('Discord: ${frame.json['data']}');
+            _commandError = true;
           }
         case DiscordOpcode.handshake:
         case DiscordOpcode.pong:

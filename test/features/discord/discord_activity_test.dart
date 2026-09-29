@@ -83,6 +83,19 @@ void main() {
     expect(build().containsKey('buttons'), isFalse);
   });
 
+  test('supportUrl non http(s): nessun pulsante', () {
+    expect(build(supportUrl: Uri.parse('discord.gg/abc')).containsKey('buttons'),
+        isFalse);
+    expect(
+        build(supportUrl: Uri.parse('javascript:alert(1)'))
+            .containsKey('buttons'),
+        isFalse);
+    expect(
+        build(supportUrl: Uri.parse('http://example.com'))
+            .containsKey('buttons'),
+        isTrue);
+  });
+
   test('discordText: da 2 a 128 caratteri', () {
     expect(discordText('Up'), 'Up');
     expect(discordText('X'), hasLength(2));

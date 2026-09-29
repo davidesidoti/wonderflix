@@ -192,6 +192,39 @@ void main() {
     });
   });
 
+  test('ERROR di Discord su SET_ACTIVITY: rimanda lo stato al tick dopo', () {
+    fakeAsync((async) {
+      final p = started(async);
+      unawaited(p.setTimeline(
+          position: const Duration(minutes: 10),
+          duration: const Duration(minutes: 47)));
+      async.elapse(const Duration(seconds: 5));
+      expect(pipe.activities, hasLength(2));
+
+      pipe.push(DiscordOpcode.frame, {
+        'cmd': 'SET_ACTIVITY',
+        'evt': 'ERROR',
+        'data': {'code': 4000, 'message': 'child "activity" fails'},
+      });
+      async.elapse(const Duration(seconds: 5));
+      // Stessa timeline, 5 s dopo l'ultimo invio.
+      unawaited(p.setTimeline(
+          position: const Duration(minutes: 10, seconds: 10),
+          duration: const Duration(minutes: 47)));
+      async.flushMicrotasks();
+      expect(pipe.activities, hasLength(3));
+      expect(pipe.activities.last, pipe.activities[1]);
+
+      // Nessun altro errore: niente invii in più.
+      async.elapse(const Duration(seconds: 5));
+      unawaited(p.setTimeline(
+          position: const Duration(minutes: 10, seconds: 15),
+          duration: const Duration(minutes: 47)));
+      async.elapse(const Duration(seconds: 5));
+      expect(pipe.activities, hasLength(3));
+    });
+  });
+
   test('niente da mostrare: non si collega', () {
     fakeAsync((async) {
       final p = presence();
