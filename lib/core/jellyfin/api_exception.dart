@@ -35,6 +35,11 @@ final class ServerErrorException extends ApiException {
   String toString() => 'ServerErrorException($statusCode)';
 }
 
+/// Richiesta annullata dal client (es. una ricerca superata da una più recente).
+final class RequestCancelledException extends ApiException {
+  const RequestCancelledException();
+}
+
 ApiException mapDioException(DioException e) {
   switch (e.type) {
     case DioExceptionType.badResponse:
@@ -52,7 +57,7 @@ ApiException mapDioException(DioException e) {
           DioExceptionType.badCertificate:
       return ServerUnreachableException(e.error ?? e.type);
     case DioExceptionType.cancel:
-      return const ServerErrorException(null);
+      return const RequestCancelledException();
     case DioExceptionType.unknown:
       final error = e.error;
       if (error is SocketException ||

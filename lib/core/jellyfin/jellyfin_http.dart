@@ -36,8 +36,13 @@ class JellyfinHttp {
   String get authorizationHeader =>
       buildAuthorizationHeader(_clientInfo, token: token);
 
-  Future<dynamic> get(String path, {Map<String, dynamic>? query}) =>
-      _send(() => dio.get<dynamic>(path, queryParameters: query));
+  Future<dynamic> get(
+    String path, {
+    Map<String, dynamic>? query,
+    CancelToken? cancelToken,
+  }) =>
+      _send(() => dio.get<dynamic>(path,
+          queryParameters: query, cancelToken: cancelToken));
 
   Future<dynamic> post(
     String path, {
@@ -45,6 +50,9 @@ class JellyfinHttp {
     Map<String, dynamic>? query,
   }) =>
       _send(() => dio.post<dynamic>(path, data: body, queryParameters: query));
+
+  Future<dynamic> delete(String path, {Map<String, dynamic>? query}) =>
+      _send(() => dio.delete<dynamic>(path, queryParameters: query));
 
   Future<dynamic> _send(Future<Response<dynamic>> Function() request) async {
     final sentToken = token;

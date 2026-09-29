@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
@@ -92,5 +93,17 @@ void main() {
   test('asJsonMap rifiuta risposte che non sono oggetti', () {
     expect(asJsonMap({'a': 1}), {'a': 1});
     expect(() => asJsonMap(null), throwsA(isA<ServerErrorException>()));
+  });
+
+  test('delete usa il metodo DELETE', () async {
+    await http.delete('/UserFavoriteItems/i1', query: {'userId': 'u1'});
+    expect(adapter.requests.last.method, 'DELETE');
+    expect(adapter.requests.last.queryParameters, {'userId': 'u1'});
+  });
+
+  test('richiesta annullata diventa RequestCancelledException', () async {
+    final token = CancelToken()..cancel();
+    await expectLater(http.get('/a', cancelToken: token),
+        throwsA(isA<RequestCancelledException>()));
   });
 }
