@@ -1,8 +1,81 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 
-class UnreachableScreen extends StatelessWidget {
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+
+import '../../app/theme.dart';
+import '../../l10n/gen/app_localizations.dart';
+import '../auth/session_controller.dart';
+
+class UnreachableScreen extends ConsumerStatefulWidget {
   const UnreachableScreen({super.key});
 
+  static const retryInterval = Duration(seconds: 15);
+
   @override
-  Widget build(BuildContext context) => const Scaffold();
+  ConsumerState<UnreachableScreen> createState() => _UnreachableScreenState();
+}
+
+class _UnreachableScreenState extends ConsumerState<UnreachableScreen> {
+  Timer? _timer;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(
+        UnreachableScreen.retryInterval, (_) => unawaited(_retry()));
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _retry() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(sessionControllerProvider.notifier).restore();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(LucideIcons.wifiOff, size: 48, color: WfColors.gold),
+            const SizedBox(height: 20),
+            Text(l.unreachableTitle, style: WfText.display(36)),
+            const SizedBox(height: 8),
+            Text(l.unreachableBody,
+                style: const TextStyle(color: WfColors.creamMuted)),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: 200,
+              child: FilledButton(
+                onPressed: _busy ? null : _retry,
+                child: _busy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: WfColors.bg),
+                      )
+                    : Text(l.retry),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
