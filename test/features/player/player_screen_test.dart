@@ -569,6 +569,8 @@ void main() {
     expect(mediaSession.cleared, 0,
         reason: 'passando all\'episodio successivo il pannello resta');
     expect(mediaSession.metadata.last.subtitle, 'S1:E5 · Cat in the Bag');
+    expect(mediaSession.nextEnabled.last, isFalse,
+        reason: 'e5 è l\'ultimo: niente "successivo"');
 
     // Il pannello comanda il nuovo episodio.
     mediaSession.press(MediaButton.pause);

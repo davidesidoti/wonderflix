@@ -84,6 +84,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // parte prima che la vecchia sia chiusa.
     _mediaSession = ref.read(mediaSessionProvider);
     _mediaButtons = _mediaSession.buttons.listen(_onMediaButton);
+    // Il "successivo" dell'episodio precedente non vale per questo: si
+    // riattiva quando arriva il suo episodio successivo.
+    unawaited(_mediaSession.setNextEnabled(false));
     _timelineTimer =
         Timer.periodic(const Duration(seconds: 5), (_) => _sendTimeline());
     _scheduleHide();
