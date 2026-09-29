@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/features/player/player_active.dart';
 import 'package:wonderflix/features/update/update_controller.dart';
 import 'package:wonderflix/features/update/update_gate.dart';
+import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
 import '../../support/pump_app.dart';
 import '../../support/update_fakes.dart';
@@ -166,5 +169,76 @@ void main() {
     container.read(playerActiveProvider.notifier).leave();
     await pumpPlayerState(tester);
     expect(find.text('AGGIORNAMENTO NECESSARIO'), findsOneWidget);
+  });
+
+  /// Come in `app.dart`: `UpdateGate` nel `builder` di `MaterialApp.router`,
+  /// sopra il `Navigator` (niente `Overlay`).
+  Future<void> pumpRouterGate(WidgetTester tester, UpdateState state) async {
+    controller = FakeUpdateController(state);
+    final router = GoRouter(routes: [
+      GoRoute(path: '/', builder: (c, s) => const Text('app')),
+    ]);
+    addTearDown(router.dispose);
+    await tester.binding.setSurfaceSize(const Size(1440, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(ProviderScope(
+      overrides: [updateControllerProvider.overrideWith(() => controller)],
+      child: MaterialApp.router(
+        theme: buildWonderflixTheme(),
+        locale: const Locale('it'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        routerConfig: router,
+        builder: (context, child) => UpdateGate(child: child!),
+      ),
+    ));
+    await tester.pump();
+  }
+
+  testWidgets('nel builder di MaterialApp.router: barra funzionante',
+      (tester) async {
+    await pumpRouterGate(
+        tester, UpdateState(release: testRelease(), installer: installer));
+    expect(find.text('app'), findsOneWidget);
+    expect(find.text('Aggiornamento pronto: WonderFlix 0.2.0'), findsOneWidget);
+
+    await tester.tap(find.text('Novità'));
+    await tester.pump();
+    expect(find.text('Più veloce'), findsOneWidget);
+
+    await tester.tap(find.text('Riavvia ora'));
+    await tester.pump();
+    expect(controller.installs, 1);
+
+    await tester.tap(find.text('Più tardi'));
+    await tester.pump();
+    expect(find.text('Riavvia ora'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('nel builder di MaterialApp.router: schermata bloccante',
+      (tester) async {
+    await pumpRouterGate(
+        tester,
+        UpdateState(
+            release: testRelease(minVersion: '0.2.0'),
+            mandatory: true,
+            installer: installer));
+    expect(find.text('AGGIORNAMENTO NECESSARIO'), findsOneWidget);
+    expect(find.text('Più veloce'), findsOneWidget);
+
+    await tester.tap(find.text('Aggiorna ora'));
+    await tester.pump();
+    expect(controller.installs, 1);
+
+    controller.emit(UpdateState(
+        release: testRelease(minVersion: '0.2.0'),
+        mandatory: true,
+        failed: true));
+    await tester.pump();
+    await tester.tap(find.text('Riprova'));
+    await tester.pump();
+    expect(controller.retries, 1);
+    expect(tester.takeException(), isNull);
   });
 }
