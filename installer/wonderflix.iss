@@ -65,7 +65,9 @@ Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignore
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"; AppUserModelID: "{#AppUserModelId}"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; AppUserModelID: "{#AppUserModelId}"; Tasks: desktopicon
+; Aggiornamento silenzioso: il collegamento sul Desktop si ricrea solo se c'è
+; ancora (l'utente può averlo tolto).
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; AppUserModelID: "{#AppUserModelId}"; Tasks: desktopicon; Check: DesktopIconWanted
 
 [Run]
 ; Installazione normale: casella "Avvia WonderFlix" alla fine.
@@ -80,6 +82,19 @@ Type: filesandordirs; Name: "{app}"
 const
   WaitStepMs = 500;
   WaitSteps = 60; { 30 secondi }
+
+var
+  { InitializeSetup ha dato il via libera (l'app era chiusa). }
+  SetupStarted: Boolean;
+  { L'app era già installata prima della copia dei file. }
+  IsUpgrade: Boolean;
+  { Installazione completata. }
+  InstallDone: Boolean;
+
+function InstalledExe(): String;
+begin
+  Result := ExpandConstant('{localappdata}\Programs\{#AppName}\{#AppExe}');
+end;
 
 function AppRunning(): Boolean;
 begin
@@ -103,6 +118,7 @@ begin
     Result := not AppRunning();
     if not Result then
       Log('WonderFlix è ancora aperto: installazione annullata.');
+    SetupStarted := Result;
     Exit;
   end;
   while AppRunning() do
@@ -112,6 +128,40 @@ begin
       Exit;
     end;
   Result := True;
+  SetupStarted := True;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  { Prima della copia dei file: dopo, l'exe esiste sempre. }
+  if CurStep = ssInstall then
+    IsUpgrade := FileExists(InstalledExe());
+  if CurStep = ssDone then
+    InstallDone := True;
+end;
+
+{ Collegamento sul Desktop: sempre alla prima installazione e in quella
+  normale (casella scelta dall'utente); nell'aggiornamento silenzioso solo se
+  c'è ancora. }
+function DesktopIconWanted(): Boolean;
+begin
+  Result := (not IsUpgrade) or (not WizardSilent()) or
+    FileExists(ExpandConstant('{autodesktop}\{#AppName}.lnk'));
+end;
+
+{ Aggiornamento silenzioso non completato dopo la chiusura dell'app: la si
+  riapre (versione precedente, ripristinata dal rollback). Se InitializeSetup
+  ha rinunciato l'app è ancora aperta: niente da fare. }
+procedure DeinitializeSetup();
+var
+  ResultCode: Integer;
+begin
+  if WizardSilent() and SetupStarted and (not InstallDone) and
+    FileExists(InstalledExe()) then
+  begin
+    Log('Installazione non completata: riapertura di WonderFlix.');
+    Exec(InstalledExe(), '', '', SW_SHOWNORMAL, ewNoWait, ResultCode);
+  end;
 end;
 
 function InitializeUninstall(): Boolean;
