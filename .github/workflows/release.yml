@@ -30,6 +30,10 @@ jobs:
         run: |
           $line = Select-String -Path pubspec.yaml -Pattern '^version:\s*(\S+)' | Select-Object -First 1
           $version = ($line.Matches[0].Groups[1].Value -split '\+')[0]
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            Write-Error "Versione $version non valida: solo versioni X.Y.Z; per le prove usa una pre-release da una versione normale (docs/RELEASING.md)"
+            exit 1
+          }
           if ($env:GITHUB_REF_NAME -ne "v$version") {
             Write-Error "Il tag $env:GITHUB_REF_NAME non corrisponde alla versione di pubspec.yaml ($version)"
             exit 1
