@@ -1,0 +1,134 @@
+import 'package:flutter/material.dart' hide SearchController;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+
+import '../../app/navigation.dart';
+import '../../app/theme.dart';
+import '../../core/jellyfin/item_models.dart';
+import '../../l10n/gen/app_localizations.dart';
+import '../../ui/poster_card.dart';
+import '../../ui/states.dart';
+import '../../ui/wf_image.dart';
+import '../library/library_providers.dart';
+import 'search_controller.dart';
+
+class SearchScreen extends ConsumerWidget {
+  const SearchScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final state = ref.watch(searchControllerProvider);
+    final controller = ref.read(searchControllerProvider.notifier);
+    return ListView(
+      padding: const EdgeInsets.all(32),
+      children: [
+        TextField(
+          autofocus: true,
+          onChanged: controller.setTerm,
+          style: const TextStyle(fontSize: 18),
+          decoration: InputDecoration(
+            hintText: l.searchHint,
+            prefixIcon: const Icon(LucideIcons.search, color: WfColors.creamMuted),
+          ),
+        ),
+        const SizedBox(height: 24),
+        _results(context, ref, l, state),
+      ],
+    );
+  }
+
+  Widget _results(
+      BuildContext context, WidgetRef ref, AppLocalizations l, SearchState state) {
+    const muted = TextStyle(color: WfColors.creamMuted);
+    if (state.term.length < SearchController.minLength) {
+      return Text(l.searchPrompt, style: muted);
+    }
+    final error = state.error;
+    if (error != null) {
+      return ErrorView(
+        error: error,
+        onRetry: () =>
+            ref.read(searchControllerProvider.notifier).setTerm(state.term),
+      );
+    }
+    final results = state.results;
+    if (results == null) return const LoadingView();
+    if (results.isEmpty) return Text(l.searchNoResults(state.term), style: muted);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (results.movies.isNotEmpty) _posterSection(context, l.navMovies, results.movies),
+        if (results.series.isNotEmpty) _posterSection(context, l.navSeries, results.series),
+        if (results.people.isNotEmpty) _peopleSection(context, ref, l, results.people),
+      ],
+    );
+  }
+
+  Widget _posterSection(BuildContext context, String title, List<JellyfinItem> items) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: WfText.display(26)),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 16,
+              runSpacing: 24,
+              children: [
+                for (final item in items)
+                  PosterCard(item: item, width: 150, onTap: () => openItem(context, item)),
+              ],
+            ),
+          ],
+        ),
+      );
+
+  Widget _peopleSection(BuildContext context, WidgetRef ref, AppLocalizations l,
+      List<JellyfinItem> people) {
+    final urls = ref.watch(imageUrlsProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(l.searchPeople, style: WfText.display(26)),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: [
+            for (final person in people)
+              GestureDetector(
+                onTap: () => openItem(context, person),
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: SizedBox(
+                    width: 110,
+                    child: Column(
+                      children: [
+                        ClipOval(
+                          child: SizedBox(
+                            width: 90,
+                            height: 90,
+                            child: WfImage(
+                                image: urls.poster(person),
+                                fallbackIcon: LucideIcons.user),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(person.name,
+                            maxLines: 2,
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12.5)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
