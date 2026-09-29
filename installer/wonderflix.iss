@@ -41,6 +41,9 @@ WizardStyle=modern
 ; L'attesa della chiusura dell'app è in [Code]. Niente AppMutex: in modalità
 ; silenziosa il suo messaggio risponderebbe "Annulla".
 CloseApplications=no
+; Una sola installazione alla volta (doppio clic su "Riavvia ora"): in
+; modalità silenziosa la seconda si chiude da sola.
+SetupMutex=WonderFlixSetup
 
 [Languages]
 Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"

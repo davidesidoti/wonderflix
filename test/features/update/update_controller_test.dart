@@ -282,6 +282,17 @@ void main() {
     expect(installed.single.path, state.installer!.path);
   });
 
+  test('doppio clic: l\'installer parte una volta sola', () async {
+    api.latest = latestJson('0.2.0');
+    final c = container();
+    await checked(c);
+    final controller = c.read(updateControllerProvider.notifier);
+    final first = controller.install();
+    final second = controller.install();
+    await Future.wait([first, second]);
+    expect(installed, hasLength(1));
+  });
+
   test('controlli disattivati (build di sviluppo): nessuna chiamata', () async {
     final c = container(enabled: false);
     c.read(updateControllerProvider);

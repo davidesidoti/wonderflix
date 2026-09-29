@@ -76,6 +76,7 @@ class UpdateController extends Notifier<UpdateState> {
   static const checkInterval = Duration(hours: 6);
 
   bool _checking = false;
+  bool _installing = false;
 
   @override
   UpdateState build() {
@@ -153,7 +154,9 @@ class UpdateController extends Notifier<UpdateState> {
 
   Future<void> install() async {
     final installer = state.installer;
-    if (installer == null) return;
+    // Doppio clic su "Riavvia ora": la seconda chiamata non fa nulla.
+    if (installer == null || _installing) return;
+    _installing = true;
     try {
       if (await installer.exists()) {
         await ref.read(installUpdateProvider)(installer);
@@ -163,6 +166,8 @@ class UpdateController extends Notifier<UpdateState> {
     } on Object catch (error) {
       // Niente `$error`: conterrebbe il percorso (con il nome utente).
       _log.warning('avvio dell\'installer non riuscito (${error.runtimeType})');
+    } finally {
+      _installing = false;
     }
     // Si torna allo stato del download e si riparte dal controllo.
     final release = state.release;
