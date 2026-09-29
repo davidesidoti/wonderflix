@@ -5,6 +5,7 @@ import '../../core/jellyfin/playback_api.dart';
 import '../../core/video/media_kit_engine.dart';
 import '../../core/video/video_engine.dart';
 import 'playback_service.dart';
+import 'player_settings.dart';
 import 'player_window.dart';
 
 final playbackApiProvider =
@@ -22,8 +23,12 @@ final playbackServiceProvider = Provider<PlaybackService>((ref) {
 });
 
 /// Crea un motore video per ogni riproduzione; nei test si usa un motore finto.
-final videoEngineFactoryProvider =
-    Provider<VideoEngine Function()>((ref) => MediaKitEngine.new);
+/// La decodifica hardware segue le impostazioni (vale dal video successivo).
+final videoEngineFactoryProvider = Provider<VideoEngine Function()>((ref) {
+  final hardware =
+      ref.watch(playerSettingsProvider.select((s) => s.hardwareDecoding));
+  return () => MediaKitEngine(hwdec: hardware ? 'auto-safe' : 'no');
+});
 
 final playerWindowProvider =
     Provider<PlayerWindow>((ref) => WindowManagerPlayerWindow());

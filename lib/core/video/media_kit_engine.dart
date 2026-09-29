@@ -192,6 +192,10 @@ class MediaKitEngine implements VideoEngine {
       'sub-delay', (delay.inMilliseconds / 1000).toStringAsFixed(3));
 
   @override
+  Future<void> setSubtitleScale(double scale) =>
+      _native.setProperty('sub-scale', scale.toStringAsFixed(2));
+
+  @override
   Future<void> dispose() => _player.dispose();
 
   @override

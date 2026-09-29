@@ -81,6 +81,9 @@ abstract class VideoEngine {
   /// Positivo = sottotitoli più tardi.
   Future<void> setSubtitleDelay(Duration delay);
 
+  /// Dimensione dei sottotitoli: 1.0 = normale.
+  Future<void> setSubtitleScale(double scale);
+
   Future<void> dispose();
 
   Duration get position;

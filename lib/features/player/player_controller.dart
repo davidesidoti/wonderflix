@@ -12,6 +12,7 @@ import '../library/library_providers.dart';
 import '../library/user_data.dart';
 import 'playback_service.dart';
 import 'player_providers.dart';
+import 'player_settings.dart';
 import 'progress_reporter.dart';
 import 'track_mapping.dart';
 
@@ -123,6 +124,7 @@ class PlayerController extends Notifier<PlayerViewState> {
   late String _userId;
   late UserDataOverrides _overrides;
   late UserDataRevision _userDataRevision;
+  late PlayerSettings _settings;
 
   /// Copia dello stato, leggibile anche dopo la dispose del provider.
   PlayerViewState _view = const PlayerViewState();
@@ -157,6 +159,7 @@ class PlayerController extends Notifier<PlayerViewState> {
     _userId = ref.read(currentUserIdProvider);
     _overrides = ref.read(userDataOverridesProvider.notifier);
     _userDataRevision = ref.read(userDataRevisionProvider.notifier);
+    _settings = ref.read(playerSettingsProvider);
     _listenToEngine();
     ref.onDispose(() => unawaited(close()));
     unawaited(Future.microtask(() => _start(args.start)));
@@ -223,12 +226,16 @@ class PlayerController extends Notifier<PlayerViewState> {
         mediaSourceId: mediaSourceId ?? _view.plan?.mediaSource.id,
         audioIndex: audioIndex,
         subtitleIndex: subtitleIndex,
+        maxBitrate: _settings.quality.bitrate,
       );
       if (stale()) return;
       _externalSubtitles.clear();
       await _engine.open(plan.source);
       if (stale()) return;
       await _engine.setVolume(_view.muted ? 0 : _view.volume);
+      if (_settings.subtitleScale != 1.0) {
+        await _engine.setSubtitleScale(_settings.subtitleScale);
+      }
       if (_view.subtitleDelay != Duration.zero) {
         await _engine.setSubtitleDelay(_view.subtitleDelay);
       }

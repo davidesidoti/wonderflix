@@ -13,6 +13,7 @@ import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/player/playback_service.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
+import 'package:wonderflix/features/player/player_settings.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
 import '../../support/fake_session_controller.dart';
@@ -24,11 +25,13 @@ void main() {
   late FakeVideoEngine engine;
   late FakePlaybackApi playback;
   late FakePlayerWindow window;
+  var settings = const PlayerSettings();
 
   setUp(() {
     engine = FakeVideoEngine()..engineTracks = testEngineTracks;
     playback = FakePlaybackApi();
     window = FakePlayerWindow();
+    settings = const PlayerSettings();
   });
 
   /// Home ('/') con il player aperto sopra, come nell'app.
@@ -67,6 +70,7 @@ void main() {
         )),
         videoEngineFactoryProvider.overrideWithValue(() => engine),
         playerWindowProvider.overrideWithValue(window),
+        playerSettingsProvider.overrideWith(() => FakePlayerSettings(settings)),
         sessionControllerProvider.overrideWith(
             () => FakeSessionController(const SessionSignedIn(testUser))),
       ],

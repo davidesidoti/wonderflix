@@ -12,6 +12,7 @@ import 'package:wonderflix/features/library/user_data.dart';
 import 'package:wonderflix/features/player/playback_service.dart';
 import 'package:wonderflix/features/player/player_controller.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
+import 'package:wonderflix/features/player/player_settings.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
@@ -23,10 +24,12 @@ void main() {
   late FakePlaybackApi playback;
   late FakeVideoEngine engine;
   late ProviderContainer container;
+  var settings = const PlayerSettings();
   const args = (itemId: 'm1', start: Duration(minutes: 3));
   final provider = playerControllerProvider(args);
 
   setUp(() {
+    settings = const PlayerSettings();
     library = FakeLibraryApi()
       ..itemsById['m1'] = testItem(id: 'm1', runtimeMinutes: 120);
     playback = FakePlaybackApi();
@@ -41,6 +44,7 @@ void main() {
           authorization: () => 'MediaBrowser Token="t1"',
         )),
         videoEngineFactoryProvider.overrideWithValue(() => engine),
+        playerSettingsProvider.overrideWith(() => FakePlayerSettings(settings)),
         sessionControllerProvider.overrideWith(
             () => FakeSessionController(const SessionSignedIn(testUser))),
       ],
@@ -358,5 +362,22 @@ void main() {
     await controller.shiftSubtitleDelay(const Duration(milliseconds: 100));
     expect(engine.subtitleDelays.last, const Duration(milliseconds: 200));
     expect(view().subtitleDelay, const Duration(milliseconds: 200));
+  });
+
+  test('qualità scelta: bitrate massimo nella richiesta', () async {
+    settings = const PlayerSettings(quality: StreamQuality.mbps8);
+    await start();
+    expect(playback.playbackInfoCalls.first.maxBitrate, 8000000);
+  });
+
+  test('dimensione dei sottotitoli applicata all\'apertura', () async {
+    settings = const PlayerSettings(subtitleScale: 1.25);
+    await start();
+    expect(engine.subtitleScales, [1.25]);
+  });
+
+  test('dimensione normale: nessuna modifica', () async {
+    await start();
+    expect(engine.subtitleScales, isEmpty);
   });
 }

@@ -230,6 +230,9 @@ class FakeVideoEngine implements VideoEngine {
   final selectedSubtitle = <String?>[];
   final addedSubtitles = <String>[];
   final subtitleDelays = <Duration>[];
+
+  /// Non registrato in [calls].
+  final subtitleScales = <double>[];
   final seeks = <Duration>[];
   final volumes = <double>[];
   bool disposed = false;
@@ -342,6 +345,10 @@ class FakeVideoEngine implements VideoEngine {
   @override
   Future<void> setSubtitleDelay(Duration delay) async =>
       subtitleDelays.add(delay);
+
+  @override
+  Future<void> setSubtitleScale(double scale) async =>
+      subtitleScales.add(scale);
 
   @override
   Future<void> dispose() async {
