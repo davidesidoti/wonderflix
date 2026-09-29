@@ -1,0 +1,72 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/api_exception.dart';
+import 'package:wonderflix/core/jellyfin/item_models.dart';
+import 'package:wonderflix/core/jellyfin/item_query.dart';
+import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/catalog/catalog_screen.dart';
+import 'package:wonderflix/features/library/library_providers.dart';
+
+import '../../support/fake_session_controller.dart';
+import '../../support/library_fakes.dart';
+import '../../support/pump_app.dart';
+import '../../support/test_data.dart';
+
+void main() {
+  late FakeLibraryApi api;
+
+  setUp(() {
+    api = FakeLibraryApi()
+      ..libraryFilters = const LibraryFilters(genres: ['Dramma'], years: [2024])
+      ..onItems = (query, start, limit) => query.watched == WatchedFilter.watched
+          ? pageOf([])
+          : pageOf([testItem(id: 'm1', name: 'Dune'), testItem(id: 'm2', name: 'Alien')]);
+  });
+
+  Future<void> pumpCatalog(WidgetTester tester) async {
+    // In app la schermata vive dentro lo Scaffold dell'AppShell (serve un
+    // antenato Material per DropdownButton/SegmentedButton).
+    await pumpApp(
+        tester, const Scaffold(body: CatalogScreen(kind: ItemKind.movie)),
+        overrides: [
+      libraryApiProvider.overrideWithValue(api),
+      sessionControllerProvider
+          .overrideWith(() => FakeSessionController(const SessionSignedIn(testUser))),
+    ]);
+    await tester.pump();
+    await tester.pump();
+  }
+
+  testWidgets('titolo, conteggio e griglia', (tester) async {
+    await pumpCatalog(tester);
+    expect(find.text('FILM'), findsOneWidget);
+    expect(find.text('2 titoli'), findsOneWidget);
+    expect(find.text('Dune'), findsOneWidget);
+    expect(find.text('Alien'), findsOneWidget);
+  });
+
+  testWidgets('filtro "Visti" senza risultati e azzeramento', (tester) async {
+    await pumpCatalog(tester);
+    await tester.tap(find.text('Visti'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Nessun titolo con questi filtri.'), findsOneWidget);
+    expect(api.itemQueries.last.watched, WatchedFilter.watched);
+
+    await tester.tap(find.text('Azzera filtri').last);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Dune'), findsOneWidget);
+  });
+
+  testWidgets('errore con riprova', (tester) async {
+    api.error = const ServerUnreachableException();
+    await pumpCatalog(tester);
+    expect(find.text('Riprova'), findsOneWidget);
+    api.error = null;
+    await tester.tap(find.text('Riprova'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Dune'), findsOneWidget);
+  });
+}
