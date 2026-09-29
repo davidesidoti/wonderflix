@@ -1,6 +1,26 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/storage/session_store.dart';
+
+/// Storage finto che fallisce in lettura, come farebbe il Gestore
+/// credenziali di Windows se non disponibile.
+class _ThrowingReadStorage extends FlutterSecureStorage {
+  const _ThrowingReadStorage();
+
+  @override
+  Future<String?> read({
+    required String key,
+    AppleOptions? iOptions,
+    AndroidOptions? aOptions,
+    LinuxOptions? lOptions,
+    WebOptions? webOptions,
+    AppleOptions? mOptions,
+    WindowsOptions? wOptions,
+  }) {
+    throw PlatformException(code: 'boom');
+  }
+}
 
 void main() {
   setUp(() => FlutterSecureStorage.setMockInitialValues({}));
@@ -25,5 +45,10 @@ void main() {
     expect(await store.read(), isNull);
     expect(await const FlutterSecureStorage().read(key: SecureSessionStore.key),
         isNull);
+  });
+
+  test('uno storage che fallisce in lettura restituisce null', () async {
+    final store = SecureSessionStore(const _ThrowingReadStorage());
+    expect(await store.read(), isNull);
   });
 }

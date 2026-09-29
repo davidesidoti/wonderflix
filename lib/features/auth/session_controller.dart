@@ -43,13 +43,19 @@ class SessionController extends Notifier<SessionState> {
   AuthService get _auth => ref.read(authServiceProvider);
 
   Future<void> restore() async {
-    final result = await _auth.restore();
-    state = switch (result) {
-      RestoredSession(:final user) => SessionSignedIn(user),
-      NoStoredSession() => const SessionSignedOut(),
-      StoredSessionExpired() => const SessionSignedOut(expired: true),
-      RestoreServerUnreachable() => const SessionUnreachable(),
-    };
+    try {
+      final result = await _auth.restore();
+      state = switch (result) {
+        RestoredSession(:final user) => SessionSignedIn(user),
+        NoStoredSession() => const SessionSignedOut(),
+        StoredSessionExpired() => const SessionSignedOut(expired: true),
+        RestoreServerUnreachable() => const SessionUnreachable(),
+      };
+    } on Object {
+      // Difesa in profondità: nessun errore imprevisto deve bloccare l'avvio
+      // sulla schermata di splash.
+      state = const SessionUnreachable();
+    }
   }
 
   /// Lancia [ApiException] in caso di errore: la UI mostra il messaggio.

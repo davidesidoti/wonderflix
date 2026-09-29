@@ -38,14 +38,19 @@ class _QuickConnectPanelState extends ConsumerState<QuickConnectPanel> {
 
   void _listen() {
     unawaited(_subscription?.cancel());
-    _subscription =
-        ref.read(quickConnectRunnerProvider).run().listen((state) {
-      if (!mounted) return;
-      setState(() => _state = state);
-      if (state is QcApproved) {
-        ref.read(sessionControllerProvider.notifier).quickConnectApproved(state.user);
-      }
-    });
+    _subscription = ref.read(quickConnectRunnerProvider).run().listen(
+      (state) {
+        if (!mounted) return;
+        setState(() => _state = state);
+        if (state is QcApproved) {
+          ref.read(sessionControllerProvider.notifier).quickConnectApproved(state.user);
+        }
+      },
+      onError: (Object e) {
+        if (!mounted) return;
+        setState(() => _state = QcError(e));
+      },
+    );
   }
 
   void _restart() {

@@ -97,4 +97,23 @@ void main() {
       expect(states.last, isA<QcError>());
     });
   });
+
+  test('errore imprevisto (non ApiException): stato di errore', () {
+    fakeAsync((async) {
+      var polls = 0;
+      when(() => api.quickConnectEnabled()).thenAnswer((_) async => true);
+      when(() => api.initiateQuickConnect())
+          .thenAnswer((_) async => qc('482913', 's1'));
+      when(() => api.quickConnectState('s1'))
+          .thenAnswer((_) async => qc('482913', 's1', ok: ++polls >= 1));
+      when(() => auth.completeQuickConnect('s1')).thenThrow(StateError('boom'));
+
+      final states = <QcState>[];
+      flow.run().listen(states.add);
+      async.flushMicrotasks();
+
+      async.elapse(const Duration(seconds: 3));
+      expect(states.last, isA<QcError>());
+    });
+  });
 }

@@ -66,3 +66,14 @@ Map<String, dynamic> asJsonMap(Object? data) {
   if (data is Map<String, dynamic>) return data;
   throw const ServerErrorException(null);
 }
+
+/// Converte il corpo in un modello; forme inattese diventano [ServerErrorException].
+T parseJson<T>(Object? data, T Function(Map<String, dynamic> json) fromJson) {
+  try {
+    return fromJson(asJsonMap(data));
+  } on ApiException {
+    rethrow;
+  } on Object {
+    throw const ServerErrorException(null);
+  }
+}

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/auth_api.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
 
@@ -36,6 +37,11 @@ void main() {
     expect(adapter.requests.single.path, '/Users/Me');
     expect(user.name, 'Mario');
     expect(user.primaryImageTag, isNull);
+  });
+
+  test('getMe con corpo malformato lancia ServerErrorException', () async {
+    adapter.handler = (_) => const FakeResponse(200, {'Id': 1});
+    await expectLater(api.getMe(), throwsA(isA<ServerErrorException>()));
   });
 
   test('logout chiama POST /Sessions/Logout', () async {

@@ -65,6 +65,12 @@ void main() {
     expect(state(), isA<SessionUnreachable>());
   });
 
+  test('restore: errore inatteso (non ApiException) → Unreachable', () async {
+    when(() => auth.restore()).thenThrow(StateError('boom'));
+    await controller().restore();
+    expect(state(), isA<SessionUnreachable>());
+  });
+
   test('login riuscito → SignedIn; errore propagato e stato invariato',
       () async {
     when(() => auth.restore()).thenAnswer((_) async => const NoStoredSession());

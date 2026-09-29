@@ -33,7 +33,17 @@ class SecureSessionStore implements SessionStore {
 
   @override
   Future<StoredSession?> read() async {
-    final raw = await _storage.read(key: key);
+    final String? raw;
+    try {
+      raw = await _storage.read(key: key);
+    } on Object {
+      try {
+        await clear();
+      } on Object {
+        // Ignora: la lettura era già fallita.
+      }
+      return null;
+    }
     if (raw == null) return null;
     try {
       return StoredSession.fromJson(jsonDecode(raw) as Map<String, dynamic>);

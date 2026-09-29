@@ -27,7 +27,7 @@ final class QcApproved extends QcState {
 
 final class QcError extends QcState {
   const QcError(this.error);
-  final ApiException error;
+  final Object error;
 }
 
 abstract interface class QuickConnectRunner {
@@ -77,6 +77,8 @@ class QuickConnectFlow implements QuickConnectRunner {
         }
       }
     } on ApiException catch (e) {
+      yield QcError(e);
+    } on Object catch (e) {
       yield QcError(e);
     }
   }
