@@ -156,6 +156,9 @@ class DiscordPresence implements MediaSession {
     if (_disposed) return;
     final desired = _desired();
     final json = desired == null ? null : jsonEncode(desired.activity);
+    // La connessione caduta si vede solo leggendo: si controlla a ogni
+    // aggiornamento, anche quando l'attività non cambia.
+    if (_client != null && !_client!.poll()) _lost();
     if (json == _sentJson) return;
     final client = _client;
     if (client == null || !client.connected) {
@@ -178,12 +181,16 @@ class DiscordPresence implements MediaSession {
       _sentJson = json;
       _sentStart = desired?.start;
     } else {
-      _log.info('connessione a Discord interrotta');
-      _client = null;
-      _sentJson = null;
-      _sentStart = null;
-      _scheduleRetry();
+      _lost();
     }
+  }
+
+  void _lost() {
+    _log.info('connessione a Discord interrotta');
+    _client = null;
+    _sentJson = null;
+    _sentStart = null;
+    _scheduleRetry();
   }
 
   Future<void> _connect() async {

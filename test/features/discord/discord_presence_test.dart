@@ -162,6 +162,36 @@ void main() {
     });
   });
 
+  test('Discord chiuso e riaperto durante la visione: l\'attività ricompare',
+      () {
+    fakeAsync((async) {
+      final p = started(async);
+      var position = const Duration(minutes: 10);
+      // La timeline arriva ogni 5 s, coerente con il tempo che passa.
+      void tick() {
+        unawaited(p.setTimeline(
+            position: position, duration: const Duration(minutes: 47)));
+        async.elapse(const Duration(seconds: 5));
+        position += const Duration(seconds: 5);
+      }
+
+      tick();
+      tick();
+      final sent = pipe.activities.length;
+      expect(sent, 2);
+
+      pipe.broken = true;
+      tick();
+      pipe.broken = false;
+      for (var i = 0; i < 7; i++) {
+        tick();
+      }
+      expect(pipe.opens, 2);
+      expect(pipe.activities, hasLength(sent + 1));
+      expect(pipe.activities.last!['timestamps'], isNotNull);
+    });
+  });
+
   test('niente da mostrare: non si collega', () {
     fakeAsync((async) {
       final p = presence();

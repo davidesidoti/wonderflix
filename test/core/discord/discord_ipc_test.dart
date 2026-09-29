@@ -129,5 +129,35 @@ void main() {
       expect(client.connected, isFalse);
       expect(pipe.closed, isTrue);
     });
+
+    test('poll: false se non connesso, true se la connessione è viva',
+        () async {
+      expect(client.poll(), isFalse);
+      await client.connect();
+      expect(client.poll(), isTrue);
+      pipe.push(DiscordOpcode.ping, {'n': 3});
+      expect(client.poll(), isTrue);
+      expect(
+          pipe.written
+              .firstWhere((frame) => frame.opcode == DiscordOpcode.pong)
+              .json,
+          {'n': 3});
+    });
+
+    test('poll: Discord chiude la connessione', () async {
+      await client.connect();
+      pipe.push(DiscordOpcode.close, {'code': 1000});
+      expect(client.poll(), isFalse);
+      expect(client.connected, isFalse);
+      expect(pipe.closed, isTrue);
+    });
+
+    test('poll: pipe interrotta', () async {
+      await client.connect();
+      pipe.broken = true;
+      expect(client.poll(), isFalse);
+      expect(client.connected, isFalse);
+      expect(pipe.closed, isTrue);
+    });
   });
 }

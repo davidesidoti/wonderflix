@@ -160,6 +160,20 @@ class DiscordIpcClient {
     }
   }
 
+  /// Legge quello che Discord ha mandato (risponde ai ping). `false` se non
+  /// connesso o se la connessione è caduta: il client va ricreato.
+  bool poll() {
+    if (!_connected) return false;
+    try {
+      _drain();
+    } on DiscordPipeException catch (e) {
+      _log.fine('pipe di Discord: $e');
+      close();
+      return false;
+    }
+    return _connected;
+  }
+
   void close() {
     _connected = false;
     _pipe.close();
