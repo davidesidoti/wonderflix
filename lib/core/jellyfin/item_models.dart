@@ -129,6 +129,69 @@ class TrailerLink {
   final String? name;
 }
 
+/// Inizio di un capitolo del video.
+class ChapterMark {
+  const ChapterMark({required this.start, this.name});
+
+  factory ChapterMark.fromJson(Map<String, dynamic> json) => ChapterMark(
+        start: ticksToDuration(_int(json['StartPositionTicks']) ?? 0),
+        name: json['Name'] as String?,
+      );
+
+  final Duration start;
+  final String? name;
+}
+
+/// Mosaici di anteprime (trickplay) di una larghezza: ogni immagine
+/// contiene [tileWidth] × [tileHeight] anteprime di [width] × [height] pixel,
+/// una ogni [interval].
+class TrickplayInfo {
+  const TrickplayInfo({
+    required this.width,
+    required this.height,
+    required this.tileWidth,
+    required this.tileHeight,
+    required this.thumbnailCount,
+    required this.interval,
+  });
+
+  factory TrickplayInfo.fromJson(Map<String, dynamic> json) => TrickplayInfo(
+        width: _int(json['Width']) ?? 0,
+        height: _int(json['Height']) ?? 0,
+        tileWidth: _int(json['TileWidth']) ?? 0,
+        tileHeight: _int(json['TileHeight']) ?? 0,
+        thumbnailCount: _int(json['ThumbnailCount']) ?? 0,
+        interval: Duration(milliseconds: _int(json['Interval']) ?? 0),
+      );
+
+  final int width;
+  final int height;
+  final int tileWidth;
+  final int tileHeight;
+  final int thumbnailCount;
+  final Duration interval;
+}
+
+/// `Trickplay` dell'API: sorgente → larghezza → informazioni.
+Map<String, Map<int, TrickplayInfo>> _trickplay(Object? value) {
+  final result = <String, Map<int, TrickplayInfo>>{};
+  if (value is! Map) return result;
+  for (final source in value.entries) {
+    final widths = source.value;
+    if (widths is! Map) continue;
+    final byWidth = <int, TrickplayInfo>{};
+    for (final entry in widths.entries) {
+      final width = int.tryParse('${entry.key}');
+      final info = entry.value;
+      if (width != null && info is Map<String, dynamic>) {
+        byWidth[width] = TrickplayInfo.fromJson(info);
+      }
+    }
+    if (byWidth.isNotEmpty) result['${source.key}'] = byWidth;
+  }
+  return result;
+}
+
 class JellyfinItem {
   const JellyfinItem({
     required this.id,
@@ -160,6 +223,8 @@ class JellyfinItem {
     this.remoteTrailers = const [],
     this.localTrailerCount = 0,
     this.childCount,
+    this.chapters = const [],
+    this.trickplay = const {},
   });
 
   factory JellyfinItem.fromJson(Map<String, dynamic> json) {
@@ -204,6 +269,8 @@ class JellyfinItem {
           .toList(),
       localTrailerCount: _int(json['LocalTrailerCount']) ?? 0,
       childCount: _int(json['ChildCount']),
+      chapters: _objectList(json['Chapters']).map(ChapterMark.fromJson).toList(),
+      trickplay: _trickplay(json['Trickplay']),
     );
   }
 
@@ -242,6 +309,12 @@ class JellyfinItem {
 
   /// Per le serie: numero di stagioni.
   final int? childCount;
+
+  /// Capitoli del video, in ordine.
+  final List<ChapterMark> chapters;
+
+  /// Anteprime per la barra di avanzamento: sorgente → larghezza → info.
+  final Map<String, Map<int, TrickplayInfo>> trickplay;
 
   Duration? get runtime {
     final ticks = runTimeTicks;

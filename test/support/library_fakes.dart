@@ -118,6 +118,7 @@ JellyfinItem testItem({
   int? childCount,
   List<Map<String, dynamic>> people = const [],
   List<Map<String, dynamic>> trailers = const [],
+  int localTrailers = 0,
 }) =>
     JellyfinItem.fromJson({
       'Id': id,
@@ -142,6 +143,7 @@ JellyfinItem testItem({
       'ChildCount': ?childCount,
       'People': people,
       'RemoteTrailers': trailers,
+      'LocalTrailerCount': localTrailers,
     });
 
 ItemPage pageOf(List<JellyfinItem> items, [int? total]) =>

@@ -120,4 +120,44 @@ void main() {
     expect(next.isFavorite, isTrue);
     expect(data.copyWith(played: true).playbackPositionTicks, 10);
   });
+
+  test('capitoli e anteprime trickplay', () {
+    final item = JellyfinItem.fromJson({
+      'Id': 'm1',
+      'Name': 'Dune',
+      'Type': 'Movie',
+      'Chapters': [
+        {'StartPositionTicks': 0, 'Name': 'Inizio'},
+        {'StartPositionTicks': 27000000000, 'Name': 'Arrakis'},
+      ],
+      'Trickplay': {
+        'ms1': {
+          '320': {
+            'Width': 320,
+            'Height': 180,
+            'TileWidth': 10,
+            'TileHeight': 10,
+            'ThumbnailCount': 700,
+            'Interval': 10000,
+          },
+        },
+      },
+    });
+    expect(item.chapters.map((c) => c.name), ['Inizio', 'Arrakis']);
+    expect(item.chapters[1].start, const Duration(minutes: 45));
+    final info = item.trickplay['ms1']![320]!;
+    expect(info.width, 320);
+    expect(info.height, 180);
+    expect(info.tileWidth, 10);
+    expect(info.tileHeight, 10);
+    expect(info.thumbnailCount, 700);
+    expect(info.interval, const Duration(seconds: 10));
+  });
+
+  test('senza capitoli né trickplay', () {
+    final item =
+        JellyfinItem.fromJson({'Id': 'm1', 'Name': 'Dune', 'Type': 'Movie'});
+    expect(item.chapters, isEmpty);
+    expect(item.trickplay, isEmpty);
+  });
 }
