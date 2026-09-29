@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
@@ -14,6 +15,8 @@ import 'core/jellyfin/client_info.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Carica libmpv: va fatto prima di creare qualunque Player.
+  MediaKit.ensureInitialized();
 
   try {
     final prefs = await SharedPreferences.getInstance();
