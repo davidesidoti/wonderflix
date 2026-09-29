@@ -9,6 +9,15 @@ import 'mandatory_update_screen.dart';
 import 'update_banner.dart';
 import 'update_controller.dart';
 
+/// La schermata bloccante è visibile: l'app sotto non deve reagire (né ai
+/// clic né a Esc / Alt+←).
+final updateBlockedProvider = Provider<bool>((ref) {
+  final update = ref.watch(updateControllerProvider);
+  return update.release != null &&
+      update.mandatory &&
+      !ref.watch(playerActiveProvider);
+});
+
 /// Sopra tutte le schermate (nel `builder` di `MaterialApp.router`): barra
 /// "Aggiornamento pronto" o schermata bloccante, mai mentre il player è
 /// aperto. L'app resta montata sotto, così lo stato della navigazione non si
@@ -30,10 +39,10 @@ class _UpdateGateState extends ConsumerState<UpdateGate> {
   Widget build(BuildContext context) {
     final update = ref.watch(updateControllerProvider);
     final playing = ref.watch(playerActiveProvider);
+    final blocked = ref.watch(updateBlockedProvider);
     final controller = ref.read(updateControllerProvider.notifier);
     final release = update.release;
 
-    final blocked = release != null && update.mandatory && !playing;
     final showBanner = release != null &&
         update.ready &&
         !update.mandatory &&
