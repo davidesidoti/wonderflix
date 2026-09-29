@@ -99,16 +99,22 @@ void main() {
         throwsA(isA<PlaybackUnavailableException>()));
   });
 
-  test('burnsIn: solo sottotitoli non esterni in transcodifica', () async {
+  test('burnsIn: sottotitoli non esterni in transcodifica, Encode sempre',
+      () async {
     api.onPlaybackInfo = (_) => testPlaybackInfo(directPlay: false);
     final transcode = await service().prepare(itemId: 'm1', userId: 'u1');
     expect(transcode.burnsIn(4), isTrue, reason: 'PGS bruciato');
+    expect(transcode.burnsIn(6), isTrue, reason: 'PGS esterno bruciato');
     expect(transcode.burnsIn(3), isFalse, reason: 'ASS estratto a parte');
     expect(transcode.burnsIn(null), isFalse);
 
     api.onPlaybackInfo = (_) => testPlaybackInfo();
     final direct = await service().prepare(itemId: 'm1', userId: 'u1');
-    expect(direct.burnsIn(4), isFalse);
+    expect(direct.burnsIn(4), isFalse, reason: 'PGS interno: lo mostra mpv');
+    expect(direct.burnsIn(5), isFalse, reason: 'SRT esterno caricato a parte');
+    expect(direct.burnsIn(6), isTrue,
+        reason: 'PGS esterno: il server lo consegna solo bruciato');
+    expect(direct.burnsIn(null), isFalse);
   });
 
   test('subtitleUrl e breakDirectPlay', () async {

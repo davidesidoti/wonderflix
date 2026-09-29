@@ -295,6 +295,23 @@ void main() {
     expect(view().subtitleIndex, isNull);
   });
 
+  test('direct play: un sottotitolo da bruciare passa alla transcodifica',
+      () async {
+    final controller = await start();
+    engine.emitPosition(const Duration(minutes: 7));
+
+    await controller.selectSubtitle(6);
+    final call = playback.playbackInfoCalls.last;
+    expect(call.allowDirect, isFalse);
+    expect(call.subtitleStreamIndex, 6);
+    expect(call.audioStreamIndex, 1);
+    expect(call.start, const Duration(minutes: 7));
+    expect(engine.opened, hasLength(2));
+    expect(view().plan?.isTranscode, isTrue);
+    expect(view().subtitleIndex, 6);
+    expect(view().status, PlayerStatus.ready);
+  });
+
   test('comandi: pausa, salti nei limiti, volume, muto, ritardo', () async {
     final controller = await start();
     await controller.togglePlay();

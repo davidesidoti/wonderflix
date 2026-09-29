@@ -28,12 +28,18 @@ class PlaybackPlan {
 
   bool get isTranscode => method == PlayMethod.transcode;
 
-  /// `true` se il sottotitolo [index] viene bruciato nel video dal server
-  /// (grafico, in transcodifica): cambiarlo richiede una nuova conversione.
+  /// `true` se il sottotitolo [index] viene bruciato nel video dal server:
+  /// cambiarlo richiede una nuova conversione.
+  /// - In transcodifica: ogni sottotitolo non consegnato a parte (grafico).
+  /// - In direct play: quelli che il server consegna solo bruciati
+  ///   (`DeliveryMethod` `Encode`, es. un `.sup` esterno), che mpv non ha
+  ///   nel file; sceglierli fa passare alla transcodifica.
   bool burnsIn(int? index) {
-    if (!isTranscode || index == null) return false;
+    if (index == null) return false;
     final stream = mediaSource.stream(index);
-    return stream != null && !stream.deliveredExternally;
+    if (stream == null) return false;
+    if (isTranscode) return !stream.deliveredExternally;
+    return stream.deliveryMethod == 'Encode';
   }
 }
 

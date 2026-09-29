@@ -57,6 +57,17 @@ List<Map<String, dynamic>> testStreams({bool transcode = false}) => [
         'DeliveryMethod': 'External',
         'DeliveryUrl': '/Videos/m1/ms1/Subtitles/5/0/Stream.srt',
       },
+      // Sottotitolo grafico esterno (.sup): il server lo può solo bruciare nel
+      // video, anche in direct play.
+      {
+        'Index': 6,
+        'Type': 'Subtitle',
+        'Codec': 'PGSSUB',
+        'Language': 'ita',
+        'DisplayTitle': 'Italiano - PGS - Esterno',
+        'IsExternal': true,
+        'DeliveryMethod': 'Encode',
+      },
     ];
 
 /// Risposta di PlaybackInfo per il file di prova: sorgente `ms1`, sessione
