@@ -30,7 +30,8 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     final session = FakeSessionController(const SessionSignedIn(testUser));
-    await pumpApp(tester, const SettingsScreen(), overrides: [
+    await tester.binding.setSurfaceSize(const Size(1440, 1600));
+    await pumpApp(tester, const Scaffold(body: SettingsScreen()), overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
       clientInfoProvider.overrideWithValue(testClientInfo),
       sessionControllerProvider.overrideWith(() => session),
@@ -46,5 +47,41 @@ void main() {
     await tester.tap(find.text('Esci'));
     await tester.pump();
     expect(session.logoutCalls, 1);
+  });
+
+  testWidgets('sezione Player: qualità, sottotitoli, interruttori',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await tester.binding.setSurfaceSize(const Size(1440, 1600));
+    await pumpApp(tester, const Scaffold(body: SettingsScreen()), overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      clientInfoProvider.overrideWithValue(testClientInfo),
+      sessionControllerProvider.overrideWith(
+          () => FakeSessionController(const SessionSignedIn(testUser))),
+    ]);
+
+    expect(find.text('Player'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('player-quality')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('8 Mbps').last);
+    await tester.pumpAndSettle();
+    expect(prefs.getString('player.quality'), 'mbps8');
+
+    await tester.tap(find.text('Grandi'));
+    await tester.pump();
+    expect(prefs.getDouble('player.subtitleScale'), 1.25);
+
+    await tester.tap(find.text('Decodifica hardware'));
+    await tester.pump();
+    expect(prefs.getBool('player.hardwareDecoding'), isFalse);
+
+    await tester.tap(find.text('Salta automaticamente intro e riassunti'));
+    await tester.pump();
+    expect(prefs.getBool('player.autoSkipIntro'), isTrue);
+
+    await tester.tap(find.text('Avvia automaticamente il prossimo episodio'));
+    await tester.pump();
+    expect(prefs.getBool('player.autoplayNext'), isFalse);
   });
 }

@@ -10,6 +10,7 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_buttons.dart';
 import '../auth/session_controller.dart';
 import 'locale_controller.dart';
+import 'player_settings_section.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -49,6 +50,8 @@ class SettingsScreen extends ConsumerWidget {
             },
           ),
         ),
+        section(l.settingsPlayer),
+        const PlayerSettingsSection(),
         section(l.settingsAccount),
         if (session is SessionSignedIn)
           Text(l.settingsSignedInAs(session.user.name)),
