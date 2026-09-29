@@ -43,6 +43,7 @@ class AppShell extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(
                 children: [
+                  const _BackButton(),
                   Image.asset('assets/brand/logo.png', height: 40),
                   const SizedBox(width: 32),
                   nav(l.navHome, '/home'),
@@ -58,6 +59,32 @@ class AppShell extends ConsumerWidget {
             Expanded(child: child),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Freccia "indietro" accanto al logo; occupa sempre lo stesso spazio così il
+/// logo non si sposta, ma compare solo se c'è una pagina a cui tornare.
+class _BackButton extends StatelessWidget {
+  const _BackButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final router = GoRouter.maybeOf(context);
+    if (router == null) return const SizedBox(width: 48);
+    // Si ricostruisce a ogni push/pop, anche dentro la stessa ShellRoute.
+    return ListenableBuilder(
+      listenable: router.routerDelegate,
+      builder: (context, _) => SizedBox(
+        width: 48,
+        child: router.canPop()
+            ? IconButton(
+                tooltip: AppLocalizations.of(context).navBack,
+                onPressed: router.pop,
+                icon: const Icon(LucideIcons.arrowLeft, color: WfColors.cream),
+              )
+            : null,
       ),
     );
   }

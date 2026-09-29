@@ -21,6 +21,7 @@
   "unreachableTitle": "WonderFlix can't be reached",
   "unreachableBody": "Retrying automatically every 15 seconds.",
   "navHome": "Home",
+  "navBack": "Back",
   "menuLogout": "Sign out",
   "homeWelcome": "Hi, {name}",
   "navMovies": "Movies",
