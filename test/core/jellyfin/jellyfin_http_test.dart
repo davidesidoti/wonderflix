@@ -55,6 +55,21 @@ void main() {
     expect(calls, 1);
   });
 
+  test('401 per un token non più corrente non chiama onUnauthorized', () async {
+    var calls = 0;
+    http.onUnauthorized = () => calls++;
+    http.token = 'A';
+    adapter.handler = (_) {
+      // Simula un login effettuato mentre la richiesta con il vecchio
+      // token era ancora in volo.
+      http.token = 'B';
+      return const FakeResponse(401);
+    };
+
+    await expectLater(http.get('/a'), throwsA(isA<UnauthorizedException>()));
+    expect(calls, 0, reason: 'il 401 riguarda un token ormai sostituito');
+  });
+
   test('403, 404 e 500 vengono mappati', () async {
     adapter.handler = (_) => const FakeResponse(403);
     await expectLater(http.get('/a'), throwsA(isA<ForbiddenException>()));

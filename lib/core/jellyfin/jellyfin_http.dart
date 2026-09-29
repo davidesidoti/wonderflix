@@ -47,12 +47,15 @@ class JellyfinHttp {
       _send(() => dio.post<dynamic>(path, data: body, queryParameters: query));
 
   Future<dynamic> _send(Future<Response<dynamic>> Function() request) async {
+    final sentToken = token;
     try {
       final response = await request();
       return response.data;
     } on DioException catch (e) {
       final mapped = mapDioException(e);
-      if (mapped is UnauthorizedException && token != null) {
+      if (mapped is UnauthorizedException &&
+          sentToken != null &&
+          sentToken == token) {
         onUnauthorized?.call();
       }
       throw mapped;
