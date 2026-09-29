@@ -2,9 +2,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/jellyfin/item_models.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/session_controller.dart';
+import '../features/catalog/catalog_screen.dart';
+import '../features/detail/item_detail_screen.dart';
 import '../features/home/home_screen.dart';
+import '../features/mylist/my_list_screen.dart';
+import '../features/person/person_screen.dart';
+import '../features/search/search_screen.dart';
+import '../features/settings/settings_screen.dart';
 import '../features/startup/splash_screen.dart';
 import '../features/startup/unreachable_screen.dart';
 import 'app_shell.dart';
@@ -43,6 +50,33 @@ final routerProvider = Provider<GoRouter>((ref) {
             AppShell(location: state.matchedLocation, child: child),
         routes: [
           GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
+          GoRoute(
+              path: '/movies',
+              builder: (context, state) =>
+                  const CatalogScreen(key: ValueKey('movies'), kind: ItemKind.movie)),
+          GoRoute(
+              path: '/series',
+              builder: (context, state) =>
+                  const CatalogScreen(key: ValueKey('series'), kind: ItemKind.series)),
+          GoRoute(path: '/mylist', builder: (context, state) => const MyListScreen()),
+          GoRoute(path: '/search', builder: (context, state) => const SearchScreen()),
+          GoRoute(
+              path: '/settings', builder: (context, state) => const SettingsScreen()),
+          GoRoute(
+            path: '/item/:id',
+            builder: (context, state) => ItemDetailScreen(
+              key: ValueKey(state.uri.toString()),
+              itemId: state.pathParameters['id']!,
+              seasonId: state.uri.queryParameters['season'],
+            ),
+          ),
+          GoRoute(
+            path: '/person/:id',
+            builder: (context, state) => PersonScreen(
+              key: ValueKey(state.pathParameters['id']),
+              personId: state.pathParameters['id']!,
+            ),
+          ),
         ],
       ),
     ],

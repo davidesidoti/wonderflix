@@ -7,7 +7,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../core/jellyfin/auth_models.dart';
 import '../features/auth/session_controller.dart';
+import '../features/library/server_events_binding.dart';
 import '../l10n/gen/app_localizations.dart';
+import 'back_navigation.dart';
 import 'theme.dart';
 
 /// Struttura comune alle schermate autenticate: barra superiore + contenuto.
@@ -19,61 +21,92 @@ class AppShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Tiene aperto il WebSocket degli eventi finché si è autenticati.
+    ref.watch(serverEventsBindingProvider);
     final session = ref.watch(sessionControllerProvider);
     final user = session is SessionSignedIn ? session.user : null;
     final l = AppLocalizations.of(context);
 
+    Widget nav(String label, String route, {IconData? icon}) => _NavItem(
+          label: label,
+          icon: icon,
+          active: location.startsWith(route),
+          onTap: () => context.go(route),
+        );
+
     return Scaffold(
-      body: Column(
-        children: [
-          Container(
-            height: 64,
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Row(
-              children: [
-                Image.asset('assets/brand/logo.png', height: 40),
-                const SizedBox(width: 32),
-                _NavItem(
-                  label: l.navHome,
-                  active: location.startsWith('/home'),
-                  onTap: () => context.go('/home'),
-                ),
-                const Spacer(),
-                if (user != null) _UserMenu(user: user),
-              ],
+      body: BackNavigationHandler(
+        child: Column(
+          children: [
+            Container(
+              height: 64,
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                children: [
+                  Image.asset('assets/brand/logo.png', height: 40),
+                  const SizedBox(width: 32),
+                  nav(l.navHome, '/home'),
+                  nav(l.navMovies, '/movies'),
+                  nav(l.navSeries, '/series'),
+                  nav(l.navMyList, '/mylist'),
+                  nav(l.navSearch, '/search', icon: LucideIcons.search),
+                  const Spacer(),
+                  if (user != null) _UserMenu(user: user),
+                ],
+              ),
             ),
-          ),
-          Expanded(child: child),
-        ],
+            Expanded(child: child),
+          ],
+        ),
       ),
     );
   }
 }
 
 class _NavItem extends StatelessWidget {
-  const _NavItem({required this.label, required this.active, required this.onTap});
+  const _NavItem({
+    required this.label,
+    required this.active,
+    required this.onTap,
+    this.icon,
+  });
 
   final String label;
   final bool active;
   final VoidCallback onTap;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-                color: active ? WfColors.gold : Colors.transparent, width: 2),
+    final color = active ? WfColors.gold : WfColors.cream;
+    final symbol = icon;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                  color: active ? WfColors.gold : Colors.transparent, width: 2),
+            ),
           ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: active ? WfColors.gold : WfColors.cream,
-            fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (symbol != null) ...[
+                Icon(symbol, size: 16, color: color),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -95,11 +128,24 @@ class _UserMenu extends ConsumerWidget {
       tooltip: user.name,
       position: PopupMenuPosition.under,
       onSelected: (value) {
-        if (value == 'logout') {
-          unawaited(ref.read(sessionControllerProvider.notifier).logout());
+        switch (value) {
+          case 'settings':
+            context.go('/settings');
+          case 'logout':
+            unawaited(ref.read(sessionControllerProvider.notifier).logout());
         }
       },
       itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'settings',
+          child: Row(
+            children: [
+              const Icon(LucideIcons.settings, size: 18, color: WfColors.cream),
+              const SizedBox(width: 12),
+              Text(l.menuSettings),
+            ],
+          ),
+        ),
         PopupMenuItem(
           value: 'logout',
           child: Row(

@@ -18,6 +18,10 @@ void main() {
 
     expect(find.text('Mario'), findsOneWidget);
     expect(find.text('Home'), findsOneWidget);
+    expect(find.text('Film'), findsOneWidget);
+    expect(find.text('Serie'), findsOneWidget);
+    expect(find.text('La mia lista'), findsOneWidget);
+    expect(find.text('Cerca'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('user-menu')));
     await tester.pumpAndSettle();
