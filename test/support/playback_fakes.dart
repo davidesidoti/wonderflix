@@ -5,6 +5,7 @@ import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/playback_api.dart';
 import 'package:wonderflix/core/jellyfin/playback_models.dart';
 import 'package:wonderflix/core/video/video_engine.dart';
+import 'package:wonderflix/features/player/player_window.dart';
 
 /// Stream del file di prova, come li restituisce Jellyfin. In transcodifica
 /// il server consegna a parte i sottotitoli testuali e brucia nel video
@@ -329,4 +330,36 @@ class FakeVideoEngine implements VideoEngine {
   @override
   Widget buildView() =>
       const ColoredBox(key: Key('fake-video'), color: Color(0xFF000000));
+}
+
+/// Finestra in memoria: registra le chiamate e simula la chiusura.
+class FakePlayerWindow implements PlayerWindow {
+  final fullScreenCalls = <bool>[];
+  final preventCloseCalls = <bool>[];
+  bool destroyed = false;
+  final _closeListeners = <Future<void> Function()>[];
+
+  @override
+  Future<void> setFullScreen(bool value) async => fullScreenCalls.add(value);
+
+  @override
+  Future<void> setPreventClose(bool value) async =>
+      preventCloseCalls.add(value);
+
+  @override
+  Future<void> destroy() async {
+    destroyed = true;
+  }
+
+  @override
+  void addCloseListener(Future<void> Function() onClose) =>
+      _closeListeners.add(onClose);
+
+  @override
+  void removeCloseListener(Future<void> Function() onClose) =>
+      _closeListeners.remove(onClose);
+
+  /// Simula il clic sulla X della finestra.
+  Future<void> simulateClose() =>
+      Future.wait([for (final listener in [..._closeListeners]) listener()]);
 }
