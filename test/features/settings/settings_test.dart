@@ -73,7 +73,7 @@ void main() {
     expect(find.text('Player'), findsOneWidget);
     await tester.tap(find.byKey(const Key('player-quality')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('8 Mbps').last);
+    await tester.tap(find.text('Media (8 Mbps)').last);
     await tester.pumpAndSettle();
     expect(prefs.getString('player.quality'), 'mbps8');
 

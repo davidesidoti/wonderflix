@@ -7,10 +7,16 @@ import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../player/player_settings.dart';
 
-String qualityLabel(AppLocalizations l, StreamQuality quality) =>
-    quality == StreamQuality.original
-        ? l.settingsQualityOriginal
-        : l.settingsQualityMbps(quality.bitrate ~/ 1000000);
+/// "Massima (originale)", "Alta (20 Mbps)", "Media (8 Mbps)", "Bassa (4 Mbps)".
+String qualityLabel(AppLocalizations l, StreamQuality quality) {
+  final mbps = quality.bitrate ~/ 1000000;
+  return switch (quality) {
+    StreamQuality.original => l.settingsQualityOriginal,
+    StreamQuality.mbps20 => l.settingsQualityHigh(mbps),
+    StreamQuality.mbps8 => l.settingsQualityMedium(mbps),
+    StreamQuality.mbps4 => l.settingsQualityLow(mbps),
+  };
+}
 
 /// Impostazioni del player salvate su questo PC.
 class PlayerSettingsSection extends ConsumerWidget {
