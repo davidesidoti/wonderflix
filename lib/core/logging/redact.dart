@@ -11,16 +11,31 @@ String redactSecrets(String text) {
 
 final _rules = <(RegExp, String Function(Match))>[
   // Header MediaBrowser: Token="…"
-  (RegExp(r'Token="[^"]*"'), (_) => 'Token="***"'),
+  (
+    RegExp(r'(Token)="[^"]*"', caseSensitive: false),
+    (m) => '${m[1]}="***"',
+  ),
   // Parametri dell'indirizzo: api_key=…, ApiKey=…, access_token=…
   (
     RegExp(r'\b(api_key|ApiKey|access_token|X-Emby-Token|X-MediaBrowser-Token)=[^&\s"]+',
         caseSensitive: false),
     (m) => '${m[1]}=***',
   ),
+  // Gli stessi nomi in una mappa o in JSON: {X-Emby-Token: …}, "api_key":"…"
+  (
+    RegExp(
+        r'''(["']?)\b(api_key|ApiKey|access_token|X-Emby-Token|X-MediaBrowser-Token)\1(\s*:\s*)("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[^,}\]\s&"']+)''',
+        caseSensitive: false),
+    (m) {
+      final quote = m[4]!.startsWith('"') || m[4]!.startsWith("'")
+          ? m[4]![0]
+          : '';
+      return '${m[1]}${m[2]}${m[1]}${m[3]}$quote***$quote';
+    },
+  ),
   // JSON: "AccessToken": "…", "Pw": "…", "Password": "…", "Token": "…"
   (
-    RegExp(r'"(AccessToken|Pw|Password|Token)"\s*:\s*"[^"]*"',
+    RegExp(r'"(AccessToken|Pw|Password|Token)"\s*:\s*"(?:[^"\\]|\\.)*"',
         caseSensitive: false),
     (m) => '"${m[1]}":"***"',
   ),

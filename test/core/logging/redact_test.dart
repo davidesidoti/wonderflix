@@ -28,6 +28,25 @@ void main() {
         'headers: {Authorization: ***');
   });
 
+  test('JSON con virgolette escape nel valore', () {
+    expect(redactSecrets(r'{"Pw":"pa\"ss123"}'), '{"Pw":"***"}');
+  });
+
+  test('Token="…" in minuscolo', () {
+    expect(redactSecrets('MediaBrowser token="abc"'),
+        'MediaBrowser token="***"');
+  });
+
+  test('nomi dei parametri anche in forma di mappa o JSON', () {
+    expect(redactSecrets('{X-Emby-Token: abc}'), '{X-Emby-Token: ***}');
+    expect(redactSecrets('{"api_key":"abc","x":1}'),
+        '{"api_key":"***","x":1}');
+    expect(redactSecrets('{ApiKey: abc, access_token: def}'),
+        '{ApiKey: ***, access_token: ***}');
+    expect(redactSecrets("{'X-MediaBrowser-Token': 'abc'}"),
+        isNot(contains('abc')));
+  });
+
   test('testo senza segreti: invariato', () {
     const text = 'direct play non riuscito: provo la transcodifica';
     expect(redactSecrets(text), text);
