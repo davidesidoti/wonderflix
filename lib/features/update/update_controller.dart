@@ -91,7 +91,7 @@ class UpdateController extends Notifier<UpdateState> {
   }
 
   Future<void> check() async {
-    if (_checking || !ref.mounted || state.ready) return;
+    if (_checking || !ref.mounted) return;
     _checking = true;
     var mandatory = false;
     try {
@@ -105,6 +105,16 @@ class UpdateController extends Notifier<UpdateState> {
       if (release.version <= current) return;
       final minVersion = release.minVersion;
       mandatory = minVersion != null && current < minVersion;
+      // Installer di questa versione già pronto e ancora su disco: aggiorna
+      // solo `mandatory` (può cambiare) senza riscaricare.
+      final ready = state.installer;
+      if (ready != null &&
+          state.release?.version == release.version &&
+          await ready.exists()) {
+        _set(UpdateState(
+            release: release, mandatory: mandatory, installer: ready));
+        return;
+      }
       _set(UpdateState(release: release, mandatory: mandatory, progress: 0));
       final installer = await _download(api, release, mandatory);
       _set(UpdateState(
@@ -113,6 +123,8 @@ class UpdateController extends Notifier<UpdateState> {
           '${mandatory ? ' (obbligatorio)' : ''}');
     } on Object catch (error) {
       _log.warning('aggiornamento non riuscito: $error');
+      // Errore prima di un nuovo download: l'installer pronto resta valido.
+      if (state.ready) return;
       // Un errore temporaneo non sblocca un aggiornamento già obbligatorio.
       final release = state.release;
       final keep = (mandatory || state.mandatory) && release != null;
@@ -135,7 +147,22 @@ class UpdateController extends Notifier<UpdateState> {
   Future<void> install() async {
     final installer = state.installer;
     if (installer == null) return;
-    await ref.read(installUpdateProvider)(installer);
+    try {
+      if (await installer.exists()) {
+        await ref.read(installUpdateProvider)(installer);
+        return;
+      }
+      _log.warning('installer non più presente: si riscarica');
+    } on Object catch (error) {
+      // Niente `$error`: conterrebbe il percorso (con il nome utente).
+      _log.warning('avvio dell\'installer non riuscito (${error.runtimeType})');
+    }
+    // Si torna allo stato del download e si riparte dal controllo.
+    final release = state.release;
+    _set(state.mandatory && release != null
+        ? UpdateState(release: release, mandatory: true, failed: true)
+        : const UpdateState());
+    unawaited(check());
   }
 
   Future<File> _download(

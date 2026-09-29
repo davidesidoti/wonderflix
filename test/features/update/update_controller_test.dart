@@ -158,6 +158,98 @@ void main() {
     expect(state.release, isNotNull);
   });
 
+  test('installer pronto: una nuova versione obbligatoria viene comunque vista',
+      () async {
+    api.latest = latestJson('0.2.0');
+    final c = container();
+    expect((await checked(c)).ready, isTrue);
+
+    api.latest = latestJson('0.3.0',
+        body: '<!-- wonderflix:min-version=0.3.0 -->');
+    await c.read(updateControllerProvider.notifier).check();
+    final state = c.read(updateControllerProvider);
+    expect(state.release!.version, Version(0, 3, 0));
+    expect(state.mandatory, isTrue);
+    expect(state.ready, isTrue);
+    expect(state.installer!.path, endsWith('WonderFlix-Setup-0.3.0.exe'));
+  });
+
+  test('installer pronto e stessa versione: nessun nuovo download', () async {
+    api.latest = latestJson('0.2.0');
+    final c = container();
+    final first = await checked(c);
+    await c.read(updateControllerProvider.notifier).check();
+    final state = c.read(updateControllerProvider);
+    expect(api.downloads, 1);
+    expect(state.ready, isTrue);
+    expect(state.installer!.path, first.installer!.path);
+  });
+
+  test('installer pronto ma cancellato: il controllo lo riscarica', () async {
+    api.latest = latestJson('0.2.0');
+    final c = container();
+    final first = await checked(c);
+    first.installer!.deleteSync();
+    await c.read(updateControllerProvider.notifier).check();
+    expect(api.downloads, 2);
+    expect(c.read(updateControllerProvider).ready, isTrue);
+    expect(first.installer!.existsSync(), isTrue);
+  });
+
+  test('installer pronto e errore di rete al controllo: resta pronto', () async {
+    api.latest = latestJson('0.2.0',
+        body: '<!-- wonderflix:min-version=0.2.0 -->');
+    final c = container();
+    final first = await checked(c);
+    api.latestError = const SocketException('offline');
+    await c.read(updateControllerProvider.notifier).check();
+    final state = c.read(updateControllerProvider);
+    expect(state.ready, isTrue);
+    expect(state.mandatory, isTrue);
+    expect(state.failed, isFalse);
+    expect(state.installer!.path, first.installer!.path);
+  });
+
+  test('install con l\'installer cancellato: niente avvio, nuovo controllo',
+      () async {
+    api.latest = latestJson('0.2.0');
+    final c = container();
+    final first = await checked(c);
+    first.installer!.deleteSync();
+    await c.read(updateControllerProvider.notifier).install();
+    expect(installed, isEmpty);
+    await waitFor(c, (s) => s.ready);
+    expect(api.latestCalls, 2);
+    expect(c.read(updateControllerProvider).ready, isTrue);
+  });
+
+  test('install con il lanciatore che fallisce: nuovo controllo', () async {
+    api.latest = latestJson('0.2.0',
+        body: '<!-- wonderflix:min-version=0.2.0 -->');
+    var launches = 0;
+    final c = ProviderContainer.test(overrides: [
+      appConfigProvider.overrideWithValue(testAppConfig),
+      clientInfoProvider.overrideWithValue(const ClientInfo(
+          client: 'WonderFlix', device: 'PC', deviceId: 'd', version: '0.1.0')),
+      githubReleasesApiProvider.overrideWithValue(api),
+      updateChecksEnabledProvider.overrideWithValue(true),
+      updateDownloadDirectoryProvider.overrideWithValue(downloads),
+      installUpdateProvider.overrideWithValue((file) async {
+        launches++;
+        throw const ProcessException('setup', [], 'accesso negato', 5);
+      }),
+    ]);
+    await checked(c);
+    await c.read(updateControllerProvider.notifier).install();
+    expect(launches, 1);
+    // Resta bloccato e riparte il controllo (trova l'installer già scaricato).
+    await waitFor(c, (s) => s.ready);
+    final state = c.read(updateControllerProvider);
+    expect(api.latestCalls, 2);
+    expect(state.mandatory, isTrue);
+    expect(state.ready, isTrue);
+  });
+
   test('facoltativo con errore di rete: nessun segno per l\'utente', () async {
     api.latestError = const SocketException('offline');
     final state = await checked(container());
