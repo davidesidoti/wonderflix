@@ -9,6 +9,7 @@ import '../../app/error_text.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/backdrop_image.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_image.dart';
 import '../library/item_labels.dart';
@@ -62,7 +63,7 @@ class DetailHeader extends ConsumerWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          WfImage(image: urls.backdrop(item)),
+          BackdropImage(backdrop: urls.backdrop(item), fallback: urls.poster(item)),
           const DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
