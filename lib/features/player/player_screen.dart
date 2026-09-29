@@ -1,0 +1,333 @@
+import 'dart:async';
+
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+
+import '../../app/error_text.dart';
+import '../../app/theme.dart';
+import '../../l10n/gen/app_localizations.dart';
+import '../../ui/wf_buttons.dart';
+import 'player_commands.dart';
+import 'player_controller.dart';
+import 'player_overlay.dart';
+import 'player_providers.dart';
+import 'player_window.dart';
+import 'tracks_panel.dart';
+
+/// Schermata del player: video a tutta finestra, controlli in
+/// sovrimpressione, tastiera, schermo intero e chiusura sicura della
+/// finestra (prima si segnala la fine a Jellyfin).
+class PlayerScreen extends ConsumerStatefulWidget {
+  const PlayerScreen({super.key, required this.args});
+
+  final PlayerArgs args;
+
+  /// Inattività del mouse dopo cui i controlli spariscono.
+  static const hideDelay = Duration(seconds: 3);
+
+  /// Attesa massima del report di fine alla chiusura della finestra.
+  static const closeTimeout = Duration(seconds: 2);
+
+  @override
+  ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
+}
+
+class _PlayerScreenState extends ConsumerState<PlayerScreen> {
+  late final PlayerWindow _window;
+  Timer? _hideTimer;
+  bool _controlsVisible = true;
+  bool _tracksOpen = false;
+  bool _fullscreen = false;
+  bool _leaving = false;
+
+  PlayerController get _controller =>
+      ref.read(playerControllerProvider(widget.args).notifier);
+
+  @override
+  void initState() {
+    super.initState();
+    _window = ref.read(playerWindowProvider);
+    _window.addCloseListener(_onWindowClose);
+    unawaited(_window.setPreventClose(true));
+    _scheduleHide();
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    _window.removeCloseListener(_onWindowClose);
+    unawaited(_window.setPreventClose(false));
+    if (_fullscreen) unawaited(_window.setFullScreen(false));
+    super.dispose();
+  }
+
+  Future<void> _onWindowClose() async {
+    await _controller
+        .close()
+        .timeout(PlayerScreen.closeTimeout, onTimeout: () {});
+    await _window.destroy();
+  }
+
+  void _showControls() {
+    if (!_controlsVisible) setState(() => _controlsVisible = true);
+    _scheduleHide();
+  }
+
+  /// I controlli si nascondono solo durante la riproduzione e a pannello
+  /// chiuso.
+  void _scheduleHide() {
+    _hideTimer?.cancel();
+    _hideTimer = Timer(PlayerScreen.hideDelay, () {
+      if (!mounted || _tracksOpen) return;
+      if (!ref.read(playerControllerProvider(widget.args)).playing) return;
+      setState(() => _controlsVisible = false);
+    });
+  }
+
+  void _toggleTracks() {
+    setState(() => _tracksOpen = !_tracksOpen);
+    _showControls();
+  }
+
+  Future<void> _toggleFullscreen() async {
+    final next = !_fullscreen;
+    setState(() => _fullscreen = next);
+    await _window.setFullScreen(next);
+  }
+
+  void _exit() {
+    if (_leaving) return;
+    _leaving = true;
+    unawaited(_controller.close());
+    if (_fullscreen) {
+      _fullscreen = false;
+      unawaited(_window.setFullScreen(false));
+    }
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/home');
+    }
+  }
+
+  void _escape() {
+    if (_tracksOpen) {
+      setState(() => _tracksOpen = false);
+    } else if (_fullscreen) {
+      unawaited(_toggleFullscreen());
+    } else {
+      _exit();
+    }
+  }
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    final command = playerCommandFor(event,
+        altPressed: HardwareKeyboard.instance.isAltPressed);
+    if (command == null) return KeyEventResult.ignored;
+    _run(command);
+    return KeyEventResult.handled;
+  }
+
+  void _run(PlayerCommand command) {
+    final controller = _controller;
+    switch (command) {
+      case PlayerCommand.togglePlay:
+        unawaited(controller.togglePlay());
+      case PlayerCommand.seekBack:
+        unawaited(controller.seekBy(-seekStep));
+      case PlayerCommand.seekForward:
+        unawaited(controller.seekBy(seekStep));
+      case PlayerCommand.volumeUp:
+        unawaited(controller.changeVolumeBy(volumeStep));
+      case PlayerCommand.volumeDown:
+        unawaited(controller.changeVolumeBy(-volumeStep));
+      case PlayerCommand.toggleMute:
+        unawaited(controller.toggleMute());
+      case PlayerCommand.subtitleDelayDown:
+        unawaited(controller.shiftSubtitleDelay(-subtitleDelayStep));
+      case PlayerCommand.subtitleDelayUp:
+        unawaited(controller.shiftSubtitleDelay(subtitleDelayStep));
+      case PlayerCommand.toggleFullscreen:
+        unawaited(_toggleFullscreen());
+      case PlayerCommand.escape:
+        _escape();
+        return;
+      case PlayerCommand.exit:
+        _exit();
+        return;
+    }
+    _showControls();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final provider = playerControllerProvider(widget.args);
+    final view = ref.watch(provider);
+    final controller = ref.read(provider.notifier);
+
+    ref.listen(provider.select((s) => s.finished), (_, finished) {
+      if (finished) _exit();
+    });
+    ref.listen(provider.select((s) => s.playing), (_, playing) {
+      if (playing) _scheduleHide();
+    });
+    ref.listen(provider.select((s) => s.transcodingFallback), (_, fallback) {
+      if (fallback) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(l.playerTranscoding)));
+      }
+    });
+
+    final loading = view.status == PlayerStatus.loading ||
+        (view.status == PlayerStatus.ready && view.buffering);
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Focus(
+        autofocus: true,
+        onKeyEvent: _onKey,
+        child: Listener(
+          onPointerDown: (event) {
+            if (event.buttons & kBackMouseButton != 0) _exit();
+          },
+          child: MouseRegion(
+            cursor: _controlsVisible
+                ? MouseCursor.defer
+                : SystemMouseCursors.none,
+            onHover: (_) => _showControls(),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    if (_tracksOpen) {
+                      setState(() => _tracksOpen = false);
+                    } else {
+                      unawaited(controller.togglePlay());
+                    }
+                  },
+                  onDoubleTap: () => unawaited(_toggleFullscreen()),
+                  child: controller.engine.buildView(),
+                ),
+                if (loading)
+                  const Center(
+                      child: CircularProgressIndicator(color: WfColors.gold)),
+                if (view.status == PlayerStatus.error)
+                  _PlayerError(
+                    error: view.error,
+                    onRetry: () => unawaited(controller.retry()),
+                    onBack: _exit,
+                  )
+                else
+                  // I controlli non prendono il focus della tastiera: le
+                  // scorciatoie restano sempre attive.
+                  ExcludeFocus(
+                    child: IgnorePointer(
+                      ignoring: !_controlsVisible,
+                      child: AnimatedOpacity(
+                        key: const Key('player-controls'),
+                        opacity: _controlsVisible ? 1 : 0,
+                        duration: const Duration(milliseconds: 200),
+                        child: PlayerOverlay(
+                          view: view,
+                          engine: controller.engine,
+                          fullscreen: _fullscreen,
+                          onBack: _exit,
+                          onTogglePlay: () =>
+                              unawaited(controller.togglePlay()),
+                          onSeekBy: (offset) =>
+                              unawaited(controller.seekBy(offset)),
+                          onSeekTo: (position) =>
+                              unawaited(controller.seekTo(position)),
+                          onVolume: (volume) =>
+                              unawaited(controller.setVolume(volume)),
+                          onToggleMute: () =>
+                              unawaited(controller.toggleMute()),
+                          onToggleTracks: _toggleTracks,
+                          onToggleFullscreen: () =>
+                              unawaited(_toggleFullscreen()),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (_tracksOpen && view.plan != null)
+                  Positioned(
+                    right: 24,
+                    bottom: 120,
+                    child: ExcludeFocus(
+                      child: TracksPanel(
+                        audio: view.audioStreams,
+                        subtitles: view.subtitleStreams,
+                        audioIndex: view.audioIndex,
+                        subtitleIndex: view.subtitleIndex,
+                        subtitleDelay: view.subtitleDelay,
+                        onAudio: (index) =>
+                            unawaited(controller.selectAudio(index)),
+                        onSubtitle: (index) =>
+                            unawaited(controller.selectSubtitle(index)),
+                        onDelayStep: (step) =>
+                            unawaited(controller.shiftSubtitleDelay(step)),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlayerError extends StatelessWidget {
+  const _PlayerError({
+    required this.error,
+    required this.onRetry,
+    required this.onBack,
+  });
+
+  final Object? error;
+  final VoidCallback onRetry;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final failure = error;
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(LucideIcons.circleAlert, size: 44, color: WfColors.error),
+          const SizedBox(height: 16),
+          Text(l.playerErrorTitle, style: WfText.display(34)),
+          const SizedBox(height: 8),
+          Text(
+            failure == null ? l.errorGeneric : describeError(l, failure),
+            style: const TextStyle(color: WfColors.creamMuted),
+          ),
+          const SizedBox(height: 24),
+          Wrap(
+            spacing: 12,
+            children: [
+              WfButton.primary(
+                  label: l.retry,
+                  icon: LucideIcons.rotateCcw,
+                  onPressed: onRetry),
+              WfButton.secondary(
+                  label: l.playerBack,
+                  icon: LucideIcons.arrowLeft,
+                  onPressed: onBack),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
