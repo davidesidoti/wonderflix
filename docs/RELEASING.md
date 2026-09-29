@@ -19,6 +19,8 @@ Su GitHub: *Settings → Secrets and variables → Actions → New repository se
 
 Firma del codice (per ora spenta in `release.yml`): `WONDERFLIX_SIGNING_CERT` (certificato `.pfx` in base64) e `WONDERFLIX_SIGNING_PASSWORD`, poi togli `if: ${{ false }}` dai due passaggi di firma.
 
+Prima di accenderla: passare i Secrets via `env:` invece che nello script, usare il percorso completo di `signtool.exe` del Windows Kit, cancellare `cert.pfx` a fine job e firmare anche il disinstallatore (`SignTool=` in `installer/wonderflix.iss`).
+
 ## Procedura
 
 1. Aggiorna `version:` in `pubspec.yaml` (es. `0.1.1`) e fai commit su `main`.
