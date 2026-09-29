@@ -21,8 +21,9 @@ Future<void> pumpApp(
   WidgetTester tester,
   Widget child, {
   List<Override> overrides = const [],
+  Size surfaceSize = const Size(1440, 900),
 }) async {
-  await tester.binding.setSurfaceSize(const Size(1440, 900));
+  await tester.binding.setSurfaceSize(surfaceSize);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(ProviderScope(
     overrides: [

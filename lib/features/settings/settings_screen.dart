@@ -9,6 +9,7 @@ import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_buttons.dart';
 import '../auth/session_controller.dart';
+import 'language_settings_section.dart';
 import 'locale_controller.dart';
 import 'player_settings_section.dart';
 
@@ -52,6 +53,8 @@ class SettingsScreen extends ConsumerWidget {
         ),
         section(l.settingsPlayer),
         const PlayerSettingsSection(),
+        section(l.settingsLanguages),
+        const LanguageSettingsSection(),
         section(l.settingsAccount),
         if (session is SessionSignedIn)
           Text(l.settingsSignedInAs(session.user.name)),
