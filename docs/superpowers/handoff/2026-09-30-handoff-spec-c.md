@@ -107,6 +107,8 @@ Dai passaggi di consegne precedenti, ancora aperti:
 
 L'utente sceglie all'inizio. Per ciascuno, cosa si sa e cosa cercare prima del brainstorming.
 
+**Escluso per scelta dell'utente:** entrare in un watch party da Discord o con un collegamento `wonderflix://`. Non riproporlo.
+
 ### 1. Versione web
 
 L'utente prevede una versione web di WonderFlix, usata da tutti gli utenti con il protocollo WonderFlix (anche nel watch party). Per questo la logica di sincronizzazione è in Dart puro in `lib/core/syncplay/`.
@@ -119,22 +121,16 @@ L'utente prevede una versione web di WonderFlix, usata da tutti gli utenti con i
   - hosting (GitHub Pages o sul server) e configurazione senza `--dart-define-from-file` pubblico.
 - **Da chiarire:** stesso codice con implementazioni per piattaforma o app separata; perimetro della prima versione (solo watch party, o client completo).
 
-### 2. Unirsi da Discord / collegamento `wonderflix://`
-
-Escluso dallo Spec B. Oggi il pulsante dell'attività Discord apre `accessRequestUrl` (profilo Discord del proprietario), perché l'utente non vuole sconosciuti.
-- **Da cercare:** protocollo personalizzato su Windows (registro, Inno Setup, istanza singola che riceve l'argomento), `join secret` di Discord Rich Presence (richiede RPC e l'approvazione di Discord?), collegamento web che apre l'app.
-- **Da chiarire:** chi può usare l'invito (solo utenti del server già registrati).
-
-### 3. Watch party: nome di chi agisce, chat, reazioni
+### 2. Watch party: nome di chi agisce, chat, reazioni
 
 Esclusi dallo Spec B perché il server SyncPlay non dice chi ha agito. Servono un canale proprio: **plugin del server Jellyfin** (C#) con messaggi propri sul WebSocket, oppure un servizio separato.
 - **Da cercare:** API dei plugin Jellyfin 10.11 (endpoint propri, `ISessionManager.SendMessageToUserSessions`), distribuzione del plugin (repository di plugin), compatibilità con aggiornamenti del server.
 
-### 4. Gestione avanzata della coda del gruppo
+### 3. Gestione avanzata della coda del gruppo
 
 Aggiungere elementi, riordinare, ripetizione, ordine casuale: gli endpoint esistono già (`/Queue`, `/SetPlaylistItem`, `/PreviousItem`, `/RemoveFromPlaylist`, `/MovePlaylistItem`, `/SetRepeatMode`, `/SetShuffleMode`). Oggi la coda è solo impostata alla creazione (max 50 episodi).
 
-### 5. Funzioni escluse dallo Spec A
+### 4. Funzioni escluse dallo Spec A
 
 - Profili "Chi guarda?" (più utenti sullo stesso PC).
 - Collezioni / saghe (`BoxSet` di Jellyfin).
@@ -142,9 +138,27 @@ Aggiungere elementi, riordinare, ripetizione, ordine casuale: gli endpoint esist
 - Output HDR vero (oggi media_kit converte in SDR; opzioni `vo=gpu-next`, `target-colorspace-hint` di mpv, HDR di Windows).
 - Firma del codice (pipeline già predisposta).
 
-### 6. Rifinitura per la v1.0.0
+### 5. Rifinitura per la v1.0.0
 
 La v1.0.0 è la prima release per gli amici. Uno spec potrebbe raccogliere i punti aperti qui sopra, le prove mai fatte sul server e ciò che l'utente vuole prima di distribuirla (per esempio la pagina di richiesta d'accesso, la prima esecuzione, la firma del codice).
+
+### 6. Rinnovo grafico
+
+L'utente vuole un'app più "viva" e più bella da vedere. **I colori Noir & Oro restano** (`lib/app/theme.dart`); cambiano movimento e cura dei dettagli.
+- **Cosa c'è oggi:**
+  - transizione tra le pagine: una sola, di 150 ms (`CustomTransitionPage` in `lib/app/router.dart`);
+  - nessun `Hero`, `AnimatedSwitcher` o `AnimationController` fuori dal player;
+  - immagini con segnaposto blurhash (`lib/ui/wf_image.dart`, `flutter_blurhash`);
+  - scroll di Flutter standard: su Windows la rotella del mouse avanza a scatti, senza inerzia.
+- **Da cercare:**
+  - **scroll morbido con la rotella:** `ScrollBehavior` e `ScrollPhysics` personalizzati, o intercettare `PointerScrollEvent` e animare verso la destinazione; pacchetti esistenti e compatibilità con le righe orizzontali (Home, catalogo) e con il touchpad (che è già fluido e non va toccato);
+  - **transizioni tra le pagine:** `Hero` della locandina da scheda a dettaglio, dissolvenze e scorrimenti con go_router (`CustomTransitionPage`), il pacchetto `animations` (shared axis, fade through, container transform);
+  - **micro-animazioni:** hover e focus delle schede (scala, ombra, bordo oro), comparsa scaglionata delle righe e delle griglie, `AnimatedSwitcher` per caricamento → contenuto, skeleton/shimmer al posto degli spinner;
+  - **pagina di dettaglio:** sfondo con parallasse, testata che si restringe allo scroll, titolo che compare nella barra;
+  - **prestazioni:** 60 fps anche su PC modesti, `RepaintBoundary`, costo delle immagini grandi, `MediaQuery.disableAnimations` / preferenza di Windows "Effetti di animazione" da rispettare;
+  - **coerenza:** durate e curve in un unico posto (token del tema), in stile con il player (che ha già il suo overlay animato).
+- **Da chiarire:** quanto spingere (sobrio o spettacolare), quali schermate per prime (Home e dettaglio?), se serve un'impostazione per ridurre le animazioni, riferimenti visivi che piacciono all'utente (Netflix, Apple TV, Disney+…). Il visual companion del brainstorming aiuta a confrontare le proposte.
+- **Prove:** i widget test con animazioni lunghe o ripetute richiedono `pumpAndSettle` con attenzione (animazioni infinite = test bloccato) e nessun timer pendente a fine test.
 
 ## Primo passo della nuova sessione
 
