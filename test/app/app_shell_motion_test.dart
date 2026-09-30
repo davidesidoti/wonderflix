@@ -57,6 +57,18 @@ void main() {
     expect(indicator.width, closeTo(movies.width, 0.5));
   });
 
+  testWidgets('la sottolineatura segue la dimensione del testo',
+      (tester) async {
+    await pumpShell(tester, '/movies');
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+    await tester.pumpAndSettle();
+    final indicator = tester.getRect(find.byKey(const Key('nav-indicator')));
+    final movies = tester.getRect(find.byKey(const Key('nav-/movies')));
+    expect(indicator.left, closeTo(movies.left, 0.5));
+    expect(indicator.width, closeTo(movies.width, 0.5));
+  });
+
   testWidgets('nessuna voce attiva: nessuna sottolineatura', (tester) async {
     await pumpShell(tester, '/item/m1');
     expect(find.byKey(const Key('nav-indicator')), findsNothing);

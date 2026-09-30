@@ -300,6 +300,9 @@ class _NavBarState extends State<_NavBar> {
   @override
   Widget build(BuildContext context) {
     final motion = WfMotion.of(context);
+    // Con un'altra dimensione del testo le voci cambiano larghezza: si
+    // ricostruisce e si rimisura.
+    MediaQuery.textScalerOf(context);
     WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
     final shown = _active ?? _last;
     return Stack(
