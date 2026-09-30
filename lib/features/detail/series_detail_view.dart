@@ -24,14 +24,22 @@ import 'detail_rows.dart';
 import 'primary_action.dart';
 
 class SeriesDetailView extends ConsumerStatefulWidget {
-  const SeriesDetailView(
-      {super.key, required this.series, this.initialSeasonId, this.controller});
+  const SeriesDetailView({
+    super.key,
+    required this.series,
+    this.initialSeasonId,
+    this.controller,
+    this.entranceDelay = Duration.zero,
+  });
 
   final JellyfinItem series;
   final String? initialSeasonId;
 
   /// Scroll della pagina (lo segue anche lo sfondo della scheda).
   final ScrollController? controller;
+
+  /// Attesa prima dell'entrata scaglionata (a volo Hero finito).
+  final Duration entranceDelay;
 
   @override
   ConsumerState<SeriesDetailView> createState() => _SeriesDetailViewState();
@@ -56,45 +64,55 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
     final primary = next == null ? null : primaryActionFor(next, watchUserData(ref, next));
     final seasons = ref.watch(seasonsProvider(series.id));
 
-    return ListView(
-      controller: widget.controller,
-      padding: const EdgeInsets.only(bottom: 40),
-      children: [
-        DetailHeader(item: series, primary: primary),
-        WfSwitcher(
-          child: seasons.when(
-            loading: () => const EpisodeListSkeleton(
-                key: ValueKey('loading'), count: 2),
-            error: (error, _) => ErrorView(
-                key: const ValueKey('error'),
-                error: error,
-                onRetry: () => ref.invalidate(seasonsProvider(series.id))),
-            data: (list) {
-              final seasonId = _seasonToShow(list, next);
-              if (seasonId == null) {
-                return const SizedBox.shrink(key: ValueKey('empty'));
-              }
-              return Column(
-                key: const ValueKey('data'),
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _SeasonTabs(
-                    seasons: list,
-                    selectedId: seasonId,
-                    onSelect: (id) => setState(() => _selectedSeasonId = id),
-                  ),
-                  _EpisodeList(
-                      seriesId: series.id,
-                      seasonId: seasonId,
-                      highlightId: next?.id),
-                ],
-              );
-            },
+    return StaggerGroup(
+      count: detailEntranceCount,
+      delay: widget.entranceDelay,
+      child: ListView(
+        controller: widget.controller,
+        padding: const EdgeInsets.only(bottom: 40),
+        children: [
+          DetailHeader(
+              item: series, primary: primary, controller: widget.controller),
+          StaggerItem(
+            index: 5,
+            child: WfSwitcher(
+              child: seasons.when(
+                loading: () => const EpisodeListSkeleton(
+                    key: ValueKey('loading'), count: 2),
+                error: (error, _) => ErrorView(
+                    key: const ValueKey('error'),
+                    error: error,
+                    onRetry: () => ref.invalidate(seasonsProvider(series.id))),
+                data: (list) {
+                  final seasonId = _seasonToShow(list, next);
+                  if (seasonId == null) {
+                    return const SizedBox.shrink(key: ValueKey('empty'));
+                  }
+                  return Column(
+                    key: const ValueKey('data'),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _SeasonTabs(
+                        seasons: list,
+                        selectedId: seasonId,
+                        onSelect: (id) =>
+                            setState(() => _selectedSeasonId = id),
+                      ),
+                      _EpisodeList(
+                          seriesId: series.id,
+                          seasonId: seasonId,
+                          highlightId: next?.id),
+                    ],
+                  );
+                },
+              ),
+            ),
           ),
-        ),
-        if (series.people.isNotEmpty) CastRow(people: series.people),
-        SimilarRow(itemId: series.id),
-      ],
+          if (series.people.isNotEmpty)
+            StaggerItem(index: 6, child: CastRow(people: series.people)),
+          StaggerItem(index: 7, child: SimilarRow(itemId: series.id)),
+        ],
+      ),
     );
   }
 }

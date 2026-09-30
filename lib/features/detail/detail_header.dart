@@ -5,9 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/error_text.dart';
+import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/staggered_entrance.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_image.dart';
 import '../library/item_labels.dart';
@@ -16,20 +18,30 @@ import '../library/user_data.dart';
 import '../playback/play_launcher.dart';
 import '../watch_party/watch_party_actions.dart';
 import '../watch_party/watch_party_providers.dart';
+import 'header_parallax.dart';
 import 'primary_action.dart';
 
 /// Altezza della testata della scheda (sfondo, logo, dati, azioni).
 const detailHeaderHeight = 560.0;
 
+/// Elementi della scheda che entrano scaglionati: 5 della testata (logo,
+/// dati, generi, trama, pulsanti) e le righe sotto.
+const detailEntranceCount = 8;
+
 /// Parte alta di una scheda: logo o titolo, dati, trama, azioni. Lo sfondo
-/// è un livello a parte dietro alla pagina (`DetailBackdrop`).
+/// è un livello a parte dietro alla pagina (`DetailBackdrop`). I testi sono
+/// elementi 0–4 dello `StaggerGroup` della scheda.
 class DetailHeader extends ConsumerWidget {
-  const DetailHeader({super.key, required this.item, required this.primary});
+  const DetailHeader(
+      {super.key, required this.item, required this.primary, this.controller});
 
   final JellyfinItem item;
 
   /// `null` finché non si sa cosa riprodurre (serie ancora in caricamento).
   final PrimaryAction? primary;
+
+  /// Scroll della pagina: il testo sfuma salendo (spec C §9.1).
+  final ScrollController? controller;
 
   Future<void> _toggle(BuildContext context, Future<void> Function() action) async {
     final l = AppLocalizations.of(context);
@@ -81,110 +93,156 @@ class DetailHeader extends ConsumerWidget {
             left: 32,
             right: 32,
             bottom: 28,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (logo != null)
-                  SizedBox(
-                    height: 120,
-                    width: 460,
-                    child: Align(
-                      alignment: Alignment.bottomLeft,
-                      child: WfImage(image: logo, fit: BoxFit.contain),
-                    ),
-                  )
-                else
-                  Text(item.name.toUpperCase(),
-                      maxLines: 2, style: WfText.display(56)),
-                const SizedBox(height: 12),
-                MetaLine(item: item),
-                if (item.genres.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(item.genres.join(' · '),
-                      style: const TextStyle(color: WfColors.creamMuted)),
-                ],
-                if (overview != null) ...[
-                  const SizedBox(height: 12),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 680),
-                    child: Text(overview,
-                        maxLines: 4,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(height: 1.45)),
+            child: _ScrollFade(
+              controller: controller,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  StaggerItem(
+                    index: 0,
+                    child: logo != null
+                        ? SizedBox(
+                            height: 120,
+                            width: 460,
+                            child: Align(
+                              alignment: Alignment.bottomLeft,
+                              child: WfImage(image: logo, fit: BoxFit.contain),
+                            ),
+                          )
+                        : Text(item.name.toUpperCase(),
+                            maxLines: 2, style: WfText.display(56)),
                   ),
-                ],
-                const SizedBox(height: 20),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    if (action != null)
-                      WfButton.primary(
-                        label: primaryActionLabel(l, action),
-                        icon: LucideIcons.play,
-                        onPressed: () =>
-                            unawaited(playItem(context, ref, action.target)),
-                      ),
-                    if (action is ResumeAction)
-                      WfButton.secondary(
-                        label: l.actionRestart,
-                        icon: LucideIcons.rotateCcw,
-                        onPressed: () => unawaited(playItem(
-                            context, ref, action.target,
-                            fromStart: true)),
-                      ),
-                    // Film ed episodi; per una serie l'azione riproduce il
-                    // prossimo episodio da vedere, e la coda parte da lì.
-                    if (canCreateParty &&
-                        action != null &&
-                        const {ItemKind.movie, ItemKind.episode, ItemKind.series}
-                            .contains(item.kind))
-                      WfButton.secondary(
-                        label: l.watchPartyWatchTogether,
-                        icon: LucideIcons.users,
-                        onPressed: () => unawaited(startWatchParty(
-                          context,
-                          ref,
-                          action.target,
-                          start: action is ResumeAction
-                              ? action.position
-                              : Duration.zero,
-                        )),
-                      ),
-                    if (hasTrailer)
-                      WfButton.secondary(
-                        label: l.actionTrailer,
-                        icon: LucideIcons.clapperboard,
-                        onPressed: () =>
-                            unawaited(playTrailer(context, ref, item)),
-                      ),
-                    WfIconToggle(
-                      icon: LucideIcons.heart,
-                      selected: userData.isFavorite,
-                      tooltip: userData.isFavorite
-                          ? l.actionRemoveFromList
-                          : l.actionAddToList,
-                      onPressed: () => unawaited(
-                          _toggle(context, () => overrides.toggleFavorite(item))),
-                    ),
-                    WfIconToggle(
-                      icon: LucideIcons.check,
-                      selected: userData.played,
-                      tooltip: userData.played
-                          ? l.actionMarkUnwatched
-                          : l.actionMarkWatched,
-                      onPressed: () => unawaited(
-                          _toggle(context, () => overrides.togglePlayed(item))),
+                  const SizedBox(height: 12),
+                  StaggerItem(index: 1, child: MetaLine(item: item)),
+                  if (item.genres.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    StaggerItem(
+                      index: 2,
+                      child: Text(item.genres.join(' · '),
+                          style: const TextStyle(color: WfColors.creamMuted)),
                     ),
                   ],
-                ),
-              ],
+                  if (overview != null) ...[
+                    const SizedBox(height: 12),
+                    StaggerItem(
+                      index: 3,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 680),
+                        child: Text(overview,
+                            maxLines: 4,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(height: 1.45)),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  StaggerItem(
+                    index: 4,
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        if (action != null)
+                          WfButton.primary(
+                            label: primaryActionLabel(l, action),
+                            icon: LucideIcons.play,
+                            onPressed: () =>
+                                unawaited(playItem(context, ref, action.target)),
+                          ),
+                        if (action is ResumeAction)
+                          WfButton.secondary(
+                            label: l.actionRestart,
+                            icon: LucideIcons.rotateCcw,
+                            onPressed: () => unawaited(playItem(
+                                context, ref, action.target,
+                                fromStart: true)),
+                          ),
+                        // Film ed episodi; per una serie l'azione riproduce il
+                        // prossimo episodio da vedere, e la coda parte da lì.
+                        if (canCreateParty &&
+                            action != null &&
+                            const {ItemKind.movie, ItemKind.episode, ItemKind.series}
+                                .contains(item.kind))
+                          WfButton.secondary(
+                            label: l.watchPartyWatchTogether,
+                            icon: LucideIcons.users,
+                            onPressed: () => unawaited(startWatchParty(
+                              context,
+                              ref,
+                              action.target,
+                              start: action is ResumeAction
+                                  ? action.position
+                                  : Duration.zero,
+                            )),
+                          ),
+                        if (hasTrailer)
+                          WfButton.secondary(
+                            label: l.actionTrailer,
+                            icon: LucideIcons.clapperboard,
+                            onPressed: () =>
+                                unawaited(playTrailer(context, ref, item)),
+                          ),
+                        WfIconToggle(
+                          icon: LucideIcons.heart,
+                          selected: userData.isFavorite,
+                          tooltip: userData.isFavorite
+                              ? l.actionRemoveFromList
+                              : l.actionAddToList,
+                          onPressed: () => unawaited(
+                              _toggle(context, () => overrides.toggleFavorite(item))),
+                        ),
+                        WfIconToggle(
+                          icon: LucideIcons.check,
+                          selected: userData.played,
+                          tooltip: userData.played
+                              ? l.actionMarkUnwatched
+                              : l.actionMarkWatched,
+                          onPressed: () => unawaited(
+                              _toggle(context, () => overrides.togglePlayed(item))),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Opacità e salita del testo della testata con lo scroll.
+class _ScrollFade extends StatelessWidget {
+  const _ScrollFade({required this.controller, required this.child});
+
+  final ScrollController? controller;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final scroll = controller;
+    if (scroll == null) return child;
+    final reduced = WfMotion.of(context).isReduced;
+    return AnimatedBuilder(
+      animation: scroll,
+      child: child,
+      builder: (context, child) {
+        final p = headerParallax(
+            scroll.hasClients ? scroll.offset : 0, reduced: reduced);
+        // Sparito del tutto non riceve più clic (i pulsanti sono invisibili).
+        return IgnorePointer(
+          ignoring: p.textOpacity == 0,
+          child: Opacity(
+            opacity: p.textOpacity,
+            child: Transform.translate(
+                offset: Offset(0, p.textShift), child: child),
+          ),
+        );
+      },
     );
   }
 }

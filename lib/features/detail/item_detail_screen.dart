@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/hero_launch.dart';
+import '../../app/motion.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../ui/shimmer.dart';
 import '../../ui/skeletons.dart';
@@ -44,6 +45,8 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     final async = ref.watch(itemProvider(widget.itemId));
     final launch = widget.launch;
     final item = async.value;
+    // Con un volo Hero il contenuto entra a volo finito.
+    final entranceDelay = launch != null ? WfMotion.hero : Duration.zero;
     final (state, content) = async.when(
       loading: () => (
         'loading',
@@ -72,8 +75,12 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
             ? SeriesDetailView(
                 series: item,
                 initialSeasonId: widget.seasonId,
-                controller: _scroll)
-            : MovieDetailView(item: item, controller: _scroll),
+                controller: _scroll,
+                entranceDelay: entranceDelay)
+            : MovieDetailView(
+                item: item,
+                controller: _scroll,
+                entranceDelay: entranceDelay),
       ),
     );
     // Sfondo solo con i dati o con un volo in arrivo. L'albero resta lo
