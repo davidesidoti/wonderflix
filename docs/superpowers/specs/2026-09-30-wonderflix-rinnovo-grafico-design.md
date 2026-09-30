@@ -172,9 +172,11 @@ Resta com'è: dissolvenza su nero di 150 ms (`playerPage`). Chiudendo l'anteprim
 
 - In `PosterCard` e `LandscapeCard`, in tutta l'app, **tranne** le card degli episodi nella scheda di una serie (`_EpisodeList` in `series_detail_view.dart`), che restano come oggi con il loro pulsante play.
 - Sulle card con anteprima il pulsante play al passaggio del mouse (`CardPlayButton`) sparisce: il play sta nell'anteprima.
-- **Passaggio del mouse:** subito il bordo oro (come oggi). Dopo **500 ms** di sosta sulla stessa card si apre l'anteprima.
-- **Una sola aperta alla volta**, gestita da un `CardPreviewController` (provider). Passando direttamente da un'anteprima aperta a un'altra card, la nuova si apre **subito**, senza aspettare i 500 ms.
-- **Si chiude:** il mouse esce dall'anteprima, rotella, cambio di pagina, perdita del focus della finestra, Esc. Chiusura in `fast`.
+- **Passaggio del mouse:** subito il bordo oro (come oggi). Dopo **500 ms** di sosta sulla stessa card (`previewHoverDelay`, un `Timer` cancellato all'uscita del mouse e in `dispose`) si apre l'anteprima.
+- **Una sola aperta alla volta**, gestita da un `CardPreviewController` (provider). Passando direttamente da un'anteprima aperta a un'altra card, o entro `previewChainWindow` (400 ms) dalla chiusura dell'ultima, la nuova si apre **subito**, senza aspettare i 500 ms.
+- **Overlay:** l'anteprima si disegna nell'overlay **principale** (`OverlayChildLocation.rootOverlay`), quindi sta sopra anche la barra in alto.
+- **Si chiude:** il mouse esce dall'anteprima, rotella, scroll, Esc, finestra non attiva (`AppLifecycleState` diverso da `resumed`), pagina della card non più in cima (push o `go`), apertura di un'altra anteprima. Chiusura in `fast`; con rotella, scroll, finestra non attiva e cambio di pagina è immediata.
+- **Dopo Esc, rotella, scroll o finestra non attiva** l'anteprima **non si riapre** sotto il mouse fermo: serve uscire dalla card e rientrare (il primo movimento del mouse fuori dalla card riarma la sosta).
 - **Solo con il mouse** (`PointerDeviceKind.mouse`): con tocco o tastiera il clic apre direttamente la scheda.
 
 ### 7.2 Aspetto e posizione
@@ -184,6 +186,7 @@ Resta com'è: dissolvenza su nero di 150 ms (`playerPage`). Chiudendo l'anteprim
 - Resta dentro la finestra con un margine di 16 px: vicino a un bordo si sposta verso l'interno. Il calcolo della posizione è una funzione pura, testata a parte.
 - Apertura: scala da 0,6 a 1 dal centro della card con la curva `bounce` e dissolvenza, in `medium`. Ombra profonda e contorno oro sottile (oro al 50%).
 - `RepaintBoundary` attorno all'anteprima.
+- **Uscita verso la scheda (Dettagli):** il riquadro, il bordo oro, l'ombra e il corpo (pulsanti, dati, titolo) spariscono in dissolvenza di `fast` e resta solo l'immagine, che vola. Durante l'uscita l'anteprima non riceve clic (la pagina nuova sta sotto). Si chiude a transizione della pagina finita (`secondaryAnimation` della rotta della card completata) o se la pagina della card torna in cima.
 
 ### 7.3 Contenuto
 
@@ -191,15 +194,18 @@ Resta com'è: dissolvenza su nero di 150 ms (`playerPage`). Chiudendo l'anteprim
 - **Pulsanti:**
   - **Riproduci / Riprendi** (oro, pieno): stessa logica di `playItem`; per una serie parte il prossimo episodio;
   - **La mia lista** (cuore) e **Visto** (spunta), con gli stessi `userDataOverridesProvider` della scheda;
-  - a destra **Dettagli** (freccia): apre la scheda con il volo Hero dallo **sfondo dell'anteprima**.
+  - a destra **Dettagli** (freccia): apre la scheda con il volo Hero dallo **sfondo dell'anteprima** (sorgente `<sorgente della card>.preview`, per non duplicare il tag della card nella stessa pagina).
+  - I pulsanti sono tondi da **36 px** (icone da 18), più piccoli di quelli della scheda (44/20), per stare con tutte le righe di dati; `WfIconToggle` ha i parametri `size` e `iconSize` (predefiniti 44 e 20).
+  - **Card degli episodi** ("Continua a guardare", "Prossimi episodi"): titolo della serie con "S1:E4 · titolo"; Riprendi fa ripartire l'episodio, Visto vale per l'episodio, Dettagli apre la serie; **niente cuore**.
+  - **Riproduci / Riprendi** chiude l'anteprima e avvia la riproduzione (nessun volo).
 - **Dati:** anno · durata (film, episodio) o stagioni (serie) · ★ voto · classificazione; sotto, fino a 3 generi.
 - **Avanzamento:** barra oro, se c'è.
-- Clic sullo sfondo o sul titolo: come "Dettagli".
+- Clic sullo sfondo o sul titolo: come "Dettagli". Tornando indietro la scheda rientra con la sola dissolvenza: l'anteprima non c'è più, quindi non c'è un volo di ritorno verso di essa.
 - Testi (tooltip, etichette) nei file ARB.
 
 ### 7.4 Dati
 
-Si aggiunge `Genres` ai campi base delle liste (`fields` in `lib/core/jellyfin/item_query.dart`). Anno, durata, voto, classificazione e immagini (sfondo, logo) arrivano già. **Nessuna chiamata in più** all'apertura dell'anteprima.
+Si aggiunge `Genres` ai campi base delle liste (`fields` in `lib/core/jellyfin/item_query.dart`, che diventano `PrimaryImageAspectRatio,Genres`). L'anteprima usa lo sfondo a 1920 px (`ImageUrls.backdrop`), lo stesso della testata della scheda: il volo lo trova già scaricato. Anno, durata, voto, classificazione e immagini (sfondo, logo) arrivano già. **Nessuna chiamata in più** all'apertura dell'anteprima.
 
 ### 7.5 Ridotte
 
@@ -291,25 +297,27 @@ Dissolvenza incrociata di `medium` (`AnimatedSwitcher`), poi l'entrata scagliona
 ### 11.3 Avvio e login
 
 - **Splash:** il logo compare scalando da 0,9 a 1 con dissolvenza, poi un riflesso oro lo attraversa una volta (`ShaderMask` con gradiente animato). Nessuna animazione infinita: lo splash non deve aspettarla per proseguire.
-- **Login:** il pannello sale in dissolvenza. Password e Quick Connect passano con uno scorrimento laterale (20 px) e una dissolvenza (`AnimatedSwitcher`).
+- **Login:** il pannello sale in dissolvenza. Password e Quick Connect usano il `TabBarView` esistente, che scorre già tra le due schede: resta com'è.
 - Anche le schermate "Server non raggiungibile" e "Aggiornamento obbligatorio" entrano in dissolvenza.
 
 ### 11.4 Menu, dialoghi e avvisi
 
-- **Menu a comparsa:** `popUpAnimationStyle` non esiste in `PopupMenuThemeData` (Flutter 3.47), solo come parametro di `PopupMenuButton`/`showMenu`. Si passa a ciascun menu (menu utente, filtri, gruppi) un `AnimationStyle` costruito da `WfMotion`, così tutti usano durata e curva dei token.
-- **Dialoghi:** helper `showWfDialog` con scala da 0,95 a 1 e dissolvenza, usato da tutti i dialoghi dell'app al posto di `showDialog`.
+- **Menu a comparsa:** `popUpAnimationStyle` non esiste in `PopupMenuThemeData` (Flutter 3.47), solo come parametro di `PopupMenuButton`/`showMenu`. Si passa a ciascun menu un `AnimationStyle` costruito da `WfMotion` (`wfPopUpAnimation` in `lib/ui/wf_menus.dart`), così usano durata e curva dei token. Sono i tre menu fuori dal player (menu utente e i due del watch party); il badge del player non si tocca.
+- **Dialoghi:** nell'app non ce ne sono, quindi nessun `showWfDialog` e nessun `showDialog`.
 - **Card d'invito del watch party:** entra da destra con dissolvenza, esce in dissolvenza.
-- **Banner di aggiornamento:** scende dall'alto.
+- **Banner di aggiornamento:** **sale dal basso** (sta in basso).
 - **Snackbar:** stile del tema (flottante), animazione predefinita.
 
 ### 11.5 Griglie
 
-- Catalogo, La mia lista, Ricerca, Persona: le locandine entrano scaglionate (§8.2) a ogni nuova pagina di risultati, **solo le nuove** e al massimo le prime 12 visibili, così lo scroll infinito non rallenta.
+- Catalogo, La mia lista, Ricerca, Persona: le locandine entrano scaglionate (§8.2) a ogni nuova pagina di risultati, **solo le nuove** e al massimo le prime 12 per blocco (`BatchedEntrance`/`BatchedEntranceItem`, un controller per blocco caricato, liberato a entrata finita), così lo scroll infinito non rallenta. Togliere un elemento (per esempio un preferito da La mia lista) non fa rientrare nulla.
 - Cambio di filtro, ordinamento o ricerca: la griglia fa una dissolvenza incrociata, poi l'entrata scaglionata.
+- **Ricerca:** le card rientrano quando arrivano risultati nuovi, non a ogni lettera (mentre si scrive restano i risultati di prima).
+- **Struttura stabile:** a entrata finita le card delle griglie mantengono la stessa struttura (`EntranceTransition` con animazione completa): non si ricreano e non perdono lo stato (immagini, anteprima aperta).
 
 ### 11.6 Impostazioni
 
-Le sezioni entrano scaglionate all'apertura. Nuova sezione "Aspetto" (§4.3).
+Il titolo e le sezioni (ognuna con il proprio titolo) entrano scaglionati all'apertura. Nuova sezione "Aspetto" (§4.3).
 
 ## 12. Prestazioni
 
