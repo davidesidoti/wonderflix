@@ -42,6 +42,20 @@ void main() {
     return items;
   }
 
+  /// Avanza a passi di `WfMotion.fast` finché si vede [shown] (e non più
+  /// [gone]); fallisce dopo [maxSteps] passi. Così il test non dipende da
+  /// quanti fotogrammi servono al tempo e alla dissolvenza per finire.
+  Future<void> pumpUntilShown(WidgetTester tester, String shown,
+      {String? gone, int maxSteps = 10}) async {
+    bool done() =>
+        find.text(shown).evaluate().isNotEmpty &&
+        (gone == null || find.text(gone).evaluate().isEmpty);
+    for (var i = 0; i < maxSteps && !done(); i++) {
+      await tester.pump(WfMotion.fast);
+    }
+    expect(done(), isTrue, reason: '$shown non compare entro $maxSteps passi');
+  }
+
   testWidgets('i puntini sono cliccabili', (tester) async {
     await pumpHero(tester);
     expect(find.text('DUNE'), findsOneWidget);
@@ -88,12 +102,8 @@ void main() {
       (tester) async {
     await pumpHero(tester, autoplay: true);
     expect(find.text('DUNE'), findsOneWidget);
-    // Un AnimationController finisce al primo fotogramma *dopo* la sua
-    // durata: un passo in più per il tempo e uno per la dissolvenza.
     await tester.pump(HeroCarousel.interval);
-    await tester.pump(WfMotion.fast);
-    await tester.pump(WfMotion.fast);
-    await tester.pump(WfMotion.fast);
+    await pumpUntilShown(tester, 'ALIEN', gone: 'DUNE');
     expect(find.text('ALIEN'), findsOneWidget);
     expect(find.text('DUNE'), findsNothing);
   });
@@ -109,12 +119,8 @@ void main() {
     expect(find.text('DUNE'), findsOneWidget);
     await mouse.moveTo(const Offset(5, 895));
     await tester.pump();
-    // Un AnimationController finisce al primo fotogramma *dopo* la sua
-    // durata: un passo in più per il tempo e uno per la dissolvenza.
     await tester.pump(HeroCarousel.interval);
-    await tester.pump(WfMotion.fast);
-    await tester.pump(WfMotion.fast);
-    await tester.pump(WfMotion.fast);
+    await pumpUntilShown(tester, 'ALIEN');
     expect(find.text('ALIEN'), findsOneWidget);
   });
 
