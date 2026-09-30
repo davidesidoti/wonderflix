@@ -17,6 +17,7 @@ import '../features/startup/splash_screen.dart';
 import '../features/startup/unreachable_screen.dart';
 import 'app_shell.dart';
 import 'navigation.dart';
+import 'page_transitions.dart';
 
 const _entryRoutes = {'/splash', '/login', '/unreachable'};
 
@@ -84,32 +85,57 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, child) =>
             AppShell(location: state.matchedLocation, child: child),
         routes: [
-          GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
+          GoRoute(
+              path: '/home',
+              pageBuilder: (context, state) =>
+                  shellPage(context, state, const HomeScreen())),
           GoRoute(
               path: '/movies',
-              builder: (context, state) =>
-                  const CatalogScreen(key: ValueKey('movies'), kind: ItemKind.movie)),
+              pageBuilder: (context, state) => shellPage(
+                  context,
+                  state,
+                  const CatalogScreen(
+                      key: ValueKey('movies'), kind: ItemKind.movie))),
           GoRoute(
               path: '/series',
-              builder: (context, state) =>
-                  const CatalogScreen(key: ValueKey('series'), kind: ItemKind.series)),
-          GoRoute(path: '/mylist', builder: (context, state) => const MyListScreen()),
-          GoRoute(path: '/search', builder: (context, state) => const SearchScreen()),
+              pageBuilder: (context, state) => shellPage(
+                  context,
+                  state,
+                  const CatalogScreen(
+                      key: ValueKey('series'), kind: ItemKind.series))),
           GoRoute(
-              path: '/settings', builder: (context, state) => const SettingsScreen()),
+              path: '/mylist',
+              pageBuilder: (context, state) =>
+                  shellPage(context, state, const MyListScreen())),
+          GoRoute(
+              path: '/search',
+              pageBuilder: (context, state) =>
+                  shellPage(context, state, const SearchScreen())),
+          GoRoute(
+              path: '/settings',
+              pageBuilder: (context, state) =>
+                  shellPage(context, state, const SettingsScreen())),
           GoRoute(
             path: '/item/:id',
-            builder: (context, state) => ItemDetailScreen(
-              key: ValueKey(state.uri.toString()),
-              itemId: state.pathParameters['id']!,
-              seasonId: state.uri.queryParameters['season'],
+            pageBuilder: (context, state) => detailPage(
+              context,
+              state,
+              ItemDetailScreen(
+                key: ValueKey(state.uri.toString()),
+                itemId: state.pathParameters['id']!,
+                seasonId: state.uri.queryParameters['season'],
+              ),
             ),
           ),
           GoRoute(
             path: '/person/:id',
-            builder: (context, state) => PersonScreen(
-              key: ValueKey(state.pathParameters['id']),
-              personId: state.pathParameters['id']!,
+            pageBuilder: (context, state) => detailPage(
+              context,
+              state,
+              PersonScreen(
+                key: ValueKey(state.pathParameters['id']),
+                personId: state.pathParameters['id']!,
+              ),
             ),
           ),
         ],
