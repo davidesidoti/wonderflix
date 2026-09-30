@@ -721,4 +721,108 @@ void main() {
     expect(session().ignoringWait, isTrue);
     expect(state().rejoins, 1);
   });
+
+  test(
+      'rientro: NotInGroup e GroupLeft di richieste partite prima del Join '
+      'non chiudono il watch party', () async {
+    mount();
+    serverAccepts();
+    await session().join('g1');
+    final updates = <GroupUpdate>[];
+    final subscription = session().updates.listen(updates.add);
+    addTearDown(subscription.cancel);
+
+    api.onCall = (call) {
+      if (call.startsWith('join')) {
+        // Risposte a un Ping e a un Ready mandati prima del Join.
+        emit(const NotInGroup(''));
+        emit(const GroupLeft('g1'));
+        emit(GroupJoined('g1', testGroup(participants: ['Mario', 'Luigi'])));
+      }
+    };
+    events.add(const ServerConnected(true));
+    await pumpEventQueue();
+    expect(state().inGroup, isTrue);
+    expect(state().rejoins, 1);
+    expect(state().members, ['Mario', 'Luigi']);
+    expect(api.calls, ['join g1', 'join g1']);
+    expect(updates, isEmpty);
+
+    // Rientrati: un NotInGroup adesso vuol dire che il server ci ha tolto.
+    emit(const NotInGroup(''));
+    await pumpEventQueue();
+    expect(state().phase, WatchPartyPhase.none);
+  });
+
+  test('due riconnessioni di fila: due rientri', () async {
+    mount();
+    serverAccepts();
+    await session().join('g1');
+    events.add(const ServerConnected(true));
+    events.add(const ServerConnected(true));
+    await pumpEventQueue();
+    expect(api.calls, ['join g1', 'join g1', 'join g1']);
+    expect(state().inGroup, isTrue);
+    expect(state().rejoins, 2);
+  });
+
+  test('rientro non inviato (errore di rete): un NotInGroup dopo chiude',
+      () async {
+    mount();
+    serverAccepts();
+    await session().join('g1');
+    api.onCall = (call) {
+      if (call.startsWith('join')) throw const ServerUnreachableException();
+    };
+    events.add(const ServerConnected(true));
+    await pumpEventQueue();
+    expect(state().inGroup, isTrue);
+
+    emit(const NotInGroup(''));
+    await pumpEventQueue();
+    expect(state().phase, WatchPartyPhase.none);
+  });
+
+  test(
+      'rientro senza risposta entro 10 s: si smette di aspettarlo; una '
+      'conferma tardiva vale ancora', () {
+    fakeAsync((async) {
+      mount();
+      serverAccepts();
+      unawaited(session().join('g1'));
+      async.flushMicrotasks();
+      api.onCall = null;
+      events.add(const ServerConnected(true));
+      async.flushMicrotasks();
+      emit(const NotInGroup(''));
+      async.flushMicrotasks();
+      expect(state().inGroup, isTrue, reason: 'si aspetta il rientro');
+
+      async.elapse(WatchPartySession.rejoinTimeout);
+      emit(GroupJoined('g1', testGroup()));
+      async.flushMicrotasks();
+      expect(state().rejoins, 1);
+
+      emit(const NotInGroup(''));
+      async.flushMicrotasks();
+      expect(state().phase, WatchPartyPhase.none);
+    });
+  });
+
+  test('rientro senza risposta entro 10 s: poi un NotInGroup chiude', () {
+    fakeAsync((async) {
+      mount();
+      serverAccepts();
+      unawaited(session().join('g1'));
+      async.flushMicrotasks();
+      api.onCall = null;
+      events.add(const ServerConnected(true));
+      async.flushMicrotasks();
+      async.elapse(WatchPartySession.rejoinTimeout);
+      expect(state().inGroup, isTrue);
+      emit(const NotInGroup(''));
+      async.flushMicrotasks();
+      expect(state().phase, WatchPartyPhase.none);
+    });
+  });
 }

@@ -93,6 +93,9 @@ class WatchPartySession extends Notifier<WatchPartyState>
     implements WaitExclusion {
   static const joinTimeout = Duration(seconds: 10);
 
+  /// Attesa massima dell'esito di un rientro dopo una riconnessione.
+  static const rejoinTimeout = Duration(seconds: 10);
+
   /// Intervallo minimo tra due uscite da un gruppo fantasma.
   static const ghostLeaveInterval = Duration(seconds: 30);
 
@@ -116,8 +119,12 @@ class WatchPartySession extends Notifier<WatchPartyState>
   DateTime? _joinedAt;
   DateTime? _ghostLeftAt;
 
-  /// Gruppo in cui stiamo rientrando dopo una riconnessione.
+  /// Gruppo in cui stiamo rientrando dopo una riconnessione: fino
+  /// all'esito (`GroupJoined` o `GroupDoesNotExist`, al massimo
+  /// [rejoinTimeout]) `NotInGroup` e `GroupLeft` rispondono a richieste
+  /// partite prima del nostro `Join`, e non chiudono il watch party.
   String? _rejoining;
+  Timer? _rejoinTimer;
 
   /// Abbiamo chiesto al gruppo di non aspettarci (video non aperto).
   bool _ignoringWait = false;
@@ -143,11 +150,12 @@ class WatchPartySession extends Notifier<WatchPartyState>
     _joining = null;
     _joinedAt = null;
     _ghostLeftAt = null;
-    _rejoining = null;
+    _stopRejoining();
     _ignoringWait = false;
     lastDrift = null;
     _generation++;
     ref.onDispose(_stopClock);
+    ref.onDispose(_stopRejoining);
     if (userId == null) return const WatchPartyState();
     final subscription = ref.watch(watchPartyEventsProvider).listen(_onEvent);
     ref.onDispose(() => unawaited(subscription.cancel()));
@@ -326,7 +334,7 @@ class WatchPartySession extends Notifier<WatchPartyState>
     _startLag = null;
     _lastCommand = null;
     _joinedAt = null;
-    _rejoining = null;
+    _stopRejoining();
     _ignoringWait = false;
     lastDrift = null;
     _generation++;
@@ -357,13 +365,33 @@ class WatchPartySession extends Notifier<WatchPartyState>
   /// Dopo una caduta del WebSocket il server può averci tolto dal gruppo o
   /// averci perso dei comandi: si rientra nello stesso gruppo (spec B §5.5).
   /// Il server rimanda gruppo, coda e stato; il player rimanda `Ready`.
+  ///
+  /// Senza esito entro [rejoinTimeout] (o se la richiesta non parte) si
+  /// smette di aspettarlo e si resta nel gruppo: se il `Join` è andato
+  /// perso, la prossima richiesta (il ping dell'orologio, un `Ready`)
+  /// riceve `NotInGroup` e il watch party si chiude; una conferma tardiva
+  /// vale comunque come rientro. Un'altra riconnessione riprova.
   void _rejoin() {
     final group = state.group;
     if (!state.inGroup || group == null) return;
-    _rejoining = group.id;
+    _stopRejoining();
+    final groupId = _rejoining = group.id;
+    _rejoinTimer = Timer(rejoinTimeout, () {
+      _log.warning('rientro nel watch party senza risposta in '
+          '${rejoinTimeout.inSeconds} s');
+      _stopRejoining();
+    });
     _log.info('WebSocket riconnesso: rientro nel watch party');
-    unawaited(_api.join(group.id).catchError((Object error) =>
-        _log.warning('rientro nel watch party non riuscito: $error')));
+    unawaited(_api.join(groupId).catchError((Object error) {
+      _log.warning('rientro nel watch party non riuscito: $error');
+      if (_rejoining == groupId) _stopRejoining();
+    }));
+  }
+
+  void _stopRejoining() {
+    _rejoinTimer?.cancel();
+    _rejoinTimer = null;
+    _rejoining = null;
   }
 
   void _stopClock() {
@@ -407,8 +435,11 @@ class WatchPartySession extends Notifier<WatchPartyState>
   void _onGroupUpdate(GroupUpdate update) {
     switch (update) {
       case GroupJoined(:final info):
-        if (_rejoining != null && state.inGroup && _isCurrent(info.id)) {
-          _rejoining = null;
+        // Nel gruppo, una conferma del gruppo stesso è un rientro: anche la
+        // seconda di due riconnessioni di fila, o una arrivata dopo
+        // [rejoinTimeout] (rimandare `Ready` non fa danni).
+        if (state.inGroup && _isCurrent(info.id)) {
+          _stopRejoining();
           // Il server ha ricreato il nostro membro senza l'esclusione
           // dall'attesa: se il video è ancora non aperto la si rimanda.
           if (_ignoringWait) unawaited(_sendIgnoreWait(true));
@@ -469,6 +500,12 @@ class WatchPartySession extends Notifier<WatchPartyState>
           PlayQueueUpdate():
         _leaveGhostGroup();
       case GroupLeft() || NotInGroup():
+        if (_rejoining != null) {
+          // Risposta a una richiesta partita prima del nostro `Join`: conta
+          // l'esito del rientro.
+          _log.info('${update.runtimeType} durante il rientro: ignorato');
+          return;
+        }
         if (state.inGroup) {
           _log.info('il server ci ha tolto dal watch party');
           _reset();
