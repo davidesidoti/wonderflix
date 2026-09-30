@@ -4,6 +4,7 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/features/watch_party/group_authority.dart';
+import 'package:wonderflix/features/watch_party/party_notices.dart';
 
 import '../../support/playback_fakes.dart';
 import '../../support/watch_party_fakes.dart';
@@ -95,6 +96,33 @@ void main() {
       unawaited(authority.seekTo(Duration.zero));
       async.elapse(GroupAuthority.seekDebounce);
       expect(api.calls, ['unpause', 'pause', 'seek 0:00:00.000000']);
+    });
+  });
+
+  test('le azioni si annunciano subito come mie', () {
+    fakeAsync((async) {
+      final actions = <(PartyNoticeKind, Duration?)>[];
+      final announcing = GroupAuthority(
+        api: api,
+        engine: engine,
+        onAction: (kind, {position}) => actions.add((kind, position)),
+      );
+      unawaited(announcing.pause());
+      async.flushMicrotasks();
+      unawaited(announcing.seekTo(const Duration(minutes: 5)));
+      unawaited(announcing.seekTo(const Duration(minutes: 6)));
+      async.flushMicrotasks();
+      expect(actions, [(PartyNoticeKind.paused, null)]);
+
+      async.elapse(GroupAuthority.seekDebounce);
+      expect(actions.last,
+          (PartyNoticeKind.seeked, const Duration(minutes: 6)));
+
+      unawaited(announcing.play());
+      async.flushMicrotasks();
+      expect(actions.last, (PartyNoticeKind.resumed, null));
+      expect(actions, hasLength(3));
+      announcing.dispose();
     });
   });
 }

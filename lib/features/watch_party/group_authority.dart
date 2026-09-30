@@ -5,6 +5,7 @@ import 'package:logging/logging.dart';
 import '../../core/syncplay/syncplay_api.dart';
 import '../../core/video/video_engine.dart';
 import '../player/playback_authority.dart';
+import 'party_notices.dart';
 
 final _log = Logger('watchparty');
 
@@ -13,15 +14,22 @@ final _log = Logger('watchparty');
 /// la pausa e il salto, che si vedono subito. I salti ravvicinati (tasto
 /// tenuto premuto) diventano un solo `Seek`, con l'ultima posizione.
 class GroupAuthority implements PlaybackAuthority {
-  GroupAuthority({required SyncPlayApi api, required VideoEngine engine})
-      : _api = api,
-        _engine = engine;
+  GroupAuthority({
+    required SyncPlayApi api,
+    required VideoEngine engine,
+    PartyActionCallback? onAction,
+  })  : _api = api,
+        _engine = engine,
+        _onAction = onAction;
 
   /// Il `Seek` parte quando i salti si fermano da questo tempo.
   static const seekDebounce = Duration(milliseconds: 400);
 
   final SyncPlayApi _api;
   final VideoEngine _engine;
+
+  /// Annuncia le azioni dell'utente (avviso "Hai…" subito, spec B §5.7).
+  final PartyActionCallback? _onAction;
 
   Timer? _seekTimer;
   Duration? _pendingSeek;
@@ -38,12 +46,14 @@ class GroupAuthority implements PlaybackAuthority {
   Future<void> play() async {
     // Il salto in sospeso parte prima, così il gruppo riparte da lì.
     await _flushSeek();
+    _onAction?.call(PartyNoticeKind.resumed);
     await _send('ripresa', _api.unpause);
   }
 
   @override
   Future<void> pause() async {
     await _engine.pause();
+    _onAction?.call(PartyNoticeKind.paused);
     await _send('pausa', _api.pause);
   }
 
@@ -62,6 +72,7 @@ class GroupAuthority implements PlaybackAuthority {
     final position = _pendingSeek;
     _pendingSeek = null;
     if (position == null) return;
+    _onAction?.call(PartyNoticeKind.seeked, position: position);
     await _send('salto', () => _api.seek(position));
   }
 
