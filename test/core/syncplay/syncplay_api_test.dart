@@ -130,4 +130,11 @@ void main() {
     adapter.handler = (_) => const FakeResponse(200, {'Boh': 1});
     expect(api.utcTime(), throwsA(isA<ServerErrorException>()));
   });
+
+  test('nextItem con l\'elemento in riproduzione', () async {
+    await api.nextItem('p1');
+    expect(adapter.requests.single.method, 'POST');
+    expect(adapter.requests.single.path, '/SyncPlay/NextItem');
+    expect(body(), {'PlaylistItemId': 'p1'});
+  });
 }

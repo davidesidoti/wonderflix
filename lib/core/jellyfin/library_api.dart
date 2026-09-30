@@ -87,6 +87,18 @@ class LibraryApi {
     return index >= 0 && index + 1 < episodes.length ? episodes[index + 1] : null;
   }
 
+  /// [startItemId] e gli episodi che lo seguono nella serie, anche nelle
+  /// stagioni dopo (al massimo [limit]); senza gli episodi mancanti.
+  Future<List<JellyfinItem>> episodesFrom(
+          String userId, String seriesId, String startItemId,
+          {int limit = 50}) async =>
+      _list(await _http.get('/Shows/$seriesId/Episodes', query: {
+        'userId': userId,
+        'startItemId': startItemId,
+        'limit': limit,
+        'isMissing': false,
+      }));
+
   /// Trailer salvati sul server accanto all'elemento.
   Future<List<JellyfinItem>> localTrailers(String userId, String itemId) async {
     final data = await _http

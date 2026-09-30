@@ -86,6 +86,11 @@ class SyncPlayApi {
   Future<void> seek(Duration position) =>
       _post('/SyncPlay/Seek', {'PositionTicks': durationToTicks(position)});
 
+  /// Passa all'elemento successivo della coda. [playlistItemId] è quello in
+  /// riproduzione: il server ignora le richieste doppie degli altri membri.
+  Future<void> nextItem(String playlistItemId) =>
+      _post('/SyncPlay/NextItem', {'PlaylistItemId': playlistItemId});
+
   Future<void> buffering(ClientPlaybackState state) =>
       _post('/SyncPlay/Buffering', state.toJson());
 

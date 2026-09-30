@@ -116,6 +116,17 @@ void main() {
         reason: 'ultimo episodio');
   });
 
+  test('episodesFrom: l\'episodio indicato e i successivi', () async {
+    adapter.handler = (_) => FakeResponse(200, itemsResult(['e4', 'e5', 'e6']));
+    final episodes = await api.episodesFrom('u1', 's1', 'e4', limit: 50);
+    expect(last().path, '/Shows/s1/Episodes');
+    expect(last().query['startItemId'], 'e4');
+    expect(last().query['limit'], 50);
+    expect(last().query['isMissing'], false);
+    expect(last().query['userId'], 'u1');
+    expect(episodes.map((e) => e.id), ['e4', 'e5', 'e6']);
+  });
+
   test('localTrailers: array di elementi', () async {
     adapter.handler = (_) => const FakeResponse(200, [
           {'Id': 't1', 'Name': 'Trailer', 'Type': 'Trailer'},

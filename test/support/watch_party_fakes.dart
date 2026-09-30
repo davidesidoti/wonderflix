@@ -67,6 +67,10 @@ class FakeSyncPlayApi implements SyncPlayApi {
   Future<void> seek(Duration position) => _record('seek $position');
 
   @override
+  Future<void> nextItem(String playlistItemId) =>
+      _record('next $playlistItemId');
+
+  @override
   Future<void> buffering(ClientPlaybackState state) {
     bufferingStates.add(state);
     return _record('buffering');
@@ -118,6 +122,26 @@ PlayQueue testQueue({
       playingIndex: 0,
       startPosition: start,
       isPlaying: isPlaying,
+    );
+
+/// Coda di una serie: episodi [itemIds] con id nella coda `p1`, `p2`, …;
+/// in riproduzione quello di indice [playingIndex].
+PlayQueue testSeriesQueue({
+  List<String> itemIds = const ['e4', 'e5', 'e6'],
+  int playingIndex = 0,
+  String reason = 'NewPlaylist',
+  DateTime? lastUpdate,
+}) =>
+    PlayQueue(
+      reason: reason,
+      lastUpdate: lastUpdate ?? DateTime.utc(2026, 9, 30, 10),
+      entries: [
+        for (var i = 0; i < itemIds.length; i++)
+          PlayQueueEntry(itemId: itemIds[i], playlistItemId: 'p${i + 1}'),
+      ],
+      playingIndex: playingIndex,
+      startPosition: Duration.zero,
+      isPlaying: false,
     );
 
 /// Navigazione in memoria: registra le aperture del player.
