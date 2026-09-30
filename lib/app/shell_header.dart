@@ -32,15 +32,19 @@ class ShellHeader {
   final String? actionLabel;
   final VoidCallback? onAction;
 
-  // L'uguaglianza ignora il callback: cambia a ogni build.
+  // Il callback fa parte dell'uguaglianza: due pagine con lo stesso titolo
+  // non sono mai uguali (la barra non terrebbe l'azione dell'altra).
+  // [ShellHeaderPublisher] pubblica un callback stabile per pagina, così la
+  // stessa pagina non notifica la barra a ogni build.
   @override
   bool operator ==(Object other) =>
       other is ShellHeader &&
       other.title == title &&
-      other.actionLabel == actionLabel;
+      other.actionLabel == actionLabel &&
+      other.onAction == onAction;
 
   @override
-  int get hashCode => Object.hash(title, actionLabel);
+  int get hashCode => Object.hash(title, actionLabel, onAction);
 }
 
 /// Contenuto di una pagina della shell (lo aggiungono `shellPage` e
@@ -172,10 +176,24 @@ class _ShellHeaderPublisherState extends State<ShellHeaderPublisher> {
       oldWidget.controller.removeListener(_onScroll);
       widget.controller.addListener(_onScroll);
     }
-    if (_shown && oldWidget.header != widget.header) {
-      _frame?._setHeader(widget.header);
+    final published = _published(widget.header);
+    if (_shown && _published(oldWidget.header) != published) {
+      _frame?._setHeader(published);
     }
   }
+
+  /// Azione della pagina con un callback stabile per questa istanza: esegue
+  /// sempre quella dell'ultimo build.
+  void _invoke() => widget.header?.onAction?.call();
+
+  /// Ciò che va nella barra: [header] con [_invoke] al posto del callback.
+  ShellHeader? _published(ShellHeader? header) => header == null
+      ? null
+      : ShellHeader(
+          title: header.title,
+          actionLabel: header.actionLabel,
+          onAction: header.onAction == null ? null : _invoke,
+        );
 
   void _onScroll() {
     final controller = widget.controller;
@@ -183,7 +201,7 @@ class _ShellHeaderPublisherState extends State<ShellHeaderPublisher> {
         controller.hasClients && controller.offset >= widget.threshold;
     if (shown == _shown) return;
     _shown = shown;
-    _frame?._setHeader(shown ? widget.header : null);
+    _frame?._setHeader(shown ? _published(widget.header) : null);
   }
 
   @override

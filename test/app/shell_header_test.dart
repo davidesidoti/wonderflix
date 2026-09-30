@@ -29,10 +29,14 @@ import '../support/watch_party_fakes.dart';
 
 /// Pagina finta che pubblica un titolo dopo 380 px, come la scheda.
 class _FakeDetail extends StatefulWidget {
-  const _FakeDetail({required this.title, required this.onPlay});
+  const _FakeDetail({required this.title, required this.onPlay, String? id})
+      : id = id ?? title;
 
   final String title;
   final VoidCallback onPlay;
+
+  /// Distingue due pagine con lo stesso titolo.
+  final String id;
 
   @override
   State<_FakeDetail> createState() => _FakeDetailState();
@@ -54,7 +58,7 @@ class _FakeDetailState extends State<_FakeDetail> {
         header: ShellHeader(
             title: widget.title, actionLabel: 'Riproduci', onAction: widget.onPlay),
         child: ListView(
-          key: Key('detail-list-${widget.title}'),
+          key: Key('detail-list-${widget.id}'),
           controller: _scroll,
           children: [
             for (var i = 0; i < 40; i++) SizedBox(height: 100, child: Text('r$i')),
@@ -65,11 +69,13 @@ class _FakeDetailState extends State<_FakeDetail> {
 
 void main() {
   late int plays;
+  late List<String> playedPages;
 
   Future<GoRouter> pumpRouter(WidgetTester tester,
       {List<Override> overrides = const [],
       Size size = const Size(1440, 900)}) async {
     plays = 0;
+    playedPages = [];
     final router = GoRouter(initialLocation: '/home', routes: [
       ShellRoute(
         builder: appShellBuilder,
@@ -98,6 +104,20 @@ void main() {
                   title: state.pathParameters['id']!, onPlay: () => plays++),
               underBar: false,
             ),
+          ),
+          // Pagine diverse con lo stesso titolo e azioni diverse.
+          GoRoute(
+            path: '/same/:id',
+            pageBuilder: (context, state) {
+              final id = state.pathParameters['id']!;
+              return detailPage(
+                context,
+                state,
+                _FakeDetail(
+                    id: id, title: 'dune', onPlay: () => playedPages.add(id)),
+                underBar: false,
+              );
+            },
           ),
         ],
       ),
@@ -180,6 +200,30 @@ void main() {
     router.pop();
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('shell-bar-title')), findsNothing);
+  });
+
+  testWidgets('due pagine con lo stesso titolo: "Riproduci" resta della '
+      'pagina in cima', (tester) async {
+    final router = await pumpRouter(tester);
+    unawaited(router.push('/same/a'));
+    await tester.pumpAndSettle();
+    await tester.drag(
+        find.byKey(const Key('detail-list-a')), const Offset(0, -500));
+    await tester.pumpAndSettle();
+    expect(find.text('DUNE'), findsOneWidget);
+
+    unawaited(router.push('/same/b'));
+    await tester.pumpAndSettle();
+    await tester.drag(
+        find.byKey(const Key('detail-list-b')), const Offset(0, -500));
+    await tester.pumpAndSettle();
+    expect(find.text('DUNE'), findsOneWidget);
+
+    // Indietro: stesso titolo e stessa etichetta, ma l'azione è di A.
+    router.pop();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('shell-bar-play')));
+    expect(playedPages, ['a']);
   });
 
   testWidgets('la scheda di un film pubblica titolo e azione principale',
