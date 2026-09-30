@@ -10,6 +10,7 @@ import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/detail/item_detail_screen.dart';
+import 'package:wonderflix/features/detail/movie_detail_view.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/library/server_events_binding.dart';
 import 'package:wonderflix/features/person/person_screen.dart';
@@ -188,6 +189,38 @@ void main() {
     expect(find.byKey(wfHeroFlightKey), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  // Scheda scorsa: lo sfondo è traslato, ingrandito, scurito e ritagliato,
+  // il volo di ritorno partirebbe da un rettangolo sbagliato. Torna
+  // indietro con la sola transizione della pagina.
+  for (final scrolled in [false, true]) {
+    testWidgets(
+        scrolled
+            ? 'ritorno da una scheda scorsa: nessun volo'
+            : 'ritorno da una scheda in cima: volo', (tester) async {
+      final router = await pumpRouter(tester, '/item/m1');
+      await open(tester, find.text('Arrival'));
+      expect(router.state.uri.path, '/item/m2');
+      if (scrolled) {
+        final controller = tester
+            .widget<MovieDetailView>(find.byType(MovieDetailView))
+            .controller!;
+        expect(controller.position.maxScrollExtent, greaterThan(300));
+        controller.jumpTo(300);
+        await tester.pumpAndSettle();
+      }
+
+      router.pop();
+      // Il volo parte dopo il primo fotogramma del ritorno.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byKey(wfHeroFlightKey),
+          scrolled ? findsNothing : findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/item/m1');
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('A → Simili B → Simili A′: nessun volo oltre al lancio',
       (tester) async {

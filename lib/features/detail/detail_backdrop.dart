@@ -44,8 +44,8 @@ class DetailBackdrop extends ConsumerWidget {
       child: WfHero(
           tag: launch?.tag, borderRadius: BorderRadius.zero, child: image),
       builder: (context, child) {
-        final p = headerParallax(
-            controller.hasClients ? controller.offset : 0, reduced: reduced);
+        final offset = controller.hasClients ? controller.offset : 0.0;
+        final p = headerParallax(offset, reduced: reduced);
         return ClipRect(
           clipper: _VisibleHeader(p.visibleHeight),
           child: Transform.translate(
@@ -56,7 +56,11 @@ class DetailBackdrop extends ConsumerWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  child!,
+                  // Il volo Hero vede solo il rettangolo dell'immagine, non
+                  // la traslazione, lo zoom, il ritaglio e il velo: con la
+                  // scheda scorsa tornerebbe da un punto sbagliato. Scorsa,
+                  // la pagina torna indietro con la sola transizione.
+                  HeroMode(enabled: offset < 1, child: child!),
                   if (p.dim > 0)
                     ColoredBox(color: WfColors.bg.withValues(alpha: p.dim)),
                 ],
