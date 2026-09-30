@@ -14,6 +14,7 @@ import '../features/watch_party/watch_party_button.dart';
 import '../features/watch_party/watch_party_invites.dart';
 import '../l10n/gen/app_localizations.dart';
 import '../ui/hover_builder.dart';
+import '../ui/sliding_underline.dart';
 import 'back_navigation.dart';
 import 'motion.dart';
 import 'theme.dart';
@@ -266,14 +267,7 @@ class _NavBar extends StatefulWidget {
 }
 
 class _NavBarState extends State<_NavBar> {
-  final _stackKey = GlobalKey();
-  final _itemKeys = <String, GlobalKey>{};
-
-  /// Posizione della voce attiva nella barra; `null` = nessuna.
-  Rect? _active;
-
-  /// Ultima posizione nota, per far sparire la linea dov'era.
-  Rect? _last;
+  final _itemKeys = <Object, GlobalKey>{};
 
   String? get _activeRoute {
     for (final item in widget.items) {
@@ -282,71 +276,31 @@ class _NavBarState extends State<_NavBar> {
     return null;
   }
 
-  void _measure() {
-    if (!mounted) return;
-    final route = _activeRoute;
-    final stack = _stackKey.currentContext?.findRenderObject() as RenderBox?;
-    final box = route == null
-        ? null
-        : _itemKeys[route]?.currentContext?.findRenderObject() as RenderBox?;
-    Rect? rect;
-    if (stack != null && box != null && box.hasSize) {
-      final offset = box.localToGlobal(Offset.zero, ancestor: stack);
-      rect = offset & box.size;
-    }
-    if (rect != _active) {
-      setState(() {
-        _active = rect;
-        if (rect != null) _last = rect;
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final motion = WfMotion.of(context);
-    // Con un'altra dimensione del testo le voci cambiano larghezza: si
-    // ricostruisce e si rimisura.
-    MediaQuery.textScalerOf(context);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
-    final shown = _active ?? _last;
-    return Stack(
-      key: _stackKey,
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final item in widget.items) ...[
-              KeyedSubtree(
-                key: Key('nav-${item.route}'),
-                child: _NavItem(
-                  key: _itemKeys.putIfAbsent(item.route, GlobalKey.new),
-                  label: item.label,
-                  icon: item.icon,
-                  active: widget.location.startsWith(item.route),
-                  onTap: () => context.go(item.route),
-                ),
+    // La linea si rimisura da sola se cambia la dimensione del testo.
+    return SlidingUnderline(
+      selected: _activeRoute,
+      itemKeys: _itemKeys,
+      indicatorKey: const Key('nav-indicator'),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final item in widget.items) ...[
+            KeyedSubtree(
+              key: Key('nav-${item.route}'),
+              child: _NavItem(
+                key: _itemKeys.putIfAbsent(item.route, GlobalKey.new),
+                label: item.label,
+                icon: item.icon,
+                active: widget.location.startsWith(item.route),
+                onTap: () => context.go(item.route),
               ),
-              const SizedBox(width: 8),
-            ],
-          ],
-        ),
-        if (shown != null)
-          AnimatedPositioned(
-            key: const Key('nav-indicator'),
-            left: shown.left,
-            width: shown.width,
-            top: shown.bottom - 2,
-            height: 2,
-            duration: motion.pick(full: WfMotion.medium, reduced: Duration.zero),
-            curve: WfMotion.emphasized,
-            child: AnimatedOpacity(
-              opacity: _active == null ? 0 : 1,
-              duration: WfMotion.fast,
-              child: const ColoredBox(color: WfColors.gold),
             ),
-          ),
-      ],
+            const SizedBox(width: 8),
+          ],
+        ],
+      ),
     );
   }
 }

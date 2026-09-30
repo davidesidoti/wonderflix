@@ -80,6 +80,18 @@ void main() {
     expect(find.text('3. Episodio 3'), findsNothing);
   });
 
+  testWidgets('la linea oro passa sotto la stagione scelta', (tester) async {
+    await pumpSeries(tester);
+    await tester.pumpAndSettle();
+    final indicator = find.byKey(const Key('season-indicator'));
+    expect(tester.getRect(indicator).left,
+        closeTo(tester.getRect(find.text('Stagione 1')).left - 8, 1));
+    await tester.tap(find.text('Stagione 2'));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(indicator).left,
+        closeTo(tester.getRect(find.text('Stagione 2')).left - 8, 1));
+  });
+
   testWidgets('stagione iniziale da parametro', (tester) async {
     await pumpSeries(tester, seasonId: 'se2');
     expect(find.text('1. Episodio 1'), findsOneWidget);

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,8 @@ import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/poster_card.dart';
 import '../../ui/skeletons.dart';
+import '../../ui/sliding_underline.dart';
+import '../../ui/staggered_entrance.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_image.dart';
 import '../../ui/wf_switcher.dart';
@@ -96,7 +99,7 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
   }
 }
 
-class _SeasonTabs extends StatelessWidget {
+class _SeasonTabs extends StatefulWidget {
   const _SeasonTabs({
     required this.seasons,
     required this.selectedId,
@@ -108,40 +111,52 @@ class _SeasonTabs extends StatelessWidget {
   final ValueChanged<String> onSelect;
 
   @override
+  State<_SeasonTabs> createState() => _SeasonTabsState();
+}
+
+/// Stagioni con la linea oro che scorre sotto quella scelta (spec C §9.3).
+class _SeasonTabsState extends State<_SeasonTabs> {
+  final _keys = <Object, GlobalKey>{};
+
+  @override
   Widget build(BuildContext context) {
+    final selectedId = widget.selectedId;
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
-      child: Wrap(
-        children: [
-          for (final season in seasons)
-            InkWell(
-              onTap: () => onSelect(season.id),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
+      child: SlidingUnderline(
+        selected: selectedId,
+        itemKeys: _keys,
+        indicatorKey: const Key('season-indicator'),
+        child: Wrap(
+          children: [
+            for (final season in widget.seasons)
+              InkWell(
+                onTap: () => widget.onSelect(season.id),
+                child: Container(
+                  key: _keys.putIfAbsent(season.id, GlobalKey.new),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  child: Text(
+                    season.name,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
                       color: season.id == selectedId
                           ? WfColors.gold
-                          : Colors.transparent,
-                      width: 2,
+                          : WfColors.cream,
                     ),
                   ),
                 ),
-                child: Text(
-                  season.name,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: season.id == selectedId ? WfColors.gold : WfColors.cream,
-                  ),
-                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
+
+/// Episodi che entrano scaglionati al cambio di stagione; gli altri
+/// compaiono subito.
+const _episodeEntranceCount = 10;
 
 class _EpisodeList extends ConsumerWidget {
   const _EpisodeList({
@@ -157,33 +172,47 @@ class _EpisodeList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final key = (seriesId: seriesId, seasonId: seasonId);
-    return WfSwitcher(
-      child: ref.watch(episodesProvider(key)).when(
-            loading: () => const EpisodeListSkeleton(key: ValueKey('loading')),
-            error: (error, _) => ErrorView(
-                key: const ValueKey('error'),
+    // Chiavi per stagione: al cambio di stagione c'è una dissolvenza
+    // incrociata e poi gli episodi entrano scaglionati.
+    final (state, content) = ref.watch(episodesProvider(key)).when(
+          loading: () => ('loading', const EpisodeListSkeleton()),
+          error: (error, _) => (
+            'error',
+            ErrorView(
                 error: error,
                 onRetry: () => ref.invalidate(episodesProvider(key))),
-            data: (episodes) {
-              if (episodes.isEmpty) {
-                return Padding(
-                  key: const ValueKey('empty'),
+          ),
+          data: (episodes) {
+            if (episodes.isEmpty) {
+              return (
+                'empty',
+                Padding(
                   padding: const EdgeInsets.all(32),
                   child: Text(AppLocalizations.of(context).detailNoEpisodes,
                       style: const TextStyle(color: WfColors.creamMuted)),
-                );
-              }
-              return Column(
-                key: const ValueKey('data'),
-                children: [
-                  for (final episode in episodes)
-                    EpisodeTile(
-                        episode: episode,
-                        highlighted: episode.id == highlightId),
-                ],
+                ),
               );
-            },
-          ),
+            }
+            return (
+              'data',
+              StaggerGroup(
+                key: ValueKey('episodes-$seasonId'),
+                count: math.min(episodes.length, _episodeEntranceCount),
+                child: Column(children: [
+                  for (final (i, episode) in episodes.indexed)
+                    StaggerItem(
+                      index: i,
+                      child: EpisodeTile(
+                          episode: episode,
+                          highlighted: episode.id == highlightId),
+                    ),
+                ]),
+              ),
+            );
+          },
+        );
+    return WfSwitcher(
+      child: KeyedSubtree(key: ValueKey('$seasonId-$state'), child: content),
     );
   }
 }
