@@ -228,10 +228,6 @@ class ShellPageFrame extends StatefulWidget {
   final bool underBar;
   final Widget child;
 
-  /// Imposta il titolo della pagina che contiene [context] (`null` = via).
-  static void setHeader(BuildContext context, ShellHeader? header) =>
-      context.findAncestorStateOfType<_ShellPageFrameState>()?._setHeader(header);
-
   @override
   State<ShellPageFrame> createState() => _ShellPageFrameState();
 }
