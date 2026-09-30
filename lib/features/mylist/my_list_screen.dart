@@ -6,8 +6,10 @@ import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/item_query.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/poster_card.dart';
+import '../../ui/skeletons.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
+import '../../ui/wf_switcher.dart';
 import '../library/library_providers.dart';
 import '../library/user_data.dart';
 
@@ -46,16 +48,26 @@ class _MyListScreenState extends ConsumerState<MyListScreen> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final overrides = ref.watch(userDataOverridesProvider);
-    return ref.watch(favoritesProvider).when(
-          loading: () => const LoadingView(),
-          error: (error, _) =>
-              ErrorView(error: error, onRetry: () => ref.invalidate(favoritesProvider)),
+    return WfSwitcher(
+      expand: true,
+      child: ref.watch(favoritesProvider).when(
+          // Lo spazio del titolo resta libero: la griglia è dove sarà.
+          loading: () => const Padding(
+            key: ValueKey('loading'),
+            padding: EdgeInsets.only(top: 32 + 40 + 20),
+            child: PosterGridSkeleton(),
+          ),
+          error: (error, _) => ErrorView(
+              key: const ValueKey('error'),
+              error: error,
+              onRetry: () => ref.invalidate(favoritesProvider)),
           data: (items) {
             // Tolti dal cuore in questa sessione: spariscono subito.
             final visible = items
                 .where((i) => (overrides[i.id] ?? i.userData).isFavorite)
                 .toList();
             return CustomScrollView(
+              key: const ValueKey('data'),
               controller: _scroll,
               slivers: [
                 SliverPadding(
@@ -94,6 +106,7 @@ class _MyListScreenState extends ConsumerState<MyListScreen> {
               ],
             );
           },
-        );
+        ),
+    );
   }
 }

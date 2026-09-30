@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
@@ -22,6 +24,10 @@ class FakeLibraryApi implements LibraryApi {
 
   /// Ritardo simulato di ogni risposta.
   Duration delay = Duration.zero;
+
+  /// Se valorizzato, le richieste dei preferiti (`favoritesOnly`, usate da
+  /// `favoritesProvider`) aspettano che si completi.
+  Completer<void>? favoritesGate;
 
   final itemQueries = <ItemQuery>[];
   /// Episodio successivo, per id dell'episodio corrente.
@@ -52,8 +58,10 @@ class FakeLibraryApi implements LibraryApi {
       {required String userId,
       required int startIndex,
       required int limit,
-      CancelToken? cancelToken}) {
+      CancelToken? cancelToken}) async {
     itemQueries.add(query);
+    final gate = query.favoritesOnly ? favoritesGate : null;
+    if (gate != null) await gate.future;
     return _answer(() => onItems(query, startIndex, limit));
   }
 

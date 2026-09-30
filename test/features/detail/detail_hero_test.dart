@@ -13,6 +13,7 @@ import 'package:wonderflix/features/detail/movie_detail_view.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/person/person_screen.dart';
 import 'package:wonderflix/ui/backdrop_image.dart';
+import 'package:wonderflix/ui/skeletons.dart';
 import 'package:wonderflix/ui/smooth_scroll.dart';
 import 'package:wonderflix/ui/states.dart';
 
@@ -39,7 +40,8 @@ void main() {
     );
     expect(tester.widget<Hero>(find.byType(Hero)).tag, launch.tag);
     expect(find.byType(BackdropImage), findsOneWidget);
-    expect(find.byType(LoadingView), findsOneWidget);
+    expect(find.byType(DetailRowsSkeleton), findsOneWidget);
+    expect(find.byType(LoadingView), findsNothing);
   });
 
   testWidgets('scheda con volo: dal caricamento ai dati resta lo stesso Hero '
@@ -57,16 +59,27 @@ void main() {
       motion: MotionLevel.full,
     );
     final hero = tester.state(find.byType(Hero));
+    // La lista di caricamento non usa il controller della pagina: durante
+    // la dissolvenza verso i dati ci sono due liste.
     final loadingList = find.ancestor(
-        of: find.byType(LoadingView), matching: find.byType(ListView));
-    final controller = tester.widget<ListView>(loadingList).controller!;
-    expect(controller.positions, hasLength(1));
+        of: find.byType(DetailRowsSkeleton), matching: find.byType(ListView));
+    expect(tester.widget<ListView>(loadingList).controller, isNull);
 
     pending.complete(testItem(id: 'm1', name: 'Dune'));
     await tester.pump();
     await tester.pump();
     expect(tester.takeException(), isNull,
         reason: 'un solo ScrollView per volta sul controller');
+    // A metà dissolvenza: scheletro e dati insieme, un solo ScrollView sul
+    // controller.
+    expect(find.byType(DetailRowsSkeleton), findsOneWidget);
+    final controller =
+        tester.widget<MovieDetailView>(find.byType(MovieDetailView)).controller!;
+    expect(controller.positions, hasLength(1));
+    // Fine della dissolvenza (l'onda è continua: niente pumpAndSettle).
+    await tester.pump(WfMotion.medium);
+    await tester.pump(WfMotion.medium);
+    expect(find.byType(DetailRowsSkeleton), findsNothing);
     expect(find.byType(LoadingView), findsNothing);
     expect(find.text('DUNE'), findsOneWidget);
     // Stesso Hero (stesso State): la destinazione del volo non si ricrea.
@@ -81,7 +94,7 @@ void main() {
         findsOneWidget);
   });
 
-  testWidgets('scheda in caricamento senza volo: solo l\'indicatore',
+  testWidgets('scheda in caricamento senza volo: solo lo scheletro',
       (tester) async {
     final pending = Completer<JellyfinItem>();
     await pumpApp(
@@ -92,7 +105,8 @@ void main() {
     );
     expect(find.byType(Hero), findsNothing);
     expect(find.byType(BackdropImage), findsNothing);
-    expect(find.byType(LoadingView), findsOneWidget);
+    expect(find.byType(DetailSkeleton), findsOneWidget);
+    expect(find.byType(LoadingView), findsNothing);
   });
 
   testWidgets('persona in caricamento: foto (Hero) e nome già presenti',
@@ -111,7 +125,8 @@ void main() {
     );
     expect(tester.widget<Hero>(find.byType(Hero)).tag, personLaunch.tag);
     expect(find.text('ZENDAYA'), findsOneWidget);
-    expect(find.byType(LoadingView), findsOneWidget);
+    expect(find.byType(PosterGridSkeleton), findsOneWidget);
+    expect(find.byType(LoadingView), findsNothing);
     final scroll = tester.widget<CustomScrollView>(find.byType(CustomScrollView));
     expect(scroll.controller, isA<SmoothScrollController>());
   });

@@ -7,8 +7,10 @@ import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/poster_card.dart';
+import '../../ui/skeletons.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_image.dart';
+import '../../ui/wf_switcher.dart';
 import '../library/item_labels.dart';
 import '../library/library_providers.dart';
 import '../library/user_data.dart';
@@ -56,28 +58,36 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
       padding: const EdgeInsets.only(bottom: 40),
       children: [
         DetailHeader(item: series, primary: primary),
-        seasons.when(
-          loading: () => const Padding(
-              padding: EdgeInsets.all(32), child: LoadingView()),
-          error: (error, _) => ErrorView(
-              error: error,
-              onRetry: () => ref.invalidate(seasonsProvider(series.id))),
-          data: (list) {
-            final seasonId = _seasonToShow(list, next);
-            if (seasonId == null) return const SizedBox.shrink();
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _SeasonTabs(
-                  seasons: list,
-                  selectedId: seasonId,
-                  onSelect: (id) => setState(() => _selectedSeasonId = id),
-                ),
-                _EpisodeList(
-                    seriesId: series.id, seasonId: seasonId, highlightId: next?.id),
-              ],
-            );
-          },
+        WfSwitcher(
+          child: seasons.when(
+            loading: () => const EpisodeListSkeleton(
+                key: ValueKey('loading'), count: 2),
+            error: (error, _) => ErrorView(
+                key: const ValueKey('error'),
+                error: error,
+                onRetry: () => ref.invalidate(seasonsProvider(series.id))),
+            data: (list) {
+              final seasonId = _seasonToShow(list, next);
+              if (seasonId == null) {
+                return const SizedBox.shrink(key: ValueKey('empty'));
+              }
+              return Column(
+                key: const ValueKey('data'),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _SeasonTabs(
+                    seasons: list,
+                    selectedId: seasonId,
+                    onSelect: (id) => setState(() => _selectedSeasonId = id),
+                  ),
+                  _EpisodeList(
+                      seriesId: series.id,
+                      seasonId: seasonId,
+                      highlightId: next?.id),
+                ],
+              );
+            },
+          ),
         ),
         if (series.people.isNotEmpty) CastRow(people: series.people),
         SimilarRow(itemId: series.id),
@@ -147,28 +157,34 @@ class _EpisodeList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final key = (seriesId: seriesId, seasonId: seasonId);
-    return ref.watch(episodesProvider(key)).when(
-          loading: () =>
-              const Padding(padding: EdgeInsets.all(32), child: LoadingView()),
-          error: (error, _) => ErrorView(
-              error: error, onRetry: () => ref.invalidate(episodesProvider(key))),
-          data: (episodes) {
-            if (episodes.isEmpty) {
-              return Padding(
-                padding: const EdgeInsets.all(32),
-                child: Text(AppLocalizations.of(context).detailNoEpisodes,
-                    style: const TextStyle(color: WfColors.creamMuted)),
+    return WfSwitcher(
+      child: ref.watch(episodesProvider(key)).when(
+            loading: () => const EpisodeListSkeleton(key: ValueKey('loading')),
+            error: (error, _) => ErrorView(
+                key: const ValueKey('error'),
+                error: error,
+                onRetry: () => ref.invalidate(episodesProvider(key))),
+            data: (episodes) {
+              if (episodes.isEmpty) {
+                return Padding(
+                  key: const ValueKey('empty'),
+                  padding: const EdgeInsets.all(32),
+                  child: Text(AppLocalizations.of(context).detailNoEpisodes,
+                      style: const TextStyle(color: WfColors.creamMuted)),
+                );
+              }
+              return Column(
+                key: const ValueKey('data'),
+                children: [
+                  for (final episode in episodes)
+                    EpisodeTile(
+                        episode: episode,
+                        highlighted: episode.id == highlightId),
+                ],
               );
-            }
-            return Column(
-              children: [
-                for (final episode in episodes)
-                  EpisodeTile(
-                      episode: episode, highlighted: episode.id == highlightId),
-              ],
-            );
-          },
-        );
+            },
+          ),
+    );
   }
 }
 

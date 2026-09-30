@@ -8,6 +8,7 @@ import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/item_query.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/poster_card.dart';
+import '../../ui/skeletons.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_image.dart';
@@ -62,7 +63,7 @@ class _PersonScreenState extends ConsumerState<PersonScreen> {
           ? ErrorView(
               error: async.error!,
               onRetry: () => ref.invalidate(itemProvider(widget.personId)))
-          : const LoadingView();
+          : const PersonSkeleton();
     }
     // La testata (foto, nome, biografia) sta sempre nella stessa posizione
     // dell'albero: con un volo in arrivo la foto (Hero) c'è già mentre la
@@ -114,7 +115,10 @@ class _PersonScreenState extends ConsumerState<PersonScreen> {
         ),
         if (films == null)
           const SliverToBoxAdapter(
-            child: Padding(padding: EdgeInsets.all(32), child: LoadingView()),
+            child: Padding(
+              padding: EdgeInsets.only(top: 32),
+              child: PosterGridSkeleton(count: 6, shrinkWrap: true),
+            ),
           )
         else ...[
           SliverPadding(
@@ -124,7 +128,10 @@ class _PersonScreenState extends ConsumerState<PersonScreen> {
             ),
           ),
           ...films.when(
-            loading: () => const [SliverToBoxAdapter(child: LoadingView())],
+            loading: () => const [
+              SliverToBoxAdapter(
+                  child: PosterGridSkeleton(count: 6, shrinkWrap: true)),
+            ],
             error: (error, _) => [
               SliverToBoxAdapter(
                 child: ErrorView(

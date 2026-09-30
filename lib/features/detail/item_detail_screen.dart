@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/hero_launch.dart';
 import '../../core/jellyfin/item_models.dart';
+import '../../ui/shimmer.dart';
+import '../../ui/skeletons.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
+import '../../ui/wf_switcher.dart';
 import 'detail_backdrop.dart';
 import 'detail_header.dart';
 import 'detail_providers.dart';
@@ -41,28 +44,41 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     final async = ref.watch(itemProvider(widget.itemId));
     final launch = widget.launch;
     final item = async.value;
-    final content = async.when(
-      loading: () => launch == null
-          ? const LoadingView()
-          : ListView(
-              controller: _scroll,
-              children: const [
-                SizedBox(height: detailHeaderHeight),
-                Padding(padding: EdgeInsets.all(32), child: LoadingView()),
-              ],
-            ),
-      error: (error, _) => ErrorView(
-          error: error,
-          onRetry: () => ref.invalidate(itemProvider(widget.itemId))),
-      data: (item) => item.kind == ItemKind.series
-          ? SeriesDetailView(
-              series: item,
-              initialSeasonId: widget.seasonId,
-              controller: _scroll)
-          : MovieDetailView(item: item, controller: _scroll),
+    final (state, content) = async.when(
+      loading: () => (
+        'loading',
+        launch == null
+            ? const DetailSkeleton(headerHeight: detailHeaderHeight)
+            // Senza `_scroll`: durante la dissolvenza verso i dati il
+            // controller sta solo sulla lista dei dati.
+            : ListView(
+                primary: false,
+                physics: const NeverScrollableScrollPhysics(),
+                children: const [
+                  SizedBox(height: detailHeaderHeight),
+                  WfShimmer(child: DetailRowsSkeleton()),
+                ],
+              ),
+      ),
+      error: (error, _) => (
+        'error',
+        ErrorView(
+            error: error,
+            onRetry: () => ref.invalidate(itemProvider(widget.itemId))),
+      ),
+      data: (item) => (
+        'data',
+        item.kind == ItemKind.series
+            ? SeriesDetailView(
+                series: item,
+                initialSeasonId: widget.seasonId,
+                controller: _scroll)
+            : MovieDetailView(item: item, controller: _scroll),
+      ),
     );
-    if (item == null && launch == null) return content;
-    if (async.hasError && item == null) return content;
+    // Sfondo solo con i dati o con un volo in arrivo. L'albero resta lo
+    // stesso in ogni stato, così la dissolvenza verso i dati c'è sempre.
+    final showBackdrop = item != null || (launch != null && !async.hasError);
     return Stack(
       children: [
         Positioned(
@@ -70,9 +86,16 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
           left: 0,
           right: 0,
           height: detailHeaderHeight,
-          child: DetailBackdrop(item: item, launch: launch, controller: _scroll),
+          child: showBackdrop
+              ? DetailBackdrop(item: item, launch: launch, controller: _scroll)
+              : const SizedBox.shrink(),
         ),
-        Positioned.fill(child: content),
+        Positioned.fill(
+          child: WfSwitcher(
+            expand: true,
+            child: KeyedSubtree(key: ValueKey(state), child: content),
+          ),
+        ),
       ],
     );
   }

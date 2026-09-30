@@ -7,9 +7,11 @@ import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/poster_card.dart';
+import '../../ui/skeletons.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_image.dart';
+import '../../ui/wf_switcher.dart';
 import '../library/library_providers.dart';
 import 'search_controller.dart';
 
@@ -48,28 +50,36 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ),
         ),
         const SizedBox(height: 24),
-        _results(context, l, state),
+        WfSwitcher(child: _results(context, l, state)),
       ],
     );
   }
 
+  /// Risultati, con una chiave per stato (per [WfSwitcher]).
   Widget _results(BuildContext context, AppLocalizations l, SearchState state) {
     const muted = TextStyle(color: WfColors.creamMuted);
     if (state.term.length < SearchController.minLength) {
-      return Text(l.searchPrompt, style: muted);
+      return Text(l.searchPrompt, key: const ValueKey('prompt'), style: muted);
     }
     final error = state.error;
     if (error != null) {
       return ErrorView(
+        key: const ValueKey('error'),
         error: error,
         onRetry: () =>
             ref.read(searchControllerProvider.notifier).setTerm(state.term),
       );
     }
     final results = state.results;
-    if (results == null) return const LoadingView();
-    if (results.isEmpty) return Text(l.searchNoResults(state.term), style: muted);
+    if (results == null) {
+      return const SearchResultsSkeleton(key: ValueKey('loading'));
+    }
+    if (results.isEmpty) {
+      return Text(l.searchNoResults(state.term),
+          key: const ValueKey('empty'), style: muted);
+    }
     return Column(
+      key: const ValueKey('data'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (results.movies.isNotEmpty)

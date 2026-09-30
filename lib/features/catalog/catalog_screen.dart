@@ -8,8 +8,10 @@ import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/item_query.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/poster_card.dart';
+import '../../ui/skeletons.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
+import '../../ui/wf_switcher.dart';
 import 'catalog_controller.dart';
 import 'catalog_filters_bar.dart';
 
@@ -98,20 +100,32 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        Expanded(child: _body(context, l, state, controller)),
+        Expanded(
+          child: WfSwitcher(
+            expand: true,
+            child: _body(context, l, state, controller),
+          ),
+        ),
       ],
     );
   }
 
+  /// Contenuto sotto i filtri, con una chiave per stato (per [WfSwitcher]).
   Widget _body(BuildContext context, AppLocalizations l, CatalogState state,
       CatalogController controller) {
     if (state.items.isEmpty) {
-      if (state.loading) return const LoadingView();
+      if (state.loading) {
+        return const PosterGridSkeleton(key: ValueKey('loading'));
+      }
       final error = state.error;
       if (error != null) {
-        return ErrorView(error: error, onRetry: () => unawaited(controller.retry()));
+        return ErrorView(
+            key: const ValueKey('error'),
+            error: error,
+            onRetry: () => unawaited(controller.retry()));
       }
       return Center(
+        key: const ValueKey('empty'),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -126,8 +140,22 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
         ),
       );
     }
+    // Cambiando i filtri la griglia vecchia sfuma mentre arriva la nuova:
+    // `_scroll` va solo a quella che entra (vedi `WfSwitcher.isOutgoing`).
+    return KeyedSubtree(
+      key: const ValueKey('data'),
+      child: Builder(
+        builder: (context) => _grid(context, l, state, controller),
+      ),
+    );
+  }
+
+  Widget _grid(BuildContext context, AppLocalizations l, CatalogState state,
+      CatalogController controller) {
+    final outgoing = WfSwitcher.isOutgoing(context);
     return CustomScrollView(
-      controller: _scroll,
+      controller: outgoing ? null : _scroll,
+      primary: false,
       slivers: [
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(32, 0, 32, 24),

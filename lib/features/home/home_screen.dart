@@ -10,8 +10,10 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/landscape_card.dart';
 import '../../ui/media_row.dart';
 import '../../ui/poster_card.dart';
+import '../../ui/shimmer.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
+import '../../ui/wf_switcher.dart';
 import '../playback/play_launcher.dart';
 import 'hero_carousel.dart';
 import 'home_data.dart';
@@ -36,18 +38,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final home = ref.watch(homeProvider);
-    return home.when(
-      loading: () => const _HomeSkeleton(),
-      error: (error, _) =>
-          ErrorView(error: error, onRetry: () => ref.invalidate(homeProvider)),
+    final (state, content) = home.when(
+      loading: () => ('loading', const _HomeSkeleton()),
+      error: (error, _) => (
+        'error',
+        ErrorView(error: error, onRetry: () => ref.invalidate(homeProvider)),
+      ),
       data: (data) {
         if (data.isEmpty) {
-          return Center(
-            child: Text(l.homeEmpty,
-                style: const TextStyle(color: WfColors.creamMuted)),
+          return (
+            'empty',
+            Center(
+              child: Text(l.homeEmpty,
+                  style: const TextStyle(color: WfColors.creamMuted)),
+            ),
           );
         }
-        return ListView(
+        return ('data', ListView(
           controller: _scroll,
           // Il carosello parte dal bordo della finestra, sotto la barra;
           // senza carosello la prima riga inizia sotto la barra.
@@ -66,8 +73,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             if (data.favorites.isNotEmpty)
               _posterRow(l.navMyList, data.favorites, 'home.favorites'),
           ],
-        );
+        ));
       },
+    );
+    return WfSwitcher(
+      expand: true,
+      child: KeyedSubtree(key: ValueKey(state), child: content),
     );
   }
 
@@ -102,29 +113,33 @@ class _HomeSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(32, shellBarHeight + 32, 32, 32),
-      children: [
-        const SkeletonBox(height: 380),
-        const SizedBox(height: 32),
-        for (var row = 0; row < 2; row++) ...[
-          const SkeletonBox(width: 240, height: 22),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 240,
-            child: Row(
-              children: [
-                for (var i = 0; i < 6; i++) ...[
-                  const SkeletonBox(width: 160, height: 240),
-                  const SizedBox(width: 16),
+    // Un'unica onda per tutto lo scheletro.
+    return WfShimmer(
+      child: ListView(
+        primary: false,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(32, shellBarHeight + 32, 32, 32),
+        children: [
+          const SkeletonBox(height: 380),
+          const SizedBox(height: 32),
+          for (var row = 0; row < 2; row++) ...[
+            const SkeletonBox(width: 240, height: 22),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 240,
+              child: Row(
+                children: [
+                  for (var i = 0; i < 6; i++) ...[
+                    const SkeletonBox(width: 160, height: 240),
+                    const SizedBox(width: 16),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
+            const SizedBox(height: 24),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
