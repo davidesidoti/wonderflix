@@ -73,7 +73,9 @@ class CardPreviewController extends Notifier<CardPreviewState> {
 
   /// Chiude l'anteprima di [id], se è quella aperta.
   void close(Object id) {
-    if (!identical(state.openId, id)) return;
+    // Chiamato anche da una card smontata insieme a tutta l'app (dopo la
+    // chiusura del ProviderScope): allora non c'è più nulla da chiudere.
+    if (!ref.mounted || !identical(state.openId, id)) return;
     state = CardPreviewState(closedAt: clock.now());
   }
 

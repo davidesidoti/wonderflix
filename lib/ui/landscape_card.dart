@@ -2,32 +2,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app/hero_launch.dart';
+import '../app/motion.dart';
 import '../app/navigation.dart';
 import '../app/theme.dart';
 import '../core/jellyfin/item_models.dart';
 import '../features/library/item_labels.dart';
 import '../features/library/library_providers.dart';
 import '../features/library/user_data.dart';
-import 'card_play_button.dart';
+import 'card_preview_host.dart';
 import 'poster_card.dart';
 import 'wf_image.dart';
 
 /// Card 16:9 per "Continua a guardare", "Prossimi episodi" ed episodi.
+/// Con il mouse fermo sopra si apre l'anteprima ([CardPreviewHost]).
 class LandscapeCard extends ConsumerStatefulWidget {
   const LandscapeCard({
     super.key,
     required this.item,
     this.onTap,
-    this.onPlay,
     this.heroSource,
     this.width = 300,
   });
 
   final JellyfinItem item;
   final VoidCallback? onTap;
-
-  /// Se presente, al passaggio del mouse compare il pulsante play.
-  final VoidCallback? onPlay;
 
   /// Card da cui parte il volo Hero (per esempio `home.latestMovies.3`),
   /// dentro la pagina: il tag usa [WfHeroScope.source].
@@ -53,7 +51,7 @@ class _LandscapeCardState extends ConsumerState<LandscapeCard> {
     final heroSource =
         source == null ? null : WfHeroScope.source(context, source);
 
-    return SizedBox(
+    final card = SizedBox(
       width: widget.width,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
@@ -69,7 +67,7 @@ class _LandscapeCardState extends ConsumerState<LandscapeCard> {
               AspectRatio(
                 aspectRatio: 16 / 9,
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 120),
+                  duration: WfMotion.fast,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(
@@ -91,9 +89,6 @@ class _LandscapeCardState extends ConsumerState<LandscapeCard> {
                         if (progress != null) ProgressStrip(progress: progress),
                         if (userData.played)
                           const Positioned(top: 6, right: 6, child: WatchedBadge()),
-                        if (_hover && widget.onPlay != null)
-                          Center(
-                              child: CardPlayButton(onPressed: widget.onPlay!)),
                       ],
                     ),
                   ),
@@ -115,5 +110,6 @@ class _LandscapeCardState extends ConsumerState<LandscapeCard> {
         ),
       ),
     );
+    return CardPreviewHost(item: item, heroSource: heroSource, child: card);
   }
 }

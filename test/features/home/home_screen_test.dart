@@ -9,6 +9,7 @@ import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/home/home_screen.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/ui/card_preview.dart';
 import 'package:wonderflix/ui/landscape_card.dart';
 import 'package:wonderflix/ui/poster_card.dart';
 import 'package:wonderflix/ui/states.dart';
@@ -95,7 +96,9 @@ void main() {
     expect(find.text('Film aggiunti di recente'), findsOneWidget);
   });
 
-  testWidgets('le card delle righe mostrano il play al passaggio del mouse',
+  // Il pulsante play sulle card è stato sostituito dall'anteprima (spec C
+  // §7.1): con il mouse fermo sulla card si apre, con Riproduci/Riprendi.
+  testWidgets('le card delle righe aprono l\'anteprima al passaggio del mouse',
       (tester) async {
     api
       ..resumeItems = [testItem(id: 'r1', name: 'Oppenheimer', playedPercentage: 30)]
@@ -108,13 +111,19 @@ void main() {
     await gesture.addPointer(location: Offset.zero);
     addTearDown(gesture.removePointer);
 
-    for (final cardType in [LandscapeCard, PosterCard]) {
+    for (final (cardType, play) in [
+      (LandscapeCard, 'Riprendi'),
+      (PosterCard, 'Riproduci'),
+    ]) {
       final card = find.byType(cardType).first;
-      final play = find.descendant(of: card, matching: find.byTooltip('Riproduci'));
-      expect(play, findsNothing, reason: '$cardType: niente play senza hover');
+      expect(find.byType(CardPreview), findsNothing,
+          reason: '$cardType: niente anteprima senza hover');
       await gesture.moveTo(tester.getCenter(card));
+      await tester.pump(previewHoverDelay);
       await tester.pumpAndSettle();
-      expect(play, findsOneWidget, reason: '$cardType: play con hover');
+      expect(find.byType(CardPreview), findsOneWidget,
+          reason: '$cardType: anteprima con hover');
+      expect(find.byTooltip(play), findsOneWidget, reason: '$cardType: $play');
       await gesture.moveTo(Offset.zero);
       await tester.pumpAndSettle();
     }

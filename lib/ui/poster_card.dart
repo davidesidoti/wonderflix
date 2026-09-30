@@ -3,31 +3,29 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../app/hero_launch.dart';
+import '../app/motion.dart';
 import '../app/navigation.dart';
 import '../app/theme.dart';
 import '../core/jellyfin/item_models.dart';
 import '../features/library/library_providers.dart';
 import '../features/library/user_data.dart';
-import 'card_play_button.dart';
+import 'card_preview_host.dart';
 import 'wf_image.dart';
 
 /// Locandina 2:3 con titolo, anno, avanzamento e badge "visto".
-/// Con [width] `null` occupa la larghezza disponibile (griglie).
+/// Con [width] `null` occupa la larghezza disponibile (griglie). Con il
+/// mouse fermo sopra si apre l'anteprima ([CardPreviewHost]).
 class PosterCard extends ConsumerStatefulWidget {
   const PosterCard({
     super.key,
     required this.item,
     this.onTap,
-    this.onPlay,
     this.heroSource,
     this.width,
   });
 
   final JellyfinItem item;
   final VoidCallback? onTap;
-
-  /// Se presente, al passaggio del mouse compare il pulsante play.
-  final VoidCallback? onPlay;
 
   /// Card da cui parte il volo Hero (per esempio `home.latestMovies.3`),
   /// dentro la pagina: il tag usa [WfHeroScope.source].
@@ -54,7 +52,7 @@ class _PosterCardState extends ConsumerState<PosterCard> {
     final heroSource =
         source == null ? null : WfHeroScope.source(context, source);
 
-    return SizedBox(
+    final card = SizedBox(
       width: widget.width,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
@@ -70,7 +68,7 @@ class _PosterCardState extends ConsumerState<PosterCard> {
               AspectRatio(
                 aspectRatio: 2 / 3,
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 120),
+                  duration: WfMotion.fast,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(
@@ -96,9 +94,6 @@ class _PosterCardState extends ConsumerState<PosterCard> {
                         else if (item.kind == ItemKind.series && unplayed > 0)
                           Positioned(
                               top: 6, right: 6, child: CountBadge(count: unplayed)),
-                        if (_hover && widget.onPlay != null)
-                          Center(
-                              child: CardPlayButton(onPressed: widget.onPlay!)),
                       ],
                     ),
                   ),
@@ -118,6 +113,7 @@ class _PosterCardState extends ConsumerState<PosterCard> {
         ),
       ),
     );
+    return CardPreviewHost(item: item, heroSource: heroSource, child: card);
   }
 }
 

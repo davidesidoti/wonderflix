@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -15,7 +13,6 @@ import '../../ui/smooth_scroll.dart';
 import '../../ui/staggered_entrance.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_switcher.dart';
-import '../playback/play_launcher.dart';
 import 'hero_carousel.dart';
 import 'home_data.dart';
 
@@ -131,7 +128,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           item: items[i],
           width: 160,
           heroSource: '$source.$i',
-          onPlay: () => unawaited(playItem(context, ref, items[i])),
         ),
       );
 
@@ -144,7 +140,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         itemBuilder: (context, i) => LandscapeCard(
           item: items[i],
           heroSource: '$source.$i',
-          onPlay: () => unawaited(playItem(context, ref, items[i])),
         ),
       );
 }
