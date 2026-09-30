@@ -31,11 +31,16 @@ import '../support/watch_party_fakes.dart';
 
 /// Pagina finta che pubblica un titolo dopo 380 px di scroll.
 class _FakeDetail extends StatefulWidget {
-  const _FakeDetail({required this.title, required this.onPlay, String? id})
+  const _FakeDetail(
+      {required this.title,
+      required this.onPlay,
+      String? id,
+      this.actionLabel = 'Riproduci'})
       : id = id ?? title;
 
   final String title;
   final VoidCallback onPlay;
+  final String actionLabel;
 
   /// Distingue due pagine con lo stesso titolo.
   final String id;
@@ -58,7 +63,9 @@ class _FakeDetailState extends State<_FakeDetail> {
         controller: _scroll,
         visibleAt: (offset) => offset >= 380,
         header: ShellHeader(
-            title: widget.title, actionLabel: 'Riproduci', onAction: widget.onPlay),
+            title: widget.title,
+            actionLabel: widget.actionLabel,
+            onAction: widget.onPlay),
         child: ListView(
           key: Key('detail-list-${widget.id}'),
           controller: _scroll,
@@ -105,6 +112,20 @@ void main() {
               state,
               _FakeDetail(
                   title: state.pathParameters['id']!, onPlay: () => plays++),
+              underBar: false,
+            ),
+          ),
+          // Titolo ed etichetta lunghi, per le finestre strette.
+          GoRoute(
+            path: '/long',
+            pageBuilder: (context, state) => detailPage(
+              context,
+              state,
+              _FakeDetail(
+                  id: 'long',
+                  title: 'Il Signore degli Anelli: la Compagnia dell\'Anello',
+                  actionLabel: 'Riprendi S1:E5 · 1:12:34',
+                  onPlay: () => plays++),
               underBar: false,
             ),
           ),
@@ -230,6 +251,40 @@ void main() {
     await tester.tap(find.byKey(const Key('shell-bar-play')));
     expect(playedPages, ['a']);
   });
+
+  // Sotto una certa larghezza libera il pulsante mostra solo l'icona.
+  for (final (width, compact) in [
+    (1024.0, true),
+    (1280.0, true),
+    (1920.0, false),
+  ]) {
+    testWidgets('finestra larga ${width.toInt()}: titolo e pulsante lunghi '
+        'stanno nella barra', (tester) async {
+      final router = await pumpRouter(tester, size: Size(width, 700));
+      unawaited(router.push('/long'));
+      await tester.pumpAndSettle();
+      await tester.drag(
+          find.byKey(const Key('detail-list-long')), const Offset(0, -500));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(const Key('shell-bar-title')), findsOneWidget);
+      final play = find.byKey(const Key('shell-bar-play'));
+      expect(play, findsOneWidget);
+      const label = 'Riprendi S1:E5 · 1:12:34';
+      expect(find.descendant(of: play, matching: find.text(label)),
+          compact ? findsNothing : findsOneWidget);
+      if (compact) {
+        expect(
+            find.ancestor(
+                of: play,
+                matching: find.byWidgetPredicate(
+                    (w) => w is Tooltip && w.message == label)),
+            findsOneWidget);
+      }
+      await tester.tap(play);
+      expect(plays, 1);
+    });
+  }
 
   /// Film con cast e "Simili", la scheda con più righe.
   List<Override> movieOverrides() {

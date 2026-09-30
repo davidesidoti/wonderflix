@@ -102,8 +102,14 @@ class _AppShellState extends ConsumerState<AppShell> {
                           ),
                         ]),
                         const SizedBox(width: 24),
-                        _BarTitle(header: _header),
-                        const Spacer(),
+                        // Tutto lo spazio libero va al titolo: il pulsante
+                        // non viene schiacciato da uno Spacer.
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: _BarTitle(header: _header),
+                          ),
+                        ),
                         const WatchPartyButton(),
                         const SizedBox(width: 16),
                         if (user != null) _UserMenu(user: user),

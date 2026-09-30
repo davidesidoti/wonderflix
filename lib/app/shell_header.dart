@@ -218,6 +218,11 @@ class _ShellHeaderPublisherState extends State<ShellHeaderPublisher> {
   Widget build(BuildContext context) => widget.child;
 }
 
+/// Sotto questa larghezza libera il pulsante della barra mostra solo
+/// l'icona (etichetta nel tooltip): un'etichetta lunga come "Riprendi
+/// S1:E5 · 1:12:34" lascerebbe poco o niente al titolo.
+const _barTitleCompactWidth = 420.0;
+
 /// Titolo e piccolo "Riproduci" della pagina in cima (spec C §9.2).
 class _BarTitle extends StatelessWidget {
   const _BarTitle({required this.header});
@@ -227,51 +232,91 @@ class _BarTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final motion = WfMotion.of(context);
-    return Flexible(
-      child: ValueListenableBuilder<ShellHeader?>(
-        valueListenable: header,
-        builder: (context, value, _) => AnimatedSwitcher(
-          duration: motion.duration(WfMotion.medium),
-          switchInCurve: WfMotion.emphasized,
-          transitionBuilder: (child, animation) => FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position: Tween(begin: const Offset(0, 0.3), end: Offset.zero)
-                  .animate(animation),
-              child: child,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < _barTitleCompactWidth;
+        return ValueListenableBuilder<ShellHeader?>(
+          valueListenable: header,
+          builder: (context, value, _) => AnimatedSwitcher(
+            duration: motion.duration(WfMotion.medium),
+            switchInCurve: WfMotion.emphasized,
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: Tween(begin: const Offset(0, 0.3), end: Offset.zero)
+                    .animate(animation),
+                child: child,
+              ),
             ),
-          ),
-          child: value == null
-              ? const SizedBox.shrink()
-              : Row(
-                  key: const Key('shell-bar-title'),
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(
-                      child: Text(value.title.toUpperCase(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: WfText.display(22)),
-                    ),
-                    if (value.onAction != null) ...[
-                      const SizedBox(width: 12),
-                      FilledButton.icon(
-                        key: const Key('shell-bar-play'),
-                        onPressed: value.onAction,
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(0, 30),
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          textStyle: const TextStyle(
-                              fontSize: 12.5, fontWeight: FontWeight.w700),
-                        ),
-                        icon: const Icon(LucideIcons.play, size: 14),
-                        label: Text(value.actionLabel ?? ''),
+            child: value == null
+                ? const SizedBox.shrink()
+                : Row(
+                    key: const Key('shell-bar-title'),
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(value.title.toUpperCase(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: WfText.display(22)),
                       ),
+                      if (value.onAction != null) ...[
+                        const SizedBox(width: 12),
+                        _BarPlayButton(
+                          label: value.actionLabel ?? '',
+                          onPressed: value.onAction,
+                          compact: compact,
+                        ),
+                      ],
                     ],
-                  ],
-                ),
+                  ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Pulsante oro della barra; [compact]: solo l'icona, con l'etichetta come
+/// tooltip.
+class _BarPlayButton extends StatelessWidget {
+  const _BarPlayButton({
+    required this.label,
+    required this.onPressed,
+    required this.compact,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    const icon = Icon(LucideIcons.play, size: 14);
+    if (compact) {
+      return Tooltip(
+        message: label,
+        child: FilledButton(
+          key: const Key('shell-bar-play'),
+          onPressed: onPressed,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(30, 30),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+          ),
+          child: Semantics(label: label, child: icon),
         ),
+      );
+    }
+    return FilledButton.icon(
+      key: const Key('shell-bar-play'),
+      onPressed: onPressed,
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(0, 30),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
       ),
+      icon: icon,
+      label: Text(label),
     );
   }
 }
