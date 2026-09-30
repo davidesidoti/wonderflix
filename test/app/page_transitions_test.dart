@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/page_transitions.dart';
 
@@ -43,5 +44,36 @@ void main() {
     await pumpTransition(tester, MotionLevel.reduced, 0.5, 0);
     expect(opacityOf(tester), 0.5);
     expect(find.byType(ScaleTransition), findsNothing);
+  });
+
+  testWidgets('schermate d\'ingresso: dissolvenza di durata media',
+      (tester) async {
+    final router = GoRouter(initialLocation: '/splash', routes: [
+      GoRoute(
+          path: '/splash',
+          pageBuilder: (context, state) =>
+              entryPage(context, state, const Text('splash'))),
+      GoRoute(
+          path: '/login',
+          pageBuilder: (context, state) =>
+              entryPage(context, state, const Text('pagina'))),
+    ]);
+    addTearDown(router.dispose);
+    await tester.pumpWidget(MaterialApp.router(
+      routerConfig: router,
+      builder: (context, child) => WfMotionScope(
+          motion: const WfMotion(MotionLevel.full), child: child!),
+    ));
+
+    router.go('/login');
+    await tester.pump();
+    await tester.pump(WfMotion.medium ~/ 2);
+    expect(opacityOf(tester), inExclusiveRange(0, 1));
+    expect(find.byType(ScaleTransition), findsNothing);
+    await tester.pump(WfMotion.medium ~/ 2);
+    await tester.pump();
+    expect(opacityOf(tester), 1);
+    await tester.pumpAndSettle();
+    expect(find.text('splash'), findsNothing);
   });
 }

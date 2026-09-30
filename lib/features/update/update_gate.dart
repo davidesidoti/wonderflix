@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pub_semver/pub_semver.dart';
 
+import '../../app/motion.dart';
 import '../player/player_active.dart';
 import 'mandatory_update_screen.dart';
 import 'update_banner.dart';
@@ -48,6 +49,7 @@ class _UpdateGateState extends ConsumerState<UpdateGate> {
         !update.mandatory &&
         !playing &&
         _postponed != release.version;
+    final duration = WfMotion.of(context).duration(WfMotion.medium);
 
     return Stack(
       fit: StackFit.expand,
@@ -56,27 +58,49 @@ class _UpdateGateState extends ConsumerState<UpdateGate> {
           ignoring: blocked,
           child: ExcludeFocus(excluding: blocked, child: widget.child),
         ),
-        if (showBanner)
-          Positioned(
-            left: 24,
-            right: 24,
-            bottom: 24,
-            child: Center(
-              child: UpdateBanner(
-                release: release,
-                onRestart: () => unawaited(controller.install()),
-                onLater: () => setState(() => _postponed = release.version),
+        // La barra sale dal basso (è in basso) e scende sparendo.
+        Positioned(
+          left: 24,
+          right: 24,
+          bottom: 24,
+          child: Center(
+            child: AnimatedSwitcher(
+              duration: duration,
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween(begin: const Offset(0, 0.5), end: Offset.zero)
+                      .animate(CurvedAnimation(
+                          parent: animation, curve: WfMotion.emphasized)),
+                  child: child,
+                ),
               ),
+              child: showBanner
+                  ? UpdateBanner(
+                      key: ValueKey(release.version.toString()),
+                      release: release,
+                      onRestart: () => unawaited(controller.install()),
+                      onLater: () =>
+                          setState(() => _postponed = release.version),
+                    )
+                  : const SizedBox.shrink(),
             ),
           ),
-        if (blocked)
-          Positioned.fill(
-            child: MandatoryUpdateScreen(
-              update: update,
-              onInstall: () => unawaited(controller.install()),
-              onRetry: controller.retry,
-            ),
+        ),
+        // La schermata bloccante compare e sparisce in dissolvenza.
+        Positioned.fill(
+          child: AnimatedSwitcher(
+            duration: duration,
+            child: blocked
+                ? MandatoryUpdateScreen(
+                    key: const ValueKey('mandatory-update'),
+                    update: update,
+                    onInstall: () => unawaited(controller.install()),
+                    onRetry: controller.retry,
+                  )
+                : const SizedBox.shrink(key: ValueKey('no-update')),
           ),
+        ),
       ],
     );
   }

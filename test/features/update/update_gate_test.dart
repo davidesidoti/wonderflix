@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/features/player/player_active.dart';
 import 'package:wonderflix/features/update/update_controller.dart';
@@ -17,9 +18,11 @@ import '../../support/update_fakes.dart';
 void main() {
   late FakeUpdateController controller;
 
-  Future<ProviderContainer> pumpGate(WidgetTester tester, UpdateState state) async {
+  Future<ProviderContainer> pumpGate(WidgetTester tester, UpdateState state,
+      {MotionLevel motion = MotionLevel.reduced}) async {
     controller = FakeUpdateController(state);
     await pumpApp(tester, const UpdateGate(child: Text('app')),
+        motion: motion,
         overrides: [updateControllerProvider.overrideWith(() => controller)]);
     return ProviderScope.containerOf(tester.element(find.text('app')));
   }
@@ -62,8 +65,30 @@ void main() {
 
     await tester.tap(find.text('Più tardi'));
     await tester.pump();
+    // La barra scende in dissolvenza (`fast` con le animazioni ridotte):
+    // sparisce a dissolvenza finita.
+    await tester.pumpAndSettle();
     expect(find.text('Riavvia ora'), findsNothing);
     expect(find.text('app'), findsOneWidget);
+  });
+
+  testWidgets('completa: a download finito la barra sale dal basso',
+      (tester) async {
+    await pumpGate(tester, UpdateState(release: testRelease(), progress: 0.3),
+        motion: MotionLevel.full);
+    controller.emit(UpdateState(release: testRelease(), installer: installer));
+    await tester.pump();
+    Offset slide() => tester
+        .widget<SlideTransition>(find
+            .ancestor(
+                of: find.text('Riavvia ora'),
+                matching: find.byType(SlideTransition))
+            .first)
+        .position
+        .value;
+    expect(slide().dy, greaterThan(0));
+    await tester.pumpAndSettle();
+    expect(slide(), Offset.zero);
   });
 
   testWidgets('mai durante la riproduzione: la barra compare alla fine',
@@ -72,6 +97,8 @@ void main() {
         tester, UpdateState(release: testRelease(), installer: installer));
     container.read(playerActiveProvider.notifier).enter();
     await pumpPlayerState(tester);
+    // La barra già visibile scende in dissolvenza: sparisce a fine uscita.
+    await tester.pumpAndSettle();
     expect(find.text('Riavvia ora'), findsNothing);
 
     container.read(playerActiveProvider.notifier).leave();
@@ -212,6 +239,9 @@ void main() {
 
     await tester.tap(find.text('Più tardi'));
     await tester.pump();
+    // La barra scende in dissolvenza (`fast` con le animazioni ridotte):
+    // sparisce a dissolvenza finita.
+    await tester.pumpAndSettle();
     expect(find.text('Riavvia ora'), findsNothing);
     expect(tester.takeException(), isNull);
   });

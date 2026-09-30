@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/features/auth/auth_providers.dart';
 import 'package:wonderflix/features/auth/login_screen.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/ui/staggered_entrance.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/pump_app.dart';
@@ -16,9 +18,10 @@ void main() {
     SessionState initial = const SessionSignedOut(),
     Object? loginError,
     bool quickConnect = false,
+    MotionLevel motion = MotionLevel.reduced,
   }) async {
     final fake = FakeSessionController(initial, loginError: loginError);
-    await pumpApp(tester, const LoginScreen(), overrides: [
+    await pumpApp(tester, const LoginScreen(), motion: motion, overrides: [
       sessionControllerProvider.overrideWith(() => fake),
       quickConnectEnabledProvider.overrideWith((ref) async => quickConnect),
     ]);
@@ -82,5 +85,22 @@ void main() {
     await tester.pump();
 
     expect(find.text('Quick Connect'), findsOneWidget);
+  });
+
+  testWidgets('completa: logo e pannello entrano uno dopo l\'altro',
+      (tester) async {
+    await pumpLogin(tester, motion: MotionLevel.full);
+    expect(find.byType(StaggerGroup), findsOneWidget);
+    double panelOpacity() => tester
+        .widget<Opacity>(find
+            .ancestor(
+                of: find.byKey(const Key('login-username')),
+                matching: find.byType(Opacity))
+            .first)
+        .opacity;
+    expect(panelOpacity(), lessThan(1));
+    // Senza Quick Connect nessuno spinner: nessuna animazione continua.
+    await tester.pumpAndSettle();
+    expect(panelOpacity(), 1);
   });
 }

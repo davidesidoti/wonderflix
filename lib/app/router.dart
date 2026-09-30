@@ -73,11 +73,18 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) =>
         sessionRedirect(session.value, state.matchedLocation),
     routes: [
-      GoRoute(path: '/splash', builder: (context, state) => const SplashScreen()),
-      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(
+          path: '/splash',
+          pageBuilder: (context, state) =>
+              entryPage(context, state, const SplashScreen())),
+      GoRoute(
+          path: '/login',
+          pageBuilder: (context, state) =>
+              entryPage(context, state, const LoginScreen())),
       GoRoute(
           path: '/unreachable',
-          builder: (context, state) => const UnreachableScreen()),
+          pageBuilder: (context, state) =>
+              entryPage(context, state, const UnreachableScreen())),
       GoRoute(
         path: '/play/:id',
         pageBuilder: (context, state) => playerPage(

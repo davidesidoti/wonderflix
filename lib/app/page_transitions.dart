@@ -55,6 +55,22 @@ CustomTransitionPage<void> _page(BuildContext context, GoRouterState state,
   );
 }
 
+/// Splash, login, server non raggiungibile: dissolvenza (spec C §11.3).
+Page<void> entryPage(BuildContext context, GoRouterState state, Widget child) {
+  final motion = WfMotion.of(context);
+  final duration = motion.duration(WfMotion.medium);
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: duration,
+    reverseTransitionDuration: duration,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+        FadeTransition(
+            opacity: animation.drive(CurveTween(curve: WfMotion.standard)),
+            child: child),
+  );
+}
+
 /// Pagina di una voce della barra (Home, Film, Serie, …).
 Page<void> shellPage(BuildContext context, GoRouterState state, Widget child,
         {required bool underBar}) =>

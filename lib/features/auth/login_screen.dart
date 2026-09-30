@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/staggered_entrance.dart';
 import 'auth_providers.dart';
 import 'password_login_form.dart';
 import 'quick_connect_panel.dart';
@@ -22,70 +23,80 @@ class LoginScreen extends ConsumerWidget {
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(32),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Image.asset('assets/brand/logo.png', width: 280),
-              const SizedBox(width: 56),
-              Container(
-                width: 380,
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: WfColors.surface,
-                  border: Border.all(color: WfColors.border),
-                  borderRadius: BorderRadius.circular(10),
+          // Il logo, poi il pannello (spec C §11.3).
+          child: StaggerGroup(
+            count: 2,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                StaggerItem(
+                  index: 0,
+                  child: Image.asset('assets/brand/logo.png', width: 280),
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (expired) ...[
-                      ErrorBanner(l.sessionExpired),
-                      const SizedBox(height: 12),
-                    ],
-                    if (quickConnectAsync.isLoading)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 32),
-                        child: Center(
-                          child: SizedBox(
-                            width: 28,
-                            height: 28,
-                            child: CircularProgressIndicator(strokeWidth: 2.5),
-                          ),
-                        ),
-                      )
-                    else if (quickConnectAsync.value ?? false)
-                      DefaultTabController(
-                        length: 2,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            TabBar(
-                              isScrollable: true,
-                              tabAlignment: TabAlignment.start,
-                              tabs: [
-                                Tab(text: l.loginTabPassword),
-                                Tab(text: l.loginTabQuickConnect),
+                const SizedBox(width: 56),
+                StaggerItem(
+                  index: 1,
+                  child: Container(
+                    width: 380,
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: WfColors.surface,
+                      border: Border.all(color: WfColors.border),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (expired) ...[
+                          ErrorBanner(l.sessionExpired),
+                          const SizedBox(height: 12),
+                        ],
+                        if (quickConnectAsync.isLoading)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 32),
+                            child: Center(
+                              child: SizedBox(
+                                width: 28,
+                                height: 28,
+                                child: CircularProgressIndicator(strokeWidth: 2.5),
+                              ),
+                            ),
+                          )
+                        else if (quickConnectAsync.value ?? false)
+                          DefaultTabController(
+                            length: 2,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                TabBar(
+                                  isScrollable: true,
+                                  tabAlignment: TabAlignment.start,
+                                  tabs: [
+                                    Tab(text: l.loginTabPassword),
+                                    Tab(text: l.loginTabQuickConnect),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                const SizedBox(
+                                  height: 300,
+                                  child: TabBarView(children: [
+                                    PasswordLoginForm(),
+                                    QuickConnectPanel(),
+                                  ]),
+                                ),
                               ],
                             ),
-                            const SizedBox(height: 16),
-                            const SizedBox(
-                              height: 300,
-                              child: TabBarView(children: [
-                                PasswordLoginForm(),
-                                QuickConnectPanel(),
-                              ]),
-                            ),
-                          ],
-                        ),
-                      )
-                    else
-                      const PasswordLoginForm(),
-                  ],
+                          )
+                        else
+                          const PasswordLoginForm(),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
