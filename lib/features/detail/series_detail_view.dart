@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/app_shell.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
@@ -21,6 +22,7 @@ import '../playback/play_launcher.dart';
 import 'detail_header.dart';
 import 'detail_providers.dart';
 import 'detail_rows.dart';
+import 'header_parallax.dart';
 import 'primary_action.dart';
 
 class SeriesDetailView extends ConsumerStatefulWidget {
@@ -64,7 +66,7 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
     final primary = next == null ? null : primaryActionFor(next, watchUserData(ref, next));
     final seasons = ref.watch(seasonsProvider(series.id));
 
-    return StaggerGroup(
+    final page = StaggerGroup(
       count: detailEntranceCount,
       delay: widget.entranceDelay,
       child: ListView(
@@ -113,6 +115,24 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
           StaggerItem(index: 7, child: SimilarRow(itemId: series.id)),
         ],
       ),
+    );
+    final scroll = widget.controller;
+    // Senza controller (vista montata da sola nei test) niente titolo nella
+    // barra.
+    if (scroll == null) return page;
+    final l = AppLocalizations.of(context);
+    final action = primary;
+    return ShellHeaderPublisher(
+      controller: scroll,
+      threshold: detailBarTitleOffset,
+      header: ShellHeader(
+        title: series.name,
+        actionLabel: action == null ? null : primaryActionLabel(l, action),
+        onAction: action == null
+            ? null
+            : () => unawaited(playItem(context, ref, action.target)),
+      ),
+      child: page,
     );
   }
 }

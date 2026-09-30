@@ -17,6 +17,11 @@ const parallaxTextFadeEnd = 0.625;
 /// Salita del testo rispetto allo scroll.
 const parallaxTextRise = 0.15;
 
+/// Oltre questo scroll il titolo e "Riproduci" compaiono nella barra: la
+/// riga dei pulsanti della testata è passata sotto la barra (decisione 6b,
+/// da ritoccare nella prova).
+const detailBarTitleOffset = 380.0;
+
 /// Posizione della testata per uno scroll (spec C §9.1).
 @immutable
 class HeaderParallax {

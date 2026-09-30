@@ -1,11 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/app_shell.dart';
 import '../../core/jellyfin/item_models.dart';
+import '../../l10n/gen/app_localizations.dart';
 import '../../ui/staggered_entrance.dart';
 import '../library/user_data.dart';
+import '../playback/play_launcher.dart';
 import 'detail_header.dart';
 import 'detail_rows.dart';
+import 'header_parallax.dart';
 import 'primary_action.dart';
 
 /// Scheda di un film (usata anche per un episodio aperto direttamente).
@@ -28,22 +34,35 @@ class MovieDetailView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final userData = watchUserData(ref, item);
-    return StaggerGroup(
+    final action = primaryActionFor(item, userData);
+    final page = StaggerGroup(
       count: detailEntranceCount,
       delay: entranceDelay,
       child: ListView(
         controller: controller,
         padding: const EdgeInsets.only(bottom: 40),
         children: [
-          DetailHeader(
-              item: item,
-              primary: primaryActionFor(item, userData),
-              controller: controller),
+          DetailHeader(item: item, primary: action, controller: controller),
           if (item.people.isNotEmpty)
             StaggerItem(index: 5, child: CastRow(people: item.people)),
           StaggerItem(index: 6, child: SimilarRow(itemId: item.id)),
         ],
       ),
+    );
+    final scroll = controller;
+    // Senza controller (vista montata da sola nei test) niente titolo nella
+    // barra.
+    if (scroll == null) return page;
+    final l = AppLocalizations.of(context);
+    return ShellHeaderPublisher(
+      controller: scroll,
+      threshold: detailBarTitleOffset,
+      header: ShellHeader(
+        title: item.name,
+        actionLabel: primaryActionLabel(l, action),
+        onAction: () => unawaited(playItem(context, ref, action.target)),
+      ),
+      child: page,
     );
   }
 }
