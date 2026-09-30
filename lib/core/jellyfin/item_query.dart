@@ -6,7 +6,7 @@ enum WatchedFilter { all, unwatched, watched }
 
 /// Parametri immagine/campi comuni a tutte le liste mostrate come card.
 const cardImageParams = <String, dynamic>{
-  'fields': 'PrimaryImageAspectRatio',
+  'fields': 'PrimaryImageAspectRatio,Genres',
   'enableImageTypes': 'Primary,Backdrop,Thumb,Logo',
   'imageTypeLimit': 1,
 };
