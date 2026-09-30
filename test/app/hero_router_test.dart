@@ -19,6 +19,7 @@ import 'package:wonderflix/features/library/server_events_binding.dart';
 import 'package:wonderflix/features/person/person_screen.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 import 'package:wonderflix/ui/card_preview.dart';
+import 'package:wonderflix/ui/card_preview_host.dart';
 import 'package:wonderflix/ui/poster_card.dart';
 import 'package:wonderflix/ui/wf_image.dart';
 
@@ -289,6 +290,33 @@ void main() {
     expect(router.state.uri.path, '/item/m1');
     expect(tester.takeException(), isNull);
     expect(find.byType(CardPreview), findsNothing);
+  });
+
+  // I tooltip dei pulsanti dell'anteprima usano un overlay sopra di lei, non
+  // quello del navigatore della shell (più in basso nell'albero dei render).
+  testWidgets('tooltip dei pulsanti dell\'anteprima: sopra, senza errori',
+      (tester) async {
+    await pumpRouter(tester, '/item/m1');
+    final mouse = await openPreview(tester, 'Arrival');
+
+    await mouse.moveTo(tester.getCenter(find.byTooltip('Riproduci')));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(tester.takeException(), isNull);
+    final tip = find.descendant(
+        of: find.byTooltip('Riproduci'), matching: find.text('Riproduci'));
+    expect(tip, findsOneWidget);
+    // Nell'overlay dell'anteprima, sopra di lei; non in quello della shell.
+    expect(
+        find.descendant(
+            of: find.byType(CardPreviewHost),
+            matching: find.descendant(
+                of: find.byType(Overlay), matching: tip)),
+        findsOneWidget);
+    expect(find.byType(CardPreview), findsOneWidget);
+    await mouse.moveTo(Offset.zero);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
   });
 
   // Scheda scorsa: lo sfondo è traslato, ingrandito, scurito e ritagliato,

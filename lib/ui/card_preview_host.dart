@@ -262,7 +262,7 @@ class _CardPreviewHostState extends ConsumerState<CardPreviewHost>
         final card = MatrixUtils.transformRect(
             info.childPaintTransform, Offset.zero & info.childSize);
         final rect = previewRect(card: card, overlay: info.overlaySize);
-        return Stack(
+        final preview = Stack(
           children: [
             Positioned.fromRect(
               rect: rect,
@@ -311,6 +311,12 @@ class _CardPreviewHostState extends ConsumerState<CardPreviewHost>
             ),
           ],
         );
+        // I tooltip dei pulsanti cercano l'Overlay più vicino risalendo gli
+        // elementi: senza questo troverebbero quello del navigatore della
+        // shell, sotto l'overlay principale (asserzione in debug, tooltip
+        // coperto dall'anteprima in release). Le zone vuote lasciano passare
+        // i clic alla pagina.
+        return Overlay.wrap(child: preview);
       },
       child: MouseRegion(
         onEnter: _onEnter,
