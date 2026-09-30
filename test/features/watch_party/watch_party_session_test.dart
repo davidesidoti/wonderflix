@@ -373,4 +373,103 @@ void main() {
     await pumpEventQueue();
     expect(state().phase, WatchPartyPhase.none);
   });
+
+  test('create con la coda di una serie', () async {
+    mount();
+    serverAccepts();
+    await session().create(
+        testItem(
+            id: 'e4',
+            name: 'Pilot',
+            kind: ItemKind.episode,
+            seriesName: 'Breaking Bad'),
+        queue: ['e4', 'e5', 'e6']);
+    expect(api.calls, ['create Mario · Breaking Bad', 'queue e4,e5,e6']);
+  });
+
+  test('setQueue: nel gruppo solo la nuova coda; fuori nessuna richiesta',
+      () async {
+    mount();
+    await session().setQueue(['m2']);
+    expect(api.calls, isEmpty);
+
+    serverAccepts();
+    await session().join('g1');
+    await session().setQueue(['m2'], start: const Duration(minutes: 2));
+    expect(api.calls, ['join g1', 'queue m2']);
+    expect(api.queues.single.start, const Duration(minutes: 2));
+  });
+
+  test('setQueue con un errore di rete', () async {
+    mount();
+    serverAccepts();
+    await session().join('g1');
+    api.error = const ServerUnreachableException();
+    await expectLater(
+        session().setQueue(['m2']),
+        throwsA(isA<WatchPartyException>().having(
+            (e) => e.failure, 'failure', WatchPartyFailure.network)));
+    expect(state().inGroup, isTrue);
+  });
+
+  test('nextItem: solo se c\'è un elemento dopo', () async {
+    mount();
+    serverAccepts();
+    await session().join('g1');
+    expect(await session().nextItem(), isFalse);
+
+    emit(PlayQueueUpdate('g1', testSeriesQueue()));
+    await pumpEventQueue();
+    expect(state().hasNext, isTrue);
+    expect(state().nextEntry?.itemId, 'e5');
+    expect(await session().nextItem(), isTrue);
+    expect(api.calls.last, 'next p1');
+
+    emit(PlayQueueUpdate(
+        'g1',
+        testSeriesQueue(
+            playingIndex: 2, lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+    await pumpEventQueue();
+    expect(state().hasNext, isFalse);
+    expect(await session().nextItem(), isFalse);
+    expect(api.calls.last, 'next p1');
+  });
+
+  test('membri: lo stesso utente con due sessioni compare una volta', () async {
+    mount();
+    serverAccepts(participants: ['Mario', 'Luigi']);
+    await session().join('g1');
+    emit(const UserJoined('g1', 'Luigi'));
+    await pumpEventQueue();
+    expect(state().members, ['Mario', 'Luigi']);
+
+    emit(const UserLeft('g1', 'Luigi'));
+    await pumpEventQueue();
+    expect(state().members, ['Mario', 'Luigi'],
+        reason: 'Luigi ha ancora una sessione nel gruppo');
+
+    emit(const UserLeft('g1', 'Luigi'));
+    await pumpEventQueue();
+    expect(state().members, ['Mario']);
+  });
+
+  test('updates: solo gli aggiornamenti del nostro gruppo', () async {
+    mount();
+    serverAccepts();
+    await session().join('g1');
+    final updates = <GroupUpdate>[];
+    final subscription = session().updates.listen(updates.add);
+    addTearDown(subscription.cancel);
+
+    emit(const UserJoined('g1', 'Luigi'));
+    emit(const UserJoined('g2', 'Bowser'));
+    emit(const GroupStateUpdate('g1', GroupState.waiting, 'Seek'));
+    emit(PlayQueueUpdate('g1', testSeriesQueue()));
+    // Più vecchia della precedente: scartata e non inoltrata.
+    emit(PlayQueueUpdate(
+        'g1', testSeriesQueue(lastUpdate: DateTime.utc(2026, 9, 30, 9))));
+    await pumpEventQueue();
+    expect(updates.map((u) => u.runtimeType),
+        [UserJoined, GroupStateUpdate, PlayQueueUpdate]);
+  });
 }

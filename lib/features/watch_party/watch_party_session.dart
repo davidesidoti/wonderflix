@@ -43,7 +43,18 @@ class WatchPartyState {
 
   bool get inGroup => phase == WatchPartyPhase.inGroup;
 
-  List<String> get members => group?.participants ?? const [];
+  /// Membri senza ripetizioni: lo stesso utente può avere più sessioni.
+  List<String> get members => {...?group?.participants}.toList();
+
+  /// Elemento dopo quello in riproduzione; `null` a fine coda.
+  PlayQueueEntry? get nextEntry {
+    final queue = this.queue;
+    if (queue == null || queue.playingIndex < 0) return null;
+    final index = queue.playingIndex + 1;
+    return index < queue.entries.length ? queue.entries[index] : null;
+  }
+
+  bool get hasNext => nextEntry != null;
 
   WatchPartyState copyWith(
           {GroupInfo? group, GroupState? groupState, PlayQueue? queue}) =>
@@ -71,6 +82,7 @@ class WatchPartySession extends Notifier<WatchPartyState> {
 
   late SyncPlayApi _api;
   late StreamController<SyncPlayCommand> _commands;
+  late StreamController<GroupUpdate> _updates;
   ServerClock? _clock;
   SyncPlayCommand? _lastCommand;
   Completer<void>? _joining;
@@ -83,6 +95,7 @@ class WatchPartySession extends Notifier<WatchPartyState> {
         .select((s) => s is SessionSignedIn ? s.user.id : null));
     _api = ref.watch(syncPlayApiProvider);
     final commands = _commands = StreamController<SyncPlayCommand>.broadcast();
+    final updates = _updates = StreamController<GroupUpdate>.broadcast();
     _clock = null;
     _lastCommand = null;
     _joining = null;
@@ -91,6 +104,7 @@ class WatchPartySession extends Notifier<WatchPartyState> {
     ref.onDispose(() {
       _stopClock();
       unawaited(commands.close());
+      unawaited(updates.close());
     });
     if (userId == null) return const WatchPartyState();
     final subscription = ref.watch(watchPartyEventsProvider).listen(_onEvent);
@@ -109,20 +123,52 @@ class WatchPartySession extends Notifier<WatchPartyState> {
 
   SyncPlayCommand? get lastCommand => _lastCommand;
 
-  /// Crea un gruppo per [item] e ci fa partire la riproduzione da [start].
-  /// Lancia [WatchPartyException].
-  Future<void> create(JellyfinItem item, {Duration start = Duration.zero}) async {
+  /// Aggiornamenti del nostro gruppo (entrate, uscite, stato, coda), già
+  /// applicati allo stato. Servono agli avvisi.
+  Stream<GroupUpdate> get updates => _updates.stream;
+
+  /// Crea un gruppo per [item] con la coda [queue] (di default solo [item])
+  /// e ci fa partire la riproduzione da [start]. Lancia [WatchPartyException].
+  Future<void> create(JellyfinItem item,
+      {List<String>? queue, Duration start = Duration.zero}) async {
     if (state.phase == WatchPartyPhase.joining) return;
     final session = ref.read(sessionControllerProvider);
     final userName = session is SessionSignedIn ? session.user.name : '';
     await _enter(() => _api.create('$userName · ${partyTitle(item)}'));
     try {
-      await _api.setNewQueue([item.id], start: start);
+      await _api.setNewQueue(queue ?? [item.id], start: start);
     } on ApiException catch (error) {
       _log.warning('coda del watch party non impostata: $error');
       await leave();
       throw const WatchPartyException(WatchPartyFailure.network);
     }
+  }
+
+  /// Nuova coda per il gruppo in cui siamo ("Guarda insieme" dentro un
+  /// gruppo): cambia il titolo per tutti. Fuori da un gruppo non fa nulla.
+  /// Lancia [WatchPartyException].
+  Future<void> setQueue(List<String> queue,
+      {Duration start = Duration.zero}) async {
+    if (!state.inGroup) return;
+    try {
+      await _api.setNewQueue(queue, start: start);
+    } on ApiException catch (error) {
+      _log.warning('nuova coda del watch party non impostata: $error');
+      throw const WatchPartyException(WatchPartyFailure.network);
+    }
+  }
+
+  /// Il gruppo passa all'elemento successivo della coda (pulsante, tasto N,
+  /// fine del video). `false` se non ce n'è uno.
+  Future<bool> nextItem() async {
+    final playing = state.queue?.playing;
+    if (!state.inGroup || playing == null || !state.hasNext) return false;
+    try {
+      await _api.nextItem(playing.playlistItemId);
+    } on Object catch (error) {
+      _log.warning('episodio successivo non chiesto: $error');
+    }
+    return true;
   }
 
   /// Lancia [WatchPartyException].
@@ -276,15 +322,18 @@ class WatchPartySession extends Notifier<WatchPartyState> {
         _log.info('nel watch party (${info.participants.length} membri)');
       case UserJoined(:final groupId, :final userName) when _isCurrent(groupId):
         state = state.copyWith(
-            group: state.group!
-                .copyWith(participants: [...state.members, userName]));
+            group: state.group!.copyWith(
+                participants: [...state.group!.participants, userName]));
+        _updates.add(update);
       case UserLeft(:final groupId, :final userName) when _isCurrent(groupId):
-        final members = [...state.members]..remove(userName);
+        final participants = [...state.group!.participants]..remove(userName);
         state = state.copyWith(
-            group: state.group!.copyWith(participants: members));
+            group: state.group!.copyWith(participants: participants));
+        _updates.add(update);
       case GroupStateUpdate(:final groupId, state: final groupState)
           when _isCurrent(groupId):
         state = state.copyWith(groupState: groupState);
+        _updates.add(update);
       case PlayQueueUpdate(:final groupId, :final queue)
           when _isCurrent(groupId):
         final current = state.queue;
@@ -292,6 +341,7 @@ class WatchPartySession extends Notifier<WatchPartyState> {
           return;
         }
         state = state.copyWith(queue: queue);
+        _updates.add(update);
       case UserJoined() ||
           UserLeft() ||
           GroupStateUpdate() ||
