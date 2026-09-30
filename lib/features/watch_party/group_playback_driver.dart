@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:logging/logging.dart';
 
+import '../../core/syncplay/drift_corrector.dart';
 import '../../core/syncplay/server_clock.dart';
 import '../../core/syncplay/syncplay_api.dart';
 import '../../core/syncplay/syncplay_models.dart';
@@ -11,7 +12,10 @@ final _log = Logger('watchparty');
 
 /// Collega il player aperto al gruppo (spec B §4.5–4.6):
 /// - esegue i comandi del gruppo all'istante giusto;
-/// - manda `Ready` a file aperto e dopo i salti.
+/// - manda `Ready` a file aperto e dopo i salti, `Buffering` se il buffering
+///   dura più di 1 s con il gruppo in riproduzione;
+/// - durante la visione corregge lo scarto con la velocità
+///   ([DriftCorrector]), con un salto solo se è troppo grande.
 class GroupPlaybackDriver {
   GroupPlaybackDriver({
     required VideoEngine engine,
@@ -32,6 +36,12 @@ class GroupPlaybackDriver {
   /// Attesa massima della prima misura dell'orologio prima del `Ready`.
   static const clockWait = Duration(seconds: 3);
 
+  /// Buffering più breve di così: il gruppo non lo sa.
+  static const bufferingThreshold = Duration(seconds: 1);
+
+  /// Ogni quanto si misura lo scarto.
+  static const tick = Duration(milliseconds: 500);
+
   final VideoEngine _engine;
   final SyncPlayApi _api;
   final ServerClock _clock;
@@ -41,6 +51,16 @@ class GroupPlaybackDriver {
   final String playlistItemId;
 
   final _subscriptions = <StreamSubscription<Object?>>[];
+
+  final _corrector = DriftCorrector();
+  Timer? _bufferingTimer;
+  Timer? _ticker;
+  bool _reportedBuffering = false;
+  double _rate = 1.0;
+
+  /// Da quando il video va dopo l'ultimo `Unpause` (per il periodo iniziale).
+  DateTime? _playingSince;
+  DateTime? _lastResync;
 
   /// Ultimo comando arrivato prima dell'apertura del file.
   SyncPlayCommand? _pending;
@@ -58,6 +78,7 @@ class GroupPlaybackDriver {
       _commandStream.listen(_receive),
       _engine.bufferingStream.listen(_onBuffering),
     ]);
+    _ticker = Timer.periodic(tick, (_) => _onTick());
   }
 
   /// Il file è aperto, in pausa sulla posizione di partenza (anche dopo un
@@ -79,8 +100,19 @@ class GroupPlaybackDriver {
     if (_disposed) return;
     _disposed = true;
     _scheduled?.cancel();
+    _bufferingTimer?.cancel();
+    _ticker?.cancel();
     for (final subscription in _subscriptions) {
       unawaited(subscription.cancel());
+    }
+    if (_rate != 1.0) {
+      _rate = 1.0;
+      try {
+        await _engine.setRate(1.0);
+      } on Object catch (error) {
+        // Il motore può essere già chiuso insieme al player.
+        _log.info('velocità non ripristinata: $error');
+      }
     }
   }
 
@@ -106,6 +138,9 @@ class GroupPlaybackDriver {
   Future<void> _apply(SyncPlayCommand command) async {
     _scheduled?.cancel();
     _scheduled = null;
+    _corrector.reset();
+    _playingSince = null;
+    await _setRate(1.0);
     final wait = _clock.toLocal(command.when).difference(_clock.now());
     _log.info('comando ${command.type.name} a ${command.position} '
         '(tra ${wait.inMilliseconds} ms)');
@@ -162,6 +197,7 @@ class GroupPlaybackDriver {
   Future<void> _play(SyncPlayCommand command) async {
     if (_disposed || !identical(_current, command)) return;
     await _engine.play();
+    _playingSince = _clock.now();
   }
 
   Future<void> _pauseAt(SyncPlayCommand command) async {
@@ -180,7 +216,74 @@ class GroupPlaybackDriver {
   void _onBuffering(bool buffering) {
     if (_disposed) return;
     _buffering = buffering;
-    if (!buffering && _readyPending) unawaited(_sendReady());
+    if (buffering) {
+      _bufferingTimer ??= Timer(bufferingThreshold, _reportBuffering);
+      return;
+    }
+    _bufferingTimer?.cancel();
+    _bufferingTimer = null;
+    if (_reportedBuffering || _readyPending) {
+      _reportedBuffering = false;
+      unawaited(_sendReady());
+    }
+  }
+
+  void _reportBuffering() {
+    _bufferingTimer = null;
+    if (_disposed ||
+        !_buffering ||
+        _current?.type != SyncPlayCommandType.unpause) {
+      return;
+    }
+    _reportedBuffering = true;
+    _log.info('buffering da oltre ${bufferingThreshold.inSeconds} s: '
+        'il gruppo aspetta');
+    unawaited(_send('buffering', () => _api.buffering(_snapshot())));
+  }
+
+  void _onTick() {
+    final command = _current;
+    final since = _playingSince;
+    if (_disposed ||
+        command == null ||
+        since == null ||
+        command.type != SyncPlayCommandType.unpause ||
+        !_engine.playing ||
+        _buffering) {
+      return;
+    }
+    final expected = _expectedPosition(command);
+    final now = _clock.now();
+    final lastResync = _lastResync;
+    final action = _corrector.update(
+      drift: expected - _engine.position,
+      rate: _rate,
+      sinceUnpause: now.difference(since),
+      sinceResync: lastResync == null ? null : now.difference(lastResync),
+    );
+    switch (action) {
+      case KeepRate():
+        break;
+      case ChangeRate(:final rate):
+        _log.info('scarto ${_corrector.lastDrift?.inMilliseconds} ms: '
+            'velocità $rate');
+        unawaited(_setRate(rate));
+      case Resync():
+        _lastResync = now;
+        _log.info('scarto oltre ${DriftCorrector.resyncThreshold.inSeconds} s: '
+            'riallineamento a $expected');
+        unawaited(_engine.seek(expected));
+    }
+  }
+
+  Future<void> _setRate(double rate) async {
+    if (_rate == rate) return;
+    _rate = rate;
+    try {
+      await _engine.setRate(rate);
+    } on Object catch (error) {
+      _log.warning('velocità non impostata: $error');
+    }
   }
 
   ClientPlaybackState _snapshot() => ClientPlaybackState(
