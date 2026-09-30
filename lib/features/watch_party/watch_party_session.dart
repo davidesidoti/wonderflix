@@ -159,10 +159,17 @@ class WatchPartySession extends Notifier<WatchPartyState> {
   }
 
   /// Il gruppo passa all'elemento successivo della coda (pulsante, tasto N,
-  /// fine del video). `false` se non ce n'è uno.
-  Future<bool> nextItem() async {
+  /// fine del video), se è ancora in riproduzione [fromPlaylistItemId]
+  /// (quello del player che lo chiede). `false` se il gruppo è già altrove
+  /// o non c'è un elemento dopo.
+  Future<bool> nextItem(String fromPlaylistItemId) async {
     final playing = state.queue?.playing;
-    if (!state.inGroup || playing == null || !state.hasNext) return false;
+    if (!state.inGroup ||
+        playing == null ||
+        playing.playlistItemId != fromPlaylistItemId ||
+        !state.hasNext) {
+      return false;
+    }
     try {
       await _api.nextItem(playing.playlistItemId);
     } on Object catch (error) {

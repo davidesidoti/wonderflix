@@ -416,13 +416,13 @@ void main() {
     mount();
     serverAccepts();
     await session().join('g1');
-    expect(await session().nextItem(), isFalse);
+    expect(await session().nextItem('p1'), isFalse);
 
     emit(PlayQueueUpdate('g1', testSeriesQueue()));
     await pumpEventQueue();
     expect(state().hasNext, isTrue);
     expect(state().nextEntry?.itemId, 'e5');
-    expect(await session().nextItem(), isTrue);
+    expect(await session().nextItem('p1'), isTrue);
     expect(api.calls.last, 'next p1');
 
     emit(PlayQueueUpdate(
@@ -431,8 +431,23 @@ void main() {
             playingIndex: 2, lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
     await pumpEventQueue();
     expect(state().hasNext, isFalse);
-    expect(await session().nextItem(), isFalse);
+    expect(await session().nextItem('p3'), isFalse);
     expect(api.calls.last, 'next p1');
+  });
+
+  test('nextItem da un elemento non più in riproduzione: niente', () async {
+    mount();
+    serverAccepts();
+    await session().join('g1');
+    emit(PlayQueueUpdate(
+        'g1', testSeriesQueue(playingIndex: 1, reason: 'NextItem')));
+    await pumpEventQueue();
+    api.calls.clear();
+    // Il player di e4 (p1) chiede il successivo quando il gruppo è già su e5.
+    expect(await session().nextItem('p1'), isFalse);
+    expect(api.calls, isEmpty);
+    expect(await session().nextItem('p2'), isTrue);
+    expect(api.calls, ['next p2']);
   });
 
   test('membri: lo stesso utente con due sessioni compare una volta', () async {

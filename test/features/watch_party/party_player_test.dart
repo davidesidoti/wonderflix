@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -317,6 +318,42 @@ void main() {
         reason: 'passando all\'episodio dopo lo schermo intero resta');
     expect(library.playedCalls, contains(('e4', true)));
     expect(engines, hasLength(2));
+    await finish(tester);
+  });
+
+  testWidgets(
+      'salto in sospeso quando il gruppo cambia episodio: non arriva al '
+      'gruppo (salterebbe nell\'episodio nuovo)', (tester) async {
+    await pumpPartyPlayer(tester);
+    await queueSeries(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(engine.seeks, isNotEmpty);
+
+    emit(PlayQueueUpdate(
+        'g1',
+        testSeriesQueue(
+            playingIndex: 1,
+            reason: 'NextItem',
+            lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 1));
+    expect(router.state.uri.toString(), '/play/e5?party=p2');
+    expect(api.calls.where((call) => call.startsWith('seek')), isEmpty);
+    await finish(tester);
+  });
+
+  testWidgets('prossimo episodio con un salto in sospeso: solo NextItem',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    await queueSeries(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+    await tester.pump();
+    expect(api.calls, contains('next p1'));
+    await tester.pump(const Duration(seconds: 1));
+    expect(api.calls.where((call) => call.startsWith('seek')), isEmpty);
     await finish(tester);
   });
 

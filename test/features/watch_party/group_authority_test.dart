@@ -88,6 +88,25 @@ void main() {
     });
   });
 
+  test('cancelPendingSeek scarta il salto in sospeso, i successivi partono',
+      () {
+    fakeAsync((async) {
+      unawaited(authority.seekTo(const Duration(minutes: 5)));
+      async.flushMicrotasks();
+      authority.cancelPendingSeek();
+      async.elapse(const Duration(seconds: 1));
+      expect(api.calls, isEmpty);
+
+      unawaited(authority.play());
+      async.flushMicrotasks();
+      expect(api.calls, ['unpause'], reason: 'nessun Seek prima della ripresa');
+
+      unawaited(authority.seekTo(const Duration(minutes: 7)));
+      async.elapse(GroupAuthority.seekDebounce);
+      expect(api.calls.last, 'seek ${const Duration(minutes: 7)}');
+    });
+  });
+
   test('errori di rete: nessuna eccezione verso il player', () {
     fakeAsync((async) {
       api.error = const ServerUnreachableException();

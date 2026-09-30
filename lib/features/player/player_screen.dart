@@ -168,6 +168,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _leaving = true;
     // Chiudere il player fa uscire dal watch party: gli altri continuano.
     if (_inParty) {
+      _detachParty();
       unawaited(ref.read(watchPartySessionProvider.notifier).leave());
     }
     unawaited(_controller.close());
@@ -194,7 +195,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // nuovo quando arriva la coda (vedi [_handOverTo]).
     if (_inParty) {
       if (!_leaving) {
-        unawaited(ref.read(watchPartySessionProvider.notifier).nextItem());
+        // Il `Seek` non dice l'elemento: partito dopo il cambio, salterebbe
+        // nell'episodio nuovo.
+        _authority?.cancelPendingSeek();
+        unawaited(ref
+            .read(watchPartySessionProvider.notifier)
+            .nextItem(widget.args.party!));
       }
       return;
     }
@@ -220,8 +226,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void _onFinished() {
     // Nel gruppo si passa all'elemento dopo della coda (il server scarta le
     // richieste doppie degli altri). A fine coda si resta sul video.
+    if (_leaving) return;
     if (_inParty) {
-      unawaited(ref.read(watchPartySessionProvider.notifier).nextItem());
+      unawaited(ref
+          .read(watchPartySessionProvider.notifier)
+          .nextItem(widget.args.party!));
       return;
     }
     final view = ref.read(playerControllerProvider(widget.args));
@@ -245,7 +254,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// l'autorità manda al gruppo pausa, ripresa e salti.
   void _attachParty(PlayerController controller) {
     final party = widget.args.party;
-    if (party == null || _driver != null) return;
+    // Uscendo dal player (o passando all'elemento dopo) non si ricollega.
+    if (party == null || _driver != null || _leaving) return;
     final current = ref.read(watchPartySessionProvider);
     final session = ref.read(watchPartySessionProvider.notifier);
     final serverClock = session.serverClock;
@@ -267,7 +277,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     controller.setAuthority(authority);
   }
 
-  /// Il server ci ha tolto dal gruppo: si continua da soli.
+  /// Il player smette di seguire il gruppo: uscita, passaggio all'elemento
+  /// dopo, o il server ci ha tolto dal gruppo (si continua da soli).
   void _detachParty() {
     final driver = _driver;
     _driver = null;
@@ -285,6 +296,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (_leaving) return;
     _leaving = true;
     _handingOver = true;
+    // Driver e autorità si fermano subito, non alla chiusura della pagina:
+    // un `Seek` in sospeso (senza elemento) salterebbe nell'episodio nuovo.
+    _detachParty();
     final view = ref.read(playerControllerProvider(widget.args));
     final engine = _controller.engine;
     final from = nextEpisodeCardFrom(view.segments, engine.duration);

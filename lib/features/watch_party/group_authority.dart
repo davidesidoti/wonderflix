@@ -35,7 +35,12 @@ class GroupAuthority implements PlaybackAuthority {
   Duration? _pendingSeek;
 
   /// Il player si chiude o esce dal gruppo: il salto in sospeso non parte.
-  void dispose() {
+  void dispose() => cancelPendingSeek();
+
+  /// Il salto in sospeso non parte (es. il gruppo passa all'elemento dopo:
+  /// il `Seek` non dice l'elemento e il server lo applicherebbe a quello
+  /// nuovo).
+  void cancelPendingSeek() {
     _seekTimer?.cancel();
     _seekTimer = null;
     _pendingSeek = null;
