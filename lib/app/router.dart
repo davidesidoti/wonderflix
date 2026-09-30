@@ -16,6 +16,7 @@ import '../features/settings/settings_screen.dart';
 import '../features/startup/splash_screen.dart';
 import '../features/startup/unreachable_screen.dart';
 import 'app_shell.dart';
+import 'hero_launch.dart';
 import 'navigation.dart';
 import 'page_transitions.dart';
 
@@ -50,6 +51,10 @@ Page<void> playerPage(GoRouterState state, Widget child) =>
         child: FadeTransition(opacity: animation, child: child),
       ),
     );
+
+/// Dati del volo Hero passati da `openItem`/`openPerson` (`extra`).
+HeroLaunch? _heroLaunch(GoRouterState state) =>
+    state.extra is HeroLaunch ? state.extra as HeroLaunch : null;
 
 final routerProvider = Provider<GoRouter>((ref) {
   final session = ValueNotifier<SessionState>(ref.read(sessionControllerProvider));
@@ -124,6 +129,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                 key: ValueKey(state.uri.toString()),
                 itemId: state.pathParameters['id']!,
                 seasonId: state.uri.queryParameters['season'],
+                launch: _heroLaunch(state),
               ),
             ),
           ),
@@ -135,6 +141,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               PersonScreen(
                 key: ValueKey(state.pathParameters['id']),
                 personId: state.pathParameters['id']!,
+                launch: _heroLaunch(state),
               ),
             ),
           ),

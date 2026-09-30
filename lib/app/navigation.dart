@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/jellyfin/item_models.dart';
+import '../features/library/library_providers.dart';
+import 'hero_launch.dart';
 
 /// Percorso da aprire per [item]: episodi e stagioni aprono la serie.
 String itemRoute(JellyfinItem item) {
@@ -23,11 +28,37 @@ String itemRoute(JellyfinItem item) {
   }
 }
 
-void openItem(BuildContext context, JellyfinItem item) =>
-    context.push(itemRoute(item));
+/// Apre [item]. Con [heroSource] (la card cliccata) la pagina riceve un
+/// [HeroLaunch] e l'immagine vola nella testata.
+void openItem(BuildContext context, JellyfinItem item, {String? heroSource}) {
+  HeroLaunch? launch;
+  if (heroSource != null) {
+    final urls = ProviderScope.containerOf(context, listen: false)
+        .read(imageUrlsProvider);
+    launch = HeroLaunch(
+      tag: WfHeroTag(item.id, heroSource),
+      image: urls.backdrop(item),
+      fallback: urls.poster(item),
+      title: item.name,
+    );
+  }
+  unawaited(context.push(itemRoute(item), extra: launch));
+}
 
-void openPerson(BuildContext context, PersonRef person) =>
-    context.push('/person/${person.id}');
+/// Apre la pagina di [person]; con [heroSource] la foto vola dal cast.
+void openPerson(BuildContext context, PersonRef person, {String? heroSource}) {
+  HeroLaunch? launch;
+  if (heroSource != null) {
+    final urls = ProviderScope.containerOf(context, listen: false)
+        .read(imageUrlsProvider);
+    launch = HeroLaunch(
+      tag: WfHeroTag(person.id, heroSource),
+      image: urls.person(person),
+      title: person.name,
+    );
+  }
+  unawaited(context.push('/person/${person.id}', extra: launch));
+}
 
 /// Percorso del player; [start] è la posizione di partenza, [fullscreen]
 /// dice che la finestra è già a schermo intero (passaggio all'episodio

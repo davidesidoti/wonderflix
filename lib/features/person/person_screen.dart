@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../app/hero_launch.dart';
 import '../../app/navigation.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
@@ -30,9 +31,12 @@ final filmographyProvider =
 });
 
 class PersonScreen extends ConsumerWidget {
-  const PersonScreen({super.key, required this.personId});
+  const PersonScreen({super.key, required this.personId, this.launch});
 
   final String personId;
+
+  /// Dati del volo Hero dal volto del cast (`extra` di go_router).
+  final HeroLaunch? launch;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
