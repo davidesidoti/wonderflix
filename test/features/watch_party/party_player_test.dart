@@ -47,8 +47,9 @@ void main() {
 
   /// Home con il player del watch party aperto sopra: l'utente è già nel
   /// gruppo `g1` (Mario e Luigi), che guarda `e4` (`p1`).
-  Future<void> pumpPartyPlayer(WidgetTester tester) async {
+  Future<void> pumpPartyPlayer(WidgetTester tester, {int failOpens = 0}) async {
     engine = FakeVideoEngine()..engineTracks = testEngineTracks;
+    engine.failOpens = failOpens;
     engines = [];
     window = FakePlayerWindow();
     mediaSession = FakeMediaSession();
@@ -461,6 +462,24 @@ void main() {
     await tester.tap(find.byTooltip(l.actionPlay));
     await tester.pump();
     expect(engine.calls, contains('play'));
+    await finish(tester);
+  });
+
+  testWidgets(
+      'video che non si apre: il gruppo non aspetta, "Esci dal watch party"; '
+      'Riprova riuscito torna nel gruppo', (tester) async {
+    // Direct play e ripiego sulla transcodifica non riescono.
+    await pumpPartyPlayer(tester, failOpens: 2);
+    expect(find.text(l.playerErrorTitle), findsOneWidget);
+    expect(api.calls, contains('ignore-wait true'));
+    expect(find.text(l.watchPartyLeave), findsOneWidget);
+    expect(find.text(l.playerBack), findsNothing);
+
+    await tester.tap(find.text(l.retry));
+    await tester.pumpAndSettle();
+    final ignoreFalse = api.calls.indexOf('ignore-wait false');
+    expect(ignoreFalse, greaterThanOrEqualTo(0));
+    expect(api.calls.lastIndexOf('ready'), greaterThan(ignoreFalse));
     await finish(tester);
   });
 }

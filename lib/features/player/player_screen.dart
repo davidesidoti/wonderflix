@@ -477,7 +477,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (status != PlayerStatus.ready) {
         // Errore, "Riprova" o ripiego: i comandi del gruppo aspettano il
         // prossimo caricamento.
-        if (previous == PlayerStatus.ready) _driver?.onUnloaded();
+        if (previous == PlayerStatus.ready || status == PlayerStatus.error) {
+          _driver?.onUnloaded(failed: status == PlayerStatus.error);
+        }
         return;
       }
       final driver = _driver;
@@ -572,6 +574,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     error: view.error,
                     onRetry: () => unawaited(controller.retry()),
                     onBack: _exit,
+                    // Nel gruppo uscire dal player è uscire dal gruppo.
+                    backLabel: _inParty ? l.watchPartyLeave : l.playerBack,
                   )
                 else
                   // I controlli non prendono il focus della tastiera: le
@@ -720,11 +724,13 @@ class _PlayerError extends StatelessWidget {
     required this.error,
     required this.onRetry,
     required this.onBack,
+    required this.backLabel,
   });
 
   final Object? error;
   final VoidCallback onRetry;
   final VoidCallback onBack;
+  final String backLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -751,7 +757,7 @@ class _PlayerError extends StatelessWidget {
                   icon: LucideIcons.rotateCcw,
                   onPressed: onRetry),
               WfButton.secondary(
-                  label: l.playerBack,
+                  label: backLabel,
                   icon: LucideIcons.arrowLeft,
                   onPressed: onBack),
             ],

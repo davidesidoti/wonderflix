@@ -159,4 +159,10 @@ void main() {
     expect(adapter.requests.single.path, '/SyncPlay/NextItem');
     expect(body(), {'PlaylistItemId': 'p1'});
   });
+
+  test('setIgnoreWait', () async {
+    await api.setIgnoreWait(true);
+    expect(adapter.requests.single.path, '/SyncPlay/SetIgnoreWait');
+    expect(body(), {'IgnoreWait': true});
+  });
 }

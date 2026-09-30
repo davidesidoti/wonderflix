@@ -99,6 +99,9 @@ class GroupPlaybackDriver {
   bool _readyPending = false;
   bool _disposed = false;
 
+  /// Abbiamo chiesto al gruppo di non aspettarci (video non aperto).
+  bool _ignoringWait = false;
+
   /// Volte in cui l'ultimo comando è stato riapplicato (§4.5, doppioni).
   int _reapplied = 0;
 
@@ -122,6 +125,11 @@ class GroupPlaybackDriver {
       await _clock.firstSample.timeout(clockWait, onTimeout: () {});
       if (_disposed) return;
     }
+    if (_ignoringWait) {
+      _ignoringWait = false;
+      await _send('ritorno nell\'attesa', () => _api.setIgnoreWait(false));
+      if (_disposed) return;
+    }
     await _sendReady();
     final pending = _pending;
     _pending = null;
@@ -129,9 +137,15 @@ class GroupPlaybackDriver {
   }
 
   /// Il file non è più pronto (errore, "Riprova", ripiego sulla
-  /// transcodifica): fino al prossimo [onLoaded] i comandi aspettano.
-  void onUnloaded() {
+  /// transcodifica): fino al prossimo [onLoaded] i comandi aspettano. Con
+  /// [failed] (il video non si apre) il gruppo smette di aspettarci
+  /// (spec B §6.3).
+  void onUnloaded({bool failed = false}) {
     _loaded = false;
+    if (!failed || _ignoringWait || _disposed) return;
+    _ignoringWait = true;
+    _log.info('video non aperto: il gruppo non ci aspetta');
+    unawaited(_send('esclusione dall\'attesa', () => _api.setIgnoreWait(true)));
   }
 
   /// Rientrati nel gruppo dopo una caduta del WebSocket: il server aspetta

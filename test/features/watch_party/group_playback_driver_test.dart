@@ -739,4 +739,29 @@ void main() {
       tearDownDriver(async);
     });
   });
+
+  test('video non aperto: il gruppo non ci aspetta, finché non si riapre', () {
+    fakeAsync((async) {
+      setUpDriver(async);
+      driver.onUnloaded(failed: true);
+      driver.onUnloaded(failed: true);
+      async.flushMicrotasks();
+      expect(api.calls, ['ignore-wait true']);
+
+      unawaited(driver.onLoaded());
+      async.flushMicrotasks();
+      expect(api.calls, ['ignore-wait true', 'ignore-wait false', 'ready']);
+      tearDownDriver(async);
+    });
+  });
+
+  test('file non più pronto senza errore: il gruppo aspetta come prima', () {
+    fakeAsync((async) {
+      setUpDriver(async);
+      driver.onUnloaded();
+      async.flushMicrotasks();
+      expect(api.calls, isEmpty);
+      tearDownDriver(async);
+    });
+  });
 }

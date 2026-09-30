@@ -113,6 +113,11 @@ class SyncPlayApi {
   Future<void> ping(Duration ping) =>
       _post('/SyncPlay/Ping', {'Ping': ping.inMilliseconds});
 
+  /// Con `true` il gruppo non aspetta più i nostri `Ready` e `Buffering`
+  /// (es. il video non si apre); con `false` torna ad aspettarli.
+  Future<void> setIgnoreWait(bool ignore) =>
+      _post('/SyncPlay/SetIgnoreWait', {'IgnoreWait': ignore});
+
   Future<UtcTime> utcTime() async {
     final json = asJsonMap(await _http.get('/GetUtcTime'));
     final received = DateTime.tryParse(

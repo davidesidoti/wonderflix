@@ -103,6 +103,9 @@ class FakeSyncPlayApi implements SyncPlayApi {
   Future<void> ping(Duration ping) async => pings.add(ping);
 
   @override
+  Future<void> setIgnoreWait(bool ignore) => _record('ignore-wait $ignore');
+
+  @override
   Future<UtcTime> utcTime() async {
     final now = clock.now().toUtc().add(serverOffset);
     return UtcTime(requestReceived: now, responseSent: now);
