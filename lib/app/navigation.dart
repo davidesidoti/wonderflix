@@ -31,12 +31,13 @@ void openPerson(BuildContext context, PersonRef person) =>
 
 /// Percorso del player; [start] è la posizione di partenza, [fullscreen]
 /// dice che la finestra è già a schermo intero (passaggio all'episodio
-/// successivo).
+/// successivo), [party] è l'id dell'elemento nella coda del watch party.
 String playerRoute(String itemId,
-    {Duration start = Duration.zero, bool fullscreen = false}) {
+    {Duration start = Duration.zero, bool fullscreen = false, String? party}) {
   final query = {
     if (start > Duration.zero) 'start': '${start.inMilliseconds}',
     if (fullscreen) 'fs': '1',
+    'party': ?party,
   };
   return Uri(
     path: '/play/$itemId',

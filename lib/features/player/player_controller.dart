@@ -10,6 +10,7 @@ import '../../core/jellyfin/playback_models.dart';
 import '../../core/video/video_engine.dart';
 import '../library/library_providers.dart';
 import '../library/user_data.dart';
+import 'playback_authority.dart';
 import 'playback_service.dart';
 import 'player_providers.dart';
 import 'player_settings.dart';
@@ -19,8 +20,9 @@ import 'track_mapping.dart';
 
 final _log = Logger('player');
 
-/// Elemento da riprodurre e posizione di partenza (chiave del provider).
-typedef PlayerArgs = ({String itemId, Duration start});
+/// Elemento da riprodurre, posizione di partenza e, nel watch party, id
+/// dell'elemento nella coda del gruppo (chiave del provider).
+typedef PlayerArgs = ({String itemId, Duration start, String? party});
 
 enum PlayerStatus { loading, ready, error }
 
@@ -170,6 +172,16 @@ class PlayerController extends Notifier<PlayerViewState> {
   /// Inizio dei segmenti già saltati in automatico.
   final _autoSkipped = <Duration>{};
 
+  /// Pausa, ripresa e salti chiesti dall'utente.
+  late PlaybackAuthority _authority = _LocalAuthority(this);
+
+  /// Il player fa parte di un watch party: parte e si ferma con il gruppo.
+  bool get inParty => args.party != null;
+
+  /// `null` = di nuovo il player stesso.
+  void setAuthority(PlaybackAuthority? authority) =>
+      _authority = authority ?? _LocalAuthority(this);
+
   VideoEngine get engine => _engine;
 
   bool get _ready => _view.status == PlayerStatus.ready && _closing == null;
@@ -266,9 +278,12 @@ class PlayerController extends Notifier<PlayerViewState> {
       }
       final pendingSubtitle = await _applyTracks(plan);
       if (stale()) return;
-      // Il file è aperto in pausa: parte solo con le tracce già scelte.
-      await _engine.play();
-      if (stale()) return;
+      // Il file è aperto in pausa: parte solo con le tracce già scelte. Nel
+      // watch party parte con il comando del gruppo.
+      if (!inParty) {
+        await _engine.play();
+        if (stale()) return;
+      }
       _emit(_view.copyWith(
         status: PlayerStatus.ready,
         plan: plan,
@@ -427,20 +442,20 @@ class PlayerController extends Notifier<PlayerViewState> {
 
   Future<void> togglePlay() async {
     if (!_ready) return;
-    await (_engine.playing ? _engine.pause() : _engine.play());
+    await (_engine.playing ? _authority.pause() : _authority.play());
   }
 
   /// Riprende la riproduzione; se è già in corso non cambia nulla (tasti
   /// del pannello media, che possono arrivare su uno stato non aggiornato).
   Future<void> play() async {
     if (!_ready) return;
-    await _engine.play();
+    await _authority.play();
   }
 
   /// Mette in pausa; se lo è già non cambia nulla.
   Future<void> pause() async {
     if (!_ready) return;
-    await _engine.pause();
+    await _authority.pause();
   }
 
   /// Salta a [position], entro i limiti del video.
@@ -449,8 +464,7 @@ class PlayerController extends Notifier<PlayerViewState> {
     final duration = _engine.duration;
     var target = position < Duration.zero ? Duration.zero : position;
     if (duration > Duration.zero && target > duration) target = duration;
-    await _engine.seek(target);
-    _reporter?.onEvent();
+    await _authority.seekTo(target);
   }
 
   Future<void> seekBy(Duration offset) => seekTo(_engine.position + offset);
@@ -535,7 +549,7 @@ class PlayerController extends Notifier<PlayerViewState> {
   /// Salto automatico di intro e riassunti (se attivo nelle impostazioni):
   /// una volta per segmento, così tornando indietro lo si può rivedere.
   void _onPosition(Duration position) {
-    if (!_settings.autoSkipIntro || !_ready) return;
+    if (!_settings.autoSkipIntro || inParty || !_ready) return;
     final target = skipTargetAt(_view.segments, position);
     if (target == null || !_autoSkipped.add(target.segment.start)) return;
     unawaited(seekTo(target.end));
@@ -651,3 +665,22 @@ class PlayerController extends Notifier<PlayerViewState> {
 final playerControllerProvider = NotifierProvider.autoDispose
     .family<PlayerController, PlayerViewState, PlayerArgs>(
         PlayerController.new);
+
+/// Il player esegue da sé pausa, ripresa e salti.
+class _LocalAuthority implements PlaybackAuthority {
+  _LocalAuthority(this._controller);
+
+  final PlayerController _controller;
+
+  @override
+  Future<void> play() => _controller._engine.play();
+
+  @override
+  Future<void> pause() => _controller._engine.pause();
+
+  @override
+  Future<void> seekTo(Duration position) async {
+    await _controller._engine.seek(position);
+    _controller._reporter?.onEvent();
+  }
+}

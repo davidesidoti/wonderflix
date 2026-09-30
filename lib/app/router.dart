@@ -74,6 +74,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             args: (
               itemId: state.pathParameters['id']!,
               start: playerStartFrom(state.uri),
+              party: state.uri.queryParameters['party'],
             ),
             fullscreen: state.uri.queryParameters['fs'] == '1',
           ),

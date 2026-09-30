@@ -38,4 +38,12 @@ void main() {
         playerRoute('e5', start: const Duration(seconds: 1), fullscreen: true),
         '/play/e5?start=1000&fs=1');
   });
+
+  test('playerRoute nel watch party', () {
+    expect(playerRoute('m1', party: 'p1'), '/play/m1?party=p1');
+    expect(
+        playerRoute('m1',
+            start: const Duration(seconds: 1), fullscreen: true, party: 'p1'),
+        '/play/m1?start=1000&fs=1&party=p1');
+  });
 }

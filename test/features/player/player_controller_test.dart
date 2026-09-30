@@ -9,6 +9,7 @@ import 'package:wonderflix/core/video/video_engine.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/library/user_data.dart';
+import 'package:wonderflix/features/player/playback_authority.dart';
 import 'package:wonderflix/features/player/playback_service.dart';
 import 'package:wonderflix/features/player/player_controller.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
@@ -25,7 +26,7 @@ void main() {
   late FakeVideoEngine engine;
   late ProviderContainer container;
   var settings = const PlayerSettings();
-  const args = (itemId: 'm1', start: Duration(minutes: 3));
+  const args = (itemId: 'm1', start: Duration(minutes: 3), party: null);
   final provider = playerControllerProvider(args);
 
   setUp(() {
@@ -504,4 +505,77 @@ void main() {
     await pumpEventQueue();
     expect(engine.seeks, isEmpty);
   });
+
+  group('watch party', () {
+    const partyArgs =
+        (itemId: 'm1', start: Duration(minutes: 3), party: 'p1');
+    final partyProvider = playerControllerProvider(partyArgs);
+
+    Future<PlayerController> startParty() async {
+      container.listen(partyProvider, (_, _) {});
+      await pumpEventQueue();
+      return container.read(partyProvider.notifier);
+    }
+
+    test('il file si apre in pausa e non parte da solo', () async {
+      final controller = await startParty();
+      expect(controller.inParty, isTrue);
+      expect(container.read(partyProvider).status, PlayerStatus.ready);
+      expect(engine.opened.single.start, const Duration(minutes: 3));
+      expect(engine.calls, isNot(contains('play')));
+      expect(container.read(partyProvider).playing, isFalse);
+    });
+
+    test('pausa, ripresa e salti passano per l\'autorità', () async {
+      final controller = await startParty();
+      final authority = RecordingAuthority();
+      controller.setAuthority(authority);
+      await controller.togglePlay();
+      await controller.seekTo(const Duration(hours: 5));
+      await controller.seekBy(const Duration(seconds: -10));
+      await controller.pause();
+      await controller.play();
+      expect(authority.calls, [
+        'play',
+        'seek ${const Duration(hours: 2)}',
+        'seek ${const Duration(minutes: 2, seconds: 50)}',
+        'pause',
+        'play',
+      ]);
+      expect(engine.seeks, isEmpty);
+
+      // Senza autorità si torna al motore.
+      controller.setAuthority(null);
+      await controller.seekTo(const Duration(minutes: 1));
+      expect(engine.seeks, [const Duration(minutes: 1)]);
+    });
+
+    test('niente salto automatico dell\'intro', () async {
+      settings = const PlayerSettings(autoSkipIntro: true);
+      playback.segments = const [
+        MediaSegment(
+            type: MediaSegmentType.intro,
+            start: Duration(seconds: 10),
+            end: Duration(seconds: 90)),
+      ];
+      await startParty();
+      engine.emitPosition(const Duration(seconds: 20));
+      await pumpEventQueue();
+      expect(engine.seeks, isEmpty);
+    });
+  });
+}
+
+/// Autorità che registra le richieste invece di muovere il motore.
+class RecordingAuthority implements PlaybackAuthority {
+  final calls = <String>[];
+
+  @override
+  Future<void> play() async => calls.add('play');
+
+  @override
+  Future<void> pause() async => calls.add('pause');
+
+  @override
+  Future<void> seekTo(Duration position) async => calls.add('seek $position');
 }
