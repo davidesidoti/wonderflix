@@ -101,10 +101,14 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
                         onSelect: (id) =>
                             setState(() => _selectedSeasonId = id),
                       ),
+                      // Alla prima apertura gli episodi entrano con la
+                      // scheda (elemento 5): scaglionati solo cambiando
+                      // stagione (spec C §9.3).
                       _EpisodeList(
                           seriesId: series.id,
                           seasonId: seasonId,
-                          highlightId: next?.id),
+                          highlightId: next?.id,
+                          animate: _selectedSeasonId != null),
                     ],
                   );
                 },
@@ -203,11 +207,15 @@ class _EpisodeList extends ConsumerWidget {
     required this.seriesId,
     required this.seasonId,
     required this.highlightId,
+    required this.animate,
   });
 
   final String seriesId;
   final String seasonId;
   final String? highlightId;
+
+  /// Entrata scaglionata degli episodi (solo dopo un cambio di stagione).
+  final bool animate;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -237,6 +245,7 @@ class _EpisodeList extends ConsumerWidget {
               'data',
               StaggerGroup(
                 key: ValueKey('episodes-$seasonId'),
+                play: animate,
                 count: math.min(episodes.length, _episodeEntranceCount),
                 child: Column(children: [
                   for (final (i, episode) in episodes.indexed)

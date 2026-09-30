@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/detail/item_detail_screen.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/ui/staggered_entrance.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
@@ -46,14 +48,16 @@ void main() {
       ..nextUpItems = [ep('e4', 'se1', 1, 4, position: 13940000000, pct: 50)];
   });
 
-  Future<void> pumpSeries(WidgetTester tester, {String? seasonId}) async {
+  Future<void> pumpSeries(WidgetTester tester,
+      {String? seasonId, MotionLevel motion = MotionLevel.reduced}) async {
     await pumpApp(
         tester, Scaffold(body: ItemDetailScreen(itemId: 's1', seasonId: seasonId)),
         overrides: [
           libraryApiProvider.overrideWithValue(api),
           sessionControllerProvider.overrideWith(
               () => FakeSessionController(const SessionSignedIn(testUser))),
-        ]);
+        ],
+        motion: motion);
     for (var i = 0; i < 4; i++) {
       await tester.pump();
     }
@@ -90,6 +94,25 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.getRect(indicator).left,
         closeTo(tester.getRect(find.text('Stagione 2')).left - 8, 1));
+  });
+
+  testWidgets('gli episodi entrano scaglionati solo cambiando stagione',
+      (tester) async {
+    await pumpSeries(tester, motion: MotionLevel.full);
+    // Onda degli scheletri continua: niente pumpAndSettle.
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    StaggerGroup episodes(String seasonId) => tester.widget<StaggerGroup>(
+        find.byKey(ValueKey('episodes-$seasonId')));
+    // Alla prima apertura entrano con la scheda (elemento 5), non di nuovo.
+    expect(episodes('se1').play, isFalse);
+
+    await tester.tap(find.text('Stagione 2'));
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(episodes('se2').play, isTrue);
   });
 
   testWidgets('stagione iniziale da parametro', (tester) async {
