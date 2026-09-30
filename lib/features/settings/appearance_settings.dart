@@ -17,7 +17,9 @@ MotionLevel resolveMotionLevel(MotionSetting setting,
         systemAnimations ? MotionLevel.full : MotionLevel.reduced,
     };
 
-class MotionSettingController extends Notifier<MotionSetting> {
+/// Impostazioni "Aspetto" (spec C §4.3): per ora la sola voce
+/// "Animazioni".
+class AppearanceSettingsController extends Notifier<MotionSetting> {
   static const _key = 'appearance.motion';
 
   @override
@@ -33,8 +35,8 @@ class MotionSettingController extends Notifier<MotionSetting> {
 }
 
 final motionSettingProvider =
-    NotifierProvider<MotionSettingController, MotionSetting>(
-        MotionSettingController.new);
+    NotifierProvider<AppearanceSettingsController, MotionSetting>(
+        AppearanceSettingsController.new);
 
 /// Sostituito nei test.
 final animationPreferenceProvider =
