@@ -38,6 +38,27 @@ const previewBodyHeight = 124.0;
 /// Distanza minima dai bordi della finestra.
 const previewMargin = 16.0;
 
+/// Scala di partenza dell'apertura: cresce fino a 1 dal centro della card
+/// (spec C §7.2).
+const previewStartScale = 0.6;
+
+/// Raggio degli angoli, profondità dell'ombra e opacità del contorno oro.
+const previewRadius = 8.0;
+const previewElevation = 12.0;
+const previewBorderGoldAlpha = 0.5;
+
+/// Altezza massima del logo in basso a sinistra sull'immagine.
+const previewLogoHeight = 44.0;
+
+/// Margine orizzontale del contenuto (logo e corpo) dai bordi, e distanza
+/// del logo (o del titolo) dal fondo dell'immagine.
+const previewContentInset = 12.0;
+const previewLogoBottom = 8.0;
+
+/// Spazio intorno al corpo sotto l'immagine (pulsanti, dati, avanzamento).
+const previewBodyPadding =
+    EdgeInsets.fromLTRB(previewContentInset, 8, previewContentInset, 10);
+
 /// Rettangolo dell'anteprima di una card: centrata sulla card, larga
 /// [previewWidthFactor] volte (almeno [previewMinWidth]), dentro l'overlay
 /// con [previewMargin] di margine.
@@ -127,7 +148,7 @@ class CardPreview extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     const shape = RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(8)));
+        borderRadius: BorderRadius.all(Radius.circular(previewRadius)));
 
     // Fondo, ombra e contorno sfumano con [body]: l'anteprima sta
     // nell'overlay principale, sopra la pagina, e il volo verso la scheda
@@ -139,7 +160,7 @@ class CardPreview extends ConsumerWidget {
           opacity: body,
           child: const Material(
             color: WfColors.surface,
-            elevation: 12,
+            elevation: previewElevation,
             shadowColor: WfColors.bg,
             shape: shape,
           ),
@@ -156,7 +177,9 @@ class CardPreview extends ConsumerWidget {
             child: DecoratedBox(
               decoration: ShapeDecoration(
                 shape: shape.copyWith(
-                  side: BorderSide(color: WfColors.gold.withValues(alpha: 0.5)),
+                  side: BorderSide(
+                      color: WfColors.gold
+                          .withValues(alpha: previewBorderGoldAlpha)),
                 ),
               ),
             ),
@@ -211,14 +234,14 @@ class CardPreview extends ConsumerWidget {
                     ),
                   ),
                   Positioned(
-                    left: 12,
-                    right: 12,
-                    bottom: 8,
+                    left: previewContentInset,
+                    right: previewContentInset,
+                    bottom: previewLogoBottom,
                     child: FadeTransition(
                       opacity: body,
                       child: logo != null
                           ? SizedBox(
-                              height: 44,
+                              height: previewLogoHeight,
                               child: Align(
                                 alignment: Alignment.bottomLeft,
                                 child: WfImage(image: logo, fit: BoxFit.contain),
@@ -239,7 +262,7 @@ class CardPreview extends ConsumerWidget {
           child: FadeTransition(
             opacity: body,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+              padding: previewBodyPadding,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

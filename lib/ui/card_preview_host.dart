@@ -341,7 +341,9 @@ class _CardPreviewHostState extends ConsumerState<CardPreviewHost>
                         final t = _open.value;
                         final scale = motion.isReduced
                             ? 1.0
-                            : 0.6 + 0.4 * WfMotion.bounce.transform(t);
+                            : previewStartScale +
+                                (1 - previewStartScale) *
+                                    WfMotion.bounce.transform(t);
                         return Opacity(
                           opacity: WfMotion.standard.transform(t).clamp(0.0, 1.0),
                           child: Transform.scale(scale: scale, child: child),
