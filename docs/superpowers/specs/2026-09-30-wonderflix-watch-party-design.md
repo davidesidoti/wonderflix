@@ -195,7 +195,7 @@ Il nome del gruppo contiene il titolo perché `/SyncPlay/List` **non dice cosa s
 
 **Dai dettagli, stando già in un gruppo:** niente `New`. Si manda solo `SetNewQueue` con la coda calcolata come sopra, e il gruppo passa al nuovo titolo. Tutti vedono l'avviso "Si guarda: <titolo>". Il pulsante resta "Guarda insieme".
 
-**Dal player (solo, già in visione):** stessa sequenza. La coda parte dall'elemento aperto, alla posizione attuale. Il player **non si riapre**: si aggancia al gruppo, va in pausa e aspetta l'`Unpause` del server.
+**Dal player (solo, già in visione):** stessa sequenza. La coda parte dall'elemento aperto, alla posizione attuale. Il player **si riapre sullo stesso punto** in modalità gruppo, come nel passaggio all'episodio successivo (schermo intero e pannello media restano). Agganciarlo al volo, senza riaprirlo, richiederebbe un controller "trasformabile" con molti casi delicati (decisione del Piano 5c).
 
 ### 5.3 Entrare
 
@@ -215,7 +215,7 @@ Se si entra in un gruppo mentre si guarda altro da soli, il player attuale viene
 
 ### 5.5 Rientro automatico
 
-Quando `ServerEventsClient` si riconnette (`ServerConnected` dopo una caduta), se eravamo in un gruppo si rimanda `Join` sullo stesso `groupId`. Il server riconosce la sessione e la ripristina. Se arriva `GroupDoesNotExist`, si esce con l'avviso "Il watch party è terminato".
+Quando `ServerEventsClient` si riconnette (`ServerConnected` dopo una caduta), se eravamo in un gruppo si rimanda `Join` sullo stesso `groupId`, a ogni riconnessione e senza limiti di tempo. Il server riconosce la sessione e la ripristina (o la rimette nel gruppo), rimanda gruppo e coda, e il player rimanda `Ready`. Se nel frattempo il gruppo è passato a un altro elemento, la coda porta lì. Se arriva `GroupDoesNotExist`, si esce con l'avviso "Il watch party è terminato" e il player continua da solo.
 
 ### 5.6 Uscire
 
@@ -244,6 +244,7 @@ Quando l'azione è mia, l'avviso compare **subito**, in seconda persona ("Hai sa
 
 - `GET /SyncPlay/List` ogni **30 s**, e subito alla navigazione tra le schermate principali. Solo con la sessione attiva e senza essere in un gruppo.
 - Il risultato alimenta il pulsante della barra in alto e il suo pannello.
+- Gli inviti compaiono solo dentro l'app (niente notifiche di Windows, decisione del Piano 5c).
 - Un gruppo che non c'era alla lettura precedente, e che non è mio, fa comparire l'**avviso d'invito**, ma solo se il player non è aperto (`playerActiveProvider`). Al primo avvio dell'app i gruppi già esistenti non producono inviti: compaiono solo nell'elenco.
 - Gli errori di rete si registrano nel log, senza messaggi all'utente.
 
