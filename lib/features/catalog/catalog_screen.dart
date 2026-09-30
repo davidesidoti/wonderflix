@@ -9,6 +9,7 @@ import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/item_query.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/poster_card.dart';
+import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
 import 'catalog_controller.dart';
 import 'catalog_filters_bar.dart';
@@ -23,7 +24,7 @@ class CatalogScreen extends ConsumerStatefulWidget {
 }
 
 class _CatalogScreenState extends ConsumerState<CatalogScreen> {
-  final _scroll = ScrollController();
+  final _scroll = SmoothScrollController();
 
   /// Numero di elementi al momento dell'ultimo caricamento automatico: evita
   /// un ciclo infinito se il server risponde con pagine vuote.

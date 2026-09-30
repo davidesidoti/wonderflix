@@ -8,6 +8,7 @@ import 'package:wonderflix/ui/landscape_card.dart';
 import 'package:wonderflix/ui/card_play_button.dart';
 import 'package:wonderflix/ui/media_row.dart';
 import 'package:wonderflix/ui/poster_card.dart';
+import 'package:wonderflix/ui/smooth_scroll.dart';
 import 'package:wonderflix/ui/wf_buttons.dart';
 import 'package:wonderflix/ui/wf_image.dart';
 
@@ -82,6 +83,8 @@ void main() {
         itemBuilder: (context, i) => SizedBox(width: 100, child: Text('i$i')),
       ),
     );
+    final list = tester.widget<ListView>(find.byType(ListView));
+    expect(list.controller, isA<SmoothScrollController>());
     expect(find.text('Continua a guardare'), findsOneWidget);
     expect(find.byKey(const Key('row-next')), findsOneWidget);
     await tester.tap(find.byKey(const Key('row-next')));

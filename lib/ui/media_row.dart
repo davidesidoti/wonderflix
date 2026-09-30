@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../app/theme.dart';
+import 'smooth_scroll.dart';
 
 /// Riga orizzontale con titolo e frecce (per chi usa il mouse).
 class MediaRow extends StatefulWidget {
@@ -23,7 +24,7 @@ class MediaRow extends StatefulWidget {
 }
 
 class _MediaRowState extends State<MediaRow> {
-  final _controller = ScrollController();
+  final _controller = SmoothScrollController();
 
   @override
   void dispose() {

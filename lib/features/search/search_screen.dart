@@ -7,20 +7,35 @@ import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/poster_card.dart';
+import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_image.dart';
 import '../library/library_providers.dart';
 import 'search_controller.dart';
 
-class SearchScreen extends ConsumerWidget {
+class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SearchScreen> createState() => _SearchScreenState();
+}
+
+class _SearchScreenState extends ConsumerState<SearchScreen> {
+  final _scroll = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final state = ref.watch(searchControllerProvider);
     final controller = ref.read(searchControllerProvider.notifier);
     return ListView(
+      controller: _scroll,
       padding: const EdgeInsets.all(32),
       children: [
         TextField(
@@ -33,13 +48,12 @@ class SearchScreen extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 24),
-        _results(context, ref, l, state),
+        _results(context, l, state),
       ],
     );
   }
 
-  Widget _results(
-      BuildContext context, WidgetRef ref, AppLocalizations l, SearchState state) {
+  Widget _results(BuildContext context, AppLocalizations l, SearchState state) {
     const muted = TextStyle(color: WfColors.creamMuted);
     if (state.term.length < SearchController.minLength) {
       return Text(l.searchPrompt, style: muted);
@@ -60,7 +74,7 @@ class SearchScreen extends ConsumerWidget {
       children: [
         if (results.movies.isNotEmpty) _posterSection(context, l.navMovies, results.movies),
         if (results.series.isNotEmpty) _posterSection(context, l.navSeries, results.series),
-        if (results.people.isNotEmpty) _peopleSection(context, ref, l, results.people),
+        if (results.people.isNotEmpty) _peopleSection(context, l, results.people),
       ],
     );
   }
@@ -85,8 +99,8 @@ class SearchScreen extends ConsumerWidget {
         ),
       );
 
-  Widget _peopleSection(BuildContext context, WidgetRef ref, AppLocalizations l,
-      List<JellyfinItem> people) {
+  Widget _peopleSection(
+      BuildContext context, AppLocalizations l, List<JellyfinItem> people) {
     final urls = ref.watch(imageUrlsProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

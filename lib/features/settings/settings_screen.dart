@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/smooth_scroll.dart';
 import '../../ui/wf_buttons.dart';
 import '../auth/session_controller.dart';
 import 'appearance_settings_section.dart';
@@ -16,11 +17,24 @@ import 'locale_controller.dart';
 import 'player_settings_section.dart';
 import 'support_section.dart';
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  final _scroll = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final locale = ref.watch(localeProvider);
     final session = ref.watch(sessionControllerProvider);
@@ -35,6 +49,7 @@ class SettingsScreen extends ConsumerWidget {
     // smontate, e quella delle lingue (provider autoDispose) ricaricata
     // dal server a ogni passaggio.
     return SingleChildScrollView(
+      controller: _scroll,
       padding: const EdgeInsets.all(32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

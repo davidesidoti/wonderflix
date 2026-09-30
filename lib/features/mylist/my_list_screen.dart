@@ -7,6 +7,7 @@ import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/item_query.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/poster_card.dart';
+import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
 import '../library/library_providers.dart';
 import '../library/user_data.dart';
@@ -26,11 +27,24 @@ final favoritesProvider = FutureProvider.autoDispose<List<JellyfinItem>>((ref) a
   return page.items;
 });
 
-class MyListScreen extends ConsumerWidget {
+class MyListScreen extends ConsumerStatefulWidget {
   const MyListScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MyListScreen> createState() => _MyListScreenState();
+}
+
+class _MyListScreenState extends ConsumerState<MyListScreen> {
+  final _scroll = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final overrides = ref.watch(userDataOverridesProvider);
     return ref.watch(favoritesProvider).when(
@@ -43,6 +57,7 @@ class MyListScreen extends ConsumerWidget {
                 .where((i) => (overrides[i.id] ?? i.userData).isFavorite)
                 .toList();
             return CustomScrollView(
+              controller: _scroll,
               slivers: [
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(32, 32, 32, 20),

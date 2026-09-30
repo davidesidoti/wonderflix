@@ -10,16 +10,30 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/landscape_card.dart';
 import '../../ui/media_row.dart';
 import '../../ui/poster_card.dart';
+import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
 import '../playback/play_launcher.dart';
 import 'hero_carousel.dart';
 import 'home_data.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  final _scroll = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final home = ref.watch(homeProvider);
     return home.when(
@@ -34,24 +48,25 @@ class HomeScreen extends ConsumerWidget {
           );
         }
         return ListView(
+          controller: _scroll,
           padding: const EdgeInsets.only(bottom: 40),
           children: [
             if (data.featured.isNotEmpty) HeroCarousel(items: data.featured),
             if (data.resume.isNotEmpty)
-              _landscapeRow(ref, l.homeContinueWatching, data.resume),
-            if (data.nextUp.isNotEmpty) _landscapeRow(ref, l.homeNextUp, data.nextUp),
+              _landscapeRow(l.homeContinueWatching, data.resume),
+            if (data.nextUp.isNotEmpty) _landscapeRow(l.homeNextUp, data.nextUp),
             if (data.latestMovies.isNotEmpty)
-              _posterRow(ref, l.homeLatestMovies, data.latestMovies),
+              _posterRow(l.homeLatestMovies, data.latestMovies),
             if (data.latestSeries.isNotEmpty)
-              _posterRow(ref, l.homeLatestSeries, data.latestSeries),
-            if (data.favorites.isNotEmpty) _posterRow(ref, l.navMyList, data.favorites),
+              _posterRow(l.homeLatestSeries, data.latestSeries),
+            if (data.favorites.isNotEmpty) _posterRow(l.navMyList, data.favorites),
           ],
         );
       },
     );
   }
 
-  Widget _posterRow(WidgetRef ref, String title, List<JellyfinItem> items) => MediaRow(
+  Widget _posterRow(String title, List<JellyfinItem> items) => MediaRow(
         title: title,
         height: 300,
         itemCount: items.length,
@@ -63,7 +78,7 @@ class HomeScreen extends ConsumerWidget {
         ),
       );
 
-  Widget _landscapeRow(WidgetRef ref, String title, List<JellyfinItem> items) => MediaRow(
+  Widget _landscapeRow(String title, List<JellyfinItem> items) => MediaRow(
         title: title,
         height: 230,
         itemCount: items.length,
@@ -82,7 +97,7 @@ class _HomeSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.fromLTRB(32, 96, 32, 32),
       children: [
         const SkeletonBox(height: 380),
         const SizedBox(height: 32),
