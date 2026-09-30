@@ -133,12 +133,16 @@ class _BarBackground extends StatelessWidget {
             AnimatedOpacity(
               opacity: scrolled ? 0 : 1,
               duration: fade,
-              child: const DecoratedBox(
+              curve: WfMotion.standard,
+              child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Color(0xB30A0A0A), Color(0x000A0A0A)],
+                    colors: [
+                      WfColors.bg.withValues(alpha: 0.7),
+                      WfColors.bg.withValues(alpha: 0),
+                    ],
                   ),
                 ),
               ),
@@ -147,10 +151,11 @@ class _BarBackground extends StatelessWidget {
               key: const Key('shell-bar-backdrop'),
               opacity: scrolled ? 1 : 0,
               duration: fade,
+              curve: WfMotion.standard,
               child: ClipRect(
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                  child: const ColoredBox(color: Color(0xBF0A0A0A)),
+                  child: ColoredBox(color: WfColors.bg.withValues(alpha: 0.75)),
                 ),
               ),
             ),

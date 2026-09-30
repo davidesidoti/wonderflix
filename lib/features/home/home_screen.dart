@@ -104,7 +104,7 @@ class _HomeSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(32, 96, 32, 32),
+      padding: const EdgeInsets.fromLTRB(32, shellBarHeight + 32, 32, 32),
       children: [
         const SkeletonBox(height: 380),
         const SizedBox(height: 32),
