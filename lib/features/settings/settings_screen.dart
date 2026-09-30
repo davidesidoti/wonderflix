@@ -8,6 +8,7 @@ import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/smooth_scroll.dart';
+import '../../ui/staggered_entrance.dart';
 import '../../ui/wf_buttons.dart';
 import '../auth/session_controller.dart';
 import 'appearance_settings_section.dart';
@@ -25,6 +26,9 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  /// Elementi dell'entrata: il titolo e le sette sezioni.
+  static const _sectionCount = 8;
+
   final _scroll = SmoothScrollController();
 
   @override
@@ -45,62 +49,95 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           child: Text(title, style: WfText.display(24)),
         );
 
+    // Una sezione (titolo e contenuto) è un elemento dell'entrata.
+    Widget item(int index, List<Widget> children) => StaggerItem(
+          index: index,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: children,
+          ),
+        );
+
     // Non una ListView: le sezioni uscite dallo schermo verrebbero
     // smontate, e quella delle lingue (provider autoDispose) ricaricata
     // dal server a ogni passaggio.
     return SingleChildScrollView(
       controller: _scroll,
       padding: const EdgeInsets.all(32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(l.menuSettings.toUpperCase(), style: WfText.display(40)),
-          section(l.settingsLanguage),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: SegmentedButton<String>(
-              showSelectedIcon: false,
-              segments: [
-                ButtonSegment(value: 'system', label: Text(l.settingsLanguageSystem)),
-                const ButtonSegment(value: 'it', label: Text('Italiano')),
-                const ButtonSegment(value: 'en', label: Text('English')),
-              ],
-              selected: {locale?.languageCode ?? 'system'},
-              onSelectionChanged: (selection) {
-                final code = selection.first;
-                unawaited(ref
-                    .read(localeProvider.notifier)
-                    .set(code == 'system' ? null : Locale(code)));
-              },
+      child: StaggerGroup(
+        count: _sectionCount,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            StaggerItem(
+              index: 0,
+              child: Text(l.menuSettings.toUpperCase(),
+                  style: WfText.display(40)),
             ),
-          ),
-          section(l.settingsAppearance),
-          const AppearanceSettingsSection(),
-          section(l.settingsPlayer),
-          const PlayerSettingsSection(),
-          section(l.settingsLanguages),
-          const LanguageSettingsSection(),
-          section(l.settingsDiscord),
-          const DiscordSettingsSection(),
-          section(l.settingsAccount),
-          if (session is SessionSignedIn)
-            Text(l.settingsSignedInAs(session.user.name)),
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: WfButton.secondary(
-              label: l.menuLogout,
-              icon: LucideIcons.logOut,
-              onPressed: () =>
-                  unawaited(ref.read(sessionControllerProvider.notifier).logout()),
-            ),
-          ),
-          section(l.settingsSupport),
-          const SupportSection(),
-          const SizedBox(height: 40),
-          Text(l.settingsVersion(version),
-              style: const TextStyle(color: WfColors.creamMuted, fontSize: 12.5)),
-        ],
+            item(1, [
+              section(l.settingsLanguage),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: SegmentedButton<String>(
+                  showSelectedIcon: false,
+                  segments: [
+                    ButtonSegment(
+                        value: 'system', label: Text(l.settingsLanguageSystem)),
+                    const ButtonSegment(value: 'it', label: Text('Italiano')),
+                    const ButtonSegment(value: 'en', label: Text('English')),
+                  ],
+                  selected: {locale?.languageCode ?? 'system'},
+                  onSelectionChanged: (selection) {
+                    final code = selection.first;
+                    unawaited(ref
+                        .read(localeProvider.notifier)
+                        .set(code == 'system' ? null : Locale(code)));
+                  },
+                ),
+              ),
+            ]),
+            item(2, [
+              section(l.settingsAppearance),
+              const AppearanceSettingsSection(),
+            ]),
+            item(3, [
+              section(l.settingsPlayer),
+              const PlayerSettingsSection(),
+            ]),
+            item(4, [
+              section(l.settingsLanguages),
+              const LanguageSettingsSection(),
+            ]),
+            item(5, [
+              section(l.settingsDiscord),
+              const DiscordSettingsSection(),
+            ]),
+            item(6, [
+              section(l.settingsAccount),
+              if (session is SessionSignedIn)
+                Text(l.settingsSignedInAs(session.user.name)),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: WfButton.secondary(
+                  label: l.menuLogout,
+                  icon: LucideIcons.logOut,
+                  onPressed: () => unawaited(
+                      ref.read(sessionControllerProvider.notifier).logout()),
+                ),
+              ),
+            ]),
+            item(7, [
+              section(l.settingsSupport),
+              const SupportSection(),
+              const SizedBox(height: 40),
+              Text(l.settingsVersion(version),
+                  style: const TextStyle(
+                      color: WfColors.creamMuted, fontSize: 12.5)),
+            ]),
+          ],
+        ),
       ),
     );
   }

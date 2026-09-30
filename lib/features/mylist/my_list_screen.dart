@@ -8,6 +8,7 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/poster_card.dart';
 import '../../ui/skeletons.dart';
 import '../../ui/smooth_scroll.dart';
+import '../../ui/staggered_entrance.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_switcher.dart';
 import '../library/library_providers.dart';
@@ -85,21 +86,28 @@ class _MyListScreenState extends ConsumerState<MyListScreen> {
                     ),
                   )
                 else
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
-                    sliver: SliverGrid(
-                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 180,
-              mainAxisSpacing: 24,
-              crossAxisSpacing: 16,
-              childAspectRatio: 0.55,
-            ),
-                      delegate: SliverChildBuilderDelegate(
-                        (context, i) => PosterCard(
-                          item: visible[i],
-                          heroSource: 'mylist.$i',
+                  BatchedEntrance(
+                    itemCount: visible.length,
+                    child: SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
+                      sliver: SliverGrid(
+                        gridDelegate:
+                            const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 180,
+                          mainAxisSpacing: 24,
+                          crossAxisSpacing: 16,
+                          childAspectRatio: 0.55,
                         ),
-                        childCount: visible.length,
+                        delegate: SliverChildBuilderDelegate(
+                          (context, i) => BatchedEntranceItem(
+                            index: i,
+                            child: PosterCard(
+                              item: visible[i],
+                              heroSource: 'mylist.$i',
+                            ),
+                          ),
+                          childCount: visible.length,
+                        ),
                       ),
                     ),
                   ),

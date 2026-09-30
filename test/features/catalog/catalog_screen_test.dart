@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/item_query.dart';
@@ -23,11 +24,13 @@ void main() {
           : pageOf([testItem(id: 'm1', name: 'Dune'), testItem(id: 'm2', name: 'Alien')]);
   });
 
-  Future<void> pumpCatalog(WidgetTester tester) async {
+  Future<void> pumpCatalog(WidgetTester tester,
+      {MotionLevel motion = MotionLevel.reduced}) async {
     // In app la schermata vive dentro lo Scaffold dell'AppShell (serve un
     // antenato Material per DropdownButton/SegmentedButton).
     await pumpApp(
         tester, const Scaffold(body: CatalogScreen(kind: ItemKind.movie)),
+        motion: motion,
         overrides: [
       libraryApiProvider.overrideWithValue(api),
       sessionControllerProvider
@@ -82,5 +85,26 @@ void main() {
     await tester.pump();
     expect(api.itemQueries, hasLength(2));
     expect(find.text('T3'), findsOneWidget);
+  });
+
+  testWidgets('completa: le card della prima pagina entrano scaglionate',
+      (tester) async {
+    api.onItems = (query, start, limit) => pageOf([
+          testItem(id: 'm1', name: 'Dune'),
+          testItem(id: 'm2', name: 'Alien'),
+          testItem(id: 'm3', name: 'Heat'),
+        ]);
+    await pumpCatalog(tester, motion: MotionLevel.full);
+    double opacityOf(String text) => tester
+        .widget<Opacity>(find
+            .ancestor(of: find.text(text), matching: find.byType(Opacity))
+            .first)
+        .opacity;
+    expect(opacityOf('Dune'), lessThan(1));
+    // Niente pumpAndSettle: lo scheletro che sfuma ha l'onda continua.
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
+    expect(opacityOf('Dune'), 1);
+    expect(opacityOf('Heat'), 1);
   });
 }

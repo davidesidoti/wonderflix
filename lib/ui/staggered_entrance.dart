@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import '../app/motion.dart';
@@ -236,8 +238,9 @@ class StaggerItem extends StatelessWidget {
         : WfMotion.emphasized;
     final progress = controller.drive(CurveTween(
         curve: Interval(interval.begin, interval.end, curve: curve)));
-    return AnimatedBuilder(
-      animation: progress,
+    return EntranceTransition(
+      progress: progress,
+      effect: effect,
       child: _StaggerItemScope(
         controller: controller,
         start: start,
@@ -245,23 +248,198 @@ class StaggerItem extends StatelessWidget {
         total: scope.total,
         child: child,
       ),
-      builder: (context, child) {
-        final t = progress.value;
-        final opacity = t.clamp(0.0, 1.0);
-        final Matrix4 matrix = switch (effect) {
-          EntranceEffect.rise => Matrix4.translationValues(0, 20 * (1 - t), 0),
-          EntranceEffect.fly => Matrix4.translationValues(40 * (1 - t), 0, 0)
-            ..scaleByDouble(0.85 + 0.15 * t, 0.85 + 0.15 * t, 1, 1),
-        };
-        return Opacity(
-          opacity: opacity,
-          child: Transform(
-            transform: matrix,
-            alignment: Alignment.center,
-            child: child,
-          ),
-        );
-      },
+    );
+  }
+}
+
+/// Effetto d'entrata guidato da [progress] (0 → 1; oltre 1 con il
+/// rimbalzo): usato dagli elementi degli scaglionamenti e dei blocchi delle
+/// griglie.
+class EntranceTransition extends StatelessWidget {
+  const EntranceTransition({
+    super.key,
+    required this.progress,
+    this.effect = EntranceEffect.rise,
+    required this.child,
+  });
+
+  final Animation<double> progress;
+  final EntranceEffect effect;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: progress,
+        child: child,
+        builder: (context, child) {
+          final t = progress.value;
+          final opacity = t.clamp(0.0, 1.0);
+          final Matrix4 matrix = switch (effect) {
+            EntranceEffect.rise =>
+              Matrix4.translationValues(0, 20 * (1 - t), 0),
+            EntranceEffect.fly => Matrix4.translationValues(40 * (1 - t), 0, 0)
+              ..scaleByDouble(0.85 + 0.15 * t, 0.85 + 0.15 * t, 1, 1),
+          };
+          return Opacity(
+            opacity: opacity,
+            child: Transform(
+              transform: matrix,
+              alignment: Alignment.center,
+              child: child,
+            ),
+          );
+        },
+      );
+}
+
+/// Card di una griglia che entrano per ogni blocco caricato (spec C §11.5).
+const gridEntranceMax = 12;
+
+/// Passo tra una card e l'altra nell'entrata di un blocco.
+const gridEntranceStagger = Duration(milliseconds: 40);
+
+/// Entrata a blocchi per le griglie con caricamento a pagine: quando
+/// [itemCount] cresce entrano solo gli elementi nuovi (al massimo
+/// [gridEntranceMax]); se cala (elementi tolti) nessuna entrata; se
+/// cambia [resetKey] (filtro, ricerca) si riparte dall'inizio. Un
+/// controller per blocco, liberato a entrata finita; nessun timer. Con le
+/// animazioni ridotte nessuna entrata.
+class BatchedEntrance extends StatefulWidget {
+  const BatchedEntrance({
+    super.key,
+    required this.itemCount,
+    required this.child,
+    this.resetKey,
+  });
+
+  final int itemCount;
+  final Object? resetKey;
+  final Widget child;
+
+  @override
+  State<BatchedEntrance> createState() => _BatchedEntranceState();
+}
+
+class _Batch {
+  _Batch(this.start, this.count, this.controller, this.total);
+
+  final int start;
+  final int count;
+  final AnimationController controller;
+  final Duration total;
+
+  bool contains(int index) => index >= start && index < start + count;
+}
+
+class _BatchedEntranceState extends State<BatchedEntrance>
+    with TickerProviderStateMixin {
+  final _batches = <_Batch>[];
+
+  /// Elementi già visti: quelli oltre sono nuovi.
+  int _known = 0;
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    _add(0, widget.itemCount);
+  }
+
+  @override
+  void didUpdateWidget(BatchedEntrance oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.resetKey != widget.resetKey) {
+      _clear();
+      _add(0, widget.itemCount);
+    } else if (widget.itemCount > _known) {
+      _add(_known, widget.itemCount - _known);
+    } else if (widget.itemCount < _known) {
+      _known = widget.itemCount;
+    }
+  }
+
+  void _add(int start, int count) {
+    _known = start + count;
+    if (count <= 0 || WfMotion.of(context).isReduced) return;
+    final n = count < gridEntranceMax ? count : gridEntranceMax;
+    final total = staggerTotal(
+        count: n,
+        delay: Duration.zero,
+        stagger: gridEntranceStagger,
+        item: WfMotion.slow);
+    final controller = AnimationController(vsync: this, duration: total);
+    final batch = _Batch(start, n, controller, total);
+    controller.addStatusListener((status) {
+      if (status != AnimationStatus.completed || !mounted) return;
+      setState(() => _batches.remove(batch));
+      controller.dispose();
+    });
+    _batches.add(batch);
+    unawaited(controller.forward());
+  }
+
+  void _clear() {
+    for (final batch in _batches) {
+      batch.controller.dispose();
+    }
+    _batches.clear();
+    _known = 0;
+  }
+
+  @override
+  void dispose() {
+    _clear();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      _BatchScope(batches: List.unmodifiable(_batches), child: widget.child);
+}
+
+class _BatchScope extends InheritedWidget {
+  const _BatchScope({required this.batches, required super.child});
+
+  final List<_Batch> batches;
+
+  @override
+  bool updateShouldNotify(_BatchScope oldWidget) =>
+      !identical(oldWidget.batches, batches);
+}
+
+/// Elemento [index] di una griglia con [BatchedEntrance].
+class BatchedEntranceItem extends StatelessWidget {
+  const BatchedEntranceItem(
+      {super.key, required this.index, required this.child});
+
+  final int index;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final batches =
+        context.dependOnInheritedWidgetOfExactType<_BatchScope>()?.batches;
+    final batch = batches?.where((b) => b.contains(index)).firstOrNull;
+    // Stessa struttura con o senza entrata: finito il blocco la card non
+    // si ricrea (niente stato perso, immagini e anteprima comprese).
+    if (batch == null) {
+      return EntranceTransition(
+          progress: kAlwaysCompleteAnimation, child: child);
+    }
+    final interval = staggerInterval(
+      index: index - batch.start,
+      delay: Duration.zero,
+      stagger: gridEntranceStagger,
+      item: WfMotion.slow,
+      total: batch.total,
+    );
+    return EntranceTransition(
+      progress: batch.controller.drive(CurveTween(
+          curve: Interval(interval.begin, interval.end,
+              curve: WfMotion.emphasized))),
+      child: child,
     );
   }
 }

@@ -10,6 +10,7 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/poster_card.dart';
 import '../../ui/skeletons.dart';
 import '../../ui/smooth_scroll.dart';
+import '../../ui/staggered_entrance.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_switcher.dart';
 import 'catalog_controller.dart';
@@ -153,44 +154,53 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   Widget _grid(BuildContext context, AppLocalizations l, CatalogState state,
       CatalogController controller) {
     final outgoing = WfSwitcher.isOutgoing(context);
-    return CustomScrollView(
-      controller: outgoing ? null : _scroll,
-      primary: false,
-      slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(32, 0, 32, 24),
-          sliver: SliverGrid(
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 180,
-              mainAxisSpacing: 24,
-              crossAxisSpacing: 16,
-              childAspectRatio: 0.55,
-            ),
-            delegate: SliverChildBuilderDelegate(
-              (context, i) => PosterCard(
-                item: state.items[i],
-                heroSource: 'catalog.${widget.kind.name}.$i',
+    // Entrano solo le card di ogni pagina nuova; cambiando i filtri si
+    // riparte dall'inizio.
+    return BatchedEntrance(
+      itemCount: state.items.length,
+      resetKey: state.query,
+      child: CustomScrollView(
+        controller: outgoing ? null : _scroll,
+        primary: false,
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(32, 0, 32, 24),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 180,
+                mainAxisSpacing: 24,
+                crossAxisSpacing: 16,
+                childAspectRatio: 0.55,
               ),
-              childCount: state.items.length,
+              delegate: SliverChildBuilderDelegate(
+                (context, i) => BatchedEntranceItem(
+                  index: i,
+                  child: PosterCard(
+                    item: state.items[i],
+                    heroSource: 'catalog.${widget.kind.name}.$i',
+                  ),
+                ),
+                childCount: state.items.length,
+              ),
             ),
           ),
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 32),
-            child: state.loading
-                ? const LoadingView()
-                : state.error != null
-                    ? Center(
-                        child: TextButton(
-                          onPressed: () => unawaited(controller.retry()),
-                          child: Text(l.retry),
-                        ),
-                      )
-                    : const SizedBox.shrink(),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 32),
+              child: state.loading
+                  ? const LoadingView()
+                  : state.error != null
+                      ? Center(
+                          child: TextButton(
+                            onPressed: () => unawaited(controller.retry()),
+                            child: Text(l.retry),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

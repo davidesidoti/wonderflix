@@ -10,6 +10,7 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/poster_card.dart';
 import '../../ui/skeletons.dart';
 import '../../ui/smooth_scroll.dart';
+import '../../ui/staggered_entrance.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_image.dart';
 import '../detail/detail_providers.dart';
@@ -141,21 +142,28 @@ class _PersonScreenState extends ConsumerState<PersonScreen> {
               ),
             ],
             data: (items) => [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
-                sliver: SliverGrid(
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 180,
-                    mainAxisSpacing: 24,
-                    crossAxisSpacing: 16,
-                    childAspectRatio: 0.55,
-                  ),
-                  delegate: SliverChildBuilderDelegate(
-                    (context, i) => PosterCard(
-                      item: items[i],
-                      heroSource: 'person.$i',
+              BatchedEntrance(
+                itemCount: items.length,
+                child: SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
+                  sliver: SliverGrid(
+                    gridDelegate:
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 180,
+                      mainAxisSpacing: 24,
+                      crossAxisSpacing: 16,
+                      childAspectRatio: 0.55,
                     ),
-                    childCount: items.length,
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) => BatchedEntranceItem(
+                        index: i,
+                        child: PosterCard(
+                          item: items[i],
+                          heroSource: 'person.$i',
+                        ),
+                      ),
+                      childCount: items.length,
+                    ),
                   ),
                 ),
               ),

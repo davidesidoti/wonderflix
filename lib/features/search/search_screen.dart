@@ -9,6 +9,7 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/poster_card.dart';
 import '../../ui/skeletons.dart';
 import '../../ui/smooth_scroll.dart';
+import '../../ui/staggered_entrance.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_image.dart';
 import '../../ui/wf_switcher.dart';
@@ -83,15 +84,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (results.movies.isNotEmpty)
-          _posterSection(l.navMovies, results.movies, 'search.movies'),
+          _posterSection(
+              l.navMovies, results.movies, 'search.movies', results),
         if (results.series.isNotEmpty)
-          _posterSection(l.navSeries, results.series, 'search.series'),
+          _posterSection(
+              l.navSeries, results.series, 'search.series', results),
         if (results.people.isNotEmpty) _peopleSection(context, l, results.people),
       ],
     );
   }
 
-  Widget _posterSection(String title, List<JellyfinItem> items, String source) =>
+  /// Sezione di locandine; le card entrano di nuovo a ogni ricerca
+  /// completata ([results]), non a ogni lettera (mentre si scrive restano
+  /// i risultati di prima).
+  Widget _posterSection(String title, List<JellyfinItem> items, String source,
+          SearchResults results) =>
       Padding(
         padding: const EdgeInsets.only(bottom: 32),
         child: Column(
@@ -99,13 +106,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           children: [
             Text(title, style: WfText.display(26)),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 16,
-              runSpacing: 24,
-              children: [
-                for (final (i, item) in items.indexed)
-                  PosterCard(item: item, width: 150, heroSource: '$source.$i'),
-              ],
+            BatchedEntrance(
+              itemCount: items.length,
+              resetKey: results,
+              child: Wrap(
+                spacing: 16,
+                runSpacing: 24,
+                children: [
+                  for (final (i, item) in items.indexed)
+                    BatchedEntranceItem(
+                      index: i,
+                      child: PosterCard(
+                          item: item, width: 150, heroSource: '$source.$i'),
+                    ),
+                ],
+              ),
             ),
           ],
         ),
