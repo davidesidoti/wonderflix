@@ -8,6 +8,7 @@ import '../../core/jellyfin/api_exception.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/server_events.dart';
 import '../../core/syncplay/server_clock.dart';
+import '../../core/syncplay/start_lag.dart';
 import '../../core/syncplay/syncplay_api.dart';
 import '../../core/syncplay/syncplay_models.dart';
 import '../auth/session_controller.dart';
@@ -84,6 +85,7 @@ class WatchPartySession extends Notifier<WatchPartyState> {
   late StreamController<SyncPlayCommand> _commands;
   late StreamController<GroupUpdate> _updates;
   ServerClock? _clock;
+  StartLag? _startLag;
   SyncPlayCommand? _lastCommand;
   Completer<void>? _joining;
   DateTime? _joinedAt;
@@ -97,6 +99,7 @@ class WatchPartySession extends Notifier<WatchPartyState> {
     final commands = _commands = StreamController<SyncPlayCommand>.broadcast();
     final updates = _updates = StreamController<GroupUpdate>.broadcast();
     _clock = null;
+    _startLag = null;
     _lastCommand = null;
     _joining = null;
     _joinedAt = null;
@@ -116,6 +119,11 @@ class WatchPartySession extends Notifier<WatchPartyState> {
 
   /// Orologio del server; `null` fuori da un gruppo.
   ServerClock? get serverClock => _clock;
+
+  /// Ritardo con cui il player riparte dopo una ripresa programmata, per
+  /// tutto il watch party (ogni episodio ha un player nuovo); `null` fuori
+  /// da un gruppo.
+  StartLag? get startLag => _startLag;
 
   /// Comandi del gruppo, già filtrati (solo il nostro gruppo, nessuno più
   /// vecchio dell'ingresso).
@@ -244,6 +252,7 @@ class WatchPartySession extends Notifier<WatchPartyState> {
 
   void _reset() {
     _stopClock();
+    _startLag = null;
     _lastCommand = null;
     _joinedAt = null;
     if (ref.mounted) state = const WatchPartyState();
@@ -324,6 +333,7 @@ class WatchPartySession extends Notifier<WatchPartyState> {
           groupState: info.state,
         );
         _startClock();
+        _startLag = StartLag();
         final joining = _joining;
         if (joining != null && !joining.isCompleted) joining.complete();
         _log.info('nel watch party (${info.participants.length} membri)');

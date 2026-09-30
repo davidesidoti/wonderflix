@@ -372,6 +372,39 @@ void main() {
     await container.read(sessionControllerProvider.notifier).logout();
     await pumpEventQueue();
     expect(state().phase, WatchPartyPhase.none);
+    expect(session().startLag, isNull);
+  });
+
+  test('ritardo alla ripartenza: uno per tutto il watch party', () async {
+    mount();
+    serverAccepts();
+    expect(session().startLag, isNull);
+    await session().join('g1');
+    final startLag = session().startLag;
+    expect(startLag, isNotNull);
+    startLag!.record(const Duration(milliseconds: 400));
+
+    // Episodio nuovo: la stima resta.
+    emit(PlayQueueUpdate('g1', testSeriesQueue()));
+    emit(PlayQueueUpdate(
+        'g1',
+        testSeriesQueue(
+            playingIndex: 1,
+            reason: 'NextItem',
+            lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+    await pumpEventQueue();
+    expect(session().startLag, same(startLag));
+    expect(session().startLag!.value, const Duration(milliseconds: 200));
+
+    await session().leave();
+    expect(session().startLag, isNull);
+    await session().join('g1');
+    expect(session().startLag, isNot(same(startLag)));
+    expect(session().startLag!.value, Duration.zero);
+
+    emit(const GroupLeft('g1'));
+    await pumpEventQueue();
+    expect(session().startLag, isNull);
   });
 
   test('create con la coda di una serie', () async {

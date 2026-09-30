@@ -4,6 +4,7 @@ import 'package:clock/clock.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/syncplay/server_clock.dart';
+import 'package:wonderflix/core/syncplay/start_lag.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/core/video/video_engine.dart';
 import 'package:wonderflix/features/watch_party/group_playback_driver.dart';
@@ -24,7 +25,7 @@ void main() {
   /// Tutto dentro la zona finta: file aperto a 10:00, orologio pronto
   /// (scarto zero). Con [load] il file è già caricato e il `Ready` iniziale
   /// è già partito (le chiamate vengono azzerate).
-  void setUpDriver(FakeAsync async, {bool load = true}) {
+  void setUpDriver(FakeAsync async, {bool load = true, StartLag? startLag}) {
     engine = FakeVideoEngine();
     unawaited(engine
         .open(const VideoSource(url: 'x', start: Duration(minutes: 10))));
@@ -43,6 +44,7 @@ void main() {
       playlistItemId: 'p1',
       commands: commands.stream,
       onResync: () => resyncs++,
+      startLag: startLag,
     )..start();
     async.flushMicrotasks();
     if (load) {
@@ -653,6 +655,30 @@ void main() {
                 at: const Duration(milliseconds: 500)));
         expect(engine.seeks,
             [const Duration(minutes: 20, milliseconds: 200)]);
+        tearDownDriver(async);
+      });
+    });
+
+    test('la stima passa al driver dell\'episodio dopo', () {
+      fakeAsync((async) {
+        final startLag = StartLag();
+        setUpDriver(async, startLag: startLag);
+        final first = command(SyncPlayCommandType.unpause,
+            at: const Duration(milliseconds: 500));
+        send(async, first);
+        runLaggedStart(async, const Duration(seconds: 3),
+            from: first, startLag: const Duration(milliseconds: 400));
+        expect(startLag.value, const Duration(milliseconds: 200));
+        tearDownDriver(async);
+
+        // Nuovo player (episodio dopo), stesso watch party.
+        setUpDriver(async, startLag: startLag);
+        send(
+            async,
+            command(SyncPlayCommandType.unpause,
+                at: const Duration(milliseconds: 500)));
+        expect(engine.seeks,
+            [const Duration(minutes: 10, milliseconds: 200)]);
         tearDownDriver(async);
       });
     });

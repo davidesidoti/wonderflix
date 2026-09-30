@@ -26,11 +26,13 @@ class GroupPlaybackDriver {
     required Stream<SyncPlayCommand> commands,
     SyncPlayCommand? lastCommand,
     void Function()? onResync,
+    StartLag? startLag,
   })  : _engine = engine,
         _api = api,
         _clock = clock,
         _commandStream = commands,
         _onResync = onResync,
+        _startLag = startLag ?? StartLag(),
         _pending = lastCommand;
 
   /// Sotto questo scarto, a video fermo, non si salta.
@@ -70,8 +72,9 @@ class GroupPlaybackDriver {
 
   final _corrector = DriftCorrector();
 
-  /// Ritardo con cui mpv riparte dopo una ripresa programmata.
-  final _startLag = StartLag();
+  /// Ritardo con cui mpv riparte dopo una ripresa programmata. È della
+  /// sessione del watch party: la stima resta passando all'episodio dopo.
+  final StartLag _startLag;
 
   /// La ripresa in corso è partita da fermo all'istante previsto: a fine
   /// periodo iniziale se ne misura il ritardo.
