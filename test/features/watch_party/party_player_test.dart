@@ -31,7 +31,10 @@ import '../../support/watch_party_fakes.dart';
 
 void main() {
   final l = lookupAppLocalizations(const Locale('it'));
+  /// Motore del primo player; ogni player dopo (episodio nuovo) ne ha uno.
   late FakeVideoEngine engine;
+  late List<FakeVideoEngine> engines;
+  late FakePlayerWindow window;
   late FakeSyncPlayApi api;
   late StreamController<ServerEvent> events;
   late FakeLibraryApi library;
@@ -44,6 +47,8 @@ void main() {
   /// gruppo `g1` (Mario e Luigi), che guarda `e4` (`p1`).
   Future<void> pumpPartyPlayer(WidgetTester tester) async {
     engine = FakeVideoEngine()..engineTracks = testEngineTracks;
+    engines = [];
+    window = FakePlayerWindow();
     api = FakeSyncPlayApi();
     events = StreamController<ServerEvent>.broadcast();
     addTearDown(events.close);
@@ -56,6 +61,15 @@ void main() {
         seriesName: 'Breaking Bad',
         seriesId: 's1',
         index: 4,
+        seasonIndex: 1,
+      )
+      ..itemsById['e5'] = testItem(
+        id: 'e5',
+        name: 'Cat\'s in the Bag',
+        kind: ItemKind.episode,
+        seriesName: 'Breaking Bad',
+        seriesId: 's1',
+        index: 5,
         seasonIndex: 1,
       )
       ..nextEpisodes['e4'] = testItem(
@@ -86,8 +100,14 @@ void main() {
           serverUrl: testServerUrl,
           authorization: () => 'MediaBrowser Token="t1"',
         )),
-        videoEngineFactoryProvider.overrideWithValue(() => engine),
-        playerWindowProvider.overrideWithValue(FakePlayerWindow()),
+        videoEngineFactoryProvider.overrideWithValue(() {
+          final created = engines.isEmpty
+              ? engine
+              : (FakeVideoEngine()..engineTracks = testEngineTracks);
+          engines.add(created);
+          return created;
+        }),
+        playerWindowProvider.overrideWithValue(window),
         mediaSessionProvider.overrideWithValue(FakeMediaSession()),
         playerSettingsProvider
             .overrideWith(() => FakePlayerSettings(const PlayerSettings())),
@@ -225,6 +245,94 @@ void main() {
     await tester.tap(find.byTooltip(l.actionPlay));
     await tester.pump();
     expect(engine.calls, contains('play'));
+    await finish(tester);
+  });
+
+  /// Il gruppo guarda la serie: e4 (p1), poi e5 (p2) ed e6 (p3).
+  Future<void> queueSeries(WidgetTester tester) async {
+    emit(PlayQueueUpdate('g1', testSeriesQueue()));
+    await tester.pump();
+    await tester.pump();
+  }
+
+  testWidgets('prossimo episodio: il pulsante lo chiede al gruppo',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    await queueSeries(tester);
+    await tester.tap(find.byTooltip(l.playerNextEpisode));
+    await tester.pump();
+    expect(api.calls, contains('next p1'));
+    await finish(tester);
+  });
+
+  testWidgets('fine del video: episodio successivo per tutti', (tester) async {
+    await pumpPartyPlayer(tester);
+    await queueSeries(tester);
+    engine.emitCompleted();
+    await tester.pump();
+    await tester.pump();
+    expect(api.calls, contains('next p1'));
+    expect(find.byType(PlayerScreen), findsOneWidget,
+        reason: 'nel gruppo il player non esce da solo');
+    await finish(tester);
+  });
+
+  testWidgets('titoli di coda: scheda senza conto alla rovescia',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    await queueSeries(tester);
+    // Senza segmenti la scheda compare negli ultimi 30 s (durata: 2 h).
+    engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text(l.playerNextEpisodeTitle.toUpperCase()), findsOneWidget);
+    expect(find.textContaining('Inizia tra'), findsNothing);
+    await tester.tap(find.text(l.playerPlayNow));
+    await tester.pump();
+    expect(api.calls, contains('next p1'));
+    await finish(tester);
+  });
+
+  testWidgets(
+      'il gruppo passa all\'episodio dopo: nuovo player a schermo intero, '
+      'episodio lasciato sui titoli segnato come visto', (tester) async {
+    await pumpPartyPlayer(tester);
+    await queueSeries(tester);
+    await tester.tap(find.byTooltip(l.playerFullscreen));
+    await tester.pump();
+    expect(window.fullScreenCalls, [true]);
+    engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
+    await tester.pump();
+
+    emit(PlayQueueUpdate(
+        'g1',
+        testSeriesQueue(
+            playingIndex: 1,
+            reason: 'NextItem',
+            lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+    await tester.pumpAndSettle();
+    // Con push e pushReplacement la pagina attuale è in `router.state`.
+    expect(router.state.uri.toString(), '/play/e5?fs=1&party=p2');
+    expect(window.fullScreenCalls, [true],
+        reason: 'passando all\'episodio dopo lo schermo intero resta');
+    expect(library.playedCalls, contains(('e4', true)));
+    expect(engines, hasLength(2));
+    await finish(tester);
+  });
+
+  testWidgets('avvisi: pillola nel player, e le mie azioni in seconda persona',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    emit(const GroupStateUpdate('g1', GroupState.paused, 'Pause'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text(l.watchPartyNoticePaused), findsOneWidget);
+    await tester.pump(const Duration(seconds: 3));
+    expect(find.text(l.watchPartyNoticePaused), findsNothing);
+
+    await tester.tap(find.byTooltip(l.actionPlay));
+    await tester.pump();
+    expect(find.text(l.watchPartyNoticeResumedByYou), findsOneWidget);
     await finish(tester);
   });
 }

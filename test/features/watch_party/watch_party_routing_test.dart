@@ -71,4 +71,12 @@ void main() {
     await pumpEventQueue();
     expect(navigator.opened, isEmpty);
   });
+
+  test('un player del gruppo già aperto: lo cambia lui, non il routing',
+      () async {
+    navigator.location = Uri.parse('/play/e4?party=p1');
+    await joinAndQueue(testSeriesQueue(playingIndex: 1));
+    expect(navigator.opened, isEmpty);
+    expect(navigator.replaced, isEmpty);
+  });
 }

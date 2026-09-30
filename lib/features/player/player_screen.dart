@@ -23,6 +23,8 @@ import '../library/user_data.dart';
 import '../watch_party/group_authority.dart';
 import '../watch_party/group_playback_driver.dart';
 import '../watch_party/party_badge.dart';
+import '../watch_party/party_notice_pill.dart';
+import '../watch_party/party_notices.dart';
 import '../watch_party/party_waiting_overlay.dart';
 import '../watch_party/watch_party_session.dart';
 import 'player_commands.dart';
@@ -188,9 +190,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// già nei titoli di coda (da dove compare la scheda "Prossimo
   /// episodio"), lo si segna come visto: altrimenti resterebbe "in corso".
   void _playNext({bool finished = false}) {
+    // Nel gruppo l'episodio lo cambia il gruppo: il player passa a quello
+    // nuovo quando arriva la coda (vedi [_handOverTo]).
+    if (_inParty) {
+      if (!_leaving) {
+        unawaited(ref.read(watchPartySessionProvider.notifier).nextItem());
+      }
+      return;
+    }
     final view = ref.read(playerControllerProvider(widget.args));
     final next = view.nextEpisode;
-    if (next == null || _leaving || _inParty) return;
+    if (next == null || _leaving) return;
     _leaving = true;
     _handingOver = true;
     final engine = _controller.engine;
@@ -208,8 +218,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   /// Fine del video: episodio successivo se previsto, altrimenti uscita.
   void _onFinished() {
-    // Nel watch party la fine la decide il gruppo: si resta sul video.
-    if (_inParty) return;
+    // Nel gruppo si passa all'elemento dopo della coda (il server scarta le
+    // richieste doppie degli altri). A fine coda si resta sul video.
+    if (_inParty) {
+      unawaited(ref.read(watchPartySessionProvider.notifier).nextItem());
+      return;
+    }
     final view = ref.read(playerControllerProvider(widget.args));
     final autoplay = ref.read(playerSettingsProvider).autoplayNext;
     if (view.nextEpisode != null && autoplay && !_nextCardDismissed) {
@@ -236,6 +250,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final session = ref.read(watchPartySessionProvider.notifier);
     final serverClock = session.serverClock;
     if (!current.inGroup || serverClock == null) return;
+    final notices = ref.read(partyNoticesProvider.notifier);
     _driver = GroupPlaybackDriver(
       engine: controller.engine,
       api: session.api,
@@ -243,9 +258,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       playlistItemId: party,
       commands: session.commands,
       lastCommand: session.lastCommand,
+      onResync: () =>
+          notices.show(const PartyNotice(PartyNoticeKind.resync)),
     )..start();
-    final authority =
-        GroupAuthority(api: session.api, engine: controller.engine);
+    final authority = GroupAuthority(
+        api: session.api, engine: controller.engine, onAction: notices.mine);
     _authority = authority;
     controller.setAuthority(authority);
   }
@@ -258,6 +275,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _authority?.dispose();
     _authority = null;
     _controller.setAuthority(null);
+  }
+
+  /// Il gruppo è passato a un altro elemento della coda (episodio
+  /// successivo, nuovo titolo): questo player lascia il posto a quello
+  /// nuovo, con lo schermo intero com'è. L'episodio lasciato finito o sui
+  /// titoli di coda si segna come visto.
+  void _handOverTo(PlayQueueEntry entry) {
+    if (_leaving) return;
+    _leaving = true;
+    _handingOver = true;
+    final view = ref.read(playerControllerProvider(widget.args));
+    final engine = _controller.engine;
+    final from = nextEpisodeCardFrom(view.segments, engine.duration);
+    final watched = view.finished || (from != null && engine.position >= from);
+    unawaited(_controller.close(watched: watched));
+    ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
+    context.pushReplacement(playerRoute(
+      entry.itemId,
+      start: ref.read(watchPartySessionProvider.notifier).estimatedPosition(),
+      fullscreen: _fullscreen,
+      party: entry.playlistItemId,
+    ));
   }
 
   void _sendTimeline() {
@@ -413,6 +452,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           (_, inGroup) {
         if (!inGroup && _driver != null) _detachParty();
       });
+      ref.listen(
+          watchPartySessionProvider.select((s) =>
+              s.inGroup ? s.queue?.playing?.playlistItemId : null),
+          (_, playlistItemId) {
+        if (playlistItemId == null || playlistItemId == widget.args.party) {
+          return;
+        }
+        final entry = ref.read(watchPartySessionProvider).queue?.playing;
+        if (entry != null) _handOverTo(entry);
+      });
     }
 
     final loading = view.status == PlayerStatus.loading ||
@@ -495,8 +544,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           onToggleTracks: _toggleTracks,
                           onToggleFullscreen: () =>
                               unawaited(_toggleFullscreen()),
-                          onNextEpisode:
-                              next == null || _inParty ? null : _playNext,
+                          onNextEpisode: _inParty
+                              ? (party != null && party.hasNext
+                                  ? _playNext
+                                  : null)
+                              : (next == null ? null : _playNext),
                           chapters: view.item?.chapters ?? const [],
                           preview: _previewFor(view),
                           partyBadge: party != null && party.inGroup
@@ -530,7 +582,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ),
                     ),
                   ),
-                  if (next != null && !_nextCardDismissed && !_inParty)
+                  if (next != null &&
+                      !_nextCardDismissed &&
+                      (!_inParty || (party?.hasNext ?? false)))
                     Positioned(
                       right: 32,
                       bottom: 150,
@@ -545,7 +599,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           builder: (context, show) => show
                               ? NextEpisodeCard(
                                   episode: next,
-                                  countdown: settings.autoplayNext,
+                                  // Nel gruppo nessun conto alla rovescia:
+                                  // si va avanti con il pulsante o a fine
+                                  // video (Piano 5b).
+                                  countdown: !_inParty && settings.autoplayNext,
                                   paused: !view.playing || view.buffering,
                                   onPlay: _playNext,
                                   onCancel: () =>
@@ -556,6 +613,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ),
                     ),
                 ],
+                if (party != null && party.inGroup)
+                  const Positioned(
+                    top: 96,
+                    left: 0,
+                    right: 0,
+                    child: IgnorePointer(
+                      child: Center(child: PartyNoticePill()),
+                    ),
+                  ),
                 if (_tracksOpen && view.plan != null)
                   Positioned(
                     right: 24,
