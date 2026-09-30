@@ -146,36 +146,40 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
       onExit: (_) => _hover(false),
       child: SizedBox(
         height: HeroCarousel.height,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (previous != null && previous < widget.items.length)
+        // Il Ken Burns ingrandisce lo sfondo oltre i bordi: senza ritaglio
+        // sborderebbe sotto il carosello, sopra la prima riga.
+        child: ClipRect(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (previous != null && previous < widget.items.length)
+                KeyedSubtree(
+                  key: ValueKey('slide-${widget.items[previous].id}'),
+                  child: FadeTransition(
+                    opacity: kAlwaysCompleteAnimation,
+                    child: _HeroSlide(
+                      item: widget.items[previous],
+                      kenBurns: motion.isReduced
+                          ? null
+                          : AlwaysStoppedAnimation(_previousProgress),
+                      entrance: null,
+                    ),
+                  ),
+                ),
               KeyedSubtree(
-                key: ValueKey('slide-${widget.items[previous].id}'),
+                key: ValueKey('slide-${current.id}'),
                 child: FadeTransition(
-                  opacity: kAlwaysCompleteAnimation,
+                  opacity: _fade.drive(CurveTween(curve: WfMotion.standard)),
                   child: _HeroSlide(
-                    item: widget.items[previous],
-                    kenBurns: motion.isReduced
-                        ? null
-                        : AlwaysStoppedAnimation(_previousProgress),
-                    entrance: null,
+                    item: current,
+                    kenBurns: motion.isReduced ? null : _progress,
+                    entrance: motion.isReduced ? null : _fade,
                   ),
                 ),
               ),
-            KeyedSubtree(
-              key: ValueKey('slide-${current.id}'),
-              child: FadeTransition(
-                opacity: _fade.drive(CurveTween(curve: WfMotion.standard)),
-                child: _HeroSlide(
-                  item: current,
-                  kenBurns: motion.isReduced ? null : _progress,
-                  entrance: motion.isReduced ? null : _fade,
-                ),
-              ),
-            ),
-            Positioned(right: 32, bottom: 20, child: _dots(motion)),
-          ],
+              Positioned(right: 32, bottom: 20, child: _dots(motion)),
+            ],
+          ),
         ),
       ),
     );

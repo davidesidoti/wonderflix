@@ -137,4 +137,21 @@ void main() {
     await tester.pump(HeroCarousel.interval ~/ 2);
     expect(kenBurns().getMaxScaleOnAxis(), greaterThan(start));
   });
+
+  testWidgets('completa: lo sfondo ingrandito non esce dal carosello',
+      (tester) async {
+    await pumpHero(tester, autoplay: true, motion: MotionLevel.full);
+    await tester.pump(HeroCarousel.interval ~/ 2);
+    // La scala allunga lo sfondo oltre i 460 px: un ritaglio dentro il
+    // carosello lo tiene nei suoi bordi.
+    expect(
+      find.descendant(
+        of: find.byType(HeroCarousel),
+        matching: find.ancestor(
+            of: find.byKey(const Key('hero-ken-burns')).first,
+            matching: find.byType(ClipRect)),
+      ),
+      findsWidgets,
+    );
+  });
 }
