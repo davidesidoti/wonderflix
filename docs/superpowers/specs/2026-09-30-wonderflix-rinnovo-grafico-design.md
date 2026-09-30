@@ -175,7 +175,7 @@ Resta com'è: dissolvenza su nero di 150 ms (`playerPage`). Chiudendo l'anteprim
 - **Passaggio del mouse:** subito il bordo oro (come oggi). Dopo **500 ms** di sosta sulla stessa card (`previewHoverDelay`, un `Timer` cancellato all'uscita del mouse e in `dispose`) si apre l'anteprima.
 - **Una sola aperta alla volta**, gestita da un `CardPreviewController` (provider). Passando direttamente da un'anteprima aperta a un'altra card, o entro `previewChainWindow` (400 ms) dalla chiusura dell'ultima, la nuova si apre **subito**, senza aspettare i 500 ms.
 - **Overlay:** l'anteprima si disegna nell'overlay **principale** (`OverlayChildLocation.rootOverlay`), quindi sta sopra anche la barra in alto.
-- **Si chiude:** il mouse esce dall'anteprima, rotella, scroll, Esc, finestra non attiva (`AppLifecycleState` diverso da `resumed`), pagina della card non più in cima (push o `go`), apertura di un'altra anteprima. Chiusura in `fast`; con rotella, scroll, finestra non attiva e cambio di pagina è immediata.
+- **Si chiude:** il mouse esce dall'anteprima, rotella, scroll (della riga e anche della pagina che la contiene, comunque avvenga: tastiera, barra di scorrimento, codice), Esc, finestra non attiva (`AppLifecycleState` diverso da `resumed`), pagina della card non più in cima (push o `go`), apertura di un'altra anteprima. Chiusura in `fast`; con rotella, scroll, finestra non attiva e cambio di pagina è immediata.
 - **Dopo Esc, rotella, scroll o finestra non attiva** l'anteprima **non si riapre** sotto il mouse fermo: serve uscire dalla card e rientrare (il primo movimento del mouse fuori dalla card riarma la sosta).
 - **Solo con il mouse** (`PointerDeviceKind.mouse`): con tocco o tastiera il clic apre direttamente la scheda.
 
@@ -186,7 +186,7 @@ Resta com'è: dissolvenza su nero di 150 ms (`playerPage`). Chiudendo l'anteprim
 - Resta dentro la finestra con un margine di 16 px: vicino a un bordo si sposta verso l'interno. Il calcolo della posizione è una funzione pura, testata a parte.
 - Apertura: scala da 0,6 a 1 dal centro della card con la curva `bounce` e dissolvenza, in `medium`. Ombra profonda e contorno oro sottile (oro al 50%).
 - `RepaintBoundary` attorno all'anteprima.
-- **Uscita verso la scheda (Dettagli):** il riquadro, il bordo oro, l'ombra e il corpo (pulsanti, dati, titolo) spariscono in dissolvenza di `fast` e resta solo l'immagine, che vola. Durante l'uscita l'anteprima non riceve clic (la pagina nuova sta sotto). Si chiude a transizione della pagina finita (`secondaryAnimation` della rotta della card completata) o se la pagina della card torna in cima.
+- **Uscita verso la scheda (Dettagli):** il riquadro, il bordo oro, l'ombra e il corpo (pulsanti, dati, titolo) spariscono in dissolvenza di `fast` e resta solo l'immagine, che vola. Durante l'uscita l'anteprima non riceve clic (la pagina nuova sta sotto). Si chiude a transizione della pagina finita (`secondaryAnimation` della rotta della card completata) o se la pagina della card torna in cima. Per il resto dell'app l'anteprima è già chiusa appena parte l'uscita: Esc durante la transizione torna indietro come sempre.
 
 ### 7.3 Contenuto
 
