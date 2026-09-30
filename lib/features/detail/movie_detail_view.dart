@@ -9,14 +9,18 @@ import 'primary_action.dart';
 
 /// Scheda di un film (usata anche per un episodio aperto direttamente).
 class MovieDetailView extends ConsumerWidget {
-  const MovieDetailView({super.key, required this.item});
+  const MovieDetailView({super.key, required this.item, this.controller});
 
   final JellyfinItem item;
+
+  /// Scroll della pagina (lo segue anche lo sfondo della scheda).
+  final ScrollController? controller;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final userData = watchUserData(ref, item);
     return ListView(
+      controller: controller,
       padding: const EdgeInsets.only(bottom: 40),
       children: [
         DetailHeader(item: item, primary: primaryActionFor(item, userData)),

@@ -8,7 +8,6 @@ import '../../app/error_text.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
-import '../../ui/backdrop_image.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_image.dart';
 import '../library/item_labels.dart';
@@ -19,7 +18,11 @@ import '../watch_party/watch_party_actions.dart';
 import '../watch_party/watch_party_providers.dart';
 import 'primary_action.dart';
 
-/// Parte alta di una scheda: sfondo, logo o titolo, dati, trama, azioni.
+/// Altezza della testata della scheda (sfondo, logo, dati, azioni).
+const detailHeaderHeight = 560.0;
+
+/// Parte alta di una scheda: logo o titolo, dati, trama, azioni. Lo sfondo
+/// è un livello a parte dietro alla pagina (`DetailBackdrop`).
 class DetailHeader extends ConsumerWidget {
   const DetailHeader({super.key, required this.item, required this.primary});
 
@@ -52,11 +55,10 @@ class DetailHeader extends ConsumerWidget {
         item.localTrailerCount > 0 || remoteTrailerUri(item) != null;
 
     return SizedBox(
-      height: 560,
+      height: detailHeaderHeight,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          BackdropImage(backdrop: urls.backdrop(item), fallback: urls.poster(item)),
           const DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(

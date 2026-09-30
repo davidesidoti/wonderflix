@@ -53,7 +53,9 @@ void openPerson(BuildContext context, PersonRef person, {String? heroSource}) {
         .read(imageUrlsProvider);
     launch = HeroLaunch(
       tag: WfHeroTag(person.id, heroSource),
-      image: urls.person(person),
+      // 400 px come `urls.poster` nella pagina della persona: stesso URL,
+      // la foto non cambia all'arrivo dei dati.
+      image: urls.person(person, maxWidth: 400),
       title: person.name,
     );
   }

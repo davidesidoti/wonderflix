@@ -19,10 +19,14 @@ import 'detail_rows.dart';
 import 'primary_action.dart';
 
 class SeriesDetailView extends ConsumerStatefulWidget {
-  const SeriesDetailView({super.key, required this.series, this.initialSeasonId});
+  const SeriesDetailView(
+      {super.key, required this.series, this.initialSeasonId, this.controller});
 
   final JellyfinItem series;
   final String? initialSeasonId;
+
+  /// Scroll della pagina (lo segue anche lo sfondo della scheda).
+  final ScrollController? controller;
 
   @override
   ConsumerState<SeriesDetailView> createState() => _SeriesDetailViewState();
@@ -48,6 +52,7 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
     final seasons = ref.watch(seasonsProvider(series.id));
 
     return ListView(
+      controller: widget.controller,
       padding: const EdgeInsets.only(bottom: 40),
       children: [
         DetailHeader(item: series, primary: primary),

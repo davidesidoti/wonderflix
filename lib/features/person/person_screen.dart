@@ -8,6 +8,7 @@ import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/item_query.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/poster_card.dart';
+import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_image.dart';
 import '../detail/detail_providers.dart';
@@ -29,7 +30,7 @@ final filmographyProvider =
   return page.items;
 });
 
-class PersonScreen extends ConsumerWidget {
+class PersonScreen extends ConsumerStatefulWidget {
   const PersonScreen({super.key, required this.personId, this.launch});
 
   final String personId;
@@ -38,94 +39,125 @@ class PersonScreen extends ConsumerWidget {
   final HeroLaunch? launch;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PersonScreen> createState() => _PersonScreenState();
+}
+
+class _PersonScreenState extends ConsumerState<PersonScreen> {
+  final _scroll = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    return ref.watch(itemProvider(personId)).when(
-          loading: () => const LoadingView(),
-          error: (error, _) => ErrorView(
-              error: error, onRetry: () => ref.invalidate(itemProvider(personId))),
-          data: (person) {
-            final films = ref.watch(filmographyProvider(personId));
-            final bio = person.overview;
-            return CustomScrollView(
-              slivers: [
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(32, 32, 32, 0),
-                  sliver: SliverToBoxAdapter(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: SizedBox(
-                            width: 200,
-                            height: 300,
-                            child: WfImage(
-                              image: ref.watch(imageUrlsProvider).poster(person),
-                              fallbackIcon: LucideIcons.user,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 32),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(person.name.toUpperCase(),
-                                  style: WfText.display(48)),
-                              if (bio != null) ...[
-                                const SizedBox(height: 12),
-                                Text(bio,
-                                    maxLines: 10,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(height: 1.5)),
-                              ],
-                            ],
-                          ),
-                        ),
+    final async = ref.watch(itemProvider(widget.personId));
+    final person = async.value;
+    final launch = widget.launch;
+    if (person == null && (launch == null || async.hasError)) {
+      return async.hasError
+          ? ErrorView(
+              error: async.error!,
+              onRetry: () => ref.invalidate(itemProvider(widget.personId)))
+          : const LoadingView();
+    }
+    // La testata (foto, nome, biografia) sta sempre nella stessa posizione
+    // dell'albero: con un volo in arrivo la foto (Hero) c'è già mentre la
+    // persona carica.
+    final photo = person != null
+        ? ref.watch(imageUrlsProvider).poster(person)
+        : launch!.image;
+    final name = person?.name ?? launch?.title ?? '';
+    final bio = person?.overview;
+    final films =
+        person == null ? null : ref.watch(filmographyProvider(widget.personId));
+    return CustomScrollView(
+      controller: _scroll,
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(32, 32, 32, 0),
+          sliver: SliverToBoxAdapter(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: WfHero(
+                    tag: launch?.tag,
+                    child: SizedBox(
+                      width: 200,
+                      height: 300,
+                      child: WfImage(image: photo, fallbackIcon: LucideIcons.user),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 32),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name.toUpperCase(), style: WfText.display(48)),
+                      if (bio != null) ...[
+                        const SizedBox(height: 12),
+                        Text(bio,
+                            maxLines: 10,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(height: 1.5)),
                       ],
-                    ),
+                    ],
                   ),
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(32, 32, 32, 16),
-                  sliver: SliverToBoxAdapter(
-                    child: Text(l.personOnServer, style: WfText.display(28)),
-                  ),
-                ),
-                ...films.when(
-                  loading: () => const [SliverToBoxAdapter(child: LoadingView())],
-                  error: (error, _) => [
-                    SliverToBoxAdapter(
-                      child: ErrorView(
-                          error: error,
-                          onRetry: () => ref.invalidate(filmographyProvider(personId))),
-                    ),
-                  ],
-                  data: (items) => [
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
-                      sliver: SliverGrid(
-                        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 180,
-              mainAxisSpacing: 24,
-              crossAxisSpacing: 16,
-              childAspectRatio: 0.55,
-            ),
-                        delegate: SliverChildBuilderDelegate(
-                          (context, i) => PosterCard(
-                            item: items[i],
-                            heroSource: 'person.$personId.$i',
-                          ),
-                          childCount: items.length,
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ],
-            );
-          },
-        );
+            ),
+          ),
+        ),
+        if (films == null)
+          const SliverToBoxAdapter(
+            child: Padding(padding: EdgeInsets.all(32), child: LoadingView()),
+          )
+        else ...[
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(32, 32, 32, 16),
+            sliver: SliverToBoxAdapter(
+              child: Text(l.personOnServer, style: WfText.display(28)),
+            ),
+          ),
+          ...films.when(
+            loading: () => const [SliverToBoxAdapter(child: LoadingView())],
+            error: (error, _) => [
+              SliverToBoxAdapter(
+                child: ErrorView(
+                    error: error,
+                    onRetry: () =>
+                        ref.invalidate(filmographyProvider(widget.personId))),
+              ),
+            ],
+            data: (items) => [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 180,
+                    mainAxisSpacing: 24,
+                    crossAxisSpacing: 16,
+                    childAspectRatio: 0.55,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, i) => PosterCard(
+                      item: items[i],
+                      heroSource: 'person.${widget.personId}.$i',
+                    ),
+                    childCount: items.length,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
   }
 }
