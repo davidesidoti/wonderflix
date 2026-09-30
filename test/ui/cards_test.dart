@@ -86,6 +86,26 @@ void main() {
         const WfHeroTag('m1', 'home.resume.3'));
   });
 
+  testWidgets("card dentro una pagina: sorgente legata all'istanza",
+      (tester) async {
+    await pumpApp(
+      tester,
+      WfHeroScope(
+        id: 'pagina-1',
+        child: Row(children: [
+          PosterCard(item: testItem(id: 'm1'), width: 160, heroSource: 'similar.0'),
+          LandscapeCard(item: testItem(id: 'm2'), heroSource: 'home.resume.1'),
+        ]),
+      ),
+      overrides: [signedIn],
+      motion: MotionLevel.full,
+    );
+    expect(tester.widgetList<Hero>(find.byType(Hero)).map((h) => h.tag), [
+      const WfHeroTag('m1', 'pagina-1|similar.0'),
+      const WfHeroTag('m2', 'pagina-1|home.resume.1'),
+    ]);
+  });
+
   testWidgets('PosterCard: barra di avanzamento se iniziato', (tester) async {
     await pumpApp(
       tester,

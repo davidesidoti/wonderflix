@@ -14,10 +14,8 @@ import '../library/library_providers.dart';
 import 'detail_providers.dart';
 
 class CastRow extends ConsumerWidget {
-  const CastRow({super.key, required this.itemId, required this.people});
+  const CastRow({super.key, required this.people});
 
-  /// Id della scheda: rende uniche le sorgenti del volo tra pagine impilate.
-  final String itemId;
   final List<PersonRef> people;
 
   @override
@@ -35,9 +33,10 @@ class CastRow extends ConsumerWidget {
       itemBuilder: (context, i) {
         final person = cast[i];
         final role = person.role;
+        // Unica per l'istanza della pagina (vedi WfHeroScope).
+        final source = WfHeroScope.source(context, 'cast.$i');
         return GestureDetector(
-          onTap: () =>
-              openPerson(context, person, heroSource: 'cast.$itemId.$i'),
+          onTap: () => openPerson(context, person, heroSource: source),
           child: MouseRegion(
             cursor: SystemMouseCursors.click,
             child: SizedBox(
@@ -46,7 +45,7 @@ class CastRow extends ConsumerWidget {
                 children: [
                   ClipOval(
                     child: WfHero(
-                      tag: WfHeroTag(person.id, 'cast.$itemId.$i'),
+                      tag: WfHeroTag(person.id, source),
                       child: SizedBox(
                         width: 90,
                         height: 90,
@@ -96,7 +95,7 @@ class SimilarRow extends ConsumerWidget {
       itemBuilder: (context, i) => PosterCard(
         item: items[i],
         width: 160,
-        heroSource: 'similar.$itemId.$i',
+        heroSource: 'similar.$i',
       ),
     );
   }

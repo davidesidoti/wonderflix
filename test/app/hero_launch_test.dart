@@ -20,6 +20,21 @@ void main() {
     expect(const WfHeroTag('m1', 'a').hashCode, const WfHeroTag('m1', 'a').hashCode);
   });
 
+  testWidgets("WfHeroScope: sorgente legata all'istanza della pagina",
+      (tester) async {
+    final sources = <String>[];
+    Widget probe() => Builder(builder: (context) {
+          sources.add(WfHeroScope.source(context, 'cast.0'));
+          return const SizedBox();
+        });
+    await tester.pumpWidget(Column(children: [
+      probe(),
+      WfHeroScope(id: 'a', child: probe()),
+      WfHeroScope(id: 'b', child: probe()),
+    ]));
+    expect(sources, ['cast.0', 'a|cast.0', 'b|cast.0']);
+  });
+
   testWidgets('WfHero: Hero solo con tag e animazioni complete', (tester) async {
     const tag = WfHeroTag('m1', 'x');
     Widget tree(MotionLevel level, WfHeroTag? heroTag) => Directionality(

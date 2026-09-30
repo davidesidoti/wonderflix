@@ -4,8 +4,9 @@ import '../core/jellyfin/image_urls.dart';
 import 'motion.dart';
 
 /// Tag del volo Hero: il titolo e la card da cui parte (riga o griglia +
-/// posizione). Due card dello stesso titolo nella stessa pagina non vanno
-/// in conflitto (spec C §6.2).
+/// posizione, dentro l'istanza della pagina: [WfHeroScope.source]). Due
+/// card dello stesso titolo nella stessa pagina non vanno in conflitto
+/// (spec C §6.2).
 @immutable
 class WfHeroTag {
   const WfHeroTag(this.itemId, this.source);
@@ -22,6 +23,31 @@ class WfHeroTag {
 
   @override
   String toString() => 'WfHeroTag($itemId, $source)';
+}
+
+/// Istanza della pagina che contiene le card (la `pageKey` di go_router:
+/// unica per ogni `push`; con `go` è il percorso, ma allora la pagina è
+/// l'unica della pila). L'`HeroController` fa volare **tutti** i tag in
+/// comune tra la pagina in cima e quella sotto: con le sorgenti legate
+/// all'istanza, le card di una pagina X hanno tag di X, e la testata di X
+/// ha il tag della card della pagina da cui è stata aperta. Due pagine
+/// vicine hanno quindi in comune solo il tag del lancio, anche quando
+/// mostrano gli stessi titoli (A → Simili B → Simili A′, A → cast →
+/// filmografia A′).
+class WfHeroScope extends InheritedWidget {
+  const WfHeroScope({super.key, required this.id, required super.child});
+
+  final String id;
+
+  /// Sorgente [local] (es. `similar.3`) resa unica per la pagina. Senza
+  /// scope (test che montano una schermata da sola) resta [local].
+  static String source(BuildContext context, String local) {
+    final id = context.dependOnInheritedWidgetOfExactType<WfHeroScope>()?.id;
+    return id == null ? local : '$id|$local';
+  }
+
+  @override
+  bool updateShouldNotify(WfHeroScope oldWidget) => oldWidget.id != id;
 }
 
 /// Dati passati alla pagina aperta da una card (`extra` di go_router): il

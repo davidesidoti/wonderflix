@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'app_shell.dart';
+import 'hero_launch.dart';
 import 'motion.dart';
 
 /// Durata del "fade through" tra le voci della barra: 90 ms di uscita e
@@ -34,14 +35,18 @@ Widget pageTransition(WfMotion motion, Animation<double> animation,
 /// [underBar]: la pagina inizia sotto la barra in alto; altrimenti arriva
 /// fino al bordo della finestra (Home e scheda, spec C §11.1). Il margine sta
 /// dentro la pagina ([ShellPageFrame]), non nella shell: così nel fotogramma
-/// del push/pop la pagina che esce non salta.
+/// del push/pop la pagina che esce non salta. [WfHeroScope] lega le sorgenti
+/// del volo Hero a questa istanza della pagina.
 CustomTransitionPage<void> _page(BuildContext context, GoRouterState state,
     Widget child, Duration fullDuration, bool underBar) {
   final motion = WfMotion.of(context);
   final duration = motion.duration(fullDuration);
   return CustomTransitionPage<void>(
     key: state.pageKey,
-    child: ShellPageFrame(underBar: underBar, child: child),
+    child: WfHeroScope(
+      id: state.pageKey.value,
+      child: ShellPageFrame(underBar: underBar, child: child),
+    ),
     transitionDuration: duration,
     reverseTransitionDuration: duration,
     transitionsBuilder: (context, animation, secondaryAnimation, child) =>

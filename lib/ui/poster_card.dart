@@ -29,7 +29,8 @@ class PosterCard extends ConsumerStatefulWidget {
   /// Se presente, al passaggio del mouse compare il pulsante play.
   final VoidCallback? onPlay;
 
-  /// Card da cui parte il volo Hero (per esempio `home.latestMovies.3`).
+  /// Card da cui parte il volo Hero (per esempio `home.latestMovies.3`),
+  /// dentro la pagina: il tag usa [WfHeroScope.source].
   /// Senza [onTap], il clic apre la scheda con il volo da qui.
   final String? heroSource;
   final double? width;
@@ -48,6 +49,10 @@ class _PosterCardState extends ConsumerState<PosterCard> {
     final progress = userData.progress;
     final unplayed = userData.unplayedItemCount ?? 0;
     final year = item.productionYear;
+    // Unica per l'istanza della pagina (vedi WfHeroScope).
+    final source = widget.heroSource;
+    final heroSource =
+        source == null ? null : WfHeroScope.source(context, source);
 
     return SizedBox(
       width: widget.width,
@@ -57,7 +62,7 @@ class _PosterCardState extends ConsumerState<PosterCard> {
         onExit: (_) => setState(() => _hover = false),
         child: GestureDetector(
           onTap: widget.onTap ??
-              () => openItem(context, widget.item, heroSource: widget.heroSource),
+              () => openItem(context, widget.item, heroSource: heroSource),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -78,9 +83,9 @@ class _PosterCardState extends ConsumerState<PosterCard> {
                       fit: StackFit.expand,
                       children: [
                         WfHero(
-                          tag: widget.heroSource == null
+                          tag: heroSource == null
                               ? null
-                              : WfHeroTag(item.id, widget.heroSource!),
+                              : WfHeroTag(item.id, heroSource),
                           child: WfImage(
                               image: ref.watch(imageUrlsProvider).poster(item)),
                         ),

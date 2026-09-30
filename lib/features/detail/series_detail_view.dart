@@ -79,7 +79,7 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
             );
           },
         ),
-        if (series.people.isNotEmpty) CastRow(itemId: series.id, people: series.people),
+        if (series.people.isNotEmpty) CastRow(people: series.people),
         SimilarRow(itemId: series.id),
       ],
     );

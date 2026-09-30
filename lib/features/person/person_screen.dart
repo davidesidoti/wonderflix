@@ -148,7 +148,7 @@ class _PersonScreenState extends ConsumerState<PersonScreen> {
                   delegate: SliverChildBuilderDelegate(
                     (context, i) => PosterCard(
                       item: items[i],
-                      heroSource: 'person.${widget.personId}.$i',
+                      heroSource: 'person.$i',
                     ),
                     childCount: items.length,
                   ),
