@@ -5,10 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/update/update_gate.dart';
+import '../ui/card_preview.dart';
 
 /// Esc, Alt+← e il tasto "indietro" del mouse chiudono la pagina corrente.
 /// Non fa nulla se sopra c'è un menu o un dialog (gestiscono loro Esc) o la
-/// schermata dell'aggiornamento obbligatorio.
+/// schermata dell'aggiornamento obbligatorio; con un'anteprima di una card
+/// aperta Esc chiude solo l'anteprima.
 class BackNavigationHandler extends ConsumerStatefulWidget {
   const BackNavigationHandler({super.key, required this.child});
 
@@ -35,6 +37,12 @@ class _BackNavigationHandlerState extends ConsumerState<BackNavigationHandler> {
   bool _onKey(KeyEvent event) {
     if (event is! KeyDownEvent) return false;
     final key = event.logicalKey;
+    // Con un'anteprima aperta Esc chiude solo lei (lo gestisce l'anteprima):
+    // tutti i gestori ricevono il tasto, qui la pagina resta.
+    if (key == LogicalKeyboardKey.escape &&
+        ref.read(cardPreviewProvider).openId != null) {
+      return false;
+    }
     final isBack = key == LogicalKeyboardKey.escape ||
         key == LogicalKeyboardKey.browserBack ||
         (key == LogicalKeyboardKey.arrowLeft &&
