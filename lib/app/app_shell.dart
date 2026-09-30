@@ -15,6 +15,7 @@ import '../features/watch_party/watch_party_invites.dart';
 import '../l10n/gen/app_localizations.dart';
 import '../ui/hover_builder.dart';
 import '../ui/sliding_underline.dart';
+import '../ui/wf_menus.dart';
 import 'back_navigation.dart';
 import 'motion.dart';
 import 'theme.dart';
@@ -329,6 +330,7 @@ class _UserMenu extends ConsumerWidget {
       key: const Key('user-menu'),
       tooltip: user.name,
       position: PopupMenuPosition.under,
+      popUpAnimationStyle: wfPopUpAnimation(context),
       onSelected: (value) {
         switch (value) {
           case 'settings':

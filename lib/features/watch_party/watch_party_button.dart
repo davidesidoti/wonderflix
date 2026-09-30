@@ -8,6 +8,7 @@ import '../../app/navigation.dart';
 import '../../app/theme.dart';
 import '../../core/syncplay/syncplay_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/wf_menus.dart';
 import 'party_badge.dart';
 import 'watch_party_actions.dart';
 import 'watch_party_directory.dart';
@@ -37,6 +38,7 @@ class WatchPartyButton extends ConsumerWidget {
       key: const Key('watch-party-button'),
       tooltip: l.watchPartyListTitle,
       position: PopupMenuPosition.under,
+      popUpAnimationStyle: wfPopUpAnimation(context),
       onOpened: () =>
           unawaited(ref.read(watchPartyDirectoryProvider.notifier).refresh()),
       onSelected: (groupId) => unawaited(joinWatchParty(context, ref, groupId)),
@@ -119,6 +121,7 @@ class _InPartyButton extends ConsumerWidget {
       key: const Key('watch-party-in-party'),
       tooltip: party.group?.name,
       position: PopupMenuPosition.under,
+      popUpAnimationStyle: wfPopUpAnimation(context),
       onSelected: (value) {
         final session = ref.read(watchPartySessionProvider.notifier);
         switch (value) {

@@ -53,6 +53,17 @@ ThemeData buildWonderflixTheme() {
       );
 
   return base.copyWith(
+    // Avvisi flottanti nei colori dell'app (spec C §11.4).
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: WfColors.surfaceHigh,
+      contentTextStyle: const TextStyle(color: WfColors.cream),
+      actionTextColor: WfColors.gold,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: WfColors.border),
+      ),
+    ),
     textTheme: base.textTheme.apply(
       bodyColor: WfColors.cream,
       displayColor: WfColors.cream,

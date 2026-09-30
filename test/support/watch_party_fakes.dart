@@ -240,4 +240,7 @@ class FakeWatchPartyInvites extends WatchPartyInvites {
     dismissed++;
     state = null;
   }
+
+  /// Un invito arriva (come un gruppo nuovo nell'elenco).
+  void show(GroupInfo group) => state = group;
 }

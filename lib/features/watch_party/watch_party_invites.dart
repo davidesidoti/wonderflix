@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../core/syncplay/syncplay_models.dart';
 import '../../l10n/gen/app_localizations.dart';
@@ -98,14 +99,33 @@ class WatchPartyInvites extends Notifier<GroupInfo?> {
 final watchPartyInvitesProvider =
     NotifierProvider<WatchPartyInvites, GroupInfo?>(WatchPartyInvites.new);
 
-/// Scheda dell'invito, in alto a destra nella shell.
+/// Scheda dell'invito, in alto a destra nella shell: entra da destra e se
+/// ne va in dissolvenza (spec C §11.4).
 class WatchPartyInviteCard extends ConsumerWidget {
   const WatchPartyInviteCard({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final group = ref.watch(watchPartyInvitesProvider);
-    if (group == null) return const SizedBox.shrink();
+    return AnimatedSwitcher(
+      duration: WfMotion.of(context).duration(WfMotion.medium),
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: SlideTransition(
+          position: Tween(begin: const Offset(0.3, 0), end: Offset.zero)
+              .animate(CurvedAnimation(
+                  parent: animation, curve: WfMotion.emphasized)),
+          child: child,
+        ),
+      ),
+      child: group == null
+          ? const SizedBox.shrink(key: ValueKey('no-invite'))
+          : KeyedSubtree(
+              key: ValueKey(group.id), child: _card(context, ref, group)),
+    );
+  }
+
+  Widget _card(BuildContext context, WidgetRef ref, GroupInfo group) {
     final l = AppLocalizations.of(context);
     final names = partyNameParts(group);
     final invites = ref.read(watchPartyInvitesProvider.notifier);
