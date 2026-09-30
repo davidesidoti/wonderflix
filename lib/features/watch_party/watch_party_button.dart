@@ -9,6 +9,7 @@ import '../../l10n/gen/app_localizations.dart';
 import 'party_badge.dart';
 import 'watch_party_actions.dart';
 import 'watch_party_directory.dart';
+import 'watch_party_providers.dart';
 
 /// "Watch party · N" nella barra in alto: compare solo se esiste almeno un
 /// gruppo e apre l'elenco con "Unisciti".
@@ -17,6 +18,9 @@ class WatchPartyButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (!ref.watch(syncPlayAccessProvider).canJoin) {
+      return const SizedBox.shrink();
+    }
     final groups = ref.watch(watchPartyDirectoryProvider);
     if (groups.isEmpty) return const SizedBox.shrink();
     final l = AppLocalizations.of(context);

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
@@ -181,5 +182,23 @@ void main() {
         tester.element(find.byType(ItemDetailScreen)));
     await container.read(watchPartySessionProvider.notifier).leave();
     await tester.pump();
+  });
+
+  testWidgets('solo entrare nei watch party: niente "Guarda insieme"',
+      (tester) async {
+    await pumpApp(
+        tester, const Scaffold(body: ItemDetailScreen(itemId: 'm1')),
+        overrides: [
+          libraryApiProvider.overrideWithValue(api),
+          sessionControllerProvider.overrideWith(() => FakeSessionController(
+              const SessionSignedIn(JellyfinUser(
+                  id: 'u1',
+                  name: 'Mario',
+                  syncPlayAccess: SyncPlayAccess.joinOnly)))),
+        ]);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Riprendi da 23:14'), findsOneWidget);
+    expect(find.text('Guarda insieme'), findsNothing);
   });
 }

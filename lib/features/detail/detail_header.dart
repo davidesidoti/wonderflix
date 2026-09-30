@@ -16,6 +16,7 @@ import '../library/library_providers.dart';
 import '../library/user_data.dart';
 import '../playback/play_launcher.dart';
 import '../watch_party/watch_party_actions.dart';
+import '../watch_party/watch_party_providers.dart';
 import 'primary_action.dart';
 
 /// Parte alta di una scheda: sfondo, logo o titolo, dati, trama, azioni.
@@ -45,6 +46,7 @@ class DetailHeader extends ConsumerWidget {
     final overrides = ref.read(userDataOverridesProvider.notifier);
     final logo = urls.logo(item);
     final action = primary;
+    final canCreateParty = ref.watch(syncPlayAccessProvider).canCreate;
     final overview = item.overview;
     final hasTrailer =
         item.localTrailerCount > 0 || remoteTrailerUri(item) != null;
@@ -133,7 +135,8 @@ class DetailHeader extends ConsumerWidget {
                       ),
                     // Film ed episodi; per una serie l'azione riproduce il
                     // prossimo episodio da vedere, e la coda parte da lì.
-                    if (action != null &&
+                    if (canCreateParty &&
+                        action != null &&
                         const {ItemKind.movie, ItemKind.episode, ItemKind.series}
                             .contains(item.kind))
                       WfButton.secondary(

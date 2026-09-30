@@ -20,6 +20,8 @@ class WatchPartyDirectory extends Notifier<List<GroupInfo>> {
     final userId = ref.watch(sessionControllerProvider
         .select((s) => s is SessionSignedIn ? s.user.id : null));
     if (userId == null) return const [];
+    // Senza accesso ai watch party l'elenco non serve.
+    if (!ref.watch(syncPlayAccessProvider).canJoin) return const [];
     final timer = Timer.periodic(interval, (_) => unawaited(refresh()));
     ref.onDispose(timer.cancel);
     ref.listen(playerActiveProvider, (_, active) {

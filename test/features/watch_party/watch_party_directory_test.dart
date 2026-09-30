@@ -2,6 +2,7 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
+import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/player/player_active.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
@@ -65,6 +66,22 @@ void main() {
       api.error = const ServerUnreachableException();
       async.elapse(const Duration(seconds: 30));
       expect(container.read(watchPartyDirectoryProvider).single.id, 'g1');
+      container.dispose();
+    });
+  });
+
+  test('senza accesso ai watch party: nessuna richiesta', () {
+    fakeAsync((async) {
+      final container = ProviderContainer(overrides: [
+        sessionControllerProvider.overrideWith(() => FakeSessionController(
+            const SessionSignedIn(JellyfinUser(
+                id: 'u1', name: 'Mario', syncPlayAccess: SyncPlayAccess.none)))),
+        syncPlayApiProvider.overrideWithValue(api),
+      ]);
+      container.listen(watchPartyDirectoryProvider, (_, _) {});
+      async.elapse(const Duration(minutes: 2));
+      expect(api.calls, isEmpty);
+      expect(container.read(watchPartyDirectoryProvider), isEmpty);
       container.dispose();
     });
   });

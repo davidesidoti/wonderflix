@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
@@ -90,5 +91,26 @@ void main() {
     await tester.tap(find.text('Unisciti'));
     await tester.pumpAndSettle();
     expect(find.text('Questo watch party non esiste più.'), findsOneWidget);
+  });
+
+  testWidgets('senza accesso ai watch party: nessun pulsante', (tester) async {
+    await pumpApp(
+      tester,
+      const Scaffold(
+          body: Align(
+              alignment: Alignment.topRight, child: WatchPartyButton())),
+      overrides: [
+        watchPartyDirectoryProvider
+            .overrideWith(() => FakeWatchPartyDirectory([testGroup()])),
+        syncPlayApiProvider.overrideWithValue(api),
+        watchPartyEventsProvider.overrideWithValue(events.stream),
+        sessionControllerProvider.overrideWith(() => FakeSessionController(
+            const SessionSignedIn(JellyfinUser(
+                id: 'u1',
+                name: 'Mario',
+                syncPlayAccess: SyncPlayAccess.none)))),
+      ],
+    );
+    expect(find.byKey(const Key('watch-party-button')), findsNothing);
   });
 }
