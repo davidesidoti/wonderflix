@@ -592,4 +592,78 @@ void main() {
     expect(updates, hasLength(1));
     expect(commands, hasLength(1));
   });
+
+  test('riconnessione: si rientra nello stesso gruppo', () async {
+    mount();
+    serverAccepts();
+    await session().join('g1');
+    expect(state().rejoins, 0);
+
+    serverAccepts(participants: ['Mario', 'Luigi']);
+    events.add(const ServerConnected(true));
+    await pumpEventQueue();
+    expect(api.calls, ['join g1', 'join g1']);
+    expect(state().inGroup, isTrue);
+    expect(state().rejoins, 1);
+    expect(state().members, ['Mario', 'Luigi']);
+  });
+
+  test('prima connessione, o fuori da un gruppo: nessun rientro', () async {
+    mount();
+    events.add(const ServerConnected(true));
+    await pumpEventQueue();
+    expect(api.calls, isEmpty);
+
+    serverAccepts();
+    await session().join('g1');
+    events.add(const ServerConnected(false));
+    await pumpEventQueue();
+    expect(api.calls, ['join g1']);
+  });
+
+  test('gruppo sparito durante il rientro: fuori, e l\'avviso lo sa',
+      () async {
+    mount();
+    serverAccepts();
+    await session().join('g1');
+    final updates = <GroupUpdate>[];
+    final subscription = session().updates.listen(updates.add);
+    addTearDown(subscription.cancel);
+
+    api.onCall = (call) {
+      if (call.startsWith('join')) emit(const GroupDoesNotExist(''));
+    };
+    events.add(const ServerConnected(true));
+    await pumpEventQueue();
+    expect(state().phase, WatchPartyPhase.none);
+    expect(updates.whereType<GroupDoesNotExist>(), hasLength(1));
+  });
+
+  test('il server ci toglie: l\'aggiornamento arriva agli avvisi', () async {
+    mount();
+    serverAccepts();
+    await session().join('g1');
+    final updates = <GroupUpdate>[];
+    final subscription = session().updates.listen(updates.add);
+    addTearDown(subscription.cancel);
+
+    emit(const GroupLeft('g1'));
+    await pumpEventQueue();
+    expect(state().phase, WatchPartyPhase.none);
+    expect(updates.whereType<GroupLeft>(), hasLength(1));
+  });
+
+  test('uscita nostra: nessun aggiornamento agli avvisi', () async {
+    mount();
+    serverAccepts();
+    await session().join('g1');
+    final updates = <GroupUpdate>[];
+    final subscription = session().updates.listen(updates.add);
+    addTearDown(subscription.cancel);
+
+    await session().leave();
+    emit(const GroupLeft('g1'));
+    await pumpEventQueue();
+    expect(updates, isEmpty);
+  });
 }

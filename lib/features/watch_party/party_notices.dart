@@ -23,6 +23,7 @@ enum PartyNoticeKind {
   nextEpisode,
   nowWatching,
   resync,
+  ended,
 }
 
 /// Un avviso del watch party (spec B §5.7). Il testo lo compone
@@ -184,6 +185,8 @@ class PartyNotices extends Notifier<PartyNotice?> {
         show(PartyNotice(PartyNoticeKind.left, name: userName));
       case PlayQueueUpdate(:final queue):
         _onQueue(queue);
+      case GroupDoesNotExist() || GroupLeft() || NotInGroup():
+        show(const PartyNotice(PartyNoticeKind.ended));
       default:
         break;
     }

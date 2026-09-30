@@ -349,4 +349,13 @@ void main() {
       finish(async);
     });
   });
+
+  test('gruppo sparito o server che ci toglie: "terminato"', () {
+    fakeAsync((async) {
+      mount(async);
+      emit(async, const GroupLeft('g1'));
+      expect(current()?.kind, PartyNoticeKind.ended);
+      finish(async);
+    });
+  });
 }

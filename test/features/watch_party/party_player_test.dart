@@ -432,4 +432,35 @@ void main() {
     expect(find.text(l.watchPartyNoticeResumedByYou), findsOneWidget);
     await finish(tester);
   });
+
+  testWidgets('riconnessione: rientro nel gruppo e Ready di nuovo',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    final before = api.readyStates.length;
+    events.add(const ServerConnected(true));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+    expect(api.calls.where((c) => c == 'join g1'), hasLength(2));
+    expect(api.readyStates.length, before + 1);
+    await finish(tester);
+  });
+
+  testWidgets('gruppo sparito al rientro: avviso e si continua da soli',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    api.onCall = (call) {
+      if (call.startsWith('join')) emit(const GroupDoesNotExist(''));
+    };
+    events.add(const ServerConnected(true));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+    expect(find.text(l.watchPartyNoticeEnded), findsOneWidget);
+    expect(find.text(l.watchPartyButton(2)), findsNothing);
+    await tester.tap(find.byTooltip(l.actionPlay));
+    await tester.pump();
+    expect(engine.calls, contains('play'));
+    await finish(tester);
+  });
 }

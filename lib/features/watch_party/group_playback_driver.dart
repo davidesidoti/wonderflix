@@ -134,6 +134,13 @@ class GroupPlaybackDriver {
     _loaded = false;
   }
 
+  /// Rientrati nel gruppo dopo una caduta del WebSocket: il server aspetta
+  /// il nostro `Ready`.
+  Future<void> onRejoined() async {
+    if (_disposed || !_loaded) return;
+    await _sendReady();
+  }
+
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;

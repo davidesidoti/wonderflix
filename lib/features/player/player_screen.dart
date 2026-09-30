@@ -517,6 +517,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         final entry = ref.read(watchPartySessionProvider).queue?.playing;
         if (entry != null) _handOverTo(entry);
       });
+      ref.listen(watchPartySessionProvider.select((s) => s.rejoins),
+          (_, _) => unawaited(_driver?.onRejoined()));
     }
 
     final loading = view.status == PlayerStatus.loading ||
@@ -673,7 +675,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ),
                     ),
                 ],
-                if (party != null && party.inGroup)
+                // Anche dopo l'uscita dal gruppo: l'avviso "terminato" deve
+                // vedersi.
+                if (widget.args.party != null)
                   const Positioned(
                     top: 96,
                     left: 0,

@@ -718,4 +718,25 @@ void main() {
       tearDownDriver(async);
     });
   });
+
+  test('dopo il rientro nel gruppo si rimanda Ready', () {
+    fakeAsync((async) {
+      setUpDriver(async);
+      unawaited(driver.onRejoined());
+      async.flushMicrotasks();
+      expect(api.calls, ['ready']);
+      expect(api.readyStates.last.position, const Duration(minutes: 10));
+      tearDownDriver(async);
+    });
+  });
+
+  test('rientro prima che il file sia aperto: niente', () {
+    fakeAsync((async) {
+      setUpDriver(async, load: false);
+      unawaited(driver.onRejoined());
+      async.flushMicrotasks();
+      expect(api.calls, isEmpty);
+      tearDownDriver(async);
+    });
+  });
 }

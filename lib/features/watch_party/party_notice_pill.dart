@@ -24,6 +24,7 @@ String partyNoticeText(AppLocalizations l, PartyNotice notice) {
     PartyNoticeKind.nowWatching =>
       l.watchPartyNoticeNowWatching(notice.title ?? ''),
     PartyNoticeKind.resync => l.watchPartyNoticeResync,
+    PartyNoticeKind.ended => l.watchPartyNoticeEnded,
   };
 }
 

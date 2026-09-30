@@ -35,12 +35,17 @@ class WatchPartyState {
     this.group,
     this.groupState = GroupState.idle,
     this.queue,
+    this.rejoins = 0,
   });
 
   final WatchPartyPhase phase;
   final GroupInfo? group;
   final GroupState groupState;
   final PlayQueue? queue;
+
+  /// Rientri nel gruppo dopo una caduta del WebSocket: a ogni rientro il
+  /// player rimanda `Ready`.
+  final int rejoins;
 
   bool get inGroup => phase == WatchPartyPhase.inGroup;
 
@@ -58,12 +63,16 @@ class WatchPartyState {
   bool get hasNext => nextEntry != null;
 
   WatchPartyState copyWith(
-          {GroupInfo? group, GroupState? groupState, PlayQueue? queue}) =>
+          {GroupInfo? group,
+          GroupState? groupState,
+          PlayQueue? queue,
+          int? rejoins}) =>
       WatchPartyState(
         phase: phase,
         group: group ?? this.group,
         groupState: groupState ?? this.groupState,
         queue: queue ?? this.queue,
+        rejoins: rejoins ?? this.rejoins,
       );
 }
 
@@ -101,6 +110,9 @@ class WatchPartySession extends Notifier<WatchPartyState> {
   DateTime? _joinedAt;
   DateTime? _ghostLeftAt;
 
+  /// Gruppo in cui stiamo rientrando dopo una riconnessione.
+  String? _rejoining;
+
   /// Cambia a ogni ingresso e uscita: una rilettura dei membri partita in
   /// un gruppo precedente non vale più.
   int _generation = 0;
@@ -119,6 +131,7 @@ class WatchPartySession extends Notifier<WatchPartyState> {
     _joining = null;
     _joinedAt = null;
     _ghostLeftAt = null;
+    _rejoining = null;
     _generation++;
     ref.onDispose(_stopClock);
     if (userId == null) return const WatchPartyState();
@@ -269,6 +282,7 @@ class WatchPartySession extends Notifier<WatchPartyState> {
     _startLag = null;
     _lastCommand = null;
     _joinedAt = null;
+    _rejoining = null;
     _generation++;
     if (ref.mounted) state = const WatchPartyState();
   }
@@ -292,6 +306,18 @@ class WatchPartySession extends Notifier<WatchPartyState> {
     }
     _log.info('eventi di un watch party fuori da un gruppo: uscita');
     _leaveQuietly();
+  }
+
+  /// Dopo una caduta del WebSocket il server può averci tolto dal gruppo o
+  /// averci perso dei comandi: si rientra nello stesso gruppo (spec B §5.5).
+  /// Il server rimanda gruppo, coda e stato; il player rimanda `Ready`.
+  void _rejoin() {
+    final group = state.group;
+    if (!state.inGroup || group == null) return;
+    _rejoining = group.id;
+    _log.info('WebSocket riconnesso: rientro nel watch party');
+    unawaited(_api.join(group.id).catchError((Object error) =>
+        _log.warning('rientro nel watch party non riuscito: $error')));
   }
 
   void _stopClock() {
@@ -325,6 +351,8 @@ class WatchPartySession extends Notifier<WatchPartyState> {
         _onGroupUpdate(update);
       case SyncPlayCommandReceived(:final command):
         _onCommand(command);
+      case ServerConnected(isReconnect: true):
+        _rejoin();
       default:
         break;
     }
@@ -333,6 +361,16 @@ class WatchPartySession extends Notifier<WatchPartyState> {
   void _onGroupUpdate(GroupUpdate update) {
     switch (update) {
       case GroupJoined(:final info):
+        if (_rejoining != null && state.inGroup && _isCurrent(info.id)) {
+          _rejoining = null;
+          // I comandi di prima della caduta non valgono più.
+          _joinedAt = info.lastUpdatedAt;
+          state = state.copyWith(
+              group: info, groupState: info.state, rejoins: state.rejoins + 1);
+          _log.info('rientrati nel watch party '
+              '(${info.participants.length} membri)');
+          return;
+        }
         if (state.phase != WatchPartyPhase.joining) {
           // Conferma arrivata dopo un timeout o un'uscita.
           if (!state.inGroup) {
@@ -385,8 +423,16 @@ class WatchPartySession extends Notifier<WatchPartyState> {
         if (state.inGroup) {
           _log.info('il server ci ha tolto dal watch party');
           _reset();
+          // Gli avvisi mostrano "terminato" (dopo essersi svuotati).
+          _updates.add(update);
         }
       case GroupDoesNotExist():
+        if (_rejoining != null) {
+          _log.info('il watch party non esiste più');
+          _reset();
+          _updates.add(update);
+          return;
+        }
         _failJoin(WatchPartyFailure.groupGone);
       case LibraryAccessDenied():
         _failJoin(WatchPartyFailure.accessDenied);

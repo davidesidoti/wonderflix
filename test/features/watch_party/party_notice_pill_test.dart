@@ -40,6 +40,8 @@ void main() {
         'Si guarda: Dune');
     expect(text(const PartyNotice(PartyNoticeKind.resync)),
         'Riallineamento al gruppo');
+    expect(text(const PartyNotice(PartyNoticeKind.ended)),
+        'Il watch party è terminato');
   });
 
   testWidgets('mostra l\'avviso attuale, niente senza avvisi', (tester) async {
