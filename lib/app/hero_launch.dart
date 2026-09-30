@@ -67,6 +67,9 @@ class HeroLaunch {
   final String? title;
 }
 
+/// Chiave dell'immagine in volo (per riconoscerla nei test).
+const wfHeroFlightKey = ValueKey<String>('wf-hero-flight');
+
 /// Volo con dissolvenza: parte dall'immagine della card e arriva a quella
 /// della pagina (da una locandina 2:3 a uno sfondo 16:9). Gli angoli passano
 /// da quelli della sorgente a quelli della destinazione (cerchio del cast →
@@ -86,6 +89,7 @@ Widget wfHeroFlight(
   final card = push ? from : to;
   final page = push ? to : from;
   return AnimatedBuilder(
+    key: wfHeroFlightKey,
     animation: animation,
     builder: (context, _) {
       final t = WfMotion.emphasized.transform(animation.value.clamp(0.0, 1.0));

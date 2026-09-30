@@ -162,6 +162,33 @@ void main() {
     expect(top.intersection(below), {launch!.tag});
   }
 
+  testWidgets('volo reale nella ShellRoute: andata e ritorno senza errori',
+      (tester) async {
+    final router = await pumpRouter(tester, '/item/m1');
+    final card = find.text('Arrival');
+    await tester.ensureVisible(card);
+    await tester.pumpAndSettle();
+    await tester.tap(card);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byKey(wfHeroFlightKey), findsOneWidget, reason: 'in volo');
+    expect(tester.takeException(), isNull);
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/item/m2');
+    expect(find.byKey(wfHeroFlightKey), findsNothing);
+
+    router.pop();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byKey(wfHeroFlightKey), findsOneWidget,
+        reason: "l'immagine torna nella card");
+    expect(tester.takeException(), isNull);
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/item/m1');
+    expect(find.byKey(wfHeroFlightKey), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('A → Simili B → Simili A′: nessun volo oltre al lancio',
       (tester) async {
     final router = await pumpRouter(tester, '/item/m1');
