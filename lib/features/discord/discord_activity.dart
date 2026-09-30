@@ -8,12 +8,15 @@ const discordLogoAsset = 'logo';
 
 /// Testi dell'attività, nella lingua dell'app (li vedono gli amici).
 class DiscordLabels {
-  const DiscordLabels({required this.paused, required this.button});
+  const DiscordLabels({required this.paused, required this.button, this.party});
 
   final String paused;
 
   /// Etichetta del pulsante verso `buttonUrl` (max 32 caratteri).
   final String button;
+
+  /// "Watch party · N persone"; `null` = nessuna etichetta del gruppo.
+  final String Function(int count)? party;
 }
 
 /// Attività di Discord per quello che si sta guardando.
@@ -31,11 +34,19 @@ Map<String, Object?> buildDiscordActivity({
   required DiscordSettings settings,
   required DiscordLabels labels,
   Uri? buttonUrl,
+  int? partySize,
 }) {
   final showTitle = settings.showTitle;
   // La locandina svela il titolo: senza titolo, sempre il logo.
   final poster = settings.showPoster && showTitle ? posterUrl : null;
-  final state = playing ? (showTitle ? subtitle : null) : labels.paused;
+  final party = labels.party;
+  // Nel watch party lo stato dice quante persone guardano (non svela il
+  // titolo); in pausa resta "In pausa".
+  final state = !playing
+      ? labels.paused
+      : partySize != null && party != null
+          ? party(partySize)
+          : (showTitle ? subtitle : null);
   final begin = playing ? start : null;
   final end = begin != null && duration != null && duration > Duration.zero
       ? begin.add(duration)

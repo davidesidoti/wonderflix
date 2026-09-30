@@ -74,6 +74,9 @@ class DiscordPresence implements MediaSession {
   /// si ricalcola da qui.
   Duration? _position;
 
+  /// Persone nel watch party; `null` = fuori da un gruppo.
+  int? _partySize;
+
   @override
   bool get handlesMediaKeys => false;
 
@@ -116,11 +119,18 @@ class DiscordPresence implements MediaSession {
   Future<void> setNextEnabled(bool enabled) async {}
 
   @override
+  Future<void> setParty(int? members) async {
+    _partySize = members;
+    _sync();
+  }
+
+  @override
   Future<void> clear() async {
     _active = false;
     _start = null;
     _duration = null;
     _position = null;
+    _partySize = null;
     _sync();
   }
 
@@ -160,6 +170,7 @@ class DiscordPresence implements MediaSession {
         settings: _settings(),
         labels: _labels(),
         buttonUrl: _buttonUrl,
+        partySize: _partySize,
       ),
       start: start,
     );

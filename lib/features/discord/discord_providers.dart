@@ -21,7 +21,11 @@ final discordLabelsProvider = Provider<DiscordLabels>((ref) {
       basicLocaleListResolution(PlatformDispatcher.instance.locales,
           AppLocalizations.supportedLocales);
   final l = lookupAppLocalizations(locale);
-  return DiscordLabels(paused: l.discordPaused, button: l.discordAccessButton);
+  return DiscordLabels(
+    paused: l.discordPaused,
+    button: l.discordAccessButton,
+    party: l.discordWatchParty,
+  );
 });
 
 /// Crea la pipe verso Discord; nei test si usa una pipe finta.

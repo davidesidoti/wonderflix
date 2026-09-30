@@ -104,4 +104,36 @@ void main() {
     expect(long, hasLength(128));
     expect(long, endsWith('…'));
   });
+
+  test('nel watch party: stato "Watch party · N persone" durante la visione',
+      () {
+    final partyLabels = DiscordLabels(
+      paused: 'In pausa',
+      button: "Chiedi l'accesso",
+      party: (count) => 'Watch party · $count persone',
+    );
+    Map<String, Object?> activity({required bool playing, bool showTitle = true}) =>
+        buildDiscordActivity(
+          title: 'Breaking Bad',
+          subtitle: 'S1:E4 · Pilot',
+          playing: playing,
+          settings: DiscordSettings(showTitle: showTitle),
+          labels: partyLabels,
+          partySize: 3,
+        );
+    expect(activity(playing: true)['state'], 'Watch party · 3 persone');
+    expect(activity(playing: true, showTitle: false)['state'],
+        'Watch party · 3 persone');
+    expect(activity(playing: false)['state'], 'In pausa');
+    expect(
+        buildDiscordActivity(
+          title: 'Breaking Bad',
+          subtitle: 'S1:E4 · Pilot',
+          playing: true,
+          settings: const DiscordSettings(),
+          labels: partyLabels,
+        )['state'],
+        'S1:E4 · Pilot',
+        reason: 'fuori da un gruppo non cambia nulla');
+  });
 }

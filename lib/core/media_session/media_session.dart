@@ -28,6 +28,10 @@ abstract class MediaSession {
 
   Future<void> setNextEnabled(bool enabled);
 
+  /// Persone nel watch party (`null` = fuori da un gruppo). Solo Discord lo
+  /// mostra.
+  Future<void> setParty(int? members);
+
   Stream<MediaButton> get buttons;
 
   /// Nasconde e disattiva il pannello (uscita dal player); il prossimo
@@ -56,6 +60,9 @@ class NoopMediaSession implements MediaSession {
 
   @override
   Future<void> setNextEnabled(bool enabled) async {}
+
+  @override
+  Future<void> setParty(int? members) async {}
 
   @override
   Stream<MediaButton> get buttons => const Stream.empty();

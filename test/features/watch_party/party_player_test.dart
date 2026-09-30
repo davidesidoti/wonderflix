@@ -482,4 +482,15 @@ void main() {
     expect(api.calls.lastIndexOf('ready'), greaterThan(ignoreFalse));
     await finish(tester);
   });
+
+  testWidgets('Discord: persone nel gruppo, niente fuori dal gruppo',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    expect(mediaSession.parties.last, 2);
+    emit(const GroupLeft('g1'));
+    await tester.pump();
+    await tester.pump();
+    expect(mediaSession.parties.last, isNull);
+    await finish(tester);
+  });
 }

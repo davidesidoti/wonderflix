@@ -115,6 +115,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final party = _inParty ? ref.read(watchPartySessionProvider) : null;
     unawaited(_mediaSession.setNextEnabled(
         party != null && party.inGroup && party.hasNext));
+    // Discord: quante persone nel watch party (`null` fuori da un gruppo).
+    unawaited(_mediaSession.setParty(
+        party != null && party.inGroup ? party.members.length : null));
     _timelineTimer =
         Timer.periodic(const Duration(seconds: 5), (_) => _sendTimeline());
     _scheduleHide();
@@ -131,6 +134,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // Uscendo dal player il pannello media sparisce; passando all'episodio
     // successivo resta alla nuova schermata. Non si chiude mai: è dell'app.
     if (!_handingOver) unawaited(_mediaSession.clear());
+    if (!_handingOver) unawaited(_mediaSession.setParty(null));
     _playerActive.leave();
     unawaited(_driver?.dispose());
     _authority?.dispose();
@@ -491,6 +495,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         unawaited(controller.play());
       }
     });
+    if (widget.args.party != null) {
+      ref.listen(
+          watchPartySessionProvider
+              .select((s) => s.inGroup ? s.members.length : null),
+          (_, members) => unawaited(_mediaSession.setParty(members)));
+    }
     if (_inParty) {
       ref.listen(
           watchPartySessionProvider.select((s) => s.inGroup && s.hasNext),

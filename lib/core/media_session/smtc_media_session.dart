@@ -81,6 +81,10 @@ class SmtcMediaSession implements MediaSession {
   Future<void> setNextEnabled(bool enabled) =>
       _run(() => _smtc.setIsNextEnabled(enabled));
 
+  /// Il pannello di Windows non mostra il watch party.
+  @override
+  Future<void> setParty(int? members) async {}
+
   /// Broadcast come quello di smtc_windows: durante il passaggio
   /// all'episodio successivo ascoltano due schermate.
   @override
