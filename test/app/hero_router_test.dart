@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,6 +16,8 @@ import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/library/server_events_binding.dart';
 import 'package:wonderflix/features/person/person_screen.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
+import 'package:wonderflix/ui/card_preview.dart';
+import 'package:wonderflix/ui/poster_card.dart';
 import 'package:wonderflix/ui/wf_image.dart';
 
 import '../support/fake_session_controller.dart';
@@ -186,6 +189,35 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpAndSettle();
     expect(router.state.uri.path, '/item/m1');
+    expect(find.byKey(wfHeroFlightKey), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('"Dettagli" nell\'anteprima: il volo parte dallo sfondo',
+      (tester) async {
+    final router = await pumpRouter(tester, '/item/m1');
+    final card = find.widgetWithText(PosterCard, 'Arrival');
+    await tester.ensureVisible(card);
+    await tester.pumpAndSettle();
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(card));
+    await tester.pump(previewHoverDelay);
+    await tester.pumpAndSettle();
+    expect(find.byType(CardPreview), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Dettagli'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byKey(wfHeroFlightKey), findsOneWidget,
+        reason: "in volo dall'anteprima");
+    // L'anteprima resta finché la pagina nuova è entrata, trasparente.
+    expect(find.byType(CardPreview), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/item/m2');
+    expect(find.byType(CardPreview), findsNothing);
     expect(find.byKey(wfHeroFlightKey), findsNothing);
     expect(tester.takeException(), isNull);
   });

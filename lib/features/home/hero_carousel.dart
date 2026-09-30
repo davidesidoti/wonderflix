@@ -9,6 +9,7 @@ import '../../app/navigation.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/card_preview.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_image.dart';
 import '../library/item_labels.dart';
@@ -48,8 +49,9 @@ class HeroCarousel extends ConsumerStatefulWidget {
 class _HeroCarouselState extends ConsumerState<HeroCarousel>
     with TickerProviderStateMixin {
   /// Tempo della diapositiva: riempie il puntino e guida il Ken Burns; a
-  /// fine corsa passa alla successiva. Si ferma con il mouse sopra e quando
-  /// la Home è coperta, e riprende da dove era.
+  /// fine corsa passa alla successiva. Si ferma con il mouse sopra, con
+  /// un'anteprima di una card aperta e quando la Home è coperta, e riprende
+  /// da dove era.
   late final AnimationController _progress =
       AnimationController(vsync: this, duration: HeroCarousel.interval)
         ..addStatusListener((status) {
@@ -69,6 +71,10 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
   int? _previous;
   double _previousProgress = 0;
   bool _hovered = false;
+
+  /// Un'anteprima di una card è aperta (spec C §7): conta come il mouse
+  /// sopra.
+  bool _previewOpen = false;
 
   /// Falso quando la Home è coperta da un'altra pagina. Un ticker spento
   /// non chiama più il controller ma il suo tempo continua a scorrere:
@@ -105,7 +111,7 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
 
   /// Fa scorrere il tempo della diapositiva solo se nulla lo mette in pausa.
   void _syncProgress() {
-    if (_autoplay && !_hovered && _tickersEnabled) {
+    if (_autoplay && !_hovered && !_previewOpen && _tickersEnabled) {
       if (!_progress.isAnimating) unawaited(_progress.forward());
     } else {
       _progress.stop();
@@ -152,6 +158,11 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(cardPreviewProvider.select((s) => s.openId != null),
+        (previous, open) {
+      _previewOpen = open;
+      _syncProgress();
+    });
     if (widget.items.isEmpty) {
       return const SizedBox(height: HeroCarousel.height);
     }

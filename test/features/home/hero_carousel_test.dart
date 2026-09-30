@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/home/hero_carousel.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/ui/card_preview.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
@@ -118,6 +120,24 @@ void main() {
     await tester.pump(HeroCarousel.interval * 2);
     expect(find.text('DUNE'), findsOneWidget);
     await mouse.moveTo(const Offset(5, 895));
+    await tester.pump();
+    await tester.pump(HeroCarousel.interval);
+    await pumpUntilShown(tester, 'ALIEN');
+    expect(find.text('ALIEN'), findsOneWidget);
+  });
+
+  testWidgets("con un'anteprima aperta il carosello si ferma", (tester) async {
+    await pumpHero(tester, autoplay: true);
+    final container =
+        ProviderScope.containerOf(tester.element(find.byType(HeroCarousel)));
+    final preview = Object();
+    container.read(cardPreviewProvider.notifier).open(preview);
+    await tester.pump();
+    await tester.pump(HeroCarousel.interval * 2);
+    await tester.pump(WfMotion.fast);
+    expect(find.text('DUNE'), findsOneWidget);
+    expect(find.text('ALIEN'), findsNothing);
+    container.read(cardPreviewProvider.notifier).close(preview);
     await tester.pump();
     await tester.pump(HeroCarousel.interval);
     await pumpUntilShown(tester, 'ALIEN');

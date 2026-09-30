@@ -240,18 +240,20 @@ class _CardPreviewHostState extends ConsumerState<CardPreviewHost>
           children: [
             Positioned.fromRect(
               rect: rect,
-              child: MouseRegion(
-                onExit: (_) {
-                  if (!_leaving) _hide();
-                },
-                child: Listener(
-                  onPointerSignal: (event) {
-                    if (event is PointerScrollEvent) {
-                      _hide(immediately: true, dismiss: true);
-                    }
+              // In uscita verso la scheda è trasparente anche ai clic: la
+              // pagina nuova sta sotto.
+              child: IgnorePointer(
+                ignoring: _leaving,
+                child: MouseRegion(
+                  onExit: (_) {
+                    if (!_leaving) _hide();
                   },
-                  child: IgnorePointer(
-                    ignoring: _leaving,
+                  child: Listener(
+                    onPointerSignal: (event) {
+                      if (event is PointerScrollEvent) {
+                        _hide(immediately: true, dismiss: true);
+                      }
+                    },
                     child: AnimatedBuilder(
                       animation: _open,
                       builder: (context, child) {

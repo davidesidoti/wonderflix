@@ -126,6 +126,47 @@ class CardPreview extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    const shape = RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(8)));
+
+    // Fondo, ombra e contorno sfumano con [body]: l'anteprima sta
+    // nell'overlay principale, sopra la pagina, e il volo verso la scheda
+    // passa sotto; in uscita deve restare solo l'immagine (che vola).
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        FadeTransition(
+          opacity: body,
+          child: const Material(
+            color: WfColors.surface,
+            elevation: 12,
+            shadowColor: WfColors.bg,
+            shape: shape,
+          ),
+        ),
+        Material(
+          type: MaterialType.transparency,
+          shape: shape,
+          clipBehavior: Clip.antiAlias,
+          child: _content(context, ref),
+        ),
+        IgnorePointer(
+          child: FadeTransition(
+            opacity: body,
+            child: DecoratedBox(
+              decoration: ShapeDecoration(
+                shape: shape.copyWith(
+                  side: BorderSide(color: WfColors.gold.withValues(alpha: 0.5)),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _content(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final urls = ref.watch(imageUrlsProvider);
     final userData = watchUserData(ref, item);
@@ -136,159 +177,149 @@ class CardPreview extends ConsumerWidget {
     final subtitle = episode ? cardSubtitle(item) : null;
     const muted = TextStyle(color: WfColors.creamMuted, fontSize: 12);
 
-    return Material(
-      color: WfColors.surface,
-      clipBehavior: Clip.antiAlias,
-      elevation: 12,
-      shadowColor: WfColors.bg,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: WfColors.gold.withValues(alpha: 0.5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          AspectRatio(
-            aspectRatio: 16 / 9,
-            child: GestureDetector(
-              key: const Key('preview-image'),
-              onTap: onDetails,
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    WfHero(
-                      tag: heroTag,
-                      borderRadius: BorderRadius.zero,
-                      child: BackdropImage(
-                          backdrop: urls.backdrop(item),
-                          fallback: urls.poster(item)),
-                    ),
-                    FadeTransition(
-                      opacity: body,
-                      child: const DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.bottomCenter,
-                            end: Alignment.topCenter,
-                            colors: [WfColors.surface, Color(0x00121212)],
-                            stops: [0, 0.6],
-                          ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AspectRatio(
+          aspectRatio: 16 / 9,
+          child: GestureDetector(
+            key: const Key('preview-image'),
+            onTap: onDetails,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  WfHero(
+                    tag: heroTag,
+                    borderRadius: BorderRadius.zero,
+                    child: BackdropImage(
+                        backdrop: urls.backdrop(item),
+                        fallback: urls.poster(item)),
+                  ),
+                  FadeTransition(
+                    opacity: body,
+                    child: const DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [WfColors.surface, Color(0x00121212)],
+                          stops: [0, 0.6],
                         ),
                       ),
                     ),
-                    Positioned(
-                      left: 12,
-                      right: 12,
-                      bottom: 8,
-                      child: FadeTransition(
-                        opacity: body,
-                        child: logo != null
-                            ? SizedBox(
-                                height: 44,
-                                child: Align(
-                                  alignment: Alignment.bottomLeft,
-                                  child: WfImage(image: logo, fit: BoxFit.contain),
-                                ),
-                              )
-                            : Text(cardTitle(item).toUpperCase(),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: WfText.display(26)),
-                      ),
+                  ),
+                  Positioned(
+                    left: 12,
+                    right: 12,
+                    bottom: 8,
+                    child: FadeTransition(
+                      opacity: body,
+                      child: logo != null
+                          ? SizedBox(
+                              height: 44,
+                              child: Align(
+                                alignment: Alignment.bottomLeft,
+                                child: WfImage(image: logo, fit: BoxFit.contain),
+                              ),
+                            )
+                          : Text(cardTitle(item).toUpperCase(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: WfText.display(26)),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
-          Expanded(
-            child: FadeTransition(
-              opacity: body,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Senza il margine per il tocco (come su desktop, anche
-                    // nei test): la riga è alta [_buttonSize].
-                    Theme(
-                      data: Theme.of(context).copyWith(
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                      child: Row(
-                        children: [
-                          _RoundButton(
-                            icon: LucideIcons.play,
-                            tooltip:
-                                progress != null ? l.previewResume : l.actionPlay,
-                            filled: true,
-                            onPressed: onPlay,
-                          ),
-                          const SizedBox(width: 8),
-                          if (!episode) ...[
-                            WfIconToggle(
-                              icon: LucideIcons.heart,
-                              selected: userData.isFavorite,
-                              tooltip: userData.isFavorite
-                                  ? l.actionRemoveFromList
-                                  : l.actionAddToList,
-                              size: _buttonSize,
-                              iconSize: _iconSize,
-                              onPressed: () => unawaited(_toggle(
-                                  context, () => overrides.toggleFavorite(item))),
-                            ),
-                            const SizedBox(width: 8),
-                          ],
+        ),
+        Expanded(
+          child: FadeTransition(
+            opacity: body,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Senza il margine per il tocco (come su desktop, anche
+                  // nei test): la riga è alta [_buttonSize].
+                  Theme(
+                    data: Theme.of(context).copyWith(
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                    child: Row(
+                      children: [
+                        _RoundButton(
+                          icon: LucideIcons.play,
+                          tooltip:
+                              progress != null ? l.previewResume : l.actionPlay,
+                          filled: true,
+                          onPressed: onPlay,
+                        ),
+                        const SizedBox(width: 8),
+                        if (!episode) ...[
                           WfIconToggle(
-                            icon: LucideIcons.check,
-                            selected: userData.played,
-                            tooltip: userData.played
-                                ? l.actionMarkUnwatched
-                                : l.actionMarkWatched,
+                            icon: LucideIcons.heart,
+                            selected: userData.isFavorite,
+                            tooltip: userData.isFavorite
+                                ? l.actionRemoveFromList
+                                : l.actionAddToList,
                             size: _buttonSize,
                             iconSize: _iconSize,
                             onPressed: () => unawaited(_toggle(
-                                context, () => overrides.togglePlayed(item))),
+                                context, () => overrides.toggleFavorite(item))),
                           ),
-                          const Spacer(),
-                          _RoundButton(
-                            icon: LucideIcons.chevronDown,
-                            tooltip: l.actionDetails,
-                            onPressed: onDetails,
-                          ),
+                          const SizedBox(width: 8),
                         ],
-                      ),
+                        WfIconToggle(
+                          icon: LucideIcons.check,
+                          selected: userData.played,
+                          tooltip: userData.played
+                              ? l.actionMarkUnwatched
+                              : l.actionMarkWatched,
+                          size: _buttonSize,
+                          iconSize: _iconSize,
+                          onPressed: () => unawaited(_toggle(
+                              context, () => overrides.togglePlayed(item))),
+                        ),
+                        const Spacer(),
+                        _RoundButton(
+                          icon: LucideIcons.chevronDown,
+                          tooltip: l.actionDetails,
+                          onPressed: onDetails,
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    if (subtitle != null)
-                      Text(subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12.5)),
-                    DefaultTextStyle.merge(
-                      style: const TextStyle(fontSize: 12),
-                      child: MetaLine(item: item),
+                  ),
+                  const SizedBox(height: 8),
+                  if (subtitle != null)
+                    Text(subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12.5)),
+                  DefaultTextStyle.merge(
+                    style: const TextStyle(fontSize: 12),
+                    child: MetaLine(item: item),
+                  ),
+                  if (item.genres.isNotEmpty)
+                    Text(item.genres.take(3).join(' · '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: muted),
+                  const Spacer(),
+                  if (progress != null)
+                    SizedBox(
+                      key: const Key('preview-progress'),
+                      height: 3,
+                      child: ProgressStrip(progress: progress),
                     ),
-                    if (item.genres.isNotEmpty)
-                      Text(item.genres.take(3).join(' · '),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: muted),
-                    const Spacer(),
-                    if (progress != null)
-                      SizedBox(
-                        key: const Key('preview-progress'),
-                        height: 3,
-                        child: ProgressStrip(progress: progress),
-                      ),
-                  ],
-                ),
+                ],
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
