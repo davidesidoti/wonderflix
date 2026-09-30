@@ -1,6 +1,7 @@
 import 'package:clock/clock.dart';
 import 'package:wonderflix/core/syncplay/syncplay_api.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
+import 'package:wonderflix/features/watch_party/watch_party_routing.dart';
 
 /// `SyncPlayApi` in memoria: registra le chiamate. Il server "risponde"
 /// tramite [onCall], con cui i test mandano gli eventi del WebSocket.
@@ -117,3 +118,27 @@ PlayQueue testQueue({
       startPosition: start,
       isPlaying: isPlaying,
     );
+
+/// Navigazione in memoria: registra le aperture del player.
+class FakePartyNavigator implements PartyNavigator {
+  FakePartyNavigator([String location = '/home'])
+      : location = Uri.parse(location);
+
+  @override
+  Uri location;
+
+  final opened = <String>[];
+  final replaced = <String>[];
+
+  @override
+  void open(String route) {
+    opened.add(route);
+    location = Uri.parse(route);
+  }
+
+  @override
+  void replace(String route) {
+    replaced.add(route);
+    location = Uri.parse(route);
+  }
+}

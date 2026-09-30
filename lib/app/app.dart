@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/auth/session_controller.dart';
 import '../features/settings/locale_controller.dart';
 import '../features/update/update_gate.dart';
+import '../features/watch_party/watch_party_routing.dart';
 import '../l10n/gen/app_localizations.dart';
 import 'router.dart';
 import 'theme.dart';
@@ -27,6 +28,8 @@ class _WonderflixAppState extends ConsumerState<WonderflixApp> {
 
   @override
   Widget build(BuildContext context) {
+    // Il watch party apre il player quando il gruppo sceglie cosa guardare.
+    ref.watch(watchPartyRoutingProvider);
     return MaterialApp.router(
       title: 'WonderFlix',
       debugShowCheckedModeBanner: false,
