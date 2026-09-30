@@ -175,8 +175,15 @@ class PlayerController extends Notifier<PlayerViewState> {
   /// Pausa, ripresa e salti chiesti dall'utente.
   late PlaybackAuthority _authority = _LocalAuthority(this);
 
+  /// Il server ci ha tolto dal gruppo: da qui il player è da solo.
+  bool _leftParty = false;
+
   /// Il player fa parte di un watch party: parte e si ferma con il gruppo.
-  bool get inParty => args.party != null;
+  bool get inParty => args.party != null && !_leftParty;
+
+  /// Il server ci ha tolto dal gruppo: salto automatico dell'intro e
+  /// partenza dopo un'apertura tornano come da soli.
+  void leaveParty() => _leftParty = true;
 
   /// `null` = di nuovo il player stesso.
   void setAuthority(PlaybackAuthority? authority) =>

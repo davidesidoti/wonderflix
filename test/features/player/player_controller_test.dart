@@ -563,6 +563,28 @@ void main() {
       await pumpEventQueue();
       expect(engine.seeks, isEmpty);
     });
+
+    test('leaveParty: di nuovo da solo (salto dell\'intro, partenza)',
+        () async {
+      settings = const PlayerSettings(autoSkipIntro: true);
+      playback.segments = const [
+        MediaSegment(
+            type: MediaSegmentType.intro,
+            start: Duration(seconds: 10),
+            end: Duration(seconds: 90)),
+      ];
+      final controller = await startParty();
+      controller.leaveParty();
+      expect(controller.inParty, isFalse);
+      engine.emitPosition(const Duration(seconds: 20));
+      await pumpEventQueue();
+      expect(engine.seeks, [const Duration(seconds: 90)]);
+
+      engine.calls.clear();
+      await controller.retry();
+      await pumpEventQueue();
+      expect(engine.calls, contains('play'));
+    });
   });
 }
 

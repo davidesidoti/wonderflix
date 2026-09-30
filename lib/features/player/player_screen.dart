@@ -506,6 +506,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         // l'episodio successivo come fuori da un watch party.
         setState(() => _partyDetached = true);
         _detachParty();
+        _controller.leaveParty();
         unawaited(_mediaSession
             .setNextEnabled(ref.read(provider).nextEpisode != null));
       });
