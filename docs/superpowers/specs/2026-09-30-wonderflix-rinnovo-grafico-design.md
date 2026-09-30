@@ -152,13 +152,14 @@ Home ↔ Film ↔ Serie ↔ La mia lista ↔ Cerca ↔ Impostazioni:
 ### 6.2 Card → scheda del titolo (Hero)
 
 - **Tag:** `WfHeroTag(itemId, source)`, dove `source` identifica la card che è stata cliccata (riga o griglia + posizione). Due card dello stesso titolo nella stessa pagina non entrano in conflitto.
-- **Passaggio del tag:** `openItem(context, item, hero: tag)` fa `context.push(route, extra: tag)`. La rotta `/item/:id` legge `state.extra` e lo passa alla scheda, che avvolge lo sfondo della testata in un `Hero` con quel tag. Senza tag (link diretto, ricostruzione della rotta) la scheda entra con la sola dissolvenza.
+- **Passaggio del tag:** `openItem(context, item, hero: launch)` fa `context.push(route, extra: launch)`, dove `HeroLaunch` contiene il tag e le immagini già note dalla card (sfondo e locandina di ripiego, `ImageRef`). La rotta `/item/:id` legge `state.extra` e lo passa alla scheda. Senza `HeroLaunch` (link diretto, ricostruzione della rotta) la scheda entra con la sola dissolvenza.
+- **Destinazione subito presente:** il volo parte nel fotogramma del `push`, quando la scheda di solito sta ancora caricando (`itemProvider`). Per questo la testata con lo sfondo avvolto nell'`Hero` si disegna **già durante il caricamento**, usando le immagini di `HeroLaunch`; sotto resta l'indicatore di caricamento (lo scheletro arriva nel piano 6b). Quando i dati arrivano, la testata resta la stessa e compare il resto.
 - **Volo** (`hero`, 420 ms, `emphasized`) con `flightShuttleBuilder`:
   - da una locandina 2:3: l'immagine in volo passa in dissolvenza dalla locandina allo sfondo 16:9 (stesso `BoxFit.cover`, bordi da 6 a 0);
   - dall'anteprima (§7) o da una card orizzontale: lo sfondo è già quello, vola e basta.
 - **Pagina:** la pagina sotto si dissolve (`CustomTransitionPage` per `/item/:id` e `/person/:id`). A volo finito entrano scaglionati, di `stagger`: logo o titolo, dati, generi, trama, pulsanti, poi le righe sotto.
 - **Indietro:** l'immagine rivola nella card (Hero inverso), il contenuto della scheda esce in dissolvenza.
-- **Persone:** anche il volto del cast (`CastRow`) vola nella foto della pagina della persona, con la stessa regola dei tag.
+- **Persone:** anche il volto del cast (`CastRow`) vola nella foto della pagina della persona, con la stessa regola dei tag e la foto già presente durante il caricamento.
 - **Ridotte:** niente `Hero` (il tag non viene applicato), sola dissolvenza di `fast`.
 
 ### 6.3 Player
@@ -291,7 +292,7 @@ Dissolvenza incrociata di `medium` (`AnimatedSwitcher`), poi l'entrata scagliona
 
 ### 11.4 Menu, dialoghi e avvisi
 
-- **Menu a comparsa:** `popUpAnimationStyle` nel tema, in modo che tutti i `PopupMenuButton` (menu utente, filtri, gruppi) usino durata e curva dei token.
+- **Menu a comparsa:** `popUpAnimationStyle` non esiste in `PopupMenuThemeData` (Flutter 3.47), solo come parametro di `PopupMenuButton`/`showMenu`. Si passa a ciascun menu (menu utente, filtri, gruppi) un `AnimationStyle` costruito da `WfMotion`, così tutti usano durata e curva dei token.
 - **Dialoghi:** helper `showWfDialog` con scala da 0,95 a 1 e dissolvenza, usato da tutti i dialoghi dell'app al posto di `showDialog`.
 - **Card d'invito del watch party:** entra da destra con dissolvenza, esce in dissolvenza.
 - **Banner di aggiornamento:** scende dall'alto.
