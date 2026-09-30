@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../app/motion.dart';
@@ -37,8 +39,10 @@ class _SplashScreenState extends State<SplashScreen>
     if (_decided) return;
     _decided = true;
     if (WfMotion.of(context).isReduced) return;
-    _intro = AnimationController(vsync: this, duration: splashIntroDuration)
-      ..forward();
+    final intro =
+        AnimationController(vsync: this, duration: splashIntroDuration);
+    _intro = intro;
+    unawaited(intro.forward());
   }
 
   @override
