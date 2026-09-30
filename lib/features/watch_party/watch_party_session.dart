@@ -81,9 +81,19 @@ class WatchPartySession extends Notifier<WatchPartyState> {
   /// Intervallo minimo tra due uscite da un gruppo fantasma.
   static const ghostLeaveInterval = Duration(seconds: 30);
 
+  /// Attesa massima dei membri riletti dal server dopo un'entrata o
+  /// un'uscita.
+  static const membersTimeout = Duration(seconds: 3);
+
   late SyncPlayApi _api;
-  late StreamController<SyncPlayCommand> _commands;
-  late StreamController<GroupUpdate> _updates;
+
+  // Creati una volta sola, non in `build`: chi si iscrive (gli avvisi) lo fa
+  // una volta e resta iscritto anche se la sessione si ricostruisce (con
+  // Riverpod 3 il notifier resta lo stesso, ma `onDispose` scatta anche a
+  // ogni ricostruzione, quindi non si chiudono lì). Non si chiudono mai:
+  // senza iscritti, con il notifier, li raccoglie il garbage collector.
+  final _commands = StreamController<SyncPlayCommand>.broadcast();
+  final _updates = StreamController<GroupUpdate>.broadcast();
   ServerClock? _clock;
   StartLag? _startLag;
   SyncPlayCommand? _lastCommand;
@@ -91,24 +101,26 @@ class WatchPartySession extends Notifier<WatchPartyState> {
   DateTime? _joinedAt;
   DateTime? _ghostLeftAt;
 
+  /// Cambia a ogni ingresso e uscita: una rilettura dei membri partita in
+  /// un gruppo precedente non vale più.
+  int _generation = 0;
+
+  /// Ultima rilettura dei membri chiesta: solo quella aggiorna lo stato.
+  int _membersRequest = 0;
+
   @override
   WatchPartyState build() {
     final userId = ref.watch(sessionControllerProvider
         .select((s) => s is SessionSignedIn ? s.user.id : null));
     _api = ref.watch(syncPlayApiProvider);
-    final commands = _commands = StreamController<SyncPlayCommand>.broadcast();
-    final updates = _updates = StreamController<GroupUpdate>.broadcast();
     _clock = null;
     _startLag = null;
     _lastCommand = null;
     _joining = null;
     _joinedAt = null;
     _ghostLeftAt = null;
-    ref.onDispose(() {
-      _stopClock();
-      unawaited(commands.close());
-      unawaited(updates.close());
-    });
+    _generation++;
+    ref.onDispose(_stopClock);
     if (userId == null) return const WatchPartyState();
     final subscription = ref.watch(watchPartyEventsProvider).listen(_onEvent);
     ref.onDispose(() => unawaited(subscription.cancel()));
@@ -132,7 +144,9 @@ class WatchPartySession extends Notifier<WatchPartyState> {
   SyncPlayCommand? get lastCommand => _lastCommand;
 
   /// Aggiornamenti del nostro gruppo (entrate, uscite, stato, coda), già
-  /// applicati allo stato. Servono agli avvisi.
+  /// applicati allo stato. Servono agli avvisi. Entrate e uscite arrivano
+  /// dopo aver riletto i membri, e solo se cambiano i nomi dei membri (vedi
+  /// [_refreshMembers]).
   Stream<GroupUpdate> get updates => _updates.stream;
 
   /// Crea un gruppo per [item] con la coda [queue] (di default solo [item])
@@ -255,6 +269,7 @@ class WatchPartySession extends Notifier<WatchPartyState> {
     _startLag = null;
     _lastCommand = null;
     _joinedAt = null;
+    _generation++;
     if (ref.mounted) state = const WatchPartyState();
   }
 
@@ -338,15 +353,17 @@ class WatchPartySession extends Notifier<WatchPartyState> {
         if (joining != null && !joining.isCompleted) joining.complete();
         _log.info('nel watch party (${info.participants.length} membri)');
       case UserJoined(:final groupId, :final userName) when _isCurrent(groupId):
+        final wasMember = state.members.contains(userName);
         state = state.copyWith(
             group: state.group!.copyWith(
                 participants: [...state.group!.participants, userName]));
-        _updates.add(update);
+        unawaited(_refreshMembers(update, userName, wasMember: wasMember));
       case UserLeft(:final groupId, :final userName) when _isCurrent(groupId):
+        final wasMember = state.members.contains(userName);
         final participants = [...state.group!.participants]..remove(userName);
         state = state.copyWith(
             group: state.group!.copyWith(participants: participants));
-        _updates.add(update);
+        unawaited(_refreshMembers(update, userName, wasMember: wasMember));
       case GroupStateUpdate(:final groupId, state: final groupState)
           when _isCurrent(groupId):
         state = state.copyWith(groupState: groupState);
@@ -374,6 +391,33 @@ class WatchPartySession extends Notifier<WatchPartyState> {
       case LibraryAccessDenied():
         _failJoin(WatchPartyFailure.accessDenied);
     }
+  }
+
+  /// Dopo un'entrata o un'uscita ([update], già applicata allo stato) i
+  /// membri si rileggono dal server: `UserJoined`/`UserLeft` arrivano per
+  /// ogni sessione, mentre i `Participants` del server sono per nome utente
+  /// (lo stesso utente può avere due sessioni, e al nostro ingresso compare
+  /// una volta sola). Se la rilettura non riesce vale l'aggiornamento
+  /// locale. Agli avvisi [update] arriva dopo, e solo se [userName] è
+  /// davvero entrato o uscito (confronto dei nomi dei membri prima e dopo).
+  Future<void> _refreshMembers(GroupUpdate update, String userName,
+      {required bool wasMember}) async {
+    final groupId = state.group!.id;
+    final generation = _generation;
+    final request = ++_membersRequest;
+    GroupInfo? info;
+    try {
+      info = await _api.group(groupId).timeout(membersTimeout);
+    } on Object catch (error) {
+      _log.info('membri del watch party non riletti: $error');
+    }
+    // Usciti dal gruppo (o sessione chiusa) nel frattempo: niente.
+    if (!ref.mounted || generation != _generation || !state.inGroup) return;
+    if (info != null && request == _membersRequest) {
+      state = state.copyWith(
+          group: state.group!.copyWith(participants: info.participants));
+    }
+    if (state.members.contains(userName) != wasMember) _updates.add(update);
   }
 
   void _failJoin(WatchPartyFailure failure) {

@@ -520,4 +520,76 @@ void main() {
     expect(updates.map((u) => u.runtimeType),
         [UserJoined, GroupStateUpdate, PlayQueueUpdate]);
   });
+
+  test('membri riletti dal server: entrate e uscite solo se cambiano i nomi',
+      () async {
+    mount();
+    // Luigi ha due sessioni: il server lo elenca una volta sola.
+    serverAccepts(participants: ['Mario', 'Luigi']);
+    await session().join('g1');
+    final updates = <GroupUpdate>[];
+    final subscription = session().updates.listen(updates.add);
+    addTearDown(subscription.cancel);
+    api.groupInfo = testGroup(participants: ['Mario', 'Luigi']);
+
+    // Esce una delle due sessioni di Luigi: resta nel gruppo.
+    emit(const UserLeft('g1', 'Luigi'));
+    await pumpEventQueue();
+    expect(api.groupRequests, ['g1']);
+    expect(state().members, ['Mario', 'Luigi']);
+    expect(updates, isEmpty);
+
+    api.groupInfo = testGroup(participants: ['Mario', 'Luigi', 'Peach']);
+    emit(const UserJoined('g1', 'Peach'));
+    await pumpEventQueue();
+    expect(state().members, ['Mario', 'Luigi', 'Peach']);
+    expect(updates.single, isA<UserJoined>());
+
+    // Luigi riapre una sessione: era già nel gruppo.
+    emit(const UserJoined('g1', 'Luigi'));
+    await pumpEventQueue();
+    expect(state().members, ['Mario', 'Luigi', 'Peach']);
+    expect(updates, hasLength(1));
+  });
+
+  test('membri non riletti (errore di rete): vale l\'aggiornamento locale',
+      () async {
+    mount();
+    serverAccepts(participants: ['Mario', 'Luigi']);
+    await session().join('g1');
+    final updates = <GroupUpdate>[];
+    final subscription = session().updates.listen(updates.add);
+    addTearDown(subscription.cancel);
+    api.error = const ServerUnreachableException();
+    emit(const UserLeft('g1', 'Luigi'));
+    await pumpEventQueue();
+    expect(state().members, ['Mario']);
+    expect(updates.single, isA<UserLeft>());
+  });
+
+  test('comandi e aggiornamenti continuano se la sessione si ricostruisce',
+      () async {
+    mount();
+    serverAccepts();
+    final updates = <GroupUpdate>[];
+    final commands = <SyncPlayCommand>[];
+    final subscriptions = [
+      session().updates.listen(updates.add),
+      session().commands.listen(commands.add),
+    ];
+    addTearDown(() async {
+      for (final subscription in subscriptions) {
+        await subscription.cancel();
+      }
+    });
+    container.invalidate(watchPartySessionProvider);
+    expect(state().phase, WatchPartyPhase.none);
+
+    await session().join('g1');
+    emit(const GroupStateUpdate('g1', GroupState.waiting, 'Seek'));
+    events.add(SyncPlayCommandReceived(command(SyncPlayCommandType.pause)));
+    await pumpEventQueue();
+    expect(updates, hasLength(1));
+    expect(commands, hasLength(1));
+  });
 }

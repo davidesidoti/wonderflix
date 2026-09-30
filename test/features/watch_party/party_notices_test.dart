@@ -143,6 +143,26 @@ void main() {
     });
   });
 
+  test('sessioni in più di un membro: né entrate né uscite', () {
+    fakeAsync((async) {
+      // Luigi ha due sessioni: il server lo elenca una volta sola.
+      api
+        ..onCall = (call) {
+          if (call.startsWith('join')) {
+            events.add(SyncPlayGroupUpdated(GroupJoined(
+                'g1', testGroup(participants: ['Mario', 'Luigi']))));
+          }
+        }
+        ..groupInfo = testGroup(participants: ['Mario', 'Luigi']);
+      mount(async);
+      emit(async, const UserLeft('g1', 'Luigi'));
+      expect(current(), isNull);
+      emit(async, const UserJoined('g1', 'Luigi'));
+      expect(current(), isNull);
+      finish(async);
+    });
+  });
+
   test('le mie azioni: subito, e l\'eco del server entro 3 s non si ripete',
       () {
     fakeAsync((async) {
@@ -231,6 +251,86 @@ void main() {
                   reason: 'NextItem',
                   lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
       expect(current(), isNull, reason: 'e6 non è nella libreria finta');
+      finish(async);
+    });
+  });
+
+  test('gruppo in attesa all\'ingresso: la ripresa è senza aspettare', () {
+    fakeAsync((async) {
+      api.onCall = (call) {
+        if (call.startsWith('join')) {
+          events.add(SyncPlayGroupUpdated(
+              GroupJoined('g1', testGroup(state: GroupState.waiting))));
+        }
+      };
+      mount(async);
+      emit(async, const GroupStateUpdate('g1', GroupState.playing, 'Unpause'));
+      expect(current()?.kind, PartyNoticeKind.forcedResume);
+      finish(async);
+    });
+  });
+
+  test('titolo arrivato dopo un altro cambio o dopo l\'uscita: nessun avviso',
+      () {
+    fakeAsync((async) {
+      library
+        ..itemsById['e6'] = testItem(
+            id: 'e6',
+            name: 'And the Bag\'s in the River',
+            kind: ItemKind.episode,
+            seriesName: 'Breaking Bad',
+            index: 6,
+            seasonIndex: 1)
+        ..delay = const Duration(seconds: 1);
+      mount(async);
+      emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+      emit(
+          async,
+          PlayQueueUpdate(
+              'g1',
+              testSeriesQueue(
+                  playingIndex: 1,
+                  reason: 'NextItem',
+                  lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+      async.elapse(const Duration(milliseconds: 500));
+      emit(
+          async,
+          PlayQueueUpdate(
+              'g1',
+              testSeriesQueue(
+                  playingIndex: 2,
+                  reason: 'NextItem',
+                  lastUpdate: DateTime.utc(2026, 9, 30, 10, 6))));
+      async.elapse(const Duration(milliseconds: 600));
+      expect(current(), isNull, reason: 'il gruppo è già su e6');
+      async.elapse(const Duration(milliseconds: 500));
+      expect(current()?.title, 'S1:E6 · And the Bag\'s in the River');
+      async.elapse(PartyNotices.showFor);
+
+      emit(
+          async,
+          PlayQueueUpdate(
+              'g1',
+              testSeriesQueue(
+                  playingIndex: 1,
+                  reason: 'NewPlaylist',
+                  lastUpdate: DateTime.utc(2026, 9, 30, 10, 7))));
+      unawaited(container.read(watchPartySessionProvider.notifier).leave());
+      async.elapse(const Duration(seconds: 2));
+      expect(current(), isNull, reason: 'fuori dal gruppo');
+      finish(async);
+    });
+  });
+
+  test('la sessione si ricostruisce: gli avvisi continuano', () {
+    fakeAsync((async) {
+      mount(async);
+      container.invalidate(watchPartySessionProvider);
+      container.read(watchPartySessionProvider);
+      unawaited(container.read(watchPartySessionProvider.notifier).join('g1'));
+      async.flushMicrotasks();
+      emit(async, const GroupStateUpdate('g1', GroupState.paused, 'Pause'));
+      expect(current()?.kind, PartyNoticeKind.paused);
       finish(async);
     });
   });

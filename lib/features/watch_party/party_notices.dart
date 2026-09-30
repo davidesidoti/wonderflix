@@ -88,7 +88,16 @@ class PartyNotices extends Notifier<PartyNotice?> {
     ];
     ref.listen(watchPartySessionProvider.select((s) => s.inGroup),
         (_, inGroup) {
-      if (!inGroup) _clear();
+      if (!inGroup) {
+        _clear();
+        return;
+      }
+      // `GroupJoined` non arriva negli aggiornamenti: lo stato del gruppo
+      // all'ingresso si prende dalla sessione (es. una ripresa senza
+      // aspettare subito dopo l'ingresso).
+      final joined = ref.read(watchPartySessionProvider);
+      _groupState = joined.groupState;
+      _playing = joined.queue?.playing?.playlistItemId;
     });
     ref.onDispose(() {
       _timer?.cancel();
@@ -199,6 +208,9 @@ class PartyNotices extends Notifier<PartyNotice?> {
           .read(libraryApiProvider)
           .item(ref.read(currentUserIdProvider), itemId);
       if (!ref.mounted) return;
+      // Nel frattempo si è usciti dal gruppo o si guarda già altro.
+      final party = ref.read(watchPartySessionProvider);
+      if (!party.inGroup || party.queue?.playing?.itemId != itemId) return;
       show(PartyNotice(kind,
           title: kind == PartyNoticeKind.nextEpisode
               ? cardSubtitle(item) ?? item.name

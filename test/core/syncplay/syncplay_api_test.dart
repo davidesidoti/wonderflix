@@ -131,6 +131,28 @@ void main() {
     expect(api.utcTime(), throwsA(isA<ServerErrorException>()));
   });
 
+  test('group legge il gruppo; null se non esiste più', () async {
+    adapter.handler = (_) => const FakeResponse(200, {
+          'GroupId': 'g1',
+          'GroupName': 'Mario · Dune',
+          'State': 'Playing',
+          'Participants': ['Mario', 'Luigi'],
+          'LastUpdatedAt': '2026-09-30T10:00:00Z',
+        });
+    final group = await api.group('g1');
+    expect(adapter.requests.single.method, 'GET');
+    expect(adapter.requests.single.path, '/SyncPlay/g1');
+    expect(group?.id, 'g1');
+    expect(group?.state, GroupState.playing);
+    expect(group?.participants, ['Mario', 'Luigi']);
+
+    adapter.handler = (_) => const FakeResponse(404);
+    expect(await api.group('g1'), isNull);
+
+    adapter.handler = (_) => const FakeResponse(200, {'GroupName': 'senza id'});
+    expect(api.group('g1'), throwsA(isA<ServerErrorException>()));
+  });
+
   test('nextItem con l\'elemento in riproduzione', () async {
     await api.nextItem('p1');
     expect(adapter.requests.single.method, 'POST');

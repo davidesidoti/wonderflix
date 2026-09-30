@@ -69,6 +69,18 @@ class SyncPlayApi {
     return groups;
   }
 
+  /// Il gruppo [groupId] com'è adesso (membri senza ripetizioni); `null` se
+  /// non esiste più.
+  Future<GroupInfo?> group(String groupId) async {
+    final Object? data;
+    try {
+      data = await _http.get('/SyncPlay/$groupId');
+    } on NotFoundException {
+      return null;
+    }
+    return parseJson(data, GroupInfo.fromJson);
+  }
+
   /// Nuova coda del gruppo: si parte da [itemIds][[playingIndex]] a [start].
   Future<void> setNewQueue(List<String> itemIds,
           {int playingIndex = 0, Duration start = Duration.zero}) =>

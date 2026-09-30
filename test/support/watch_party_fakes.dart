@@ -20,6 +20,12 @@ class FakeSyncPlayApi implements SyncPlayApi {
   /// Risposta di [list].
   List<GroupInfo> groups = const [];
 
+  /// Risposta di [group] (`null` = gruppo non trovato).
+  GroupInfo? groupInfo;
+
+  /// Id chiesti a [group] (non compaiono in [calls]).
+  final groupRequests = <String>[];
+
   /// Se valorizzato, ogni chiamata registrata lancia questo errore.
   Object? error;
 
@@ -49,6 +55,15 @@ class FakeSyncPlayApi implements SyncPlayApi {
   Future<List<GroupInfo>> list() async {
     await _record('list');
     return groups;
+  }
+
+  /// Lancia [error], se valorizzato.
+  @override
+  Future<GroupInfo?> group(String groupId) async {
+    groupRequests.add(groupId);
+    final failure = error;
+    if (failure != null) throw failure;
+    return groupInfo;
   }
 
   @override
