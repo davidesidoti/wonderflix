@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -36,24 +37,14 @@ class AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<AppShell> {
-  /// La pagina è scorsa: la barra diventa scura e sfocata.
-  bool _scrolled = false;
+  /// La pagina in cima è scorsa: la barra diventa scura e sfocata. Lo
+  /// scrive la [ShellPageFrame] della pagina corrente.
+  final _scrolled = ValueNotifier<bool>(false);
 
   @override
-  void didUpdateWidget(AppShell oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Una pagina nuova parte dall'alto.
-    if (oldWidget.location != widget.location) _scrolled = false;
-  }
-
-  bool _onScroll(ScrollNotification notification) {
-    // Solo lo scroll verticale della pagina, non le righe orizzontali.
-    if (notification.depth == 0 &&
-        notification.metrics.axis == Axis.vertical) {
-      final scrolled = notification.metrics.pixels > 4;
-      if (scrolled != _scrolled) setState(() => _scrolled = scrolled);
-    }
-    return false;
+  void dispose() {
+    _scrolled.dispose();
+    super.dispose();
   }
 
   @override
@@ -63,15 +54,14 @@ class _AppShellState extends ConsumerState<AppShell> {
     final session = ref.watch(sessionControllerProvider);
     final user = session is SessionSignedIn ? session.user : null;
     final l = AppLocalizations.of(context);
-    final fade = WfMotion.of(context).duration(WfMotion.medium);
 
     return Scaffold(
       body: BackNavigationHandler(
         child: Stack(
           children: [
             Positioned.fill(
-              child: NotificationListener<ScrollNotification>(
-                onNotification: _onScroll,
+              child: _ShellScrolledScope(
+                scrolled: _scrolled,
                 child: widget.child,
               ),
             ),
@@ -83,32 +73,7 @@ class _AppShellState extends ConsumerState<AppShell> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Velo in cima per leggere la barra sulle pagine a tutta
-                  // altezza; sulle altre è sfondo su sfondo.
-                  AnimatedOpacity(
-                    opacity: _scrolled ? 0 : 1,
-                    duration: fade,
-                    child: const DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [Color(0xB30A0A0A), Color(0x000A0A0A)],
-                        ),
-                      ),
-                    ),
-                  ),
-                  AnimatedOpacity(
-                    key: const Key('shell-bar-backdrop'),
-                    opacity: _scrolled ? 1 : 0,
-                    duration: fade,
-                    child: ClipRect(
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                        child: const ColoredBox(color: Color(0xBF0A0A0A)),
-                      ),
-                    ),
-                  ),
+                  _BarBackground(scrolled: _scrolled),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Row(
@@ -144,6 +109,138 @@ class _AppShellState extends ConsumerState<AppShell> {
       ),
     );
   }
+}
+
+/// Sfondo della barra: velo in cima finché la pagina è in alto, scuro e
+/// sfocato quando è scorsa.
+class _BarBackground extends StatelessWidget {
+  const _BarBackground({required this.scrolled});
+
+  final ValueNotifier<bool> scrolled;
+
+  @override
+  Widget build(BuildContext context) {
+    final fade = WfMotion.of(context).duration(WfMotion.medium);
+    return ValueListenableBuilder<bool>(
+      valueListenable: scrolled,
+      builder: (context, scrolled, _) => Stack(
+        fit: StackFit.expand,
+        children: [
+          // Velo in cima per leggere la barra sulle pagine a tutta
+          // altezza; sulle altre è sfondo su sfondo.
+          AnimatedOpacity(
+            opacity: scrolled ? 0 : 1,
+            duration: fade,
+            child: const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xB30A0A0A), Color(0x000A0A0A)],
+                ),
+              ),
+            ),
+          ),
+          AnimatedOpacity(
+            key: const Key('shell-bar-backdrop'),
+            opacity: scrolled ? 1 : 0,
+            duration: fade,
+            child: ClipRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: const ColoredBox(color: Color(0xBF0A0A0A)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Porta alle pagine della shell il valore "pagina scorsa" della barra.
+class _ShellScrolledScope extends InheritedWidget {
+  const _ShellScrolledScope({required this.scrolled, required super.child});
+
+  final ValueNotifier<bool> scrolled;
+
+  @override
+  bool updateShouldNotify(_ShellScrolledScope oldWidget) =>
+      oldWidget.scrolled != scrolled;
+}
+
+/// Contenuto di una pagina della shell (lo aggiungono `shellPage` e
+/// `detailPage`). Lascia il margine sotto la barra se [underBar]; altrimenti
+/// la pagina arriva al bordo della finestra (Home e scheda, spec C §11.1).
+///
+/// Ricorda se la propria pagina è scorsa e, quando la sua rotta è in cima,
+/// lo dice alla barra: tornando indietro la barra ritrova lo stato della
+/// pagina, e una pagina nuova parte chiara.
+class ShellPageFrame extends StatefulWidget {
+  const ShellPageFrame(
+      {super.key, required this.underBar, required this.child});
+
+  final bool underBar;
+  final Widget child;
+
+  @override
+  State<ShellPageFrame> createState() => _ShellPageFrameState();
+}
+
+class _ShellPageFrameState extends State<ShellPageFrame> {
+  ValueNotifier<bool>? _barScrolled;
+  bool _scrolled = false;
+  bool _current = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _barScrolled = context
+        .getInheritedWidgetOfExactType<_ShellScrolledScope>()
+        ?.scrolled;
+    // Dipende dalla rotta: si riesegue quando torna in cima.
+    final current = ModalRoute.isCurrentOf(context) ?? true;
+    final becameCurrent = current && !_current;
+    _current = current;
+    if (becameCurrent) _publish();
+  }
+
+  bool _onScroll(ScrollNotification notification) {
+    // Solo lo scroll verticale della pagina, non le righe orizzontali.
+    if (notification.depth == 0 &&
+        notification.metrics.axis == Axis.vertical) {
+      final scrolled = notification.metrics.pixels > 4;
+      if (scrolled != _scrolled) {
+        _scrolled = scrolled;
+        if (_current) _publish();
+      }
+    }
+    return false;
+  }
+
+  /// Scrive lo stato nella barra; durante la costruzione (la shell è un
+  /// antenato) aspetta la fine del fotogramma.
+  void _publish() {
+    void write() {
+      if (mounted && _current) _barScrolled?.value = _scrolled;
+    }
+
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) => write());
+    } else {
+      write();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: EdgeInsets.only(top: widget.underBar ? shellBarHeight : 0),
+        child: NotificationListener<ScrollNotification>(
+          onNotification: _onScroll,
+          child: widget.child,
+        ),
+      );
 }
 
 typedef _NavEntry = ({String label, String route, IconData? icon});

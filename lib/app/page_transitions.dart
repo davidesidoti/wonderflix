@@ -33,18 +33,15 @@ Widget pageTransition(WfMotion motion, Animation<double> animation,
 
 /// [underBar]: la pagina inizia sotto la barra in alto; altrimenti arriva
 /// fino al bordo della finestra (Home e scheda, spec C §11.1). Il margine sta
-/// dentro la pagina, non nella shell: così nel fotogramma del push/pop la
-/// pagina che esce non salta.
+/// dentro la pagina ([ShellPageFrame]), non nella shell: così nel fotogramma
+/// del push/pop la pagina che esce non salta.
 CustomTransitionPage<void> _page(BuildContext context, GoRouterState state,
     Widget child, Duration fullDuration, bool underBar) {
   final motion = WfMotion.of(context);
   final duration = motion.duration(fullDuration);
   return CustomTransitionPage<void>(
     key: state.pageKey,
-    child: Padding(
-      padding: EdgeInsets.only(top: underBar ? shellBarHeight : 0),
-      child: child,
-    ),
+    child: ShellPageFrame(underBar: underBar, child: child),
     transitionDuration: duration,
     reverseTransitionDuration: duration,
     transitionsBuilder: (context, animation, secondaryAnimation, child) =>

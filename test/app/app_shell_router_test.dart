@@ -151,4 +151,50 @@ void main() {
     expectUnderlineUnder(tester, '/movies');
     expect(topOf(tester, 'movies'), shellBarHeight);
   });
+
+  double backdrop(WidgetTester tester) => tester
+      .widget<AnimatedOpacity>(find.byKey(const Key('shell-bar-backdrop')))
+      .opacity;
+
+  testWidgets('barra scura per pagina: tornando indietro si ritrova',
+      (tester) async {
+    final router = await pumpRouter(tester, '/home');
+    expect(backdrop(tester), 0);
+    await tester.drag(find.byKey(const Key('page-home')), const Offset(0, -400));
+    await tester.pumpAndSettle();
+    expect(backdrop(tester), 1);
+
+    // La scheda nuova parte dall'alto.
+    unawaited(router.push('/item/m1'));
+    await tester.pumpAndSettle();
+    expect(backdrop(tester), 0);
+
+    // La Home è ancora scorsa.
+    router.pop();
+    await tester.pumpAndSettle();
+    expect(backdrop(tester), 1);
+  });
+
+  testWidgets('barra chiara tornando su una pagina non scorsa',
+      (tester) async {
+    final router = await pumpRouter(tester, '/movies');
+    unawaited(router.push('/item/m1'));
+    await tester.pumpAndSettle();
+    await tester.drag(
+        find.byKey(const Key('page-item-m1')), const Offset(0, -400));
+    await tester.pumpAndSettle();
+    expect(backdrop(tester), 1);
+
+    router.pop();
+    await tester.pumpAndSettle();
+    expect(backdrop(tester), 0);
+
+    await tester.drag(
+        find.byKey(const Key('page-movies')), const Offset(0, -400));
+    await tester.pumpAndSettle();
+    expect(backdrop(tester), 1);
+    router.go('/home');
+    await tester.pumpAndSettle();
+    expect(backdrop(tester), 0);
+  });
 }

@@ -31,8 +31,8 @@ void main() {
       );
 
   Future<void> pumpShell(WidgetTester tester, String location,
-      {MotionLevel motion = MotionLevel.reduced}) async {
-    await pumpApp(tester, AppShell(location: location, child: page()),
+      {MotionLevel motion = MotionLevel.reduced, Widget? child}) async {
+    await pumpApp(tester, AppShell(location: location, child: child ?? page()),
         overrides: overrides, motion: motion);
     await tester.pumpAndSettle();
   }
@@ -62,8 +62,11 @@ void main() {
     expect(find.byKey(const Key('nav-indicator')), findsNothing);
   });
 
+  // Lo stato "scorsa" è della pagina: lo comunica la sua ShellPageFrame
+  // (aggiunta da shellPage/detailPage).
   testWidgets('la barra si scurisce quando la pagina scorre', (tester) async {
-    await pumpShell(tester, '/movies');
+    await pumpShell(tester, '/movies',
+        child: ShellPageFrame(underBar: true, child: page()));
     AnimatedOpacity backdrop() =>
         tester.widget<AnimatedOpacity>(find.byKey(const Key('shell-bar-backdrop')));
     expect(backdrop().opacity, 0);
