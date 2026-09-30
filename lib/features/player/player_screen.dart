@@ -82,6 +82,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// Nel watch party: applica i comandi del gruppo al motore.
   GroupPlaybackDriver? _driver;
 
+  /// Nel watch party: manda al gruppo pausa, ripresa e salti.
+  GroupAuthority? _authority;
+
   bool get _inParty => widget.args.party != null;
 
   PlayerController get _controller =>
@@ -119,6 +122,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (!_handingOver) unawaited(_mediaSession.clear());
     _playerActive.leave();
     unawaited(_driver?.dispose());
+    _authority?.dispose();
     super.dispose();
   }
 
@@ -240,8 +244,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       commands: session.commands,
       lastCommand: session.lastCommand,
     )..start();
-    controller.setAuthority(
-        GroupAuthority(api: session.api, engine: controller.engine));
+    final authority =
+        GroupAuthority(api: session.api, engine: controller.engine);
+    _authority = authority;
+    controller.setAuthority(authority);
   }
 
   /// Il server ci ha tolto dal gruppo: si continua da soli.
@@ -249,6 +255,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final driver = _driver;
     _driver = null;
     unawaited(driver?.dispose());
+    _authority?.dispose();
+    _authority = null;
     _controller.setAuthority(null);
   }
 

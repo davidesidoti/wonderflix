@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/features/watch_party/group_authority.dart';
@@ -32,18 +35,66 @@ void main() {
   });
 
   test('seekTo mette in pausa sulla posizione scelta e la chiede al gruppo',
-      () async {
-    await authority.seekTo(const Duration(minutes: 30));
-    expect(engine.calls, ['pause']);
-    expect(engine.seeks, [const Duration(minutes: 30)]);
-    expect(api.calls, ['seek ${const Duration(minutes: 30)}']);
+      () {
+    fakeAsync((async) {
+      unawaited(authority.seekTo(const Duration(minutes: 30)));
+      async.flushMicrotasks();
+      expect(engine.calls, ['pause']);
+      expect(engine.seeks, [const Duration(minutes: 30)]);
+      expect(api.calls, isEmpty);
+      async.elapse(GroupAuthority.seekDebounce);
+      expect(api.calls, ['seek ${const Duration(minutes: 30)}']);
+    });
   });
 
-  test('errori di rete: nessuna eccezione verso il player', () async {
-    api.error = const ServerUnreachableException();
-    await authority.play();
-    await authority.pause();
-    await authority.seekTo(Duration.zero);
-    expect(api.calls, ['unpause', 'pause', 'seek 0:00:00.000000']);
+  test('salti ripetuti (tasto tenuto): un solo Seek con l\'ultima posizione',
+      () {
+    fakeAsync((async) {
+      for (var i = 1; i <= 10; i++) {
+        unawaited(authority.seekTo(Duration(seconds: 10 * i)));
+        async.elapse(const Duration(milliseconds: 30));
+      }
+      expect(engine.seeks, hasLength(10));
+      expect(api.calls, isEmpty);
+      async.elapse(const Duration(milliseconds: 369));
+      expect(api.calls, isEmpty);
+      async.elapse(const Duration(milliseconds: 1));
+      expect(api.calls, ['seek ${const Duration(seconds: 100)}']);
+      async.elapse(const Duration(seconds: 1));
+      expect(api.calls, hasLength(1));
+    });
+  });
+
+  test('play con un salto in sospeso: prima il Seek, poi la ripresa', () {
+    fakeAsync((async) {
+      unawaited(authority.seekTo(const Duration(minutes: 5)));
+      async.elapse(const Duration(milliseconds: 100));
+      unawaited(authority.play());
+      async.flushMicrotasks();
+      expect(api.calls, ['seek ${const Duration(minutes: 5)}', 'unpause']);
+      async.elapse(const Duration(seconds: 1));
+      expect(api.calls, hasLength(2));
+    });
+  });
+
+  test('dispose annulla il salto in sospeso', () {
+    fakeAsync((async) {
+      unawaited(authority.seekTo(const Duration(minutes: 5)));
+      async.flushMicrotasks();
+      authority.dispose();
+      async.elapse(const Duration(seconds: 1));
+      expect(api.calls, isEmpty);
+    });
+  });
+
+  test('errori di rete: nessuna eccezione verso il player', () {
+    fakeAsync((async) {
+      api.error = const ServerUnreachableException();
+      unawaited(authority.play());
+      unawaited(authority.pause());
+      unawaited(authority.seekTo(Duration.zero));
+      async.elapse(GroupAuthority.seekDebounce);
+      expect(api.calls, ['unpause', 'pause', 'seek 0:00:00.000000']);
+    });
   });
 }
