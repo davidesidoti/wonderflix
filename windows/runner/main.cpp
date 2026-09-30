@@ -11,21 +11,30 @@
 
 // Sviluppo: WONDERFLIX_PROFILE=<nome> avvia un'istanza separata, con dati e
 // DeviceId propri (lib/core/device/dev_profile.dart), per provare il watch
-// party con due istanze sullo stesso PC. Stesse regole del lato Dart: lettere
-// e cifre, massimo 16 caratteri, maiuscole ignorate.
+// party con due istanze sullo stesso PC. Stesse regole del lato Dart
+// (devProfile): spazi esterni tolti, poi da 1 a 16 lettere o cifre ASCII,
+// maiuscole ignorate; altrimenti l'istanza normale.
 static std::wstring InstanceMutexName() {
   std::wstring name = L"Local\\WonderFlix.SingleInstance";
   wchar_t buffer[64];
   DWORD length = ::GetEnvironmentVariableW(L"WONDERFLIX_PROFILE", buffer, 64);
   if (length == 0 || length >= 64) return name;
+  auto is_space = [](wchar_t c) {
+    return c == L' ' || c == L'\t' || c == L'\r' || c == L'\n';
+  };
+  DWORD begin = 0;
+  DWORD end = length;
+  while (begin < end && is_space(buffer[begin])) begin++;
+  while (end > begin && is_space(buffer[end - 1])) end--;
+  if (end - begin == 0 || end - begin > 16) return name;
   std::wstring profile;
-  for (DWORD i = 0; i < length; i++) {
+  for (DWORD i = begin; i < end; i++) {
     wchar_t c = buffer[i];
-    if (c == L' ') continue;
-    if (c > 127 || !std::iswalnum(c)) return name;
+    bool ascii_alnum = (c >= L'a' && c <= L'z') || (c >= L'A' && c <= L'Z') ||
+                       (c >= L'0' && c <= L'9');
+    if (!ascii_alnum) return name;
     profile += static_cast<wchar_t>(std::towlower(c));
   }
-  if (profile.empty() || profile.size() > 16) return name;
   return name + L"." + profile;
 }
 

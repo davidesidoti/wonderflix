@@ -49,6 +49,10 @@ Future<void> main() async {
     // Sviluppo: seconda istanza con dati separati (WONDERFLIX_PROFILE).
     final profile = devProfile();
     if (profile != null) {
+      // Il prefisso separa le chiavi, ma il file delle preferenze resta uno
+      // solo per le due istanze: posizione della finestra e impostazioni
+      // possono ancora mescolarsi (accettabile per uno strumento di
+      // sviluppo). Per questo il DeviceId del profilo non si salva qui.
       SharedPreferences.setPrefix(prefsPrefixFor(profile));
       _log.info('profilo di sviluppo: $profile');
     }
@@ -74,7 +78,7 @@ Future<void> main() async {
       return;
     }
 
-    final identity = await DeviceIdentity.load(prefs);
+    final identity = await DeviceIdentity.load(prefs, profile: profile);
     final package = await PackageInfo.fromPlatform();
     _log.info('WonderFlix ${package.version} su '
         '${Platform.operatingSystemVersion}');

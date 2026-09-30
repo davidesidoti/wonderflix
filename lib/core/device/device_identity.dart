@@ -13,17 +13,27 @@ class DeviceIdentity {
 
   static const prefsKey = 'device_id';
 
+  /// Con un profilo di sviluppo ([profile], vedi `devProfile`) il DeviceId
+  /// non sta nelle preferenze: le due istanze condividono lo stesso file e si
+  /// sovrascriverebbero a vicenda. Si ricava dal nome del PC e dal profilo,
+  /// quindi resta lo stesso a ogni avvio.
   static Future<DeviceIdentity> load(
     SharedPreferences prefs, {
+    String? profile,
     String Function()? hostName,
     String Function()? newId,
   }) async {
+    final name = (hostName ?? () => Platform.localHostname)();
+    if (profile != null) {
+      final id = const Uuid()
+          .v5(Namespace.url.value, 'wonderflix-dev:$name:$profile');
+      return DeviceIdentity(deviceId: id, deviceName: name);
+    }
     var id = prefs.getString(prefsKey);
     if (id == null || id.isEmpty) {
       id = (newId ?? () => const Uuid().v4())();
       await prefs.setString(prefsKey, id);
     }
-    final name = (hostName ?? () => Platform.localHostname)();
     return DeviceIdentity(deviceId: id, deviceName: name);
   }
 }
