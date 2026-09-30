@@ -155,5 +155,21 @@
   "updateRequiredBody": "This version of WonderFlix is no longer supported. Install version {version} to continue.",
   "updateDownloading": "Downloading… {percent}%",
   "updateInstallNow": "Update now",
-  "updateDownloadFailed": "Download failed. Check your connection and try again."
+  "updateDownloadFailed": "Download failed. Check your connection and try again.",
+  "watchPartyWatchTogether": "Watch together",
+  "watchPartyButton": "Watch party · {count}",
+  "watchPartyListTitle": "Active watch parties",
+  "watchPartyJoin": "Join",
+  "watchPartyMembers": "{count, plural, =1{1 person} other{{count} people}}",
+  "watchPartyStateIdle": "Stopped",
+  "watchPartyStateWaiting": "Waiting",
+  "watchPartyStatePaused": "Paused",
+  "watchPartyStatePlaying": "Playing",
+  "watchPartyLeave": "Leave watch party",
+  "watchPartyWaiting": "Waiting for the others…",
+  "watchPartyResumeNow": "Resume without waiting",
+  "watchPartyCreateError": "Couldn't start the watch party.",
+  "watchPartyJoinError": "Couldn't join the watch party.",
+  "watchPartyGone": "This watch party no longer exists.",
+  "watchPartyAccessDenied": "You don't have access to this content."
 }
