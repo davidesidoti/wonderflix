@@ -83,6 +83,19 @@ class _CardPreviewHostState extends ConsumerState<CardPreviewHost>
     if (current && _leaving) _hideAfterFrame();
   }
 
+  @override
+  void didUpdateWidget(CardPreviewHost oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Griglie e righe senza chiavi riusano l'host per un altro titolo (es.
+    // tolto da La mia lista): l'anteprima del titolo di prima si chiude, e
+    // quella del nuovo titolo non si apre finché il mouse non esce dalla
+    // card.
+    if (oldWidget.item.id != widget.item.id) {
+      _hoverTimer?.cancel();
+      _hideAfterFrame(dismiss: true);
+    }
+  }
+
   /// Chiusura chiesta durante la build (dipendenze, widget aggiornato): il
   /// provider e l'overlay non si toccano mentre l'albero si costruisce.
   bool _hidePending = false;
