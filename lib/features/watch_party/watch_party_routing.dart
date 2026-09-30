@@ -6,6 +6,7 @@ import 'package:logging/logging.dart';
 
 import '../../app/navigation.dart';
 import '../../app/router.dart';
+import '../player/player_handover.dart';
 import '../player/player_providers.dart';
 import 'party_notices.dart';
 import 'watch_party_session.dart';
@@ -66,8 +67,9 @@ final watchPartyRoutingProvider = Provider<void>((ref) {
 
 /// Apre il player dell'elemento [playlistItemId] del gruppo. Con un player
 /// del gruppo già aperto non fa nulla (il cambio lo fa lui); con un player
-/// da solo in cima ("Guarda insieme" dal player) lo sostituisce, lasciando
-/// lo schermo intero com'è.
+/// da solo in cima ("Guarda insieme" dal player, o una coda arrivata mentre
+/// si guarda da soli) lo sostituisce, lasciando lo schermo intero com'è
+/// (vedi [PlayerHandover]).
 Future<void> _openParty(Ref ref, String playlistItemId) async {
   final navigator = ref.read(partyNavigatorProvider);
   final location = navigator.location;
@@ -88,11 +90,14 @@ Future<void> _openParty(Ref ref, String playlistItemId) async {
   } on Object catch (error) {
     _log.info('stato dello schermo intero non disponibile: $error');
   }
-  // Nel frattempo il gruppo può essere passato ad altro.
+  // Nel frattempo il gruppo può essere passato ad altro, o l'utente può
+  // aver chiuso il player da solo.
   if (!ref.mounted) return;
   final party = ref.read(watchPartySessionProvider);
   if (!party.inGroup || party.queue?.playing?.playlistItemId != playlistItemId) {
     return;
   }
+  if (navigator.location != location) return;
+  ref.read(playerHandoverProvider).replacing(location.pathSegments.last);
   navigator.replace(route(fullscreen));
 }

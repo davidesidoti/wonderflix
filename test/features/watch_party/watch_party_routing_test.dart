@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/player/player_handover.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_routing.dart';
@@ -91,5 +92,23 @@ void main() {
     window.fullScreen = true;
     await joinAndQueue(testQueue());
     expect(navigator.replaced, ['/play/m1?fs=1&party=p1']);
+  });
+
+  test('il player da solo sostituito lo sa (non esce dallo schermo intero)',
+      () async {
+    navigator.location = Uri.parse('/play/m9');
+    await joinAndQueue(testQueue());
+    final handover = container.read(playerHandoverProvider);
+    expect(handover.consume('m1'), isFalse);
+    expect(handover.consume('m9'), isTrue);
+    expect(handover.consume('m9'), isFalse, reason: 'vale una volta sola');
+  });
+
+  test('pagina cambiata mentre si legge lo schermo intero: niente', () async {
+    navigator.location = Uri.parse('/play/m9');
+    window.onIsFullScreen = () => navigator.location = Uri.parse('/home');
+    await joinAndQueue(testQueue());
+    expect(navigator.replaced, isEmpty);
+    expect(container.read(playerHandoverProvider).consume('m9'), isFalse);
   });
 }

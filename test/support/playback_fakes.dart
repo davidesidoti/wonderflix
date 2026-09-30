@@ -429,8 +429,15 @@ class FakePlayerWindow implements PlayerWindow {
     fullScreen = value;
   }
 
+  /// Chiamato a ogni [isFullScreen], prima della risposta (es. la pagina
+  /// cambia nel frattempo).
+  void Function()? onIsFullScreen;
+
   @override
-  Future<bool> isFullScreen() async => fullScreen;
+  Future<bool> isFullScreen() async {
+    onIsFullScreen?.call();
+    return fullScreen;
+  }
 
   @override
   Future<void> setPreventClose(bool value) async =>

@@ -33,6 +33,7 @@ import 'player_commands.dart';
 import 'player_controller.dart';
 import 'player_extras.dart';
 import 'player_active.dart';
+import 'player_handover.dart';
 import 'player_overlay.dart';
 import 'player_providers.dart';
 import 'player_settings.dart';
@@ -75,6 +76,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// Si passa all'episodio successivo: la finestra resta com'è.
   bool _handingOver = false;
 
+  /// "Guarda insieme" in corso: il pulsante sparisce, un secondo tocco non
+  /// fa nulla.
+  bool _startingParty = false;
+
+  /// Il routing del watch party segnala qui che sostituisce questo player
+  /// da solo con quello del gruppo (letto alla chiusura, senza `ref`).
+  late final PlayerHandover _handover;
+
   /// L'utente ha chiuso la scheda "Prossimo episodio".
   bool _nextCardDismissed = false;
 
@@ -102,6 +111,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void initState() {
     super.initState();
     _playerActive = ref.read(playerActiveProvider.notifier)..enter();
+    _handover = ref.read(playerHandoverProvider);
     _window = ref.read(playerWindowProvider);
     _window.addCloseListener(_onWindowClose);
     unawaited(_window.setPreventClose(true));
@@ -125,16 +135,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   @override
   void dispose() {
+    // Player da solo sostituito dal routing con quello del gruppo: come
+    // passando all'episodio successivo.
+    final handingOver = _handingOver ||
+        (widget.args.party == null && _handover.consume(widget.args.itemId));
     _hideTimer?.cancel();
     _window.removeCloseListener(_onWindowClose);
     unawaited(_window.setPreventClose(false));
-    if (_fullscreen && !_handingOver) unawaited(_window.setFullScreen(false));
+    if (_fullscreen && !handingOver) unawaited(_window.setFullScreen(false));
     _timelineTimer?.cancel();
     unawaited(_mediaButtons?.cancel());
     // Uscendo dal player il pannello media sparisce; passando all'episodio
     // successivo resta alla nuova schermata. Non si chiude mai: è dell'app.
-    if (!_handingOver) unawaited(_mediaSession.clear());
-    if (!_handingOver) unawaited(_mediaSession.setParty(null));
+    if (!handingOver) unawaited(_mediaSession.clear());
+    if (!handingOver) unawaited(_mediaSession.setParty(null));
     _playerActive.leave();
     unawaited(_driver?.dispose());
     _authority?.dispose();
@@ -331,15 +345,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   /// "Guarda insieme" mentre si guarda da soli (spec B §5.2): il gruppo parte
   /// da qui, e il routing riapre il player sullo stesso punto in modalità
-  /// gruppo. Intanto questo player, che sta per essere sostituito, non esce
-  /// dallo schermo intero né nasconde il pannello media.
+  /// gruppo (sostituendo questo, vedi [PlayerHandover]). Se la coda non
+  /// arriva, o si esce prima, questo player esce come sempre. Riuscita la
+  /// richiesta il pulsante non torna: si aspetta il player del gruppo.
   Future<void> _watchTogether() async {
     final item = ref.read(playerControllerProvider(widget.args)).item;
-    if (item == null || _leaving) return;
-    _handingOver = true;
-    final started = await startWatchParty(context, ref, item,
-        start: _controller.engine.position);
-    if (!started && mounted) _handingOver = false;
+    if (item == null || _leaving || _startingParty) return;
+    final start = _controller.engine.position;
+    setState(() => _startingParty = true);
+    final started = await startWatchParty(context, ref, item, start: start);
+    if (!mounted || _leaving) return;
+    if (!started) setState(() => _startingParty = false);
   }
 
   void _sendTimeline() {
@@ -457,7 +473,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final party = _inParty ? ref.watch(watchPartySessionProvider) : null;
     final canWatchTogether = widget.args.party == null &&
         ref.watch(syncPlayAccessProvider).canCreate &&
-        view.item != null;
+        view.item != null &&
+        !_startingParty;
 
     ref.listen(provider.select((s) => s.finished), (_, finished) {
       if (finished) _onFinished();

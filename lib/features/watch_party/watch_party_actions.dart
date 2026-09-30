@@ -21,10 +21,14 @@ Future<bool> startWatchParty(
     _run(
       context,
       () async {
+        // Il widget di [ref] può chiudersi durante le richieste (es. il
+        // player da solo sostituito da quello del gruppo): tutto quel che
+        // serve si prende prima della prima attesa; dopo, il container.
+        final container = ProviderScope.containerOf(context, listen: false);
+        final session = ref.read(watchPartySessionProvider.notifier);
         final queue = await buildPartyQueue(ref.read(libraryApiProvider),
             ref.read(currentUserIdProvider), item);
-        final session = ref.read(watchPartySessionProvider.notifier);
-        if (ref.read(watchPartySessionProvider).inGroup) {
+        if (container.read(watchPartySessionProvider).inGroup) {
           await session.setQueue(queue, start: start);
         } else {
           await session.create(item, queue: queue, start: start);
