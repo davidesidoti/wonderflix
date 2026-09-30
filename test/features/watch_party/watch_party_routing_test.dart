@@ -5,11 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_routing.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 
 import '../../support/fake_session_controller.dart';
+import '../../support/playback_fakes.dart';
 import '../../support/test_data.dart';
 import '../../support/watch_party_fakes.dart';
 
@@ -17,18 +19,21 @@ void main() {
   late FakeSyncPlayApi api;
   late StreamController<ServerEvent> events;
   late FakePartyNavigator navigator;
+  late FakePlayerWindow window;
   late ProviderContainer container;
 
   setUp(() {
     api = FakeSyncPlayApi();
     events = StreamController<ServerEvent>.broadcast();
     navigator = FakePartyNavigator();
+    window = FakePlayerWindow();
     container = ProviderContainer.test(overrides: [
       sessionControllerProvider.overrideWith(
           () => FakeSessionController(const SessionSignedIn(testUser))),
       syncPlayApiProvider.overrideWithValue(api),
       watchPartyEventsProvider.overrideWithValue(events.stream),
       partyNavigatorProvider.overrideWithValue(navigator),
+      playerWindowProvider.overrideWithValue(window),
     ]);
     container.listen(watchPartyRoutingProvider, (_, _) {});
     api.onCall = (call) {
@@ -78,5 +83,13 @@ void main() {
     await joinAndQueue(testSeriesQueue(playingIndex: 1));
     expect(navigator.opened, isEmpty);
     expect(navigator.replaced, isEmpty);
+  });
+
+  test('player da solo che entra nel gruppo a schermo intero: resta così',
+      () async {
+    navigator.location = Uri.parse('/play/m1');
+    window.fullScreen = true;
+    await joinAndQueue(testQueue());
+    expect(navigator.replaced, ['/play/m1?fs=1&party=p1']);
   });
 }

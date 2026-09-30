@@ -2,11 +2,15 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:logging/logging.dart';
 
 import '../../app/navigation.dart';
 import '../../app/router.dart';
+import '../player/player_providers.dart';
 import 'party_notices.dart';
 import 'watch_party_session.dart';
+
+final _log = Logger('watchparty');
 
 /// Dove si trova l'app e come aprire il player (sostituibile nei test).
 abstract interface class PartyNavigator {
@@ -56,20 +60,39 @@ final watchPartyRoutingProvider = Provider<void>((ref) {
       watchPartySessionProvider.select(
           (s) => s.inGroup ? s.queue?.playing?.playlistItemId : null),
       (_, playlistItemId) {
-    if (playlistItemId == null) return;
-    final entry = ref.read(watchPartySessionProvider).queue!.playing!;
-    final navigator = ref.read(partyNavigatorProvider);
-    final location = navigator.location;
-    // Un player del gruppo è già aperto: il cambio di elemento lo fa lui,
-    // mantenendo lo schermo intero e segnando l'episodio visto.
-    if (location.queryParameters.containsKey('party')) return;
-    final route = playerRoute(entry.itemId,
-        start: ref.read(watchPartySessionProvider.notifier).estimatedPosition(),
-        party: playlistItemId);
-    if (location.path.startsWith('/play/')) {
-      navigator.replace(route);
-    } else {
-      navigator.open(route);
-    }
+    if (playlistItemId != null) unawaited(_openParty(ref, playlistItemId));
   });
 });
+
+/// Apre il player dell'elemento [playlistItemId] del gruppo. Con un player
+/// del gruppo già aperto non fa nulla (il cambio lo fa lui); con un player
+/// da solo in cima ("Guarda insieme" dal player) lo sostituisce, lasciando
+/// lo schermo intero com'è.
+Future<void> _openParty(Ref ref, String playlistItemId) async {
+  final navigator = ref.read(partyNavigatorProvider);
+  final location = navigator.location;
+  if (location.queryParameters.containsKey('party')) return;
+  final entry = ref.read(watchPartySessionProvider).queue?.playing;
+  if (entry == null || entry.playlistItemId != playlistItemId) return;
+  String route(bool fullscreen) => playerRoute(entry.itemId,
+      start: ref.read(watchPartySessionProvider.notifier).estimatedPosition(),
+      fullscreen: fullscreen,
+      party: playlistItemId);
+  if (!location.path.startsWith('/play/')) {
+    navigator.open(route(false));
+    return;
+  }
+  var fullscreen = false;
+  try {
+    fullscreen = await ref.read(playerWindowProvider).isFullScreen();
+  } on Object catch (error) {
+    _log.info('stato dello schermo intero non disponibile: $error');
+  }
+  // Nel frattempo il gruppo può essere passato ad altro.
+  if (!ref.mounted) return;
+  final party = ref.read(watchPartySessionProvider);
+  if (!party.inGroup || party.queue?.playing?.playlistItemId != playlistItemId) {
+    return;
+  }
+  navigator.replace(route(fullscreen));
+}

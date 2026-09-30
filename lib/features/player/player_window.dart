@@ -6,6 +6,8 @@ import 'package:window_manager/window_manager.dart';
 abstract class PlayerWindow {
   Future<void> setFullScreen(bool value);
 
+  Future<bool> isFullScreen();
+
   /// Con `true` la finestra non si chiude da sola: vengono chiamati gli
   /// ascoltatori di [addCloseListener], che poi devono chiamare [destroy].
   /// Ogni `true` va bilanciato da un `false`: la chiusura torna libera solo
@@ -29,6 +31,9 @@ class WindowManagerPlayerWindow implements PlayerWindow {
 
   @override
   Future<void> setFullScreen(bool value) => windowManager.setFullScreen(value);
+
+  @override
+  Future<bool> isFullScreen() => windowManager.isFullScreen();
 
   @override
   Future<void> setPreventClose(bool value) async {

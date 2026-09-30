@@ -418,12 +418,19 @@ class FakeVideoEngine implements VideoEngine {
 /// Finestra in memoria: registra le chiamate e simula la chiusura.
 class FakePlayerWindow implements PlayerWindow {
   final fullScreenCalls = <bool>[];
+  bool fullScreen = false;
   final preventCloseCalls = <bool>[];
   bool destroyed = false;
   final _closeListeners = <Future<void> Function()>[];
 
   @override
-  Future<void> setFullScreen(bool value) async => fullScreenCalls.add(value);
+  Future<void> setFullScreen(bool value) async {
+    fullScreenCalls.add(value);
+    fullScreen = value;
+  }
+
+  @override
+  Future<bool> isFullScreen() async => fullScreen;
 
   @override
   Future<void> setPreventClose(bool value) async =>
