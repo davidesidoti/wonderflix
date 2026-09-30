@@ -36,6 +36,7 @@ void main() {
   late FakeVideoEngine engine;
   late List<FakeVideoEngine> engines;
   late FakePlayerWindow window;
+  late FakeMediaSession mediaSession;
   late FakeSyncPlayApi api;
   late StreamController<ServerEvent> events;
   late FakeLibraryApi library;
@@ -50,6 +51,7 @@ void main() {
     engine = FakeVideoEngine()..engineTracks = testEngineTracks;
     engines = [];
     window = FakePlayerWindow();
+    mediaSession = FakeMediaSession();
     api = FakeSyncPlayApi();
     events = StreamController<ServerEvent>.broadcast();
     addTearDown(events.close);
@@ -109,7 +111,7 @@ void main() {
           return created;
         }),
         playerWindowProvider.overrideWithValue(window),
-        mediaSessionProvider.overrideWithValue(FakeMediaSession()),
+        mediaSessionProvider.overrideWithValue(mediaSession),
         playerSettingsProvider
             .overrideWith(() => FakePlayerSettings(const PlayerSettings())),
         sessionControllerProvider.overrideWith(
@@ -354,6 +356,64 @@ void main() {
     expect(api.calls, contains('next p1'));
     await tester.pump(const Duration(seconds: 1));
     expect(api.calls.where((call) => call.startsWith('seek')), isEmpty);
+    await finish(tester);
+  });
+
+  testWidgets('scheda "Prossimo episodio" solo se è il prossimo della coda',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    // Nella coda del gruppo dopo e4 c'è e9, non e5 (il successivo nella
+    // libreria).
+    emit(PlayQueueUpdate('g1', testSeriesQueue(itemIds: ['e4', 'e9'])));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byTooltip(l.playerNextEpisode), findsOneWidget,
+        reason: 'il pulsante segue la coda');
+    engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text(l.playerNextEpisodeTitle.toUpperCase()), findsNothing);
+    await finish(tester);
+  });
+
+  testWidgets('"successivo" del pannello media: segue la coda del gruppo',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    expect(mediaSession.nextEnabled, isNot(contains(true)),
+        reason: 'e5 è il successivo nella libreria, ma non nella coda');
+    await queueSeries(tester);
+    expect(mediaSession.nextEnabled.last, isTrue);
+    emit(PlayQueueUpdate(
+        'g1',
+        testQueue(
+            itemId: 'e4', lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+    await tester.pump();
+    await tester.pump();
+    expect(mediaSession.nextEnabled.last, isFalse);
+    await finish(tester);
+  });
+
+  testWidgets(
+      'gruppo chiuso dal server: episodio successivo di nuovo da solo '
+      '(pulsante, scheda con conto alla rovescia, fine del video)',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    await queueSeries(tester);
+    emit(const GroupLeft('g1'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byTooltip(l.playerNextEpisode), findsOneWidget);
+    expect(mediaSession.nextEnabled.last, isTrue);
+    engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
+    await tester.pump();
+    await tester.pump();
+    expect(find.textContaining('Inizia tra'), findsOneWidget);
+
+    engine.emitCompleted();
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/play/e5');
+    expect(router.state.uri.queryParameters, isNot(contains('party')));
+    expect(api.calls, isNot(contains('next p1')));
     await finish(tester);
   });
 

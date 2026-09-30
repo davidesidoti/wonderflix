@@ -87,7 +87,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// Nel watch party: manda al gruppo pausa, ripresa e salti.
   GroupAuthority? _authority;
 
-  bool get _inParty => widget.args.party != null;
+  /// Il server ci ha tolto dal gruppo: il player continua da solo, come
+  /// fuori da un watch party.
+  bool _partyDetached = false;
+
+  bool get _inParty => widget.args.party != null && !_partyDetached;
 
   PlayerController get _controller =>
       ref.read(playerControllerProvider(widget.args).notifier);
@@ -104,8 +108,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _mediaSession = ref.read(mediaSessionProvider);
     _mediaButtons = _mediaSession.buttons.listen(_onMediaButton);
     // Il "successivo" dell'episodio precedente non vale per questo: si
-    // riattiva quando arriva il suo episodio successivo.
-    unawaited(_mediaSession.setNextEnabled(false));
+    // riattiva quando arriva il suo episodio successivo. Nel gruppo segue la
+    // coda, che c'è già.
+    final party = _inParty ? ref.read(watchPartySessionProvider) : null;
+    unawaited(_mediaSession.setNextEnabled(
+        party != null && party.inGroup && party.hasNext));
     _timelineTimer =
         Timer.periodic(const Duration(seconds: 5), (_) => _sendTimeline());
     _scheduleHide();
@@ -439,7 +446,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (item != null) _publishMetadata(item);
     });
     ref.listen(provider.select((s) => s.nextEpisode != null), (_, hasNext) {
-      unawaited(_mediaSession.setNextEnabled(hasNext));
+      // Nel gruppo il "successivo" segue la coda (vedi sotto).
+      if (!_inParty) unawaited(_mediaSession.setNextEnabled(hasNext));
     });
     ref.listen(provider.select((s) => s.transcodingFallback), (_, fallback) {
       if (fallback) {
@@ -457,15 +465,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       final driver = _driver;
       if (driver != null) {
         unawaited(driver.onLoaded());
-      } else if (_inParty) {
-        // Gruppo non disponibile: il player parte da solo.
+      } else if (widget.args.party != null) {
+        // Gruppo non disponibile (o tolto dal server): il player parte da
+        // solo (il controller di un player del gruppo non lo fa).
         unawaited(controller.play());
       }
     });
     if (_inParty) {
+      ref.listen(
+          watchPartySessionProvider.select((s) => s.inGroup && s.hasNext),
+          (_, hasNext) {
+        if (_inParty && !_leaving) {
+          unawaited(_mediaSession.setNextEnabled(hasNext));
+        }
+      });
       ref.listen(watchPartySessionProvider.select((s) => s.inGroup),
           (_, inGroup) {
-        if (!inGroup && _driver != null) _detachParty();
+        if (inGroup || _leaving) return;
+        // Il server ci ha tolto dal gruppo: si continua da soli, con
+        // l'episodio successivo come fuori da un watch party.
+        setState(() => _partyDetached = true);
+        _detachParty();
+        unawaited(_mediaSession
+            .setNextEnabled(ref.read(provider).nextEpisode != null));
       });
       ref.listen(
           watchPartySessionProvider.select((s) =>
@@ -597,9 +619,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ),
                     ),
                   ),
+                  // Nel gruppo solo se l'episodio successivo della libreria è
+                  // il prossimo della coda (che è quello che parte).
                   if (next != null &&
                       !_nextCardDismissed &&
-                      (!_inParty || (party?.hasNext ?? false)))
+                      (!_inParty || next.id == party?.nextEntry?.itemId))
                     Positioned(
                       right: 32,
                       bottom: 150,

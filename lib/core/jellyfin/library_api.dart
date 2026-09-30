@@ -88,7 +88,9 @@ class LibraryApi {
   }
 
   /// [startItemId] e gli episodi che lo seguono nella serie, anche nelle
-  /// stagioni dopo (al massimo [limit]); senza gli episodi mancanti.
+  /// stagioni dopo (al massimo [limit]); senza gli episodi mancanti. Solo i
+  /// dati di base (servono gli id): niente immagini, dati utente e campi in
+  /// più.
   Future<List<JellyfinItem>> episodesFrom(
           String userId, String seriesId, String startItemId,
           {int limit = 50}) async =>
@@ -97,6 +99,8 @@ class LibraryApi {
         'startItemId': startItemId,
         'limit': limit,
         'isMissing': false,
+        'enableImages': false,
+        'enableUserData': false,
       }));
 
   /// Trailer salvati sul server accanto all'elemento.

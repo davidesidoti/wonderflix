@@ -124,6 +124,12 @@ void main() {
     expect(last().query['limit'], 50);
     expect(last().query['isMissing'], false);
     expect(last().query['userId'], 'u1');
+    // Per la coda servono solo gli id: niente immagini, dati utente e campi
+    // in più.
+    expect(last().query['enableImages'], false);
+    expect(last().query['enableUserData'], false);
+    expect(last().query, isNot(contains('fields')));
+    expect(last().query, isNot(contains('enableImageTypes')));
     expect(episodes.map((e) => e.id), ['e4', 'e5', 'e6']);
   });
 
