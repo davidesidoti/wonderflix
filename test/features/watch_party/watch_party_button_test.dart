@@ -10,6 +10,7 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/watch_party/watch_party_button.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
+import 'package:wonderflix/features/watch_party/watch_party_routing.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 
 import '../../support/fake_session_controller.dart';
@@ -112,5 +113,78 @@ void main() {
       ],
     );
     expect(find.byKey(const Key('watch-party-button')), findsNothing);
+  });
+
+  /// Nel gruppo `g1`; con [queue] il gruppo guarda qualcosa.
+  Future<FakePartyNavigator> pumpInParty(WidgetTester tester,
+      {PlayQueue? queue}) async {
+    final navigator = FakePartyNavigator();
+    await pumpApp(
+      tester,
+      const Scaffold(
+          body: Align(
+              alignment: Alignment.topRight, child: WatchPartyButton())),
+      overrides: [
+        watchPartyDirectoryProvider
+            .overrideWith(() => FakeWatchPartyDirectory([testGroup()])),
+        syncPlayApiProvider.overrideWithValue(api),
+        watchPartyEventsProvider.overrideWithValue(events.stream),
+        sessionControllerProvider.overrideWith(
+            () => FakeSessionController(const SessionSignedIn(testUser))),
+        partyNavigatorProvider.overrideWithValue(navigator),
+      ],
+    );
+    api.onCall = (call) {
+      if (call.startsWith('join')) {
+        events.add(SyncPlayGroupUpdated(GroupJoined('g1', testGroup())));
+      }
+    };
+    final container = ProviderScope.containerOf(
+        tester.element(find.byType(WatchPartyButton)));
+    unawaited(container.read(watchPartySessionProvider.notifier).join('g1'));
+    await tester.pump();
+    await tester.pump();
+    if (queue != null) {
+      events.add(SyncPlayGroupUpdated(PlayQueueUpdate('g1', queue)));
+      await tester.pump();
+      await tester.pump();
+    }
+    return navigator;
+  }
+
+  testWidgets('nel gruppo: "Nel watch party", torna al player ed esci',
+      (tester) async {
+    final navigator = await pumpInParty(tester, queue: testQueue());
+    expect(find.text('Nel watch party'), findsOneWidget);
+    expect(find.text('Watch party · 1'), findsNothing);
+
+    await tester.tap(find.text('Nel watch party'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Torna al player'));
+    await tester.pumpAndSettle();
+    expect(navigator.opened, ['/play/m1?party=p1']);
+
+    await tester.tap(find.text('Nel watch party'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Esci dal watch party'));
+    await tester.pumpAndSettle();
+    expect(api.calls.last, 'leave');
+    expect(find.text('Nel watch party'), findsNothing);
+    expect(find.text('Watch party · 1'), findsOneWidget);
+  });
+
+  testWidgets('gruppo senza coda: "Torna al player" non fa nulla',
+      (tester) async {
+    final navigator = await pumpInParty(tester);
+    await tester.tap(find.text('Nel watch party'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Torna al player'), warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(navigator.opened, isEmpty);
+
+    final container = ProviderScope.containerOf(
+        tester.element(find.byType(WatchPartyButton)));
+    await container.read(watchPartySessionProvider.notifier).leave();
+    await tester.pump();
   });
 }

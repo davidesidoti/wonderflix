@@ -8,6 +8,7 @@ import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/server_events_binding.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
+import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
 import '../support/fake_session_controller.dart';
@@ -41,6 +42,8 @@ void main() {
         serverEventsBindingProvider.overrideWithValue(null),
         // Nessun elenco dei watch party (né timer).
         watchPartyDirectoryProvider.overrideWith(FakeWatchPartyDirectory.new),
+        syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
+        watchPartyEventsProvider.overrideWithValue(const Stream.empty()),
         sessionControllerProvider
             .overrideWith(() => FakeSessionController(const SessionSignedIn(testUser))),
       ],

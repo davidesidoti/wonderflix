@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/app_shell.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
+import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 
 import '../support/fake_session_controller.dart';
 import '../support/pump_app.dart';
@@ -19,6 +20,8 @@ void main() {
         sessionControllerProvider.overrideWith(() => fake),
         // Nessun elenco dei watch party (né timer).
         watchPartyDirectoryProvider.overrideWith(FakeWatchPartyDirectory.new),
+        syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
+        watchPartyEventsProvider.overrideWithValue(const Stream.empty()),
       ],
     );
 
