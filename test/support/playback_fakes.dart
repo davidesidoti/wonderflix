@@ -242,6 +242,10 @@ class FakeVideoEngine implements VideoEngine {
 
   /// Ultima velocità impostata.
   double currentRate = 1.0;
+
+  /// Se valorizzato, `seek` registra subito il salto ma la posizione arriva
+  /// solo dopo questo ritardo (come mpv). `null`: posizione subito.
+  Duration? seekDelay;
   bool disposed = false;
   int _nextSubtitleId = 100;
 
@@ -315,7 +319,12 @@ class FakeVideoEngine implements VideoEngine {
   @override
   Future<void> seek(Duration position) async {
     seeks.add(position);
-    emitPosition(position);
+    final delay = seekDelay;
+    if (delay == null) {
+      emitPosition(position);
+    } else {
+      Timer(delay, () => emitPosition(position));
+    }
   }
 
   @override

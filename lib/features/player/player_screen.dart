@@ -385,8 +385,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             .showSnackBar(SnackBar(content: Text(l.playerTranscoding)));
       }
     });
-    ref.listen(provider.select((s) => s.status), (_, status) {
-      if (status != PlayerStatus.ready) return;
+    ref.listen(provider.select((s) => s.status), (previous, status) {
+      if (status != PlayerStatus.ready) {
+        // Errore, "Riprova" o ripiego: i comandi del gruppo aspettano il
+        // prossimo caricamento.
+        if (previous == PlayerStatus.ready) _driver?.onUnloaded();
+        return;
+      }
       final driver = _driver;
       if (driver != null) {
         unawaited(driver.onLoaded());

@@ -205,6 +205,109 @@ void main() {
     });
   });
 
+  test('Seek con mpv: Ready solo quando la nuova posizione è arrivata', () {
+    fakeAsync((async) {
+      setUpDriver(async);
+      engine.seekDelay = const Duration(milliseconds: 200);
+      send(async,
+          command(SyncPlayCommandType.seek, position: const Duration(minutes: 20)));
+      expect(engine.seeks, [const Duration(minutes: 20)]);
+      async.elapse(const Duration(milliseconds: 199));
+      expect(api.calls, isEmpty);
+      async.elapse(const Duration(milliseconds: 1));
+      expect(api.calls, ['ready']);
+      expect(api.readyStates.last.position, const Duration(minutes: 20));
+      tearDownDriver(async);
+    });
+  });
+
+  test('Seek senza nuova posizione: Ready dopo 3 s con quella attuale', () {
+    fakeAsync((async) {
+      setUpDriver(async);
+      engine.seekDelay = const Duration(seconds: 10);
+      send(async,
+          command(SyncPlayCommandType.seek, position: const Duration(minutes: 20)));
+      async.elapse(const Duration(milliseconds: 2999));
+      expect(api.calls, isEmpty);
+      async.elapse(const Duration(milliseconds: 1));
+      expect(api.calls, ['ready']);
+      expect(api.readyStates.last.position, const Duration(minutes: 10));
+      async.elapse(const Duration(seconds: 10));
+      tearDownDriver(async);
+    });
+  });
+
+  test('Seek superato da un nuovo comando: nessun Ready', () {
+    fakeAsync((async) {
+      setUpDriver(async);
+      engine.seekDelay = const Duration(milliseconds: 200);
+      send(async,
+          command(SyncPlayCommandType.seek, position: const Duration(minutes: 20)));
+      send(async,
+          command(SyncPlayCommandType.pause, position: const Duration(minutes: 12)));
+      async.elapse(const Duration(seconds: 4));
+      expect(api.calls, isEmpty);
+      tearDownDriver(async);
+    });
+  });
+
+  test('chiusura durante un Seek: nessun Ready', () {
+    fakeAsync((async) {
+      setUpDriver(async);
+      engine.seekDelay = const Duration(milliseconds: 200);
+      send(async,
+          command(SyncPlayCommandType.seek, position: const Duration(minutes: 20)));
+      unawaited(driver.dispose());
+      async.elapse(const Duration(seconds: 4));
+      expect(api.calls, isEmpty);
+      tearDownDriver(async);
+    });
+  });
+
+  test('file non più caricato: i comandi aspettano il prossimo caricamento', () {
+    fakeAsync((async) {
+      setUpDriver(async);
+      driver.onUnloaded();
+      send(async,
+          command(SyncPlayCommandType.pause, position: const Duration(minutes: 12)));
+      expect(engine.calls, isEmpty);
+      expect(engine.seeks, isEmpty);
+      unawaited(driver.onLoaded());
+      async.flushMicrotasks();
+      expect(api.calls, ['ready']);
+      expect(engine.calls, ['pause']);
+      expect(engine.seeks, [const Duration(minutes: 12)]);
+      tearDownDriver(async);
+    });
+  });
+
+  test('comando doppio ancora incoerente dopo due tentativi: solo Ready', () {
+    fakeAsync((async) {
+      setUpDriver(async);
+      final seek = command(SyncPlayCommandType.seek,
+          position: const Duration(minutes: 20));
+      send(async, seek);
+      for (var i = 0; i < 3; i++) {
+        // Il motore non resta sulla posizione chiesta.
+        engine.emitPosition(const Duration(minutes: 5));
+        send(async, seek);
+      }
+      expect(engine.seeks, List.filled(3, const Duration(minutes: 20)));
+      expect(api.calls, List.filled(4, 'ready'));
+      expect(api.readyStates.last.position, const Duration(minutes: 5));
+
+      // Un comando nuovo riparte da zero.
+      final other = command(SyncPlayCommandType.seek,
+          position: const Duration(minutes: 30));
+      send(async, other);
+      engine.emitPosition(const Duration(minutes: 5));
+      send(async, other);
+      expect(engine.seeks.last, const Duration(minutes: 30));
+      expect(engine.seeks, hasLength(5));
+      tearDownDriver(async);
+    });
+  });
+
   test('Seek durante il buffering: Ready a buffering finito', () {
     fakeAsync((async) {
       setUpDriver(async);

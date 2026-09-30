@@ -42,6 +42,16 @@ class GroupPlaybackDriver {
   /// Ogni quanto si misura lo scarto.
   static const tick = Duration(milliseconds: 500);
 
+  /// Dopo un `Seek`, il salto è arrivato quando la posizione del motore è
+  /// così vicina alla destinazione (con mpv arriva dopo `seek()`).
+  static const seekLanding = Duration(milliseconds: 250);
+
+  /// Attesa massima della nuova posizione dopo un `Seek`.
+  static const seekTimeout = Duration(seconds: 3);
+
+  /// Quante volte si riapplica un comando doppio con lo stato incoerente.
+  static const maxReapply = 2;
+
   final VideoEngine _engine;
   final SyncPlayApi _api;
   final ServerClock _clock;
@@ -73,6 +83,12 @@ class GroupPlaybackDriver {
   bool _readyPending = false;
   bool _disposed = false;
 
+  /// Volte in cui l'ultimo comando è stato riapplicato (§4.5, doppioni).
+  int _reapplied = 0;
+
+  /// Fine dell'attesa della posizione dopo un `Seek`, se in corso.
+  Completer<void>? _landing;
+
   void start() {
     _subscriptions.addAll([
       _commandStream.listen(_receive),
@@ -96,9 +112,16 @@ class GroupPlaybackDriver {
     if (pending != null) _receive(pending);
   }
 
+  /// Il file non è più pronto (errore, "Riprova", ripiego sulla
+  /// transcodifica): fino al prossimo [onLoaded] i comandi aspettano.
+  void onUnloaded() {
+    _loaded = false;
+  }
+
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
+    _stopLanding();
     _scheduled?.cancel();
     _bufferingTimer?.cancel();
     _ticker?.cancel();
@@ -132,15 +155,23 @@ class GroupPlaybackDriver {
       return;
     }
     _current = command;
+    _reapplied = 0;
     unawaited(_apply(command));
   }
+
+  /// Il comando non è più quello da eseguire (ne è arrivato un altro, o il
+  /// driver è chiuso): chi lo stava applicando si ferma.
+  bool _stale(SyncPlayCommand command) =>
+      _disposed || !identical(_current, command);
 
   Future<void> _apply(SyncPlayCommand command) async {
     _scheduled?.cancel();
     _scheduled = null;
+    _stopLanding();
     _corrector.reset();
     _playingSince = null;
     await _setRate(1.0);
+    if (_stale(command)) return;
     final wait = _clock.toLocal(command.when).difference(_clock.now());
     _log.info('comando ${command.type.name} a ${command.position} '
         '(tra ${wait.inMilliseconds} ms)');
@@ -148,6 +179,7 @@ class GroupPlaybackDriver {
       case SyncPlayCommandType.unpause:
         if (wait > Duration.zero) {
           if (!_engine.playing) await _align(command.position);
+          if (_stale(command)) return;
           _scheduled = Timer(wait, () => unawaited(_play(command)));
         } else {
           if (!_engine.playing) await _align(_expectedPosition(command));
@@ -161,12 +193,44 @@ class GroupPlaybackDriver {
         }
       case SyncPlayCommandType.seek:
         await _engine.pause();
+        if (_stale(command)) return;
         await _engine.seek(command.position);
+        if (_stale(command)) return;
+        await _waitForPosition(command.position);
+        if (_stale(command)) return;
         _readyPending = true;
         if (!_buffering) await _sendReady();
       case SyncPlayCommandType.stop:
         await _engine.pause();
     }
+  }
+
+  /// Con mpv la posizione cambia dopo `seek()`: si aspetta che arrivi (al
+  /// massimo [seekTimeout]) prima di mandare `Ready`.
+  Future<void> _waitForPosition(Duration target) {
+    bool landed(Duration position) => (position - target).abs() <= seekLanding;
+    if (landed(_engine.position)) return Future.value();
+    final landing = Completer<void>();
+    _landing = landing;
+    final timer = Timer(seekTimeout, () {
+      _log.info('posizione dopo il salto non arrivata in '
+          '${seekTimeout.inSeconds} s');
+      if (!landing.isCompleted) landing.complete();
+    });
+    final subscription = _engine.positionStream.listen((position) {
+      if (landed(position) && !landing.isCompleted) landing.complete();
+    });
+    return landing.future.whenComplete(() {
+      timer.cancel();
+      unawaited(subscription.cancel());
+      if (identical(_landing, landing)) _landing = null;
+    });
+  }
+
+  void _stopLanding() {
+    final landing = _landing;
+    _landing = null;
+    if (landing != null && !landing.isCompleted) landing.complete();
   }
 
   /// Comando già ricevuto: si riapplica solo se lo stato non è coerente.
@@ -180,7 +244,13 @@ class GroupPlaybackDriver {
         _engine.playing || off,
       SyncPlayCommandType.stop => _engine.playing,
     };
-    if (stale) {
+    if (stale && _reapplied >= maxReapply) {
+      // Riapplicarlo non è servito: il gruppo sa dove siamo davvero.
+      _log.info('comando ${command.type.name} già riapplicato '
+          '$_reapplied volte: solo Ready');
+      await _sendReady();
+    } else if (stale) {
+      _reapplied++;
       _current = command;
       await _apply(command);
     } else if (command.type == SyncPlayCommandType.seek) {
@@ -195,9 +265,9 @@ class GroupPlaybackDriver {
   }
 
   Future<void> _play(SyncPlayCommand command) async {
-    if (_disposed || !identical(_current, command)) return;
+    if (_stale(command)) return;
     await _engine.play();
-    if (_disposed || !identical(_current, command)) return;
+    if (_stale(command)) return;
     _playingSince = _clock.now();
     // Buffering iniziato a gruppo fermo (non segnalato): il conteggio di
     // 1 s riparte adesso che il gruppo va.
@@ -207,8 +277,9 @@ class GroupPlaybackDriver {
   }
 
   Future<void> _pauseAt(SyncPlayCommand command) async {
-    if (_disposed || !identical(_current, command)) return;
+    if (_stale(command)) return;
     await _engine.pause();
+    if (_stale(command)) return;
     await _align(command.position);
   }
 
