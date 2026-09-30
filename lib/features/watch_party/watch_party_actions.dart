@@ -4,10 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/syncplay/syncplay_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../library/library_providers.dart';
+import 'party_queue.dart';
 import 'watch_party_session.dart';
 
-/// "Guarda insieme": crea il gruppo; il player si apre quando il server
-/// conferma la coda (`watchPartyRoutingProvider`).
+/// "Guarda insieme": crea il gruppo con la coda di [item] (per un episodio:
+/// anche i successivi), oppure, stando già in un gruppo, gli cambia la coda.
+/// Il player si apre quando il server conferma la coda
+/// (`watchPartyRoutingProvider`).
 Future<void> startWatchParty(
   BuildContext context,
   WidgetRef ref,
@@ -16,9 +20,16 @@ Future<void> startWatchParty(
 }) =>
     _run(
       context,
-      () => ref
-          .read(watchPartySessionProvider.notifier)
-          .create(item, start: start),
+      () async {
+        final queue = await buildPartyQueue(ref.read(libraryApiProvider),
+            ref.read(currentUserIdProvider), item);
+        final session = ref.read(watchPartySessionProvider.notifier);
+        if (ref.read(watchPartySessionProvider).inGroup) {
+          await session.setQueue(queue, start: start);
+        } else {
+          await session.create(item, queue: queue, start: start);
+        }
+      },
       creating: true,
     );
 

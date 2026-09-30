@@ -131,8 +131,11 @@ class DetailHeader extends ConsumerWidget {
                             context, ref, action.target,
                             fromStart: true)),
                       ),
-                    // Nel Piano 5a solo i film; serie ed episodi nel 5b.
-                    if (action != null && item.kind == ItemKind.movie)
+                    // Film ed episodi; per una serie l'azione riproduce il
+                    // prossimo episodio da vedere, e la coda parte da lì.
+                    if (action != null &&
+                        const {ItemKind.movie, ItemKind.episode, ItemKind.series}
+                            .contains(item.kind))
                       WfButton.secondary(
                         label: l.watchPartyWatchTogether,
                         icon: LucideIcons.users,

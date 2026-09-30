@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
@@ -132,6 +133,49 @@ void main() {
     // positionTicks 13940000000 = 23:14.
     expect(syncPlay.queues.single.start,
         const Duration(minutes: 23, seconds: 14));
+
+    final container = ProviderScope.containerOf(
+        tester.element(find.byType(ItemDetailScreen)));
+    await container.read(watchPartySessionProvider.notifier).leave();
+    await tester.pump();
+  });
+
+  testWidgets('Guarda insieme su un episodio: coda con gli episodi dopo',
+      (tester) async {
+    final pilot = testItem(
+        id: 'm1',
+        name: 'Pilot',
+        kind: ItemKind.episode,
+        seriesId: 's1',
+        seriesName: 'Breaking Bad');
+    api.itemsById['m1'] = pilot;
+    api.seriesEpisodes['s1'] = [
+      pilot,
+      testItem(id: 'e2', kind: ItemKind.episode, seriesId: 's1'),
+    ];
+    final syncPlay = FakeSyncPlayApi();
+    final events = StreamController<ServerEvent>.broadcast();
+    addTearDown(events.close);
+    syncPlay.onCall = (call) {
+      if (call.startsWith('create')) {
+        events.add(SyncPlayGroupUpdated(GroupJoined('g1', testGroup())));
+      }
+    };
+    await pumpApp(
+        tester, const Scaffold(body: ItemDetailScreen(itemId: 'm1')),
+        overrides: [
+          libraryApiProvider.overrideWithValue(api),
+          sessionControllerProvider.overrideWith(
+              () => FakeSessionController(const SessionSignedIn(testUser))),
+          syncPlayApiProvider.overrideWithValue(syncPlay),
+          watchPartyEventsProvider.overrideWithValue(events.stream),
+        ]);
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.text('Guarda insieme'));
+    await tester.pumpAndSettle();
+    expect(syncPlay.calls, ['create Mario · Breaking Bad', 'queue m1,e2']);
 
     final container = ProviderScope.containerOf(
         tester.element(find.byType(ItemDetailScreen)));
