@@ -80,6 +80,17 @@ void main() {
     expect(api.calls, isEmpty);
   });
 
+  testWidgets('l\'invito che sparisce non riceve più clic', (tester) async {
+    await pumpCard(tester);
+    await tester.tap(find.byTooltip('Chiudi'));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Unisciti'), findsOneWidget, reason: 'sta sfumando');
+    await tester.tap(find.text('Unisciti'), warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(api.calls, isEmpty);
+    expect(invites.dismissed, 1);
+  });
+
   testWidgets('completa: l\'invito entra da destra e sparisce in dissolvenza',
       (tester) async {
     invites = FakeWatchPartyInvites();

@@ -107,21 +107,26 @@ class WatchPartyInviteCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final group = ref.watch(watchPartyInvitesProvider);
+    final current = group == null
+        ? const SizedBox.shrink(key: ValueKey('no-invite'))
+        : KeyedSubtree(
+            key: ValueKey(group.id), child: _card(context, ref, group));
     return AnimatedSwitcher(
       duration: WfMotion.of(context).duration(WfMotion.medium),
-      transitionBuilder: (child, animation) => FadeTransition(
-        opacity: animation,
-        child: SlideTransition(
-          position: Tween(begin: const Offset(0.3, 0), end: Offset.zero)
-              .animate(CurvedAnimation(
-                  parent: animation, curve: WfMotion.emphasized)),
-          child: child,
+      transitionBuilder: (child, animation) => IgnorePointer(
+        // L'invito che se ne va non accetta più "Unisciti".
+        ignoring: child.key != current.key,
+        child: FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween(begin: const Offset(0.3, 0), end: Offset.zero)
+                .animate(CurvedAnimation(
+                    parent: animation, curve: WfMotion.emphasized)),
+            child: child,
+          ),
         ),
       ),
-      child: group == null
-          ? const SizedBox.shrink(key: ValueKey('no-invite'))
-          : KeyedSubtree(
-              key: ValueKey(group.id), child: _card(context, ref, group)),
+      child: current,
     );
   }
 
