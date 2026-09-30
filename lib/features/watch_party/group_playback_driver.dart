@@ -11,6 +11,18 @@ import '../../core/video/video_engine.dart';
 
 final _log = Logger('watchparty');
 
+/// Esclusione dall'attesa del gruppo (`SetIgnoreWait`, spec B §6.3). Il
+/// server la tiene per il nostro membro del gruppo, non per il player: la
+/// gestisce la sessione del watch party, che manda la richiesta solo quando
+/// cambia.
+abstract interface class WaitExclusion {
+  /// Il gruppo smette di aspettarci (il video non si apre).
+  Future<void> ignoreWait();
+
+  /// Il gruppo torna ad aspettarci; niente se non ci eravamo esclusi.
+  Future<void> stopIgnoringWait();
+}
+
 /// Collega il player aperto al gruppo (spec B §4.5–4.6):
 /// - esegue i comandi del gruppo all'istante giusto;
 /// - manda `Ready` a file aperto e dopo i salti, `Buffering` se il buffering
@@ -28,6 +40,7 @@ class GroupPlaybackDriver {
     void Function()? onResync,
     void Function(Duration drift)? onDrift,
     StartLag? startLag,
+    required WaitExclusion waitExclusion,
   })  : _engine = engine,
         _api = api,
         _clock = clock,
@@ -35,6 +48,7 @@ class GroupPlaybackDriver {
         _onResync = onResync,
         _onDrift = onDrift,
         _startLag = startLag ?? StartLag(),
+        _waitExclusion = waitExclusion,
         _pending = lastCommand;
 
   /// Sotto questo scarto, a video fermo, non si salta.
@@ -73,6 +87,10 @@ class GroupPlaybackDriver {
   /// Elemento della coda aperto in questo player.
   final String playlistItemId;
 
+  /// Esclusione dall'attesa del gruppo: è della sessione, perché resta al
+  /// nostro membro anche passando all'episodio dopo.
+  final WaitExclusion _waitExclusion;
+
   final _subscriptions = <StreamSubscription<Object?>>[];
 
   final _corrector = DriftCorrector();
@@ -104,9 +122,6 @@ class GroupPlaybackDriver {
   bool _readyPending = false;
   bool _disposed = false;
 
-  /// Abbiamo chiesto al gruppo di non aspettarci (video non aperto).
-  bool _ignoringWait = false;
-
   /// Volte in cui l'ultimo comando è stato riapplicato (§4.5, doppioni).
   int _reapplied = 0;
 
@@ -130,11 +145,10 @@ class GroupPlaybackDriver {
       await _clock.firstSample.timeout(clockWait, onTimeout: () {});
       if (_disposed) return;
     }
-    if (_ignoringWait) {
-      _ignoringWait = false;
-      await _send('ritorno nell\'attesa', () => _api.setIgnoreWait(false));
-      if (_disposed) return;
-    }
+    // Anche se a non aprirsi era l'episodio prima: il gruppo è andato
+    // avanti, ma ci ha lasciati fuori dall'attesa.
+    await _waitExclusion.stopIgnoringWait();
+    if (_disposed) return;
     await _sendReady();
     final pending = _pending;
     _pending = null;
@@ -147,10 +161,8 @@ class GroupPlaybackDriver {
   /// (spec B §6.3).
   void onUnloaded({bool failed = false}) {
     _loaded = false;
-    if (!failed || _ignoringWait || _disposed) return;
-    _ignoringWait = true;
-    _log.info('video non aperto: il gruppo non ci aspetta');
-    unawaited(_send('esclusione dall\'attesa', () => _api.setIgnoreWait(true)));
+    if (!failed || _disposed) return;
+    unawaited(_waitExclusion.ignoreWait());
   }
 
   /// Rientrati nel gruppo dopo una caduta del WebSocket: il server aspetta

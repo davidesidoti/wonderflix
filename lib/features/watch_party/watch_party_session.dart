@@ -12,6 +12,7 @@ import '../../core/syncplay/start_lag.dart';
 import '../../core/syncplay/syncplay_api.dart';
 import '../../core/syncplay/syncplay_models.dart';
 import '../auth/session_controller.dart';
+import 'group_playback_driver.dart';
 import 'watch_party_providers.dart';
 
 final _log = Logger('watchparty');
@@ -84,7 +85,12 @@ String _normalizeId(String id) => id.replaceAll('-', '').toLowerCase();
 
 /// Il watch party dell'utente (spec B §5): creare, entrare, uscire, stato
 /// del gruppo, coda, comandi e orologio del server. Non conosce il player.
-class WatchPartySession extends Notifier<WatchPartyState> {
+///
+/// Tiene anche l'esclusione dall'attesa del gruppo ([WaitExclusion]): il
+/// server la lega al nostro membro del gruppo, non al player, quindi vale
+/// anche per il player dell'episodio dopo e va rimandata dopo un rientro.
+class WatchPartySession extends Notifier<WatchPartyState>
+    implements WaitExclusion {
   static const joinTimeout = Duration(seconds: 10);
 
   /// Intervallo minimo tra due uscite da un gruppo fantasma.
@@ -113,6 +119,9 @@ class WatchPartySession extends Notifier<WatchPartyState> {
   /// Gruppo in cui stiamo rientrando dopo una riconnessione.
   String? _rejoining;
 
+  /// Abbiamo chiesto al gruppo di non aspettarci (video non aperto).
+  bool _ignoringWait = false;
+
   /// Ultimo scarto misurato dal player del gruppo (diagnostica).
   Duration? lastDrift;
 
@@ -135,6 +144,7 @@ class WatchPartySession extends Notifier<WatchPartyState> {
     _joinedAt = null;
     _ghostLeftAt = null;
     _rejoining = null;
+    _ignoringWait = false;
     lastDrift = null;
     _generation++;
     ref.onDispose(_stopClock);
@@ -217,6 +227,36 @@ class WatchPartySession extends Notifier<WatchPartyState> {
     return true;
   }
 
+  /// Il gruppo non ci aspetta più (spec B §6.3): il video non si apre.
+  bool get ignoringWait => _ignoringWait;
+
+  /// Il gruppo smette di aspettare i nostri `Ready`/`Buffering` (il video
+  /// non si apre). La richiesta parte solo se prima ci aspettava.
+  @override
+  Future<void> ignoreWait() async {
+    if (_ignoringWait || !state.inGroup) return;
+    _ignoringWait = true;
+    _log.info('video non aperto: il gruppo non ci aspetta');
+    await _sendIgnoreWait(true);
+  }
+
+  /// Il gruppo torna ad aspettarci (un video aperto dopo un errore). Niente
+  /// se non ci eravamo esclusi.
+  @override
+  Future<void> stopIgnoringWait() async {
+    if (!_ignoringWait) return;
+    _ignoringWait = false;
+    await _sendIgnoreWait(false);
+  }
+
+  Future<void> _sendIgnoreWait(bool ignore) async {
+    try {
+      await _api.setIgnoreWait(ignore);
+    } on Object catch (error) {
+      _log.warning('esclusione dall\'attesa ($ignore) non inviata: $error');
+    }
+  }
+
   /// Lancia [WatchPartyException].
   Future<void> join(String groupId) async {
     if (state.phase == WatchPartyPhase.joining) return;
@@ -287,6 +327,7 @@ class WatchPartySession extends Notifier<WatchPartyState> {
     _lastCommand = null;
     _joinedAt = null;
     _rejoining = null;
+    _ignoringWait = false;
     lastDrift = null;
     _generation++;
     if (ref.mounted) state = const WatchPartyState();
@@ -368,6 +409,9 @@ class WatchPartySession extends Notifier<WatchPartyState> {
       case GroupJoined(:final info):
         if (_rejoining != null && state.inGroup && _isCurrent(info.id)) {
           _rejoining = null;
+          // Il server ha ricreato il nostro membro senza l'esclusione
+          // dall'attesa: se il video è ancora non aperto la si rimanda.
+          if (_ignoringWait) unawaited(_sendIgnoreWait(true));
           // I comandi di prima della caduta non valgono più.
           _joinedAt = info.lastUpdatedAt;
           state = state.copyWith(

@@ -483,6 +483,46 @@ void main() {
     await finish(tester);
   });
 
+  testWidgets(
+      'video che non si apre, poi il gruppo passa all\'episodio dopo: aperto '
+      'quello, il gruppo torna ad aspettarci prima del Ready', (tester) async {
+    await pumpPartyPlayer(tester, failOpens: 2);
+    await queueSeries(tester);
+    expect(api.calls, contains('ignore-wait true'));
+    api.calls.clear();
+
+    emit(PlayQueueUpdate(
+        'g1',
+        testSeriesQueue(
+            playingIndex: 1,
+            reason: 'NextItem',
+            lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+    await tester.pumpAndSettle();
+    expect(router.state.uri.toString(), '/play/e5?party=p2');
+    expect(engines, hasLength(2));
+    expect(api.calls.where((c) => c.startsWith('ignore-wait') || c == 'ready'),
+        ['ignore-wait false', 'ready']);
+    await finish(tester);
+  });
+
+  testWidgets(
+      'video che non si apre, poi una riconnessione: al rientro il gruppo di '
+      'nuovo non ci aspetta', (tester) async {
+    await pumpPartyPlayer(tester, failOpens: 2);
+    expect(api.calls, contains('ignore-wait true'));
+    api.calls.clear();
+
+    events.add(const ServerConnected(true));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+    expect(api.calls, ['join g1', 'ignore-wait true'],
+        reason: 'il server ricrea il membro senza l\'esclusione; nessun Ready '
+            'con il video non aperto');
+    expect(find.text(l.playerErrorTitle), findsOneWidget);
+    await finish(tester);
+  });
+
   testWidgets('Discord: persone nel gruppo, niente fuori dal gruppo',
       (tester) async {
     await pumpPartyPlayer(tester);

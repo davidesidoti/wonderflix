@@ -12,12 +12,36 @@ import 'package:wonderflix/features/watch_party/group_playback_driver.dart';
 import '../../support/playback_fakes.dart';
 import '../../support/watch_party_fakes.dart';
 
+/// Esclusione dall'attesa come nella sessione: la richiesta parte solo
+/// quando cambia.
+class _WaitExclusion implements WaitExclusion {
+  _WaitExclusion(this.api);
+
+  final FakeSyncPlayApi api;
+  bool ignoring = false;
+
+  @override
+  Future<void> ignoreWait() async {
+    if (ignoring) return;
+    ignoring = true;
+    await api.setIgnoreWait(true);
+  }
+
+  @override
+  Future<void> stopIgnoringWait() async {
+    if (!ignoring) return;
+    ignoring = false;
+    await api.setIgnoreWait(false);
+  }
+}
+
 void main() {
   late FakeVideoEngine engine;
   late FakeSyncPlayApi api;
   late ServerClock serverClock;
   late StreamController<SyncPlayCommand> commands;
   late GroupPlaybackDriver driver;
+  late _WaitExclusion waitExclusion;
 
   /// Riallineamenti segnalati dal driver (`onResync`).
   var resyncs = 0;
@@ -28,11 +52,13 @@ void main() {
   /// Tutto dentro la zona finta: file aperto a 10:00, orologio pronto
   /// (scarto zero). Con [load] il file è già caricato e il `Ready` iniziale
   /// è già partito (le chiamate vengono azzerate).
-  void setUpDriver(FakeAsync async, {bool load = true, StartLag? startLag}) {
+  void setUpDriver(FakeAsync async,
+      {bool load = true, StartLag? startLag, bool ignoringWait = false}) {
     engine = FakeVideoEngine();
     unawaited(engine
         .open(const VideoSource(url: 'x', start: Duration(minutes: 10))));
     api = FakeSyncPlayApi();
+    waitExclusion = _WaitExclusion(api)..ignoring = ignoringWait;
     serverClock = ServerClock(fetch: () async {
       final now = clock.now().toUtc();
       return (serverReceived: now, serverSent: now);
@@ -50,6 +76,7 @@ void main() {
       onResync: () => resyncs++,
       onDrift: (drift) => lastDrift = drift,
       startLag: startLag,
+      waitExclusion: waitExclusion,
     )..start();
     async.flushMicrotasks();
     if (load) {
@@ -768,6 +795,19 @@ void main() {
       unawaited(driver.onLoaded());
       async.flushMicrotasks();
       expect(api.calls, ['ignore-wait true', 'ignore-wait false', 'ready']);
+      tearDownDriver(async);
+    });
+  });
+
+  test(
+      'esclusione dall\'attesa rimasta dall\'episodio prima (non aperto): a '
+      'file aperto il gruppo torna ad aspettarci, poi Ready', () {
+    fakeAsync((async) {
+      setUpDriver(async, load: false, ignoringWait: true);
+      unawaited(driver.onLoaded());
+      async.flushMicrotasks();
+      expect(api.calls, ['ignore-wait false', 'ready']);
+      expect(waitExclusion.ignoring, isFalse);
       tearDownDriver(async);
     });
   });

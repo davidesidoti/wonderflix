@@ -666,4 +666,59 @@ void main() {
     await pumpEventQueue();
     expect(updates, isEmpty);
   });
+
+  test('esclusione dall\'attesa: richiesta solo quando cambia, finisce con '
+      'il gruppo', () async {
+    mount();
+    // Fuori da un gruppo: niente.
+    await session().ignoreWait();
+    expect(api.calls, isEmpty);
+    expect(session().ignoringWait, isFalse);
+
+    serverAccepts();
+    await session().join('g1');
+    await session().ignoreWait();
+    await session().ignoreWait();
+    expect(session().ignoringWait, isTrue);
+    await session().stopIgnoringWait();
+    await session().stopIgnoringWait();
+    expect(session().ignoringWait, isFalse);
+    expect(api.calls, ['join g1', 'ignore-wait true', 'ignore-wait false']);
+
+    await session().ignoreWait();
+    await session().leave();
+    expect(session().ignoringWait, isFalse);
+    await session().stopIgnoringWait();
+    expect(api.calls, [
+      'join g1',
+      'ignore-wait true',
+      'ignore-wait false',
+      'ignore-wait true',
+      'leave',
+    ]);
+  });
+
+  test('esclusione dall\'attesa: il server ci toglie, non vale più', () async {
+    mount();
+    serverAccepts();
+    await session().join('g1');
+    await session().ignoreWait();
+    emit(const GroupLeft('g1'));
+    await pumpEventQueue();
+    expect(session().ignoringWait, isFalse);
+  });
+
+  test('rientro dopo una riconnessione: l\'esclusione dall\'attesa si rimanda '
+      '(il server ricrea il membro)', () async {
+    mount();
+    serverAccepts();
+    await session().join('g1');
+    await session().ignoreWait();
+    events.add(const ServerConnected(true));
+    await pumpEventQueue();
+    expect(api.calls,
+        ['join g1', 'ignore-wait true', 'join g1', 'ignore-wait true']);
+    expect(session().ignoringWait, isTrue);
+    expect(state().rejoins, 1);
+  });
 }
