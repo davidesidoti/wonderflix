@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import '../syncplay/syncplay_models.dart';
 import 'item_models.dart';
 
 sealed class ServerEvent {
@@ -37,6 +38,20 @@ final class ForceKeepAlive extends ServerEvent {
   final int seconds;
 }
 
+/// Comando del gruppo SyncPlay di cui facciamo parte.
+final class SyncPlayCommandReceived extends ServerEvent {
+  const SyncPlayCommandReceived(this.command);
+
+  final SyncPlayCommand command;
+}
+
+/// Aggiornamento del gruppo SyncPlay (membri, stato, coda, errori).
+final class SyncPlayGroupUpdated extends ServerEvent {
+  const SyncPlayGroupUpdated(this.update);
+
+  final GroupUpdate update;
+}
+
 /// Messaggio del WebSocket → evento; `null` per messaggi ignorati o non validi.
 ServerEvent? parseServerMessage(Object? raw) {
   if (raw is! String) return null;
@@ -58,6 +73,13 @@ ServerEvent? parseServerMessage(Object? raw) {
         return const LibraryChanged();
       case 'ForceKeepAlive':
         return ForceKeepAlive((data as num?)?.toInt() ?? 60);
+      case 'SyncPlayCommand':
+        if (data is! Map<String, dynamic>) return null;
+        final command = SyncPlayCommand.fromJson(data);
+        return command == null ? null : SyncPlayCommandReceived(command);
+      case 'SyncPlayGroupUpdate':
+        final update = parseGroupUpdate(data);
+        return update == null ? null : SyncPlayGroupUpdated(update);
       default:
         return null;
     }

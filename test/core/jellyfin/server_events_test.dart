@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 
 class FakeSocket implements EventSocket {
   final controller = StreamController<dynamic>();
@@ -48,6 +49,44 @@ void main() {
     expect(parseServerMessage('{"MessageType":"Sessions"}'), isNull);
     expect(parseServerMessage('non json'), isNull);
     expect(parseServerMessage(42), isNull);
+  });
+
+  test('parseServerMessage: messaggi SyncPlay', () {
+    final command = parseServerMessage(jsonEncode({
+      'MessageType': 'SyncPlayCommand',
+      'Data': {
+        'GroupId': 'g1',
+        'PlaylistItemId': 'p1',
+        'When': '2026-09-30T10:00:01Z',
+        'PositionTicks': 0,
+        'Command': 'Pause',
+        'EmittedAt': '2026-09-30T10:00:00Z',
+      },
+    }));
+    expect(command, isA<SyncPlayCommandReceived>());
+    expect((command as SyncPlayCommandReceived).command.type,
+        SyncPlayCommandType.pause);
+
+    final update = parseServerMessage(jsonEncode({
+      'MessageType': 'SyncPlayGroupUpdate',
+      'Data': {'GroupId': 'g1', 'Type': 'UserJoined', 'Data': 'Luigi'},
+    }));
+    expect(update, isA<SyncPlayGroupUpdated>());
+    expect(((update as SyncPlayGroupUpdated).update as UserJoined).userName,
+        'Luigi');
+
+    expect(
+        parseServerMessage(jsonEncode({
+          'MessageType': 'SyncPlayCommand',
+          'Data': {'Command': 'Boh'},
+        })),
+        isNull);
+    expect(
+        parseServerMessage(jsonEncode({
+          'MessageType': 'SyncPlayGroupUpdate',
+          'Data': {'GroupId': 'g1', 'Type': 'Boh'},
+        })),
+        isNull);
   });
 
   test('socketUri', () {
