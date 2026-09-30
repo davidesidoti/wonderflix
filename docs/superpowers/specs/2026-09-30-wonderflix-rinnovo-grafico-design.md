@@ -212,18 +212,18 @@ L'anteprima si apre lo stesso, dopo gli stessi 500 ms, con una sola dissolvenza 
 - Il `PageView` diventa una pila di due diapositive: l'attuale sopra, la precedente sotto, in **dissolvenza incrociata** (`crossfade`, 900 ms).
 - **Ken Burns:** lo sfondo della diapositiva attiva va da scala 1 a 1,1 con una deriva laterale del 2%, lineare, per tutta la durata della diapositiva più la dissolvenza.
 - **Testi:** quelli uscenti sfumano in 250 ms; gli entranti (logo o titolo, dati, trama, pulsanti) entrano dal basso di 10 px, con ritardo 250 ms e 90 ms tra un elemento e l'altro.
-- **Puntini:** quello attivo si allunga (da 6 a 26 px) e si riempie d'oro in 8 s (`HeroCarousel.interval`). Cliccando un puntino si va a quella diapositiva e il tempo riparte.
+- **Puntini:** quello attivo si allunga (da 6 a 26 px) e si riempie d'oro in 8 s (`HeroCarousel.interval`). Cliccando un puntino si va a quella diapositiva e il tempo riparte. Il tempo della diapositiva è un `AnimationController` (niente timer); nei widget test l'autoplay è spento (`carouselAutoplayProvider`).
 - **Pausa** (il puntino si ferma e riprende da dove era):
   - mouse sopra il carosello;
   - un'anteprima aperta (§7);
-  - Home coperta da un'altra pagina (come oggi).
+  - Home coperta da un'altra pagina: il carosello legge `TickerMode.valuesOf(context).enabled` in `didChangeDependencies`, perché un ticker silenziato continua comunque a contare il tempo; tornando alla Home il puntino riprende da dov'era.
 - **Ridotte:** dissolvenza di `fast` tra le diapositive, niente Ken Burns, testi senza scaglionamento. Il puntino si riempie comunque (indica il tempo, non è decorazione).
 
 ### 8.2 Entrata delle righe
 
 - Al **primo** arrivo dei dati della Home, le righe salgono in dissolvenza (20 px), scaglionate di 80 ms.
 - Dentro ogni riga, le prime card visibili (al massimo 8) entrano "volando" da destra (40 px, scala da 0,85 a 1, curva `bounce`), a 40 ms l'una dall'altra.
-- **Non si ripete** tornando alla Home, né quando i dati si aggiornano (eventi WebSocket, preferiti, visti).
+- Si vede **una volta per sessione dell'app**: tornando alla Home, anche dalla barra, non si ripete, né quando i dati si aggiornano (eventi WebSocket, preferiti, visti).
 - Stesso comportamento per le righe della scheda del titolo (cast, "Simili"), dopo l'entrata della testata.
 - Un widget riutilizzabile (`StaggeredEntrance`) con un solo `AnimationController` per gruppo e intervalli (`Interval`) per ogni figlio, senza timer. Il calcolo degli intervalli è una funzione pura, testata a parte.
 
@@ -241,7 +241,7 @@ L'anteprima si apre lo stesso, dopo gli stessi 500 ms, con una sola dissolvenza 
 - Quando la testata esce sotto la barra, compaiono in dissolvenza nella barra in alto, a destra delle voci:
   - il titolo del film o della serie in Bebas Neue;
   - un piccolo pulsante oro **"Riproduci"**, con la stessa azione e la stessa etichetta del pulsante principale della scheda (Riproduci, Riprendi, Riproduci S1:E5…).
-- **Realizzazione:** la scheda pubblica `ShellHeader(title, action)` in un provider (`shellHeaderProvider`) quando la testata esce, e lo toglie quando rientra o quando la pagina si chiude. La barra della shell lo legge.
+- **Realizzazione:** la scheda pubblica `ShellHeader(title, actionLabel, onAction)` con `ShellHeaderPublisher` quando lo scroll supera `detailBarTitleOffset` (380 px); `ShellPageFrame` lo ricorda per la propria pagina e lo passa alla barra quando la pagina è in cima, come lo stato "scorsa". Tornando indietro la barra ritrova il titolo della pagina tornata in cima.
 - Anche con le animazioni ridotte (in dissolvenza di `fast`).
 
 ### 9.3 Serie
@@ -254,7 +254,7 @@ L'anteprima si apre lo stesso, dopo gli stessi 500 ms, con una sola dissolvenza 
 ### 10.1 Shimmer sincronizzato
 
 - `WfShimmer` avvolge lo scheletro di una pagina e possiede **un solo** `AnimationController` in loop (1,8 s, `easeInOut`).
-- Ogni `SkeletonBox` sotto di esso dipinge un gradiente lineare diagonale (trasparente → oro 10% → crema 10% → oro 10% → trasparente) **in coordinate di `WfShimmer`**, calcolate con la posizione del blocco rispetto all'antenato. Il risultato è un'unica onda che attraversa tutti i blocchi.
+- Ogni `SkeletonBox` è un `CustomPainter` che si ridipinge con il controller dell'onda (senza ricostruire widget) e dipinge un gradiente lineare diagonale (trasparente → oro 10% → crema 10% → oro 10% → trasparente) **in coordinate di `WfShimmer`**, calcolate con la posizione del blocco rispetto all'antenato. Il risultato è un'unica onda che attraversa tutti i blocchi.
 - `RepaintBoundary` sullo scheletro: l'animazione ridisegna solo i blocchi.
 - `SkeletonBox` senza `WfShimmer` sopra, o con le animazioni ridotte: blocco fermo come oggi.
 

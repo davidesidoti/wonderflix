@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../app/motion.dart';
 import '../app/theme.dart';
 import 'smooth_scroll.dart';
 import 'staggered_entrance.dart';
@@ -50,7 +51,7 @@ class _MediaRowState extends State<MediaRow> {
     final target = (position.pixels + direction * position.viewportDimension * 0.8)
         .clamp(0.0, position.maxScrollExtent);
     _controller.animateTo(target,
-        duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+        duration: WfMotion.medium, curve: WfMotion.decelerate);
   }
 
   @override

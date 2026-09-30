@@ -5,6 +5,7 @@ import 'package:flutter_blurhash/flutter_blurhash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../app/motion.dart';
 import '../app/theme.dart';
 import '../core/jellyfin/image_urls.dart';
 
@@ -30,7 +31,7 @@ Widget _networkImage(ImageRef image, BoxFit fit) => LayoutBuilder(
           cacheManager: wonderflixImageCache,
           memCacheWidth: memWidth,
           fit: fit,
-          fadeInDuration: const Duration(milliseconds: 200),
+          fadeInDuration: WfMotion.fast,
           placeholder: (context, url) => ImagePlaceholder(blurHash: image.blurHash),
           errorWidget: (context, url, error) => const ImagePlaceholder(),
         );
