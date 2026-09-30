@@ -4,8 +4,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../app/error_text.dart';
 import '../app/theme.dart';
 import '../l10n/gen/app_localizations.dart';
+import 'shimmer.dart';
 
-/// Blocco statico usato come "scheletro" durante il caricamento.
+/// Blocco dello scheletro; sotto un [WfShimmer] lo attraversa l'onda.
 class SkeletonBox extends StatelessWidget {
   const SkeletonBox({super.key, this.width, this.height, this.radius = 6});
 
@@ -15,12 +16,33 @@ class SkeletonBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final shimmer = WfShimmer.maybeOf(context);
+    if (shimmer == null) {
+      return Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: WfColors.surfaceHigh,
+          borderRadius: BorderRadius.circular(radius),
+        ),
+      );
+    }
+    return SizedBox(
       width: width,
       height: height,
-      decoration: BoxDecoration(
-        color: WfColors.surfaceHigh,
-        borderRadius: BorderRadius.circular(radius),
+      child: Builder(
+        builder: (context) => CustomPaint(
+          key: shimmerPaintKey,
+          painter: ShimmerBlockPainter(
+            animation: shimmer.animation,
+            shimmerBox: shimmer.box,
+            selfBox: () => context.mounted
+                ? context.findRenderObject() as RenderBox?
+                : null,
+            radius: radius,
+          ),
+          child: const SizedBox.expand(),
+        ),
       ),
     );
   }
