@@ -7,6 +7,7 @@ import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/navigation.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
+import 'package:wonderflix/ui/wf_image.dart';
 
 import '../support/library_fakes.dart';
 import '../support/pump_app.dart';
@@ -81,17 +82,28 @@ void main() {
         .widget<Opacity>(find.ancestor(of: find.text(text), matching: find.byType(Opacity)))
         .opacity;
 
+    // La card resta piena per tutto il volo: se lo sfondo della pagina non
+    // è ancora scaricato si vede l'immagine del titolo, non un segnaposto.
+    Finder cardOpacity() =>
+        find.ancestor(of: find.text('card'), matching: find.byType(Opacity));
+    // Segnaposto trasparenti solo sopra, nell'immagine della pagina.
+    Finder transparent(String text) => find.ancestor(
+        of: find.text(text), matching: find.byType(TransparentPlaceholders));
+
     await flight(0, HeroFlightDirection.push);
-    expect(opacity('card'), 1);
+    expect(cardOpacity(), findsNothing);
     expect(opacity('pagina'), 0);
+    expect(transparent('pagina'), findsOneWidget);
+    expect(transparent('card'), findsNothing);
     await flight(1, HeroFlightDirection.push);
-    expect(opacity('card'), 0);
+    expect(cardOpacity(), findsNothing);
     expect(opacity('pagina'), 1);
-    // Indietro: l'animazione scende da 1 a 0, la pagina sfuma nella card.
+    // Indietro: l'animazione scende da 1 a 0, la pagina sfuma sulla card.
     await flight(1, HeroFlightDirection.pop);
     expect(opacity('pagina'), 1);
     await flight(0, HeroFlightDirection.pop);
-    expect(opacity('card'), 1);
+    expect(opacity('pagina'), 0);
+    expect(cardOpacity(), findsNothing);
   });
 
   testWidgets('volo: gli angoli passano da quelli della card a quelli della '

@@ -61,6 +61,20 @@ class WfImage extends ConsumerWidget {
   }
 }
 
+/// Sotto questo widget i segnaposto delle immagini sono trasparenti. Nel volo
+/// Hero l'immagine della pagina sta sopra quella della card: finché lo
+/// sfondo non è scaricato deve lasciar vedere la card, non un segnaposto.
+class TransparentPlaceholders extends InheritedWidget {
+  const TransparentPlaceholders({super.key, required super.child});
+
+  static bool of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<TransparentPlaceholders>() !=
+      null;
+
+  @override
+  bool updateShouldNotify(TransparentPlaceholders oldWidget) => false;
+}
+
 class ImagePlaceholder extends StatelessWidget {
   const ImagePlaceholder({super.key, this.blurHash, this.icon});
 
@@ -69,8 +83,11 @@ class ImagePlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (TransparentPlaceholders.of(context)) return const SizedBox.expand();
     final hash = blurHash;
-    if (hash != null) return BlurHash(hash: hash);
+    // Senza `color` il pacchetto mostra un azzurro (`Colors.blueGrey`)
+    // finché l'anteprima sfocata non è decodificata.
+    if (hash != null) return BlurHash(hash: hash, color: WfColors.surfaceHigh);
     final symbol = icon;
     return ColoredBox(
       color: WfColors.surfaceHigh,

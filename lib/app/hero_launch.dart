@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/jellyfin/image_urls.dart';
+import '../ui/wf_image.dart';
 import 'motion.dart';
 
 /// Tag del volo Hero: il titolo e la card da cui parte (riga o griglia +
@@ -95,11 +96,17 @@ Widget wfHeroFlight(
       final t = WfMotion.emphasized.transform(animation.value.clamp(0.0, 1.0));
       return ClipRRect(
         borderRadius: BorderRadius.lerp(card.radius, page.radius, t)!,
+        // La card resta piena sotto; la pagina le sfuma sopra con i
+        // segnaposto trasparenti: se lo sfondo non è ancora scaricato si
+        // continua a vedere l'immagine del titolo.
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Opacity(opacity: 1 - t, child: card.child),
-            Opacity(opacity: t, child: page.child),
+            card.child,
+            Opacity(
+              opacity: t,
+              child: TransparentPlaceholders(child: page.child),
+            ),
           ],
         ),
       );
