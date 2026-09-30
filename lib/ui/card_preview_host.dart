@@ -232,6 +232,10 @@ class _CardPreviewHostState extends ConsumerState<CardPreviewHost>
     // entrata; il resto sparisce subito e non riceve più clic.
     setState(() => _leaving = true);
     _detach();
+    // Per il resto dell'app l'anteprima è già chiusa (Esc torna indietro,
+    // il carosello riparte); il portale resta montato fino a fine
+    // transizione, e il listener del provider lo ignora ([_leaving]).
+    _previews.close(this);
     unawaited(_body.animateTo(0, duration: WfMotion.fast));
     final cover = ModalRoute.of(context)?.secondaryAnimation;
     _routeCover = cover;

@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wonderflix/app/back_navigation.dart';
 import 'package:wonderflix/app/hero_launch.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/page_transitions.dart';
@@ -71,8 +73,9 @@ void main() {
       initialLocation: initial,
       routes: [
         ShellRoute(
-          // Shell minima: lo Scaffold che in app dà l'AppShell.
-          builder: (context, state, child) => Scaffold(body: child),
+          // Shell minima: lo Scaffold e la gestione di Esc dell'AppShell.
+          builder: (context, state, child) =>
+              Scaffold(body: BackNavigationHandler(child: child)),
           routes: [
             GoRoute(
               path: '/item/:id',
@@ -290,6 +293,29 @@ void main() {
     expect(router.state.uri.path, '/item/m1');
     expect(tester.takeException(), isNull);
     expect(find.byType(CardPreview), findsNothing);
+  });
+
+  // Durante l'uscita verso la scheda l'anteprima non conta più come aperta:
+  // Esc torna indietro come sempre, e l'anteprima non resta appesa.
+  testWidgets('"Dettagli", poi Esc durante la transizione: si torna indietro',
+      (tester) async {
+    final router = await pumpRouter(tester, '/item/m1');
+    final mouse = await openPreview(tester, 'Arrival');
+
+    await tester.tap(find.byTooltip('Dettagli'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(router.state.uri.path, '/item/m2');
+    expect(find.byType(CardPreview), findsOneWidget, reason: 'in uscita');
+    // Al ritorno la card non è sotto il mouse: non riapre l'anteprima.
+    await mouse.moveTo(Offset.zero);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/item/m1');
+    expect(find.byType(CardPreview), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   // I tooltip dei pulsanti dell'anteprima usano un overlay sopra di lei, non
