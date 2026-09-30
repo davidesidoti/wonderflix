@@ -16,6 +16,7 @@ import 'app/config_error_app.dart';
 import 'app/providers.dart';
 import 'app/window_setup.dart';
 import 'config/app_config.dart';
+import 'core/device/dev_profile.dart';
 import 'core/device/device_identity.dart';
 import 'core/jellyfin/client_info.dart';
 import 'core/logging/app_log.dart';
@@ -45,6 +46,12 @@ Future<void> main() async {
   MediaKit.ensureInitialized();
 
   try {
+    // Sviluppo: seconda istanza con dati separati (WONDERFLIX_PROFILE).
+    final profile = devProfile();
+    if (profile != null) {
+      SharedPreferences.setPrefix(prefsPrefixFor(profile));
+      _log.info('profilo di sviluppo: $profile');
+    }
     final prefs = await SharedPreferences.getInstance();
     await setupWindow(prefs);
 

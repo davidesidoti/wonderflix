@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_config.dart';
+import '../core/device/dev_profile.dart';
 import '../core/jellyfin/auth_api.dart';
 import '../core/jellyfin/client_info.dart';
 import '../core/jellyfin/jellyfin_http.dart';
@@ -17,8 +18,8 @@ final sharedPreferencesProvider = Provider<SharedPreferences>((ref) =>
 final clientInfoProvider = Provider<ClientInfo>(
     (ref) => throw UnimplementedError('clientInfoProvider va sovrascritto'));
 
-final sessionStoreProvider =
-    Provider<SessionStore>((ref) => SecureSessionStore());
+final sessionStoreProvider = Provider<SessionStore>(
+    (ref) => SecureSessionStore(null, sessionKeyFor(devProfile())));
 
 final jellyfinHttpProvider = Provider<JellyfinHttp>((ref) {
   final http = JellyfinHttp(

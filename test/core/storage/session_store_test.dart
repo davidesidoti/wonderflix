@@ -51,4 +51,16 @@ void main() {
     final store = SecureSessionStore(const _ThrowingReadStorage());
     expect(await store.read(), isNull);
   });
+
+  test('chiave personalizzata: sessioni separate', () async {
+    final first = SecureSessionStore();
+    final other = SecureSessionStore(null, 'wonderflix.session.b');
+    await first.write(const StoredSession(userId: 'u1', accessToken: 'a'));
+    await other.write(const StoredSession(userId: 'u2', accessToken: 'b'));
+    expect((await first.read())?.userId, 'u1');
+    expect((await other.read())?.userId, 'u2');
+    await other.clear();
+    expect(await other.read(), isNull);
+    expect((await first.read())?.userId, 'u1');
+  });
 }

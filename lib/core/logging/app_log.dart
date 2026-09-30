@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
+import '../device/dev_profile.dart';
 import 'redact.dart';
 import 'rotating_file_sink.dart';
 
@@ -66,12 +67,12 @@ String formatLogRecord(LogRecord record) {
   return buffer.toString();
 }
 
-/// `%LocalAppData%\WonderFlix\logs` (la cartella temporanea, se la variabile
-/// manca).
+/// `%LocalAppData%\WonderFlix\logs`, oppure `logs-<profilo>` per un profilo
+/// di sviluppo (la cartella temporanea, se la variabile manca).
 Directory logsDirectory() {
   final base = Platform.environment['LOCALAPPDATA'];
   final root = base == null || base.isEmpty ? Directory.systemTemp.path : base;
-  return Directory('$root\\WonderFlix\\logs');
+  return Directory('$root\\WonderFlix\\${logsFolderFor(devProfile())}');
 }
 
 /// Sovrascritto in `main()` con il registro collegato al file. Di default

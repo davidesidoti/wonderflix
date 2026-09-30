@@ -3,14 +3,37 @@
 #include <windows.h>
 #include <shobjidl.h>
 
+#include <cwctype>
+#include <string>
+
 #include "flutter_window.h"
 #include "utils.h"
+
+// Sviluppo: WONDERFLIX_PROFILE=<nome> avvia un'istanza separata, con dati e
+// DeviceId propri (lib/core/device/dev_profile.dart), per provare il watch
+// party con due istanze sullo stesso PC. Stesse regole del lato Dart: lettere
+// e cifre, massimo 16 caratteri, maiuscole ignorate.
+static std::wstring InstanceMutexName() {
+  std::wstring name = L"Local\\WonderFlix.SingleInstance";
+  wchar_t buffer[64];
+  DWORD length = ::GetEnvironmentVariableW(L"WONDERFLIX_PROFILE", buffer, 64);
+  if (length == 0 || length >= 64) return name;
+  std::wstring profile;
+  for (DWORD i = 0; i < length; i++) {
+    wchar_t c = buffer[i];
+    if (c == L' ') continue;
+    if (c > 127 || !std::iswalnum(c)) return name;
+    profile += static_cast<wchar_t>(std::towlower(c));
+  }
+  if (profile.empty() || profile.size() > 16) return name;
+  return name + L"." + profile;
+}
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
   // Una sola istanza: se WonderFlix è già aperto, porta in primo piano quella finestra.
   HANDLE instance_mutex =
-      ::CreateMutexW(nullptr, TRUE, L"Local\\WonderFlix.SingleInstance");
+      ::CreateMutexW(nullptr, TRUE, InstanceMutexName().c_str());
   if (instance_mutex != nullptr && ::GetLastError() == ERROR_ALREADY_EXISTS) {
     HWND existing = ::FindWindowW(L"FLUTTER_RUNNER_WIN32_WINDOW", L"WonderFlix");
     if (existing != nullptr) {
