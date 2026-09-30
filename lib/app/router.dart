@@ -56,6 +56,13 @@ Page<void> playerPage(GoRouterState state, Widget child) =>
 HeroLaunch? _heroLaunch(GoRouterState state) =>
     state.extra is HeroLaunch ? state.extra as HeroLaunch : null;
 
+/// Struttura comune delle pagine autenticate. Dopo un `push`
+/// `matchedLocation` resta quello della pagina di partenza; l'URI è quello
+/// della pagina in cima (senza la query, es. `?season=`).
+Widget appShellBuilder(
+        BuildContext context, GoRouterState state, Widget child) =>
+    AppShell(location: state.uri.path, child: child);
+
 final routerProvider = Provider<GoRouter>((ref) {
   final session = ValueNotifier<SessionState>(ref.read(sessionControllerProvider));
   ref.listen(sessionControllerProvider, (_, next) => session.value = next);
@@ -87,39 +94,44 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       ShellRoute(
-        builder: (context, state, child) =>
-            AppShell(location: state.matchedLocation, child: child),
+        builder: appShellBuilder,
         routes: [
           GoRoute(
               path: '/home',
               pageBuilder: (context, state) =>
-                  shellPage(context, state, const HomeScreen())),
+                  shellPage(context, state, const HomeScreen(),
+                      underBar: false)),
           GoRoute(
               path: '/movies',
               pageBuilder: (context, state) => shellPage(
                   context,
                   state,
                   const CatalogScreen(
-                      key: ValueKey('movies'), kind: ItemKind.movie))),
+                      key: ValueKey('movies'), kind: ItemKind.movie),
+                  underBar: true)),
           GoRoute(
               path: '/series',
               pageBuilder: (context, state) => shellPage(
                   context,
                   state,
                   const CatalogScreen(
-                      key: ValueKey('series'), kind: ItemKind.series))),
+                      key: ValueKey('series'), kind: ItemKind.series),
+                  underBar: true)),
           GoRoute(
               path: '/mylist',
               pageBuilder: (context, state) =>
-                  shellPage(context, state, const MyListScreen())),
+                  shellPage(context, state, const MyListScreen(),
+                      underBar: true)),
           GoRoute(
               path: '/search',
               pageBuilder: (context, state) =>
-                  shellPage(context, state, const SearchScreen())),
+                  shellPage(context, state, const SearchScreen(),
+                      underBar: true)),
           GoRoute(
               path: '/settings',
               pageBuilder: (context, state) =>
-                  shellPage(context, state, const SettingsScreen())),
+                  shellPage(context, state, const SettingsScreen(),
+                      underBar: true)),
           GoRoute(
             path: '/item/:id',
             pageBuilder: (context, state) => detailPage(
@@ -131,6 +143,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                 seasonId: state.uri.queryParameters['season'],
                 launch: _heroLaunch(state),
               ),
+              underBar: false,
             ),
           ),
           GoRoute(
@@ -143,6 +156,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                 personId: state.pathParameters['id']!,
                 launch: _heroLaunch(state),
               ),
+              underBar: true,
             ),
           ),
         ],

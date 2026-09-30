@@ -20,13 +20,11 @@ import 'theme.dart';
 /// Altezza della barra in alto.
 const shellBarHeight = 64.0;
 
-/// Pagine con lo sfondo fino al bordo alto della finestra, sotto la barra
-/// (spec C §11.1). Le altre iniziano sotto la barra, come prima.
-bool isFullBleed(String location) =>
-    location == '/home' || location.startsWith('/item/');
-
 /// Struttura comune alle schermate autenticate: contenuto con la barra
-/// superiore sovrapposta.
+/// superiore sovrapposta. Il contenuto occupa tutta la finestra; le pagine
+/// che devono iniziare sotto la barra lasciano da sole il margine
+/// (`shellPage`/`detailPage` con `underBar`), così la barra non sposta il
+/// navigatore durante le transizioni.
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key, required this.location, required this.child});
 
@@ -66,19 +64,15 @@ class _AppShellState extends ConsumerState<AppShell> {
     final user = session is SessionSignedIn ? session.user : null;
     final l = AppLocalizations.of(context);
     final fade = WfMotion.of(context).duration(WfMotion.medium);
-    final fullBleed = isFullBleed(widget.location);
 
     return Scaffold(
       body: BackNavigationHandler(
         child: Stack(
           children: [
             Positioned.fill(
-              child: Padding(
-                padding: EdgeInsets.only(top: fullBleed ? 0 : shellBarHeight),
-                child: NotificationListener<ScrollNotification>(
-                  onNotification: _onScroll,
-                  child: widget.child,
-                ),
+              child: NotificationListener<ScrollNotification>(
+                onNotification: _onScroll,
+                child: widget.child,
               ),
             ),
             Positioned(
@@ -89,9 +83,10 @@ class _AppShellState extends ConsumerState<AppShell> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Pagine a tutta altezza: velo in cima per leggere la barra.
+                  // Velo in cima per leggere la barra sulle pagine a tutta
+                  // altezza; sulle altre è sfondo su sfondo.
                   AnimatedOpacity(
-                    opacity: fullBleed && !_scrolled ? 1 : 0,
+                    opacity: _scrolled ? 0 : 1,
                     duration: fade,
                     child: const DecoratedBox(
                       decoration: BoxDecoration(

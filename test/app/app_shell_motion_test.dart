@@ -37,14 +37,16 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('Home e scheda partono dal bordo alto, le altre sotto la barra',
+  // Il margine sotto la barra è delle pagine (vedi app_shell_router_test):
+  // la shell non sposta il contenuto, così nel push/pop la pagina che esce
+  // non salta.
+  testWidgets('la shell non sposta il contenuto, qualunque sia la pagina',
       (tester) async {
-    await pumpShell(tester, '/home');
-    expect(tester.getTopLeft(find.byKey(const Key('page'))).dy, 0);
-    await pumpShell(tester, '/item/m1');
-    expect(tester.getTopLeft(find.byKey(const Key('page'))).dy, 0);
-    await pumpShell(tester, '/movies');
-    expect(tester.getTopLeft(find.byKey(const Key('page'))).dy, shellBarHeight);
+    for (final location in ['/home', '/item/m1', '/movies', '/person/p1']) {
+      await pumpShell(tester, location);
+      expect(tester.getTopLeft(find.byKey(const Key('page'))).dy, 0,
+          reason: location);
+    }
   });
 
   testWidgets('la sottolineatura sta sotto la voce attiva', (tester) async {

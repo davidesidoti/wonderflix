@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'app_shell.dart';
 import 'motion.dart';
 
 /// Durata del "fade through" tra le voci della barra: 90 ms di uscita e
@@ -30,13 +31,20 @@ Widget pageTransition(WfMotion motion, Animation<double> animation,
   );
 }
 
+/// [underBar]: la pagina inizia sotto la barra in alto; altrimenti arriva
+/// fino al bordo della finestra (Home e scheda, spec C §11.1). Il margine sta
+/// dentro la pagina, non nella shell: così nel fotogramma del push/pop la
+/// pagina che esce non salta.
 CustomTransitionPage<void> _page(BuildContext context, GoRouterState state,
-    Widget child, Duration fullDuration) {
+    Widget child, Duration fullDuration, bool underBar) {
   final motion = WfMotion.of(context);
   final duration = motion.duration(fullDuration);
   return CustomTransitionPage<void>(
     key: state.pageKey,
-    child: child,
+    child: Padding(
+      padding: EdgeInsets.only(top: underBar ? shellBarHeight : 0),
+      child: child,
+    ),
     transitionDuration: duration,
     reverseTransitionDuration: duration,
     transitionsBuilder: (context, animation, secondaryAnimation, child) =>
@@ -45,9 +53,11 @@ CustomTransitionPage<void> _page(BuildContext context, GoRouterState state,
 }
 
 /// Pagina di una voce della barra (Home, Film, Serie, …).
-Page<void> shellPage(BuildContext context, GoRouterState state, Widget child) =>
-    _page(context, state, child, shellTransitionDuration);
+Page<void> shellPage(BuildContext context, GoRouterState state, Widget child,
+        {required bool underBar}) =>
+    _page(context, state, child, shellTransitionDuration, underBar);
 
 /// Scheda del titolo e pagina della persona: dura quanto il volo Hero.
-Page<void> detailPage(BuildContext context, GoRouterState state, Widget child) =>
-    _page(context, state, child, WfMotion.hero);
+Page<void> detailPage(BuildContext context, GoRouterState state, Widget child,
+        {required bool underBar}) =>
+    _page(context, state, child, WfMotion.hero, underBar);
