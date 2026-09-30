@@ -196,5 +196,6 @@
   "settingsAnimationsHint": "“Same as Windows” follows “Animation effects” in the Windows settings. “Reduced” keeps only short fades.",
   "settingsAnimationsSystem": "Same as Windows",
   "settingsAnimationsFull": "Full",
-  "settingsAnimationsReduced": "Reduced"
+  "settingsAnimationsReduced": "Reduced",
+  "previewResume": "Resume"
 }

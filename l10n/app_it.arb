@@ -223,5 +223,6 @@
   "settingsAnimationsHint": "«Come Windows» segue «Effetti di animazione» nelle impostazioni di Windows. Con «Ridotte» restano solo dissolvenze brevi.",
   "settingsAnimationsSystem": "Come Windows",
   "settingsAnimationsFull": "Complete",
-  "settingsAnimationsReduced": "Ridotte"
+  "settingsAnimationsReduced": "Ridotte",
+  "previewResume": "Riprendi"
 }

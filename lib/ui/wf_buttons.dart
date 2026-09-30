@@ -124,12 +124,19 @@ class WfIconToggle extends StatefulWidget {
     required this.selected,
     required this.tooltip,
     required this.onPressed,
+    this.size = 44,
+    this.iconSize = 20,
   });
 
   final IconData icon;
   final bool selected;
   final String tooltip;
   final VoidCallback? onPressed;
+
+  /// Lato del pulsante e dell'icona: 44/20 nella scheda, più piccoli
+  /// nell'anteprima delle card.
+  final double size;
+  final double iconSize;
 
   @override
   State<WfIconToggle> createState() => _WfIconToggleState();
@@ -178,7 +185,9 @@ class _WfIconToggleState extends State<WfIconToggle>
         onPressed: widget.onPressed,
         isSelected: selected,
         style: IconButton.styleFrom(
-          fixedSize: const Size(44, 44),
+          // Il minimo di Material (40) non deve allargare i pulsanti piccoli.
+          minimumSize: Size.square(widget.size),
+          fixedSize: Size.square(widget.size),
           // Il cambio di colore del riempimento (Material: 200 ms).
           animationDuration: WfMotion.of(context).duration(WfMotion.fast),
           foregroundColor: selected ? WfColors.gold : WfColors.cream,
@@ -188,7 +197,7 @@ class _WfIconToggleState extends State<WfIconToggle>
               : Colors.transparent,
           side: BorderSide(color: selected ? WfColors.gold : WfColors.border),
         ),
-        icon: Icon(widget.icon, size: 20),
+        icon: Icon(widget.icon, size: widget.iconSize),
       ),
     );
   }
