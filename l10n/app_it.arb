@@ -208,5 +208,13 @@
   "@watchPartyNoticeJoined": {"placeholders": {"name": {"type": "String"}}},
   "watchPartyNoticeLeft": "{name} ha lasciato il watch party",
   "@watchPartyNoticeLeft": {"placeholders": {"name": {"type": "String"}}},
-  "watchPartyNoticeResync": "Riallineamento al gruppo"
+  "watchPartyNoticeResync": "Riallineamento al gruppo",
+  "watchPartyInviteTitle": "{name} ha avviato un watch party",
+  "@watchPartyInviteTitle": {"placeholders": {"name": {"type": "String"}}},
+  "watchPartyInParty": "Nel watch party",
+  "watchPartyBackToPlayer": "Torna al player",
+  "watchPartyDismiss": "Chiudi",
+  "watchPartyNoticeEnded": "Il watch party è terminato",
+  "discordWatchParty": "Watch party · {count, plural, =1{1 persona} other{{count} persone}}",
+  "@discordWatchParty": {"placeholders": {"count": {"type": "int"}}}
 }

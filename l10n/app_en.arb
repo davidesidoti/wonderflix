@@ -183,5 +183,11 @@
   "watchPartyNoticeNowWatching": "Now watching: {title}",
   "watchPartyNoticeJoined": "{name} joined the watch party",
   "watchPartyNoticeLeft": "{name} left the watch party",
-  "watchPartyNoticeResync": "Resyncing with the group"
+  "watchPartyNoticeResync": "Resyncing with the group",
+  "watchPartyInviteTitle": "{name} started a watch party",
+  "watchPartyInParty": "In a watch party",
+  "watchPartyBackToPlayer": "Back to the player",
+  "watchPartyDismiss": "Dismiss",
+  "watchPartyNoticeEnded": "The watch party has ended",
+  "discordWatchParty": "Watch party · {count, plural, =1{1 person} other{{count} people}}"
 }
