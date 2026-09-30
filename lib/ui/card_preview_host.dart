@@ -44,12 +44,24 @@ class _CardPreviewHostState extends ConsumerState<CardPreviewHost>
 
   /// Letto in `initState`: in `dispose` `ref` non si usa.
   late final CardPreviewController _previews;
-  late final AnimationController _open;
+
+  // I controller nascono alla prima apertura e l'osservatore della finestra
+  // c'è solo ad anteprima aperta: le card sono tante (100 per pagina nel
+  // catalogo) e quasi tutte non aprono mai l'anteprima.
+  AnimationController? _openController;
+  AnimationController? _bodyController;
+  bool _observing = false;
+
+  /// Apertura (scala e dissolvenza) e chiusura in dissolvenza.
+  AnimationController get _open => _openController ??=
+      AnimationController(vsync: this, duration: WfMotion.medium);
 
   /// Corpo dell'anteprima: 1 normalmente, 0 in uscita verso la scheda.
-  late final AnimationController _body;
+  AnimationController get _body => _bodyController ??=
+      AnimationController(vsync: this, duration: WfMotion.fast, value: 1);
 
   Timer? _hoverTimer;
+
   /// Posizioni di tutti gli `Scrollable` intorno alla card (la riga e la
   /// pagina): se una scorre, l'anteprima si chiude.
   final _scrolls = <ScrollPosition>[];
@@ -69,9 +81,17 @@ class _CardPreviewHostState extends ConsumerState<CardPreviewHost>
   void initState() {
     super.initState();
     _previews = ref.read(cardPreviewProvider.notifier);
-    _open = AnimationController(vsync: this, duration: WfMotion.medium);
-    _body = AnimationController(vsync: this, duration: WfMotion.fast, value: 1);
-    WidgetsBinding.instance.addObserver(this);
+  }
+
+  /// Registra o toglie l'osservatore del ciclo di vita della finestra.
+  void _observeLifecycle(bool observe) {
+    if (observe == _observing) return;
+    _observing = observe;
+    if (observe) {
+      WidgetsBinding.instance.addObserver(this);
+    } else {
+      WidgetsBinding.instance.removeObserver(this);
+    }
   }
 
   @override
@@ -156,6 +176,7 @@ class _CardPreviewHostState extends ConsumerState<CardPreviewHost>
       _scrolls.add(position);
     }
     HardwareKeyboard.instance.addHandler(_onKey);
+    _observeLifecycle(true);
     setState(() {});
   }
 
@@ -191,6 +212,7 @@ class _CardPreviewHostState extends ConsumerState<CardPreviewHost>
     }
     _scrolls.clear();
     HardwareKeyboard.instance.removeHandler(_onKey);
+    _observeLifecycle(false);
     _routeCover?.removeStatusListener(_onRouteCover);
     _routeCover = null;
   }
@@ -265,13 +287,13 @@ class _CardPreviewHostState extends ConsumerState<CardPreviewHost>
     _hoverTimer?.cancel();
     _detach();
     _rearm();
-    WidgetsBinding.instance.removeObserver(this);
     final previews = _previews;
     final id = this;
     // Non si modifica un provider mentre l'albero si smonta.
     unawaited(Future.microtask(() => previews.close(id)));
-    _open.dispose();
-    _body.dispose();
+    // Solo quelli creati: i getter li creerebbero adesso.
+    _openController?.dispose();
+    _bodyController?.dispose();
     super.dispose();
   }
 
