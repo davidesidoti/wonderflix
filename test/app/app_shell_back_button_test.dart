@@ -7,11 +7,13 @@ import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/server_events_binding.dart';
+import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
 import '../support/fake_session_controller.dart';
 import '../support/pump_app.dart';
 import '../support/test_data.dart';
+import '../support/watch_party_fakes.dart';
 
 void main() {
   testWidgets('freccia indietro visibile solo se c\'è una pagina precedente',
@@ -37,6 +39,8 @@ void main() {
       overrides: [
         appConfigProvider.overrideWithValue(testAppConfig),
         serverEventsBindingProvider.overrideWithValue(null),
+        // Nessun elenco dei watch party (né timer).
+        watchPartyDirectoryProvider.overrideWith(FakeWatchPartyDirectory.new),
         sessionControllerProvider
             .overrideWith(() => FakeSessionController(const SessionSignedIn(testUser))),
       ],

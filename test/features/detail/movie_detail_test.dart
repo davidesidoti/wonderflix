@@ -1,13 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/detail/item_detail_screen.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
+import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/test_data.dart';
+import '../../support/watch_party_fakes.dart';
 
 void main() {
   late FakeLibraryApi api;
@@ -94,5 +102,40 @@ void main() {
     api.itemsById['m1'] = testItem(id: 'm1', localTrailers: 1);
     await pumpDetail(tester);
     expect(find.text('Trailer'), findsOneWidget);
+  });
+
+  testWidgets('Guarda insieme: crea il gruppo dal punto di ripresa',
+      (tester) async {
+    final syncPlay = FakeSyncPlayApi();
+    final events = StreamController<ServerEvent>.broadcast();
+    addTearDown(events.close);
+    syncPlay.onCall = (call) {
+      if (call.startsWith('create')) {
+        events.add(SyncPlayGroupUpdated(GroupJoined('g1', testGroup())));
+      }
+    };
+    await pumpApp(
+        tester, const Scaffold(body: ItemDetailScreen(itemId: 'm1')),
+        overrides: [
+          libraryApiProvider.overrideWithValue(api),
+          sessionControllerProvider.overrideWith(
+              () => FakeSessionController(const SessionSignedIn(testUser))),
+          syncPlayApiProvider.overrideWithValue(syncPlay),
+          watchPartyEventsProvider.overrideWithValue(events.stream),
+        ]);
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.text('Guarda insieme'));
+    await tester.pumpAndSettle();
+    expect(syncPlay.calls, ['create Mario · Dune: Parte Due', 'queue m1']);
+    // positionTicks 13940000000 = 23:14.
+    expect(syncPlay.queues.single.start,
+        const Duration(minutes: 23, seconds: 14));
+
+    final container = ProviderScope.containerOf(
+        tester.element(find.byType(ItemDetailScreen)));
+    await container.read(watchPartySessionProvider.notifier).leave();
+    await tester.pump();
   });
 }

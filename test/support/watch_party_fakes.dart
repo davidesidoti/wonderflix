@@ -1,6 +1,7 @@
 import 'package:clock/clock.dart';
 import 'package:wonderflix/core/syncplay/syncplay_api.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
+import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
 import 'package:wonderflix/features/watch_party/watch_party_routing.dart';
 
 /// `SyncPlayApi` in memoria: registra le chiamate. Il server "risponde"
@@ -141,4 +142,18 @@ class FakePartyNavigator implements PartyNavigator {
     replaced.add(route);
     location = Uri.parse(route);
   }
+}
+
+/// Elenco dei gruppi fisso, senza richieste né timer.
+class FakeWatchPartyDirectory extends WatchPartyDirectory {
+  FakeWatchPartyDirectory([this.initial = const []]);
+
+  final List<GroupInfo> initial;
+  int refreshCalls = 0;
+
+  @override
+  List<GroupInfo> build() => initial;
+
+  @override
+  Future<void> refresh() async => refreshCalls++;
 }

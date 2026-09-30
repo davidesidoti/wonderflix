@@ -15,6 +15,7 @@ import '../library/item_labels.dart';
 import '../library/library_providers.dart';
 import '../library/user_data.dart';
 import '../playback/play_launcher.dart';
+import '../watch_party/watch_party_actions.dart';
 import 'primary_action.dart';
 
 /// Parte alta di una scheda: sfondo, logo o titolo, dati, trama, azioni.
@@ -129,6 +130,20 @@ class DetailHeader extends ConsumerWidget {
                         onPressed: () => unawaited(playItem(
                             context, ref, action.target,
                             fromStart: true)),
+                      ),
+                    // Nel Piano 5a solo i film; serie ed episodi nel 5b.
+                    if (action != null && item.kind == ItemKind.movie)
+                      WfButton.secondary(
+                        label: l.watchPartyWatchTogether,
+                        icon: LucideIcons.users,
+                        onPressed: () => unawaited(startWatchParty(
+                          context,
+                          ref,
+                          action.target,
+                          start: action is ResumeAction
+                              ? action.position
+                              : Duration.zero,
+                        )),
                       ),
                     if (hasTrailer)
                       WfButton.secondary(

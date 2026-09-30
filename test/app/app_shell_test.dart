@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/app_shell.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
 
 import '../support/fake_session_controller.dart';
 import '../support/pump_app.dart';
 import '../support/test_data.dart';
+import '../support/watch_party_fakes.dart';
 
 void main() {
   testWidgets('mostra utente e Home, e fa il logout dal menu', (tester) async {
@@ -13,7 +15,11 @@ void main() {
     await pumpApp(
       tester,
       const AppShell(location: '/home', child: SizedBox()),
-      overrides: [sessionControllerProvider.overrideWith(() => fake)],
+      overrides: [
+        sessionControllerProvider.overrideWith(() => fake),
+        // Nessun elenco dei watch party (né timer).
+        watchPartyDirectoryProvider.overrideWith(FakeWatchPartyDirectory.new),
+      ],
     );
 
     expect(find.text('Mario'), findsOneWidget);

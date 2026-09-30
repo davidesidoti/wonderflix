@@ -8,6 +8,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../core/jellyfin/auth_models.dart';
 import '../features/auth/session_controller.dart';
 import '../features/library/server_events_binding.dart';
+import '../features/watch_party/watch_party_button.dart';
 import '../l10n/gen/app_localizations.dart';
 import 'back_navigation.dart';
 import 'theme.dart';
@@ -52,6 +53,8 @@ class AppShell extends ConsumerWidget {
                   nav(l.navMyList, '/mylist'),
                   nav(l.navSearch, '/search', icon: LucideIcons.search),
                   const Spacer(),
+                  const WatchPartyButton(),
+                  const SizedBox(width: 16),
                   if (user != null) _UserMenu(user: user),
                 ],
               ),
