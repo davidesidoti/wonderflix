@@ -68,8 +68,11 @@ class HeroLaunch {
 }
 
 /// Volo con dissolvenza: parte dall'immagine della card e arriva a quella
-/// della pagina (da una locandina 2:3 a uno sfondo 16:9); gli angoli passano
-/// da 6 a 0. Tornando indietro fa il percorso inverso.
+/// della pagina (da una locandina 2:3 a uno sfondo 16:9). Gli angoli passano
+/// da quelli della sorgente a quelli della destinazione (cerchio del cast →
+/// foto della persona, card → sfondo senza angoli): i ritagli di [WfHero]
+/// stanno dentro l'`Hero`, qui si tolgono e se ne disegna uno solo.
+/// Tornando indietro fa il percorso inverso.
 Widget wfHeroFlight(
   BuildContext flightContext,
   Animation<double> animation,
@@ -77,8 +80,8 @@ Widget wfHeroFlight(
   BuildContext fromHeroContext,
   BuildContext toHeroContext,
 ) {
-  final from = (fromHeroContext.widget as Hero).child;
-  final to = (toHeroContext.widget as Hero).child;
+  final from = _WfHeroClip.split((fromHeroContext.widget as Hero).child);
+  final to = _WfHeroClip.split((toHeroContext.widget as Hero).child);
   final push = direction == HeroFlightDirection.push;
   final card = push ? from : to;
   final page = push ? to : from;
@@ -87,12 +90,12 @@ Widget wfHeroFlight(
     builder: (context, _) {
       final t = WfMotion.emphasized.transform(animation.value.clamp(0.0, 1.0));
       return ClipRRect(
-        borderRadius: BorderRadius.circular(6 * (1 - t)),
+        borderRadius: BorderRadius.lerp(card.radius, page.radius, t)!,
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Opacity(opacity: 1 - t, child: card),
-            Opacity(opacity: t, child: page),
+            Opacity(opacity: 1 - t, child: card.child),
+            Opacity(opacity: t, child: page.child),
           ],
         ),
       );
@@ -101,17 +104,51 @@ Widget wfHeroFlight(
 }
 
 /// [Hero] con [wfHeroFlight], solo se c'è un tag e le animazioni sono
-/// complete; altrimenti il solo [child].
+/// complete; altrimenti il solo [child]. Il ritaglio con [borderRadius] c'è
+/// sempre (anche con le animazioni ridotte) e sta dentro l'`Hero`, così il
+/// volo sa da che forma parte e a che forma arriva.
 class WfHero extends StatelessWidget {
-  const WfHero({super.key, required this.tag, required this.child});
+  const WfHero({
+    super.key,
+    required this.tag,
+    this.borderRadius = cardRadius,
+    required this.child,
+  });
+
+  /// Angoli dell'immagine delle card (locandina e orizzontale).
+  static const cardRadius = BorderRadius.all(Radius.circular(5));
 
   final WfHeroTag? tag;
+  final BorderRadius borderRadius;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final heroTag = tag;
-    if (heroTag == null || WfMotion.of(context).isReduced) return child;
-    return Hero(tag: heroTag, flightShuttleBuilder: wfHeroFlight, child: child);
+    final clipped = _WfHeroClip(borderRadius: borderRadius, child: child);
+    if (heroTag == null || WfMotion.of(context).isReduced) return clipped;
+    return Hero(
+        tag: heroTag, flightShuttleBuilder: wfHeroFlight, child: clipped);
   }
+}
+
+/// Ritaglio di [WfHero]; [wfHeroFlight] lo riconosce e lo sostituisce con il
+/// proprio.
+class _WfHeroClip extends StatelessWidget {
+  const _WfHeroClip({required this.borderRadius, required this.child});
+
+  final BorderRadius borderRadius;
+  final Widget child;
+
+  /// Angoli e contenuto del figlio di un `Hero`: senza [_WfHeroClip] (un
+  /// `Hero` qualunque) angoli retti.
+  static ({BorderRadius radius, Widget child}) split(Widget heroChild) =>
+      heroChild is _WfHeroClip
+          ? (radius: heroChild.borderRadius, child: heroChild.child)
+          : (radius: BorderRadius.zero, child: heroChild);
+
+  @override
+  Widget build(BuildContext context) => borderRadius == BorderRadius.zero
+      ? child
+      : ClipRRect(borderRadius: borderRadius, child: child);
 }

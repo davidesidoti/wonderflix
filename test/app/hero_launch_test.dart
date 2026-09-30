@@ -94,6 +94,90 @@ void main() {
     expect(opacity('card'), 1);
   });
 
+  testWidgets('volo: gli angoli passano da quelli della card a quelli della '
+      'pagina, con un solo ritaglio', (tester) async {
+    const flightKey = Key('volo');
+    Widget tree(Widget flight) => Directionality(
+          textDirection: TextDirection.ltr,
+          child: WfMotionScope(
+            motion: const WfMotion(MotionLevel.full),
+            child: Stack(children: [
+              Offstage(
+                child: Column(children: [
+                  WfHero(
+                    tag: const WfHeroTag('p9', 'cast.0'),
+                    borderRadius: BorderRadius.circular(45),
+                    child: const SizedBox(width: 90, height: 90),
+                  ),
+                  WfHero(
+                    tag: const WfHeroTag('p9', 'persona'),
+                    borderRadius: BorderRadius.circular(8),
+                    child: const SizedBox(width: 200, height: 300),
+                  ),
+                ]),
+              ),
+              KeyedSubtree(key: flightKey, child: flight),
+            ]),
+          ),
+        );
+    await tester.pumpWidget(tree(const SizedBox()));
+    final cast = tester.element(find.byType(Hero, skipOffstage: false).first);
+    final person = tester.element(find.byType(Hero, skipOffstage: false).last);
+    Future<List<ClipRRect>> clipsAt(
+        double t, HeroFlightDirection direction) async {
+      final push = direction == HeroFlightDirection.push;
+      await tester.pumpWidget(tree(wfHeroFlight(cast, AlwaysStoppedAnimation(t),
+          direction, push ? cast : person, push ? person : cast)));
+      return tester
+          .widgetList<ClipRRect>(find.descendant(
+              of: find.byKey(flightKey), matching: find.byType(ClipRRect)))
+          .toList();
+    }
+
+    var clips = await clipsAt(0, HeroFlightDirection.push);
+    expect(clips, hasLength(1), reason: 'nessun doppio ritaglio');
+    expect(clips.single.borderRadius, BorderRadius.circular(45));
+    clips = await clipsAt(1, HeroFlightDirection.push);
+    expect(clips, hasLength(1));
+    expect(clips.single.borderRadius, BorderRadius.circular(8));
+    // Indietro: la foto torna nel cerchio.
+    clips = await clipsAt(0, HeroFlightDirection.pop);
+    expect(clips.single.borderRadius, BorderRadius.circular(45));
+  });
+
+  testWidgets('WfHero ritaglia anche senza Hero', (tester) async {
+    Widget tree(MotionLevel level, WfHeroTag? tag) => Directionality(
+          textDirection: TextDirection.ltr,
+          child: WfMotionScope(
+            motion: WfMotion(level),
+            child: WfHero(
+              tag: tag,
+              borderRadius: BorderRadius.circular(45),
+              child: const SizedBox(width: 90, height: 90),
+            ),
+          ),
+        );
+    for (final (level, tag) in [
+      (MotionLevel.reduced, const WfHeroTag('p9', 'cast.0')),
+      (MotionLevel.full, null),
+      (MotionLevel.full, const WfHeroTag('p9', 'cast.0')),
+    ]) {
+      await tester.pumpWidget(tree(level, tag));
+      expect(tester.widget<ClipRRect>(find.byType(ClipRRect)).borderRadius,
+          BorderRadius.circular(45),
+          reason: '$level, $tag');
+    }
+  });
+
+  testWidgets('WfHero: per default gli angoli delle card', (tester) async {
+    await tester.pumpWidget(const Directionality(
+      textDirection: TextDirection.ltr,
+      child: WfHero(tag: null, child: SizedBox()),
+    ));
+    expect(tester.widget<ClipRRect>(find.byType(ClipRRect)).borderRadius,
+        BorderRadius.circular(5));
+  });
+
   testWidgets('openItem con sorgente passa HeroLaunch alla scheda',
       (tester) async {
     Object? extra;

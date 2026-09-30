@@ -40,7 +40,8 @@ class DetailBackdrop extends ConsumerWidget {
           offset: Offset(0, controller.hasClients ? -controller.offset : 0),
           child: child,
         ),
-        child: WfHero(tag: launch?.tag, child: image),
+        child: WfHero(
+            tag: launch?.tag, borderRadius: BorderRadius.zero, child: image),
       ),
     );
   }

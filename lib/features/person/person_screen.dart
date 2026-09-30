@@ -83,15 +83,13 @@ class _PersonScreenState extends ConsumerState<PersonScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ClipRRect(
+                WfHero(
+                  tag: launch?.tag,
                   borderRadius: BorderRadius.circular(8),
-                  child: WfHero(
-                    tag: launch?.tag,
-                    child: SizedBox(
-                      width: 200,
-                      height: 300,
-                      child: WfImage(image: photo, fallbackIcon: LucideIcons.user),
-                    ),
+                  child: SizedBox(
+                    width: 200,
+                    height: 300,
+                    child: WfImage(image: photo, fallbackIcon: LucideIcons.user),
                   ),
                 ),
                 const SizedBox(width: 32),

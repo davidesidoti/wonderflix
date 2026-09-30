@@ -43,16 +43,17 @@ class CastRow extends ConsumerWidget {
               width: 110,
               child: Column(
                 children: [
-                  ClipOval(
-                    child: WfHero(
-                      tag: WfHeroTag(person.id, source),
-                      child: SizedBox(
-                        width: 90,
-                        height: 90,
-                        child: WfImage(
-                            image: urls.person(person),
-                            fallbackIcon: LucideIcons.user),
-                      ),
+                  WfHero(
+                    tag: WfHeroTag(person.id, source),
+                    // Cerchio (90 px): il volo lo trasforma negli angoli
+                    // della foto della persona.
+                    borderRadius: BorderRadius.circular(45),
+                    child: SizedBox(
+                      width: 90,
+                      height: 90,
+                      child: WfImage(
+                          image: urls.person(person),
+                          fallbackIcon: LucideIcons.user),
                     ),
                   ),
                   const SizedBox(height: 8),
