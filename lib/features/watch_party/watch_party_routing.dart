@@ -24,8 +24,16 @@ class _RouterNavigator implements PartyNavigator {
 
   final GoRouter _router;
 
+  /// Pagina in cima: dopo `push` e `pushReplacement` l'indirizzo del
+  /// `routeInformationProvider` torna quello della pagina di base (es.
+  /// `/home`), anche con un player aperto sopra.
   @override
-  Uri get location => _router.routeInformationProvider.value.uri;
+  Uri get location {
+    if (_router.routerDelegate.currentConfiguration.isEmpty) {
+      return _router.routeInformationProvider.value.uri;
+    }
+    return _router.state.uri;
+  }
 
   @override
   void open(String route) => unawaited(_router.push<void>(route));

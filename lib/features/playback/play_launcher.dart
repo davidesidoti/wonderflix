@@ -32,12 +32,9 @@ bool _launchInProgress(BuildContext context) {
   final launch = _launch;
   if (launch == null) return false;
   if (!launch.pushed) return true;
-  return GoRouter.of(context)
-      .routeInformationProvider
-      .value
-      .uri
-      .path
-      .startsWith('/play/');
+  // La pagina in cima: l'indirizzo del `routeInformationProvider`, dopo una
+  // push, torna quello della pagina di base.
+  return GoRouter.of(context).state.uri.path.startsWith('/play/');
 }
 
 /// Unico punto d'ingresso della riproduzione.

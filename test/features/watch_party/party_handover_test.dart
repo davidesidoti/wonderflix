@@ -1,0 +1,168 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:wonderflix/app/navigation.dart';
+import 'package:wonderflix/app/providers.dart';
+import 'package:wonderflix/app/router.dart';
+import 'package:wonderflix/app/theme.dart';
+import 'package:wonderflix/core/jellyfin/item_models.dart';
+import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/core/syncplay/syncplay_models.dart';
+import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/features/player/playback_service.dart';
+import 'package:wonderflix/features/player/player_providers.dart';
+import 'package:wonderflix/features/player/player_screen.dart';
+import 'package:wonderflix/features/player/player_settings.dart';
+import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
+import 'package:wonderflix/features/watch_party/watch_party_routing.dart';
+import 'package:wonderflix/features/watch_party/watch_party_session.dart';
+import 'package:wonderflix/l10n/gen/app_localizations.dart';
+import 'package:wonderflix/ui/wf_image.dart';
+
+import '../../support/fake_session_controller.dart';
+import '../../support/library_fakes.dart';
+import '../../support/playback_fakes.dart';
+import '../../support/pump_app.dart';
+import '../../support/test_data.dart';
+import '../../support/watch_party_fakes.dart';
+
+/// Routing del watch party e player insieme, con il `GoRouter` vero: il
+/// cambio di episodio del gruppo lascia un solo player.
+void main() {
+  late FakeSyncPlayApi api;
+  late StreamController<ServerEvent> events;
+  late ProviderContainer container;
+  late GoRouter router;
+
+  void emit(GroupUpdate update) => events.add(SyncPlayGroupUpdated(update));
+
+  JellyfinItem episode(String id, int index) => testItem(
+        id: id,
+        name: 'Episodio $index',
+        kind: ItemKind.episode,
+        seriesName: 'Breaking Bad',
+        seriesId: 's1',
+        index: index,
+        seasonIndex: 1,
+      );
+
+  /// Home con il routing del watch party attivo; l'utente entra nel gruppo
+  /// `g1`, che guarda la serie (e4, poi e5 ed e6).
+  Future<void> pumpApp(WidgetTester tester) async {
+    api = FakeSyncPlayApi();
+    events = StreamController<ServerEvent>.broadcast();
+    addTearDown(events.close);
+    final playback = FakePlaybackApi();
+    final library = FakeLibraryApi()
+      ..itemsById['e4'] = episode('e4', 4)
+      ..itemsById['e5'] = episode('e5', 5)
+      ..itemsById['e6'] = episode('e6', 6);
+    router = GoRouter(initialLocation: '/home', routes: [
+      GoRoute(
+          path: '/home',
+          builder: (context, state) => const Scaffold(body: Text('home'))),
+      GoRoute(
+        path: '/play/:id',
+        builder: (context, state) => PlayerScreen(
+          key: ValueKey(state.uri.toString()),
+          args: (
+            itemId: state.pathParameters['id']!,
+            start: playerStartFrom(state.uri),
+            party: state.uri.queryParameters['party'],
+          ),
+          fullscreen: state.uri.queryParameters['fs'] == '1',
+        ),
+      ),
+    ]);
+    addTearDown(router.dispose);
+    container = ProviderContainer(
+      overrides: [
+        routerProvider.overrideWithValue(router),
+        libraryApiProvider.overrideWithValue(library),
+        playbackApiProvider.overrideWithValue(playback),
+        playbackServiceProvider.overrideWithValue(PlaybackService(
+          api: playback,
+          serverUrl: testServerUrl,
+          authorization: () => 'MediaBrowser Token="t1"',
+        )),
+        videoEngineFactoryProvider.overrideWithValue(
+            () => FakeVideoEngine()..engineTracks = testEngineTracks),
+        playerWindowProvider.overrideWithValue(FakePlayerWindow()),
+        mediaSessionProvider.overrideWithValue(FakeMediaSession()),
+        playerSettingsProvider
+            .overrideWith(() => FakePlayerSettings(const PlayerSettings())),
+        sessionControllerProvider.overrideWith(
+            () => FakeSessionController(const SessionSignedIn(testUser))),
+        appConfigProvider.overrideWithValue(testAppConfig),
+        imageBuilderProvider.overrideWithValue(
+            (image, fit) => const ColoredBox(color: Color(0xFF333333))),
+        syncPlayApiProvider.overrideWithValue(api),
+        watchPartyEventsProvider.overrideWithValue(events.stream),
+      ],
+      retry: (_, _) => null,
+    );
+    // Come `WonderflixApp`: il routing ascolta la sessione prima del player.
+    container.listen(watchPartyRoutingProvider, (_, _) {});
+    await tester.binding.setSurfaceSize(const Size(1440, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp.router(
+        theme: buildWonderflixTheme(),
+        locale: const Locale('it'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        routerConfig: router,
+      ),
+    ));
+    api.onCall = (call) {
+      if (call.startsWith('join')) {
+        emit(GroupJoined('g1', testGroup(participants: ['Mario', 'Luigi'])));
+      }
+    };
+    unawaited(container.read(watchPartySessionProvider.notifier).join('g1'));
+    await tester.pump();
+    await tester.pump();
+  }
+
+  /// Smonta tutto: chiude il player, ferma l'orologio del gruppo e lascia
+  /// scadere i timer.
+  Future<void> finish(WidgetTester tester) async {
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 3));
+    container.dispose();
+    await tester.pump();
+  }
+
+  List<String> pages() => [
+        for (final match in router.routerDelegate.currentConfiguration.matches)
+          match.matchedLocation,
+      ];
+
+  testWidgets(
+      'il gruppo passa all\'episodio dopo: un solo player, sopra la Home',
+      (tester) async {
+    await pumpApp(tester);
+    emit(PlayQueueUpdate('g1', testSeriesQueue()));
+    await tester.pumpAndSettle();
+    expect(router.state.uri.toString(), '/play/e4?party=p1');
+    expect(pages(), ['/home', '/play/e4']);
+
+    emit(PlayQueueUpdate(
+        'g1',
+        testSeriesQueue(
+            playingIndex: 1,
+            reason: 'NextItem',
+            lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+    await tester.pumpAndSettle();
+    expect(router.state.uri.toString(), '/play/e5?party=p2');
+    expect(pages(), ['/home', '/play/e5'],
+        reason: 'il player vecchio non resta sotto quello nuovo');
+    expect(find.byType(PlayerScreen, skipOffstage: false), findsOneWidget);
+    await finish(tester);
+  });
+}
