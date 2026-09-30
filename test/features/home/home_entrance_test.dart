@@ -6,6 +6,7 @@ import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/home/home_screen.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/ui/media_row.dart';
 import 'package:wonderflix/ui/staggered_entrance.dart';
 
 import '../../support/fake_session_controller.dart';
@@ -38,6 +39,11 @@ void main() {
     expect(find.byType(StaggerGroup), findsWidgets);
     final rows = tester.widget<StaggerGroup>(find.byKey(const Key('home-rows')));
     expect(rows.play, isTrue);
+    // Le card della prima riga volano dentro con la riga.
+    final card = tester.widget<Transform>(find
+        .ancestor(of: find.text('Oppenheimer'), matching: find.byType(Transform))
+        .first);
+    expect(card.transform.getTranslation().x, greaterThan(0));
     await tester.pump(const Duration(seconds: 2));
   });
 
@@ -70,5 +76,40 @@ void main() {
     expect(rows.play, isFalse);
     // Nemmeno le card delle righe volano dentro: nessun gruppo nelle righe.
     expect(find.byType(StaggerGroup), findsOneWidget);
+  });
+
+  testWidgets('una riga ricostruita scorrendo non rifà volare le card',
+      (tester) async {
+    // Una Home lunga: in fondo la prima riga esce dalla cache e si smonta.
+    api
+      ..resumeItems = [
+        for (var i = 0; i < 6; i++)
+          testItem(id: 'r$i', name: 'Ripresa $i', playedPercentage: 30),
+      ]
+      ..nextUpItems = [
+        for (var i = 0; i < 6; i++)
+          testItem(id: 'e$i', name: 'Episodio $i', kind: ItemKind.episode),
+      ];
+    await pumpApp(tester, const HomeScreen(),
+        overrides: overrides(), motion: MotionLevel.full);
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+    final position =
+        tester.state<ScrollableState>(find.byType(Scrollable).first).position;
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.text('Ripresa 0'), findsNothing,
+        reason: 'la prima riga deve essere smontata');
+    position.jumpTo(0);
+    await tester.pump(const Duration(milliseconds: 60));
+    final firstRow = find.byType(MediaRow).first;
+    expect(find.descendant(of: firstRow, matching: find.text('Ripresa 0')),
+        findsOneWidget);
+    for (final opacity in tester.widgetList<Opacity>(
+        find.descendant(of: firstRow, matching: find.byType(Opacity)))) {
+      expect(opacity.opacity, 1);
+    }
+    await tester.pump(const Duration(seconds: 2));
   });
 }

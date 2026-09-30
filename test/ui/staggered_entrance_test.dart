@@ -80,6 +80,96 @@ void main() {
     expect(opacityOf(tester, 'solo'), 1);
   });
 
+  /// Gruppo esterno di due righe; nella riga 1, se [inner], un gruppo
+  /// annidato con una card.
+  Widget nestedPage({bool inner = true, bool outerPlay = true}) =>
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: WfMotionScope(
+          motion: const WfMotion(MotionLevel.full),
+          child: StaggerGroup(
+            count: 2,
+            play: outerPlay,
+            child: Column(children: [
+              const StaggerItem(index: 0, child: Text('riga 0')),
+              StaggerItem(
+                index: 1,
+                child: inner
+                    ? const StaggerGroup(
+                        count: 1,
+                        nested: true,
+                        child: StaggerItem(
+                            index: 0,
+                            effect: EntranceEffect.fly,
+                            child: Text('card')),
+                      )
+                    : const SizedBox(),
+              ),
+            ]),
+          ),
+        ),
+      );
+
+  double flyX(WidgetTester tester) => tester
+      .widget<Transform>(find
+          .ancestor(of: find.text('card'), matching: find.byType(Transform))
+          .first)
+      .transform
+      .getTranslation()
+      .x;
+
+  testWidgets('annidato: parte quando parte il suo elemento', (tester) async {
+    await tester.pumpWidget(nestedPage());
+    // La riga 1 parte dopo un passo: fino ad allora la card è ferma a destra.
+    await tester.pump(WfMotion.stagger - const Duration(milliseconds: 10));
+    expect(flyX(tester), 40);
+    await tester.pump(const Duration(milliseconds: 60));
+    expect(flyX(tester), inExclusiveRange(0, 40));
+    await tester.pumpAndSettle();
+    expect(opacityOf(tester, 'card'), 1);
+  });
+
+  testWidgets('annidato: elemento già entrato, niente entrata',
+      (tester) async {
+    final inner = ValueNotifier(false);
+    addTearDown(inner.dispose);
+    await tester.pumpWidget(ValueListenableBuilder<bool>(
+      valueListenable: inner,
+      builder: (context, value, _) => nestedPage(inner: value),
+    ));
+    await tester.pumpAndSettle();
+    // La riga si ricostruisce più tardi (scorrendo, dati nuovi).
+    inner.value = true;
+    await tester.pump();
+    expect(find.text('card'), findsOneWidget);
+    // Solo l'Opacity della riga (già a 1): la card non ha un'entrata sua.
+    expect(find.ancestor(of: find.text('card'), matching: find.byType(Opacity)),
+        findsOneWidget);
+    expect(opacityOf(tester, 'card'), 1);
+    expect(tester.binding.hasScheduledFrame, isFalse);
+  });
+
+  testWidgets('annidato: gruppo esterno spento o assente, niente entrata',
+      (tester) async {
+    await tester.pumpWidget(nestedPage(outerPlay: false));
+    expect(find.ancestor(of: find.text('card'), matching: find.byType(Opacity)),
+        findsNothing);
+    await tester.pumpWidget(const Directionality(
+      textDirection: TextDirection.ltr,
+      child: WfMotionScope(
+        motion: WfMotion(MotionLevel.full),
+        child: StaggerGroup(
+          count: 1,
+          nested: true,
+          child: StaggerItem(index: 0, child: Text('card')),
+        ),
+      ),
+    ));
+    expect(find.ancestor(of: find.text('card'), matching: find.byType(Opacity)),
+        findsNothing);
+    expect(tester.binding.hasScheduledFrame, isFalse);
+  });
+
   testWidgets('fly: parte da destra e più piccolo', (tester) async {
     await tester.pumpWidget(const Directionality(
       textDirection: TextDirection.ltr,

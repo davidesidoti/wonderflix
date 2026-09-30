@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/hero_launch.dart';
-import '../../app/motion.dart';
 import '../../app/navigation.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
@@ -13,11 +12,6 @@ import '../../ui/poster_card.dart';
 import '../../ui/wf_image.dart';
 import '../library/library_providers.dart';
 import 'detail_providers.dart';
-
-/// Le card delle righe della scheda volano dentro appena la riga compare,
-/// solo con le animazioni complete.
-Duration? _rowEntrance(BuildContext context) =>
-    WfMotion.of(context).isReduced ? null : Duration.zero;
 
 class CastRow extends ConsumerWidget {
   const CastRow({super.key, required this.people});
@@ -36,7 +30,9 @@ class CastRow extends ConsumerWidget {
       title: AppLocalizations.of(context).detailCast,
       height: 170,
       itemCount: cast.length,
-      entranceDelay: _rowEntrance(context),
+      // Le card volano con la riga, dopo la testata (elementi 5+ del
+      // gruppo della scheda); con le animazioni ridotte niente entrata.
+      animateEntrance: true,
       itemBuilder: (context, i) {
         final person = cast[i];
         final role = person.role;
@@ -100,7 +96,9 @@ class SimilarRow extends ConsumerWidget {
       title: AppLocalizations.of(context).detailSimilar,
       height: 300,
       itemCount: items.length,
-      entranceDelay: _rowEntrance(context),
+      // Le card volano con la riga, dopo la testata (elementi 5+ del
+      // gruppo della scheda); con le animazioni ridotte niente entrata.
+      animateEntrance: true,
       itemBuilder: (context, i) => PosterCard(
         item: items[i],
         width: 160,

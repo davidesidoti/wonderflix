@@ -20,7 +20,7 @@ class MediaRow extends StatefulWidget {
     required this.height,
     required this.itemCount,
     required this.itemBuilder,
-    this.entranceDelay,
+    this.animateEntrance = false,
   });
 
   final String title;
@@ -28,9 +28,11 @@ class MediaRow extends StatefulWidget {
   final int itemCount;
   final IndexedWidgetBuilder itemBuilder;
 
-  /// Se presente, le prime card visibili entrano "volando" da destra dopo
-  /// questo ritardo (spec C §8.2). `null` = nessuna entrata.
-  final Duration? entranceDelay;
+  /// Le prime card visibili entrano "volando" da destra insieme alla riga
+  /// (spec C §8.2): solo se la riga è uno [StaggerItem] che sta entrando
+  /// (vedi [StaggerGroup.nested]). Una riga già entrata, ricostruita più
+  /// tardi, non le rifà volare.
+  final bool animateEntrance;
 
   @override
   State<MediaRow> createState() => _MediaRowState();
@@ -56,7 +58,7 @@ class _MediaRowState extends State<MediaRow> {
 
   @override
   Widget build(BuildContext context) {
-    final delay = widget.entranceDelay;
+    final animate = widget.animateEntrance;
     Widget list = ListView.separated(
       controller: _controller,
       scrollDirection: Axis.horizontal,
@@ -65,7 +67,7 @@ class _MediaRowState extends State<MediaRow> {
       separatorBuilder: (context, index) => const SizedBox(width: 16),
       // Senza entrata le card non si avvolgono: uno StaggerItem cercherebbe
       // il gruppo più vicino, che potrebbe essere quello della pagina.
-      itemBuilder: delay == null
+      itemBuilder: !animate
           ? widget.itemBuilder
           : (context, i) => StaggerItem(
                 index: i,
@@ -73,11 +75,11 @@ class _MediaRowState extends State<MediaRow> {
                 child: widget.itemBuilder(context, i),
               ),
     );
-    if (delay != null) {
+    if (animate) {
       list = StaggerGroup(
         count: rowEntranceCount,
-        delay: delay,
         stagger: rowEntranceStagger,
+        nested: true,
         child: list,
       );
     }

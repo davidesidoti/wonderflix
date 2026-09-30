@@ -75,20 +75,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           );
         }
         // Righe presenti, nell'ordine: l'indice guida l'entrata scaglionata.
-        final rows = <Widget Function(int index)>[
+        final rows = <Widget>[
           if (data.resume.isNotEmpty)
-            (i) => _landscapeRow(
-                l.homeContinueWatching, data.resume, 'home.resume', i),
+            _landscapeRow(l.homeContinueWatching, data.resume, 'home.resume'),
           if (data.nextUp.isNotEmpty)
-            (i) => _landscapeRow(l.homeNextUp, data.nextUp, 'home.nextUp', i),
+            _landscapeRow(l.homeNextUp, data.nextUp, 'home.nextUp'),
           if (data.latestMovies.isNotEmpty)
-            (i) => _posterRow(
-                l.homeLatestMovies, data.latestMovies, 'home.latestMovies', i),
+            _posterRow(
+                l.homeLatestMovies, data.latestMovies, 'home.latestMovies'),
           if (data.latestSeries.isNotEmpty)
-            (i) => _posterRow(
-                l.homeLatestSeries, data.latestSeries, 'home.latestSeries', i),
+            _posterRow(
+                l.homeLatestSeries, data.latestSeries, 'home.latestSeries'),
           if (data.favorites.isNotEmpty)
-            (i) => _posterRow(l.navMyList, data.favorites, 'home.favorites', i),
+            _posterRow(l.navMyList, data.favorites, 'home.favorites'),
         ];
         return ('data', StaggerGroup(
           key: const Key('home-rows'),
@@ -105,8 +104,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 top: data.featured.isEmpty ? shellBarHeight : 0, bottom: 40),
             children: [
               if (data.featured.isNotEmpty) HeroCarousel(items: data.featured),
-              for (var i = 0; i < rows.length; i++)
-                StaggerItem(index: i, child: rows[i](i)),
+              for (final (i, row) in rows.indexed)
+                StaggerItem(index: i, child: row),
             ],
           ),
         ));
@@ -118,18 +117,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  /// Ritardo delle card della riga [rowIndex]: volano dentro con la riga,
-  /// solo alla prima entrata della sessione.
-  Duration? _cardsDelay(int rowIndex) =>
-      _animate ? homeRowStagger * rowIndex : null;
-
-  Widget _posterRow(String title, List<JellyfinItem> items, String source,
-          int rowIndex) =>
+  /// Riga di locandine. Nelle righe le card volano dentro con la riga, solo
+  /// alla prima entrata della sessione: una riga ricostruita più tardi
+  /// (scorrendo, dati aggiornati) è già entrata e le lascia ferme (vedi
+  /// `StaggerGroup.nested`).
+  Widget _posterRow(String title, List<JellyfinItem> items, String source) =>
       MediaRow(
         title: title,
         height: 300,
         itemCount: items.length,
-        entranceDelay: _cardsDelay(rowIndex),
+        animateEntrance: _animate,
         itemBuilder: (context, i) => PosterCard(
           item: items[i],
           width: 160,
@@ -138,13 +135,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       );
 
-  Widget _landscapeRow(String title, List<JellyfinItem> items, String source,
-          int rowIndex) =>
+  Widget _landscapeRow(String title, List<JellyfinItem> items, String source) =>
       MediaRow(
         title: title,
         height: 230,
         itemCount: items.length,
-        entranceDelay: _cardsDelay(rowIndex),
+        animateEntrance: _animate,
         itemBuilder: (context, i) => LandscapeCard(
           item: items[i],
           heroSource: '$source.$i',
