@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/home/hero_carousel.dart';
@@ -17,7 +19,8 @@ void main() {
     for (final n in ['Dune', 'Alien', 'Heat']) testItem(id: n, name: n),
   ];
 
-  Future<ValueNotifier<List<JellyfinItem>>> pumpHero(WidgetTester tester) async {
+  Future<ValueNotifier<List<JellyfinItem>>> pumpHero(WidgetTester tester,
+      {bool autoplay = false, MotionLevel motion = MotionLevel.reduced}) async {
     final items = ValueNotifier(three);
     addTearDown(items.dispose);
     await pumpApp(
@@ -33,6 +36,8 @@ void main() {
         sessionControllerProvider.overrideWith(
             () => FakeSessionController(const SessionSignedIn(testUser))),
       ],
+      carouselAutoplay: autoplay,
+      motion: motion,
     );
     return items;
   }
@@ -62,15 +67,74 @@ void main() {
 
   testWidgets("non avanza se la Home è coperta da un'altra pagina",
       (tester) async {
-    await pumpHero(tester);
+    await pumpHero(tester, autoplay: true);
     final context = tester.element(find.byType(HeroCarousel));
     unawaited(Navigator.of(context)
         .push(MaterialPageRoute<void>(builder: (_) => const SizedBox())));
     await tester.pumpAndSettle();
     await tester.pump(HeroCarousel.interval * 2);
     Navigator.of(context).pop();
-    await tester.pumpAndSettle();
+    // Con l'autoplay l'animazione non si ferma mai: niente pumpAndSettle.
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('DUNE'), findsOneWidget,
         reason: 'nessuna transizione mentre era coperta');
+    // Il tempo passato sotto l'altra pagina non conta: tornando non cambia
+    // subito diapositiva, riprende da dove era.
+    expect(find.text('ALIEN'), findsNothing);
+  });
+
+  testWidgets('autoplay: dopo 8 s passa alla diapositiva successiva',
+      (tester) async {
+    await pumpHero(tester, autoplay: true);
+    expect(find.text('DUNE'), findsOneWidget);
+    // Un AnimationController finisce al primo fotogramma *dopo* la sua
+    // durata: un passo in più per il tempo e uno per la dissolvenza.
+    await tester.pump(HeroCarousel.interval);
+    await tester.pump(WfMotion.fast);
+    await tester.pump(WfMotion.fast);
+    await tester.pump(WfMotion.fast);
+    expect(find.text('ALIEN'), findsOneWidget);
+    expect(find.text('DUNE'), findsNothing);
+  });
+
+  testWidgets('mouse sopra: il carosello si ferma', (tester) async {
+    await pumpHero(tester, autoplay: true);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(find.byType(HeroCarousel)));
+    await tester.pump();
+    await tester.pump(HeroCarousel.interval * 2);
+    expect(find.text('DUNE'), findsOneWidget);
+    await mouse.moveTo(const Offset(5, 895));
+    await tester.pump();
+    // Un AnimationController finisce al primo fotogramma *dopo* la sua
+    // durata: un passo in più per il tempo e uno per la dissolvenza.
+    await tester.pump(HeroCarousel.interval);
+    await tester.pump(WfMotion.fast);
+    await tester.pump(WfMotion.fast);
+    await tester.pump(WfMotion.fast);
+    expect(find.text('ALIEN'), findsOneWidget);
+  });
+
+  testWidgets('puntino attivo: si riempie con il tempo', (tester) async {
+    await pumpHero(tester, autoplay: true);
+    double fill() => tester
+        .widget<FractionallySizedBox>(find.byKey(const Key('hero-dot-fill')))
+        .widthFactor!;
+    expect(fill(), closeTo(0, 0.01));
+    await tester.pump(HeroCarousel.interval ~/ 2);
+    expect(fill(), closeTo(0.5, 0.02));
+  });
+
+  testWidgets('completa: Ken Burns sullo sfondo attivo', (tester) async {
+    await pumpHero(tester, autoplay: true, motion: MotionLevel.full);
+    Matrix4 kenBurns() => tester
+        .widget<Transform>(find.byKey(const Key('hero-ken-burns')).first)
+        .transform;
+    final start = kenBurns().getMaxScaleOnAxis();
+    await tester.pump(HeroCarousel.interval ~/ 2);
+    expect(kenBurns().getMaxScaleOnAxis(), greaterThan(start));
   });
 }
