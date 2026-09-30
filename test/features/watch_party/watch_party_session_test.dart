@@ -212,6 +212,68 @@ void main() {
     });
   });
 
+  test('errore di rete all\'ingresso: si esce da un eventuale gruppo fantasma',
+      () async {
+    mount();
+    api.onCall = (call) {
+      if (call.startsWith('join')) throw const ServerErrorException(500);
+    };
+    await expectLater(
+        session().join('g1'),
+        throwsA(isA<WatchPartyException>().having(
+            (e) => e.failure, 'failure', WatchPartyFailure.network)));
+    expect(api.calls, ['join g1', 'leave']);
+    expect(state().phase, WatchPartyPhase.none);
+  });
+
+  test('nessuna conferma entro 10 s: si esce da un eventuale gruppo fantasma',
+      () {
+    fakeAsync((async) {
+      mount();
+      unawaited(session().join('g1').catchError((Object _) {}));
+      async.elapse(WatchPartySession.joinTimeout);
+      expect(api.calls, ['join g1', 'leave']);
+      expect(state().phase, WatchPartyPhase.none);
+    });
+  });
+
+  test('eventi di un gruppo fuori da un gruppo: si esce, al massimo ogni 30 s',
+      () {
+    fakeAsync((async) {
+      mount();
+      events.add(SyncPlayCommandReceived(command(SyncPlayCommandType.unpause)));
+      async.flushMicrotasks();
+      expect(api.calls, ['leave']);
+
+      emit(const UserJoined('g1', 'Luigi'));
+      emit(const UserLeft('g1', 'Luigi'));
+      emit(const GroupStateUpdate('g1', GroupState.playing, 'Unpause'));
+      emit(PlayQueueUpdate('g1', testQueue()));
+      async.elapse(const Duration(seconds: 29));
+      expect(api.calls, ['leave']);
+
+      async.elapse(const Duration(seconds: 1));
+      emit(const GroupStateUpdate('g1', GroupState.paused, 'Pause'));
+      async.flushMicrotasks();
+      expect(api.calls, ['leave', 'leave']);
+      expect(state().phase, WatchPartyPhase.none);
+    });
+  });
+
+  test('eventi di un gruppo durante l\'ingresso: nessuna uscita', () {
+    fakeAsync((async) {
+      mount();
+      unawaited(session().join('g1').catchError((Object _) {}));
+      async.flushMicrotasks();
+      events.add(SyncPlayCommandReceived(command(SyncPlayCommandType.pause)));
+      emit(PlayQueueUpdate('g1', testQueue()));
+      async.flushMicrotasks();
+      expect(api.calls, ['join g1']);
+      expect(state().phase, WatchPartyPhase.joining);
+      async.elapse(WatchPartySession.joinTimeout);
+    });
+  });
+
   test('leave: una volta sola', () async {
     mount();
     serverAccepts();

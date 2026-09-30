@@ -66,12 +66,16 @@ String _normalizeId(String id) => id.replaceAll('-', '').toLowerCase();
 class WatchPartySession extends Notifier<WatchPartyState> {
   static const joinTimeout = Duration(seconds: 10);
 
+  /// Intervallo minimo tra due uscite da un gruppo fantasma.
+  static const ghostLeaveInterval = Duration(seconds: 30);
+
   late SyncPlayApi _api;
   late StreamController<SyncPlayCommand> _commands;
   ServerClock? _clock;
   SyncPlayCommand? _lastCommand;
   Completer<void>? _joining;
   DateTime? _joinedAt;
+  DateTime? _ghostLeftAt;
 
   @override
   WatchPartyState build() {
@@ -83,6 +87,7 @@ class WatchPartySession extends Notifier<WatchPartyState> {
     _lastCommand = null;
     _joining = null;
     _joinedAt = null;
+    _ghostLeftAt = null;
     ref.onDispose(() {
       _stopClock();
       unawaited(commands.close());
@@ -167,11 +172,17 @@ class WatchPartySession extends Notifier<WatchPartyState> {
               throw const WatchPartyException(WatchPartyFailure.timeout));
     } on WatchPartyException catch (error) {
       _log.warning('ingresso nel watch party non riuscito: $error');
-      if (!state.inGroup) _reset();
+      if (!state.inGroup) {
+        _reset();
+        // Il server può averci messo nel gruppo senza che la conferma sia
+        // arrivata: si esce, per non restare in un gruppo fantasma.
+        if (error.failure == WatchPartyFailure.timeout) _leaveQuietly();
+      }
       rethrow;
     } on ApiException catch (error) {
       _log.warning('ingresso nel watch party non riuscito: $error');
       _reset();
+      _leaveQuietly();
       throw const WatchPartyException(WatchPartyFailure.network);
     } finally {
       if (identical(_joining, joining)) _joining = null;
@@ -183,6 +194,27 @@ class WatchPartySession extends Notifier<WatchPartyState> {
     _lastCommand = null;
     _joinedAt = null;
     if (ref.mounted) state = const WatchPartyState();
+  }
+
+  /// Uscita senza attendere l'esito: fuori da un gruppo il server risponde
+  /// solo `NotInGroup`.
+  void _leaveQuietly() {
+    _ghostLeftAt = clock.now();
+    unawaited(_api.leave().catchError((Object error) =>
+        _log.info('uscita dal watch party non inviata: $error')));
+  }
+
+  /// Arriva qualcosa di un gruppo mentre non siamo in nessuno: per il server
+  /// siamo ancora dentro (es. uscita non arrivata). Si esce, al massimo ogni
+  /// [ghostLeaveInterval]. Durante l'ingresso gli eventi sono normali.
+  void _leaveGhostGroup() {
+    if (state.phase != WatchPartyPhase.none) return;
+    final last = _ghostLeftAt;
+    if (last != null && clock.now().difference(last) < ghostLeaveInterval) {
+      return;
+    }
+    _log.info('eventi di un watch party fuori da un gruppo: uscita');
+    _leaveQuietly();
   }
 
   void _stopClock() {
@@ -260,6 +292,11 @@ class WatchPartySession extends Notifier<WatchPartyState> {
           return;
         }
         state = state.copyWith(queue: queue);
+      case UserJoined() ||
+          UserLeft() ||
+          GroupStateUpdate() ||
+          PlayQueueUpdate():
+        _leaveGhostGroup();
       case GroupLeft() || NotInGroup():
         if (state.inGroup) {
           _log.info('il server ci ha tolto dal watch party');
@@ -269,8 +306,6 @@ class WatchPartySession extends Notifier<WatchPartyState> {
         _failJoin(WatchPartyFailure.groupGone);
       case LibraryAccessDenied():
         _failJoin(WatchPartyFailure.accessDenied);
-      default:
-        break;
     }
   }
 
@@ -282,6 +317,10 @@ class WatchPartySession extends Notifier<WatchPartyState> {
   }
 
   void _onCommand(SyncPlayCommand command) {
+    if (state.phase == WatchPartyPhase.none) {
+      _leaveGhostGroup();
+      return;
+    }
     if (!state.inGroup || !_isCurrent(command.groupId)) return;
     final joinedAt = _joinedAt;
     if (joinedAt != null && command.emittedAt.isBefore(joinedAt)) return;
