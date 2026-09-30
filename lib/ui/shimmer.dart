@@ -15,6 +15,11 @@ const shimmerPaintKey = ValueKey<String>('wf-shimmer-paint');
 Rect shimmerShaderRect(Size shimmerSize, Offset offset) => Rect.fromLTWH(
     -offset.dx, -offset.dy, shimmerSize.width, shimmerSize.height);
 
+/// Spostamento dell'onda, in larghezze dell'area, al punto [t] del giro:
+/// da -1 (tutta a sinistra) a 1 (tutta a destra), con `easeInOut`
+/// (spec C §10.1).
+double shimmerShift(double t) => WfMotion.standard.transform(t) * 2 - 1;
+
 /// Onda oro-crema diagonale che attraversa tutti gli [SkeletonBox] sotto di
 /// sé (spec C §10.1). Un solo controller per pagina; con le animazioni
 /// ridotte nessun controller e blocchi fermi.
@@ -144,9 +149,10 @@ class ShimmerBlockPainter extends CustomPainter {
 class _Slide extends GradientTransform {
   const _Slide(this.value);
 
+  /// Punto del giro (0–1), lineare: la curva la applica [shimmerShift].
   final double value;
 
   @override
   Matrix4 transform(Rect bounds, {TextDirection? textDirection}) =>
-      Matrix4.translationValues(bounds.width * (value * 2 - 1), 0, 0);
+      Matrix4.translationValues(bounds.width * shimmerShift(value), 0, 0);
 }

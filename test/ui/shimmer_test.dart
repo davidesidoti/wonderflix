@@ -11,6 +11,16 @@ void main() {
         const Rect.fromLTWH(-120, -40, 800, 600));
   });
 
+  test('l\'onda accelera e rallenta (easeInOut), da sinistra a destra', () {
+    expect(shimmerShift(0), -1);
+    expect(shimmerShift(1), 1);
+    expect(shimmerShift(0.5), closeTo(0, 1e-9));
+    // Lineare sarebbe -0,5: all'inizio l'onda va più piano.
+    expect(shimmerShift(0.25),
+        closeTo(WfMotion.standard.transform(0.25) * 2 - 1, 1e-9));
+    expect(shimmerShift(0.25), lessThan(-0.5));
+  });
+
   Widget page(MotionLevel level) => Directionality(
         textDirection: TextDirection.ltr,
         child: WfMotionScope(
