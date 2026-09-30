@@ -28,7 +28,8 @@ void main() {
     libraryApiProvider.overrideWithValue(FakeLibraryApi()),
   ];
 
-  Future<void> pumpCards(WidgetTester tester, {List<VoidCallback>? taps}) async {
+  Future<void> pumpCards(WidgetTester tester,
+      {List<VoidCallback>? taps, MotionLevel motion = MotionLevel.reduced}) async {
     await pumpApp(
       tester,
       Scaffold(
@@ -54,6 +55,7 @@ void main() {
         ),
       ),
       overrides: overrides,
+      motion: motion,
     );
   }
 
@@ -86,6 +88,43 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(CardPreview), findsNothing);
   });
+
+  // La chiusura dell'anteprima notifica il provider: l'host stesso non deve
+  // prenderla per l'apertura di un'altra e troncare la dissolvenza.
+  for (final byEsc in [false, true]) {
+    testWidgets(
+        byEsc
+            ? 'completa: Esc la chiude in dissolvenza'
+            : 'completa: uscendo il mouse si chiude in dissolvenza',
+        (tester) async {
+      await pumpCards(tester, motion: MotionLevel.full);
+      final mouse = await mouseOver(tester, find.byKey(const Key('card-a')));
+      await tester.pump(previewHoverDelay);
+      await tester.pumpAndSettle();
+      expect(find.byType(CardPreview), findsOneWidget);
+
+      if (byEsc) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      } else {
+        await mouse.moveTo(const Offset(5, 5));
+      }
+      await tester.pump();
+      await tester.pump(WfMotion.fast ~/ 2);
+      expect(find.byType(CardPreview), findsOneWidget, reason: 'sta sfumando');
+      final opacity = tester
+          .widget<Opacity>(find
+              .ancestor(
+                  of: find.byType(CardPreview), matching: find.byType(Opacity))
+              .first)
+          .opacity;
+      expect(opacity, greaterThan(0));
+      expect(opacity, lessThan(1));
+      await tester.pump(WfMotion.fast);
+      await tester.pump();
+      expect(find.byType(CardPreview), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('uscire prima dei 500 ms: niente anteprima, nessun timer',
       (tester) async {

@@ -260,9 +260,12 @@ class _CardPreviewHostState extends ConsumerState<CardPreviewHost>
 
   @override
   Widget build(BuildContext context) {
-    // Un'altra card ha aperto la sua anteprima: questa si chiude.
+    // Un'altra card ha aperto la sua anteprima: questa si chiude. La
+    // chiusura di questa (openId nullo) non conta: troncherebbe la sua
+    // dissolvenza.
     ref.listen(cardPreviewProvider, (previous, next) {
-      if (_showing && !_leaving && !identical(next.openId, this)) {
+      final other = next.openId;
+      if (_showing && !_leaving && other != null && !identical(other, this)) {
         _hide(immediately: true);
       }
     });
