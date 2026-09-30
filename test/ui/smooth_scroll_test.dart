@@ -46,6 +46,52 @@ void main() {
     expect(controller.offset, closeTo(2 * step, 0.01));
   });
 
+  testWidgets('uno scatto a metà animazione riparte dalla posizione attuale',
+      (tester) async {
+    final controller = await pumpList(tester);
+    await wheel(tester, find.byType(ListView), 60);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    final before = controller.offset;
+    expect(before, greaterThan(0));
+    expect(before, lessThan(step));
+    await wheel(tester, find.byType(ListView), 60);
+    // Nessun salto: il secondo scatto parte da dove si trova la pagina.
+    expect(controller.offset, before);
+    await tester.pump();
+    expect(controller.offset, closeTo(before, 0.01));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(controller.offset, greaterThan(before));
+    expect(controller.offset, lessThan(2 * step));
+    await tester.pumpAndSettle();
+    expect(controller.offset, closeTo(2 * step, 0.01));
+  });
+
+  testWidgets('durante l\'animazione della rotella i clic arrivano',
+      (tester) async {
+    final controller = SmoothScrollController();
+    addTearDown(controller.dispose);
+    final taps = <int>[];
+    await tester.pumpWidget(MaterialApp(
+      home: ListView.builder(
+        controller: controller,
+        itemCount: 100,
+        itemExtent: 100,
+        itemBuilder: (context, i) => GestureDetector(
+          onTap: () => taps.add(i),
+          child: Text('riga $i'),
+        ),
+      ),
+    ));
+    await wheel(tester, find.byType(ListView), 60);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(controller.offset, lessThan(step));
+    await tester.tap(find.text('riga 3'));
+    expect(taps, [3]);
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('la destinazione resta nei limiti', (tester) async {
     final controller = await pumpList(tester);
     final max = controller.position.maxScrollExtent;
