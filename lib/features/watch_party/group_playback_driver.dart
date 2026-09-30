@@ -197,7 +197,13 @@ class GroupPlaybackDriver {
   Future<void> _play(SyncPlayCommand command) async {
     if (_disposed || !identical(_current, command)) return;
     await _engine.play();
+    if (_disposed || !identical(_current, command)) return;
     _playingSince = _clock.now();
+    // Buffering iniziato a gruppo fermo (non segnalato): il conteggio di
+    // 1 s riparte adesso che il gruppo va.
+    if (_buffering) {
+      _bufferingTimer ??= Timer(bufferingThreshold, _reportBuffering);
+    }
   }
 
   Future<void> _pauseAt(SyncPlayCommand command) async {
@@ -223,9 +229,32 @@ class GroupPlaybackDriver {
     _bufferingTimer?.cancel();
     _bufferingTimer = null;
     if (_reportedBuffering || _readyPending) {
+      final reported = _reportedBuffering;
       _reportedBuffering = false;
-      unawaited(_sendReady());
+      final state = _snapshot();
+      if (reported && state.isPlaying) _reanchor(state);
+      unawaited(_sendReady(state));
     }
+  }
+
+  /// Dopo il nostro buffering il server fa ripartire il gruppo dalla
+  /// posizione del nostro `Ready` (e a noi, se siamo indietro, non manda
+  /// nessun comando): la linea del tempo del gruppo diventa quella.
+  void _reanchor(ClientPlaybackState state) {
+    final previous = _current;
+    if (previous == null || previous.type != SyncPlayCommandType.unpause) {
+      return;
+    }
+    _current = SyncPlayCommand(
+      groupId: previous.groupId,
+      playlistItemId: previous.playlistItemId,
+      when: state.when,
+      position: state.position,
+      type: SyncPlayCommandType.unpause,
+      emittedAt: state.when,
+    );
+    _corrector.reset();
+    _playingSince = _clock.now();
   }
 
   void _reportBuffering() {
@@ -293,9 +322,10 @@ class GroupPlaybackDriver {
         playlistItemId: playlistItemId,
       );
 
-  Future<void> _sendReady() async {
+  Future<void> _sendReady([ClientPlaybackState? state]) async {
     _readyPending = false;
-    await _send('ready', () => _api.ready(_snapshot()));
+    final snapshot = state ?? _snapshot();
+    await _send('ready', () => _api.ready(snapshot));
   }
 
   Future<void> _send(String what, Future<void> Function() request) async {

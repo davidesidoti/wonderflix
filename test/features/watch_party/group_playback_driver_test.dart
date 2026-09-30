@@ -325,6 +325,79 @@ void main() {
         tearDownDriver(async);
       });
     });
+
+    test('dopo il nostro buffering si segue la linea del tempo del Ready', () {
+      fakeAsync((async) {
+        setUpDriver(async);
+        final unpause = command(SyncPlayCommandType.unpause);
+        send(async, unpause);
+        runPlayback(async, const Duration(seconds: 3), from: unpause);
+        // Buffering di 4 s: la vecchia linea del tempo va avanti di 4 s.
+        engine.emitBuffering(true);
+        async.elapse(const Duration(seconds: 4));
+        expect(api.calls, ['buffering']);
+        const resumeAt = Duration(minutes: 10, seconds: 3);
+        engine.emitPosition(resumeAt);
+        engine.emitBuffering(false);
+        async.flushMicrotasks();
+        expect(api.calls, ['buffering', 'ready']);
+        final ready = api.readyStates.last;
+        expect(ready.position, resumeAt);
+        expect(ready.isPlaying, isTrue);
+        // Il server riparte dalla posizione del Ready (senza nuovi comandi
+        // per noi): in pari con quella, nessuna correzione.
+        final timeline = SyncPlayCommand(
+          groupId: 'g1',
+          playlistItemId: 'p1',
+          when: ready.when,
+          position: resumeAt,
+          type: SyncPlayCommandType.unpause,
+          emittedAt: ready.when,
+        );
+        engine.seeks.clear();
+        runPlayback(async, const Duration(seconds: 8), from: timeline);
+        expect(engine.rates, isEmpty);
+        expect(engine.seeks, isEmpty);
+        tearDownDriver(async);
+      });
+    });
+
+    test('dopo il nostro buffering un Unpause vero si applica', () {
+      fakeAsync((async) {
+        setUpDriver(async);
+        send(async, command(SyncPlayCommandType.unpause));
+        engine.emitBuffering(true);
+        async.elapse(const Duration(seconds: 2));
+        engine.emitBuffering(false);
+        async.flushMicrotasks();
+        unawaited(engine.pause());
+        engine.calls.clear();
+        send(
+            async,
+            command(SyncPlayCommandType.unpause,
+                position: const Duration(minutes: 11),
+                at: const Duration(milliseconds: 300)));
+        expect(engine.seeks, [const Duration(minutes: 11)]);
+        async.elapse(const Duration(milliseconds: 300));
+        expect(engine.calls, ['play']);
+        tearDownDriver(async);
+      });
+    });
+
+    test('buffering iniziato prima dell\'Unpause: si segnala dopo 1 s', () {
+      fakeAsync((async) {
+        setUpDriver(async);
+        engine.emitBuffering(true);
+        async.elapse(const Duration(seconds: 2));
+        expect(api.calls, isEmpty);
+        send(async, command(SyncPlayCommandType.unpause));
+        async.elapse(const Duration(milliseconds: 999));
+        expect(api.calls, isEmpty);
+        async.elapse(const Duration(milliseconds: 2));
+        expect(api.calls, ['buffering']);
+        tearDownDriver(async);
+      });
+    });
   });
 
   group('scarto', () {
