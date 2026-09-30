@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/app_shell.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
@@ -48,7 +49,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         }
         return ListView(
           controller: _scroll,
-          padding: const EdgeInsets.only(bottom: 40),
+          // Il carosello parte dal bordo della finestra, sotto la barra;
+          // senza carosello la prima riga inizia sotto la barra.
+          padding: EdgeInsets.only(
+              top: data.featured.isEmpty ? shellBarHeight : 0, bottom: 40),
           children: [
             if (data.featured.isNotEmpty) HeroCarousel(items: data.featured),
             if (data.resume.isNotEmpty)

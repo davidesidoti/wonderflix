@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/app/app_shell.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
@@ -45,6 +46,17 @@ void main() {
     expect(find.text('Serie aggiunte di recente'), findsOneWidget);
     expect(find.text('Oppenheimer'), findsWidgets);
     expect(find.text('Prossimi episodi'), findsNothing, reason: 'riga vuota nascosta');
+  });
+
+  testWidgets('senza carosello la prima riga inizia sotto la barra',
+      (tester) async {
+    // Nessun titolo con uno sfondo: niente carosello.
+    api.resumeItems = [
+      testItem(id: 'r1', name: 'Oppenheimer', playedPercentage: 30)
+    ];
+    await pumpHome(tester);
+    expect(tester.getTopLeft(find.text('Continua a guardare')).dy,
+        greaterThanOrEqualTo(shellBarHeight));
   });
 
   testWidgets('libreria vuota', (tester) async {
