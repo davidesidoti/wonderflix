@@ -27,15 +27,22 @@ import 'watch_party_session.dart';
   return (host: host, title: group.name);
 }
 
+String _normalizeId(String id) => id.replaceAll('-', '').toLowerCase();
+
 /// Invito a un watch party appena nato (spec B §5.8): l'ultimo gruppo nuovo
 /// comparso nell'elenco, per [showFor]. I gruppi della prima lettura dopo
-/// il login non sono inviti. Niente inviti dentro un gruppo, con il player
-/// aperto o senza il permesso di entrare.
+/// il login non sono inviti, né quelli in cui siamo stati. Niente inviti
+/// dentro un gruppo (o entrando), con il player aperto o senza il permesso
+/// di entrare.
 class WatchPartyInvites extends Notifier<GroupInfo?> {
   static const showFor = Duration(seconds: 10);
 
   /// Gruppi dell'ultima lettura; `null` prima della prima.
   Set<String>? _known;
+
+  /// Gruppi in cui siamo entrati o che abbiamo creato: usciti noi, gli
+  /// altri possono restarci, e la lettura dopo non deve proporli.
+  final _visited = <String>{};
   Timer? _timer;
 
   @override
@@ -43,10 +50,18 @@ class WatchPartyInvites extends Notifier<GroupInfo?> {
     ref.watch(sessionControllerProvider
         .select((s) => s is SessionSignedIn ? s.user.id : null));
     _known = null;
+    _visited.clear();
     _timer = null;
     ref.listen(watchPartyDirectoryProvider, (_, groups) => _onGroups(groups));
     ref.listen(playerActiveProvider, (_, active) {
       if (active) dismiss();
+    });
+    ref.listen(watchPartySessionProvider.select((s) => s.group?.id),
+        (_, groupId) {
+      if (groupId != null) _visited.add(_normalizeId(groupId));
+    }, fireImmediately: true);
+    ref.listen(watchPartySessionProvider.select((s) => s.phase), (_, phase) {
+      if (phase != WatchPartyPhase.none) dismiss();
     });
     ref.onDispose(() => _timer?.cancel());
     return null;
@@ -64,10 +79,11 @@ class WatchPartyInvites extends Notifier<GroupInfo?> {
     if (known == null) return;
     final fresh = [
       for (final group in groups)
-        if (!known.contains(group.id)) group,
+        if (!known.contains(group.id) &&
+            !_visited.contains(_normalizeId(group.id)))
+          group,
     ];
     if (fresh.isEmpty) return;
-    // La sessione si legge solo qui: nessun gruppo nuovo, nessuna sessione.
     if (!ref.read(syncPlayAccessProvider).canJoin ||
         ref.read(playerActiveProvider) ||
         ref.read(watchPartySessionProvider).phase != WatchPartyPhase.none) {

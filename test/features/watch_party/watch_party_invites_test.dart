@@ -14,6 +14,7 @@ import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 
 import '../../support/fake_session_controller.dart';
+import '../../support/library_fakes.dart';
 import '../../support/test_data.dart';
 import '../../support/watch_party_fakes.dart';
 
@@ -124,6 +125,67 @@ void main() {
       expect(invite(), isNull);
       async.elapse(const Duration(seconds: 20));
       expect(invite(), isNull);
+      container.dispose();
+    });
+  });
+
+  test('un gruppo in cui siamo entrati non è un invito, anche dopo l\'uscita',
+      () {
+    fakeAsync((async) {
+      mount();
+      groups(async, const []);
+      unawaited(container.read(watchPartySessionProvider.notifier).join('g1'));
+      async.flushMicrotasks();
+      // Nessuna lettura dell'elenco mentre eravamo nel gruppo (es. player
+      // aperto); gli altri restano nel gruppo dopo la nostra uscita.
+      unawaited(container.read(watchPartySessionProvider.notifier).leave());
+      async.flushMicrotasks();
+      groups(async, [g1]);
+      expect(invite(), isNull);
+      groups(async, [g1, g2]);
+      expect(invite()?.id, 'g2');
+      container.dispose();
+    });
+  });
+
+  test('un gruppo creato da noi non è un invito, anche dopo l\'uscita', () {
+    fakeAsync((async) {
+      api.onCall = (call) {
+        if (call.startsWith('create')) {
+          events.add(SyncPlayGroupUpdated(GroupJoined('g2', g2)));
+        }
+      };
+      mount();
+      groups(async, const []);
+      unawaited(container
+          .read(watchPartySessionProvider.notifier)
+          .create(testItem(id: 'm1', name: 'Dune')));
+      async.flushMicrotasks();
+      unawaited(container.read(watchPartySessionProvider.notifier).leave());
+      async.flushMicrotasks();
+      groups(async, [g2]);
+      expect(invite(), isNull);
+      container.dispose();
+    });
+  });
+
+  test('entrando in un gruppo l\'invito si chiude', () {
+    fakeAsync((async) {
+      // Il server non conferma: si resta in "ingresso".
+      api.onCall = null;
+      mount();
+      groups(async, const []);
+      groups(async, [g2]);
+      expect(invite()?.id, 'g2');
+      unawaited(container
+          .read(watchPartySessionProvider.notifier)
+          .join('g3')
+          .catchError((Object _) {}));
+      async.flushMicrotasks();
+      expect(container.read(watchPartySessionProvider).phase,
+          WatchPartyPhase.joining);
+      expect(invite(), isNull);
+      async.elapse(WatchPartySession.joinTimeout);
       container.dispose();
     });
   });
