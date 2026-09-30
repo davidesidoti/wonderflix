@@ -50,6 +50,22 @@ class _UpdateGateState extends ConsumerState<UpdateGate> {
         !playing &&
         _postponed != release.version;
     final duration = WfMotion.of(context).duration(WfMotion.medium);
+    final banner = showBanner
+        ? UpdateBanner(
+            key: ValueKey(release.version.toString()),
+            release: release,
+            onRestart: () => unawaited(controller.install()),
+            onLater: () => setState(() => _postponed = release.version),
+          )
+        : const SizedBox.shrink();
+    final screen = blocked
+        ? MandatoryUpdateScreen(
+            key: const ValueKey('mandatory-update'),
+            update: update,
+            onInstall: () => unawaited(controller.install()),
+            onRetry: controller.retry,
+          )
+        : const SizedBox.shrink(key: ValueKey('no-update'));
 
     return Stack(
       fit: StackFit.expand,
@@ -66,24 +82,22 @@ class _UpdateGateState extends ConsumerState<UpdateGate> {
           child: Center(
             child: AnimatedSwitcher(
               duration: duration,
-              transitionBuilder: (child, animation) => FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: Tween(begin: const Offset(0, 0.5), end: Offset.zero)
-                      .animate(CurvedAnimation(
-                          parent: animation, curve: WfMotion.emphasized)),
-                  child: child,
+              transitionBuilder: (child, animation) => IgnorePointer(
+                // La barra che se ne va non accetta più "Riavvia ora".
+                ignoring: child.key != banner.key,
+                child: FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position:
+                        Tween(begin: const Offset(0, 0.5), end: Offset.zero)
+                            .animate(CurvedAnimation(
+                                parent: animation,
+                                curve: WfMotion.emphasized)),
+                    child: child,
+                  ),
                 ),
               ),
-              child: showBanner
-                  ? UpdateBanner(
-                      key: ValueKey(release.version.toString()),
-                      release: release,
-                      onRestart: () => unawaited(controller.install()),
-                      onLater: () =>
-                          setState(() => _postponed = release.version),
-                    )
-                  : const SizedBox.shrink(),
+              child: banner,
             ),
           ),
         ),
@@ -91,14 +105,12 @@ class _UpdateGateState extends ConsumerState<UpdateGate> {
         Positioned.fill(
           child: AnimatedSwitcher(
             duration: duration,
-            child: blocked
-                ? MandatoryUpdateScreen(
-                    key: const ValueKey('mandatory-update'),
-                    update: update,
-                    onInstall: () => unawaited(controller.install()),
-                    onRetry: controller.retry,
-                  )
-                : const SizedBox.shrink(key: ValueKey('no-update')),
+            // Mentre sfuma via non copre più l'app.
+            transitionBuilder: (child, animation) => IgnorePointer(
+              ignoring: child.key != screen.key,
+              child: FadeTransition(opacity: animation, child: child),
+            ),
+            child: screen,
           ),
         ),
       ],

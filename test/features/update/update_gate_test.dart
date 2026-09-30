@@ -72,6 +72,42 @@ void main() {
     expect(find.text('app'), findsOneWidget);
   });
 
+  testWidgets('la barra che scende non riceve più clic', (tester) async {
+    await pumpGate(
+        tester, UpdateState(release: testRelease(), installer: installer));
+    await tester.tap(find.text('Più tardi'));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Riavvia ora'), findsOneWidget, reason: 'sta sfumando');
+    await tester.tap(find.text('Riavvia ora'), warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(controller.installs, 0);
+  });
+
+  testWidgets('la schermata bloccante che sfuma lascia i clic all\'app',
+      (tester) async {
+    controller = FakeUpdateController(UpdateState(
+        release: testRelease(minVersion: '0.2.0'),
+        mandatory: true,
+        progress: 0.4));
+    var taps = 0;
+    await pumpApp(
+        tester,
+        UpdateGate(
+            child: Center(
+                child: TextButton(
+                    onPressed: () => taps++, child: const Text('app')))),
+        overrides: [updateControllerProvider.overrideWith(() => controller)]);
+    expect(find.text('AGGIORNAMENTO NECESSARIO'), findsOneWidget);
+
+    controller.emit(const UpdateState());
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('AGGIORNAMENTO NECESSARIO'), findsOneWidget,
+        reason: 'sta sfumando');
+    await tester.tap(find.text('app'), warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(taps, 1);
+  });
+
   testWidgets('completa: a download finito la barra sale dal basso',
       (tester) async {
     await pumpGate(tester, UpdateState(release: testRelease(), progress: 0.3),
