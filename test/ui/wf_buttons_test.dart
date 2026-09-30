@@ -112,4 +112,14 @@ void main() {
     expect(popScale(tester), 1);
     await tester.pumpAndSettle();
   });
+
+  testWidgets('WfIconToggle: il riempimento segue la durata dei token',
+      (tester) async {
+    for (final level in MotionLevel.values) {
+      await pumpApp(tester, toggleHost(), motion: level);
+      final style = tester.widget<IconButton>(find.byType(IconButton)).style!;
+      expect(style.animationDuration, WfMotion(level).duration(WfMotion.fast),
+          reason: '$level');
+    }
+  });
 }

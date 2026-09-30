@@ -38,6 +38,14 @@ class WfMotion {
   /// Entrate "volanti" e apertura dell'anteprima, con un leggero rimbalzo.
   static const Curve bounce = Cubic(0.2, 0.9, 0.25, 1.2);
 
+  /// Parti brevi che entrano o crescono: rallentano arrivando (pagina che
+  /// entra nel "fade through", prima metà del "pop" di cuore e spunta).
+  static const Curve decelerate = Curves.easeOut;
+
+  /// Parti brevi che escono: accelerano andando via (pagina che esce nel
+  /// "fade through").
+  static const Curve accelerate = Curves.easeIn;
+
   bool get isReduced => level == MotionLevel.reduced;
 
   /// [full] con le animazioni complete, [reduced] con quelle ridotte.

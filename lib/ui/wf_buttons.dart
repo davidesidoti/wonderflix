@@ -144,7 +144,7 @@ class _WfIconToggleState extends State<WfIconToggle>
   late final Animation<double> _scale = TweenSequence<double>([
     TweenSequenceItem(
         tween: Tween(begin: 1.0, end: 1.3)
-            .chain(CurveTween(curve: Curves.easeOut)),
+            .chain(CurveTween(curve: WfMotion.decelerate)),
         weight: 40),
     TweenSequenceItem(
         tween: Tween(begin: 1.3, end: 1.0)
@@ -179,6 +179,8 @@ class _WfIconToggleState extends State<WfIconToggle>
         isSelected: selected,
         style: IconButton.styleFrom(
           fixedSize: const Size(44, 44),
+          // Il cambio di colore del riempimento (Material: 200 ms).
+          animationDuration: WfMotion.of(context).duration(WfMotion.fast),
           foregroundColor: selected ? WfColors.gold : WfColors.cream,
           // "Riempimento": fondo oro tenue quando è attivo.
           backgroundColor: selected

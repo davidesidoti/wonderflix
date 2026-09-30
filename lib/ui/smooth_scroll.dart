@@ -9,6 +9,10 @@ const wheelScrollMultiplier = 1.6;
 /// Durata dell'animazione di uno scatto.
 const wheelScrollDuration = Duration(milliseconds: 200);
 
+/// Curva di uno scatto: parte subito e si posa morbida, così scatti
+/// ravvicinati si fondono in uno scorrimento continuo.
+const Curve wheelScrollCurve = Curves.easeOutCubic;
+
 /// `ScrollController` con la rotella del mouse animata (spec C §5). Il
 /// touchpad di precisione (PanZoom) e il trascinamento restano quelli di
 /// Flutter.
@@ -77,7 +81,7 @@ class SmoothScrollPosition extends ScrollPositionWithSingleContext {
       from: pixels,
       to: target,
       duration: wheelScrollDuration,
-      curve: Curves.easeOutCubic,
+      curve: wheelScrollCurve,
       vsync: context.vsync,
     );
     beginActivity(activity);

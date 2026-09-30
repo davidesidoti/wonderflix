@@ -16,10 +16,11 @@ Widget pageTransition(WfMotion motion, Animation<double> animation,
     Animation<double> secondaryAnimation, Widget child) {
   if (motion.isReduced) return FadeTransition(opacity: animation, child: child);
   final incoming = CurvedAnimation(
-      parent: animation, curve: const Interval(0.3, 1, curve: Curves.easeOut));
+      parent: animation,
+      curve: const Interval(0.3, 1, curve: WfMotion.decelerate));
   final outgoing = CurvedAnimation(
       parent: secondaryAnimation,
-      curve: const Interval(0, 0.3, curve: Curves.easeIn));
+      curve: const Interval(0, 0.3, curve: WfMotion.accelerate));
   return FadeTransition(
     opacity: ReverseAnimation(outgoing),
     child: FadeTransition(
