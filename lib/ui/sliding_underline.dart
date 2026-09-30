@@ -6,7 +6,7 @@ import '../app/theme.dart';
 /// Linea oro di 2 px sotto l'elemento [selected] di un gruppo (voci della
 /// barra, stagioni); scorre da un elemento all'altro (spec C §9.3, §11.1).
 /// Gli elementi hanno le [itemKeys] come chiavi: la linea li misura dopo il
-/// layout. Si rimisura se cambia la dimensione del testo.
+/// layout. Si rimisura se cambia la dimensione del testo o della finestra.
 class SlidingUnderline extends StatefulWidget {
   const SlidingUnderline({
     super.key,
@@ -57,8 +57,10 @@ class _SlidingUnderlineState extends State<SlidingUnderline> {
   @override
   Widget build(BuildContext context) {
     final motion = WfMotion.of(context);
-    // Dipendenza: un cambio della dimensione del testo cambia le larghezze.
+    // Dipendenze: un cambio della dimensione del testo cambia le larghezze,
+    // uno della finestra può mandare a capo gli elementi (stagioni).
     MediaQuery.maybeTextScalerOf(context);
+    MediaQuery.maybeSizeOf(context);
     WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
     final shown = _active ?? _last;
     return Stack(
