@@ -27,6 +27,9 @@ const kenBurnsDrift = 0.02;
 const heroTextDelay = Duration(milliseconds: 250);
 const heroTextStagger = Duration(milliseconds: 90);
 
+/// Testi della diapositiva che esce: sfumano in questo tempo (spec C §8.1).
+const heroTextExit = Duration(milliseconds: 250);
+
 /// Titoli in evidenza a tutta larghezza; cambia ogni 8 secondi con una
 /// dissolvenza incrociata (spec C §8.1).
 class HeroCarousel extends ConsumerStatefulWidget {
@@ -131,6 +134,22 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
     _syncProgress();
   }
 
+  /// Opacità dei testi della diapositiva che esce: sfumano nei primi
+  /// [heroTextExit] della dissolvenza. Con le animazioni ridotte la
+  /// dissolvenza dura `fast` e i testi sfumano insieme alla diapositiva.
+  Animation<double> _textExit(WfMotion motion) => ReverseAnimation(
+        _fade.drive(CurveTween(
+          curve: motion.isReduced
+              ? WfMotion.standard
+              : Interval(
+                  0,
+                  heroTextExit.inMicroseconds /
+                      WfMotion.crossfade.inMicroseconds,
+                  curve: WfMotion.standard,
+                ),
+        )),
+      );
+
   @override
   Widget build(BuildContext context) {
     if (widget.items.isEmpty) {
@@ -152,28 +171,39 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
           child: Stack(
             fit: StackFit.expand,
             children: [
+              // Stessa struttura per le due diapositive: passando da attuale
+              // a precedente il sottoalbero (logo, pulsanti) non si ricrea.
               if (previous != null && previous < widget.items.length)
                 KeyedSubtree(
                   key: ValueKey('slide-${widget.items[previous].id}'),
-                  child: FadeTransition(
-                    opacity: kAlwaysCompleteAnimation,
-                    child: _HeroSlide(
-                      item: widget.items[previous],
-                      kenBurns: motion.isReduced
-                          ? null
-                          : AlwaysStoppedAnimation(_previousProgress),
-                      entrance: null,
+                  // Chi esce non riceve più clic.
+                  child: IgnorePointer(
+                    child: FadeTransition(
+                      opacity: kAlwaysCompleteAnimation,
+                      child: _HeroSlide(
+                        item: widget.items[previous],
+                        kenBurns: motion.isReduced
+                            ? null
+                            : AlwaysStoppedAnimation(_previousProgress),
+                        entrance: kAlwaysCompleteAnimation,
+                        textOpacity: _textExit(motion),
+                      ),
                     ),
                   ),
                 ),
               KeyedSubtree(
                 key: ValueKey('slide-${current.id}'),
-                child: FadeTransition(
-                  opacity: _fade.drive(CurveTween(curve: WfMotion.standard)),
-                  child: _HeroSlide(
-                    item: current,
-                    kenBurns: motion.isReduced ? null : _progress,
-                    entrance: motion.isReduced ? null : _fade,
+                child: IgnorePointer(
+                  ignoring: false,
+                  child: FadeTransition(
+                    opacity: _fade.drive(CurveTween(curve: WfMotion.standard)),
+                    child: _HeroSlide(
+                      item: current,
+                      kenBurns: motion.isReduced ? null : _progress,
+                      entrance:
+                          motion.isReduced ? kAlwaysCompleteAnimation : _fade,
+                      textOpacity: kAlwaysCompleteAnimation,
+                    ),
                   ),
                 ),
               ),
@@ -230,9 +260,16 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
 }
 
 /// Elemento [index] dei testi della diapositiva che entra: sale di 10 px in
-/// dissolvenza, scaglionato, durante la dissolvenza [entrance].
-Widget _enter(Animation<double>? entrance, int index, Widget child) {
-  if (entrance == null) return child;
+/// dissolvenza, scaglionato, durante la dissolvenza [entrance]
+/// (`kAlwaysCompleteAnimation` = fermo e visibile). Avvolge sempre, così
+/// la struttura resta la stessa quando la diapositiva diventa la precedente.
+/// Finché l'elemento non ha iniziato a comparire non riceve clic (i
+/// pulsanti di un titolo appena scelto sono ancora invisibili).
+///
+/// Non usa `StaggerItem`: qui il tempo è la dissolvenza del carosello (non
+/// un gruppo con un controller suo), la salita è di 10 px invece di 20 e
+/// ogni elemento dura `medium`, come chiede lo spec C §8.1.
+Widget _enter(Animation<double> entrance, int index, Widget child) {
   final total = WfMotion.crossfade.inMicroseconds;
   final begin =
       ((heroTextDelay + heroTextStagger * index).inMicroseconds / total)
@@ -243,10 +280,13 @@ Widget _enter(Animation<double>? entrance, int index, Widget child) {
   return AnimatedBuilder(
     animation: t,
     child: child,
-    builder: (context, child) => Opacity(
-      opacity: t.value.clamp(0.0, 1.0),
-      child: Transform.translate(
-          offset: Offset(0, 10 * (1 - t.value)), child: child),
+    builder: (context, child) => IgnorePointer(
+      ignoring: t.value <= 0,
+      child: Opacity(
+        opacity: t.value.clamp(0.0, 1.0),
+        child: Transform.translate(
+            offset: Offset(0, 10 * (1 - t.value)), child: child),
+      ),
     ),
   );
 }
@@ -256,6 +296,7 @@ class _HeroSlide extends ConsumerWidget {
     required this.item,
     required this.kenBurns,
     required this.entrance,
+    required this.textOpacity,
   });
 
   final JellyfinItem item;
@@ -263,8 +304,12 @@ class _HeroSlide extends ConsumerWidget {
   /// Tempo della diapositiva per il Ken Burns; `null` = sfondo fermo.
   final Animation<double>? kenBurns;
 
-  /// Dissolvenza d'entrata per i testi scaglionati; `null` = testi fermi.
-  final Animation<double>? entrance;
+  /// Dissolvenza d'entrata per i testi scaglionati;
+  /// `kAlwaysCompleteAnimation` = testi fermi.
+  final Animation<double> entrance;
+
+  /// Opacità di tutti i testi (sfumano quando la diapositiva esce).
+  final Animation<double> textOpacity;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -332,61 +377,64 @@ class _HeroSlide extends ConsumerWidget {
           left: 32,
           bottom: 48,
           width: 560,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _enter(
-                entrance,
-                0,
-                logo != null
-                    ? SizedBox(
-                        height: 110,
-                        width: 420,
-                        child: Align(
-                          alignment: Alignment.bottomLeft,
-                          child: WfImage(image: logo, fit: BoxFit.contain),
-                        ),
-                      )
-                    : Text(item.name.toUpperCase(),
-                        maxLines: 2, style: WfText.display(56)),
-              ),
-              const SizedBox(height: 10),
-              _enter(entrance, 1,
-                  Text(meta, style: const TextStyle(color: WfColors.creamMuted))),
-              if (item.overview != null) ...[
-                const SizedBox(height: 10),
+          child: FadeTransition(
+            opacity: textOpacity,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 _enter(
                   entrance,
-                  2,
-                  Text(item.overview!,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(height: 1.45)),
+                  0,
+                  logo != null
+                      ? SizedBox(
+                          height: 110,
+                          width: 420,
+                          child: Align(
+                            alignment: Alignment.bottomLeft,
+                            child: WfImage(image: logo, fit: BoxFit.contain),
+                          ),
+                        )
+                      : Text(item.name.toUpperCase(),
+                          maxLines: 2, style: WfText.display(56)),
+                ),
+                const SizedBox(height: 10),
+                _enter(entrance, 1,
+                    Text(meta, style: const TextStyle(color: WfColors.creamMuted))),
+                if (item.overview != null) ...[
+                  const SizedBox(height: 10),
+                  _enter(
+                    entrance,
+                    2,
+                    Text(item.overview!,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(height: 1.45)),
+                  ),
+                ],
+                const SizedBox(height: 18),
+                _enter(
+                  entrance,
+                  3,
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      WfButton.primary(
+                        label: l.actionPlay,
+                        icon: LucideIcons.play,
+                        onPressed: () => unawaited(playItem(context, ref, item)),
+                      ),
+                      WfButton.secondary(
+                        label: l.actionDetails,
+                        icon: LucideIcons.info,
+                        onPressed: () => openItem(context, item),
+                      ),
+                    ],
+                  ),
                 ),
               ],
-              const SizedBox(height: 18),
-              _enter(
-                entrance,
-                3,
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    WfButton.primary(
-                      label: l.actionPlay,
-                      icon: LucideIcons.play,
-                      onPressed: () => unawaited(playItem(context, ref, item)),
-                    ),
-                    WfButton.secondary(
-                      label: l.actionDetails,
-                      icon: LucideIcons.info,
-                      onPressed: () => openItem(context, item),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ],

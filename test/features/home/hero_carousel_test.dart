@@ -144,6 +144,56 @@ void main() {
     expect(kenBurns().getMaxScaleOnAxis(), greaterThan(start));
   });
 
+  testWidgets('completa: i testi uscenti sfumano in 250 ms', (tester) async {
+    await pumpHero(tester, motion: MotionLevel.full);
+    await tester.tap(find.byKey(const ValueKey('hero-dot-1')));
+    await tester.pump();
+    // La dissolvenza più vicina al titolo è quella dei testi.
+    double textFade() => tester
+        .widget<FadeTransition>(find
+            .ancestor(of: find.text('DUNE'), matching: find.byType(FadeTransition))
+            .first)
+        .opacity
+        .value;
+    // "Riproduci" della diapositiva [id] non riceve clic.
+    bool playIgnored(String id) => tester
+        .widgetList<IgnorePointer>(find.ancestor(
+            of: find.descendant(
+                of: find.byKey(ValueKey('slide-$id')),
+                matching: find.text('Riproduci')),
+            matching: find.byType(IgnorePointer)))
+        .any((w) => w.ignoring);
+    // Nessun clic sui pulsanti di chi esce né su quelli ancora invisibili
+    // di chi entra.
+    expect(playIgnored('Dune'), isTrue);
+    expect(playIgnored('Alien'), isTrue);
+    await tester.pump(const Duration(milliseconds: 125));
+    expect(textFade(), inExclusiveRange(0, 1));
+    await tester.pump(const Duration(milliseconds: 135));
+    expect(textFade(), 0);
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('DUNE'), findsNothing);
+    expect(playIgnored('Alien'), isFalse);
+  });
+
+  testWidgets('ridotta: i testi uscenti sfumano con la diapositiva',
+      (tester) async {
+    await pumpHero(tester);
+    await tester.tap(find.byKey(const ValueKey('hero-dot-1')));
+    await tester.pump();
+    double textFade() => tester
+        .widget<FadeTransition>(find
+            .ancestor(of: find.text('DUNE'), matching: find.byType(FadeTransition))
+            .first)
+        .opacity
+        .value;
+    expect(textFade(), 1);
+    await tester.pump(WfMotion.fast ~/ 2);
+    expect(textFade(), inExclusiveRange(0, 1));
+    await tester.pumpAndSettle();
+    expect(find.text('DUNE'), findsNothing);
+  });
+
   testWidgets('completa: lo sfondo ingrandito non esce dal carosello',
       (tester) async {
     await pumpHero(tester, autoplay: true, motion: MotionLevel.full);
