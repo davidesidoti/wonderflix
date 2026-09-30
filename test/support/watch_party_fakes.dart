@@ -1,6 +1,7 @@
 import 'package:clock/clock.dart';
 import 'package:wonderflix/core/syncplay/syncplay_api.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
+import 'package:wonderflix/features/watch_party/party_notices.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
 import 'package:wonderflix/features/watch_party/watch_party_routing.dart';
 
@@ -180,4 +181,23 @@ class FakeWatchPartyDirectory extends WatchPartyDirectory {
 
   @override
   Future<void> refresh() async => refreshCalls++;
+}
+
+/// Avvisi fissi: registra quelli mostrati e le azioni proprie, senza timer.
+class FakePartyNotices extends PartyNotices {
+  FakePartyNotices([this.initial]);
+
+  final PartyNotice? initial;
+  final shown = <PartyNotice>[];
+  final mineCalls = <(PartyNoticeKind, Duration?)>[];
+
+  @override
+  PartyNotice? build() => initial;
+
+  @override
+  void show(PartyNotice notice) => shown.add(notice);
+
+  @override
+  void mine(PartyNoticeKind kind, {Duration? position}) =>
+      mineCalls.add((kind, position));
 }
