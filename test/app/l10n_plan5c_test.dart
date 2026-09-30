@@ -14,6 +14,8 @@ void main() {
     expect(it.watchPartyDismiss, 'Chiudi');
     expect(it.watchPartyNoticeEnded, 'Il watch party è terminato');
     expect(en.watchPartyNoticeEnded, 'The watch party has ended');
+    expect(it.watchPartyNoticeRemoved, 'Non sei più nel watch party');
+    expect(en.watchPartyNoticeRemoved, 'You are no longer in the watch party');
     expect(it.discordWatchParty(1), 'Watch party · 1 persona');
     expect(it.discordWatchParty(3), 'Watch party · 3 persone');
     expect(en.discordWatchParty(3), 'Watch party · 3 people');

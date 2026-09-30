@@ -246,6 +246,7 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.text(l.watchPartyButton(2)), findsNothing);
+    expect(find.text(l.watchPartyNoticeRemoved), findsOneWidget);
     await tester.tap(find.byTooltip(l.actionPlay));
     await tester.pump();
     expect(engine.calls, contains('play'));

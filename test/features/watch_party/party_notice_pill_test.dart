@@ -42,6 +42,8 @@ void main() {
         'Riallineamento al gruppo');
     expect(text(const PartyNotice(PartyNoticeKind.ended)),
         'Il watch party è terminato');
+    expect(text(const PartyNotice(PartyNoticeKind.removed)),
+        'Non sei più nel watch party');
   });
 
   testWidgets('mostra l\'avviso attuale, niente senza avvisi', (tester) async {

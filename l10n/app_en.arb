@@ -189,5 +189,6 @@
   "watchPartyBackToPlayer": "Back to the player",
   "watchPartyDismiss": "Dismiss",
   "watchPartyNoticeEnded": "The watch party has ended",
+  "watchPartyNoticeRemoved": "You are no longer in the watch party",
   "discordWatchParty": "Watch party · {count, plural, =1{1 person} other{{count} people}}"
 }

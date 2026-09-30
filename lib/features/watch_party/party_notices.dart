@@ -23,7 +23,12 @@ enum PartyNoticeKind {
   nextEpisode,
   nowWatching,
   resync,
+
+  /// Il gruppo non c'è più (sparito durante il rientro).
   ended,
+
+  /// Il server ci ha tolto dal gruppo, che può esserci ancora.
+  removed,
 }
 
 /// Un avviso del watch party (spec B §5.7). Il testo lo compone
@@ -185,8 +190,10 @@ class PartyNotices extends Notifier<PartyNotice?> {
         show(PartyNotice(PartyNoticeKind.left, name: userName));
       case PlayQueueUpdate(:final queue):
         _onQueue(queue);
-      case GroupDoesNotExist() || GroupLeft() || NotInGroup():
+      case GroupDoesNotExist():
         show(const PartyNotice(PartyNoticeKind.ended));
+      case GroupLeft() || NotInGroup():
+        show(const PartyNotice(PartyNoticeKind.removed));
       default:
         break;
     }

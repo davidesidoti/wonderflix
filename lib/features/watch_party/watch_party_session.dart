@@ -509,7 +509,8 @@ class WatchPartySession extends Notifier<WatchPartyState>
         if (state.inGroup) {
           _log.info('il server ci ha tolto dal watch party');
           _reset();
-          // Gli avvisi mostrano "terminato" (dopo essersi svuotati).
+          // Gli avvisi mostrano "non sei più nel watch party" (dopo essersi
+          // svuotati).
           _updates.add(update);
         }
       case GroupDoesNotExist():

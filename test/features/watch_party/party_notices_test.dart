@@ -350,10 +350,35 @@ void main() {
     });
   });
 
-  test('gruppo sparito o server che ci toglie: "terminato"', () {
+  test('il server ci toglie (il gruppo può esserci ancora): "non sei più"',
+      () {
     fakeAsync((async) {
       mount(async);
       emit(async, const GroupLeft('g1'));
+      expect(current()?.kind, PartyNoticeKind.removed);
+      finish(async);
+    });
+  });
+
+  test('NotInGroup: "non sei più nel watch party"', () {
+    fakeAsync((async) {
+      mount(async);
+      emit(async, const NotInGroup(''));
+      expect(current()?.kind, PartyNoticeKind.removed);
+      finish(async);
+    });
+  });
+
+  test('gruppo sparito al rientro: "terminato"', () {
+    fakeAsync((async) {
+      mount(async);
+      api.onCall = (call) {
+        if (call.startsWith('join')) {
+          events.add(SyncPlayGroupUpdated(const GroupDoesNotExist('')));
+        }
+      };
+      events.add(const ServerConnected(true));
+      async.flushMicrotasks();
       expect(current()?.kind, PartyNoticeKind.ended);
       finish(async);
     });

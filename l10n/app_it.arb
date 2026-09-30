@@ -215,6 +215,7 @@
   "watchPartyBackToPlayer": "Torna al player",
   "watchPartyDismiss": "Chiudi",
   "watchPartyNoticeEnded": "Il watch party è terminato",
+  "watchPartyNoticeRemoved": "Non sei più nel watch party",
   "discordWatchParty": "Watch party · {count, plural, =1{1 persona} other{{count} persone}}",
   "@discordWatchParty": {"placeholders": {"count": {"type": "int"}}}
 }

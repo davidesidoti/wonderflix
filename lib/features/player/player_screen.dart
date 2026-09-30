@@ -709,8 +709,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ),
                     ),
                 ],
-                // Anche dopo l'uscita dal gruppo: l'avviso "terminato" deve
-                // vedersi.
+                // Anche dopo l'uscita dal gruppo: gli avvisi "terminato" e
+                // "non sei più nel watch party" devono vedersi.
                 if (widget.args.party != null)
                   const Positioned(
                     top: 96,
