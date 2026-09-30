@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../app/hero_launch.dart';
 import '../../app/navigation.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
@@ -13,8 +14,10 @@ import '../library/library_providers.dart';
 import 'detail_providers.dart';
 
 class CastRow extends ConsumerWidget {
-  const CastRow({super.key, required this.people});
+  const CastRow({super.key, required this.itemId, required this.people});
 
+  /// Id della scheda: rende uniche le sorgenti del volo tra pagine impilate.
+  final String itemId;
   final List<PersonRef> people;
 
   @override
@@ -33,7 +36,8 @@ class CastRow extends ConsumerWidget {
         final person = cast[i];
         final role = person.role;
         return GestureDetector(
-          onTap: () => openPerson(context, person),
+          onTap: () =>
+              openPerson(context, person, heroSource: 'cast.$itemId.$i'),
           child: MouseRegion(
             cursor: SystemMouseCursors.click,
             child: SizedBox(
@@ -41,12 +45,15 @@ class CastRow extends ConsumerWidget {
               child: Column(
                 children: [
                   ClipOval(
-                    child: SizedBox(
-                      width: 90,
-                      height: 90,
-                      child: WfImage(
-                          image: urls.person(person),
-                          fallbackIcon: LucideIcons.user),
+                    child: WfHero(
+                      tag: WfHeroTag(person.id, 'cast.$itemId.$i'),
+                      child: SizedBox(
+                        width: 90,
+                        height: 90,
+                        child: WfImage(
+                            image: urls.person(person),
+                            fallbackIcon: LucideIcons.user),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -89,7 +96,7 @@ class SimilarRow extends ConsumerWidget {
       itemBuilder: (context, i) => PosterCard(
         item: items[i],
         width: 160,
-        onTap: () => openItem(context, items[i]),
+        heroSource: 'similar.$itemId.$i',
       ),
     );
   }

@@ -72,14 +72,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (results.movies.isNotEmpty) _posterSection(context, l.navMovies, results.movies),
-        if (results.series.isNotEmpty) _posterSection(context, l.navSeries, results.series),
+        if (results.movies.isNotEmpty)
+          _posterSection(l.navMovies, results.movies, 'search.movies'),
+        if (results.series.isNotEmpty)
+          _posterSection(l.navSeries, results.series, 'search.series'),
         if (results.people.isNotEmpty) _peopleSection(context, l, results.people),
       ],
     );
   }
 
-  Widget _posterSection(BuildContext context, String title, List<JellyfinItem> items) =>
+  Widget _posterSection(String title, List<JellyfinItem> items, String source) =>
       Padding(
         padding: const EdgeInsets.only(bottom: 32),
         child: Column(
@@ -91,8 +93,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               spacing: 16,
               runSpacing: 24,
               children: [
-                for (final item in items)
-                  PosterCard(item: item, width: 150, onTap: () => openItem(context, item)),
+                for (final (i, item) in items.indexed)
+                  PosterCard(item: item, width: 150, heroSource: '$source.$i'),
               ],
             ),
           ],

@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/hero_launch.dart';
-import '../../app/navigation.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/item_query.dart';
@@ -116,7 +115,7 @@ class PersonScreen extends ConsumerWidget {
                         delegate: SliverChildBuilderDelegate(
                           (context, i) => PosterCard(
                             item: items[i],
-                            onTap: () => openItem(context, items[i]),
+                            heroSource: 'person.$personId.$i',
                           ),
                           childCount: items.length,
                         ),

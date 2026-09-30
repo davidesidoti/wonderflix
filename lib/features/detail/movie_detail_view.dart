@@ -20,7 +20,7 @@ class MovieDetailView extends ConsumerWidget {
       padding: const EdgeInsets.only(bottom: 40),
       children: [
         DetailHeader(item: item, primary: primaryActionFor(item, userData)),
-        if (item.people.isNotEmpty) CastRow(people: item.people),
+        if (item.people.isNotEmpty) CastRow(itemId: item.id, people: item.people),
         SimilarRow(itemId: item.id),
       ],
     );

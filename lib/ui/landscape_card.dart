@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../app/hero_launch.dart';
+import '../app/navigation.dart';
 import '../app/theme.dart';
 import '../core/jellyfin/item_models.dart';
 import '../features/library/item_labels.dart';
@@ -15,16 +17,21 @@ class LandscapeCard extends ConsumerStatefulWidget {
   const LandscapeCard({
     super.key,
     required this.item,
-    required this.onTap,
+    this.onTap,
     this.onPlay,
+    this.heroSource,
     this.width = 300,
   });
 
   final JellyfinItem item;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   /// Se presente, al passaggio del mouse compare il pulsante play.
   final VoidCallback? onPlay;
+
+  /// Card da cui parte il volo Hero (per esempio `home.latestMovies.3`).
+  /// Senza [onTap], il clic apre la scheda con il volo da qui.
+  final String? heroSource;
   final double width;
 
   @override
@@ -48,7 +55,8 @@ class _LandscapeCardState extends ConsumerState<LandscapeCard> {
         onEnter: (_) => setState(() => _hover = true),
         onExit: (_) => setState(() => _hover = false),
         child: GestureDetector(
-          onTap: widget.onTap,
+          onTap: widget.onTap ??
+              () => openItem(context, widget.item, heroSource: widget.heroSource),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -68,8 +76,13 @@ class _LandscapeCardState extends ConsumerState<LandscapeCard> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        WfImage(
-                            image: ref.watch(imageUrlsProvider).landscape(item)),
+                        WfHero(
+                          tag: widget.heroSource == null
+                              ? null
+                              : WfHeroTag(item.id, widget.heroSource!),
+                          child: WfImage(
+                              image: ref.watch(imageUrlsProvider).landscape(item)),
+                        ),
                         if (progress != null) ProgressStrip(progress: progress),
                         if (userData.played)
                           const Positioned(top: 6, right: 6, child: WatchedBadge()),

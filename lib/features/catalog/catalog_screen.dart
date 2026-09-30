@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../app/navigation.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/item_query.dart';
@@ -142,7 +141,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
             delegate: SliverChildBuilderDelegate(
               (context, i) => PosterCard(
                 item: state.items[i],
-                onTap: () => openItem(context, state.items[i]),
+                heroSource: 'catalog.${widget.kind.name}.$i',
               ),
               childCount: state.items.length,
             ),

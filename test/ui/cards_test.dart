@@ -2,6 +2,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:wonderflix/app/hero_launch.dart';
+import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/ui/landscape_card.dart';
@@ -36,6 +38,52 @@ void main() {
     expect(find.byType(WatchedBadge), findsOneWidget);
     await tester.tap(find.byType(PosterCard));
     expect(taps, 1);
+  });
+
+  testWidgets('PosterCard con sorgente: Hero sulla locandina', (tester) async {
+    await pumpApp(
+      tester,
+      Center(
+        child: PosterCard(
+            item: testItem(id: 'm1'), width: 160, heroSource: 'home.latest.0'),
+      ),
+      overrides: [signedIn],
+      motion: MotionLevel.full,
+    );
+    expect(tester.widget<Hero>(find.byType(Hero)).tag,
+        const WfHeroTag('m1', 'home.latest.0'));
+  });
+
+  testWidgets('PosterCard senza sorgente o con animazioni ridotte: niente Hero',
+      (tester) async {
+    await pumpApp(
+      tester,
+      Center(child: PosterCard(item: testItem(), width: 160, onTap: () {})),
+      overrides: [signedIn],
+      motion: MotionLevel.full,
+    );
+    expect(find.byType(Hero), findsNothing);
+    await pumpApp(
+      tester,
+      Center(
+        child: PosterCard(item: testItem(), width: 160, heroSource: 'x.0'),
+      ),
+      overrides: [signedIn],
+    );
+    expect(find.byType(Hero), findsNothing);
+  });
+
+  testWidgets('LandscapeCard con sorgente: Hero sull\'immagine', (tester) async {
+    await pumpApp(
+      tester,
+      Center(
+        child: LandscapeCard(item: testItem(id: 'm1'), heroSource: 'home.resume.3'),
+      ),
+      overrides: [signedIn],
+      motion: MotionLevel.full,
+    );
+    expect(tester.widget<Hero>(find.byType(Hero)).tag,
+        const WfHeroTag('m1', 'home.resume.3'));
   });
 
   testWidgets('PosterCard: barra di avanzamento se iniziato', (tester) async {

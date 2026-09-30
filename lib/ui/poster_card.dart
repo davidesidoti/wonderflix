@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../app/hero_launch.dart';
+import '../app/navigation.dart';
 import '../app/theme.dart';
 import '../core/jellyfin/item_models.dart';
 import '../features/library/library_providers.dart';
@@ -15,16 +17,21 @@ class PosterCard extends ConsumerStatefulWidget {
   const PosterCard({
     super.key,
     required this.item,
-    required this.onTap,
+    this.onTap,
     this.onPlay,
+    this.heroSource,
     this.width,
   });
 
   final JellyfinItem item;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   /// Se presente, al passaggio del mouse compare il pulsante play.
   final VoidCallback? onPlay;
+
+  /// Card da cui parte il volo Hero (per esempio `home.latestMovies.3`).
+  /// Senza [onTap], il clic apre la scheda con il volo da qui.
+  final String? heroSource;
   final double? width;
 
   @override
@@ -49,7 +56,8 @@ class _PosterCardState extends ConsumerState<PosterCard> {
         onEnter: (_) => setState(() => _hover = true),
         onExit: (_) => setState(() => _hover = false),
         child: GestureDetector(
-          onTap: widget.onTap,
+          onTap: widget.onTap ??
+              () => openItem(context, widget.item, heroSource: widget.heroSource),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -69,7 +77,13 @@ class _PosterCardState extends ConsumerState<PosterCard> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        WfImage(image: ref.watch(imageUrlsProvider).poster(item)),
+                        WfHero(
+                          tag: widget.heroSource == null
+                              ? null
+                              : WfHeroTag(item.id, widget.heroSource!),
+                          child: WfImage(
+                              image: ref.watch(imageUrlsProvider).poster(item)),
+                        ),
                         if (progress != null) ProgressStrip(progress: progress),
                         if (userData.played)
                           const Positioned(

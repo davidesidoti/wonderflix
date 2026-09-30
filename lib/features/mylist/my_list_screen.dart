@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../app/navigation.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/item_query.dart';
@@ -86,7 +85,7 @@ class _MyListScreenState extends ConsumerState<MyListScreen> {
                       delegate: SliverChildBuilderDelegate(
                         (context, i) => PosterCard(
                           item: visible[i],
-                          onTap: () => openItem(context, visible[i]),
+                          heroSource: 'mylist.$i',
                         ),
                         childCount: visible.length,
                       ),
