@@ -284,6 +284,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       onResync: () =>
           notices.show(const PartyNotice(PartyNoticeKind.resync)),
       startLag: session.startLag,
+      onDrift: (drift) => session.lastDrift = drift,
     )..start();
     final authority = GroupAuthority(
         api: session.api, engine: controller.engine, onAction: notices.mine);

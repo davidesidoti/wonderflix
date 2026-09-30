@@ -22,6 +22,9 @@ void main() {
   /// Riallineamenti segnalati dal driver (`onResync`).
   var resyncs = 0;
 
+  /// Ultimo scarto segnalato dal driver (`onDrift`).
+  Duration? lastDrift;
+
   /// Tutto dentro la zona finta: file aperto a 10:00, orologio pronto
   /// (scarto zero). Con [load] il file è già caricato e il `Ready` iniziale
   /// è già partito (le chiamate vengono azzerate).
@@ -37,6 +40,7 @@ void main() {
       ..start();
     commands = StreamController<SyncPlayCommand>.broadcast();
     resyncs = 0;
+    lastDrift = null;
     driver = GroupPlaybackDriver(
       engine: engine,
       api: api,
@@ -44,6 +48,7 @@ void main() {
       playlistItemId: 'p1',
       commands: commands.stream,
       onResync: () => resyncs++,
+      onDrift: (drift) => lastDrift = drift,
       startLag: startLag,
     )..start();
     async.flushMicrotasks();
@@ -715,6 +720,18 @@ void main() {
       runPlayback(async, const Duration(seconds: 3),
           from: unpause, lag: const Duration(seconds: 4));
       expect(resyncs, 1);
+      tearDownDriver(async);
+    });
+  });
+
+  test('onDrift: l\'ultimo scarto misurato', () {
+    fakeAsync((async) {
+      setUpDriver(async);
+      final unpause = command(SyncPlayCommandType.unpause);
+      send(async, unpause);
+      runPlayback(async, const Duration(seconds: 3),
+          from: unpause, lag: const Duration(milliseconds: 300));
+      expect(lastDrift, const Duration(milliseconds: 300));
       tearDownDriver(async);
     });
   });

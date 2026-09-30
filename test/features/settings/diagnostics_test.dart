@@ -6,13 +6,16 @@ import 'package:logging/logging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/logging/app_log.dart';
+import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/discord/discord_settings.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
 import 'package:wonderflix/features/settings/diagnostics.dart';
+import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 
 import '../../support/pump_app.dart';
 import '../../support/settings_fakes.dart';
 import '../../support/test_data.dart';
+import '../../support/watch_party_fakes.dart';
 
 void main() {
   test('buildDiagnostics: testo completo', () {
@@ -111,5 +114,40 @@ void main() {
     expect(started, [
       ['explorer.exe', logs.path],
     ]);
+  });
+
+  test('describeWatchParty: solo dentro un gruppo, senza nomi', () {
+    expect(describeWatchParty(state: const WatchPartyState()), isNull);
+    final party = WatchPartyState(
+      phase: WatchPartyPhase.inGroup,
+      group: testGroup(participants: ['Mario', 'Luigi']),
+      groupState: GroupState.playing,
+    );
+    expect(
+        describeWatchParty(
+          state: party,
+          offset: const Duration(milliseconds: 1595),
+          ping: const Duration(milliseconds: 20),
+          startLag: const Duration(milliseconds: 180),
+          lastDrift: const Duration(milliseconds: -35),
+        ),
+        'group=g1, state=playing, members=2, offset=1595 ms, ping=20 ms, '
+        'startLag=180 ms, lastDrift=-35 ms');
+    expect(describeWatchParty(state: party),
+        'group=g1, state=playing, members=2, offset=-, ping=-, '
+        'startLag=-, lastDrift=-');
+  });
+
+  test('buildDiagnostics: riga del watch party', () {
+    final text = buildDiagnostics(
+      appVersion: '0.1.0',
+      windowsVersion: 'w',
+      serverVersion: '10.11.9',
+      player: const PlayerSettings(),
+      discord: const DiscordSettings(),
+      recentErrors: const [],
+      watchParty: 'group=g1, state=paused',
+    );
+    expect(text, contains('\nWatch party: group=g1, state=paused\n'));
   });
 }

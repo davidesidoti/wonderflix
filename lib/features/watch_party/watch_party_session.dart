@@ -113,6 +113,9 @@ class WatchPartySession extends Notifier<WatchPartyState> {
   /// Gruppo in cui stiamo rientrando dopo una riconnessione.
   String? _rejoining;
 
+  /// Ultimo scarto misurato dal player del gruppo (diagnostica).
+  Duration? lastDrift;
+
   /// Cambia a ogni ingresso e uscita: una rilettura dei membri partita in
   /// un gruppo precedente non vale più.
   int _generation = 0;
@@ -132,6 +135,7 @@ class WatchPartySession extends Notifier<WatchPartyState> {
     _joinedAt = null;
     _ghostLeftAt = null;
     _rejoining = null;
+    lastDrift = null;
     _generation++;
     ref.onDispose(_stopClock);
     if (userId == null) return const WatchPartyState();
@@ -283,6 +287,7 @@ class WatchPartySession extends Notifier<WatchPartyState> {
     _lastCommand = null;
     _joinedAt = null;
     _rejoining = null;
+    lastDrift = null;
     _generation++;
     if (ref.mounted) state = const WatchPartyState();
   }

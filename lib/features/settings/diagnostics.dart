@@ -7,8 +7,26 @@ import '../../app/providers.dart';
 import '../../core/logging/app_log.dart';
 import '../discord/discord_settings.dart';
 import '../player/player_settings.dart';
+import '../watch_party/watch_party_session.dart';
 
 final _log = Logger('diagnostics');
+
+/// Stato del watch party per la diagnostica (spec B §5.10); `null` fuori da
+/// un gruppo. Niente nomi: solo id, stato e tempi.
+String? describeWatchParty({
+  required WatchPartyState state,
+  Duration? offset,
+  Duration? ping,
+  Duration? startLag,
+  Duration? lastDrift,
+}) {
+  final group = state.group;
+  if (!state.inGroup || group == null) return null;
+  String ms(Duration? d) => d == null ? '-' : '${d.inMilliseconds} ms';
+  return 'group=${group.id}, state=${state.groupState.name}, '
+      'members=${state.members.length}, offset=${ms(offset)}, '
+      'ping=${ms(ping)}, startLag=${ms(startLag)}, lastDrift=${ms(lastDrift)}';
+}
 
 /// Testo da incollare nelle richieste di aiuto. Non contiene dati
 /// dell'account; gli errori sono già senza segreti. L'host del server negli
@@ -20,6 +38,7 @@ String buildDiagnostics({
   required PlayerSettings player,
   required DiscordSettings discord,
   required List<String> recentErrors,
+  String? watchParty,
 }) {
   final buffer = StringBuffer()
     ..writeln('WonderFlix $appVersion')
@@ -31,7 +50,9 @@ String buildDiagnostics({
         'autoSkipIntro=${player.autoSkipIntro}, '
         'autoplayNext=${player.autoplayNext}')
     ..writeln('Discord: enabled=${discord.enabled}, '
-        'showTitle=${discord.showTitle}, showPoster=${discord.showPoster}')
+        'showTitle=${discord.showTitle}, showPoster=${discord.showPoster}');
+  if (watchParty != null) buffer.writeln('Watch party: $watchParty');
+  buffer
     ..writeln()
     ..writeln('Ultimi errori (${recentErrors.length}):');
   if (recentErrors.isEmpty) buffer.writeln('nessuno');
@@ -60,6 +81,20 @@ final collectDiagnosticsProvider =
             for (final error in ref.read(appLogProvider).recentErrors)
               host.isEmpty ? error : error.replaceAll(host, '<server>'),
           ];
+          String? watchParty;
+          try {
+            final session = ref.read(watchPartySessionProvider.notifier);
+            final clock = session.serverClock;
+            watchParty = describeWatchParty(
+              state: ref.read(watchPartySessionProvider),
+              offset: clock?.offset,
+              ping: clock?.ping,
+              startLag: session.startLag?.value,
+              lastDrift: session.lastDrift,
+            );
+          } on Object catch (error) {
+            _log.info('stato del watch party non disponibile: $error');
+          }
           return buildDiagnostics(
             appVersion: ref.read(clientInfoProvider).version,
             windowsVersion: Platform.operatingSystemVersion,
@@ -67,6 +102,7 @@ final collectDiagnosticsProvider =
             player: ref.read(playerSettingsProvider),
             discord: ref.read(discordSettingsProvider),
             recentErrors: errors,
+            watchParty: watchParty,
           );
         });
 

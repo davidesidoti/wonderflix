@@ -26,12 +26,14 @@ class GroupPlaybackDriver {
     required Stream<SyncPlayCommand> commands,
     SyncPlayCommand? lastCommand,
     void Function()? onResync,
+    void Function(Duration drift)? onDrift,
     StartLag? startLag,
   })  : _engine = engine,
         _api = api,
         _clock = clock,
         _commandStream = commands,
         _onResync = onResync,
+        _onDrift = onDrift,
         _startLag = startLag ?? StartLag(),
         _pending = lastCommand;
 
@@ -64,6 +66,9 @@ class GroupPlaybackDriver {
 
   /// Chiamato a ogni riallineamento (salto per scarto oltre 3 s).
   final void Function()? _onResync;
+
+  /// Ultimo scarto misurato (media della finestra), per la diagnostica.
+  final void Function(Duration drift)? _onDrift;
 
   /// Elemento della coda aperto in questo player.
   final String playlistItemId;
@@ -412,6 +417,8 @@ class GroupPlaybackDriver {
       sinceUnpause: sinceUnpause,
       sinceResync: lastResync == null ? null : now.difference(lastResync),
     );
+    final drift = _corrector.lastDrift;
+    if (drift != null) _onDrift?.call(drift);
     switch (action) {
       case KeepRate():
         break;
