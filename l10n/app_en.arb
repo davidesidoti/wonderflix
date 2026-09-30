@@ -171,5 +171,17 @@
   "watchPartyCreateError": "Couldn't start the watch party.",
   "watchPartyJoinError": "Couldn't join the watch party.",
   "watchPartyGone": "This watch party no longer exists.",
-  "watchPartyAccessDenied": "You don't have access to this content."
+  "watchPartyAccessDenied": "You don't have access to this content.",
+  "watchPartyNoticePaused": "Paused",
+  "watchPartyNoticePausedByYou": "You paused",
+  "watchPartyNoticeResumed": "Resumed",
+  "watchPartyNoticeResumedByYou": "You resumed",
+  "watchPartyNoticeForcedResume": "Resuming without waiting",
+  "watchPartyNoticeSeek": "Jump to {time}",
+  "watchPartyNoticeSeekByYou": "You jumped to {time}",
+  "watchPartyNoticeNextEpisode": "Next episode: {title}",
+  "watchPartyNoticeNowWatching": "Now watching: {title}",
+  "watchPartyNoticeJoined": "{name} joined the watch party",
+  "watchPartyNoticeLeft": "{name} left the watch party",
+  "watchPartyNoticeResync": "Resyncing with the group"
 }
