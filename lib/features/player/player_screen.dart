@@ -26,6 +26,8 @@ import '../watch_party/party_badge.dart';
 import '../watch_party/party_notice_pill.dart';
 import '../watch_party/party_notices.dart';
 import '../watch_party/party_waiting_overlay.dart';
+import '../watch_party/watch_party_actions.dart';
+import '../watch_party/watch_party_providers.dart';
 import '../watch_party/watch_party_session.dart';
 import 'player_commands.dart';
 import 'player_controller.dart';
@@ -321,6 +323,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     ));
   }
 
+  /// "Guarda insieme" mentre si guarda da soli (spec B §5.2): il gruppo parte
+  /// da qui, e il routing riapre il player sullo stesso punto in modalità
+  /// gruppo. Intanto questo player, che sta per essere sostituito, non esce
+  /// dallo schermo intero né nasconde il pannello media.
+  Future<void> _watchTogether() async {
+    final item = ref.read(playerControllerProvider(widget.args)).item;
+    if (item == null || _leaving) return;
+    _handingOver = true;
+    final started = await startWatchParty(context, ref, item,
+        start: _controller.engine.position);
+    if (!started && mounted) _handingOver = false;
+  }
+
   void _sendTimeline() {
     if (!mounted) return;
     if (ref.read(playerControllerProvider(widget.args)).status !=
@@ -434,6 +449,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final next = view.nextEpisode;
     if (_inParty) _attachParty(controller);
     final party = _inParty ? ref.watch(watchPartySessionProvider) : null;
+    final canWatchTogether = widget.args.party == null &&
+        ref.watch(syncPlayAccessProvider).canCreate &&
+        view.item != null;
 
     ref.listen(provider.select((s) => s.finished), (_, finished) {
       if (finished) _onFinished();
@@ -590,6 +608,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           preview: _previewFor(view),
                           partyBadge: party != null && party.inGroup
                               ? PartyBadge(onLeave: _exit)
+                              : null,
+                          onWatchTogether: canWatchTogether
+                              ? () => unawaited(_watchTogether())
                               : null,
                         ),
                       ),

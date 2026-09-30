@@ -30,6 +30,7 @@ class PlayerOverlay extends StatelessWidget {
     this.chapters = const [],
     this.preview,
     this.partyBadge,
+    this.onWatchTogether,
   });
 
   final PlayerViewState view;
@@ -51,6 +52,10 @@ class PlayerOverlay extends StatelessWidget {
 
   /// Distintivo del watch party, in alto a destra; `null` fuori dal gruppo.
   final Widget? partyBadge;
+
+  /// "Guarda insieme" (solo da soli e con il permesso); `null` = nessun
+  /// pulsante.
+  final VoidCallback? onWatchTogether;
 
   @override
   Widget build(BuildContext context) {
@@ -197,6 +202,12 @@ class PlayerOverlay extends StatelessWidget {
                             icon: const Icon(LucideIcons.skipForward),
                             tooltip: l.playerNextEpisode,
                             onPressed: onNextEpisode,
+                          ),
+                        if (onWatchTogether != null)
+                          IconButton(
+                            icon: const Icon(LucideIcons.users),
+                            tooltip: l.watchPartyWatchTogether,
+                            onPressed: onWatchTogether,
                           ),
                         IconButton(
                           icon: const Icon(LucideIcons.captions),

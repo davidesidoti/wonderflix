@@ -12,7 +12,7 @@ import 'watch_party_session.dart';
 /// anche i successivi), oppure, stando già in un gruppo, gli cambia la coda.
 /// Il player si apre quando il server conferma la coda
 /// (`watchPartyRoutingProvider`).
-Future<void> startWatchParty(
+Future<bool> startWatchParty(
   BuildContext context,
   WidgetRef ref,
   JellyfinItem item, {
@@ -34,7 +34,7 @@ Future<void> startWatchParty(
     );
 
 /// "Unisciti" dall'elenco dei gruppi.
-Future<void> joinWatchParty(
+Future<bool> joinWatchParty(
         BuildContext context, WidgetRef ref, String groupId) =>
     _run(
       context,
@@ -42,15 +42,18 @@ Future<void> joinWatchParty(
       creating: false,
     );
 
-Future<void> _run(BuildContext context, Future<void> Function() action,
+/// `true` se [action] è riuscita; altrimenti mostra l'errore e `false`.
+Future<bool> _run(BuildContext context, Future<void> Function() action,
     {required bool creating}) async {
   final l = AppLocalizations.of(context);
   final messenger = ScaffoldMessenger.of(context);
   try {
     await action();
+    return true;
   } on Object catch (error) {
     messenger.showSnackBar(SnackBar(
         content: Text(watchPartyErrorText(l, error, creating: creating))));
+    return false;
   }
 }
 
