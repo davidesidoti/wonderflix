@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +11,7 @@ import 'package:wonderflix/features/home/home_screen.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/ui/landscape_card.dart';
 import 'package:wonderflix/ui/poster_card.dart';
+import 'package:wonderflix/ui/states.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
@@ -46,6 +49,21 @@ void main() {
     expect(find.text('Serie aggiunte di recente'), findsOneWidget);
     expect(find.text('Oppenheimer'), findsWidgets);
     expect(find.text('Prossimi episodi'), findsNothing, reason: 'riga vuota nascosta');
+  });
+
+  testWidgets('lo scheletro sta in una finestra stretta', (tester) async {
+    // I preferiti non rispondono: la Home resta in caricamento.
+    api.favoritesGate = Completer<void>();
+    await pumpApp(tester, const HomeScreen(),
+        surfaceSize: const Size(1024, 700),
+        overrides: [
+          libraryApiProvider.overrideWithValue(api),
+          sessionControllerProvider.overrideWith(
+              () => FakeSessionController(const SessionSignedIn(testUser))),
+        ]);
+    await tester.pump();
+    expect(find.byType(SkeletonBox), findsWidgets);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('senza carosello la prima riga inizia sotto la barra',

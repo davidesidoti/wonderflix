@@ -166,9 +166,14 @@ class _HomeSkeleton extends StatelessWidget {
           for (var row = 0; row < 2; row++) ...[
             const SkeletonBox(width: 240, height: 22),
             const SizedBox(height: 12),
+            // Lista orizzontale ferma invece di una Row: nelle finestre
+            // strette le locandine in più vengono ritagliate, non debordano.
             SizedBox(
               height: 240,
-              child: Row(
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                primary: false,
+                physics: const NeverScrollableScrollPhysics(),
                 children: [
                   for (var i = 0; i < 6; i++) ...[
                     const SkeletonBox(width: 160, height: 240),
