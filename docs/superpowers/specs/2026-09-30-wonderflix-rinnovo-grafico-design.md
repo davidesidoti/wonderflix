@@ -238,10 +238,14 @@ L'anteprima si apre lo stesso, dopo gli stessi 500 ms, con una sola dissolvenza 
 
 ### 9.2 Titolo nella barra
 
-- Quando la testata esce sotto la barra, compaiono in dissolvenza nella barra in alto, a destra delle voci:
+- Quando il testo della testata è quasi sparito, compaiono in dissolvenza nella barra in alto, a destra delle voci:
   - il titolo del film o della serie in Bebas Neue;
   - un piccolo pulsante oro **"Riproduci"**, con la stessa azione e la stessa etichetta del pulsante principale della scheda (Riproduci, Riprendi, Riproduci S1:E5…).
-- **Realizzazione:** la scheda pubblica `ShellHeader(title, actionLabel, onAction)` con `ShellHeaderPublisher` quando lo scroll supera `detailBarTitleOffset` (380 px); `ShellPageFrame` lo ricorda per la propria pagina e lo passa alla barra quando la pagina è in cima, come lo stato "scorsa". Tornando indietro la barra ritrova il titolo della pagina tornata in cima.
+- **Quando (decisione della prova 6b):** una soglia fissa di scroll (380 px) non si raggiungeva sulle schede corte o nelle finestre alte. La regola è legata alla dissolvenza del testo della testata (`barTitleVisible` in `header_parallax.dart`):
+  - animazioni complete: quando l'opacità del testo scende a `barTitleTextOpacity` (0,3, circa 245 px di scroll);
+  - animazioni ridotte (il testo non sfuma): quando la riga dei pulsanti passa sotto la barra, cioè a `detailHeaderHeight − detailHeaderTextBottom − shellBarHeight` (468 px).
+  Se la pagina non scorre abbastanza, il testo della testata resta leggibile e il titolo non serve nella barra.
+- **Realizzazione:** la scheda pubblica `ShellHeader(title, actionLabel, onAction)` con `ShellHeaderPublisher` quando la regola è vera per lo scroll; `ShellPageFrame` lo ricorda per la propria pagina e lo passa alla barra quando la pagina è in cima, come lo stato "scorsa". Tornando indietro la barra ritrova il titolo della pagina tornata in cima.
 - Anche con le animazioni ridotte (in dissolvenza di `fast`).
 
 ### 9.3 Serie

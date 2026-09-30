@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
+import '../../app/app_shell.dart';
 import 'detail_header.dart';
 
 /// Velocità dello sfondo rispetto al contenuto (spec C §9.1).
@@ -17,10 +18,22 @@ const parallaxTextFadeEnd = 0.625;
 /// Salita del testo rispetto allo scroll.
 const parallaxTextRise = 0.15;
 
-/// Oltre questo scroll il titolo e "Riproduci" compaiono nella barra: la
-/// riga dei pulsanti della testata è passata sotto la barra (decisione 6b,
-/// da ritoccare nella prova).
-const detailBarTitleOffset = 380.0;
+/// Con le animazioni complete il titolo va nella barra quando l'opacità del
+/// testo della testata scende a questo valore (≈ 245 px di scroll).
+const barTitleTextOpacity = 0.3;
+
+/// Con le animazioni ridotte il testo non sfuma: il titolo va nella barra
+/// quando la riga dei pulsanti della testata passa sotto la barra (468 px).
+const detailBarTitleReducedOffset =
+    detailHeaderHeight - detailHeaderTextBottom - shellBarHeight;
+
+/// Il titolo e "Riproduci" compaiono nella barra quando il testo della
+/// testata è quasi sparito (spec C §9.2, decisione della prova 6b).
+bool barTitleVisible(double offset, {required bool reduced}) {
+  if (reduced) return offset >= detailBarTitleReducedOffset;
+  return headerParallax(offset, reduced: false).textOpacity <=
+      barTitleTextOpacity;
+}
 
 /// Posizione della testata per uno scroll (spec C §9.1).
 @immutable

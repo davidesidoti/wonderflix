@@ -131,19 +131,21 @@ class _ShellPageFrameState extends State<ShellPageFrame> {
       );
 }
 
-/// Pubblica [header] nella barra quando lo scroll di [controller] supera
-/// [threshold], e lo toglie sotto la soglia o alla chiusura.
+/// Pubblica [header] nella barra quando [visibleAt] è vero per lo scroll di
+/// [controller], e lo toglie quando torna falso o alla chiusura.
 class ShellHeaderPublisher extends StatefulWidget {
   const ShellHeaderPublisher({
     super.key,
     required this.controller,
-    required this.threshold,
+    required this.visibleAt,
     required this.header,
     required this.child,
   });
 
   final ScrollController controller;
-  final double threshold;
+
+  /// Se con questo scroll il titolo va nella barra.
+  final bool Function(double offset) visibleAt;
 
   /// `null` finché non si sa cosa mostrare.
   final ShellHeader? header;
@@ -180,6 +182,8 @@ class _ShellHeaderPublisherState extends State<ShellHeaderPublisher> {
     if (_shown && _published(oldWidget.header) != published) {
       _frame?._setHeader(published);
     }
+    // La regola può cambiare (livello di movimento): si rivaluta.
+    _onScroll();
   }
 
   /// Azione della pagina con un callback stabile per questa istanza: esegue
@@ -197,8 +201,7 @@ class _ShellHeaderPublisherState extends State<ShellHeaderPublisher> {
 
   void _onScroll() {
     final controller = widget.controller;
-    final shown =
-        controller.hasClients && controller.offset >= widget.threshold;
+    final shown = controller.hasClients && widget.visibleAt(controller.offset);
     if (shown == _shown) return;
     _shown = shown;
     _frame?._setHeader(shown ? _published(widget.header) : null);

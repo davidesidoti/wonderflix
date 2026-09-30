@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_shell.dart';
+import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
@@ -122,9 +123,10 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
     if (scroll == null) return page;
     final l = AppLocalizations.of(context);
     final action = primary;
+    final reduced = WfMotion.of(context).isReduced;
     return ShellHeaderPublisher(
       controller: scroll,
-      threshold: detailBarTitleOffset,
+      visibleAt: (offset) => barTitleVisible(offset, reduced: reduced),
       header: ShellHeader(
         title: series.name,
         actionLabel: action == null ? null : primaryActionLabel(l, action),

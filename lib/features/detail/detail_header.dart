@@ -24,6 +24,10 @@ import 'primary_action.dart';
 /// Altezza della testata della scheda (sfondo, logo, dati, azioni).
 const detailHeaderHeight = 560.0;
 
+/// Margine tra il blocco dei testi (fino alla riga dei pulsanti) e il fondo
+/// della testata.
+const detailHeaderTextBottom = 28.0;
+
 /// Elementi della scheda che entrano scaglionati: 5 della testata (logo,
 /// dati, generi, trama, pulsanti) e le righe sotto.
 const detailEntranceCount = 8;
@@ -92,7 +96,7 @@ class DetailHeader extends ConsumerWidget {
           Positioned(
             left: 32,
             right: 32,
-            bottom: 28,
+            bottom: detailHeaderTextBottom,
             child: _ScrollFade(
               controller: controller,
               child: Column(

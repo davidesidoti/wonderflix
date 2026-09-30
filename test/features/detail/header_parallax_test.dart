@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/app/app_shell.dart';
 import 'package:wonderflix/features/detail/detail_header.dart';
 import 'package:wonderflix/features/detail/header_parallax.dart';
 
@@ -44,5 +45,26 @@ void main() {
 
   test('scroll negativo (rimbalzo): come in cima', () {
     expect(headerParallax(-30, reduced: false).backdropShift, 0);
+  });
+
+  test('titolo nella barra, animazioni complete: quando il testo della '
+      'testata è quasi sparito', () {
+    expect(barTitleVisible(0, reduced: false), isFalse);
+    expect(barTitleVisible(244, reduced: false), isFalse);
+    expect(headerParallax(244, reduced: false).textOpacity,
+        greaterThan(barTitleTextOpacity));
+    expect(barTitleVisible(246, reduced: false), isTrue);
+    expect(headerParallax(246, reduced: false).textOpacity,
+        lessThanOrEqualTo(barTitleTextOpacity));
+  });
+
+  test('titolo nella barra, animazioni ridotte: quando la riga dei pulsanti '
+      'passa sotto la barra', () {
+    expect(detailBarTitleReducedOffset,
+        detailHeaderHeight - detailHeaderTextBottom - shellBarHeight);
+    // Il testo non sfuma: la regola delle animazioni complete non vale.
+    expect(barTitleVisible(246, reduced: true), isFalse);
+    expect(barTitleVisible(467, reduced: true), isFalse);
+    expect(barTitleVisible(469, reduced: true), isTrue);
   });
 }

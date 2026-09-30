@@ -6,11 +6,13 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wonderflix/app/app_shell.dart';
+import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/page_transitions.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/app/router.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/detail/detail_header.dart';
 import 'package:wonderflix/features/detail/header_parallax.dart';
 import 'package:wonderflix/features/detail/item_detail_screen.dart';
 import 'package:wonderflix/features/detail/movie_detail_view.dart';
@@ -27,7 +29,7 @@ import '../support/pump_app.dart';
 import '../support/test_data.dart';
 import '../support/watch_party_fakes.dart';
 
-/// Pagina finta che pubblica un titolo dopo 380 px, come la scheda.
+/// Pagina finta che pubblica un titolo dopo 380 px di scroll.
 class _FakeDetail extends StatefulWidget {
   const _FakeDetail({required this.title, required this.onPlay, String? id})
       : id = id ?? title;
@@ -54,7 +56,7 @@ class _FakeDetailState extends State<_FakeDetail> {
   @override
   Widget build(BuildContext context) => ShellHeaderPublisher(
         controller: _scroll,
-        threshold: 380,
+        visibleAt: (offset) => offset >= 380,
         header: ShellHeader(
             title: widget.title, actionLabel: 'Riproduci', onAction: widget.onPlay),
         child: ListView(
@@ -73,7 +75,8 @@ void main() {
 
   Future<GoRouter> pumpRouter(WidgetTester tester,
       {List<Override> overrides = const [],
-      Size size = const Size(1440, 900)}) async {
+      Size size = const Size(1440, 900),
+      MotionLevel motion = MotionLevel.reduced}) async {
     plays = 0;
     playedPages = [];
     final router = GoRouter(initialLocation: '/home', routes: [
@@ -142,6 +145,8 @@ void main() {
         locale: const Locale('it'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        builder: (context, child) =>
+            WfMotionScope(motion: WfMotion(motion), child: child!),
         routerConfig: router,
       ),
     ));
@@ -226,32 +231,54 @@ void main() {
     expect(playedPages, ['a']);
   });
 
-  testWidgets('la scheda di un film pubblica titolo e azione principale',
-      (tester) async {
-    // Cast, simili e finestra bassa: la pagina deve poter scorrere oltre la
-    // soglia.
+  /// Film con cast e "Simili", la scheda con più righe.
+  List<Override> movieOverrides() {
     final api = FakeLibraryApi()
       ..itemsById['m1'] = testItem(id: 'm1', name: 'Dune', people: [
         {'Id': 'p9', 'Name': 'Zendaya', 'Role': 'Chani', 'Type': 'Actor'},
       ])
       ..similarItems = [testItem(id: 'm2', name: 'Arrival')];
-    final router =
-        await pumpRouter(tester, size: const Size(1440, 700), overrides: [
+    return [
       libraryApiProvider.overrideWithValue(api),
       // Nessuna immagine di rete nei widget test.
       imageBuilderProvider.overrideWithValue(
           (image, fit) => const ColoredBox(color: Color(0xFF333333))),
-    ]);
+    ];
+  }
+
+  /// Apre la scheda del film. Con le animazioni complete l'onda degli
+  /// scheletri è continua: si avanza a passi finché la scheda è arrivata.
+  Future<ScrollController> openMovie(WidgetTester tester, GoRouter router,
+      {required MotionLevel motion}) async {
     unawaited(router.push('/title/m1'));
+    if (motion == MotionLevel.full) {
+      for (var i = 0; i < 30; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    }
     await tester.pumpAndSettle();
+    return tester
+        .widget<MovieDetailView>(find.byType(MovieDetailView))
+        .controller!;
+  }
+
+  testWidgets('la scheda di un film pubblica titolo e azione principale '
+      '(animazioni ridotte)', (tester) async {
+    // Finestra bassa: con le animazioni ridotte il titolo compare quando la
+    // riga dei pulsanti passa sotto la barra, la pagina deve arrivarci.
+    final router = await pumpRouter(tester,
+        size: const Size(1440, 700), overrides: movieOverrides());
+    final controller =
+        await openMovie(tester, router, motion: MotionLevel.reduced);
     final barTitle = find.byKey(const Key('shell-bar-title'));
     expect(barTitle, findsNothing);
 
-    final controller =
-        tester.widget<MovieDetailView>(find.byType(MovieDetailView)).controller!;
     expect(controller.position.maxScrollExtent,
-        greaterThan(detailBarTitleOffset + 10));
-    controller.jumpTo(detailBarTitleOffset + 10);
+        greaterThan(detailBarTitleReducedOffset + 10));
+    controller.jumpTo(detailBarTitleReducedOffset - 10);
+    await tester.pumpAndSettle();
+    expect(barTitle, findsNothing);
+    controller.jumpTo(detailBarTitleReducedOffset + 10);
     await tester.pumpAndSettle();
     expect(find.descendant(of: barTitle, matching: find.text('DUNE')),
         findsOneWidget);
@@ -261,5 +288,49 @@ void main() {
     controller.jumpTo(0);
     await tester.pumpAndSettle();
     expect(barTitle, findsNothing);
+  });
+
+  testWidgets('animazioni complete, 1440×900: in fondo alla scheda il titolo '
+      'è nella barra', (tester) async {
+    final router = await pumpRouter(tester,
+        overrides: movieOverrides(), motion: MotionLevel.full);
+    final controller =
+        await openMovie(tester, router, motion: MotionLevel.full);
+    final barTitle = find.byKey(const Key('shell-bar-title'));
+    expect(barTitle, findsNothing);
+
+    controller.jumpTo(controller.position.maxScrollExtent);
+    await tester.pumpAndSettle();
+    expect(find.descendant(of: barTitle, matching: find.text('DUNE')),
+        findsOneWidget);
+    expect(find.byKey(const Key('shell-bar-play')), findsOneWidget);
+  });
+
+  testWidgets('animazioni complete, 1920×1080: in fondo il testo della '
+      'testata si legge ancora e il titolo non va nella barra',
+      (tester) async {
+    final router = await pumpRouter(tester,
+        size: const Size(1920, 1080),
+        overrides: movieOverrides(),
+        motion: MotionLevel.full);
+    final controller =
+        await openMovie(tester, router, motion: MotionLevel.full);
+    controller.jumpTo(controller.position.maxScrollExtent);
+    await tester.pumpAndSettle();
+    expect(controller.offset, greaterThan(0));
+    expect(find.byKey(const Key('shell-bar-title')), findsNothing);
+
+    final opacities = tester
+        .widgetList<Opacity>(find.ancestor(
+            of: find.descendant(
+                of: find.byType(DetailHeader),
+                matching: find.byType(MetaLine)),
+            matching: find.byType(Opacity)))
+        .map((o) => o.opacity)
+        .toList();
+    expect(opacities, isNotEmpty);
+    expect(opacities.reduce((a, b) => a < b ? a : b),
+        allOf(greaterThan(barTitleTextOpacity), lessThan(1)),
+        reason: 'testo in dissolvenza ma sopra la soglia');
   });
 }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_shell.dart';
+import '../../app/motion.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/staggered_entrance.dart';
@@ -54,9 +55,10 @@ class MovieDetailView extends ConsumerWidget {
     // barra.
     if (scroll == null) return page;
     final l = AppLocalizations.of(context);
+    final reduced = WfMotion.of(context).isReduced;
     return ShellHeaderPublisher(
       controller: scroll,
-      threshold: detailBarTitleOffset,
+      visibleAt: (offset) => barTitleVisible(offset, reduced: reduced),
       header: ShellHeader(
         title: item.name,
         actionLabel: primaryActionLabel(l, action),
