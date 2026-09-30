@@ -3,6 +3,7 @@ import 'package:wonderflix/core/syncplay/syncplay_api.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/watch_party/party_notices.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
+import 'package:wonderflix/features/watch_party/watch_party_invites.dart';
 import 'package:wonderflix/features/watch_party/watch_party_routing.dart';
 
 /// `SyncPlayApi` in memoria: registra le chiamate. Il server "risponde"
@@ -196,6 +197,10 @@ class FakeWatchPartyDirectory extends WatchPartyDirectory {
 
   @override
   Future<void> refresh() async => refreshCalls++;
+
+  /// Simula una nuova lettura dell'elenco. Come una risposta del server è
+  /// sempre una lista nuova: anche `const []` due volte avvisa chi ascolta.
+  void set(List<GroupInfo> groups) => state = [...groups];
 }
 
 /// Avvisi fissi: registra quelli mostrati e le azioni proprie, senza timer.
@@ -215,4 +220,21 @@ class FakePartyNotices extends PartyNotices {
   @override
   void mine(PartyNoticeKind kind, {Duration? position}) =>
       mineCalls.add((kind, position));
+}
+
+/// Invito fisso: registra le chiusure, senza timer.
+class FakeWatchPartyInvites extends WatchPartyInvites {
+  FakeWatchPartyInvites([this.initial]);
+
+  final GroupInfo? initial;
+  int dismissed = 0;
+
+  @override
+  GroupInfo? build() => initial;
+
+  @override
+  void dismiss() {
+    dismissed++;
+    state = null;
+  }
 }

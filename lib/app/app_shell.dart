@@ -9,6 +9,7 @@ import '../core/jellyfin/auth_models.dart';
 import '../features/auth/session_controller.dart';
 import '../features/library/server_events_binding.dart';
 import '../features/watch_party/watch_party_button.dart';
+import '../features/watch_party/watch_party_invites.dart';
 import '../l10n/gen/app_localizations.dart';
 import 'back_navigation.dart';
 import 'theme.dart';
@@ -37,29 +38,35 @@ class AppShell extends ConsumerWidget {
 
     return Scaffold(
       body: BackNavigationHandler(
-        child: Column(
+        child: Stack(
           children: [
-            Container(
-              height: 64,
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                children: [
-                  const _BackButton(),
-                  Image.asset('assets/brand/logo.png', height: 40),
-                  const SizedBox(width: 32),
-                  nav(l.navHome, '/home'),
-                  nav(l.navMovies, '/movies'),
-                  nav(l.navSeries, '/series'),
-                  nav(l.navMyList, '/mylist'),
-                  nav(l.navSearch, '/search', icon: LucideIcons.search),
-                  const Spacer(),
-                  const WatchPartyButton(),
-                  const SizedBox(width: 16),
-                  if (user != null) _UserMenu(user: user),
-                ],
-              ),
+            Column(
+              children: [
+                Container(
+                  height: 64,
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Row(
+                    children: [
+                      const _BackButton(),
+                      Image.asset('assets/brand/logo.png', height: 40),
+                      const SizedBox(width: 32),
+                      nav(l.navHome, '/home'),
+                      nav(l.navMovies, '/movies'),
+                      nav(l.navSeries, '/series'),
+                      nav(l.navMyList, '/mylist'),
+                      nav(l.navSearch, '/search', icon: LucideIcons.search),
+                      const Spacer(),
+                      const WatchPartyButton(),
+                      const SizedBox(width: 16),
+                      if (user != null) _UserMenu(user: user),
+                    ],
+                  ),
+                ),
+                Expanded(child: child),
+              ],
             ),
-            Expanded(child: child),
+            // Invito a un watch party appena nato (spec B §5.8).
+            const Positioned(top: 72, right: 24, child: WatchPartyInviteCard()),
           ],
         ),
       ),
