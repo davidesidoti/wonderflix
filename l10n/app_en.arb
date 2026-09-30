@@ -190,5 +190,11 @@
   "watchPartyDismiss": "Dismiss",
   "watchPartyNoticeEnded": "The watch party has ended",
   "watchPartyNoticeRemoved": "You are no longer in the watch party",
-  "discordWatchParty": "Watch party · {count, plural, =1{1 person} other{{count} people}}"
+  "discordWatchParty": "Watch party · {count, plural, =1{1 person} other{{count} people}}",
+  "settingsAppearance": "Appearance",
+  "settingsAnimations": "Animations",
+  "settingsAnimationsHint": "“Same as Windows” follows “Animation effects” in the Windows settings. “Reduced” keeps only short fades.",
+  "settingsAnimationsSystem": "Same as Windows",
+  "settingsAnimationsFull": "Full",
+  "settingsAnimationsReduced": "Reduced"
 }

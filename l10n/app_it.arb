@@ -217,5 +217,11 @@
   "watchPartyNoticeEnded": "Il watch party è terminato",
   "watchPartyNoticeRemoved": "Non sei più nel watch party",
   "discordWatchParty": "Watch party · {count, plural, =1{1 persona} other{{count} persone}}",
-  "@discordWatchParty": {"placeholders": {"count": {"type": "int"}}}
+  "@discordWatchParty": {"placeholders": {"count": {"type": "int"}}},
+  "settingsAppearance": "Aspetto",
+  "settingsAnimations": "Animazioni",
+  "settingsAnimationsHint": "«Come Windows» segue «Effetti di animazione» nelle impostazioni di Windows. Con «Ridotte» restano solo dissolvenze brevi.",
+  "settingsAnimationsSystem": "Come Windows",
+  "settingsAnimationsFull": "Complete",
+  "settingsAnimationsReduced": "Ridotte"
 }

@@ -9,6 +9,7 @@ import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_buttons.dart';
 import '../auth/session_controller.dart';
+import 'appearance_settings_section.dart';
 import 'discord_settings_section.dart';
 import 'language_settings_section.dart';
 import 'locale_controller.dart';
@@ -58,6 +59,8 @@ class SettingsScreen extends ConsumerWidget {
               },
             ),
           ),
+          section(l.settingsAppearance),
+          const AppearanceSettingsSection(),
           section(l.settingsPlayer),
           const PlayerSettingsSection(),
           section(l.settingsLanguages),

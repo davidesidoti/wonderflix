@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/config/app_config.dart';
@@ -22,6 +23,7 @@ Future<void> pumpApp(
   Widget child, {
   List<Override> overrides = const [],
   Size surfaceSize = const Size(1440, 900),
+  MotionLevel motion = MotionLevel.reduced,
 }) async {
   await tester.binding.setSurfaceSize(surfaceSize);
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -41,6 +43,8 @@ Future<void> pumpApp(
       locale: const Locale('it'),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
+      builder: (context, child) =>
+          WfMotionScope(motion: WfMotion(motion), child: child!),
       home: child,
     ),
   ));
