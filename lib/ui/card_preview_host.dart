@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/gestures.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -76,9 +77,27 @@ class _CardPreviewHostState extends ConsumerState<CardPreviewHost>
     super.didChangeDependencies();
     // La pagina della card non è più in cima (push, go): via l'anteprima,
     // salvo l'uscita verso la scheda, che si chiude a transizione finita.
+    // Siamo nella build: la chiusura avviene al fotogramma dopo.
     final current = ModalRoute.isCurrentOf(context) ?? true;
-    if (!current && _showing && !_leaving) _hide(immediately: true);
-    if (current && _leaving) _hide(immediately: true);
+    if (!current && _showing && !_leaving) _hideAfterFrame();
+    if (current && _leaving) _hideAfterFrame();
+  }
+
+  /// Chiusura chiesta durante la build (dipendenze, widget aggiornato): il
+  /// provider e l'overlay non si toccano mentre l'albero si costruisce.
+  bool _hidePending = false;
+  bool _hidePendingDismiss = false;
+
+  void _hideAfterFrame({bool dismiss = false}) {
+    _hidePendingDismiss |= dismiss;
+    if (_hidePending) return;
+    _hidePending = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final dismiss = _hidePendingDismiss;
+      _hidePending = false;
+      _hidePendingDismiss = false;
+      if (mounted) _hide(immediately: true, dismiss: dismiss);
+    });
   }
 
   @override
@@ -155,6 +174,13 @@ class _CardPreviewHostState extends ConsumerState<CardPreviewHost>
   void _hide({bool immediately = false, bool dismiss = false}) {
     _hoverTimer?.cancel();
     if (!_showing) return;
+    // Chiamata durante la build o il layout (un listener del provider, uno
+    // scroll corretto dal layout): si rimanda al fotogramma dopo.
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      _hideAfterFrame(dismiss: dismiss);
+      return;
+    }
     _detach();
     _previews.close(this);
     if (dismiss && !_dismissed) {

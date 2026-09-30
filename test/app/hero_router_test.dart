@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -220,6 +222,73 @@ void main() {
     expect(find.byType(CardPreview), findsNothing);
     expect(find.byKey(wfHeroFlightKey), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  /// Mouse fermo sulla card di [title] della pagina in cima finché si apre
+  /// la sua anteprima.
+  Future<TestGesture> openPreview(WidgetTester tester, String title) async {
+    final card = find.widgetWithText(PosterCard, title);
+    await tester.ensureVisible(card);
+    await tester.pumpAndSettle();
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(card));
+    await tester.pump(previewHoverDelay);
+    await tester.pumpAndSettle();
+    expect(find.byType(CardPreview), findsOneWidget);
+    return mouse;
+  }
+
+  // La pagina della card smette di essere in cima mentre l'albero si
+  // costruisce: l'anteprima si chiude al fotogramma dopo, senza errori.
+  testWidgets('anteprima aperta, poi push: si chiude senza errori',
+      (tester) async {
+    final router = await pumpRouter(tester, '/item/m1');
+    await openPreview(tester, 'Arrival');
+
+    unawaited(router.push('/item/m2'));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/item/m2');
+    expect(tester.takeException(), isNull);
+    expect(find.byType(CardPreview), findsNothing);
+  });
+
+  testWidgets('anteprima aperta su una pagina spinta, poi pop: senza errori',
+      (tester) async {
+    final router = await pumpRouter(tester, '/item/m1');
+    unawaited(router.push('/item/m2'));
+    await tester.pumpAndSettle();
+    await openPreview(tester, 'Dune: Parte Due');
+
+    router.pop();
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/item/m1');
+    expect(tester.takeException(), isNull);
+    expect(find.byType(CardPreview), findsNothing);
+  });
+
+  testWidgets('"Dettagli", poi subito pop: l\'anteprima si chiude senza errori',
+      (tester) async {
+    final router = await pumpRouter(tester, '/item/m1');
+    final mouse = await openPreview(tester, 'Arrival');
+
+    await tester.tap(find.byTooltip('Dettagli'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    // Al ritorno la card non è sotto il mouse: non riapre l'anteprima.
+    await mouse.moveTo(Offset.zero);
+    router.pop();
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/item/m1');
+    expect(tester.takeException(), isNull);
+    expect(find.byType(CardPreview), findsNothing);
   });
 
   // Scheda scorsa: lo sfondo è traslato, ingrandito, scurito e ritagliato,
