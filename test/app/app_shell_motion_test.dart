@@ -78,6 +78,24 @@ void main() {
     expect(backdrop().opacity, 0);
   });
 
+  testWidgets('la rotella sulla barra, fuori dalle voci, scorre la pagina',
+      (tester) async {
+    await pumpShell(tester, '/home');
+    final search = tester.getRect(find.byKey(const Key('nav-/search')));
+    // Tra le voci e i pulsanti a destra: solo velo e sfocatura.
+    final spot = Offset(search.right + 100, 30);
+    final mouse = TestPointer(1, PointerDeviceKind.mouse);
+    tester.binding.handlePointerEvent(mouse.hover(spot));
+    tester.binding.handlePointerEvent(mouse.scroll(const Offset(0, 300)));
+    await tester.pumpAndSettle();
+    final position = tester
+        .state<ScrollableState>(find.descendant(
+            of: find.byKey(const Key('page')),
+            matching: find.byType(Scrollable)))
+        .position;
+    expect(position.pixels, greaterThan(0));
+  });
+
   testWidgets('voce della barra oro al passaggio del mouse', (tester) async {
     await pumpShell(tester, '/home');
     Color labelColor() =>

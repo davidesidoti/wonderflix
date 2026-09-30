@@ -112,7 +112,8 @@ class _AppShellState extends ConsumerState<AppShell> {
 }
 
 /// Sfondo della barra: velo in cima finché la pagina è in alto, scuro e
-/// sfocato quando è scorsa.
+/// sfocato quando è scorsa. Solo decorazione: il mouse (rotella compresa)
+/// passa alla pagina sotto.
 class _BarBackground extends StatelessWidget {
   const _BarBackground({required this.scrolled});
 
@@ -121,38 +122,40 @@ class _BarBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fade = WfMotion.of(context).duration(WfMotion.medium);
-    return ValueListenableBuilder<bool>(
-      valueListenable: scrolled,
-      builder: (context, scrolled, _) => Stack(
-        fit: StackFit.expand,
-        children: [
-          // Velo in cima per leggere la barra sulle pagine a tutta
-          // altezza; sulle altre è sfondo su sfondo.
-          AnimatedOpacity(
-            opacity: scrolled ? 0 : 1,
-            duration: fade,
-            child: const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xB30A0A0A), Color(0x000A0A0A)],
+    return IgnorePointer(
+      child: ValueListenableBuilder<bool>(
+        valueListenable: scrolled,
+        builder: (context, scrolled, _) => Stack(
+          fit: StackFit.expand,
+          children: [
+            // Velo in cima per leggere la barra sulle pagine a tutta
+            // altezza; sulle altre è sfondo su sfondo.
+            AnimatedOpacity(
+              opacity: scrolled ? 0 : 1,
+              duration: fade,
+              child: const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xB30A0A0A), Color(0x000A0A0A)],
+                  ),
                 ),
               ),
             ),
-          ),
-          AnimatedOpacity(
-            key: const Key('shell-bar-backdrop'),
-            opacity: scrolled ? 1 : 0,
-            duration: fade,
-            child: ClipRect(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                child: const ColoredBox(color: Color(0xBF0A0A0A)),
+            AnimatedOpacity(
+              key: const Key('shell-bar-backdrop'),
+              opacity: scrolled ? 1 : 0,
+              duration: fade,
+              child: ClipRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                  child: const ColoredBox(color: Color(0xBF0A0A0A)),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
