@@ -4,6 +4,7 @@ import 'package:logging/logging.dart';
 
 import '../../core/syncplay/drift_corrector.dart';
 import '../../core/syncplay/server_clock.dart';
+import '../../core/syncplay/start_lag.dart';
 import '../../core/syncplay/syncplay_api.dart';
 import '../../core/syncplay/syncplay_models.dart';
 import '../../core/video/video_engine.dart';
@@ -24,10 +25,12 @@ class GroupPlaybackDriver {
     required this.playlistItemId,
     required Stream<SyncPlayCommand> commands,
     SyncPlayCommand? lastCommand,
+    void Function()? onResync,
   })  : _engine = engine,
         _api = api,
         _clock = clock,
         _commandStream = commands,
+        _onResync = onResync,
         _pending = lastCommand;
 
   /// Sotto questo scarto, a video fermo, non si salta.
@@ -57,12 +60,22 @@ class GroupPlaybackDriver {
   final ServerClock _clock;
   final Stream<SyncPlayCommand> _commandStream;
 
+  /// Chiamato a ogni riallineamento (salto per scarto oltre 3 s).
+  final void Function()? _onResync;
+
   /// Elemento della coda aperto in questo player.
   final String playlistItemId;
 
   final _subscriptions = <StreamSubscription<Object?>>[];
 
   final _corrector = DriftCorrector();
+
+  /// Ritardo con cui mpv riparte dopo una ripresa programmata.
+  final _startLag = StartLag();
+
+  /// La ripresa in corso è partita da fermo all'istante previsto: a fine
+  /// periodo iniziale se ne misura il ritardo.
+  bool _measureLag = false;
   Timer? _bufferingTimer;
   Timer? _ticker;
   bool _reportedBuffering = false;
@@ -170,6 +183,7 @@ class GroupPlaybackDriver {
     _stopLanding();
     _corrector.reset();
     _playingSince = null;
+    _measureLag = false;
     await _setRate(1.0);
     if (_stale(command)) return;
     final wait = _clock.toLocal(command.when).difference(_clock.now());
@@ -178,7 +192,12 @@ class GroupPlaybackDriver {
     switch (command.type) {
       case SyncPlayCommandType.unpause:
         if (wait > Duration.zero) {
-          if (!_engine.playing) await _align(command.position);
+          if (!_engine.playing) {
+            // Da fermo ci si allinea in anticipo del ritardo con cui mpv
+            // riparte: al via si è già in pari.
+            await _align(command.position + _startLag.value);
+            _measureLag = true;
+          }
           if (_stale(command)) return;
           _scheduled = Timer(wait, () => unawaited(_play(command)));
         } else {
@@ -325,6 +344,7 @@ class GroupPlaybackDriver {
       emittedAt: state.when,
     );
     _corrector.reset();
+    _measureLag = false;
     _playingSince = _clock.now();
   }
 
@@ -354,11 +374,18 @@ class GroupPlaybackDriver {
     }
     final expected = _expectedPosition(command);
     final now = _clock.now();
+    final sinceUnpause = now.difference(since);
+    if (_measureLag && sinceUnpause >= DriftCorrector.startGrace) {
+      _measureLag = false;
+      _startLag.record(expected - _engine.position);
+      _log.info('ritardo alla ripartenza: '
+          '${_startLag.value.inMilliseconds} ms');
+    }
     final lastResync = _lastResync;
     final action = _corrector.update(
       drift: expected - _engine.position,
       rate: _rate,
-      sinceUnpause: now.difference(since),
+      sinceUnpause: sinceUnpause,
       sinceResync: lastResync == null ? null : now.difference(lastResync),
     );
     switch (action) {
@@ -370,6 +397,7 @@ class GroupPlaybackDriver {
         unawaited(_setRate(rate));
       case Resync():
         _lastResync = now;
+        _onResync?.call();
         _log.info('scarto oltre ${DriftCorrector.resyncThreshold.inSeconds} s: '
             'riallineamento a $expected');
         unawaited(_engine.seek(expected));

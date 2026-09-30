@@ -18,6 +18,9 @@ void main() {
   late StreamController<SyncPlayCommand> commands;
   late GroupPlaybackDriver driver;
 
+  /// Riallineamenti segnalati dal driver (`onResync`).
+  var resyncs = 0;
+
   /// Tutto dentro la zona finta: file aperto a 10:00, orologio pronto
   /// (scarto zero). Con [load] il file è già caricato e il `Ready` iniziale
   /// è già partito (le chiamate vengono azzerate).
@@ -32,12 +35,14 @@ void main() {
     })
       ..start();
     commands = StreamController<SyncPlayCommand>.broadcast();
+    resyncs = 0;
     driver = GroupPlaybackDriver(
       engine: engine,
       api: api,
       clock: serverClock,
       playlistItemId: 'p1',
       commands: commands.stream,
+      onResync: () => resyncs++,
     )..start();
     async.flushMicrotasks();
     if (load) {
@@ -85,6 +90,21 @@ void main() {
     for (var elapsed = Duration.zero; elapsed < duration; elapsed += step) {
       final next = clock.now().toUtc().add(step);
       engine.emitPosition(from.position + next.difference(from.when) - lag);
+      async.elapse(step);
+    }
+  }
+
+  /// Come mpv: il video parte [startLag] dopo l'istante del comando [from],
+  /// dalla posizione su cui era fermo.
+  void runLaggedStart(FakeAsync async, Duration duration,
+      {required SyncPlayCommand from, required Duration startLag}) {
+    final origin = engine.position;
+    const step = Duration(milliseconds: 100);
+    for (var elapsed = Duration.zero; elapsed < duration; elapsed += step) {
+      final next = clock.now().toUtc().add(step);
+      final running = next.difference(from.when) - startLag;
+      engine.emitPosition(
+          origin + (running.isNegative ? Duration.zero : running));
       async.elapse(step);
     }
   }
@@ -606,6 +626,70 @@ void main() {
         expect(engine.currentRate, 1.0);
         serverClock.stop();
       });
+    });
+  });
+
+  group('ritardo alla ripartenza', () {
+    test('si impara e alla ripresa dopo ci si allinea in anticipo', () {
+      fakeAsync((async) {
+        setUpDriver(async);
+        final first = command(SyncPlayCommandType.unpause,
+            at: const Duration(milliseconds: 500));
+        send(async, first);
+        expect(engine.seeks, isEmpty, reason: 'già a 10:00');
+        // mpv parte 400 ms dopo il via: la stima diventa 200 ms.
+        runLaggedStart(async, const Duration(seconds: 3),
+            from: first, startLag: const Duration(milliseconds: 400));
+
+        send(
+            async,
+            command(SyncPlayCommandType.pause,
+                position: const Duration(minutes: 20)));
+        engine.seeks.clear();
+        send(
+            async,
+            command(SyncPlayCommandType.unpause,
+                position: const Duration(minutes: 20),
+                at: const Duration(milliseconds: 500)));
+        expect(engine.seeks,
+            [const Duration(minutes: 20, milliseconds: 200)]);
+        tearDownDriver(async);
+      });
+    });
+
+    test('ripresa con l\'istante già passato: nessuna misura', () {
+      fakeAsync((async) {
+        setUpDriver(async);
+        final first = command(SyncPlayCommandType.unpause);
+        send(async, first);
+        runLaggedStart(async, const Duration(seconds: 3),
+            from: first, startLag: const Duration(milliseconds: 400));
+
+        send(
+            async,
+            command(SyncPlayCommandType.pause,
+                position: const Duration(minutes: 20)));
+        engine.seeks.clear();
+        send(
+            async,
+            command(SyncPlayCommandType.unpause,
+                position: const Duration(minutes: 20),
+                at: const Duration(milliseconds: 500)));
+        expect(engine.seeks, isEmpty, reason: 'nessun anticipo: già a 20:00');
+        tearDownDriver(async);
+      });
+    });
+  });
+
+  test('riallineamento: segnalato con onResync', () {
+    fakeAsync((async) {
+      setUpDriver(async);
+      final unpause = command(SyncPlayCommandType.unpause);
+      send(async, unpause);
+      runPlayback(async, const Duration(seconds: 3),
+          from: unpause, lag: const Duration(seconds: 4));
+      expect(resyncs, 1);
+      tearDownDriver(async);
     });
   });
 }
