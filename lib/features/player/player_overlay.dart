@@ -29,6 +29,7 @@ class PlayerOverlay extends StatelessWidget {
     this.onNextEpisode,
     this.chapters = const [],
     this.preview,
+    this.partyBadge,
   });
 
   final PlayerViewState view;
@@ -47,6 +48,9 @@ class PlayerOverlay extends StatelessWidget {
   final VoidCallback? onNextEpisode;
   final List<ChapterMark> chapters;
   final Widget? Function(Duration position)? preview;
+
+  /// Distintivo del watch party, in alto a destra; `null` fuori dal gruppo.
+  final Widget? partyBadge;
 
   @override
   Widget build(BuildContext context) {
@@ -103,6 +107,11 @@ class PlayerOverlay extends StatelessWidget {
                           ],
                         ),
                       ),
+                    if (partyBadge != null) ...[
+                      if (item == null) const Spacer(),
+                      const SizedBox(width: 16),
+                      partyBadge!,
+                    ],
                   ],
                 ),
               ),

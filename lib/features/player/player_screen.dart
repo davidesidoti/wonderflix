@@ -13,12 +13,18 @@ import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/media_session/media_session.dart';
+import '../../core/syncplay/syncplay_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_buttons.dart';
 import '../detail/primary_action.dart';
 import '../library/item_labels.dart';
 import '../library/library_providers.dart';
 import '../library/user_data.dart';
+import '../watch_party/group_authority.dart';
+import '../watch_party/group_playback_driver.dart';
+import '../watch_party/party_badge.dart';
+import '../watch_party/party_waiting_overlay.dart';
+import '../watch_party/watch_party_session.dart';
 import 'player_commands.dart';
 import 'player_controller.dart';
 import 'player_extras.dart';
@@ -73,6 +79,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   StreamSubscription<MediaButton>? _mediaButtons;
   Timer? _timelineTimer;
 
+  /// Nel watch party: applica i comandi del gruppo al motore.
+  GroupPlaybackDriver? _driver;
+
+  bool get _inParty => widget.args.party != null;
+
   PlayerController get _controller =>
       ref.read(playerControllerProvider(widget.args).notifier);
 
@@ -107,13 +118,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // successivo resta alla nuova schermata. Non si chiude mai: è dell'app.
     if (!_handingOver) unawaited(_mediaSession.clear());
     _playerActive.leave();
+    unawaited(_driver?.dispose());
     super.dispose();
   }
 
   Future<void> _onWindowClose() async {
-    await _controller
-        .close()
-        .timeout(PlayerScreen.closeTimeout, onTimeout: () {});
+    await Future.wait([
+      _controller.close(),
+      if (_inParty) ref.read(watchPartySessionProvider.notifier).leave(),
+    ]).timeout(PlayerScreen.closeTimeout, onTimeout: () => const []);
     await _window.destroy();
   }
 
@@ -147,6 +160,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void _exit() {
     if (_leaving) return;
     _leaving = true;
+    // Chiudere il player fa uscire dal watch party: gli altri continuano.
+    if (_inParty) {
+      unawaited(ref.read(watchPartySessionProvider.notifier).leave());
+    }
     unawaited(_controller.close());
     if (_fullscreen) {
       _fullscreen = false;
@@ -169,7 +186,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void _playNext({bool finished = false}) {
     final view = ref.read(playerControllerProvider(widget.args));
     final next = view.nextEpisode;
-    if (next == null || _leaving) return;
+    if (next == null || _leaving || _inParty) return;
     _leaving = true;
     _handingOver = true;
     final engine = _controller.engine;
@@ -187,6 +204,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   /// Fine del video: episodio successivo se previsto, altrimenti uscita.
   void _onFinished() {
+    // Nel watch party la fine la decide il gruppo: si resta sul video.
+    if (_inParty) return;
     final view = ref.read(playerControllerProvider(widget.args));
     final autoplay = ref.read(playerSettingsProvider).autoplayNext;
     if (view.nextEpisode != null && autoplay && !_nextCardDismissed) {
@@ -202,6 +221,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       subtitle: cardSubtitle(item),
       thumbnailUrl: ref.read(imageUrlsProvider).poster(item)?.url,
     ));
+  }
+
+  /// Nel watch party il player segue il gruppo: il driver applica i comandi,
+  /// l'autorità manda al gruppo pausa, ripresa e salti.
+  void _attachParty(PlayerController controller) {
+    final party = widget.args.party;
+    if (party == null || _driver != null) return;
+    final current = ref.read(watchPartySessionProvider);
+    final session = ref.read(watchPartySessionProvider.notifier);
+    final serverClock = session.serverClock;
+    if (!current.inGroup || serverClock == null) return;
+    _driver = GroupPlaybackDriver(
+      engine: controller.engine,
+      api: session.api,
+      clock: serverClock,
+      playlistItemId: party,
+      commands: session.commands,
+      lastCommand: session.lastCommand,
+    )..start();
+    controller.setAuthority(
+        GroupAuthority(api: session.api, engine: controller.engine));
+  }
+
+  /// Il server ci ha tolto dal gruppo: si continua da soli.
+  void _detachParty() {
+    final driver = _driver;
+    _driver = null;
+    unawaited(driver?.dispose());
+    _controller.setAuthority(null);
   }
 
   void _sendTimeline() {
@@ -315,6 +363,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final controller = ref.read(provider.notifier);
     final settings = ref.watch(playerSettingsProvider);
     final next = view.nextEpisode;
+    if (_inParty) _attachParty(controller);
+    final party = _inParty ? ref.watch(watchPartySessionProvider) : null;
 
     ref.listen(provider.select((s) => s.finished), (_, finished) {
       if (finished) _onFinished();
@@ -335,6 +385,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             .showSnackBar(SnackBar(content: Text(l.playerTranscoding)));
       }
     });
+    ref.listen(provider.select((s) => s.status), (_, status) {
+      if (status != PlayerStatus.ready) return;
+      final driver = _driver;
+      if (driver != null) {
+        unawaited(driver.onLoaded());
+      } else if (_inParty) {
+        // Gruppo non disponibile: il player parte da solo.
+        unawaited(controller.play());
+      }
+    });
+    if (_inParty) {
+      ref.listen(watchPartySessionProvider.select((s) => s.inGroup),
+          (_, inGroup) {
+        if (!inGroup && _driver != null) _detachParty();
+      });
+    }
 
     final loading = view.status == PlayerStatus.loading ||
         (view.status == PlayerStatus.ready && view.buffering);
@@ -371,6 +437,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 if (loading)
                   const Center(
                       child: CircularProgressIndicator(color: WfColors.gold)),
+                if (party != null && view.status == PlayerStatus.ready)
+                  Positioned.fill(
+                    child: ExcludeFocus(
+                      child: PartyWaitingOverlay(
+                        waiting: party.inGroup &&
+                            party.groupState == GroupState.waiting &&
+                            !view.buffering,
+                        onResume: () => unawaited(controller.play()),
+                      ),
+                    ),
+                  ),
                 if (view.status == PlayerStatus.error)
                   _PlayerError(
                     error: view.error,
@@ -405,9 +482,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           onToggleTracks: _toggleTracks,
                           onToggleFullscreen: () =>
                               unawaited(_toggleFullscreen()),
-                          onNextEpisode: next == null ? null : _playNext,
+                          onNextEpisode:
+                              next == null || _inParty ? null : _playNext,
                           chapters: view.item?.chapters ?? const [],
                           preview: _previewFor(view),
+                          partyBadge: party != null && party.inGroup
+                              ? PartyBadge(onLeave: _exit)
+                              : null,
                         ),
                       ),
                     ),
@@ -436,7 +517,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ),
                     ),
                   ),
-                  if (next != null && !_nextCardDismissed)
+                  if (next != null && !_nextCardDismissed && !_inParty)
                     Positioned(
                       right: 32,
                       bottom: 150,
