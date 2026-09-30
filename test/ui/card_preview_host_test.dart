@@ -350,6 +350,51 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  // La card sta in una riga orizzontale dentro la pagina verticale: anche
+  // lo scorrimento della pagina (tastiera, barra, codice) chiude
+  // l'anteprima, che altrimenti seguirebbe la card fino al bordo.
+  testWidgets('lo scorrimento della pagina intorno alla riga la chiude',
+      (tester) async {
+    final page = ScrollController();
+    addTearDown(page.dispose);
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: ListView(
+          controller: page,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(200),
+              child: SizedBox(
+                height: 300,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    PosterCard(
+                        key: const Key('card-a'),
+                        item: testItem(id: 'a', name: 'Alien'),
+                        width: 160),
+                    const SizedBox(width: 2000),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 2000),
+          ],
+        ),
+      ),
+      overrides: overrides,
+    );
+    await openPreviewOn(tester, find.byKey(const Key('card-a')));
+
+    page.jumpTo(100);
+    await tester.pump();
+    expect(find.byType(CardPreview), findsNothing);
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(CardPreview), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('card tolta dall\'albero ad anteprima aperta: provider chiuso',
       (tester) async {
     final container = ProviderContainer.test(overrides: appOverrides);

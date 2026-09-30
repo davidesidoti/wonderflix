@@ -50,7 +50,9 @@ class _CardPreviewHostState extends ConsumerState<CardPreviewHost>
   late final AnimationController _body;
 
   Timer? _hoverTimer;
-  ScrollPosition? _scroll;
+  /// Posizioni di tutti gli `Scrollable` intorno alla card (la riga e la
+  /// pagina): se una scorre, l'anteprima si chiude.
+  final _scrolls = <ScrollPosition>[];
   Animation<double>? _routeCover;
 
   /// "Dettagli": l'immagine vola, il resto è già sparito.
@@ -142,8 +144,17 @@ class _CardPreviewHostState extends ConsumerState<CardPreviewHost>
     _open.duration = motion.duration(WfMotion.medium);
     _portal.show();
     unawaited(_open.forward(from: 0));
-    _scroll = Scrollable.maybeOf(context)?.position;
-    _scroll?.addListener(_onScroll);
+    // Non solo la riga: anche la pagina può scorrere (tastiera, barra di
+    // scorrimento, codice) senza passare dalla rotella sull'anteprima. Oltre
+    // il primo si risale senza registrare dipendenze sugli elementi degli
+    // Scrollable.
+    for (var scrollable = Scrollable.maybeOf(context);
+        scrollable != null;
+        scrollable =
+            scrollable.context.findAncestorStateOfType<ScrollableState>()) {
+      final position = scrollable.position..addListener(_onScroll);
+      _scrolls.add(position);
+    }
     HardwareKeyboard.instance.addHandler(_onKey);
     setState(() {});
   }
@@ -175,8 +186,10 @@ class _CardPreviewHostState extends ConsumerState<CardPreviewHost>
   }
 
   void _detach() {
-    _scroll?.removeListener(_onScroll);
-    _scroll = null;
+    for (final position in _scrolls) {
+      position.removeListener(_onScroll);
+    }
+    _scrolls.clear();
     HardwareKeyboard.instance.removeHandler(_onKey);
     _routeCover?.removeStatusListener(_onRouteCover);
     _routeCover = null;
