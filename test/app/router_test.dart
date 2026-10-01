@@ -89,4 +89,29 @@ void main() {
     expect(find.text('player e5'), findsOneWidget);
     expect(find.text('player e4'), findsNothing);
   });
+
+  testWidgets('player sostituito che si chiude: sfuma sulla pagina, no nero',
+      (tester) async {
+    final router = playerTestRouter();
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    router.push('/play/e4');
+    await tester.pumpAndSettle();
+    router.pushReplacement('/play/e5', extra: playerReplacement);
+    await tester.pumpAndSettle();
+    final backdrop = find.byKey(const Key('player-replacement-backdrop'));
+    expect(tester.widget<ColoredBox>(backdrop).color, Colors.black,
+        reason: 'a transizione finita il nero resta');
+
+    router.pop();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(tester.widget<ColoredBox>(backdrop).color, Colors.transparent,
+        reason: 'in uscita il nero non copre la pagina sotto');
+    expect(find.text('home'), findsOneWidget);
+    expect(find.text('player e5'), findsOneWidget,
+        reason: 'il player sfuma, non sparisce di colpo');
+    await tester.pumpAndSettle();
+    expect(find.text('player e5'), findsNothing);
+    expect(find.text('home'), findsOneWidget);
+  });
 }

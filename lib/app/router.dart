@@ -40,7 +40,8 @@ String? sessionRedirect(SessionState session, String location) {
 /// `fast`. Quando sostituisce un altro player (`extra` [PlayerReplacement]:
 /// episodio successivo, player del gruppo) la pagina sotto non è quella di
 /// partenza: dal primo fotogramma c'è uno sfondo nero opaco e il player
-/// appare sopra.
+/// appare sopra. Chiudendolo, il nero sparisce e il player sfuma sulla
+/// pagina sotto.
 Page<void> playerPage(
     BuildContext context, GoRouterState state, Widget child) {
   final motion = WfMotion.of(context);
@@ -54,10 +55,15 @@ Page<void> playerPage(
       final faded = FadeTransition(
           opacity: animation.drive(CurveTween(curve: WfMotion.standard)),
           child: child);
+      // Il nodo resta sempre (altrimenti il player si rimonterebbe); in
+      // uscita il nero diventa trasparente: il player sfuma sulla pagina
+      // sotto, invece di restare 150 ms su nero e poi sparire di colpo.
       return replacing
           ? ColoredBox(
               key: const Key('player-replacement-backdrop'),
-              color: Colors.black,
+              color: animation.status == AnimationStatus.reverse
+                  ? Colors.transparent
+                  : Colors.black,
               child: faded)
           : faded;
     },
