@@ -212,5 +212,10 @@
   "playerSegmentOutro": "End credits",
   "playerWatching": "You're watching",
   "playerSubtitleSize": "Size",
-  "playerClosePanel": "Close"
+  "playerClosePanel": "Close",
+  "playerPlayNowIn": "Play now · {seconds}",
+  "@playerPlayNowIn": {"placeholders": {"seconds": {"type": "int"}}},
+  "playerWatchCredits": "Watch credits",
+  "playerIntroSkipped": "Intro skipped",
+  "playerRecapSkipped": "Recap skipped"
 }

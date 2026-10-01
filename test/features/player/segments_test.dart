@@ -40,4 +40,51 @@ void main() {
     expect(nextEpisodeCardFrom(const [], Duration.zero), isNull,
         reason: 'durata non ancora nota');
   });
+
+  group('fine episodio', () {
+    const outro = MediaSegment(
+        type: MediaSegmentType.outro,
+        start: Duration(minutes: 40),
+        end: Duration(minutes: 42));
+    const duration = Duration(minutes: 42);
+
+    test('outroStart: solo un Outro che non parte da 0', () {
+      expect(outroStart(const [outro]), const Duration(minutes: 40));
+      expect(outroStart(const []), isNull);
+      expect(
+          outroStart(const [
+            MediaSegment(
+                type: MediaSegmentType.outro,
+                start: Duration.zero,
+                end: Duration(minutes: 1)),
+          ]),
+          isNull);
+    });
+
+    test('con i titoli noti: zona dei titoli dall\'inizio dell\'Outro', () {
+      expect(endZoneAt(const [outro], duration, const Duration(minutes: 39)),
+          EndZone.none);
+      expect(endZoneAt(const [outro], duration, const Duration(minutes: 40)),
+          EndZone.credits);
+      expect(
+          endZoneAt(const [outro], duration,
+              const Duration(minutes: 41, seconds: 45)),
+          EndZone.credits,
+          reason: 'anche negli ultimi 30 s: post-play, non la scheda');
+    });
+
+    test('senza titoli noti: ultimi 30 s', () {
+      expect(
+          endZoneAt(
+              const [], duration, const Duration(minutes: 41, seconds: 29)),
+          EndZone.none);
+      expect(
+          endZoneAt(
+              const [], duration, const Duration(minutes: 41, seconds: 30)),
+          EndZone.lastSeconds);
+      expect(endZoneAt(const [], Duration.zero, const Duration(minutes: 1)),
+          EndZone.none,
+          reason: 'durata ancora ignota');
+    });
+  });
 }

@@ -306,6 +306,22 @@ void main() {
     });
   });
 
+  test('post-play chiuso: resta chiuso, i controlli tornano', () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController();
+      var notified = 0;
+      chrome.addListener(() => notified++);
+      expect(chrome.postPlayDismissed, isFalse);
+      chrome.dismissPostPlay();
+      expect(chrome.postPlayDismissed, isTrue);
+      expect(chrome.controlsVisible, isTrue);
+      expect(notified, 1);
+      chrome.dismissPostPlay();
+      expect(notified, 1, reason: 'già chiuso');
+      chrome.dispose();
+    });
+  });
+
   test('dispose: nessun timer in sospeso', () {
     fakeAsync((async) {
       final chrome = PlayerChromeController()

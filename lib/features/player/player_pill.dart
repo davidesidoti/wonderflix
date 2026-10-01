@@ -8,6 +8,7 @@ import '../library/item_labels.dart';
 import '../watch_party/party_notice_pill.dart';
 import '../watch_party/party_notices.dart';
 import 'player_chrome.dart';
+import 'segments.dart';
 import 'tracks_panel.dart';
 
 /// "+20 s", "-10 s".
@@ -25,6 +26,8 @@ String playerFeedbackText(AppLocalizations l, PlayerFeedback feedback) =>
       VolumeFeedback(:final volume) => l.playerFeedbackVolume(volume.round()),
       SubtitleDelayFeedback(:final delay) => l.playerFeedbackSubtitles(
           formatSubtitleDelay(delay, l.decimalSeparator)),
+      SkipFeedback(kind: SkipKind.intro) => l.playerIntroSkipped,
+      SkipFeedback() => l.playerRecapSkipped,
     };
 
 /// Icona oro del riscontro di un tasto.
@@ -36,6 +39,7 @@ IconData playerFeedbackIcon(PlayerFeedback feedback) => switch (feedback) {
       VolumeFeedback(:final volume, :final muted) =>
         muted || volume == 0 ? LucideIcons.volumeX : LucideIcons.volume2,
       SubtitleDelayFeedback() => LucideIcons.captions,
+      SkipFeedback() => LucideIcons.skipForward,
     };
 
 /// Pillola in alto al centro del player (spec D §9.3): il riscontro dei
@@ -80,6 +84,7 @@ class _PlayerPillState extends State<PlayerPill> {
           SeekFeedback(:final offset) => (SeekFeedback, offset.isNegative),
           VolumeFeedback() => VolumeFeedback,
           SubtitleDelayFeedback() => SubtitleDelayFeedback,
+          SkipFeedback() => SkipFeedback,
         },
       );
     }

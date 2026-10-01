@@ -4,6 +4,7 @@ import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 
 import '../watch_party/party_notices.dart';
+import 'segments.dart';
 
 /// Riscontro di un tasto nella pillola del player (spec D §9.2).
 @immutable
@@ -42,6 +43,13 @@ final class SubtitleDelayFeedback extends PlayerFeedback {
   final Duration delay;
 }
 
+/// Salto automatico di intro o riassunto (spec D §13).
+final class SkipFeedback extends PlayerFeedback {
+  const SkipFeedback(this.kind);
+
+  final SkipKind kind;
+}
+
 /// Stato dell'interfaccia del player (spec D §5.1): controlli, pannello e
 /// riscontro dei tasti. Lo stato della riproduzione resta nel
 /// `PlayerController`. Lo crea e lo distrugge `PlayerScreen`.
@@ -68,6 +76,7 @@ class PlayerChromeController extends ChangeNotifier {
   bool _panelOpen = false;
   bool _playing = false;
   bool _pauseScreen = false;
+  bool _postPlayDismissed = false;
 
   /// La schermata di pausa è ammessa adesso (lo decide `PlayerScreen`).
   bool _canShowPauseScreen = false;
@@ -93,6 +102,10 @@ class PlayerChromeController extends ChangeNotifier {
 
   /// Schermata "Stai guardando" mostrata.
   bool get pauseScreen => _pauseScreen;
+
+  /// L'utente ha chiuso il post-play o la scheda ("Guarda i titoli",
+  /// "Annulla", Esc): per questo episodio non tornano.
+  bool get postPlayDismissed => _postPlayDismissed;
 
   /// Riscontro da mostrare adesso; `null` = nessuno.
   PlayerFeedback? get feedback => _feedback;
@@ -150,6 +163,15 @@ class PlayerChromeController extends ChangeNotifier {
   void closePanel() {
     if (!_panelOpen) return;
     _panelOpen = false;
+    notifyListeners();
+    _scheduleHide();
+  }
+
+  /// Post-play o scheda chiusi: tornano i controlli (e il loro conto).
+  void dismissPostPlay() {
+    if (_postPlayDismissed) return;
+    _postPlayDismissed = true;
+    _controlsVisible = true;
     notifyListeners();
     _scheduleHide();
   }

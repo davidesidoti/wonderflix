@@ -239,5 +239,10 @@
   "playerSegmentOutro": "Titoli di coda",
   "playerWatching": "Stai guardando",
   "playerSubtitleSize": "Dimensione",
-  "playerClosePanel": "Chiudi"
+  "playerClosePanel": "Chiudi",
+  "playerPlayNowIn": "Riproduci ora · {seconds}",
+  "@playerPlayNowIn": {"placeholders": {"seconds": {"type": "int"}}},
+  "playerWatchCredits": "Guarda i titoli",
+  "playerIntroSkipped": "Intro saltata",
+  "playerRecapSkipped": "Riassunto saltato"
 }

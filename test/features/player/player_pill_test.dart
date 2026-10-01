@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/features/player/player_chrome.dart';
 import 'package:wonderflix/features/player/player_pill.dart';
+import 'package:wonderflix/features/player/segments.dart';
 import 'package:wonderflix/features/watch_party/party_notices.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
@@ -31,6 +32,8 @@ void main() {
         'Audio disattivato');
     expect(text(const SubtitleDelayFeedback(Duration(milliseconds: 300))),
         'Sottotitoli +0,3 s');
+    expect(text(const SkipFeedback(SkipKind.intro)), 'Intro saltata');
+    expect(text(const SkipFeedback(SkipKind.recap)), 'Riassunto saltato');
 
     expect(playerFeedbackIcon(const PlayFeedback(playing: true)),
         LucideIcons.play);
@@ -52,6 +55,8 @@ void main() {
         LucideIcons.volume2);
     expect(playerFeedbackIcon(const SubtitleDelayFeedback(Duration.zero)),
         LucideIcons.captions);
+    expect(playerFeedbackIcon(const SkipFeedback(SkipKind.intro)),
+        LucideIcons.skipForward);
   });
 
   Future<ValueNotifier<(PlayerFeedback?, PartyNotice?)>> pumpPill(
