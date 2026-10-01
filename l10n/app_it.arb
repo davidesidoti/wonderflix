@@ -114,8 +114,6 @@
   "playerSkipRecap": "Salta riassunto",
   "playerNextEpisode": "Episodio successivo",
   "playerNextEpisodeTitle": "Prossimo episodio",
-  "playerNextEpisodeIn": "Inizia tra {seconds} s",
-  "@playerNextEpisodeIn": {"placeholders": {"seconds": {"type": "int"}}},
   "playerPlayNow": "Riproduci ora",
   "playerCancel": "Annulla",
   "settingsPlayer": "Player",

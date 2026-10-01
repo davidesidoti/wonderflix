@@ -310,7 +310,7 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.text(l.playerNextEpisodeTitle.toUpperCase()), findsOneWidget);
-    expect(find.textContaining('Inizia tra'), findsNothing);
+    expect(find.textContaining('Riproduci ora ·'), findsNothing);
     await tester.tap(find.text(l.playerPlayNow));
     await tester.pump();
     expect(api.calls, contains('next p1'));
@@ -430,7 +430,7 @@ void main() {
     engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
     await tester.pump();
     await tester.pump();
-    expect(find.textContaining('Inizia tra'), findsOneWidget);
+    expect(find.textContaining('Riproduci ora ·'), findsOneWidget);
 
     engine.emitCompleted();
     await tester.pumpAndSettle();

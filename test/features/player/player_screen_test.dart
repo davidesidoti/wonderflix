@@ -631,7 +631,7 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
-    expect(find.text('Inizia tra 10 s'), findsOneWidget);
+    expect(find.text('Riproduci ora · 10'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 10));
     await tester.pumpAndSettle();
@@ -713,7 +713,7 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.space);
     await tester.pump();
     await tester.pump(const Duration(seconds: 15));
-    expect(find.text('Inizia tra 10 s'), findsOneWidget);
+    expect(find.text('Riproduci ora · 10'), findsOneWidget);
     expect(find.text('S1:E5 · Cat in the Bag'), findsOneWidget,
         reason: 'solo nella scheda');
     expect(engines, hasLength(1));
@@ -721,7 +721,7 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.space);
     await tester.pump();
     await tester.pump(const Duration(seconds: 3));
-    expect(find.text('Inizia tra 7 s'), findsOneWidget);
+    expect(find.text('Riproduci ora · 7'), findsOneWidget);
     await unmount(tester);
   });
 
@@ -786,7 +786,7 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
-    expect(find.textContaining('Inizia tra'), findsNothing);
+    expect(find.textContaining('Riproduci ora ·'), findsNothing);
 
     engine.emitCompleted();
     await tester.pump();

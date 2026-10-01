@@ -100,8 +100,6 @@
   "playerSkipRecap": "Skip recap",
   "playerNextEpisode": "Next episode",
   "playerNextEpisodeTitle": "Next episode",
-  "playerNextEpisodeIn": "Starts in {seconds} s",
-  "@playerNextEpisodeIn": {"placeholders": {"seconds": {"type": "int"}}},
   "playerPlayNow": "Play now",
   "playerCancel": "Cancel",
   "settingsPlayer": "Player",

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/player/player_extras.dart';
 
@@ -44,33 +45,28 @@ void main() {
       index: 5,
       seasonIndex: 1);
 
-  testWidgets('scheda: conto alla rovescia di 10 s, poi riproduce',
+  testWidgets('pulsante: conto alla rovescia di 10 s, poi riproduce',
       (tester) async {
     var played = 0;
     await pumpApp(
       tester,
       Scaffold(
         body: Center(
-          child: NextEpisodeCard(
-            episode: episode,
-            countdown: true,
-            onPlay: () => played++,
-            onCancel: () {},
-          ),
+          child: PlayNowButton(countdown: true, onPressed: () => played++),
         ),
       ),
     );
-    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
-    expect(find.text('S1:E5 · Cat in the Bag'), findsOneWidget);
-    expect(find.text('Inizia tra 10 s'), findsOneWidget);
+    expect(find.text('Riproduci ora · 10'), findsOneWidget);
     await tester.pump(const Duration(seconds: 1));
-    expect(find.text('Inizia tra 9 s'), findsOneWidget);
+    expect(find.text('Riproduci ora · 9'), findsOneWidget);
+    final fill = tester.widget<AnimatedFractionallySizedBox>(
+        find.byType(AnimatedFractionallySizedBox));
+    expect(fill.widthFactor, closeTo(0.1, 0.001));
     await tester.pump(const Duration(seconds: 9));
     expect(played, 1);
   });
 
-  testWidgets('scheda: in pausa il conto alla rovescia si ferma',
-      (tester) async {
+  testWidgets('pulsante: in pausa il conto si ferma', (tester) async {
     var played = 0;
     final paused = ValueNotifier(false);
     addTearDown(paused.dispose);
@@ -80,36 +76,46 @@ void main() {
         body: Center(
           child: ValueListenableBuilder<bool>(
             valueListenable: paused,
-            builder: (context, value, _) => NextEpisodeCard(
-              episode: episode,
-              countdown: true,
-              paused: value,
-              onPlay: () => played++,
-              onCancel: () {},
-            ),
+            builder: (context, value, _) => PlayNowButton(
+                countdown: true, paused: value, onPressed: () => played++),
           ),
         ),
       ),
     );
     await tester.pump(const Duration(seconds: 3));
-    expect(find.text('Inizia tra 7 s'), findsOneWidget);
-
+    expect(find.text('Riproduci ora · 7'), findsOneWidget);
     paused.value = true;
     await tester.pump();
     await tester.pump(const Duration(seconds: 20));
-    expect(find.text('Inizia tra 7 s'), findsOneWidget);
+    expect(find.text('Riproduci ora · 7'), findsOneWidget);
     expect(played, 0);
-
     paused.value = false;
     await tester.pump();
     await tester.pump(const Duration(seconds: 6));
-    expect(find.text('Inizia tra 1 s'), findsOneWidget);
+    expect(find.text('Riproduci ora · 1'), findsOneWidget);
     await tester.pump(const Duration(seconds: 1));
     expect(played, 1);
   });
 
-  testWidgets('scheda senza conto alla rovescia: solo i pulsanti',
-      (tester) async {
+  testWidgets('pulsante senza conto alla rovescia', (tester) async {
+    var played = 0;
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: Center(
+          child: PlayNowButton(countdown: false, onPressed: () => played++),
+        ),
+      ),
+    );
+    expect(find.text('Riproduci ora'), findsOneWidget);
+    expect(find.byType(AnimatedFractionallySizedBox), findsNothing);
+    await tester.pump(const Duration(seconds: 15));
+    expect(played, 0);
+    await tester.tap(find.text('Riproduci ora'));
+    expect(played, 1);
+  });
+
+  testWidgets('scheda: episodio, pulsanti, entra da destra', (tester) async {
     var played = 0;
     var cancelled = 0;
     await pumpApp(
@@ -124,13 +130,24 @@ void main() {
           ),
         ),
       ),
+      motion: MotionLevel.full,
     );
-    expect(find.textContaining('Inizia tra'), findsNothing);
-    await tester.pump(const Duration(seconds: 15));
-    expect(played, 0);
+    double shift() => tester
+        .widget<Transform>(find
+            .ancestor(
+                of: find.text('PROSSIMO EPISODIO'),
+                matching: find.byType(Transform))
+            .first)
+        .transform
+        .getTranslation()
+        .x;
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(shift(), greaterThan(0));
+    await tester.pumpAndSettle();
+    expect(shift(), 0);
+    expect(find.text('S1:E5 · Cat in the Bag'), findsOneWidget);
     await tester.tap(find.text('Riproduci ora'));
     await tester.tap(find.text('Annulla'));
-    expect(played, 1);
-    expect(cancelled, 1);
+    expect((played, cancelled), (1, 1));
   });
 }
