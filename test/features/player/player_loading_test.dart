@@ -147,6 +147,17 @@ void main() {
       expect(tester.getTopLeft(find.byType(LoadingLine)), before);
     });
 
+    testWidgets('titolo lungo: puntini, nessun overflow', (tester) async {
+      final state = await pumpLoading(tester);
+      state.value = (testItem(name: 'Lorem ipsum ' * 17), true);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      final title = tester.widget<Text>(find.textContaining('LOREM IPSUM'));
+      expect(title.maxLines, 2);
+      expect(title.overflow, TextOverflow.ellipsis);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('la linea ha un suo strato di disegno', (tester) async {
       await pumpLoading(tester);
       expect(

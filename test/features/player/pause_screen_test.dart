@@ -65,6 +65,16 @@ void main() {
     expect(find.byKey(const Key('pause-screen')), findsNothing);
   });
 
+  testWidgets('titolo lungo: puntini, nessun overflow', (tester) async {
+    await pumpPause(tester, testItem(name: 'Lorem ipsum ' * 17),
+        visible: true);
+    await tester.pumpAndSettle();
+    final title = tester.widget<Text>(find.textContaining('LOREM IPSUM'));
+    expect(title.maxLines, 2);
+    expect(title.overflow, TextOverflow.ellipsis);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('animazioni complete: il testo sale entrando', (tester) async {
     final shown = await pumpPause(tester, testItem(name: 'Dune'),
         motion: MotionLevel.full);

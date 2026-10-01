@@ -186,6 +186,7 @@ class _PlayerLoadingLayerState extends ConsumerState<PlayerLoadingLayer> {
                                           cardTitle(item).toUpperCase(),
                                           textAlign: TextAlign.center,
                                           maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
                                           style: WfText.display(64),
                                         ),
                                       ),

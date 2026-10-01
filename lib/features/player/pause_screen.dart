@@ -177,7 +177,9 @@ class _PauseText extends ConsumerWidget {
             )
           else
             Text(cardTitle(item).toUpperCase(),
-                maxLines: 2, style: WfText.display(64)),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: WfText.display(64)),
           if (episode != null) ...[
             const SizedBox(height: 12),
             Text(episode,
