@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
@@ -26,6 +27,17 @@ void main() {
     return Offset(bar.left + SeekBar.trackInset + fraction * track,
         bar.center.dy);
   }
+
+  /// `Semantics` dello slider: `SeekBar` stesso non ha un nodo (il suo primo
+  /// render object è il `LayoutBuilder`), quindi si cerca il `Semantics`.
+  final sliderFinder = find.descendant(
+    of: find.byType(SeekBar),
+    matching: find.byWidgetPredicate(
+        (widget) => widget is Semantics && widget.properties.slider == true),
+  );
+
+  /// Lo stesso nodo cercato nell'albero semantico, per eseguirne le azioni.
+  final sliderSemantics = find.semantics.byFlag(SemanticsFlag.isSlider);
 
   Future<TestGesture> mouse(WidgetTester tester) async {
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
@@ -81,6 +93,80 @@ void main() {
     await tester.tap(find.byType(SeekBar));
     await tester.pump();
     expect(seeked!.inSeconds, closeTo(3600, 5));
+  });
+
+  testWidgets('semantica da slider: aumenta e diminuisce di un passo, '
+      'niente tap né scroll', (tester) async {
+    final handle = tester.ensureSemantics();
+    final engine = FakeVideoEngine();
+    final seeks = <Duration>[];
+    await pumpBar(tester, engine, onSeek: seeks.add);
+    engine.emitPosition(const Duration(minutes: 30));
+    await tester.pump(); // consegna gli eventi degli stream
+    await tester.pump();
+
+    expect(
+      tester.getSemantics(sliderFinder),
+      matchesSemantics(
+        isSlider: true,
+        value: '30:00',
+        increasedValue: '30:10',
+        decreasedValue: '29:50',
+        hasIncreaseAction: true,
+        hasDecreaseAction: true,
+      ),
+    );
+
+    tester.semantics.performAction(sliderSemantics, SemanticsAction.increase);
+    await tester.pump();
+    expect(seeks, [const Duration(minutes: 30, seconds: 10)]);
+
+    tester.semantics.performAction(sliderSemantics, SemanticsAction.decrease);
+    await tester.pump();
+    expect(seeks, [
+      const Duration(minutes: 30, seconds: 10),
+      const Duration(minutes: 30),
+    ]);
+    handle.dispose();
+  });
+
+  testWidgets('semantica: il passo si ferma all\'inizio e alla fine',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    final engine = FakeVideoEngine();
+    final seeks = <Duration>[];
+    await pumpBar(tester, engine, onSeek: seeks.add);
+
+    engine.emitPosition(const Duration(seconds: 4));
+    await tester.pump(); // consegna gli eventi degli stream
+    await tester.pump();
+    tester.semantics.performAction(sliderSemantics, SemanticsAction.decrease);
+    await tester.pump();
+
+    engine.emitPosition(const Duration(hours: 2) - const Duration(seconds: 4));
+    await tester.pump();
+    await tester.pump();
+    tester.semantics.performAction(sliderSemantics, SemanticsAction.increase);
+    await tester.pump();
+
+    expect(seeks, [Duration.zero, const Duration(hours: 2)]);
+    handle.dispose();
+  });
+
+  testWidgets('semantica: senza durata nota non ci sono azioni',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    final engine = FakeVideoEngine();
+    await pumpBar(tester, engine);
+    engine.emitDuration(Duration.zero);
+    await tester.pump(); // consegna gli eventi degli stream
+    await tester.pump();
+
+    expect(
+      tester.getSemantics(sliderFinder),
+      matchesSemantics(isSlider: true, value: '00:00'),
+    );
+    handle.dispose();
   });
 
   testWidgets('tempo trascorso e totale', (tester) async {

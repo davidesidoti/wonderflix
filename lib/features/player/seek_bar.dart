@@ -11,6 +11,7 @@ import '../../core/jellyfin/item_models.dart';
 import '../../core/video/video_engine.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../library/item_labels.dart';
+import 'player_commands.dart';
 import 'seek_segments.dart';
 
 /// Capitolo in corso in [position] (l'ultimo iniziato).
@@ -303,10 +304,18 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
     _thumb.reverse();
   }
 
-  void _seekTo(double x) {
-    final target = _positionAt(x);
+  void _seekTo(double x) => _seekToPosition(_positionAt(x));
+
+  void _seekToPosition(Duration target) {
     setState(() => _position = target);
     widget.onSeek(target);
+  }
+
+  /// [from] spostato di [delta], tenuto tra l'inizio e la durata.
+  Duration _stepped(Duration from, Duration delta) {
+    final target = from + delta;
+    if (target < Duration.zero) return Duration.zero;
+    return target > _duration ? _duration : target;
   }
 
   @override
@@ -319,9 +328,19 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
       final drag = _dragX;
       final shown = drag == null ? _position : _positionAt(drag);
       final previewX = _previewX;
+      // Con la durata ancora ignota non si può avanzare né tornare indietro.
+      final canStep = _duration > Duration.zero;
       return Semantics(
         slider: true,
         value: formatClock(shown),
+        increasedValue:
+            canStep ? formatClock(_stepped(shown, seekStep)) : null,
+        decreasedValue:
+            canStep ? formatClock(_stepped(shown, -seekStep)) : null,
+        onIncrease:
+            canStep ? () => _seekToPosition(_stepped(shown, seekStep)) : null,
+        onDecrease:
+            canStep ? () => _seekToPosition(_stepped(shown, -seekStep)) : null,
         child: MouseRegion(
           cursor: SystemMouseCursors.click,
           onHover: (event) {
@@ -334,6 +353,9 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
           },
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
+            // Le azioni di tap e scroll del rilevatore cercherebbero un punto
+            // senza un puntatore vero: lo slider usa solo increase/decrease.
+            excludeFromSemantics: true,
             onTapUp: (details) => _seekTo(details.localPosition.dx),
             onHorizontalDragStart: (details) {
               _dragX = details.localPosition.dx;
