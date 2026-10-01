@@ -1,0 +1,153 @@
+import 'package:fake_async/fake_async.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/features/player/player_chrome.dart';
+import 'package:wonderflix/features/watch_party/party_notices.dart';
+
+void main() {
+  const duration = Duration(minutes: 40);
+  const step = Duration(seconds: 10);
+
+  test('in riproduzione i controlli spariscono dopo 3 s; il mouse li riporta',
+      () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController();
+      var notified = 0;
+      chrome.addListener(() => notified++);
+      expect(chrome.controlsVisible, isTrue);
+      chrome.setPlaying(true);
+      async.elapse(const Duration(milliseconds: 2900));
+      expect(chrome.controlsVisible, isTrue);
+      async.elapse(const Duration(milliseconds: 100));
+      expect(chrome.controlsVisible, isFalse);
+      expect(notified, 1);
+
+      chrome.pointerActivity();
+      expect(chrome.controlsVisible, isTrue);
+      async.elapse(const Duration(seconds: 2));
+      chrome.pointerActivity(); // il conto riparte
+      async.elapse(const Duration(seconds: 2));
+      expect(chrome.controlsVisible, isTrue);
+      async.elapse(const Duration(seconds: 1));
+      expect(chrome.controlsVisible, isFalse);
+      chrome.dispose();
+    });
+  });
+
+  test('in pausa i controlli restano', () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController()..setPlaying(true);
+      async.elapse(const Duration(seconds: 1));
+      chrome.setPlaying(false);
+      async.elapse(const Duration(seconds: 10));
+      expect(chrome.controlsVisible, isTrue);
+      chrome.dispose();
+    });
+  });
+
+  test('pannello aperto: i controlli restano; chiuso, il conto riparte', () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController()..setPlaying(true);
+      async.elapse(const Duration(seconds: 5));
+      expect(chrome.controlsVisible, isFalse);
+      chrome.togglePanel();
+      expect(chrome.panelOpen, isTrue);
+      expect(chrome.controlsVisible, isTrue);
+      async.elapse(const Duration(seconds: 10));
+      expect(chrome.controlsVisible, isTrue);
+      chrome.closePanel();
+      expect(chrome.panelOpen, isFalse);
+      async.elapse(PlayerChromeController.hideDelay);
+      expect(chrome.controlsVisible, isFalse);
+      chrome.dispose();
+    });
+  });
+
+  test('riscontro: resta 1,2 s dall\'ultimo tasto e non mostra i controlli',
+      () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController()..setPlaying(true);
+      async.elapse(const Duration(seconds: 3));
+      chrome.showFeedback(const VolumeFeedback(volume: 70, muted: false));
+      expect(chrome.feedback, isA<VolumeFeedback>());
+      expect(chrome.controlsVisible, isFalse);
+      async.elapse(const Duration(seconds: 1));
+      chrome.showFeedback(const VolumeFeedback(volume: 75, muted: false));
+      async.elapse(const Duration(seconds: 1));
+      expect((chrome.feedback! as VolumeFeedback).volume, 75);
+      async.elapse(const Duration(milliseconds: 200));
+      expect(chrome.feedback, isNull);
+      chrome.dispose();
+    });
+  });
+
+  test('salti: si sommano nella stessa direzione entro 1 s', () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController();
+      chrome.seek(step, from: const Duration(minutes: 17), duration: duration);
+      async.elapse(const Duration(milliseconds: 500));
+      // La posizione del motore può essere ancora quella di prima: conta
+      // l'arrivo del salto precedente.
+      chrome.seek(step, from: const Duration(minutes: 17), duration: duration);
+      var seek = chrome.feedback! as SeekFeedback;
+      expect(seek.offset, const Duration(seconds: 20));
+      expect(seek.target, const Duration(minutes: 17, seconds: 20));
+
+      // Direzione opposta: si ricomincia.
+      chrome.seek(-step,
+          from: const Duration(minutes: 17, seconds: 20), duration: duration);
+      seek = chrome.feedback! as SeekFeedback;
+      expect(seek.offset, -step);
+      expect(seek.target, const Duration(minutes: 17, seconds: 10));
+
+      // Oltre 1 s: si ricomincia.
+      async.elapse(const Duration(milliseconds: 1100));
+      chrome.seek(-step,
+          from: const Duration(minutes: 17, seconds: 10), duration: duration);
+      seek = chrome.feedback! as SeekFeedback;
+      expect(seek.offset, -step);
+      expect(seek.target, const Duration(minutes: 17));
+      chrome.dispose();
+    });
+  });
+
+  test('salti: arrivo tra 0 e la durata', () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController();
+      chrome.seek(-step, from: const Duration(seconds: 4), duration: duration);
+      expect((chrome.feedback! as SeekFeedback).target, Duration.zero);
+      async.elapse(const Duration(seconds: 2));
+      chrome.seek(step,
+          from: const Duration(minutes: 39, seconds: 55), duration: duration);
+      expect((chrome.feedback! as SeekFeedback).target, duration);
+      chrome.dispose();
+    });
+  });
+
+  test('azione recente da tastiera: stesso tipo, entro 1 s', () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController();
+      expect(chrome.isRecentKeyAction(PartyNoticeKind.paused), isFalse);
+      chrome.showFeedback(const PlayFeedback(playing: false));
+      expect(chrome.isRecentKeyAction(PartyNoticeKind.paused), isTrue);
+      expect(chrome.isRecentKeyAction(PartyNoticeKind.resumed), isFalse);
+      expect(chrome.isRecentKeyAction(PartyNoticeKind.seeked), isFalse);
+      chrome.seek(step, from: Duration.zero, duration: duration);
+      async.elapse(const Duration(milliseconds: 400));
+      expect(chrome.isRecentKeyAction(PartyNoticeKind.seeked), isTrue);
+      async.elapse(const Duration(milliseconds: 700));
+      expect(chrome.isRecentKeyAction(PartyNoticeKind.seeked), isFalse,
+          reason: 'la pillola è sparita da poco, ma è passato più di 1 s');
+      expect(chrome.isRecentKeyAction(PartyNoticeKind.joined), isFalse);
+      chrome.dispose();
+    });
+  });
+
+  test('dispose: nessun timer in sospeso', () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController()..setPlaying(true);
+      chrome.showFeedback(const PlayFeedback(playing: true));
+      chrome.dispose();
+      expect(async.pendingTimers, isEmpty);
+    });
+  });
+}
