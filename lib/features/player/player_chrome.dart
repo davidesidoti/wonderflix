@@ -69,6 +69,12 @@ class PlayerChromeController extends ChangeNotifier {
   /// pillola è sparita (somma dei salti, [isRecentKeyAction]).
   PlayerFeedback? _lastFeedback;
   DateTime? _lastFeedbackAt;
+
+  /// Ultimo Spazio (stato dopo il tasto e quando) e ultimo salto: un altro
+  /// tasto nel mezzo non li cancella ([isRecentKeyAction]).
+  bool? _lastPlaying;
+  DateTime? _lastPlayAt;
+  DateTime? _lastSeekAt;
   Timer? _hideTimer;
   Timer? _feedbackTimer;
 
@@ -113,9 +119,16 @@ class PlayerChromeController extends ChangeNotifier {
 
   /// Mostra [feedback] per [feedbackDuration]. I controlli non compaiono.
   void showFeedback(PlayerFeedback feedback) {
+    final now = clock.now();
     _feedback = feedback;
     _lastFeedback = feedback;
-    _lastFeedbackAt = clock.now();
+    _lastFeedbackAt = now;
+    if (feedback is PlayFeedback) {
+      _lastPlaying = feedback.playing;
+      _lastPlayAt = now;
+    } else if (feedback is SeekFeedback) {
+      _lastSeekAt = now;
+    }
     _feedbackTimer?.cancel();
     _feedbackTimer = Timer(feedbackDuration, () {
       _feedback = null;
@@ -145,17 +158,16 @@ class PlayerChromeController extends ChangeNotifier {
     showFeedback(SeekFeedback(offset: offset, target: target));
   }
 
-  /// `true` se l'ultimo tasto (entro [keyActionWindow]) ha fatto la stessa
-  /// azione di gruppo [kind]: pausa, ripresa o salto.
+  /// `true` se un tasto, entro [keyActionWindow], ha fatto la stessa azione
+  /// di gruppo [kind]: pausa, ripresa o salto. Ogni azione ha il suo
+  /// ultimo tasto: ← poi ↑ (o Spazio) non fa dimenticare il salto.
   bool isRecentKeyAction(PartyNoticeKind kind) {
-    final last = _lastFeedback;
-    final at = _lastFeedbackAt;
-    if (last == null || at == null) return false;
-    if (clock.now().difference(at) > keyActionWindow) return false;
+    bool recent(DateTime? at) =>
+        at != null && clock.now().difference(at) <= keyActionWindow;
     return switch (kind) {
-      PartyNoticeKind.paused => last is PlayFeedback && !last.playing,
-      PartyNoticeKind.resumed => last is PlayFeedback && last.playing,
-      PartyNoticeKind.seeked => last is SeekFeedback,
+      PartyNoticeKind.paused => _lastPlaying == false && recent(_lastPlayAt),
+      PartyNoticeKind.resumed => _lastPlaying == true && recent(_lastPlayAt),
+      PartyNoticeKind.seeked => recent(_lastSeekAt),
       _ => false,
     };
   }

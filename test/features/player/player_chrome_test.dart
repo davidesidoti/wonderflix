@@ -142,6 +142,47 @@ void main() {
     });
   });
 
+  test('azione recente: un altro tasto in mezzo non cancella il salto', () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController();
+      chrome.seek(step, from: Duration.zero, duration: duration);
+      async.elapse(const Duration(milliseconds: 300));
+      chrome.showFeedback(const VolumeFeedback(volume: 70, muted: false));
+      async.elapse(const Duration(milliseconds: 100));
+      expect(chrome.isRecentKeyAction(PartyNoticeKind.seeked), isTrue,
+          reason: '← e poi ↑: l\'avviso del salto di gruppo arriva dopo');
+
+      chrome.showFeedback(const PlayFeedback(playing: false));
+      expect(chrome.isRecentKeyAction(PartyNoticeKind.seeked), isTrue,
+          reason: '← e poi Spazio');
+      expect(chrome.isRecentKeyAction(PartyNoticeKind.paused), isTrue);
+      expect(chrome.isRecentKeyAction(PartyNoticeKind.resumed), isFalse);
+      chrome.dispose();
+    });
+  });
+
+  test('azione recente: pausa e salto si ricordano separatamente', () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController();
+      chrome.showFeedback(const PlayFeedback(playing: false));
+      async.elapse(const Duration(milliseconds: 200));
+      chrome.seek(step, from: Duration.zero, duration: duration);
+      expect(chrome.isRecentKeyAction(PartyNoticeKind.paused), isTrue);
+      expect(chrome.isRecentKeyAction(PartyNoticeKind.seeked), isTrue);
+
+      // L'ultimo Spazio decide tra pausa e ripresa.
+      chrome.showFeedback(const PlayFeedback(playing: true));
+      expect(chrome.isRecentKeyAction(PartyNoticeKind.paused), isFalse);
+      expect(chrome.isRecentKeyAction(PartyNoticeKind.resumed), isTrue);
+
+      async.elapse(const Duration(milliseconds: 1100));
+      expect(chrome.isRecentKeyAction(PartyNoticeKind.paused), isFalse);
+      expect(chrome.isRecentKeyAction(PartyNoticeKind.resumed), isFalse);
+      expect(chrome.isRecentKeyAction(PartyNoticeKind.seeked), isFalse);
+      chrome.dispose();
+    });
+  });
+
   test('dispose: nessun timer in sospeso', () {
     fakeAsync((async) {
       final chrome = PlayerChromeController()..setPlaying(true);
