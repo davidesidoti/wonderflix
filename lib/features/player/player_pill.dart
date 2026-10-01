@@ -50,6 +50,11 @@ class PlayerPill extends StatefulWidget {
   /// Di quanto sta più in alto a pillola nascosta.
   static const hiddenShift = 12.0;
 
+  /// Larghezza massima della pillola: un avviso più lungo (il titolo di un
+  /// episodio) resta su una riga e finisce con i puntini, invece di uscire
+  /// dallo schermo.
+  static const maxWidth = 560.0;
+
   @override
   State<PlayerPill> createState() => _PlayerPillState();
 }
@@ -122,27 +127,36 @@ class _PlayerPillState extends State<PlayerPill> {
     );
   }
 
-  Widget _frame(_PillContent content, WfMotion motion) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: WfColors.surfaceHigh.withValues(alpha: 0.92),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: WfColors.border),
-        ),
-        child: AnimatedSize(
-          duration: motion.duration(WfMotion.medium),
-          curve: WfMotion.emphasized,
-          child: AnimatedSwitcher(
-            duration: WfMotion.fast,
-            child: Row(
-              key: ValueKey(content.kind),
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(content.icon, size: 18, color: WfColors.gold),
-                const SizedBox(width: 8),
-                Text(content.text,
-                    style: const TextStyle(color: WfColors.cream)),
-              ],
+  Widget _frame(_PillContent content, WfMotion motion) => ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: PlayerPill.maxWidth),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: WfColors.surfaceHigh.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: WfColors.border),
+          ),
+          child: AnimatedSize(
+            duration: motion.duration(WfMotion.medium),
+            curve: WfMotion.emphasized,
+            child: AnimatedSwitcher(
+              duration: WfMotion.fast,
+              child: Row(
+                key: ValueKey(content.kind),
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(content.icon, size: 18, color: WfColors.gold),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      content.text,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: WfColors.cream),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

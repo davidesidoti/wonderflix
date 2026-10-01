@@ -145,6 +145,27 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('avviso lungo: una riga con i puntini, nessun overflow',
+      (tester) async {
+    final state = await pumpPill(tester);
+    final title = List.filled(30, 'Titolo molto lungo').join(' ');
+    expect(title.length, greaterThan(300));
+    state.value = (
+      null,
+      PartyNotice(PartyNoticeKind.nowWatching, title: title.substring(0, 300)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    final width = tester.getSize(find.byKey(const Key('player-pill'))).width;
+    expect(width, lessThanOrEqualTo(PlayerPill.maxWidth));
+    final text = tester.widget<Text>(find.descendant(
+        of: find.byKey(const Key('player-pill')),
+        matching: find.byType(Text)));
+    expect(text.maxLines, 1);
+    expect(text.overflow, TextOverflow.ellipsis);
+  });
+
   testWidgets('animazioni complete: entra scendendo dall\'alto',
       (tester) async {
     final state = await pumpPill(tester, motion: MotionLevel.full);
