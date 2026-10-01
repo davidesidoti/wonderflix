@@ -107,7 +107,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// Entrata degli strati del post-play e della scheda: il contenuto nuovo
   /// è subito opaco, perché entra già con la sua animazione (altrimenti
   /// sfumerebbe due volte); quello che esce sfuma comunque in
-  /// [WfMotion.fast].
+  /// [WfMotion.fast] con [WfMotion.accelerate], come le altre uscite (spec D
+  /// §6.1).
   static const _offerSwitchInCurve = Threshold(0);
 
   late final PlayerActiveController _playerActive;
@@ -961,6 +962,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       child: AnimatedSwitcher(
                         duration: WfMotion.fast,
                         switchInCurve: _offerSwitchInCurve,
+                        switchOutCurve: WfMotion.accelerate,
                         child: card && next != null
                             ? NextEpisodeCard(
                                 key: ValueKey(next.id),
@@ -985,6 +987,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     child: AnimatedSwitcher(
                       duration: WfMotion.fast,
                       switchInCurve: _offerSwitchInCurve,
+                      switchOutCurve: WfMotion.accelerate,
                       child: postPlay && next != null
                           ? SizedBox.expand(
                               key: ValueKey(next.id),
