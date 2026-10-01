@@ -446,8 +446,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final command = playerCommandFor(event,
         altPressed: HardwareKeyboard.instance.isAltPressed,
         mediaKeys: !_mediaSession.handlesMediaKeys);
+    // Qualsiasi tasto premuto (anche senza comando) chiude "Stai guardando"
+    // e rifà gli 8 s (spec D §5.1); il rilascio non conta.
+    var dismissingPause = false;
+    if (event is! KeyUpEvent) {
+      dismissingPause = _chrome.pauseScreen;
+      _chrome.keyActivity();
+    }
+    // Con "Stai guardando" aperta Esc la chiude soltanto: non esce dal
+    // player (né dal watch party).
+    if (dismissingPause && command == PlayerCommand.escape) {
+      return KeyEventResult.handled;
+    }
     if (command == null) return KeyEventResult.ignored;
-    _chrome.keyActivity();
     _run(command);
     return KeyEventResult.handled;
   }

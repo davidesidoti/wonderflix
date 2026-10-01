@@ -414,6 +414,49 @@ void main() {
     await unmount(tester);
   });
 
+  /// Mette in pausa con Spazio e aspetta che compaia "Stai guardando".
+  Future<void> pauseUntilPauseScreen(WidgetTester tester) async {
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    await tester.pump(PlayerChromeController.pauseScreenDelay);
+    await tester.pumpAndSettle();
+    expect(find.text('STAI GUARDANDO'), findsOneWidget);
+  }
+
+  testWidgets('pausa: qualsiasi tasto la chiude, anche senza comando',
+      (tester) async {
+    await pumpPlayer(tester);
+    await pauseUntilPauseScreen(tester);
+
+    // La A non è un comando: chiude lo stesso la schermata e rifà gli 8 s.
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+    await tester.pumpAndSettle();
+    expect(find.text('STAI GUARDANDO'), findsNothing);
+
+    await tester.pump(PlayerChromeController.pauseScreenDelay);
+    await tester.pumpAndSettle();
+    expect(find.text('STAI GUARDANDO'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('pausa: Esc la chiude soltanto, il secondo Esc esce',
+      (tester) async {
+    await pumpPlayer(tester);
+    await pauseUntilPauseScreen(tester);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('STAI GUARDANDO'), findsNothing);
+    expect(find.text('home'), findsNothing, reason: 'si resta nel player');
+    expect(playback.stopped, isEmpty);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('home'), findsOneWidget);
+    expect(playback.stopped, hasLength(1));
+    await unmount(tester);
+  });
+
   testWidgets('pausa: con il pannello aperto non compare', (tester) async {
     await pumpPlayer(tester);
     await tester.sendKeyEvent(LogicalKeyboardKey.space);
