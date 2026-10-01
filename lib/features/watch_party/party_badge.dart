@@ -10,7 +10,8 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_menus.dart';
 import 'watch_party_session.dart';
 
-/// Etichetta con bordo oro e icona del gruppo (barra in alto e player).
+/// Etichetta con bordo oro e icona del gruppo, nella barra in alto
+/// (`watch_party_button.dart`). Nel player c'è [PartyBadge].
 class PartyChip extends StatelessWidget {
   const PartyChip({super.key, required this.label});
 
@@ -56,7 +57,8 @@ class MemberAvatar extends StatelessWidget {
 
 /// Iniziali dei membri, sovrapposte (spec D §15.2): al massimo
 /// [maxShown], poi "+N". Chi entra compare con un "pop"; chi esce lascia
-/// stringere la fila.
+/// stringere la fila (con le animazioni ridotte la larghezza cambia di
+/// colpo).
 class MemberAvatarStack extends StatelessWidget {
   const MemberAvatarStack({super.key, required this.members});
 
@@ -75,30 +77,40 @@ class MemberAvatarStack extends StatelessWidget {
     final motion = WfMotion.of(context);
     final shown = members.take(maxShown).toList();
     final extra = members.length - shown.length;
+    final row = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < shown.length; i++)
+          Align(
+            key: ValueKey(shown[i]),
+            alignment: Alignment.centerRight,
+            widthFactor: i == 0 ? 1 : (avatarSize - overlap) / avatarSize,
+            // Alta quanto l'iniziale, anche se sopra c'è spazio in più.
+            heightFactor: 1,
+            child: _AvatarPop(child: MemberAvatar(name: shown[i])),
+          ),
+        if (extra > 0)
+          Padding(
+            padding: const EdgeInsets.only(left: 4),
+            child: Text('+$extra',
+                style: const TextStyle(
+                    color: WfColors.gold,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700)),
+          ),
+      ],
+    );
+    // Ridotto: niente movimento, solo dissolvenze (spec D §6.2), quindi la
+    // larghezza cambia di colpo. Niente `AnimatedSize` con durata zero: il
+    // suo assert scatterebbe.
+    if (motion.isReduced) return row;
     return AnimatedSize(
-      duration: motion.duration(WfMotion.medium),
+      duration: WfMotion.medium,
       curve: WfMotion.emphasized,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var i = 0; i < shown.length; i++)
-            Align(
-              key: ValueKey(shown[i]),
-              alignment: Alignment.centerRight,
-              widthFactor: i == 0 ? 1 : (avatarSize - overlap) / avatarSize,
-              child: _AvatarPop(child: MemberAvatar(name: shown[i])),
-            ),
-          if (extra > 0)
-            Padding(
-              padding: const EdgeInsets.only(left: 4),
-              child: Text('+$extra',
-                  style: const TextStyle(
-                      color: WfColors.gold,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700)),
-            ),
-        ],
-      ),
+      // Ancorata a sinistra: mentre la larghezza si adatta, le iniziali che
+      // restano non si spostano.
+      alignment: Alignment.centerLeft,
+      child: row,
     );
   }
 }

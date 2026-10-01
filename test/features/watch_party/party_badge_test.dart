@@ -8,12 +8,14 @@ import '../../support/pump_app.dart';
 void main() {
   Future<ValueNotifier<List<String>>> pumpStack(WidgetTester tester,
       List<String> members,
-      {MotionLevel motion = MotionLevel.reduced}) async {
+      {MotionLevel motion = MotionLevel.reduced,
+      Alignment alignment = Alignment.center}) async {
     final state = ValueNotifier(members);
     addTearDown(state.dispose);
     await pumpApp(
       tester,
-      Center(
+      Align(
+        alignment: alignment,
         child: ValueListenableBuilder<List<String>>(
           valueListenable: state,
           builder: (context, value, _) => MemberAvatarStack(members: value),
@@ -23,6 +25,9 @@ void main() {
     );
     return state;
   }
+
+  final animatedSize = find.descendant(
+      of: find.byType(MemberAvatarStack), matching: find.byType(AnimatedSize));
 
   testWidgets('al massimo 3 iniziali, poi "+N"', (tester) async {
     await pumpStack(tester, ['Mario', 'Luigi', 'Sara', 'Anna']);
@@ -49,5 +54,60 @@ void main() {
         .entry(0, 0);
     expect(pop, lessThan(1));
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('chi esce: la fila si stringe e le iniziali restano ferme',
+      (tester) async {
+    // Ancorata a sinistra, come nel badge: il bordo sinistro non si muove.
+    final state = await pumpStack(tester, ['Mario', 'Luigi', 'Sara'],
+        motion: MotionLevel.full, alignment: Alignment.centerLeft);
+    await tester.pumpAndSettle();
+    expect(animatedSize, findsOneWidget);
+    final width = tester.getSize(find.byType(MemberAvatarStack)).width;
+    final left = tester.getTopLeft(find.text('M')).dx;
+
+    state.value = ['Mario', 'Luigi'];
+    await tester.pump();
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(tester.getTopLeft(find.text('M')).dx, closeTo(left, 0.01),
+          reason: 'fotogramma $i');
+    }
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byType(MemberAvatarStack)).width,
+        closeTo(width - (MemberAvatarStack.avatarSize - MemberAvatarStack.overlap),
+            0.01));
+    expect(tester.getTopLeft(find.text('M')).dx, closeTo(left, 0.01));
+  });
+
+  testWidgets('"+N" sparisce quando si torna a 3', (tester) async {
+    final state = await pumpStack(tester, ['Mario', 'Luigi', 'Sara', 'Anna']);
+    await tester.pumpAndSettle();
+    expect(find.text('+1'), findsOneWidget);
+    state.value = ['Mario', 'Luigi', 'Sara'];
+    await tester.pumpAndSettle();
+    expect(find.text('+1'), findsNothing);
+    expect(find.text('S'), findsOneWidget);
+  });
+
+  testWidgets('animazioni ridotte: la larghezza cambia senza animarsi',
+      (tester) async {
+    final state = await pumpStack(tester, ['Mario', 'Luigi', 'Sara']);
+    await tester.pumpAndSettle();
+    expect(animatedSize, findsNothing);
+    final width = tester.getSize(find.byType(MemberAvatarStack)).width;
+    state.value = ['Mario', 'Luigi'];
+    await tester.pump();
+    expect(tester.getSize(find.byType(MemberAvatarStack)).width,
+        lessThan(width));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('alta quanto un\'iniziale anche con spazio in più',
+      (tester) async {
+    await pumpStack(tester, ['Mario', 'Luigi']);
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byType(MemberAvatarStack)).height,
+        MemberAvatarStack.avatarSize);
   });
 }
