@@ -71,6 +71,9 @@ class _MyListScreenState extends ConsumerState<MyListScreen> {
     final overrides = ref.watch(userDataOverridesProvider);
     // Come nel catalogo il titolo sta fermo: sfuma solo quello che sta sotto.
     final (count, content) = ref.watch(favoritesProvider).when(
+          // Ricaricando dopo un cambio sul server resta la lista vecchia
+          // finché arriva la nuova.
+          skipLoadingOnReload: true,
           loading: () => (
             0,
             const Column(

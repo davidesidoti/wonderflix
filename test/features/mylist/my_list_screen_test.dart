@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -88,6 +90,31 @@ void main() {
     expect(find.text('La tua lista è vuota. Aggiungi film e serie con il cuore.'),
         findsOneWidget);
     expect(find.byType(CatalogFiltersBar), findsNothing);
+  });
+
+  // Un cambio sul server (o una riconnessione) ricarica la lista: intanto
+  // resta quella vecchia, senza scheletro né salto di scroll.
+  testWidgets('ricaricando dopo un cambio sul server resta la lista',
+      (tester) async {
+    final api = await pumpList(tester, apiWith(library()));
+    await tester.pumpAndSettle();
+    expect(cardNames(tester), ['Dune', 'Heat', 'Arrival']);
+
+    final gate = api.favoritesGate = Completer<void>();
+    ProviderScope.containerOf(tester.element(find.byType(MyListScreen)))
+        .read(libraryRevisionProvider.notifier)
+        .bump();
+    await tester.pump();
+    await tester.pump();
+    // La nuova richiesta è partita e non è ancora tornata.
+    expect(api.itemQueries, hasLength(2));
+    expect(find.byType(PosterGridSkeleton), findsNothing);
+    expect(cardNames(tester), ['Dune', 'Heat', 'Arrival']);
+
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.byType(PosterGridSkeleton), findsNothing);
+    expect(cardNames(tester), ['Dune', 'Heat', 'Arrival']);
   });
 
   testWidgets('barra dei filtri, conteggio e ordine per data di aggiunta',
