@@ -1,6 +1,8 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/player/player_controller.dart';
 import 'package:wonderflix/features/player/player_overlay.dart';
@@ -117,5 +119,135 @@ void main() {
     await pumpOverlay(tester,
         const PlayerViewState(status: PlayerStatus.ready, playing: true));
     expect(find.byTooltip('Episodio successivo'), findsNothing);
+  });
+
+  Widget overlay({required bool visible}) => PlayerOverlay(
+        visible: visible,
+        view: const PlayerViewState(status: PlayerStatus.ready, playing: true),
+        engine: FakeVideoEngine(),
+        fullscreen: false,
+        onBack: () {},
+        onTogglePlay: () {},
+        onSeekBy: (_) {},
+        onSeekTo: (_) {},
+        onVolume: (_) {},
+        onToggleMute: () {},
+        onToggleTracks: () {},
+        onToggleFullscreen: () {},
+      );
+
+  double opacityOf(WidgetTester tester, String key) =>
+      tester.widget<AnimatedOpacity>(find.byKey(Key(key))).opacity;
+
+  double shiftOf(WidgetTester tester, String key) => tester
+      .widget<AnimatedContainer>(find
+          .descendant(
+              of: find.byKey(Key(key)), matching: find.byType(AnimatedContainer))
+          .first)
+      .transform!
+      .getTranslation()
+      .y;
+
+  testWidgets('controlli nascosti: sfumano e scivolano verso i bordi',
+      (tester) async {
+    final visible = ValueNotifier(true);
+    addTearDown(visible.dispose);
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: ValueListenableBuilder<bool>(
+          valueListenable: visible,
+          builder: (context, value, _) => overlay(visible: value),
+        ),
+      ),
+      motion: MotionLevel.full,
+    );
+    expect(opacityOf(tester, 'player-controls-top'), 1);
+    expect(shiftOf(tester, 'player-controls-top'), 0);
+
+    visible.value = false;
+    await tester.pump();
+    expect(opacityOf(tester, 'player-controls-top'), 0);
+    expect(opacityOf(tester, 'player-controls-bottom'), 0);
+    expect(shiftOf(tester, 'player-controls-top'), -PlayerOverlay.hiddenShift);
+    expect(shiftOf(tester, 'player-controls-bottom'), PlayerOverlay.hiddenShift);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('animazioni ridotte: i controlli sfumano senza spostarsi',
+      (tester) async {
+    await pumpApp(tester, Scaffold(body: overlay(visible: false)));
+    expect(opacityOf(tester, 'player-controls-bottom'), 0);
+    expect(shiftOf(tester, 'player-controls-bottom'), 0);
+  });
+
+  Future<TestGesture> hover(WidgetTester tester, Finder target) async {
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: Offset.zero);
+    addTearDown(gesture.removePointer);
+    await gesture.moveTo(tester.getCenter(target));
+    await tester.pump();
+    return gesture;
+  }
+
+  double scaleOf(WidgetTester tester) => tester
+      .widget<AnimatedScale>(find.descendant(
+          of: find.byType(PlayerIconButton),
+          matching: find.byType(AnimatedScale)))
+      .scale;
+
+  List<BoxShadow>? glowOf(WidgetTester tester) => (tester
+          .widget<AnimatedContainer>(find.byKey(const Key('player-button-glow')))
+          .decoration! as BoxDecoration)
+      .boxShadow;
+
+  Widget captionsButton() => Scaffold(
+        body: Center(
+          child: PlayerIconButton(
+            icon: const Icon(LucideIcons.captions),
+            tooltip: 'Audio e sottotitoli',
+            onPressed: () {},
+          ),
+        ),
+      );
+
+  testWidgets('pulsante: alone oro e scala 1,08 al passaggio del mouse',
+      (tester) async {
+    await pumpApp(tester, captionsButton(), motion: MotionLevel.full);
+    expect(scaleOf(tester), 1);
+    expect(glowOf(tester), isEmpty);
+    await hover(tester, find.byType(PlayerIconButton));
+    expect(scaleOf(tester), 1.08);
+    expect(glowOf(tester), isNotEmpty);
+  });
+
+  testWidgets('pulsante: animazioni ridotte, alone senza scala',
+      (tester) async {
+    await pumpApp(tester, captionsButton());
+    await hover(tester, find.byType(PlayerIconButton));
+    expect(scaleOf(tester), 1);
+    expect(glowOf(tester), isNotEmpty);
+  });
+
+  testWidgets('play/pausa: l\'icona cambia sfumando', (tester) async {
+    final playing = ValueNotifier(true);
+    addTearDown(playing.dispose);
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: ValueListenableBuilder<bool>(
+          valueListenable: playing,
+          builder: (context, value, _) => PlayPauseIcon(playing: value),
+        ),
+      ),
+    );
+    expect(find.byIcon(LucideIcons.pause), findsOneWidget);
+    playing.value = false;
+    await tester.pump();
+    expect(find.byIcon(LucideIcons.play), findsOneWidget);
+    expect(find.byIcon(LucideIcons.pause), findsOneWidget,
+        reason: 'la vecchia sta ancora sfumando');
+    await tester.pumpAndSettle();
+    expect(find.byIcon(LucideIcons.pause), findsNothing);
   });
 }
