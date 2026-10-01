@@ -232,6 +232,24 @@ void main() {
     await finish(tester);
   });
 
+  testWidgets('pausa del gruppo: "Stai guardando", ma non mentre aspetta',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    emit(const GroupStateUpdate('g1', GroupState.waiting, 'Buffer'));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 9));
+    expect(find.text(l.playerWatching.toUpperCase()), findsNothing);
+
+    emit(const GroupStateUpdate('g1', GroupState.paused, 'Pause'));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(PlayerChromeController.pauseScreenDelay);
+    await tester.pumpAndSettle();
+    expect(find.text(l.playerWatching.toUpperCase()), findsOneWidget);
+    await finish(tester);
+  });
+
   testWidgets('nel watch party non c\'è l\'episodio successivo',
       (tester) async {
     await pumpPartyPlayer(tester);

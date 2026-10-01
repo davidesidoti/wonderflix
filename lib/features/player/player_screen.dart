@@ -26,6 +26,7 @@ import '../watch_party/party_waiting_overlay.dart';
 import '../watch_party/watch_party_actions.dart';
 import '../watch_party/watch_party_providers.dart';
 import '../watch_party/watch_party_session.dart';
+import 'pause_screen.dart';
 import 'player_commands.dart';
 import 'player_controller.dart';
 import 'player_extras.dart';
@@ -183,6 +184,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void _onFirstFrame() {
     _firstFrameTimer?.cancel();
     if (mounted && !_firstFrame) setState(() => _firstFrame = true);
+  }
+
+  /// Dice al controller dell'interfaccia se si sta guardando e se la
+  /// schermata di pausa è ammessa adesso (spec D §11.1): file pronto e
+  /// fermo, niente buffering, video non finito, elemento arrivato, gruppo
+  /// non in attesa.
+  void _syncPlayback() {
+    final view = ref.read(playerControllerProvider(widget.args));
+    final party = _inParty ? ref.read(watchPartySessionProvider) : null;
+    final groupWaiting = party != null &&
+        party.inGroup &&
+        party.groupState == GroupState.waiting;
+    _chrome.setPlayback(
+      playing: view.playing,
+      canShowPauseScreen: view.status == PlayerStatus.ready &&
+          !view.playing &&
+          !view.buffering &&
+          !view.finished &&
+          view.item != null &&
+          !groupWaiting,
+    );
   }
 
   Future<void> _toggleFullscreen() async {
@@ -420,6 +442,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         altPressed: HardwareKeyboard.instance.isAltPressed,
         mediaKeys: !_mediaSession.handlesMediaKeys);
     if (command == null) return KeyEventResult.ignored;
+    _chrome.keyActivity();
     _run(command);
     return KeyEventResult.handled;
   }
@@ -530,9 +553,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (finished) _onFinished();
     });
     ref.listen(provider.select((s) => s.playing), (_, playing) {
-      _chrome.setPlayback(playing: playing);
+      _syncPlayback();
       unawaited(_mediaSession.setPlaying(playing));
     });
+    ref.listen(
+        provider.select(
+            (s) => (s.status, s.buffering, s.finished, s.item != null)),
+        (_, _) => _syncPlayback());
     ref.listen(provider.select((s) => s.item), (_, item) {
       if (item != null) _publishMetadata(item);
     });
@@ -576,6 +603,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           (_, members) => unawaited(_mediaSession.setParty(members)));
     }
     if (_inParty) {
+      ref.listen(
+          watchPartySessionProvider.select(
+              (s) => s.inGroup && s.groupState == GroupState.waiting),
+          (_, _) => _syncPlayback());
       ref.listen(
           watchPartySessionProvider.select((s) => s.inGroup && s.hasNext),
           (_, hasNext) {
@@ -664,6 +695,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             !view.buffering,
                         onResume: () => unawaited(controller.play()),
                       ),
+                    ),
+                  ),
+                // "Stai guardando" sopra il fermo immagine, sotto i
+                // controlli (spec D §11).
+                if (view.status == PlayerStatus.ready && view.item != null)
+                  Positioned.fill(
+                    key: const ValueKey('player-pause-layer'),
+                    child: ExcludeFocus(
+                      child: PauseScreen(
+                          item: view.item!, visible: _chrome.pauseScreen),
                     ),
                   ),
                 if (view.status == PlayerStatus.error)

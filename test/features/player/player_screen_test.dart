@@ -346,6 +346,62 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('pausa: dopo 8 s senza mouse né tasti, "Stai guardando"',
+      (tester) async {
+    library.itemsById['e4'] = testItem(
+      id: 'e4',
+      name: 'Pilot',
+      kind: ItemKind.episode,
+      seriesName: 'Breaking Bad',
+      seriesId: 's1',
+      index: 4,
+      seasonIndex: 1,
+      overview: 'Un professore scopre di essere malato.',
+    );
+    await pumpPlayer(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    await tester.pump(PlayerChromeController.pauseScreenDelay -
+        const Duration(seconds: 1));
+    expect(find.text('STAI GUARDANDO'), findsNothing);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(find.text('STAI GUARDANDO'), findsOneWidget);
+    expect(find.text('Un professore scopre di essere malato.'), findsOneWidget);
+    expect(controlsOpacity(tester), 0);
+
+    // Un tasto la chiude senza mostrare i controlli.
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pumpAndSettle();
+    expect(find.text('STAI GUARDANDO'), findsNothing);
+    expect(controlsOpacity(tester), 0);
+
+    // Di nuovo dopo 8 s; il mouse la chiude e riporta i controlli.
+    await tester.pump(PlayerChromeController.pauseScreenDelay);
+    await tester.pumpAndSettle();
+    expect(find.text('STAI GUARDANDO'), findsOneWidget);
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: const Offset(700, 400));
+    addTearDown(gesture.removePointer);
+    await gesture.moveTo(const Offset(720, 420));
+    await tester.pumpAndSettle();
+    expect(find.text('STAI GUARDANDO'), findsNothing);
+    expect(controlsOpacity(tester), 1);
+    await unmount(tester);
+  });
+
+  testWidgets('pausa: con il pannello aperto non compare', (tester) async {
+    await pumpPlayer(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    await tester.tap(find.byTooltip('Audio e sottotitoli'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 20));
+    await tester.pumpAndSettle();
+    expect(find.text('STAI GUARDANDO'), findsNothing);
+    await unmount(tester);
+  });
+
   testWidgets('pannello audio e sottotitoli; Esc lo chiude', (tester) async {
     await pumpPlayer(tester);
     await tester.tap(find.byTooltip('Audio e sottotitoli'));
