@@ -11,8 +11,10 @@ import '../../ui/smooth_scroll.dart';
 import '../../ui/staggered_entrance.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_switcher.dart';
+import '../catalog/catalog_filters_bar.dart';
 import '../library/library_providers.dart';
 import '../library/user_data.dart';
+import 'my_list_view.dart';
 
 final favoritesProvider = FutureProvider.autoDispose<List<JellyfinItem>>((ref) async {
   ref.watch(libraryRevisionProvider);
@@ -21,6 +23,8 @@ final favoritesProvider = FutureProvider.autoDispose<List<JellyfinItem>>((ref) a
           kinds: {ItemKind.movie, ItemKind.series},
           sort: CatalogSort.dateAdded,
           favoritesOnly: true,
+          // Ordine e filtri si applicano nell'app (`buildMyListView`).
+          includeSortFields: true,
         ),
         userId: ref.watch(currentUserIdProvider),
         startIndex: 0,
@@ -28,6 +32,10 @@ final favoritesProvider = FutureProvider.autoDispose<List<JellyfinItem>>((ref) a
       );
   return page.items;
 });
+
+/// Spazio della barra dei filtri mentre la lista si carica (altezza dei
+/// menu più lo spazio sotto): lo scheletro sta dove sarà la griglia.
+const _filtersBarSpace = 40.0 + 16;
 
 class MyListScreen extends ConsumerStatefulWidget {
   const MyListScreen({super.key});
@@ -39,11 +47,24 @@ class MyListScreen extends ConsumerStatefulWidget {
 class _MyListScreenState extends ConsumerState<MyListScreen> {
   final _scroll = SmoothScrollController();
 
+  /// Ordinamento e filtri scelti: si applicano alla lista già caricata.
+  ItemQuery _filters = myListInitialFilters;
+
+  /// Cresce a ogni scelta nella barra: la griglia nuova sostituisce la
+  /// vecchia in dissolvenza e le card rientrano. Togliere un cuore non lo
+  /// cambia: il titolo sparisce e basta.
+  int _revision = 0;
+
   @override
   void dispose() {
     _scroll.dispose();
     super.dispose();
   }
+
+  void _setFilters(ItemQuery filters) => setState(() {
+        _filters = filters;
+        _revision++;
+      });
 
   @override
   Widget build(BuildContext context) {
@@ -52,69 +73,145 @@ class _MyListScreenState extends ConsumerState<MyListScreen> {
     return WfSwitcher(
       expand: true,
       child: ref.watch(favoritesProvider).when(
-          // Lo spazio del titolo resta libero: la griglia è dove sarà.
-          loading: () => const Padding(
-            key: ValueKey('loading'),
-            padding: EdgeInsets.only(top: 32 + 40 + 20),
-            child: PosterGridSkeleton(),
-          ),
-          error: (error, _) => ErrorView(
-              key: const ValueKey('error'),
-              error: error,
-              onRetry: () => ref.invalidate(favoritesProvider)),
-          data: (items) {
-            // Tolti dal cuore in questa sessione: spariscono subito.
-            final visible = items
-                .where((i) => (overrides[i.id] ?? i.userData).isFavorite)
-                .toList();
-            return CustomScrollView(
-              key: const ValueKey('data'),
-              controller: _scroll,
-              slivers: [
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(32, 32, 32, 20),
-                  sliver: SliverToBoxAdapter(
-                    child: Text(l.navMyList.toUpperCase(), style: WfText.display(40)),
-                  ),
-                ),
-                if (visible.isEmpty)
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    sliver: SliverToBoxAdapter(
-                      child: Text(l.myListEmpty,
-                          style: const TextStyle(color: WfColors.creamMuted)),
-                    ),
-                  )
-                else
-                  BatchedEntrance(
-                    itemCount: visible.length,
-                    child: SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
-                      sliver: SliverGrid(
-                        gridDelegate:
-                            const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 180,
-                          mainAxisSpacing: 24,
-                          crossAxisSpacing: 16,
-                          childAspectRatio: 0.55,
-                        ),
-                        delegate: SliverChildBuilderDelegate(
-                          (context, i) => BatchedEntranceItem(
-                            index: i,
-                            child: PosterCard(
-                              item: visible[i],
-                              heroSource: 'mylist.$i',
-                            ),
-                          ),
-                          childCount: visible.length,
-                        ),
-                      ),
-                    ),
-                  ),
+            // Lo spazio di titolo e barra resta libero: la griglia è dove
+            // sarà.
+            loading: () => Column(
+              key: const ValueKey('loading'),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _title(l),
+                const SizedBox(height: _filtersBarSpace),
+                const Expanded(child: PosterGridSkeleton()),
               ],
-            );
-          },
-        ),
+            ),
+            error: (error, _) => ErrorView(
+                key: const ValueKey('error'),
+                error: error,
+                onRetry: () => ref.invalidate(favoritesProvider)),
+            data: (items) {
+              final view = buildMyListView(items, _filters, overrides);
+              if (view.listEmpty) return _empty(l);
+              return KeyedSubtree(
+                key: const ValueKey('data'),
+                child: Builder(builder: (context) => _content(context, l, view)),
+              );
+            },
+          ),
     );
   }
+
+  /// Titolo della pagina; con [count] anche il numero dei titoli mostrati,
+  /// come nel catalogo.
+  Widget _title(AppLocalizations l, {int count = 0}) => Padding(
+        padding: const EdgeInsets.fromLTRB(32, 16, 32, 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(l.navMyList.toUpperCase(), style: WfText.display(40)),
+            if (count > 0) ...[
+              const SizedBox(width: 16),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(l.catalogCount(count),
+                    style: const TextStyle(color: WfColors.creamMuted)),
+              ),
+            ],
+          ],
+        ),
+      );
+
+  /// Nessun preferito: niente barra né conteggio.
+  Widget _empty(AppLocalizations l) => Column(
+        key: const ValueKey('empty'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _title(l),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(l.myListEmpty,
+                style: const TextStyle(color: WfColors.creamMuted)),
+          ),
+        ],
+      );
+
+  Widget _content(BuildContext context, AppLocalizations l, MyListView view) {
+    // Ricaricando la lista, la pagina vecchia sfuma mentre arriva la nuova:
+    // `_scroll` va solo alla griglia che entra in entrambi i `WfSwitcher`.
+    final leaving = WfSwitcher.isOutgoing(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _title(l, count: view.items.length),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: CatalogFiltersBar(
+            filters: view.options,
+            query: _filters,
+            onChanged: _setFilters,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Expanded(
+          child: WfSwitcher(
+            expand: true,
+            child: view.items.isEmpty
+                ? _noResults(l)
+                : KeyedSubtree(
+                    key: ValueKey(('grid', _revision)),
+                    child: Builder(
+                      builder: (context) => _grid(view.items,
+                          attachScroll:
+                              !leaving && !WfSwitcher.isOutgoing(context)),
+                    ),
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _noResults(AppLocalizations l) => Center(
+        key: const ValueKey('no-results'),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(l.catalogEmpty,
+                style: const TextStyle(color: WfColors.creamMuted)),
+            if (_filters.hasFilters)
+              TextButton(
+                onPressed: () => _setFilters(_filters.clearFilters()),
+                child: Text(l.catalogClearFilters),
+              ),
+          ],
+        ),
+      );
+
+  Widget _grid(List<JellyfinItem> items, {required bool attachScroll}) =>
+      BatchedEntrance(
+        itemCount: items.length,
+        child: CustomScrollView(
+          controller: attachScroll ? _scroll : null,
+          primary: false,
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
+              sliver: SliverGrid(
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 180,
+                  mainAxisSpacing: 24,
+                  crossAxisSpacing: 16,
+                  childAspectRatio: 0.55,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, i) => BatchedEntranceItem(
+                    index: i,
+                    child: PosterCard(item: items[i], heroSource: 'mylist.$i'),
+                  ),
+                  childCount: items.length,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
 }

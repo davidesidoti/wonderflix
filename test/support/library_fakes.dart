@@ -168,6 +168,10 @@ JellyfinItem testItem({
   List<Map<String, dynamic>> people = const [],
   List<Map<String, dynamic>> trailers = const [],
   int localTrailers = 0,
+  List<String> genres = const [],
+  double? rating,
+  String? sortName,
+  String? dateCreated,
 }) =>
     JellyfinItem.fromJson({
       'Id': id,
@@ -193,6 +197,10 @@ JellyfinItem testItem({
       'People': people,
       'RemoteTrailers': trailers,
       'LocalTrailerCount': localTrailers,
+      if (genres.isNotEmpty) 'Genres': genres,
+      'CommunityRating': ?rating,
+      'SortName': ?sortName,
+      'DateCreated': ?dateCreated,
     });
 
 ItemPage pageOf(List<JellyfinItem> items, [int? total]) =>
