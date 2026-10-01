@@ -1,7 +1,7 @@
 # WonderFlix — Spec D: rinnovo del player
 
 - **Data:** 2026-10-01
-- **Stato:** approvato in brainstorming, in attesa di revisione finale
+- **Stato:** realizzato nei piani 8a, 8b e 8c (`docs/superpowers/plans/2026-10-01-wonderflix-08a-player-fondamenta-controlli.md`, `…-08b-player-momenti.md`, `…-08c-player-fine-episodio-party.md`), provato dall'utente
 - **Ambito:** Spec D. Porta nel player il linguaggio dello Spec C (`2026-09-30-wonderflix-rinnovo-grafico-design.md`, token `WfMotion`, livello completo/ridotto), che lo aveva escluso. Si appoggia allo Spec A (`2026-09-29-wonderflix-client-core-design.md`, player) e allo Spec B (`2026-09-30-wonderflix-watch-party-design.md`, §7 interfaccia del watch party nel player), tutti realizzati (v0.3.1).
 
 ## 1. Obiettivo
@@ -70,7 +70,7 @@ Stato:
 - `controlsVisible`: controlli mostrati.
 - `pauseScreen`: schermata "Stai guardando" mostrata.
 - `panelOpen`: pannello Audio e sottotitoli aperto.
-- `postPlayDismissed`: l'utente ha chiuso il post-play o la scheda ("Guarda i titoli", "Annulla", Esc).
+- `postPlayDismissed`: l'utente ha chiuso il post-play o la scheda ("Guarda i titoli", "Annulla", Esc, clic sul film piccolo); per quell'episodio non tornano.
 - `feedback`: riscontro corrente di un tasto (`PlayerFeedback?`, vedi §9), con la somma dei salti.
 
 Ingressi (chiamati da `PlayerScreen`):
@@ -82,7 +82,13 @@ Ingressi (chiamati da `PlayerScreen`):
 - `seek(step, from:, duration:)`: il salto da tastiera. I salti nella stessa direzione entro **1 s** (`seekSumWindow`) si sommano: l'offset è la somma e l'arrivo parte da quello del salto precedente (non dalla posizione del motore, che può non essersi ancora mossa), tra 0 e la durata. Poi mostra il riscontro con `showFeedback`.
 - `isRecentKeyAction(PartyNoticeKind)`: per il watch party (vedi §9.3), dice se nell'ultimo secondo (`keyActionWindow`) un tasto ha fatto la stessa azione di gruppo: pausa, ripresa o salto. Le azioni da tastiera si ricordano **per tipo** (l'ultimo Spazio con il suo stato, l'ultimo salto), non solo l'ultimo riscontro: ← seguito da ↑ o da Spazio non fa dimenticare il salto, il cui avviso "Hai…" arriva anche 400 ms dopo.
 - `keyActivity()`: un tasto premuto chiude la schermata di pausa e riparte da capo con gli 8 s, **senza** mostrare i controlli.
-- `dismissPostPlay()`.
+- `dismissPostPlay()`: chiude post-play o scheda (vale per entrambi); i controlli tornano e riparte il loro conto.
+
+**Il controller non ha uno stato `postPlay`.** Post-play e scheda li calcola `PlayerScreen`:
+
+- tiene una zona di fine episodio, `_endZone` (`EndZone`: `none`, `credits`, `lastSeconds`; `endZoneAt` in `segments.dart`), ricalcolata da `_updateEndZone` con la posizione del motore, la durata e i segmenti di adesso (ognuno può arrivare per ultimo, per esempio i segmenti a video fermo nei titoli). Cambia poche volte: solo allora la schermata si ricostruisce;
+- il post-play è la zona `credits`, la scheda la zona `lastSeconds`; per entrambi serve anche un episodio successivo (nel gruppo il prossimo della coda, `WatchPartyState.nextEntry`), il player in stato `ready` e l'offerta non chiusa (`postPlayDismissed`);
+- il post-play può comparire o sparire anche senza un cambio di zona (aggiornamento della coda del gruppo, uscita dal gruppo, episodio successivo arrivato tardi, stato del file). Quando compare, **per qualsiasi motivo**, il pannello si chiude e la schermata di pausa si rivaluta: lo fa un `addPostFrameCallback` in `build`, che confronta il post-play di adesso con quello dell'ultima costruzione (`_postPlayWasShown`).
 
 Usa `clock` e `Timer` cancellabili, quindi si prova con `fake_async`. In `dispose` cancella tutti i timer.
 
@@ -90,14 +96,14 @@ Usa `clock` e `Timer` cancellabili, quindi si prova con `fake_async`. In `dispos
 
 Ogni strato è un widget nel suo file in `lib/features/player/`, montato nello `Stack` di `PlayerScreen` in quest'ordine (dal basso):
 
-1. video (`engine.buildView()`, dentro il `Transform` del post-play, §12.1);
+1. video (`engine.buildView()`, dentro `PostPlayFrame` che lo rimpicciolisce nel post-play, §12.1);
 2. `player_loading.dart`: `BufferingSpinner` (spinner del buffering, §10.2);
 3. `PartyWaitingOverlay` (§15.3);
 4. `pause_screen.dart`: `PauseScreen` (§11);
 5. `PlayerOverlay` (controlli, §7–8), oppure `PlayerErrorLayer` (errore, §10.3) al suo posto;
 6. `player_loading.dart`: `PlayerLoadingLayer` (caricamento, §10.1), sopra i controlli: durante il caricamento i controlli sono nascosti e la freccia per uscire sta nello strato;
-7. `skip_button.dart`: `SkipSegmentButton` (§13) e la scheda piccola del prossimo episodio (§12.2);
-8. `post_play.dart`: `PostPlayLayer` (informazioni del post-play, §12.1);
+7. `skip_button.dart`: `SkipSegmentButton` (§13), e subito sopra la scheda piccola del prossimo episodio (`NextEpisodeCard` in `player_extras.dart`, §12.2): due strati distinti;
+8. `post_play.dart`: `PostPlayLayer` (informazioni del post-play, §12.1). Questo strato (sempre nello `Stack`) e quello della scheda piccola (con il player `ready`) sono due **posti fissi**: quello che cambia è il contenuto, dentro un `AnimatedSwitcher` (§12.1);
 9. `player_pill.dart`: `PlayerPill` (§9);
 10. `tracks_panel.dart`: `TracksPanelHost` con il `TracksPanel` laterale (§14).
 
@@ -111,7 +117,7 @@ Ogni strato ha una `ValueKey`: i figli dello `Stack` si abbinano per posizione, 
 - **`PlayerController`:**
   - espone i salti automatici di intro e riassunto (`Stream<SkipKind> autoSkips`) per la pillola (§9);
   - `setSubtitleScale(double)`: applica subito la dimensione al motore e la salva in `playerSettingsProvider` (§14).
-- **`segments.dart`:** `nextEpisodeCardFrom` si divide in `outroStart(segments)` (inizio dell'`Outro`, o `null`) e nella regola dei 30 s per la scheda senza `Outro`.
+- **`segments.dart`:** `outroStart(segments)` (inizio dell'`Outro`, o `null`); `nextEpisodeCardFrom` (da quando si propone l'episodio successivo, e da quando quello lasciato conta come visto: l'`Outro` se c'è, altrimenti gli ultimi 30 s, `null` se la durata non è nota); `EndZone` (`none`, `credits`, `lastSeconds`) ed `endZoneAt(segmenti, durata, posizione)`, che dicono a `PlayerScreen` se mostrare il post-play, la scheda piccola o niente (§5.1).
 - **`PartyNotices`:** `mine` riceve `{bool show = true}`: con `show: false` registra l'eco senza mostrare l'avviso (§9.3). Il resto della logica non cambia.
 
 ## 6. Movimento e prestazioni
@@ -128,7 +134,7 @@ Tutto passa da `WfMotion` (`lib/app/motion.dart`), comprese le durate oggi scrit
 | Barra (altezze), cursore, spunta, anteprima | `fast` | `emphasized` / `bounce` |
 | Voci del pannello, errore, attesa del gruppo | scaglionate di 40 ms (pannello) o `WfMotion.stagger` | `emphasized` |
 
-Le animazioni continue esistono solo dove indicano un'attesa: spinner, linea del caricamento (periodo `loadingLinePeriod` = 1,2 s), clessidra dell'attesa del gruppo (periodo `hourglassPeriod` = 2,4 s). I periodi sono costanti nominate e commentate.
+Le animazioni continue esistono solo dove indicano un'attesa: spinner, linea del caricamento (periodo `loadingLinePeriod` = 1,2 s), clessidra dell'attesa del gruppo (periodo `hourglassPeriod` = 2,4 s) e puntini (`waitingDotsPeriod` = 1,2 s), riempimento oro del conto alla rovescia di "Riproduci ora" (a passi lineari di 1 s, uno per secondo del conto: chiede fotogrammi finché il conto corre, §12.1). I periodi sono costanti nominate e commentate.
 
 ### 6.2 Livello ridotto
 
@@ -136,7 +142,8 @@ Con **Animazioni → Ridotte** (o "Come Windows" con gli effetti spenti):
 
 - niente scivolamenti, rimbalzi né scale: solo dissolvenze di `fast` (150 ms);
 - il film passa alla posizione del post-play in `fast`;
-- clessidra e puntini dell'attesa del gruppo fermi; spinner e linea del caricamento restano (indicano un'attesa).
+- clessidra e puntini dell'attesa del gruppo fermi; spinner e linea del caricamento restano (indicano un'attesa);
+- il riempimento del conto alla rovescia non si muove tra un secondo e l'altro: scatta di un passo a ogni secondo.
 
 ### 6.3 Ingresso e uscita dal player
 
@@ -278,19 +285,28 @@ Vale anche nel watch party, quando il gruppo è in pausa.
 
 ### 12.1 Post-play (solo con segmento `Outro`)
 
-**Quando:** c'è un episodio successivo (nel party: è il prossimo della coda, come oggi), la posizione è ≥ `outroStart`, e il post-play non è stato chiuso.
+**Quando:** la zona di fine episodio è `credits` (la posizione è ≥ `outroStart`), c'è un episodio successivo (nel party: è il prossimo della coda, come oggi), il player è `ready` e il post-play non è stato chiuso. `PlayerScreen` lo ricalcola dalla posizione, dalla durata e dai segmenti (§5.1).
 
 **Movimento e disposizione:**
 
-- Il film si rimpicciolisce al **42%** della finestra, ancorato in alto a sinistra con 32 px di margine, angoli arrotondati (12 px) e un bordo crema sottile (`slow` / `emphasized`; `Transform` + `ClipRRect`).
+- Il film si rimpicciolisce al **42%** della finestra, ancorato in alto a sinistra con 32 px di margine, angoli arrotondati (12 px) e un bordo crema sottile (`slow` / `emphasized`; `Transform` + `ClipRRect` in `PostPlayFrame`). Il `Transform` sposta anche il bersaglio dei clic.
 - I controlli si nascondono e non ricompaiono con il mouse; il cursore resta visibile.
-- Sotto il film, a sinistra (`PostPlayLayer`, entra sfumando in `medium` quando il rimpicciolimento è a metà): "PROSSIMO EPISODIO" in oro; il nome della serie in Bebas; "S1:E4 · Titolo"; la trama (3 righe); i pulsanti.
-- A destra: l'immagine grande dell'episodio (`urls.landscape(next)`, 16:9, angoli arrotondati, ombra), larga circa il 50% della finestra.
+- Se all'inizio dei titoli il pannello "Audio e sottotitoli" è aperto, **il pannello si chiude** (vale ogni volta che il post-play compare, §5.1).
+- Sotto il film, a sinistra (`PostPlayLayer`, entra sfumando in `medium` quando il rimpicciolimento è a metà): "PROSSIMO EPISODIO" in oro; il nome della serie in Bebas; "S1:E4 · Titolo"; la trama (al massimo 3 righe); i pulsanti. La colonna è larga quanto il film piccolo e arriva fino a 32 px dal fondo.
+- **Quando lo spazio non basta (finestra bassa, testo grande) cede la trama**: restano solo le righe intere che entrano (fino a 3, con i puntini sull'ultima), e se non ne entra nessuna la trama sparisce. Titoli e pulsanti restano sempre visibili.
+- A destra: l'immagine grande dell'episodio (`urls.landscape(next)`, 16:9, angoli arrotondati, ombra), che riempie lo spazio rimasto a destra del film piccolo (circa la metà della finestra) ed è **limitata nei due sensi**: in una finestra molto larga non esce dal fondo.
+- **I due posti** (post-play e scheda piccola) hanno un `AnimatedSwitcher` ciascuno (chiave: l'episodio successivo). Il contenuto nuovo è subito opaco (`switchInCurve` `Threshold(0)`), perché ha già la sua entrata e altrimenti sfumerebbe due volte; quando esce, sfuma in `fast`.
 
 **Pulsanti:**
 
-- **"Riproduci ora"** (primario): da soli con "Avvia automaticamente il prossimo episodio" il fondo si riempie d'oro in **10 s** e l'etichetta conta ("Riproduci ora · 7"); il conto si ferma in pausa e durante il buffering; a zero parte l'episodio. Senza l'impostazione, o nel watch party, niente conto alla rovescia. Nel party il pulsante fa passare il gruppo all'elemento dopo (`nextItem`, come oggi).
-- **"Guarda i titoli"** (secondario): il film torna a tutto schermo (`slow`) e il post-play si chiude. Lo stesso con Esc o con un clic sul film piccolo.
+- **"Riproduci ora"** (primario, `PlayNowButton` in `player_extras.dart`, lo stesso della scheda piccola):
+  - da soli con "Avvia automaticamente il prossimo episodio" il fondo si riempie d'oro in **10 s** (da sinistra; la parte ancora da riempire è oro al 35%) e l'etichetta conta ("Riproduci ora · 7"); a zero parte l'episodio. Senza l'impostazione, o nel watch party, niente conto alla rovescia. Nel party il pulsante fa passare il gruppo all'elemento dopo (`nextItem`, come oggi);
+  - il conto è un `Timer` al secondo, fermo in pausa e durante il buffering;
+  - **con le animazioni complete il riempimento è continuo**: a ogni secondo parte un passo lineare di 1 s che arriva al passo successivo proprio quando il secondo scatta. In pausa o durante il buffering il fondo torna in `fast` sull'ultimo passo compiuto, e alla ripresa il secondo riparte da zero. Con le animazioni ridotte il fondo scatta di un passo a ogni secondo e **tra un secondo e l'altro non si muove**, quindi non chiede fotogrammi;
+  - l'etichetta ha due toni, divisi dove arriva il fondo: crema sulla parte non riempita, scura sull'oro;
+  - l'altezza segue la densità del tema, come `WfButton` (44 px, 36 con la densità compatta di Windows); la larghezza è riservata per l'etichetta più larga ("· 10"), così non balla a ogni secondo;
+  - **agisce solo se l'offerta è ancora mostrata** (`PlayerScreen._playOffered`), sia con il clic sia allo scadere del conto: uscendo, il pulsante resta montato un attimo dentro l'`AnimatedSwitcher`, e il suo conto potrebbe scadere dopo che l'utente ha chiuso il post-play.
+- **"Guarda i titoli"** (secondario): il film torna a tutto schermo (`slow`) e il post-play si chiude. Lo stesso con Esc (a video non finito) o con un clic sul film piccolo; **un clic sullo sfondo fuori dal film piccolo non fa nulla**.
 
 **A fine video:**
 
@@ -298,21 +314,24 @@ Vale anche nel watch party, quando il gruppo è in pausa.
 - post-play aperto, da soli e senza conto alla rovescia: **si resta sul post-play** (film piccolo fermo sull'ultimo fotogramma) finché non si sceglie; Esc o "indietro" escono;
 - nel watch party: si passa all'elemento dopo come oggi.
 
-La schermata di pausa non compare durante il post-play; tasti e pillola continuano a funzionare.
+La schermata di pausa non compare durante il post-play (se compare quando è già in pausa, si chiude); tasti e pillola continuano a funzionare.
 
 ### 12.2 Scheda piccola (senza segmento `Outro`)
 
-- Negli **ultimi 30 s** compare la scheda attuale in basso a destra (`NextEpisodeCard`), rinnovata: entra da destra di 40 px con `bounce` (`medium`), esce in `fast`.
-- Il conto alla rovescia diventa il riempimento oro di "Riproduci ora · N" (stesse regole di §12.1); "Annulla" resta e chiude la scheda.
+- Negli **ultimi 30 s** (zona `lastSeconds`, stesse condizioni di §12.1 sull'episodio successivo) compare la scheda attuale in basso a destra (`NextEpisodeCard`), rinnovata: entra da destra di 40 px con `bounce` (`medium`), esce in `fast`.
+- Il conto alla rovescia diventa il riempimento oro di "Riproduci ora · N" (`PlayNowButton`, stesse regole di §12.1, compreso il fatto che agisce solo se la scheda è ancora mostrata); "Annulla" resta e chiude la scheda. Anche Esc la chiude, come "Annulla".
 - Il film resta a tutto schermo.
 
 ## 13. "Salta intro" / "Salta riassunto" (`SkipSegmentButton`)
 
 - Stessa posizione di oggi (in basso a destra, visibile anche a controlli nascosti).
 - Entra da destra di 40 px (`medium` / `bounce`), esce in `fast`.
-- Una linea oro alla base del pulsante si accorcia con il tempo che manca alla fine del segmento.
+- Una linea oro (3 px, con gli angoli in basso arrotondati come il pulsante) alla base si accorcia con il tempo che manca alla fine del segmento; il pulsante segue la posizione del motore e ridisegna la linea solo se cambia di almeno lo 0,5%.
 - Al passaggio del mouse: alone oro e scala 1,03 (come `WfButton`).
-- Con "Salta automaticamente intro e riassunti" il salto avviene da solo (come oggi) e la pillola dice "Intro saltata" / "Riassunto saltato".
+- Con "Salta automaticamente intro e riassunti" il salto avviene da solo (come oggi: solo da soli, una volta per segmento) e la pillola lo dice:
+  - `PlayerController.autoSkips` è un `Stream<SkipKind>` (broadcast) che emette `intro` o `recap` a ogni salto automatico;
+  - `PlayerScreen` lo ascolta e chiama `showFeedback(SkipFeedback(kind))` sul `PlayerChromeController`;
+  - `PlayerPill` mostra l'icona `skipForward` e "Intro saltata" / "Riassunto saltato" (§9.2). Il salto manuale con il pulsante non ha pillola.
 
 ## 14. Pannello "Audio e sottotitoli" (`TracksPanel`)
 
@@ -348,14 +367,15 @@ Gli avvisi passano nella `PlayerPill` (§9.3) con i testi di oggi (`partyNoticeT
 
 ### 15.2 Badge
 
-- Le iniziali dei membri (`MemberAvatar`, sovrapposte di 8 px; al massimo 3, poi "+N") accanto a "Watch party · N".
-- Chi entra compare con un "pop" (`bounce`), chi esce si restringe; il badge fa un piccolo sobbalzo (scala 1,08) a ogni cambio.
+- Le iniziali dei membri sono `MemberAvatarStack` (di `MemberAvatar`, sovrapposte di 8 px; al massimo 3, poi "+N") accanto a "Watch party · N", **solo nel badge del player** (`PartyBadge`). Il chip della barra in alto (`PartyChip`, in `watch_party_button.dart`) resta com'è, senza iniziali.
+- Chi entra compare con un "pop" (`bounce`; con le animazioni ridotte sfuma soltanto). Chi esce fa stringere la fila: la larghezza si adatta con un `AnimatedSize` (`medium` / `emphasized`), senza una dissolvenza a parte.
+- Il badge fa un piccolo sobbalzo (scala 1,08: sale nel primo 40% del tempo con `decelerate`, poi torna a 1 con `bounce`; `medium` in tutto) a ogni cambio del numero di membri. Con le animazioni ridotte non c'è sobbalzo.
 - Il menu dei membri usa `wfPopUpAnimation` (`lib/ui/wf_menus.dart`), come gli altri menu dell'app.
 
 ### 15.3 Attesa del gruppo (`PartyWaitingOverlay`)
 
-- Compare dopo 1 s come oggi, ma sfumando (`medium`).
-- La clessidra si gira ogni `hourglassPeriod`; tre puntini oro pulsano; testo e pulsante "Riprendi senza aspettare" entrano scaglionati.
+- Compare dopo 1 s come oggi, ma sfumando (`medium`); sfuma via in `fast` e, sparita, non è nell'albero.
+- La clessidra sta ferma per il 70% del periodo e poi si gira (`hourglassPeriod`); tre puntini oro pulsano uno dopo l'altro (`waitingDotsPeriod`); clessidra, testo, puntini e pulsante "Riprendi senza aspettare" entrano scaglionati.
 - Con il livello ridotto clessidra e puntini restano fermi.
 
 ## 16. Testi nuovi (ARB, it + en)
@@ -380,7 +400,7 @@ Gli avvisi passano nella `PlayerPill` (§9.3) con i testi di oggi (`partyNoticeT
 - **Pannello:** voci e chiusure; la dimensione chiama il motore e si salva nelle impostazioni.
 - **Watch party:** icone degli avvisi; badge con iniziali e "+N"; attesa con livello ridotto ferma.
 - Si adattano i test esistenti del player (`player_overlay_test`, `player_screen_test`, `seek_bar_test`, `tracks_panel_test`, `player_extras_test`) e del watch party nel player.
-- `pumpApp` resta in modalità ridotta. Con le animazioni continue visibili (linea del caricamento, spinner, clessidra) **mai** `pumpAndSettle`: si avanza con `pump(durata)`.
+- `pumpApp` resta in modalità ridotta. Con le animazioni continue visibili (linea del caricamento, spinner, clessidra e puntini) **mai** `pumpAndSettle`: si avanza con `pump(durata)`. Vale anche per il conto alla rovescia di `PlayNowButton` con `MotionLevel.full`: il riempimento è continuo finché il conto corre, e `pumpAndSettle` lo farebbe arrivare a zero (e partire l'episodio). Con le animazioni ridotte (il caso di `pumpApp`) tra un secondo e l'altro non si muove nulla.
 
 ## 18. Piani e release
 
