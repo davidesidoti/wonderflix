@@ -14,7 +14,7 @@ void main() {
       var notified = 0;
       chrome.addListener(() => notified++);
       expect(chrome.controlsVisible, isTrue);
-      chrome.setPlaying(true);
+      chrome.setPlayback(playing: true);
       async.elapse(const Duration(milliseconds: 2900));
       expect(chrome.controlsVisible, isTrue);
       async.elapse(const Duration(milliseconds: 100));
@@ -35,9 +35,9 @@ void main() {
 
   test('in pausa i controlli restano', () {
     fakeAsync((async) {
-      final chrome = PlayerChromeController()..setPlaying(true);
+      final chrome = PlayerChromeController()..setPlayback(playing: true);
       async.elapse(const Duration(seconds: 1));
-      chrome.setPlaying(false);
+      chrome.setPlayback(playing: false);
       async.elapse(const Duration(seconds: 10));
       expect(chrome.controlsVisible, isTrue);
       chrome.dispose();
@@ -46,7 +46,7 @@ void main() {
 
   test('pannello aperto: i controlli restano; chiuso, il conto riparte', () {
     fakeAsync((async) {
-      final chrome = PlayerChromeController()..setPlaying(true);
+      final chrome = PlayerChromeController()..setPlayback(playing: true);
       async.elapse(const Duration(seconds: 5));
       expect(chrome.controlsVisible, isFalse);
       chrome.togglePanel();
@@ -65,7 +65,7 @@ void main() {
   test('riscontro: resta 1,2 s dall\'ultimo tasto e non mostra i controlli',
       () {
     fakeAsync((async) {
-      final chrome = PlayerChromeController()..setPlaying(true);
+      final chrome = PlayerChromeController()..setPlayback(playing: true);
       async.elapse(const Duration(seconds: 3));
       chrome.showFeedback(const VolumeFeedback(volume: 70, muted: false));
       expect(chrome.feedback, isA<VolumeFeedback>());
@@ -183,10 +183,117 @@ void main() {
     });
   });
 
+  test('in pausa, 8 s senza mouse né tasti: schermata di pausa', () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController();
+      var notified = 0;
+      chrome.addListener(() => notified++);
+      chrome.setPlayback(playing: false, canShowPauseScreen: true);
+      async.elapse(PlayerChromeController.pauseScreenDelay -
+          const Duration(milliseconds: 100));
+      expect(chrome.pauseScreen, isFalse);
+      async.elapse(const Duration(milliseconds: 100));
+      expect(chrome.pauseScreen, isTrue);
+      expect(chrome.controlsVisible, isFalse);
+      expect(notified, 1);
+      chrome.dispose();
+    });
+  });
+
+  test('pausa: il mouse la chiude e riporta i controlli; il conto riparte',
+      () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController()
+        ..setPlayback(playing: false, canShowPauseScreen: true);
+      async.elapse(PlayerChromeController.pauseScreenDelay);
+      chrome.pointerActivity();
+      expect(chrome.pauseScreen, isFalse);
+      expect(chrome.controlsVisible, isTrue);
+      async.elapse(PlayerChromeController.pauseScreenDelay);
+      expect(chrome.pauseScreen, isTrue);
+      chrome.dispose();
+    });
+  });
+
+  test('pausa: un tasto la chiude senza mostrare i controlli', () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController()
+        ..setPlayback(playing: false, canShowPauseScreen: true);
+      async.elapse(PlayerChromeController.pauseScreenDelay);
+      chrome.keyActivity();
+      expect(chrome.pauseScreen, isFalse);
+      expect(chrome.controlsVisible, isFalse);
+      async.elapse(const Duration(seconds: 4));
+      chrome.keyActivity(); // il conto riparte dal tasto
+      async.elapse(const Duration(seconds: 7));
+      expect(chrome.pauseScreen, isFalse);
+      async.elapse(const Duration(seconds: 1));
+      expect(chrome.pauseScreen, isTrue);
+      chrome.dispose();
+    });
+  });
+
+  test('pausa non ammessa: niente schermata; se smette di esserlo si chiude',
+      () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController()
+        ..setPlayback(playing: false, canShowPauseScreen: false);
+      async.elapse(const Duration(seconds: 20));
+      expect(chrome.pauseScreen, isFalse);
+      expect(chrome.controlsVisible, isTrue);
+
+      chrome.setPlayback(playing: false, canShowPauseScreen: true);
+      async.elapse(PlayerChromeController.pauseScreenDelay);
+      expect(chrome.pauseScreen, isTrue);
+      chrome.setPlayback(playing: false, canShowPauseScreen: false);
+      expect(chrome.pauseScreen, isFalse);
+      chrome.dispose();
+    });
+  });
+
+  test('pausa: la ripresa la chiude', () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController()
+        ..setPlayback(playing: false, canShowPauseScreen: true);
+      async.elapse(PlayerChromeController.pauseScreenDelay);
+      chrome.setPlayback(playing: true);
+      expect(chrome.pauseScreen, isFalse);
+      chrome.dispose();
+    });
+  });
+
+  test('pausa: con il pannello aperto non compare', () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController()
+        ..setPlayback(playing: false, canShowPauseScreen: true)
+        ..togglePanel();
+      async.elapse(const Duration(seconds: 20));
+      expect(chrome.pauseScreen, isFalse);
+      chrome.closePanel();
+      async.elapse(PlayerChromeController.pauseScreenDelay);
+      expect(chrome.pauseScreen, isTrue);
+      chrome.togglePanel();
+      expect(chrome.pauseScreen, isFalse, reason: 'aprire il pannello la chiude');
+      chrome.dispose();
+    });
+  });
+
+  test('stessi valori di nuovo: i conti non ripartono', () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController()..setPlayback(playing: true);
+      async.elapse(const Duration(seconds: 2));
+      chrome.setPlayback(playing: true);
+      async.elapse(const Duration(seconds: 1));
+      expect(chrome.controlsVisible, isFalse);
+      chrome.dispose();
+    });
+  });
+
   test('dispose: nessun timer in sospeso', () {
     fakeAsync((async) {
-      final chrome = PlayerChromeController()..setPlaying(true);
+      final chrome = PlayerChromeController()..setPlayback(playing: true);
       chrome.showFeedback(const PlayFeedback(playing: true));
+      chrome.setPlayback(playing: false, canShowPauseScreen: true);
       chrome.dispose();
       expect(async.pendingTimers, isEmpty);
     });

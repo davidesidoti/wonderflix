@@ -60,9 +60,17 @@ class PlayerChromeController extends ChangeNotifier {
   /// stessa azione, già mostrata dalla pillola del tasto.
   static const keyActionWindow = Duration(seconds: 1);
 
+  /// In pausa, mouse e tasti fermi per questo tempo: compare la schermata
+  /// "Stai guardando" (spec D §11.1).
+  static const pauseScreenDelay = Duration(seconds: 8);
+
   bool _controlsVisible = true;
   bool _panelOpen = false;
   bool _playing = false;
+  bool _pauseScreen = false;
+
+  /// La schermata di pausa è ammessa adesso (lo decide `PlayerScreen`).
+  bool _canShowPauseScreen = false;
   PlayerFeedback? _feedback;
 
   /// Ultimo riscontro e quando è arrivato: restano anche dopo che la
@@ -77,27 +85,52 @@ class PlayerChromeController extends ChangeNotifier {
   DateTime? _lastSeekAt;
   Timer? _hideTimer;
   Timer? _feedbackTimer;
+  Timer? _pauseTimer;
 
   bool get controlsVisible => _controlsVisible;
 
   bool get panelOpen => _panelOpen;
 
+  /// Schermata "Stai guardando" mostrata.
+  bool get pauseScreen => _pauseScreen;
+
   /// Riscontro da mostrare adesso; `null` = nessuno.
   PlayerFeedback? get feedback => _feedback;
 
-  /// Il mouse si è mosso: controlli visibili, e il conto per nasconderli
-  /// riparte.
+  /// Il mouse si è mosso: controlli visibili, schermata di pausa chiusa, e
+  /// i conti per nasconderli ripartono.
   void pointerActivity() {
-    if (!_controlsVisible) {
-      _controlsVisible = true;
+    final changed = !_controlsVisible || _pauseScreen;
+    _controlsVisible = true;
+    _pauseScreen = false;
+    if (changed) notifyListeners();
+    _scheduleHide();
+  }
+
+  /// Un tasto: chiude la schermata di pausa e fa ripartire il conto, senza
+  /// mostrare i controlli (spec D §9.1).
+  void keyActivity() {
+    if (_pauseScreen) {
+      _pauseScreen = false;
       notifyListeners();
     }
     _scheduleHide();
   }
 
-  /// Riproduzione o pausa. In pausa i controlli restano dove sono.
-  void setPlaying(bool playing) {
+  /// Riproduzione o pausa, e se la schermata di pausa è ammessa adesso:
+  /// file pronto e fermo, niente buffering, video non finito, gruppo non in
+  /// attesa (lo calcola `PlayerScreen`). In riproduzione, o se non è più
+  /// ammessa, la schermata di pausa si chiude.
+  void setPlayback({required bool playing, bool canShowPauseScreen = false}) {
+    if (playing == _playing && canShowPauseScreen == _canShowPauseScreen) {
+      return;
+    }
     _playing = playing;
+    _canShowPauseScreen = canShowPauseScreen;
+    if (_pauseScreen && (playing || !canShowPauseScreen)) {
+      _pauseScreen = false;
+      notifyListeners();
+    }
     _scheduleHide();
   }
 
@@ -106,6 +139,7 @@ class PlayerChromeController extends ChangeNotifier {
   void togglePanel() {
     _panelOpen = !_panelOpen;
     _controlsVisible = true;
+    _pauseScreen = false;
     notifyListeners();
     _scheduleHide();
   }
@@ -172,21 +206,35 @@ class PlayerChromeController extends ChangeNotifier {
     };
   }
 
-  /// I controlli si nascondono solo in riproduzione e a pannello chiuso.
+  /// In riproduzione i controlli si nascondono dopo [hideDelay]; in pausa,
+  /// se ammessa, dopo [pauseScreenDelay] compare la schermata di pausa (e i
+  /// controlli si nascondono). Con il pannello aperto nessuno dei due.
   void _scheduleHide() {
     _hideTimer?.cancel();
     _hideTimer = null;
-    if (!_playing || _panelOpen || !_controlsVisible) return;
-    _hideTimer = Timer(hideDelay, () {
-      _controlsVisible = false;
-      notifyListeners();
-    });
+    _pauseTimer?.cancel();
+    _pauseTimer = null;
+    if (_panelOpen) return;
+    if (_playing) {
+      if (!_controlsVisible) return;
+      _hideTimer = Timer(hideDelay, () {
+        _controlsVisible = false;
+        notifyListeners();
+      });
+    } else if (_canShowPauseScreen && !_pauseScreen) {
+      _pauseTimer = Timer(pauseScreenDelay, () {
+        _pauseScreen = true;
+        _controlsVisible = false;
+        notifyListeners();
+      });
+    }
   }
 
   @override
   void dispose() {
     _hideTimer?.cancel();
     _feedbackTimer?.cancel();
+    _pauseTimer?.cancel();
     super.dispose();
   }
 }

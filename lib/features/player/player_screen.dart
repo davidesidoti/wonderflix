@@ -512,7 +512,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (finished) _onFinished();
     });
     ref.listen(provider.select((s) => s.playing), (_, playing) {
-      _chrome.setPlaying(playing);
+      _chrome.setPlayback(playing: playing);
       unawaited(_mediaSession.setPlaying(playing));
     });
     ref.listen(provider.select((s) => s.item), (_, item) {
