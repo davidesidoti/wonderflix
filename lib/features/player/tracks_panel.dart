@@ -337,7 +337,7 @@ class _TracksPanelHostState extends State<TracksPanelHost>
     reverseDuration: WfMotion.fast,
     value: widget.open ? 1 : 0,
   );
-  late final Animation<double> _progress = CurvedAnimation(
+  late final CurvedAnimation _progress = CurvedAnimation(
     parent: _controller,
     curve: WfMotion.emphasized,
     reverseCurve: WfMotion.accelerate,
@@ -363,6 +363,8 @@ class _TracksPanelHostState extends State<TracksPanelHost>
 
   @override
   void dispose() {
+    // Prima la curva (si stacca dal controller), poi il controller.
+    _progress.dispose();
     _controller.dispose();
     super.dispose();
   }
