@@ -145,11 +145,16 @@ class FakePlaybackApi implements PlaybackApi {
 
   /// Se valorizzato, solo [mediaSegments] lancia questo errore.
   Object? segmentsError;
+
+  /// Se valorizzato, [mediaSegments] risponde solo quando si completa
+  /// (segmenti in ritardo). Va creato nel test, non nel `setUp`.
+  Completer<void>? segmentsGate;
   final segmentsCalls = <String>[];
 
   @override
   Future<List<MediaSegment>> mediaSegments(String itemId) async {
     segmentsCalls.add(itemId);
+    await segmentsGate?.future;
     final failure = segmentsError;
     if (failure != null) throw failure;
     return segments;

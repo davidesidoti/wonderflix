@@ -966,6 +966,115 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('post-play a schermo intero: Esc lo chiude, lo schermo intero '
+      'resta', (tester) async {
+    withCredits();
+    await pumpPlayer(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+    await tester.pump();
+    expect(window.fullScreenCalls, [true]);
+    await toCredits(tester);
+    expect(shrunk(tester), isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(shrunk(tester), isFalse);
+    expect(window.fullScreenCalls, [true],
+        reason: 'prima si chiude il post-play');
+    expect(find.byTooltip('Esci da schermo intero'), findsOneWidget);
+    expect(find.text('home'), findsNothing);
+    await unmount(tester);
+  });
+
+  testWidgets('post-play: un clic fuori dal film piccolo non fa nulla',
+      (tester) async {
+    withCredits();
+    await pumpPlayer(tester);
+    await toCredits(tester);
+    // Sotto l'immagine dell'episodio, a destra delle informazioni.
+    await tester.tapAt(const Offset(1000, 700));
+    await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
+    await tester.pumpAndSettle();
+    expect(shrunk(tester), isTrue);
+    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+    expect(engine.playing, isTrue, reason: 'nemmeno la pausa');
+    await unmount(tester);
+  });
+
+  testWidgets('post-play: titoli noti arrivati a video fermo, compare senza '
+      'aspettare la posizione', (tester) async {
+    withCredits();
+    final segments = Completer<void>();
+    playback.segmentsGate = segments;
+    await pumpPlayer(tester);
+    engine.emitPosition(const Duration(hours: 1, minutes: 55, seconds: 10));
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    await tester.pump();
+    expect(shrunk(tester), isFalse, reason: 'i titoli non sono ancora noti');
+
+    segments.complete();
+    await tester.pump();
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(shrunk(tester), isTrue);
+    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+    await tester.pump(PlayerChromeController.pauseScreenDelay);
+    await tester.pumpAndSettle();
+    expect(find.text('STAI GUARDANDO'), findsNothing);
+    await unmount(tester);
+  });
+
+  /// Opacità dello strato (`AnimatedSwitcher`) attorno a [finder].
+  double slotOpacity(WidgetTester tester, Finder finder) => tester
+      .widget<FadeTransition>(find
+          .ancestor(of: finder, matching: find.byType(FadeTransition))
+          .first)
+      .opacity
+      .value;
+
+  testWidgets('scheda: lo strato non la sfuma, entra con la sua animazione',
+      (tester) async {
+    withNextEpisode();
+    await pumpPlayer(tester);
+    engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(slotOpacity(tester, find.text('PROSSIMO EPISODIO')), 1);
+    await unmount(tester);
+  });
+
+  testWidgets('post-play: lo strato non lo sfuma, entra con la sua animazione',
+      (tester) async {
+    withCredits();
+    await pumpPlayer(tester);
+    engine.emitPosition(const Duration(hours: 1, minutes: 55, seconds: 10));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(slotOpacity(tester, find.text('PROSSIMO EPISODIO')), 1);
+    await unmount(tester);
+  });
+
+  testWidgets('scheda piccola: compare quando arriva la durata, a video fermo',
+      (tester) async {
+    withNextEpisode();
+    await pumpPlayer(tester);
+    engine.emitPosition(const Duration(minutes: 59, seconds: 40));
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('PROSSIMO EPISODIO'), findsNothing);
+
+    // La durata vera è un'ora: si è già negli ultimi 30 s.
+    engine.emitDuration(const Duration(hours: 1));
+    await tester.pump();
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+    await unmount(tester);
+  });
+
   testWidgets('N a schermo intero: il successivo resta a schermo intero',
       (tester) async {
     withNextEpisode();

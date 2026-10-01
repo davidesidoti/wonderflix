@@ -341,6 +341,56 @@ void main() {
     await finish(tester);
   });
 
+  /// Titoli di coda noti di e4, dall'1:55:00.
+  const credits = [
+    MediaSegment(
+        type: MediaSegmentType.outro,
+        start: Duration(hours: 1, minutes: 55),
+        end: Duration(hours: 2)),
+  ];
+
+  testWidgets(
+      'titoli noti nel gruppo in pausa: arrivata la coda, il post-play prende '
+      'il posto di "Stai guardando"', (tester) async {
+    await pumpPartyPlayer(tester, segments: credits);
+    // Il gruppo è in pausa (il video non è partito), nei titoli di coda.
+    engine.emitPosition(const Duration(hours: 1, minutes: 55, seconds: 10));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(PlayerChromeController.pauseScreenDelay);
+    await tester.pumpAndSettle();
+    expect(find.text(l.playerWatching.toUpperCase()), findsOneWidget);
+    expect(find.text(l.playerWatchCredits), findsNothing,
+        reason: 'e5 non è ancora il prossimo della coda');
+
+    await queueSeries(tester);
+    await tester.pumpAndSettle();
+    expect(find.text(l.playerWatchCredits), findsOneWidget);
+    expect(find.text(l.playerWatching.toUpperCase()), findsNothing,
+        reason: 'niente schermata di pausa durante il post-play');
+    await finish(tester);
+  });
+
+  testWidgets('post-play nel gruppo: tolti dal gruppo, compare il conto alla '
+      'rovescia', (tester) async {
+    await pumpPartyPlayer(tester, segments: credits);
+    await queueSeries(tester);
+    engine.emitPosition(const Duration(hours: 1, minutes: 55, seconds: 10));
+    await tester.pump();
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text(l.playerWatchCredits), findsOneWidget);
+    expect(find.textContaining('Riproduci ora ·'), findsNothing);
+
+    emit(const GroupLeft('g1'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text(l.playerWatchCredits), findsOneWidget,
+        reason: 'il post-play resta');
+    expect(find.textContaining('Riproduci ora ·'), findsOneWidget);
+    await finish(tester);
+  });
+
   testWidgets(
       'il gruppo passa all\'episodio dopo: nuovo player a schermo intero, '
       'episodio lasciato sui titoli segnato come visto', (tester) async {

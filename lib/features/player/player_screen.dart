@@ -98,6 +98,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// volte, e solo allora la schermata si ricostruisce.
   EndZone _endZone = EndZone.none;
   StreamSubscription<Duration>? _positions;
+  StreamSubscription<Duration>? _durations;
+
+  /// Il post-play era mostrato all'ultima costruzione: quando cambia,
+  /// pannello e schermata di pausa lo seguono (vedi [build]).
+  bool _postPlayWasShown = false;
+
+  /// Entrata degli strati del post-play e della scheda: il contenuto nuovo
+  /// è subito opaco, perché entra già con la sua animazione (altrimenti
+  /// sfumerebbe due volte); quello che esce sfuma comunque in
+  /// [WfMotion.fast].
+  static const _offerSwitchInCurve = Threshold(0);
 
   late final PlayerActiveController _playerActive;
   late final MediaSession _mediaSession;
@@ -149,7 +160,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // caricamento.
     unawaited(_controller.engine.firstFrame
         .then((_) => _onFirstFrame(), onError: (Object _) {}));
-    _positions = _controller.engine.positionStream.listen(_onPosition);
+    final engine = _controller.engine;
+    _positions = engine.positionStream.listen(_updateEndZone);
+    _durations = engine.durationStream.listen((_) => _updateEndZone());
   }
 
   @override
@@ -167,6 +180,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _timelineTimer?.cancel();
     _firstFrameTimer?.cancel();
     unawaited(_positions?.cancel());
+    unawaited(_durations?.cancel());
     unawaited(_mediaButtons?.cancel());
     // Uscendo dal player il pannello media sparisce; passando all'episodio
     // successivo resta alla nuova schermata. Non si chiude mai: è dell'app.
@@ -222,16 +236,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  void _onPosition(Duration position) {
+  /// Ricalcola la zona di fine episodio con la posizione ([position], o
+  /// quella del motore), i segmenti e la durata di adesso: ognuno può
+  /// arrivare per ultimo (es. i segmenti a video fermo nei titoli). Pannello
+  /// e schermata di pausa seguono il post-play in [build], non la zona.
+  void _updateEndZone([Duration? position]) {
     if (!mounted) return;
     final view = ref.read(playerControllerProvider(widget.args));
-    final zone =
-        endZoneAt(view.segments, _controller.engine.duration, position);
-    if (zone == _endZone) return;
-    setState(() => _endZone = zone);
-    // All'inizio dei titoli il pannello si chiude (sotto c'è il post-play).
-    if (_postPlayShown(view)) _chrome.closePanel();
-    _syncPlayback();
+    final engine = _controller.engine;
+    final zone = endZoneAt(
+        view.segments, engine.duration, position ?? engine.position);
+    if (zone != _endZone) setState(() => _endZone = zone);
   }
 
   /// C'è un episodio successivo da proporre (nel gruppo solo se è il
@@ -645,6 +660,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     ref.listen(provider.select((s) => s.item), (_, item) {
       if (item != null) _publishMetadata(item);
     });
+    // I segmenti arrivano dopo la partenza: a video fermo nessuna posizione
+    // nuova ricalcolerebbe la zona.
+    ref.listen(provider.select((s) => s.segments), (_, _) => _updateEndZone());
     ref.listen(provider.select((s) => s.nextEpisode != null), (_, hasNext) {
       // Nel gruppo il "successivo" segue la coda (vedi sotto).
       if (!_inParty) unawaited(_mediaSession.setNextEnabled(hasNext));
@@ -730,6 +748,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         (view.status == PlayerStatus.ready && !_firstFrame);
     final postPlay = _postPlayShown(view);
     final card = _cardShown(view);
+    // Il post-play compare o sparisce anche senza un cambio di zona (la coda
+    // del gruppo, l'uscita dal gruppo, l'episodio successivo arrivato tardi,
+    // lo stato del file): dopo il fotogramma, all'arrivo il pannello si
+    // chiude (sotto c'è il post-play) e la schermata di pausa segue (spec D
+    // §12.1: non c'è durante il post-play).
+    if (postPlay != _postPlayWasShown) {
+      _postPlayWasShown = postPlay;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (postPlay) _chrome.closePanel();
+        _syncPlayback();
+      });
+    }
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -906,6 +937,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     child: ExcludeFocus(
                       child: AnimatedSwitcher(
                         duration: WfMotion.fast,
+                        switchInCurve: _offerSwitchInCurve,
                         child: card && next != null
                             ? NextEpisodeCard(
                                 key: ValueKey(next.id),
@@ -929,6 +961,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   child: ExcludeFocus(
                     child: AnimatedSwitcher(
                       duration: WfMotion.fast,
+                      switchInCurve: _offerSwitchInCurve,
                       child: postPlay && next != null
                           ? SizedBox.expand(
                               key: ValueKey(next.id),
