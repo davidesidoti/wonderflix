@@ -5,6 +5,9 @@ import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/item_query.dart';
 import '../../l10n/gen/app_localizations.dart';
 
+/// Altezza di una riga di menu della barra dei filtri.
+const filtersBarHeight = 40.0;
+
 /// Ordinamento, genere, anno e visto/non visto. Generi e anni li dà chi la
 /// usa: il catalogo quelli del server, La mia lista quelli dei suoi titoli.
 class CatalogFiltersBar extends StatelessWidget {
@@ -90,7 +93,7 @@ class _Picker<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 40,
+      height: filtersBarHeight,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: WfColors.surfaceHigh,

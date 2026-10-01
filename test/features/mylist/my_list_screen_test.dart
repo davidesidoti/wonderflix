@@ -1,12 +1,18 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/catalog/catalog_filters_bar.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/features/library/user_data.dart';
 import 'package:wonderflix/features/mylist/my_list_screen.dart';
 import 'package:wonderflix/ui/card_preview.dart';
+import 'package:wonderflix/ui/poster_card.dart';
+import 'package:wonderflix/ui/skeletons.dart';
+import 'package:wonderflix/ui/smooth_scroll.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
@@ -43,11 +49,18 @@ void main() {
     ..onItems = (query, start, limit) =>
         query.favoritesOnly ? pageOf(items) : pageOf([]);
 
-  double xOf(WidgetTester tester, String text) =>
-      tester.getTopLeft(find.text(text)).dx;
+  /// Titoli delle card in griglia, nell'ordine in cui sono nell'albero. A
+  /// dissolvenza finita c'è una sola griglia: quella che si vede.
+  List<String> cardNames(WidgetTester tester) => [
+        for (final card in tester.widgetList<PosterCard>(find.byType(PosterCard)))
+          card.item.name,
+      ];
 
-  Future<FakeLibraryApi> pumpList(WidgetTester tester, FakeLibraryApi api) async {
-    await pumpApp(tester, const Scaffold(body: MyListScreen()), overrides: [
+  Future<FakeLibraryApi> pumpList(WidgetTester tester, FakeLibraryApi api,
+      {MotionLevel motion = MotionLevel.reduced}) async {
+    await pumpApp(tester, const Scaffold(body: MyListScreen()),
+        motion: motion,
+        overrides: [
       libraryApiProvider.overrideWithValue(api),
       sessionControllerProvider
           .overrideWith(() => FakeSessionController(const SessionSignedIn(testUser))),
@@ -64,8 +77,6 @@ void main() {
           ..onItems = (query, start, limit) => query.favoritesOnly
               ? pageOf([testItem(id: 'm1', name: 'Dune', favorite: true)])
               : pageOf([]));
-    // Lo scheletro ha già il titolo: finita la dissolvenza ne resta uno.
-    await tester.pumpAndSettle();
     expect(find.text('LA MIA LISTA'), findsOneWidget);
     expect(find.text('Dune'), findsOneWidget);
     expect(api.itemQueries.single.favoritesOnly, isTrue);
@@ -84,8 +95,8 @@ void main() {
     await pumpList(tester, apiWith(library()));
     expect(find.byType(CatalogFiltersBar), findsOneWidget);
     expect(find.text('3 titoli'), findsOneWidget);
-    expect(xOf(tester, 'Dune'), lessThan(xOf(tester, 'Heat')));
-    expect(xOf(tester, 'Heat'), lessThan(xOf(tester, 'Arrival')));
+    await tester.pumpAndSettle();
+    expect(cardNames(tester), ['Dune', 'Heat', 'Arrival']);
   });
 
   testWidgets('ordinamento per titolo', (tester) async {
@@ -94,8 +105,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Ordina per: Titolo').last);
     await tester.pumpAndSettle();
-    expect(xOf(tester, 'Arrival'), lessThan(xOf(tester, 'Dune')));
-    expect(xOf(tester, 'Dune'), lessThan(xOf(tester, 'Heat')));
+    expect(cardNames(tester), ['Arrival', 'Dune', 'Heat']);
     // Si ordina nell'app: nessuna nuova richiesta.
     expect(api.itemQueries, hasLength(1));
   });
@@ -124,6 +134,56 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Dune'), findsOneWidget);
     expect(find.text('Nessun titolo con questi filtri.'), findsNothing);
+  });
+
+  // Con lo shimmer dello scheletro `pumpAndSettle` non finirebbe mai: si
+  // avanza il tempo a passi.
+  testWidgets(
+      'con le animazioni: titolo fermo, scelta nella barra e cuore tolto',
+      (tester) async {
+    final items = library();
+    await pumpList(tester, apiWith(items), motion: MotionLevel.full);
+    // Appena arrivata la lista, scheletro e griglia sfumano: il titolo è uno
+    // solo e non sfuma.
+    expect(find.byType(PosterGridSkeleton), findsOneWidget);
+    expect(find.text('LA MIA LISTA'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(PosterGridSkeleton), findsNothing);
+    expect(cardNames(tester), ['Dune', 'Heat', 'Arrival']);
+
+    // Una scelta nella barra cambia la griglia: la vecchia sfuma e la nuova
+    // ha lo scroll; il titolo resta fermo.
+    await tester.tap(find.text('Visti'));
+    await tester.pump(const Duration(milliseconds: 100));
+    final scrollViews =
+        tester.widgetList<CustomScrollView>(find.byType(CustomScrollView));
+    expect(scrollViews, hasLength(2));
+    expect(scrollViews.where((v) => v.controller is SmoothScrollController),
+        hasLength(1));
+    expect(find.text('LA MIA LISTA'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
+    expect(cardNames(tester), ['Heat']);
+    expect(find.text('1 titolo'), findsOneWidget);
+
+    await tester.tap(find.text('Azzera filtri'));
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
+    expect(cardNames(tester), ['Dune', 'Heat', 'Arrival']);
+    expect(find.text('3 titoli'), findsOneWidget);
+
+    // Togliere un cuore non cambia la griglia: il titolo sparisce e basta.
+    final container =
+        ProviderScope.containerOf(tester.element(find.byType(MyListScreen)));
+    container
+        .read(userDataOverridesProvider.notifier)
+        .apply('d', items.first.userData.copyWith(isFavorite: false));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byType(CustomScrollView), findsOneWidget);
+    expect(cardNames(tester), ['Heat', 'Arrival']);
+    expect(find.text('2 titoli'), findsOneWidget);
+    expect(find.text('LA MIA LISTA'), findsOneWidget);
   });
 
   // Griglia senza chiavi: togliendo Dune, la card di Heat ne riusa l'host.

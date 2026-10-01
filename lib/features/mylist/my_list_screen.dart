@@ -33,9 +33,8 @@ final favoritesProvider = FutureProvider.autoDispose<List<JellyfinItem>>((ref) a
   return page.items;
 });
 
-/// Spazio della barra dei filtri mentre la lista si carica (altezza dei
-/// menu più lo spazio sotto): lo scheletro sta dove sarà la griglia.
-const _filtersBarSpace = 40.0 + 16;
+/// Spazio tra la barra dei filtri e la griglia.
+const _filtersGap = 16.0;
 
 class MyListScreen extends ConsumerStatefulWidget {
   const MyListScreen({super.key});
@@ -70,38 +69,50 @@ class _MyListScreenState extends ConsumerState<MyListScreen> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final overrides = ref.watch(userDataOverridesProvider);
-    return WfSwitcher(
-      expand: true,
-      child: ref.watch(favoritesProvider).when(
-            // Lo spazio di titolo e barra resta libero: la griglia è dove
-            // sarà.
-            loading: () => Column(
-              key: const ValueKey('loading'),
-              crossAxisAlignment: CrossAxisAlignment.start,
+    // Come nel catalogo il titolo sta fermo: sfuma solo quello che sta sotto.
+    final (count, content) = ref.watch(favoritesProvider).when(
+          loading: () => (
+            0,
+            const Column(
+              key: ValueKey('loading'),
               children: [
-                _title(l),
-                const SizedBox(height: _filtersBarSpace),
-                const Expanded(child: PosterGridSkeleton()),
+                // Lo spazio della barra resta libero: la griglia è dove
+                // sarà.
+                SizedBox(height: filtersBarHeight + _filtersGap),
+                Expanded(child: PosterGridSkeleton()),
               ],
             ),
-            error: (error, _) => ErrorView(
+          ),
+          error: (error, _) => (
+            0,
+            ErrorView(
                 key: const ValueKey('error'),
                 error: error,
                 onRetry: () => ref.invalidate(favoritesProvider)),
-            data: (items) {
-              final view = buildMyListView(items, _filters, overrides);
-              if (view.listEmpty) return _empty(l);
-              return KeyedSubtree(
-                key: const ValueKey('data'),
-                child: Builder(builder: (context) => _content(context, l, view)),
-              );
-            },
           ),
+          data: (items) {
+            final view = buildMyListView(items, _filters, overrides);
+            if (view.listEmpty) return (0, _empty(l));
+            return (
+              view.items.length,
+              KeyedSubtree(
+                key: const ValueKey('data'),
+                child: Builder(builder: (context) => _content(context, view)),
+              ),
+            );
+          },
+        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _title(l, count: count),
+        Expanded(child: WfSwitcher(expand: true, child: content)),
+      ],
     );
   }
 
-  /// Titolo della pagina; con [count] anche il numero dei titoli mostrati,
-  /// come nel catalogo.
+  /// Titolo della pagina, fuori dal [WfSwitcher]: non sfuma col contenuto.
+  /// Con [count] anche il numero dei titoli mostrati, come nel catalogo.
   Widget _title(AppLocalizations l, {int count = 0}) => Padding(
         padding: const EdgeInsets.fromLTRB(32, 16, 32, 12),
         child: Row(
@@ -121,27 +132,21 @@ class _MyListScreenState extends ConsumerState<MyListScreen> {
       );
 
   /// Nessun preferito: niente barra né conteggio.
-  Widget _empty(AppLocalizations l) => Column(
+  Widget _empty(AppLocalizations l) => Padding(
         key: const ValueKey('empty'),
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _title(l),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Text(l.myListEmpty,
-                style: const TextStyle(color: WfColors.creamMuted)),
-          ),
-        ],
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Text(l.myListEmpty,
+            style: const TextStyle(color: WfColors.creamMuted)),
       );
 
-  Widget _content(BuildContext context, AppLocalizations l, MyListView view) {
+  Widget _content(BuildContext context, MyListView view) {
+    final l = AppLocalizations.of(context);
     // Ricaricando la lista, la pagina vecchia sfuma mentre arriva la nuova:
     // `_scroll` va solo alla griglia che entra in entrambi i `WfSwitcher`.
     final leaving = WfSwitcher.isOutgoing(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _title(l, count: view.items.length),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
           child: CatalogFiltersBar(
@@ -150,7 +155,7 @@ class _MyListScreenState extends ConsumerState<MyListScreen> {
             onChanged: _setFilters,
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: _filtersGap),
         Expanded(
           child: WfSwitcher(
             expand: true,
