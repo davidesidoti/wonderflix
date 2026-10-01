@@ -362,19 +362,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         position: engine.position, duration: engine.duration));
   }
 
-  /// Tasti del pannello media e della tastiera multimediale.
+  /// Tasti del pannello media e della tastiera multimediale. Play e pausa
+  /// danno la stessa pillola di Spazio, prima del comando (vedi [_run]).
   void _onMediaButton(MediaButton button) {
     if (!mounted || _leaving) return;
     switch (button) {
       case MediaButton.play:
+        _showPlayFeedback(playing: true);
         unawaited(_controller.play());
       case MediaButton.pause:
+        _showPlayFeedback(playing: false);
         unawaited(_controller.pause());
       case MediaButton.next:
         _playNext();
       case MediaButton.stop:
         _exit();
     }
+  }
+
+  /// Pillola di play/pausa, solo a player pronto (come per Spazio).
+  void _showPlayFeedback({required bool playing}) {
+    final ready = ref.read(playerControllerProvider(widget.args)).status ==
+        PlayerStatus.ready;
+    if (ready) _chrome.showFeedback(PlayFeedback(playing: playing));
   }
 
   void _escape() {

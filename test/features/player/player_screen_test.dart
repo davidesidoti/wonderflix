@@ -637,6 +637,25 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('pannello media: play e pausa mostrano la pillola come Spazio',
+      (tester) async {
+    await pumpPlayer(tester);
+    expect(find.text('In pausa'), findsNothing);
+
+    mediaSession.press(MediaButton.pause);
+    await tester.pump();
+    await tester.pump();
+    expect(engine.playing, isFalse);
+    expect(find.text('In pausa'), findsOneWidget);
+
+    mediaSession.press(MediaButton.play);
+    await tester.pump();
+    await tester.pump();
+    expect(engine.playing, isTrue);
+    expect(find.text('Riproduzione'), findsOneWidget);
+    await unmount(tester);
+  });
+
   testWidgets('pannello media: "successivo" solo se c\'è un episodio dopo',
       (tester) async {
     withNextEpisode();
