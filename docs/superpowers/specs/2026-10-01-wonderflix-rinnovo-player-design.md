@@ -125,7 +125,7 @@ Ogni strato ha una `ValueKey`: i figli dello `Stack` si abbinano per posizione, 
 
 ### 6.1 Token
 
-Tutto passa da `WfMotion` (`lib/app/motion.dart`), comprese le durate oggi scritte a mano nel player. Nessun token nuovo:
+Tutto passa da `WfMotion` (`lib/app/motion.dart`), comprese le durate oggi scritte a mano nel player. Un solo token nuovo, `accelerateReverse` (vedi sotto la tabella):
 
 | Effetto | Durata | Curva |
 |---|---|---|
@@ -134,6 +134,8 @@ Tutto passa da `WfMotion` (`lib/app/motion.dart`), comprese le durate oggi scrit
 | Rimpicciolimento del film, sfondo del caricamento che sfuma nel film, schermata di pausa | `slow` | `emphasized` / `standard` |
 | Barra (altezze), cursore, spunta, anteprima | `fast` | `emphasized` / `bounce` |
 | Voci del pannello, errore, attesa del gruppo | scaglionate di 40 ms (pannello) o `WfMotion.stagger` | `emphasized` |
+
+Le uscite accelerano: partono piano e vanno via veloci. Dove l'animazione va all'indietro, da 1 a 0 (`switchOutCurve` di `AnimatedSwitcher`, `reverseCurve` di `CurvedAnimation`), la curva si percorre al contrario e `accelerate` sembrerebbe rallentare; lì si usa `WfMotion.accelerateReverse` (`accelerate` girata). Così il pulsante "Salta", i due posti del post-play e della scheda (§12.1) e il pannello (§14).
 
 Le animazioni continue esistono solo dove indicano un'attesa: spinner, linea del caricamento (periodo `loadingLinePeriod` = 1,2 s), clessidra dell'attesa del gruppo (periodo `hourglassPeriod` = 2,4 s) e puntini (`waitingDotsPeriod` = 1,2 s), riempimento oro del conto alla rovescia di "Riproduci ora" (a passi lineari di 1 s, uno per secondo del conto: chiede fotogrammi finché il conto corre, §12.1). I periodi sono costanti nominate e commentate.
 
@@ -296,9 +298,9 @@ Vale anche nel watch party, quando il gruppo è in pausa.
 - Lo spinner del buffering segue il film piccolo (§10.2): un buffering nei titoli, che ferma il conto di "Riproduci ora · N", si vede sul film.
 - Se all'inizio dei titoli il pannello "Audio e sottotitoli" è aperto, **il pannello si chiude** (vale ogni volta che il post-play compare, §5.1).
 - Sotto il film, a sinistra (`PostPlayLayer`, entra sfumando in `medium` quando il rimpicciolimento è a metà): "PROSSIMO EPISODIO" in oro; il nome della serie in Bebas; "S1:E4 · Titolo"; la trama (al massimo 3 righe); i pulsanti. La colonna è larga quanto il film piccolo e arriva fino a 32 px dal fondo.
-- **Quando lo spazio non basta (finestra bassa, testo grande) cede la trama**: restano solo le righe intere che entrano (fino a 3, con i puntini sull'ultima), e se non ne entra nessuna la trama sparisce. Titoli e pulsanti restano sempre visibili.
+- **Quando lo spazio non basta (finestra bassa, testo grande) cede la trama**: restano solo le righe intere che entrano (fino a 3, con i puntini sull'ultima), e se non ne entra nessuna la trama sparisce. Titoli e pulsanti restano sempre visibili: se serie ed episodio non entrano neppure senza la trama (finestra minima con il testo oltre il 200% circa), l'ultima difesa è rimpicciolire il nome della serie.
 - A destra: l'immagine grande dell'episodio (`urls.landscape(next)`, 16:9, angoli arrotondati, ombra), che riempie lo spazio rimasto a destra del film piccolo (circa la metà della finestra) ed è **limitata nei due sensi**: in una finestra molto larga non esce dal fondo.
-- **I due posti** (post-play e scheda piccola) hanno un `AnimatedSwitcher` ciascuno (chiave: l'episodio successivo). Il contenuto nuovo è subito opaco (`switchInCurve` `Threshold(0)`), perché ha già la sua entrata e altrimenti sfumerebbe due volte; quando esce, sfuma in `fast` con `accelerate` (`switchOutCurve`, §6.1).
+- **I due posti** (post-play e scheda piccola) hanno un `AnimatedSwitcher` ciascuno (chiave: l'episodio successivo). Il contenuto nuovo è subito opaco (`switchInCurve` `Threshold(0)`), perché ha già la sua entrata e altrimenti sfumerebbe due volte; quando esce, sfuma in `fast` accelerando (`switchOutCurve: accelerateReverse`, §6.1).
 
 **Pulsanti:**
 
@@ -332,9 +334,9 @@ La schermata di pausa non compare durante il post-play (se compare quando è gi�
 ## 13. "Salta intro" / "Salta riassunto" (`SkipSegmentButton`)
 
 - Stessa posizione di oggi (in basso a destra, visibile anche a controlli nascosti).
-- Entra da destra di 40 px (`medium` / `bounce`), esce in `fast`.
-- Una linea oro (3 px, con gli angoli in basso arrotondati come il pulsante) alla base si accorcia con il tempo che manca alla fine del segmento; il pulsante segue la posizione del motore e ridisegna la linea solo se cambia di almeno lo 0,5%.
-- Al passaggio del mouse: alone oro e scala 1,03 (come `WfButton`).
+- Entra da destra di 40 px (`medium` / `bounce`; con il livello ridotto solo dissolvenza), esce in `fast` accelerando (§6.1). I pulsanti sono allineati a destra come il loro posto: nel cambio riassunto → intro il nuovo, più stretto, non salta quando il vecchio se ne va.
+- Una linea oro (3 px, con gli angoli in basso arrotondati come il pulsante) alla base si accorcia con il tempo che manca all'uscita del pulsante: il salto non si propone più nell'ultimo secondo del segmento (`skipOfferTail`, in `segments.dart`), e la linea arriva a zero proprio allora. Il pulsante segue la posizione del motore e ridisegna la linea solo se cambia di almeno lo 0,5%.
+- Al passaggio del mouse: alone oro e scala 1,03 (come `WfButton`). La linea sta dentro il pulsante (`WfButton.overlay`), quindi segue la scala al passaggio e al clic.
 - Con "Salta automaticamente intro e riassunti" il salto avviene da solo (come oggi: solo da soli, una volta per segmento) e la pillola lo dice:
   - `PlayerController.autoSkips` è un `Stream<SkipKind>` (broadcast) che emette `intro` o `recap` a ogni salto automatico;
   - `PlayerScreen` lo ascolta e chiama `showFeedback(SkipFeedback(kind))` sul `PlayerChromeController`;
@@ -375,7 +377,7 @@ Gli avvisi passano nella `PlayerPill` (§9.3) con i testi di oggi (`partyNoticeT
 ### 15.2 Badge
 
 - Le iniziali dei membri sono `MemberAvatarStack` (di `MemberAvatar`, sovrapposte di 8 px; al massimo 3, poi "+N") accanto a "Watch party · N", **solo nel badge del player** (`PartyBadge`). Il chip della barra in alto (`PartyChip`, in `watch_party_button.dart`) resta com'è, senza iniziali.
-- Chi entra compare con un "pop" (`bounce`; con le animazioni ridotte sfuma soltanto). Chi esce fa stringere la fila: la larghezza si adatta con un `AnimatedSize` (`medium` / `emphasized`), senza una dissolvenza a parte.
+- Chi entra compare con un "pop" (`bounce`; con le animazioni ridotte sfuma soltanto). Chi esce fa stringere la fila: la larghezza si adatta con un `AnimatedSize` (`medium` / `emphasized`) ancorato a sinistra, così le iniziali che restano non si spostano, senza una dissolvenza a parte. Con le animazioni ridotte la larghezza cambia di colpo (§6.2: niente `AnimatedSize`).
 - Il badge fa un piccolo sobbalzo (scala 1,08: sale nel primo 40% del tempo con `decelerate`, poi torna a 1 con `bounce`; `medium` in tutto) a ogni cambio del numero di membri. Con le animazioni ridotte non c'è sobbalzo.
 - Il menu dei membri usa `wfPopUpAnimation` (`lib/ui/wf_menus.dart`), come gli altri menu dell'app.
 
