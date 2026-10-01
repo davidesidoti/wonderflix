@@ -427,6 +427,7 @@ void main() {
     await tester.pump();
     expect(find.text(l.watchPartyNoticePaused), findsOneWidget);
     await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle(); // la pillola sfuma via
     expect(find.text(l.watchPartyNoticePaused), findsNothing);
 
     await tester.tap(find.byTooltip(l.actionPlay));

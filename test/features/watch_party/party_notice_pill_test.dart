@@ -1,12 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/features/watch_party/party_notice_pill.dart';
 import 'package:wonderflix/features/watch_party/party_notices.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
-
-import '../../support/pump_app.dart';
-import '../../support/watch_party_fakes.dart';
 
 void main() {
   final l = lookupAppLocalizations(const Locale('it'));
@@ -59,20 +56,5 @@ void main() {
     expect(partyNoticeIcon(PartyNoticeKind.resync), LucideIcons.refreshCw);
     expect(partyNoticeIcon(PartyNoticeKind.ended), LucideIcons.circleStop);
     expect(partyNoticeIcon(PartyNoticeKind.removed), LucideIcons.logOut);
-  });
-
-  testWidgets('mostra l\'avviso attuale, niente senza avvisi', (tester) async {
-    await pumpApp(tester, const Center(child: PartyNoticePill()), overrides: [
-      partyNoticesProvider.overrideWith(() => FakePartyNotices(
-          const PartyNotice(PartyNoticeKind.joined, name: 'Luigi'))),
-    ]);
-    expect(find.text('Luigi è nel watch party'), findsOneWidget);
-  });
-
-  testWidgets('nessun avviso: nessuna pillola', (tester) async {
-    await pumpApp(tester, const Center(child: PartyNoticePill()), overrides: [
-      partyNoticesProvider.overrideWith(FakePartyNotices.new),
-    ]);
-    expect(find.byKey(const Key('party-notice')), findsNothing);
   });
 }

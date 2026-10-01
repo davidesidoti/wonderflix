@@ -23,7 +23,6 @@ import '../library/user_data.dart';
 import '../watch_party/group_authority.dart';
 import '../watch_party/group_playback_driver.dart';
 import '../watch_party/party_badge.dart';
-import '../watch_party/party_notice_pill.dart';
 import '../watch_party/party_notices.dart';
 import '../watch_party/party_waiting_overlay.dart';
 import '../watch_party/watch_party_actions.dart';
@@ -36,6 +35,7 @@ import 'player_active.dart';
 import 'player_chrome.dart';
 import 'player_handover.dart';
 import 'player_overlay.dart';
+import 'player_pill.dart';
 import 'player_providers.dart';
 import 'player_settings.dart';
 import 'player_window.dart';
@@ -692,17 +692,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ),
                     ),
                 ],
-                // Anche dopo l'uscita dal gruppo: gli avvisi "terminato" e
-                // "non sei più nel watch party" devono vedersi.
-                if (widget.args.party != null)
-                  const Positioned(
-                    top: 96,
-                    left: 0,
-                    right: 0,
+                // Riscontro dei tasti e avvisi del watch party (anche dopo
+                // l'uscita dal gruppo: "terminato" e "non sei più nel watch
+                // party" devono vedersi).
+                Positioned(
+                  top: 96,
+                  left: 0,
+                  right: 0,
+                  child: ExcludeFocus(
                     child: IgnorePointer(
-                      child: Center(child: PartyNoticePill()),
+                      child: Center(
+                        child: RepaintBoundary(
+                          child: widget.args.party == null
+                              ? PlayerPill(feedback: _chrome.feedback)
+                              : Consumer(
+                                  builder: (context, ref, _) => PlayerPill(
+                                    feedback: _chrome.feedback,
+                                    notice: ref.watch(partyNoticesProvider),
+                                  ),
+                                ),
+                        ),
+                      ),
                     ),
                   ),
+                ),
                 if (_chrome.panelOpen && view.plan != null)
                   Positioned(
                     right: 24,

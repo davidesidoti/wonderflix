@@ -1,8 +1,6 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/widgets.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../library/item_labels.dart';
 import 'party_notices.dart';
@@ -45,26 +43,3 @@ IconData partyNoticeIcon(PartyNoticeKind kind) => switch (kind) {
       PartyNoticeKind.ended => LucideIcons.circleStop,
       PartyNoticeKind.removed => LucideIcons.logOut,
     };
-
-/// Avviso del watch party in alto al centro del player, visibile anche a
-/// controlli nascosti (spec B §7.1).
-class PartyNoticePill extends ConsumerWidget {
-  const PartyNoticePill({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final notice = ref.watch(partyNoticesProvider);
-    if (notice == null) return const SizedBox.shrink();
-    return Container(
-      key: const Key('party-notice'),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xE61B1B1B),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: WfColors.border),
-      ),
-      child: Text(partyNoticeText(AppLocalizations.of(context), notice),
-          style: const TextStyle(color: WfColors.cream)),
-    );
-  }
-}
