@@ -41,6 +41,9 @@ void main() {
   late FakeLibraryApi library;
   late FakeMediaSession mediaSession;
   late List<String> authImageUrls;
+
+  /// Il router creato da [pumpPlayer]: la pagina in cima è lo stato attuale.
+  late GoRouter router;
   var settings = const PlayerSettings();
 
   setUp(() {
@@ -65,7 +68,7 @@ void main() {
 
   /// Home ('/') con il player aperto sopra, come nell'app.
   Future<void> pumpPlayer(WidgetTester tester) async {
-    final router = GoRouter(routes: [
+    router = GoRouter(routes: [
       GoRoute(
           path: '/',
           builder: (context, state) => const Scaffold(body: Text('home'))),
@@ -395,6 +398,9 @@ void main() {
     await tester.pump(const Duration(seconds: 10));
     await tester.pumpAndSettle();
     expect(find.text('S1:E5 · Cat in the Bag'), findsOneWidget);
+    expect(router.state.uri.path, '/play/e5');
+    expect(router.state.extra, isA<PlayerReplacement>(),
+        reason: 'la transizione parte dal nero, non dalla pagina sotto');
     expect(playback.stopped.first.itemId, 'e4');
     expect(engines, hasLength(2), reason: 'un motore per episodio');
     expect(engine.disposed, isTrue);

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/navigation.dart';
 import 'package:wonderflix/app/router.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
@@ -55,6 +56,69 @@ void main() {
     addTearDown(router.dispose);
     return router;
   }
+
+  /// Con [full] l'app è in movimento completo (`WfMotionScope`); senza, è
+  /// ridotto come nei test che montano l'app a mano.
+  Future<void> pumpRouter(WidgetTester tester, GoRouter router,
+          {bool full = false}) =>
+      tester.pumpWidget(MaterialApp.router(
+        routerConfig: router,
+        builder: full
+            ? (context, child) => WfMotionScope(
+                motion: const WfMotion(MotionLevel.full), child: child!)
+            : null,
+      ));
+
+  /// Opacità della dissolvenza della pagina che mostra [text].
+  double pageOpacity(WidgetTester tester, String text) =>
+      tester
+          .widget<FadeTransition>(find.ancestor(
+              of: find.text(text), matching: find.byType(FadeTransition)))
+          .opacity
+          .value;
+
+  testWidgets('player: entra in medium, esce in fast (movimento completo)',
+      (tester) async {
+    final router = playerTestRouter();
+    await pumpRouter(tester, router, full: true);
+
+    router.push('/play/e4');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump(WfMotion.fast);
+    expect(pageOpacity(tester, 'player e4'), lessThan(1),
+        reason: 'dopo fast sta ancora entrando');
+    await tester.pump(WfMotion.medium - WfMotion.fast);
+    expect(pageOpacity(tester, 'player e4'), 1);
+    await tester.pumpAndSettle();
+
+    router.pop();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump(WfMotion.fast ~/ 2);
+    expect(pageOpacity(tester, 'player e4'), allOf(greaterThan(0), lessThan(1)),
+        reason: 'a metà di fast sta ancora uscendo');
+    await tester.pump(WfMotion.fast ~/ 2);
+    await tester.pump();
+    expect(find.text('player e4'), findsNothing,
+        reason: 'esce in fast, non in medium');
+    expect(find.text('home'), findsOneWidget);
+  });
+
+  testWidgets('player: movimento ridotto, entra in fast', (tester) async {
+    final router = playerTestRouter();
+    await pumpRouter(tester, router);
+
+    router.push('/play/e4');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump(WfMotion.fast ~/ 2);
+    expect(pageOpacity(tester, 'player e4'), lessThan(1));
+    await tester.pump(WfMotion.fast ~/ 2);
+    expect(pageOpacity(tester, 'player e4'), 1,
+        reason: 'ridotto: tutto il movimento dura fast');
+    await tester.pumpAndSettle();
+  });
 
   testWidgets('player dalla Home: dissolvenza incrociata, senza nero',
       (tester) async {

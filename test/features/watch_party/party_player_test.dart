@@ -319,6 +319,8 @@ void main() {
     await tester.pumpAndSettle();
     // Con push e pushReplacement la pagina attuale è in `router.state`.
     expect(router.state.uri.toString(), '/play/e5?fs=1&party=p2');
+    expect(router.state.extra, isA<PlayerReplacement>(),
+        reason: 'il nuovo player sostituisce il vecchio: transizione dal nero');
     expect(window.fullScreenCalls, [true],
         reason: 'passando all\'episodio dopo lo schermo intero resta');
     expect(library.playedCalls, contains(('e4', true)));
@@ -416,6 +418,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(router.state.uri.path, '/play/e5');
     expect(router.state.uri.queryParameters, isNot(contains('party')));
+    expect(router.state.extra, isA<PlayerReplacement>());
     expect(api.calls, isNot(contains('next p1')));
     await finish(tester);
   });

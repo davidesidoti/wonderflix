@@ -230,6 +230,43 @@ void main() {
     expect(glowOf(tester), isNotEmpty);
   });
 
+  testWidgets('pulsante premuto: scala 0,97; rilasciato, torna al passaggio',
+      (tester) async {
+    await pumpApp(tester, captionsButton(), motion: MotionLevel.full);
+    final gesture = await hover(tester, find.byType(PlayerIconButton));
+    expect(scaleOf(tester), 1.08);
+
+    await gesture.down(tester.getCenter(find.byType(PlayerIconButton)));
+    await tester.pump();
+    expect(scaleOf(tester), 0.97);
+    expect(glowOf(tester), isNotEmpty, reason: 'il mouse è ancora sopra');
+
+    await gesture.up();
+    await tester.pump();
+    expect(scaleOf(tester), 1.08);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('pulsante disattivato: né scala né alone al passaggio',
+      (tester) async {
+    await pumpApp(
+      tester,
+      const Scaffold(
+        body: Center(
+          child: PlayerIconButton(
+            icon: Icon(LucideIcons.captions),
+            tooltip: 'Audio e sottotitoli',
+            onPressed: null,
+          ),
+        ),
+      ),
+      motion: MotionLevel.full,
+    );
+    await hover(tester, find.byType(PlayerIconButton));
+    expect(scaleOf(tester), 1);
+    expect(glowOf(tester), isEmpty);
+  });
+
   testWidgets('play/pausa: l\'icona cambia sfumando', (tester) async {
     final playing = ValueNotifier(true);
     addTearDown(playing.dispose);
