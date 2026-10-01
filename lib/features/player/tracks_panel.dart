@@ -68,6 +68,11 @@ class TracksPanel extends StatelessWidget {
   /// Distanza tra l'entrata di una voce e la successiva.
   static const itemStagger = Duration(milliseconds: 40);
 
+  /// Quante voci entrano scaglionate, al massimo: con molte tracce le altre
+  /// compaiono subito, così l'entrata dura al più circa 0,75 s (11 distanze
+  /// più la durata di una voce) invece di allungarsi con la lista.
+  static const staggeredItems = 12;
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -85,16 +90,16 @@ class TracksPanel extends StatelessWidget {
           ),
         ],
       ),
-      const SizedBox(height: 12),
-      _SectionTitle(l.playerAudio),
+      // Le distanze stanno dentro le voci (non ci sono distanziatori): ogni
+      // voce dello scaglionamento è una cosa vera, e il tetto conta bene.
+      _SectionTitle(l.playerAudio, top: 12),
       for (final stream in audio)
         _TrackTile(
           label: trackLabel(l, stream),
           selected: stream.index == audioIndex,
           onTap: () => onAudio(stream.index),
         ),
-      const SizedBox(height: 16),
-      _SectionTitle(l.playerSubtitles),
+      _SectionTitle(l.playerSubtitles, top: 16),
       _TrackTile(
         label: l.playerSubtitlesOff,
         selected: subtitleIndex == null,
@@ -106,12 +111,15 @@ class TracksPanel extends StatelessWidget {
           selected: stream.index == subtitleIndex,
           onTap: () => onSubtitle(stream.index),
         ),
-      const SizedBox(height: 12),
-      _DelayRow(delay: subtitleDelay, onDelayStep: onDelayStep),
-      const SizedBox(height: 16),
-      Text(l.playerSubtitleSize,
-          style: const TextStyle(color: WfColors.creamMuted)),
-      const SizedBox(height: 8),
+      Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: _DelayRow(delay: subtitleDelay, onDelayStep: onDelayStep),
+      ),
+      Padding(
+        padding: const EdgeInsets.only(top: 16, bottom: 8),
+        child: Text(l.playerSubtitleSize,
+            style: const TextStyle(color: WfColors.creamMuted)),
+      ),
       Wrap(
         spacing: 8,
         runSpacing: 8,
@@ -133,7 +141,7 @@ class TracksPanel extends StatelessWidget {
           border: Border(left: BorderSide(color: WfColors.border)),
         ),
         child: StaggerGroup(
-          count: items.length,
+          count: math.min(items.length, staggeredItems),
           stagger: itemStagger,
           itemDuration: WfMotion.medium,
           child: ListView(
@@ -150,13 +158,16 @@ class TracksPanel extends StatelessWidget {
 }
 
 class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.title);
+  const _SectionTitle(this.title, {this.top = 0});
 
   final String title;
 
+  /// Spazio sopra il titolo, per staccarlo da ciò che lo precede.
+  final double top;
+
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
+        padding: EdgeInsets.only(top: top, bottom: 6),
         child: Text(title, style: WfText.display(20, color: WfColors.gold)),
       );
 }

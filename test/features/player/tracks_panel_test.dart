@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/playback_models.dart';
 import 'package:wonderflix/features/player/tracks_panel.dart';
+import 'package:wonderflix/ui/staggered_entrance.dart';
 
 import '../../support/pump_app.dart';
 
@@ -17,6 +18,7 @@ void main() {
   });
 
   TracksPanel panel({
+    List<MediaStreamInfo>? subtitles,
     ValueChanged<int>? onAudio,
     ValueChanged<int?>? onSubtitle,
     ValueChanged<Duration>? onDelayStep,
@@ -32,13 +34,14 @@ void main() {
           MediaStreamInfo(
               index: 2, kind: StreamKind.audio, displayTitle: 'English - AAC'),
         ],
-        subtitles: const [
-          MediaStreamInfo(
-              index: 3,
-              kind: StreamKind.subtitle,
-              displayTitle: 'Italiano - ASS'),
-          MediaStreamInfo(index: 7, kind: StreamKind.subtitle),
-        ],
+        subtitles: subtitles ??
+            const [
+              MediaStreamInfo(
+                  index: 3,
+                  kind: StreamKind.subtitle,
+                  displayTitle: 'Italiano - ASS'),
+              MediaStreamInfo(index: 7, kind: StreamKind.subtitle),
+            ],
         audioIndex: 1,
         subtitleIndex: null,
         subtitleDelay: const Duration(milliseconds: 300),
@@ -102,6 +105,46 @@ void main() {
     expect(scale, 1.25);
     await tester.tap(find.byTooltip('Chiudi'));
     expect(closed, 1);
+  });
+
+  testWidgets('scaglionamento: solo voci vere e con un tetto', (tester) async {
+    const subtitleCount = 20;
+    // Finestra alta: la lista è pigra e deve costruire tutte le voci.
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: Align(
+          alignment: Alignment.centerRight,
+          child: SizedBox(
+            width: TracksPanel.width,
+            child: panel(subtitles: [
+              for (var i = 0; i < subtitleCount; i++)
+                MediaStreamInfo(
+                    index: 10 + i,
+                    kind: StreamKind.subtitle,
+                    displayTitle: 'Sottotitolo $i'),
+            ]),
+          ),
+        ),
+      ),
+      surfaceSize: const Size(1440, 4000),
+      motion: MotionLevel.full,
+    );
+
+    final group = tester.widget<StaggerGroup>(find.byType(StaggerGroup));
+    expect(group.count, lessThanOrEqualTo(TracksPanel.staggeredItems),
+        reason: 'con molte tracce l\'entrata non si allunga');
+
+    final items = tester.widgetList<StaggerItem>(find.byType(StaggerItem));
+    // Titolo, 2 sezioni, 2 audio, "Nessuno", i sottotitoli, ritardo,
+    // etichetta della dimensione, scelte della dimensione.
+    expect(items.length, 1 + 2 + 2 + 1 + subtitleCount + 1 + 1 + 1);
+    for (final item in items) {
+      final child = item.child;
+      expect(child is SizedBox && child.child == null, isFalse,
+          reason: 'niente distanziatori tra le voci');
+    }
+    await tester.pumpAndSettle();
   });
 
   Future<ValueNotifier<bool>> pumpHost(WidgetTester tester,
