@@ -12,8 +12,13 @@ class SkipTarget {
   Duration get end => segment.end;
 }
 
-/// Intro o riassunto in corso in [position]. Nell'ultimo secondo del
-/// segmento non si propone più il salto (si sta già uscendo).
+/// Ultimo tratto di un intro o di un riassunto in cui il salto non si
+/// propone più (si sta già uscendo): il pulsante sparisce questo tempo prima
+/// della fine del segmento, e la sua linea arriva a zero proprio allora.
+const skipOfferTail = Duration(seconds: 1);
+
+/// Intro o riassunto in corso in [position]. Nell'ultimo [skipOfferTail]
+/// del segmento non si propone più il salto.
 SkipTarget? skipTargetAt(List<MediaSegment> segments, Duration position) {
   for (final segment in segments) {
     final kind = switch (segment.type) {
@@ -22,8 +27,7 @@ SkipTarget? skipTargetAt(List<MediaSegment> segments, Duration position) {
       _ => null,
     };
     if (kind == null) continue;
-    if (position >= segment.start &&
-        position < segment.end - const Duration(seconds: 1)) {
+    if (position >= segment.start && position < segment.end - skipOfferTail) {
       return SkipTarget(kind, segment);
     }
   }

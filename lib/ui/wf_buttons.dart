@@ -12,6 +12,7 @@ class WfButton extends StatelessWidget {
     required this.icon,
     required this.onPressed,
     this.autofocus = false,
+    this.overlay,
   }) : primary = true;
 
   const WfButton.secondary({
@@ -20,6 +21,7 @@ class WfButton extends StatelessWidget {
     required this.icon,
     required this.onPressed,
     this.autofocus = false,
+    this.overlay,
   }) : primary = false;
 
   final String label;
@@ -29,6 +31,11 @@ class WfButton extends StatelessWidget {
 
   /// Prende il fuoco appena compare (Invio lo preme).
   final bool autofocus;
+
+  /// Disegnato sopra il pulsante e grande quanto lui (es. la linea oro di
+  /// "Salta intro"). Sta dentro la scala e l'alone, quindi li segue; non
+  /// prende i clic.
+  final Widget? overlay;
 
   Widget _button() {
     const size = Size(0, 44);
@@ -60,8 +67,21 @@ class WfButton extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      WfButtonFeedback(enabled: onPressed != null, child: _button());
+  Widget build(BuildContext context) {
+    final overlay = this.overlay;
+    final button = _button();
+    return WfButtonFeedback(
+      enabled: onPressed != null,
+      child: overlay == null
+          ? button
+          : Stack(
+              children: [
+                button,
+                Positioned.fill(child: IgnorePointer(child: overlay)),
+              ],
+            ),
+    );
+  }
 }
 
 /// Alone oro e scala di [WfButton] al passaggio e al clic, anche per i

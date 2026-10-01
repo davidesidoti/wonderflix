@@ -13,7 +13,8 @@ import 'segments.dart';
 
 /// "Salta intro" / "Salta riassunto" (spec D §13): entra da destra con un
 /// piccolo rimbalzo, esce in fretta; una linea oro alla base si accorcia con
-/// il tempo che manca alla fine del segmento.
+/// il tempo che manca all'uscita del pulsante ([skipOfferTail] prima della
+/// fine del segmento).
 class SkipSegmentButton extends StatefulWidget {
   const SkipSegmentButton({
     super.key,
@@ -42,7 +43,7 @@ class SkipSegmentButton extends StatefulWidget {
 class _SkipSegmentButtonState extends State<SkipSegmentButton> {
   SkipTarget? _target;
 
-  /// Parte del segmento che manca, 1 → 0.
+  /// Parte che manca del tempo in cui si propone il salto, 1 → 0.
   double _left = 0;
   StreamSubscription<Duration>? _subscription;
 
@@ -72,10 +73,14 @@ class _SkipSegmentButtonState extends State<SkipSegmentButton> {
     final target = skipTargetAt(widget.segments, position);
     var left = 0.0;
     if (target != null) {
-      final length = target.end - target.segment.start;
+      // La linea si svuota mentre il pulsante si vede: arriva a zero quando
+      // `skipTargetAt` smette di proporre il salto, [skipOfferTail] prima
+      // della fine. Un segmento così corto non si propone mai.
+      final offerEnd = target.end - skipOfferTail;
+      final length = offerEnd - target.segment.start;
       left = length <= Duration.zero
           ? 0
-          : ((target.end - position).inMicroseconds / length.inMicroseconds)
+          : ((offerEnd - position).inMicroseconds / length.inMicroseconds)
               .clamp(0.0, 1.0);
     }
     final sameSegment = target?.segment.start == _target?.segment.start &&
@@ -95,6 +100,14 @@ class _SkipSegmentButtonState extends State<SkipSegmentButton> {
     });
   }
 
+  /// Pulsanti allineati a destra, come il loro posto nel player: nel cambio
+  /// riassunto → intro il nuovo, più stretto, non sta al centro del vecchio
+  /// e non salta quando il vecchio se ne va.
+  static Widget _rightLayout(Widget? current, List<Widget> previous) => Stack(
+        alignment: Alignment.centerRight,
+        children: [...previous, ?current],
+      );
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -103,9 +116,10 @@ class _SkipSegmentButtonState extends State<SkipSegmentButton> {
     return AnimatedSwitcher(
       duration: motion.duration(WfMotion.medium),
       reverseDuration: WfMotion.fast,
+      switchOutCurve: WfMotion.accelerateReverse,
+      layoutBuilder: _rightLayout,
       transitionBuilder: (child, animation) {
-        // Il segnaposto vuoto (senza chiave) non si sposta: solo il pulsante.
-        if (motion.isReduced || child.key == null) {
+        if (motion.isReduced) {
           return FadeTransition(opacity: animation, child: child);
         }
         final slide = animation.drive(CurveTween(curve: WfMotion.bounce));
@@ -123,40 +137,37 @@ class _SkipSegmentButtonState extends State<SkipSegmentButton> {
           ),
         );
       },
+      // Senza segmento nessun figlio: niente segnaposto da far entrare.
       child: target == null
-          ? const SizedBox.shrink()
-          : Stack(
-              key: ValueKey(target.segment.start),
-              children: [
-                WfButton.secondary(
-                  label: target.kind == SkipKind.intro
-                      ? l.playerSkipIntro
-                      : l.playerSkipRecap,
-                  icon: LucideIcons.skipForward,
-                  onPressed: widget.onSkip,
-                ),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
+          ? null
+          : WfButton.secondary(
+              key: ValueKey((target.kind, target.segment.start)),
+              label: target.kind == SkipKind.intro
+                  ? l.playerSkipIntro
+                  : l.playerSkipRecap,
+              icon: LucideIcons.skipForward,
+              onPressed: widget.onSkip,
+              // Dentro il pulsante: segue la sua scala al passaggio e al clic.
+              overlay: Align(
+                alignment: Alignment.bottomCenter,
+                child: SizedBox(
+                  width: double.infinity,
                   height: SkipSegmentButton.lineHeight,
-                  child: IgnorePointer(
-                    child: ClipRRect(
-                      borderRadius:
-                          const BorderRadius.vertical(bottom: Radius.circular(6)),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: FractionallySizedBox(
-                          key: const Key('skip-line'),
-                          widthFactor: _left,
-                          heightFactor: 1,
-                          child: const ColoredBox(color: WfColors.gold),
-                        ),
+                  child: ClipRRect(
+                    borderRadius:
+                        const BorderRadius.vertical(bottom: Radius.circular(6)),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: FractionallySizedBox(
+                        key: const Key('skip-line'),
+                        widthFactor: _left,
+                        heightFactor: 1,
+                        child: const ColoredBox(color: WfColors.gold),
                       ),
                     ),
                   ),
                 ),
-              ],
+              ),
             ),
     );
   }
