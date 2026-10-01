@@ -150,6 +150,22 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('riassunto saltato, poi intro saltata: il testo sfuma',
+      (tester) async {
+    final state = await pumpPill(tester);
+    state.value = (const SkipFeedback(SkipKind.recap), null);
+    await tester.pumpAndSettle();
+    expect(find.text('Riassunto saltato'), findsOneWidget);
+
+    state.value = (const SkipFeedback(SkipKind.intro), null);
+    await tester.pump(const Duration(milliseconds: 33));
+    expect(find.text('Riassunto saltato'), findsOneWidget,
+        reason: 'il vecchio sfuma');
+    expect(find.text('Intro saltata'), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.text('Riassunto saltato'), findsNothing);
+  });
+
   testWidgets('avviso lungo: una riga con i puntini, nessun overflow',
       (tester) async {
     final state = await pumpPill(tester);

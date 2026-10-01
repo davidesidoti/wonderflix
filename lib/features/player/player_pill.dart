@@ -27,7 +27,7 @@ String playerFeedbackText(AppLocalizations l, PlayerFeedback feedback) =>
       SubtitleDelayFeedback(:final delay) => l.playerFeedbackSubtitles(
           formatSubtitleDelay(delay, l.decimalSeparator)),
       SkipFeedback(kind: SkipKind.intro) => l.playerIntroSkipped,
-      SkipFeedback() => l.playerRecapSkipped,
+      SkipFeedback(kind: SkipKind.recap) => l.playerRecapSkipped,
     };
 
 /// Icona oro del riscontro di un tasto.
@@ -84,7 +84,8 @@ class _PlayerPillState extends State<PlayerPill> {
           SeekFeedback(:final offset) => (SeekFeedback, offset.isNegative),
           VolumeFeedback() => VolumeFeedback,
           SubtitleDelayFeedback() => SubtitleDelayFeedback,
-          SkipFeedback() => SkipFeedback,
+          // Riassunto saltato e poi intro saltata: il testo nuovo sfuma.
+          SkipFeedback(:final kind) => (SkipFeedback, kind),
         },
       );
     }
