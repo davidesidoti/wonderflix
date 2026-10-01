@@ -91,15 +91,17 @@ Usa `clock` e `Timer` cancellabili, quindi si prova con `fake_async`. In `dispos
 Ogni strato è un widget nel suo file in `lib/features/player/`, montato nello `Stack` di `PlayerScreen` in quest'ordine (dal basso):
 
 1. video (`engine.buildView()`, dentro il `Transform` del post-play, §12.1);
-2. `player_loading.dart`: `PlayerLoadingLayer` (caricamento) e `PlayerErrorLayer` (errore, §10);
-3. spinner del buffering (§10.2);
-4. `PartyWaitingOverlay` (§15.3);
-5. `pause_screen.dart`: `PauseScreen` (§11);
-6. `PlayerOverlay` (controlli, §7–8);
+2. `player_loading.dart`: `BufferingSpinner` (spinner del buffering, §10.2);
+3. `PartyWaitingOverlay` (§15.3);
+4. `pause_screen.dart`: `PauseScreen` (§11);
+5. `PlayerOverlay` (controlli, §7–8), oppure `PlayerErrorLayer` (errore, §10.3) al suo posto;
+6. `player_loading.dart`: `PlayerLoadingLayer` (caricamento, §10.1), sopra i controlli: durante il caricamento i controlli sono nascosti e la freccia per uscire sta nello strato;
 7. `skip_button.dart`: `SkipSegmentButton` (§13) e la scheda piccola del prossimo episodio (§12.2);
 8. `post_play.dart`: `PostPlayLayer` (informazioni del post-play, §12.1);
 9. `player_pill.dart`: `PlayerPill` (§9);
-10. `tracks_panel.dart`: `TracksPanel` laterale (§14).
+10. `tracks_panel.dart`: `TracksPanelHost` con il `TracksPanel` laterale (§14).
+
+Ogni strato ha una `ValueKey`: i figli dello `Stack` si abbinano per posizione, e uno strato condizionale che compare o sparisce farebbe rimontare (perdendo lo stato) quelli vicini.
 
 `player_screen.dart` resta il punto in cui si collegano motore, `PlayerController`, watch party, finestra, sessione media e tasti; perde la parte di interfaccia (timer dei controlli, `_PlayerError`, logica della scheda), che passa al controller e agli strati.
 
@@ -230,6 +232,7 @@ F, N, Esc e Alt+← non hanno pillola: il loro effetto si vede già.
 ### 10.1 Caricamento (`PlayerLoadingLayer`)
 
 - Visibile finché lo stato è `loading`, e dopo `ready` fino al **primo fotogramma** (`engine.firstFrame`). Per le aperture successive dello stesso motore ("Riprova", ripiego sulla conversione) basta `ready`.
+- Se il motore non segnala il primo fotogramma entro 3 s da `ready` (`PlayerScreen.firstFrameTimeout`; per esempio un video del gruppo aperto in pausa), il caricamento sfuma comunque.
 - Sfondo: `urls.backdrop(item)` a 1920 px (la stessa immagine della testata della scheda, già in cache), scurito al 55%.
 - Al centro il logo (`urls.logo(item)`, per gli episodi quello della serie), largo al massimo il 40% della finestra e alto al massimo 160 px; senza logo il titolo in Bebas (`WfText.display`), per gli episodi il nome della serie.
 - Sotto, una linea oro sottile (3 × 200 px) che scorre con periodo `loadingLinePeriod`.
@@ -320,9 +323,9 @@ La schermata di pausa non compare durante il post-play; tasti e pillola continua
   2. **Audio**: le tracce;
   3. **Sottotitoli**: "Nessuno" e le tracce;
   4. **Ritardo**: −, valore, + (come oggi);
-  5. **Dimensione**: Piccoli · Normali · Grandi · Molto grandi (`subtitleScaleOptions`, testi di Impostazioni). Si applica subito (`PlayerController.setSubtitleScale`) e **si salva** in Impostazioni → Player.
+  5. **Dimensione**: Piccoli · Normali · Grandi · Molto grandi (`subtitleScaleOptions`, testi di Impostazioni). Si applica subito (`PlayerController.setSubtitleScale`) e **si salva** in Impostazioni → Player. Quattro pillole selezionabili (non il selettore delle Impostazioni), con le stesse etichette (`subtitleScaleLabel`).
 - La traccia scelta ha il testo crema in grassetto e la spunta oro, che compare con `bounce`.
-- **Chiusura:** ×, clic sul film, Esc, di nuovo l'icona dei sottotitoli. Con il pannello aperto i controlli restano visibili e la schermata di pausa non compare.
+- **Chiusura:** ×, clic sul film o Esc (il pannello, sopra i controlli, copre l'icona dei sottotitoli). Con il pannello aperto i controlli restano visibili e la schermata di pausa non compare.
 
 ## 15. Watch party nel player
 
