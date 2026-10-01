@@ -33,6 +33,18 @@ void main() {
     });
   });
 
+  test('in riproduzione un tasto non tiene su i controlli', () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController()..setPlayback(playing: true);
+      async.elapse(const Duration(milliseconds: 2500));
+      chrome.keyActivity(); // tenendo premuta una freccia, per esempio
+      async.elapse(const Duration(milliseconds: 500));
+      expect(chrome.controlsVisible, isFalse,
+          reason: 'il conto dei 3 s non riparte dal tasto');
+      chrome.dispose();
+    });
+  });
+
   test('in pausa i controlli restano', () {
     fakeAsync((async) {
       final chrome = PlayerChromeController()..setPlayback(playing: true);

@@ -114,7 +114,10 @@ class PlayerChromeController extends ChangeNotifier {
       _pauseScreen = false;
       notifyListeners();
     }
-    _scheduleHide();
+    // Il conto riparte solo in pausa (quello degli 8 s). In riproduzione
+    // quello dei 3 s è del mouse: tenendo premuta una freccia i controlli
+    // resterebbero su.
+    if (!_playing) _scheduleHide();
   }
 
   /// Riproduzione o pausa, e se la schermata di pausa è ammessa adesso:
