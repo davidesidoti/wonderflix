@@ -137,18 +137,29 @@ class PostPlayLayer extends ConsumerWidget {
                         overflow: TextOverflow.ellipsis,
                         style: WfText.display(20, color: WfColors.gold)),
                     const SizedBox(height: 8),
-                    Text(cardTitle(episode).toUpperCase(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: WfText.display(40)),
-                    const SizedBox(height: 6),
-                    Text(cardSubtitle(episode) ?? episode.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 17, fontWeight: FontWeight.w600)),
-                    if (overview != null)
-                      Flexible(child: _PostPlayOverview(overview)),
+                    // Lo spazio tra l'occhiello e i pulsanti: prima la serie
+                    // e l'episodio, poi la trama con quello che resta.
+                    Flexible(
+                      child: LayoutBuilder(
+                        builder: (context, area) => Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ConstrainedBox(
+                              constraints:
+                                  BoxConstraints(maxHeight: area.maxHeight),
+                              child: _PostPlayTitles(
+                                title: cardTitle(episode).toUpperCase(),
+                                subtitle: cardSubtitle(episode) ?? episode.name,
+                                width: area.maxWidth,
+                              ),
+                            ),
+                            if (overview != null)
+                              Flexible(child: _PostPlayOverview(overview)),
+                          ],
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 18),
                     Wrap(
                       spacing: 10,
@@ -204,6 +215,50 @@ class PostPlayLayer extends ConsumerWidget {
       }),
     );
   }
+}
+
+/// Serie ed episodio del post-play. Se non entrano neppure senza la trama
+/// (finestra minima con il testo oltre il 200% circa), l'ultima difesa è
+/// rimpicciolire il nome della serie: i pulsanti sotto restano visibili.
+class _PostPlayTitles extends StatelessWidget {
+  const _PostPlayTitles({
+    required this.title,
+    required this.subtitle,
+    required this.width,
+  });
+
+  final String title;
+  final String subtitle;
+
+  /// Larghezza della colonna: il nome della serie finisce con i puntini lì,
+  /// anche quando si rimpicciolisce.
+  final double width;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: SizedBox(
+                width: width,
+                child: Text(title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: WfText.display(40)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+        ],
+      );
 }
 
 /// Trama del post-play: al massimo [maxLines] righe, ma solo quelle intere

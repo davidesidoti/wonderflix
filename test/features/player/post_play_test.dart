@@ -128,23 +128,41 @@ void main() {
           ),
         );
 
-    testWidgets('finestra minima, testo al 150%: i pulsanti restano dentro',
-        (tester) async {
-      const screen = Size(1024, 640);
-      await pumpApp(tester, layer(textScale: 1.5), surfaceSize: screen);
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-      for (final button in [find.byType(PlayNowButton), find.byType(WfButton)]) {
-        final rect = tester.getRect(button);
-        expect(
-            rect.left >= 0 &&
-                rect.top >= 0 &&
-                rect.right <= screen.width &&
-                rect.bottom <= screen.height,
-            isTrue,
-            reason: '$button: $rect');
-      }
-    });
+    for (final textScale in [1.5, 2.0]) {
+      testWidgets(
+          'finestra minima, testo al ${(textScale * 100).round()}%: i '
+          'pulsanti restano dentro', (tester) async {
+        const screen = Size(1024, 640);
+        await pumpApp(tester, layer(textScale: textScale), surfaceSize: screen);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        for (final button in [
+          find.byType(PlayNowButton),
+          find.byType(WfButton)
+        ]) {
+          final rect = tester.getRect(button);
+          expect(
+              rect.left >= 0 &&
+                  rect.top >= 0 &&
+                  rect.right <= screen.width &&
+                  rect.bottom <= screen.height,
+              isTrue,
+              reason: '$button: $rect');
+        }
+        // Il nome della serie si rimpicciolisce solo come ultima difesa,
+        // quando la trama ha già ceduto tutto il suo spazio.
+        final title = find.text('BREAKING BAD');
+        final shown = tester.getRect(title).height;
+        final natural = tester.getSize(title).height;
+        if (textScale <= 1.5) {
+          expect(shown, closeTo(natural, 0.01));
+        } else {
+          expect(shown, inExclusiveRange(0, natural));
+          expect(find.text('Walter e Jesse devono liberarsi di un corpo.'),
+              findsNothing);
+        }
+      });
+    }
 
     testWidgets("finestra molto larga: l'immagine non esce dal fondo",
         (tester) async {
@@ -173,7 +191,9 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Riproduci ora'));
+      expect(find.text('Riproduci ora'), findsOneWidget);
+      // Sul pulsante, non sull'etichetta: sopra c'è lo strato dell'onda.
+      await tester.tap(find.byType(PlayNowButton));
       expect(played, 1);
     });
   });
