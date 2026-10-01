@@ -5,6 +5,8 @@ import 'package:screen_retriever/screen_retriever.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../core/system/native_fullscreen.dart';
+
 const _boundsKey = 'window_bounds';
 const minWindowSize = Size(1024, 640);
 
@@ -30,6 +32,15 @@ bool isVisibleOnAnyDisplay(Rect bounds, List<Rect> displays) {
   }
   return false;
 }
+
+/// La posizione si ricorda solo per la finestra "normale": né ridotta a
+/// icona, né massimizzata, né a schermo intero.
+bool shouldSaveBounds({
+  required bool minimized,
+  required bool maximized,
+  required bool fullScreen,
+}) =>
+    !minimized && !maximized && !fullScreen;
 
 Future<List<Rect>> _currentDisplayRects() async {
   final displays = await screenRetriever.getAllDisplays();
@@ -66,10 +77,14 @@ class _BoundsSaver with WindowListener {
   final SharedPreferences _prefs;
 
   Future<void> _save() async {
-    if (await windowManager.isMinimized()) return;
-    if (await windowManager.isMaximized() || await windowManager.isFullScreen()) {
-      return;
-    }
+    // Lo schermo intero è nativo (`NativeFullScreen`): `window_manager` non
+    // lo vede.
+    final save = shouldSaveBounds(
+      minimized: await windowManager.isMinimized(),
+      maximized: await windowManager.isMaximized(),
+      fullScreen: nativeFullScreen.active,
+    );
+    if (!save) return;
     await _prefs.setString(_boundsKey, encodeBounds(await windowManager.getBounds()));
   }
 

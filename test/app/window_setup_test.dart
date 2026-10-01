@@ -50,4 +50,19 @@ void main() {
       );
     });
   });
+
+  test('la posizione si salva solo per la finestra normale', () {
+    expect(
+        shouldSaveBounds(minimized: false, maximized: false, fullScreen: false),
+        isTrue);
+    expect(
+        shouldSaveBounds(minimized: true, maximized: false, fullScreen: false),
+        isFalse);
+    expect(
+        shouldSaveBounds(minimized: false, maximized: true, fullScreen: false),
+        isFalse);
+    expect(
+        shouldSaveBounds(minimized: false, maximized: false, fullScreen: true),
+        isFalse);
+  });
 }

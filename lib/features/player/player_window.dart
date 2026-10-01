@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:window_manager/window_manager.dart';
 
+import '../../core/system/native_fullscreen.dart';
+
 /// Operazioni sulla finestra usate dal player (sostituibili nei test).
 abstract class PlayerWindow {
   Future<void> setFullScreen(bool value);
@@ -22,6 +24,13 @@ abstract class PlayerWindow {
 }
 
 class WindowManagerPlayerWindow implements PlayerWindow {
+  WindowManagerPlayerWindow({NativeFullScreen? fullScreen})
+      : _fullScreen = fullScreen ?? nativeFullScreen;
+
+  /// Schermo intero nativo: quello di `window_manager` a finestra
+  /// massimizzata lascia la barra del titolo (issue #2).
+  final NativeFullScreen _fullScreen;
+
   final _listeners = <Future<void> Function(), _CloseListener>{};
 
   /// Richieste di [setPreventClose] attive. Un nuovo player può montarsi
@@ -30,10 +39,11 @@ class WindowManagerPlayerWindow implements PlayerWindow {
   int _preventCloseRequests = 0;
 
   @override
-  Future<void> setFullScreen(bool value) => windowManager.setFullScreen(value);
+  Future<void> setFullScreen(bool value) =>
+      value ? _fullScreen.enter() : _fullScreen.exit();
 
   @override
-  Future<bool> isFullScreen() => windowManager.isFullScreen();
+  Future<bool> isFullScreen() async => _fullScreen.active;
 
   @override
   Future<void> setPreventClose(bool value) async {
