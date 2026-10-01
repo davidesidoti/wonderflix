@@ -884,9 +884,15 @@ void main() {
     expect(find.text('Riproduci ora · 1'), findsOneWidget);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pump();
-    // Il pulsante che sfuma via resta montato un attimo e il suo conto
-    // scade: l'episodio non deve partire.
-    await tester.pump(const Duration(seconds: 1));
+    // Il pulsante che sfuma via (in `fast`) resta montato un attimo e il suo
+    // conto scade: si va oltre i 10 s ma non oltre la dissolvenza.
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(router.state.uri.path, '/play/e4',
+        reason: 'il successivo non deve partire');
+    expect(find.byType(PlayNowButton), findsOneWidget,
+        reason: 'ancora montato mentre sfuma');
+    expect(find.text('Riproduci ora'), findsOneWidget,
+        reason: 'il conto è arrivato a zero');
     await tester.pumpAndSettle();
     expect(engines, hasLength(1));
     expect(router.state.uri.path, '/play/e4', reason: 'si resta nel player');
