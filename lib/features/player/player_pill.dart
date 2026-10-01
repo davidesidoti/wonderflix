@@ -127,38 +127,46 @@ class _PlayerPillState extends State<PlayerPill> {
     );
   }
 
-  Widget _frame(_PillContent content, WfMotion motion) => ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: PlayerPill.maxWidth),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: WfColors.surfaceHigh.withValues(alpha: 0.92),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: WfColors.border),
-          ),
-          child: AnimatedSize(
-            duration: motion.duration(WfMotion.medium),
-            curve: WfMotion.emphasized,
-            child: AnimatedSwitcher(
-              duration: WfMotion.fast,
-              child: Row(
-                key: ValueKey(content.kind),
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(content.icon, size: 18, color: WfColors.gold),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      content.text,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: WfColors.cream),
-                    ),
-                  ),
-                ],
-              ),
+  Widget _frame(_PillContent content, WfMotion motion) {
+    final row = AnimatedSwitcher(
+      duration: WfMotion.fast,
+      child: Row(
+        key: ValueKey(content.kind),
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(content.icon, size: 18, color: WfColors.gold),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              content.text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: WfColors.cream),
             ),
           ),
+        ],
+      ),
+    );
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: PlayerPill.maxWidth),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: WfColors.surfaceHigh.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: WfColors.border),
         ),
-      );
+        // Ridotto: niente movimento, solo sfumature (spec §6.2): la larghezza
+        // cambia di colpo. Niente `AnimatedSize` con durata zero: il suo
+        // render object rimanda il layout a se stesso e l'assert scatta.
+        child: motion.isReduced
+            ? row
+            : AnimatedSize(
+                duration: WfMotion.medium,
+                curve: WfMotion.emphasized,
+                child: row,
+              ),
+      ),
+    );
+  }
 }

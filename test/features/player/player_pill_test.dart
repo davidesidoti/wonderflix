@@ -166,6 +166,31 @@ void main() {
     expect(text.overflow, TextOverflow.ellipsis);
   });
 
+  testWidgets('la larghezza si adatta con i token; ridotto: senza animazione',
+      (tester) async {
+    final sizeAnimation = find.descendant(
+        of: find.byKey(const Key('player-pill')),
+        matching: find.byType(AnimatedSize));
+
+    var state = await pumpPill(tester, motion: MotionLevel.full);
+    state.value = (const PlayFeedback(playing: true), null);
+    await tester.pumpAndSettle();
+    expect(tester.widget<AnimatedSize>(sizeAnimation).duration,
+        WfMotion.medium);
+
+    // Ridotto: la larghezza cambia di colpo (un `AnimatedSize` con durata
+    // zero fa scattare un assert del framework, quindi non c'è proprio).
+    state = await pumpPill(tester);
+    state.value = (const PlayFeedback(playing: true), null);
+    await tester.pumpAndSettle();
+    expect(find.text('Riproduzione'), findsOneWidget);
+    expect(sizeAnimation, findsNothing);
+    state.value = (const PlayFeedback(playing: false), null);
+    await tester.pumpAndSettle();
+    expect(find.text('In pausa'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('animazioni complete: entra scendendo dall\'alto',
       (tester) async {
     final state = await pumpPill(tester, motion: MotionLevel.full);
