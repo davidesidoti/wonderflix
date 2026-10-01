@@ -33,6 +33,7 @@ import 'player_commands.dart';
 import 'player_controller.dart';
 import 'player_extras.dart';
 import 'player_active.dart';
+import 'player_chrome.dart';
 import 'player_handover.dart';
 import 'player_overlay.dart';
 import 'player_providers.dart';
@@ -55,9 +56,6 @@ class PlayerScreen extends ConsumerStatefulWidget {
   /// La finestra è già a schermo intero (arrivo dall'episodio precedente).
   final bool fullscreen;
 
-  /// Inattività del mouse dopo cui i controlli spariscono.
-  static const hideDelay = Duration(seconds: 3);
-
   /// Attesa massima del report di fine alla chiusura della finestra.
   static const closeTimeout = Duration(seconds: 2);
 
@@ -67,9 +65,9 @@ class PlayerScreen extends ConsumerStatefulWidget {
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   late final PlayerWindow _window;
-  Timer? _hideTimer;
-  bool _controlsVisible = true;
-  bool _tracksOpen = false;
+
+  /// Controlli, pannello e riscontro dei tasti (spec D §5.1).
+  final _chrome = PlayerChromeController();
   late bool _fullscreen = widget.fullscreen;
   bool _leaving = false;
 
@@ -130,7 +128,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         party != null && party.inGroup ? party.members.length : null));
     _timelineTimer =
         Timer.periodic(const Duration(seconds: 5), (_) => _sendTimeline());
-    _scheduleHide();
+    _chrome.addListener(_onChromeChanged);
   }
 
   @override
@@ -139,7 +137,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // passando all'episodio successivo.
     final handingOver = _handingOver ||
         (widget.args.party == null && _handover.consume(widget.args.itemId));
-    _hideTimer?.cancel();
+    _chrome
+      ..removeListener(_onChromeChanged)
+      ..dispose();
     _window.removeCloseListener(_onWindowClose);
     unawaited(_window.setPreventClose(false));
     if (_fullscreen && !handingOver) unawaited(_window.setFullScreen(false));
@@ -163,25 +163,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     await _window.destroy();
   }
 
-  void _showControls() {
-    if (!_controlsVisible) setState(() => _controlsVisible = true);
-    _scheduleHide();
-  }
-
-  /// I controlli si nascondono solo durante la riproduzione e a pannello
-  /// chiuso.
-  void _scheduleHide() {
-    _hideTimer?.cancel();
-    _hideTimer = Timer(PlayerScreen.hideDelay, () {
-      if (!mounted || _tracksOpen) return;
-      if (!ref.read(playerControllerProvider(widget.args)).playing) return;
-      setState(() => _controlsVisible = false);
-    });
-  }
-
-  void _toggleTracks() {
-    setState(() => _tracksOpen = !_tracksOpen);
-    _showControls();
+  void _onChromeChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _toggleFullscreen() async {
@@ -389,8 +372,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   void _escape() {
-    if (_tracksOpen) {
-      setState(() => _tracksOpen = false);
+    if (_chrome.panelOpen) {
+      _chrome.closePanel();
     } else if (_fullscreen) {
       unawaited(_toggleFullscreen());
     } else {
@@ -438,7 +421,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _exit();
         return;
     }
-    _showControls();
   }
 
   /// Anteprima trickplay per la barra; `null` se il server non ne ha.
@@ -484,7 +466,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (finished) _onFinished();
     });
     ref.listen(provider.select((s) => s.playing), (_, playing) {
-      if (playing) _scheduleHide();
+      _chrome.setPlaying(playing);
       unawaited(_mediaSession.setPlaying(playing));
     });
     ref.listen(provider.select((s) => s.item), (_, item) {
@@ -570,18 +552,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             if (event.buttons & kBackMouseButton != 0) _exit();
           },
           child: MouseRegion(
-            cursor: _controlsVisible
+            cursor: _chrome.controlsVisible
                 ? MouseCursor.defer
                 : SystemMouseCursors.none,
-            onHover: (_) => _showControls(),
+            onHover: (_) => _chrome.pointerActivity(),
             child: Stack(
               fit: StackFit.expand,
               children: [
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: () {
-                    if (_tracksOpen) {
-                      setState(() => _tracksOpen = false);
+                    if (_chrome.panelOpen) {
+                      _chrome.closePanel();
                     } else {
                       unawaited(controller.togglePlay());
                     }
@@ -616,43 +598,37 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   // scorciatoie restano sempre attive.
                   ExcludeFocus(
                     child: IgnorePointer(
-                      ignoring: !_controlsVisible,
-                      child: AnimatedOpacity(
-                        key: const Key('player-controls'),
-                        opacity: _controlsVisible ? 1 : 0,
-                        duration: const Duration(milliseconds: 200),
-                        child: PlayerOverlay(
-                          view: view,
-                          engine: controller.engine,
-                          fullscreen: _fullscreen,
-                          onBack: _exit,
-                          onTogglePlay: () =>
-                              unawaited(controller.togglePlay()),
-                          onSeekBy: (offset) =>
-                              unawaited(controller.seekBy(offset)),
-                          onSeekTo: (position) =>
-                              unawaited(controller.seekTo(position)),
-                          onVolume: (volume) =>
-                              unawaited(controller.setVolume(volume)),
-                          onToggleMute: () =>
-                              unawaited(controller.toggleMute()),
-                          onToggleTracks: _toggleTracks,
-                          onToggleFullscreen: () =>
-                              unawaited(_toggleFullscreen()),
-                          onNextEpisode: _inParty
-                              ? (party != null && party.hasNext
-                                  ? _playNext
-                                  : null)
-                              : (next == null ? null : _playNext),
-                          chapters: view.item?.chapters ?? const [],
-                          preview: _previewFor(view),
-                          partyBadge: party != null && party.inGroup
-                              ? PartyBadge(onLeave: _exit)
-                              : null,
-                          onWatchTogether: canWatchTogether
-                              ? () => unawaited(_watchTogether())
-                              : null,
-                        ),
+                      ignoring: !_chrome.controlsVisible,
+                      child: PlayerOverlay(
+                        visible: _chrome.controlsVisible,
+                        view: view,
+                        engine: controller.engine,
+                        fullscreen: _fullscreen,
+                        onBack: _exit,
+                        onTogglePlay: () => unawaited(controller.togglePlay()),
+                        onSeekBy: (offset) =>
+                            unawaited(controller.seekBy(offset)),
+                        onSeekTo: (position) =>
+                            unawaited(controller.seekTo(position)),
+                        onVolume: (volume) =>
+                            unawaited(controller.setVolume(volume)),
+                        onToggleMute: () => unawaited(controller.toggleMute()),
+                        onToggleTracks: _chrome.togglePanel,
+                        onToggleFullscreen: () =>
+                            unawaited(_toggleFullscreen()),
+                        onNextEpisode: _inParty
+                            ? (party != null && party.hasNext
+                                ? _playNext
+                                : null)
+                            : (next == null ? null : _playNext),
+                        chapters: view.item?.chapters ?? const [],
+                        preview: _previewFor(view),
+                        partyBadge: party != null && party.inGroup
+                            ? PartyBadge(onLeave: _exit)
+                            : null,
+                        onWatchTogether: canWatchTogether
+                            ? () => unawaited(_watchTogether())
+                            : null,
                       ),
                     ),
                   ),
@@ -724,7 +700,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       child: Center(child: PartyNoticePill()),
                     ),
                   ),
-                if (_tracksOpen && view.plan != null)
+                if (_chrome.panelOpen && view.plan != null)
                   Positioned(
                     right: 24,
                     bottom: 120,

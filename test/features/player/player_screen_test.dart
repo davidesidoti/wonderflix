@@ -16,6 +16,7 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/player/playback_service.dart';
 import 'package:wonderflix/features/player/player_active.dart';
+import 'package:wonderflix/features/player/player_chrome.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
@@ -133,7 +134,7 @@ void main() {
   }
 
   double controlsOpacity(WidgetTester tester) => tester
-      .widget<AnimatedOpacity>(find.byKey(const Key('player-controls')))
+      .widget<AnimatedOpacity>(find.byKey(const Key('player-controls-bottom')))
       .opacity;
 
   testWidgets('video, titolo, episodio e controlli', (tester) async {
@@ -208,6 +209,19 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.space);
     await tester.pump(const Duration(seconds: 5));
     expect(controlsOpacity(tester), 1);
+    await unmount(tester);
+  });
+
+  testWidgets('i tasti non mostrano i controlli', (tester) async {
+    await pumpPlayer(tester);
+    await tester.pump(PlayerChromeController.hideDelay);
+    await tester.pumpAndSettle();
+    expect(controlsOpacity(tester), 0);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+    expect(engine.seeks.last, const Duration(seconds: 10));
+    expect(controlsOpacity(tester), 0);
     await unmount(tester);
   });
 
