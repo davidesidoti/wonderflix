@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../app/motion.dart';
 import '../../app/navigation.dart';
 import '../../app/providers.dart';
 import '../../core/jellyfin/item_models.dart';
@@ -27,6 +28,7 @@ import '../watch_party/watch_party_actions.dart';
 import '../watch_party/watch_party_providers.dart';
 import '../watch_party/watch_party_session.dart';
 import 'pause_screen.dart';
+import 'post_play.dart';
 import 'player_commands.dart';
 import 'player_controller.dart';
 import 'player_extras.dart';
@@ -92,8 +94,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// da solo con quello del gruppo (letto alla chiusura, senza `ref`).
   late final PlayerHandover _handover;
 
-  /// L'utente ha chiuso la scheda "Prossimo episodio".
-  bool _nextCardDismissed = false;
+  /// Dove si è rispetto alla fine dell'episodio (spec D §12): cambia poche
+  /// volte, e solo allora la schermata si ricostruisce.
+  EndZone _endZone = EndZone.none;
+  StreamSubscription<Duration>? _positions;
 
   late final PlayerActiveController _playerActive;
   late final MediaSession _mediaSession;
@@ -145,6 +149,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // caricamento.
     unawaited(_controller.engine.firstFrame
         .then((_) => _onFirstFrame(), onError: (Object _) {}));
+    _positions = _controller.engine.positionStream.listen(_onPosition);
   }
 
   @override
@@ -161,6 +166,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (_fullscreen && !handingOver) unawaited(_window.setFullScreen(false));
     _timelineTimer?.cancel();
     _firstFrameTimer?.cancel();
+    unawaited(_positions?.cancel());
     unawaited(_mediaButtons?.cancel());
     // Uscendo dal player il pannello media sparisce; passando all'episodio
     // successivo resta alla nuova schermata. Non si chiude mai: è dell'app.
@@ -211,8 +217,58 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           !view.buffering &&
           !view.finished &&
           view.item != null &&
-          !groupWaiting,
+          !groupWaiting &&
+          !_postPlayShown(view),
     );
+  }
+
+  void _onPosition(Duration position) {
+    if (!mounted) return;
+    final view = ref.read(playerControllerProvider(widget.args));
+    final zone =
+        endZoneAt(view.segments, _controller.engine.duration, position);
+    if (zone == _endZone) return;
+    setState(() => _endZone = zone);
+    // All'inizio dei titoli il pannello si chiude (sotto c'è il post-play).
+    if (_postPlayShown(view)) _chrome.closePanel();
+    _syncPlayback();
+  }
+
+  /// C'è un episodio successivo da proporre (nel gruppo solo se è il
+  /// prossimo della coda, che è quello che parte) e l'utente non l'ha
+  /// rifiutato.
+  bool _canOfferNext(PlayerViewState view) {
+    final next = view.nextEpisode;
+    if (next == null ||
+        view.status != PlayerStatus.ready ||
+        _chrome.postPlayDismissed) {
+      return false;
+    }
+    if (!_inParty) return true;
+    return next.id == ref.read(watchPartySessionProvider).nextEntry?.itemId;
+  }
+
+  /// Post-play: titoli di coda noti (spec D §12.1).
+  bool _postPlayShown(PlayerViewState view) =>
+      _endZone == EndZone.credits && _canOfferNext(view);
+
+  /// Scheda piccola: ultimi 30 s senza titoli noti (spec D §12.2).
+  bool _cardShown(PlayerViewState view) =>
+      _endZone == EndZone.lastSeconds && _canOfferNext(view);
+
+  /// "Guarda i titoli", "Annulla", Esc, clic sul film piccolo.
+  void _dismissNext() {
+    _chrome.dismissPostPlay();
+    _syncPlayback();
+  }
+
+  /// "Riproduci ora" (pulsante o conto alla rovescia) della scheda o del
+  /// post-play: vale solo se l'offerta è ancora mostrata. Uscendo
+  /// (`AnimatedSwitcher`) il pulsante resta montato un attimo e il suo conto
+  /// potrebbe scadere dopo che l'utente l'ha chiusa.
+  void _playOffered() {
+    final view = ref.read(playerControllerProvider(widget.args));
+    if (_postPlayShown(view) || _cardShown(view)) _playNext();
   }
 
   Future<void> _toggleFullscreen() async {
@@ -294,11 +350,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
     final view = ref.read(playerControllerProvider(widget.args));
     final autoplay = ref.read(playerSettingsProvider).autoplayNext;
-    if (view.nextEpisode != null && autoplay && !_nextCardDismissed) {
+    if (view.nextEpisode != null && autoplay && !_chrome.postPlayDismissed) {
       _playNext(finished: true);
-    } else {
+    } else if (!_postPlayShown(view)) {
       _exit();
     }
+    // Post-play aperto e nessun conto alla rovescia: si resta lì (film
+    // fermo sull'ultimo fotogramma) finché non si sceglie (spec D §12.1).
   }
 
   void _publishMetadata(JellyfinItem item) {
@@ -435,9 +493,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (ready) _chrome.showFeedback(PlayFeedback(playing: playing));
   }
 
+  /// Esc: pannello → post-play o scheda → schermo intero → uscita (spec D
+  /// §9.1). A video finito il post-play non si chiude: si esce.
   void _escape() {
+    final view = ref.read(playerControllerProvider(widget.args));
     if (_chrome.panelOpen) {
       _chrome.closePanel();
+    } else if ((_postPlayShown(view) && !view.finished) || _cardShown(view)) {
+      _dismissNext();
     } else if (_fullscreen) {
       unawaited(_toggleFullscreen());
     } else {
@@ -665,6 +728,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // il primo fotogramma (spec D §10.1).
     final loading = view.status == PlayerStatus.loading ||
         (view.status == PlayerStatus.ready && !_firstFrame);
+    final postPlay = _postPlayShown(view);
+    final card = _cardShown(view);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -679,7 +744,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           // scatta: i movimenti tengono vivi i controlli.
           onPointerMove: (_) => _chrome.pointerActivity(),
           child: MouseRegion(
-            cursor: _chrome.controlsVisible
+            // Nel post-play i controlli non ci sono ma il cursore resta.
+            cursor: _chrome.controlsVisible || postPlay
                 ? MouseCursor.defer
                 : SystemMouseCursors.none,
             onHover: (_) => _chrome.pointerActivity(),
@@ -690,18 +756,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                GestureDetector(
+                // Il film: nel post-play si rimpicciolisce (spec D §12.1).
+                PostPlayFrame(
                   key: const ValueKey('player-video'),
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () {
-                    if (_chrome.panelOpen) {
-                      _chrome.closePanel();
-                    } else {
-                      unawaited(controller.togglePlay());
-                    }
-                  },
-                  onDoubleTap: () => unawaited(_toggleFullscreen()),
-                  child: controller.engine.buildView(),
+                  active: postPlay,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      if (_chrome.panelOpen) {
+                        _chrome.closePanel();
+                      } else if (_postPlayShown(ref.read(provider))) {
+                        // Clic sul film piccolo: torna a tutto schermo.
+                        _dismissNext();
+                      } else {
+                        unawaited(controller.togglePlay());
+                      }
+                    },
+                    onDoubleTap: () => unawaited(_toggleFullscreen()),
+                    child: controller.engine.buildView(),
+                  ),
                 ),
                 if (view.status == PlayerStatus.ready && !loading)
                   BufferingSpinner(
@@ -745,11 +818,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   ExcludeFocus(
                     key: const ValueKey('player-controls'),
                     child: IgnorePointer(
-                      ignoring: !_chrome.controlsVisible || loading,
+                      ignoring: !_chrome.controlsVisible || loading || postPlay,
                       child: PlayerOverlay(
                         // Durante il caricamento la freccia per uscire sta
-                        // nello strato del caricamento.
-                        visible: _chrome.controlsVisible && !loading,
+                        // nello strato del caricamento; nel post-play i
+                        // controlli non ci sono.
+                        visible:
+                            _chrome.controlsVisible && !loading && !postPlay,
                         view: view,
                         engine: controller.engine,
                         fullscreen: _fullscreen,
@@ -822,40 +897,53 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ),
                     ),
                   ),
-                  // Nel gruppo solo se l'episodio successivo della libreria è
-                  // il prossimo della coda (che è quello che parte).
-                  if (next != null &&
-                      !_nextCardDismissed &&
-                      (!_inParty || next.id == party?.nextEntry?.itemId))
-                    Positioned(
-                      key: const ValueKey('player-next-card'),
-                      right: 32,
-                      bottom: 150,
-                      child: ExcludeFocus(
-                        child: PositionSelector<bool>(
-                          engine: controller.engine,
-                          select: (position) {
-                            final from = nextEpisodeCardFrom(
-                                view.segments, controller.engine.duration);
-                            return from != null && position >= from;
-                          },
-                          builder: (context, show) => show
-                              ? NextEpisodeCard(
-                                  episode: next,
-                                  // Nel gruppo nessun conto alla rovescia:
-                                  // si va avanti con il pulsante o a fine
-                                  // video (Piano 5b).
-                                  countdown: !_inParty && settings.autoplayNext,
-                                  paused: !view.playing || view.buffering,
-                                  onPlay: _playNext,
-                                  onCancel: () =>
-                                      setState(() => _nextCardDismissed = true),
-                                )
-                              : const SizedBox.shrink(),
-                        ),
+                  // Scheda piccola negli ultimi 30 s senza titoli noti
+                  // (spec D §12.2); sempre presente, il contenuto cambia.
+                  Positioned(
+                    key: const ValueKey('player-next-card'),
+                    right: 32,
+                    bottom: 150,
+                    child: ExcludeFocus(
+                      child: AnimatedSwitcher(
+                        duration: WfMotion.fast,
+                        child: card && next != null
+                            ? NextEpisodeCard(
+                                key: ValueKey(next.id),
+                                episode: next,
+                                // Nel gruppo nessun conto alla rovescia: si
+                                // va avanti con il pulsante o a fine video.
+                                countdown: !_inParty && settings.autoplayNext,
+                                paused: !view.playing || view.buffering,
+                                onPlay: _playOffered,
+                                onCancel: _dismissNext,
+                              )
+                            : const SizedBox.shrink(),
                       ),
                     ),
+                  ),
                 ],
+                // Post-play: informazioni e pulsanti accanto al film piccolo
+                // (spec D §12.1); sempre presente, il contenuto cambia.
+                Positioned.fill(
+                  key: const ValueKey('player-post-play'),
+                  child: ExcludeFocus(
+                    child: AnimatedSwitcher(
+                      duration: WfMotion.fast,
+                      child: postPlay && next != null
+                          ? SizedBox.expand(
+                              key: ValueKey(next.id),
+                              child: PostPlayLayer(
+                                episode: next,
+                                countdown: !_inParty && settings.autoplayNext,
+                                paused: !view.playing || view.buffering,
+                                onPlay: _playOffered,
+                                onWatchCredits: _dismissNext,
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ),
+                ),
                 // Riscontro dei tasti e avvisi del watch party (anche dopo
                 // l'uscita dal gruppo: "terminato" e "non sei più nel watch
                 // party" devono vedersi).

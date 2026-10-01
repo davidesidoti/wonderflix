@@ -10,6 +10,7 @@ import 'package:wonderflix/app/navigation.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
+import 'package:wonderflix/core/jellyfin/playback_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
@@ -48,7 +49,8 @@ void main() {
 
   /// Home con il player del watch party aperto sopra: l'utente è già nel
   /// gruppo `g1` (Mario e Luigi), che guarda `e4` (`p1`).
-  Future<void> pumpPartyPlayer(WidgetTester tester, {int failOpens = 0}) async {
+  Future<void> pumpPartyPlayer(WidgetTester tester,
+      {int failOpens = 0, List<MediaSegment> segments = const []}) async {
     engine = FakeVideoEngine()..engineTracks = testEngineTracks;
     engine.failOpens = failOpens;
     engines = [];
@@ -58,6 +60,7 @@ void main() {
     events = StreamController<ServerEvent>.broadcast();
     addTearDown(events.close);
     final playback = FakePlaybackApi();
+    playback.segments = segments;
     library = FakeLibraryApi()
       ..itemsById['e4'] = testItem(
         id: 'e4',
@@ -310,6 +313,27 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.text(l.playerNextEpisodeTitle.toUpperCase()), findsOneWidget);
+    expect(find.textContaining('Riproduci ora ·'), findsNothing);
+    await tester.tap(find.text(l.playerPlayNow));
+    await tester.pump();
+    expect(api.calls, contains('next p1'));
+    await finish(tester);
+  });
+
+  testWidgets('titoli noti nel gruppo: post-play senza conto alla rovescia',
+      (tester) async {
+    await pumpPartyPlayer(tester, segments: const [
+      MediaSegment(
+          type: MediaSegmentType.outro,
+          start: Duration(hours: 1, minutes: 55),
+          end: Duration(hours: 2)),
+    ]);
+    await queueSeries(tester);
+    engine.emitPosition(const Duration(hours: 1, minutes: 55, seconds: 10));
+    await tester.pump();
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text(l.playerWatchCredits), findsOneWidget);
     expect(find.textContaining('Riproduci ora ·'), findsNothing);
     await tester.tap(find.text(l.playerPlayNow));
     await tester.pump();

@@ -25,6 +25,7 @@ import 'package:wonderflix/features/player/player_pill.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
+import 'package:wonderflix/features/player/post_play.dart';
 import 'package:wonderflix/features/player/seek_bar.dart';
 import 'package:wonderflix/features/player/tracks_panel.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
@@ -699,6 +700,8 @@ void main() {
     // ...che poi sparisce.
     await tester.tap(find.text('Annulla'));
     await tester.pump();
+    await tester.pump(WfMotion.fast); // la scheda sfuma via
+    await tester.pump();
     expect(find.text('PROSSIMO EPISODIO'), findsNothing);
     expectSameLayers();
     await unmount(tester);
@@ -757,7 +760,7 @@ void main() {
     await tester.pump();
     await tester.pump();
     await tester.tap(find.text('Annulla'));
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.text('PROSSIMO EPISODIO'), findsNothing);
 
     engine.emitCompleted();
@@ -792,6 +795,174 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
     expect(find.text('home'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  /// Episodio con i titoli di coda noti (dall'1:55:00) e il successivo.
+  void withCredits() {
+    playback.segments = const [
+      MediaSegment(
+          type: MediaSegmentType.outro,
+          start: Duration(hours: 1, minutes: 55),
+          end: Duration(hours: 2)),
+    ];
+    final next = testItem(
+      id: 'e5',
+      name: 'Cat in the Bag',
+      kind: ItemKind.episode,
+      seriesName: 'Breaking Bad',
+      seriesId: 's1',
+      index: 5,
+      seasonIndex: 1,
+      overview: 'Walter e Jesse devono liberarsi di un corpo.',
+    );
+    library.itemsById['e5'] = next;
+    library.nextEpisodes['e4'] = next;
+  }
+
+  Future<void> toCredits(WidgetTester tester) async {
+    engine.emitPosition(const Duration(hours: 1, minutes: 55, seconds: 10));
+    await tester.pump();
+    await tester.pump();
+    await tester.pumpAndSettle();
+  }
+
+  bool shrunk(WidgetTester tester) =>
+      tester.widget<PostPlayFrame>(find.byType(PostPlayFrame)).active;
+
+  testWidgets('post-play: sui titoli il film si rimpicciolisce, poi parte il '
+      'successivo', (tester) async {
+    withCredits();
+    await pumpPlayer(tester);
+    await toCredits(tester);
+    expect(shrunk(tester), isTrue);
+    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+    expect(find.text('Guarda i titoli'), findsOneWidget);
+    expect(find.text('Riproduci ora · 10'), findsOneWidget);
+    expect(controlsOpacity(tester), 0, reason: 'i controlli si nascondono');
+
+    await tester.pump(const Duration(seconds: 10));
+    await tester.pumpAndSettle();
+    expect(engines, hasLength(2));
+    expect(library.playedCalls, [('e4', true)]);
+    await unmount(tester);
+  });
+
+  testWidgets('post-play: chiuso nell\'ultimo secondo del conto, il '
+      'successivo non parte', (tester) async {
+    withCredits();
+    await pumpPlayer(tester);
+    // Il post-play (e il suo conto) compare senza che passi tempo: da qui
+    // si contano i 10 s.
+    final start = tester.binding.clock.now();
+    await toCredits(tester);
+    await tester.pump(const Duration(milliseconds: 9900) -
+        tester.binding.clock.now().difference(start));
+    expect(find.text('Riproduci ora · 1'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    // Il pulsante che sfuma via resta montato un attimo e il suo conto
+    // scade: l'episodio non deve partire.
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(engines, hasLength(1));
+    expect(router.state.uri.path, '/play/e4', reason: 'si resta nel player');
+    expect(library.playedCalls, isEmpty);
+    await unmount(tester);
+  });
+
+  testWidgets('post-play: "Guarda i titoli" torna a tutto schermo; a fine '
+      'video si esce', (tester) async {
+    withCredits();
+    await pumpPlayer(tester);
+    await toCredits(tester);
+    await tester.tap(find.text('Guarda i titoli'));
+    await tester.pumpAndSettle();
+    expect(shrunk(tester), isFalse);
+    expect(find.text('PROSSIMO EPISODIO'), findsNothing);
+    expect(controlsOpacity(tester), 1);
+
+    engine.emitCompleted();
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('home'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('post-play: Esc lo chiude e si resta nel player',
+      (tester) async {
+    withCredits();
+    await pumpPlayer(tester);
+    await toCredits(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(shrunk(tester), isFalse);
+    expect(find.text('home'), findsNothing);
+    await unmount(tester);
+  });
+
+  testWidgets('post-play: un clic sul film piccolo lo chiude', (tester) async {
+    withCredits();
+    await pumpPlayer(tester);
+    await toCredits(tester);
+    await tester.tapAt(Offset(postPlayInset + 1440 * postPlayScale / 2,
+        postPlayInset + 900 * postPlayScale / 2));
+    await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
+    await tester.pumpAndSettle();
+    expect(shrunk(tester), isFalse);
+    expect(engine.playing, isTrue, reason: 'il clic chiude, non mette in pausa');
+    await unmount(tester);
+  });
+
+  testWidgets('post-play senza conto alla rovescia: a fine video si resta; '
+      'Esc esce', (tester) async {
+    settings = const PlayerSettings(autoplayNext: false);
+    withCredits();
+    await pumpPlayer(tester);
+    await toCredits(tester);
+    expect(find.textContaining('Riproduci ora ·'), findsNothing);
+    engine.emitCompleted();
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('home'), findsNothing);
+    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('home'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('post-play: niente schermata di pausa; il pannello si chiude',
+      (tester) async {
+    withCredits();
+    await pumpPlayer(tester);
+    await tester.tap(find.byTooltip('Audio e sottotitoli'));
+    await tester.pumpAndSettle();
+    await toCredits(tester);
+    expect(find.text('Dimensione'), findsNothing,
+        reason: 'all\'inizio dei titoli il pannello si chiude');
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 9));
+    await tester.pumpAndSettle();
+    expect(find.text('STAI GUARDANDO'), findsNothing);
+    await unmount(tester);
+  });
+
+  testWidgets('scheda piccola: Esc vale "Annulla"', (tester) async {
+    withNextEpisode();
+    await pumpPlayer(tester);
+    engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
+    await tester.pump();
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+    expect(shrunk(tester), isFalse, reason: 'senza titoli noti il film resta');
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('PROSSIMO EPISODIO'), findsNothing);
+    expect(find.text('home'), findsNothing);
     await unmount(tester);
   });
 
