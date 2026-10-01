@@ -236,5 +236,8 @@
   "@playerFeedbackSubtitles": {"placeholders": {"delay": {"type": "String"}}},
   "playerSegmentRecap": "Riassunto",
   "playerSegmentIntro": "Intro",
-  "playerSegmentOutro": "Titoli di coda"
+  "playerSegmentOutro": "Titoli di coda",
+  "playerWatching": "Stai guardando",
+  "playerSubtitleSize": "Dimensione",
+  "playerClosePanel": "Chiudi"
 }

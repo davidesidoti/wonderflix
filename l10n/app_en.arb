@@ -209,5 +209,8 @@
   "@playerFeedbackSubtitles": {"placeholders": {"delay": {"type": "String"}}},
   "playerSegmentRecap": "Recap",
   "playerSegmentIntro": "Intro",
-  "playerSegmentOutro": "End credits"
+  "playerSegmentOutro": "End credits",
+  "playerWatching": "You're watching",
+  "playerSubtitleSize": "Size",
+  "playerClosePanel": "Close"
 }

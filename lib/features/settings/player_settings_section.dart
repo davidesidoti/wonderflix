@@ -29,13 +29,6 @@ class PlayerSettingsSection extends ConsumerWidget {
     void save(PlayerSettings next) =>
         unawaited(ref.read(playerSettingsProvider.notifier).update(next));
 
-    final scaleLabels = {
-      0.8: l.settingsSubtitleSmall,
-      1.0: l.settingsSubtitleNormal,
-      1.25: l.settingsSubtitleLarge,
-      1.5: l.settingsSubtitleHuge,
-    };
-
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 640),
       child: Column(
@@ -65,7 +58,8 @@ class PlayerSettingsSection extends ConsumerWidget {
             showSelectedIcon: false,
             segments: [
               for (final scale in subtitleScaleOptions)
-                ButtonSegment(value: scale, label: Text(scaleLabels[scale]!)),
+                ButtonSegment(
+                    value: scale, label: Text(subtitleScaleLabel(l, scale))),
             ],
             selected: {settings.subtitleScale},
             onSelectionChanged: (selection) =>

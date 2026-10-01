@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../core/jellyfin/device_profile.dart';
+import '../../l10n/gen/app_localizations.dart';
 
 /// Qualità massima dello streaming. Sotto il bitrate del file il server
 /// converte il video.
@@ -18,6 +19,15 @@ enum StreamQuality {
 
 /// Dimensioni dei sottotitoli proposte (scala di mpv `sub-scale`).
 const subtitleScaleOptions = [0.8, 1.0, 1.25, 1.5];
+
+/// Nome di una dimensione dei sottotitoli (Impostazioni e pannello del
+/// player).
+String subtitleScaleLabel(AppLocalizations l, double scale) => switch (scale) {
+      0.8 => l.settingsSubtitleSmall,
+      1.25 => l.settingsSubtitleLarge,
+      1.5 => l.settingsSubtitleHuge,
+      _ => l.settingsSubtitleNormal,
+    };
 
 /// Preferenze del player salvate su questo PC.
 class PlayerSettings {

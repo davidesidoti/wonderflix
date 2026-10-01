@@ -1,9 +1,11 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/jellyfin/device_profile.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
+import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
 void main() {
   Future<ProviderContainer> container(Map<String, Object> saved) async {
@@ -59,5 +61,11 @@ void main() {
     expect(StreamQuality.mbps20.bitrate, 20000000);
     expect(StreamQuality.mbps8.bitrate, 8000000);
     expect(StreamQuality.mbps4.bitrate, 4000000);
+  });
+
+  test('nomi delle dimensioni dei sottotitoli', () {
+    final l = lookupAppLocalizations(const Locale('it'));
+    expect([for (final scale in subtitleScaleOptions) subtitleScaleLabel(l, scale)],
+        ['Piccoli', 'Normali', 'Grandi', 'Molto grandi']);
   });
 }
