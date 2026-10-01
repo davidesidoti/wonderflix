@@ -14,7 +14,7 @@ void main() {
       var notified = 0;
       chrome.addListener(() => notified++);
       expect(chrome.controlsVisible, isTrue);
-      chrome.setPlayback(playing: true);
+      chrome.setPlayback(playing: true, canShowPauseScreen: false);
       async.elapse(const Duration(milliseconds: 2900));
       expect(chrome.controlsVisible, isTrue);
       async.elapse(const Duration(milliseconds: 100));
@@ -35,7 +35,8 @@ void main() {
 
   test('in riproduzione un tasto non tiene su i controlli', () {
     fakeAsync((async) {
-      final chrome = PlayerChromeController()..setPlayback(playing: true);
+      final chrome = PlayerChromeController()
+        ..setPlayback(playing: true, canShowPauseScreen: false);
       async.elapse(const Duration(milliseconds: 2500));
       chrome.keyActivity(); // tenendo premuta una freccia, per esempio
       async.elapse(const Duration(milliseconds: 500));
@@ -47,9 +48,10 @@ void main() {
 
   test('in pausa i controlli restano', () {
     fakeAsync((async) {
-      final chrome = PlayerChromeController()..setPlayback(playing: true);
+      final chrome = PlayerChromeController()
+        ..setPlayback(playing: true, canShowPauseScreen: false);
       async.elapse(const Duration(seconds: 1));
-      chrome.setPlayback(playing: false);
+      chrome.setPlayback(playing: false, canShowPauseScreen: false);
       async.elapse(const Duration(seconds: 10));
       expect(chrome.controlsVisible, isTrue);
       chrome.dispose();
@@ -58,7 +60,8 @@ void main() {
 
   test('pannello aperto: i controlli restano; chiuso, il conto riparte', () {
     fakeAsync((async) {
-      final chrome = PlayerChromeController()..setPlayback(playing: true);
+      final chrome = PlayerChromeController()
+        ..setPlayback(playing: true, canShowPauseScreen: false);
       async.elapse(const Duration(seconds: 5));
       expect(chrome.controlsVisible, isFalse);
       chrome.togglePanel();
@@ -77,7 +80,8 @@ void main() {
   test('riscontro: resta 1,2 s dall\'ultimo tasto e non mostra i controlli',
       () {
     fakeAsync((async) {
-      final chrome = PlayerChromeController()..setPlayback(playing: true);
+      final chrome = PlayerChromeController()
+        ..setPlayback(playing: true, canShowPauseScreen: false);
       async.elapse(const Duration(seconds: 3));
       chrome.showFeedback(const VolumeFeedback(volume: 70, muted: false));
       expect(chrome.feedback, isA<VolumeFeedback>());
@@ -268,7 +272,7 @@ void main() {
       final chrome = PlayerChromeController()
         ..setPlayback(playing: false, canShowPauseScreen: true);
       async.elapse(PlayerChromeController.pauseScreenDelay);
-      chrome.setPlayback(playing: true);
+      chrome.setPlayback(playing: true, canShowPauseScreen: false);
       expect(chrome.pauseScreen, isFalse);
       chrome.dispose();
     });
@@ -292,9 +296,10 @@ void main() {
 
   test('stessi valori di nuovo: i conti non ripartono', () {
     fakeAsync((async) {
-      final chrome = PlayerChromeController()..setPlayback(playing: true);
+      final chrome = PlayerChromeController()
+        ..setPlayback(playing: true, canShowPauseScreen: false);
       async.elapse(const Duration(seconds: 2));
-      chrome.setPlayback(playing: true);
+      chrome.setPlayback(playing: true, canShowPauseScreen: false);
       async.elapse(const Duration(seconds: 1));
       expect(chrome.controlsVisible, isFalse);
       chrome.dispose();
@@ -303,7 +308,8 @@ void main() {
 
   test('dispose: nessun timer in sospeso', () {
     fakeAsync((async) {
-      final chrome = PlayerChromeController()..setPlayback(playing: true);
+      final chrome = PlayerChromeController()
+        ..setPlayback(playing: true, canShowPauseScreen: false);
       chrome.showFeedback(const PlayFeedback(playing: true));
       chrome.setPlayback(playing: false, canShowPauseScreen: true);
       chrome.dispose();

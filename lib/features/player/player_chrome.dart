@@ -124,7 +124,7 @@ class PlayerChromeController extends ChangeNotifier {
   /// file pronto e fermo, niente buffering, video non finito, gruppo non in
   /// attesa (lo calcola `PlayerScreen`). In riproduzione, o se non è più
   /// ammessa, la schermata di pausa si chiude.
-  void setPlayback({required bool playing, bool canShowPauseScreen = false}) {
+  void setPlayback({required bool playing, required bool canShowPauseScreen}) {
     if (playing == _playing && canShowPauseScreen == _canShowPauseScreen) {
       return;
     }

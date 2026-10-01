@@ -140,8 +140,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         Timer.periodic(const Duration(seconds: 5), (_) => _sendTimeline());
     _chrome.addListener(_onChromeChanged);
     // Il caricamento resta finché il motore non disegna il primo
-    // fotogramma (spec D §10.1).
-    unawaited(_controller.engine.firstFrame.then((_) => _onFirstFrame()));
+    // fotogramma (spec D §10.1). Se il controller nativo fallisce il futuro
+    // finisce in errore: si ignora, il conto di 3 s toglie comunque il
+    // caricamento.
+    unawaited(_controller.engine.firstFrame
+        .then((_) => _onFirstFrame(), onError: (Object _) {}));
   }
 
   @override

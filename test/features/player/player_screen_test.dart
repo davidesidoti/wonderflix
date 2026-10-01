@@ -15,14 +15,18 @@ import 'package:wonderflix/core/jellyfin/playback_models.dart';
 import 'package:wonderflix/core/media_session/media_session.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/features/player/pause_screen.dart';
 import 'package:wonderflix/features/player/playback_service.dart';
 import 'package:wonderflix/features/player/player_active.dart';
 import 'package:wonderflix/features/player/player_chrome.dart';
 import 'package:wonderflix/features/player/player_loading.dart';
+import 'package:wonderflix/features/player/player_overlay.dart';
+import 'package:wonderflix/features/player/player_pill.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
 import 'package:wonderflix/features/player/seek_bar.dart';
+import 'package:wonderflix/features/player/tracks_panel.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 import 'package:wonderflix/ui/wf_image.dart';
 
@@ -184,8 +188,11 @@ void main() {
       (tester) async {
     engine.holdFirstFrame = true;
     await pumpPlayer(tester, settle: false);
+    // Prima dei 3 s il caricamento c'è ancora.
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.byKey(const Key('player-loading')), findsOneWidget);
     // Margine: il conto parte da `ready`, raggiunto durante i primi pump.
-    await tester.pump(PlayerScreen.firstFrameTimeout + const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('player-loading')), findsNothing);
     await unmount(tester);
@@ -641,6 +648,59 @@ void main() {
     // La nuova schermata blocca la chiusura prima che la vecchia la
     // rilasci: le richieste si contano, quindi resta bloccata.
     expect(window.preventCloseCalls, [true, true, false]);
+    await unmount(tester);
+  });
+
+  testWidgets('strati dello stack: gli altri non si rimontano', (tester) async {
+    withNextEpisode();
+    engine.holdFirstFrame = true;
+    // Il file è ancora in preparazione: gli strati condizionali non ci sono.
+    playback.delay = const Duration(seconds: 1);
+    await pumpPlayer(tester, settle: false);
+    // Gli strati con stato: se uno strato condizionale ne sposta un altro
+    // nello `Stack` senza chiavi, quello viene rimontato (elemento nuovo).
+    final mounted = {
+      for (final layer in [
+        PlayerOverlay,
+        PlayerLoadingLayer,
+        PlayerPill,
+        TracksPanelHost,
+      ])
+        layer: tester.element(find.byType(layer)),
+    };
+    void expectSameLayers() {
+      mounted.forEach((layer, element) {
+        expect(tester.element(find.byType(layer)), same(element),
+            reason: '$layer rimontato');
+      });
+    }
+
+    // Il file è pronto: compaiono "Stai guardando", "salta intro" e la
+    // scheda del prossimo episodio...
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+    mounted[PauseScreen] = tester.element(find.byType(PauseScreen));
+    expectSameLayers();
+
+    // ...il primo fotogramma fa comparire lo spinner, sopra la pillola...
+    engine.completeFirstFrame();
+    await tester.pump();
+    await tester.pump(WfMotion.slow);
+    await tester.pump(WfMotion.slow);
+    expectSameLayers();
+
+    // ...poi la scheda del prossimo episodio si mostra...
+    engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+    expectSameLayers();
+
+    // ...che poi sparisce.
+    await tester.tap(find.text('Annulla'));
+    await tester.pump();
+    expect(find.text('PROSSIMO EPISODIO'), findsNothing);
+    expectSameLayers();
     await unmount(tester);
   });
 
