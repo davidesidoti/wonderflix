@@ -340,7 +340,8 @@ class _TracksPanelHostState extends State<TracksPanelHost>
   late final CurvedAnimation _progress = CurvedAnimation(
     parent: _controller,
     curve: WfMotion.emphasized,
-    reverseCurve: WfMotion.accelerate,
+    // Chiudendo il controller torna da 1 a 0: la curva girata accelera.
+    reverseCurve: WfMotion.accelerateReverse,
   );
 
   @override

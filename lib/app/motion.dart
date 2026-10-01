@@ -46,6 +46,13 @@ class WfMotion {
   /// "fade through").
   static const Curve accelerate = Curves.easeIn;
 
+  /// [accelerate] per le uscite che fanno andare l'animazione all'indietro,
+  /// da 1 a 0 (`switchOutCurve` di `AnimatedSwitcher`, `reverseCurve` di
+  /// `CurvedAnimation`). Lì la curva si percorre al contrario: [accelerate]
+  /// sembrerebbe rallentare (veloce all'inizio, lenta alla fine). Girata,
+  /// l'uscita parte piano e accelera andando via, come vuole la spec D §6.1.
+  static const Curve accelerateReverse = FlippedCurve(accelerate);
+
   bool get isReduced => level == MotionLevel.reduced;
 
   /// [full] con le animazioni complete, [reduced] con quelle ridotte.

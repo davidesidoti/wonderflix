@@ -193,6 +193,20 @@ void main() {
     expect(find.byType(TracksPanel), findsNothing);
   });
 
+  testWidgets('host: uscendo parte piano e accelera', (tester) async {
+    final open = await pumpHost(tester, motion: MotionLevel.full);
+    open.value = true;
+    await tester.pumpAndSettle();
+    open.value = false;
+    await tester.pump();
+    await tester.pump(WfMotion.fast * 0.1);
+    // Al 10% dell'uscita si è appena mosso (con `accelerate` percorsa al
+    // contrario sarebbe già oltre il 15%).
+    expect(tester.widget<FractionalTranslation>(slideFinder).translation.dx,
+        lessThan(0.05));
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('host: animazioni ridotte, solo dissolvenza', (tester) async {
     final open = await pumpHost(tester);
     open.value = true;
