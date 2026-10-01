@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/player/player_loading.dart';
 import 'package:wonderflix/ui/backdrop_image.dart';
@@ -85,6 +86,74 @@ void main() {
       state.value = (testItem(name: 'Dune'), true);
       await tester.pump();
       expect(find.byType(LoadingLine), findsOneWidget);
+    });
+
+    // Opacità dello strato in questo istante (la prima `Opacity` sotto la
+    // chiave).
+    double layerOpacity(WidgetTester tester) => tester
+        .widget<Opacity>(find
+            .descendant(
+                of: find.byKey(const Key('player-loading')),
+                matching: find.byType(Opacity))
+            .first)
+        .opacity;
+
+    testWidgets('rientra con una dissolvenza; la prima volta è subito intero',
+        (tester) async {
+      final state = await pumpLoading(tester);
+      expect(layerOpacity(tester), 1, reason: 'primo ingresso: nessuna entrata');
+
+      state.value = (testItem(name: 'Dune'), false);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump();
+      await tester.pump();
+      expect(find.byKey(const Key('player-loading')), findsNothing);
+
+      // Di nuovo in caricamento ("Riprova"): sfuma in entrata.
+      state.value = (testItem(name: 'Dune'), true);
+      await tester.pump();
+      expect(layerOpacity(tester), lessThan(1));
+      await tester.pump(WfMotion.fast);
+      await tester.pump();
+      expect(layerOpacity(tester), 1);
+    });
+
+    testWidgets('la linea non si sposta quando arriva l\'elemento',
+        (tester) async {
+      final state = await pumpLoading(tester);
+      final before = tester.getTopLeft(find.byType(LoadingLine));
+
+      // Prima il titolo (senza logo)...
+      state.value = (testItem(name: 'Dune'), true);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.text('DUNE'), findsOneWidget);
+      expect(tester.getTopLeft(find.byType(LoadingLine)), before);
+
+      // ...poi un altro elemento, con il logo.
+      state.value = (
+        JellyfinItem.fromJson({
+          'Id': 'm2',
+          'Name': 'Arrival',
+          'Type': 'Movie',
+          'ImageTags': {'Primary': 'p', 'Logo': 'l'},
+          'BackdropImageTags': ['b'],
+        }),
+        true,
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(tester.getTopLeft(find.byType(LoadingLine)), before);
+    });
+
+    testWidgets('la linea ha un suo strato di disegno', (tester) async {
+      await pumpLoading(tester);
+      expect(
+          find.descendant(
+              of: find.byType(LoadingLine),
+              matching: find.byType(RepaintBoundary)),
+          findsOneWidget);
     });
 
     testWidgets('montato già nascosto: non entra nell\'albero', (tester) async {

@@ -89,11 +89,26 @@ class _PlayerLoadingLayerState extends ConsumerState<PlayerLoadingLayer> {
   /// e la linea girerebbe per sempre.
   late bool _gone = !widget.visible;
 
+  /// Lo strato rientra dopo essere uscito dall'albero ("Riprova", un nuovo
+  /// caricamento): sfuma in entrata invece di comparire di colpo. La prima
+  /// volta no, deve coprire il film da subito.
+  bool _fadeIn = false;
+
   @override
   void didUpdateWidget(PlayerLoadingLayer oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.visible) _gone = false;
+    if (widget.visible) {
+      if (_gone) _fadeIn = true;
+      _gone = false;
+    }
   }
+
+  /// Logo o titolo in basso al centro del loro spazio, anche mentre uno
+  /// prende il posto dell'altro.
+  static Widget _bottomLayout(Widget? current, List<Widget> previous) => Stack(
+        alignment: Alignment.bottomCenter,
+        children: [...previous, ?current],
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -106,14 +121,18 @@ class _PlayerLoadingLayerState extends ConsumerState<PlayerLoadingLayer> {
     final width = MediaQuery.sizeOf(context).width;
     return IgnorePointer(
       ignoring: !widget.visible,
-      child: AnimatedOpacity(
+      child: TweenAnimationBuilder<double>(
         key: const Key('player-loading'),
-        opacity: widget.visible ? 1 : 0,
-        duration: motion.duration(WfMotion.slow),
+        // `begin` conta solo alla nascita: 0 se rientra, 1 la prima volta.
+        tween: Tween(begin: _fadeIn ? 0 : 1, end: widget.visible ? 1 : 0),
+        duration:
+            widget.visible ? WfMotion.fast : motion.duration(WfMotion.slow),
         curve: WfMotion.standard,
         onEnd: () {
           if (!widget.visible && mounted) setState(() => _gone = true);
         },
+        builder: (context, t, child) =>
+            Opacity(opacity: t.clamp(0.0, 1.0), child: child),
         child: ColoredBox(
           color: WfColors.bg,
           child: Stack(
@@ -132,37 +151,46 @@ class _PlayerLoadingLayerState extends ConsumerState<PlayerLoadingLayer> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    AnimatedSwitcher(
-                      duration: WfMotion.fast,
-                      child: item == null
-                          ? const SizedBox.shrink()
-                          : Padding(
-                              key: ValueKey(item.id),
-                              padding: const EdgeInsets.only(
-                                  bottom: PlayerLoadingLayer.logoGap),
-                              child: logo != null
-                                  ? SizedBox(
-                                      width: width *
-                                          PlayerLoadingLayer.logoWidthFraction,
-                                      height: PlayerLoadingLayer.logoMaxHeight,
-                                      child: WfImage(
-                                          image: logo,
-                                          fit: BoxFit.contain,
-                                          fallbackIcon: null),
-                                    )
-                                  : ConstrainedBox(
-                                      constraints: BoxConstraints(
-                                          maxWidth: width *
-                                              PlayerLoadingLayer
-                                                  .titleWidthFraction),
-                                      child: Text(
-                                        cardTitle(item).toUpperCase(),
-                                        textAlign: TextAlign.center,
-                                        maxLines: 2,
-                                        style: WfText.display(64),
+                    // Il posto del logo c'è fin dall'inizio, anche senza
+                    // l'elemento: quando arriva, la linea non si sposta.
+                    SizedBox(
+                      height: PlayerLoadingLayer.logoMaxHeight +
+                          PlayerLoadingLayer.logoGap,
+                      child: AnimatedSwitcher(
+                        duration: WfMotion.fast,
+                        layoutBuilder: _bottomLayout,
+                        child: item == null
+                            ? const SizedBox.shrink()
+                            : Padding(
+                                key: ValueKey(item.id),
+                                padding: const EdgeInsets.only(
+                                    bottom: PlayerLoadingLayer.logoGap),
+                                child: logo != null
+                                    ? SizedBox(
+                                        width: width *
+                                            PlayerLoadingLayer
+                                                .logoWidthFraction,
+                                        height:
+                                            PlayerLoadingLayer.logoMaxHeight,
+                                        child: WfImage(
+                                            image: logo,
+                                            fit: BoxFit.contain,
+                                            fallbackIcon: null),
+                                      )
+                                    : ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                            maxWidth: width *
+                                                PlayerLoadingLayer
+                                                    .titleWidthFraction),
+                                        child: Text(
+                                          cardTitle(item).toUpperCase(),
+                                          textAlign: TextAlign.center,
+                                          maxLines: 2,
+                                          style: WfText.display(64),
+                                        ),
                                       ),
-                                    ),
-                            ),
+                              ),
+                      ),
                     ),
                     const LoadingLine(),
                   ],
@@ -214,29 +242,33 @@ class _LoadingLineState extends State<LoadingLine>
   @override
   Widget build(BuildContext context) {
     const segment = LoadingLine.width * LoadingLine.segment;
-    return SizedBox(
-      width: LoadingLine.width,
-      height: LoadingLine.height,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(LoadingLine.height),
-        child: ColoredBox(
-          color: WfColors.cream.withValues(alpha: 0.15),
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (context, _) {
-              final t = WfMotion.standard.transform(_controller.value);
-              return Stack(
-                children: [
-                  Positioned(
-                    left: -segment + t * (LoadingLine.width + segment),
-                    top: 0,
-                    bottom: 0,
-                    width: segment,
-                    child: const ColoredBox(color: WfColors.gold),
-                  ),
-                ],
-              );
-            },
+    // Strato di disegno proprio: a 60 fps si ridisegna solo la linea, non
+    // tutta la pagina (spec D §6.4).
+    return RepaintBoundary(
+      child: SizedBox(
+        width: LoadingLine.width,
+        height: LoadingLine.height,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(LoadingLine.height),
+          child: ColoredBox(
+            color: WfColors.cream.withValues(alpha: 0.15),
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) {
+                final t = WfMotion.standard.transform(_controller.value);
+                return Stack(
+                  children: [
+                    Positioned(
+                      left: -segment + t * (LoadingLine.width + segment),
+                      top: 0,
+                      bottom: 0,
+                      width: segment,
+                      child: const ColoredBox(color: WfColors.gold),
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ),
