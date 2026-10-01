@@ -1,7 +1,7 @@
 # WonderFlix — Piano 7: schermo intero vero e filtri in "La mia lista"
 
 - **Data:** 2026-10-01
-- **Stato:** approvato in brainstorming, in attesa di revisione finale
+- **Stato:** realizzato nel piano 7 (`docs/superpowers/plans/2026-10-01-wonderflix-07-fullscreen-mylist.md`), provato dall'utente il 2026-10-01
 - **Ambito:** correzione dell'issue #2 (bug) e realizzazione dell'issue #1 (enhancement), poi release 0.3.1. Si appoggia allo Spec A (`2026-09-29-wonderflix-client-core-design.md`: player, catalogo, La mia lista) e allo Spec C (`2026-09-30-wonderflix-rinnovo-grafico-design.md`: scheletri, entrate delle griglie).
 
 ## 1. Obiettivo
