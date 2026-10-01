@@ -37,6 +37,8 @@ void main() {
 
   test('senza argomenti usa lo stato condiviso', () async {
     final window = WindowManagerPlayerWindow();
+    // Lo stato è condiviso: se un'attesa fallisce a metà non resta acceso.
+    addTearDown(nativeFullScreen.exit);
     await window.setFullScreen(true);
     expect(nativeFullScreen.active, isTrue);
     await window.setFullScreen(false);

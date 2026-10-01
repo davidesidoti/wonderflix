@@ -63,15 +63,10 @@ class ItemQuery {
       );
 
   /// Toglie genere, anno e visti; il resto (tipi, ordinamento, preferiti,
-  /// ricerca, persona, campi) resta.
-  ItemQuery clearFilters() => ItemQuery(
-        kinds: kinds,
-        sort: sort,
-        favoritesOnly: favoritesOnly,
-        searchTerm: searchTerm,
-        personId: personId,
-        includeSortFields: includeSortFields,
-      );
+  /// ricerca, persona, campi) resta. Passa da [copyWith]: un campo nuovo non
+  /// si dimentica qui.
+  ItemQuery clearFilters() =>
+      copyWith(genres: const {}, year: null, watched: WatchedFilter.all);
 
   Map<String, dynamic> toQueryParameters({
     required String userId,

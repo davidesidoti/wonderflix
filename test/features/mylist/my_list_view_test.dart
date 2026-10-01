@@ -69,6 +69,16 @@ void main() {
       expect(ids(result), ['new', 'old', 'none']);
     });
 
+    test('data di aggiunta uguale: per titolo', () {
+      final sameDay = DateTime.utc(2022);
+      final result = view([
+        fav('b', name: 'B', added: sameDay),
+        fav('new', added: DateTime.utc(2024)),
+        fav('a', name: 'A', added: sameDay),
+      ], sortedBy(CatalogSort.dateAdded));
+      expect(ids(result), ['new', 'a', 'b']);
+    });
+
     test('anno: dal più recente, a parità per titolo, senza anno in fondo', () {
       final result = view([
         fav('z', name: 'Zodiac', year: 2007),
@@ -102,6 +112,12 @@ void main() {
     test('genere', () {
       expect(ids(view(items, byTitle.copyWith(genres: {'Fantascienza'}))),
           ['a', 'd']);
+    });
+
+    test('più generi: basta uno dei due', () {
+      expect(
+          ids(view(items, byTitle.copyWith(genres: {'Crimine', 'Avventura'}))),
+          ['d', 'h']);
     });
 
     test('anno', () {
