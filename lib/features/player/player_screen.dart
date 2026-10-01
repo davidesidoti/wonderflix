@@ -254,12 +254,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   /// C'è un episodio successivo da proporre (nel gruppo solo se è il
-  /// prossimo della coda, che è quello che parte) e l'utente non l'ha
-  /// rifiutato.
+  /// prossimo della coda, che è quello che parte), il caricamento è finito
+  /// (primo fotogramma: aprendo nei titoli il post-play e il suo conto non
+  /// partono sotto il caricamento) e l'utente non l'ha rifiutato.
   bool _canOfferNext(PlayerViewState view) {
     final next = view.nextEpisode;
     if (next == null ||
         view.status != PlayerStatus.ready ||
+        !_firstFrame ||
         _chrome.postPlayDismissed) {
       return false;
     }
@@ -807,29 +809,39 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               fit: StackFit.expand,
               children: [
                 // Il film: nel post-play si rimpicciolisce (spec D §12.1).
+                // Lo spinner del buffering è sul film e lo segue: nel
+                // post-play resta sul film piccolo, non sotto l'immagine
+                // dell'episodio. Le chiavi tengono fermo il video quando lo
+                // spinner entra o esce (non si rimonta).
                 PostPlayFrame(
                   key: const ValueKey('player-video'),
                   active: postPlay,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {
-                      if (_chrome.panelOpen) {
-                        _chrome.closePanel();
-                      } else if (_postPlayShown(ref.read(provider))) {
-                        // Clic sul film piccolo: torna a tutto schermo.
-                        _dismissNext();
-                      } else {
-                        unawaited(controller.togglePlay());
-                      }
-                    },
-                    onDoubleTap: () => unawaited(_toggleFullscreen()),
-                    child: controller.engine.buildView(),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      GestureDetector(
+                        key: const ValueKey('player-video-view'),
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          if (_chrome.panelOpen) {
+                            _chrome.closePanel();
+                          } else if (_postPlayShown(ref.read(provider))) {
+                            // Clic sul film piccolo: torna a tutto schermo.
+                            _dismissNext();
+                          } else {
+                            unawaited(controller.togglePlay());
+                          }
+                        },
+                        onDoubleTap: () => unawaited(_toggleFullscreen()),
+                        child: controller.engine.buildView(),
+                      ),
+                      if (view.status == PlayerStatus.ready && !loading)
+                        BufferingSpinner(
+                            key: const ValueKey('player-spinner'),
+                            buffering: view.buffering),
+                    ],
                   ),
                 ),
-                if (view.status == PlayerStatus.ready && !loading)
-                  BufferingSpinner(
-                      key: const ValueKey('player-spinner'),
-                      buffering: view.buffering),
                 // Attesa del gruppo nella riproduzione normale: sotto i
                 // controlli, che restano usabili. Nel post-play c'è quella
                 // sopra di lui (vedi sotto).

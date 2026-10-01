@@ -19,6 +19,7 @@ import 'package:wonderflix/features/player/pause_screen.dart';
 import 'package:wonderflix/features/player/playback_service.dart';
 import 'package:wonderflix/features/player/player_active.dart';
 import 'package:wonderflix/features/player/player_chrome.dart';
+import 'package:wonderflix/features/player/player_extras.dart';
 import 'package:wonderflix/features/player/player_loading.dart';
 import 'package:wonderflix/features/player/player_overlay.dart';
 import 'package:wonderflix/features/player/player_pill.dart';
@@ -687,11 +688,15 @@ void main() {
       ])
         layer: tester.element(find.byType(layer)),
     };
+    // Il video: lo spinner del buffering gli compare accanto, sul film.
+    final video = tester.element(find.byKey(const Key('fake-video')));
     void expectSameLayers() {
       mounted.forEach((layer, element) {
         expect(tester.element(find.byType(layer)), same(element),
             reason: '$layer rimontato');
       });
+      expect(tester.element(find.byKey(const Key('fake-video'))), same(video),
+          reason: 'video rimontato');
     }
 
     // Il file è pronto: compaiono "Stai guardando", "salta intro" e la
@@ -1074,6 +1079,62 @@ void main() {
     expect(shrunk(tester), isTrue);
     expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
     expect(engine.playing, isTrue, reason: 'nemmeno la pausa');
+    await unmount(tester);
+  });
+
+  testWidgets('post-play: lo spinner del buffering sta sul film piccolo',
+      (tester) async {
+    withCredits();
+    await pumpPlayer(tester);
+    final video = tester.element(find.byKey(const Key('fake-video')));
+    await toCredits(tester);
+    engine.emitBuffering(true);
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(bufferingSpinnerDelay);
+    await tester.pump(WfMotion.fast);
+    // Lo spinner gira: niente `pumpAndSettle` finché si vede.
+    final spinner = find.byType(CircularProgressIndicator);
+    expect(spinner, findsOneWidget);
+    const film = Rect.fromLTWH(postPlayInset, postPlayInset,
+        1440 * postPlayScale, 900 * postPlayScale);
+    expect(film.contains(tester.getCenter(spinner)), isTrue,
+        reason: 'non sotto l\'immagine dell\'episodio');
+    expect(tester.element(find.byKey(const Key('fake-video'))), same(video),
+        reason: 'il video non si rimonta');
+
+    engine.emitBuffering(false);
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(spinner, findsNothing);
+    await unmount(tester);
+  });
+
+  testWidgets('post-play: aperto sui titoli, compare solo dopo il primo '
+      'fotogramma', (tester) async {
+    withCredits();
+    engine.holdFirstFrame = true;
+    await pumpPlayer(tester, settle: false);
+    engine.emitPosition(const Duration(hours: 1, minutes: 55, seconds: 10));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    // Il caricamento c'è ancora: la linea gira, niente `pumpAndSettle`.
+    expect(find.byKey(const Key('player-loading')), findsOneWidget);
+    expect(find.text('PROSSIMO EPISODIO'), findsNothing);
+    expect(find.byType(PlayNowButton), findsNothing,
+        reason: 'nessun conto alla rovescia sotto il caricamento');
+    expect(shrunk(tester), isFalse);
+
+    engine.completeFirstFrame();
+    await tester.pump();
+    await tester.pump(WfMotion.slow);
+    await tester.pump(WfMotion.slow);
+    expect(find.byKey(const Key('player-loading')), findsNothing);
+    await tester.pumpAndSettle();
+    expect(shrunk(tester), isTrue);
+    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+    expect(find.textContaining('Riproduci ora ·'), findsOneWidget);
     await unmount(tester);
   });
 
