@@ -86,5 +86,47 @@ void main() {
           EndZone.none,
           reason: 'durata ancora ignota');
     });
+
+    test('un Outro che parte da 0 non vale: ultimi 30 s', () {
+      const fromZero = MediaSegment(
+          type: MediaSegmentType.outro,
+          start: Duration.zero,
+          end: Duration(minutes: 42));
+      expect(
+          endZoneAt(const [fromZero], duration,
+              const Duration(minutes: 41, seconds: 30)),
+          EndZone.lastSeconds);
+    });
+
+    test('con i titoli noti la durata non serve', () {
+      expect(endZoneAt(const [outro], Duration.zero, const Duration(minutes: 40)),
+          EndZone.credits);
+    });
+
+    test('più Outro: vale il primo valido', () {
+      const fromZero = MediaSegment(
+          type: MediaSegmentType.outro,
+          start: Duration.zero,
+          end: Duration(minutes: 1));
+      const later = MediaSegment(
+          type: MediaSegmentType.outro,
+          start: Duration(minutes: 41),
+          end: Duration(minutes: 42));
+      expect(
+          endZoneAt(const [outro, later], duration,
+              const Duration(minutes: 40, seconds: 30)),
+          EndZone.credits,
+          reason: 'il primo, alle 40:00');
+      expect(
+          endZoneAt(const [later, outro], duration,
+              const Duration(minutes: 40, seconds: 30)),
+          EndZone.none,
+          reason: 'il primo nella lista, alle 41:00');
+      expect(
+          endZoneAt(const [fromZero, outro], duration,
+              const Duration(minutes: 40)),
+          EndZone.credits,
+          reason: 'quello da 0 non conta');
+    });
   });
 }

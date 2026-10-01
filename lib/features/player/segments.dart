@@ -69,6 +69,9 @@ enum EndZone {
   lastSeconds,
 }
 
+/// Zona di fine in [position]. Con un `Outro` noto la durata non conta: i
+/// titoli vincono anche negli ultimi 30 s (e senza durata). Un `Outro` che
+/// parte da 0 non vale ([outroStart]): si usano gli ultimi 30 s.
 EndZone endZoneAt(
     List<MediaSegment> segments, Duration duration, Duration position) {
   final outro = outroStart(segments);

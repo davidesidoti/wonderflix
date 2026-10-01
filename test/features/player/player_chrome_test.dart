@@ -308,16 +308,31 @@ void main() {
 
   test('post-play chiuso: resta chiuso, i controlli tornano', () {
     fakeAsync((async) {
-      final chrome = PlayerChromeController();
+      final chrome = PlayerChromeController()
+        ..setPlayback(playing: true, canShowPauseScreen: false);
       var notified = 0;
       chrome.addListener(() => notified++);
+      // Durante il post-play i controlli sono nascosti.
+      async.elapse(PlayerChromeController.hideDelay);
+      expect(chrome.controlsVisible, isFalse);
+      expect(notified, 1);
       expect(chrome.postPlayDismissed, isFalse);
+
       chrome.dismissPostPlay();
       expect(chrome.postPlayDismissed, isTrue);
       expect(chrome.controlsVisible, isTrue);
-      expect(notified, 1);
+      expect(notified, 2);
       chrome.dismissPostPlay();
-      expect(notified, 1, reason: 'già chiuso');
+      expect(notified, 2, reason: 'già chiuso');
+
+      // Il conto per nasconderli riparte dalla chiusura.
+      async.elapse(
+          PlayerChromeController.hideDelay - const Duration(milliseconds: 1));
+      expect(chrome.controlsVisible, isTrue);
+      async.elapse(const Duration(milliseconds: 1));
+      expect(chrome.controlsVisible, isFalse);
+      expect(notified, 3);
+      expect(chrome.postPlayDismissed, isTrue);
       chrome.dispose();
     });
   });
