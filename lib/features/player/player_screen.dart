@@ -752,6 +752,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         (view.status == PlayerStatus.ready && !_firstFrame);
     final postPlay = _postPlayShown(view);
     final card = _cardShown(view);
+    // Il gruppo aspetta qualcuno: nel post-play l'attesa sta sopra di lui
+    // (vince l'attesa, spec D §15.3), altrimenti sotto i controlli.
+    final groupWaiting = party != null &&
+        view.status == PlayerStatus.ready &&
+        party.inGroup &&
+        party.groupState == GroupState.waiting &&
+        !view.buffering;
+    void resumeGroup() => unawaited(controller.play());
     // Il post-play compare o sparisce anche senza un cambio di zona (la coda
     // del gruppo, l'uscita dal gruppo, l'episodio successivo arrivato tardi,
     // lo stato del file): dopo il fotogramma, all'arrivo il pannello si
@@ -815,15 +823,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   BufferingSpinner(
                       key: const ValueKey('player-spinner'),
                       buffering: view.buffering),
+                // Attesa del gruppo nella riproduzione normale: sotto i
+                // controlli, che restano usabili. Nel post-play c'è quella
+                // sopra di lui (vedi sotto).
                 if (party != null && view.status == PlayerStatus.ready)
                   Positioned.fill(
                     key: const ValueKey('player-party-waiting'),
                     child: ExcludeFocus(
                       child: PartyWaitingOverlay(
-                        waiting: party.inGroup &&
-                            party.groupState == GroupState.waiting &&
-                            !view.buffering,
-                        onResume: () => unawaited(controller.play()),
+                        waiting: groupWaiting && !postPlay,
+                        onResume: resumeGroup,
                       ),
                     ),
                   ),
@@ -969,6 +978,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               ),
                             )
                           : const SizedBox.shrink(),
+                    ),
+                  ),
+                ),
+                // Attesa del gruppo durante il post-play: sopra di lui, come
+                // sopra "Stai guardando" (spec D §15.3, §19: i due momenti
+                // non si sovrappongono). Sempre presente: sparita, non è
+                // nell'albero. Se il post-play compare o si chiude durante
+                // l'attesa, l'attesa passa da uno strato all'altro e torna
+                // dopo il suo secondo di ritardo.
+                Positioned.fill(
+                  key: const ValueKey('player-party-waiting-post-play'),
+                  child: ExcludeFocus(
+                    child: PartyWaitingOverlay(
+                      waiting: groupWaiting && postPlay,
+                      onResume: resumeGroup,
                     ),
                   ),
                 ),

@@ -397,6 +397,50 @@ void main() {
     await finish(tester);
   });
 
+  /// Nei titoli di coda noti, con il post-play mostrato.
+  Future<void> toCredits(WidgetTester tester) async {
+    engine.emitPosition(const Duration(hours: 1, minutes: 55, seconds: 10));
+    await tester.pump();
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text(l.playerWatchCredits), findsOneWidget);
+  }
+
+  testWidgets('attesa del gruppo durante il post-play: sta sopra, poi il '
+      'post-play resta', (tester) async {
+    await pumpPartyPlayer(tester, segments: credits);
+    await queueSeries(tester);
+    await toCredits(tester);
+    emit(const GroupStateUpdate('g1', GroupState.waiting, 'Buffer'));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text(l.watchPartyWaiting), findsOneWidget);
+    // Sopra il post-play: un punto dell'immagine dell'episodio colpisce
+    // l'attesa, non l'immagine.
+    final waiting = tester.renderObject(find.byKey(const Key('party-waiting')));
+    final image = tester.getCenter(find.byKey(const Key('post-play-image')));
+    expect(
+        tester
+            .hitTestOnBinding(image)
+            .path
+            .any((entry) => entry.target == waiting),
+        isTrue,
+        reason: 'l\'attesa del gruppo copre il post-play');
+    await tester.tap(find.text(l.watchPartyResumeNow));
+    await tester.pump();
+    expect(api.calls, contains('unpause'));
+
+    emit(const GroupStateUpdate('g1', GroupState.playing, 'Ready'));
+    await tester.pump();
+    await tester.pump();
+    await tester.pumpAndSettle(); // l'attesa sfuma via
+    expect(find.text(l.watchPartyWaiting), findsNothing);
+    expect(find.text(l.playerWatchCredits), findsOneWidget,
+        reason: 'il post-play resta');
+    await finish(tester);
+  });
+
   testWidgets(
       'il gruppo passa all\'episodio dopo: nuovo player a schermo intero, '
       'episodio lasciato sui titoli segnato come visto', (tester) async {
