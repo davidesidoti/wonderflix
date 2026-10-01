@@ -83,8 +83,11 @@ class PlayerLoadingLayer extends ConsumerStatefulWidget {
 }
 
 class _PlayerLoadingLayerState extends ConsumerState<PlayerLoadingLayer> {
-  /// Sfumato via: lo strato non è più nell'albero.
-  bool _gone = false;
+  /// Sfumato via: lo strato non è più nell'albero. Montato già nascosto (per
+  /// esempio dopo "Riprova", con il primo fotogramma già arrivato) non
+  /// entra proprio: non avrebbe nessuna dissolvenza, quindi nessun `onEnd`,
+  /// e la linea girerebbe per sempre.
+  late bool _gone = !widget.visible;
 
   @override
   void didUpdateWidget(PlayerLoadingLayer oldWidget) {

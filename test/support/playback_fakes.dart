@@ -247,6 +247,25 @@ class FakeVideoEngine implements VideoEngine {
   /// solo dopo questo ritardo (come mpv). `null`: posizione subito.
   Duration? seekDelay;
   bool disposed = false;
+
+  /// Con `true` il primo fotogramma arriva solo con [completeFirstFrame];
+  /// altrimenti alla prima apertura riuscita.
+  bool holdFirstFrame = false;
+
+  /// Creato alla prima richiesta e non alla costruzione del motore (che
+  /// avviene nel `setUp`, fuori dalla zona di `fakeAsync`): la callback di un
+  /// `Completer` parte nella zona in cui è nato, e fuori dalla zona del test
+  /// `pump` non la eseguirebbe mai.
+  Completer<void>? _firstFrameCompleter;
+  Completer<void> get _firstFrame => _firstFrameCompleter ??= Completer<void>();
+
+  void completeFirstFrame() {
+    if (!_firstFrame.isCompleted) _firstFrame.complete();
+  }
+
+  @override
+  Future<void> get firstFrame => _firstFrame.future;
+
   int _nextSubtitleId = 100;
 
   Duration _position = Duration.zero;
@@ -302,6 +321,7 @@ class FakeVideoEngine implements VideoEngine {
     // Come mpv: il file si apre in pausa.
     _position = source.start;
     _setPlaying(false);
+    if (!holdFirstFrame) completeFirstFrame();
   }
 
   @override

@@ -86,6 +86,29 @@ void main() {
       await tester.pump();
       expect(find.byType(LoadingLine), findsOneWidget);
     });
+
+    testWidgets('montato già nascosto: non entra nell\'albero', (tester) async {
+      // Come dopo "Riprova" con il primo fotogramma già arrivato: senza
+      // dissolvenza non c'è `onEnd`, e la linea girerebbe per sempre.
+      final visible = ValueNotifier(false);
+      addTearDown(visible.dispose);
+      await pumpApp(
+        tester,
+        Scaffold(
+          body: ValueListenableBuilder<bool>(
+            valueListenable: visible,
+            builder: (context, value, _) => PlayerLoadingLayer(
+                item: testItem(name: 'Dune'), visible: value, onBack: () {}),
+          ),
+        ),
+      );
+      expect(find.byType(LoadingLine), findsNothing);
+      expect(find.byKey(const Key('player-loading')), findsNothing);
+
+      visible.value = true;
+      await tester.pump();
+      expect(find.byType(LoadingLine), findsOneWidget);
+    });
   });
 
   group('spinner del buffering', () {

@@ -7,10 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../app/error_text.dart';
 import '../../app/navigation.dart';
 import '../../app/providers.dart';
-import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/media_session/media_session.dart';
 import '../../core/syncplay/syncplay_models.dart';
@@ -34,6 +32,7 @@ import 'player_extras.dart';
 import 'player_active.dart';
 import 'player_chrome.dart';
 import 'player_handover.dart';
+import 'player_loading.dart';
 import 'player_overlay.dart';
 import 'player_pill.dart';
 import 'player_providers.dart';
@@ -59,6 +58,11 @@ class PlayerScreen extends ConsumerStatefulWidget {
   /// Attesa massima del report di fine alla chiusura della finestra.
   static const closeTimeout = Duration(seconds: 2);
 
+  /// Se il motore non segnala il primo fotogramma entro questo tempo da
+  /// `ready` (per esempio un video del gruppo aperto in pausa), il
+  /// caricamento sfuma comunque.
+  static const firstFrameTimeout = Duration(seconds: 3);
+
   @override
   ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
 }
@@ -68,6 +72,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   /// Controlli, pannello e riscontro dei tasti (spec D §5.1).
   final _chrome = PlayerChromeController();
+
+  /// Il motore ha disegnato il primo fotogramma (o è passato
+  /// [PlayerScreen.firstFrameTimeout] da `ready`): il caricamento sfuma.
+  bool _firstFrame = false;
+  Timer? _firstFrameTimer;
   late bool _fullscreen = widget.fullscreen;
   bool _leaving = false;
 
@@ -129,6 +138,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _timelineTimer =
         Timer.periodic(const Duration(seconds: 5), (_) => _sendTimeline());
     _chrome.addListener(_onChromeChanged);
+    // Il caricamento resta finché il motore non disegna il primo
+    // fotogramma (spec D §10.1).
+    unawaited(_controller.engine.firstFrame.then((_) => _onFirstFrame()));
   }
 
   @override
@@ -144,6 +156,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     unawaited(_window.setPreventClose(false));
     if (_fullscreen && !handingOver) unawaited(_window.setFullScreen(false));
     _timelineTimer?.cancel();
+    _firstFrameTimer?.cancel();
     unawaited(_mediaButtons?.cancel());
     // Uscendo dal player il pannello media sparisce; passando all'episodio
     // successivo resta alla nuova schermata. Non si chiude mai: è dell'app.
@@ -165,6 +178,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   void _onChromeChanged() {
     if (mounted) setState(() {});
+  }
+
+  void _onFirstFrame() {
+    _firstFrameTimer?.cancel();
+    if (mounted && !_firstFrame) setState(() => _firstFrame = true);
   }
 
   Future<void> _toggleFullscreen() async {
@@ -537,6 +555,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         }
         return;
       }
+      if (!_firstFrame) {
+        _firstFrameTimer?.cancel();
+        _firstFrameTimer =
+            Timer(PlayerScreen.firstFrameTimeout, _onFirstFrame);
+      }
       final driver = _driver;
       if (driver != null) {
         unawaited(driver.onLoaded());
@@ -585,8 +608,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           (_, _) => unawaited(_driver?.onRejoined()));
     }
 
+    // Caricamento: finché il file non è pronto e il motore non ha disegnato
+    // il primo fotogramma (spec D §10.1).
     final loading = view.status == PlayerStatus.loading ||
-        (view.status == PlayerStatus.ready && view.buffering);
+        (view.status == PlayerStatus.ready && !_firstFrame);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -620,9 +645,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   onDoubleTap: () => unawaited(_toggleFullscreen()),
                   child: controller.engine.buildView(),
                 ),
-                if (loading)
-                  const Center(
-                      child: CircularProgressIndicator(color: WfColors.gold)),
+                if (view.status == PlayerStatus.ready && !loading)
+                  BufferingSpinner(buffering: view.buffering),
                 if (party != null && view.status == PlayerStatus.ready)
                   Positioned.fill(
                     child: ExcludeFocus(
@@ -635,7 +659,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
                   ),
                 if (view.status == PlayerStatus.error)
-                  _PlayerError(
+                  PlayerErrorLayer(
+                    item: view.item,
                     error: view.error,
                     onRetry: () => unawaited(controller.retry()),
                     onBack: _exit,
@@ -647,9 +672,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   // scorciatoie restano sempre attive.
                   ExcludeFocus(
                     child: IgnorePointer(
-                      ignoring: !_chrome.controlsVisible,
+                      ignoring: !_chrome.controlsVisible || loading,
                       child: PlayerOverlay(
-                        visible: _chrome.controlsVisible,
+                        // Durante il caricamento la freccia per uscire sta
+                        // nello strato del caricamento.
+                        visible: _chrome.controlsVisible && !loading,
                         view: view,
                         engine: controller.engine,
                         fullscreen: _fullscreen,
@@ -678,6 +705,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         onWatchTogether: canWatchTogether
                             ? () => unawaited(_watchTogether())
                             : null,
+                      ),
+                    ),
+                  ),
+                // Caricamento sopra il film e i controlli; sfumato via esce
+                // dall'albero. Ha una chiave: i figli dello `Stack` si
+                // abbinano per posizione, e quando compaiono altri strati
+                // prima di lui (spinner, "salta intro") senza chiave
+                // perderebbe lo stato (e l'`onEnd` che lo toglie dall'albero).
+                if (view.status != PlayerStatus.error)
+                  Positioned.fill(
+                    key: const ValueKey('player-loading-layer'),
+                    child: ExcludeFocus(
+                      child: PlayerLoadingLayer(
+                        item: view.item,
+                        visible: loading,
+                        onBack: _exit,
                       ),
                     ),
                   ),
@@ -786,55 +829,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _PlayerError extends StatelessWidget {
-  const _PlayerError({
-    required this.error,
-    required this.onRetry,
-    required this.onBack,
-    required this.backLabel,
-  });
-
-  final Object? error;
-  final VoidCallback onRetry;
-  final VoidCallback onBack;
-  final String backLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    final l = AppLocalizations.of(context);
-    final failure = error;
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(LucideIcons.circleAlert, size: 44, color: WfColors.error),
-          const SizedBox(height: 16),
-          Text(l.playerErrorTitle, style: WfText.display(34)),
-          const SizedBox(height: 8),
-          Text(
-            failure == null ? l.errorGeneric : describeError(l, failure),
-            style: const TextStyle(color: WfColors.creamMuted),
-          ),
-          const SizedBox(height: 24),
-          Wrap(
-            spacing: 12,
-            children: [
-              WfButton.primary(
-                  label: l.retry,
-                  icon: LucideIcons.rotateCcw,
-                  onPressed: onRetry),
-              WfButton.secondary(
-                  label: backLabel,
-                  icon: LucideIcons.arrowLeft,
-                  onPressed: onBack),
-            ],
-          ),
-        ],
       ),
     );
   }

@@ -240,6 +240,9 @@ class MediaKitEngine implements VideoEngine {
   Stream<String> get errorStream => _player.stream.error;
 
   @override
+  Future<void> get firstFrame => _video.waitUntilFirstFrameRendered;
+
+  @override
   Widget buildView() => Video(
         controller: _video,
         controls: NoVideoControls,

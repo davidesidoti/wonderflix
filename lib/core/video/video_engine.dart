@@ -115,6 +115,11 @@ abstract class VideoEngine {
   /// Errori segnalati dal motore durante la riproduzione (solo per il log).
   Stream<String> get errorStream;
 
+  /// Si completa quando il primo fotogramma è disegnato. Vale una volta per
+  /// motore: per le aperture successive ("Riprova", ripiego sulla
+  /// conversione) è già completato.
+  Future<void> get firstFrame;
+
   /// Superficie su cui viene disegnato il video.
   Widget buildView();
 }

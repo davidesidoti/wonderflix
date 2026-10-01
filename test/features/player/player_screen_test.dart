@@ -17,6 +17,7 @@ import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/player/playback_service.dart';
 import 'package:wonderflix/features/player/player_active.dart';
 import 'package:wonderflix/features/player/player_chrome.dart';
+import 'package:wonderflix/features/player/player_loading.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
@@ -67,7 +68,7 @@ void main() {
   });
 
   /// Home ('/') con il player aperto sopra, come nell'app.
-  Future<void> pumpPlayer(WidgetTester tester) async {
+  Future<void> pumpPlayer(WidgetTester tester, {bool settle = true}) async {
     router = GoRouter(routes: [
       GoRoute(
           path: '/',
@@ -127,7 +128,14 @@ void main() {
       ),
     ));
     unawaited(router.push('/play/e4'));
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      // Caricamento visibile: la linea gira, niente `pumpAndSettle`.
+      for (var i = 0; i < 5; i++) {
+        await tester.pump();
+      }
+    }
   }
 
   /// Smonta l'app e lascia scadere i timer (report di fine, attese).
@@ -147,6 +155,58 @@ void main() {
     expect(find.text('S1:E4 · Pilot'), findsOneWidget);
     expect(find.byTooltip('Pausa'), findsOneWidget);
     expect(window.preventCloseCalls, [true]);
+    await unmount(tester);
+  });
+
+  testWidgets('caricamento: sfondo e titolo finché arriva il primo fotogramma',
+      (tester) async {
+    engine.holdFirstFrame = true;
+    await pumpPlayer(tester, settle: false);
+    final layer = find.byKey(const Key('player-loading'));
+    expect(layer, findsOneWidget);
+    expect(find.descendant(of: layer, matching: find.text('BREAKING BAD')),
+        findsOneWidget);
+    expect(find.descendant(of: layer, matching: find.byTooltip('Indietro')),
+        findsOneWidget);
+    expect(controlsOpacity(tester), 0, reason: 'controlli nascosti');
+
+    engine.completeFirstFrame();
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(layer, findsNothing);
+    expect(find.byType(LoadingLine), findsNothing);
+    expect(controlsOpacity(tester), 1);
+    await unmount(tester);
+  });
+
+  testWidgets('caricamento: senza primo fotogramma sfuma dopo 3 s',
+      (tester) async {
+    engine.holdFirstFrame = true;
+    await pumpPlayer(tester, settle: false);
+    // Margine: il conto parte da `ready`, raggiunto durante i primi pump.
+    await tester.pump(PlayerScreen.firstFrameTimeout + const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('player-loading')), findsNothing);
+    await unmount(tester);
+  });
+
+  testWidgets('buffering: lo spinner solo oltre 300 ms', (tester) async {
+    await pumpPlayer(tester);
+    engine.emitBuffering(true);
+    // Prima l'evento arriva al controller, poi la schermata si ricostruisce
+    // (e parte l'attesa dello spinner).
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    await tester.pump(const Duration(milliseconds: 150));
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    engine.emitBuffering(false);
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.byType(CircularProgressIndicator), findsNothing);
     await unmount(tester);
   });
 
