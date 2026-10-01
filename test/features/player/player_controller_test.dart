@@ -586,6 +586,19 @@ void main() {
       expect(engine.calls, contains('play'));
     });
   });
+
+  test('dimensione dei sottotitoli dal pannello: subito e salvata', () async {
+    final controller = await start();
+    await controller.setSubtitleScale(1.25);
+    expect(engine.subtitleScales.last, 1.25);
+    expect(container.read(playerSettingsProvider).subtitleScale, 1.25);
+
+    // "Riprova" riapre con la dimensione nuova.
+    await controller.retry();
+    await pumpEventQueue();
+    expect(engine.subtitleScales, [1.25, 1.25],
+        reason: 'la riapertura applica di nuovo la dimensione');
+  });
 }
 
 /// Autorità che registra le richieste invece di muovere il motore.

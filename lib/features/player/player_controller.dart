@@ -547,6 +547,18 @@ class PlayerController extends Notifier<PlayerViewState> {
     await _engine.setSubtitleDelay(delay);
   }
 
+  /// Dimensione dei sottotitoli scelta nel pannello del player: si applica
+  /// subito e diventa la preferenza delle Impostazioni (spec D §14).
+  Future<void> setSubtitleScale(double scale) async {
+    _settings = _settings.copyWith(subtitleScale: scale);
+    final settings = ref.read(playerSettingsProvider.notifier);
+    final current = ref.read(playerSettingsProvider);
+    await Future.wait([
+      _engine.setSubtitleScale(scale),
+      settings.update(current.copyWith(subtitleScale: scale)),
+    ]);
+  }
+
   /// Salta l'intro o il riassunto in corso.
   Future<void> skipCurrentSegment() async {
     final target = skipTargetAt(_view.segments, _engine.position);
