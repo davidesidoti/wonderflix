@@ -859,27 +859,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
                   ),
                 ),
-                if (_chrome.panelOpen && view.plan != null)
-                  Positioned(
-                    key: const ValueKey('player-tracks-panel'),
-                    right: 24,
-                    bottom: 120,
-                    child: ExcludeFocus(
-                      child: TracksPanel(
+                // Pannello "Audio e sottotitoli": scorre da destra, a tutta
+                // altezza sopra i controlli (spec D §14).
+                Positioned.fill(
+                  key: const ValueKey('player-tracks-panel'),
+                  child: ExcludeFocus(
+                    child: TracksPanelHost(
+                      open: _chrome.panelOpen && view.plan != null,
+                      panel: TracksPanel(
                         audio: view.audioStreams,
                         subtitles: view.subtitleStreams,
                         audioIndex: view.audioIndex,
                         subtitleIndex: view.subtitleIndex,
                         subtitleDelay: view.subtitleDelay,
+                        subtitleScale: settings.subtitleScale,
                         onAudio: (index) =>
                             unawaited(controller.selectAudio(index)),
                         onSubtitle: (index) =>
                             unawaited(controller.selectSubtitle(index)),
                         onDelayStep: (step) =>
                             unawaited(controller.shiftSubtitleDelay(step)),
+                        onSubtitleScale: (scale) =>
+                            unawaited(controller.setSubtitleScale(scale)),
+                        onClose: _chrome.closePanel,
                       ),
                     ),
                   ),
+                ),
               ],
             ),
           ),

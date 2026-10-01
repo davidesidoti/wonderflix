@@ -417,9 +417,40 @@ void main() {
     expect(engine.selectedSubtitle.last, isNull);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await tester.pump();
+    await tester.pumpAndSettle(); // il pannello esce scorrendo
     expect(find.text('English - AAC Stereo'), findsNothing);
     expect(find.text('home'), findsNothing);
+    await unmount(tester);
+  });
+
+  testWidgets('pannello: dimensione dei sottotitoli subito e salvata; × chiude',
+      (tester) async {
+    await pumpPlayer(tester);
+    await tester.tap(find.byTooltip('Audio e sottotitoli'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Grandi'));
+    await tester.pump();
+    expect(engine.subtitleScales.last, 1.25);
+    final container =
+        ProviderScope.containerOf(tester.element(find.byType(PlayerScreen)));
+    expect(container.read(playerSettingsProvider).subtitleScale, 1.25);
+
+    await tester.tap(find.byTooltip('Chiudi'));
+    await tester.pumpAndSettle();
+    expect(find.text('Grandi'), findsNothing);
+    await unmount(tester);
+  });
+
+  testWidgets('pannello: un clic sul film lo chiude', (tester) async {
+    await pumpPlayer(tester);
+    await tester.tap(find.byTooltip('Audio e sottotitoli'));
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(300, 450));
+    // Il film ha anche il doppio clic: il clic singolo vale dopo 300 ms.
+    await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
+    await tester.pumpAndSettle();
+    expect(find.text('Dimensione'), findsNothing);
+    expect(engine.playing, isTrue, reason: 'il clic chiude, non mette in pausa');
     await unmount(tester);
   });
 
