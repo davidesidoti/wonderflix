@@ -225,6 +225,11 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
   bool _previewShown = false;
   int? _hoveredSegment;
 
+  /// Toglie l'anteprima dall'albero a dissolvenza finita. Un timer e non
+  /// `onEnd`: se entrata e uscita cadono nello stesso frame la dissolvenza va
+  /// da 0 a 0, non parte e `onEnd` non scatta mai.
+  Timer? _previewTimer;
+
   late final AnimationController _hover =
       AnimationController(vsync: this, duration: WfMotion.fast);
   late final AnimationController _emphasis =
@@ -251,6 +256,7 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
     for (final subscription in _subscriptions) {
       unawaited(subscription.cancel());
     }
+    _previewTimer?.cancel();
     _hover.dispose();
     _emphasis.dispose();
     _thumb.dispose();
@@ -280,6 +286,8 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
 
   /// Il puntatore è su [x] (passaggio del mouse o trascinamento).
   void _pointAt(double x) {
+    // Il puntatore è tornato: l'anteprima non va più tolta.
+    _previewTimer?.cancel();
     final index = _segmentAt(x);
     setState(() {
       _previewX = x;
@@ -299,6 +307,10 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
     setState(() {
       _previewShown = false;
       _hoveredSegment = null;
+    });
+    _previewTimer?.cancel();
+    _previewTimer = Timer(WfMotion.fast, () {
+      if (mounted && !_previewShown) setState(() => _previewX = null);
     });
     _hover.reverse();
     _thumb.reverse();
@@ -417,11 +429,6 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
                           tween: Tween(begin: 0, end: _previewShown ? 1 : 0),
                           duration: WfMotion.fast,
                           curve: WfMotion.emphasized,
-                          onEnd: () {
-                            if (!_previewShown && mounted) {
-                              setState(() => _previewX = null);
-                            }
-                          },
                           builder: (context, t, child) => Opacity(
                             opacity: t.clamp(0.0, 1.0),
                             child: Transform.scale(

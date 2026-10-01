@@ -242,6 +242,31 @@ void main() {
     expect(find.textContaining('· Inizio'), findsNothing);
   });
 
+  testWidgets('anteprima: entrata e uscita nello stesso frame, poi sparisce',
+      (tester) async {
+    final engine = FakeVideoEngine();
+    var calls = 0;
+    await pumpBar(tester, engine, preview: (_) {
+      calls++;
+      return const SizedBox(key: Key('preview-image'), width: 240, height: 135);
+    });
+    final gesture = await mouse(tester);
+    await gesture.moveTo(at(tester, 0.5));
+    await gesture.moveTo(Offset.zero);
+    await tester.pump();
+
+    // La dissolvenza non parte (da 0 a 0): a toglierla ci pensa il timer.
+    await tester.pump(WfMotion.fast);
+    await tester.pump();
+    expect(find.byKey(const Key('preview-image')), findsNothing);
+
+    final before = calls;
+    engine.emitPosition(const Duration(minutes: 10));
+    await tester.pump(); // consegna gli eventi degli stream
+    await tester.pump();
+    expect(calls, before, reason: 'nessuna anteprima invisibile da aggiornare');
+  });
+
   testWidgets('anteprima in una zona: etichetta oro con il nome',
       (tester) async {
     await pumpBar(tester, FakeVideoEngine(), chapters: chapters, zones: const [
