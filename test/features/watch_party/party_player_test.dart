@@ -17,6 +17,7 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/player/playback_service.dart';
 import 'package:wonderflix/features/player/player_chrome.dart';
+import 'package:wonderflix/features/player/player_extras.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
@@ -320,7 +321,9 @@ void main() {
     await tester.pump();
     expect(find.text(l.playerNextEpisodeTitle.toUpperCase()), findsOneWidget);
     expect(find.textContaining('Riproduci ora ·'), findsNothing);
-    await tester.tap(find.text(l.playerPlayNow));
+    expect(find.text(l.playerPlayNow), findsOneWidget);
+    // Sul pulsante, non sull'etichetta: sopra c'è lo strato dell'onda.
+    await tester.tap(find.byType(PlayNowButton));
     await tester.pump();
     expect(api.calls, contains('next p1'));
     await finish(tester);
@@ -341,7 +344,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text(l.playerWatchCredits), findsOneWidget);
     expect(find.textContaining('Riproduci ora ·'), findsNothing);
-    await tester.tap(find.text(l.playerPlayNow));
+    expect(find.text(l.playerPlayNow), findsOneWidget);
+    await tester.tap(find.byType(PlayNowButton));
     await tester.pump();
     expect(api.calls, contains('next p1'));
     await finish(tester);

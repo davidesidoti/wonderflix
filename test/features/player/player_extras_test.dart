@@ -442,7 +442,8 @@ void main() {
     expect(find.byKey(fillKey), findsNothing);
     await tester.pump(const Duration(seconds: 15));
     expect(played, 0);
-    await tester.tap(find.text('Riproduci ora'));
+    // Sul pulsante, non sull'etichetta: sopra c'è lo strato dell'onda.
+    await tester.tap(find.byType(PlayNowButton));
     expect(played, 1);
   });
 
@@ -477,7 +478,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(shift(), 0);
     expect(find.text('S1:E5 · Cat in the Bag'), findsOneWidget);
-    await tester.tap(find.text('Riproduci ora'));
+    await tester.tap(find.byType(PlayNowButton));
     await tester.tap(find.text('Annulla'));
     expect((played, cancelled), (1, 1));
   });
