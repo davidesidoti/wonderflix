@@ -62,6 +62,15 @@ void main() {
     expect(find.text('Dune'), findsOneWidget);
   });
 
+  testWidgets('menu dei generi con i generi del server', (tester) async {
+    await pumpCatalog(tester);
+    await tester.tap(find.text('Tutti i generi'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dramma').last);
+    await tester.pumpAndSettle();
+    expect(api.itemQueries.last.genres, {'Dramma'});
+  });
+
   testWidgets('errore con riprova', (tester) async {
     api.error = const ServerUnreachableException();
     await pumpCatalog(tester);

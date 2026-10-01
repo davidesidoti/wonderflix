@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
-import '../../core/jellyfin/item_query.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/poster_card.dart';
 import '../../ui/skeletons.dart';
@@ -55,6 +54,8 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
     final provider = catalogControllerProvider(widget.kind);
     final state = ref.watch(provider);
     final controller = ref.read(provider.notifier);
+    final filters = ref.watch(catalogFiltersProvider(widget.kind)).value ??
+        const LibraryFilters();
     final title = widget.kind == ItemKind.series ? l.navSeries : l.navMovies;
 
     // Su schermi grandi la prima pagina può non riempire la finestra: senza
@@ -95,7 +96,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
           child: CatalogFiltersBar(
-            kind: widget.kind,
+            filters: filters,
             query: state.query,
             onChanged: (query) => unawaited(controller.setQuery(query)),
           ),
@@ -133,8 +134,8 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
             Text(l.catalogEmpty, style: const TextStyle(color: WfColors.creamMuted)),
             if (state.query.hasFilters)
               TextButton(
-                onPressed: () => unawaited(controller.setQuery(
-                    ItemQuery(kinds: state.query.kinds, sort: state.query.sort))),
+                onPressed: () => unawaited(
+                    controller.setQuery(state.query.clearFilters())),
                 child: Text(l.catalogClearFilters),
               ),
           ],

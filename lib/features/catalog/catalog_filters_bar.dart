@@ -1,30 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/item_query.dart';
 import '../../l10n/gen/app_localizations.dart';
-import 'catalog_controller.dart';
 
-/// Ordinamento, genere, anno e visto/non visto.
-class CatalogFiltersBar extends ConsumerWidget {
+/// Ordinamento, genere, anno e visto/non visto. Generi e anni li dà chi la
+/// usa: il catalogo quelli del server, La mia lista quelli dei suoi titoli.
+class CatalogFiltersBar extends StatelessWidget {
   const CatalogFiltersBar({
     super.key,
-    required this.kind,
+    required this.filters,
     required this.query,
     required this.onChanged,
   });
 
-  final ItemKind kind;
+  /// Generi e anni proposti nei menu.
+  final LibraryFilters filters;
   final ItemQuery query;
   final ValueChanged<ItemQuery> onChanged;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final filters =
-        ref.watch(catalogFiltersProvider(kind)).value ?? const LibraryFilters();
     final genre = query.genres.isEmpty ? null : query.genres.first;
 
     return Wrap(
@@ -74,7 +72,7 @@ class CatalogFiltersBar extends ConsumerWidget {
         ),
         if (query.hasFilters)
           TextButton(
-            onPressed: () => onChanged(ItemQuery(kinds: query.kinds, sort: query.sort)),
+            onPressed: () => onChanged(query.clearFilters()),
             child: Text(l.catalogClearFilters),
           ),
       ],
