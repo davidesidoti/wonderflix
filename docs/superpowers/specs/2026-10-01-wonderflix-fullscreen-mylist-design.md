@@ -47,8 +47,10 @@
 Modulo piccolo con lo stato e i due comandi:
 
 - `bool get active`: `true` tra un ingresso e la relativa uscita;
-- `Future<void> enter()`: se non è già attivo, chiama `defaultEnterNativeFullscreen()` e segna `active = true`;
-- `Future<void> exit()`: se è attivo, chiama `defaultExitNativeFullscreen()` e segna `active = false`.
+- `Future<void> enter()`: se non è già attivo, segna `active = true` e chiama `defaultEnterNativeFullscreen()`;
+- `Future<void> exit()`: se è attivo, segna `active = false` e chiama `defaultExitNativeFullscreen()`.
+
+Lo stato cambia **prima** della chiamata nativa: anche due richieste ravvicinate arrivano una volta sola.
 
 Chiamate ripetute (entra due volte, esci senza essere entrato) non arrivano al codice nativo. Lo stato è unico per l'app (una sola finestra): un'istanza condivisa, raggiungibile sia da `window_setup.dart` (che gira prima di `ProviderScope`) sia dal player.
 
@@ -91,7 +93,7 @@ Funzione pura che riceve i preferiti, i filtri scelti (un `ItemQuery`: `sort`, `
    - Voto: `communityRating` dal più alto; a parità chiave del titolo.
    I titoli senza data, anno o voto vanno in fondo, ordinati per chiave del titolo.
 
-Una seconda funzione pura ricava le **opzioni** dalla lista dei preferiti ancora col cuore:
+La stessa funzione ricava anche le **opzioni** dalla lista dei preferiti ancora col cuore:
 
 - generi: tutti i generi presenti, senza doppioni, in ordine alfabetico senza maiuscole;
 - anni: tutti gli anni presenti, dal più recente.
@@ -102,16 +104,17 @@ Se il genere o l'anno scelto non è più presente (es. l'unico titolo con quel g
 
 - `CatalogFiltersBar` riceve generi e anni come parametro (`LibraryFilters filters`) invece di leggerli da `catalogFiltersProvider`. Il parametro `kind` sparisce. `CatalogScreen` passa i filtri del server, La mia lista quelli ricavati (§5.2).
 - Nuovo `ItemQuery.clearFilters()`: toglie genere, anno e visti, conserva tutto il resto (tipi, ordinamento, `favoritesOnly`, `includeSortFields`, ricerca, persona). La barra e lo stato vuoto del catalogo lo usano al posto di `ItemQuery(kinds: …, sort: …)`.
+- La barra esporta `filtersBarHeight` (altezza di una riga di menu): La mia lista lo usa per lasciare libero lo spazio della barra durante il caricamento.
 - Aspetto e testi della barra non cambiano.
 
 ### 5.4 Pagina
 
-- Disposizione come `CatalogScreen`: in alto, fisso, il titolo "LA MIA LISTA" con il conteggio "N titoli" (titoli **dopo** i filtri, `catalogCount`), sotto la barra dei filtri, poi la griglia che scorre.
+- Disposizione come `CatalogScreen`: in alto, fisso, il titolo "LA MIA LISTA" con il conteggio "N titoli" (titoli **dopo** i filtri, `catalogCount`), sotto la barra dei filtri, poi la griglia che scorre. Il titolo sta **fuori** dalla dissolvenza tra gli stati (caricamento, errore, lista vuota, contenuto): sfuma solo quello che sta sotto.
 - Lo stato dei filtri sta nello `State` della pagina (`ItemQuery` iniziale: film e serie, `sort: dateAdded`, cioè l'ordine di oggi). Cambiare un filtro ricalcola subito la griglia, senza scheletro e senza richieste.
 - Griglia, card, `heroSource: 'mylist.$i'`, anteprima delle card e `BatchedEntrance` restano come oggi.
 - Ogni cambio di filtro o di ordinamento dà alla griglia una chiave nuova (contatore dei cambi): `WfSwitcher` dissolve solo il contenuto sotto la barra e le card rientrano, come nel catalogo dopo un cambio di filtro. Togliere un cuore **non** cambia la chiave: il titolo sparisce e basta, come oggi.
 - **Stati:**
-  - caricamento: scheletro della griglia (`PosterGridSkeleton`) sotto lo spazio di titolo e barra;
+  - caricamento: titolo senza conteggio, scheletro della griglia (`PosterGridSkeleton`) sotto lo spazio della barra;
   - errore: `ErrorView` con "Riprova", come oggi;
   - lista vuota (nessun preferito): titolo e testo `myListEmpty` di oggi, **senza barra** né conteggio;
   - nessun risultato con i filtri: `catalogEmpty` ("Nessun titolo con questi filtri.") con il pulsante `catalogClearFilters`.
