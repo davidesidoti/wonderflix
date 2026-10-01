@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/features/watch_party/party_notice_pill.dart';
 import 'package:wonderflix/features/watch_party/party_notices.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
@@ -44,6 +45,20 @@ void main() {
         'Il watch party è terminato');
     expect(text(const PartyNotice(PartyNoticeKind.removed)),
         'Non sei più nel watch party');
+  });
+
+  test('icone degli avvisi', () {
+    expect(partyNoticeIcon(PartyNoticeKind.paused), LucideIcons.pause);
+    expect(partyNoticeIcon(PartyNoticeKind.resumed), LucideIcons.play);
+    expect(partyNoticeIcon(PartyNoticeKind.forcedResume), LucideIcons.play);
+    expect(partyNoticeIcon(PartyNoticeKind.seeked), LucideIcons.fastForward);
+    expect(partyNoticeIcon(PartyNoticeKind.joined), LucideIcons.userPlus);
+    expect(partyNoticeIcon(PartyNoticeKind.left), LucideIcons.userMinus);
+    expect(partyNoticeIcon(PartyNoticeKind.nextEpisode), LucideIcons.skipForward);
+    expect(partyNoticeIcon(PartyNoticeKind.nowWatching), LucideIcons.clapperboard);
+    expect(partyNoticeIcon(PartyNoticeKind.resync), LucideIcons.refreshCw);
+    expect(partyNoticeIcon(PartyNoticeKind.ended), LucideIcons.circleStop);
+    expect(partyNoticeIcon(PartyNoticeKind.removed), LucideIcons.logOut);
   });
 
   testWidgets('mostra l\'avviso attuale, niente senza avvisi', (tester) async {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
@@ -28,6 +29,22 @@ String partyNoticeText(AppLocalizations l, PartyNotice notice) {
     PartyNoticeKind.removed => l.watchPartyNoticeRemoved,
   };
 }
+
+/// Icona oro dell'avviso nella pillola del player (spec D §15.1).
+IconData partyNoticeIcon(PartyNoticeKind kind) => switch (kind) {
+      PartyNoticeKind.paused => LucideIcons.pause,
+      PartyNoticeKind.resumed ||
+      PartyNoticeKind.forcedResume =>
+        LucideIcons.play,
+      PartyNoticeKind.seeked => LucideIcons.fastForward,
+      PartyNoticeKind.joined => LucideIcons.userPlus,
+      PartyNoticeKind.left => LucideIcons.userMinus,
+      PartyNoticeKind.nextEpisode => LucideIcons.skipForward,
+      PartyNoticeKind.nowWatching => LucideIcons.clapperboard,
+      PartyNoticeKind.resync => LucideIcons.refreshCw,
+      PartyNoticeKind.ended => LucideIcons.circleStop,
+      PartyNoticeKind.removed => LucideIcons.logOut,
+    };
 
 /// Avviso del watch party in alto al centro del player, visibile anche a
 /// controlli nascosti (spec B §7.1).

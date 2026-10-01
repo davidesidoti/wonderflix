@@ -224,5 +224,17 @@
   "settingsAnimationsSystem": "Come Windows",
   "settingsAnimationsFull": "Complete",
   "settingsAnimationsReduced": "Ridotte",
-  "previewResume": "Riprendi"
+  "previewResume": "Riprendi",
+  "playerFeedbackPlaying": "Riproduzione",
+  "playerFeedbackPaused": "In pausa",
+  "playerFeedbackSeek": "{offset} · {time}",
+  "@playerFeedbackSeek": {"placeholders": {"offset": {"type": "String"}, "time": {"type": "String"}}},
+  "playerFeedbackVolume": "Volume {percent}%",
+  "@playerFeedbackVolume": {"placeholders": {"percent": {"type": "int"}}},
+  "playerFeedbackMuted": "Audio disattivato",
+  "playerFeedbackSubtitles": "Sottotitoli {delay}",
+  "@playerFeedbackSubtitles": {"placeholders": {"delay": {"type": "String"}}},
+  "playerSegmentRecap": "Riassunto",
+  "playerSegmentIntro": "Intro",
+  "playerSegmentOutro": "Titoli di coda"
 }

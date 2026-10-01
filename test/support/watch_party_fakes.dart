@@ -214,6 +214,9 @@ class FakePartyNotices extends PartyNotices {
   final shown = <PartyNotice>[];
   final mineCalls = <(PartyNoticeKind, Duration?)>[];
 
+  /// Azioni registrate con `show: false` (solo l'eco, nessun avviso).
+  final hiddenMineCalls = <PartyNoticeKind>[];
+
   @override
   PartyNotice? build() => initial;
 
@@ -221,8 +224,10 @@ class FakePartyNotices extends PartyNotices {
   void show(PartyNotice notice) => shown.add(notice);
 
   @override
-  void mine(PartyNoticeKind kind, {Duration? position}) =>
-      mineCalls.add((kind, position));
+  void mine(PartyNoticeKind kind, {Duration? position, bool show = true}) {
+    mineCalls.add((kind, position));
+    if (!show) hiddenMineCalls.add(kind);
+  }
 }
 
 /// Invito fisso: registra le chiusure, senza timer.

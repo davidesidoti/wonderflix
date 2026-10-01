@@ -197,5 +197,17 @@
   "settingsAnimationsSystem": "Same as Windows",
   "settingsAnimationsFull": "Full",
   "settingsAnimationsReduced": "Reduced",
-  "previewResume": "Resume"
+  "previewResume": "Resume",
+  "playerFeedbackPlaying": "Playing",
+  "playerFeedbackPaused": "Paused",
+  "playerFeedbackSeek": "{offset} · {time}",
+  "@playerFeedbackSeek": {"placeholders": {"offset": {"type": "String"}, "time": {"type": "String"}}},
+  "playerFeedbackVolume": "Volume {percent}%",
+  "@playerFeedbackVolume": {"placeholders": {"percent": {"type": "int"}}},
+  "playerFeedbackMuted": "Muted",
+  "playerFeedbackSubtitles": "Subtitles {delay}",
+  "@playerFeedbackSubtitles": {"placeholders": {"delay": {"type": "String"}}},
+  "playerSegmentRecap": "Recap",
+  "playerSegmentIntro": "Intro",
+  "playerSegmentOutro": "End credits"
 }

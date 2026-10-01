@@ -205,6 +205,18 @@ void main() {
     });
   });
 
+  test('mia azione senza avviso: niente pillola, ma l\'eco resta registrata',
+      () {
+    fakeAsync((async) {
+      mount(async);
+      notices().mine(PartyNoticeKind.paused, show: false);
+      expect(current(), isNull);
+      emit(async, const GroupStateUpdate('g1', GroupState.paused, 'Pause'));
+      expect(current(), isNull, reason: 'è l\'eco della mia pausa');
+      finish(async);
+    });
+  });
+
   test('cambio di episodio e nuovo titolo', () {
     fakeAsync((async) {
       mount(async);

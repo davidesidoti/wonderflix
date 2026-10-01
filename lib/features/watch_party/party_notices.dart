@@ -121,10 +121,12 @@ class PartyNotices extends Notifier<PartyNotice?> {
   }
 
   /// Azione dell'utente: l'avviso compare subito, e l'eco del server (entro
-  /// [echoWindow]) non ne produce un secondo.
-  void mine(PartyNoticeKind kind, {Duration? position}) {
+  /// [echoWindow]) non ne produce un secondo. Con [show] `false` si registra
+  /// solo l'eco: l'azione l'ha già mostrata la pillola del tasto (spec D
+  /// §9.3).
+  void mine(PartyNoticeKind kind, {Duration? position, bool show = true}) {
     _echoes.add((kind: kind, at: clock.now()));
-    show(PartyNotice(kind, mine: true, position: position));
+    if (show) this.show(PartyNotice(kind, mine: true, position: position));
   }
 
   void _next() {
