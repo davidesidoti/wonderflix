@@ -68,4 +68,45 @@ void main() {
     expect(filtered.copyWith(year: null).year, isNull);
     expect(filtered.copyWith(sort: CatalogSort.rating).year, 2020);
   });
+
+  test('campi per ordinare nell\'app solo se richiesti', () {
+    Map<String, dynamic> p(ItemQuery q) =>
+        q.toQueryParameters(userId: 'u', startIndex: 0, limit: 1);
+    expect(p(const ItemQuery(kinds: {ItemKind.movie}))['fields'],
+        'PrimaryImageAspectRatio,Genres');
+    expect(
+        p(const ItemQuery(kinds: {ItemKind.movie}, includeSortFields: true))[
+            'fields'],
+        'PrimaryImageAspectRatio,Genres,SortName,DateCreated');
+    expect(
+        const ItemQuery(kinds: {ItemKind.movie}, includeSortFields: true)
+            .copyWith(year: 2020)
+            .includeSortFields,
+        isTrue);
+  });
+
+  test('clearFilters toglie solo genere, anno e visti', () {
+    const query = ItemQuery(
+      kinds: {ItemKind.movie, ItemKind.series},
+      sort: CatalogSort.year,
+      genres: {'Dramma'},
+      year: 2020,
+      watched: WatchedFilter.watched,
+      favoritesOnly: true,
+      searchTerm: 'dune',
+      personId: 'p9',
+      includeSortFields: true,
+    );
+    final cleared = query.clearFilters();
+    expect(cleared.hasFilters, isFalse);
+    expect(cleared.genres, isEmpty);
+    expect(cleared.year, isNull);
+    expect(cleared.watched, WatchedFilter.all);
+    expect(cleared.kinds, {ItemKind.movie, ItemKind.series});
+    expect(cleared.sort, CatalogSort.year);
+    expect(cleared.favoritesOnly, isTrue);
+    expect(cleared.searchTerm, 'dune');
+    expect(cleared.personId, 'p9');
+    expect(cleared.includeSortFields, isTrue);
+  });
 }

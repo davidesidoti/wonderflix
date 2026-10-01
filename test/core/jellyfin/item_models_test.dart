@@ -90,6 +90,26 @@ void main() {
     expect(item.userData.played, isFalse);
     expect(item.userData.progress, isNull);
     expect(item.runtime, isNull);
+    expect(item.sortName, isNull);
+    expect(item.dateCreated, isNull);
+  });
+
+  test('chiave d\'ordinamento e data di aggiunta', () {
+    final item = JellyfinItem.fromJson({
+      'Id': 'm1',
+      'Name': 'The Matrix',
+      'Type': 'Movie',
+      'SortName': 'matrix',
+      'DateCreated': '2024-03-01T10:20:30.1234567Z',
+    });
+    expect(item.sortName, 'matrix');
+    expect(item.dateCreated, DateTime.utc(2024, 3, 1, 10, 20, 30, 123, 456));
+  });
+
+  test('data di aggiunta non valida: null', () {
+    final item = JellyfinItem.fromJson(
+        {'Id': 'm1', 'Type': 'Movie', 'DateCreated': 'ieri'});
+    expect(item.dateCreated, isNull);
   });
 
   test('progress è null se già visto', () {

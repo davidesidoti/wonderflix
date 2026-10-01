@@ -24,6 +24,7 @@ class ItemQuery {
     this.favoritesOnly = false,
     this.searchTerm,
     this.personId,
+    this.includeSortFields = false,
   });
 
   final Set<ItemKind> kinds;
@@ -34,6 +35,10 @@ class ItemQuery {
   final bool favoritesOnly;
   final String? searchTerm;
   final String? personId;
+
+  /// Chiede anche `SortName` e `DateCreated`, per ordinare nell'app
+  /// (La mia lista).
+  final bool includeSortFields;
 
   /// Filtri scelti dall'utente nel catalogo (esclusi ordinamento e tipo).
   bool get hasFilters =>
@@ -54,6 +59,18 @@ class ItemQuery {
         favoritesOnly: favoritesOnly,
         searchTerm: searchTerm,
         personId: personId,
+        includeSortFields: includeSortFields,
+      );
+
+  /// Toglie genere, anno e visti; il resto (tipi, ordinamento, preferiti,
+  /// ricerca, persona, campi) resta.
+  ItemQuery clearFilters() => ItemQuery(
+        kinds: kinds,
+        sort: sort,
+        favoritesOnly: favoritesOnly,
+        searchTerm: searchTerm,
+        personId: personId,
+        includeSortFields: includeSortFields,
       );
 
   Map<String, dynamic> toQueryParameters({
@@ -76,6 +93,8 @@ class ItemQuery {
     final term = searchTerm;
     return {
       ...cardImageParams,
+      if (includeSortFields)
+        'fields': '${cardImageParams['fields']},SortName,DateCreated',
       'userId': userId,
       'recursive': true,
       'includeItemTypes': (kinds.map((k) => k.apiName).toList()..sort()).join(','),

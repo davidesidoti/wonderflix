@@ -43,6 +43,9 @@ int? _int(Object? value) => (value as num?)?.toInt();
 
 double? _double(Object? value) => (value as num?)?.toDouble();
 
+DateTime? _date(Object? value) =>
+    value is String ? DateTime.tryParse(value) : null;
+
 /// Stato dell'utente su un elemento: visto, preferito, minutaggio.
 class UserItemData {
   const UserItemData({
@@ -203,6 +206,8 @@ class JellyfinItem {
     this.communityRating,
     this.runTimeTicks,
     this.genres = const [],
+    this.sortName,
+    this.dateCreated,
     this.imageTags = const {},
     this.backdropTags = const [],
     this.blurHashes = const {},
@@ -245,6 +250,8 @@ class JellyfinItem {
       communityRating: _double(json['CommunityRating']),
       runTimeTicks: _int(json['RunTimeTicks']),
       genres: _stringList(json['Genres']),
+      sortName: json['SortName'] as String?,
+      dateCreated: _date(json['DateCreated']),
       imageTags: _stringMap(json['ImageTags']),
       backdropTags: _stringList(json['BackdropImageTags']),
       blurHashes: hashes,
@@ -283,6 +290,14 @@ class JellyfinItem {
   final double? communityRating;
   final int? runTimeTicks;
   final List<String> genres;
+
+  /// Chiave d'ordinamento di Jellyfin (es. senza "The"). Arriva solo se
+  /// chiesta (`ItemQuery.includeSortFields`).
+  final String? sortName;
+
+  /// Aggiunta alla libreria. Arriva solo se chiesta
+  /// (`ItemQuery.includeSortFields`).
+  final DateTime? dateCreated;
 
   /// Tipo immagine (`Primary`, `Logo`, `Thumb`…) → tag.
   final Map<String, String> imageTags;
