@@ -441,6 +441,24 @@ void main() {
     await finish(tester);
   });
 
+  testWidgets('post-play nel gruppo a video finito: chiuso, il player resta',
+      (tester) async {
+    await pumpPartyPlayer(tester, segments: credits);
+    await queueSeries(tester);
+    await toCredits(tester);
+    engine.emitCompleted();
+    await tester.pump();
+    await tester.pump();
+    expect(api.calls, contains('next p1'));
+    await tester.tap(find.text(l.playerWatchCredits));
+    await tester.pumpAndSettle();
+    expect(find.text(l.playerWatchCredits), findsNothing);
+    expect(find.byType(PlayerScreen), findsOneWidget,
+        reason: 'uscire dal player vorrebbe dire lasciare il gruppo');
+    expect(api.calls, isNot(contains('leave')));
+    await finish(tester);
+  });
+
   testWidgets(
       'il gruppo passa all\'episodio dopo: nuovo player a schermo intero, '
       'episodio lasciato sui titoli segnato come visto', (tester) async {

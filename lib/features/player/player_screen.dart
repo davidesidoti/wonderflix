@@ -275,8 +275,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _cardShown(PlayerViewState view) =>
       _endZone == EndZone.lastSeconds && _canOfferNext(view);
 
-  /// "Guarda i titoli", "Annulla", Esc, clic sul film piccolo.
+  /// "Guarda i titoli", "Annulla", Esc, clic sul film piccolo. A video
+  /// finito (post-play rimasto aperto senza conto alla rovescia) da soli si
+  /// esce: non c'è più niente da guardare. Nel gruppo si chiude soltanto,
+  /// perché uscire dal player vorrebbe dire lasciare il gruppo.
   void _dismissNext() {
+    if (!_inParty && ref.read(playerControllerProvider(widget.args)).finished) {
+      _exit();
+      return;
+    }
     _chrome.dismissPostPlay();
     _syncPlayback();
   }

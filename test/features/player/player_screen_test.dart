@@ -951,6 +951,65 @@ void main() {
     await unmount(tester);
   });
 
+  /// Post-play senza conto alla rovescia, rimasto aperto a video finito.
+  Future<void> toFinishedPostPlay(WidgetTester tester) async {
+    settings = const PlayerSettings(autoplayNext: false);
+    withCredits();
+    await pumpPlayer(tester);
+    await toCredits(tester);
+    engine.emitCompleted();
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+  }
+
+  testWidgets('post-play a video finito: "Guarda i titoli" esce',
+      (tester) async {
+    await toFinishedPostPlay(tester);
+    await tester.tap(find.text('Guarda i titoli'));
+    await tester.pumpAndSettle();
+    expect(find.text('home'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('post-play a video finito: un clic sul film piccolo esce',
+      (tester) async {
+    await toFinishedPostPlay(tester);
+    await tester.tapAt(Offset(postPlayInset + 1440 * postPlayScale / 2,
+        postPlayInset + 900 * postPlayScale / 2));
+    await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
+    await tester.pumpAndSettle();
+    expect(find.text('home'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('post-play a video finito e a schermo intero: il primo Esc esce '
+      'dallo schermo intero, il secondo dal player', (tester) async {
+    settings = const PlayerSettings(autoplayNext: false);
+    withCredits();
+    await pumpPlayer(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+    await tester.pump();
+    await toCredits(tester);
+    engine.emitCompleted();
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(window.fullScreenCalls, [true]);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(window.fullScreenCalls, [true, false]);
+    expect(shrunk(tester), isTrue, reason: 'il post-play resta');
+    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+    expect(router.state.uri.path, '/play/e4');
+    expect(find.text('home'), findsNothing);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('home'), findsOneWidget);
+    await unmount(tester);
+  });
+
   testWidgets('post-play: niente schermata di pausa; il pannello si chiude',
       (tester) async {
     withCredits();
