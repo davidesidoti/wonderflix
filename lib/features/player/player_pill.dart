@@ -54,7 +54,10 @@ class PlayerPill extends StatefulWidget {
   State<PlayerPill> createState() => _PlayerPillState();
 }
 
-typedef _PillContent = ({IconData icon, String text});
+/// [kind] decide quando il contenuto sfuma: finché non cambia (un tasto
+/// tenuto premuto, che cambia il testo ogni ~33 ms) la riga si aggiorna sul
+/// posto; cambiandolo, la vecchia sfuma e la nuova entra.
+typedef _PillContent = ({IconData icon, String text, Object kind});
 
 class _PlayerPillState extends State<PlayerPill> {
   /// Ultimo contenuto mostrato: resta mentre la pillola sfuma via.
@@ -67,6 +70,12 @@ class _PlayerPillState extends State<PlayerPill> {
       return (
         icon: playerFeedbackIcon(feedback),
         text: playerFeedbackText(l, feedback),
+        kind: switch (feedback) {
+          PlayFeedback(:final playing) => (PlayFeedback, playing),
+          SeekFeedback(:final offset) => (SeekFeedback, offset.isNegative),
+          VolumeFeedback() => VolumeFeedback,
+          SubtitleDelayFeedback() => SubtitleDelayFeedback,
+        },
       );
     }
     final notice = widget.notice;
@@ -74,6 +83,8 @@ class _PlayerPillState extends State<PlayerPill> {
       return (
         icon: partyNoticeIcon(notice.kind),
         text: partyNoticeText(l, notice),
+        // `PartyNotice` non ha `==`: ogni avviso nuovo sfuma.
+        kind: notice,
       );
     }
     return null;
@@ -124,7 +135,7 @@ class _PlayerPillState extends State<PlayerPill> {
           child: AnimatedSwitcher(
             duration: WfMotion.fast,
             child: Row(
-              key: ValueKey(content.text),
+              key: ValueKey(content.kind),
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(content.icon, size: 18, color: WfColors.gold),

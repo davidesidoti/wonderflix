@@ -111,6 +111,40 @@ void main() {
     expect(find.text('In pausa'), findsNothing);
   });
 
+  testWidgets('tasto tenuto: la pillola cambia sul posto, senza sfumare',
+      (tester) async {
+    final state = await pumpPill(tester);
+    state.value = (const VolumeFeedback(volume: 50, muted: false), null);
+    await tester.pumpAndSettle();
+
+    // Ripetizione del tasto: un nuovo valore ogni ~33 ms.
+    for (var i = 1; i <= 10; i++) {
+      state.value = (VolumeFeedback(volume: 50 + i * 5, muted: false), null);
+      await tester.pump(const Duration(milliseconds: 33));
+    }
+
+    final pill = find.byKey(const Key('player-pill'));
+    expect(find.descendant(of: pill, matching: find.byType(Text)),
+        findsOneWidget);
+    final newest = find.text('Volume 100%');
+    expect(newest, findsOneWidget);
+    final fades = find.ancestor(
+        of: newest,
+        matching: find.descendant(
+            of: pill, matching: find.byType(FadeTransition)));
+    expect(fades, findsWidgets);
+    for (final fade in tester.widgetList<FadeTransition>(fades)) {
+      expect(fade.opacity.value, 1);
+    }
+
+    // Un'altra specie di riscontro invece sfuma.
+    state.value = (const PlayFeedback(playing: true), null);
+    await tester.pump(const Duration(milliseconds: 33));
+    expect(find.descendant(of: pill, matching: find.byType(Text)),
+        findsNWidgets(2));
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('animazioni complete: entra scendendo dall\'alto',
       (tester) async {
     final state = await pumpPill(tester, motion: MotionLevel.full);
