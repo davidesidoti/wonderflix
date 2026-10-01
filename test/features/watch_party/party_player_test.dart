@@ -15,6 +15,7 @@ import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/player/playback_service.dart';
+import 'package:wonderflix/features/player/player_chrome.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
@@ -433,6 +434,36 @@ void main() {
     await tester.tap(find.byTooltip(l.actionPlay));
     await tester.pump();
     expect(find.text(l.watchPartyNoticeResumedByYou), findsOneWidget);
+    await finish(tester);
+  });
+
+  testWidgets('tasti nel watch party: la pillola del tasto, niente "Hai…"',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    await tester.pump();
+    expect(api.calls, contains('unpause'));
+    expect(find.text(l.playerFeedbackPlaying), findsOneWidget);
+    expect(find.text(l.watchPartyNoticeResumedByYou), findsNothing);
+    // Finito il riscontro del tasto la pillola non mostra l'avviso "Hai…"
+    // che altrimenti resterebbe in coda.
+    await tester.pump(PlayerChromeController.feedbackDuration);
+    await tester.pumpAndSettle();
+    expect(find.text(l.playerFeedbackPlaying), findsNothing);
+    expect(find.text(l.watchPartyNoticeResumedByYou), findsNothing);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump();
+    // Il salto parte verso il gruppo dopo 400 ms.
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
+    expect(find.textContaining('+10 s'), findsOneWidget);
+    expect(find.textContaining('Hai saltato'), findsNothing);
+    await tester.pump(PlayerChromeController.feedbackDuration);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('+10 s'), findsNothing);
+    expect(find.textContaining('Hai saltato'), findsNothing);
     await finish(tester);
   });
 

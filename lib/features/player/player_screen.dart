@@ -286,7 +286,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       waitExclusion: session,
     )..start();
     final authority = GroupAuthority(
-        api: session.api, engine: controller.engine, onAction: notices.mine);
+      api: session.api,
+      engine: controller.engine,
+      // Spec D §9.3: un'azione appena data da tastiera ha già la sua
+      // pillola; l'avviso "Hai…" registra solo l'eco.
+      onAction: (kind, {position}) => notices.mine(kind,
+          position: position, show: !_chrome.isRecentKeyAction(kind)),
+    );
     _authority = authority;
     controller.setAuthority(authority);
   }
@@ -390,38 +396,68 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return KeyEventResult.handled;
   }
 
+  /// Comando da tastiera: la pillola mostra il riscontro (spec D §9), i
+  /// controlli non compaiono. Il riscontro va dato **prima** del comando:
+  /// nel watch party l'avviso "Hai…" che segue controlla che la pillola ci
+  /// sia già (vedi [_attachParty]).
   void _run(PlayerCommand command) {
     final controller = _controller;
+    final ready = ref.read(playerControllerProvider(widget.args)).status ==
+        PlayerStatus.ready;
     switch (command) {
       case PlayerCommand.togglePlay:
+        if (ready) {
+          _chrome.showFeedback(
+              PlayFeedback(playing: !controller.engine.playing));
+        }
         unawaited(controller.togglePlay());
       case PlayerCommand.seekBack:
-        unawaited(controller.seekBy(-seekStep));
+        _seekBy(-seekStep, ready: ready);
       case PlayerCommand.seekForward:
-        unawaited(controller.seekBy(seekStep));
+        _seekBy(seekStep, ready: ready);
       case PlayerCommand.volumeUp:
         unawaited(controller.changeVolumeBy(volumeStep));
+        _showVolume();
       case PlayerCommand.volumeDown:
         unawaited(controller.changeVolumeBy(-volumeStep));
+        _showVolume();
       case PlayerCommand.toggleMute:
         unawaited(controller.toggleMute());
+        _showVolume();
       case PlayerCommand.subtitleDelayDown:
         unawaited(controller.shiftSubtitleDelay(-subtitleDelayStep));
+        _showSubtitleDelay();
       case PlayerCommand.subtitleDelayUp:
         unawaited(controller.shiftSubtitleDelay(subtitleDelayStep));
+        _showSubtitleDelay();
       case PlayerCommand.toggleFullscreen:
         unawaited(_toggleFullscreen());
       case PlayerCommand.nextEpisode:
         _playNext();
-        return;
       case PlayerCommand.escape:
         _escape();
-        return;
       case PlayerCommand.exit:
         _exit();
-        return;
     }
   }
+
+  /// Salto da tastiera con la pillola (i salti di fila si sommano).
+  void _seekBy(Duration step, {required bool ready}) {
+    final engine = _controller.engine;
+    if (ready) {
+      _chrome.seek(step, from: engine.position, duration: engine.duration);
+    }
+    unawaited(_controller.seekBy(step));
+  }
+
+  /// Volume e muto dopo il tasto: il controller li aggiorna subito.
+  void _showVolume() {
+    final view = ref.read(playerControllerProvider(widget.args));
+    _chrome.showFeedback(VolumeFeedback(volume: view.volume, muted: view.muted));
+  }
+
+  void _showSubtitleDelay() => _chrome.showFeedback(SubtitleDelayFeedback(
+      ref.read(playerControllerProvider(widget.args)).subtitleDelay));
 
   /// Anteprima trickplay per la barra; `null` se il server non ne ha.
   Widget? Function(Duration)? _previewFor(PlayerViewState view) {

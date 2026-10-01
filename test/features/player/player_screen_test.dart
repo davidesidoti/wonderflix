@@ -171,6 +171,40 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('tastiera: pillola con i riscontri; i salti si sommano',
+      (tester) async {
+    await pumpPlayer(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+    expect(find.text('+10 s · 00:10'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+    expect(find.text('+20 s · 00:20'), findsOneWidget);
+    expect(engine.seeks,
+        [const Duration(seconds: 10), const Duration(seconds: 20)]);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pumpAndSettle();
+    expect(find.text('In pausa'), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+    expect(find.text('Volume 95%'), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyM);
+    await tester.pumpAndSettle();
+    expect(find.text('Audio disattivato'), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyH);
+    await tester.pumpAndSettle();
+    expect(find.text('Sottotitoli +0,1 s'), findsOneWidget);
+
+    await tester.pump(PlayerChromeController.feedbackDuration);
+    await tester.pumpAndSettle();
+    expect(find.text('Sottotitoli +0,1 s'), findsNothing);
+    await unmount(tester);
+  });
+
   testWidgets('F e Esc: schermo intero, poi finestra, poi uscita',
       (tester) async {
     await pumpPlayer(tester);
