@@ -630,10 +630,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ? MouseCursor.defer
                 : SystemMouseCursors.none,
             onHover: (_) => _chrome.pointerActivity(),
+            // Ogni strato ha una chiave: i figli dello `Stack` si abbinano
+            // per posizione, e quando uno strato condizionale compare o
+            // sparisce quelli sotto di lui (con il loro stato) verrebbero
+            // rimontati.
             child: Stack(
               fit: StackFit.expand,
               children: [
                 GestureDetector(
+                  key: const ValueKey('player-video'),
                   behavior: HitTestBehavior.opaque,
                   onTap: () {
                     if (_chrome.panelOpen) {
@@ -646,9 +651,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   child: controller.engine.buildView(),
                 ),
                 if (view.status == PlayerStatus.ready && !loading)
-                  BufferingSpinner(buffering: view.buffering),
+                  BufferingSpinner(
+                      key: const ValueKey('player-spinner'),
+                      buffering: view.buffering),
                 if (party != null && view.status == PlayerStatus.ready)
                   Positioned.fill(
+                    key: const ValueKey('player-party-waiting'),
                     child: ExcludeFocus(
                       child: PartyWaitingOverlay(
                         waiting: party.inGroup &&
@@ -660,6 +668,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   ),
                 if (view.status == PlayerStatus.error)
                   PlayerErrorLayer(
+                    key: const ValueKey('player-error'),
                     item: view.item,
                     error: view.error,
                     onRetry: () => unawaited(controller.retry()),
@@ -671,6 +680,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   // I controlli non prendono il focus della tastiera: le
                   // scorciatoie restano sempre attive.
                   ExcludeFocus(
+                    key: const ValueKey('player-controls'),
                     child: IgnorePointer(
                       ignoring: !_chrome.controlsVisible || loading,
                       child: PlayerOverlay(
@@ -728,6 +738,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   // Salta intro / riassunto: visibile anche a controlli
                   // nascosti.
                   Positioned(
+                    key: const ValueKey('player-skip'),
                     right: 32,
                     bottom: 150,
                     child: ExcludeFocus(
@@ -754,6 +765,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       !_nextCardDismissed &&
                       (!_inParty || next.id == party?.nextEntry?.itemId))
                     Positioned(
+                      key: const ValueKey('player-next-card'),
                       right: 32,
                       bottom: 150,
                       child: ExcludeFocus(
@@ -785,6 +797,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 // l'uscita dal gruppo: "terminato" e "non sei più nel watch
                 // party" devono vedersi).
                 Positioned(
+                  key: const ValueKey('player-pill-layer'),
                   top: 96,
                   left: 0,
                   right: 0,
@@ -807,6 +820,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ),
                 if (_chrome.panelOpen && view.plan != null)
                   Positioned(
+                    key: const ValueKey('player-tracks-panel'),
                     right: 24,
                     bottom: 120,
                     child: ExcludeFocus(
