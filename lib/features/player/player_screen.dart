@@ -183,7 +183,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   void _onFirstFrame() {
     _firstFrameTimer?.cancel();
-    if (mounted && !_firstFrame) setState(() => _firstFrame = true);
+    if (!mounted || _firstFrame) return;
+    setState(() => _firstFrame = true);
+    // Il conto per nascondere i controlli è partito con `playing`, sotto il
+    // caricamento: con il primo fotogramma tardivo scadrebbe appena lo strato
+    // sfuma. Ripartire da qui li mostra e rifà i 3 s da quando si vede il video.
+    _chrome.pointerActivity();
   }
 
   /// Dice al controller dell'interfaccia se si sta guardando e se la

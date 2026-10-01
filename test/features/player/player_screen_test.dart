@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/navigation.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/app/theme.dart';
@@ -187,6 +188,29 @@ void main() {
     await tester.pump(PlayerScreen.firstFrameTimeout + const Duration(seconds: 1));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('player-loading')), findsNothing);
+    await unmount(tester);
+  });
+
+  testWidgets('controlli: il conto per nasconderli riparte dal primo fotogramma',
+      (tester) async {
+    engine.holdFirstFrame = true;
+    await pumpPlayer(tester, settle: false);
+    // Il video parte dopo 2,5 s (capita con le transcodifiche): il conto dei
+    // 3 s, partito con `playing`, scadrebbe appena il caricamento sfuma.
+    await tester.pump(const Duration(milliseconds: 2500));
+    engine.completeFirstFrame();
+    await tester.pump();
+    // La linea del caricamento gira finché lo strato non esce dall'albero.
+    await tester.pump(WfMotion.slow);
+    await tester.pump(WfMotion.slow);
+    expect(find.byKey(const Key('player-loading')), findsNothing);
+
+    await tester.pump(const Duration(seconds: 1));
+    expect(controlsOpacity(tester), 1,
+        reason: 'il conto è ripartito dal primo fotogramma');
+    await tester.pump(PlayerChromeController.hideDelay);
+    await tester.pumpAndSettle();
+    expect(controlsOpacity(tester), 0);
     await unmount(tester);
   });
 
