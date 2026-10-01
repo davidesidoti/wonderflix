@@ -77,8 +77,8 @@ void main() {
 
   testWidgets('posizione, parte scaricata e salto con un clic', (tester) async {
     final engine = FakeVideoEngine();
-    Duration? seeked;
-    await pumpBar(tester, engine, onSeek: (p) => seeked = p);
+    final seeks = <Duration>[];
+    await pumpBar(tester, engine, onSeek: seeks.add);
     engine
       ..emitDuration(const Duration(hours: 2))
       ..emitPosition(const Duration(minutes: 30))
@@ -92,7 +92,8 @@ void main() {
 
     await tester.tap(find.byType(SeekBar));
     await tester.pump();
-    expect(seeked!.inSeconds, closeTo(3600, 5));
+    expect(seeks, hasLength(1), reason: 'un clic = un solo salto');
+    expect(seeks.single.inSeconds, closeTo(3600, 5));
   });
 
   testWidgets('semantica da slider: aumenta e diminuisce di un passo, '
@@ -371,6 +372,34 @@ void main() {
     expect(seeks, hasLength(1));
     expect(seeks.single.inSeconds, closeTo(3600, 5));
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('trascinamento con il mouse: segue anche fuori dalla barra, '
+      'un solo salto al rilascio', (tester) async {
+    final seeks = <Duration>[];
+    await pumpBar(tester, FakeVideoEngine(),
+        onSeek: seeks.add,
+        chapters: chapters,
+        preview: (_) => const SizedBox(key: Key('preview-image'), width: 240));
+    final gesture = await mouse(tester);
+    await gesture.moveTo(at(tester, 0.25));
+    await gesture.down(at(tester, 0.25));
+    await gesture.moveTo(at(tester, 0.4));
+    // Il mouse esce dalla barra a tasto premuto: il trascinamento continua.
+    await gesture.moveTo(at(tester, 0.4) - const Offset(0, 300));
+    await tester.pump();
+    expect(find.byKey(const Key('preview-image')), findsOneWidget);
+    expect(seeks, isEmpty);
+
+    await gesture.up();
+    await tester.pump();
+    expect(seeks, hasLength(1));
+    // L'ultimo x proiettato sulla traccia, qualunque sia l'altezza.
+    expect(seeks.single.inSeconds, closeTo(48 * 60, 5));
+
+    await tester.pump(WfMotion.fast);
+    await tester.pump();
+    expect(find.byKey(const Key('preview-image')), findsNothing);
   });
 
   test('chapterAt', () {
