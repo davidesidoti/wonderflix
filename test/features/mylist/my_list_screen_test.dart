@@ -110,6 +110,24 @@ void main() {
     expect(api.itemQueries, hasLength(1));
   });
 
+  // Il menu avvisa anche se si riscegli la voce già scelta: la griglia non
+  // deve cambiare chiave (e rifare la dissolvenza) per niente.
+  testWidgets('riscegliere la voce già scelta non rifà la griglia',
+      (tester) async {
+    await pumpList(tester, apiWith(library()), motion: MotionLevel.full);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(CustomScrollView), findsOneWidget);
+
+    await tester.tap(find.text('Ordina per: Data di aggiunta'));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('Ordina per: Data di aggiunta').last);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byType(CustomScrollView), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1));
+    expect(cardNames(tester), ['Dune', 'Heat', 'Arrival']);
+  });
+
   testWidgets('filtro per genere: griglia e conteggio', (tester) async {
     final api = await pumpList(tester, apiWith(library()));
     await tester.tap(find.text('Tutti i generi'));

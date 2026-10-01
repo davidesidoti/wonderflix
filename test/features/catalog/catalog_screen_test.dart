@@ -71,6 +71,18 @@ void main() {
     expect(api.itemQueries.last.genres, {'Dramma'});
   });
 
+  testWidgets('riscegliere la voce già scelta non ricarica il catalogo',
+      (tester) async {
+    await pumpCatalog(tester);
+    expect(api.itemQueries, hasLength(1));
+    // L'ordinamento di partenza è per titolo.
+    await tester.tap(find.text('Ordina per: Titolo'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ordina per: Titolo').last);
+    await tester.pumpAndSettle();
+    expect(api.itemQueries, hasLength(1));
+  });
+
   testWidgets('errore con riprova', (tester) async {
     api.error = const ServerUnreachableException();
     await pumpCatalog(tester);

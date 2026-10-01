@@ -109,7 +109,10 @@ class _Picker<T> extends StatelessWidget {
             for (final entry in items.entries)
               DropdownMenuItem<T>(value: entry.key, child: Text(entry.value)),
           ],
-          onChanged: (v) => onChanged(v as T),
+          onChanged: (v) {
+            // DropdownButton avvisa anche se si riscegli la stessa voce.
+            if (v != value) onChanged(v as T);
+          },
         ),
       ),
     );
