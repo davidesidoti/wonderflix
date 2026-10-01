@@ -236,6 +236,7 @@ void main() {
     emit(const GroupStateUpdate('g1', GroupState.playing, 'Ready'));
     await tester.pump();
     await tester.pump();
+    await tester.pumpAndSettle(); // l'attesa sfuma via
     expect(find.text(l.watchPartyWaiting), findsNothing);
     await finish(tester);
   });
