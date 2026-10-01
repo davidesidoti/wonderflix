@@ -76,9 +76,11 @@ Stato:
 Ingressi (chiamati da `PlayerScreen`):
 
 - `pointerActivity()`: il mouse si è mosso → controlli visibili, schermata di pausa chiusa, tempi azzerati.
-- `setPlayback({required bool playing, required bool canShowPauseScreen})`: in riproduzione i controlli si nascondono dopo **3 s** di mouse fermo (`PlayerScreen.hideDelay`, invariato); in pausa, dopo **8 s** di mouse fermo (`pauseScreenDelay`) i controlli si nascondono e compare la schermata di pausa, se `canShowPauseScreen` (vedi §11.1).
+- `setPlayback({required bool playing, required bool canShowPauseScreen})`: in riproduzione i controlli si nascondono dopo **3 s** di mouse fermo (`PlayerChromeController.hideDelay`); in pausa, dopo **8 s** di mouse fermo (`pauseScreenDelay`) i controlli si nascondono e compare la schermata di pausa, se `canShowPauseScreen` (vedi §11.1).
 - `togglePanel()` / `closePanel()`: con il pannello aperto i controlli non si nascondono e la pausa non compare.
-- `keyFeedback(PlayerFeedback)`: mostra il riscontro per **1,2 s** dall'ultima pressione (`feedbackDuration`); i salti nella stessa direzione entro **1 s** (`seekSumWindow`) si sommano.
+- `showFeedback(PlayerFeedback)`: mostra il riscontro per **1,2 s** dall'ultima pressione (`feedbackDuration`), senza far comparire i controlli.
+- `seek(step, from:, duration:)`: il salto da tastiera. I salti nella stessa direzione entro **1 s** (`seekSumWindow`) si sommano: l'offset è la somma e l'arrivo parte da quello del salto precedente (non dalla posizione del motore, che può non essersi ancora mossa), tra 0 e la durata. Poi mostra il riscontro con `showFeedback`.
+- `isRecentKeyAction(PartyNoticeKind)`: per il watch party (vedi §9.3), dice se nell'ultimo secondo (`keyActionWindow`) un tasto ha fatto la stessa azione di gruppo: pausa, ripresa o salto. Le azioni da tastiera si ricordano **per tipo** (l'ultimo Spazio con il suo stato, l'ultimo salto), non solo l'ultimo riscontro: ← seguito da ↑ o da Spazio non fa dimenticare il salto, il cui avviso "Hai…" arriva anche 400 ms dopo.
 - `keyActivity()`: un tasto premuto chiude la schermata di pausa e riparte da capo con gli 8 s, **senza** mostrare i controlli.
 - `dismissPostPlay()`.
 
@@ -218,7 +220,9 @@ F, N, Esc e Alt+← non hanno pillola: il loro effetto si vede già.
 - Mostra il riscontro del tasto se c'è, altrimenti l'avviso corrente del party (`partyNoticesProvider`).
 - Il riscontro del tasto prende subito il posto di quello che c'è; quando scade, se l'avviso del party è ancora nei suoi 3 s, torna visibile.
 - Cambiando contenuto la pillola non sparisce: testo e icona sfumano (`fast`) e la larghezza si adatta (`AnimatedSize`, `medium`). Entrata: scende di 12 px sfumando (`medium`); uscita `fast`.
-- **Watch party:** per pausa, ripresa e salti dati **da tastiera**, la pillola del tasto sostituisce l'avviso "Hai…". `PlayerScreen` passa a `GroupAuthority` un `onAction` che, se nell'ultimo secondo (`keyActionWindow`, più dei 400 ms di `GroupAuthority.seekDebounce`) c'è stato un riscontro di tasto dello stesso tipo, chiama `PartyNotices.mine(kind, show: false)`: l'eco resta registrata (l'aggiornamento del server non produce un altro avviso) ma l'avviso "Hai…" non si mostra. Con il mouse si continua a vedere "Hai messo in pausa", "Hai saltato a…".
+- La sfumatura parte solo quando cambia il **tipo** di contenuto (Spazio con il suo stato, salto indietro o avanti, volume, ritardo dei sottotitoli, un avviso nuovo del party). Con un tasto tenuto premuto (il testo cambia ogni ~33 ms) la riga si aggiorna sul posto e si adatta solo la larghezza. Con le animazioni ridotte non c'è `AnimatedSize`: la larghezza cambia di colpo.
+- Larghezza massima 560 px (`PlayerPill.maxWidth`): un avviso più lungo resta su una riga e finisce con i puntini.
+- **Watch party:** per pausa, ripresa e salti dati **da tastiera**, la pillola del tasto sostituisce l'avviso "Hai…". `PlayerScreen` passa a `GroupAuthority` un `onAction` che, se `isRecentKeyAction(kind)` dice che nell'ultimo secondo (`keyActionWindow`, più dei 400 ms di `GroupAuthority.seekDebounce`) un tasto ha fatto la stessa azione, chiama `PartyNotices.mine(kind, show: false)`: l'eco resta registrata (l'aggiornamento del server non produce un altro avviso) ma l'avviso "Hai…" non si mostra. Con il mouse si continua a vedere "Hai messo in pausa", "Hai saltato a…".
 - `IgnorePointer`, `ExcludeFocus`.
 
 ## 10. Caricamento, buffering, errore
