@@ -147,7 +147,7 @@ class _HourglassState extends State<_Hourglass>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller =
       AnimationController(vsync: this, duration: hourglassPeriod);
-  late final Animation<double> _turn = CurvedAnimation(
+  late final CurvedAnimation _turn = CurvedAnimation(
     parent: _controller,
     curve: const Interval(_Hourglass.restFraction, 1,
         curve: WfMotion.standard),
@@ -166,6 +166,8 @@ class _HourglassState extends State<_Hourglass>
 
   @override
   void dispose() {
+    // Prima la curva (si stacca dal controller), poi il controller.
+    _turn.dispose();
     _controller.dispose();
     super.dispose();
   }

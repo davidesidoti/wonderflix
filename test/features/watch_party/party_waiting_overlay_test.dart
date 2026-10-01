@@ -7,7 +7,7 @@ import '../../support/pump_app.dart';
 
 void main() {
   Future<ValueNotifier<bool>> pumpWaiting(WidgetTester tester,
-      {MotionLevel motion = MotionLevel.reduced}) async {
+      {MotionLevel motion = MotionLevel.reduced, VoidCallback? onResume}) async {
     final waiting = ValueNotifier(false);
     addTearDown(waiting.dispose);
     await pumpApp(
@@ -16,12 +16,24 @@ void main() {
         body: ValueListenableBuilder<bool>(
           valueListenable: waiting,
           builder: (context, value, _) =>
-              PartyWaitingOverlay(waiting: value, onResume: () {}),
+              PartyWaitingOverlay(waiting: value, onResume: onResume ?? () {}),
         ),
       ),
       motion: motion,
     );
     return waiting;
+  }
+
+  const waitingText = 'In attesa degli altri membri…';
+
+  /// Attesa mostrata e del tutto entrata (animazioni ridotte).
+  Future<void> showWaiting(
+      WidgetTester tester, ValueNotifier<bool> waiting) async {
+    waiting.value = true;
+    await tester.pump();
+    await tester.pump(PartyWaitingOverlay.delay);
+    await tester.pumpAndSettle();
+    expect(find.text(waitingText), findsOneWidget);
   }
 
   testWidgets('dopo 1 s sfuma dentro; finita l\'attesa sfuma via',
@@ -45,6 +57,51 @@ void main() {
         reason: 'resta mentre sfuma');
     await tester.pumpAndSettle();
     expect(find.text('In attesa degli altri membri…'), findsNothing);
+  });
+
+  testWidgets('di nuovo in attesa mentre sfuma via: torna dopo 1 s',
+      (tester) async {
+    final waiting = await pumpWaiting(tester);
+    await showWaiting(tester, waiting);
+
+    waiting.value = false;
+    await tester.pump();
+    await tester.pump(WfMotion.fast ~/ 3);
+    expect(find.text(waitingText), findsOneWidget, reason: 'sta sfumando');
+    waiting.value = true;
+    await tester.pump();
+    // La dissolvenza finisce e l'attesa lascia l'albero; il secondo di
+    // ritardo riparte da qui.
+    await tester.pump(WfMotion.fast);
+    await tester.pump();
+    expect(find.text(waitingText), findsNothing);
+    await tester.pump(
+        PartyWaitingOverlay.delay - WfMotion.fast - const Duration(milliseconds: 10));
+    expect(find.text(waitingText), findsNothing);
+    await tester.pump(const Duration(milliseconds: 10));
+    await tester.pump();
+    expect(find.text(waitingText), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(
+        tester.widget<Opacity>(find.byKey(const Key('party-waiting'))).opacity,
+        1);
+  });
+
+  testWidgets('"Riprendi senza aspettare" mentre sfuma via: niente',
+      (tester) async {
+    var resumed = 0;
+    final waiting = await pumpWaiting(tester, onResume: () => resumed++);
+    await showWaiting(tester, waiting);
+
+    waiting.value = false;
+    await tester.pump();
+    await tester.pump(WfMotion.fast ~/ 3);
+    expect(find.text(waitingText), findsOneWidget, reason: 'sta sfumando');
+    // Il clic passa sotto: il pulsante non lo riceve.
+    await tester.tap(find.text('Riprendi senza aspettare'), warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(resumed, 0);
+    expect(find.text(waitingText), findsNothing);
   });
 
   testWidgets('animazioni complete: la clessidra si gira', (tester) async {
