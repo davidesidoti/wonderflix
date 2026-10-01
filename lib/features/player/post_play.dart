@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
@@ -123,76 +124,77 @@ class PostPlayLayer extends ConsumerWidget {
               top: postPlayInset + filmHeight + postPlayGap,
               width: filmWidth,
               bottom: postPlayInset,
+              // I pulsanti si dispongono sempre: con poco spazio (finestra
+              // bassa, testo grande) cede la trama.
               child: Align(
                 alignment: Alignment.topLeft,
-                child: SingleChildScrollView(
-                  physics: const NeverScrollableScrollPhysics(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(l.playerNextEpisodeTitle.toUpperCase(),
-                          style: WfText.display(20, color: WfColors.gold)),
-                      const SizedBox(height: 8),
-                      Text(cardTitle(episode).toUpperCase(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: WfText.display(40)),
-                      const SizedBox(height: 6),
-                      Text(cardSubtitle(episode) ?? episode.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 17, fontWeight: FontWeight.w600)),
-                      if (overview != null) ...[
-                        const SizedBox(height: 10),
-                        Text(overview,
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                color: WfColors.creamMuted, height: 1.45)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(l.playerNextEpisodeTitle.toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: WfText.display(20, color: WfColors.gold)),
+                    const SizedBox(height: 8),
+                    Text(cardTitle(episode).toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: WfText.display(40)),
+                    const SizedBox(height: 6),
+                    Text(cardSubtitle(episode) ?? episode.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 17, fontWeight: FontWeight.w600)),
+                    if (overview != null)
+                      Flexible(child: _PostPlayOverview(overview)),
+                    const SizedBox(height: 18),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        PlayNowButton(
+                            countdown: countdown,
+                            paused: paused,
+                            onPressed: onPlay),
+                        WfButton.secondary(
+                          label: l.playerWatchCredits,
+                          icon: LucideIcons.film,
+                          onPressed: onWatchCredits,
+                        ),
                       ],
-                      const SizedBox(height: 18),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: [
-                          PlayNowButton(
-                              countdown: countdown,
-                              paused: paused,
-                              onPressed: onPlay),
-                          WfButton.secondary(
-                            label: l.playerWatchCredits,
-                            icon: LucideIcons.film,
-                            onPressed: onWatchCredits,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
             Positioned(
-              key: const Key('post-play-image'),
               top: postPlayInset,
               left: postPlayInset + filmWidth + postPlayGap,
               right: postPlayInset,
-              child: AspectRatio(
-                aspectRatio: 16 / 9,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(postPlayRadius),
-                    boxShadow: [
-                      BoxShadow(
-                          color: WfColors.bg.withValues(alpha: 0.8),
-                          blurRadius: 32,
-                          offset: const Offset(0, 12)),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(postPlayRadius),
-                    child: WfImage(image: urls.landscape(episode)),
+              bottom: postPlayInset,
+              // Limitata nei due sensi: in una finestra molto larga il 16:9
+              // largo quanto lo spazio rimasto uscirebbe dal fondo.
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: AspectRatio(
+                  key: const Key('post-play-image'),
+                  aspectRatio: 16 / 9,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(postPlayRadius),
+                      boxShadow: [
+                        BoxShadow(
+                            color: WfColors.bg.withValues(alpha: 0.8),
+                            blurRadius: 32,
+                            offset: const Offset(0, 12)),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(postPlayRadius),
+                      child: WfImage(image: urls.landscape(episode)),
+                    ),
                   ),
                 ),
               ),
@@ -201,5 +203,41 @@ class PostPlayLayer extends ConsumerWidget {
         );
       }),
     );
+  }
+}
+
+/// Trama del post-play: al massimo [maxLines] righe, ma solo quelle intere
+/// che entrano nello spazio rimasto (ellissi sull'ultima); se non ne entra
+/// nessuna sparisce, e i pulsanti sotto restano al loro posto.
+class _PostPlayOverview extends StatelessWidget {
+  const _PostPlayOverview(this.text);
+
+  final String text;
+
+  /// Righe con spazio a volontà.
+  static const maxLines = 3;
+
+  /// Spazio sopra la trama.
+  static const gap = 10.0;
+
+  static const style = TextStyle(color: WfColors.creamMuted, height: 1.45);
+
+  @override
+  Widget build(BuildContext context) {
+    final fontSize = DefaultTextStyle.of(context).style.merge(style).fontSize ??
+        kDefaultFontSize;
+    final line = MediaQuery.textScalerOf(context).scale(fontSize) *
+        style.height!;
+    return LayoutBuilder(builder: (context, constraints) {
+      final lines = constraints.hasBoundedHeight
+          ? math.min(maxLines, ((constraints.maxHeight - gap) / line).floor())
+          : maxLines;
+      if (lines <= 0) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.only(top: gap),
+        child: Text(text,
+            maxLines: lines, overflow: TextOverflow.ellipsis, style: style),
+      );
+    });
   }
 }

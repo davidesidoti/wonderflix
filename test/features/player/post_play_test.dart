@@ -4,6 +4,7 @@ import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/player/player_extras.dart';
 import 'package:wonderflix/features/player/post_play.dart';
+import 'package:wonderflix/ui/wf_buttons.dart';
 
 import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
@@ -109,6 +110,52 @@ void main() {
       expect(credits, 1);
       await tester.pump(const Duration(seconds: 10));
       expect(played, 1, reason: 'conto alla rovescia finito');
+    });
+
+    Widget layer({double textScale = 1}) => Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(textScale)),
+            child: Scaffold(
+              body: PostPlayLayer(
+                episode: episode,
+                countdown: true,
+                paused: false,
+                onPlay: () {},
+                onWatchCredits: () {},
+              ),
+            ),
+          ),
+        );
+
+    testWidgets('finestra minima, testo al 150%: i pulsanti restano dentro',
+        (tester) async {
+      const screen = Size(1024, 640);
+      await pumpApp(tester, layer(textScale: 1.5), surfaceSize: screen);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      for (final button in [find.byType(PlayNowButton), find.byType(WfButton)]) {
+        final rect = tester.getRect(button);
+        expect(
+            rect.left >= 0 &&
+                rect.top >= 0 &&
+                rect.right <= screen.width &&
+                rect.bottom <= screen.height,
+            isTrue,
+            reason: '$button: $rect');
+      }
+    });
+
+    testWidgets("finestra molto larga: l'immagine non esce dal fondo",
+        (tester) async {
+      const screen = Size(2200, 640);
+      await pumpApp(tester, layer(), surfaceSize: screen);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      final image = tester.getRect(find.byKey(const Key('post-play-image')));
+      expect(image.top, closeTo(postPlayInset, 0.5));
+      expect(image.bottom, lessThanOrEqualTo(screen.height - postPlayInset));
+      expect(image.width / image.height, closeTo(16 / 9, 0.01));
     });
 
     testWidgets('senza conto alla rovescia: "Riproduci ora"', (tester) async {
