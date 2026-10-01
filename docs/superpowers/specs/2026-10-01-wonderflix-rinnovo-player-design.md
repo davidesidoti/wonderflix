@@ -87,7 +87,7 @@ Ingressi (chiamati da `PlayerScreen`):
 **Il controller non ha uno stato `postPlay`.** Post-play e scheda li calcola `PlayerScreen`:
 
 - tiene una zona di fine episodio, `_endZone` (`EndZone`: `none`, `credits`, `lastSeconds`; `endZoneAt` in `segments.dart`), ricalcolata da `_updateEndZone` con la posizione del motore, la durata e i segmenti di adesso (ognuno può arrivare per ultimo, per esempio i segmenti a video fermo nei titoli). Cambia poche volte: solo allora la schermata si ricostruisce;
-- il post-play è la zona `credits`, la scheda la zona `lastSeconds`; per entrambi serve anche un episodio successivo (nel gruppo il prossimo della coda, `WatchPartyState.nextEntry`), il player in stato `ready` e l'offerta non chiusa (`postPlayDismissed`);
+- il post-play è la zona `credits`, la scheda la zona `lastSeconds`; per entrambi serve anche un episodio successivo (nel gruppo il prossimo della coda, `WatchPartyState.nextEntry`), il player in stato `ready` con il primo fotogramma arrivato (§10.1) e l'offerta non chiusa (`postPlayDismissed`);
 - il post-play può comparire o sparire anche senza un cambio di zona (aggiornamento della coda del gruppo, uscita dal gruppo, episodio successivo arrivato tardi, stato del file). Quando compare, **per qualsiasi motivo**, il pannello si chiude e la schermata di pausa si rivaluta: lo fa un `addPostFrameCallback` in `build`, che confronta il post-play di adesso con quello dell'ultima costruzione (`_postPlayWasShown`).
 
 Usa `clock` e `Timer` cancellabili, quindi si prova con `fake_async`. In `dispose` cancella tutti i timer.
@@ -97,15 +97,16 @@ Usa `clock` e `Timer` cancellabili, quindi si prova con `fake_async`. In `dispos
 Ogni strato è un widget nel suo file in `lib/features/player/`, montato nello `Stack` di `PlayerScreen` in quest'ordine (dal basso):
 
 1. video (`engine.buildView()`, dentro `PostPlayFrame` che lo rimpicciolisce nel post-play, §12.1);
-2. `player_loading.dart`: `BufferingSpinner` (spinner del buffering, §10.2);
-3. `PartyWaitingOverlay` (§15.3);
+2. `player_loading.dart`: `BufferingSpinner` (spinner del buffering, §10.2), **sul film**: sta nello stesso `PostPlayFrame` del video (uno `Stack` in cui il video ha una chiave e non si rimonta), quindi nel post-play segue il film piccolo;
+3. `PartyWaitingOverlay` (§15.3) nella riproduzione normale, sotto i controlli;
 4. `pause_screen.dart`: `PauseScreen` (§11);
 5. `PlayerOverlay` (controlli, §7–8), oppure `PlayerErrorLayer` (errore, §10.3) al suo posto;
 6. `player_loading.dart`: `PlayerLoadingLayer` (caricamento, §10.1), sopra i controlli: durante il caricamento i controlli sono nascosti e la freccia per uscire sta nello strato;
 7. `skip_button.dart`: `SkipSegmentButton` (§13), e subito sopra la scheda piccola del prossimo episodio (`NextEpisodeCard` in `player_extras.dart`, §12.2): due strati distinti;
 8. `post_play.dart`: `PostPlayLayer` (informazioni del post-play, §12.1). Questo strato (sempre nello `Stack`) e quello della scheda piccola (con il player `ready`) sono due **posti fissi**: quello che cambia è il contenuto, dentro un `AnimatedSwitcher` (§12.1);
-9. `player_pill.dart`: `PlayerPill` (§9);
-10. `tracks_panel.dart`: `TracksPanelHost` con il `TracksPanel` laterale (§14).
+9. `PartyWaitingOverlay` durante il post-play (§15.3): un secondo posto fisso, sempre nello `Stack`, sopra il post-play;
+10. `player_pill.dart`: `PlayerPill` (§9);
+11. `tracks_panel.dart`: `TracksPanelHost` con il `TracksPanel` laterale (§14).
 
 Ogni strato ha una `ValueKey`: i figli dello `Stack` si abbinano per posizione, e uno strato condizionale che compare o sparisce farebbe rimontare (perdendo lo stato) quelli vicini.
 
@@ -207,7 +208,7 @@ Con **Animazioni → Ridotte** (o "Come Windows" con gli effetti spenti):
 
 - Le scorciatoie restano quelle di oggi (`player_commands.dart`).
 - **Un tasto non mostra più i controlli**: mostra la pillola (se il comando ne ha una) e chiude la schermata di pausa (`keyActivity`).
-- Esc chiude, in quest'ordine: pannello → post-play o scheda → schermo intero → player.
+- Esc chiude, in quest'ordine: pannello → post-play o scheda → schermo intero → player. A video finito il post-play rimasto aperto non si chiude con Esc: si passa allo schermo intero, poi al player (§12.1).
 
 ### 9.2 Riscontri
 
@@ -251,6 +252,7 @@ F, N, Esc e Alt+← non hanno pillola: il loro effetto si vede già.
 ### 10.2 Buffering
 
 - Lo spinner oro attuale compare solo se il buffering dura più di **300 ms** (`bufferingSpinnerDelay`) e sfuma in entrata e in uscita (`fast`). Le attese brevi dopo un salto non fanno più lampeggiare nulla.
+- Lo spinner è sul film (§5.2): nel post-play resta al centro del film piccolo, rimpicciolito con lui, e non finisce sotto l'immagine dell'episodio.
 
 ### 10.3 Errore (`PlayerErrorLayer`)
 
@@ -285,17 +287,18 @@ Vale anche nel watch party, quando il gruppo è in pausa.
 
 ### 12.1 Post-play (solo con segmento `Outro`)
 
-**Quando:** la zona di fine episodio è `credits` (la posizione è ≥ `outroStart`), c'è un episodio successivo (nel party: è il prossimo della coda, come oggi), il player è `ready` e il post-play non è stato chiuso. `PlayerScreen` lo ricalcola dalla posizione, dalla durata e dai segmenti (§5.1).
+**Quando:** la zona di fine episodio è `credits` (la posizione è ≥ `outroStart`), c'è un episodio successivo (nel party: è il prossimo della coda, come oggi), il player è `ready` con il **primo fotogramma** arrivato (§10.1) e il post-play non è stato chiuso. `PlayerScreen` lo ricalcola dalla posizione, dalla durata e dai segmenti (§5.1). Aprendo o riprendendo nei titoli (o aprendo in pausa lì un player del gruppo) il post-play, e il suo conto alla rovescia, compaiono solo quando il caricamento se ne va, non sopra di lui. Lo stesso vale per la scheda piccola (§12.2).
 
 **Movimento e disposizione:**
 
 - Il film si rimpicciolisce al **42%** della finestra, ancorato in alto a sinistra con 32 px di margine, angoli arrotondati (12 px) e un bordo crema sottile (`slow` / `emphasized`; `Transform` + `ClipRRect` in `PostPlayFrame`). Il `Transform` sposta anche il bersaglio dei clic.
-- I controlli si nascondono e non ricompaiono con il mouse; il cursore resta visibile.
+- I controlli si nascondono e non ricompaiono con il mouse; il cursore resta visibile. Con i controlli sparisce anche la freccia "indietro": durante il post-play si esce con Esc (§9.1), Alt+← o il tasto "indietro" del mouse.
+- Lo spinner del buffering segue il film piccolo (§10.2): un buffering nei titoli, che ferma il conto di "Riproduci ora · N", si vede sul film.
 - Se all'inizio dei titoli il pannello "Audio e sottotitoli" è aperto, **il pannello si chiude** (vale ogni volta che il post-play compare, §5.1).
 - Sotto il film, a sinistra (`PostPlayLayer`, entra sfumando in `medium` quando il rimpicciolimento è a metà): "PROSSIMO EPISODIO" in oro; il nome della serie in Bebas; "S1:E4 · Titolo"; la trama (al massimo 3 righe); i pulsanti. La colonna è larga quanto il film piccolo e arriva fino a 32 px dal fondo.
 - **Quando lo spazio non basta (finestra bassa, testo grande) cede la trama**: restano solo le righe intere che entrano (fino a 3, con i puntini sull'ultima), e se non ne entra nessuna la trama sparisce. Titoli e pulsanti restano sempre visibili.
 - A destra: l'immagine grande dell'episodio (`urls.landscape(next)`, 16:9, angoli arrotondati, ombra), che riempie lo spazio rimasto a destra del film piccolo (circa la metà della finestra) ed è **limitata nei due sensi**: in una finestra molto larga non esce dal fondo.
-- **I due posti** (post-play e scheda piccola) hanno un `AnimatedSwitcher` ciascuno (chiave: l'episodio successivo). Il contenuto nuovo è subito opaco (`switchInCurve` `Threshold(0)`), perché ha già la sua entrata e altrimenti sfumerebbe due volte; quando esce, sfuma in `fast`.
+- **I due posti** (post-play e scheda piccola) hanno un `AnimatedSwitcher` ciascuno (chiave: l'episodio successivo). Il contenuto nuovo è subito opaco (`switchInCurve` `Threshold(0)`), perché ha già la sua entrata e altrimenti sfumerebbe due volte; quando esce, sfuma in `fast` con `accelerate` (`switchOutCurve`, §6.1).
 
 **Pulsanti:**
 
@@ -306,15 +309,19 @@ Vale anche nel watch party, quando il gruppo è in pausa.
   - l'etichetta ha due toni, divisi dove arriva il fondo: crema sulla parte non riempita, scura sull'oro;
   - l'altezza segue la densità del tema, come `WfButton` (44 px, 36 con la densità compatta di Windows); la larghezza è riservata per l'etichetta più larga ("· 10"), così non balla a ogni secondo;
   - **agisce solo se l'offerta è ancora mostrata** (`PlayerScreen._playOffered`), sia con il clic sia allo scadere del conto: uscendo, il pulsante resta montato un attimo dentro l'`AnimatedSwitcher`, e il suo conto potrebbe scadere dopo che l'utente ha chiuso il post-play.
-- **"Guarda i titoli"** (secondario): il film torna a tutto schermo (`slow`) e il post-play si chiude. Lo stesso con Esc (a video non finito) o con un clic sul film piccolo; **un clic sullo sfondo fuori dal film piccolo non fa nulla**.
+- **"Guarda i titoli"** (secondario): il film torna a tutto schermo (`slow`) e il post-play si chiude. Lo stesso con Esc (a video non finito) o con un clic sul film piccolo; **un clic sullo sfondo fuori dal film piccolo non fa nulla**. A video finito, da soli, "Guarda i titoli" e il clic sul film piccolo escono dal player (vedi sotto).
 
 **A fine video:**
 
 - post-play chiuso dall'utente: si esce come oggi;
-- post-play aperto, da soli e senza conto alla rovescia: **si resta sul post-play** (film piccolo fermo sull'ultimo fotogramma) finché non si sceglie; Esc o "indietro" escono;
-- nel watch party: si passa all'elemento dopo come oggi.
+- post-play aperto con il conto alla rovescia in corso (da soli, con l'impostazione): **parte subito** l'episodio successivo, senza aspettare la fine del conto;
+- post-play aperto, da soli e senza conto alla rovescia: **si resta sul post-play** (film piccolo fermo sull'ultimo fotogramma) finché non si sceglie:
+  - Esc in finestra esce dal player; a schermo intero il primo Esc esce dallo schermo intero (il post-play resta) e il secondo dal player;
+  - "Guarda i titoli" o un clic sul film piccolo escono dal player: non c'è più niente da guardare;
+  - si esce anche con Alt+← o con il tasto "indietro" del mouse (la freccia "indietro" dei controlli non c'è);
+- nel watch party: si passa all'elemento dopo come oggi. Chiudere il post-play ("Guarda i titoli", clic sul film piccolo) lo chiude soltanto e il player resta: uscire dal player vorrebbe dire lasciare il gruppo.
 
-La schermata di pausa non compare durante il post-play (se compare quando è già in pausa, si chiude); tasti e pillola continuano a funzionare.
+La schermata di pausa non compare durante il post-play (se compare quando è già in pausa, si chiude); tasti e pillola continuano a funzionare. Se durante il post-play il gruppo aspetta qualcuno, l'attesa sta **sopra** il post-play (vince l'attesa, §15.3).
 
 ### 12.2 Scheda piccola (senza segmento `Outro`)
 
@@ -377,6 +384,7 @@ Gli avvisi passano nella `PlayerPill` (§9.3) con i testi di oggi (`partyNoticeT
 - Compare dopo 1 s come oggi, ma sfumando (`medium`); sfuma via in `fast` e, sparita, non è nell'albero.
 - La clessidra sta ferma per il 70% del periodo e poi si gira (`hourglassPeriod`); tre puntini oro pulsano uno dopo l'altro (`waitingDotsPeriod`); clessidra, testo, puntini e pulsante "Riprendi senza aspettare" entrano scaglionati.
 - Con il livello ridotto clessidra e puntini restano fermi.
+- **Durante il post-play** (§12.1) l'attesa sta **sopra** il post-play, come sopra "Stai guardando": vince l'attesa, e il velo, la clessidra, il testo e "Riprendi senza aspettare" coprono anche l'immagine dell'episodio (che non prende più i clic). È un secondo posto fisso dello `Stack`, sopra quello del post-play (§5.2); nella riproduzione normale l'attesa resta sotto i controlli, che restano usabili. Se il post-play compare o si chiude mentre l'attesa è visibile, l'attesa passa all'altro strato e ricompare dopo il suo secondo di ritardo.
 
 ## 16. Testi nuovi (ARB, it + en)
 
@@ -395,7 +403,7 @@ Gli avvisi passano nella `PlayerPill` (§9.3) con i testi di oggi (`partyNoticeT
 - **Caricamento:** sfondo e logo; titolo di ripiego; resta fino a `firstFrame`, poi sfuma; con `ready` dopo "Riprova".
 - **Buffering:** nessuno spinner sotto i 300 ms.
 - **Pausa:** compare solo con tutte le condizioni di §11.1; contenuto (episodio, generi, trama); il mouse la chiude.
-- **Post-play:** compare solo con `Outro`; conto alla rovescia da soli con l'impostazione, fermo in pausa; nel party senza conto alla rovescia e con `nextItem`; "Guarda i titoli"/Esc/clic lo chiudono; a fine video si resta sul post-play aperto senza conto alla rovescia. Scheda piccola negli ultimi 30 s senza `Outro`.
+- **Post-play:** compare solo con `Outro`; conto alla rovescia da soli con l'impostazione, fermo in pausa; nel party senza conto alla rovescia e con `nextItem`; "Guarda i titoli"/Esc/clic lo chiudono; a fine video si resta sul post-play aperto senza conto alla rovescia, e da lì "Guarda i titoli", il clic sul film o Esc escono (a schermo intero il primo Esc esce dallo schermo intero), mentre nel gruppo chiuderlo non esce; niente post-play sotto il caricamento (prima del primo fotogramma); lo spinner del buffering sul film piccolo, senza rimontare il video; l'attesa del gruppo sopra il post-play. Scheda piccola negli ultimi 30 s senza `Outro`.
 - **"Salta":** entra con il segmento, linea proporzionale al tempo che manca; pillola al salto automatico (`autoSkips`).
 - **Pannello:** voci e chiusure; la dimensione chiama il motore e si salva nelle impostazioni.
 - **Watch party:** icone degli avvisi; badge con iniziali e "+N"; attesa con livello ridotto ferma.
@@ -417,4 +425,4 @@ Ogni piano segue il flusso concordato (worktree, subagent, revisione, prova manu
 - **`Transform` sul video:** il `Texture` di media_kit scalato e ritagliato (`ClipRRect`) va provato su Windows durante la riproduzione (nessuno sfarfallio, nessun ridimensionamento nativo).
 - **Primo fotogramma:** `waitUntilFirstFrameRendered` su Windows si completa al primo `VideoOutput.Resize` valido, una volta per motore; con un video in pausa all'apertura (player del gruppo) il primo fotogramma deve comunque arrivare. Se non arriva entro l'apertura, il caricamento sfuma con `ready` (nessuna attesa infinita).
 - **Prestazioni** su un PC modesto: barra e pillola cambiano spesso; misurare con `--profile`.
-- **Precedenze sopra il video:** pausa, post-play, attesa del gruppo, pannello ed errore non devono comparire insieme; le regole sono in §11.1, §12.1 e §14 e vanno coperte dai test.
+- **Precedenze sopra il video:** pausa, post-play, attesa del gruppo, pannello ed errore non devono comparire insieme; le regole sono in §11.1, §12.1, §14 e §15.3 (l'attesa del gruppo vince sul post-play) e vanno coperte dai test.
