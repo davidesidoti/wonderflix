@@ -312,6 +312,44 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('movimento pieno: l\'altezza segue la curva enfatizzata',
+      (tester) async {
+    await pumpBar(tester, FakeVideoEngine(),
+        chapters: chapters, motion: MotionLevel.full);
+    final gesture = await mouse(tester);
+    await gesture.moveTo(at(tester, 0.25));
+    await tester.pump();
+    await tester.pump(WfMotion.fast ~/ 2);
+
+    final eased = WfMotion.emphasized.transform(0.5);
+    expect(eased, greaterThan(0.5));
+    expect(painter(tester).hover, closeTo(eased, 0.05));
+    expect(painter(tester).emphasis, closeTo(eased, 0.05));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('movimento ridotto: il cursore non cresce, sfuma soltanto',
+      (tester) async {
+    await pumpBar(tester, FakeVideoEngine(), chapters: chapters);
+    final gesture = await mouse(tester);
+    await gesture.moveTo(at(tester, 0.25));
+    await tester.pump();
+    await tester.pump(WfMotion.fast ~/ 2);
+    expect(painter(tester).thumb, 1);
+    expect(painter(tester).thumbOpacity, inExclusiveRange(0, 1));
+
+    await tester.pump(WfMotion.fast);
+    expect(painter(tester).thumb, 1);
+    expect(painter(tester).thumbOpacity, 1);
+
+    await gesture.moveTo(Offset.zero);
+    await tester.pump();
+    await tester.pump(WfMotion.fast);
+    expect(painter(tester).thumb, 0);
+    expect(painter(tester).thumbOpacity, 0);
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('trascinamento: l\'anteprima segue, un solo salto alla fine',
       (tester) async {
     final seeks = <Duration>[];

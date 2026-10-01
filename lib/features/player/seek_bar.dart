@@ -43,6 +43,7 @@ class SeekBarPainter extends CustomPainter {
     required this.hoveredSegment,
     required this.emphasis,
     required this.thumb,
+    required this.thumbOpacity,
   });
 
   final List<SeekSegment> segments;
@@ -60,6 +61,10 @@ class SeekBarPainter extends CustomPainter {
 
   /// Scala del cursore: 0 nascosto, 1 intero (il rimbalzo può superarlo).
   final double thumb;
+
+  /// Opacità del cursore (0–1): con il movimento ridotto il cursore non
+  /// cresce (spec D §6.2), sfuma soltanto.
+  final double thumbOpacity;
 
   /// Altezze della traccia (spec D §8.2).
   static const restHeight = 4.0;
@@ -144,9 +149,13 @@ class SeekBarPainter extends CustomPainter {
     }
     if (thumb > 0) {
       final center = Offset(x(position), centerY);
-      canvas.drawCircle(center, (thumbRadius + thumbHalo) * thumb,
-          Paint()..color = WfColors.gold.withValues(alpha: 0.25));
-      canvas.drawCircle(center, thumbRadius * thumb, played);
+      canvas.drawCircle(
+          center,
+          (thumbRadius + thumbHalo) * thumb,
+          Paint()
+            ..color = WfColors.gold.withValues(alpha: 0.25 * thumbOpacity));
+      canvas.drawCircle(center, thumbRadius * thumb,
+          Paint()..color = WfColors.gold.withValues(alpha: thumbOpacity));
     }
   }
 
@@ -160,7 +169,8 @@ class SeekBarPainter extends CustomPainter {
       oldDelegate.hover != hover ||
       oldDelegate.hoveredSegment != hoveredSegment ||
       oldDelegate.emphasis != emphasis ||
-      oldDelegate.thumb != thumb;
+      oldDelegate.thumb != thumb ||
+      oldDelegate.thumbOpacity != thumbOpacity;
 }
 
 /// Barra di avanzamento (spec D §8): tratti per capitolo, zone rigate,
@@ -338,7 +348,6 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final reduced = WfMotion.of(context).isReduced;
-    final thumbCurve = reduced ? WfMotion.standard : WfMotion.bounce;
     return LayoutBuilder(builder: (context, constraints) {
       _width = constraints.maxWidth;
       _segments = seekSegments(widget.chapters, _duration, _track);
@@ -401,20 +410,31 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
                     child: RepaintBoundary(
                       child: AnimatedBuilder(
                         animation: Listenable.merge([_hover, _emphasis, _thumb]),
-                        builder: (context, _) => CustomPaint(
-                          key: const Key('seek-bar-paint'),
-                          painter: SeekBarPainter(
-                            segments: _segments,
-                            zones: widget.zones,
-                            duration: _duration,
-                            position: shown,
-                            buffer: _buffer,
-                            hover: _hover.value,
-                            hoveredSegment: _hoveredSegment,
-                            emphasis: _emphasis.value,
-                            thumb: thumbCurve.transform(_thumb.value),
-                          ),
-                        ),
+                        builder: (context, _) {
+                          final reveal = _thumb.value;
+                          return CustomPaint(
+                            key: const Key('seek-bar-paint'),
+                            painter: SeekBarPainter(
+                              segments: _segments,
+                              zones: widget.zones,
+                              duration: _duration,
+                              position: shown,
+                              buffer: _buffer,
+                              hover:
+                                  WfMotion.emphasized.transform(_hover.value),
+                              hoveredSegment: _hoveredSegment,
+                              emphasis: WfMotion.emphasized
+                                  .transform(_emphasis.value),
+                              // Movimento pieno: il cursore cresce con un
+                              // rimbalzo. Ridotto: resta a misura intera e
+                              // sfuma soltanto (spec D §6.2).
+                              thumb: reduced
+                                  ? (reveal > 0 ? 1 : 0)
+                                  : WfMotion.bounce.transform(reveal),
+                              thumbOpacity: reduced ? reveal : 1,
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ),
@@ -428,7 +448,10 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
                         child: TweenAnimationBuilder<double>(
                           tween: Tween(begin: 0, end: _previewShown ? 1 : 0),
                           duration: WfMotion.fast,
-                          curve: WfMotion.emphasized,
+                          // Entra con l'enfatizzata, esce accelerando.
+                          curve: _previewShown
+                              ? WfMotion.emphasized
+                              : WfMotion.accelerate,
                           builder: (context, t, child) => Opacity(
                             opacity: t.clamp(0.0, 1.0),
                             child: Transform.scale(
