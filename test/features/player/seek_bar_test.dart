@@ -1,25 +1,72 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/player/seek_bar.dart';
+import 'package:wonderflix/features/player/seek_segments.dart';
 
 import '../../support/playback_fakes.dart';
 import '../../support/pump_app.dart';
 
 void main() {
+  const chapters = [
+    ChapterMark(start: Duration.zero, name: 'Inizio'),
+    ChapterMark(start: Duration(hours: 1), name: 'Arrakis'),
+  ];
+
+  SeekBarPainter painter(WidgetTester tester) =>
+      tester.widget<CustomPaint>(find.byKey(const Key('seek-bar-paint'))).painter!
+          as SeekBarPainter;
+
+  /// Punto della traccia a [fraction] (la traccia inizia dopo il margine).
+  Offset at(WidgetTester tester, double fraction) {
+    final bar = tester.getRect(find.byType(SeekBar));
+    final track = bar.width - 2 * SeekBar.trackInset;
+    return Offset(bar.left + SeekBar.trackInset + fraction * track,
+        bar.center.dy);
+  }
+
+  Future<TestGesture> mouse(WidgetTester tester) async {
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: Offset.zero);
+    addTearDown(gesture.removePointer);
+    return gesture;
+  }
+
+  Future<void> pumpBar(
+    WidgetTester tester,
+    FakeVideoEngine engine, {
+    ValueChanged<Duration>? onSeek,
+    List<ChapterMark> chapters = const [],
+    List<SeekZone> zones = const [],
+    Widget? Function(Duration)? preview,
+    MotionLevel motion = MotionLevel.reduced,
+  }) =>
+      pumpApp(
+        tester,
+        Scaffold(
+          body: Padding(
+            padding: const EdgeInsets.fromLTRB(40, 300, 40, 40),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: SeekBar(
+                engine: engine,
+                onSeek: onSeek ?? (_) {},
+                chapters: chapters,
+                zones: zones,
+                preview: preview,
+              ),
+            ),
+          ),
+        ),
+        motion: motion,
+      );
+
   testWidgets('posizione, parte scaricata e salto con un clic', (tester) async {
     final engine = FakeVideoEngine();
     Duration? seeked;
-    await pumpApp(
-      tester,
-      Scaffold(
-        body: Padding(
-          padding: const EdgeInsets.all(40),
-          child: SeekBar(engine: engine, onSeek: (p) => seeked = p),
-        ),
-      ),
-    );
+    await pumpBar(tester, engine, onSeek: (p) => seeked = p);
     engine
       ..emitDuration(const Duration(hours: 2))
       ..emitPosition(const Duration(minutes: 30))
@@ -27,12 +74,11 @@ void main() {
     await tester.pump(); // consegna gli eventi degli stream
     await tester.pump();
 
-    final slider = tester.widget<Slider>(find.byType(Slider));
-    expect(slider.max, 7200);
-    expect(slider.value, 1800);
-    expect(slider.secondaryTrackValue, 2700);
+    expect(painter(tester).duration, const Duration(hours: 2));
+    expect(painter(tester).position, const Duration(minutes: 30));
+    expect(painter(tester).buffer, const Duration(minutes: 45));
 
-    await tester.tap(find.byType(Slider));
+    await tester.tap(find.byType(SeekBar));
     await tester.pump();
     expect(seeked!.inSeconds, closeTo(3600, 5));
   });
@@ -48,96 +94,125 @@ void main() {
     expect(find.text('12:03 / 1:45:00'), findsOneWidget);
   });
 
-  testWidgets('tacche dei capitoli (non quella all\'inizio)', (tester) async {
-    final engine = FakeVideoEngine();
-    await pumpApp(
-      tester,
-      Scaffold(
-        body: Padding(
-          padding: const EdgeInsets.all(40),
-          child: SeekBar(
-            engine: engine,
-            onSeek: (_) {},
-            chapters: const [
-              ChapterMark(start: Duration.zero, name: 'Inizio'),
-              ChapterMark(start: Duration(minutes: 30), name: 'Arrakis'),
-              ChapterMark(start: Duration(hours: 1), name: 'Deserto'),
-            ],
-          ),
-        ),
-      ),
-    );
-    final paint = tester.widget<CustomPaint>(find.byKey(const Key('chapter-ticks')));
-    expect((paint.painter! as ChapterTicksPainter).fractions, [0.25, 0.5]);
-
-    // Disegnate sopra la traccia, non sotto.
-    final layers = tester
-        .widget<Stack>(find.descendant(
-            of: find.byType(SeekBar), matching: find.byType(Stack)).first)
-        .children;
-    int layerOf(Finder finder) => layers.indexWhere((layer) => find
-        .descendant(of: find.byWidget(layer), matching: finder)
-        .evaluate()
-        .isNotEmpty);
-    expect(layerOf(find.byKey(const Key('chapter-ticks'))),
-        greaterThan(layerOf(find.byType(Slider))));
+  testWidgets('un tratto per capitolo, le zone passano al disegno',
+      (tester) async {
+    const zones = [
+      SeekZone(SeekZoneKind.intro, Duration(minutes: 1), Duration(minutes: 2)),
+    ];
+    await pumpBar(tester, FakeVideoEngine(), chapters: const [
+      ChapterMark(start: Duration.zero, name: 'Inizio'),
+      ChapterMark(start: Duration(minutes: 30), name: 'Arrakis'),
+      ChapterMark(start: Duration(hours: 1), name: 'Deserto'),
+    ], zones: zones);
+    expect(painter(tester).segments, const [
+      SeekSegment(Duration.zero, Duration(minutes: 30)),
+      SeekSegment(Duration(minutes: 30), Duration(hours: 1)),
+      SeekSegment(Duration(hours: 1), Duration(hours: 2)),
+    ]);
+    expect(painter(tester).zones, zones);
   });
 
   testWidgets('anteprima al passaggio del mouse: tempo, capitolo, immagine',
       (tester) async {
-    final engine = FakeVideoEngine();
     final previews = <Duration>[];
-    await pumpApp(
-      tester,
-      Scaffold(
-        body: Padding(
-          padding: const EdgeInsets.fromLTRB(40, 300, 40, 40),
-          child: SeekBar(
-            engine: engine,
-            onSeek: (_) {},
-            chapters: const [
-              ChapterMark(start: Duration.zero, name: 'Inizio'),
-              ChapterMark(start: Duration(minutes: 45), name: 'Arrakis'),
-            ],
-            preview: (position) {
-              previews.add(position);
-              return const SizedBox(
-                  key: Key('preview-image'), width: 240, height: 135);
-            },
-          ),
-        ),
-      ),
-    );
-    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    await gesture.addPointer(location: Offset.zero);
-    addTearDown(gesture.removePointer);
-    await gesture.moveTo(tester.getCenter(find.byType(SeekBar)));
+    await pumpBar(tester, FakeVideoEngine(), chapters: chapters,
+        preview: (position) {
+      previews.add(position);
+      return const SizedBox(key: Key('preview-image'), width: 240, height: 135);
+    });
+    final gesture = await mouse(tester);
+    await gesture.moveTo(at(tester, 0.5));
     await tester.pump();
     expect(find.text('1:00:00 · Arrakis'), findsOneWidget);
     expect(find.byKey(const Key('preview-image')), findsOneWidget);
     expect(previews.last, const Duration(hours: 1));
 
-    // A un quarto della traccia (che inizia dopo il margine dello Slider).
-    final bar = tester.getRect(find.byType(SeekBar));
-    final track = bar.width - 2 * SeekBar.trackInset;
-    await gesture.moveTo(
-        Offset(bar.left + SeekBar.trackInset + 0.25 * track, bar.center.dy));
+    await gesture.moveTo(at(tester, 0.25));
     await tester.pump();
     expect(find.text('30:00 · Inizio'), findsOneWidget);
     expect(previews.last, const Duration(minutes: 30));
 
+    // L'anteprima sfuma; finita la dissolvenza esce dall'albero.
     await gesture.moveTo(Offset.zero);
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.textContaining('· Inizio'), findsNothing);
   });
 
+  testWidgets('anteprima in una zona: etichetta oro con il nome',
+      (tester) async {
+    await pumpBar(tester, FakeVideoEngine(), chapters: chapters, zones: const [
+      SeekZone(SeekZoneKind.outro, Duration(minutes: 90), Duration(hours: 2)),
+    ]);
+    final gesture = await mouse(tester);
+    await gesture.moveTo(at(tester, 0.25));
+    await tester.pump();
+    expect(find.byKey(const Key('seek-zone-tag')), findsNothing);
+
+    await gesture.moveTo(at(tester, 0.9));
+    await tester.pump();
+    expect(find.byKey(const Key('seek-zone-tag')), findsOneWidget);
+    expect(find.text('Titoli di coda'), findsOneWidget);
+  });
+
+  testWidgets('mouse sopra: barra più alta, tratto sotto il mouse di più, '
+      'cursore', (tester) async {
+    await pumpBar(tester, FakeVideoEngine(),
+        chapters: chapters, motion: MotionLevel.full);
+    expect(painter(tester).hover, 0);
+    expect(painter(tester).thumb, 0);
+
+    final gesture = await mouse(tester);
+    await gesture.moveTo(at(tester, 0.25));
+    await tester.pump();
+    await tester.pump(WfMotion.fast);
+    expect(painter(tester).hover, 1);
+    expect(painter(tester).hoveredSegment, 0);
+    expect(painter(tester).emphasis, 1);
+    expect(painter(tester).thumb, closeTo(1, 0.001));
+
+    await gesture.moveTo(at(tester, 0.75));
+    await tester.pump();
+    expect(painter(tester).hoveredSegment, 1);
+
+    await gesture.moveTo(Offset.zero);
+    await tester.pump();
+    await tester.pump(WfMotion.fast);
+    expect(painter(tester).hover, 0);
+    expect(painter(tester).hoveredSegment, isNull);
+    expect(painter(tester).thumb, closeTo(0, 0.001));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('trascinamento: l\'anteprima segue, un solo salto alla fine',
+      (tester) async {
+    final seeks = <Duration>[];
+    await pumpBar(tester, FakeVideoEngine(),
+        onSeek: seeks.add,
+        chapters: chapters,
+        preview: (_) => const SizedBox(key: Key('preview-image'), width: 240));
+    final gesture = await tester.startGesture(at(tester, 0.25));
+    await gesture.moveTo(at(tester, 0.4));
+    await tester.pump();
+    expect(find.byKey(const Key('preview-image')), findsOneWidget);
+    expect(seeks, isEmpty);
+    expect(painter(tester).position.inMinutes, closeTo(48, 1),
+        reason: 'durante il trascinamento la barra segue il dito');
+
+    await gesture.moveTo(at(tester, 0.5));
+    await gesture.up();
+    await tester.pump();
+    expect(seeks, hasLength(1));
+    expect(seeks.single.inSeconds, closeTo(3600, 5));
+    await tester.pumpAndSettle();
+  });
+
   test('chapterAt', () {
-    const chapters = [
+    const marks = [
       ChapterMark(start: Duration.zero, name: 'A'),
       ChapterMark(start: Duration(minutes: 10), name: 'B'),
     ];
-    expect(chapterAt(chapters, const Duration(minutes: 5))?.name, 'A');
-    expect(chapterAt(chapters, const Duration(minutes: 10))?.name, 'B');
+    expect(chapterAt(marks, const Duration(minutes: 5))?.name, 'A');
+    expect(chapterAt(marks, const Duration(minutes: 10))?.name, 'B');
     expect(chapterAt(const [], Duration.zero), isNull);
   });
 }

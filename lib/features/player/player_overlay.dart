@@ -10,6 +10,7 @@ import '../library/item_labels.dart';
 import 'player_commands.dart';
 import 'player_controller.dart';
 import 'seek_bar.dart';
+import 'seek_segments.dart';
 
 /// Controlli in sovrimpressione: in alto indietro e titolo, in basso barra
 /// di avanzamento e comandi. A controlli nascosti ([visible] `false`) la
@@ -192,6 +193,7 @@ class PlayerOverlay extends StatelessWidget {
                         engine: engine,
                         onSeek: onSeekTo,
                         chapters: chapters,
+                        zones: seekZones(view.segments),
                         preview: preview,
                       ),
                       Row(
@@ -243,7 +245,7 @@ class PlayerOverlay extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          TimeLabel(engine: engine),
+                          RepaintBoundary(child: TimeLabel(engine: engine)),
                           const Spacer(),
                           if (onNextEpisode != null)
                             PlayerIconButton(

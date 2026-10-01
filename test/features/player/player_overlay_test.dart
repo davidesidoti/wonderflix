@@ -113,6 +113,7 @@ void main() {
     final bar = tester.widget<SeekBar>(find.byType(SeekBar));
     expect(bar.chapters, hasLength(1));
     expect(bar.preview, isNotNull);
+    expect(bar.zones, isEmpty);
   });
 
   testWidgets('senza episodio successivo: nessun pulsante', (tester) async {
