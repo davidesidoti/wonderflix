@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wonderflix/app/navigation.dart';
 import 'package:wonderflix/app/router.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 
@@ -40,40 +41,50 @@ void main() {
         '/login');
   });
 
-  testWidgets('player: sotto la transizione solo nero, mai la pagina sotto',
-      (tester) async {
+  GoRouter playerTestRouter() {
     final router = GoRouter(routes: [
       GoRoute(
           path: '/',
           builder: (context, state) => const Scaffold(body: Text('home'))),
       GoRoute(
         path: '/play/:id',
-        pageBuilder: (context, state) =>
-            playerPage(state, Text('player ${state.pathParameters['id']}')),
+        pageBuilder: (context, state) => playerPage(
+            context, state, Text('player ${state.pathParameters['id']}')),
       ),
     ]);
     addTearDown(router.dispose);
-    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    return router;
+  }
 
-    ColoredBox backdrop(String text) => tester.widget<ColoredBox>(find
-        .ancestor(of: find.text(text), matching: find.byType(ColoredBox))
-        .last);
+  testWidgets('player dalla Home: dissolvenza incrociata, senza nero',
+      (tester) async {
+    final router = playerTestRouter();
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
 
     router.push('/play/e4');
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 1));
-    expect(backdrop('player e4').color, Colors.black);
-    expect(
-        tester.getSize(find
-            .ancestor(of: find.text('player e4'), matching: find.byType(ColoredBox))
-            .last),
-        tester.view.physicalSize / tester.view.devicePixelRatio);
+    expect(find.byKey(const Key('player-replacement-backdrop')), findsNothing);
+    expect(find.text('home'), findsOneWidget,
+        reason: 'la pagina di partenza resta sotto mentre il player sfuma');
+    await tester.pumpAndSettle();
+    expect(find.text('player e4'), findsOneWidget);
+  });
+
+  testWidgets('player che ne sostituisce un altro: sotto solo nero',
+      (tester) async {
+    final router = playerTestRouter();
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    router.push('/play/e4');
     await tester.pumpAndSettle();
 
-    router.pushReplacement('/play/e5');
+    router.pushReplacement('/play/e5', extra: playerReplacement);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 1));
-    expect(backdrop('player e5').color, Colors.black);
+    final backdrop = find.byKey(const Key('player-replacement-backdrop'));
+    expect(tester.widget<ColoredBox>(backdrop).color, Colors.black);
+    expect(tester.getSize(backdrop),
+        tester.view.physicalSize / tester.view.devicePixelRatio);
     await tester.pumpAndSettle();
     expect(find.text('player e5'), findsOneWidget);
     expect(find.text('player e4'), findsNothing);

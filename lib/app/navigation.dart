@@ -62,6 +62,15 @@ void openPerson(BuildContext context, PersonRef person, {String? heroSource}) {
   unawaited(context.push('/person/${person.id}', extra: launch));
 }
 
+/// `extra` di un player che ne sostituisce un altro (episodio successivo,
+/// passaggio al player del gruppo): sotto la transizione serve il nero,
+/// altrimenti si vedrebbe la pagina sotto i due player (spec D §6.3).
+class PlayerReplacement {
+  const PlayerReplacement();
+}
+
+const playerReplacement = PlayerReplacement();
+
 /// Percorso del player; [start] è la posizione di partenza, [fullscreen]
 /// dice che la finestra è già a schermo intero (passaggio all'episodio
 /// successivo), [party] è l'id dell'elemento nella coda del watch party.

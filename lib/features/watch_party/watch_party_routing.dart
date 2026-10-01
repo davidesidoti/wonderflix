@@ -43,9 +43,10 @@ class _RouterNavigator implements PartyNavigator {
   @override
   void open(String route) => unawaited(_router.push<void>(route));
 
+  /// Sostituisce sempre un player con un altro (spec D §6.3).
   @override
-  void replace(String route) =>
-      unawaited(_router.pushReplacement<void>(route));
+  void replace(String route) => unawaited(
+      _router.pushReplacement<void>(route, extra: playerReplacement));
 }
 
 final partyNavigatorProvider = Provider<PartyNavigator>(

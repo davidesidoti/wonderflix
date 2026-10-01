@@ -17,6 +17,7 @@ import '../features/startup/splash_screen.dart';
 import '../features/startup/unreachable_screen.dart';
 import 'app_shell.dart';
 import 'hero_launch.dart';
+import 'motion.dart';
 import 'navigation.dart';
 import 'page_transitions.dart';
 
@@ -34,23 +35,34 @@ String? sessionRedirect(SessionState session, String location) {
   };
 }
 
-/// Pagina del player. Con l'episodio successivo il nuovo player sostituisce
-/// il precedente (`pushReplacement`, pagina nuova): con la transizione
-/// predefinita, mentre compare, si vedrebbe la pagina sotto (dettaglio o
-/// Home). Qui dal primo fotogramma c'è uno sfondo nero opaco e il player
-/// appare in dissolvenza sopra.
-Page<void> playerPage(GoRouterState state, Widget child) =>
-    CustomTransitionPage<void>(
-      key: state.pageKey,
-      child: child,
-      transitionDuration: const Duration(milliseconds: 150),
-      reverseTransitionDuration: const Duration(milliseconds: 150),
-      transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-          ColoredBox(
-        color: Colors.black,
-        child: FadeTransition(opacity: animation, child: child),
-      ),
-    );
+/// Pagina del player (spec D §6.3). Dalla scheda o dalla Home entra in
+/// dissolvenza incrociata sopra la pagina di partenza (`medium`) ed esce in
+/// `fast`. Quando sostituisce un altro player (`extra` [PlayerReplacement]:
+/// episodio successivo, player del gruppo) la pagina sotto non è quella di
+/// partenza: dal primo fotogramma c'è uno sfondo nero opaco e il player
+/// appare sopra.
+Page<void> playerPage(
+    BuildContext context, GoRouterState state, Widget child) {
+  final motion = WfMotion.of(context);
+  final replacing = state.extra is PlayerReplacement;
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: motion.duration(WfMotion.medium),
+    reverseTransitionDuration: WfMotion.fast,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final faded = FadeTransition(
+          opacity: animation.drive(CurveTween(curve: WfMotion.standard)),
+          child: child);
+      return replacing
+          ? ColoredBox(
+              key: const Key('player-replacement-backdrop'),
+              color: Colors.black,
+              child: faded)
+          : faded;
+    },
+  );
+}
 
 /// Dati del volo Hero passati da `openItem`/`openPerson` (`extra`).
 HeroLaunch? _heroLaunch(GoRouterState state) =>
@@ -88,6 +100,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/play/:id',
         pageBuilder: (context, state) => playerPage(
+          context,
           state,
           PlayerScreen(
             key: ValueKey(state.uri.toString()),

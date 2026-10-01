@@ -246,7 +246,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final action = primaryActionFor(next, userData);
     final start = action is ResumeAction ? action.position : Duration.zero;
     context.pushReplacement(
-        playerRoute(next.id, start: start, fullscreen: _fullscreen));
+        playerRoute(next.id, start: start, fullscreen: _fullscreen),
+        extra: playerReplacement);
   }
 
   /// Fine del video: episodio successivo se previsto, altrimenti uscita.
@@ -335,12 +336,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final watched = view.finished || (from != null && engine.position >= from);
     unawaited(_controller.close(watched: watched));
     ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
-    context.pushReplacement(playerRoute(
-      entry.itemId,
-      start: ref.read(watchPartySessionProvider.notifier).estimatedPosition(),
-      fullscreen: _fullscreen,
-      party: entry.playlistItemId,
-    ));
+    context.pushReplacement(
+        playerRoute(
+          entry.itemId,
+          start:
+              ref.read(watchPartySessionProvider.notifier).estimatedPosition(),
+          fullscreen: _fullscreen,
+          party: entry.playlistItemId,
+        ),
+        extra: playerReplacement);
   }
 
   /// "Guarda insieme" mentre si guarda da soli (spec B §5.2): il gruppo parte

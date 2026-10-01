@@ -139,6 +139,7 @@ Con **Animazioni → Ridotte** (o "Come Windows" con gli effetti spenti):
 `playerPage` (`lib/app/router.dart`) usa i token:
 
 - **ingresso:** dissolvenza incrociata in `medium` (niente `ColoredBox` nero): la scheda sfuma nello sfondo del caricamento, che è la stessa immagine della testata;
+- **sostituzione di un player** (episodio successivo, player del gruppo: `pushReplacement` con `extra: playerReplacement`): resta il nero sotto la transizione, perché la pagina sotto non è quella di partenza;
 - **uscita:** dissolvenza in `fast`.
 
 ### 6.4 Prestazioni
