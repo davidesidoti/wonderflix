@@ -169,6 +169,24 @@ void main() {
     handle.dispose();
   });
 
+  testWidgets('senza durata nota un clic o un trascinamento non saltano',
+      (tester) async {
+    final engine = FakeVideoEngine()..emitDuration(Duration.zero);
+    final seeks = <Duration>[];
+    await pumpBar(tester, engine, onSeek: seeks.add);
+
+    await tester.tap(find.byType(SeekBar));
+    await tester.pump();
+
+    final gesture = await tester.startGesture(at(tester, 0.25));
+    await gesture.moveTo(at(tester, 0.6));
+    await gesture.up();
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(seeks, isEmpty);
+  });
+
   testWidgets('tempo trascorso e totale', (tester) async {
     final engine = FakeVideoEngine();
     await pumpApp(tester, Scaffold(body: TimeLabel(engine: engine)));

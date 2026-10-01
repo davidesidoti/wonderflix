@@ -304,7 +304,12 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
     _thumb.reverse();
   }
 
-  void _seekTo(double x) => _seekToPosition(_positionAt(x));
+  void _seekTo(double x) {
+    // Senza durata ogni punto varrebbe zero: un salto a 0 sarebbe sbagliato
+    // (e in una watch party lo vedrebbe tutto il gruppo).
+    if (_duration <= Duration.zero) return;
+    _seekToPosition(_positionAt(x));
+  }
 
   void _seekToPosition(Duration target) {
     setState(() => _position = target);
