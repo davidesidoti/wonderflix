@@ -590,6 +590,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       }
     });
     ref.listen(provider.select((s) => s.status), (previous, status) {
+      // Una riapertura non riuscita (cambio di traccia) mentre il pannello è
+      // aperto: lo strato dell'errore non deve avere il pannello a fianco.
+      if (status == PlayerStatus.error) _chrome.closePanel();
       if (status != PlayerStatus.ready) {
         // Errore, "Riprova" o ripiego: i comandi del gruppo aspettano il
         // prossimo caricamento.

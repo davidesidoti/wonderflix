@@ -521,6 +521,23 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('pannello: se la riapertura fallisce si chiude', (tester) async {
+    await pumpPlayer(tester);
+    await tester.tap(find.byTooltip('Audio e sottotitoli'));
+    await tester.pumpAndSettle();
+    expect(find.text('Dimensione'), findsOneWidget);
+
+    // Un sottotitolo bruciato nel video fa rifare la conversione: la
+    // riapertura non riesce e compare lo strato dell'errore.
+    engine.failOpens = 1;
+    await tester.tap(find.text('Italiano - PGS - Esterno'));
+    await tester.pumpAndSettle();
+    expect(find.text('Impossibile riprodurre il video'), findsOneWidget);
+    expect(find.text('Dimensione'), findsNothing,
+        reason: 'il pannello non resta a destra dello strato dell\'errore');
+    await unmount(tester);
+  });
+
   testWidgets('avviso di conversione: non resta sulla Home all\'uscita',
       (tester) async {
     engine.failOpens = 1;
