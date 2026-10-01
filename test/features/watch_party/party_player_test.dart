@@ -204,6 +204,11 @@ void main() {
   testWidgets('distintivo con i membri e uscita dal gruppo', (tester) async {
     await pumpPartyPlayer(tester);
     expect(find.text(l.watchPartyButton(2)), findsOneWidget);
+    expect(
+        find.descendant(
+            of: find.byKey(const Key('party-badge')), matching: find.text('M')),
+        findsOneWidget,
+        reason: 'le iniziali dei membri nel badge');
     await tester.tap(find.byKey(const Key('party-badge')));
     await tester.pumpAndSettle();
     expect(find.text('Luigi'), findsOneWidget);
