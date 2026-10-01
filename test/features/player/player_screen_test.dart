@@ -212,6 +212,30 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('trascinando la barra i controlli restano', (tester) async {
+    await pumpPlayer(tester);
+    expect(controlsOpacity(tester), 1);
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    final bar = tester.getCenter(find.byType(SeekBar));
+    await gesture.addPointer(location: bar);
+    addTearDown(gesture.removePointer);
+    await gesture.down(bar);
+    // Col tasto premuto il mouse non "passa sopra": il conto per nascondere i
+    // controlli riparte dai movimenti del trascinamento, per più di 3 s.
+    for (var i = 0; i < 5; i++) {
+      await gesture.moveBy(const Offset(5, 0));
+      await tester.pump(const Duration(seconds: 1));
+    }
+    expect(controlsOpacity(tester), 1);
+    await gesture.up();
+
+    // Finito il trascinamento, a mouse fermo il conto funziona come prima.
+    await tester.pump(PlayerChromeController.hideDelay);
+    expect(controlsOpacity(tester), 0);
+    await unmount(tester);
+  });
+
   testWidgets('i tasti non mostrano i controlli', (tester) async {
     await pumpPlayer(tester);
     await tester.pump(PlayerChromeController.hideDelay);

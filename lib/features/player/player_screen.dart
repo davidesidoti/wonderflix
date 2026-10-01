@@ -551,6 +551,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           onPointerDown: (event) {
             if (event.buttons & kBackMouseButton != 0) _exit();
           },
+          // Col tasto premuto (trascinamento della barra) `onHover` non
+          // scatta: i movimenti tengono vivi i controlli.
+          onPointerMove: (_) => _chrome.pointerActivity(),
           child: MouseRegion(
             cursor: _chrome.controlsVisible
                 ? MouseCursor.defer
