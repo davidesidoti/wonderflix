@@ -134,13 +134,23 @@ class _PlayNowButtonState extends State<PlayNowButton> {
   @override
   void didUpdateWidget(PlayNowButton oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.countdown == oldWidget.countdown) return;
-    _timer?.cancel();
-    _timer = null;
-    // Il conto può arrivare dopo (es. il server toglie dal gruppo durante
-    // il post-play): riparte da capo.
-    if (widget.countdown) {
-      _left = PlayNowButton.countdownFrom;
+    if (widget.countdown != oldWidget.countdown) {
+      _timer?.cancel();
+      _timer = null;
+      // Il conto può arrivare dopo (es. il server toglie dal gruppo durante
+      // il post-play): riparte da capo.
+      if (widget.countdown) {
+        _left = PlayNowButton.countdownFrom;
+        _start();
+      }
+    } else if (widget.countdown &&
+        _left > 0 &&
+        oldWidget.paused &&
+        !widget.paused) {
+      // Ripresa: il secondo lasciato a metà dalla pausa non conta (il fondo
+      // è tornato sull'ultimo secondo compiuto). Il timer riparte da qui, e
+      // lo scatto arriva quando finisce il passo del fondo che parte ora.
+      _timer?.cancel();
       _start();
     }
   }
@@ -234,7 +244,13 @@ class _PlayNowButtonState extends State<PlayNowButton> {
         ? label
         : TweenAnimationBuilder<double>(
             tween: Tween(begin: 0, end: progress),
-            duration: reduced ? Duration.zero : PlayNowButton.fillStep,
+            // In pausa il fondo torna in fretta sull'ultimo secondo
+            // compiuto, senza scivolare indietro per un secondo intero.
+            duration: reduced
+                ? Duration.zero
+                : widget.paused
+                    ? WfMotion.fast
+                    : PlayNowButton.fillStep,
             curve: PlayNowButton.fillCurve,
             builder: (context, t, label) => Stack(
               children: [
@@ -272,6 +288,8 @@ class _PlayNowButtonState extends State<PlayNowButton> {
     return Semantics(
       container: true,
       button: true,
+      // Come `ButtonStyleButton`: un pulsante attivo lo dichiara.
+      enabled: true,
       child: WfButtonFeedback(
         enabled: true,
         child: ClipRRect(

@@ -152,6 +152,85 @@ void main() {
     expect(find.text('Riproduci ora · 7'), findsOneWidget);
   });
 
+  testWidgets(
+      'pulsante, animazioni complete: alla ripresa il secondo a metà non '
+      'conta, lo scatto arriva con il fondo', (tester) async {
+    final paused = ValueNotifier(false);
+    addTearDown(paused.dispose);
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: Center(
+          child: ValueListenableBuilder<bool>(
+            valueListenable: paused,
+            builder: (context, value, _) =>
+                PlayNowButton(countdown: true, paused: value, onPressed: () {}),
+          ),
+        ),
+      ),
+      motion: MotionLevel.full,
+    );
+    await frames(tester, const Duration(milliseconds: 3500));
+    expect(find.text('Riproduci ora · 7'), findsOneWidget);
+    paused.value = true;
+    await tester.pump();
+    await tester.pump(WfMotion.fast);
+    expect(fillOf(tester), closeTo(0.3, 0.001),
+        reason: "in pausa torna in fretta sull'ultimo secondo compiuto");
+
+    // Ripresa a 5,7 s: il prossimo scatto è tra un secondo intero.
+    await tester.pump(const Duration(milliseconds: 2050));
+    paused.value = false;
+    await tester.pump();
+    await frames(tester, const Duration(milliseconds: 900));
+    expect(find.text('Riproduci ora · 7'), findsOneWidget,
+        reason: 'il secondo lasciato a metà dalla pausa non conta');
+    await frames(tester, const Duration(milliseconds: 100));
+    expect(find.text('Riproduci ora · 6'), findsOneWidget);
+    expect(fillOf(tester), closeTo(0.4, 0.005),
+        reason: 'il passo del fondo finisce con lo scatto');
+  });
+
+  testWidgets(
+      "pulsante, animazioni complete: in pausa nell'ultimo secondo, alla "
+      'ripresa il fondo è pieno quando riproduce', (tester) async {
+    var played = 0;
+    final paused = ValueNotifier(false);
+    addTearDown(paused.dispose);
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: Center(
+          child: ValueListenableBuilder<bool>(
+            valueListenable: paused,
+            builder: (context, value, _) => PlayNowButton(
+                countdown: true, paused: value, onPressed: () => played++),
+          ),
+        ),
+      ),
+      motion: MotionLevel.full,
+    );
+    await frames(tester, const Duration(milliseconds: 9500));
+    expect(find.text('Riproduci ora · 1'), findsOneWidget);
+    paused.value = true;
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1300));
+    expect(played, 0);
+
+    paused.value = false;
+    await tester.pump();
+    final resumed = tester.binding.clock.now();
+    // Fotogramma per fotogramma fino allo scatto.
+    for (var i = 0; i < 20 && played == 0; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(played, 1);
+    expect(tester.binding.clock.now().difference(resumed),
+        PlayNowButton.fillStep,
+        reason: 'un secondo intero dopo la ripresa');
+    expect(fillOf(tester), 1);
+  });
+
   testWidgets('pulsante: un solo nodo con etichetta e tocco', (tester) async {
     await pumpApp(
       tester,
@@ -164,7 +243,11 @@ void main() {
     expect(
         tester.getSemantics(find.byType(PlayNowButton)),
         isSemantics(
-            label: 'Riproduci ora · 10', isButton: true, hasTapAction: true));
+            label: 'Riproduci ora · 10',
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: true,
+            hasTapAction: true));
   });
 
   testWidgets('pulsante: la larghezza non cambia da "· 10" a "· 9"',
