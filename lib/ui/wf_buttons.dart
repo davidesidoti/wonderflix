@@ -5,7 +5,7 @@ import '../app/theme.dart';
 
 /// Pulsante con etichetta e icona. Larghezza adatta al contenuto (il tema
 /// globale rende i FilledButton larghi quanto il contenitore, qui no).
-class WfButton extends StatefulWidget {
+class WfButton extends StatelessWidget {
   const WfButton.primary({
     super.key,
     required this.label,
@@ -30,31 +30,23 @@ class WfButton extends StatefulWidget {
   /// Prende il fuoco appena compare (Invio lo preme).
   final bool autofocus;
 
-  @override
-  State<WfButton> createState() => _WfButtonState();
-}
-
-class _WfButtonState extends State<WfButton> {
-  bool _hovered = false;
-  bool _pressed = false;
-
   Widget _button() {
     const size = Size(0, 44);
     const padding = EdgeInsets.symmetric(horizontal: 20);
     final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(6));
-    if (widget.primary) {
+    if (primary) {
       return FilledButton.icon(
-        onPressed: widget.onPressed,
-        autofocus: widget.autofocus,
+        onPressed: onPressed,
+        autofocus: autofocus,
         style: FilledButton.styleFrom(
             minimumSize: size, padding: padding, shape: shape),
-        icon: Icon(widget.icon, size: 18),
-        label: Text(widget.label),
+        icon: Icon(icon, size: 18),
+        label: Text(label),
       );
     }
     return OutlinedButton.icon(
-      onPressed: widget.onPressed,
-      autofocus: widget.autofocus,
+      onPressed: onPressed,
+      autofocus: autofocus,
       style: OutlinedButton.styleFrom(
         minimumSize: size,
         padding: padding,
@@ -62,15 +54,38 @@ class _WfButtonState extends State<WfButton> {
         foregroundColor: WfColors.cream,
         side: const BorderSide(color: WfColors.border),
       ),
-      icon: Icon(widget.icon, size: 18),
-      label: Text(widget.label),
+      icon: Icon(icon, size: 18),
+      label: Text(label),
     );
   }
 
   @override
+  Widget build(BuildContext context) =>
+      WfButtonFeedback(enabled: onPressed != null, child: _button());
+}
+
+/// Alone oro e scala di [WfButton] al passaggio e al clic, anche per i
+/// pulsanti disegnati a mano (es. "Riproduci ora" del player).
+class WfButtonFeedback extends StatefulWidget {
+  const WfButtonFeedback(
+      {super.key, required this.enabled, required this.child});
+
+  /// Pulsante disattivato: nessun effetto.
+  final bool enabled;
+  final Widget child;
+
+  @override
+  State<WfButtonFeedback> createState() => _WfButtonFeedbackState();
+}
+
+class _WfButtonFeedbackState extends State<WfButtonFeedback> {
+  bool _hovered = false;
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
     final motion = WfMotion.of(context);
-    final enabled = widget.onPressed != null;
+    final enabled = widget.enabled;
     final hovered = enabled && _hovered;
     // Spec C §11.2: alone oro e scala 1,03 al passaggio, 0,97 al clic; con
     // le animazioni ridotte niente scala.
@@ -108,7 +123,7 @@ class _WfButtonState extends State<WfButton> {
                     ]
                   : const [],
             ),
-            child: _button(),
+            child: widget.child,
           ),
         ),
       ),
