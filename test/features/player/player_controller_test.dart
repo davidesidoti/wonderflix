@@ -14,6 +14,7 @@ import 'package:wonderflix/features/player/playback_service.dart';
 import 'package:wonderflix/features/player/player_controller.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
+import 'package:wonderflix/features/player/segments.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
@@ -491,6 +492,23 @@ void main() {
     engine.emitPosition(const Duration(seconds: 30));
     await pumpEventQueue();
     expect(engine.seeks, hasLength(1));
+  });
+
+  test('salto automatico: lo segnala (per la pillola)', () async {
+    settings = const PlayerSettings(autoSkipIntro: true);
+    playback.segments = const [
+      MediaSegment(
+          type: MediaSegmentType.intro,
+          start: Duration(seconds: 10),
+          end: Duration(seconds: 90)),
+    ];
+    final controller = await start();
+    final skips = <SkipKind>[];
+    final subscription = controller.autoSkips.listen(skips.add);
+    addTearDown(subscription.cancel);
+    engine.emitPosition(const Duration(seconds: 20));
+    await pumpEventQueue();
+    expect(skips, [SkipKind.intro]);
   });
 
   test('salto automatico spento: nessun salto', () async {

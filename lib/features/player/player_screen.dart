@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/motion.dart';
 import '../../app/navigation.dart';
@@ -14,7 +13,6 @@ import '../../core/jellyfin/item_models.dart';
 import '../../core/media_session/media_session.dart';
 import '../../core/syncplay/syncplay_models.dart';
 import '../../l10n/gen/app_localizations.dart';
-import '../../ui/wf_buttons.dart';
 import '../detail/primary_action.dart';
 import '../library/item_labels.dart';
 import '../library/library_providers.dart';
@@ -42,6 +40,7 @@ import 'player_providers.dart';
 import 'player_settings.dart';
 import 'player_window.dart';
 import 'segments.dart';
+import 'skip_button.dart';
 import 'tracks_panel.dart';
 import 'trickplay.dart';
 import 'trickplay_preview.dart';
@@ -99,6 +98,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   EndZone _endZone = EndZone.none;
   StreamSubscription<Duration>? _positions;
   StreamSubscription<Duration>? _durations;
+  StreamSubscription<SkipKind>? _autoSkips;
 
   /// Il post-play era mostrato all'ultima costruzione: quando cambia,
   /// pannello e schermata di pausa lo seguono (vedi [build]).
@@ -163,6 +163,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final engine = _controller.engine;
     _positions = engine.positionStream.listen(_updateEndZone);
     _durations = engine.durationStream.listen((_) => _updateEndZone());
+    // Salto automatico di intro o riassunto: lo dice la pillola.
+    _autoSkips = _controller.autoSkips
+        .listen((kind) => _chrome.showFeedback(SkipFeedback(kind)));
   }
 
   @override
@@ -181,6 +184,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _firstFrameTimer?.cancel();
     unawaited(_positions?.cancel());
     unawaited(_durations?.cancel());
+    unawaited(_autoSkips?.cancel());
     unawaited(_mediaButtons?.cancel());
     // Uscendo dal player il pannello media sparisce; passando all'episodio
     // successivo resta alla nuova schermata. Non si chiude mai: è dell'app.
@@ -911,20 +915,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     right: 32,
                     bottom: 150,
                     child: ExcludeFocus(
-                      child: PositionSelector<SkipKind?>(
+                      child: SkipSegmentButton(
                         engine: controller.engine,
-                        select: (position) =>
-                            skipTargetAt(view.segments, position)?.kind,
-                        builder: (context, kind) => kind == null
-                            ? const SizedBox.shrink()
-                            : WfButton.secondary(
-                                label: kind == SkipKind.intro
-                                    ? l.playerSkipIntro
-                                    : l.playerSkipRecap,
-                                icon: LucideIcons.skipForward,
-                                onPressed: () =>
-                                    unawaited(controller.skipCurrentSegment()),
-                              ),
+                        segments: view.segments,
+                        onSkip: () =>
+                            unawaited(controller.skipCurrentSegment()),
                       ),
                     ),
                   ),

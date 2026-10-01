@@ -7,61 +7,11 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
-import '../../core/video/video_engine.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_image.dart';
 import '../library/item_labels.dart';
 import '../library/library_providers.dart';
-
-/// Ricostruisce [builder] solo quando cambia il valore che [select] ricava
-/// dalla posizione del video (la posizione cambia molte volte al secondo).
-class PositionSelector<T> extends StatefulWidget {
-  const PositionSelector({
-    super.key,
-    required this.engine,
-    required this.select,
-    required this.builder,
-  });
-
-  final VideoEngine engine;
-  final T Function(Duration position) select;
-  final Widget Function(BuildContext context, T value) builder;
-
-  @override
-  State<PositionSelector<T>> createState() => _PositionSelectorState<T>();
-}
-
-class _PositionSelectorState<T> extends State<PositionSelector<T>> {
-  late T _value;
-  StreamSubscription<Duration>? _subscription;
-
-  @override
-  void initState() {
-    super.initState();
-    _value = widget.select(widget.engine.position);
-    _subscription = widget.engine.positionStream.listen((position) {
-      final value = widget.select(position);
-      if (value != _value) setState(() => _value = value);
-    });
-  }
-
-  @override
-  void didUpdateWidget(PositionSelector<T> oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // [select] può dipendere da dati arrivati dopo (es. i segmenti).
-    _value = widget.select(widget.engine.position);
-  }
-
-  @override
-  void dispose() {
-    unawaited(_subscription?.cancel());
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => widget.builder(context, _value);
-}
 
 /// "Riproduci ora" del post-play e della scheda (spec D §12): con
 /// [countdown] il fondo si riempie d'oro in [countdownFrom] secondi e

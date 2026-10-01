@@ -172,6 +172,11 @@ class PlayerController extends Notifier<PlayerViewState> {
   /// Inizio dei segmenti già saltati in automatico.
   final _autoSkipped = <Duration>{};
 
+  final _autoSkips = StreamController<SkipKind>.broadcast();
+
+  /// Salti automatici di intro e riassunti, per la pillola (spec D §13).
+  Stream<SkipKind> get autoSkips => _autoSkips.stream;
+
   /// Pausa, ripresa e salti chiesti dall'utente.
   late PlaybackAuthority _authority = _LocalAuthority(this);
 
@@ -572,6 +577,7 @@ class PlayerController extends Notifier<PlayerViewState> {
     final target = skipTargetAt(_view.segments, position);
     if (target == null || !_autoSkipped.add(target.segment.start)) return;
     unawaited(seekTo(target.end));
+    _autoSkips.add(target.kind);
   }
 
   /// Segmenti ed episodio successivo, a riproduzione già partita: se non
@@ -617,6 +623,7 @@ class PlayerController extends Notifier<PlayerViewState> {
 
   Future<void> _shutdown() async {
     _generation++;
+    unawaited(_autoSkips.close());
     final item = _view.item;
     final position = _engine.position;
     final reporter = _reporter;

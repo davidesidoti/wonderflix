@@ -11,38 +11,9 @@ import 'package:wonderflix/features/player/player_extras.dart';
 import 'package:wonderflix/ui/wf_buttons.dart';
 
 import '../../support/library_fakes.dart';
-import '../../support/playback_fakes.dart';
 import '../../support/pump_app.dart';
 
 void main() {
-  testWidgets('PositionSelector ricostruisce solo quando cambia il valore',
-      (tester) async {
-    final engine = FakeVideoEngine();
-    var builds = 0;
-    await pumpApp(
-      tester,
-      PositionSelector<bool>(
-        engine: engine,
-        select: (position) => position >= const Duration(minutes: 1),
-        builder: (context, after) {
-          builds++;
-          return Text(after ? 'dopo' : 'prima');
-        },
-      ),
-    );
-    expect(find.text('prima'), findsOneWidget);
-    final initial = builds;
-    engine.emitPosition(const Duration(seconds: 10));
-    await tester.pump();
-    await tester.pump();
-    expect(builds, initial, reason: 'valore invariato');
-    engine.emitPosition(const Duration(minutes: 2));
-    await tester.pump();
-    await tester.pump();
-    expect(find.text('dopo'), findsOneWidget);
-    expect(builds, initial + 1);
-  });
-
   final episode = testItem(
       id: 'e5',
       name: 'Cat in the Bag',

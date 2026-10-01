@@ -625,6 +625,24 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('salto automatico: pillola "Intro saltata"', (tester) async {
+    settings = const PlayerSettings(autoSkipIntro: true);
+    playback.segments = const [
+      MediaSegment(
+          type: MediaSegmentType.intro,
+          start: Duration(seconds: 10),
+          end: Duration(seconds: 90)),
+    ];
+    await pumpPlayer(tester);
+    engine.emitPosition(const Duration(seconds: 20));
+    await tester.pump();
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(engine.seeks.last, const Duration(seconds: 90));
+    expect(find.text('Intro saltata'), findsOneWidget);
+    await unmount(tester);
+  });
+
   testWidgets('prossimo episodio: scheda e conto alla rovescia', (tester) async {
     withNextEpisode();
     await pumpPlayer(tester);
