@@ -133,6 +133,9 @@ class ProgressStrip extends StatelessWidget {
         alignment: Alignment.centerLeft,
         child: FractionallySizedBox(
           widthFactor: progress,
+          // Senza, l'oro (che non ha figli) prende l'altezza minima che
+          // l'allineamento gli lascia, cioè 0, e non si vede (issue #9).
+          heightFactor: 1,
           child: const ColoredBox(color: WfColors.gold),
         ),
       ),

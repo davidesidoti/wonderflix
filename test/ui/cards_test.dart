@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/hero_launch.dart';
 import 'package:wonderflix/app/motion.dart';
+import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/ui/card_preview.dart';
@@ -116,6 +117,23 @@ void main() {
     );
     expect(find.byType(ProgressStrip), findsOneWidget);
     expect(find.byType(WatchedBadge), findsNothing);
+  });
+
+  testWidgets('ProgressStrip: la parte oro riempie la barra in altezza (#9)',
+      (tester) async {
+    await tester.pumpWidget(const Directionality(
+      textDirection: TextDirection.ltr,
+      child: Center(
+        child: SizedBox(
+            width: 200, height: 112, child: ProgressStrip(progress: 0.4)),
+      ),
+    ));
+    final strip = tester.getRect(find.byType(ProgressStrip));
+    final gold = find.byWidgetPredicate(
+        (widget) => widget is ColoredBox && widget.color == WfColors.gold);
+    // In basso a sinistra, alta 3 px come la barra, larga il 40%.
+    expect(tester.getRect(gold),
+        Rect.fromLTWH(strip.left, strip.bottom - 3, 80, 3));
   });
 
   testWidgets('LandscapeCard di un episodio', (tester) async {
