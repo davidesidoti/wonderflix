@@ -96,9 +96,9 @@ Il `Listener` sta sopra tutto il pannello (intestazione e bordo compresi), non s
   - dismissione con una scrittura in sospeso → valore scritto subito.
 - `PlayerController`:
   - parte dal volume salvato (primo valore passato al motore) e senza muto;
-  - `setVolume` e `changeVolumeBy` aggiornano il valore salvato; `toggleMute` no;
-  - un secondo controller (altro `PlayerArgs`) creato dopo `setVolume(30)` parte da 30.
+  - `setVolume` e `changeVolumeBy` aggiornano il valore salvato; `toggleMute` no.
 - `PlayerScreen`:
+  - ↓ ↓ poi M, poi episodio successivo (N): il nuovo player parte da 90, senza muto;
   - rotella in su sul film → volume +5 e pillola "Volume N%"; in giù → −5;
   - rotella sopra la barra del volume → stesso effetto;
   - a controlli nascosti la rotella non li mostra; con la schermata di pausa aperta la chiude;
