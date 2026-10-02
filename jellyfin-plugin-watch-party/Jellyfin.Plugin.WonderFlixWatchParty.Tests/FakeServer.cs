@@ -12,6 +12,9 @@ internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSen
 
     public List<(string SessionId, string Payload)> Sent { get; } = [];
 
+    /// <summary>Il token ricevuto a ogni invio riuscito, nello stesso ordine di <see cref="Sent"/>.</summary>
+    public List<CancellationToken> SentTokens { get; } = [];
+
     /// <summary>Sessioni per cui l'invio lancia un errore.</summary>
     public HashSet<string> Failing { get; } = [];
 
@@ -44,6 +47,7 @@ internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSen
         }
 
         Sent.Add((sessionId, payload));
+        SentTokens.Add(cancellationToken);
         return Task.FromResult(true);
     }
 }

@@ -89,6 +89,20 @@ public class PartyHubTests
     }
 
     [Fact]
+    public async Task ForwardingIgnoresTheSendersCancellation()
+    {
+        _hub.Join(_mario, Group);
+        _hub.Join(_luigi, Group);
+        // La richiesta di Mario è già interrotta: l'inoltro a Luigi non deve risentirne.
+        var result = await _hub.PostAsync(_mario, Group, Chat("ciao"), new CancellationToken(true));
+        Assert.Equal(HubStatus.Ok, result.Status);
+        Assert.Equal("s-luigi", Assert.Single(_server.Sent).SessionId);
+        var token = Assert.Single(_server.SentTokens);
+        Assert.False(token.IsCancellationRequested);
+        Assert.False(token.CanBeCanceled);
+    }
+
+    [Fact]
     public async Task SessionsThatLeftTheGroupOrEndedAreDropped()
     {
         var peach = AddPeach();

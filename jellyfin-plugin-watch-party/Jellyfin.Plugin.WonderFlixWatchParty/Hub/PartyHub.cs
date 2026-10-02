@@ -109,7 +109,8 @@ public sealed class PartyHub(
 
         // Mai il testo nei log (spec E §6.6).
         logger.LogDebug("Evento {Type} di {UserId} nel watch party {GroupId}", valid.Type, caller.UserId, groupId);
-        await ForwardAsync(groupId, caller.SessionId, participants, stamped, cancellationToken).ConfigureAwait(false);
+        // Il token di chi manda non va oltre qui: l'inoltro agli altri non si ferma con la sua richiesta.
+        await ForwardAsync(groupId, caller.SessionId, participants, stamped).ConfigureAwait(false);
         return HubResult<StampedEvent>.Ok(stamped);
     }
 
@@ -165,8 +166,7 @@ public sealed class PartyHub(
         Guid groupId,
         string senderSessionId,
         IReadOnlyList<string> participants,
-        StampedEvent stamped,
-        CancellationToken cancellationToken)
+        StampedEvent stamped)
     {
         var payload = JsonSerializer.Serialize(stamped);
         var targets = new List<string>();
@@ -186,15 +186,17 @@ public sealed class PartyHub(
             targets.Add(sessionId);
         }
 
-        await Task.WhenAll(targets.Select(sessionId => SendAsync(groupId, sessionId, payload, cancellationToken)))
+        await Task.WhenAll(targets.Select(sessionId => SendAsync(groupId, sessionId, payload)))
             .ConfigureAwait(false);
     }
 
-    private async Task SendAsync(Guid groupId, string sessionId, string payload, CancellationToken cancellationToken)
+    private async Task SendAsync(Guid groupId, string sessionId, string payload)
     {
         try
         {
-            if (!await sender.TrySendAsync(sessionId, payload, cancellationToken).ConfigureAwait(false))
+            // Mai il token della richiesta di chi manda: se si interrompe a metà
+            // invio, .NET può chiudere il WebSocket di chi riceve.
+            if (!await sender.TrySendAsync(sessionId, payload, CancellationToken.None).ConfigureAwait(false))
             {
                 registry.Unregister(groupId, sessionId);
             }
