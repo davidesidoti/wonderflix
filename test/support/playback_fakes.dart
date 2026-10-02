@@ -447,6 +447,11 @@ class FakePlayerWindow implements PlayerWindow {
   bool fullScreen = false;
   final preventCloseCalls = <bool>[];
   bool destroyed = false;
+  bool hidden = false;
+
+  /// Chiamato a ogni [hide], prima che la finestra risulti nascosta (es. per
+  /// controllare cosa è già successo in quel momento).
+  void Function()? onHide;
   final _closeListeners = <Future<void> Function()>[];
 
   @override
@@ -472,6 +477,12 @@ class FakePlayerWindow implements PlayerWindow {
   @override
   Future<void> destroy() async {
     destroyed = true;
+  }
+
+  @override
+  Future<void> hide() async {
+    onHide?.call();
+    hidden = true;
   }
 
   @override

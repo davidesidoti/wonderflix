@@ -261,6 +261,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _onWindowClose() async {
+    // La finestra sparisce subito: fine della sessione sul server, uscita dal
+    // party e volume vanno avanti senza farsi vedere. Prima restava ferma a
+    // video nero finché non finivano (issue #8).
+    try {
+      await _window.hide();
+    } on Object {
+      // Se non si nasconde, si chiude comunque come prima.
+    }
     await Future.wait([
       _controller.close(),
       if (_inParty) ref.read(watchPartySessionProvider.notifier).leave(),

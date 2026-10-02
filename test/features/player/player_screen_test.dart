@@ -712,6 +712,31 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets(
+      'chiusura della finestra: sparisce subito, prima che il video si spenga',
+      (tester) async {
+    await pumpPlayer(tester);
+    final container =
+        ProviderScope.containerOf(tester.element(find.byType(PlayerScreen)));
+    final volume =
+        container.read(playerVolumeProvider.notifier) as FakePlayerVolume;
+    volume.holdFlush = Completer<void>();
+    bool? engineDisposedAtHide;
+    window.onHide = () => engineDisposedAtHide = engine.disposed;
+    final closing = window.simulateClose();
+    await tester.pump();
+    expect(engineDisposedAtHide, isFalse,
+        reason: 'il motore si spegne solo a finestra già nascosta');
+    expect(window.hidden, isTrue,
+        reason: 'nascosta mentre il lavoro di uscita è ancora in corso');
+    expect(window.destroyed, isFalse);
+    volume.holdFlush!.complete();
+    await tester.pump();
+    await closing;
+    expect(window.destroyed, isTrue);
+    await unmount(tester);
+  });
+
   JellyfinItem episode5() => testItem(
         id: 'e5',
         name: 'Cat in the Bag',

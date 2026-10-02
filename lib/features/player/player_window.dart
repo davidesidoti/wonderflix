@@ -16,6 +16,9 @@ abstract class PlayerWindow {
   /// dopo l'ultimo.
   Future<void> setPreventClose(bool value);
 
+  /// Nasconde la finestra. L'app resta viva finché non si chiama [destroy].
+  Future<void> hide();
+
   Future<void> destroy();
 
   void addCloseListener(Future<void> Function() onClose);
@@ -57,6 +60,9 @@ class WindowManagerPlayerWindow implements PlayerWindow {
       }
     }
   }
+
+  @override
+  Future<void> hide() => windowManager.hide();
 
   @override
   Future<void> destroy() => windowManager.destroy();
