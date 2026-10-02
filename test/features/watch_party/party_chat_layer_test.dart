@@ -197,6 +197,31 @@ void main() {
       await leave(tester);
     });
 
+    testWidgets('una bolla il cui messaggio sparisce lascia il posto',
+        (tester) async {
+      await pumpChat(tester);
+      await receive(tester, 'uno', id: 'c1');
+      // Un nostro messaggio mandato a chat chiusa, che poi non parte: sparisce
+      // dallo storico, e con lui la bolla.
+      channelApi.sendGate = Completer<void>();
+      channelApi.sendFailures.add(PartyChannelFailure.network);
+      final sending =
+          container(tester).read(partyChannelProvider.notifier).sendChat('perso');
+      await tester.pump();
+      expect(find.textContaining('perso'), findsOneWidget);
+      await receive(tester, 'due', id: 'c2');
+      channelApi.sendGate!.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(await sending, PartyChatSendResult.failed);
+      expect(find.textContaining('perso'), findsNothing);
+      // Il suo posto è libero: "uno" resta con gli altri due.
+      await receive(tester, 'tre', id: 'c3');
+      expect(bubbles(), findsNWidgets(PartyChatLayer.maxBubbles));
+      expect(find.textContaining('uno'), findsOneWidget);
+      await leave(tester);
+    });
+
     testWidgets('le bolle non prendono i clic', (tester) async {
       await pumpChat(tester);
       await receive(tester, 'ciao', id: 'c1');

@@ -159,6 +159,8 @@ class _PartyChatLayerState extends ConsumerState<PartyChatLayer> {
     super.initState();
     _channel = ref.read(partyChannelProvider.notifier)..attachChatLayer();
     _arrivals = _channel.chatArrivals.listen(_onArrival);
+    ref.listenManual(partyChannelProvider.select((s) => s.messages),
+        (_, messages) => _dropGoneBubbles(messages));
     _field.addListener(_onTextChanged);
     if (widget.open) _onOpened();
   }
@@ -224,6 +226,9 @@ class _PartyChatLayerState extends ConsumerState<PartyChatLayer> {
       if (atEnd) WidgetsBinding.instance.addPostFrameCallback((_) => _jumpToEnd());
       return;
     }
+    // Il messaggio è già uscito dallo storico (invio fallito): niente bolla.
+    final messages = ref.read(partyChannelProvider).messages;
+    if (!messages.any((message) => message.key == entry.key)) return;
     final bubble = _Bubble(entry.key);
     bubble.timer = Timer(PartyChatLayer.bubbleLifetime, () => _leave(bubble));
     setState(() {
@@ -242,6 +247,22 @@ class _PartyChatLayerState extends ConsumerState<PartyChatLayer> {
   void _remove(_Bubble bubble) {
     if (!mounted) return;
     setState(() => _bubbles.remove(bubble));
+  }
+
+  /// Toglie le bolle dei messaggi usciti dallo storico (oltre i 50, invio
+  /// fallito): non si vedrebbero più, ma terrebbero uno dei posti.
+  void _dropGoneBubbles(List<PartyChatEntry> messages) {
+    if (!mounted || _bubbles.isEmpty) return;
+    final keys = {for (final entry in messages) entry.key};
+    final gone = [
+      for (final bubble in _bubbles)
+        if (!keys.contains(bubble.key)) bubble,
+    ];
+    if (gone.isEmpty) return;
+    for (final bubble in gone) {
+      bubble.timer?.cancel();
+    }
+    setState(() => _bubbles.removeWhere(gone.contains));
   }
 
   void _jumpToEnd() {
