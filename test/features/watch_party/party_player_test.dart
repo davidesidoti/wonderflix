@@ -13,6 +13,7 @@ import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/playback_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/core/party_channel/party_channel_api.dart';
 import 'package:wonderflix/core/party_channel/party_channel_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
@@ -26,6 +27,7 @@ import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
 import 'package:wonderflix/features/player/player_volume.dart';
 import 'package:wonderflix/features/player/tracks_panel.dart';
+import 'package:wonderflix/features/watch_party/party_chat_layer.dart';
 import 'package:wonderflix/features/watch_party/party_notices.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
@@ -934,6 +936,68 @@ void main() {
     expect(primaryFocus(), 'party-chat');
     expect(api.calls, isNot(contains('unpause')));
     expect(chatField(), findsOneWidget);
+    await finish(tester);
+  });
+
+  /// Apre il menu del distintivo del watch party (membri, "Esci").
+  Future<void> openPartyMenu(WidgetTester tester) async {
+    await tester.tap(find.byKey(const Key('party-badge')));
+    await tester.pumpAndSettle();
+    expect(find.text('Luigi'), findsOneWidget);
+  }
+
+  testWidgets(
+      'chat che si chiude da sola sotto il menu del watch party: il focus '
+      'resta al menu, Esc chiude solo il menu', (tester) async {
+    await pumpPartyPlayer(tester);
+    await openChatWithEnter(tester);
+    await openPartyMenu(tester);
+    await tester.pump(PartyChatLayer.idleClose);
+    expect(chatField(), findsNothing);
+    expect(primaryFocus(), isNot(anyOf('player', 'party-chat')));
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('Luigi'), findsNothing, reason: 'Esc chiude il menu');
+    expect(find.byType(PlayerScreen), findsOneWidget);
+    expect(api.calls, isNot(contains('leave')));
+    // Chiuso il menu, i tasti tornano al player.
+    expect(primaryFocus(), 'player');
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    expect(api.calls, contains('unpause'));
+    await finish(tester);
+  });
+
+  testWidgets(
+      'chat riaperta da un invio fallito sotto il menu del watch party: il '
+      'focus resta al menu', (tester) async {
+    await pumpPartyPlayer(tester);
+    await openChatWithEnter(tester);
+    channelApi.sendGate = Completer<void>();
+    channelApi.sendFailures.add(PartyChannelFailure.network);
+    await tester.enterText(chatField(), 'ci siete?');
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pump();
+    // Il clic sul film chiude la chat; poi si apre il menu.
+    await tester.tapAt(const Offset(700, 300));
+    await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
+    await tester.pump();
+    expect(chatField(), findsNothing);
+    await openPartyMenu(tester);
+    channelApi.sendGate!.complete();
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+    expect(chatField(), findsOneWidget, reason: 'la chat si riapre');
+    expect(primaryFocus(), isNot(anyOf('player', 'party-chat')));
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('Luigi'), findsNothing, reason: 'Esc chiude il menu');
+    expect(chatField(), findsOneWidget, reason: 'la chat resta aperta');
+    // Il primo tasto riporta il focus al campo.
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    expect(primaryFocus(), 'party-chat');
     await finish(tester);
   });
 }

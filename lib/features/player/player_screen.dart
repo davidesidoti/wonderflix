@@ -236,8 +236,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (chatOpen != _chatWasOpen) {
       _chatWasOpen = chatOpen;
       // Chiusa la chat (Esc, clic sul film, pannello, chiusura automatica):
-      // i tasti tornano al player.
-      if (!chatOpen) _focusNode.requestFocus();
+      // i tasti tornano al player. Con un menu o un dialogo sopra il player
+      // il focus resta a loro: chiusi, la storia del focus lo riporta qui.
+      if (!chatOpen && (ModalRoute.isCurrentOf(context) ?? true)) {
+        _focusNode.requestFocus();
+      }
     }
     setState(() {});
   }

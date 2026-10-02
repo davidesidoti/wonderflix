@@ -149,7 +149,11 @@ class _PartyChatLayerState extends ConsumerState<PartyChatLayer> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !widget.open) return;
       _channel.markRead();
-      widget.focusNode.requestFocus();
+      // Con un menu o un dialogo sopra il player il focus resta a loro:
+      // chiusi, torna al player e il primo tasto lo riporta al campo.
+      if (ModalRoute.isCurrentOf(context) ?? true) {
+        widget.focusNode.requestFocus();
+      }
       _jumpToEnd();
     });
   }
