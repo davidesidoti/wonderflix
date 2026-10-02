@@ -320,7 +320,7 @@ Le emoji usano `fontFamily: 'Segoe UI Emoji'` (glifi a colori di Windows). Sono 
 - Pulsante **reazioni** (`LucideIcons.smilePlus`, tooltip "Reazioni (1–6)") accanto al pulsante chat, alle stesse condizioni.
 - La barretta si apre sopra il pulsante, allineata a destra: fondo `WfColors.surface` al 94%, bordo `WfColors.border`, forma a pillola, ombra.
 - È un livello a sé agganciato al pulsante (`CompositedTransformTarget` sul pulsante, `CompositedTransformFollower` nel livello `player-party-reactions-tray`): un widget che sporge fuori dai bordi del suo genitore non riceve i clic. È sempre montata: chiusa è invisibile e non prende i clic. Entrata con dissolvenza e scala 0,9 → 1 dal pulsante (`WfMotion.medium`, curva enfatizzata), uscita con `WfMotion.fast`; con le animazioni ridotte solo la dissolvenza.
-- Le 6 emoji a 24 px con il tasto sotto (testo piccolo, crema al 50%); al passaggio del mouse fondo crema al 12%.
+- Le 6 emoji a 24 px con il tasto sotto (testo piccolo, `WfColors.creamMuted`: crema al 60%); al passaggio del mouse fondo crema al 12%.
 - **Clic** = invio; la barretta resta aperta per mandarne altre.
 - Si chiude con un clic sul film (che non fa altro), Esc, di nuovo il pulsante, o dopo **5 s** senza il mouse sopra (`PartyReactionsTray.idleClose`; il conto riparte a ogni clic su una reazione e quando il mouse esce).
 - Finché è aperta i controlli restano visibili (come con il pannello).
@@ -330,12 +330,12 @@ Le emoji usano `fontFamily: 'Segoe UI Emoji'` (glifi a colori di Windows). Sono 
 - **1–6** e tastierino numerico 1–6 inviano subito la reazione, solo con il focus al player (`_focusNode.hasPrimaryFocus`: a chat aperta i numeri vanno nel campo), anche a controlli nascosti.
 - Non mostrano i controlli né la pillola: il riscontro è l'emoji in volo con "Tu".
 - La ripetizione automatica del tasto tenuto premuto è ignorata; al massimo una reazione ogni **200 ms**, anche contando i clic sulla barretta (`PlayerScreen.reactionInterval`).
-- Spenti mentre si scrive in chat e con il canale spento.
+- Spenti mentre si scrive in chat e con il canale spento. Con Ctrl, Alt o Meta premuti i numeri non sono reazioni: il tasto prosegue come gli altri.
 
 ### 10.4 Volo
 
-- Livello `PartyReactionsLayer` (`right: 24`, `bottom: 150`, la stessa altezza fissa della chat): nasce in basso a destra, con uno scostamento orizzontale da 0 a 80 px calcolato dall'`Id` dell'evento (`reactionJitter`, stabile nei test).
-- Emoji a **40 px** con sotto il nome in un'etichetta piccola (fondo `WfColors.bg` al 65%); "Tu" per le proprie.
+- Livello `PartyReactionsLayer` (`right: 24`, `bottom: 150`, la stessa altezza fissa della chat): nasce in basso a destra, con uno scostamento orizzontale da 0 a 80 px calcolato dall'`Id` dell'evento (`reactionJitter`, stabile nei test): l'hash dell'`Id` passa dal finalizzatore di murmur3 (fmix32), così gli id in sequenza delle proprie reazioni (`local-1`, `local-2`…) non danno scostamenti vicini.
+- Emoji a **40 px** con sotto il nome in un'etichetta piccola (fondo `WfColors.bg` al 65%), su una riga e larga al massimo 120 px (`PartyReactionsLayer.nameMaxWidth`): un nome più lungo finisce con i puntini. "Tu" per le proprie.
 - **Animazioni complete:** 0–200 ms scala 0,6 → 1 (curva enfatizzata); 0–2,4 s salita di **140 px** in decelerazione; dissolvenza negli ultimi 600 ms. Il fotogramma a un dato istante lo calcola la funzione pura `reactionFrame`.
 - **Animazioni ridotte:** niente scala né salita; compare in 150 ms, resta 1,6 s, sfuma in 300 ms.
 - Al massimo **12** reazioni in volo; le nuove oltre il limite si scartano.
@@ -351,7 +351,7 @@ Le emoji usano `fontFamily: 'Segoe UI Emoji'` (glifi a colori di Windows). Sono 
 - **`PlayerChromeController`:** `_panelOpen` diventa un `popup` (`PlayerPopup`, al massimo uno): `tracks`, `chat` e `reactions`. I controlli restano visibili con `tracks` (e `reactions`), non con `chat`. Con la chat aperta il controller stesso non fa partire la schermata di pausa e la chiude all'apertura. Il player ha un `FocusNode` suo, a cui torna il focus quando la chat si chiude.
 - **Focus della chat:** anche il `FocusNode` del campo è di `PlayerScreen`, che lo crea, lo passa a `PartyChatLayer` (`focusNode`) e lo distrugge: così può ridare il focus al campo. Il focus si prende (campo all'apertura, player alla chiusura) solo se il player è la route corrente (`ModalRoute.isCurrentOf`): un menu o un dialogo sopra il player tiene il suo.
 - **Livelli** (dal basso): video, attesa del gruppo, schermata di pausa, errore o controlli, caricamento, "Salta"/scheda, post-play, attesa sopra il post-play, **reazioni** (`player-party-reactions`), **chat**, **barretta** (`player-party-reactions-tray`), pillola, pannello tracce. Il livello chat non è dentro `ExcludeFocus`.
-- La barretta non vive nel livello dei controlli: è un livello a sé, ancorato al pulsante, sopra chat, "Salta intro" e scheda e sotto pillola e pannello. Il suo `CompositedTransformFollower` sta in un `Positioned(left: 0, top: 0)` dello `Stack` del player e riceve i clic dove è disegnato; senza il pulsante (strato d'errore al posto dei controlli) non si vede né prende clic.
+- La barretta non vive nel livello dei controlli: è un livello a sé, ancorato al pulsante, sopra chat, "Salta intro" e scheda e sotto pillola e pannello. Il suo `CompositedTransformFollower` sta in un `Positioned(left: 0, top: 0)` dello `Stack` del player e riceve i clic dove è disegnato; senza il pulsante (strato d'errore al posto dei controlli) non si vede né prende clic. All'arrivo dell'errore o del post-play (che toglie i controlli) si chiude: aperta senza vedersi, il primo Esc sarebbe suo.
 
 ## 12. Senza plugin ed errori
 

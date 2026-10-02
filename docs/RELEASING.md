@@ -75,7 +75,7 @@ Prima di ogni release, su un utente di prova:
 Il plugin del server (cartella `jellyfin-plugin-watch-party/`, spec E) ha versioni e release sue, separate dall'app.
 
 1. Aggiorna `<Version>` in `jellyfin-plugin-watch-party/Jellyfin.Plugin.WonderFlixWatchParty/Jellyfin.Plugin.WonderFlixWatchParty.csproj` (es. `1.0.1`) e fai commit su `main`. Il workflow compila con la versione del tag: tienila uguale a quella del csproj.
-2. Prova a mano sul server (README del plugin: `pack.sh` e copia via SFTP nei `plugins/` di Jellyfin).
+2. Prova a mano sul server (README del plugin: `pack.sh` e copia via SFTP nei `plugins/` di Jellyfin). Finita la prova, la cartella copiata va tolta prima del passo 6.
 3. Crea il tag e fai push:
    ```bash
    git tag watch-party-plugin-v1.0.1
@@ -93,8 +93,8 @@ Il plugin del server (cartella `jellyfin-plugin-watch-party/`, spec E) ha versio
      "timestamp": "2026-10-02T12:00:00Z"
    }
    ```
-6. Sul server: Dashboard → Plugin → Catalogo → aggiorna (o installa) **WonderFlix Watch Party**, poi riavvia Jellyfin (su Ultra.cc: `app-jellyfin restart`).
+6. Sul server: prima togli da `plugins/` un'eventuale cartella copiata a mano (passo 2), poi Dashboard → Plugin → Catalogo → aggiorna (o installa) **WonderFlix Watch Party** e riavvia Jellyfin (su Ultra.cc: `app-jellyfin restart`).
 
-Il repository dei plugin si aggiunge una volta sola: Dashboard → Plugin → Repository → **+**, URL `https://raw.githubusercontent.com/davidesidoti/wonderflix/main/jellyfin-plugin-watch-party/manifest.json`. Prima di installare dal Catalogo togli un'eventuale cartella copiata a mano.
+Il repository dei plugin si aggiunge una volta sola: Dashboard → Plugin → Repository → **+**, URL `https://raw.githubusercontent.com/davidesidoti/wonderflix/main/jellyfin-plugin-watch-party/manifest.json`.
 
 **Jellyfin 12:** serve una build nuova (net10.0, `targetAbi` `12.0.0.0`) prima di aggiornare il server.
