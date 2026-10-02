@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -134,7 +135,7 @@ class TracksPanel extends StatelessWidget {
         ],
       ),
     ];
-    return Material(
+    final content = Material(
       color: WfColors.surface.withValues(alpha: 0.94),
       child: DecoratedBox(
         decoration: const BoxDecoration(
@@ -153,6 +154,20 @@ class TracksPanel extends StatelessWidget {
           ),
         ),
       ),
+    );
+    // La rotella sul pannello non arriva mai al volume del player (issue
+    // #4). Vince chi registra per primo, cioè il widget più interno: se la
+    // lista può scorrere registra lei; se no (in cima, in fondo, lista
+    // corta) vince questa azione vuota.
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerSignal: (event) {
+        if (event is PointerScrollEvent) {
+          GestureBinding.instance.pointerSignalResolver
+              .register(event, (_) {});
+        }
+      },
+      child: content,
     );
   }
 }

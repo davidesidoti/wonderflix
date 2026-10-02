@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -213,5 +214,67 @@ void main() {
     await tester.pumpAndSettle();
     expect(slideFinder, findsNothing);
     expect(find.byType(TracksPanel), findsOneWidget);
+  });
+
+  /// Il pannello a destra, dentro un `Listener` che conta le rotelle che
+  /// arrivano fin lì (come il player sotto il pannello).
+  Future<int Function()> pumpOverPlayer(WidgetTester tester,
+      {List<MediaStreamInfo>? subtitles}) async {
+    var outside = 0;
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: Listener(
+          behavior: HitTestBehavior.opaque,
+          onPointerSignal: (event) => GestureBinding
+              .instance.pointerSignalResolver
+              .register(event, (_) => outside++),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: SizedBox(
+              width: TracksPanel.width,
+              child: panel(subtitles: subtitles),
+            ),
+          ),
+        ),
+      ),
+    );
+    return () => outside;
+  }
+
+  testWidgets('rotella: lista corta, non esce dal pannello', (tester) async {
+    final outside = await pumpOverPlayer(tester);
+    final wheel = TestPointer(1, PointerDeviceKind.mouse);
+    await tester.sendEventToBinding(
+        wheel.hover(tester.getCenter(find.byType(TracksPanel))));
+    await tester.sendEventToBinding(wheel.scroll(const Offset(0, 60)));
+    await tester.sendEventToBinding(wheel.scroll(const Offset(0, -60)));
+    expect(outside(), 0);
+
+    // Fuori dal pannello arriva a chi sta sotto.
+    await tester.sendEventToBinding(wheel.hover(const Offset(200, 450)));
+    await tester.sendEventToBinding(wheel.scroll(const Offset(0, 60)));
+    expect(outside(), 1);
+  });
+
+  testWidgets('rotella: una lista lunga scorre', (tester) async {
+    final outside = await pumpOverPlayer(tester, subtitles: [
+      for (var i = 0; i < 20; i++)
+        MediaStreamInfo(
+            index: 10 + i,
+            kind: StreamKind.subtitle,
+            displayTitle: 'Sottotitolo $i'),
+    ]);
+    final wheel = TestPointer(1, PointerDeviceKind.mouse);
+    await tester.sendEventToBinding(
+        wheel.hover(tester.getCenter(find.byType(TracksPanel))));
+    await tester.sendEventToBinding(wheel.scroll(const Offset(0, 60)));
+    await tester.pump();
+    final position = tester
+        .state<ScrollableState>(find.descendant(
+            of: find.byType(TracksPanel), matching: find.byType(Scrollable)))
+        .position;
+    expect(position.pixels, greaterThan(0));
+    expect(outside(), 0);
   });
 }
