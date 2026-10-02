@@ -123,4 +123,32 @@ void main() {
     expect(records.single.level, Level.WARNING);
     expect(records.single.message, 'GET /Items/x: 500');
   });
+
+  test('gli esiti attesi (quietStatuses) vanno nel log come info', () async {
+    final records = <LogRecord>[];
+    Logger.root.level = Level.ALL;
+    final subscription = Logger.root.onRecord.listen(records.add);
+    addTearDown(subscription.cancel);
+    adapter.handler = (_) => const FakeResponse(404);
+
+    await expectLater(http.get('/Plugin/Info', quietStatuses: {404}),
+        throwsA(isA<NotFoundException>()));
+    await expectLater(http.post('/Plugin/Events', quietStatuses: {404}),
+        throwsA(isA<NotFoundException>()));
+    await expectLater(
+        http.get('/Plugin/Info'), throwsA(isA<NotFoundException>()));
+    adapter.handler = (_) => const FakeResponse(500);
+    await expectLater(http.get('/Plugin/Info', quietStatuses: {404}),
+        throwsA(isA<ServerErrorException>()));
+
+    expect([
+      for (final record in records)
+        if (record.loggerName == 'http') (record.level, record.message),
+    ], [
+      (Level.INFO, 'GET /Plugin/Info: 404'),
+      (Level.INFO, 'POST /Plugin/Events: 404'),
+      (Level.WARNING, 'GET /Plugin/Info: 404'),
+      (Level.WARNING, 'GET /Plugin/Info: 500'),
+    ]);
+  });
 }

@@ -39,25 +39,34 @@ class JellyfinHttp {
   String get authorizationHeader =>
       buildAuthorizationHeader(_clientInfo, token: token);
 
+  /// Con [quietStatuses] le risposte con quei codici, attese da chi chiama,
+  /// vanno nel log come info e non tra gli errori.
   Future<dynamic> get(
     String path, {
     Map<String, dynamic>? query,
     CancelToken? cancelToken,
+    Set<int> quietStatuses = const {},
   }) =>
-      _send(() => dio.get<dynamic>(path,
-          queryParameters: query, cancelToken: cancelToken));
+      _send(
+          () => dio.get<dynamic>(path,
+              queryParameters: query, cancelToken: cancelToken),
+          quietStatuses: quietStatuses);
 
+  /// [quietStatuses] come in [get].
   Future<dynamic> post(
     String path, {
     Object? body,
     Map<String, dynamic>? query,
+    Set<int> quietStatuses = const {},
   }) =>
-      _send(() => dio.post<dynamic>(path, data: body, queryParameters: query));
+      _send(() => dio.post<dynamic>(path, data: body, queryParameters: query),
+          quietStatuses: quietStatuses);
 
   Future<dynamic> delete(String path, {Map<String, dynamic>? query}) =>
       _send(() => dio.delete<dynamic>(path, queryParameters: query));
 
-  Future<dynamic> _send(Future<Response<dynamic>> Function() request) async {
+  Future<dynamic> _send(Future<Response<dynamic>> Function() request,
+      {Set<int> quietStatuses = const {}}) async {
     final sentToken = token;
     try {
       final response = await request();
@@ -66,8 +75,11 @@ class JellyfinHttp {
       // Solo metodo, percorso ed esito: query e header possono contenere
       // token. Le richieste annullate non sono errori.
       if (e.type != DioExceptionType.cancel) {
-        _log.warning('${e.requestOptions.method} ${e.requestOptions.path}: '
-            '${e.response?.statusCode ?? e.type.name}');
+        final status = e.response?.statusCode;
+        _log.log(
+            quietStatuses.contains(status) ? Level.INFO : Level.WARNING,
+            '${e.requestOptions.method} ${e.requestOptions.path}: '
+            '${status ?? e.type.name}');
       }
       final mapped = mapDioException(e);
       if (mapped is UnauthorizedException &&

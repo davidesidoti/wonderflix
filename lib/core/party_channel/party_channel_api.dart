@@ -41,16 +41,21 @@ class PartyChannelApi {
 
   static const _base = '/WonderFlixWatchParty';
 
+  /// Esiti previsti (plugin assente, troppi eventi): nel log come info, non
+  /// tra gli "Ultimi errori" della diagnostica.
+  static const _quiet = {404, 429};
+
   final JellyfinHttp _http;
 
   Future<PartyPluginInfo> info() => _call(() async =>
-      PartyPluginInfo.fromJson(asJsonMap(await _http.get('$_base/Info'))));
+      PartyPluginInfo.fromJson(asJsonMap(
+          await _http.get('$_base/Info', quietStatuses: _quiet))));
 
   /// Registra la nostra sessione nel gruppo; restituisce lo storico della
   /// chat, dal messaggio più vecchio.
   Future<List<PartyChatEvent>> join(String groupId) => _call(() async {
-        final json =
-            asJsonMap(await _http.post('$_base/Groups/$groupId/Join'));
+        final json = asJsonMap(await _http
+            .post('$_base/Groups/$groupId/Join', quietStatuses: _quiet));
         return [
           for (final raw in json['Messages'] as List? ?? const [])
             if (parsePartyEvent(raw) case final PartyChatEvent event) event,
@@ -58,13 +63,16 @@ class PartyChannelApi {
       });
 
   Future<void> leave(String groupId) =>
-      _call(() => _http.post('$_base/Groups/$groupId/Leave'));
+      _call(() => _http.post('$_base/Groups/$groupId/Leave',
+          quietStatuses: _quiet));
 
   /// Manda [event] al gruppo; restituisce l'evento timbrato dal plugin.
   Future<PartyEvent> send(String groupId, PartyOutgoing event) =>
       _call(() async {
-        final stamped = parsePartyEvent(await _http
-            .post('$_base/Groups/$groupId/Events', body: event.toJson()));
+        final stamped = parsePartyEvent(await _http.post(
+            '$_base/Groups/$groupId/Events',
+            body: event.toJson(),
+            quietStatuses: _quiet));
         if (stamped == null) throw const ServerErrorException(null);
         return stamped;
       });
