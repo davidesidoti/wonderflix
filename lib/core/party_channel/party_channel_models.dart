@@ -210,7 +210,9 @@ PartyEvent? parsePartyEvent(Object? raw) {
         '(${json['Type']}): scartato');
     return null;
   } on Object catch (error) {
-    _log.info('evento del canale non valido: $error');
+    // Solo il tipo: il messaggio di un errore può citare il JSON, cioè il
+    // testo della chat.
+    _log.info('evento del canale non valido: ${error.runtimeType}');
     return null;
   }
 }

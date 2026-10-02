@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 import 'package:wonderflix/core/party_channel/party_channel_models.dart';
 
 /// Evento timbrato come lo manda il plugin, con [fields] sopra i campi
@@ -58,6 +59,24 @@ void main() {
         isNull);
     expect(parsePartyEvent('non json'), isNull);
     expect(parsePartyEvent(42), isNull);
+  });
+
+  test('evento non valido: nel log solo il tipo di errore, mai il testo', () {
+    final records = <LogRecord>[];
+    Logger.root.level = Level.ALL;
+    final subscription = Logger.root.onRecord.listen(records.add);
+    addTearDown(subscription.cancel);
+
+    expect(parsePartyEvent('{"Type":"Chat","Text":"segreto'), isNull);
+    expect(
+        parsePartyEvent(stamped(
+            {'Type': 'Chat', 'Text': 'ok', 'SentAt': 'segreto anche qui'})),
+        isNull);
+
+    expect(records, hasLength(2));
+    for (final record in records) {
+      expect(record.message, isNot(contains('segreto')));
+    }
   });
 
   test('eventi da mandare', () {

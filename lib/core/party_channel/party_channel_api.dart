@@ -96,8 +96,10 @@ class PartyChannelApi {
     } on ApiException {
       throw const PartyChannelException(PartyChannelFailure.network);
     } on Object catch (error) {
-      // Risposta di forma inattesa (es. `Info` senza `Protocol`).
-      _log.info('risposta del plugin del watch party non valida: $error');
+      // Risposta di forma inattesa (es. `Info` senza `Protocol`). Solo il
+      // tipo: il messaggio può citare la risposta, con testi della chat.
+      _log.info('risposta del plugin del watch party non valida: '
+          '${error.runtimeType}');
       throw const PartyChannelException(PartyChannelFailure.network);
     }
   }
