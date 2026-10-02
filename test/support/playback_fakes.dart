@@ -508,11 +508,20 @@ class FakePlayerVolume extends PlayerVolumeController {
 
   final double initial;
 
+  /// Quante volte è stato chiesto di scrivere su disco.
+  var flushes = 0;
+
   @override
   double build() => initial;
 
   @override
-  void set(double volume) => state = volume.clamp(0.0, 100.0);
+  void set(double volume) {
+    if (volume.isNaN) return;
+    state = volume.clamp(0.0, 100.0);
+  }
+
+  @override
+  Future<void> flush() async => flushes++;
 }
 
 /// PNG trasparente 1×1, per sostituire le immagini di rete nei test.

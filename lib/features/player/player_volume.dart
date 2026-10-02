@@ -24,7 +24,7 @@ class PlayerVolumeController extends Notifier<double> {
   @override
   double build() {
     _prefs = ref.watch(sharedPreferencesProvider);
-    ref.onDispose(_write);
+    ref.onDispose(() => unawaited(flush()));
     final saved = _prefs.getDouble(_key);
     if (saved == null || saved.isNaN) return 100;
     return saved.clamp(0.0, 100.0);
@@ -39,17 +39,19 @@ class PlayerVolumeController extends Notifier<double> {
     state = value;
     _pending = value;
     _timer?.cancel();
-    _timer = Timer(saveDelay, _write);
+    _timer = Timer(saveDelay, () => unawaited(flush()));
   }
 
-  /// Scrive il valore in sospeso, se c'è (anche alla chiusura del provider).
-  void _write() {
+  /// Scrive subito il valore in sospeso, se c'è: allo scadere di
+  /// [saveDelay], alla chiusura del provider e prima di chiudere l'app (il
+  /// provider dell'app non viene mai chiuso).
+  Future<void> flush() async {
     _timer?.cancel();
     _timer = null;
     final value = _pending;
     if (value == null) return;
     _pending = null;
-    unawaited(_prefs.setDouble(_key, value));
+    await _prefs.setDouble(_key, value);
   }
 }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -63,6 +65,36 @@ void main() {
       expect(container.read(playerVolumeProvider), 0);
       async.elapse(PlayerVolumeController.saveDelay);
       expect(prefs.getDouble(key), 0);
+
+      // NaN va ignorato davvero: senza il controllo, `clamp` lo porterebbe
+      // a 100 e lo stato cambierebbe.
+      volume.set(double.nan);
+      async.elapse(PlayerVolumeController.saveDelay);
+      expect(container.read(playerVolumeProvider), 0);
+      expect(prefs.getDouble(key), 0);
+    });
+  });
+
+  test('flush: scrive subito il valore in sospeso, poi niente', () async {
+    final prefs = await prefsWith({});
+    fakeAsync((async) {
+      final container = containerFor(prefs);
+      final volume = container.read(playerVolumeProvider.notifier);
+      volume.set(45);
+      expect(prefs.getDouble(key), isNull);
+      unawaited(volume.flush());
+      expect(prefs.getDouble(key), 45);
+      // Il timer è stato annullato: allo scadere non succede niente.
+      async.elapse(PlayerVolumeController.saveDelay);
+      expect(prefs.getDouble(key), 45);
+      expect(container.read(playerVolumeProvider), 45);
+      // Senza niente in sospeso un secondo flush non tocca il disco: un
+      // valore scritto da fuori resta com'è.
+      unawaited(prefs.setDouble(key, 7));
+      unawaited(volume.flush());
+      async.flushMicrotasks();
+      expect(prefs.getDouble(key), 7);
+      expect(container.read(playerVolumeProvider), 45);
     });
   });
 
