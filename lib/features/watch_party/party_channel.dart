@@ -132,6 +132,10 @@ class PartyChannel extends Notifier<PartyChannelState> {
   /// Gruppo del canale attivo; `null` = canale spento.
   String? _groupId;
 
+  /// Gruppo del `Join` in corso: il server ci ha forse già registrati, e
+  /// un evento può arrivare prima della risposta.
+  String? _joiningGroupId;
+
   /// Cambia a ogni ingresso e uscita: un `Join` partito prima non vale più.
   int _generation = 0;
 
@@ -147,6 +151,7 @@ class PartyChannel extends Notifier<PartyChannelState> {
     final session = ref.read(sessionControllerProvider);
     _user = session is SessionSignedIn ? session.user : null;
     _groupId = null;
+    _joiningGroupId = null;
     _generation++;
     _forgetSeen();
     if (userId == null) return const PartyChannelState();
@@ -334,6 +339,7 @@ class PartyChannel extends Notifier<PartyChannelState> {
             availability: PartyPluginAvailability.available,
             pluginVersion: info.version);
       }
+      _joiningGroupId = groupId;
       final history = await api.join(groupId);
       if (!ref.mounted || generation != _generation) return;
       _groupId = groupId;
@@ -353,19 +359,37 @@ class PartyChannel extends Notifier<PartyChannelState> {
       if (!ref.mounted || generation != _generation) return;
       _log.warning('canale del watch party non disponibile: $error');
       _deactivate();
+    } finally {
+      if (generation == _generation) _joiningGroupId = null;
     }
+  }
+
+  /// [groupId] è il gruppo del canale attivo o quello del `Join` in corso.
+  bool _isChannelGroup(String groupId) {
+    final id = _normalizeId(groupId);
+    return [_groupId, _joiningGroupId]
+        .any((group) => group != null && _normalizeId(group) == id);
+  }
+
+  /// Evento del nostro utente, anche da un altro PC (id confrontati come
+  /// quelli dei gruppi).
+  bool _isMine(PartyEvent event) {
+    final user = _user;
+    return user != null && _normalizeId(event.userId) == _normalizeId(user.id);
   }
 
   void _leave(String groupId) {
     _generation++;
-    final active = _groupId != null &&
-        _normalizeId(_groupId!) == _normalizeId(groupId);
+    // Anche con il `Join` ancora in corso: il server ci ha forse già
+    // registrati.
+    final registered = _isChannelGroup(groupId);
     _groupId = null;
+    _joiningGroupId = null;
     _forgetSeen();
     state = PartyChannelState(
         availability: state.availability, pluginVersion: state.pluginVersion);
     ref.read(partyNoticesProvider.notifier).setAttribution(false);
-    if (!active) return;
+    if (!registered) return;
     unawaited(ref.read(partyChannelApiProvider).leave(groupId).catchError(
         (Object error) =>
             _log.info('uscita dal canale del watch party non inviata: $error')));
@@ -393,11 +417,10 @@ class PartyChannel extends Notifier<PartyChannelState> {
 
   void _onEvent(ServerEvent event) {
     if (event is! PartyChannelReceived) return;
-    final groupId = _groupId;
-    if (groupId == null) return;
+    if (_groupId == null && _joiningGroupId == null) return;
     final parsed = parsePartyEvent(event.payload);
     if (parsed == null ||
-        _normalizeId(parsed.groupId) != _normalizeId(groupId) ||
+        !_isChannelGroup(parsed.groupId) ||
         !_remember(parsed.id)) {
       return;
     }
@@ -406,7 +429,7 @@ class PartyChannel extends Notifier<PartyChannelState> {
       case PartyActionEvent():
         ref.read(partyNoticesProvider.notifier).attribute(parsed);
       case PartyChatEvent():
-        final entry = PartyChatEntry(parsed, mine: parsed.userId == _user?.id);
+        final entry = PartyChatEntry(parsed, mine: _isMine(parsed));
         _addMessage(entry);
         if (_chatLayers == 0) state = state.copyWith(unread: state.unread + 1);
         _chat.add(entry);
@@ -435,7 +458,7 @@ class PartyChannel extends Notifier<PartyChannelState> {
     for (final event in history) {
       _remember(event.id);
       byId.putIfAbsent(
-          event.id, () => PartyChatEntry(event, mine: event.userId == _user?.id));
+          event.id, () => PartyChatEntry(event, mine: _isMine(event)));
     }
     final merged = byId.values.toList()
       ..sort((a, b) => a.event.sentAt.compareTo(b.event.sentAt));

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/party_channel/party_channel_api.dart';
 import 'package:wonderflix/core/party_channel/party_channel_models.dart';
@@ -39,10 +40,11 @@ void main() {
   tearDown(() => events.close());
 
   /// Dentro la zona finta: container e, con [listen], il canale vivo.
-  void mount(FakeAsync async, {bool listen = true}) {
+  void mount(FakeAsync async,
+      {bool listen = true, JellyfinUser user = testUser}) {
     container = ProviderContainer(overrides: [
-      sessionControllerProvider.overrideWith(
-          () => FakeSessionController(const SessionSignedIn(testUser))),
+      sessionControllerProvider
+          .overrideWith(() => FakeSessionController(SessionSignedIn(user))),
       syncPlayApiProvider.overrideWithValue(api),
       watchPartyEventsProvider.overrideWithValue(events.stream),
       partyChannelApiProvider.overrideWithValue(channelApi),
@@ -275,6 +277,31 @@ void main() {
     });
   });
 
+  test("mine con l'id utente con o senza trattini e maiuscole", () {
+    fakeAsync((async) {
+      const user =
+          JellyfinUser(id: '2b7d4e5f60718293a4b5c6d7e8f90a1b', name: 'Mario');
+      const dashed = '2B7D4E5F-6071-8293-A4B5-C6D7E8F90A1B';
+      channelApi
+        ..install()
+        ..history = [
+          testChatEvent('dallo storico', id: 'h1', userId: dashed),
+        ];
+      mount(async, user: user);
+      joinGroup(async);
+      receive(
+          async,
+          partyPayload({'Type': 'Chat', 'Text': 'dal portatile'},
+              id: 'c1',
+              userId: dashed,
+              userName: 'Mario',
+              sentAt: DateTime.utc(2026, 10, 2, 21, 1)));
+      expect(channel().messages.map((m) => (m.event.id, m.mine)),
+          [('h1', true), ('c1', true)]);
+      finish(async);
+    });
+  });
+
   test('con la chat a schermo i messaggi non contano come non letti', () {
     fakeAsync((async) {
       channelApi.install();
@@ -429,6 +456,104 @@ void main() {
       async.flushMicrotasks();
       expect(channel().availability, PartyPluginAvailability.unavailable);
       expect(channel().pluginVersion, isNull);
+      finish(async);
+    });
+  });
+
+  test('uscita dal gruppo con il Join in corso: Leave, canale spento', () {
+    fakeAsync((async) {
+      channelApi
+        ..install()
+        ..joinGate = Completer<void>();
+      mount(async);
+      joinGroup(async);
+      expect(channelApi.calls, ['info', 'join g1']);
+      leaveGroup(async);
+      expect(channelApi.calls, ['info', 'join g1', 'leave g1'],
+          reason: 'il server ci ha già registrati');
+      channelApi.joinGate!.complete();
+      async.flushMicrotasks();
+      expect(channel().active, isFalse);
+      expect(notices.attributionCalls, isNot(contains(true)));
+      finish(async);
+    });
+  });
+
+  test('rientro con il primo Join in corso: attivo una volta, storico unito',
+      () {
+    fakeAsync((async) {
+      channelApi
+        ..install()
+        ..history = [
+          testChatEvent('ciao', id: 'h1'),
+          testChatEvent('pronti?',
+              id: 'h2', sentAt: DateTime.utc(2026, 10, 2, 21, 1)),
+        ]
+        ..joinGate = Completer<void>();
+      mount(async);
+      joinGroup(async);
+      receive(
+          async,
+          partyPayload({'Type': 'Chat', 'Text': 'pronti?'},
+              id: 'h2', sentAt: DateTime.utc(2026, 10, 2, 21, 1)));
+      events.add(const ServerConnected(true));
+      async.flushMicrotasks();
+      expect(channelApi.calls, ['info', 'join g1', 'join g1']);
+      channelApi.joinGate!.complete();
+      async.flushMicrotasks();
+      expect(channel().active, isTrue);
+      expect(notices.attributionCalls, [true]);
+      expect(channel().messages.map((m) => m.event.id), ['h1', 'h2']);
+      finish(async);
+    });
+  });
+
+  test('eventi arrivati con il Join in corso: tenuti, una volta sola', () {
+    fakeAsync((async) {
+      channelApi
+        ..install()
+        ..history = [testChatEvent('ciao', id: 'c1')]
+        ..joinGate = Completer<void>();
+      mount(async);
+      final chats = <PartyChatEntry>[];
+      notifier().chatArrivals.listen(chats.add);
+      joinGroup(async);
+      receive(async, partyPayload({'Type': 'Chat', 'Text': 'ciao'}, id: 'c1'));
+      receive(async,
+          partyPayload({'Type': 'Action', 'Action': 'Pause'}, id: 'a1'));
+      expect(channel().active, isFalse);
+      expect(channel().messages.single.event.text, 'ciao');
+      expect(chats.single.event.id, 'c1');
+      expect(notices.attributed.single.action, PartyAction.pause);
+      channelApi.joinGate!.complete();
+      async.flushMicrotasks();
+      expect(channel().active, isTrue);
+      expect(channel().messages.map((m) => m.event.id), ['c1']);
+      expect(chats, hasLength(1));
+      receive(async, partyPayload({'Type': 'Chat', 'Text': 'ciao'}, id: 'c1'));
+      expect(channel().messages, hasLength(1));
+      finish(async);
+    });
+  });
+
+  test("uscita dall'account: canale azzerato, eventi ignorati", () {
+    fakeAsync((async) {
+      channelApi.install();
+      mount(async);
+      joinGroup(async);
+      receive(async, partyPayload({'Type': 'Chat', 'Text': 'ciao'}, id: 'c1'));
+      expect(channel().active, isTrue);
+      expect(channel().messages, hasLength(1));
+      unawaited(container.read(sessionControllerProvider.notifier).logout());
+      async.flushMicrotasks();
+      expect(channel().active, isFalse);
+      expect(channel().messages, isEmpty);
+      receive(async, partyPayload({'Type': 'Chat', 'Text': 'dopo'}, id: 'c2'));
+      receive(async,
+          partyPayload({'Type': 'Action', 'Action': 'Pause'}, id: 'a1'));
+      expect(channel().messages, isEmpty);
+      expect(channel().received, 0);
+      expect(notices.attributed, isEmpty);
       finish(async);
     });
   });

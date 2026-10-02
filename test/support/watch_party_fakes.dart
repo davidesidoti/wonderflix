@@ -283,6 +283,9 @@ class FakePartyChannelApi implements PartyChannelApi {
   /// Errore di [join], se valorizzato.
   PartyChannelFailure? joinFailure;
 
+  /// Se valorizzato, [join] aspetta che si completi.
+  Completer<void>? joinGate;
+
   /// Errori delle prossime [send], uno per chiamata.
   final sendFailures = <PartyChannelFailure>[];
 
@@ -314,6 +317,7 @@ class FakePartyChannelApi implements PartyChannelApi {
   @override
   Future<List<PartyChatEvent>> join(String groupId) async {
     calls.add('join $groupId');
+    await joinGate?.future;
     final failure = joinFailure;
     if (failure != null) throw PartyChannelException(failure);
     return history;
