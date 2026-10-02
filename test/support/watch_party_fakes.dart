@@ -1,10 +1,18 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:clock/clock.dart';
+import 'package:wonderflix/core/jellyfin/item_models.dart';
+import 'package:wonderflix/core/party_channel/party_channel_api.dart';
+import 'package:wonderflix/core/party_channel/party_channel_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_api.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/watch_party/party_notices.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
 import 'package:wonderflix/features/watch_party/watch_party_invites.dart';
 import 'package:wonderflix/features/watch_party/watch_party_routing.dart';
+
+import 'test_data.dart';
 
 /// `SyncPlayApi` in memoria: registra le chiamate. Il server "risponde"
 /// tramite [onCall], con cui i test mandano gli eventi del WebSocket.
@@ -249,3 +257,117 @@ class FakeWatchPartyInvites extends WatchPartyInvites {
   /// Un invito arriva (come un gruppo nuovo nell'elenco).
   void show(GroupInfo group) => state = group;
 }
+
+/// `PartyChannelApi` in memoria. Di default il plugin è assente: `info`
+/// lancia `unavailable`, come un server senza plugin, e i test che non
+/// parlano del canale restano come prima.
+class FakePartyChannelApi implements PartyChannelApi {
+  /// Risposta di [info]; `null` = plugin assente (404).
+  PartyPluginInfo? pluginInfo;
+
+  /// Storico restituito da [join].
+  List<PartyChatEvent> history = const [];
+
+  /// Errore di [join], se valorizzato.
+  PartyChannelFailure? joinFailure;
+
+  /// Errori delle prossime [send], uno per chiamata.
+  final sendFailures = <PartyChannelFailure>[];
+
+  /// Se valorizzato, [send] aspetta che si completi.
+  Completer<void>? sendGate;
+
+  /// Chiamate in ordine: `info`, `join g1`, `leave g1`, `send g1 Chat`.
+  final calls = <String>[];
+
+  /// Eventi passati a [send], anche quelli falliti.
+  final sent = <PartyOutgoing>[];
+
+  int _ids = 0;
+
+  /// Plugin presente, con il nostro protocollo.
+  void install({String version = '1.0.0'}) => pluginInfo =
+      PartyPluginInfo(version: version, protocol: partyChannelProtocol);
+
+  @override
+  Future<PartyPluginInfo> info() async {
+    calls.add('info');
+    final info = pluginInfo;
+    if (info == null) {
+      throw const PartyChannelException(PartyChannelFailure.unavailable);
+    }
+    return info;
+  }
+
+  @override
+  Future<List<PartyChatEvent>> join(String groupId) async {
+    calls.add('join $groupId');
+    final failure = joinFailure;
+    if (failure != null) throw PartyChannelException(failure);
+    return history;
+  }
+
+  @override
+  Future<void> leave(String groupId) async => calls.add('leave $groupId');
+
+  /// Timbra l'evento come il plugin, con [testUser] e id `srv-1`, `srv-2`, …
+  @override
+  Future<PartyEvent> send(String groupId, PartyOutgoing event) async {
+    final json = event.toJson();
+    calls.add('send $groupId ${json['Type']}');
+    sent.add(event);
+    await sendGate?.future;
+    if (sendFailures.isNotEmpty) {
+      throw PartyChannelException(sendFailures.removeAt(0));
+    }
+    return parsePartyEvent(jsonDecode(partyPayload(json,
+        id: 'srv-${++_ids}',
+        groupId: groupId,
+        userId: testUser.id,
+        userName: testUser.name,
+        sentAt: clock.now().toUtc())))!;
+  }
+}
+
+/// Evento timbrato di prova come lo inoltra il plugin (stringa JSON):
+/// [fields] sopra i campi comuni.
+String partyPayload(
+  Map<String, dynamic> fields, {
+  String id = 'e1',
+  String groupId = 'g1',
+  String userId = 'u2',
+  String userName = 'Luigi',
+  DateTime? sentAt,
+}) =>
+    jsonEncode({
+      'Protocol': partyChannelProtocol,
+      'Id': id,
+      'GroupId': groupId,
+      'UserId': userId,
+      'UserName': userName,
+      'SentAt': (sentAt ?? DateTime.utc(2026, 10, 2, 21)).toIso8601String(),
+      ...fields,
+    });
+
+PartyChatEvent testChatEvent(
+  String text, {
+  String id = 'e1',
+  String userId = 'u2',
+  String userName = 'Luigi',
+  DateTime? sentAt,
+}) =>
+    parsePartyEvent(partyPayload({'Type': 'Chat', 'Text': text},
+        id: id, userId: userId, userName: userName, sentAt: sentAt))!
+        as PartyChatEvent;
+
+PartyActionEvent testActionEvent(
+  PartyAction action, {
+  String id = 'e1',
+  String userName = 'Luigi',
+  Duration? position,
+}) =>
+    parsePartyEvent(partyPayload({
+      'Type': 'Action',
+      'Action': action.wire,
+      if (position != null) 'PositionTicks': durationToTicks(position),
+    }, id: id, userName: userName))! as PartyActionEvent;
