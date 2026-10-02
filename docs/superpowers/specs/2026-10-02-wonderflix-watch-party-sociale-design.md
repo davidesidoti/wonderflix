@@ -105,7 +105,7 @@ Tutti richiedono un utente collegato con accesso a SyncPlay (policy `SyncPlayHas
 | `POST /WonderFlixWatchParty/Groups/{groupId}/Leave` | 204 | Toglie la sessione dal gruppo. |
 | `POST /WonderFlixWatchParty/Groups/{groupId}/Events` | l'evento timbrato (§6.3) | Valida, timbra, conserva (solo chat) e inoltra un evento. Registra anche la sessione, se non lo era (es. dopo un riavvio del plugin). |
 
-Errori: **400** evento non valido, **403** gruppo inesistente o utente non nel gruppo, **409** sessione di chi chiama non trovata, **429** limite di frequenza superato. Il plugin non risponde mai 404: per l'app un 404 vuol dire che la rotta non esiste, cioè plugin assente. Senza autenticazione la risposta è 400, come per gli endpoint SyncPlay di Jellyfin (la policy `SyncPlayHasAccess` va in errore su un utente anonimo); l'app manda sempre l'autenticazione.
+Errori: **400** evento non valido, **403** gruppo inesistente o utente non nel gruppo, **409** sessione di chi chiama non trovata, **429** limite di frequenza superato. Il plugin non risponde mai 404: per l'app un 404 vuol dire che la rotta non esiste, cioè plugin assente. Un `groupId` che non è un GUID riceve 404 dal vincolo della rotta (`{groupId:guid}`); l'app manda sempre GUID. Senza autenticazione la risposta è 400, come per gli endpoint SyncPlay di Jellyfin (la policy `SyncPlayHasAccess` va in errore su un utente anonimo); l'app manda sempre l'autenticazione.
 
 ### 6.3 Protocollo (versione 1)
 
@@ -145,7 +145,7 @@ La chiave `WonderFlixWatchParty` evita `String`, che jellyfin-web scriverebbe ne
 
 ### 6.4 Identità e appartenenza
 
-- **Chi chiama:** `IAuthorizationContext.GetAuthorizationInfo(HttpContext)` dà `UserId` e `DeviceId`; la sessione è quella di `ISessionManager.Sessions` con lo stesso `DeviceId` e `UserId`. Se non c'è: 409.
+- **Chi chiama:** `IAuthorizationContext.GetAuthorizationInfo(HttpContext)` dà `UserId`, `DeviceId` e `Client`; la sessione è quella di `ISessionManager.Sessions` con gli stessi `DeviceId`, `Client` e `UserId`. Se non c'è: 409.
 - **Appartenenza:** `ISyncPlayManager.GetGroup(session, groupId)` deve restituire il gruppo e il nome dell'utente deve essere tra i `Participants` (confronto senza distinzione di maiuscole); altrimenti 403. I partecipanti sono solo nomi: il controllo è per utente, non per sessione.
 
 ### 6.5 Registro, storico e pulizia
@@ -171,6 +171,7 @@ La chiave `WonderFlixWatchParty` evita `String`, che jellyfin-web scriverebbe ne
 - Destinatari: le sessioni registrate nel gruppo, **tranne quella che ha inviato**, ancora presenti in `ISessionManager.Sessions` e con l'utente ancora tra i partecipanti.
 - Invio con `ISessionManager.SendGeneralCommand(null, sessionId, command, ct)`. Con `controllingSessionId` nullo il server non controlla i permessi di controllo remoto (verificato sul codice 10.11.9: `SessionManager.cs`, `SendGeneralCommand`), e il messaggio va sul WebSocket aperto più di recente della sessione (`WebSocketController.SendMessage`). Una sessione senza WebSocket aperto non riceve nulla.
 - Gli invii partono in parallelo; l'errore su una sessione si registra nel log e non ferma gli altri. La risposta a chi ha inviato arriva dopo gli inoltri.
+- L'inoltro non usa l'annullamento della richiesta di chi invia (`CancellationToken.None`): una richiesta interrotta non deve interrompere i WebSocket dei destinatari.
 
 ### 6.8 Distribuzione
 
@@ -210,8 +211,8 @@ Notifier Riverpod che segue `WatchPartySession`.
 - **Stato:** disponibilità (`unknown`, `available`, `unavailable`), versione del plugin, canale attivo per il gruppo corrente, messaggi della chat (al massimo 50, ognuno con stato `pending`/`sent`), messaggi non letti, contatori di eventi inviati e ricevuti.
 - **Flussi:** `reactions` (anche le proprie, subito), `chatArrivals` (messaggi nuovi, anche i propri `pending`). Gli annunci degli altri non hanno un flusso: vanno agli avvisi (sotto).
 - **Ingresso:** quando la sessione entra in un gruppo e a ogni nuovo ingresso dopo una riconnessione (`rejoins`): `info()` (se il plugin non risulta già disponibile), poi `join(groupId)`. Lo storico ricevuto si unisce a quello presente per `Id`, in ordine di `SentAt`.
-- **Uscita:** quando la sessione esce dal gruppo: `leave(groupId)` (senza attendere l'esito), messaggi e contatori azzerati, canale spento.
-- **Ricezione:** `PartyChannelReceived` → `parsePartyEvent`; scartati gli eventi di un altro gruppo e i doppioni (stesso `Id`). Un evento con il proprio `UserId` (stesso utente da un altro PC) si mostra come "Tu".
+- **Uscita:** quando la sessione esce dal gruppo: `leave(groupId)` (senza attendere l'esito) se per quel gruppo è partito un `Join`, anche se la risposta non è ancora arrivata (il server ci ha forse già registrati); messaggi e contatori azzerati, canale spento.
+- **Ricezione:** `PartyChannelReceived` → `parsePartyEvent`; scartati gli eventi di un altro gruppo e i doppioni (stesso `Id`). Con il `Join` in corso si accettano già gli eventi del gruppo in cui si entra: il server può inoltrarli prima della risposta. Nella chat e nelle reazioni un evento con il proprio `UserId` (stesso utente da un altro PC) si mostra come "Tu"; gli id utente si confrontano come quelli dei gruppi (senza trattini, in minuscolo). Negli avvisi il proprio utente da un altro PC resta con il nome: l'azione viene da un altro dispositivo.
 - **Invio:**
   - `sendChat(text)`: aggiunge subito il messaggio come `pending`, poi lo sostituisce con quello timbrato; se fallisce lo toglie e restituisce l'esito (`sent`, `rateLimited`, `failed`).
   - `sendReaction(reaction)`: emette subito la reazione propria sul flusso, poi invia; un errore va solo nel log.
@@ -229,7 +230,7 @@ Notifier Riverpod che segue `WatchPartySession`.
 | Pausa | `GroupAuthority.pause` → `onAction(paused)` | `Pause` |
 | Ripresa (anche senza aspettare) | `GroupAuthority.play` → `onAction(resumed)` | `Unpause` |
 | Salto (dopo il debounce di 400 ms) | `GroupAuthority._flushSeek` → `onAction(seeked, position)` | `Seek` + `PositionTicks` |
-| Episodio successivo (pulsante, tasto N, "Riproduci ora" del post-play) | `_playNext` nel gruppo, se `nextItem` restituisce `true` | `NextItem` |
+| Episodio successivo (pulsante, tasto N, "Riproduci ora" del post-play) | `_playNext` nel gruppo, se `nextItem` restituisce `true` (richiesta arrivata al server) | `NextItem` |
 | Nuovo titolo ("Guarda insieme" dentro un gruppo) | `startWatchParty` dopo `setQueue` riuscita | `NewQueue` |
 
 L'avanzamento a fine video (`_onFinished`) **non** si annuncia: lo chiedono tutti i membri e il nome non avrebbe senso.
@@ -248,7 +249,7 @@ L'avanzamento a fine video (`_onFinished`) **non** si annuncia: lo chiedono tutt
 | episodio successivo | `NextItem` |
 | "si guarda" (nuovo titolo) | `NewQueue` |
 
-- **Attesa:** se l'avviso arriva prima del nome, resta in sospeso **al massimo 300 ms**: esce appena arriva l'annuncio, oppure allo scadere senza nome (come oggi). Gli avvisi in sospeso restano nell'ordine di arrivo.
+- **Attesa:** se l'avviso arriva prima del nome, resta in sospeso **al massimo 300 ms**: esce appena arriva l'annuncio, oppure allo scadere senza nome (come oggi). Un avviso che aspetta il nome può essere superato da uno successivo (entro 300 ms): accettato. Anche i nostri avvisi di episodio successivo e di nuovo titolo, che non passano da `PartyNotices.mine`, possono aspettare fino a 300 ms.
 - Un annuncio senza un avviso corrispondente non mostra niente: lo stato lo dice SyncPlay.
 - Restano come oggi: avvisi propri ("Hai…"), eliminazione dell'eco, ingressi e uscite (che hanno già il nome), riallineamenti, fine e rimozione.
 - Con il canale spento non si attende nulla: gli avvisi escono subito, anonimi.
@@ -360,10 +361,13 @@ Le emoji usano `fontFamily: 'Segoe UI Emoji'` (glifi a colori di Windows). Sono 
 | Membro con un'app senza il canale | Le sue azioni restano anonime per gli altri; lui non vede chat e reazioni. |
 | Server aggiornato a Jellyfin 12 senza la nuova build | Il plugin non si carica: come "plugin assente". |
 
+I 404 e i 429 del plugin sono esiti previsti: nel log vanno a livello info, non tra gli "Ultimi errori" (§13).
+
 ## 13. Diagnostica e log
 
 - La diagnostica (Impostazioni → copia della diagnostica) aggiunge una riga `Plugin watch party: …`, per esempio `Plugin watch party: 1.0.0 (protocollo 1), canale=attivo, inviati=3, ricevuti=5`, oppure `assente, canale=spento, …`, `2.0.0 (protocollo diverso), …`, `sconosciuto, …` (`describePartyChannel`). Come il resto della diagnostica non è tradotta. **Mai testi né nomi.** Se il plugin non è già noto, la diagnostica chiede `Info` (al massimo 5 s).
-- Log dell'app (`Logger('watchparty')`): tipi di evento, esiti delle chiamate, motivi di scarto. Mai il testo dei messaggi.
+- Log dell'app (`Logger('watchparty')`): tipi di evento, esiti delle chiamate, motivi di scarto. Mai il testo dei messaggi, neanche negli errori di lettura (solo il tipo dell'errore).
+- Le chiamate al plugin con risposta 404 (plugin assente) o 429 (troppi eventi) vanno nel log `http` a livello info: non finiscono tra gli "Ultimi errori" della diagnostica.
 - Discord: invariato.
 
 ## 14. Testi nuovi (ARB, it + en)
@@ -430,7 +434,7 @@ Ogni piano segue il flusso concordato (worktree, subagent, revisione, prova manu
 ## 17. Rischi e punti da verificare
 
 - **Inoltro sul WebSocket:** verificato sul server vero con la sonda del piano 10a (2026-10-02).
-- **Policy `SyncPlayHasAccess`** e `IAuthorizationContext` dal pacchetto NuGet: da verificare nella sonda.
+- **Policy `SyncPlayHasAccess`** e `IAuthorizationContext` dal pacchetto NuGet: verificati con la sonda (2026-10-02).
 - **Emoji a colori** in Flutter su Windows: da verificare all'inizio del 10b; se il font non si vede a colori, si torna a decidere (icone Lucide o immagini).
 - **Sovrapposizioni:** bolle e reazioni possono coprire righe lunghe di sottotitoli o testi del post-play; da guardare nella prova manuale.
 - **Più sessioni dello stesso utente** nel gruppo: l'appartenenza è per nome utente; entrambe ricevono gli eventi, e i propri si mostrano come "Tu".
