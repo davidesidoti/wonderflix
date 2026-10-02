@@ -462,7 +462,7 @@ const anonymous = (await fetch(ApiClient.getUrl('WonderFlixWatchParty/Info'))).s
 ({ info, probe, socket: !!socket, seen, anonymous })
 ```
 
-Atteso: `info` = `{Version: '1.0.0', Protocol: 1}`; `probe` con `SessionId`; `seen` con **un** messaggio `GeneralCommand` il cui `Data.Name` è `SendString` e `Data.Arguments.WonderFlixWatchParty` è `{"Probe":1}`; `anonymous` = 401. Se `ApiClient._webSocket` non esiste in questa versione di jellyfin-web, cercare la proprietà del socket con `Object.keys(ApiClient)` e ripetere; in alternativa l'utente esegue lo stesso codice negli strumenti per sviluppatori del suo browser e guarda la scheda Network → WS.
+Atteso: `info` = `{Version: '1.0.0', Protocol: 1}`; `probe` con `SessionId`; `seen` con **un** messaggio `GeneralCommand` il cui `Data.Name` è `SendString` e `Data.Arguments.WonderFlixWatchParty` è `{"Probe":1}`; `anonymous` ≠ 404 (**esito della sonda, 2026-10-02:** tutto come atteso; senza autenticazione la risposta è **400**, come per gli endpoint SyncPlay di Jellyfin: la loro policy va in errore su un utente anonimo. Plugin in `~/.apps/jellyfin/data/plugins/`, riavvio con `ssh ultra app-jellyfin restart`). Se `ApiClient._webSocket` non esiste in questa versione di jellyfin-web, cercare la proprietà del socket con `Object.keys(ApiClient)` e ripetere; in alternativa l'utente esegue lo stesso codice negli strumenti per sviluppatori del suo browser e guarda la scheda Network → WS.
 - [ ] **Step 4:** esito all'utente. Se il messaggio non arriva o il plugin non si carica, **non** si prosegue: si torna al design (spec E §17, primo rischio). Se tutto torna, si riparte con il gruppo B.
 
 ---
@@ -5454,6 +5454,8 @@ Nello spec:
 ```
 
 6. **§14**, tabella: togli le quattro righe `diagnosticsPartyPlugin`, `diagnosticsPartyPluginVersion`, `diagnosticsPartyPluginMissing`, `diagnosticsPartyPluginUnknown` (la diagnostica non usa gli ARB).
+7. **§6.2**, dopo la frase sugli errori aggiungi: ` Senza autenticazione la risposta è 400, come per gli endpoint SyncPlay di Jellyfin (la policy \`SyncPlayHasAccess\` va in errore su un utente anonimo); l'app manda sempre l'autenticazione.`
+8. **§17**, primo punto: sostituisci `verificato sul codice di 10.11.9, non ancora sul server: è lo scopo della sonda.` con `verificato sul server vero con la sonda del piano 10a (2026-10-02).`
 
 - [ ] **Step 2: verifica completa**
 
