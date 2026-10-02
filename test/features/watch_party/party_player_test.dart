@@ -21,6 +21,7 @@ import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/player/pause_screen.dart';
 import 'package:wonderflix/features/player/playback_service.dart';
 import 'package:wonderflix/features/player/player_chrome.dart';
+import 'package:wonderflix/features/player/player_controller.dart';
 import 'package:wonderflix/features/player/player_extras.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
@@ -32,6 +33,7 @@ import 'package:wonderflix/features/watch_party/party_chat_bubble.dart';
 import 'package:wonderflix/features/watch_party/party_chat_layer.dart';
 import 'package:wonderflix/features/watch_party/party_notices.dart';
 import 'package:wonderflix/features/watch_party/party_reactions_layer.dart';
+import 'package:wonderflix/features/watch_party/party_reactions_tray.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
@@ -1228,20 +1230,136 @@ void main() {
     await finish(tester);
   });
 
-  testWidgets('reazioni: tasti 1–6, niente ripetizione, una ogni 200 ms',
-      (tester) async {
+  Map<String, dynamic> sentReaction(PartyReaction reaction) =>
+      {'Type': 'Reaction', 'Reaction': reaction.id};
+
+  testWidgets('reazioni: tasti 1–6 e tastierino', (tester) async {
+    await pumpPartyPlayer(tester);
+    for (final key in [
+      LogicalKeyboardKey.digit1,
+      LogicalKeyboardKey.digit2,
+      LogicalKeyboardKey.digit3,
+      LogicalKeyboardKey.digit4,
+      LogicalKeyboardKey.digit5,
+      LogicalKeyboardKey.digit6,
+      LogicalKeyboardKey.numpad1,
+      LogicalKeyboardKey.numpad2,
+      LogicalKeyboardKey.numpad3,
+      LogicalKeyboardKey.numpad4,
+      LogicalKeyboardKey.numpad5,
+      LogicalKeyboardKey.numpad6,
+    ]) {
+      await tester.sendKeyEvent(key);
+      await tester.pump(PlayerScreen.reactionInterval);
+    }
+    expect(sentReactions(), [
+      for (var round = 0; round < 2; round++)
+        for (final reaction in PartyReaction.values) sentReaction(reaction),
+    ]);
+    await finish(tester);
+  });
+
+  testWidgets('reazioni: al massimo una ogni 200 ms', (tester) async {
     await pumpPartyPlayer(tester);
     await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
-    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.digit1);
     await tester.sendKeyEvent(LogicalKeyboardKey.digit2);
     await tester.pump();
-    expect(sentReactions(), [
-      {'Type': 'Reaction', 'Reaction': 'joy'},
-    ], reason: 'ripetizione ignorata, la seconda entro 200 ms scartata');
+    expect(sentReactions(), [sentReaction(PartyReaction.joy)],
+        reason: 'la seconda entro 200 ms si scarta');
     await tester.pump(PlayerScreen.reactionInterval);
     await tester.sendKeyEvent(LogicalKeyboardKey.numpad6);
     await tester.pump();
-    expect(sentReactions().last, {'Type': 'Reaction', 'Reaction': 'facepalm'});
+    expect(sentReactions(), [
+      sentReaction(PartyReaction.joy),
+      sentReaction(PartyReaction.facepalm),
+    ]);
+    await finish(tester);
+  });
+
+  testWidgets('reazioni: tenendo premuto il tasto la ripetizione non manda '
+      'nulla', (tester) async {
+    await pumpPartyPlayer(tester);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.digit1);
+    // Oltre il limite dei 200 ms: se la ripetizione contasse, passerebbe.
+    await tester.pump(
+        PlayerScreen.reactionInterval + const Duration(milliseconds: 50));
+    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.digit1);
+    await tester.pump();
+    expect(sentReactions(), [sentReaction(PartyReaction.joy)]);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.digit1);
+    await tester.pump();
+    await finish(tester);
+  });
+
+  testWidgets('reazioni: con Ctrl, Alt o Meta i numeri non mandano nulla',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    for (final modifier in [
+      LogicalKeyboardKey.controlLeft,
+      LogicalKeyboardKey.altLeft,
+      LogicalKeyboardKey.metaLeft,
+    ]) {
+      await tester.sendKeyDownEvent(modifier);
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+      await tester.sendKeyUpEvent(modifier);
+      await tester.pump(PlayerScreen.reactionInterval);
+    }
+    expect(sentReactions(), isEmpty);
+    // Senza modificatori il tasto manda di nuovo la reazione.
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+    await tester.pump();
+    expect(sentReactions(), [sentReaction(PartyReaction.joy)]);
+    await finish(tester);
+  });
+
+  testWidgets('reazioni: con l\'orologio tornato indietro non restano '
+      'bloccate', (tester) async {
+    await pumpPartyPlayer(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+    await tester.pump();
+    // L'orologio di sistema torna indietro di un'ora (per esempio una
+    // sincronizzazione dell'ora).
+    final past = clock.now().subtract(const Duration(hours: 1));
+    await withClock(Clock.fixed(past),
+        () => tester.sendKeyEvent(LogicalKeyboardKey.digit2));
+    await tester.pump();
+    expect(sentReactions(), [
+      sentReaction(PartyReaction.joy),
+      sentReaction(PartyReaction.scream),
+    ]);
+    await finish(tester);
+  });
+
+  testWidgets('reazioni: senza plugin i numeri non mandano nulla',
+      (tester) async {
+    await pumpPartyPlayer(tester, plugin: false);
+    for (final key in [
+      LogicalKeyboardKey.digit1,
+      LogicalKeyboardKey.digit6,
+      LogicalKeyboardKey.numpad3,
+    ]) {
+      await tester.sendKeyEvent(key);
+      await tester.pump(PlayerScreen.reactionInterval);
+    }
+    expect(channelApi.sent, isEmpty);
+    expect(find.byType(PartyReactionsLayer), findsNothing);
+    expect(tester.takeException(), isNull);
+    // I tasti del player funzionano come prima.
+    await expectPlayerKeys(tester);
+    await finish(tester);
+  });
+
+  testWidgets('reazioni: un clic sulla barretta e un tasto entro 200 ms ne '
+      'mandano una sola', (tester) async {
+    await pumpPartyPlayer(tester);
+    await tester.tap(find.byTooltip(l.partyReactionsOpen));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.byKey(const ValueKey('party-reaction-clap')));
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+    await tester.pump();
+    expect(sentReactions(), [sentReaction(PartyReaction.clap)]);
     await finish(tester);
   });
 
@@ -1272,13 +1390,15 @@ void main() {
     await finish(tester);
   });
 
+  /// La barretta delle reazioni è aperta (o sta entrando).
+  Finder trayVisible() => find.byWidgetPredicate((widget) =>
+      widget is AnimatedOpacity &&
+      widget.opacity == 1 &&
+      widget.child is AnimatedScale);
+
   testWidgets('barretta: Esc e clic sul film la chiudono; con la chat uno '
       'alla volta', (tester) async {
     await pumpPartyPlayer(tester);
-    Finder trayVisible() => find.byWidgetPredicate((widget) =>
-        widget is AnimatedOpacity &&
-        widget.opacity == 1 &&
-        widget.child is AnimatedScale);
     await tester.tap(find.byTooltip(l.partyReactionsOpen));
     await tester.pump();
     expect(trayVisible(), findsOneWidget);
@@ -1304,6 +1424,69 @@ void main() {
     await tester.pump();
     expect(trayVisible(), findsNothing);
     expect(find.byKey(const Key('party-chat-field')), findsOneWidget);
+    await finish(tester);
+  });
+
+  testWidgets('barretta: senza il mouse sopra si chiude da sola',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    await tester.tap(find.byTooltip(l.partyReactionsOpen));
+    await tester.pump();
+    await tester.pump(
+        PartyReactionsTray.idleClose - const Duration(milliseconds: 100));
+    expect(trayVisible(), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump();
+    expect(trayVisible(), findsNothing);
+    // Chiusa davvero: Esc non resta a lei.
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    expect(api.calls, contains('leave'));
+    await finish(tester);
+  });
+
+  testWidgets('barretta aperta quando compare il post-play: si chiude, il '
+      'primo Esc chiude il post-play', (tester) async {
+    await pumpPartyPlayer(tester, segments: credits);
+    await queueSeries(tester);
+    await tester.tap(find.byTooltip(l.partyReactionsOpen));
+    await tester.pump();
+    expect(trayVisible(), findsOneWidget);
+    await toCredits(tester);
+    expect(trayVisible(), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text(l.playerWatchCredits), findsNothing,
+        reason: 'il primo Esc chiude il post-play');
+    expect(find.byType(PlayerScreen), findsOneWidget);
+    await finish(tester);
+  });
+
+  testWidgets('barretta aperta e riapertura non riuscita: si chiude, Esc '
+      'esce dal player', (tester) async {
+    // Il direct play non riesce: si guarda in transcodifica, dove cambiare
+    // l'audio riapre il file.
+    await pumpPartyPlayer(tester, failOpens: 1);
+    final args = tester.widget<PlayerScreen>(find.byType(PlayerScreen)).args;
+    // L'avviso della transcodifica coprirebbe il pulsante.
+    ScaffoldMessenger.of(tester.element(find.byType(PlayerScreen)))
+        .removeCurrentSnackBar();
+    await tester.pump();
+    await tester.tap(find.byTooltip(l.partyReactionsOpen));
+    await tester.pump();
+    expect(trayVisible(), findsOneWidget);
+    engine.failOpens = 1;
+    unawaited(
+        container.read(playerControllerProvider(args).notifier).selectAudio(2));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+    expect(find.text(l.playerErrorTitle), findsOneWidget);
+    expect(trayVisible(), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    expect(api.calls, contains('leave'),
+        reason: 'nessun riquadro aperto: Esc esce dal player');
     await finish(tester);
   });
 

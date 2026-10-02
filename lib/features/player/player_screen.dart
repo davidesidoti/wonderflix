@@ -101,21 +101,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     LogicalKeyboardKey.numpadEnter,
   };
 
-  /// Tasti delle reazioni (spec E §10.3): 1–6 e tastierino. Non `const`: le
-  /// chiavi ridefiniscono `==`.
+  /// Cifre e tasti del tastierino da 1 a 6, nell'ordine di
+  /// [PartyReaction.key].
+  static const _digitKeys = [
+    LogicalKeyboardKey.digit1,
+    LogicalKeyboardKey.digit2,
+    LogicalKeyboardKey.digit3,
+    LogicalKeyboardKey.digit4,
+    LogicalKeyboardKey.digit5,
+    LogicalKeyboardKey.digit6,
+  ];
+  static const _numpadKeys = [
+    LogicalKeyboardKey.numpad1,
+    LogicalKeyboardKey.numpad2,
+    LogicalKeyboardKey.numpad3,
+    LogicalKeyboardKey.numpad4,
+    LogicalKeyboardKey.numpad5,
+    LogicalKeyboardKey.numpad6,
+  ];
+
+  /// Tasti delle reazioni (spec E §10.3): 1–6 e tastierino, dal tasto di
+  /// ogni reazione. Non `const`: le chiavi ridefiniscono `==`.
   static final _reactionKeys = {
-    LogicalKeyboardKey.digit1: PartyReaction.joy,
-    LogicalKeyboardKey.digit2: PartyReaction.scream,
-    LogicalKeyboardKey.digit3: PartyReaction.cry,
-    LogicalKeyboardKey.digit4: PartyReaction.wow,
-    LogicalKeyboardKey.digit5: PartyReaction.clap,
-    LogicalKeyboardKey.digit6: PartyReaction.facepalm,
-    LogicalKeyboardKey.numpad1: PartyReaction.joy,
-    LogicalKeyboardKey.numpad2: PartyReaction.scream,
-    LogicalKeyboardKey.numpad3: PartyReaction.cry,
-    LogicalKeyboardKey.numpad4: PartyReaction.wow,
-    LogicalKeyboardKey.numpad5: PartyReaction.clap,
-    LogicalKeyboardKey.numpad6: PartyReaction.facepalm,
+    for (final reaction in PartyReaction.values) ...{
+      _digitKeys[reaction.key - 1]: reaction,
+      _numpadKeys[reaction.key - 1]: reaction,
+    },
   };
 
   /// Aggancio della barretta delle reazioni al suo pulsante.
@@ -281,11 +292,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _inParty && ref.read(partyChannelProvider).active;
 
   /// Manda una reazione (tasti o barretta), al massimo una ogni
-  /// [PlayerScreen.reactionInterval].
+  /// [PlayerScreen.reactionInterval]. Se l'orologio di sistema è tornato
+  /// indietro la reazione passa: altrimenti resterebbero bloccate finché
+  /// l'ora non torna dov'era.
   void _sendReaction(PartyReaction reaction) {
     final now = clock.now();
     final last = _lastReactionAt;
-    if (last != null && now.difference(last) < PlayerScreen.reactionInterval) {
+    if (last != null &&
+        !now.isBefore(last) &&
+        now.difference(last) < PlayerScreen.reactionInterval) {
       return;
     }
     _lastReactionAt = now;
@@ -675,6 +690,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       altPressed: HardwareKeyboard.instance.isAltPressed,
       mediaKeys: !_mediaSession.handlesMediaKeys);
 
+  /// Ctrl, Alt o Meta premuti: i numeri non mandano reazioni.
+  bool get _shortcutModifierPressed {
+    final keyboard = HardwareKeyboard.instance;
+    return keyboard.isControlPressed ||
+        keyboard.isAltPressed ||
+        keyboard.isMetaPressed;
+  }
+
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (_chrome.chatOpen) return _onChatKey(event);
     // Invio apre la chat del watch party, solo con il focus al player: su
@@ -689,9 +712,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return KeyEventResult.handled;
     }
     // 1–6 mandano una reazione (spec E §10.3), solo con il focus al player:
-    // niente controlli né pillola, e tenendo premuto non si ripete.
+    // niente controlli né pillola, e tenendo premuto non si ripete. Con
+    // Ctrl, Alt o Meta premuti sono scorciatoie, non reazioni: il tasto
+    // prosegue come gli altri.
     final reaction = _reactionKeys[event.logicalKey];
-    if (reaction != null && _focusNode.hasPrimaryFocus && _chatAvailable) {
+    if (reaction != null &&
+        !_shortcutModifierPressed &&
+        _focusNode.hasPrimaryFocus &&
+        _chatAvailable) {
       if (event is KeyDownEvent) _sendReaction(reaction);
       if (event is! KeyUpEvent) _chrome.keyActivity();
       return KeyEventResult.handled;
@@ -868,7 +896,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     ref.listen(provider.select((s) => s.status), (previous, status) {
       // Una riapertura non riuscita (cambio di traccia) mentre il pannello è
       // aperto: lo strato dell'errore non deve avere il pannello a fianco.
-      if (status == PlayerStatus.error) _chrome.closePanel();
+      // La barretta delle reazioni, sparito il suo pulsante con i controlli,
+      // resterebbe aperta senza vedersi (e il primo Esc sarebbe suo).
+      if (status == PlayerStatus.error) {
+        _chrome
+          ..closePanel()
+          ..closePopup(PlayerPopup.reactions);
+      }
       if (status != PlayerStatus.ready) {
         // Errore, "Riprova" o ripiego: i comandi del gruppo aspettano il
         // prossimo caricamento.
@@ -962,13 +996,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // Il post-play compare o sparisce anche senza un cambio di zona (la coda
     // del gruppo, l'uscita dal gruppo, l'episodio successivo arrivato tardi,
     // lo stato del file): dopo il fotogramma, all'arrivo il pannello si
-    // chiude (sotto c'è il post-play) e la schermata di pausa segue (spec D
-    // §12.1: non c'è durante il post-play).
+    // chiude (sotto c'è il post-play), e con lui la barretta delle reazioni
+    // (spariti i controlli con il suo pulsante resterebbe aperta senza
+    // vedersi, e il primo Esc sarebbe suo); la schermata di pausa segue
+    // (spec D §12.1: non c'è durante il post-play).
     if (postPlay != _postPlayWasShown) {
       _postPlayWasShown = postPlay;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        if (postPlay) _chrome.closePanel();
+        if (postPlay) {
+          _chrome
+            ..closePanel()
+            ..closePopup(PlayerPopup.reactions);
+        }
         _syncPlayback();
       });
     }

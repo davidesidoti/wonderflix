@@ -160,7 +160,7 @@ class PlayerChromeController extends ChangeNotifier {
     _scheduleHide();
   }
 
-  /// Apre [popup], chiudendo l'altro. Il pannello "Audio e sottotitoli" e la
+  /// Apre [popup], chiudendo quello aperto. Il pannello "Audio e sottotitoli" e la
   /// barretta delle reazioni mostrano i controlli e li tengono su; la chat
   /// no (spec E §9.6). Tutti chiudono la schermata di pausa.
   void openPopup(PlayerPopup popup) {
