@@ -1,0 +1,40 @@
+# WonderFlix Watch Party (plugin di Jellyfin)
+
+Plugin del server Jellyfin per il watch party di WonderFlix (spec E,
+`docs/superpowers/specs/2026-10-02-wonderflix-watch-party-sociale-design.md`):
+dice chi ha agito, porta la chat e le reazioni tra i membri di un gruppo
+SyncPlay. Senza il plugin WonderFlix funziona lo stesso, con gli avvisi
+anonimi.
+
+- Jellyfin **10.11.x** (net9.0, `targetAbi` 10.11.0.0). Per Jellyfin 12 serve
+  una build nuova (net10.0).
+- Nessuna configurazione. Endpoint sotto `/WonderFlixWatchParty`; gli eventi
+  arrivano ai client come `GeneralCommand` `SendString` con la chiave
+  `WonderFlixWatchParty`.
+
+## Installazione dal repository
+
+1. Dashboard → Plugin → Repository → **+**: nome a piacere, URL
+   `https://raw.githubusercontent.com/davidesidoti/wonderflix/main/jellyfin-plugin-watch-party/manifest.json`.
+2. Catalogo → **WonderFlix Watch Party** → Installa.
+3. Riavvia Jellyfin.
+
+## Installazione a mano (prove)
+
+1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.0.0`.
+   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.0.0.0/`
+   con la dll e `meta.json`.
+2. Copia la cartella dentro `plugins/` della cartella dati di Jellyfin (su
+   Ultra.cc via SFTP).
+3. Riavvia Jellyfin. In Dashboard → Plugin compare "WonderFlix Watch Party",
+   attivo.
+
+Prima di installare dal Catalogo togli la cartella copiata a mano.
+
+## Sviluppo
+
+- Test: `dotnet test jellyfin-plugin-watch-party/Jellyfin.Plugin.WonderFlixWatchParty.Tests`.
+- Release: tag `watch-party-plugin-vX.Y.Z` → il workflow
+  `watch-party-plugin.yml` pubblica una **pre-release** con lo zip e il suo
+  MD5. Mai "latest": l'app legge `releases/latest` per i propri
+  aggiornamenti. Poi si aggiunge la versione a `manifest.json`.

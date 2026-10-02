@@ -1,0 +1,59 @@
+name: Watch party plugin
+
+# Test del plugin di Jellyfin a ogni modifica della sua cartella; con un tag
+# watch-party-plugin-vX.Y.Z pubblica una pre-release con lo zip (spec E §6.8).
+# I filtri sui percorsi non valgono per i tag.
+on:
+  push:
+    branches: [main]
+    tags: ['watch-party-plugin-v*.*.*']
+    paths:
+      - 'jellyfin-plugin-watch-party/**'
+      - '.github/workflows/watch-party-plugin.yml'
+  pull_request:
+    paths:
+      - 'jellyfin-plugin-watch-party/**'
+      - '.github/workflows/watch-party-plugin.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  plugin:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jellyfin-plugin-watch-party
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Test
+        run: dotnet test Jellyfin.Plugin.WonderFlixWatchParty.Tests --configuration Release
+
+      - name: Pacchetto
+        if: startsWith(github.ref, 'refs/tags/watch-party-plugin-v')
+        run: |
+          version="${GITHUB_REF_NAME#watch-party-plugin-v}"
+          bash ./pack.sh "$version"
+          zip_name="wonderflix-watch-party_${version}.zip"
+          (cd "artifacts/WonderFlix Watch Party_${version}.0" && zip -j "../${zip_name}" Jellyfin.Plugin.WonderFlixWatchParty.dll meta.json)
+          md5sum "artifacts/${zip_name}" | cut -d ' ' -f 1 > "artifacts/${zip_name}.md5"
+          echo "VERSION=${version}" >> "$GITHUB_ENV"
+
+      # Pre-release e mai "latest": l'app legge releases/latest per i propri
+      # aggiornamenti.
+      - name: Pre-release
+        if: startsWith(github.ref, 'refs/tags/watch-party-plugin-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$GITHUB_REF_NAME"
+          "artifacts/wonderflix-watch-party_${VERSION}.zip"
+          "artifacts/wonderflix-watch-party_${VERSION}.zip.md5"
+          --prerelease --latest=false
+          --title "WonderFlix Watch Party ${VERSION}"
+          --notes "Plugin di Jellyfin per il watch party di WonderFlix. Aggiungere la versione a jellyfin-plugin-watch-party/manifest.json."
