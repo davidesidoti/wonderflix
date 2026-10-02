@@ -79,6 +79,18 @@ void main() {
       }
       expect(reactionJitter('r1'), isNot(reactionJitter('r2')));
     });
+
+    test('scostamento: le nostre reazioni di fila (id in sequenza) sono ben '
+        'distribuite', () {
+      final jitters = [for (var i = 1; i <= 6; i++) reactionJitter('local-$i')];
+      for (final jitter in jitters) {
+        expect(jitter, inInclusiveRange(0, PartyReactionsLayer.maxJitter));
+      }
+      expect(jitters.toSet().length, greaterThanOrEqualTo(4));
+      final spread = jitters.reduce((a, b) => a > b ? a : b) -
+          jitters.reduce((a, b) => a < b ? a : b);
+      expect(spread, greaterThanOrEqualTo(30));
+    });
   });
 
   group('livello (spec E §10.4)', () {
@@ -158,6 +170,28 @@ void main() {
       await tester.pump(PartyReactionsLayer.reducedLifetime);
       await tester.pump();
       expect(inLayer(find.text('👏')), findsNothing);
+      await leave(tester);
+    });
+
+    testWidgets('nome lungo: troncato, l\'etichetta non supera la larghezza '
+        'massima', (tester) async {
+      await pumpLayer(tester);
+      const name = 'Bartolomeo Massimiliano Ferdinando della Rovere di '
+          'Montefeltro';
+      events.add(PartyChannelReceived(partyPayload(
+          {'Type': 'Reaction', 'Reaction': 'joy'},
+          id: 'r1',
+          userName: name)));
+      await tester.pump();
+      await tester.pump();
+      final label = inLayer(find.text(name));
+      expect(label, findsOneWidget);
+      final text = tester.widget<Text>(label);
+      expect(text.maxLines, 1);
+      expect(text.overflow, TextOverflow.ellipsis);
+      final box = find.ancestor(of: label, matching: find.byType(Container));
+      expect(tester.getSize(box.first).width,
+          lessThanOrEqualTo(PartyReactionsLayer.nameMaxWidth));
       await leave(tester);
     });
 

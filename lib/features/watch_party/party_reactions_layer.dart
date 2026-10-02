@@ -54,7 +54,21 @@ double reactionJitter(String id) {
   for (final unit in id.codeUnits) {
     sum = (sum * 31 + unit) & 0x7fffffff;
   }
-  return (sum % (PartyReactionsLayer.maxJitter.toInt() + 1)).toDouble();
+  return (_fmix32(sum) % (PartyReactionsLayer.maxJitter.toInt() + 1))
+      .toDouble();
+}
+
+/// Finalizzatore di murmur3 (fmix32), a 32 bit: mescola i bit della somma.
+/// Le nostre reazioni hanno id in sequenza (`local-1`, `local-2`…): senza,
+/// i loro scostamenti crescerebbero di 1 px alla volta.
+int _fmix32(int hash) {
+  var h = hash;
+  h ^= h >> 16;
+  h = (h * 0x85ebca6b) & 0xffffffff;
+  h ^= h >> 13;
+  h = (h * 0xc2b2ae35) & 0xffffffff;
+  h ^= h >> 16;
+  return h;
 }
 
 String _normalizeId(String id) => id.replaceAll('-', '').toLowerCase();
@@ -74,6 +88,10 @@ class PartyReactionsLayer extends ConsumerStatefulWidget {
 
   /// Dimensione delle emoji.
   static const emojiSize = 40.0;
+
+  /// Larghezza massima dell'etichetta con il nome: oltre si tronca con i
+  /// puntini.
+  static const nameMaxWidth = 120.0;
 
   /// Reazioni in volo insieme al massimo: le altre si scartano.
   static const maxInFlight = 12;
@@ -99,10 +117,10 @@ class PartyReactionsLayer extends ConsumerStatefulWidget {
   /// non si sommano in una costante).
   static const reducedLifetime = Duration(milliseconds: 2050);
 
-  /// Spazio del livello: lo scostamento più un'emoji con il nome, e la
-  /// salita più un'emoji con il nome.
+  /// Spazio del livello: lo scostamento più il nome più largo, e la salita
+  /// più un'emoji con il nome.
   static const _itemExtent = 72.0;
-  static const width = maxJitter + _itemExtent;
+  static const width = maxJitter + nameMaxWidth;
   static const height = rise + _itemExtent;
 
   @override
@@ -228,7 +246,8 @@ class _PartyReactionsLayerState extends ConsumerState<PartyReactionsLayer>
   }
 }
 
-/// Il nome sotto una reazione: piccolo, su fondo scuro.
+/// Il nome sotto una reazione: piccolo, su fondo scuro, su una riga sola e
+/// largo al massimo [PartyReactionsLayer.nameMaxWidth] (poi i puntini).
 class _NameLabel extends StatelessWidget {
   const _NameLabel(this.name);
 
@@ -239,12 +258,16 @@ class _NameLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
+        constraints:
+            const BoxConstraints(maxWidth: PartyReactionsLayer.nameMaxWidth),
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
         decoration: BoxDecoration(
           color: WfColors.bg.withValues(alpha: backgroundAlpha),
           borderRadius: BorderRadius.circular(PartyChatBubble.radius),
         ),
         child: Text(name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(color: WfColors.cream, fontSize: 11)),
       );
 }
