@@ -7,6 +7,7 @@ import 'package:wonderflix/core/jellyfin/playback_models.dart';
 import 'package:wonderflix/core/media_session/media_session.dart';
 import 'package:wonderflix/core/video/video_engine.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
+import 'package:wonderflix/features/player/player_volume.dart';
 import 'package:wonderflix/features/player/player_window.dart';
 
 /// Stream del file di prova, come li restituisce Jellyfin. In transcodifica
@@ -499,6 +500,19 @@ class FakePlayerSettings extends PlayerSettingsController {
   Future<void> update(PlayerSettings next) async {
     state = next;
   }
+}
+
+/// Volume ricordato solo in memoria: niente disco né timer.
+class FakePlayerVolume extends PlayerVolumeController {
+  FakePlayerVolume([this.initial = 100]);
+
+  final double initial;
+
+  @override
+  double build() => initial;
+
+  @override
+  void set(double volume) => state = volume.clamp(0.0, 100.0);
 }
 
 /// PNG trasparente 1×1, per sostituire le immagini di rete nei test.
