@@ -317,9 +317,13 @@ class _PartyChatLayerState extends ConsumerState<PartyChatLayer> {
   @override
   Widget build(BuildContext context) {
     final messages = ref.watch(partyChannelProvider.select((s) => s.messages));
-    return widget.open
-        ? _buildOpen(context, messages)
-        : _buildBubbles(messages);
+    // L'entrata delle bolle e il cursore del campo ridisegnano solo la chat,
+    // non gli strati del player sotto (il video).
+    return RepaintBoundary(
+      child: widget.open
+          ? _buildOpen(context, messages)
+          : _buildBubbles(messages),
+    );
   }
 
   Widget _buildBubbles(List<PartyChatEntry> messages) {

@@ -222,6 +222,23 @@ void main() {
       await leave(tester);
     });
 
+    testWidgets('bolle e chat aperta si ridisegnano da sole, non il video',
+        (tester) async {
+      Finder boundaryAbove(Finder child) => find.descendant(
+          of: find.byType(PartyChatLayer),
+          matching:
+              find.ancestor(of: child, matching: find.byType(RepaintBoundary)));
+      await pumpChat(tester);
+      await receive(tester, 'ciao', id: 'c1');
+      expect(boundaryAbove(bubbles()), findsOneWidget);
+      open.value = true;
+      await tester.pump();
+      await tester.pump();
+      expect(boundaryAbove(find.byKey(const Key('party-chat-field'))),
+          findsOneWidget);
+      await leave(tester);
+    });
+
     testWidgets('le bolle non prendono i clic', (tester) async {
       await pumpChat(tester);
       await receive(tester, 'ciao', id: 'c1');
