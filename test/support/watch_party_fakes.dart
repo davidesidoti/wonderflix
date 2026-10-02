@@ -225,6 +225,18 @@ class FakePartyNotices extends PartyNotices {
   /// Azioni registrate con `show: false` (solo l'eco, nessun avviso).
   final hiddenMineCalls = <PartyNoticeKind>[];
 
+  /// Chiamate di `setAttribution`, in ordine.
+  final attributionCalls = <bool>[];
+
+  /// Annunci passati ad `attribute`.
+  final attributed = <PartyActionEvent>[];
+
+  @override
+  void setAttribution(bool enabled) => attributionCalls.add(enabled);
+
+  @override
+  void attribute(PartyActionEvent event) => attributed.add(event);
+
   @override
   PartyNotice? build() => initial;
 

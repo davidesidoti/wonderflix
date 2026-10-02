@@ -7,21 +7,36 @@ import 'party_notices.dart';
 
 String partyNoticeText(AppLocalizations l, PartyNotice notice) {
   final time = formatClock(notice.position ?? Duration.zero);
+  final title = notice.title ?? '';
+  // Chi ha agito, nelle azioni altrui annunciate dal canale (spec E §8).
+  final by = notice.mine ? null : notice.name;
   return switch (notice.kind) {
-    PartyNoticeKind.paused =>
-      notice.mine ? l.watchPartyNoticePausedByYou : l.watchPartyNoticePaused,
-    PartyNoticeKind.resumed =>
-      notice.mine ? l.watchPartyNoticeResumedByYou : l.watchPartyNoticeResumed,
-    PartyNoticeKind.forcedResume => l.watchPartyNoticeForcedResume,
+    PartyNoticeKind.paused => notice.mine
+        ? l.watchPartyNoticePausedByYou
+        : by != null
+            ? l.watchPartyNoticePausedBy(by)
+            : l.watchPartyNoticePaused,
+    PartyNoticeKind.resumed => notice.mine
+        ? l.watchPartyNoticeResumedByYou
+        : by != null
+            ? l.watchPartyNoticeResumedBy(by)
+            : l.watchPartyNoticeResumed,
+    PartyNoticeKind.forcedResume => by != null
+        ? l.watchPartyNoticeForcedResumeBy(by)
+        : l.watchPartyNoticeForcedResume,
     PartyNoticeKind.seeked => notice.mine
         ? l.watchPartyNoticeSeekByYou(time)
-        : l.watchPartyNoticeSeek(time),
+        : by != null
+            ? l.watchPartyNoticeSeekBy(by, time)
+            : l.watchPartyNoticeSeek(time),
     PartyNoticeKind.joined => l.watchPartyNoticeJoined(notice.name ?? ''),
     PartyNoticeKind.left => l.watchPartyNoticeLeft(notice.name ?? ''),
-    PartyNoticeKind.nextEpisode =>
-      l.watchPartyNoticeNextEpisode(notice.title ?? ''),
-    PartyNoticeKind.nowWatching =>
-      l.watchPartyNoticeNowWatching(notice.title ?? ''),
+    PartyNoticeKind.nextEpisode => by != null
+        ? l.watchPartyNoticeNextEpisodeBy(by, title)
+        : l.watchPartyNoticeNextEpisode(title),
+    PartyNoticeKind.nowWatching => by != null
+        ? l.watchPartyNoticeNowWatchingBy(by, title)
+        : l.watchPartyNoticeNowWatching(title),
     PartyNoticeKind.resync => l.watchPartyNoticeResync,
     PartyNoticeKind.ended => l.watchPartyNoticeEnded,
     PartyNoticeKind.removed => l.watchPartyNoticeRemoved,

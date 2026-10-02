@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/core/party_channel/party_channel_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
@@ -393,6 +394,165 @@ void main() {
       async.flushMicrotasks();
       expect(current()?.kind, PartyNoticeKind.ended);
       finish(async);
+    });
+  });
+
+  group('nome di chi agisce (spec E §8)', () {
+    test('annuncio arrivato prima: l\'avviso ha subito il nome', () {
+      fakeAsync((async) {
+        mount(async);
+        notices().setAttribution(true);
+        notices().attribute(testActionEvent(PartyAction.pause));
+        emit(async, const GroupStateUpdate('g1', GroupState.paused, 'Pause'));
+        expect(current()?.kind, PartyNoticeKind.paused);
+        expect(current()?.name, 'Luigi');
+        finish(async);
+      });
+    });
+
+    test('annuncio arrivato dopo: l\'avviso lo aspetta', () {
+      fakeAsync((async) {
+        mount(async);
+        notices().setAttribution(true);
+        emit(async, const GroupStateUpdate('g1', GroupState.paused, 'Pause'));
+        expect(current(), isNull, reason: 'aspetta il nome');
+        async.elapse(const Duration(milliseconds: 120));
+        notices().attribute(testActionEvent(PartyAction.pause));
+        expect(current()?.kind, PartyNoticeKind.paused);
+        expect(current()?.name, 'Luigi');
+        finish(async);
+      });
+    });
+
+    test('nessun annuncio entro 300 ms: avviso senza nome', () {
+      fakeAsync((async) {
+        mount(async);
+        notices().setAttribution(true);
+        emit(async, const GroupStateUpdate('g1', GroupState.paused, 'Pause'));
+        async.elapse(
+            PartyNotices.attributionWait - const Duration(milliseconds: 1));
+        expect(current(), isNull);
+        async.elapse(const Duration(milliseconds: 1));
+        expect(current()?.kind, PartyNoticeKind.paused);
+        expect(current()?.name, isNull);
+        finish(async);
+      });
+    });
+
+    test('canale spento: nessuna attesa', () {
+      fakeAsync((async) {
+        mount(async);
+        emit(async, const GroupStateUpdate('g1', GroupState.paused, 'Pause'));
+        expect(current()?.kind, PartyNoticeKind.paused);
+        expect(current()?.name, isNull);
+        finish(async);
+      });
+    });
+
+    test('annuncio più vecchio di 2 s: non vale', () {
+      fakeAsync((async) {
+        mount(async);
+        notices().setAttribution(true);
+        notices().attribute(testActionEvent(PartyAction.pause));
+        async.elapse(PartyNotices.announcementLifetime +
+            const Duration(milliseconds: 1));
+        emit(async, const GroupStateUpdate('g1', GroupState.paused, 'Pause'));
+        async.elapse(PartyNotices.attributionWait);
+        expect(current()?.kind, PartyNoticeKind.paused);
+        expect(current()?.name, isNull);
+        finish(async);
+      });
+    });
+
+    test('l\'annuncio si consuma: un secondo avviso uguale resta senza nome',
+        () {
+      fakeAsync((async) {
+        mount(async);
+        notices().setAttribution(true);
+        notices().attribute(testActionEvent(PartyAction.pause));
+        emit(async, const GroupStateUpdate('g1', GroupState.paused, 'Pause'));
+        emit(async, const GroupStateUpdate('g1', GroupState.paused, 'Pause'));
+        async.elapse(PartyNotices.attributionWait);
+        expect(current()?.name, 'Luigi');
+        async.elapse(PartyNotices.showFor);
+        expect(current()?.kind, PartyNoticeKind.paused);
+        expect(current()?.name, isNull);
+        finish(async);
+      });
+    });
+
+    test('ripresa forzata e salto prendono il nome dall\'annuncio giusto', () {
+      fakeAsync((async) {
+        mount(async);
+        notices().setAttribution(true);
+        emit(async,
+            const GroupStateUpdate('g1', GroupState.waiting, 'Buffer'));
+        notices().attribute(
+            testActionEvent(PartyAction.unpause, id: 'a1', userName: 'Peach'));
+        emit(async,
+            const GroupStateUpdate('g1', GroupState.playing, 'Unpause'));
+        expect(current()?.kind, PartyNoticeKind.forcedResume);
+        expect(current()?.name, 'Peach');
+
+        async.elapse(PartyNotices.showFor);
+        const position = Duration(minutes: 32, seconds: 10);
+        seekCommand(async, position);
+        notices().attribute(
+            testActionEvent(PartyAction.seek, id: 'a2', position: position));
+        emit(async, const GroupStateUpdate('g1', GroupState.waiting, 'Seek'));
+        expect(current()?.kind, PartyNoticeKind.seeked);
+        expect(current()?.name, 'Luigi');
+        expect(current()?.position, position);
+        finish(async);
+      });
+    });
+
+    test('episodio successivo: nome e titolo', () {
+      fakeAsync((async) {
+        mount(async);
+        notices().setAttribution(true);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+        notices().attribute(testActionEvent(PartyAction.nextItem));
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                testSeriesQueue(
+                    playingIndex: 1,
+                    reason: 'NextItem',
+                    lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+        expect(current()?.kind, PartyNoticeKind.nextEpisode);
+        expect(current()?.name, 'Luigi');
+        expect(current()?.title, isNotNull);
+        finish(async);
+      });
+    });
+
+    test('canale spento con avvisi in attesa: escono subito senza nome', () {
+      fakeAsync((async) {
+        mount(async);
+        notices().setAttribution(true);
+        emit(async, const GroupStateUpdate('g1', GroupState.paused, 'Pause'));
+        expect(current(), isNull);
+        notices().setAttribution(false);
+        expect(current()?.kind, PartyNoticeKind.paused);
+        expect(current()?.name, isNull);
+        finish(async);
+      });
+    });
+
+    test('le proprie azioni non aspettano, e l\'eco non produce avvisi', () {
+      fakeAsync((async) {
+        mount(async);
+        notices().setAttribution(true);
+        notices().mine(PartyNoticeKind.paused);
+        expect(current()?.mine, isTrue);
+        emit(async, const GroupStateUpdate('g1', GroupState.paused, 'Pause'));
+        async.elapse(PartyNotices.attributionWait);
+        async.elapse(PartyNotices.showFor);
+        expect(current(), isNull);
+        finish(async);
+      });
     });
   });
 }

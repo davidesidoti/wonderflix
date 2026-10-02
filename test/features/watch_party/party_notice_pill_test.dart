@@ -44,6 +44,42 @@ void main() {
         'Non sei più nel watch party');
   });
 
+  test('testi con il nome di chi agisce (spec E §8)', () {
+    String text(PartyNotice notice) => partyNoticeText(l, notice);
+    const time = Duration(minutes: 32, seconds: 10);
+    expect(text(const PartyNotice(PartyNoticeKind.paused, name: 'Luigi')),
+        'Luigi ha messo in pausa');
+    expect(text(const PartyNotice(PartyNoticeKind.resumed, name: 'Luigi')),
+        'Luigi ha ripreso');
+    expect(
+        text(const PartyNotice(PartyNoticeKind.forcedResume, name: 'Luigi')),
+        'Luigi ha fatto ripartire senza aspettare');
+    expect(
+        text(const PartyNotice(PartyNoticeKind.seeked,
+            name: 'Luigi', position: time)),
+        'Luigi ha saltato a 32:10');
+    expect(
+        text(const PartyNotice(PartyNoticeKind.nextEpisode,
+            name: 'Luigi', title: 'S1:E5 · Titolo')),
+        'Luigi ha avviato: S1:E5 · Titolo');
+    expect(
+        text(const PartyNotice(PartyNoticeKind.nowWatching,
+            name: 'Luigi', title: 'Dune')),
+        'Luigi ha scelto: Dune');
+    // Le proprie azioni restano in seconda persona.
+    expect(
+        text(const PartyNotice(PartyNoticeKind.paused,
+            mine: true, name: 'Mario')),
+        'Hai messo in pausa');
+    final en = lookupAppLocalizations(const Locale('en'));
+    expect(
+        partyNoticeText(
+            en,
+            const PartyNotice(PartyNoticeKind.seeked,
+                name: 'Luigi', position: time)),
+        'Luigi jumped to 32:10');
+  });
+
   test('icone degli avvisi', () {
     expect(partyNoticeIcon(PartyNoticeKind.paused), LucideIcons.pause);
     expect(partyNoticeIcon(PartyNoticeKind.resumed), LucideIcons.play);

@@ -5,6 +5,7 @@ import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
+import '../../core/party_channel/party_channel_models.dart';
 import '../../core/syncplay/syncplay_models.dart';
 import '../auth/session_controller.dart';
 import '../library/item_labels.dart';
@@ -45,16 +46,31 @@ class PartyNotice {
   /// Per i salti.
   final Duration? position;
 
-  /// Per entrate e uscite.
+  /// Chi ha agito: nelle entrate e nelle uscite, e nelle azioni altrui
+  /// annunciate dal plugin del watch party (spec E §8).
   final String? name;
 
   /// Per episodio successivo e nuovo titolo.
   final String? title;
+
+  /// Lo stesso avviso con il nome di chi ha agito.
+  PartyNotice withName(String name) => PartyNotice(kind,
+      mine: mine, position: position, name: name, title: title);
 }
 
 /// Chi annuncia un'azione dell'utente (vedi [PartyNotices.mine]).
 typedef PartyActionCallback = void Function(PartyNoticeKind kind,
     {Duration? position});
+
+/// Avviso di un'azione altrui in attesa del nome (vedi
+/// [PartyNotices.attributionWait]).
+class _WaitingNotice {
+  _WaitingNotice(this.notice, this.action);
+
+  final PartyNotice notice;
+  final PartyAction action;
+  Timer? timer;
+}
 
 /// Avvisi del watch party, uno alla volta per [showFor]. Lo stato è
 /// l'avviso da mostrare adesso (`null` = nessuno).
@@ -64,12 +80,29 @@ class PartyNotices extends Notifier<PartyNotice?> {
   /// Entro questo tempo lo `StateUpdate` di una nostra azione è la sua eco.
   static const echoWindow = Duration(seconds: 3);
 
+  /// Attesa massima del nome di chi ha agito, con il canale del plugin
+  /// attivo (spec E §8): l'annuncio arriva di solito insieme all'avviso di
+  /// SyncPlay, poche decine di millisecondi prima o dopo.
+  static const attributionWait = Duration(milliseconds: 300);
+
+  /// Per quanto un annuncio del canale resta abbinabile a un avviso.
+  static const announcementLifetime = Duration(seconds: 2);
+
   final _queue = Queue<PartyNotice>();
   final _echoes = <({PartyNoticeKind kind, DateTime at})>[];
   Timer? _timer;
   GroupState? _groupState;
   String? _playing;
   Duration? _lastSeek;
+
+  /// Il canale del plugin è attivo: gli avvisi altrui aspettano il nome.
+  bool _attribution = false;
+
+  /// Annunci arrivati prima del loro avviso.
+  final _announcements = <({PartyActionEvent event, DateTime at})>[];
+
+  /// Avvisi che aspettano il loro annuncio, in ordine di arrivo.
+  final _waiting = <_WaitingNotice>[];
 
   @override
   PartyNotice? build() {
@@ -84,6 +117,8 @@ class PartyNotices extends Notifier<PartyNotice?> {
     _groupState = party.inGroup ? party.groupState : null;
     _playing = party.queue?.playing?.playlistItemId;
     _lastSeek = null;
+    _attribution = false;
+    _cancelWaiting();
     final subscriptions = [
       session.updates.listen(_onUpdate),
       session.commands.listen((command) {
@@ -107,6 +142,7 @@ class PartyNotices extends Notifier<PartyNotice?> {
     });
     ref.onDispose(() {
       _timer?.cancel();
+      _cancelWaiting();
       for (final subscription in subscriptions) {
         unawaited(subscription.cancel());
       }
@@ -129,6 +165,34 @@ class PartyNotices extends Notifier<PartyNotice?> {
     if (show) this.show(PartyNotice(kind, mine: true, position: position));
   }
 
+  /// Il canale del plugin è attivo ([enabled]) o spento (spec E §8). Spento:
+  /// gli avvisi in attesa escono subito senza nome.
+  void setAttribution(bool enabled) {
+    _attribution = enabled;
+    if (enabled) return;
+    final waiting = [..._waiting];
+    _cancelWaiting();
+    for (final entry in waiting) {
+      show(entry.notice);
+    }
+  }
+
+  /// Annuncio di un altro membro arrivato dal canale: dà il nome all'avviso
+  /// che lo aspetta (il più vecchio), o resta da parte per
+  /// [announcementLifetime].
+  void attribute(PartyActionEvent event) {
+    final index =
+        _waiting.indexWhere((waiting) => waiting.action == event.action);
+    if (index >= 0) {
+      final waiting = _waiting.removeAt(index);
+      waiting.timer?.cancel();
+      show(waiting.notice.withName(event.userName));
+      return;
+    }
+    _pruneAnnouncements();
+    _announcements.add((event: event, at: clock.now()));
+  }
+
   void _next() {
     _timer?.cancel();
     if (_queue.isEmpty) {
@@ -148,6 +212,7 @@ class PartyNotices extends Notifier<PartyNotice?> {
     _groupState = null;
     _playing = null;
     _lastSeek = null;
+    _cancelWaiting();
     if (ref.mounted) state = null;
   }
 
@@ -163,6 +228,65 @@ class PartyNotices extends Notifier<PartyNotice?> {
     _echoes.removeAt(index);
     return true;
   }
+
+  void _cancelWaiting() {
+    for (final waiting in _waiting) {
+      waiting.timer?.cancel();
+    }
+    _waiting.clear();
+    _announcements.clear();
+  }
+
+  void _pruneAnnouncements() {
+    final now = clock.now();
+    _announcements.removeWhere(
+        (announcement) => now.difference(announcement.at) > announcementLifetime);
+  }
+
+  /// Nome dell'annuncio più recente di [action] ancora valido; l'annuncio si
+  /// consuma.
+  String? _takeAnnouncement(PartyAction action) {
+    _pruneAnnouncements();
+    final index = _announcements
+        .lastIndexWhere((announcement) => announcement.event.action == action);
+    if (index < 0) return null;
+    return _announcements.removeAt(index).event.userName;
+  }
+
+  /// Avviso di un'azione altrui (spec E §8): con il nome se l'annuncio è già
+  /// arrivato; altrimenti, con il canale attivo, lo aspetta al massimo
+  /// [attributionWait].
+  void _showOthers(PartyNotice notice) {
+    final action = _actionOf(notice.kind);
+    if (action == null) {
+      show(notice);
+      return;
+    }
+    final name = _takeAnnouncement(action);
+    if (name != null) {
+      show(notice.withName(name));
+    } else if (!_attribution) {
+      show(notice);
+    } else {
+      final waiting = _WaitingNotice(notice, action);
+      waiting.timer = Timer(attributionWait, () {
+        _waiting.remove(waiting);
+        show(waiting.notice);
+      });
+      _waiting.add(waiting);
+    }
+  }
+
+  static PartyAction? _actionOf(PartyNoticeKind kind) => switch (kind) {
+        PartyNoticeKind.paused => PartyAction.pause,
+        PartyNoticeKind.resumed ||
+        PartyNoticeKind.forcedResume =>
+          PartyAction.unpause,
+        PartyNoticeKind.seeked => PartyAction.seek,
+        PartyNoticeKind.nextEpisode => PartyAction.nextItem,
+        PartyNoticeKind.nowWatching => PartyAction.newQueue,
+        _ => null,
+      };
 
   void _onUpdate(GroupUpdate update) {
     switch (update) {
@@ -182,9 +306,9 @@ class PartyNotices extends Notifier<PartyNotice?> {
         if (kind == PartyNoticeKind.seeked) {
           final position = _lastSeek;
           if (position == null) return;
-          show(PartyNotice(kind, position: position));
+          _showOthers(PartyNotice(kind, position: position));
         } else {
-          show(PartyNotice(kind));
+          _showOthers(PartyNotice(kind));
         }
       case UserJoined(:final userName):
         show(PartyNotice(PartyNoticeKind.joined, name: userName));
@@ -223,7 +347,7 @@ class PartyNotices extends Notifier<PartyNotice?> {
       // Nel frattempo si è usciti dal gruppo o si guarda già altro.
       final party = ref.read(watchPartySessionProvider);
       if (!party.inGroup || party.queue?.playing?.itemId != itemId) return;
-      show(PartyNotice(kind,
+      _showOthers(PartyNotice(kind,
           title: kind == PartyNoticeKind.nextEpisode
               ? cardSubtitle(item) ?? item.name
               : cardTitle(item)));
