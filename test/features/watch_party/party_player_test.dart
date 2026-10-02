@@ -28,6 +28,7 @@ import 'package:wonderflix/features/player/player_settings.dart';
 import 'package:wonderflix/features/player/player_volume.dart';
 import 'package:wonderflix/features/player/tracks_panel.dart';
 import 'package:wonderflix/features/watch_party/party_channel.dart';
+import 'package:wonderflix/features/watch_party/party_chat_bubble.dart';
 import 'package:wonderflix/features/watch_party/party_chat_layer.dart';
 import 'package:wonderflix/features/watch_party/party_notices.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
@@ -895,6 +896,74 @@ void main() {
     await tester.pump();
     expect(find.textContaining('ciao a tutti'), findsOneWidget);
     expect(find.byKey(const Key('player-chat-unread')), findsNothing);
+    await finish(tester);
+  });
+
+  /// Messaggio di Luigi dal canale.
+  Future<void> receiveChat(WidgetTester tester, String text,
+      {required String id}) async {
+    events.add(PartyChannelReceived(
+        partyPayload({'Type': 'Chat', 'Text': text}, id: id)));
+    await tester.pump();
+    await tester.pump();
+  }
+
+  testWidgets('chat: messaggi arrivati fuori dal player, puntino sul pulsante '
+      'finché la chat non si apre (spec E §9.5)', (tester) async {
+    await pumpPartyPlayer(tester);
+    final channel = container.read(partyChannelProvider.notifier)
+      // Come fuori dal player: nessun livello chat a schermo.
+      ..detachChatLayer();
+    await receiveChat(tester, 'mentre eri via', id: 'c1');
+    channel.attachChatLayer();
+    await tester.pump();
+    expect(find.byKey(const Key('player-chat-unread')), findsOneWidget);
+    await openChatWithEnter(tester);
+    expect(find.byKey(const Key('player-chat-unread')), findsNothing);
+    expect(container.read(partyChannelProvider).unread, 0);
+    await finish(tester);
+  });
+
+  testWidgets('chat: i messaggi arrivati a chat aperta non diventano bolle '
+      'alla chiusura', (tester) async {
+    await pumpPartyPlayer(tester);
+    await openChatWithEnter(tester);
+    await receiveChat(tester, 'eccomi', id: 'c1');
+    expect(find.textContaining('eccomi'), findsOneWidget, reason: 'storico');
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    await tester.pump();
+    expect(chatField(), findsNothing);
+    expect(find.byType(PartyChatBubble), findsNothing);
+    expect(find.textContaining('eccomi'), findsNothing);
+    await finish(tester);
+  });
+
+  testWidgets('chat aperta: la rotella sopra campo e storico non cambia il '
+      'volume, altrove sì (spec E §9.3)', (tester) async {
+    await pumpPartyPlayer(tester);
+    await receiveChat(tester, 'primo', id: 'c1');
+    await receiveChat(tester, 'secondo', id: 'c2');
+    await openChatWithEnter(tester);
+    final count = engine.volumes.length;
+    final wheel = TestPointer(1, PointerDeviceKind.mouse);
+    for (final target in [
+      chatField(),
+      find.byKey(const Key('party-chat-history')),
+    ]) {
+      await tester.sendEventToBinding(wheel.hover(tester.getCenter(target)));
+      await tester.sendEventToBinding(wheel.scroll(const Offset(0, 60)));
+      await tester.sendEventToBinding(wheel.scroll(const Offset(0, -60)));
+      await tester.pump();
+    }
+    expect(engine.volumes, hasLength(count));
+    expect(chatField(), findsOneWidget);
+    // Sul film la rotella regola il volume, anche con la chat aperta.
+    await tester.sendEventToBinding(wheel.hover(const Offset(720, 300)));
+    await tester.sendEventToBinding(wheel.scroll(const Offset(0, 60)));
+    await tester.pump();
+    expect(engine.volumes, hasLength(count + 1));
+    expect(chatField(), findsOneWidget);
     await finish(tester);
   });
 
