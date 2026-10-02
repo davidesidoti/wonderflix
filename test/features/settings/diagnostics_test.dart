@@ -10,6 +10,8 @@ import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/discord/discord_settings.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
 import 'package:wonderflix/features/settings/diagnostics.dart';
+import 'package:wonderflix/features/watch_party/party_channel.dart';
+import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 
 import '../../support/pump_app.dart';
@@ -53,7 +55,8 @@ void main() {
     expect(text, endsWith('Ultimi errori (0):\nnessuno\n'));
   });
 
-  Future<ProviderContainer> container(FakeSystemApi system) async {
+  Future<ProviderContainer> container(FakeSystemApi system,
+      {FakePartyChannelApi? channelApi}) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     final log = AppLog()
@@ -66,6 +69,8 @@ void main() {
       clientInfoProvider.overrideWithValue(testClientInfo),
       systemApiProvider.overrideWithValue(system),
       appLogProvider.overrideWithValue(log),
+      partyChannelApiProvider
+          .overrideWithValue(channelApi ?? FakePartyChannelApi()),
     ]);
   }
 
@@ -149,5 +154,55 @@ void main() {
       watchParty: 'group=g1, state=paused',
     );
     expect(text, contains('\nWatch party: group=g1, state=paused\n'));
+  });
+
+  test('describePartyChannel: plugin, canale e contatori, niente testi', () {
+    expect(describePartyChannel(const PartyChannelState()),
+        'sconosciuto, canale=spento, inviati=0, ricevuti=0');
+    expect(
+        describePartyChannel(const PartyChannelState(
+            availability: PartyPluginAvailability.unavailable)),
+        'assente, canale=spento, inviati=0, ricevuti=0');
+    expect(
+        describePartyChannel(const PartyChannelState(
+            availability: PartyPluginAvailability.unavailable,
+            pluginVersion: '2.0.0')),
+        '2.0.0 (protocollo diverso), canale=spento, inviati=0, ricevuti=0');
+    expect(
+        describePartyChannel(const PartyChannelState(
+          availability: PartyPluginAvailability.available,
+          pluginVersion: '1.0.0',
+          active: true,
+          sent: 3,
+          received: 5,
+        )),
+        '1.0.0 (protocollo 1), canale=attivo, inviati=3, ricevuti=5');
+  });
+
+  test('buildDiagnostics: riga del plugin del watch party', () {
+    final text = buildDiagnostics(
+      appVersion: '0.1.0',
+      windowsVersion: 'w',
+      serverVersion: '10.11.9',
+      player: const PlayerSettings(),
+      discord: const DiscordSettings(),
+      recentErrors: const [],
+      watchPartyPlugin: 'assente, canale=spento, inviati=0, ricevuti=0',
+    );
+    expect(
+        text,
+        contains('Plugin watch party: assente, canale=spento, inviati=0, '
+            'ricevuti=0\n'));
+  });
+
+  test('collectDiagnostics: chiede Info al plugin se non è noto', () async {
+    final channelApi = FakePartyChannelApi()..install();
+    final c = await container(FakeSystemApi(), channelApi: channelApi);
+    final text = await c.read(collectDiagnosticsProvider)();
+    expect(channelApi.calls, ['info']);
+    expect(
+        text,
+        contains('Plugin watch party: 1.0.0 (protocollo 1), canale=spento, '
+            'inviati=0, ricevuti=0\n'));
   });
 }

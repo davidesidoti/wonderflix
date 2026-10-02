@@ -5,8 +5,10 @@ import 'package:logging/logging.dart';
 
 import '../../app/providers.dart';
 import '../../core/logging/app_log.dart';
+import '../../core/party_channel/party_channel_models.dart';
 import '../discord/discord_settings.dart';
 import '../player/player_settings.dart';
+import '../watch_party/party_channel.dart';
 import '../watch_party/watch_party_session.dart';
 
 final _log = Logger('diagnostics');
@@ -28,6 +30,21 @@ String? describeWatchParty({
       'ping=${ms(ping)}, startLag=${ms(startLag)}, lastDrift=${ms(lastDrift)}';
 }
 
+/// Plugin e canale del watch party per la diagnostica (spec E §13). Niente
+/// testi né nomi: solo versione e contatori.
+String describePartyChannel(PartyChannelState state) {
+  final version = state.pluginVersion;
+  final plugin = switch (state.availability) {
+    PartyPluginAvailability.available =>
+      '$version (protocollo $partyChannelProtocol)',
+    PartyPluginAvailability.unavailable =>
+      version == null ? 'assente' : '$version (protocollo diverso)',
+    PartyPluginAvailability.unknown => 'sconosciuto',
+  };
+  return '$plugin, canale=${state.active ? 'attivo' : 'spento'}, '
+      'inviati=${state.sent}, ricevuti=${state.received}';
+}
+
 /// Testo da incollare nelle richieste di aiuto. Non contiene dati
 /// dell'account; gli errori sono già senza segreti. L'host del server negli
 /// errori lo toglie [collectDiagnosticsProvider].
@@ -39,6 +56,7 @@ String buildDiagnostics({
   required DiscordSettings discord,
   required List<String> recentErrors,
   String? watchParty,
+  String? watchPartyPlugin,
 }) {
   final buffer = StringBuffer()
     ..writeln('WonderFlix $appVersion')
@@ -52,6 +70,9 @@ String buildDiagnostics({
     ..writeln('Discord: enabled=${discord.enabled}, '
         'showTitle=${discord.showTitle}, showPoster=${discord.showPoster}');
   if (watchParty != null) buffer.writeln('Watch party: $watchParty');
+  if (watchPartyPlugin != null) {
+    buffer.writeln('Plugin watch party: $watchPartyPlugin');
+  }
   buffer
     ..writeln()
     ..writeln('Ultimi errori (${recentErrors.length}):');
@@ -95,6 +116,15 @@ final collectDiagnosticsProvider =
           } on Object catch (error) {
             _log.info('stato del watch party non disponibile: $error');
           }
+          String? watchPartyPlugin;
+          try {
+            await ref.read(partyChannelProvider.notifier).refreshInfo();
+            watchPartyPlugin =
+                describePartyChannel(ref.read(partyChannelProvider));
+          } on Object catch (error) {
+            _log.info('stato del plugin del watch party non disponibile: '
+                '$error');
+          }
           return buildDiagnostics(
             appVersion: ref.read(clientInfoProvider).version,
             windowsVersion: Platform.operatingSystemVersion,
@@ -103,6 +133,7 @@ final collectDiagnosticsProvider =
             discord: ref.read(discordSettingsProvider),
             recentErrors: errors,
             watchParty: watchParty,
+            watchPartyPlugin: watchPartyPlugin,
           );
         });
 
