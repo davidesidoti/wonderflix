@@ -218,12 +218,16 @@ class _PartyChatLayerState extends ConsumerState<PartyChatLayer> {
   void _onArrival(PartyChatEntry entry) {
     if (!mounted) return;
     if (widget.open) {
-      // Chat aperta: il messaggio è nello storico; si scende in fondo se si
-      // era già in fondo.
-      final atEnd = !_scroll.hasClients ||
-          _scroll.position.extentAfter < _stickToEndSlack;
+      // Chat aperta: il messaggio è nello storico, in fondo. Chi era in fondo
+      // ci resta (lo storico è ancorato lì); un nostro messaggio porta in
+      // fondo anche chi stava leggendo più su.
+      final follow = (entry.mine && entry.pending) ||
+          !_scroll.hasClients ||
+          _scroll.offset < _stickToEndSlack;
       setState(() {});
-      if (atEnd) WidgetsBinding.instance.addPostFrameCallback((_) => _jumpToEnd());
+      if (follow) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _jumpToEnd());
+      }
       return;
     }
     // Il messaggio è già uscito dallo storico (invio fallito): niente bolla.
@@ -265,9 +269,12 @@ class _PartyChatLayerState extends ConsumerState<PartyChatLayer> {
     setState(() => _bubbles.removeWhere(gone.contains));
   }
 
+  /// In fondo allo storico: la lista parte dal basso, il fondo è l'offset 0
+  /// (esatto, non stimato come la fine di una lista con righe di altezze
+  /// diverse).
   void _jumpToEnd() {
-    if (!mounted || !_scroll.hasClients) return;
-    _scroll.jumpTo(_scroll.position.maxScrollExtent);
+    if (!mounted || !_scroll.hasClients || _scroll.offset == 0) return;
+    _scroll.jumpTo(0);
   }
 
   void _onTextChanged() {
@@ -366,17 +373,24 @@ class _PartyChatLayerState extends ConsumerState<PartyChatLayer> {
                     borderRadius:
                         BorderRadius.circular(PartyChatBubble.radius),
                   ),
+                  // Ancorato in fondo (spec E §9.3): la lista parte dal basso,
+                  // con il più nuovo in fondo. Con poco storico resta stretta
+                  // sopra il campo.
                   child: ListView.builder(
                     controller: _scroll,
+                    reverse: true,
                     shrinkWrap: true,
                     padding: EdgeInsets.zero,
                     itemCount: messages.length,
-                    itemBuilder: (context, index) => Padding(
-                      key: ValueKey('party-chat-line-${messages[index].key}'),
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-                      child: PartyChatMessage(entry: messages[index]),
-                    ),
+                    itemBuilder: (context, index) {
+                      final entry = messages[messages.length - 1 - index];
+                      return Padding(
+                        key: ValueKey('party-chat-line-${entry.key}'),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 3),
+                        child: PartyChatMessage(entry: entry),
+                      );
+                    },
                   ),
                 ),
               const SizedBox(height: PartyChatBubble.gap),

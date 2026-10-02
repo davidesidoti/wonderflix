@@ -371,6 +371,82 @@ void main() {
       await leave(tester);
     });
 
+    Finder history() => find.byKey(const Key('party-chat-history'));
+    Finder line(String key) => find.byKey(ValueKey('party-chat-line-$key'));
+
+    /// Storico di 40 messaggi: brevi i vecchi, lunghi (molte righe) i più
+    /// nuovi, così le altezze stimate dalla lista sono sbagliate.
+    void longHistory() {
+      final start = DateTime.utc(2026, 10, 2, 20);
+      channelApi.history = [
+        for (var i = 1; i <= 40; i++)
+          testChatEvent(i <= 30 ? 'breve $i' : 'lungo $i ${'parola ' * 30}',
+              id: 'h$i', sentAt: start.add(Duration(seconds: i))),
+      ];
+    }
+
+    /// La riga del messaggio [key] è l'ultima, visibile in fondo allo
+    /// storico.
+    void expectAtBottom(WidgetTester tester, String key) {
+      expect(line(key), findsOneWidget);
+      final bottom = tester.getRect(history()).bottom;
+      final rect = tester.getRect(line(key));
+      expect(rect.bottom, lessThanOrEqualTo(bottom));
+      expect(rect.bottom, greaterThan(bottom - 8));
+    }
+
+    testWidgets('storico ancorato in fondo: il più nuovo sopra il campo, '
+        'anche con molti messaggi', (tester) async {
+      longHistory();
+      await pumpChat(tester);
+      await openChat(tester);
+      expectAtBottom(tester, 'h40');
+      expect(
+          tester.getRect(line('h40')).bottom,
+          lessThan(tester.getRect(field()).top),
+          reason: 'lo storico sta sopra il campo');
+      await receive(tester, 'eccomi', id: 'c1');
+      expectAtBottom(tester, 'c1');
+      await leave(tester);
+    });
+
+    testWidgets('storico corto: stretto sopra il campo, il più nuovo in fondo',
+        (tester) async {
+      await pumpChat(tester);
+      await receive(tester, 'primo', id: 'c1');
+      await receive(tester, 'secondo', id: 'c2');
+      await openChat(tester);
+      expectAtBottom(tester, 'c2');
+      final box = tester.getRect(history());
+      expect(tester.getRect(line('c1')).top, greaterThan(box.top),
+          reason: 'il più vecchio in cima, dentro lo storico');
+      expect(tester.getRect(line('c1')).bottom,
+          lessThanOrEqualTo(tester.getRect(line('c2')).top));
+      expect(box.bottom + PartyChatBubble.gap,
+          moreOrLessEquals(tester.getRect(field()).top));
+      expect(box.height, lessThan(100), reason: 'non occupa il 40%');
+      await leave(tester);
+    });
+
+    testWidgets('inviare da più su riporta in fondo', (tester) async {
+      longHistory();
+      await pumpChat(tester);
+      await openChat(tester);
+      final scroll = tester
+          .widget<ListView>(
+              find.descendant(of: history(), matching: find.byType(ListView)))
+          .controller!;
+      // Si legge più su; un messaggio degli altri non sposta in fondo.
+      scroll.jumpTo(scroll.position.maxScrollExtent / 2);
+      await tester.pump();
+      await receive(tester, 'eccomi', id: 'c1');
+      expect(
+          line('c1').hitTestable(), findsNothing, reason: 'resta dov\'era');
+      await send(tester, 'ci sono');
+      expectAtBottom(tester, 'local-1');
+      await leave(tester);
+    });
+
     testWidgets('messaggio in arrivo a chat aperta: nello storico, niente bolla',
         (tester) async {
       await pumpChat(tester);
