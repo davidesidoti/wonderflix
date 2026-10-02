@@ -1,7 +1,7 @@
 # WonderFlix — Spec E: watch party sociale (nomi, chat, reazioni)
 
 - **Data:** 2026-10-02
-- **Stato:** approvato; piani 10a e 10b realizzati (`docs/superpowers/plans/2026-10-02-wonderflix-10a-watch-party-plugin-nomi.md`, `docs/superpowers/plans/2026-10-02-wonderflix-10b-watch-party-chat.md`), 10c da fare
+- **Stato:** approvato; piani 10a, 10b e 10c realizzati (`docs/superpowers/plans/2026-10-02-wonderflix-10a-watch-party-plugin-nomi.md`, `docs/superpowers/plans/2026-10-02-wonderflix-10b-watch-party-chat.md`, `docs/superpowers/plans/2026-10-02-wonderflix-10c-watch-party-reazioni.md`)
 - **Ambito:** Spec E. Aggiunge al watch party il nome di chi agisce, una chat di testo e reazioni rapide, attraverso un plugin del server Jellyfin scritto per WonderFlix. Si appoggia allo Spec B (`2026-09-30-wonderflix-watch-party-design.md`: §5.7 avvisi, §7 interfaccia) e allo Spec D (`2026-10-01-wonderflix-rinnovo-player-design.md`: §5 `PlayerChromeController`, §9 pillola, §11 schermata di pausa, §14 pannello, §15 watch party nel player), tutti realizzati (v0.4.1).
 
 ## 1. Obiettivo
@@ -318,24 +318,25 @@ Le emoji usano `fontFamily: 'Segoe UI Emoji'` (glifi a colori di Windows). Sono 
 ### 10.2 Barretta
 
 - Pulsante **reazioni** (`LucideIcons.smilePlus`, tooltip "Reazioni (1–6)") accanto al pulsante chat, alle stesse condizioni.
-- La barretta si apre sopra il pulsante, allineata a destra: fondo `WfColors.surface` al 94%, bordo `WfColors.border`, forma a pillola, ombra. Entrata con dissolvenza + scala dal pulsante come i menu (`wfPopUpAnimation`).
+- La barretta si apre sopra il pulsante, allineata a destra: fondo `WfColors.surface` al 94%, bordo `WfColors.border`, forma a pillola, ombra.
+- È un livello a sé agganciato al pulsante (`CompositedTransformTarget` sul pulsante, `CompositedTransformFollower` nel livello `player-party-reactions-tray`): un widget che sporge fuori dai bordi del suo genitore non riceve i clic. È sempre montata: chiusa è invisibile e non prende i clic. Entrata con dissolvenza e scala 0,9 → 1 dal pulsante (`WfMotion.medium`, curva enfatizzata), uscita con `WfMotion.fast`; con le animazioni ridotte solo la dissolvenza.
 - Le 6 emoji a 24 px con il tasto sotto (testo piccolo, crema al 50%); al passaggio del mouse fondo crema al 12%.
 - **Clic** = invio; la barretta resta aperta per mandarne altre.
-- Si chiude con un clic fuori o sul film (che non fa altro), Esc, di nuovo il pulsante, o dopo **5 s** senza il mouse sopra.
+- Si chiude con un clic sul film (che non fa altro), Esc, di nuovo il pulsante, o dopo **5 s** senza il mouse sopra (`PartyReactionsTray.idleClose`; il conto riparte a ogni clic su una reazione e quando il mouse esce).
 - Finché è aperta i controlli restano visibili (come con il pannello).
 
 ### 10.3 Tasti
 
-- **1–6** e tastierino numerico 1–6 inviano subito la reazione.
+- **1–6** e tastierino numerico 1–6 inviano subito la reazione, solo con il focus al player (`_focusNode.hasPrimaryFocus`: a chat aperta i numeri vanno nel campo), anche a controlli nascosti.
 - Non mostrano i controlli né la pillola: il riscontro è l'emoji in volo con "Tu".
-- La ripetizione automatica del tasto tenuto premuto è ignorata; al massimo una reazione ogni **200 ms**.
+- La ripetizione automatica del tasto tenuto premuto è ignorata; al massimo una reazione ogni **200 ms**, anche contando i clic sulla barretta (`PlayerScreen.reactionInterval`).
 - Spenti mentre si scrive in chat e con il canale spento.
 
 ### 10.4 Volo
 
-- Livello `PartyReactionsLayer`: nasce in basso a destra, alla stessa altezza fissa della chat, con uno scostamento orizzontale da 0 a 80 px calcolato dall'`Id` dell'evento (stabile nei test).
+- Livello `PartyReactionsLayer` (`right: 24`, `bottom: 150`, la stessa altezza fissa della chat): nasce in basso a destra, con uno scostamento orizzontale da 0 a 80 px calcolato dall'`Id` dell'evento (`reactionJitter`, stabile nei test).
 - Emoji a **40 px** con sotto il nome in un'etichetta piccola (fondo `WfColors.bg` al 65%); "Tu" per le proprie.
-- **Animazioni complete:** 0–200 ms scala 0,6 → 1 (curva enfatizzata); 0–2,4 s salita di **140 px** in decelerazione; dissolvenza negli ultimi 600 ms.
+- **Animazioni complete:** 0–200 ms scala 0,6 → 1 (curva enfatizzata); 0–2,4 s salita di **140 px** in decelerazione; dissolvenza negli ultimi 600 ms. Il fotogramma a un dato istante lo calcola la funzione pura `reactionFrame`.
 - **Animazioni ridotte:** niente scala né salita; compare in 150 ms, resta 1,6 s, sfuma in 300 ms.
 - Al massimo **12** reazioni in volo; le nuove oltre il limite si scartano.
 - Un solo livello disegna tutte le reazioni con un unico ticker, dentro un `RepaintBoundary`, e non intercetta il puntatore (`IgnorePointer`).
@@ -347,10 +348,10 @@ Le emoji usano `fontFamily: 'Segoe UI Emoji'` (glifi a colori di Windows). Sono 
 - **Tasti nuovi:** Invio (e Invio del tastierino) apre la chat, solo con il focus al player (`_focusNode.hasPrimaryFocus`); 1–6 reazioni. Solo nel gruppo con il canale attivo.
 - **Mentre si scrive** `_onKey` lascia passare tutti i tasti al campo (Spazio scrive uno spazio) tranne Esc, che chiude la chat, e i tasti multimediali, che fanno il loro comando. Tab e Maiusc+Tab si fermano lì (non portano il focus fuori dal campo); la ripetizione di Invio si ignora. Se il focus non è al campo, il tasto glielo ridà e si consuma.
 - **Esc:** chat → barretta → pannello → post-play o scheda → schermo intero → uscita.
-- **`PlayerChromeController`:** `_panelOpen` diventa un `popup` (`PlayerPopup`, al massimo uno): oggi `tracks` e `chat`, `reactions` arriva nel 10c. I controlli restano visibili con `tracks` (e `reactions`), non con `chat`. Con la chat aperta il controller stesso non fa partire la schermata di pausa e la chiude all'apertura. Il player ha un `FocusNode` suo, a cui torna il focus quando la chat si chiude.
+- **`PlayerChromeController`:** `_panelOpen` diventa un `popup` (`PlayerPopup`, al massimo uno): `tracks`, `chat` e `reactions`. I controlli restano visibili con `tracks` (e `reactions`), non con `chat`. Con la chat aperta il controller stesso non fa partire la schermata di pausa e la chiude all'apertura. Il player ha un `FocusNode` suo, a cui torna il focus quando la chat si chiude.
 - **Focus della chat:** anche il `FocusNode` del campo è di `PlayerScreen`, che lo crea, lo passa a `PartyChatLayer` (`focusNode`) e lo distrugge: così può ridare il focus al campo. Il focus si prende (campo all'apertura, player alla chiusura) solo se il player è la route corrente (`ModalRoute.isCurrentOf`): un menu o un dialogo sopra il player tiene il suo.
-- **Livelli** (dal basso): video, attesa del gruppo, schermata di pausa, errore o controlli (con la barretta), caricamento, "Salta"/scheda, post-play, attesa sopra il post-play, **reazioni**, **chat**, pillola, pannello tracce. Il livello chat non è dentro `ExcludeFocus`.
-- La barretta vive nel livello dei controlli, ancorata al pulsante.
+- **Livelli** (dal basso): video, attesa del gruppo, schermata di pausa, errore o controlli, caricamento, "Salta"/scheda, post-play, attesa sopra il post-play, **reazioni** (`player-party-reactions`), **chat**, **barretta** (`player-party-reactions-tray`), pillola, pannello tracce. Il livello chat non è dentro `ExcludeFocus`.
+- La barretta non vive nel livello dei controlli: è un livello a sé, ancorato al pulsante, sopra chat, "Salta intro" e scheda e sotto pillola e pannello. Il suo `CompositedTransformFollower` sta in un `Positioned(left: 0, top: 0)` dello `Stack` del player e riceve i clic dove è disegnato; senza il pulsante (strato d'errore al posto dei controlli) non si vede né prende clic.
 
 ## 12. Senza plugin ed errori
 

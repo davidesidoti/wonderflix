@@ -69,3 +69,32 @@ Prima di ogni release, su un utente di prova:
 - [ ] Discord Rich Presence attiva e disattivata.
 - [ ] Pannello media di Windows con il nome "WonderFlix" (app installata).
 - [ ] "Copia diagnostica" e cartella dei log.
+
+## Plugin "WonderFlix Watch Party"
+
+Il plugin del server (cartella `jellyfin-plugin-watch-party/`, spec E) ha versioni e release sue, separate dall'app.
+
+1. Aggiorna `<Version>` in `jellyfin-plugin-watch-party/Jellyfin.Plugin.WonderFlixWatchParty/Jellyfin.Plugin.WonderFlixWatchParty.csproj` (es. `1.0.1`) e fai commit su `main`. Il workflow compila con la versione del tag: tienila uguale a quella del csproj.
+2. Prova a mano sul server (README del plugin: `pack.sh` e copia via SFTP nei `plugins/` di Jellyfin).
+3. Crea il tag e fai push:
+   ```bash
+   git tag watch-party-plugin-v1.0.1
+   git push origin watch-party-plugin-v1.0.1
+   ```
+4. Il workflow **Watch party plugin** pubblica una **pre-release** con `wonderflix-watch-party_1.0.1.zip` e `.zip.md5`. È sempre pre-release e mai "latest": l'app legge `releases/latest` per i propri aggiornamenti.
+5. Aggiungi la versione in cima a `versions` in `jellyfin-plugin-watch-party/manifest.json` e fai push su `main`:
+   ```json
+   {
+     "version": "1.0.1.0",
+     "changelog": "…",
+     "targetAbi": "10.11.0.0",
+     "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.0.1/wonderflix-watch-party_1.0.1.zip",
+     "checksum": "<contenuto del file .md5>",
+     "timestamp": "2026-10-02T12:00:00Z"
+   }
+   ```
+6. Sul server: Dashboard → Plugin → Catalogo → aggiorna (o installa) **WonderFlix Watch Party**, poi riavvia Jellyfin (su Ultra.cc: `app-jellyfin restart`).
+
+Il repository dei plugin si aggiunge una volta sola: Dashboard → Plugin → Repository → **+**, URL `https://raw.githubusercontent.com/davidesidoti/wonderflix/main/jellyfin-plugin-watch-party/manifest.json`. Prima di installare dal Catalogo togli un'eventuale cartella copiata a mano.
+
+**Jellyfin 12:** serve una build nuova (net10.0, `targetAbi` `12.0.0.0`) prima di aggiornare il server.
