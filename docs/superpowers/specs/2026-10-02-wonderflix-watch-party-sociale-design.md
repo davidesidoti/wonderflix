@@ -1,7 +1,7 @@
 # WonderFlix — Spec E: watch party sociale (nomi, chat, reazioni)
 
 - **Data:** 2026-10-02
-- **Stato:** approvato in brainstorming, da dividere nei piani 10a, 10b e 10c
+- **Stato:** approvato; piano 10a realizzato (`docs/superpowers/plans/2026-10-02-wonderflix-10a-watch-party-plugin-nomi.md`), 10b e 10c da fare
 - **Ambito:** Spec E. Aggiunge al watch party il nome di chi agisce, una chat di testo e reazioni rapide, attraverso un plugin del server Jellyfin scritto per WonderFlix. Si appoggia allo Spec B (`2026-09-30-wonderflix-watch-party-design.md`: §5.7 avvisi, §7 interfaccia) e allo Spec D (`2026-10-01-wonderflix-rinnovo-player-design.md`: §5 `PlayerChromeController`, §9 pillola, §11 schermata di pausa, §14 pannello, §15 watch party nel player), tutti realizzati (v0.4.1).
 
 ## 1. Obiettivo
@@ -81,16 +81,16 @@ WonderFlix (chi agisce)                 Jellyfin 10.11.9                        
 
 ```
 jellyfin-plugin-watch-party/
-  Jellyfin.Plugin.WonderFlixWatchParty.sln
   Jellyfin.Plugin.WonderFlixWatchParty/          plugin (net9.0)
   Jellyfin.Plugin.WonderFlixWatchParty.Tests/    test xUnit
-  build.yaml                                     dati del plugin (nome, guid, targetAbi, descrizione)
+  meta.template.json                             meta.json del pacchetto (versione e data le mette pack.sh)
+  pack.sh                                        build di release e cartella da installare
   manifest.json                                  repository di plugin per la Dashboard
   README.md                                      installazione e prova (in italiano)
 ```
 
 - **Dati:** nome `WonderFlix Watch Party`, GUID `882eb47e-668a-4935-ba55-c2858eb4ed90`, `targetAbi` `10.11.0.0`, categoria `General`, proprietario `davidesidoti`.
-- **Dipendenze:** `Jellyfin.Controller` e `Jellyfin.Model` 10.11.x con `ExcludeAssets=runtime` (come il modello ufficiale `jellyfin-plugin-template`). Nessuna altra libreria nel plugin.
+- **Dipendenze:** `Jellyfin.Controller` e `Jellyfin.Model` 10.11.x con `ExcludeAssets=runtime` (come il modello ufficiale `jellyfin-plugin-template`). Nessuna altra libreria nel plugin. Il progetto di test riferisce di nuovo gli stessi pacchetti senza `ExcludeAssets`, altrimenti non carica le dll di Jellyfin.
 - **Registrazione:** `IPluginServiceRegistrator` registra registro, storico, limiti e il servizio di pulizia (`IHostedService`). Il controller viene trovato da Jellyfin nell'assembly del plugin.
 - **Configurazione:** nessuna pagina; il plugin non ha impostazioni.
 
@@ -105,7 +105,7 @@ Tutti richiedono un utente collegato con accesso a SyncPlay (policy `SyncPlayHas
 | `POST /WonderFlixWatchParty/Groups/{groupId}/Leave` | 204 | Toglie la sessione dal gruppo. |
 | `POST /WonderFlixWatchParty/Groups/{groupId}/Events` | l'evento timbrato (§6.3) | Valida, timbra, conserva (solo chat) e inoltra un evento. Registra anche la sessione, se non lo era (es. dopo un riavvio del plugin). |
 
-Errori: **400** evento non valido, **403** gruppo inesistente o utente non nel gruppo, **409** sessione di chi chiama non trovata, **429** limite di frequenza superato. Il plugin non risponde mai 404: per l'app un 404 vuol dire che la rotta non esiste, cioè plugin assente.
+Errori: **400** evento non valido, **403** gruppo inesistente o utente non nel gruppo, **409** sessione di chi chiama non trovata, **429** limite di frequenza superato. Il plugin non risponde mai 404: per l'app un 404 vuol dire che la rotta non esiste, cioè plugin assente. Senza autenticazione la risposta è 400, come per gli endpoint SyncPlay di Jellyfin (la policy `SyncPlayHasAccess` va in errore su un utente anonimo); l'app manda sempre l'autenticazione.
 
 ### 6.3 Protocollo (versione 1)
 
@@ -176,7 +176,7 @@ La chiave `WonderFlixWatchParty` evita `String`, che jellyfin-web scriverebbe ne
 
 - **Workflow** `.github/workflows/watch-party-plugin.yml`:
   - su push e pull request che toccano `jellyfin-plugin-watch-party/**`: `dotnet test` con .NET 9;
-  - su tag `watch-party-plugin-vX.Y.Z`: build di release, zip `wonderflix-watch-party_X.Y.Z.zip` con la dll e `meta.json`, MD5, **pre-release** su GitHub con zip e `.md5` (`gh release create … --prerelease --latest=false`).
+  - su tag `watch-party-plugin-vX.Y.Z`: `pack.sh` (build di release e cartella con la dll e `meta.json`), zip `wonderflix-watch-party_X.Y.Z.zip`, MD5, **pre-release** su GitHub con zip e `.md5` (`gh release create … --prerelease --latest=false`).
 - **Perché pre-release:** l'aggiornamento dell'app legge `releases/latest`, che esclude le pre-release; una release del plugin non deve mai diventarlo. Il tag non fa partire `release.yml` (che ascolta solo `v*.*.*`).
 - **Manifest:** `jellyfin-plugin-watch-party/manifest.json`, servito da `https://raw.githubusercontent.com/davidesidoti/wonderflix/main/jellyfin-plugin-watch-party/manifest.json`. A pipeline finita aggiungo io la voce della versione (`version` `X.Y.Z.0`, `targetAbi`, `sourceUrl` dello zip, `checksum` MD5, `timestamp`, `changelog`) e la committo, con l'ok dell'utente, come per le note dell'app.
 - **Installazione:** Dashboard → Plugin → Repository → aggiungi l'URL del manifest; Catalogo → WonderFlix Watch Party → Installa; riavvio di Jellyfin dal pannello di Ultra.cc.
@@ -208,7 +208,7 @@ Jellyfin 12 (net10.0) richiede di ricompilare i plugin. Quando l'utente decide d
 Notifier Riverpod che segue `WatchPartySession`.
 
 - **Stato:** disponibilità (`unknown`, `available`, `unavailable`), versione del plugin, canale attivo per il gruppo corrente, messaggi della chat (al massimo 50, ognuno con stato `pending`/`sent`), messaggi non letti, contatori di eventi inviati e ricevuti.
-- **Flussi:** `reactions` (anche le proprie, subito), `actions` (annunci degli altri).
+- **Flussi:** `reactions` (anche le proprie, subito), `chatArrivals` (messaggi nuovi, anche i propri `pending`). Gli annunci degli altri non hanno un flusso: vanno agli avvisi (sotto).
 - **Ingresso:** quando la sessione entra in un gruppo e a ogni nuovo ingresso dopo una riconnessione (`rejoins`): `info()` (se il plugin non risulta già disponibile), poi `join(groupId)`. Lo storico ricevuto si unisce a quello presente per `Id`, in ordine di `SentAt`.
 - **Uscita:** quando la sessione esce dal gruppo: `leave(groupId)` (senza attendere l'esito), messaggi e contatori azzerati, canale spento.
 - **Ricezione:** `PartyChannelReceived` → `parsePartyEvent`; scartati gli eventi di un altro gruppo e i doppioni (stesso `Id`). Un evento con il proprio `UserId` (stesso utente da un altro PC) si mostra come "Tu".
@@ -217,7 +217,10 @@ Notifier Riverpod che segue `WatchPartySession`.
   - `sendReaction(reaction)`: emette subito la reazione propria sul flusso, poi invia; un errore va solo nel log.
   - `announce(action, {position})`: invia senza attendere; un errore va solo nel log.
   - Con il canale spento i metodi non fanno nulla.
-- **Non letti:** un messaggio arrivato mentre nessun livello chat è montato (cioè fuori dal player) incrementa i non letti; `markRead()` li azzera quando la chat si apre.
+- **Non letti:** un messaggio arrivato mentre nessun livello chat è montato (cioè fuori dal player) incrementa i non letti; `markRead()` li azzera quando la chat si apre. Il livello chat del player (10b) chiama `attachChatLayer`/`detachChatLayer`.
+- **Avvisi:** gli annunci ricevuti vanno a `PartyNotices.attribute`; quando il canale si accende o si spegne lo dice a `PartyNotices.setAttribution`. Gli avvisi non leggono il canale.
+- **Vita:** il canale lo tiene vivo `watchPartyRoutingProvider` (in `WonderflixApp`), così segue il gruppo anche fuori dal player. Se nasce a gruppo già in corso entra subito dopo la build.
+- **Diagnostica:** `refreshInfo()` chiede `Info` se il plugin non è già noto (al massimo 5 s).
 
 ### 7.4 Annunci
 
@@ -359,7 +362,7 @@ Le emoji usano `fontFamily: 'Segoe UI Emoji'` (glifi a colori di Windows). Sono 
 
 ## 13. Diagnostica e log
 
-- `describeWatchParty` (Impostazioni → diagnostica) aggiunge: plugin (versione e protocollo, oppure "assente" o "sconosciuto"), canale attivo sì/no, eventi inviati e ricevuti. **Mai testi né nomi.** La pagina chiede `Info` quando si apre, se il plugin non è già noto.
+- La diagnostica (Impostazioni → copia della diagnostica) aggiunge una riga `Plugin watch party: …`, per esempio `Plugin watch party: 1.0.0 (protocollo 1), canale=attivo, inviati=3, ricevuti=5`, oppure `assente, canale=spento, …`, `2.0.0 (protocollo diverso), …`, `sconosciuto, …` (`describePartyChannel`). Come il resto della diagnostica non è tradotta. **Mai testi né nomi.** Se il plugin non è già noto, la diagnostica chiede `Info` (al massimo 5 s).
 - Log dell'app (`Logger('watchparty')`): tipi di evento, esiti delle chiamate, motivi di scarto. Mai il testo dei messaggi.
 - Discord: invariato.
 
@@ -379,10 +382,6 @@ Le emoji usano `fontFamily: 'Segoe UI Emoji'` (glifi a colori di Windows). Sono 
 | `partyChatNotSent` | Non inviato, riprova | Not sent, try again |
 | `partyChatTooMany` | Troppi messaggi, aspetta un attimo | Too many messages, wait a moment |
 | `partyReactionsOpen` | Reazioni (1–6) | Reactions (1–6) |
-| `diagnosticsPartyPlugin` | Plugin watch party: {state} | Watch party plugin: {state} |
-| `diagnosticsPartyPluginVersion` | {version} (protocollo {protocol}) | {version} (protocol {protocol}) |
-| `diagnosticsPartyPluginMissing` | assente | not installed |
-| `diagnosticsPartyPluginUnknown` | sconosciuto | unknown |
 | `partyReactionJoy` | Risata | Laughing |
 | `partyReactionScream` | Spavento | Scared |
 | `partyReactionCry` | Triste | Sad |
@@ -430,7 +429,7 @@ Ogni piano segue il flusso concordato (worktree, subagent, revisione, prova manu
 
 ## 17. Rischi e punti da verificare
 
-- **Inoltro sul WebSocket:** verificato sul codice di 10.11.9, non ancora sul server: è lo scopo della sonda.
+- **Inoltro sul WebSocket:** verificato sul server vero con la sonda del piano 10a (2026-10-02).
 - **Policy `SyncPlayHasAccess`** e `IAuthorizationContext` dal pacchetto NuGet: da verificare nella sonda.
 - **Emoji a colori** in Flutter su Windows: da verificare all'inizio del 10b; se il font non si vede a colori, si torna a decidere (icone Lucide o immagini).
 - **Sovrapposizioni:** bolle e reazioni possono coprire righe lunghe di sottotitoli o testi del post-play; da guardare nella prova manuale.
