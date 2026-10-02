@@ -22,6 +22,7 @@ import '../watch_party/group_authority.dart';
 import '../watch_party/group_playback_driver.dart';
 import '../watch_party/party_badge.dart';
 import '../watch_party/party_channel.dart';
+import '../watch_party/party_chat_layer.dart';
 import '../watch_party/party_notices.dart';
 import '../watch_party/party_waiting_overlay.dart';
 import '../watch_party/watch_party_actions.dart';
@@ -77,6 +78,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   /// Controlli, pannello e riscontro dei tasti (spec D §5.1).
   final _chrome = PlayerChromeController();
+
+  /// Focus del player: i tasti arrivano a `_onKey`. Chiusa la chat (che
+  /// aveva il focus nel suo campo) torna qui (spec E §11).
+  final _focusNode = FocusNode(debugLabel: 'player');
+  bool _chatWasOpen = false;
+
+  /// Invio apre la chat. Non `const`: le chiavi ridefiniscono `==`.
+  static final _openChatKeys = {
+    LogicalKeyboardKey.enter,
+    LogicalKeyboardKey.numpadEnter,
+  };
 
   /// Il motore ha disegnato il primo fotogramma (o è passato
   /// [PlayerScreen.firstFrameTimeout] da `ready`): il caricamento sfuma.
@@ -182,6 +194,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _chrome
       ..removeListener(_onChromeChanged)
       ..dispose();
+    _focusNode.dispose();
     _window.removeCloseListener(_onWindowClose);
     unawaited(_window.setPreventClose(false));
     if (_fullscreen && !handingOver) unawaited(_window.setFullScreen(false));
@@ -213,8 +226,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   void _onChromeChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    final chatOpen = _chrome.chatOpen;
+    if (chatOpen != _chatWasOpen) {
+      _chatWasOpen = chatOpen;
+      // Chiusa la chat (Esc, clic sul film, pannello, chiusura automatica):
+      // i tasti tornano al player.
+      if (!chatOpen) _focusNode.requestFocus();
+    }
+    setState(() {});
   }
+
+  /// La chat del watch party si può aprire: nel gruppo, con il canale del
+  /// plugin attivo (spec E §9.5).
+  bool get _chatAvailable =>
+      _inParty && ref.read(partyChannelProvider).active;
 
   void _onFirstFrame() {
     _firstFrameTimer?.cancel();
@@ -543,12 +569,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (ready) _chrome.showFeedback(PlayFeedback(playing: playing));
   }
 
-  /// Esc: pannello → post-play o scheda → schermo intero → uscita (spec D
-  /// §9.1). A video finito il post-play non si chiude: si esce.
+  /// Esc: pannello o chat → post-play o scheda → schermo intero → uscita
+  /// (spec D §9.1, spec E §11). A video finito il post-play non si chiude:
+  /// si esce.
   void _escape() {
     final view = ref.read(playerControllerProvider(widget.args));
-    if (_chrome.panelOpen) {
-      _chrome.closePanel();
+    if (_chrome.popup != null) {
+      _chrome.closePopup();
     } else if ((_postPlayShown(view) && !view.finished) || _cardShown(view)) {
       _dismissNext();
     } else if (_fullscreen) {
@@ -559,6 +586,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    // Chat aperta: i tasti vanno al suo campo (lettere, Spazio, frecce,
+    // Backspace, Invio), tranne Esc che la chiude (spec E §11). Contano
+    // comunque come attività.
+    if (_chrome.chatOpen) {
+      if (event is! KeyUpEvent) _chrome.keyActivity();
+      if (event is KeyDownEvent &&
+          event.logicalKey == LogicalKeyboardKey.escape) {
+        _chrome.closePopup(PlayerPopup.chat);
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+    // Invio apre la chat del watch party.
+    if (event is KeyDownEvent &&
+        _openChatKeys.contains(event.logicalKey) &&
+        _chatAvailable) {
+      _chrome
+        ..keyActivity()
+        ..openPopup(PlayerPopup.chat);
+      return KeyEventResult.handled;
+    }
     final command = playerCommandFor(event,
         altPressed: HardwareKeyboard.instance.isAltPressed,
         mediaKeys: !_mediaSession.handlesMediaKeys);
@@ -696,6 +744,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ref.watch(syncPlayAccessProvider).canCreate &&
         view.item != null &&
         !_startingParty;
+    // Chat del watch party: c'è con il canale del plugin attivo (spec E §9).
+    final chat = widget.args.party != null
+        ? ref.watch(partyChannelProvider
+            .select((s) => (active: s.active, unread: s.unread)))
+        : null;
+    final chatActive = _inParty && (chat?.active ?? false);
 
     ref.listen(provider.select((s) => s.finished), (_, finished) {
       if (finished) _onFinished();
@@ -755,6 +809,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           watchPartySessionProvider
               .select((s) => s.inGroup ? s.members.length : null),
           (_, members) => unawaited(_mediaSession.setParty(members)));
+      // Canale spento (plugin tolto) con la chat aperta: si chiude.
+      ref.listen(partyChannelProvider.select((s) => s.active), (_, active) {
+        if (!active) _chrome.closePopup(PlayerPopup.chat);
+      });
     }
     if (_inParty) {
       ref.listen(
@@ -774,6 +832,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         // Il server ci ha tolto dal gruppo: si continua da soli, con
         // l'episodio successivo come fuori da un watch party.
         setState(() => _partyDetached = true);
+        _chrome.closePopup(PlayerPopup.chat);
         _detachParty();
         _controller.leaveParty();
         unawaited(_mediaSession
@@ -824,6 +883,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       body: Focus(
+        focusNode: _focusNode,
         autofocus: true,
         onKeyEvent: _onKey,
         child: Listener(
@@ -862,8 +922,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         key: const ValueKey('player-video-view'),
                         behavior: HitTestBehavior.opaque,
                         onTap: () {
-                          if (_chrome.panelOpen) {
-                            _chrome.closePanel();
+                          if (_chrome.popup != null) {
+                            // Pannello o chat aperti: il clic li chiude e
+                            // basta.
+                            _chrome.closePopup();
                           } else if (_postPlayShown(ref.read(provider))) {
                             // Clic sul film piccolo: torna a tutto schermo.
                             _dismissNext();
@@ -955,6 +1017,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         onWatchTogether: canWatchTogether
                             ? () => unawaited(_watchTogether())
                             : null,
+                        onToggleChat: chatActive
+                            ? () => _chrome.togglePopup(PlayerPopup.chat)
+                            : null,
+                        chatUnread: (chat?.unread ?? 0) > 0,
                       ),
                     ),
                   ),
@@ -1056,6 +1122,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
                   ),
                 ),
+                // Chat del watch party (spec E §9): in basso a sinistra,
+                // sopra post-play e attese, sotto la pillola e il pannello.
+                // Non è dentro `ExcludeFocus`: il suo campo prende il focus.
+                if (chatActive)
+                  Positioned(
+                    key: const ValueKey('player-party-chat'),
+                    left: PartyChatLayer.left,
+                    bottom: PartyChatLayer.bottom,
+                    child: PartyChatLayer(
+                      open: _chrome.chatOpen,
+                      onOpen: () => _chrome.openPopup(PlayerPopup.chat),
+                      onClose: () => _chrome.closePopup(PlayerPopup.chat),
+                    ),
+                  ),
                 // Riscontro dei tasti e avvisi del watch party (anche dopo
                 // l'uscita dal gruppo: "terminato" e "non sei più nel watch
                 // party" devono vedersi).

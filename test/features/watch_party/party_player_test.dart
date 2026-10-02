@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:clock/clock.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +17,7 @@ import 'package:wonderflix/core/party_channel/party_channel_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/features/player/pause_screen.dart';
 import 'package:wonderflix/features/player/playback_service.dart';
 import 'package:wonderflix/features/player/player_chrome.dart';
 import 'package:wonderflix/features/player/player_extras.dart';
@@ -23,6 +25,7 @@ import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
 import 'package:wonderflix/features/player/player_volume.dart';
+import 'package:wonderflix/features/player/tracks_panel.dart';
 import 'package:wonderflix/features/watch_party/party_notices.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
@@ -55,7 +58,9 @@ void main() {
   /// Home con il player del watch party aperto sopra: l'utente è già nel
   /// gruppo `g1` (Mario e Luigi), che guarda `e4` (`p1`).
   Future<void> pumpPartyPlayer(WidgetTester tester,
-      {int failOpens = 0, List<MediaSegment> segments = const []}) async {
+      {int failOpens = 0,
+      List<MediaSegment> segments = const [],
+      bool plugin = true}) async {
     engine = FakeVideoEngine()..engineTracks = testEngineTracks;
     engine.failOpens = failOpens;
     engines = [];
@@ -87,7 +92,8 @@ void main() {
       )
       ..nextEpisodes['e4'] = testItem(
           id: 'e5', name: 'Cat\'s in the Bag', kind: ItemKind.episode);
-    channelApi = FakePartyChannelApi()..install();
+    channelApi = FakePartyChannelApi();
+    if (plugin) channelApi.install();
     router = GoRouter(routes: [
       GoRoute(
           path: '/',
@@ -784,6 +790,108 @@ void main() {
     await tester.pump();
     expect(api.calls, contains('next p1'));
     expect(announced(), isEmpty);
+    await finish(tester);
+  });
+
+  Finder chatField() => find.byKey(const Key('party-chat-field'));
+
+  Future<void> openChatWithEnter(WidgetTester tester) async {
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    await tester.pump();
+  }
+
+  testWidgets('chat: pulsante nel gruppo con il plugin, Invio la apre '
+      '(spec E §9)', (tester) async {
+    await pumpPartyPlayer(tester);
+    expect(find.byTooltip(l.partyChatOpen), findsOneWidget);
+    await openChatWithEnter(tester);
+    expect(chatField(), findsOneWidget);
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'party-chat');
+    await finish(tester);
+  });
+
+  testWidgets('chat: senza plugin niente pulsante, Invio non fa nulla',
+      (tester) async {
+    await pumpPartyPlayer(tester, plugin: false);
+    expect(find.byTooltip(l.partyChatOpen), findsNothing);
+    await openChatWithEnter(tester);
+    expect(chatField(), findsNothing);
+    await finish(tester);
+  });
+
+  testWidgets('chat aperta: Spazio va al campo; Esc la chiude e i tasti '
+      'tornano al player', (tester) async {
+    await pumpPartyPlayer(tester);
+    await openChatWithEnter(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    expect(api.calls, isNot(contains('unpause')), reason: 'Spazio va al campo');
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    await tester.pump();
+    expect(chatField(), findsNothing);
+    expect(find.byType(PlayerScreen), findsOneWidget,
+        reason: 'Esc chiude solo la chat');
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    expect(api.calls, contains('unpause'));
+    await finish(tester);
+  });
+
+  testWidgets('chat aperta: il clic sul film la chiude senza mettere in pausa',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    await tester.tap(find.byTooltip(l.partyChatOpen));
+    await tester.pump();
+    await tester.pump();
+    expect(chatField(), findsOneWidget);
+    await tester.tapAt(const Offset(700, 300));
+    await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
+    await tester.pump();
+    expect(chatField(), findsNothing);
+    expect(api.calls, isNot(contains('unpause')));
+    await finish(tester);
+  });
+
+  testWidgets('chat e pannello "Audio e sottotitoli": uno alla volta',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    await tester.tap(find.byTooltip(l.partyChatOpen));
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.byTooltip(l.playerAudioAndSubtitles));
+    await tester.pumpAndSettle();
+    expect(chatField(), findsNothing);
+    expect(find.byType(TracksPanel), findsOneWidget);
+    await finish(tester);
+  });
+
+  testWidgets('chat aperta: niente "Stai guardando"', (tester) async {
+    await pumpPartyPlayer(tester);
+    await openChatWithEnter(tester);
+    await tester.pump(PlayerChromeController.pauseScreenDelay +
+        const Duration(seconds: 1));
+    expect(tester.widget<PauseScreen>(find.byType(PauseScreen)).visible,
+        isFalse);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    await tester.pump(PlayerChromeController.pauseScreenDelay +
+        const Duration(seconds: 1));
+    expect(tester.widget<PauseScreen>(find.byType(PauseScreen)).visible,
+        isTrue);
+    await finish(tester);
+  });
+
+  testWidgets('chat: i messaggi arrivano come bolle, non come non letti',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    events.add(PartyChannelReceived(
+        partyPayload({'Type': 'Chat', 'Text': 'ciao a tutti'}, id: 'c1')));
+    await tester.pump();
+    await tester.pump();
+    expect(find.textContaining('ciao a tutti'), findsOneWidget);
+    expect(find.byKey(const Key('player-chat-unread')), findsNothing);
     await finish(tester);
   });
 }
