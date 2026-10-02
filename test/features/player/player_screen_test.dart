@@ -715,6 +715,7 @@ void main() {
   testWidgets(
       'chiusura della finestra: sparisce subito, prima che il video si spenga',
       (tester) async {
+    savedVolume = 70;
     await pumpPlayer(tester);
     final container =
         ProviderScope.containerOf(tester.element(find.byType(PlayerScreen)));
@@ -722,11 +723,16 @@ void main() {
         container.read(playerVolumeProvider.notifier) as FakePlayerVolume;
     volume.holdFlush = Completer<void>();
     bool? engineDisposedAtHide;
-    window.onHide = () => engineDisposedAtHide = engine.disposed;
+    double? volumeAtHide;
+    window.onHide = () {
+      engineDisposedAtHide = engine.disposed;
+      volumeAtHide = engine.volumes.lastOrNull;
+    };
     final closing = window.simulateClose();
     await tester.pump();
     expect(engineDisposedAtHide, isFalse,
         reason: 'il motore si spegne solo a finestra già nascosta');
+    expect(volumeAtHide, 0, reason: 'il film tace insieme alla finestra');
     expect(window.hidden, isTrue,
         reason: 'nascosta mentre il lavoro di uscita è ancora in corso');
     expect(window.destroyed, isFalse);
@@ -734,6 +740,43 @@ void main() {
     await tester.pump();
     await closing;
     expect(window.destroyed, isTrue);
+    expect(container.read(playerVolumeProvider), 70,
+        reason: 'il muto non diventa il volume salvato');
+    expect(playback.stopped.single.volume, 70,
+        reason: 'il server riceve il volume scelto, non lo zero del muto');
+    expect(playback.stopped.single.isMuted, isFalse);
+    await unmount(tester);
+  });
+
+  testWidgets(
+      'chiusura della finestra: un errore nel lavoro di uscita chiude lo '
+      'stesso', (tester) async {
+    await pumpPlayer(tester);
+    final container =
+        ProviderScope.containerOf(tester.element(find.byType(PlayerScreen)));
+    final volume =
+        container.read(playerVolumeProvider.notifier) as FakePlayerVolume;
+    volume.holdFlush = Completer<void>();
+    final closing = window.simulateClose();
+    await tester.pump();
+    expect(window.destroyed, isFalse);
+    volume.holdFlush!.completeError(StateError('disco pieno'));
+    await tester.pump();
+    await closing;
+    expect(window.destroyed, isTrue,
+        reason: 'senza destroy il processo resterebbe vivo e invisibile');
+    await unmount(tester);
+  });
+
+  testWidgets('chiusura della finestra: se non si nasconde chiude lo stesso',
+      (tester) async {
+    await pumpPlayer(tester);
+    window.onHide = () => throw StateError('nascondi');
+    final closing = window.simulateClose();
+    await tester.pump();
+    await closing;
+    expect(window.destroyed, isTrue);
+    expect(playback.stopped, hasLength(1));
     await unmount(tester);
   });
 

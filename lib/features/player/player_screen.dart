@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:logging/logging.dart';
 
 import '../../app/motion.dart';
 import '../../app/navigation.dart';
@@ -51,6 +52,8 @@ import 'skip_button.dart';
 import 'tracks_panel.dart';
 import 'trickplay.dart';
 import 'trickplay_preview.dart';
+
+final _log = Logger('player');
 
 /// Schermata del player: video a tutta finestra, controlli in
 /// sovrimpressione, tastiera, schermo intero, salta intro, prossimo
@@ -261,21 +264,37 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _onWindowClose() async {
-    // La finestra sparisce subito: fine della sessione sul server, uscita dal
-    // party e volume vanno avanti senza farsi vedere. Prima restava ferma a
-    // video nero finché non finivano (issue #8).
+    // Letti subito: dopo il primo await la schermata può essere già smontata.
+    final controller = _controller;
+    final party =
+        _inParty ? ref.read(watchPartySessionProvider.notifier) : null;
+    final volume = ref.read(playerVolumeProvider.notifier);
+    // La finestra sparisce e il film tace subito: fine della sessione sul
+    // server, uscita dal party e volume vanno avanti senza farsi vedere né
+    // sentire. Prima la finestra restava ferma a video nero finché non
+    // finivano (issue #8). Il muto è solo del motore, e non si aspetta
+    // (durante l'apertura il motore lo farebbe attendere): il volume salvato
+    // e quello mandato al server restano quelli scelti.
+    controller.engine.setVolume(0).ignore();
     try {
       await _window.hide();
     } on Object {
       // Se non si nasconde, si chiude comunque come prima.
     }
-    await Future.wait([
-      _controller.close(),
-      if (_inParty) ref.read(watchPartySessionProvider.notifier).leave(),
-      // Il provider dell'app non viene mai chiuso: il volume cambiato da meno
-      // di [PlayerVolumeController.saveDelay] va scritto adesso (issue #3).
-      ref.read(playerVolumeProvider.notifier).flush(),
-    ]).timeout(PlayerScreen.closeTimeout, onTimeout: () => const []);
+    try {
+      await Future.wait([
+        controller.close(),
+        if (party != null) party.leave(),
+        // Il provider dell'app non viene mai chiuso: il volume cambiato da
+        // meno di [PlayerVolumeController.saveDelay] va scritto adesso
+        // (issue #3).
+        volume.flush(),
+      ]).timeout(PlayerScreen.closeTimeout, onTimeout: () => const []);
+    } on Object catch (error) {
+      // Un errore qui non deve lasciare l'app viva e invisibile: terrebbe il
+      // blocco dell'istanza unica e WonderFlix non si riaprirebbe più.
+      _log.warning('chiusura della finestra: $error');
+    }
     await _window.destroy();
   }
 
