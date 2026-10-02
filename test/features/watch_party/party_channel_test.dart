@@ -387,12 +387,48 @@ void main() {
       channelApi.install();
       mount(async);
       joinGroup(async);
+      expect(channel().pluginVersion, '1.0.0');
       channelApi.sendFailures.add(PartyChannelFailure.unavailable);
       notifier().announce(PartyAction.pause);
       async.flushMicrotasks();
       expect(channel().active, isFalse);
       expect(channel().availability, PartyPluginAvailability.unavailable);
+      expect(channel().pluginVersion, isNull,
+          reason: 'la diagnostica deve dire "assente"');
       expect(notices.attributionCalls.last, isFalse);
+      finish(async);
+    });
+  });
+
+  test('404 al rientro: plugin sparito, versione dimenticata', () {
+    fakeAsync((async) {
+      channelApi.install();
+      mount(async);
+      joinGroup(async);
+      channelApi.joinFailure = PartyChannelFailure.unavailable;
+      events.add(const ServerConnected(true));
+      async.flushMicrotasks();
+      expect(channel().active, isFalse);
+      expect(channel().availability, PartyPluginAvailability.unavailable);
+      expect(channel().pluginVersion, isNull);
+      finish(async);
+    });
+  });
+
+  test('refreshInfo: plugin tolto dopo una versione nota → assente', () {
+    fakeAsync((async) {
+      channelApi.pluginInfo =
+          const PartyPluginInfo(version: '2.0.0', protocol: 2);
+      mount(async);
+      unawaited(notifier().refreshInfo());
+      async.flushMicrotasks();
+      expect(channel().availability, PartyPluginAvailability.unavailable);
+      expect(channel().pluginVersion, '2.0.0');
+      channelApi.pluginInfo = null;
+      unawaited(notifier().refreshInfo());
+      async.flushMicrotasks();
+      expect(channel().availability, PartyPluginAvailability.unavailable);
+      expect(channel().pluginVersion, isNull);
       finish(async);
     });
   });

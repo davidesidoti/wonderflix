@@ -70,9 +70,11 @@ class PartyChannelState {
   final int sent;
   final int received;
 
+  /// Con [clearPluginVersion] la versione torna `null` (plugin sparito).
   PartyChannelState copyWith({
     PartyPluginAvailability? availability,
     String? pluginVersion,
+    bool clearPluginVersion = false,
     bool? active,
     List<PartyChatEntry>? messages,
     int? unread,
@@ -81,7 +83,8 @@ class PartyChannelState {
   }) =>
       PartyChannelState(
         availability: availability ?? this.availability,
-        pluginVersion: pluginVersion ?? this.pluginVersion,
+        pluginVersion:
+            clearPluginVersion ? null : pluginVersion ?? this.pluginVersion,
         active: active ?? this.active,
         messages: messages ?? this.messages,
         unread: unread ?? this.unread,
@@ -294,8 +297,9 @@ class PartyChannel extends Notifier<PartyChannelState> {
       );
     } on PartyChannelException catch (error) {
       if (ref.mounted && error.failure == PartyChannelFailure.unavailable) {
-        state =
-            state.copyWith(availability: PartyPluginAvailability.unavailable);
+        state = state.copyWith(
+            availability: PartyPluginAvailability.unavailable,
+            clearPluginVersion: true);
       }
     } on Object catch (error) {
       _log.info('plugin del watch party non verificato: $error');
@@ -340,10 +344,11 @@ class PartyChannel extends Notifier<PartyChannelState> {
     } on PartyChannelException catch (error) {
       if (!ref.mounted || generation != _generation) return;
       _log.info('canale del watch party spento: $error');
-      _deactivate(
-          availability: error.failure == PartyChannelFailure.unavailable
-              ? PartyPluginAvailability.unavailable
-              : null);
+      if (error.failure == PartyChannelFailure.unavailable) {
+        _deactivatePluginGone();
+      } else {
+        _deactivate();
+      }
     } on Object catch (error) {
       if (!ref.mounted || generation != _generation) return;
       _log.warning('canale del watch party non disponibile: $error');
@@ -367,13 +372,24 @@ class PartyChannel extends Notifier<PartyChannelState> {
   }
 
   /// Canale spento per il gruppo corrente (plugin assente o sparito, errori).
-  void _deactivate({PartyPluginAvailability? availability, String? version}) {
+  void _deactivate(
+      {PartyPluginAvailability? availability,
+      String? version,
+      bool clearVersion = false}) {
     _groupId = null;
     if (!ref.mounted) return;
     state = state.copyWith(
-        active: false, availability: availability, pluginVersion: version);
+        active: false,
+        availability: availability,
+        pluginVersion: version,
+        clearPluginVersion: clearVersion);
     ref.read(partyNoticesProvider.notifier).setAttribution(false);
   }
+
+  /// Il plugin non c'è (404): canale spento e versione dimenticata, così la
+  /// diagnostica dice "assente".
+  void _deactivatePluginGone() => _deactivate(
+      availability: PartyPluginAvailability.unavailable, clearVersion: true);
 
   void _onEvent(ServerEvent event) {
     if (event is! PartyChannelReceived) return;
@@ -457,7 +473,7 @@ class PartyChannel extends Notifier<PartyChannelState> {
       if (error.failure == PartyChannelFailure.unavailable &&
           _groupId == groupId) {
         _log.warning('plugin del watch party sparito: canale spento');
-        _deactivate(availability: PartyPluginAvailability.unavailable);
+        _deactivatePluginGone();
       }
       rethrow;
     }
