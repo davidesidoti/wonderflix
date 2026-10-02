@@ -266,14 +266,22 @@ void main() {
             displayTitle: 'Sottotitolo $i'),
     ]);
     final wheel = TestPointer(1, PointerDeviceKind.mouse);
-    await tester.sendEventToBinding(
-        wheel.hover(tester.getCenter(find.byType(TracksPanel))));
-    await tester.sendEventToBinding(wheel.scroll(const Offset(0, 60)));
-    await tester.pump();
     final position = tester
         .state<ScrollableState>(find.descendant(
             of: find.byType(TracksPanel), matching: find.byType(Scrollable)))
         .position;
+    await tester.sendEventToBinding(
+        wheel.hover(tester.getCenter(find.byType(TracksPanel))));
+
+    // In cima, rotella in su: la lista non può scorrere, il pannello se la
+    // tiene.
+    await tester.sendEventToBinding(wheel.scroll(const Offset(0, -60)));
+    await tester.pump();
+    expect(position.pixels, 0);
+    expect(outside(), 0);
+
+    await tester.sendEventToBinding(wheel.scroll(const Offset(0, 60)));
+    await tester.pump();
     expect(position.pixels, greaterThan(0));
     expect(outside(), 0);
   });
