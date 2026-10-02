@@ -37,6 +37,8 @@ class PlayerOverlay extends StatelessWidget {
     this.onWatchTogether,
     this.onToggleChat,
     this.chatUnread = false,
+    this.onToggleReactions,
+    this.reactionsLink,
   });
 
   final PlayerViewState view;
@@ -74,8 +76,21 @@ class PlayerOverlay extends StatelessWidget {
   /// Messaggi arrivati fuori dal player e non ancora letti: puntino oro.
   final bool chatUnread;
 
+  /// Barretta delle reazioni del watch party (spec E §10.2): alle stesse
+  /// condizioni della chat; `null` = nessun pulsante.
+  final VoidCallback? onToggleReactions;
+
+  /// Aggancio della barretta al pulsante (la barretta è un livello a sé del
+  /// player).
+  final LayerLink? reactionsLink;
+
   /// Di quanto la parte alta sale e la bassa scende a controlli nascosti.
   static const hiddenShift = 24.0;
+
+  /// [child] agganciato a [link] (se c'è), per un livello che lo segue.
+  static Widget _anchored(LayerLink? link, Widget child) => link == null
+      ? child
+      : CompositedTransformTarget(link: link, child: child);
 
   /// Parte alta o bassa: sfuma e scivola verso il suo bordo. Entrata
   /// `medium`, uscita `fast`; con le animazioni ridotte solo dissolvenza.
@@ -278,6 +293,16 @@ class PlayerOverlay extends StatelessWidget {
                               ),
                               tooltip: l.partyChatOpen,
                               onPressed: onToggleChat,
+                            ),
+                          if (onToggleReactions != null)
+                            _anchored(
+                              reactionsLink,
+                              PlayerIconButton(
+                                key: const Key('player-reactions-button'),
+                                icon: const Icon(LucideIcons.smilePlus),
+                                tooltip: l.partyReactionsOpen,
+                                onPressed: onToggleReactions,
+                              ),
                             ),
                           PlayerIconButton(
                             icon: const Icon(LucideIcons.captions),

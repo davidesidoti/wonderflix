@@ -19,6 +19,8 @@ void main() {
     bool fullscreen = false,
     bool chat = false,
     bool chatUnread = false,
+    bool reactions = false,
+    bool reactionsLinked = true,
   }) async {
     final calls = <String>[];
     await pumpApp(
@@ -38,6 +40,8 @@ void main() {
           onToggleFullscreen: () => calls.add('fullscreen'),
           onToggleChat: chat ? () => calls.add('chat') : null,
           chatUnread: chatUnread,
+          onToggleReactions: reactions ? () => calls.add('reactions') : null,
+          reactionsLink: reactions && reactionsLinked ? LayerLink() : null,
         ),
       ),
     );
@@ -306,5 +310,25 @@ void main() {
 
     await pumpOverlay(tester, view, chat: true, chatUnread: true);
     expect(find.byKey(const Key('player-chat-unread')), findsOneWidget);
+  });
+
+  testWidgets('reazioni del watch party: pulsante (spec E §10.2)',
+      (tester) async {
+    final view = PlayerViewState(status: PlayerStatus.ready);
+    await pumpOverlay(tester, view);
+    expect(find.byTooltip('Reazioni (1–6)'), findsNothing);
+    final calls = await pumpOverlay(tester, view, reactions: true);
+    // Il volume (Slider) ha già un suo aggancio: si cerca quello del pulsante.
+    final anchor = find.ancestor(
+        of: find.byKey(const Key('player-reactions-button')),
+        matching: find.byType(CompositedTransformTarget));
+    expect(anchor, findsOneWidget);
+    await tester.tap(find.byTooltip('Reazioni (1–6)'));
+    expect(calls, ['reactions']);
+
+    // Senza aggancio il pulsante c'è ma non è dentro un target.
+    await pumpOverlay(tester, view, reactions: true, reactionsLinked: false);
+    expect(find.byTooltip('Reazioni (1–6)'), findsOneWidget);
+    expect(anchor, findsNothing);
   });
 }
