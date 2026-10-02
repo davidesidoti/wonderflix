@@ -26,6 +26,7 @@ import 'package:wonderflix/features/player/player_pill.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
+import 'package:wonderflix/features/player/player_volume.dart';
 import 'package:wonderflix/features/player/post_play.dart';
 import 'package:wonderflix/features/player/seek_bar.dart';
 import 'package:wonderflix/features/player/tracks_panel.dart';
@@ -53,6 +54,7 @@ void main() {
   /// Il router creato da [pumpPlayer]: la pagina in cima è lo stato attuale.
   late GoRouter router;
   var settings = const PlayerSettings();
+  var savedVolume = 100.0;
 
   setUp(() {
     engine = FakeVideoEngine()..engineTracks = testEngineTracks;
@@ -61,6 +63,7 @@ void main() {
     window = FakePlayerWindow();
     mediaSession = FakeMediaSession();
     settings = const PlayerSettings();
+    savedVolume = 100;
     library = FakeLibraryApi()
       ..itemsById['e4'] = testItem(
         id: 'e4',
@@ -115,6 +118,7 @@ void main() {
         playerWindowProvider.overrideWithValue(window),
         mediaSessionProvider.overrideWithValue(mediaSession),
         playerSettingsProvider.overrideWith(() => FakePlayerSettings(settings)),
+        playerVolumeProvider.overrideWith(() => FakePlayerVolume(savedVolume)),
         sessionControllerProvider.overrideWith(
             () => FakeSessionController(const SessionSignedIn(testUser))),
         appConfigProvider.overrideWithValue(testAppConfig),
@@ -593,6 +597,21 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('chiusura della finestra: il volume si scrive subito',
+      (tester) async {
+    await pumpPlayer(tester);
+    final container =
+        ProviderScope.containerOf(tester.element(find.byType(PlayerScreen)));
+    final volume =
+        container.read(playerVolumeProvider.notifier) as FakePlayerVolume;
+    final closing = window.simulateClose();
+    await tester.pump();
+    await closing;
+    expect(volume.flushes, 1);
+    expect(window.destroyed, isTrue);
+    await unmount(tester);
+  });
+
   JellyfinItem episode5() => testItem(
         id: 'e5',
         name: 'Cat in the Bag',
@@ -773,6 +792,26 @@ void main() {
     expect(engines.last.opened.single.start, const Duration(minutes: 12));
     expect(library.playedCalls, isEmpty,
         reason: 'lasciato a metà: resta in corso');
+    await unmount(tester);
+  });
+
+  testWidgets('volume: l\'episodio successivo parte dall\'ultimo scelto',
+      (tester) async {
+    withNextEpisode();
+    await pumpPlayer(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    expect(engine.volumes.last, 90);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyM);
+    await tester.pump();
+    expect(engine.volumes.last, 0);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+    await tester.pumpAndSettle();
+    expect(engines, hasLength(2));
+    expect(engines.last.volumes.first, 90,
+        reason: 'stesso volume, senza muto');
     await unmount(tester);
   });
 

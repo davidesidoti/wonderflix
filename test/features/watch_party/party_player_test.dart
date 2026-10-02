@@ -21,6 +21,7 @@ import 'package:wonderflix/features/player/player_extras.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
+import 'package:wonderflix/features/player/player_volume.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
@@ -120,6 +121,7 @@ void main() {
         mediaSessionProvider.overrideWithValue(mediaSession),
         playerSettingsProvider
             .overrideWith(() => FakePlayerSettings(const PlayerSettings())),
+        playerVolumeProvider.overrideWith(FakePlayerVolume.new),
         sessionControllerProvider.overrideWith(
             () => FakeSessionController(const SessionSignedIn(testUser))),
         appConfigProvider.overrideWithValue(testAppConfig),

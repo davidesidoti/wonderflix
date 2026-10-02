@@ -38,6 +38,7 @@ import 'player_overlay.dart';
 import 'player_pill.dart';
 import 'player_providers.dart';
 import 'player_settings.dart';
+import 'player_volume.dart';
 import 'player_window.dart';
 import 'segments.dart';
 import 'skip_button.dart';
@@ -202,6 +203,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     await Future.wait([
       _controller.close(),
       if (_inParty) ref.read(watchPartySessionProvider.notifier).leave(),
+      // Il provider dell'app non viene mai chiuso: il volume cambiato da
+      // meno di mezzo secondo va scritto adesso (issue #3).
+      ref.read(playerVolumeProvider.notifier).flush(),
     ]).timeout(PlayerScreen.closeTimeout, onTimeout: () => const []);
     await _window.destroy();
   }

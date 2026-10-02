@@ -14,6 +14,7 @@ import 'package:wonderflix/features/player/playback_service.dart';
 import 'package:wonderflix/features/player/player_controller.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
+import 'package:wonderflix/features/player/player_volume.dart';
 import 'package:wonderflix/features/player/segments.dart';
 
 import '../../support/fake_session_controller.dart';
@@ -27,11 +28,13 @@ void main() {
   late FakeVideoEngine engine;
   late ProviderContainer container;
   var settings = const PlayerSettings();
+  var savedVolume = 100.0;
   const args = (itemId: 'm1', start: Duration(minutes: 3), party: null);
   final provider = playerControllerProvider(args);
 
   setUp(() {
     settings = const PlayerSettings();
+    savedVolume = 100;
     library = FakeLibraryApi()
       ..itemsById['m1'] = testItem(id: 'm1', runtimeMinutes: 120);
     playback = FakePlaybackApi();
@@ -47,6 +50,7 @@ void main() {
         )),
         videoEngineFactoryProvider.overrideWithValue(() => engine),
         playerSettingsProvider.overrideWith(() => FakePlayerSettings(settings)),
+        playerVolumeProvider.overrideWith(() => FakePlayerVolume(savedVolume)),
         sessionControllerProvider.overrideWith(
             () => FakeSessionController(const SessionSignedIn(testUser))),
       ],
@@ -399,6 +403,25 @@ void main() {
     await controller.shiftSubtitleDelay(const Duration(milliseconds: 100));
     expect(engine.subtitleDelays.last, const Duration(milliseconds: 200));
     expect(view().subtitleDelay, const Duration(milliseconds: 200));
+  });
+
+  test('volume: parte da quello salvato, senza muto', () async {
+    savedVolume = 40;
+    await start();
+    expect(view().volume, 40);
+    expect(view().muted, isFalse);
+    expect(engine.volumes.first, 40, reason: 'applicato all\'apertura');
+  });
+
+  test('volume: barra e tasti lo salvano, il muto no', () async {
+    final controller = await start();
+    await controller.setVolume(70);
+    expect(container.read(playerVolumeProvider), 70);
+    await controller.changeVolumeBy(-5);
+    expect(container.read(playerVolumeProvider), 65);
+    await controller.toggleMute();
+    expect(container.read(playerVolumeProvider), 65,
+        reason: 'il muto non si salva');
   });
 
   test('play e pause: idempotenti; prima della partenza non fanno nulla',

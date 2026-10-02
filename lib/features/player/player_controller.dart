@@ -14,6 +14,7 @@ import 'playback_authority.dart';
 import 'playback_service.dart';
 import 'player_providers.dart';
 import 'player_settings.dart';
+import 'player_volume.dart';
 import 'progress_reporter.dart';
 import 'segments.dart';
 import 'track_mapping.dart';
@@ -208,6 +209,8 @@ class PlayerController extends Notifier<PlayerViewState> {
     _overrides = ref.read(userDataOverridesProvider.notifier);
     _userDataRevision = ref.read(userDataRevisionProvider.notifier);
     _settings = ref.read(playerSettingsProvider);
+    // Ogni player parte dall'ultimo volume scelto, senza muto (issue #3).
+    _view = _view.copyWith(volume: ref.read(playerVolumeProvider));
     _listenToEngine();
     ref.onDispose(() => unawaited(close()));
     unawaited(Future.microtask(() => _start(args.start)));
@@ -481,10 +484,12 @@ class PlayerController extends Notifier<PlayerViewState> {
 
   Future<void> seekBy(Duration offset) => seekTo(_engine.position + offset);
 
-  /// 0–100. Toglie anche il muto.
+  /// 0–100. Toglie anche il muto e diventa il volume dei prossimi player
+  /// (issue #3).
   Future<void> setVolume(double volume) async {
     final value = volume.clamp(0.0, 100.0);
     _emit(_view.copyWith(volume: value, muted: false));
+    if (ref.mounted) ref.read(playerVolumeProvider.notifier).set(value);
     await _engine.setVolume(value);
   }
 
