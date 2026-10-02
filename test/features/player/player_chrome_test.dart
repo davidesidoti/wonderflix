@@ -337,6 +337,49 @@ void main() {
     });
   });
 
+  test('chat (spec E §9.6): i controlli si nascondono, la pausa non compare',
+      () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController()
+        ..setPlayback(playing: true, canShowPauseScreen: false);
+      chrome.openPopup(PlayerPopup.chat);
+      expect(chrome.chatOpen, isTrue);
+      expect(chrome.panelOpen, isFalse);
+      async.elapse(PlayerChromeController.hideDelay);
+      expect(chrome.controlsVisible, isFalse,
+          reason: 'la chat non tiene su i controlli');
+      chrome.setPlayback(playing: false, canShowPauseScreen: true);
+      async.elapse(const Duration(seconds: 20));
+      expect(chrome.pauseScreen, isFalse);
+      chrome.closePopup(PlayerPopup.chat);
+      async.elapse(PlayerChromeController.pauseScreenDelay);
+      expect(chrome.pauseScreen, isTrue);
+      chrome.openPopup(PlayerPopup.chat);
+      expect(chrome.pauseScreen, isFalse, reason: 'aprire la chat la chiude');
+      chrome.dispose();
+    });
+  });
+
+  test('un riquadro alla volta: tracce e chat si sostituiscono', () {
+    final chrome = PlayerChromeController();
+    var notified = 0;
+    chrome.addListener(() => notified++);
+    chrome.openPopup(PlayerPopup.chat);
+    chrome.togglePanel();
+    expect(chrome.popup, PlayerPopup.tracks);
+    expect(chrome.chatOpen, isFalse);
+    chrome.closePopup(PlayerPopup.chat);
+    expect(chrome.panelOpen, isTrue,
+        reason: 'chiude solo il riquadro indicato');
+    chrome.closePopup();
+    expect(chrome.popup, isNull);
+    chrome.togglePopup(PlayerPopup.chat);
+    chrome.togglePopup(PlayerPopup.chat);
+    expect(chrome.popup, isNull);
+    expect(notified, 5);
+    chrome.dispose();
+  });
+
   test('dispose: nessun timer in sospeso', () {
     fakeAsync((async) {
       final chrome = PlayerChromeController()

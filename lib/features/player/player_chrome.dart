@@ -50,6 +50,10 @@ final class SkipFeedback extends PlayerFeedback {
   final SkipKind kind;
 }
 
+/// Riquadri del player che si aprono uno alla volta (spec E §11): il
+/// pannello "Audio e sottotitoli" e la chat del watch party.
+enum PlayerPopup { tracks, chat }
+
 /// Stato dell'interfaccia del player (spec D §5.1): controlli, pannello e
 /// riscontro dei tasti. Lo stato della riproduzione resta nel
 /// `PlayerController`. Lo crea e lo distrugge `PlayerScreen`.
@@ -73,7 +77,7 @@ class PlayerChromeController extends ChangeNotifier {
   static const pauseScreenDelay = Duration(seconds: 8);
 
   bool _controlsVisible = true;
-  bool _panelOpen = false;
+  PlayerPopup? _popup;
   bool _playing = false;
   bool _pauseScreen = false;
   bool _postPlayDismissed = false;
@@ -98,7 +102,12 @@ class PlayerChromeController extends ChangeNotifier {
 
   bool get controlsVisible => _controlsVisible;
 
-  bool get panelOpen => _panelOpen;
+  /// Riquadro aperto; `null` = nessuno.
+  PlayerPopup? get popup => _popup;
+
+  bool get panelOpen => _popup == PlayerPopup.tracks;
+
+  bool get chatOpen => _popup == PlayerPopup.chat;
 
   /// Schermata "Stai guardando" mostrata.
   bool get pauseScreen => _pauseScreen;
@@ -150,22 +159,40 @@ class PlayerChromeController extends ChangeNotifier {
     _scheduleHide();
   }
 
-  /// Apre o chiude il pannello "Audio e sottotitoli": i controlli si vedono
-  /// e, a pannello aperto, restano.
-  void togglePanel() {
-    _panelOpen = !_panelOpen;
-    _controlsVisible = true;
+  /// Apre [popup], chiudendo l'altro. Il pannello "Audio e sottotitoli"
+  /// mostra i controlli e li tiene su; la chat no (spec E §9.6). Tutti e due
+  /// chiudono la schermata di pausa.
+  void openPopup(PlayerPopup popup) {
+    if (_popup == popup) return;
+    _popup = popup;
     _pauseScreen = false;
+    if (popup == PlayerPopup.tracks) _controlsVisible = true;
     notifyListeners();
     _scheduleHide();
   }
 
-  void closePanel() {
-    if (!_panelOpen) return;
-    _panelOpen = false;
+  /// Chiude [popup] se è quello aperto; senza argomento chiude quello
+  /// aperto.
+  void closePopup([PlayerPopup? popup]) {
+    if (_popup == null || (popup != null && _popup != popup)) return;
+    _popup = null;
     notifyListeners();
     _scheduleHide();
   }
+
+  void togglePopup(PlayerPopup popup) {
+    if (_popup == popup) {
+      closePopup(popup);
+    } else {
+      openPopup(popup);
+    }
+  }
+
+  /// Apre o chiude il pannello "Audio e sottotitoli": i controlli si vedono
+  /// e, a pannello aperto, restano.
+  void togglePanel() => togglePopup(PlayerPopup.tracks);
+
+  void closePanel() => closePopup(PlayerPopup.tracks);
 
   /// Post-play o scheda chiusi: tornano i controlli (e il loro conto).
   void dismissPostPlay() {
@@ -233,20 +260,24 @@ class PlayerChromeController extends ChangeNotifier {
 
   /// In riproduzione i controlli si nascondono dopo [hideDelay]; in pausa,
   /// se ammessa, dopo [pauseScreenDelay] compare la schermata di pausa (e i
-  /// controlli si nascondono). Con il pannello aperto nessuno dei due.
+  /// controlli si nascondono). Con il pannello aperto nessuno dei due; con
+  /// la chat aperta i controlli si nascondono ma la schermata di pausa non
+  /// parte (si sta scrivendo, spec E §9.6).
   void _scheduleHide() {
     _hideTimer?.cancel();
     _hideTimer = null;
     _pauseTimer?.cancel();
     _pauseTimer = null;
-    if (_panelOpen) return;
+    if (_popup == PlayerPopup.tracks) return;
     if (_playing) {
       if (!_controlsVisible) return;
       _hideTimer = Timer(hideDelay, () {
         _controlsVisible = false;
         notifyListeners();
       });
-    } else if (_canShowPauseScreen && !_pauseScreen) {
+    } else if (_canShowPauseScreen &&
+        !_pauseScreen &&
+        _popup != PlayerPopup.chat) {
       _pauseTimer = Timer(pauseScreenDelay, () {
         _pauseScreen = true;
         _controlsVisible = false;
