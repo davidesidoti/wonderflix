@@ -1,10 +1,13 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/theme.dart';
 import '../../core/party_channel/party_channel_models.dart';
+import '../../l10n/gen/app_localizations.dart';
 import 'party_channel.dart';
 import 'party_chat_bubble.dart';
 
@@ -82,6 +85,9 @@ class _PartyChatLayerState extends ConsumerState<PartyChatLayer> {
   /// Distanza dal fondo entro cui lo storico segue i messaggi nuovi.
   static const _stickToEndSlack = 24.0;
 
+  /// Opacità del fondo dello storico.
+  static const _historyAlpha = 0.55;
+
   late final PartyChannel _channel;
   late final StreamSubscription<PartyChatEntry> _arrivals;
   final _bubbles = <_Bubble>[];
@@ -89,6 +95,9 @@ class _PartyChatLayerState extends ConsumerState<PartyChatLayer> {
   final _fieldFocus = FocusNode(debugLabel: 'party-chat');
   final _scroll = ScrollController();
   Timer? _idleTimer;
+
+  /// Esito dell'ultimo invio non riuscito: la riga rossa sotto il campo.
+  PartyChatSendResult? _error;
 
   @override
   void initState() {
@@ -184,7 +193,8 @@ class _PartyChatLayerState extends ConsumerState<PartyChatLayer> {
 
   void _onTextChanged() {
     _restartIdle();
-    if (mounted) setState(() {});
+    // Il tasto dopo un errore toglie la riga rossa.
+    if (mounted) setState(() => _error = null);
   }
 
   void _restartIdle() {
@@ -196,6 +206,26 @@ class _PartyChatLayerState extends ConsumerState<PartyChatLayer> {
         widget.onClose();
       }
     });
+  }
+
+  Future<void> _submit(String value) async {
+    final text = normalizeChatText(value);
+    _field.clear();
+    if (text.isEmpty) {
+      widget.onClose();
+      return;
+    }
+    final result = await _channel.sendChat(text);
+    if (!mounted || result == PartyChatSendResult.sent) return;
+    // Non inviato: il testo torna nel campo (se intanto non se n'è scritto
+    // altro) e la chat si riapre, con la riga rossa (spec E §9.4). La riga
+    // si imposta dopo il testo: rimetterlo passa da `_onTextChanged`.
+    if (_field.text.isEmpty) {
+      _field.value = TextEditingValue(
+          text: text, selection: TextSelection.collapsed(offset: text.length));
+    }
+    setState(() => _error = result);
+    if (!widget.open) widget.onOpen();
   }
 
   @override
@@ -227,7 +257,93 @@ class _PartyChatLayerState extends ConsumerState<PartyChatLayer> {
     );
   }
 
-  // Parte aperta: Task 5.
-  Widget _buildOpen(BuildContext context, List<PartyChatEntry> messages) =>
-      const SizedBox.shrink();
+  Widget _buildOpen(BuildContext context, List<PartyChatEntry> messages) {
+    final l = AppLocalizations.of(context);
+    final length = chatTextLength(_field.text);
+    final error = _error;
+    final maxHistory = MediaQuery.sizeOf(context).height *
+        PartyChatLayer.historyHeightFraction;
+    return Listener(
+      // La rotella sopra la chat aperta non cambia il volume: scorre lo
+      // storico (che, più interno, si registra prima) o non fa nulla.
+      onPointerSignal: (event) => GestureBinding.instance.pointerSignalResolver
+          .register(event, (_) {}),
+      child: MouseRegion(
+        onHover: (_) => _restartIdle(),
+        child: SizedBox(
+          width: PartyChatBubble.width,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (messages.isNotEmpty)
+                Container(
+                  key: const Key('party-chat-history'),
+                  constraints: BoxConstraints(maxHeight: maxHistory),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: WfColors.bg.withValues(alpha: _historyAlpha),
+                    borderRadius:
+                        BorderRadius.circular(PartyChatBubble.radius),
+                  ),
+                  child: ListView.builder(
+                    controller: _scroll,
+                    shrinkWrap: true,
+                    padding: EdgeInsets.zero,
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) => Padding(
+                      key: ValueKey('party-chat-line-${messages[index].key}'),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+                      child: PartyChatMessage(entry: messages[index]),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: PartyChatBubble.gap),
+              TextField(
+                key: const Key('party-chat-field'),
+                controller: _field,
+                focusNode: _fieldFocus,
+                style: partyChatTextStyle,
+                maxLines: 1,
+                textInputAction: TextInputAction.send,
+                inputFormatters: const [ChatLengthFormatter()],
+                // Il campo resta a fuoco: Invio lo svuota e si continua a
+                // scrivere.
+                onEditingComplete: () {},
+                onSubmitted: (value) => unawaited(_submit(value)),
+                // Un clic sui controlli non gli toglie il focus; il clic sul
+                // film chiude la chat (lo fa `PlayerScreen`).
+                onTapOutside: (_) {},
+                decoration:
+                    InputDecoration(hintText: l.partyChatHint, isDense: true),
+              ),
+              if (error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    error == PartyChatSendResult.rateLimited
+                        ? l.partyChatTooMany
+                        : l.partyChatNotSent,
+                    style:
+                        const TextStyle(color: WfColors.error, fontSize: 12),
+                  ),
+                )
+              else if (length >= PartyChatLayer.counterFrom)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    '$length/$maxChatLength',
+                    textAlign: TextAlign.end,
+                    style: const TextStyle(
+                        color: WfColors.creamMuted, fontSize: 12),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

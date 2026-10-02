@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/core/party_channel/party_channel_api.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/watch_party/party_channel.dart';
@@ -151,6 +152,156 @@ void main() {
       expect(
           find.ancestor(of: bubbles(), matching: find.byType(IgnorePointer)),
           findsWidgets);
+      await leave(tester);
+    });
+  });
+
+  Finder field() => find.byKey(const Key('party-chat-field'));
+
+  Future<void> openChat(WidgetTester tester) async {
+    open.value = true;
+    await tester.pump();
+    await tester.pump();
+  }
+
+  Future<void> send(WidgetTester tester, String text) async {
+    await tester.enterText(field(), text);
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pump();
+    await tester.pump();
+  }
+
+  group('chat aperta (spec E §9.3, §9.4)', () {
+    testWidgets('campo a fuoco e storico al posto delle bolle',
+        (tester) async {
+      await pumpChat(tester);
+      await receive(tester, 'primo', id: 'c1');
+      await receive(tester, 'secondo', id: 'c2');
+      await openChat(tester);
+      expect(field(), findsOneWidget);
+      expect(FocusManager.instance.primaryFocus?.debugLabel, 'party-chat');
+      expect(find.byKey(const Key('party-chat-history')), findsOneWidget);
+      expect(find.textContaining('primo'), findsOneWidget);
+      expect(find.textContaining('secondo'), findsOneWidget);
+      expect(find.byType(PartyChatBubble), findsNothing);
+      await leave(tester);
+    });
+
+    testWidgets('Invio manda: in attesa, poi confermato; il campo si svuota',
+        (tester) async {
+      await pumpChat(tester);
+      await openChat(tester);
+      channelApi.sendGate = Completer<void>();
+      await send(tester, 'che scena');
+      expect(tester.widget<TextField>(field()).controller!.text, isEmpty);
+      expect(FocusManager.instance.primaryFocus?.debugLabel, 'party-chat',
+          reason: 'si continua a scrivere');
+      Finder pending() => find.byWidgetPredicate((widget) =>
+          widget is Opacity &&
+          widget.opacity == PartyChatMessage.pendingOpacity);
+      expect(find.textContaining('che scena'), findsOneWidget);
+      expect(pending(), findsOneWidget);
+      channelApi.sendGate!.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(pending(), findsNothing);
+      expect(find.textContaining('che scena'), findsOneWidget);
+      await leave(tester);
+    });
+
+    testWidgets('Invio a campo vuoto chiude', (tester) async {
+      await pumpChat(tester);
+      await openChat(tester);
+      await send(tester, '   ');
+      expect(open.value, isFalse);
+      expect(field(), findsNothing);
+      expect(channelApi.sent, isEmpty);
+      await leave(tester);
+    });
+
+    testWidgets('troppi messaggi: testo rimesso e riga rossa, che sparisce '
+        'al tasto dopo', (tester) async {
+      await pumpChat(tester);
+      await openChat(tester);
+      channelApi.sendFailures.add(PartyChannelFailure.rateLimited);
+      await send(tester, 'ciao');
+      expect(tester.widget<TextField>(field()).controller!.text, 'ciao');
+      expect(find.text('Troppi messaggi, aspetta un attimo'), findsOneWidget);
+      await tester.enterText(field(), 'ciao!');
+      await tester.pump();
+      expect(find.text('Troppi messaggi, aspetta un attimo'), findsNothing);
+      await leave(tester);
+    });
+
+    testWidgets('invio fallito a chat chiusa: si riapre con il testo',
+        (tester) async {
+      await pumpChat(tester);
+      await openChat(tester);
+      channelApi.sendGate = Completer<void>();
+      channelApi.sendFailures.add(PartyChannelFailure.network);
+      await send(tester, 'ci siete?');
+      open.value = false;
+      await tester.pump();
+      channelApi.sendGate!.complete();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(open.value, isTrue);
+      expect(tester.widget<TextField>(field()).controller!.text, 'ci siete?');
+      expect(find.text('Non inviato, riprova'), findsOneWidget);
+      await leave(tester);
+    });
+
+    testWidgets('contatore da 180; limite di 200 punti di codice',
+        (tester) async {
+      await pumpChat(tester);
+      await openChat(tester);
+      await tester.enterText(field(), 'x' * 179);
+      await tester.pump();
+      expect(find.text('179/200'), findsNothing);
+      await tester.enterText(field(), 'x' * 180);
+      await tester.pump();
+      expect(find.text('180/200'), findsOneWidget);
+      await tester.enterText(field(), '😂' * 250);
+      await tester.pump();
+      expect(
+          tester.widget<TextField>(field()).controller!.text.runes.length, 200);
+      await leave(tester);
+    });
+
+    testWidgets('a campo vuoto si chiude da sola dopo 20 s; con del testo no',
+        (tester) async {
+      await pumpChat(tester);
+      await openChat(tester);
+      await tester.pump(PartyChatLayer.idleClose);
+      expect(open.value, isFalse);
+      await openChat(tester);
+      await tester.enterText(field(), 'sto scrivendo');
+      await tester.pump(PartyChatLayer.idleClose + const Duration(seconds: 1));
+      expect(open.value, isTrue);
+      await leave(tester);
+    });
+
+    testWidgets('aprire la chat azzera i non letti', (tester) async {
+      await pumpChat(tester);
+      final notifier = container(tester).read(partyChannelProvider.notifier)
+        // Come fuori dal player: nessun livello chat a schermo.
+        ..detachChatLayer();
+      await receive(tester, 'mentre eri via', id: 'c1');
+      expect(channel(tester).unread, 1);
+      notifier.attachChatLayer();
+      await openChat(tester);
+      expect(channel(tester).unread, 0);
+      await leave(tester);
+    });
+
+    testWidgets('messaggio in arrivo a chat aperta: nello storico, niente bolla',
+        (tester) async {
+      await pumpChat(tester);
+      await openChat(tester);
+      await receive(tester, 'eccomi', id: 'c1');
+      expect(find.textContaining('eccomi'), findsOneWidget);
+      expect(find.byType(PartyChatBubble), findsNothing);
       await leave(tester);
     });
   });
