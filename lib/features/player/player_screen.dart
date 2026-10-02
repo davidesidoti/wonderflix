@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -24,6 +25,8 @@ import '../watch_party/party_badge.dart';
 import '../watch_party/party_channel.dart';
 import '../watch_party/party_chat_layer.dart';
 import '../watch_party/party_notices.dart';
+import '../watch_party/party_reactions_layer.dart';
+import '../watch_party/party_reactions_tray.dart';
 import '../watch_party/party_waiting_overlay.dart';
 import '../watch_party/watch_party_actions.dart';
 import '../watch_party/watch_party_providers.dart';
@@ -69,6 +72,10 @@ class PlayerScreen extends ConsumerStatefulWidget {
   /// caricamento sfuma comunque.
   static const firstFrameTimeout = Duration(seconds: 3);
 
+  /// Al massimo una reazione ogni questo tempo, da tasti e barretta (spec E
+  /// §10.3).
+  static const reactionInterval = Duration(milliseconds: 200);
+
   @override
   ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
 }
@@ -93,6 +100,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     LogicalKeyboardKey.enter,
     LogicalKeyboardKey.numpadEnter,
   };
+
+  /// Tasti delle reazioni (spec E §10.3): 1–6 e tastierino. Non `const`: le
+  /// chiavi ridefiniscono `==`.
+  static final _reactionKeys = {
+    LogicalKeyboardKey.digit1: PartyReaction.joy,
+    LogicalKeyboardKey.digit2: PartyReaction.scream,
+    LogicalKeyboardKey.digit3: PartyReaction.cry,
+    LogicalKeyboardKey.digit4: PartyReaction.wow,
+    LogicalKeyboardKey.digit5: PartyReaction.clap,
+    LogicalKeyboardKey.digit6: PartyReaction.facepalm,
+    LogicalKeyboardKey.numpad1: PartyReaction.joy,
+    LogicalKeyboardKey.numpad2: PartyReaction.scream,
+    LogicalKeyboardKey.numpad3: PartyReaction.cry,
+    LogicalKeyboardKey.numpad4: PartyReaction.wow,
+    LogicalKeyboardKey.numpad5: PartyReaction.clap,
+    LogicalKeyboardKey.numpad6: PartyReaction.facepalm,
+  };
+
+  /// Aggancio della barretta delle reazioni al suo pulsante.
+  final _reactionsLink = LayerLink();
+
+  /// Ultima reazione mandata (limite di [PlayerScreen.reactionInterval]).
+  DateTime? _lastReactionAt;
 
   /// Il motore ha disegnato il primo fotogramma (o è passato
   /// [PlayerScreen.firstFrameTimeout] da `ready`): il caricamento sfuma.
@@ -249,6 +279,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// plugin attivo (spec E §9.5).
   bool get _chatAvailable =>
       _inParty && ref.read(partyChannelProvider).active;
+
+  /// Manda una reazione (tasti o barretta), al massimo una ogni
+  /// [PlayerScreen.reactionInterval].
+  void _sendReaction(PartyReaction reaction) {
+    final now = clock.now();
+    final last = _lastReactionAt;
+    if (last != null && now.difference(last) < PlayerScreen.reactionInterval) {
+      return;
+    }
+    _lastReactionAt = now;
+    ref.read(partyChannelProvider.notifier).sendReaction(reaction);
+  }
 
   void _onFirstFrame() {
     _firstFrameTimer?.cancel();
@@ -646,6 +688,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ..openPopup(PlayerPopup.chat);
       return KeyEventResult.handled;
     }
+    // 1–6 mandano una reazione (spec E §10.3), solo con il focus al player:
+    // niente controlli né pillola, e tenendo premuto non si ripete.
+    final reaction = _reactionKeys[event.logicalKey];
+    if (reaction != null && _focusNode.hasPrimaryFocus && _chatAvailable) {
+      if (event is KeyDownEvent) _sendReaction(reaction);
+      if (event is! KeyUpEvent) _chrome.keyActivity();
+      return KeyEventResult.handled;
+    }
     final command = _commandFor(event);
     // Qualsiasi tasto premuto (anche senza comando) chiude "Stai guardando"
     // e rifà gli 8 s (spec D §5.1); il rilascio non conta.
@@ -846,9 +896,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           watchPartySessionProvider
               .select((s) => s.inGroup ? s.members.length : null),
           (_, members) => unawaited(_mediaSession.setParty(members)));
-      // Canale spento (plugin tolto) con la chat aperta: si chiude.
+      // Canale spento (plugin tolto) con la chat o la barretta delle
+      // reazioni aperte: si chiudono.
       ref.listen(partyChannelProvider.select((s) => s.active), (_, active) {
-        if (!active) _chrome.closePopup(PlayerPopup.chat);
+        if (active) return;
+        _chrome
+          ..closePopup(PlayerPopup.chat)
+          ..closePopup(PlayerPopup.reactions);
       });
     }
     if (_inParty) {
@@ -869,7 +923,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         // Il server ci ha tolto dal gruppo: si continua da soli, con
         // l'episodio successivo come fuori da un watch party.
         setState(() => _partyDetached = true);
-        _chrome.closePopup(PlayerPopup.chat);
+        _chrome
+          ..closePopup(PlayerPopup.chat)
+          ..closePopup(PlayerPopup.reactions);
         _detachParty();
         _controller.leaveParty();
         unawaited(_mediaSession
@@ -1058,6 +1114,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             ? () => _chrome.togglePopup(PlayerPopup.chat)
                             : null,
                         chatUnread: (chat?.unread ?? 0) > 0,
+                        onToggleReactions: chatActive
+                            ? () => _chrome.togglePopup(PlayerPopup.reactions)
+                            : null,
+                        reactionsLink: _reactionsLink,
                       ),
                     ),
                   ),
@@ -1159,6 +1219,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
                   ),
                 ),
+                // Reazioni in volo (spec E §10.4): in basso a destra, sotto
+                // la chat; non prendono i clic.
+                if (chatActive)
+                  const Positioned(
+                    key: ValueKey('player-party-reactions'),
+                    right: PartyReactionsLayer.right,
+                    bottom: PartyReactionsLayer.bottom,
+                    child: PartyReactionsLayer(),
+                  ),
                 // Chat del watch party (spec E §9): in basso a sinistra,
                 // sopra post-play e attese, sotto la pillola e il pannello.
                 // Non è dentro `ExcludeFocus`: il suo campo prende il focus.
@@ -1172,6 +1241,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       focusNode: _chatFocusNode,
                       onOpen: () => _chrome.openPopup(PlayerPopup.chat),
                       onClose: () => _chrome.closePopup(PlayerPopup.chat),
+                    ),
+                  ),
+                // Barretta delle reazioni (spec E §10.2): segue il suo
+                // pulsante nei controlli; sopra chat, "Salta intro" e scheda.
+                if (chatActive)
+                  Positioned(
+                    key: const ValueKey('player-party-reactions-tray'),
+                    left: 0,
+                    top: 0,
+                    child: CompositedTransformFollower(
+                      link: _reactionsLink,
+                      showWhenUnlinked: false,
+                      targetAnchor: Alignment.topRight,
+                      followerAnchor: Alignment.bottomRight,
+                      offset: const Offset(0, -PartyReactionsTray.gap),
+                      child: ExcludeFocus(
+                        child: PartyReactionsTray(
+                          open: _chrome.popup == PlayerPopup.reactions,
+                          onReaction: _sendReaction,
+                          onClose: () =>
+                              _chrome.closePopup(PlayerPopup.reactions),
+                        ),
+                      ),
                     ),
                   ),
                 // Riscontro dei tasti e avvisi del watch party (anche dopo

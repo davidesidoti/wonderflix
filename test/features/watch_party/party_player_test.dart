@@ -31,6 +31,7 @@ import 'package:wonderflix/features/watch_party/party_channel.dart';
 import 'package:wonderflix/features/watch_party/party_chat_bubble.dart';
 import 'package:wonderflix/features/watch_party/party_chat_layer.dart';
 import 'package:wonderflix/features/watch_party/party_notices.dart';
+import 'package:wonderflix/features/watch_party/party_reactions_layer.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
@@ -1195,6 +1196,150 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.space);
       await tester.pump();
       expect(engine.calls, contains('play'));
+      await finish(tester);
+    });
+  });
+
+  Finder flying(String emoji) => find.descendant(
+      of: find.byType(PartyReactionsLayer), matching: find.text(emoji));
+
+  List<Map<String, dynamic>> sentReactions() => [
+        for (final event in channelApi.sent)
+          if (event is PartyOutgoingReaction) event.toJson(),
+      ];
+
+  testWidgets('reazioni: barretta dal pulsante, un clic manda e fa salire '
+      '(spec E §10)', (tester) async {
+    await pumpPartyPlayer(tester);
+    await tester.tap(find.byTooltip(l.partyReactionsOpen));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.byKey(const ValueKey('party-reaction-clap')));
+    await tester.pump();
+    await tester.pump();
+    expect(sentReactions(), [
+      {'Type': 'Reaction', 'Reaction': 'clap'},
+    ]);
+    expect(flying('👏'), findsOneWidget);
+    expect(
+        find.descendant(
+            of: find.byType(PartyReactionsLayer), matching: find.text('Tu')),
+        findsOneWidget);
+    await finish(tester);
+  });
+
+  testWidgets('reazioni: tasti 1–6, niente ripetizione, una ogni 200 ms',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.digit1);
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit2);
+    await tester.pump();
+    expect(sentReactions(), [
+      {'Type': 'Reaction', 'Reaction': 'joy'},
+    ], reason: 'ripetizione ignorata, la seconda entro 200 ms scartata');
+    await tester.pump(PlayerScreen.reactionInterval);
+    await tester.sendKeyEvent(LogicalKeyboardKey.numpad6);
+    await tester.pump();
+    expect(sentReactions().last, {'Type': 'Reaction', 'Reaction': 'facepalm'});
+    await finish(tester);
+  });
+
+  testWidgets('reazioni: a chat aperta i numeri vanno al campo',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+    await tester.pump();
+    expect(sentReactions(), isEmpty);
+    await finish(tester);
+  });
+
+  testWidgets('reazioni degli altri: emoji e nome', (tester) async {
+    await pumpPartyPlayer(tester);
+    events.add(PartyChannelReceived(
+        partyPayload({'Type': 'Reaction', 'Reaction': 'joy'}, id: 'r1')));
+    await tester.pump();
+    await tester.pump();
+    expect(flying('😂'), findsOneWidget);
+    expect(
+        find.descendant(
+            of: find.byType(PartyReactionsLayer),
+            matching: find.text('Luigi')),
+        findsOneWidget);
+    await finish(tester);
+  });
+
+  testWidgets('barretta: Esc e clic sul film la chiudono; con la chat uno '
+      'alla volta', (tester) async {
+    await pumpPartyPlayer(tester);
+    Finder trayVisible() => find.byWidgetPredicate((widget) =>
+        widget is AnimatedOpacity &&
+        widget.opacity == 1 &&
+        widget.child is AnimatedScale);
+    await tester.tap(find.byTooltip(l.partyReactionsOpen));
+    await tester.pump();
+    expect(trayVisible(), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    expect(trayVisible(), findsNothing);
+    expect(find.byType(PlayerScreen), findsOneWidget,
+        reason: 'Esc chiude solo la barretta');
+
+    await tester.tap(find.byTooltip(l.partyReactionsOpen));
+    await tester.pump();
+    await tester.tapAt(const Offset(700, 300));
+    await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
+    await tester.pump();
+    expect(trayVisible(), findsNothing);
+    expect(api.calls, isNot(contains('unpause')),
+        reason: 'il clic chiude e basta');
+
+    await tester.tap(find.byTooltip(l.partyReactionsOpen));
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    await tester.pump();
+    expect(trayVisible(), findsNothing);
+    expect(find.byKey(const Key('party-chat-field')), findsOneWidget);
+    await finish(tester);
+  });
+
+  group('barretta aperta e reazioni non più disponibili: si chiude, Esc '
+      'non resta a lei', () {
+    testWidgets('canale spento', (tester) async {
+      await pumpPartyPlayer(tester);
+      await tester.tap(find.byTooltip(l.partyReactionsOpen));
+      await tester.pump();
+      // Il plugin è sparito: l'invio della reazione se ne accorge e il
+      // canale si spegne.
+      channelApi.sendFailures.add(PartyChannelFailure.unavailable);
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+      await tester.pump();
+      await tester.pump();
+      expect(container.read(partyChannelProvider).active, isFalse);
+      expect(find.byTooltip(l.partyReactionsOpen), findsNothing);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(api.calls, contains('leave'),
+          reason: 'nessun riquadro aperto: Esc esce dal player');
+      await finish(tester);
+    });
+
+    testWidgets('tolti dal gruppo', (tester) async {
+      await pumpPartyPlayer(tester);
+      await tester.tap(find.byTooltip(l.partyReactionsOpen));
+      await tester.pump();
+      emit(const GroupLeft('g1'));
+      await tester.pump();
+      await tester.pump();
+      expect(find.byTooltip(l.partyReactionsOpen), findsNothing);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(PlayerScreen), findsNothing,
+          reason: 'nessun riquadro aperto: Esc esce dal player');
       await finish(tester);
     });
   });
