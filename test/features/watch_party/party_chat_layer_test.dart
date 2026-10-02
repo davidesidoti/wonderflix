@@ -49,6 +49,9 @@ void main() {
   /// Il livello della chat in basso a sinistra, nel gruppo `g1` con il
   /// canale attivo. [open] decide se è aperta.
   Future<void> pumpChat(WidgetTester tester) async {
+    // Il focus del campo è di chi monta la chat, come nel player.
+    final focusNode = FocusNode(debugLabel: 'party-chat');
+    addTearDown(focusNode.dispose);
     await pumpApp(
       tester,
       Scaffold(
@@ -60,6 +63,7 @@ void main() {
               valueListenable: open,
               builder: (context, isOpen, _) => PartyChatLayer(
                 open: isOpen,
+                focusNode: focusNode,
                 onOpen: () => open.value = true,
                 onClose: () => open.value = false,
               ),

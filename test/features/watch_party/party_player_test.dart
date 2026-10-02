@@ -894,4 +894,46 @@ void main() {
     expect(find.byKey(const Key('player-chat-unread')), findsNothing);
     await finish(tester);
   });
+
+  String? primaryFocus() => FocusManager.instance.primaryFocus?.debugLabel;
+
+  /// Il nodo di focus del player, a cui arrivano i tasti.
+  FocusNode playerFocus(WidgetTester tester) => tester
+      .widget<Focus>(find.byWidgetPredicate((widget) =>
+          widget is Focus && widget.focusNode?.debugLabel == 'player'))
+      .focusNode!;
+
+  testWidgets('chat aperta: Tab e Maiusc+Tab lasciano il focus al campo',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    await openChatWithEnter(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    expect(primaryFocus(), 'party-chat');
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump();
+    expect(primaryFocus(), 'party-chat');
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    expect(api.calls, isNot(contains('unpause')), reason: 'Spazio va al campo');
+    expect(chatField(), findsOneWidget);
+    await finish(tester);
+  });
+
+  testWidgets('chat aperta con il focus finito al player: il tasto dopo lo '
+      'riporta al campo', (tester) async {
+    await pumpPartyPlayer(tester);
+    await openChatWithEnter(tester);
+    playerFocus(tester).requestFocus();
+    await tester.pump();
+    expect(primaryFocus(), 'player');
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    expect(primaryFocus(), 'party-chat');
+    expect(api.calls, isNot(contains('unpause')));
+    expect(chatField(), findsOneWidget);
+    await finish(tester);
+  });
 }

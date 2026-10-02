@@ -84,6 +84,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   final _focusNode = FocusNode(debugLabel: 'player');
   bool _chatWasOpen = false;
 
+  /// Focus del campo della chat del watch party: è del player, che glielo
+  /// rimette se un tasto arriva a chat aperta mentre il campo non ce l'ha.
+  final _chatFocusNode = FocusNode(debugLabel: 'party-chat');
+
   /// Invio apre la chat. Non `const`: le chiavi ridefiniscono `==`.
   static final _openChatKeys = {
     LogicalKeyboardKey.enter,
@@ -195,6 +199,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ..removeListener(_onChromeChanged)
       ..dispose();
     _focusNode.dispose();
+    _chatFocusNode.dispose();
     _window.removeCloseListener(_onWindowClose);
     unawaited(_window.setPreventClose(false));
     if (_fullscreen && !handingOver) unawaited(_window.setFullScreen(false));
@@ -585,19 +590,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
-  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
-    // Chat aperta: i tasti vanno al suo campo (lettere, Spazio, frecce,
-    // Backspace, Invio), tranne Esc che la chiude (spec E §11). Contano
-    // comunque come attività.
-    if (_chrome.chatOpen) {
-      if (event is! KeyUpEvent) _chrome.keyActivity();
-      if (event is KeyDownEvent &&
-          event.logicalKey == LogicalKeyboardKey.escape) {
-        _chrome.closePopup(PlayerPopup.chat);
-        return KeyEventResult.handled;
-      }
-      return KeyEventResult.ignored;
+  /// Chat aperta: i tasti vanno al suo campo (lettere, Spazio, frecce,
+  /// Backspace, Invio), tranne Esc che la chiude (spec E §11). Contano
+  /// comunque come attività.
+  KeyEventResult _onChatKey(KeyEvent event) {
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+    _chrome.keyActivity();
+    final key = event.logicalKey;
+    if (event is KeyDownEvent && key == LogicalKeyboardKey.escape) {
+      _chrome.closePopup(PlayerPopup.chat);
+      return KeyEventResult.handled;
     }
+    // Il focus è finito fuori dal campo (per esempio al player): il tasto
+    // lo riporta lì e basta, altrimenti la tastiera non scriverebbe più.
+    if (!_chatFocusNode.hasFocus) {
+      _chatFocusNode.requestFocus();
+      return KeyEventResult.handled;
+    }
+    // Tab e Maiusc+Tab porterebbero il focus fuori dal campo.
+    if (key == LogicalKeyboardKey.tab) return KeyEventResult.handled;
+    return KeyEventResult.ignored;
+  }
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (_chrome.chatOpen) return _onChatKey(event);
     // Invio apre la chat del watch party.
     if (event is KeyDownEvent &&
         _openChatKeys.contains(event.logicalKey) &&
@@ -1132,6 +1148,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     bottom: PartyChatLayer.bottom,
                     child: PartyChatLayer(
                       open: _chrome.chatOpen,
+                      focusNode: _chatFocusNode,
                       onOpen: () => _chrome.openPopup(PlayerPopup.chat),
                       onClose: () => _chrome.closePopup(PlayerPopup.chat),
                     ),

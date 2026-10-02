@@ -35,11 +35,17 @@ class PartyChatLayer extends ConsumerStatefulWidget {
   const PartyChatLayer({
     super.key,
     required this.open,
+    required this.focusNode,
     required this.onOpen,
     required this.onClose,
   });
 
   final bool open;
+
+  /// Focus del campo. È di chi monta la chat (che lo crea e lo distrugge):
+  /// `PlayerScreen` lo rimette a fuoco se un tasto arriva a chat aperta
+  /// mentre il campo non ce l'ha (spec E §11).
+  final FocusNode focusNode;
 
   /// Riapre la chat (un messaggio non inviato torna nel campo).
   final VoidCallback onOpen;
@@ -92,7 +98,6 @@ class _PartyChatLayerState extends ConsumerState<PartyChatLayer> {
   late final StreamSubscription<PartyChatEntry> _arrivals;
   final _bubbles = <_Bubble>[];
   final _field = TextEditingController();
-  final _fieldFocus = FocusNode(debugLabel: 'party-chat');
   final _scroll = ScrollController();
   Timer? _idleTimer;
 
@@ -128,7 +133,6 @@ class _PartyChatLayerState extends ConsumerState<PartyChatLayer> {
       bubble.timer?.cancel();
     }
     _field.dispose();
-    _fieldFocus.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -145,7 +149,7 @@ class _PartyChatLayerState extends ConsumerState<PartyChatLayer> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !widget.open) return;
       _channel.markRead();
-      _fieldFocus.requestFocus();
+      widget.focusNode.requestFocus();
       _jumpToEnd();
     });
   }
@@ -304,7 +308,7 @@ class _PartyChatLayerState extends ConsumerState<PartyChatLayer> {
               TextField(
                 key: const Key('party-chat-field'),
                 controller: _field,
-                focusNode: _fieldFocus,
+                focusNode: widget.focusNode,
                 style: partyChatTextStyle,
                 maxLines: 1,
                 textInputAction: TextInputAction.send,
