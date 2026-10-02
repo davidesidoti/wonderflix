@@ -65,6 +65,10 @@ final _mediaKeys = {
   LogicalKeyboardKey.mediaStop,
 };
 
+/// [key] è un tasto multimediale (play/pausa, successivo, stop): non scrive
+/// nulla, vale anche con la chat del watch party aperta.
+bool isMediaKey(LogicalKeyboardKey key) => _mediaKeys.contains(key);
+
 /// Comando del player per un evento di tastiera; `null` se il tasto non è
 /// gestito. Con Alt premuto vale solo Alt+← (esci). Con [mediaKeys] `false`
 /// i tasti multimediali sono ignorati (li riceve già la sessione media: non

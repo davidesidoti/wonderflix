@@ -1000,4 +1000,60 @@ void main() {
     expect(primaryFocus(), 'party-chat');
     await finish(tester);
   });
+
+  testWidgets('errore con "Riprova" a fuoco: Invio riprova, non apre la chat',
+      (tester) async {
+    await pumpPartyPlayer(tester, failOpens: 2);
+    expect(find.text(l.playerErrorTitle), findsOneWidget);
+    Focus.of(tester.element(find.text(l.retry))).requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(chatField(), findsNothing);
+    expect(api.calls, contains('ignore-wait false'), reason: 'Riprova');
+    await finish(tester);
+  });
+
+  testWidgets('Invio tenuto premuto: apre la chat, la ripetizione non la '
+      'richiude', (tester) async {
+    await pumpPartyPlayer(tester);
+    for (final key in [
+      LogicalKeyboardKey.enter,
+      LogicalKeyboardKey.numpadEnter,
+    ]) {
+      await tester.sendKeyDownEvent(key);
+      await tester.pump();
+      await tester.pump();
+      expect(chatField(), findsOneWidget);
+      // Non gestita, la ripetizione andrebbe al campo (su Windows la passa
+      // il motore) e, a campo vuoto, chiuderebbe la chat.
+      expect(await tester.sendKeyRepeatEvent(key), isTrue);
+      await tester.sendKeyUpEvent(key);
+      await tester.pump();
+      expect(chatField(), findsOneWidget);
+      expect(primaryFocus(), 'party-chat');
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      await tester.pump();
+    }
+    await finish(tester);
+  });
+
+  testWidgets('chat aperta: play/pausa della tastiera arriva al gruppo',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    await openChatWithEnter(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.mediaPlayPause);
+    await tester.pump();
+    expect(api.calls.where((call) => call == 'unpause'), hasLength(1));
+    expect(chatField(), findsOneWidget, reason: 'la chat resta aperta');
+    expect(primaryFocus(), 'party-chat');
+    // Con i tasti multimediali alla sessione media di sistema il player non
+    // li esegue una seconda volta.
+    mediaSession.handlesMediaKeys = true;
+    await tester.sendKeyEvent(LogicalKeyboardKey.mediaPlayPause);
+    await tester.pump();
+    expect(api.calls.where((call) => call == 'unpause'), hasLength(1));
+    await finish(tester);
+  });
 }

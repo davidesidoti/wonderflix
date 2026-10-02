@@ -604,6 +604,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _chrome.closePopup(PlayerPopup.chat);
       return KeyEventResult.handled;
     }
+    // I tasti multimediali non scrivono nulla: fanno il loro comando.
+    if (isMediaKey(key)) {
+      final command = _commandFor(event);
+      if (command == null) return KeyEventResult.ignored;
+      _run(command);
+      return KeyEventResult.handled;
+    }
     // Il focus è finito fuori dal campo (per esempio al player): il tasto
     // lo riporta lì e basta, altrimenti la tastiera non scriverebbe più.
     if (!_chatFocusNode.hasFocus) {
@@ -612,23 +619,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
     // Tab e Maiusc+Tab porterebbero il focus fuori dal campo.
     if (key == LogicalKeyboardKey.tab) return KeyEventResult.handled;
+    // Invio tenuto premuto dopo aver aperto la chat (o mandato un
+    // messaggio): la ripetizione manderebbe il campo vuoto, chiudendola.
+    if (event is KeyRepeatEvent && _openChatKeys.contains(key)) {
+      return KeyEventResult.handled;
+    }
     return KeyEventResult.ignored;
   }
 
+  /// Comando del player per [event]. I tasti multimediali valgono solo se
+  /// non li riceve già la sessione media di sistema.
+  PlayerCommand? _commandFor(KeyEvent event) => playerCommandFor(event,
+      altPressed: HardwareKeyboard.instance.isAltPressed,
+      mediaKeys: !_mediaSession.handlesMediaKeys);
+
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (_chrome.chatOpen) return _onChatKey(event);
-    // Invio apre la chat del watch party.
+    // Invio apre la chat del watch party, solo con il focus al player: su
+    // un pulsante (per esempio "Riprova") lo preme.
     if (event is KeyDownEvent &&
         _openChatKeys.contains(event.logicalKey) &&
+        _focusNode.hasPrimaryFocus &&
         _chatAvailable) {
       _chrome
         ..keyActivity()
         ..openPopup(PlayerPopup.chat);
       return KeyEventResult.handled;
     }
-    final command = playerCommandFor(event,
-        altPressed: HardwareKeyboard.instance.isAltPressed,
-        mediaKeys: !_mediaSession.handlesMediaKeys);
+    final command = _commandFor(event);
     // Qualsiasi tasto premuto (anche senza comando) chiude "Stai guardando"
     // e rifà gli 8 s (spec D §5.1); il rilascio non conta.
     var dismissingPause = false;
