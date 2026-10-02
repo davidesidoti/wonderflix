@@ -579,10 +579,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     });
   }
 
-  /// Comando da tastiera: la pillola mostra il riscontro (spec D §9), i
-  /// controlli non compaiono. Il riscontro va dato **prima** del comando:
-  /// nel watch party l'avviso "Hai…" che segue controlla che la pillola ci
-  /// sia già (vedi [_attachParty]).
+  /// Comando da tastiera (o dalla rotella, per il volume): la pillola mostra
+  /// il riscontro (spec D §9), i controlli non compaiono. Il riscontro va
+  /// dato **prima** del comando: nel watch party l'avviso "Hai…" che segue
+  /// controlla che la pillola ci sia già (vedi [_attachParty]).
   void _run(PlayerCommand command) {
     final controller = _controller;
     final ready = ref.read(playerControllerProvider(widget.args)).status ==

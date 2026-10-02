@@ -120,8 +120,8 @@ class PlayerChromeController extends ChangeNotifier {
     _scheduleHide();
   }
 
-  /// Un tasto: chiude la schermata di pausa e fa ripartire il conto, senza
-  /// mostrare i controlli (spec D §9.1).
+  /// Un tasto o la rotella: chiude la schermata di pausa e fa ripartire il
+  /// conto, senza mostrare i controlli (spec D §9.1).
   void keyActivity() {
     if (_pauseScreen) {
       _pauseScreen = false;

@@ -547,12 +547,33 @@ void main() {
     final wheel = TestPointer(1, PointerDeviceKind.mouse);
     await tester.sendEventToBinding(
         wheel.hover(tester.getCenter(find.byType(TracksPanel))));
-    await tester.sendEventToBinding(wheel.scroll(const Offset(0, 60)));
+    // Prima in su: la lista è in cima e non può scorrere, quindi lavora la
+    // barriera del pannello; poi in giù.
     await tester.sendEventToBinding(wheel.scroll(const Offset(0, -60)));
+    await tester.sendEventToBinding(wheel.scroll(const Offset(0, 60)));
     await tester.pumpAndSettle();
     expect(engine.volumes, hasLength(count));
     expect(find.text('Volume 95%'), findsNothing);
     expect(find.text('Volume 100%'), findsNothing);
+    await unmount(tester);
+  });
+
+  testWidgets('rotella: funziona anche durante il caricamento',
+      (tester) async {
+    engine.holdFirstFrame = true;
+    await pumpPlayer(tester, settle: false);
+    expect(find.byKey(const Key('player-loading')), findsOneWidget);
+    final wheel = TestPointer(1, PointerDeviceKind.mouse);
+    await tester.sendEventToBinding(wheel.hover(const Offset(720, 450)));
+    await tester.sendEventToBinding(wheel.scroll(const Offset(0, 60)));
+    // Niente `pumpAndSettle`: la linea del caricamento gira.
+    await tester.pump();
+    expect(engine.volumes.last, 95);
+    expect(find.text('Volume 95%'), findsOneWidget);
+
+    engine.completeFirstFrame();
+    await tester.pump();
+    await tester.pumpAndSettle();
     await unmount(tester);
   });
 
