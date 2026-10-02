@@ -35,6 +35,8 @@ class PlayerOverlay extends StatelessWidget {
     this.preview,
     this.partyBadge,
     this.onWatchTogether,
+    this.onToggleChat,
+    this.chatUnread = false,
   });
 
   final PlayerViewState view;
@@ -63,6 +65,14 @@ class PlayerOverlay extends StatelessWidget {
   /// "Guarda insieme" (solo da soli e con il permesso); `null` = nessun
   /// pulsante.
   final VoidCallback? onWatchTogether;
+
+  /// Chat del watch party (spec E §9.5): solo nel gruppo con il canale del
+  /// plugin attivo; `null` = nessun pulsante. Sta dove fuori dal gruppo c'è
+  /// "Guarda insieme".
+  final VoidCallback? onToggleChat;
+
+  /// Messaggi arrivati fuori dal player e non ancora letti: puntino oro.
+  final bool chatUnread;
 
   /// Di quanto la parte alta sale e la bassa scende a controlli nascosti.
   static const hiddenShift = 24.0;
@@ -259,6 +269,16 @@ class PlayerOverlay extends StatelessWidget {
                               tooltip: l.watchPartyWatchTogether,
                               onPressed: onWatchTogether,
                             ),
+                          if (onToggleChat != null)
+                            PlayerIconButton(
+                              key: const Key('player-chat-button'),
+                              icon: _WithDot(
+                                show: chatUnread,
+                                child: const Icon(LucideIcons.messageCircle),
+                              ),
+                              tooltip: l.partyChatOpen,
+                              onPressed: onToggleChat,
+                            ),
                           PlayerIconButton(
                             icon: const Icon(LucideIcons.captions),
                             tooltip: l.playerAudioAndSubtitles,
@@ -394,4 +414,36 @@ class PlayPauseIcon extends StatelessWidget {
           key: ValueKey(playing)),
     );
   }
+}
+
+/// Puntino oro in alto a destra di un'icona (messaggi non letti).
+class _WithDot extends StatelessWidget {
+  const _WithDot({required this.show, required this.child});
+
+  /// Diametro del puntino.
+  static const size = 8.0;
+
+  final bool show;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+        clipBehavior: Clip.none,
+        children: [
+          child,
+          if (show)
+            const Positioned(
+              key: Key('player-chat-unread'),
+              top: -1,
+              right: -1,
+              child: SizedBox.square(
+                dimension: size,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                      color: WfColors.gold, shape: BoxShape.circle),
+                ),
+              ),
+            ),
+        ],
+      );
 }

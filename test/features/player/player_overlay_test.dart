@@ -17,6 +17,8 @@ void main() {
     WidgetTester tester,
     PlayerViewState view, {
     bool fullscreen = false,
+    bool chat = false,
+    bool chatUnread = false,
   }) async {
     final calls = <String>[];
     await pumpApp(
@@ -34,6 +36,8 @@ void main() {
           onToggleMute: () => calls.add('mute'),
           onToggleTracks: () => calls.add('tracks'),
           onToggleFullscreen: () => calls.add('fullscreen'),
+          onToggleChat: chat ? () => calls.add('chat') : null,
+          chatUnread: chatUnread,
         ),
       ),
     );
@@ -287,5 +291,20 @@ void main() {
         reason: 'la vecchia sta ancora sfumando');
     await tester.pumpAndSettle();
     expect(find.byIcon(LucideIcons.pause), findsNothing);
+  });
+
+  testWidgets('chat del watch party: pulsante e puntino dei non letti '
+      '(spec E §9.5)', (tester) async {
+    final view = PlayerViewState(status: PlayerStatus.ready);
+    await pumpOverlay(tester, view);
+    expect(find.byTooltip('Chat (Invio)'), findsNothing);
+
+    final calls = await pumpOverlay(tester, view, chat: true);
+    expect(find.byKey(const Key('player-chat-unread')), findsNothing);
+    await tester.tap(find.byTooltip('Chat (Invio)'));
+    expect(calls, ['chat']);
+
+    await pumpOverlay(tester, view, chat: true, chatUnread: true);
+    expect(find.byKey(const Key('player-chat-unread')), findsOneWidget);
   });
 }
