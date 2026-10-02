@@ -14,6 +14,10 @@ import 'party_chat_bubble.dart';
 /// Tiene il testo entro [maxChatLength] punti di codice, come il plugin.
 /// Il `maxLength` di Flutter conta i grafemi: alcune emoji composte
 /// supererebbero il limite del server.
+///
+/// Oltre il limite si taglia solo la parte inserita, nel punto in cui
+/// entra: il testo già scritto (anche quello dopo il cursore) resta. Già al
+/// limite, un tasto non entra.
 class ChatLengthFormatter extends TextInputFormatter {
   const ChatLengthFormatter();
 
@@ -21,10 +25,56 @@ class ChatLengthFormatter extends TextInputFormatter {
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
     if (chatTextLength(newValue.text) <= maxChatLength) return newValue;
-    final text = String.fromCharCodes(newValue.text.runes.take(maxChatLength));
+    final old = oldValue.text;
+    if (chatTextLength(old) >= maxChatLength && oldValue.selection.isCollapsed) {
+      return oldValue;
+    }
+    // Parte inserita: quello che c'è tra l'inizio comune ai due testi e la
+    // fine comune. La fine comune non va oltre il cursore (il testo dopo il
+    // cursore è quello che c'era), l'inizio non lo supera.
+    final text = newValue.text;
+    final cursor = newValue.selection.isValid ? newValue.selection.end : 0;
+    var tail = 0;
+    while (tail < old.length &&
+        tail < text.length - cursor &&
+        old.codeUnitAt(old.length - 1 - tail) ==
+            text.codeUnitAt(text.length - 1 - tail)) {
+      tail++;
+    }
+    var head = 0;
+    while (head < old.length - tail &&
+        head < cursor &&
+        old.codeUnitAt(head) == text.codeUnitAt(head)) {
+      head++;
+    }
+    // Mai a metà di una coppia surrogata (emoji).
+    if (head > 0 && _isHighSurrogate(text.codeUnitAt(head - 1))) head--;
+    if (tail > 0 && _isLowSurrogate(text.codeUnitAt(text.length - tail))) {
+      tail--;
+    }
+    final before = text.substring(0, head);
+    final after = text.substring(text.length - tail);
+    final room =
+        maxChatLength - chatTextLength(before) - chatTextLength(after);
+    if (room <= 0) return oldValue;
+    final inserted = String.fromCharCodes(
+        text.substring(head, text.length - tail).runes.take(room));
     return TextEditingValue(
-        text: text, selection: TextSelection.collapsed(offset: text.length));
+      text: '$before$inserted$after',
+      selection: TextSelection.collapsed(offset: head + inserted.length),
+    );
   }
+
+  /// Unità UTF-16 delle coppie surrogate: i 6 bit alti dicono se è la
+  /// prima o la seconda metà.
+  static const _surrogateMask = 0xFC00;
+  static const _highSurrogate = 0xD800;
+  static const _lowSurrogate = 0xDC00;
+
+  static bool _isHighSurrogate(int unit) =>
+      (unit & _surrogateMask) == _highSurrogate;
+  static bool _isLowSurrogate(int unit) =>
+      (unit & _surrogateMask) == _lowSurrogate;
 }
 
 /// La chat del watch party nel player (spec E §9), in basso a sinistra.

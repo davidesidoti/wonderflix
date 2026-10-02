@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/party_channel/party_channel_api.dart';
+import 'package:wonderflix/core/party_channel/party_channel_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/watch_party/party_channel.dart';
@@ -101,6 +102,52 @@ void main() {
   }
 
   Finder bubbles() => find.byType(PartyChatBubble);
+
+  group('ChatLengthFormatter: limite di 200 (spec E §9.3)', () {
+    const formatter = ChatLengthFormatter();
+
+    /// Testo [before] + [after] con il cursore in mezzo.
+    TextEditingValue at(String before, String after) => TextEditingValue(
+        text: '$before$after',
+        selection: TextSelection.collapsed(offset: before.length));
+
+    test('sotto il limite non cambia nulla', () {
+      final old = at('a' * 100, 'b' * 50);
+      final typed = at('${'a' * 100}x', 'b' * 50);
+      expect(formatter.formatEditUpdate(old, typed), same(typed));
+    });
+
+    test('al limite un tasto in mezzo non entra e la coda resta', () {
+      final old = at('a' * 100, 'b' * (maxChatLength - 100));
+      final typed = at('${'a' * 100}x', 'b' * (maxChatLength - 100));
+      final result = formatter.formatEditUpdate(old, typed);
+      expect(result.text, old.text);
+      expect(result.selection, old.selection);
+    });
+
+    test('un incolla che sfora si taglia nel punto di inserimento', () {
+      // 190 punti di codice: ne entrano 10, a punti di codice (emoji).
+      final old = at('a' * 10, 'b' * 180);
+      final pasted = at('${'a' * 10}${'😂' * 20}', 'b' * 180);
+      final result = formatter.formatEditUpdate(old, pasted);
+      expect(result.text, '${'a' * 10}${'😂' * 10}${'b' * 180}');
+      expect(chatTextLength(result.text), maxChatLength);
+      expect(result.selection,
+          TextSelection.collapsed(offset: 10 + '😂'.length * 10));
+    });
+
+    test('al limite un incolla sopra una selezione la sostituisce fino al '
+        'limite', () {
+      final old = TextEditingValue(
+          text: 'a' * maxChatLength,
+          selection: const TextSelection(baseOffset: 50, extentOffset: 55));
+      final pasted = at('${'a' * 50}${'x' * 8}', 'a' * (maxChatLength - 55));
+      final result = formatter.formatEditUpdate(old, pasted);
+      expect(result.text,
+          '${'a' * 50}${'x' * 5}${'a' * (maxChatLength - 55)}');
+      expect(result.selection, const TextSelection.collapsed(offset: 55));
+    });
+  });
 
   group('chat chiusa: bolle (spec E §9.2)', () {
     testWidgets('nome e testo; spariscono dopo 8 s', (tester) async {
