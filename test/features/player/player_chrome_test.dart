@@ -390,4 +390,27 @@ void main() {
       expect(async.pendingTimers, isEmpty);
     });
   });
+
+  test('barretta delle reazioni (spec E §10.2): controlli su, niente pausa, '
+      'uno alla volta', () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController()
+        ..setPlayback(playing: true, canShowPauseScreen: false);
+      async.elapse(PlayerChromeController.hideDelay);
+      expect(chrome.controlsVisible, isFalse);
+      chrome.openPopup(PlayerPopup.reactions);
+      expect(chrome.controlsVisible, isTrue);
+      async.elapse(const Duration(seconds: 10));
+      expect(chrome.controlsVisible, isTrue);
+      chrome.setPlayback(playing: false, canShowPauseScreen: true);
+      async.elapse(const Duration(seconds: 20));
+      expect(chrome.pauseScreen, isFalse);
+      chrome.openPopup(PlayerPopup.chat);
+      expect(chrome.popup, PlayerPopup.chat);
+      chrome.closePopup();
+      async.elapse(PlayerChromeController.pauseScreenDelay);
+      expect(chrome.pauseScreen, isTrue);
+      chrome.dispose();
+    });
+  });
 }
