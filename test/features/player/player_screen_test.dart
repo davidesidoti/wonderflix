@@ -604,10 +604,15 @@ void main() {
         ProviderScope.containerOf(tester.element(find.byType(PlayerScreen)));
     final volume =
         container.read(playerVolumeProvider.notifier) as FakePlayerVolume;
+    volume.holdFlush = Completer<void>();
     final closing = window.simulateClose();
     await tester.pump();
-    await closing;
     expect(volume.flushes, 1);
+    expect(window.destroyed, isFalse,
+        reason: 'la finestra aspetta la scrittura');
+    volume.holdFlush!.complete();
+    await tester.pump();
+    await closing;
     expect(window.destroyed, isTrue);
     await unmount(tester);
   });

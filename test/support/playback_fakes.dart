@@ -511,6 +511,9 @@ class FakePlayerVolume extends PlayerVolumeController {
   /// Quante volte è stato chiesto di scrivere su disco.
   var flushes = 0;
 
+  /// Se c'è, la scrittura finisce solo quando il test lo completa.
+  Completer<void>? holdFlush;
+
   @override
   double build() => initial;
 
@@ -521,7 +524,10 @@ class FakePlayerVolume extends PlayerVolumeController {
   }
 
   @override
-  Future<void> flush() async => flushes++;
+  Future<void> flush() async {
+    flushes++;
+    await holdFlush?.future;
+  }
 }
 
 /// PNG trasparente 1×1, per sostituire le immagini di rete nei test.

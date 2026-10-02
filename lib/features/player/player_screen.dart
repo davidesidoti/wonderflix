@@ -203,8 +203,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     await Future.wait([
       _controller.close(),
       if (_inParty) ref.read(watchPartySessionProvider.notifier).leave(),
-      // Il provider dell'app non viene mai chiuso: il volume cambiato da
-      // meno di mezzo secondo va scritto adesso (issue #3).
+      // Il provider dell'app non viene mai chiuso: il volume cambiato da meno
+      // di [PlayerVolumeController.saveDelay] va scritto adesso (issue #3).
       ref.read(playerVolumeProvider.notifier).flush(),
     ]).timeout(PlayerScreen.closeTimeout, onTimeout: () => const []);
     await _window.destroy();
