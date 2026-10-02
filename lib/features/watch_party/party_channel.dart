@@ -31,7 +31,9 @@ enum PartyChatSendResult { sent, rateLimited, failed }
 
 /// Un messaggio della chat.
 class PartyChatEntry {
-  const PartyChatEntry(this.event, {required this.mine, this.pending = false});
+  PartyChatEntry(this.event,
+      {required this.mine, this.pending = false, String? key})
+      : key = key ?? event.id;
 
   final PartyChatEvent event;
 
@@ -40,6 +42,11 @@ class PartyChatEntry {
 
   /// Mandato da noi e non ancora confermato dal plugin.
   final bool pending;
+
+  /// Identità del messaggio per l'interfaccia: l'`id` dell'evento; per i
+  /// nostri messaggi quello locale anche dopo la conferma, così la bolla e
+  /// la riga dello storico restano le stesse (spec E §9.4).
+  final String key;
 }
 
 class PartyChannelState {
@@ -212,7 +219,8 @@ class PartyChannel extends Notifier<PartyChannelState> {
       _remember(stamped.id);
       final confirmed = PartyChatEntry(
           stamped is PartyChatEvent ? stamped : local.event,
-          mine: true);
+          mine: true,
+          key: local.key);
       state = state.copyWith(
         sent: state.sent + 1,
         messages: [

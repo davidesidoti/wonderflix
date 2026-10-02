@@ -216,6 +216,7 @@ void main() {
       expect(channel().messages.single.event.text, 'che scena');
       expect(channel().unread, 1, reason: 'nessuna chat a schermo');
       expect(chats.single.event.userName, 'Luigi');
+      expect(chats.single.key, 'c1', reason: 'i messaggi altrui: l\'id');
 
       receive(async,
           partyPayload({'Type': 'Reaction', 'Reaction': 'joy'}, id: 'r1'));
@@ -336,11 +337,15 @@ void main() {
       expect(channel().messages.single.mine, isTrue);
       expect(channel().messages.single.event.text, 'che scena');
       expect(chats.single.pending, isTrue);
+      final key = chats.single.key;
+      expect(key, startsWith('local-'));
       channelApi.sendGate!.complete();
       async.flushMicrotasks();
       expect(result, PartyChatSendResult.sent);
       expect(channel().messages.single.pending, isFalse);
       expect(channel().messages.single.event.id, 'srv-1');
+      expect(channel().messages.single.key, key,
+          reason: 'la bolla del nostro messaggio resta la stessa');
       expect(channel().sent, 1);
       expect(sentJson(), [
         {'Type': 'Chat', 'Text': 'che scena'},
