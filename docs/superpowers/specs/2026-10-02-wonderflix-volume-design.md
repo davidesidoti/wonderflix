@@ -45,10 +45,11 @@
   - chiave assente o `NaN` → `100`;
   - fuori dall'intervallo → portato tra 0 e 100.
 - `set(double volume)`:
+  - `NaN` → ignorato;
   - porta il valore tra 0 e 100;
   - se è uguale allo stato non fa nulla;
-  - altrimenti aggiorna subito lo stato e (ri)avvia un `Timer` di `volumeSaveDelay` (500 ms). Allo scadere scrive su disco l'ultimo valore.
-- Alla dismissione del provider (`ref.onDispose`) il timer si ferma; se c'era una scrittura in sospeso, il valore si scrive subito.
+  - altrimenti aggiorna subito lo stato e (ri)avvia un `Timer` di `PlayerVolumeController.saveDelay` (500 ms). Allo scadere scrive su disco l'ultimo valore.
+- `Future<void> flush()`: ferma il timer e scrive subito il valore in sospeso, se c'è. La chiamano il timer, la dismissione del provider (`ref.onDispose`) e la chiusura della finestra dal player (§4.2): il provider dell'app non viene mai dismesso, perché la finestra si distrugge e il processo finisce.
 - Nessuna stringa e nessuna voce nelle Impostazioni.
 
 ### 4.2 `PlayerController`
@@ -57,6 +58,7 @@
 - `setVolume(v)` aggiorna anche il valore salvato (`playerVolumeProvider.notifier.set(value)`). Barra, ↑/↓ e rotella passano tutte da qui.
 - `toggleMute()` non tocca il valore salvato.
 - Il volume riferito a Jellyfin (`VolumeLevel`) resta quello di `_view`.
+- `PlayerScreen._onWindowClose` aspetta anche `playerVolumeProvider.notifier.flush()`, insieme alla chiusura del player e all'uscita dal gruppo, prima di distruggere la finestra: un cambio di volume fatto da meno di 500 ms non va perso.
 
 Effetti:
 
@@ -92,29 +94,34 @@ Il `Listener` sta sopra tutto il pannello (intestazione e bordo compresi), non s
 - `PlayerVolumeController`:
   - chiave assente → 100; valore salvato → quel valore; 150 → 100; −5 → 0; `NaN` → 100;
   - `set` aggiorna subito lo stato; su disco non c'è nulla prima di 500 ms, dopo c'è l'ultimo valore. Più `set` ravvicinati danno una sola scrittura, con l'ultimo valore;
-  - `set` dello stesso valore non scrive; `set` fuori intervallo è portato tra 0 e 100;
+  - `set` dello stesso valore o di `NaN` non scrive; `set` fuori intervallo è portato tra 0 e 100;
+  - `flush` scrive subito il valore in sospeso e ferma il timer; senza nulla in sospeso non scrive;
   - dismissione con una scrittura in sospeso → valore scritto subito.
 - `PlayerController`:
   - parte dal volume salvato (primo valore passato al motore) e senza muto;
   - `setVolume` e `changeVolumeBy` aggiornano il valore salvato; `toggleMute` no.
 - `PlayerScreen`:
   - ↓ ↓ poi M, poi episodio successivo (N): il nuovo player parte da 90, senza muto;
+  - chiusura della finestra: la finestra si distrugge solo dopo la scrittura del volume;
   - rotella in su sul film → volume +5 e pillola "Volume N%"; in giù → −5;
   - rotella sopra la barra del volume → stesso effetto;
   - a controlli nascosti la rotella non li mostra; con la schermata di pausa aperta la chiude;
   - scorrimento orizzontale → nulla;
-  - pannello aperto, rotella sopra il pannello → volume invariato (anche a lista ferma).
-- I test esistenti (tasti, pillola, pannello, player) restano verdi. Dove serve, i test usano un volume salvato finto (come `FakePlayerSettings`).
+  - pannello aperto, rotella sopra il pannello → volume invariato (anche a lista ferma);
+  - durante il caricamento la rotella cambia il volume e mostra la pillola.
+- `TracksPanel`: la rotella non esce mai dal pannello (lista corta; lista lunga ferma in cima con la rotella in su); una lista lunga scorre.
+- I test esistenti (tasti, pillola, pannello, player) restano verdi. Dove serve, i test usano un volume salvato finto (`FakePlayerVolume`, come `FakePlayerSettings`).
 
 ### 6.2 Manuali (utente, server vero)
 
 - Volume abbassato → episodio successivo (pulsante, post-play, conto alla rovescia): stesso volume.
 - Volume abbassato → chiudere il player → aprire un altro film: stesso volume.
-- Volume abbassato → chiudere l'app → riaprirla e avviare un titolo: stesso volume.
+- Volume abbassato → chiudere l'app → riaprirla e avviare un titolo: stesso volume. Anche chiudendo l'app con la X subito dopo il cambio, dal player.
 - Muto → episodio successivo: audio di nuovo attivo al volume di prima.
-- Rotella sul film (controlli nascosti e visibili), sulla barra del volume, sulla barra di avanzamento, nel post-play, sulla schermata di pausa: pillola e volume corretti.
+- Rotella sul film (controlli nascosti e visibili), sulla barra del volume, sulla barra di avanzamento, nel post-play, sulla schermata di pausa, durante il caricamento: pillola e volume corretti.
 - Rotella sul pannello "Audio e sottotitoli": la lista scorre, il volume no.
-- Rotella "veloce" o a scorrimento libero (se disponibile): il volume non salta in modo strano.
+- Rotella "veloce", a scorrimento libero o ad alta risoluzione, e touchpad senza driver di precisione (se disponibili): il volume non salta in modo strano. Su questi dispositivi uno scatto fisico può arrivare come più eventi, e quindi più passi da 5.
+- Rotella sopra la barra del volume senza muovere il mouse, in riproduzione: i controlli spariscono dopo 3 s come con ↑/↓. Da valutare se va bene così.
 - Watch party: "Guarda insieme" dal player non riporta il volume a 100.
 
 ## 7. Release 0.4.1

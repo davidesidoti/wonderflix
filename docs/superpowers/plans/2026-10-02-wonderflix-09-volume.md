@@ -737,3 +737,16 @@ Con l'ok dell'utente: merge fast-forward su `main` (prima `git fetch`: se `origi
 - la pubblicazione la fa l'utente.
 
 Dopo la pubblicazione, solo con l'ok dell'utente: commento e chiusura delle issue #3 e #4.
+
+## Note di esecuzione (2026-10-02)
+
+Differenze rispetto ai task, nate dalle revisioni:
+
+- **Task 1** (`39f4523`, poi `bb4d5a9`): `_write` è diventato `Future<void> flush()` pubblico. Il provider dell'app non viene mai dismesso: la finestra si distrugge e il processo finisce. Il test del `NaN` ora lo prova davvero, perché `double.nan.clamp(0, 100)` vale 100. C'è un test in più per `flush`. `FakePlayerVolume` ignora `NaN` e conta i `flush`.
+- **Task 2** (`4bb16a6`, poi `efd7cd2`): `PlayerScreen._onWindowClose` aspetta anche `flush()` prima di `destroy()`, con un test che lo prova (`FakePlayerVolume.holdFlush`).
+- **Task 3** (`6082057`, poi `a56cef2`): il test della lista lunga prova anche la rotella in su con la lista ferma in cima.
+- **Task 4** (`5c7f1e5`, poi `b3fddb0`): il test del pannello parte con la rotella in su, così prova il pannello e non la lista. I commenti di `_run` e `keyActivity` citano la rotella. C'è un test della rotella durante il caricamento.
+- **Conteggi reali:** 1092 dopo il Task 1, 1096 dopo il Task 2, 1098 dopo il Task 3, 1102 dopo il Task 4.
+- **Per la prova manuale:**
+  - rotelle ad alta risoluzione e touchpad non di precisione possono dare più passi per scatto fisico;
+  - in riproduzione, con la rotella sopra la barra del volume senza muovere il mouse, i controlli spariscono dopo 3 s, come con ↑/↓.
