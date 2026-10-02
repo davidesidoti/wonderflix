@@ -156,17 +156,21 @@ class WatchedBadge extends StatelessWidget {
 }
 
 class CountBadge extends StatelessWidget {
-  const CountBadge({super.key, required this.count});
+  const CountBadge({super.key, required this.count, this.max});
 
   final int count;
 
+  /// Oltre questo numero si scrive "[max]+"; `null` = sempre il numero.
+  final int? max;
+
   @override
   Widget build(BuildContext context) {
+    final max = this.max;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
           color: WfColors.gold, borderRadius: BorderRadius.circular(10)),
-      child: Text('$count',
+      child: Text(max != null && count > max ? '$max+' : '$count',
           style: const TextStyle(
               color: WfColors.bg, fontSize: 11, fontWeight: FontWeight.w700)),
     );

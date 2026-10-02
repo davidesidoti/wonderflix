@@ -7,6 +7,7 @@ import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/watch_party/party_channel.dart';
 import 'package:wonderflix/features/watch_party/watch_party_button.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
@@ -20,10 +21,12 @@ import '../../support/watch_party_fakes.dart';
 
 void main() {
   late FakeSyncPlayApi api;
+  late FakePartyChannelApi channelApi;
   late StreamController<ServerEvent> events;
 
   setUp(() {
     api = FakeSyncPlayApi();
+    channelApi = FakePartyChannelApi()..install();
     events = StreamController<ServerEvent>.broadcast();
   });
 
@@ -132,6 +135,7 @@ void main() {
         sessionControllerProvider.overrideWith(
             () => FakeSessionController(const SessionSignedIn(testUser))),
         partyNavigatorProvider.overrideWithValue(navigator),
+        partyChannelApiProvider.overrideWithValue(channelApi),
       ],
     );
     api.onCall = (call) {
@@ -184,6 +188,36 @@ void main() {
 
     final container = ProviderScope.containerOf(
         tester.element(find.byType(WatchPartyButton)));
+    await container.read(watchPartySessionProvider.notifier).leave();
+    await tester.pump();
+  });
+
+  testWidgets('messaggi arrivati fuori dal player: contatore fino a "9+" '
+      '(spec E §9.5)', (tester) async {
+    await pumpInParty(tester, queue: testQueue());
+    await tester.pump();
+    await tester.pump();
+    final container = ProviderScope.containerOf(
+        tester.element(find.byType(WatchPartyButton)));
+    expect(container.read(partyChannelProvider).active, isTrue);
+    expect(find.byKey(const Key('watch-party-unread')), findsNothing);
+
+    for (var i = 1; i <= 10; i++) {
+      events.add(PartyChannelReceived(
+          partyPayload({'Type': 'Chat', 'Text': 'm$i'}, id: 'c$i')));
+    }
+    await tester.pump();
+    await tester.pump();
+    expect(
+        find.descendant(
+            of: find.byKey(const Key('watch-party-unread')),
+            matching: find.text('9+')),
+        findsOneWidget);
+
+    container.read(partyChannelProvider.notifier).markRead();
+    await tester.pump();
+    expect(find.byKey(const Key('watch-party-unread')), findsNothing);
+
     await container.read(watchPartySessionProvider.notifier).leave();
     await tester.pump();
   });

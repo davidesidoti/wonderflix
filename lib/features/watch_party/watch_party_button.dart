@@ -10,6 +10,7 @@ import '../../core/syncplay/syncplay_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_menus.dart';
 import 'party_badge.dart';
+import 'party_channel.dart';
 import 'watch_party_actions.dart';
 import 'watch_party_directory.dart';
 import 'watch_party_providers.dart';
@@ -117,6 +118,8 @@ class _InPartyButton extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final party = ref.watch(watchPartySessionProvider);
     final playing = party.queue?.playing;
+    // Messaggi arrivati fuori dal player (spec E §9.5).
+    final unread = ref.watch(partyChannelProvider.select((s) => s.unread));
     return PopupMenuButton<String>(
       key: const Key('watch-party-in-party'),
       tooltip: party.group?.name,
@@ -164,7 +167,7 @@ class _InPartyButton extends ConsumerWidget {
           ),
         ),
       ],
-      child: PartyChip(label: l.watchPartyInParty),
+      child: PartyChip(label: l.watchPartyInParty, count: unread),
     );
   }
 }

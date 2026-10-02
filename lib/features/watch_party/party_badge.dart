@@ -7,15 +7,22 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/poster_card.dart';
 import '../../ui/wf_menus.dart';
 import 'watch_party_session.dart';
 
 /// Etichetta con bordo oro e icona del gruppo, nella barra in alto
 /// (`watch_party_button.dart`). Nel player c'è [PartyBadge].
 class PartyChip extends StatelessWidget {
-  const PartyChip({super.key, required this.label});
+  const PartyChip({super.key, required this.label, this.count = 0});
 
   final String label;
+
+  /// Messaggi della chat non letti (spec E §9.5); 0 = nessun contatore.
+  final int count;
+
+  /// Oltre questo numero il contatore scrive "9+".
+  static const maxCount = 9;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -32,6 +39,13 @@ class PartyChip extends StatelessWidget {
             Text(label,
                 style: const TextStyle(
                     color: WfColors.gold, fontWeight: FontWeight.w600)),
+            if (count > 0) ...[
+              const SizedBox(width: 6),
+              CountBadge(
+                  key: const Key('watch-party-unread'),
+                  count: count,
+                  max: maxCount),
+            ],
           ],
         ),
       );
