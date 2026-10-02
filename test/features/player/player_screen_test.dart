@@ -482,6 +482,80 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('rotella: volume come le frecce, anche sulla barra del volume',
+      (tester) async {
+    savedVolume = 50;
+    await pumpPlayer(tester);
+    final wheel = TestPointer(1, PointerDeviceKind.mouse);
+    await tester.sendEventToBinding(wheel.hover(const Offset(720, 450)));
+    await tester.sendEventToBinding(wheel.scroll(const Offset(0, 60)));
+    await tester.pumpAndSettle();
+    expect(engine.volumes.last, 45);
+    expect(find.text('Volume 45%'), findsOneWidget);
+
+    await tester.sendEventToBinding(wheel.scroll(const Offset(0, -60)));
+    await tester.sendEventToBinding(wheel.scroll(const Offset(0, -60)));
+    await tester.pumpAndSettle();
+    expect(engine.volumes.last, 55);
+    expect(find.text('Volume 55%'), findsOneWidget);
+
+    // Scorrimento orizzontale: niente.
+    final count = engine.volumes.length;
+    await tester.sendEventToBinding(wheel.scroll(const Offset(60, 0)));
+    await tester.pumpAndSettle();
+    expect(engine.volumes, hasLength(count));
+
+    // Sopra la barra del volume.
+    final slider = find.byKey(const Key('volume-slider'));
+    await tester.sendEventToBinding(wheel.hover(tester.getCenter(slider)));
+    await tester.sendEventToBinding(wheel.scroll(const Offset(0, -60)));
+    await tester.pumpAndSettle();
+    expect(engine.volumes.last, 60);
+    expect(tester.widget<Slider>(slider).value, 60);
+    await unmount(tester);
+  });
+
+  testWidgets('rotella: i controlli non compaiono; chiude "Stai guardando"',
+      (tester) async {
+    await pumpPlayer(tester);
+    final wheel = TestPointer(1, PointerDeviceKind.mouse);
+    await tester.sendEventToBinding(wheel.hover(const Offset(720, 450)));
+    await tester.pump(PlayerChromeController.hideDelay);
+    await tester.pumpAndSettle();
+    expect(controlsOpacity(tester), 0);
+
+    // Senza un nuovo movimento del mouse, come un tasto.
+    await tester.sendEventToBinding(wheel.scroll(const Offset(0, 60)));
+    await tester.pumpAndSettle();
+    expect(find.text('Volume 95%'), findsOneWidget);
+    expect(controlsOpacity(tester), 0);
+
+    await pauseUntilPauseScreen(tester);
+    await tester.sendEventToBinding(wheel.scroll(const Offset(0, 60)));
+    await tester.pumpAndSettle();
+    expect(find.text('STAI GUARDANDO'), findsNothing);
+    expect(controlsOpacity(tester), 0);
+    expect(engine.volumes.last, 90);
+    await unmount(tester);
+  });
+
+  testWidgets('rotella sul pannello: il volume non cambia', (tester) async {
+    await pumpPlayer(tester);
+    await tester.tap(find.byTooltip('Audio e sottotitoli'));
+    await tester.pumpAndSettle();
+    final count = engine.volumes.length;
+    final wheel = TestPointer(1, PointerDeviceKind.mouse);
+    await tester.sendEventToBinding(
+        wheel.hover(tester.getCenter(find.byType(TracksPanel))));
+    await tester.sendEventToBinding(wheel.scroll(const Offset(0, 60)));
+    await tester.sendEventToBinding(wheel.scroll(const Offset(0, -60)));
+    await tester.pumpAndSettle();
+    expect(engine.volumes, hasLength(count));
+    expect(find.text('Volume 95%'), findsNothing);
+    expect(find.text('Volume 100%'), findsNothing);
+    await unmount(tester);
+  });
+
   testWidgets('pannello audio e sottotitoli; Esc lo chiude', (tester) async {
     await pumpPlayer(tester);
     await tester.tap(find.byTooltip('Audio e sottotitoli'));

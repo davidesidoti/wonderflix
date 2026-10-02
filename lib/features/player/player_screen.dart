@@ -563,6 +563,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return KeyEventResult.handled;
   }
 
+  /// Rotella del mouse: volume come ↑/↓ (issue #4), con la pillola e senza
+  /// mostrare i controlli. Si registra nel `pointerSignalResolver`, dove
+  /// vince il widget più interno: sul pannello "Audio e sottotitoli" la
+  /// rotella resta al pannello.
+  void _onPointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) return;
+    final dy = event.scrollDelta.dy;
+    // Orizzontale (o tilt della rotella): niente.
+    if (dy == 0) return;
+    GestureBinding.instance.pointerSignalResolver.register(event, (_) {
+      if (!mounted) return;
+      _chrome.keyActivity();
+      _run(dy < 0 ? PlayerCommand.volumeUp : PlayerCommand.volumeDown);
+    });
+  }
+
   /// Comando da tastiera: la pillola mostra il riscontro (spec D §9), i
   /// controlli non compaiono. Il riscontro va dato **prima** del comando:
   /// nel watch party l'avviso "Hai…" che segue controlla che la pillola ci
@@ -801,6 +817,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           // Col tasto premuto (trascinamento della barra) `onHover` non
           // scatta: i movimenti tengono vivi i controlli.
           onPointerMove: (_) => _chrome.pointerActivity(),
+          onPointerSignal: _onPointerSignal,
           child: MouseRegion(
             // Nel post-play i controlli non ci sono ma il cursore resta.
             cursor: _chrome.controlsVisible || postPlay
