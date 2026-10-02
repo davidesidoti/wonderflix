@@ -1,7 +1,7 @@
 # WonderFlix — Piano 9: volume ricordato e rotella del mouse
 
 - **Data:** 2026-10-02
-- **Stato:** approvata, da realizzare nel piano 9
+- **Stato:** realizzata nel piano 9 (`docs/superpowers/plans/2026-10-02-wonderflix-09-volume.md`), provata dall'utente il 2026-10-02
 - **Ambito:** realizzazione delle issue #3 e #4 (enhancement), poi release 0.4.1. Si appoggia allo Spec A (`2026-09-29-wonderflix-client-core-design.md`: player, preferenze) e allo Spec D (`2026-10-01-wonderflix-rinnovo-player-design.md`: pillola dei tasti §9, schermata di pausa §11, pannello "Audio e sottotitoli" §14).
 
 ## 1. Obiettivo
