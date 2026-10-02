@@ -483,6 +483,17 @@ void main() {
     expect(api.calls, ['next p2']);
   });
 
+  test('nextItem con la richiesta fallita: false, niente annuncio', () async {
+    mount();
+    serverAccepts();
+    await session().join('g1');
+    emit(PlayQueueUpdate('g1', testSeriesQueue()));
+    await pumpEventQueue();
+    api.error = const ServerUnreachableException();
+    expect(await session().nextItem('p1'), isFalse);
+    expect(api.calls.last, 'next p1');
+  });
+
   test('membri: lo stesso utente con due sessioni compare una volta', () async {
     mount();
     serverAccepts(participants: ['Mario', 'Luigi']);

@@ -372,7 +372,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   /// Chiede al gruppo l'elemento dopo [playlistItemId] e, se la richiesta
-  /// parte, la annuncia agli altri (spec E §7.4). Il canale si prende prima
+  /// arriva al server, la annuncia agli altri (spec E §7.4). Il canale si prende prima
   /// dell'attesa: nel frattempo il player può chiudersi.
   Future<void> _requestNextInParty(String playlistItemId) async {
     final channel = ref.read(partyChannelProvider.notifier);
