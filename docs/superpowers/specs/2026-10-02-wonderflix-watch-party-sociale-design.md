@@ -270,14 +270,18 @@ L'avanzamento a fine video (`_onFinished`) **non** si annuncia: lo chiedono tutt
 
 ### 9.3 Chat aperta
 
-- Si apre con **Invio** o con il **pulsante chat**. Il campo (360 px, segnaposto "Scrivi un messaggio…") prende il focus; sopra, lo **storico** scorrevole (fino a 50 messaggi, altezza massima 40% della finestra), che non sfuma. All'apertura lo storico è in fondo.
-- **Invio** invia il testo; **Invio a campo vuoto** chiude la chat.
+- Si apre con **Invio** o con il **pulsante chat**. Invio apre la chat solo se il focus è al player: su un pulsante a fuoco (per esempio "Riprova") lo preme. Il campo (360 px, segnaposto "Scrivi un messaggio…") prende il focus; sopra, lo **storico** scorrevole (fino a 50 messaggi, altezza massima 40% della finestra), che non sfuma.
+- Lo storico è **ancorato in fondo**: i messaggi più nuovi in basso, subito sopra il campo (con pochi messaggi resta stretto). All'apertura si è in fondo; chi è in fondo ci resta quando arriva un messaggio; un messaggio inviato riporta in fondo anche chi stava leggendo più su.
+- **Invio** invia il testo; **Invio a campo vuoto** chiude la chat. Invio tenuto premuto non invia e non chiude di nuovo: la ripetizione del tasto si ignora.
+- **Tab** e **Maiusc+Tab** non escono dal campo. Se il campo perde il focus con la chat aperta, il tasto successivo glielo ridà (quel tasto non scrive nulla).
+- I tasti multimediali (play/pausa e gli altri) funzionano anche mentre si scrive.
 - **Esc** chiude la chat, senza uscire dal player.
 - **Clic sul film** con la chat aperta: chiude solo la chat (non mette in pausa). Un clic sui controlli agisce e lascia il focus nel campo (`onTapOutside` vuoto).
-- Contatore dei caratteri visibile da 180/200; oltre 200 il campo non accetta altro (`ChatLengthFormatter`: conta i punti di codice come il plugin, non i grafemi).
+- Contatore dei caratteri visibile da 180/200; a 200 il campo non accetta altro (`ChatLengthFormatter`: conta i punti di codice come il plugin, non i grafemi). Un tasto al limite non entra; un incolla troppo lungo si taglia nel punto in cui entra. Il testo già scritto, anche quello dopo il cursore, non cambia.
 - Chiusura automatica: campo vuoto e **20 s** senza attività (tasti, mouse sulla chat, messaggi inviati).
 - La rotella sopra la chat aperta non regola il volume: scorre lo storico, se può. Sulle bolle e altrove regola il volume.
 - Alla chiusura il focus torna al player.
+- Il focus si prende (il campo all'apertura, il player alla chiusura) solo se il player è la pagina in primo piano. Con un menu o un dialogo sopra il player il focus resta a loro; chiusi, torna al player, e a chat aperta il primo tasto lo riporta al campo.
 
 ### 9.4 Invio e errori
 
@@ -340,10 +344,11 @@ Le emoji usano `fontFamily: 'Segoe UI Emoji'` (glifi a colori di Windows). Sono 
 
 ## 11. Tasti, Esc e livelli nel player
 
-- **Tasti nuovi:** Invio (e Invio del tastierino) apre la chat; 1–6 reazioni. Solo nel gruppo con il canale attivo.
-- **Mentre si scrive** `_onKey` lascia passare tutti i tasti al campo (Spazio scrive uno spazio) tranne Esc, che chiude la chat.
+- **Tasti nuovi:** Invio (e Invio del tastierino) apre la chat, solo con il focus al player (`_focusNode.hasPrimaryFocus`); 1–6 reazioni. Solo nel gruppo con il canale attivo.
+- **Mentre si scrive** `_onKey` lascia passare tutti i tasti al campo (Spazio scrive uno spazio) tranne Esc, che chiude la chat, e i tasti multimediali, che fanno il loro comando. Tab e Maiusc+Tab si fermano lì (non portano il focus fuori dal campo); la ripetizione di Invio si ignora. Se il focus non è al campo, il tasto glielo ridà e si consuma.
 - **Esc:** chat → barretta → pannello → post-play o scheda → schermo intero → uscita.
 - **`PlayerChromeController`:** `_panelOpen` diventa un `popup` (`PlayerPopup`, al massimo uno): oggi `tracks` e `chat`, `reactions` arriva nel 10c. I controlli restano visibili con `tracks` (e `reactions`), non con `chat`. Con la chat aperta il controller stesso non fa partire la schermata di pausa e la chiude all'apertura. Il player ha un `FocusNode` suo, a cui torna il focus quando la chat si chiude.
+- **Focus della chat:** anche il `FocusNode` del campo è di `PlayerScreen`, che lo crea, lo passa a `PartyChatLayer` (`focusNode`) e lo distrugge: così può ridare il focus al campo. Il focus si prende (campo all'apertura, player alla chiusura) solo se il player è la route corrente (`ModalRoute.isCurrentOf`): un menu o un dialogo sopra il player tiene il suo.
 - **Livelli** (dal basso): video, attesa del gruppo, schermata di pausa, errore o controlli (con la barretta), caricamento, "Salta"/scheda, post-play, attesa sopra il post-play, **reazioni**, **chat**, pillola, pannello tracce. Il livello chat non è dentro `ExcludeFocus`.
 - La barretta vive nel livello dei controlli, ancorata al pulsante.
 
@@ -435,7 +440,7 @@ Ogni piano segue il flusso concordato (worktree, subagent, revisione, prova manu
 
 - **Inoltro sul WebSocket:** verificato sul server vero con la sonda del piano 10a (2026-10-02).
 - **Policy `SyncPlayHasAccess`** e `IAuthorizationContext` dal pacchetto NuGet: verificati con la sonda (2026-10-02).
-- **Emoji a colori** in Flutter su Windows: da verificare all'inizio del 10b; se il font non si vede a colori, si torna a decidere (icone Lucide o immagini).
+- **Emoji a colori** in Flutter su Windows: verificato nel piano 10b. Flutter disegna a colori le emoji di Segoe UI Emoji.
 - **Sovrapposizioni:** bolle e reazioni possono coprire righe lunghe di sottotitoli o testi del post-play; da guardare nella prova manuale.
 - **Più sessioni dello stesso utente** nel gruppo: l'appartenenza è per nome utente; entrambe ricevono gli eventi, e i propri si mostrano come "Tu".
 - **Jellyfin 12:** il plugin va ricompilato prima che l'utente aggiorni il server; senza, l'app degrada da sola (§12).
