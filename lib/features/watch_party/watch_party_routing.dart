@@ -8,6 +8,7 @@ import '../../app/navigation.dart';
 import '../../app/router.dart';
 import '../player/player_handover.dart';
 import '../player/player_providers.dart';
+import 'party_channel.dart';
 import 'party_notices.dart';
 import 'watch_party_session.dart';
 
@@ -58,6 +59,9 @@ final partyNavigatorProvider = Provider<PartyNavigator>(
 final watchPartyRoutingProvider = Provider<void>((ref) {
   // Gli avvisi devono vedere anche la prima coda del gruppo.
   ref.listen(partyNoticesProvider, (_, _) {});
+  // Il canale del plugin segue il gruppo anche fuori dal player (storico
+  // della chat, messaggi non letti, spec E §7.3).
+  ref.listen(partyChannelProvider, (_, _) {});
   ref.listen(
       watchPartySessionProvider.select(
           (s) => s.inGroup ? s.queue?.playing?.playlistItemId : null),

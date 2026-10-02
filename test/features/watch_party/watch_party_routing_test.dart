@@ -33,6 +33,7 @@ void main() {
           () => FakeSessionController(const SessionSignedIn(testUser))),
       syncPlayApiProvider.overrideWithValue(api),
       watchPartyEventsProvider.overrideWithValue(events.stream),
+      partyChannelApiProvider.overrideWithValue(FakePartyChannelApi()),
       partyNavigatorProvider.overrideWithValue(navigator),
       playerWindowProvider.overrideWithValue(window),
     ]);

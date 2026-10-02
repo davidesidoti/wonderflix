@@ -117,6 +117,7 @@ void main() {
             (image, fit) => const ColoredBox(color: Color(0xFF333333))),
         syncPlayApiProvider.overrideWithValue(api),
         watchPartyEventsProvider.overrideWithValue(events.stream),
+        partyChannelApiProvider.overrideWithValue(FakePartyChannelApi()),
       ],
       retry: (_, _) => null,
     );
