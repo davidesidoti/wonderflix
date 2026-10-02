@@ -89,6 +89,52 @@ void main() {
         isNull);
   });
 
+  test('parseServerMessage: eventi del plugin del watch party', () {
+    final event = parseServerMessage(jsonEncode({
+      'MessageType': 'GeneralCommand',
+      'Data': {
+        'Name': 'SendString',
+        'ControllingUserId': '00000000000000000000000000000000',
+        'Arguments': {'WonderFlixWatchParty': '{"Type":"Chat"}'},
+      },
+    }));
+    expect(event, isA<PartyChannelReceived>());
+    expect((event as PartyChannelReceived).payload, '{"Type":"Chat"}');
+
+    // Gli altri GeneralCommand restano ignorati.
+    expect(
+        parseServerMessage(jsonEncode({
+          'MessageType': 'GeneralCommand',
+          'Data': {
+            'Name': 'DisplayMessage',
+            'Arguments': {'Header': 'x', 'Text': 'y'},
+          },
+        })),
+        isNull);
+    expect(
+        parseServerMessage(jsonEncode({
+          'MessageType': 'GeneralCommand',
+          'Data': {
+            'Name': 'SendString',
+            'Arguments': {'String': 'ciao'},
+          },
+        })),
+        isNull);
+    expect(
+        parseServerMessage(jsonEncode({
+          'MessageType': 'GeneralCommand',
+          'Data': {
+            'Name': 'SendString',
+            'Arguments': {'WonderFlixWatchParty': 42},
+          },
+        })),
+        isNull);
+    expect(
+        parseServerMessage(
+            jsonEncode({'MessageType': 'GeneralCommand', 'Data': 'x'})),
+        isNull);
+  });
+
   test('socketUri', () {
     expect(socketUri(Uri.parse('https://media.example.com/jf')).toString(),
         'wss://media.example.com/jf/socket');

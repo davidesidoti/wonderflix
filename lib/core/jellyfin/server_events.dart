@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import '../party_channel/party_channel_models.dart';
 import '../syncplay/syncplay_models.dart';
 import 'item_models.dart';
 
@@ -52,6 +53,14 @@ final class SyncPlayGroupUpdated extends ServerEvent {
   final GroupUpdate update;
 }
 
+/// Evento del plugin "WonderFlix Watch Party" (spec E §7.1): il JSON
+/// dell'evento timbrato, da leggere con `parsePartyEvent`.
+final class PartyChannelReceived extends ServerEvent {
+  const PartyChannelReceived(this.payload);
+
+  final String payload;
+}
+
 /// Messaggio del WebSocket → evento; `null` per messaggi ignorati o non validi.
 ServerEvent? parseServerMessage(Object? raw) {
   if (raw is! String) return null;
@@ -80,6 +89,18 @@ ServerEvent? parseServerMessage(Object? raw) {
       case 'SyncPlayGroupUpdate':
         final update = parseGroupUpdate(data);
         return update == null ? null : SyncPlayGroupUpdated(update);
+      case 'GeneralCommand':
+        // Il plugin del watch party inoltra i suoi eventi come `SendString`
+        // con una chiave sua (spec E §6.3). Gli altri comandi non ci
+        // riguardano.
+        if (data is! Map<String, dynamic> || data['Name'] != 'SendString') {
+          return null;
+        }
+        final arguments = data['Arguments'];
+        final payload = arguments is Map<String, dynamic>
+            ? arguments[partyChannelArgumentKey]
+            : null;
+        return payload is String ? PartyChannelReceived(payload) : null;
       default:
         return null;
     }
