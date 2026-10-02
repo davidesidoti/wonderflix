@@ -9,6 +9,7 @@ import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/features/watch_party/party_channel.dart';
 import 'package:wonderflix/features/watch_party/watch_party_actions.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
@@ -22,6 +23,7 @@ import '../../support/watch_party_fakes.dart';
 void main() {
   late FakeSyncPlayApi api;
   late FakeLibraryApi library;
+  late FakePartyChannelApi channelApi;
   late StreamController<ServerEvent> events;
   final pilot = testItem(
       id: 'e4',
@@ -32,6 +34,7 @@ void main() {
 
   setUp(() {
     api = FakeSyncPlayApi();
+    channelApi = FakePartyChannelApi()..install();
     events = StreamController<ServerEvent>.broadcast();
     library = FakeLibraryApi()
       ..seriesEpisodes['s1'] = [
@@ -62,6 +65,7 @@ void main() {
           libraryApiProvider.overrideWithValue(library),
           syncPlayApiProvider.overrideWithValue(api),
           watchPartyEventsProvider.overrideWithValue(events.stream),
+          partyChannelApiProvider.overrideWithValue(channelApi),
           sessionControllerProvider.overrideWith(
               () => FakeSessionController(const SessionSignedIn(testUser))),
         ],
@@ -93,6 +97,23 @@ void main() {
     await tester.tap(find.text('via'));
     await tester.pumpAndSettle();
     expect(api.calls, ['join g1', 'queue e4,e5']);
+    await leave(tester);
+  });
+
+  testWidgets('dentro un gruppo: la nuova coda si annuncia (spec E §7.4)',
+      (tester) async {
+    await pumpButton(tester);
+    // Come nell'app, dove lo tiene vivo `watchPartyRoutingProvider`.
+    container(tester).listen(partyChannelProvider, (_, _) {});
+    unawaited(container(tester)
+        .read(watchPartySessionProvider.notifier)
+        .join('g1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('via'));
+    await tester.pumpAndSettle();
+    expect([for (final event in channelApi.sent) event.toJson()], [
+      {'Type': 'Action', 'Action': 'NewQueue'},
+    ]);
     await leave(tester);
   });
 

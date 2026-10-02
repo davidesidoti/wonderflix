@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/jellyfin/item_models.dart';
+import '../../core/party_channel/party_channel_models.dart';
 import '../../core/syncplay/syncplay_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../library/library_providers.dart';
+import 'party_channel.dart';
 import 'party_queue.dart';
 import 'watch_party_session.dart';
 
@@ -30,6 +32,10 @@ Future<bool> startWatchParty(
             ref.read(currentUserIdProvider), item);
         if (container.read(watchPartySessionProvider).inGroup) {
           await session.setQueue(queue, start: start);
+          // Spec E §7.4: gli altri vedono chi ha scelto il titolo.
+          container
+              .read(partyChannelProvider.notifier)
+              .announce(PartyAction.newQueue);
         } else {
           await session.create(item, queue: queue, start: start);
         }

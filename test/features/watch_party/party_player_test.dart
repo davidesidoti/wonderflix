@@ -12,6 +12,7 @@ import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/playback_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/core/party_channel/party_channel_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
@@ -22,6 +23,7 @@ import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
 import 'package:wonderflix/features/player/player_volume.dart';
+import 'package:wonderflix/features/watch_party/party_notices.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
@@ -42,6 +44,7 @@ void main() {
   late FakePlayerWindow window;
   late FakeMediaSession mediaSession;
   late FakeSyncPlayApi api;
+  late FakePartyChannelApi channelApi;
   late StreamController<ServerEvent> events;
   late FakeLibraryApi library;
   late ProviderContainer container;
@@ -84,6 +87,7 @@ void main() {
       )
       ..nextEpisodes['e4'] = testItem(
           id: 'e5', name: 'Cat\'s in the Bag', kind: ItemKind.episode);
+    channelApi = FakePartyChannelApi()..install();
     router = GoRouter(routes: [
       GoRoute(
           path: '/',
@@ -129,6 +133,7 @@ void main() {
             (image, fit) => const ColoredBox(color: Color(0xFF333333))),
         syncPlayApiProvider.overrideWithValue(api),
         watchPartyEventsProvider.overrideWithValue(events.stream),
+        partyChannelApiProvider.overrideWithValue(channelApi),
       ],
       retry: (_, _) => null,
     );
@@ -595,6 +600,9 @@ void main() {
     emit(const GroupStateUpdate('g1', GroupState.paused, 'Pause'));
     await tester.pump();
     await tester.pump();
+    // Con il canale del plugin attivo l'avviso altrui aspetta il nome; qui
+    // l'annuncio non arriva ed esce senza (spec E §8).
+    await tester.pump(PartyNotices.attributionWait);
     expect(find.text(l.watchPartyNoticePaused), findsOneWidget);
     await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle(); // la pillola sfuma via
@@ -733,6 +741,49 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(mediaSession.parties.last, isNull);
+    await finish(tester);
+  });
+
+  List<Map<String, dynamic>> announced() => [
+        for (final event in channelApi.sent)
+          if (event is PartyOutgoingAction) event.toJson(),
+      ];
+
+  testWidgets('canale: la ripresa dal player si annuncia (spec E §7.4)',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    expect(channelApi.calls, containsAllInOrder(['info', 'join g1']));
+    await tester.tap(find.byTooltip(l.actionPlay));
+    await tester.pump();
+    expect(announced(), [
+      {'Type': 'Action', 'Action': 'Unpause'},
+    ]);
+    await finish(tester);
+  });
+
+  testWidgets('canale: il prossimo episodio chiesto dall\'utente si annuncia',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    await queueSeries(tester);
+    await tester.tap(find.byTooltip(l.playerNextEpisode));
+    await tester.pump();
+    await tester.pump();
+    expect(api.calls, contains('next p1'));
+    expect(announced(), [
+      {'Type': 'Action', 'Action': 'NextItem'},
+    ]);
+    await finish(tester);
+  });
+
+  testWidgets('canale: l\'episodio dopo a fine video non si annuncia',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    await queueSeries(tester);
+    engine.emitCompleted();
+    await tester.pump();
+    await tester.pump();
+    expect(api.calls, contains('next p1'));
+    expect(announced(), isEmpty);
     await finish(tester);
   });
 }

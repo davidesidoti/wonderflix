@@ -11,6 +11,7 @@ import '../../app/navigation.dart';
 import '../../app/providers.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/media_session/media_session.dart';
+import '../../core/party_channel/party_channel_models.dart';
 import '../../core/syncplay/syncplay_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../detail/primary_action.dart';
@@ -20,6 +21,7 @@ import '../library/user_data.dart';
 import '../watch_party/group_authority.dart';
 import '../watch_party/group_playback_driver.dart';
 import '../watch_party/party_badge.dart';
+import '../watch_party/party_channel.dart';
 import '../watch_party/party_notices.dart';
 import '../watch_party/party_waiting_overlay.dart';
 import '../watch_party/watch_party_actions.dart';
@@ -346,9 +348,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         // Il `Seek` non dice l'elemento: partito dopo il cambio, salterebbe
         // nell'episodio nuovo.
         _authority?.cancelPendingSeek();
-        unawaited(ref
-            .read(watchPartySessionProvider.notifier)
-            .nextItem(widget.args.party!));
+        unawaited(_requestNextInParty(widget.args.party!));
       }
       return;
     }
@@ -369,6 +369,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     context.pushReplacement(
         playerRoute(next.id, start: start, fullscreen: _fullscreen),
         extra: playerReplacement);
+  }
+
+  /// Chiede al gruppo l'elemento dopo [playlistItemId] e, se la richiesta
+  /// parte, la annuncia agli altri (spec E §7.4). Il canale si prende prima
+  /// dell'attesa: nel frattempo il player può chiudersi.
+  Future<void> _requestNextInParty(String playlistItemId) async {
+    final channel = ref.read(partyChannelProvider.notifier);
+    final requested = await ref
+        .read(watchPartySessionProvider.notifier)
+        .nextItem(playlistItemId);
+    if (requested) channel.announce(PartyAction.nextItem);
   }
 
   /// Fine del video: episodio successivo se previsto, altrimenti uscita.
@@ -412,6 +423,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final serverClock = session.serverClock;
     if (!current.inGroup || serverClock == null) return;
     final notices = ref.read(partyNoticesProvider.notifier);
+    final channel = ref.read(partyChannelProvider.notifier);
     _driver = GroupPlaybackDriver(
       engine: controller.engine,
       api: session.api,
@@ -430,8 +442,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       engine: controller.engine,
       // Spec D §9.3: un'azione appena data da tastiera ha già la sua
       // pillola; l'avviso "Hai…" registra solo l'eco.
-      onAction: (kind, {position}) => notices.mine(kind,
-          position: position, show: !_chrome.isRecentKeyAction(kind)),
+      onAction: (kind, {position}) {
+        notices.mine(kind,
+            position: position, show: !_chrome.isRecentKeyAction(kind));
+        // Spec E §7.4: gli altri vedono il nostro nome.
+        channel.announceMine(kind, position: position);
+      },
     );
     _authority = authority;
     controller.setAuthority(authority);
