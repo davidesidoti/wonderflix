@@ -6,6 +6,15 @@
     "overview": "WonderFlix watch party: names, chat, reactions",
     "owner": "davidesidoti",
     "category": "General",
-    "versions": []
+    "versions": [
+      {
+        "version": "1.0.0.0",
+        "changelog": "Prima versione: nomi, chat e reazioni nel watch party di WonderFlix.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.0.0/wonderflix-watch-party_1.0.0.zip",
+        "checksum": "362c06905804adc8c87e64bcf6156c22",
+        "timestamp": "2026-10-02T20:20:43Z"
+      }
+    ]
   }
 ]
