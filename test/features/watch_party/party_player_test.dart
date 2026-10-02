@@ -27,6 +27,7 @@ import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
 import 'package:wonderflix/features/player/player_volume.dart';
 import 'package:wonderflix/features/player/tracks_panel.dart';
+import 'package:wonderflix/features/watch_party/party_channel.dart';
 import 'package:wonderflix/features/watch_party/party_chat_layer.dart';
 import 'package:wonderflix/features/watch_party/party_notices.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
@@ -1055,5 +1056,77 @@ void main() {
     await tester.pump();
     expect(api.calls.where((call) => call == 'unpause'), hasLength(1));
     await finish(tester);
+  });
+
+  /// I tasti sono di nuovo del player: Spazio arriva al gruppo.
+  Future<void> expectPlayerKeys(WidgetTester tester) async {
+    expect(primaryFocus(), 'player');
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    expect(api.calls, contains('unpause'));
+  }
+
+  group('chat chiusa: i tasti tornano al player (spec E §11)', () {
+    testWidgets('clic sul film', (tester) async {
+      await pumpPartyPlayer(tester);
+      await openChatWithEnter(tester);
+      await tester.tapAt(const Offset(700, 300));
+      await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
+      await tester.pump();
+      expect(chatField(), findsNothing);
+      await expectPlayerKeys(tester);
+      await finish(tester);
+    });
+
+    testWidgets('pannello "Audio e sottotitoli"', (tester) async {
+      await pumpPartyPlayer(tester);
+      await openChatWithEnter(tester);
+      await tester.tap(find.byTooltip(l.playerAudioAndSubtitles));
+      await tester.pumpAndSettle();
+      expect(chatField(), findsNothing);
+      expect(find.byType(TracksPanel), findsOneWidget);
+      await expectPlayerKeys(tester);
+      await finish(tester);
+    });
+
+    testWidgets('chiusura automatica', (tester) async {
+      await pumpPartyPlayer(tester);
+      await openChatWithEnter(tester);
+      await tester.pump(PartyChatLayer.idleClose);
+      await tester.pump();
+      expect(chatField(), findsNothing);
+      await expectPlayerKeys(tester);
+      await finish(tester);
+    });
+
+    testWidgets('canale spento', (tester) async {
+      await pumpPartyPlayer(tester);
+      await openChatWithEnter(tester);
+      // Il plugin è sparito: l'invio se ne accorge e il canale si spegne.
+      channelApi.sendFailures.add(PartyChannelFailure.unavailable);
+      await tester.enterText(chatField(), 'ci siete?');
+      await tester.testTextInput.receiveAction(TextInputAction.send);
+      await tester.pump();
+      await tester.pump();
+      expect(container.read(partyChannelProvider).active, isFalse);
+      expect(chatField(), findsNothing);
+      await expectPlayerKeys(tester);
+      await finish(tester);
+    });
+
+    testWidgets('tolti dal gruppo', (tester) async {
+      await pumpPartyPlayer(tester);
+      await openChatWithEnter(tester);
+      emit(const GroupLeft('g1'));
+      await tester.pump();
+      await tester.pump();
+      expect(chatField(), findsNothing);
+      expect(primaryFocus(), 'player');
+      // Fuori dal gruppo Spazio fa partire il video da solo.
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pump();
+      expect(engine.calls, contains('play'));
+      await finish(tester);
+    });
   });
 }
