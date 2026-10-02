@@ -1,7 +1,7 @@
 # WonderFlix — Spec E: watch party sociale (nomi, chat, reazioni)
 
 - **Data:** 2026-10-02
-- **Stato:** approvato; piano 10a realizzato (`docs/superpowers/plans/2026-10-02-wonderflix-10a-watch-party-plugin-nomi.md`), 10b e 10c da fare
+- **Stato:** approvato; piani 10a e 10b realizzati (`docs/superpowers/plans/2026-10-02-wonderflix-10a-watch-party-plugin-nomi.md`, `docs/superpowers/plans/2026-10-02-wonderflix-10b-watch-party-chat.md`), 10c da fare
 - **Ambito:** Spec E. Aggiunge al watch party il nome di chi agisce, una chat di testo e reazioni rapide, attraverso un plugin del server Jellyfin scritto per WonderFlix. Si appoggia allo Spec B (`2026-09-30-wonderflix-watch-party-design.md`: §5.7 avvisi, §7 interfaccia) e allo Spec D (`2026-10-01-wonderflix-rinnovo-player-design.md`: §5 `PlayerChromeController`, §9 pillola, §11 schermata di pausa, §14 pannello, §15 watch party nel player), tutti realizzati (v0.4.1).
 
 ## 1. Obiettivo
@@ -258,36 +258,36 @@ L'avanzamento a fine video (`_onFinished`) **non** si annuncia: lo chiedono tutt
 
 ### 9.1 Posizione e aspetto
 
-- Livello `PartyChatLayer` in basso a sinistra, margine sinistro come i controlli, a un'**altezza fissa** subito sopra la zona dei controlli (non si sposta quando i controlli compaiono o spariscono). Larghezza massima 360 px.
+- Livello `PartyChatLayer` in basso a sinistra, margine sinistro come i controlli, a un'**altezza fissa** subito sopra la zona dei controlli (non si sposta quando i controlli compaiono o spariscono): `left: 24`, `bottom: 150` (`PartyChatLayer.left`/`bottom`, come "Salta intro" a destra). Larghezza massima 360 px.
 - Bolla: nome in oro (semibold), testo in crema, fondo `WfColors.bg` al 72%, angoli 10. I propri messaggi hanno il nome "Tu".
-- Il testo usa il font dell'app con `fontFamilyFallback: ['Segoe UI Emoji']`, così le emoji scritte nella chat sono a colori.
+- Il testo usa il font dell'app con `fontFamilyFallback: ['Segoe UI Emoji']` (`partyChatTextStyle` in `party_chat_bubble.dart`), così le emoji scritte nella chat sono a colori (verificato nel piano 10b).
 
 ### 9.2 Chat chiusa
 
-- Ogni messaggio in arrivo (anche il proprio appena inviato) compare come bolla. Al massimo **3** bolle; la più nuova in basso, le altre salgono.
+- Ogni messaggio in arrivo compare come bolla, anche i nostri scritti da un altro PC (con "Tu"); quelli mandati da qui, a chat aperta, sono nello storico. Al massimo **3** bolle; la più nuova in basso, le altre salgono.
 - Ogni bolla resta **8 s**, poi sfuma (`fast`). Testo lungo: massimo 4 righe con ellissi.
 - Entrata: dissolvenza + 8 px verso l'alto (`medium`, curva enfatizzata); con le animazioni ridotte, solo dissolvenza.
 
 ### 9.3 Chat aperta
 
-- Si apre con **Invio** o con il **pulsante chat**. Il campo (360 px, segnaposto "Scrivi un messaggio…") prende il focus; sopra, lo **storico** scorrevole (fino a 50 messaggi, altezza massima 40% del player), che non sfuma. All'apertura lo storico è in fondo.
+- Si apre con **Invio** o con il **pulsante chat**. Il campo (360 px, segnaposto "Scrivi un messaggio…") prende il focus; sopra, lo **storico** scorrevole (fino a 50 messaggi, altezza massima 40% della finestra), che non sfuma. All'apertura lo storico è in fondo.
 - **Invio** invia il testo; **Invio a campo vuoto** chiude la chat.
 - **Esc** chiude la chat, senza uscire dal player.
-- **Clic sul film** con la chat aperta: chiude solo la chat (non mette in pausa e non mostra i controlli).
-- Contatore dei caratteri visibile da 180/200; oltre 200 il campo non accetta altro.
+- **Clic sul film** con la chat aperta: chiude solo la chat (non mette in pausa). Un clic sui controlli agisce e lascia il focus nel campo (`onTapOutside` vuoto).
+- Contatore dei caratteri visibile da 180/200; oltre 200 il campo non accetta altro (`ChatLengthFormatter`: conta i punti di codice come il plugin, non i grafemi).
 - Chiusura automatica: campo vuoto e **20 s** senza attività (tasti, mouse sulla chat, messaggi inviati).
-- La rotella sopra lo storico lo fa scorrere; altrove continua a regolare il volume.
+- La rotella sopra la chat aperta non regola il volume: scorre lo storico, se può. Sulle bolle e altrove regola il volume.
 - Alla chiusura il focus torna al player.
 
 ### 9.4 Invio e errori
 
-- Il messaggio inviato compare subito nello storico e come bolla, al 60% di opacità, e diventa pieno alla conferma.
+- Il messaggio inviato compare subito nello storico, al 60% di opacità, e diventa pieno alla conferma. Tiene la stessa identità (`PartyChatEntry.key`) da "in attesa" a confermato.
 - Se l'invio fallisce il messaggio sparisce, il testo torna nel campo (con la chat riaperta se nel frattempo era stata chiusa) e sotto il campo compare una riga rossa: "Non inviato, riprova" (errore) o "Troppi messaggi, aspetta un attimo" (429). La riga sparisce al tasto successivo.
 
 ### 9.5 Pulsante e non letti
 
 - Pulsante **chat** (`LucideIcons.messageCircle`, tooltip "Chat (Invio)") nella barra dei controlli, a destra, dove fuori dal gruppo c'è "Guarda insieme". Compare solo nel gruppo con il canale attivo.
-- **Fuori dal player:** i messaggi arrivati diventano un contatore oro (fino a "9+") sul pulsante "Nel watch party" della barra in alto.
+- **Fuori dal player:** i messaggi arrivati diventano un contatore oro (fino a "9+": `CountBadge` con `max: 9`, dentro `PartyChip`) sul pulsante "Nel watch party" della barra in alto.
 - **Tornando al player:** niente bolle per quei messaggi; un puntino oro sul pulsante chat finché la chat non si apre (`markRead`).
 
 ### 9.6 Rapporto con il resto del player
@@ -343,7 +343,7 @@ Le emoji usano `fontFamily: 'Segoe UI Emoji'` (glifi a colori di Windows). Sono 
 - **Tasti nuovi:** Invio (e Invio del tastierino) apre la chat; 1–6 reazioni. Solo nel gruppo con il canale attivo.
 - **Mentre si scrive** `_onKey` lascia passare tutti i tasti al campo (Spazio scrive uno spazio) tranne Esc, che chiude la chat.
 - **Esc:** chat → barretta → pannello → post-play o scheda → schermo intero → uscita.
-- **`PlayerChromeController`:** `_panelOpen` diventa un `popup` con valori `tracks`, `chat`, `reactions` (al massimo uno). I controlli restano visibili con `tracks` e `reactions`, non con `chat`. `setPlayback(canShowPauseScreen:)` riceve falso anche con la chat aperta.
+- **`PlayerChromeController`:** `_panelOpen` diventa un `popup` (`PlayerPopup`, al massimo uno): oggi `tracks` e `chat`, `reactions` arriva nel 10c. I controlli restano visibili con `tracks` (e `reactions`), non con `chat`. Con la chat aperta il controller stesso non fa partire la schermata di pausa e la chiude all'apertura. Il player ha un `FocusNode` suo, a cui torna il focus quando la chat si chiude.
 - **Livelli** (dal basso): video, attesa del gruppo, schermata di pausa, errore o controlli (con la barretta), caricamento, "Salta"/scheda, post-play, attesa sopra il post-play, **reazioni**, **chat**, pillola, pannello tracce. Il livello chat non è dentro `ExcludeFocus`.
 - La barretta vive nel livello dei controlli, ancorata al pulsante.
 
