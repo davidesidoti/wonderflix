@@ -12,6 +12,7 @@ import '../features/auth/session_controller.dart';
 import '../features/friends/friend_request_card.dart';
 import '../features/friends/friends_button.dart';
 import '../features/friends/friends_panel.dart';
+import '../features/inbox/inbox_button.dart';
 import '../features/library/server_events_binding.dart';
 import '../features/watch_party/watch_party_button.dart';
 import '../features/watch_party/watch_party_invites.dart';
@@ -116,6 +117,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                         ),
                         const WatchPartyButton(),
                         const FriendsButton(),
+                        const InboxButton(),
                         const SizedBox(width: 16),
                         if (user != null) _UserMenu(user: user),
                       ],
@@ -138,6 +140,8 @@ class _AppShellState extends ConsumerState<AppShell> {
             ),
             // Pannello Amici, sopra la barra e le schede (spec F §8.3).
             const Positioned.fill(child: FriendsPanelHost()),
+            // Pannello Notifiche, sopra la barra e le schede (spec G §7.5).
+            const Positioned.fill(child: InboxPanelHost()),
           ],
         ),
       ),
