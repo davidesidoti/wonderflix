@@ -68,4 +68,12 @@ void main() {
         'https://media.example.com/jf/Items/p9/Images/Primary?tag=pp9&maxWidth=240&quality=90');
     expect(urls.person(const PersonRef(id: 'p0', name: 'X')), isNull);
   });
+
+  test('immagine principale da un id, senza tag', () {
+    final image = urls.primaryOf('m1');
+    expect(image.url,
+        'https://media.example.com/jf/Items/m1/Images/Primary?maxWidth=120&quality=90');
+    expect(image.blurHash, isNull);
+    expect(urls.primaryOf('m1', maxWidth: 300).url, contains('maxWidth=300'));
+  });
 }

@@ -41,6 +41,12 @@ class ImageUrls {
     return tag == null ? null : _ref(item, item.id, 'Primary', tag, maxWidth);
   }
 
+  /// Immagine principale di un elemento di cui si conosce solo l'id (es. la
+  /// locandina di un invito nella cassetta, spec G §7.6): senza tag
+  /// Jellyfin dà quella attuale.
+  ImageRef primaryOf(String itemId, {int maxWidth = 120}) => ImageRef(
+      '$_base/Items/$itemId/Images/Primary?maxWidth=$maxWidth&quality=90');
+
   ImageRef? backdrop(JellyfinItem item, {int maxWidth = 1920}) {
     if (item.backdropTags.isNotEmpty) {
       return _ref(item, item.id, 'Backdrop', item.backdropTags.first, maxWidth,

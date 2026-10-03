@@ -63,6 +63,8 @@ void main() {
     expect((request! as FriendRequestEvent).fromName, 'Luigi');
     expect(parseSocialEvent('{"Protocol":1,"Type":"FriendsChanged"}'),
         isA<FriendsChangedEvent>());
+    expect(parseSocialEvent('{"Protocol":1,"Type":"InboxChanged"}'),
+        isA<InboxChangedEvent>());
     // Un evento del canale, un altro protocollo, JSON rotto: niente.
     expect(parseSocialEvent('{"Protocol":1,"Type":"Chat","Text":"ciao"}'),
         isNull);

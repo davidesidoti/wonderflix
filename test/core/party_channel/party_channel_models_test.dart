@@ -131,6 +131,7 @@ void main() {
         parsePartyEvent('{"Protocol":1,"Type":"PartyInvite","GroupId":"g1",'
             '"Name":"Dune","FromName":"Mario"}'),
         isNull);
+    expect(parsePartyEvent('{"Protocol":1,"Type":"InboxChanged"}'), isNull);
     expect(records, isEmpty);
   });
 }

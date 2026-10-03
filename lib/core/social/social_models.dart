@@ -11,6 +11,9 @@ final _log = Logger('social');
 abstract final class PluginFeatures {
   static const friends = 'friends';
   static const parties = 'parties';
+
+  /// La cassetta delle notifiche (spec G).
+  static const inbox = 'inbox';
 }
 
 /// Risposta di `GET /WonderFlixWatchParty/Info`, con le funzioni.
@@ -225,6 +228,12 @@ final class PartyInviteEvent extends SocialEvent {
   final String fromName;
 }
 
+/// La cassetta delle notifiche è cambiata: si rilegge `GET Inbox` (spec G
+/// §6.4).
+final class InboxChangedEvent extends SocialEvent {
+  const InboxChangedEvent();
+}
+
 /// Legge un avviso del plugin (stringa JSON dal WebSocket). `null` se non è
 /// un avviso sociale; una riga nel log se è malformato.
 SocialEvent? parseSocialEvent(Object? raw) {
@@ -254,6 +263,8 @@ SocialEvent? parseSocialEvent(Object? raw) {
           name: json['Name'] as String,
           fromName: json['FromName'] as String,
         );
+      case 'InboxChanged':
+        return const InboxChangedEvent();
     }
     return null;
   } on Object catch (error) {

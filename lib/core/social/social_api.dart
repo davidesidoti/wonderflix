@@ -3,6 +3,7 @@ import 'package:logging/logging.dart';
 import '../jellyfin/api_exception.dart';
 import '../jellyfin/jellyfin_http.dart';
 import '../syncplay/syncplay_models.dart';
+import 'inbox_models.dart';
 import 'social_models.dart';
 
 final _log = Logger('social');
@@ -116,6 +117,24 @@ class SocialApi {
   Future<void> invite(String groupId, List<String> userIds) => _call(() =>
       _http.post('$_base/Parties/$groupId/Invites',
           body: {'UserIds': userIds}, quietStatuses: _quiet));
+
+  /// La cassetta delle notifiche (spec G §6.3).
+  Future<InboxSnapshot> inbox() => _call(() async => InboxSnapshot.fromJson(
+      asJsonMap(await _http.get('$_base/Inbox', quietStatuses: _quiet))));
+
+  /// Segna lette le voci fino a [upTo] (il Seq della più recente vista).
+  Future<void> markInboxRead(int upTo) => _call(() => _http.post(
+      '$_base/Inbox/Read',
+      body: {'UpTo': upTo},
+      quietStatuses: _quiet));
+
+  /// Toglie una voce (il plugin risponde 204 anche se non c'è più).
+  Future<void> removeInboxEntry(String id) => _call(() =>
+      _http.delete('$_base/Inbox/Entries/$id', quietStatuses: _quiet));
+
+  /// Svuota la cassetta.
+  Future<void> clearInbox() =>
+      _call(() => _http.delete('$_base/Inbox', quietStatuses: _quiet));
 
   Future<T> _call<T>(Future<T> Function() request) async {
     try {

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/misc.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/core/social/inbox_models.dart';
 import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
@@ -199,6 +200,40 @@ class FakeSocialApi implements SocialApi {
     calls.add('invite $groupId ${userIds.join(',')}');
     _fail();
   }
+
+  /// Risposta di [inbox].
+  InboxSnapshot inboxSnapshot = InboxSnapshot.empty;
+
+  /// Se valorizzato, [inbox] aspetta che si completi (la risposta è quella
+  /// del momento della chiamata).
+  Completer<void>? inboxGate;
+
+  @override
+  Future<InboxSnapshot> inbox() async {
+    calls.add('inbox');
+    final result = inboxSnapshot;
+    await inboxGate?.future;
+    _fail();
+    return result;
+  }
+
+  @override
+  Future<void> markInboxRead(int upTo) async {
+    calls.add('read $upTo');
+    _fail();
+  }
+
+  @override
+  Future<void> removeInboxEntry(String id) async {
+    calls.add('remove-entry $id');
+    _fail();
+  }
+
+  @override
+  Future<void> clearInbox() async {
+    calls.add('clear-inbox');
+    _fail();
+  }
 }
 
 /// Funzioni del plugin fisse, senza chiamate.
@@ -278,3 +313,44 @@ PartyChannelReceived partyInviteReceived(
       'Name': name,
       'FromName': fromName,
     }));
+
+/// Un invito nella cassetta: Luigi, "Dune", gruppo `g1`.
+InviteEntry testInvite({
+  String id = 'i1',
+  int seq = 1,
+  bool read = false,
+  String groupId = 'g1',
+  String fromName = 'Luigi',
+  String title = 'Dune',
+  DateTime? createdAt,
+}) =>
+    InviteEntry(
+      id: id,
+      seq: seq,
+      createdAt: createdAt ?? DateTime.utc(2026, 10, 3, 20),
+      read: read,
+      groupId: groupId,
+      fromName: fromName,
+      title: title,
+      imageItemId: 'm1',
+    );
+
+/// Un annuncio dell'admin nella cassetta.
+AnnouncementEntry testAnnouncement({
+  String id = 'a1',
+  int seq = 1,
+  bool read = false,
+  String text = 'Stasera manutenzione',
+  DateTime? createdAt,
+}) =>
+    AnnouncementEntry(
+      id: id,
+      seq: seq,
+      createdAt: createdAt ?? DateTime.utc(2026, 10, 3, 20),
+      read: read,
+      text: text,
+    );
+
+/// Come arriva dal WebSocket l'avviso che la cassetta è cambiata.
+PartyChannelReceived inboxChangedReceived() => PartyChannelReceived(
+    jsonEncode({'Protocol': 1, 'Type': 'InboxChanged'}));

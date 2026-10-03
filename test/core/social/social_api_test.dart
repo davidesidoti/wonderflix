@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
+import 'package:wonderflix/core/social/inbox_models.dart';
 import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/core/syncplay/party_mode.dart';
@@ -153,6 +154,40 @@ void main() {
     expect(adapter.requests.last.data, {
       'UserIds': ['u2', 'u3'],
     });
+  });
+
+  test('cassetta: lettura, letto, rimozione, svuota', () async {
+    adapter.handler = (options) =>
+        switch ('${options.method} ${options.path}') {
+          'GET /WonderFlixWatchParty/Inbox' => const FakeResponse(200, {
+              'Entries': [
+                {
+                  'Id': 'a1',
+                  'Seq': 1,
+                  'Type': 'Announcement',
+                  'CreatedAt': '2026-10-03T20:00:00+00:00',
+                  'Read': false,
+                  'Text': 'ciao',
+                },
+              ],
+              'Unread': 1,
+            }),
+          _ => const FakeResponse(204),
+        };
+
+    final inbox = await api.inbox();
+    expect((inbox.entries.single as AnnouncementEntry).text, 'ciao');
+    expect(inbox.unread, 1);
+    await api.markInboxRead(7);
+    expect(adapter.requests.last.data, {'UpTo': 7});
+    await api.removeInboxEntry('a1');
+    await api.clearInbox();
+    expect(adapter.requests.map((r) => '${r.method} ${r.path}'), [
+      'GET /WonderFlixWatchParty/Inbox',
+      'POST /WonderFlixWatchParty/Inbox/Read',
+      'DELETE /WonderFlixWatchParty/Inbox/Entries/a1',
+      'DELETE /WonderFlixWatchParty/Inbox',
+    ]);
   });
 
   test('party: registrazione senza codice e codice sbagliato', () async {
