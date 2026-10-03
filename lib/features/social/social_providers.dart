@@ -164,6 +164,29 @@ class SocialAvailability extends Notifier<SocialFeatures> {
     }
   }
 
+  /// Le funzioni appena sono note, aspettando al massimo [timeout]: subito
+  /// se lo sono già; scaduto il tempo, quelle di quel momento (non note).
+  /// Un cambio di utente o la chiusura del provider finiscono l'attesa con
+  /// [SocialFeatures.unknown].
+  Future<SocialFeatures> whenKnown(Duration timeout) {
+    if (state.known) return Future.value(state);
+    final known = Completer<SocialFeatures>();
+    final timer = Timer(timeout, () {
+      if (!known.isCompleted) known.complete(state);
+    });
+    final removeListener = listenSelf((_, next) {
+      if (next.known && !known.isCompleted) known.complete(next);
+    });
+    final removeDispose = ref.onDispose(() {
+      if (!known.isCompleted) known.complete(SocialFeatures.unknown);
+    });
+    return known.future.whenComplete(() {
+      timer.cancel();
+      removeListener();
+      removeDispose();
+    });
+  }
+
   bool _isCurrent(int generation) =>
       ref.mounted && generation == _generation;
 

@@ -95,11 +95,23 @@ class _ModeTile extends StatelessWidget {
       );
 }
 
+/// Attesa massima delle funzioni del plugin quando "Guarda insieme" arriva
+/// prima che siano note (subito dopo il login, o mentre `Info` non
+/// risponde): un party creato senza chiedere la modalità non è registrato,
+/// e dopo 10 s il plugin lo mostra a tutti. Breve, perché intanto il tocco
+/// non ha risposta visibile; scaduta, si fa come senza plugin.
+const partyFeaturesWait = Duration(seconds: 2);
+
+/// Un "Guarda insieme" aspetta le funzioni del plugin: intanto un altro
+/// tocco (sulla scheda o nel player) non fa nulla.
+bool _waitingForFeatures = false;
+
 /// "Guarda insieme" (spec F §9.1–9.2). Con la funzione `parties` del plugin
 /// e fuori da un gruppo chiede la modalità con un menu ancorato a
-/// [menuAnchor] (di default [context]) e la ricorda; dentro un gruppo, senza
-/// plugin o finché le sue funzioni non sono note fa come prima. `false` se
-/// si annulla o non riesce.
+/// [menuAnchor] (di default [context]) e la ricorda; dentro un gruppo o
+/// senza plugin fa come prima. Se le funzioni non sono ancora note le
+/// aspetta al massimo [partyFeaturesWait], poi fa come senza plugin.
+/// `false` se si annulla o non riesce.
 ///
 /// [onStarting] si chiama quando la richiesta parte davvero (scelta la
 /// modalità, o subito senza menu). Il punto di partenza è [startAt], se
@@ -114,12 +126,26 @@ Future<bool> watchTogether(
   BuildContext? menuAnchor,
   VoidCallback? onStarting,
 }) async {
+  if (_waitingForFeatures) return false;
   PartyMode? mode;
-  if (_partiesAvailable(ref) && !ref.read(watchPartySessionProvider).inGroup) {
-    mode = await showPartyModeMenu(menuAnchor ?? context,
-        last: ref.read(partyModePreferenceProvider));
-    if (mode == null || !context.mounted) return false;
-    unawaited(ref.read(partyModePreferenceProvider.notifier).set(mode));
+  if (!ref.read(watchPartySessionProvider).inGroup) {
+    var features = _features(ref);
+    if (!features.known) {
+      _waitingForFeatures = true;
+      try {
+        features = await _knownFeatures(ref);
+      } finally {
+        _waitingForFeatures = false;
+      }
+      if (!context.mounted) return false;
+    }
+    // Mentre si aspettava si può essere entrati in un gruppo.
+    if (features.parties && !ref.read(watchPartySessionProvider).inGroup) {
+      mode = await showPartyModeMenu(menuAnchor ?? context,
+          last: ref.read(partyModePreferenceProvider));
+      if (mode == null || !context.mounted) return false;
+      unawaited(ref.read(partyModePreferenceProvider.notifier).set(mode));
+    }
   }
   if (!context.mounted) return false;
   onStarting?.call();
@@ -127,12 +153,23 @@ Future<bool> watchTogether(
       start: startAt?.call() ?? start, mode: mode);
 }
 
-/// Se le funzioni del plugin non si possono leggere, come senza plugin.
-/// Finché non sono note `parties` è `false`.
-bool _partiesAvailable(WidgetRef ref) {
+/// Le funzioni del plugin; se non si possono leggere, come senza plugin.
+SocialFeatures _features(WidgetRef ref) {
   try {
-    return ref.read(socialAvailabilityProvider).parties;
+    return ref.read(socialAvailabilityProvider);
   } on Object {
-    return false;
+    return SocialFeatures.none;
+  }
+}
+
+/// Le funzioni appena note, al massimo dopo [partyFeaturesWait] (poi
+/// ancora non note: `parties` è `false`).
+Future<SocialFeatures> _knownFeatures(WidgetRef ref) async {
+  try {
+    return await ref
+        .read(socialAvailabilityProvider.notifier)
+        .whenKnown(partyFeaturesWait);
+  } on Object {
+    return SocialFeatures.none;
   }
 }

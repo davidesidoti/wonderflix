@@ -457,6 +457,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // (né arrivare dalla coda) sulla schermata a cui si torna.
     ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
     if (context.canPop()) {
+      // Un menu aperto sopra il player (modalità, distintivo, inviti) è una
+      // rotta dello stesso navigatore: `pop` chiuderebbe quello, e il player
+      // resterebbe aperto ma già in uscita, senza più rispondere. Prima si
+      // chiude quel che c'è sopra.
+      final route = ModalRoute.of(context);
+      if (route != null && !route.isCurrent) {
+        Navigator.of(context).popUntil((other) => other == route);
+      }
       context.pop();
     } else {
       context.go('/home');

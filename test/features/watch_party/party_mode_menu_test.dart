@@ -134,14 +134,56 @@ void main() {
     await leave(tester);
   });
 
-  testWidgets('funzioni del plugin non ancora note: nessun menu, come prima',
+  FakeSocialAvailability availability(WidgetTester tester) =>
+      ProviderScope.containerOf(tester.element(find.text('insieme')))
+          .read(socialAvailabilityProvider.notifier) as FakeSocialAvailability;
+
+  testWidgets(
+      'funzioni del plugin note entro 2 s: si aspetta, poi il menu compare',
       (tester) async {
     await pump(tester, features: SocialFeatures.unknown);
     await tester.tap(find.text('insieme'));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Privato'), findsNothing);
+    expect(api.calls, isEmpty, reason: 'nessun party senza modalità');
+
+    availability(tester)
+        .set(const SocialFeatures(friends: true, parties: true));
+    await tester.pumpAndSettle();
+    expect(find.text('Privato'), findsOneWidget);
+    await tester.tap(find.text('Privato'));
+    await tester.pumpAndSettle();
+    expect(api.calls.first, 'create Mario · Dune');
+    expect(social.calls, contains('register g1 Private'));
+    await leave(tester);
+  });
+
+  testWidgets(
+      'funzioni del plugin ancora non note dopo 2 s: nessun menu, come prima',
+      (tester) async {
+    await pump(tester, features: SocialFeatures.unknown);
+    await tester.tap(find.text('insieme'));
+    await tester.pump(partyFeaturesWait - const Duration(milliseconds: 1));
+    expect(api.calls, isEmpty);
+
+    await tester.pump(const Duration(milliseconds: 1));
     await tester.pumpAndSettle();
     expect(find.text('Privato'), findsNothing);
     expect(api.calls.first, 'create Mario · Dune');
     expect(social.calls, isNot(contains(startsWith('register'))));
+    await leave(tester);
+  });
+
+  testWidgets('mentre si aspettano le funzioni un secondo tocco non fa nulla',
+      (tester) async {
+    await pump(tester, features: SocialFeatures.unknown);
+    await tester.tap(find.text('insieme'));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('insieme'));
+    await tester.pump(partyFeaturesWait);
+    await tester.pumpAndSettle();
+    expect(api.calls, ['create Mario · Dune', 'queue m1'],
+        reason: 'un solo party, e il secondo tocco non cambia la coda');
     await leave(tester);
   });
 

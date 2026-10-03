@@ -268,6 +268,42 @@ void main() {
     });
   });
 
+  test('whenKnown: subito se note, alla risposta, o non note dopo l\'attesa',
+      () {
+    fakeAsync((async) {
+      const wait = Duration(seconds: 2);
+      api
+        ..install()
+        ..infoFailure = SocialFailure.network;
+      final c = container();
+      async.flushMicrotasks();
+      final notifier = c.read(socialAvailabilityProvider.notifier);
+
+      // Non note per tutta l'attesa.
+      SocialFeatures? expired;
+      unawaited(notifier.whenKnown(wait).then((f) => expired = f));
+      async.elapse(wait - const Duration(milliseconds: 1));
+      expect(expired, isNull);
+      async.elapse(const Duration(milliseconds: 1));
+      expect(expired, SocialFeatures.unknown);
+
+      // Note durante l'attesa: subito, senza aspettare la fine.
+      SocialFeatures? answered;
+      unawaited(notifier.whenKnown(wait).then((f) => answered = f));
+      api.infoFailure = null;
+      events.add(const ServerConnected(true));
+      async.flushMicrotasks();
+      expect(answered, const SocialFeatures(friends: true));
+
+      // Già note: subito.
+      SocialFeatures? known;
+      unawaited(notifier.whenKnown(wait).then((f) => known = f));
+      async.flushMicrotasks();
+      expect(known, const SocialFeatures(friends: true));
+      expect(async.pendingTimers, isEmpty, reason: 'nessuna attesa rimasta');
+    });
+  });
+
   test('Info senza parties né friends: funzioni note, nessuna', () async {
     api.install(features: const {});
     final c = container();

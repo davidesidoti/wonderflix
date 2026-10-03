@@ -12,6 +12,7 @@ import 'package:wonderflix/app/router.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/core/media_session/media_session.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
@@ -395,6 +396,28 @@ void main() {
     expect(find.byTooltip('Guarda insieme'), findsOneWidget);
     expect(router.state.uri.toString(), '/play/e4',
         reason: 'Esc chiude solo il menu');
+    await finish(tester);
+  });
+
+  testWidgets(
+      'tasto Stop con il menu delle modalità aperto: il menu si chiude e il '
+      'player esce', (tester) async {
+    await pumpApp(tester, join: false, parties: true);
+    unawaited(router.push('/play/e4'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Guarda insieme'));
+    await tester.pumpAndSettle();
+    expect(find.text('Privato'), findsOneWidget);
+
+    mediaSession.press(MediaButton.stop);
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('Privato'), findsNothing);
+    expect(find.byType(PlayerScreen), findsNothing,
+        reason: 'il pop è del player, non del menu');
+    expect(pages(), ['/home']);
+    expect(find.text('home'), findsOneWidget);
+    expect(api.calls, isNot(contains(startsWith('create'))));
     await finish(tester);
   });
 }
