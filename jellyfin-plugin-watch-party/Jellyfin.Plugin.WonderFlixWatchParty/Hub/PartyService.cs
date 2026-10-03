@@ -22,6 +22,9 @@ public sealed class PartyService(
     RateLimiter limiter,
     ILogger<PartyService> logger)
 {
+    /// <summary>Tra host e titolo nel nome del gruppo che dà l'app ("Host · Titolo").</summary>
+    private const string GroupNameSeparator = " · ";
+
     /// <summary>
     /// Registra il party appena creato da caller. L'avviso a chi lo deve
     /// sapere parte dopo, quando il gruppo ha la coda
@@ -111,6 +114,8 @@ public sealed class PartyService(
     /// <summary>
     /// Invita amici di caller che non sono nel party; gli altri id si saltano.
     /// Oltre il limite invita quelli che ci stanno e risponde RateLimited.
+    /// L'avviso va solo alle sessioni degli invitati che vedono il gruppo:
+    /// dalle altre (niente accesso alla libreria della coda) non si entra.
     /// </summary>
     public async Task<HubStatus> InviteAsync(CallerSession caller, Guid groupId, IReadOnlyList<string>? userIds)
     {
@@ -147,15 +152,20 @@ public sealed class PartyService(
         parties.Grant(groupId, targets);
         logger.LogDebug("Inviti al watch party {GroupId} da {UserId}: {Count}", groupId, caller.UserId, targets.Count);
         var payload = JsonSerializer.Serialize(SocialEvent.PartyInvite(Id(groupId), group.Name, caller.UserName));
-        await Task.WhenAll(targets.Select(id => SendToUserAsync(id, payload))).ConfigureAwait(false);
+        var invitees = sessions.GetAppSessions()
+            .Where(s => targets.Contains(s.UserId) && groups.GetGroup(s.SessionId, groupId) is not null)
+            .Select(s => s.SessionId)
+            .ToList();
+        await Task.WhenAll(invitees.Select(sessionId => SendAsync(sessionId, payload))).ConfigureAwait(false);
         return limited ? HubStatus.RateLimited : HubStatus.Ok;
     }
 
     /// <summary>
     /// Il party in cui sta friendId (con l'app dentro il gruppo), se viewer
-    /// può vederlo; null altrimenti (spec F §6.3).
+    /// può vederlo: per la modalità e, dalla sua sessione, per Jellyfin
+    /// (accesso alla libreria della coda). null altrimenti (spec F §6.3).
     /// </summary>
-    public FriendParty? PartyOf(Guid viewerId, string viewerName, Guid friendId)
+    public FriendParty? PartyOf(CallerSession viewer, Guid friendId)
     {
         foreach (var session in sessions.GetAppSessions().Where(s => s.UserId == friendId))
         {
@@ -170,7 +180,8 @@ public sealed class PartyService(
             // conta solo chi è ancora tra i partecipanti del gruppo.
             if (group is not null
                 && IsParticipant(group, session.UserName)
-                && IsVisibleTo(group, viewerId, viewerName))
+                && IsVisibleTo(group, viewer.UserId, viewer.UserName)
+                && groups.GetGroup(viewer.SessionId, group.Id) is not null)
             {
                 return new FriendParty(Id(group.Id), TitleOf(group.Name));
             }
@@ -190,19 +201,16 @@ public sealed class PartyService(
         IsParticipant(group, viewerName)
         || parties.IsVisible(group.Id, viewerId, creator => friends.AreFriends(creator, viewerId));
 
-    private async Task SendToUserAsync(Guid userId, string payload)
+    private async Task SendAsync(string sessionId, string payload)
     {
-        foreach (var session in sessions.GetAppSessions().Where(s => s.UserId == userId))
+        try
         {
-            try
-            {
-                // Mai il token della richiesta: l'avviso non si ferma con lei.
-                await sender.TrySendAsync(session.SessionId, payload, CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                logger.LogWarning(ex, "Avviso del party non inviato alla sessione {SessionId}", session.SessionId);
-            }
+            // Mai il token della richiesta: l'avviso non si ferma con lei.
+            await sender.TrySendAsync(sessionId, payload, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Avviso del party non inviato alla sessione {SessionId}", sessionId);
         }
     }
 
@@ -212,8 +220,8 @@ public sealed class PartyService(
     /// <summary>Il titolo da "Host · Titolo"; il nome intero se non ha quella forma.</summary>
     private static string TitleOf(string name)
     {
-        var separator = name.IndexOf(" · ", StringComparison.Ordinal);
-        return separator < 0 ? name : name[(separator + 3)..];
+        var separator = name.IndexOf(GroupNameSeparator, StringComparison.Ordinal);
+        return separator < 0 ? name : name[(separator + GroupNameSeparator.Length)..];
     }
 
     private static string Id(Guid id) => id.ToString("N");

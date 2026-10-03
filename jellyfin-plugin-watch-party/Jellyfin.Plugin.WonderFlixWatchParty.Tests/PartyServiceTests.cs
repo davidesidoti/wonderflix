@@ -210,6 +210,23 @@ public sealed class PartyServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task InvitesReachOnlySessionsThatCanSeeTheGroup()
+    {
+        await MakeFriends(_mario, _luigi);
+        await MakeFriends(_mario, _peach);
+        _service.Register(_marioSession, _group, PartyModes.Private);
+        // Luigi non ha accesso alla libreria del titolo in coda: dalla sua sessione il gruppo non si vede.
+        _server.Hidden.Add(("s-luigi", _group));
+
+        Assert.Equal(
+            HubStatus.Ok,
+            await _service.InviteAsync(_marioSession, _group, [_luigi.Id.ToString("N"), _peach.Id.ToString("N")]));
+
+        Assert.Empty(_server.SentTo("s-luigi"));
+        Assert.Equal(new[] { "PartyInvite" }, _server.SentTo("s-peach").Select(Type));
+    }
+
+    [Fact]
     public async Task InvitesAreLimitedPerMinute()
     {
         _service.Register(_marioSession, _group, PartyModes.Private);
@@ -232,7 +249,7 @@ public sealed class PartyServiceTests : IDisposable
         _service.Register(_marioSession, _group, PartyModes.Public);
         _registry.Register(_group, "s-luigi", "Luigi");
 
-        Assert.Null(_service.PartyOf(_peach.Id, "Peach", _luigi.Id));
+        Assert.Null(_service.PartyOf(_peachSession, _luigi.Id));
     }
 
     [Fact]
@@ -244,9 +261,25 @@ public sealed class PartyServiceTests : IDisposable
         _server.Groups[_group] = ["Mario", "Luigi"];
         _registry.Register(_group, "s-luigi", "Luigi");
 
-        Assert.Null(_service.PartyOf(_peach.Id, "Peach", _luigi.Id));
+        Assert.Null(_service.PartyOf(_peachSession, _luigi.Id));
         await MakeFriends(_mario, _peach);
-        Assert.Equal(new FriendParty(GroupN, "Dune"), _service.PartyOf(_peach.Id, "Peach", _luigi.Id));
-        Assert.Null(_service.PartyOf(_peach.Id, "Peach", _mario.Id));
+        Assert.Equal(new FriendParty(GroupN, "Dune"), _service.PartyOf(_peachSession, _luigi.Id));
+        Assert.Null(_service.PartyOf(_peachSession, _mario.Id));
+    }
+
+    [Fact]
+    public void PartyOfNeedsTheViewersSessionToSeeTheGroup()
+    {
+        _service.Register(_marioSession, _group, PartyModes.Public);
+        _server.Groups[_group] = ["Mario", "Luigi"];
+        _registry.Register(_group, "s-luigi", "Luigi");
+        Assert.Equal(new FriendParty(GroupN, "Dune"), _service.PartyOf(_peachSession, _luigi.Id));
+
+        // Senza accesso alla libreria del titolo Peach non vede il gruppo: niente titolo, niente Unisciti.
+        _server.Hidden.Add(("s-peach", _group));
+        Assert.Null(_service.PartyOf(_peachSession, _luigi.Id));
+
+        // Una sessione che non c'è più non vede nessun gruppo.
+        Assert.Null(_service.PartyOf(new CallerSession("s-finita", _peach.Id, "Peach"), _luigi.Id));
     }
 }

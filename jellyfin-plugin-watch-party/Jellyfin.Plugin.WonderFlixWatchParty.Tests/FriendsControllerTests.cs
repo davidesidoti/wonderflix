@@ -44,10 +44,10 @@ public sealed class FriendsControllerTests : IDisposable
         _folder.Dispose();
     }
 
-    private FriendsController Controller(User user)
+    private FriendsController Controller(User user, string deviceId = "d")
     {
-        var auth = new AuthorizationInfo { DeviceId = "d", Client = "WonderFlix", User = user, IsAuthenticated = true };
-        return new FriendsController(new FakeAuthorizationContext(auth), _friends, _parties)
+        var auth = new AuthorizationInfo { DeviceId = deviceId, Client = "WonderFlix", User = user, IsAuthenticated = true };
+        return new FriendsController(new FakeAuthorizationContext(auth), _server, _friends, _parties)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
         };
@@ -82,9 +82,19 @@ public sealed class FriendsControllerTests : IDisposable
         _server.Sessions.Add(new CallerSession("s-luigi", _luigi.Id, "Luigi"));
         _registry.Register(group, "s-luigi", "Luigi");
         _parties.Register(new CallerSession("s-luigi", _luigi.Id, "Luigi"), group, PartyModes.Friends);
+        _server.Sessions.Add(new CallerSession("s-mario", _mario.Id, "Mario"));
 
-        var friend = Assert.Single((await Controller(_mario).GetFriends()).Value!.Friends);
+        var friend = Assert.Single((await Controller(_mario, "s-mario").GetFriends()).Value!.Friends);
         Assert.Equal("Dune", friend.Party!.Title);
+
+        // I gruppi si vedono da una sessione: senza quella di chi chiama, nessun party.
+        friend = Assert.Single((await Controller(_mario, "altro-dispositivo").GetFriends()).Value!.Friends);
+        Assert.True(friend.Online);
+        Assert.Null(friend.Party);
+
+        // Né se dalla sua sessione il gruppo non si vede (accesso alla libreria).
+        _server.Hidden.Add(("s-mario", group));
+        Assert.Null(Assert.Single((await Controller(_mario, "s-mario").GetFriends()).Value!.Friends).Party);
     }
 
     [Fact]

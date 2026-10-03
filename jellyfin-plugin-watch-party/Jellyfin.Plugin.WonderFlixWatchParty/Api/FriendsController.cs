@@ -19,6 +19,7 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Api;
 [Produces(MediaTypeNames.Application.Json)]
 public class FriendsController(
     IAuthorizationContext authorizationContext,
+    ISessionDirectory sessions,
     FriendService friends,
     PartyService parties) : ControllerBase
 {
@@ -27,8 +28,10 @@ public class FriendsController(
     public async Task<ActionResult<FriendsResponse>> GetFriends()
     {
         var auth = await authorizationContext.GetAuthorizationInfo(HttpContext).ConfigureAwait(false);
-        var userName = auth.User?.Username ?? string.Empty;
-        return friends.GetFriends(auth.UserId, friendId => parties.PartyOf(auth.UserId, userName, friendId));
+        // I gruppi SyncPlay si vedono da una sessione: senza quella di chi
+        // chiama, nessun party (come gli endpoint Parties).
+        var viewer = sessions.FindCaller(auth.DeviceId, auth.Client, auth.UserId);
+        return friends.GetFriends(auth.UserId, viewer is null ? null : friendId => parties.PartyOf(viewer, friendId));
     }
 
     /// <summary>Utenti il cui nome contiene q (almeno 2 lettere), al massimo 10.</summary>
