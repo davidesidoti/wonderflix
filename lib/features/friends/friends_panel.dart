@@ -85,10 +85,23 @@ class FriendsPanel extends ConsumerStatefulWidget {
 
 class _FriendsPanelState extends ConsumerState<FriendsPanel> {
   final _search = TextEditingController();
+  final _searchFocus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    // Il campo prende il fuoco all'apertura. `autofocus` non basta: nella
+    // shell vera lo scope della pagina ha già un figlio col fuoco (il
+    // navigatore annidato) e `autofocus` viene scartato.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _searchFocus.requestFocus();
+    });
+  }
 
   @override
   void dispose() {
     _search.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -126,7 +139,7 @@ class _FriendsPanelState extends ConsumerState<FriendsPanel> {
             child: TextField(
               key: const Key('friends-search'),
               controller: _search,
-              autofocus: true,
+              focusNode: _searchFocus,
               decoration: InputDecoration(
                 hintText: l.friendsSearchHint,
                 prefixIcon: const Icon(LucideIcons.search, size: 18),

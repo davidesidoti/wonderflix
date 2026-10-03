@@ -2,13 +2,21 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:wonderflix/app/app_shell.dart';
+import 'package:wonderflix/app/page_transitions.dart';
+import 'package:wonderflix/app/providers.dart';
+import 'package:wonderflix/app/router.dart';
+import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/social/social_models.dart';
+import 'package:wonderflix/features/library/server_events_binding.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
+import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
 import '../../support/pump_app.dart';
 import '../../support/social_fakes.dart';
@@ -98,6 +106,55 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('friends-panel')), findsNothing);
+  });
+
+  testWidgets('con un vero router: aprendo il pannello il campo ha il fuoco',
+      (tester) async {
+    // Nell'app vera la shell sta dentro un navigatore annidato che ha già un
+    // figlio col fuoco: `autofocus` da solo non basta (come `home:` nei test).
+    await tester.binding.setSurfaceSize(const Size(1440, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        ShellRoute(
+          builder: appShellBuilder,
+          routes: [
+            GoRoute(
+                path: '/home',
+                pageBuilder: (context, state) => shellPage(
+                    context, state, const Text('home'),
+                    underBar: false)),
+          ],
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        appConfigProvider.overrideWithValue(testAppConfig),
+        serverEventsBindingProvider.overrideWithValue(null),
+        ...socialTestOverrides(api, events: events.stream),
+        // Nessun elenco dei watch party (né timer).
+        watchPartyDirectoryProvider.overrideWith(FakeWatchPartyDirectory.new),
+        syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
+      ],
+      retry: (_, _) => null,
+      child: MaterialApp.router(
+        theme: buildWonderflixTheme(),
+        locale: const Locale('it'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        routerConfig: router,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('friends-button')));
+    await tester.pumpAndSettle();
+    final field =
+        tester.widget<TextField>(find.byKey(const Key('friends-search')));
+    expect(field.focusNode?.hasFocus, isTrue);
   });
 
   testWidgets('richiesta in arrivo: scheda con Accetta', (tester) async {

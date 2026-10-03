@@ -192,6 +192,90 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('pagina B'), findsOneWidget);
   });
+
+  // Alt+←, il tasto indietro e il tasto indietro del mouse chiudono il
+  // pannello Amici invece di cambiare pagina.
+  group('tasti indietro con il pannello Amici aperto', () {
+    /// Pagina B sopra A, pannello Amici aperto; ascolta il pannello per
+    /// tenerlo vivo e poterne leggere lo stato.
+    Future<ProviderSubscription<bool>> pumpWithOpenPanel(
+        WidgetTester tester) async {
+      final router = GoRouter(
+        initialLocation: '/a',
+        routes: [
+          ShellRoute(
+            builder: (context, state, child) =>
+                BackNavigationHandler(child: child),
+            routes: [
+              GoRoute(path: '/a', builder: (c, s) => const Text('pagina A')),
+              GoRoute(path: '/b', builder: (c, s) => const Text('pagina B')),
+            ],
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(ProviderScope(
+        overrides: [friendsPanelProvider.overrideWith(_OpenFriendsPanel.new)],
+        child: MaterialApp.router(routerConfig: router),
+      ));
+      unawaited(router.push('/b'));
+      await tester.pumpAndSettle();
+      final container =
+          ProviderScope.containerOf(tester.element(find.text('pagina B')));
+      final panel = container.listen(friendsPanelProvider, (_, _) {});
+      addTearDown(panel.close);
+      expect(panel.read(), isTrue);
+      return panel;
+    }
+
+    testWidgets('Alt+←: chiude il pannello, la pagina resta', (tester) async {
+      final panel = await pumpWithOpenPanel(tester);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await tester.pumpAndSettle();
+      expect(find.text('pagina B'), findsOneWidget);
+      expect(panel.read(), isFalse);
+    });
+
+    testWidgets('tasto indietro: chiude il pannello, la pagina resta',
+        (tester) async {
+      final panel = await pumpWithOpenPanel(tester);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.browserBack, platform: 'windows');
+      await tester.pumpAndSettle();
+      expect(find.text('pagina B'), findsOneWidget);
+      expect(panel.read(), isFalse);
+    });
+
+    testWidgets('tasto indietro del mouse: chiude il pannello, la pagina resta',
+        (tester) async {
+      final panel = await pumpWithOpenPanel(tester);
+
+      final mouse = await tester.createGesture(
+          kind: PointerDeviceKind.mouse, buttons: kBackMouseButton);
+      addTearDown(mouse.removePointer);
+      await mouse.down(tester.getCenter(find.text('pagina B')));
+      await mouse.up();
+      await tester.pumpAndSettle();
+      expect(find.text('pagina B'), findsOneWidget);
+      expect(panel.read(), isFalse);
+    });
+
+    testWidgets('a pannello chiuso tornano indietro come sempre',
+        (tester) async {
+      final panel = await pumpWithOpenPanel(tester);
+      panel.read(); // vivo
+      ProviderScope.containerOf(tester.element(find.text('pagina B')))
+          .read(friendsPanelProvider.notifier)
+          .close();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.browserBack, platform: 'windows');
+      await tester.pumpAndSettle();
+      expect(find.text('pagina A'), findsOneWidget);
+    });
+  });
 }
 
 /// Pannello Amici già aperto (senza toccare amici né plugin).
