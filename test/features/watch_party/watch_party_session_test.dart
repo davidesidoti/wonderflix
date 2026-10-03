@@ -4,9 +4,11 @@ import 'package:clock/clock.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
@@ -14,6 +16,7 @@ import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
+import '../../support/social_fakes.dart';
 import '../../support/test_data.dart';
 import '../../support/watch_party_fakes.dart';
 
@@ -816,6 +819,119 @@ void main() {
 
       emit(const NotInGroup(''));
       async.flushMicrotasks();
+      expect(state().phase, WatchPartyPhase.none);
+    });
+  });
+
+  test(
+      'registrazione fallita dopo il passaggio a un altro gruppo: si resta '
+      'nel nuovo', () async {
+    mount();
+    api.onCall = (call) {
+      if (call.startsWith('create')) emit(GroupJoined('g1', testGroup()));
+      if (call == 'join g2') {
+        emit(GroupJoined('g2', testGroup(id: 'g2', name: 'Luigi · Up')));
+      }
+    };
+    final registering = Completer<void>();
+    final created = session().create(testItem(id: 'm1', name: 'Dune'),
+        register: (_) => registering.future);
+    await pumpEventQueue();
+    expect(state().group?.id, 'g1');
+
+    // Intanto "Unisciti" su una scheda d'invito porta in un altro gruppo.
+    await session().join('g2');
+    expect(state().group?.id, 'g2');
+
+    registering.completeError(const SocialException(SocialFailure.network));
+    await expectLater(
+        created,
+        throwsA(isA<WatchPartyException>().having(
+            (e) => e.failure, 'failure', WatchPartyFailure.groupGone)));
+    expect(api.calls, ['create Mario · Dune', 'leave', 'join g2'],
+        reason: 'nessuna uscita dal gruppo nuovo, nessuna coda');
+    expect(state().inGroup, isTrue);
+    expect(state().group?.id, 'g2');
+  });
+
+  test(
+      'registrazione fallita dopo l\'uscita: nessuna seconda uscita, il '
+      'gruppo non c\'è più', () async {
+    mount();
+    serverAccepts();
+    final registering = Completer<void>();
+    final created = session().create(testItem(id: 'm1', name: 'Dune'),
+        register: (_) => registering.future);
+    await pumpEventQueue();
+    await session().leave();
+
+    registering.completeError(const SocialException(SocialFailure.network));
+    await expectLater(
+        created,
+        throwsA(isA<WatchPartyException>().having(
+            (e) => e.failure, 'failure', WatchPartyFailure.groupGone)));
+    expect(api.calls, ['create Mario · Dune', 'leave']);
+    expect(state().phase, WatchPartyPhase.none);
+  });
+
+  test('registrazione fallita: nel log solo il motivo, mai codici o titoli',
+      () async {
+    final previousLevel = Logger.root.level;
+    Logger.root.level = Level.ALL;
+    addTearDown(() => Logger.root.level = previousLevel);
+    final records = <LogRecord>[];
+    final subscription = Logger.root.onRecord.listen(records.add);
+    addTearDown(subscription.cancel);
+    mount();
+    serverAccepts();
+    for (final error in <Exception>[
+      const SocialException(SocialFailure.network),
+      const FormatException('codice K7PQ2X di Dune'),
+    ]) {
+      await expectLater(
+          session().create(testItem(id: 'm1', name: 'Dune'),
+              register: (_) async => throw error),
+          throwsA(isA<WatchPartyException>()));
+    }
+    expect(
+        [
+          for (final record in records)
+            if (record.message.startsWith('watch party non registrato'))
+              record.message,
+        ],
+        [
+          'watch party non registrato: network',
+          'watch party non registrato: FormatException',
+        ]);
+  });
+
+  test('registrazione senza risposta entro 5 s: si esce, registrazione fallita',
+      () {
+    fakeAsync((async) {
+      mount();
+      serverAccepts();
+      final social = FakeSocialApi()..registerGate = Completer<void>();
+      Object? error;
+      unawaited(session()
+          .create(testItem(id: 'm1', name: 'Dune'),
+              register: (groupId) =>
+                  social.registerParty(groupId, PartyMode.private))
+          .catchError((Object e) {
+        error = e;
+      }));
+      async.flushMicrotasks();
+      expect(social.calls, ['register g1 Private']);
+
+      async.elapse(WatchPartySession.registrationTimeout -
+          const Duration(milliseconds: 1));
+      expect(error, isNull);
+      expect(state().inGroup, isTrue);
+
+      async.elapse(const Duration(milliseconds: 1));
+      expect((error! as WatchPartyException).failure,
+          WatchPartyFailure.registration);
+      expect(api.calls, ['create Mario · Dune', 'leave'],
+          reason: 'nessuna coda per un party non registrato');
       expect(state().phase, WatchPartyPhase.none);
     });
   });

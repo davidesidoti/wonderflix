@@ -7,6 +7,7 @@ import 'package:logging/logging.dart';
 import '../../core/jellyfin/api_exception.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/server_events.dart';
+import '../../core/social/social_api.dart';
 import '../../core/syncplay/server_clock.dart';
 import '../../core/syncplay/start_lag.dart';
 import '../../core/syncplay/syncplay_api.dart';
@@ -111,6 +112,13 @@ class WatchPartySession extends Notifier<WatchPartyState>
   /// un'uscita.
   static const membersTimeout = Duration(seconds: 3);
 
+  /// Attesa massima della registrazione del party nel plugin (spec F §9.2).
+  /// Ben sotto i 10 s dopo cui il plugin tratta come pubblico un gruppo non
+  /// registrato (`PartyDirectory.UnregisteredGrace`): una POST lenta non
+  /// deve lasciare visibile a tutti un party privato. Scaduta, si esce dal
+  /// gruppo come per una registrazione fallita.
+  static const registrationTimeout = Duration(seconds: 5);
+
   late SyncPlayApi _api;
 
   // Creati una volta sola, non in `build`: chi si iscrive (gli avvisi) lo fa
@@ -195,8 +203,9 @@ class WatchPartySession extends Notifier<WatchPartyState>
   /// Crea un gruppo per [item] con la coda [queue] (di default solo [item])
   /// e ci fa partire la riproduzione da [start]. Con [register] il party si
   /// registra nel plugin appena il gruppo esiste e prima della coda (spec F
-  /// §9.2): se non riesce si esce dal gruppo, perché dopo 10 s un gruppo
-  /// non registrato diventa pubblico. Lancia [WatchPartyException].
+  /// §9.2): se non riesce (o non risponde entro [registrationTimeout]) si
+  /// esce dal gruppo, perché dopo 10 s un gruppo non registrato diventa
+  /// pubblico. Lancia [WatchPartyException].
   Future<void> create(
     JellyfinItem item, {
     List<String>? queue,
@@ -210,9 +219,17 @@ class WatchPartySession extends Notifier<WatchPartyState>
     final groupId = state.group?.id;
     if (register != null && groupId != null) {
       try {
-        await register(groupId);
+        await register(groupId).timeout(registrationTimeout);
       } on Object catch (error) {
-        _log.warning('watch party non registrato: $error');
+        // Solo il motivo: il messaggio può citare la risposta.
+        final reason =
+            error is SocialException ? error.failure.name : error.runtimeType;
+        _log.warning('watch party non registrato: $reason');
+        // Intanto siamo usciti, o entrati in un altro gruppo (una scheda
+        // d'invito, "Unisciti"): da quello non si esce.
+        if (!state.inGroup || !_isCurrent(groupId)) {
+          throw const WatchPartyException(WatchPartyFailure.groupGone);
+        }
         await leave();
         throw const WatchPartyException(WatchPartyFailure.registration);
       }
