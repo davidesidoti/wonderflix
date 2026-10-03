@@ -121,7 +121,6 @@ public sealed class InboxService(
             return;
         }
 
-        List<Guid> allowed;
         try
         {
             var playing = FindPlaying(partySessions);
@@ -131,7 +130,7 @@ public sealed class InboxService(
                 return;
             }
 
-            allowed = invitees
+            var allowed = invitees
                 .Where(userId => users.GetUser(userId) is { Enabled: true } && library.CanSee(userId, playing.ItemId))
                 .ToList();
             var groupId = group.Id.ToString("N");
@@ -150,15 +149,14 @@ public sealed class InboxService(
                     Persist();
                 }
             }
+
+            logger.LogDebug("Voci d'invito al watch party {GroupId}: {Count}", group.Id, allowed.Count);
+            await NotifyAsync(allowed).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning(ex, "Voci d'invito al watch party {GroupId} non create", group.Id);
-            return;
+            logger.LogWarning(ex, "Voci d'invito al watch party {GroupId} non create o non notificate", group.Id);
         }
-
-        logger.LogDebug("Voci d'invito al watch party {GroupId}: {Count}", group.Id, allowed.Count);
-        await NotifyAsync(allowed).ConfigureAwait(false);
     }
 
     /// <summary>

@@ -55,7 +55,7 @@
                         dataType: 'json'
                     }).then(function (response) {
                         Dashboard.hideLoadingMsg();
-                        result.textContent = 'Sent to ' + response.Recipients + ' users.';
+                        result.textContent = 'Sent to ' + response.Recipients + (response.Recipients === 1 ? ' user.' : ' users.');
                         text.value = '';
                         count.textContent = '0';
                     }, function () {

@@ -10,6 +10,7 @@ using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
 using MediaBrowser.Controller.SyncPlay;
 using MediaBrowser.Controller.SyncPlay.Requests;
+using MediaBrowser.Model.Dto;
 using MediaBrowser.Model.Session;
 using MediaBrowser.Model.SyncPlay;
 using Microsoft.Extensions.Logging;
@@ -244,6 +245,21 @@ public class ServerAdapterTests
         Assert.Equal(new PlayingItem(episode.Id, episode.SeriesId), access.NowPlaying("s-2"));
         Assert.Null(access.NowPlaying("s-3"));
         Assert.Null(access.NowPlaying("s-x"));
+    }
+
+    [Fact]
+    public void ThePlayingItemFallsBackToTheDtoWhenTheFullItemIsMissing()
+    {
+        var movie = new Movie { Id = Guid.NewGuid() };
+        var (manager, stub) = InterfaceStub<ISessionManager>.Create();
+        var session = Session("s-1", "d1", "WonderFlix", Guid.NewGuid(), "Mario");
+        session.NowPlayingItem = new BaseItemDto { Id = movie.Id };
+        stub.Handlers["get_Sessions"] = _ => new[] { session };
+        var (libraryManager, library) = InterfaceStub<ILibraryManager>.Create();
+        library.Handlers["GetItemById"] = args => (Guid)args[0]! == movie.Id ? movie : null;
+        var access = new JellyfinLibraryAccess(manager, libraryManager, InterfaceStub<IUserManager>.Create().Proxy);
+
+        Assert.Equal(new PlayingItem(movie.Id, movie.Id), access.NowPlaying("s-1"));
     }
 
     [Fact]

@@ -102,7 +102,15 @@ public sealed class WatchPartyHostedService(
             {
                 logger.LogDebug("Tolti {Count} party finiti", removedParties);
             }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Pulizia dei watch party non riuscita");
+        }
 
+        // A parte: un errore dei party non salta le notifiche, né viceversa.
+        try
+        {
             var removedEntries = inbox.Cleanup();
             if (removedEntries > 0)
             {
@@ -111,7 +119,7 @@ public sealed class WatchPartyHostedService(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Pulizia dei watch party non riuscita");
+            logger.LogWarning(ex, "Pulizia delle notifiche non riuscita");
         }
     }
 }

@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
@@ -231,5 +233,38 @@ public sealed class InboxServiceTests : IDisposable
         Assert.Empty(_inbox.Get(bowser.Id).Entries);
         Assert.Empty(_server.SentTo("s-bowser"));
         Assert.Single(_inbox.Get(_luigi.Id).Entries);
+    }
+
+    [Fact]
+    public async Task ANotificationErrorDoesNotEscapeFromTheInvites()
+    {
+        var (directory, stub) = InterfaceStub<ISessionDirectory>.Create();
+        stub.Handlers["GetAppSessions"] = _ => throw new InvalidOperationException("sessioni non disponibili");
+        var inbox = new InboxService(
+            new InboxStore(_folder.InboxFile, NullLogger<InboxStore>.Instance),
+            _server, directory, _server, _server, _time, NullLogger<InboxService>.Instance);
+        _server.Playing["s-mario"] = new PlayingItem(Guid.NewGuid(), Guid.NewGuid());
+
+        await inbox.AddInvitesAsync("Mario", Group("Mario"), ["s-mario"], [_luigi.Id]);
+
+        Assert.Single(inbox.Get(_luigi.Id).Entries);
+    }
+
+    [Fact]
+    public async Task AFailedSaveKeepsTheChangeInMemory()
+    {
+        // Sotto la cartella temporanea c'è un file al posto della cartella del plugin: Save non può crearla.
+        Directory.CreateDirectory(_folder.Path);
+        await File.WriteAllTextAsync(Path.Combine(_folder.Path, "WonderFlixWatchParty"), "non una cartella");
+        var logger = new RecordingLogger<InboxService>();
+        var inbox = new InboxService(
+            new InboxStore(Path.Combine(_folder.Path, "WonderFlixWatchParty", "inbox.json"), NullLogger<InboxStore>.Instance),
+            _server, _server, _server, _server, _time, logger);
+
+        var result = await inbox.AnnounceAsync("ciao");
+
+        Assert.Equal(HubStatus.Ok, result.Status);
+        Assert.Equal("ciao", Assert.Single(inbox.Get(_mario.Id).Entries).Text);
+        Assert.Contains(logger.Entries, e => e.Level == LogLevel.Warning && e.Exception is IOException);
     }
 }
