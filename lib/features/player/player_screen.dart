@@ -25,11 +25,11 @@ import '../watch_party/group_playback_driver.dart';
 import '../watch_party/party_badge.dart';
 import '../watch_party/party_channel.dart';
 import '../watch_party/party_chat_layer.dart';
+import '../watch_party/party_mode_menu.dart';
 import '../watch_party/party_notices.dart';
 import '../watch_party/party_reactions_layer.dart';
 import '../watch_party/party_reactions_tray.dart';
 import '../watch_party/party_waiting_overlay.dart';
-import '../watch_party/watch_party_actions.dart';
 import '../watch_party/watch_party_providers.dart';
 import '../watch_party/watch_party_session.dart';
 import 'pause_screen.dart';
@@ -614,13 +614,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// da qui, e il routing riapre il player sullo stesso punto in modalità
   /// gruppo (sostituendo questo, vedi [PlayerHandover]). Se la coda non
   /// arriva, o si esce prima, questo player esce come sempre. Riuscita la
-  /// richiesta il pulsante non torna: si aspetta il player del gruppo.
-  Future<void> _watchTogether() async {
+  /// richiesta il pulsante non torna: si aspetta il player del gruppo. Il
+  /// menu delle modalità (spec F §9.1) è ancorato a [buttonContext]; se si
+  /// chiude senza scegliere il pulsante torna.
+  Future<void> _watchTogether(BuildContext buttonContext) async {
     final item = ref.read(playerControllerProvider(widget.args)).item;
     if (item == null || _leaving || _startingParty) return;
     final start = _controller.engine.position;
     setState(() => _startingParty = true);
-    final started = await startWatchParty(context, ref, item, start: start);
+    final started = await watchTogether(context, ref, item,
+        start: start, menuAnchor: buttonContext);
     if (!mounted || _leaving) return;
     if (!started) setState(() => _startingParty = false);
   }
@@ -1175,7 +1178,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             ? PartyBadge(onLeave: _exit)
                             : null,
                         onWatchTogether: canWatchTogether
-                            ? () => unawaited(_watchTogether())
+                            ? (buttonContext) =>
+                                unawaited(_watchTogether(buttonContext))
                             : null,
                         onToggleChat: chatActive
                             ? () => _chrome.togglePopup(PlayerPopup.chat)

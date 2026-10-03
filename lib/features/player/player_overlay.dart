@@ -65,8 +65,9 @@ class PlayerOverlay extends StatelessWidget {
   final Widget? partyBadge;
 
   /// "Guarda insieme" (solo da soli e con il permesso); `null` = nessun
-  /// pulsante.
-  final VoidCallback? onWatchTogether;
+  /// pulsante. Riceve il contesto del pulsante, per ancorare il menu delle
+  /// modalità.
+  final ValueChanged<BuildContext>? onWatchTogether;
 
   /// Chat del watch party (spec E §9.5): solo nel gruppo con il canale del
   /// plugin attivo; `null` = nessun pulsante. Sta dove fuori dal gruppo c'è
@@ -279,10 +280,13 @@ class PlayerOverlay extends StatelessWidget {
                               onPressed: onNextEpisode,
                             ),
                           if (onWatchTogether != null)
-                            PlayerIconButton(
-                              icon: const Icon(LucideIcons.users),
-                              tooltip: l.watchPartyWatchTogether,
-                              onPressed: onWatchTogether,
+                            Builder(
+                              builder: (buttonContext) => PlayerIconButton(
+                                icon: const Icon(LucideIcons.users),
+                                tooltip: l.watchPartyWatchTogether,
+                                onPressed: () =>
+                                    onWatchTogether!(buttonContext),
+                              ),
                             ),
                           if (onToggleChat != null)
                             PlayerIconButton(

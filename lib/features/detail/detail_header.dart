@@ -16,7 +16,7 @@ import '../library/item_labels.dart';
 import '../library/library_providers.dart';
 import '../library/user_data.dart';
 import '../playback/play_launcher.dart';
-import '../watch_party/watch_party_actions.dart';
+import '../watch_party/party_mode_menu.dart';
 import '../watch_party/watch_party_providers.dart';
 import 'header_parallax.dart';
 import 'primary_action.dart';
@@ -169,17 +169,21 @@ class DetailHeader extends ConsumerWidget {
                             action != null &&
                             const {ItemKind.movie, ItemKind.episode, ItemKind.series}
                                 .contains(item.kind))
-                          WfButton.secondary(
-                            label: l.watchPartyWatchTogether,
-                            icon: LucideIcons.users,
-                            onPressed: () => unawaited(startWatchParty(
-                              context,
-                              ref,
-                              action.target,
-                              start: action is ResumeAction
-                                  ? action.position
-                                  : Duration.zero,
-                            )),
+                          Builder(
+                            // Il menu delle modalità si apre sotto il
+                            // pulsante (spec F §9.1).
+                            builder: (buttonContext) => WfButton.secondary(
+                              label: l.watchPartyWatchTogether,
+                              icon: LucideIcons.users,
+                              onPressed: () => unawaited(watchTogether(
+                                buttonContext,
+                                ref,
+                                action.target,
+                                start: action is ResumeAction
+                                    ? action.position
+                                    : Duration.zero,
+                              )),
+                            ),
                           ),
                         if (hasTrailer)
                           WfButton.secondary(
