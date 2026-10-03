@@ -192,6 +192,28 @@ void main() {
     await leave(tester);
   });
 
+  testWidgets('registrazione finita dopo l\'uscita dal gruppo: niente coda',
+      (tester) async {
+    await pumpModeButton(tester, PartyMode.private);
+    final gate = social.registerGate = Completer<void>();
+    await tester.tap(find.text('via'));
+    await tester.pumpAndSettle();
+    expect(social.calls, ['register g1 Private']);
+    expect(container(tester).read(watchPartySessionProvider).inGroup, isTrue);
+
+    // Il server ci toglie dal gruppo mentre la registrazione è in corso.
+    events.add(SyncPlayGroupUpdated(const GroupLeft('g1')));
+    await tester.pump();
+    expect(container(tester).read(watchPartySessionProvider).inGroup, isFalse);
+
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(api.calls, ['create Mario · Breaking Bad'],
+        reason: 'niente coda per un gruppo che non è più il nostro');
+    expect(container(tester).read(currentPartyProvider), isNull);
+    expect(find.text('Questo watch party non esiste più.'), findsOneWidget);
+  });
+
   testWidgets('registrazione fallita: esce dal gruppo e lo dice',
       (tester) async {
     await pumpModeButton(tester, PartyMode.private);

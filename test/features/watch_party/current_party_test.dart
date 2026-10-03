@@ -71,14 +71,20 @@ void main() {
   test('registrato da noi: la lettura non lo sovrascrive, il codice si '
       'annuncia una volta', () async {
     // Una lettura dei dettagli può partire prima della registrazione: la
-    // sua risposta non deve cancellare il codice da annunciare.
+    // sua risposta non deve cancellare il codice da annunciare. La risposta
+    // arriva dopo `registered`, per forza.
     social.details['g1'] =
         const PartyDetails(mode: PartyMode.private, code: 'ALTRO1');
+    final gate = social.detailsGate = Completer<void>();
     final c = container();
     await c.read(watchPartySessionProvider.notifier).join('g1');
+    await pumpEventQueue();
+    expect(social.calls, contains('details g1'),
+        reason: 'la lettura è partita e aspetta');
     c
         .read(currentPartyProvider.notifier)
         .registered('g1', PartyMode.private, 'K7PQ2X');
+    gate.complete();
     await pumpEventQueue();
     expect(c.read(currentPartyProvider)!.code, 'K7PQ2X');
     expect(c.read(currentPartyProvider)!.announceCode, isTrue);
@@ -86,6 +92,26 @@ void main() {
     expect(c.read(currentPartyProvider)!.announceCode, isFalse);
     c.read(currentPartyProvider.notifier).invited('u2');
     expect(c.read(currentPartyProvider)!.invited, {'u2'});
+    await c.read(watchPartySessionProvider.notifier).leave();
+  });
+
+  test('una registrazione di un gruppo che non è il nostro si ignora',
+      () async {
+    final c = container();
+    // Fuori da un gruppo (es. registrazione finita dopo l'uscita).
+    c
+        .read(currentPartyProvider.notifier)
+        .registered('g1', PartyMode.private, 'K7PQ2X');
+    expect(c.read(currentPartyProvider), isNull);
+
+    await c.read(watchPartySessionProvider.notifier).join('g1');
+    await pumpEventQueue();
+    c
+        .read(currentPartyProvider.notifier)
+        .registered('g2', PartyMode.private, 'K7PQ2X');
+    expect(c.read(currentPartyProvider)?.code, isNull,
+        reason: 'un altro gruppo non sostituisce quello in cui siamo');
+    expect(c.read(currentPartyProvider)?.announceCode, isNot(true));
     await c.read(watchPartySessionProvider.notifier).leave();
   });
 }

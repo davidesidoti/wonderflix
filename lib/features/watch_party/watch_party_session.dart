@@ -212,9 +212,15 @@ class WatchPartySession extends Notifier<WatchPartyState>
       try {
         await register(groupId);
       } on Object catch (error) {
-        _log.warning('watch party non registrato: ${error.runtimeType}');
+        _log.warning('watch party non registrato: $error');
         await leave();
         throw const WatchPartyException(WatchPartyFailure.registration);
+      }
+      // La registrazione può finire dopo che siamo usciti (o ci hanno tolto)
+      // dal gruppo: niente coda per un gruppo che non è più il nostro.
+      if (!state.inGroup || !_isCurrent(groupId)) {
+        _log.info('watch party lasciato durante la registrazione');
+        throw const WatchPartyException(WatchPartyFailure.groupGone);
       }
     }
     try {

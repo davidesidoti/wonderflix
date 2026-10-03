@@ -73,8 +73,11 @@ class CurrentPartyController extends Notifier<CurrentParty?> {
     }
   }
 
-  /// Party appena creato e registrato da noi (spec F §9.2).
+  /// Party appena creato e registrato da noi (spec F §9.2). La registrazione
+  /// può finire dopo l'uscita dal gruppo: allora non vale.
   void registered(String groupId, PartyMode mode, String? code) {
+    final session = ref.read(watchPartySessionProvider);
+    if (!session.inGroup || session.group?.id != groupId) return;
     state = CurrentParty(
       groupId: groupId,
       mode: mode,
