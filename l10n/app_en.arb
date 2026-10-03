@@ -276,5 +276,21 @@
   "partyInvited": "Invited",
   "partyInviteSent": "Invite sent to {name}",
   "partyNoFriendsToInvite": "No friends to invite",
-  "partyInviteTitle": "{name} invites you"
+  "partyInviteTitle": "{name} invites you",
+  "inboxTitle": "Notifications",
+  "inboxClear": "Clear all",
+  "inboxClearConfirm": "Confirm",
+  "inboxRemove": "Remove",
+  "inboxEmpty": "No notifications",
+  "inboxUnavailable": "Notifications unavailable",
+  "inboxActionFailed": "Couldn't update notifications",
+  "inboxInviteFrom": "{name} invited you to watch",
+  "inboxAlreadyIn": "You're in it",
+  "inboxPartyEnded": "Party ended",
+  "inboxAnnouncement": "Announcement",
+  "inboxNow": "just now",
+  "inboxMinutesAgo": "{count} min ago",
+  "inboxHoursAgo": "{count} h ago",
+  "inboxYesterday": "yesterday",
+  "inboxDaysAgo": "{count} days ago"
 }
