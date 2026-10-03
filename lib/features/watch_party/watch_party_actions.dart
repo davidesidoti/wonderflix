@@ -6,6 +6,8 @@ import '../../core/party_channel/party_channel_models.dart';
 import '../../core/syncplay/syncplay_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../library/library_providers.dart';
+import '../social/social_providers.dart';
+import 'current_party.dart';
 import 'party_channel.dart';
 import 'party_queue.dart';
 import 'watch_party_session.dart';
@@ -13,12 +15,14 @@ import 'watch_party_session.dart';
 /// "Guarda insieme": crea il gruppo con la coda di [item] (per un episodio:
 /// anche i successivi), oppure, stando già in un gruppo, gli cambia la coda.
 /// Il player si apre quando il server conferma la coda
-/// (`watchPartyRoutingProvider`).
+/// (`watchPartyRoutingProvider`). Con [mode] il party si registra nel plugin
+/// con quella modalità (spec F §9.1–9.2); `null` = come la 0.5.1.
 Future<bool> startWatchParty(
   BuildContext context,
   WidgetRef ref,
   JellyfinItem item, {
   Duration start = Duration.zero,
+  PartyMode? mode,
 }) =>
     _run(
       context,
@@ -37,7 +41,22 @@ Future<bool> startWatchParty(
               .read(partyChannelProvider.notifier)
               .announce(PartyAction.newQueue);
         } else {
-          await session.create(item, queue: queue, start: start);
+          await session.create(
+            item,
+            queue: queue,
+            start: start,
+            // Spec F §9.2: la modalità si registra prima della coda. Il
+            // plugin e il party corrente si leggono solo con una modalità.
+            register: mode == null
+                ? null
+                : (groupId) async {
+                    final social = container.read(socialApiProvider);
+                    final code = await social.registerParty(groupId, mode);
+                    container
+                        .read(currentPartyProvider.notifier)
+                        .registered(groupId, mode, code);
+                  },
+          );
         }
       },
       creating: true,
@@ -74,6 +93,8 @@ String watchPartyErrorText(AppLocalizations l, Object error,
         l.watchPartyGone,
       WatchPartyException(failure: WatchPartyFailure.accessDenied) =>
         l.watchPartyAccessDenied,
+      WatchPartyException(failure: WatchPartyFailure.registration) =>
+        l.partyCreateFailed,
       _ => creating ? l.watchPartyCreateError : l.watchPartyJoinError,
     };
 

@@ -19,7 +19,15 @@ final _log = Logger('watchparty');
 
 enum WatchPartyPhase { none, joining, inGroup }
 
-enum WatchPartyFailure { groupGone, accessDenied, timeout, network }
+enum WatchPartyFailure {
+  groupGone,
+  accessDenied,
+  timeout,
+  network,
+
+  /// Il plugin non ha registrato la modalità del party: si è usciti dal gruppo.
+  registration,
+}
 
 class WatchPartyException implements Exception {
   const WatchPartyException(this.failure);
@@ -185,13 +193,30 @@ class WatchPartySession extends Notifier<WatchPartyState>
   Stream<GroupUpdate> get updates => _updates.stream;
 
   /// Crea un gruppo per [item] con la coda [queue] (di default solo [item])
-  /// e ci fa partire la riproduzione da [start]. Lancia [WatchPartyException].
-  Future<void> create(JellyfinItem item,
-      {List<String>? queue, Duration start = Duration.zero}) async {
+  /// e ci fa partire la riproduzione da [start]. Con [register] il party si
+  /// registra nel plugin appena il gruppo esiste e prima della coda (spec F
+  /// §9.2): se non riesce si esce dal gruppo, perché dopo 10 s un gruppo
+  /// non registrato diventa pubblico. Lancia [WatchPartyException].
+  Future<void> create(
+    JellyfinItem item, {
+    List<String>? queue,
+    Duration start = Duration.zero,
+    Future<void> Function(String groupId)? register,
+  }) async {
     if (state.phase == WatchPartyPhase.joining) return;
     final session = ref.read(sessionControllerProvider);
     final userName = session is SessionSignedIn ? session.user.name : '';
     await _enter(() => _api.create('$userName · ${partyTitle(item)}'));
+    final groupId = state.group?.id;
+    if (register != null && groupId != null) {
+      try {
+        await register(groupId);
+      } on Object catch (error) {
+        _log.warning('watch party non registrato: ${error.runtimeType}');
+        await leave();
+        throw const WatchPartyException(WatchPartyFailure.registration);
+      }
+    }
     try {
       await _api.setNewQueue(queue ?? [item.id], start: start);
     } on ApiException catch (error) {
