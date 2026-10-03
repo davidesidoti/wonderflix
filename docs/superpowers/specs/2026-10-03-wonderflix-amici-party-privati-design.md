@@ -1,7 +1,7 @@
 # WonderFlix — Spec F: amici e party privati
 
 - **Data:** 2026-10-03
-- **Stato:** approvato nel brainstorming, da rivedere dall'utente
+- **Stato:** approvato; piano 12a realizzato (`docs/superpowers/plans/2026-10-03-wonderflix-12a-amici.md`); piano 12b da scrivere
 - **Ambito:** Spec F. Realizza l'issue #6 (lista amici) e l'issue #5 (watch party pubblico / solo amici / privato). L'issue #7 (collegamento a Discord) resta fuori: sarà la Spec G. Si appoggia allo Spec B (`2026-09-30-wonderflix-watch-party-design.md`: §5.8 elenco e inviti, §7 interfaccia) e allo Spec E (`2026-10-02-wonderflix-watch-party-sociale-design.md`: §6 plugin, §7 canale), entrambi realizzati (v0.5.1).
 
 ## 1. Obiettivo
@@ -95,9 +95,9 @@ Il plugin continua a non conoscere Jellyfin dentro il nucleo: le nuove classi pa
 
 ### 6.2 Regole degli amici
 
-- **Richiesta A → B:** rifiutata se A = B, se B non esiste o è disabilitato, se sono già amici o se A ha già una richiesta verso B. Se esiste la richiesta B → A, diventano subito amici (e la richiesta sparisce).
+- **Richiesta A → B:** rifiutata (409) se A = B, se B non esiste, è disabilitato o non ha accesso ai watch party (SyncPlay "None": non potrebbe rispondere e la richiesta resterebbe in sospeso per sempre), se sono già amici o se A ha già una richiesta verso B. Se esiste la richiesta B → A, diventano subito amici (e la richiesta sparisce).
 - **Accetta** (B accetta A): diventano amici. **Rifiuta**: la richiesta sparisce, A non riceve niente di diverso da "la richiesta non c'è più". **Annulla** (A): la richiesta sparisce. **Rimuovi** (uno dei due): l'amicizia sparisce per tutti e due.
-- **Ricerca:** almeno 2 caratteri dopo `Trim`; confronto senza maiuscole (`OrdinalIgnoreCase`) sul nome Jellyfin che **contiene** il testo; esclusi chi cerca e gli utenti disabilitati; ordinati per nome; massimo 10. Ogni risultato porta la relazione con chi cerca: `None`, `Friend`, `Incoming`, `Outgoing`.
+- **Ricerca:** almeno 2 caratteri dopo `Trim`; confronto senza maiuscole (`OrdinalIgnoreCase`) sul nome Jellyfin che **contiene** il testo; esclusi chi cerca, gli utenti disabilitati e quelli senza accesso ai watch party (SyncPlay "None": non possono usare gli endpoint degli amici); ordinati per nome; massimo 10. Ogni risultato porta la relazione con chi cerca: `None`, `Friend`, `Incoming`, `Outgoing`.
 
 ### 6.3 Presenza
 
@@ -130,7 +130,7 @@ Tutti autenticati come in 1.0.0 (`[Authorize]`, chi chiama da `UserId` + `Device
 | Metodo e percorso | Corpo / risposta |
 |---|---|
 | `GET Info` | `{Version, Protocol: 1, Features: ["friends", "parties"]}` |
-| `GET Friends` | `{Friends: [{UserId, Name, Online, Party: {GroupId, Title} \| null}], Incoming: [{UserId, Name}], Outgoing: [{UserId, Name}]}` |
+| `GET Friends` | `{Friends: [{UserId, Name, Online, Party: {GroupId, Title} \| null}], Incoming: [{UserId, Name}], Outgoing: [{UserId, Name}]}`; `Party` è omesso o `null` se l'amico non è in un party visibile |
 | `GET Users/Search?q=` | `[{UserId, Name, Relation}]` (`Relation`: `None`, `Friend`, `Incoming`, `Outgoing`) |
 | `POST Friends/Requests/{userId}` | 204; 409 se non ammessa (§6.2) |
 | `POST Friends/Requests/{userId}/Accept` · `/Decline` | 204; 403 se la richiesta non c'è |
@@ -179,13 +179,13 @@ Log come in 1.0.0: mai testi o codici, solo id e tipi di esito; `Debug` per le o
 
 ### 7.2 Disponibilità
 
-`SocialAvailability` (`Notifier`): chiede `Info` dopo il login, a ogni riconnessione del WebSocket (`ServerConnected`) e alla riapertura della diagnostica; `friends` e `parties` valgono se `Features` li contiene. Errore o 404 → nessuna funzione (l'app si comporta come la 0.5.1). La diagnostica aggiunge le funzioni alla riga "Plugin watch party: 1.1.0 (amici, party)".
+`SocialAvailability` (`Notifier`): chiede `Info` dopo il login e a ogni connessione del WebSocket (anche la prima: un controllo fallito al login si ripete); una risposta arrivata dopo un cambio di utente si scarta; `friends` e `parties` valgono se `Features` li contiene. Errore o 404 → nessuna funzione (l'app si comporta come la 0.5.1). La diagnostica aggiunge la riga "Funzioni del plugin: amici, party" (o "nessuna"; assente se il plugin non risponde).
 
 `party_channel.dart` continua ad accettare solo `Protocol == 1`: niente da cambiare lì.
 
 ### 7.3 Avvisi del plugin
 
-`SocialEvents` ascolta gli eventi del server (`PartyChannelReceived`) e passa a `parseSocialEvent` quelli che `parsePartyEvent` non riconosce; li smista a `FriendsController` (`FriendRequest`, `FriendsChanged`) e a `WatchPartyInvites` / `WatchPartyDirectory` (`PartyStarted`, `PartyInvite`). Eliminazione dei doppioni come nel canale (stesso evento ricevuto due volte entro 5 s).
+`SocialEvents` ascolta gli eventi del server (`PartyChannelReceived`) e passa a `parseSocialEvent` quelli che `parsePartyEvent` non riconosce; li smista a `FriendsController` (`FriendRequest`, `FriendsChanged`) e a `WatchPartyInvites` / `WatchPartyDirectory` (`PartyStarted`, `PartyInvite`). Niente eliminazione dei doppioni: gli avvisi sociali non hanno un Id; `FriendsChanged` fa solo rileggere e una `FriendRequest` doppia rimostra la stessa scheda. Il canale del gruppo (`parsePartyEvent`) scarta questi tipi senza scriverli nel log.
 
 ## 8. App: amici
 
@@ -202,20 +202,20 @@ Log come in 1.0.0: mai testi o codici, solo id e tipi di esito; `Debug` per le o
 
 ### 8.3 Pannello
 
-- **Posizione:** nella shell, sopra la barra e la pagina: `Positioned(top: 0, right: 0, bottom: 0)`, largo 360 px, sfondo `WfColors.surface`; il resto della finestra scurito (`Colors.black54`). Si chiude con ×, Esc (consumato dal pannello, non torna indietro di pagina) o un clic sullo scuro. Entrata e uscita come `TracksPanelHost` (scivola di 24 px + dissolvenza; con "Ridotte" solo dissolvenza).
+- **Posizione:** nella shell, sopra la barra e la pagina: `Positioned(top: 0, right: 0, bottom: 0)`, largo 360 px, sfondo `WfColors.surface`; il resto della finestra scurito (`Colors.black54`). Si chiude con ×, Esc (consumato dal pannello, non torna indietro di pagina) o un clic sullo scuro. Con il pannello aperto Alt+←, il tasto indietro e il tasto indietro del mouse chiudono il pannello invece di cambiare pagina; Esc con un menu aperto chiude prima il menu. Entrata e uscita come `TracksPanelHost` (entra tutto da destra; con "Ridotte" solo dissolvenza). Mentre carica la prima volta il pannello resta vuoto (niente indicatore che gira).
 - **Contenuto**, dall'alto:
   1. Titolo "Amici" + ×.
-  2. Campo "Cerca per nome" (autofocus all'apertura). Con 2+ lettere i risultati sostituiscono le sezioni 3–5. Ogni risultato: iniziale, nome, azione secondo la relazione — `None` → **Aggiungi**; `Outgoing` → "Inviata" + **Annulla**; `Incoming` → **Accetta**; `Friend` → "Amici ✓" (non cliccabile). Nessun risultato: "Nessun utente trovato".
+  2. Campo "Cerca per nome" (prende il fuoco all'apertura). Con 2+ lettere i risultati sostituiscono le sezioni 3–5. Ogni risultato: iniziale, nome, azione secondo la relazione — `None` → **Aggiungi**; `Outgoing` → "Inviata" + **Annulla**; `Incoming` → **Accetta**; `Friend` → "Amici ✓" (non cliccabile). Nessun risultato: "Nessun utente trovato". La ricerca si ripete quando cambia la lista amici.
   3. **"Ho un codice"** (§9.4).
   4. **Richieste ({n})**, solo se ce ne sono: in arrivo con **Accetta / Rifiuta**, poi quelle inviate con "In attesa" + **Annulla**.
-  5. **Amici**: online prima (pallino verde), poi offline (nome attenuato), in ordine alfabetico. Amico in un party visibile: seconda riga "Nel watch party: {titolo}" + **Unisciti** (nascosto se siamo già in quel gruppo). Al passaggio del mouse: **⋯** → "Rimuovi dagli amici" → la riga mostra **Conferma rimozione** per 4 s.
+  5. **Amici**: online prima (pallino verde), poi offline (nome attenuato), in ordine alfabetico. Amico in un party visibile: seconda riga "Nel watch party: {titolo}" + **Unisciti** (nascosto se siamo già in quel gruppo). **⋯** (sempre visibile) → "Rimuovi dagli amici" → la riga mostra **Conferma rimozione** per 4 s.
   6. Vuoto: "Nessun amico ancora. Cerca qualcuno per nome qui sopra."
 - **Errore** del caricamento: "Amici non disponibili" + **Riprova**.
 - Le liste lunghe scorrono dentro il pannello; il campo di ricerca resta fermo in alto.
 
 ### 8.4 Scheda della richiesta
 
-Su `FriendRequest`, con l'app aperta e il player chiuso: scheda nello stesso posto dell'invito (in alto a destra), "{nome} vuole essere tuo amico" con **Accetta / Rifiuta / ×**, per 10 s. Una sola scheda alla volta in quel posto: la più recente sostituisce l'altra. Con il player aperto si aggiorna solo il numero sull'icona.
+Su `FriendRequest`, con l'app aperta e il player chiuso: scheda nello stesso posto dell'invito (in alto a destra), "{nome} vuole essere tuo amico" con **Accetta / Rifiuta / ×**, per 10 s. L'invito ai watch party e la richiesta stanno in colonna (invito sopra), 8 px l'una dall'altra. I pulsanti della scheda vanno a capo (`Wrap`) se non c'è spazio. Con il player aperto si aggiorna solo il numero sull'icona.
 
 ## 9. App: modalità e inviti
 
@@ -274,6 +274,7 @@ Per un privato, il codice ricevuto si mostra subito nella pillola del player: "P
 | Chiave | it | en |
 |---|---|---|
 | `friendsTitle` | Amici | Friends |
+| `friendsClose` | Chiudi | Close |
 | `friendsSearchHint` | Cerca per nome | Search by name |
 | `friendsSearchEmpty` | Nessun utente trovato | No users found |
 | `friendsAdd` | Aggiungi | Add |
