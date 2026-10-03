@@ -40,6 +40,10 @@ String partyNoticeText(AppLocalizations l, PartyNotice notice) {
     PartyNoticeKind.resync => l.watchPartyNoticeResync,
     PartyNoticeKind.ended => l.watchPartyNoticeEnded,
     PartyNoticeKind.removed => l.watchPartyNoticeRemoved,
+    PartyNoticeKind.privateCode => l.partyPrivateCreated(title),
+    PartyNoticeKind.codeCopied => l.partyCodeCopied,
+    PartyNoticeKind.inviteSent => l.partyInviteSent(notice.name ?? ''),
+    PartyNoticeKind.inviteFailed => l.friendsActionFailed,
   };
 }
 
@@ -57,4 +61,8 @@ IconData partyNoticeIcon(PartyNoticeKind kind) => switch (kind) {
       PartyNoticeKind.resync => LucideIcons.refreshCw,
       PartyNoticeKind.ended => LucideIcons.circleStop,
       PartyNoticeKind.removed => LucideIcons.logOut,
+      PartyNoticeKind.privateCode => LucideIcons.lock,
+      PartyNoticeKind.codeCopied => LucideIcons.copy,
+      PartyNoticeKind.inviteSent => LucideIcons.send,
+      PartyNoticeKind.inviteFailed => LucideIcons.circleAlert,
     };

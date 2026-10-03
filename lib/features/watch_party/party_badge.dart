@@ -1,14 +1,20 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/motion.dart';
 import '../../app/theme.dart';
+import '../../core/social/social_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/poster_card.dart';
 import '../../ui/wf_menus.dart';
+import '../social/social_providers.dart';
+import 'current_party.dart';
+import 'party_invite_menu.dart';
+import 'party_notices.dart';
 import 'watch_party_session.dart';
 
 /// Etichetta con bordo oro e icona del gruppo, nella barra in alto
@@ -152,8 +158,9 @@ class _AvatarPop extends StatelessWidget {
 }
 
 /// "Watch party · N" nei controlli del player, con le iniziali dei membri:
-/// apre i membri ed "Esci dal watch party". A ogni cambio di membri fa un
-/// piccolo sobbalzo (spec D §15.2).
+/// apre i membri, il codice dei privati, "Invita amici" (spec F §9.4–9.5)
+/// ed "Esci dal watch party". A ogni cambio di membri fa un piccolo
+/// sobbalzo (spec D §15.2).
 class PartyBadge extends ConsumerStatefulWidget {
   const PartyBadge({super.key, required this.onLeave});
 
@@ -182,9 +189,46 @@ class _PartyBadgeState extends ConsumerState<PartyBadge>
   ]).animate(_bump);
 
   @override
+  void initState() {
+    super.initState();
+    // Party privato appena creato da noi: il codice nella pillola, una
+    // volta (spec F §9.2). Anche se la registrazione è finita prima che il
+    // distintivo comparisse (il player del gruppo si apre dopo). Fuori dalla
+    // build: tocca altri provider.
+    ref.listenManual<String?>(
+        currentPartyProvider
+            .select((p) => p != null && p.announceCode ? p.code : null),
+        (_, announced) {
+      if (announced == null) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        // Già mostrato (es. un secondo avviso prima del frame): una volta.
+        if (!mounted ||
+            ref.read(currentPartyProvider)?.announceCode != true) {
+          return;
+        }
+        ref.read(partyNoticesProvider.notifier).show(PartyNotice(
+            PartyNoticeKind.privateCode,
+            title: formatPartyCode(announced)));
+        ref.read(currentPartyProvider.notifier).codeAnnounced();
+      });
+    }, fireImmediately: true);
+  }
+
+  @override
   void dispose() {
     _bump.dispose();
     super.dispose();
+  }
+
+  /// "Invita amici" dal player: l'esito nella pillola.
+  Future<void> _invite() async {
+    final result = await showInviteFriendsMenu(context, ref);
+    if (result == null || !mounted) return;
+    ref.read(partyNoticesProvider.notifier).show(PartyNotice(
+        result.failure == null
+            ? PartyNoticeKind.inviteSent
+            : PartyNoticeKind.inviteFailed,
+        name: result.name));
   }
 
   @override
@@ -197,13 +241,28 @@ class _PartyBadgeState extends ConsumerState<PartyBadge>
         (_, _) {
       if (!reduced) unawaited(_bump.forward(from: 0));
     });
+    final code = ref.watch(currentPartyProvider.select((p) => p?.code));
+    final canInvite = ref.watch(
+        socialAvailabilityProvider.select((f) => f.friends && f.parties));
     return PopupMenuButton<String>(
       key: const Key('party-badge'),
       tooltip: party.group?.name,
       position: PopupMenuPosition.under,
       popUpAnimationStyle: wfPopUpAnimation(context),
       onSelected: (value) {
-        if (value == 'leave') widget.onLeave();
+        switch (value) {
+          case 'leave':
+            widget.onLeave();
+          case 'code':
+            if (code == null) return;
+            unawaited(Clipboard.setData(
+                ClipboardData(text: formatPartyCode(code))));
+            ref
+                .read(partyNoticesProvider.notifier)
+                .show(const PartyNotice(PartyNoticeKind.codeCopied));
+          case 'invite':
+            unawaited(_invite());
+        }
       },
       itemBuilder: (context) => [
         for (final member in members)
@@ -221,6 +280,35 @@ class _PartyBadgeState extends ConsumerState<PartyBadge>
             ),
           ),
         if (members.isNotEmpty) const PopupMenuDivider(),
+        if (code != null)
+          PopupMenuItem<String>(
+            value: 'code',
+            child: Row(
+              children: [
+                const Icon(LucideIcons.copy, size: 18, color: WfColors.cream),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Text(l.partyCode(formatPartyCode(code)),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
+              ],
+            ),
+          ),
+        if (canInvite)
+          PopupMenuItem<String>(
+            value: 'invite',
+            child: Row(
+              children: [
+                const Icon(LucideIcons.userPlus,
+                    size: 18, color: WfColors.cream),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Text(l.partyInviteFriends,
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
+              ],
+            ),
+          ),
         PopupMenuItem<String>(
           value: 'leave',
           child: Row(

@@ -1,13 +1,17 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
+import 'package:wonderflix/features/watch_party/current_party.dart';
 import 'package:wonderflix/features/watch_party/party_channel.dart';
 import 'package:wonderflix/features/watch_party/watch_party_button.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
@@ -17,6 +21,7 @@ import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/pump_app.dart';
+import '../../support/social_fakes.dart';
 import '../../support/test_data.dart';
 import '../../support/watch_party_fakes.dart';
 
@@ -126,9 +131,10 @@ void main() {
     expect(find.byKey(const Key('watch-party-button')), findsNothing);
   });
 
-  /// Nel gruppo `g1`; con [queue] il gruppo guarda qualcosa.
+  /// Nel gruppo `g1`; con [queue] il gruppo guarda qualcosa. Il plugin ha
+  /// le funzioni [features] (di default nessuna).
   Future<FakePartyNavigator> pumpInParty(WidgetTester tester,
-      {PlayQueue? queue}) async {
+      {PlayQueue? queue, SocialFeatures features = SocialFeatures.none}) async {
     final navigator = FakePartyNavigator();
     await pumpApp(
       tester,
@@ -144,6 +150,9 @@ void main() {
             () => FakeSessionController(const SessionSignedIn(testUser))),
         partyNavigatorProvider.overrideWithValue(navigator),
         partyChannelApiProvider.overrideWithValue(channelApi),
+        socialApiProvider.overrideWithValue(FakeSocialApi()),
+        socialAvailabilityProvider
+            .overrideWith(() => FakeSocialAvailability(features)),
       ],
     );
     api.onCall = (call) {
@@ -228,5 +237,131 @@ void main() {
 
     await container.read(watchPartySessionProvider.notifier).leave();
     await tester.pump();
+  });
+
+  /// Nel gruppo `g1` (Mario e Peach), con il plugin che sa amici e party.
+  Future<ProviderContainer> pumpWithPlugin(
+      WidgetTester tester, FakeSocialApi social) async {
+    await pumpApp(
+      tester,
+      const Scaffold(
+          body: Align(
+              alignment: Alignment.topRight, child: WatchPartyButton())),
+      overrides: [
+        watchPartyDirectoryProvider
+            .overrideWith(() => FakeWatchPartyDirectory(const [])),
+        syncPlayApiProvider.overrideWithValue(api),
+        watchPartyEventsProvider.overrideWithValue(events.stream),
+        sessionControllerProvider.overrideWith(
+            () => FakeSessionController(const SessionSignedIn(testUser))),
+        partyChannelApiProvider.overrideWithValue(channelApi),
+        socialApiProvider.overrideWithValue(social),
+        socialAvailabilityProvider.overrideWith(() => FakeSocialAvailability(
+            const SocialFeatures(friends: true, parties: true))),
+      ],
+    );
+    api.onCall = (call) {
+      if (call.startsWith('join')) {
+        events.add(SyncPlayGroupUpdated(GroupJoined(
+            'g1', testGroup(participants: const ['Mario', 'Peach']))));
+      }
+    };
+    final container = ProviderScope.containerOf(
+        tester.element(find.byType(WatchPartyButton)));
+    unawaited(container.read(watchPartySessionProvider.notifier).join('g1'));
+    await tester.pumpAndSettle();
+    return container;
+  }
+
+  testWidgets('nel gruppo privato: il codice si copia', (tester) async {
+    final copied = <String>[];
+    tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied.add((call.arguments as Map)['text'] as String);
+      }
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null));
+    final social = FakeSocialApi()
+      ..details['g1'] =
+          const PartyDetails(mode: PartyMode.private, code: 'K7PQ2X');
+    await pumpWithPlugin(tester, social);
+
+    await tester.tap(find.text('Nel watch party'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Codice K7P-Q2X'));
+    await tester.pumpAndSettle();
+    expect(copied, ['K7P-Q2X']);
+    expect(find.text('Codice copiato'), findsOneWidget);
+    await leave(tester);
+  });
+
+  testWidgets('nel gruppo pubblico: nessun codice', (tester) async {
+    await pumpWithPlugin(tester, FakeSocialApi());
+    await tester.tap(find.text('Nel watch party'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Codice'), findsNothing);
+    expect(find.text('Invita amici'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    await leave(tester);
+  });
+
+  testWidgets('Invita amici: solo chi non è nel party; poi "Invitato"',
+      (tester) async {
+    final social = FakeSocialApi()
+      ..snapshot = FriendsSnapshot(friends: [
+        testFriend('u2', 'Luigi', online: true),
+        testFriend('u3', 'Peach', online: true),
+      ]);
+    final container = await pumpWithPlugin(tester, social);
+
+    await tester.tap(find.text('Nel watch party'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Invita amici'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('invite-u3')), findsNothing,
+        reason: 'Peach è già nel party');
+    await tester.tap(find.byKey(const ValueKey('invite-u2')));
+    await tester.pumpAndSettle();
+    expect(social.calls, contains('invite g1 u2'));
+    expect(find.text('Invito mandato a Luigi'), findsOneWidget);
+    expect(container.read(currentPartyProvider)!.invited, {'u2'});
+
+    await tester.tap(find.text('Nel watch party'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Invita amici'));
+    await tester.pumpAndSettle();
+    expect(find.text('Invitato'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    await leave(tester);
+  });
+
+  testWidgets('Invita amici senza amici da invitare', (tester) async {
+    await pumpWithPlugin(tester, FakeSocialApi());
+    await tester.tap(find.text('Nel watch party'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Invita amici'));
+    await tester.pumpAndSettle();
+    expect(find.text('Nessun amico da invitare'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    await leave(tester);
+  });
+
+  testWidgets('senza la funzione parties: niente codice né inviti',
+      (tester) async {
+    await pumpInParty(tester,
+        queue: testQueue(), features: const SocialFeatures(friends: true));
+    await tester.tap(find.text('Nel watch party'));
+    await tester.pumpAndSettle();
+    expect(find.text('Invita amici'), findsNothing);
+    expect(find.textContaining('Codice'), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    await leave(tester);
   });
 }

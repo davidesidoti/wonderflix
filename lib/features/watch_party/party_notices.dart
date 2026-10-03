@@ -30,6 +30,19 @@ enum PartyNoticeKind {
 
   /// Il server ci ha tolto dal gruppo, che può esserci ancora.
   removed,
+
+  /// Il codice del party privato appena creato da noi (spec F §9.4), in
+  /// `title`.
+  privateCode,
+
+  /// Codice copiato negli appunti.
+  codeCopied,
+
+  /// Invito mandato a `name`.
+  inviteSent,
+
+  /// Invito non riuscito.
+  inviteFailed,
 }
 
 /// Un avviso del watch party (spec B §5.7). Il testo lo compone

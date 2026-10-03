@@ -1,16 +1,22 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/navigation.dart';
 import '../../app/theme.dart';
+import '../../core/social/social_api.dart';
+import '../../core/social/social_models.dart';
 import '../../core/syncplay/syncplay_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_menus.dart';
+import '../social/social_providers.dart';
+import 'current_party.dart';
 import 'party_badge.dart';
 import 'party_channel.dart';
+import 'party_invite_menu.dart';
 import 'party_mode_labels.dart';
 import 'watch_party_actions.dart';
 import 'watch_party_directory.dart';
@@ -20,8 +26,8 @@ import 'watch_party_session.dart';
 
 /// Pulsante del watch party nella barra in alto. Fuori da un gruppo:
 /// "Watch party · N", solo se esiste almeno un gruppo, apre l'elenco con
-/// "Unisciti". Dentro un gruppo: "Nel watch party" con "Torna al player" ed
-/// "Esci dal watch party".
+/// "Unisciti". Dentro un gruppo: "Nel watch party" con "Torna al player",
+/// il codice dei privati, "Invita amici" ed "Esci dal watch party".
 class WatchPartyButton extends ConsumerWidget {
   const WatchPartyButton({super.key});
 
@@ -121,7 +127,9 @@ class _GroupTile extends StatelessWidget {
   }
 }
 
-/// Stando in un gruppo (spec B §7.1): tornare al player o uscire.
+/// Stando in un gruppo (spec B §7.1): tornare al player o uscire; con il
+/// plugin anche copiare il codice di un privato e invitare amici (spec F
+/// §9.4–9.5).
 class _InPartyButton extends ConsumerWidget {
   const _InPartyButton();
 
@@ -132,6 +140,9 @@ class _InPartyButton extends ConsumerWidget {
     final playing = party.queue?.playing;
     // Messaggi arrivati fuori dal player (spec E §9.5).
     final unread = ref.watch(partyChannelProvider.select((s) => s.unread));
+    final code = ref.watch(currentPartyProvider.select((p) => p?.code));
+    final canInvite = ref.watch(
+        socialAvailabilityProvider.select((f) => f.friends && f.parties));
     return PopupMenuButton<String>(
       key: const Key('watch-party-in-party'),
       tooltip: party.group?.name,
@@ -146,6 +157,14 @@ class _InPartyButton extends ConsumerWidget {
             ref.read(partyNavigatorProvider).open(playerRoute(entry.itemId,
                 start: session.estimatedPosition(),
                 party: entry.playlistItemId));
+          case 'code':
+            if (code == null) return;
+            unawaited(
+                Clipboard.setData(ClipboardData(text: formatPartyCode(code))));
+            ScaffoldMessenger.maybeOf(context)
+                ?.showSnackBar(SnackBar(content: Text(l.partyCodeCopied)));
+          case 'invite':
+            unawaited(_inviteFromChip(context, ref));
           case 'leave':
             unawaited(session.leave());
         }
@@ -165,6 +184,35 @@ class _InPartyButton extends ConsumerWidget {
             ],
           ),
         ),
+        if (code != null)
+          PopupMenuItem<String>(
+            value: 'code',
+            child: Row(
+              children: [
+                const Icon(LucideIcons.copy, size: 18, color: WfColors.cream),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Text(l.partyCode(formatPartyCode(code)),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
+              ],
+            ),
+          ),
+        if (canInvite)
+          PopupMenuItem<String>(
+            value: 'invite',
+            child: Row(
+              children: [
+                const Icon(LucideIcons.userPlus,
+                    size: 18, color: WfColors.cream),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Text(l.partyInviteFriends,
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
+              ],
+            ),
+          ),
         PopupMenuItem<String>(
           value: 'leave',
           child: Row(
@@ -182,4 +230,18 @@ class _InPartyButton extends ConsumerWidget {
       child: PartyChip(label: l.watchPartyInParty, count: unread),
     );
   }
+}
+
+/// "Invita amici" dal chip: l'esito in una snackbar (spec F §9.5).
+Future<void> _inviteFromChip(BuildContext context, WidgetRef ref) async {
+  final l = AppLocalizations.of(context);
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  final result = await showInviteFriendsMenu(context, ref);
+  if (result == null) return;
+  messenger?.showSnackBar(SnackBar(
+      content: Text(switch (result.failure) {
+    null => l.partyInviteSent(result.name),
+    SocialFailure.rateLimited => l.friendsTooMany,
+    _ => l.friendsActionFailed,
+  })));
 }
