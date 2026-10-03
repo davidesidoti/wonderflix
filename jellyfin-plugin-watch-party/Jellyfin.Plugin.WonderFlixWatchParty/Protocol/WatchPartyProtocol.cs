@@ -15,4 +15,13 @@ public static class WatchPartyProtocol
 
     /// <summary>Lunghezza massima di un messaggio, in punti di codice (come nell'app).</summary>
     public const int MaxChatLength = 200;
+
+    /// <summary>Nome del client delle app WonderFlix nelle sessioni di Jellyfin.</summary>
+    public const string ClientName = "WonderFlix";
+
+    /// <summary>
+    /// Funzioni in più rispetto allo spec E, in GET Info (spec F §6.7). Il
+    /// protocollo resta 1: le app 0.5.x accettano solo quello.
+    /// </summary>
+    public static readonly IReadOnlyList<string> Features = ["friends"];
 }

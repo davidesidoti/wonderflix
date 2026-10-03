@@ -19,6 +19,9 @@ public enum HubStatus
 
     /// <summary>Limite di frequenza superato (429).</summary>
     RateLimited,
+
+    /// <summary>Non ammessa nello stato attuale (409).</summary>
+    Conflict,
 }
 
 /// <summary>Esito con il valore, se riuscita.</summary>

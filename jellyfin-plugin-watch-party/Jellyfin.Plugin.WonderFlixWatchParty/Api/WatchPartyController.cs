@@ -25,10 +25,10 @@ public class WatchPartyController(
     private static string PluginVersion =>
         typeof(Plugin).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
 
-    /// <summary>Versione del plugin e del protocollo.</summary>
+    /// <summary>Versione del plugin, del protocollo e funzioni in più.</summary>
     [HttpGet("Info")]
     public ActionResult<InfoResponse> GetInfo() =>
-        new InfoResponse(PluginVersion, WatchPartyProtocol.Version);
+        new InfoResponse(PluginVersion, WatchPartyProtocol.Version, WatchPartyProtocol.Features);
 
     /// <summary>Registra la sessione nel gruppo; restituisce lo storico della chat.</summary>
     [HttpPost("Groups/{groupId:guid}/Join")]

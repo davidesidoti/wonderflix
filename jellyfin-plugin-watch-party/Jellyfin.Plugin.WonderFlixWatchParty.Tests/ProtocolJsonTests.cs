@@ -40,7 +40,34 @@ public class ProtocolJsonTests
     [Fact]
     public void InfoAndJoinResponsesUseProtocolNames()
     {
-        Assert.Equal("{\"Version\":\"1.0.0\",\"Protocol\":1}", JsonSerializer.Serialize(new InfoResponse("1.0.0", 1)));
+        Assert.Equal(
+            "{\"Version\":\"1.1.0\",\"Protocol\":1,\"Features\":[\"friends\"]}",
+            JsonSerializer.Serialize(new InfoResponse("1.1.0", 1, ["friends"])));
         Assert.Equal("{\"Messages\":[]}", JsonSerializer.Serialize(new JoinResponse([])));
+    }
+
+    [Fact]
+    public void SocialEventsHaveNoGroupAndSkipEmptyFields()
+    {
+        Assert.Equal(
+            "{\"Protocol\":1,\"Type\":\"FriendRequest\",\"FromUserId\":\"u1\",\"FromName\":\"Mario\"}",
+            JsonSerializer.Serialize(SocialEvent.FriendRequest("u1", "Mario")));
+        Assert.Equal("{\"Protocol\":1,\"Type\":\"FriendsChanged\"}", JsonSerializer.Serialize(SocialEvent.FriendsChanged()));
+    }
+
+    [Fact]
+    public void FriendResponsesUseProtocolNames()
+    {
+        var friends = new FriendsResponse(
+            [new FriendEntry("u2", "Luigi", true, null)],
+            [new PersonEntry("u3", "Peach")],
+            []);
+        Assert.Equal(
+            "{\"Friends\":[{\"UserId\":\"u2\",\"Name\":\"Luigi\",\"Online\":true,\"Party\":null}],"
+            + "\"Incoming\":[{\"UserId\":\"u3\",\"Name\":\"Peach\"}],\"Outgoing\":[]}",
+            JsonSerializer.Serialize(friends));
+        Assert.Equal(
+            "{\"UserId\":\"u2\",\"Name\":\"Luigi\",\"Relation\":\"Friend\"}",
+            JsonSerializer.Serialize(new UserSearchResult("u2", "Luigi", FriendRelations.Friend)));
     }
 }

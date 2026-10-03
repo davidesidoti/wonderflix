@@ -47,11 +47,12 @@ public class WatchPartyControllerTests
     private static EventRequest Chat(string text) => new() { Type = EventTypes.Chat, Text = text };
 
     [Fact]
-    public void InfoReportsVersionAndProtocol()
+    public void InfoReportsVersionProtocolAndFeatures()
     {
         var info = Controller().GetInfo().Value!;
         Assert.Equal("1.0.0", info.Version);
         Assert.Equal(1, info.Protocol);
+        Assert.Equal(new[] { "friends" }, info.Features);
     }
 
     [Fact]

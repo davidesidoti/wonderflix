@@ -52,4 +52,35 @@ public class RateLimiterTests
         limiter.Forget("s1");
         Assert.True(limiter.TryAcquire("s1", EventTypes.Chat));
     }
+
+    [Fact]
+    public void FriendRequestsAreLimitedPerHour()
+    {
+        var time = new FakeTimeProvider();
+        var limiter = new RateLimiter(time);
+        for (var i = 0; i < 20; i++)
+        {
+            Assert.True(limiter.TryAcquire("u1", LimitTypes.FriendRequests));
+        }
+
+        Assert.False(limiter.TryAcquire("u1", LimitTypes.FriendRequests));
+        Assert.True(limiter.TryAcquire("u2", LimitTypes.FriendRequests));
+        time.Advance(TimeSpan.FromHours(1));
+        Assert.True(limiter.TryAcquire("u1", LimitTypes.FriendRequests));
+    }
+
+    [Fact]
+    public void SearchesAreLimitedPerMinute()
+    {
+        var time = new FakeTimeProvider();
+        var limiter = new RateLimiter(time);
+        for (var i = 0; i < 30; i++)
+        {
+            Assert.True(limiter.TryAcquire("u1", LimitTypes.Searches));
+        }
+
+        Assert.False(limiter.TryAcquire("u1", LimitTypes.Searches));
+        time.Advance(TimeSpan.FromMinutes(1));
+        Assert.True(limiter.TryAcquire("u1", LimitTypes.Searches));
+    }
 }
