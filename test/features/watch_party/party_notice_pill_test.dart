@@ -51,6 +51,8 @@ void main() {
         'Invito mandato a Luigi');
     expect(text(const PartyNotice(PartyNoticeKind.inviteFailed)),
         'Operazione non riuscita');
+    expect(text(const PartyNotice(PartyNoticeKind.inviteRateLimited)),
+        'Troppe richieste, riprova più tardi');
   });
 
   test('testi con il nome di chi agisce (spec E §8)', () {
@@ -105,6 +107,8 @@ void main() {
     expect(partyNoticeIcon(PartyNoticeKind.codeCopied), LucideIcons.copy);
     expect(partyNoticeIcon(PartyNoticeKind.inviteSent), LucideIcons.send);
     expect(partyNoticeIcon(PartyNoticeKind.inviteFailed),
+        LucideIcons.circleAlert);
+    expect(partyNoticeIcon(PartyNoticeKind.inviteRateLimited),
         LucideIcons.circleAlert);
   });
 }

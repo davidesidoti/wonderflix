@@ -43,6 +43,9 @@ enum PartyNoticeKind {
 
   /// Invito non riuscito.
   inviteFailed,
+
+  /// Troppi inviti in poco tempo (429).
+  inviteRateLimited,
 }
 
 /// Un avviso del watch party (spec B §5.7). Il testo lo compone

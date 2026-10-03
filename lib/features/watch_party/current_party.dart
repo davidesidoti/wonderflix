@@ -66,8 +66,11 @@ class CurrentPartyController extends Notifier<CurrentParty?> {
     try {
       final details = await ref.read(socialApiProvider).partyDetails(groupId);
       if (!ref.mounted || load != _loads || state?.groupId == groupId) return;
+      // Il codice vale solo per i privati, anche se il plugin lo manda.
       state = CurrentParty(
-          groupId: groupId, mode: details.mode, code: details.code);
+          groupId: groupId,
+          mode: details.mode,
+          code: details.mode == PartyMode.private ? details.code : null);
     } on Object catch (error) {
       _log.info('party corrente non letto: ${error.runtimeType}');
     }
@@ -78,11 +81,12 @@ class CurrentPartyController extends Notifier<CurrentParty?> {
   void registered(String groupId, PartyMode mode, String? code) {
     final session = ref.read(watchPartySessionProvider);
     if (!session.inGroup || session.group?.id != groupId) return;
+    final privateCode = mode == PartyMode.private ? code : null;
     state = CurrentParty(
       groupId: groupId,
       mode: mode,
-      code: code,
-      announceCode: mode == PartyMode.private && code != null,
+      code: privateCode,
+      announceCode: privateCode != null,
     );
   }
 
@@ -92,10 +96,11 @@ class CurrentPartyController extends Notifier<CurrentParty?> {
     if (current != null) state = current.copyWith(announceCode: false);
   }
 
-  /// Abbiamo invitato [userId].
-  void invited(String userId) {
+  /// Abbiamo invitato [userId] nel gruppo [groupId]. Un invito finito dopo
+  /// il passaggio a un altro gruppo non segna nessuno.
+  void invited(String groupId, String userId) {
     final current = state;
-    if (current != null) {
+    if (current != null && current.groupId == groupId) {
       state = current.copyWith(invited: {...current.invited, userId});
     }
   }

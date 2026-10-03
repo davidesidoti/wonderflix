@@ -7,12 +7,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/friends/friends_controller.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/current_party.dart';
 import 'package:wonderflix/features/watch_party/party_channel.dart';
+import 'package:wonderflix/features/watch_party/party_invite_menu.dart';
 import 'package:wonderflix/features/watch_party/watch_party_button.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
@@ -335,6 +338,11 @@ void main() {
     await tester.tap(find.text('Invita amici'));
     await tester.pumpAndSettle();
     expect(find.text('Invitato'), findsOneWidget);
+    await tester.tap(find.text('Invitato'), warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(social.calls.where((call) => call.startsWith('invite')),
+        hasLength(1),
+        reason: 'chi è già invitato non si invita di nuovo');
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     await leave(tester);
@@ -360,6 +368,94 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Invita amici'), findsNothing);
     expect(find.textContaining('Codice'), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    await leave(tester);
+  });
+
+  testWidgets('Invita amici due volte mentre legge la lista: un menu solo',
+      (tester) async {
+    final social = FakeSocialApi()
+      ..snapshot =
+          FriendsSnapshot(friends: [testFriend('u2', 'Luigi', online: true)]);
+    await pumpWithPlugin(tester, social);
+    final gate = social.friendsGate = Completer<void>();
+    for (var i = 0; i < 2; i++) {
+      await tester.tap(find.text('Nel watch party'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Invita amici'));
+      await tester.pumpAndSettle();
+    }
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('invite-u2')), findsOneWidget);
+    expect(social.calls.where((call) => call == 'friends'), hasLength(1));
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('invite-u2')), findsNothing);
+    await leave(tester);
+  });
+
+  testWidgets('Invita amici: il plugin non risponde in tempo, vale la lista '
+      'che c\'è', (tester) async {
+    final social = FakeSocialApi()
+      ..snapshot =
+          FriendsSnapshot(friends: [testFriend('u2', 'Luigi', online: true)]);
+    final container = await pumpWithPlugin(tester, social);
+    container.listen(friendsControllerProvider, (_, _) {});
+    await tester.pump();
+    expect(container.read(friendsControllerProvider).loaded, isTrue);
+    final gate = social.friendsGate = Completer<void>();
+    await tester.tap(find.text('Nel watch party'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Invita amici'));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('invite-u2')), findsNothing);
+    await tester.pump(inviteFriendsTimeout);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('invite-u2')), findsOneWidget);
+    gate.complete();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    await leave(tester);
+  });
+
+  testWidgets('Invita amici: se intanto si apre un\'altra pagina il menu non '
+      'compare', (tester) async {
+    final social = FakeSocialApi()
+      ..snapshot =
+          FriendsSnapshot(friends: [testFriend('u2', 'Luigi', online: true)]);
+    await pumpWithPlugin(tester, social);
+    final gate = social.friendsGate = Completer<void>();
+    await tester.tap(find.text('Nel watch party'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Invita amici'));
+    await tester.pumpAndSettle();
+    final navigator =
+        Navigator.of(tester.element(find.byType(WatchPartyButton)));
+    unawaited(navigator.push(MaterialPageRoute<void>(
+        builder: (_) => const Scaffold(body: Text('altra pagina')))));
+    await tester.pumpAndSettle();
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('invite-u2'), skipOffstage: false),
+        findsNothing);
+    navigator.pop();
+    await tester.pumpAndSettle();
+    await leave(tester);
+  });
+
+  testWidgets('Invita amici: lista mai letta e plugin che non risponde, '
+      '"Amici non disponibili"', (tester) async {
+    final social = FakeSocialApi();
+    await pumpWithPlugin(tester, social);
+    social.nextFailure = SocialFailure.network;
+    await tester.tap(find.text('Nel watch party'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Invita amici'));
+    await tester.pumpAndSettle();
+    expect(find.text('Amici non disponibili'), findsOneWidget);
+    expect(find.text('Nessun amico da invitare'), findsNothing);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     await leave(tester);

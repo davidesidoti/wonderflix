@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/motion.dart';
 import '../../app/theme.dart';
+import '../../core/social/social_api.dart';
 import '../../core/social/social_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/poster_card.dart';
@@ -225,9 +226,11 @@ class _PartyBadgeState extends ConsumerState<PartyBadge>
     final result = await showInviteFriendsMenu(context, ref);
     if (result == null || !mounted) return;
     ref.read(partyNoticesProvider.notifier).show(PartyNotice(
-        result.failure == null
-            ? PartyNoticeKind.inviteSent
-            : PartyNoticeKind.inviteFailed,
+        switch (result.failure) {
+          null => PartyNoticeKind.inviteSent,
+          SocialFailure.rateLimited => PartyNoticeKind.inviteRateLimited,
+          _ => PartyNoticeKind.inviteFailed,
+        },
         name: result.name));
   }
 

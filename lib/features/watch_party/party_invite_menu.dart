@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
@@ -17,6 +19,14 @@ import 'watch_party_session.dart';
 
 final _log = Logger('social');
 
+/// Attesa massima della lista fresca degli amici: poi vale quella che l'app
+/// ha già (il menu non deve farsi aspettare).
+const inviteFriendsTimeout = Duration(seconds: 2);
+
+/// "Invita amici" in corso, per app (container): un secondo clic mentre si
+/// legge la lista o il menu è aperto non ne apre un altro sopra.
+final _inviting = Expando<bool>('inviting');
+
 /// Esito di "Invita amici".
 class InviteResult {
   const InviteResult(this.name, {this.failure});
@@ -30,26 +40,59 @@ class InviteResult {
 
 /// "Invita amici" (spec F §9.5): menu ancorato a [anchor] con gli amici non
 /// ancora nel party, online prima; un clic manda l'invito. `null` se si
-/// chiude senza scegliere.
+/// chiude senza scegliere, se un altro "Invita amici" è già in corso o se
+/// intanto è cambiato qualcosa (pagina, menu sopra, gruppo).
 Future<InviteResult?> showInviteFriendsMenu(
     BuildContext anchor, WidgetRef ref) async {
+  final container = ProviderScope.containerOf(anchor, listen: false);
+  if (_inviting[container] ?? false) return null;
+  _inviting[container] = true;
+  try {
+    return await _inviteFriends(anchor, ref, container);
+  } finally {
+    _inviting[container] = null;
+  }
+}
+
+Future<InviteResult?> _inviteFriends(
+    BuildContext anchor, WidgetRef ref, ProviderContainer container) async {
   final l = AppLocalizations.of(anchor);
   final groupId = ref.read(watchPartySessionProvider).group?.id;
   if (groupId == null) return null;
   // Lista fresca dal plugin: chi è online e chi è già dentro cambiano
   // spesso. Non con `FriendsController.reload`: un controller appena
   // (ri)costruito rilegge da sé e scarta la nostra risposta, e l'attesa
-  // finirebbe con la lista vuota. Se la richiesta non riesce, quella che
-  // l'app ha già.
+  // finirebbe con la lista vuota. Se la richiesta non riesce, o ci mette
+  // più di [inviteFriendsTimeout], quella che l'app ha già.
   FriendsSnapshot? fresh;
   try {
-    fresh = await ref.read(socialApiProvider).friends();
+    fresh = await ref
+        .read(socialApiProvider)
+        .friends()
+        .timeout(inviteFriendsTimeout);
   } on SocialException catch (error) {
     _log.info('amici da invitare non riletti: ${error.failure.name}');
+  } on TimeoutException {
+    _log.info('amici da invitare non riletti: nessuna risposta in tempo');
   }
-  if (!anchor.mounted) return null;
-  final all =
-      fresh?.friends ?? ref.read(friendsControllerProvider).snapshot.friends;
+  // Nel frattempo il widget si è chiuso, sopra c'è un'altra pagina o un
+  // menu, o siamo in un altro gruppo: niente menu.
+  if (!anchor.mounted ||
+      !(ModalRoute.of(anchor)?.isCurrent ?? true) ||
+      ref.read(watchPartySessionProvider).group?.id != groupId) {
+    return null;
+  }
+  final List<FriendEntry> all;
+  var unavailable = false;
+  if (fresh != null) {
+    all = fresh.friends;
+  } else {
+    // Solo qui: leggere il controller lo costruisce (e rilegge).
+    final known = ref.read(friendsControllerProvider);
+    all = known.snapshot.friends;
+    // Né la lista fresca né una già letta: non si sa chi invitare.
+    unavailable = !known.loaded;
+  }
   final members = {
     for (final member in ref.read(watchPartySessionProvider).members)
       member.toLowerCase(),
@@ -62,10 +105,13 @@ Future<InviteResult?> showInviteFriendsMenu(
     context: anchor,
     position: menuPositionBelow(anchor),
     popUpAnimationStyle: wfPopUpAnimation(anchor),
-    items: friends.isEmpty
+    items: unavailable || friends.isEmpty
         ? [
             PopupMenuItem<String>(
-                enabled: false, child: Text(l.partyNoFriendsToInvite)),
+                enabled: false,
+                child: Text(unavailable
+                    ? l.friendsUnavailable
+                    : l.partyNoFriendsToInvite)),
           ]
         : [
             for (final friend in friends)
@@ -99,13 +145,14 @@ Future<InviteResult?> showInviteFriendsMenu(
           ],
   );
   if (picked == null || !anchor.mounted) return null;
+  // Usciti dal gruppo a menu aperto: niente invito.
+  if (ref.read(watchPartySessionProvider).group?.id != groupId) return null;
   final name = friends.firstWhere((friend) => friend.userId == picked).name;
   // Il widget di [ref] può chiudersi durante la richiesta (es. il player che
   // esce): dopo l'attesa si usa il container.
-  final container = ProviderScope.containerOf(anchor, listen: false);
   try {
     await container.read(socialApiProvider).invite(groupId, [picked]);
-    container.read(currentPartyProvider.notifier).invited(picked);
+    container.read(currentPartyProvider.notifier).invited(groupId, picked);
     return InviteResult(name);
   } on SocialException catch (error) {
     return InviteResult(name, failure: error.failure);

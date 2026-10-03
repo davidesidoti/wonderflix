@@ -90,7 +90,7 @@ void main() {
     expect(c.read(currentPartyProvider)!.announceCode, isTrue);
     c.read(currentPartyProvider.notifier).codeAnnounced();
     expect(c.read(currentPartyProvider)!.announceCode, isFalse);
-    c.read(currentPartyProvider.notifier).invited('u2');
+    c.read(currentPartyProvider.notifier).invited('g1', 'u2');
     expect(c.read(currentPartyProvider)!.invited, {'u2'});
     await c.read(watchPartySessionProvider.notifier).leave();
   });
@@ -112,6 +112,35 @@ void main() {
     expect(c.read(currentPartyProvider)?.code, isNull,
         reason: 'un altro gruppo non sostituisce quello in cui siamo');
     expect(c.read(currentPartyProvider)?.announceCode, isNot(true));
+    await c.read(watchPartySessionProvider.notifier).leave();
+  });
+
+  test('il codice vale solo per i privati, anche se il plugin lo manda',
+      () async {
+    social.details['g1'] =
+        const PartyDetails(mode: PartyMode.friends, code: 'K7PQ2X');
+    final c = container();
+    await c.read(watchPartySessionProvider.notifier).join('g1');
+    await pumpEventQueue();
+    expect(c.read(currentPartyProvider)!.mode, PartyMode.friends);
+    expect(c.read(currentPartyProvider)!.code, isNull);
+
+    c
+        .read(currentPartyProvider.notifier)
+        .registered('g1', PartyMode.public, 'K7PQ2X');
+    expect(c.read(currentPartyProvider)!.code, isNull);
+    expect(c.read(currentPartyProvider)!.announceCode, isFalse);
+    await c.read(watchPartySessionProvider.notifier).leave();
+  });
+
+  test('un invito per un altro gruppo non segna nessuno', () async {
+    final c = container();
+    await c.read(watchPartySessionProvider.notifier).join('g1');
+    await pumpEventQueue();
+    c.read(currentPartyProvider.notifier).invited('g2', 'u2');
+    expect(c.read(currentPartyProvider)!.invited, isEmpty);
+    c.read(currentPartyProvider.notifier).invited('g1', 'u3');
+    expect(c.read(currentPartyProvider)!.invited, {'u3'});
     await c.read(watchPartySessionProvider.notifier).leave();
   });
 }

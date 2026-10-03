@@ -39,7 +39,9 @@ void main() {
 
   tearDown(() => events.close());
 
-  Future<ProviderContainer> pumpBadge(WidgetTester tester) async {
+  Future<ProviderContainer> pumpBadge(WidgetTester tester,
+      {SocialFeatures features =
+          const SocialFeatures(friends: true, parties: true)}) async {
     await pumpApp(
       tester,
       Scaffold(body: Center(child: PartyBadge(onLeave: () {}))),
@@ -51,8 +53,8 @@ void main() {
         sessionControllerProvider.overrideWith(
             () => FakeSessionController(const SessionSignedIn(testUser))),
         socialApiProvider.overrideWithValue(social),
-        socialAvailabilityProvider.overrideWith(() => FakeSocialAvailability(
-            const SocialFeatures(friends: true, parties: true))),
+        socialAvailabilityProvider
+            .overrideWith(() => FakeSocialAvailability(features)),
       ],
     );
     final container =
@@ -159,19 +161,76 @@ void main() {
     await leave(c, tester);
   });
 
-  testWidgets('invito non riuscito: lo dice la pillola', (tester) async {
-    social.snapshot =
-        FriendsSnapshot(friends: [testFriend('u2', 'Luigi', online: true)]);
+  for (final (failure, kind) in [
+    (SocialFailure.rateLimited, PartyNoticeKind.inviteRateLimited),
+    (SocialFailure.network, PartyNoticeKind.inviteFailed),
+  ]) {
+    testWidgets('invito non riuscito (${failure.name}): lo dice la pillola',
+        (tester) async {
+      social.snapshot =
+          FriendsSnapshot(friends: [testFriend('u2', 'Luigi', online: true)]);
+      final c = await pumpBadge(tester);
+      await tester.tap(find.byKey(const Key('party-badge')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Invita amici'));
+      await tester.pumpAndSettle();
+      social.nextFailure = failure;
+      await tester.tap(find.byKey(const ValueKey('invite-u2')));
+      await tester.pumpAndSettle();
+      expect(c.read(partyNoticesProvider)?.kind, kind);
+      expect(c.read(currentPartyProvider)!.invited, isEmpty);
+      await leave(c, tester);
+    });
+  }
+
+  testWidgets('gruppo pubblico: niente codice, "Invita amici" sì',
+      (tester) async {
     final c = await pumpBadge(tester);
     await tester.tap(find.byKey(const Key('party-badge')));
     await tester.pumpAndSettle();
+    expect(find.textContaining('Codice'), findsNothing);
+    expect(find.text('Invita amici'), findsOneWidget);
     await tester.tap(find.text('Invita amici'));
     await tester.pumpAndSettle();
-    social.nextFailure = SocialFailure.rateLimited;
-    await tester.tap(find.byKey(const ValueKey('invite-u2')));
+    expect(find.text('Nessun amico da invitare'), findsOneWidget);
+    await tester.tapAt(const Offset(5, 5));
     await tester.pumpAndSettle();
-    expect(c.read(partyNoticesProvider)?.kind, PartyNoticeKind.inviteFailed);
-    expect(c.read(currentPartyProvider)!.invited, isEmpty);
     await leave(c, tester);
+  });
+
+  for (final (label, features) in [
+    ('senza la funzione parties', const SocialFeatures(friends: true)),
+    ('funzioni non ancora note', SocialFeatures.unknown),
+  ]) {
+    testWidgets('$label: niente codice né inviti', (tester) async {
+      social.details['g1'] =
+          const PartyDetails(mode: PartyMode.private, code: 'K7PQ2X');
+      final c = await pumpBadge(tester, features: features);
+      await tester.tap(find.byKey(const Key('party-badge')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Codice'), findsNothing);
+      expect(find.text('Invita amici'), findsNothing);
+      expect(find.text('Esci dal watch party'), findsOneWidget);
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+      await leave(c, tester);
+    });
+  }
+
+  testWidgets('Invita amici: usciti dal gruppo mentre legge la lista, niente '
+      'menu', (tester) async {
+    social.snapshot =
+        FriendsSnapshot(friends: [testFriend('u2', 'Luigi', online: true)]);
+    final c = await pumpBadge(tester);
+    final gate = social.friendsGate = Completer<void>();
+    await tester.tap(find.byKey(const Key('party-badge')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Invita amici'));
+    await tester.pump();
+    await leave(c, tester);
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('invite-u2')), findsNothing);
+    expect(social.calls, isNot(contains(startsWith('invite'))));
   });
 }
