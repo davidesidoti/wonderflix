@@ -29,6 +29,9 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             InboxStore.DefaultPath(provider.GetRequiredService<IApplicationPaths>()),
             provider.GetRequiredService<ILogger<InboxStore>>()));
         serviceCollection.AddSingleton<InboxService>();
+        serviceCollection.AddSingleton<INewTitlesSettings, PluginNewTitlesSettings>();
+        serviceCollection.AddSingleton<ILibraryTitles, JellyfinLibraryTitles>();
+        serviceCollection.AddSingleton<NewTitlesCollector>();
         serviceCollection.AddSingleton<PresenceTracker>();
         serviceCollection.AddSingleton<PartyDirectory>();
         serviceCollection.AddSingleton<PartyAnnouncer>();
@@ -38,5 +41,6 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<RateLimiter>();
         serviceCollection.AddSingleton<PartyHub>();
         serviceCollection.AddHostedService<WatchPartyHostedService>();
+        serviceCollection.AddHostedService<NewTitlesHostedService>();
     }
 }

@@ -38,6 +38,8 @@ public class ServiceRegistrationTests
         Assert.EndsWith(
             Path.Combine("WonderFlixWatchParty", "inbox.json"),
             provider.GetRequiredService<InboxStore>().FilePath);
-        Assert.Single(provider.GetServices<IHostedService>());
+        Assert.NotNull(provider.GetRequiredService<NewTitlesCollector>());
+        Assert.IsType<Server.PluginNewTitlesSettings>(provider.GetRequiredService<INewTitlesSettings>());
+        Assert.Equal(2, provider.GetServices<IHostedService>().Count());
     }
 }
