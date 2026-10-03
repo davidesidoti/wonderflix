@@ -19,6 +19,8 @@ public sealed class PartiesControllerTests : IDisposable
     private readonly User _mario = new("mario", "provider", "reset");
     private readonly User _peach = new("peach", "provider", "reset");
     private readonly Guid _group = Guid.NewGuid();
+    private readonly FriendService _friends;
+    private readonly PresenceTracker _presence;
     private readonly PartyService _parties;
 
     public PartiesControllerTests()
@@ -28,20 +30,25 @@ public sealed class PartiesControllerTests : IDisposable
         _server.Sessions.Add(new CallerSession("s-mario", _mario.Id, "Mario"));
         _server.Sessions.Add(new CallerSession("s-peach", _peach.Id, "Peach"));
         _server.Groups[_group] = ["Mario"];
-        var friends = new FriendService(
+        _friends = new FriendService(
             new FriendStore(_folder.FriendsFile, NullLogger<FriendStore>.Instance),
             _server, _server, _server, new RateLimiter(_time), _time, NullLogger<FriendService>.Instance);
+        _presence = new PresenceTracker(_friends, _time, NullLogger<PresenceTracker>.Instance);
         _parties = new PartyService(
-            new PartyDirectory(_time), _server, _server, _server, friends, new PartyRegistry(), _server,
+            new PartyDirectory(_time), _server, _server, _server, _friends, new PartyRegistry(), _server,
             new RateLimiter(_time), NullLogger<PartyService>.Instance);
     }
 
-    public void Dispose() => _folder.Dispose();
+    public void Dispose()
+    {
+        _presence.Dispose();
+        _folder.Dispose();
+    }
 
     private PartiesController Controller(User user, string deviceId)
     {
         var auth = new AuthorizationInfo { DeviceId = deviceId, Client = "WonderFlix", User = user, IsAuthenticated = true };
-        return new PartiesController(new FakeAuthorizationContext(auth), _server, _parties)
+        return new PartiesController(new FakeAuthorizationContext(auth), _server, _parties, _presence)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
         };
@@ -76,6 +83,20 @@ public sealed class PartiesControllerTests : IDisposable
         Assert.Single(Assert.IsAssignableFrom<IReadOnlyList<PartySummary>>(
             Assert.IsType<OkObjectResult>((await peach.List()).Result).Value));
         Assert.Equal(StatusCodes.Status403Forbidden, Status((await peach.JoinByCode(new JoinByCodeRequest { Code = "ZZZZZZ" })).Result!));
+    }
+
+    [Fact]
+    public async Task RegistrationTellsFriendsToRefresh()
+    {
+        await _friends.RequestAsync(_peach.Id, _mario.Id);
+        await _friends.AcceptAsync(_mario.Id, _peach.Id);
+        _server.Sent.Clear();
+
+        await Controller(_mario, "s-mario").Register(_group, new RegisterPartyRequest { Mode = PartyModes.Private });
+        _time.Advance(PresenceTracker.Delay);
+
+        var payload = Assert.Single(_server.SentTo("s-peach"));
+        Assert.Contains("FriendsChanged", payload);
     }
 
     [Fact]

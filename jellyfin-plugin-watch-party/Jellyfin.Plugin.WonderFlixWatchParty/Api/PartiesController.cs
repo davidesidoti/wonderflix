@@ -21,7 +21,8 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Api;
 public class PartiesController(
     IAuthorizationContext authorizationContext,
     ISessionDirectory sessions,
-    PartyService parties) : ControllerBase
+    PartyService parties,
+    PresenceTracker presence) : ControllerBase
 {
     /// <summary>Registra il party appena creato con la sua modalità.</summary>
     [HttpPost("Parties/{groupId:guid}")]
@@ -36,7 +37,15 @@ public class PartiesController(
         }
 
         var result = await parties.RegisterAsync(caller, groupId, request?.Mode).ConfigureAwait(false);
-        return result.Status == HubStatus.Ok ? result.Value! : Failure(result.Status);
+        if (result.Status != HubStatus.Ok)
+        {
+            return Failure(result.Status);
+        }
+
+        // L'ingresso nel canale è avvenuto prima della registrazione, quando
+        // il party non era ancora visibile: gli amici lo rileggono adesso.
+        presence.Changed(caller.UserId);
+        return result.Value!;
     }
 
     /// <summary>I party che chi chiama può vedere.</summary>

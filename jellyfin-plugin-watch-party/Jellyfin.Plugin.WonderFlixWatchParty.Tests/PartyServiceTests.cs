@@ -68,6 +68,16 @@ public sealed class PartyServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task OnlyTheCreatorAloneCanRegisterTheGroup()
+    {
+        // Un gruppo con altri dentro (es. di jellyfin-web) non si registra: non si nasconde il gruppo di un altro.
+        _server.Groups[_group] = ["Mario", "Luigi"];
+        Assert.Equal(HubStatus.Forbidden, (await _service.RegisterAsync(_marioSession, _group, PartyModes.Private)).Status);
+        Assert.Equal(HubStatus.Forbidden, (await _service.RegisterAsync(_luigiSession, _group, PartyModes.Private)).Status);
+        Assert.Empty(_server.Sent);
+    }
+
+    [Fact]
     public async Task PublicPartiesAreAnnouncedToEveryoneElse()
     {
         await _service.RegisterAsync(_marioSession, _group, PartyModes.Public);
@@ -201,12 +211,23 @@ public sealed class PartyServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task PartyOfIgnoresAStaleRegistryEntry()
+    {
+        // Luigi risulta ancora nel canale (Leave fallita) ma non è più tra i partecipanti del gruppo.
+        await _service.RegisterAsync(_marioSession, _group, PartyModes.Public);
+        _registry.Register(_group, "s-luigi", "Luigi");
+
+        Assert.Null(_service.PartyOf(_peach.Id, "Peach", _luigi.Id));
+    }
+
+    [Fact]
     public async Task PartyOfAFriendIsShownOnlyIfVisible()
     {
         await MakeFriends(_luigi, _peach);
+        // Il party si registra quando c'è solo il creatore; Luigi entra dopo.
+        await _service.RegisterAsync(_marioSession, _group, PartyModes.Friends);
         _server.Groups[_group] = ["Mario", "Luigi"];
         _registry.Register(_group, "s-luigi", "Luigi");
-        await _service.RegisterAsync(_marioSession, _group, PartyModes.Friends);
 
         Assert.Null(_service.PartyOf(_peach.Id, "Peach", _luigi.Id));
         await MakeFriends(_mario, _peach);

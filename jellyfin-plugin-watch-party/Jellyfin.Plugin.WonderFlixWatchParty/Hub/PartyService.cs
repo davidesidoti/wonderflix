@@ -29,8 +29,11 @@ public sealed class PartyService(
             return HubResult<RegisterPartyResponse>.Fail(HubStatus.Invalid);
         }
 
+        // Solo chi ha appena creato il gruppo lo registra: l'app lo fa dentro
+        // create, prima che qualcuno possa entrare. Un gruppo con altri
+        // dentro (es. di jellyfin-web) non si può nascondere da fuori.
         var group = groups.GetGroup(caller.SessionId, groupId);
-        if (group is null || !IsParticipant(group, caller.UserName))
+        if (group is null || group.Participants.Count != 1 || !IsParticipant(group, caller.UserName))
         {
             return HubResult<RegisterPartyResponse>.Fail(HubStatus.Forbidden);
         }
@@ -158,7 +161,11 @@ public sealed class PartyService(
             }
 
             var group = groups.GetGroup(session.SessionId, groupId.Value);
-            if (group is not null && IsVisibleTo(group, viewerId, viewerName))
+            // La voce del registro può essere vecchia (Leave non riuscita):
+            // conta solo chi è ancora tra i partecipanti del gruppo.
+            if (group is not null
+                && IsParticipant(group, session.UserName)
+                && IsVisibleTo(group, viewerId, viewerName))
             {
                 return new FriendParty(Id(group.Id), TitleOf(group.Name));
             }
