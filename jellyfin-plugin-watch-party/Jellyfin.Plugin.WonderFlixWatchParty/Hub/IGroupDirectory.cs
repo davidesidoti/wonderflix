@@ -1,7 +1,20 @@
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 
-/// <summary>Un gruppo SyncPlay come lo vede una sessione.</summary>
+/// <summary>
+/// Un gruppo SyncPlay come lo vede una sessione. State è il nome di
+/// GroupStateType di Jellyfin (Idle, Waiting, Paused, Playing).
+/// </summary>
 public sealed record GroupSummary(Guid Id, string Name, string State, IReadOnlyList<string> Participants);
+
+/// <summary>Valori di <see cref="GroupSummary.State"/> che il plugin guarda.</summary>
+public static class GroupStateNames
+{
+    /// <summary>
+    /// Fermo. Un gruppo appena creato resta così finché l'app non manda la
+    /// coda; con la coda passa a Waiting.
+    /// </summary>
+    public const string Idle = "Idle";
+}
 
 /// <summary>I gruppi SyncPlay (adattatore di ISyncPlayManager).</summary>
 public interface IGroupDirectory

@@ -140,6 +140,13 @@ public class ServerAdapterTests
     }
 
     [Fact]
+    public void TheIdleStateHasJellyfinsName()
+    {
+        // GroupSummary.State è il nome di GroupStateType: un gruppo senza coda è Idle.
+        Assert.Equal(GroupStateNames.Idle, GroupStateType.Idle.ToString());
+    }
+
+    [Fact]
     public void ASyncPlayFailureOnTheQueueIsContained()
     {
         // Jellyfin 10.11.9: HasAccessToQueue va in NullReferenceException se in coda c'è un elemento sparito.

@@ -26,6 +26,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<FriendService>();
         serviceCollection.AddSingleton<PresenceTracker>();
         serviceCollection.AddSingleton<PartyDirectory>();
+        serviceCollection.AddSingleton<PartyAnnouncer>();
         serviceCollection.AddSingleton<PartyService>();
         serviceCollection.AddSingleton<PartyRegistry>();
         serviceCollection.AddSingleton<ChatHistory>();

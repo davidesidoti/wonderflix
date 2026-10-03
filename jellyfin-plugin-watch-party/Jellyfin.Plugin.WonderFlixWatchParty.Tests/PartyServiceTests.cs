@@ -14,6 +14,7 @@ public sealed class PartyServiceTests : IDisposable
     private readonly FakeTimeProvider _time = new();
     private readonly FriendService _friends;
     private readonly PartyRegistry _registry = new();
+    private readonly PartyAnnouncer _announcer;
     private readonly PartyService _service;
     private readonly Guid _group = Guid.NewGuid();
     private readonly UserRef _mario;
@@ -28,8 +29,11 @@ public sealed class PartyServiceTests : IDisposable
         _friends = new FriendService(
             new FriendStore(_folder.FriendsFile, NullLogger<FriendStore>.Instance),
             _server, _server, _server, new RateLimiter(_time), _time, NullLogger<FriendService>.Instance);
+        var parties = new PartyDirectory(_time);
+        _announcer = new PartyAnnouncer(
+            parties, _server, _server, _friends, _server, _time, NullLogger<PartyAnnouncer>.Instance);
         _service = new PartyService(
-            new PartyDirectory(_time), _server, _server, _server, _friends, _registry, _server,
+            parties, _server, _server, _server, _friends, _registry, _announcer, _server,
             new RateLimiter(_time), NullLogger<PartyService>.Instance);
         _mario = _server.AddUser("Mario");
         _luigi = _server.AddUser("Luigi");
@@ -41,7 +45,11 @@ public sealed class PartyServiceTests : IDisposable
         _server.GroupNames[_group] = "Mario · Dune";
     }
 
-    public void Dispose() => _folder.Dispose();
+    public void Dispose()
+    {
+        _announcer.Dispose();
+        _folder.Dispose();
+    }
 
     private static string Type(string payload) => JsonDocument.Parse(payload).RootElement.GetProperty("Type").GetString()!;
 
@@ -57,30 +65,33 @@ public sealed class PartyServiceTests : IDisposable
     private string GroupN => _group.ToString("N");
 
     [Fact]
-    public async Task RegistrationNeedsAParticipantAValidModeAndHappensOnce()
+    public void RegistrationNeedsAParticipantAValidModeAndHappensOnce()
     {
-        Assert.Equal(HubStatus.Forbidden, (await _service.RegisterAsync(_peachSession, _group, PartyModes.Public)).Status);
-        Assert.Equal(HubStatus.Invalid, (await _service.RegisterAsync(_marioSession, _group, "public")).Status);
-        var ok = await _service.RegisterAsync(_marioSession, _group, PartyModes.Public);
+        Assert.Equal(HubStatus.Forbidden, _service.Register(_peachSession, _group, PartyModes.Public).Status);
+        Assert.Equal(HubStatus.Invalid, _service.Register(_marioSession, _group, "public").Status);
+        var ok = _service.Register(_marioSession, _group, PartyModes.Public);
         Assert.Equal(HubStatus.Ok, ok.Status);
         Assert.Null(ok.Value!.Code);
-        Assert.Equal(HubStatus.Conflict, (await _service.RegisterAsync(_marioSession, _group, PartyModes.Private)).Status);
+        Assert.Equal(HubStatus.Conflict, _service.Register(_marioSession, _group, PartyModes.Private).Status);
     }
 
     [Fact]
-    public async Task OnlyTheCreatorAloneCanRegisterTheGroup()
+    public void OnlyTheCreatorAloneCanRegisterTheGroup()
     {
         // Un gruppo con altri dentro (es. di jellyfin-web) non si registra: non si nasconde il gruppo di un altro.
         _server.Groups[_group] = ["Mario", "Luigi"];
-        Assert.Equal(HubStatus.Forbidden, (await _service.RegisterAsync(_marioSession, _group, PartyModes.Private)).Status);
-        Assert.Equal(HubStatus.Forbidden, (await _service.RegisterAsync(_luigiSession, _group, PartyModes.Private)).Status);
+        Assert.Equal(HubStatus.Forbidden, _service.Register(_marioSession, _group, PartyModes.Private).Status);
+        Assert.Equal(HubStatus.Forbidden, _service.Register(_luigiSession, _group, PartyModes.Private).Status);
         Assert.Empty(_server.Sent);
     }
 
     [Fact]
-    public async Task PublicPartiesAreAnnouncedToEveryoneElse()
+    public void PublicPartiesAreAnnouncedToEveryoneElseOnceTheQueueIsSet()
     {
-        await _service.RegisterAsync(_marioSession, _group, PartyModes.Public);
+        _service.Register(_marioSession, _group, PartyModes.Public);
+        Assert.Empty(_server.Sent);
+        _server.GroupStates[_group] = "Waiting";
+        _time.Advance(PartyAnnouncer.Delay);
 
         var payload = Assert.Single(_server.SentTo("s-luigi"));
         var json = JsonDocument.Parse(payload).RootElement;
@@ -96,15 +107,19 @@ public sealed class PartyServiceTests : IDisposable
     public async Task FriendsPartiesAreAnnouncedOnlyToFriendsAndPrivateToNobody()
     {
         await MakeFriends(_mario, _luigi);
-        await _service.RegisterAsync(_marioSession, _group, PartyModes.Friends);
+        _service.Register(_marioSession, _group, PartyModes.Friends);
+        _server.GroupStates[_group] = "Waiting";
+        _time.Advance(PartyAnnouncer.Delay);
         Assert.Equal(new[] { "PartyStarted" }, _server.SentTo("s-luigi").Select(Type));
         Assert.Empty(_server.SentTo("s-peach"));
 
         var secret = Guid.NewGuid();
         _server.Groups[secret] = ["Mario"];
+        _server.GroupStates[secret] = "Waiting";
         _server.Sent.Clear();
-        var code = (await _service.RegisterAsync(_marioSession, secret, PartyModes.Private)).Value!.Code;
+        var code = _service.Register(_marioSession, secret, PartyModes.Private).Value!.Code;
         Assert.Equal(PartyDirectory.CodeLength, code!.Length);
+        _time.Advance(PartyAnnouncer.GiveUpAfter);
         Assert.Empty(_server.Sent);
     }
 
@@ -112,7 +127,7 @@ public sealed class PartyServiceTests : IDisposable
     public async Task TheListFollowsTheModes()
     {
         await MakeFriends(_mario, _luigi);
-        await _service.RegisterAsync(_marioSession, _group, PartyModes.Friends);
+        _service.Register(_marioSession, _group, PartyModes.Friends);
 
         Assert.Equal(new[] { GroupN }, Visible(_marioSession));
         Assert.Equal(new[] { GroupN }, Visible(_luigiSession));
@@ -135,9 +150,9 @@ public sealed class PartyServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task DetailsOnlyForParticipants()
+    public void DetailsOnlyForParticipants()
     {
-        var code = (await _service.RegisterAsync(_marioSession, _group, PartyModes.Private)).Value!.Code;
+        var code = _service.Register(_marioSession, _group, PartyModes.Private).Value!.Code;
         var details = _service.GetDetails(_marioSession, _group);
         Assert.Equal(HubStatus.Ok, details.Status);
         Assert.Equal(new PartyDetails("Private", code), details.Value);
@@ -145,9 +160,9 @@ public sealed class PartyServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task TheCodeOpensThePartyAndAttemptsAreLimited()
+    public void TheCodeOpensThePartyAndAttemptsAreLimited()
     {
-        var code = (await _service.RegisterAsync(_marioSession, _group, PartyModes.Private)).Value!.Code!;
+        var code = _service.Register(_marioSession, _group, PartyModes.Private).Value!.Code!;
 
         Assert.Equal(HubStatus.Forbidden, _service.JoinByCode(_peachSession, "ZZZZZZ").Status);
         var joined = _service.JoinByCode(_peachSession, $"{code[..3].ToLowerInvariant()}-{code[3..]}");
@@ -164,9 +179,9 @@ public sealed class PartyServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ACodeOfAnEndedPartyDoesNotWork()
+    public void ACodeOfAnEndedPartyDoesNotWork()
     {
-        var code = (await _service.RegisterAsync(_marioSession, _group, PartyModes.Private)).Value!.Code!;
+        var code = _service.Register(_marioSession, _group, PartyModes.Private).Value!.Code!;
         _server.Groups.Remove(_group);
         Assert.Equal(HubStatus.Forbidden, _service.JoinByCode(_peachSession, code).Status);
         Assert.Equal(1, _service.Cleanup());
@@ -176,7 +191,7 @@ public sealed class PartyServiceTests : IDisposable
     public async Task InvitesGoOnlyToFriendsOutsideTheParty()
     {
         await MakeFriends(_mario, _luigi);
-        await _service.RegisterAsync(_marioSession, _group, PartyModes.Private);
+        _service.Register(_marioSession, _group, PartyModes.Private);
         _server.Sent.Clear();
 
         Assert.Equal(HubStatus.Forbidden, await _service.InviteAsync(_peachSession, _group, [_luigi.Id.ToString("N")]));
@@ -197,7 +212,7 @@ public sealed class PartyServiceTests : IDisposable
     [Fact]
     public async Task InvitesAreLimitedPerMinute()
     {
-        await _service.RegisterAsync(_marioSession, _group, PartyModes.Private);
+        _service.Register(_marioSession, _group, PartyModes.Private);
         var ids = new List<string>();
         for (var i = 0; i < 21; i++)
         {
@@ -211,10 +226,10 @@ public sealed class PartyServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task PartyOfIgnoresAStaleRegistryEntry()
+    public void PartyOfIgnoresAStaleRegistryEntry()
     {
         // Luigi risulta ancora nel canale (Leave fallita) ma non è più tra i partecipanti del gruppo.
-        await _service.RegisterAsync(_marioSession, _group, PartyModes.Public);
+        _service.Register(_marioSession, _group, PartyModes.Public);
         _registry.Register(_group, "s-luigi", "Luigi");
 
         Assert.Null(_service.PartyOf(_peach.Id, "Peach", _luigi.Id));
@@ -225,7 +240,7 @@ public sealed class PartyServiceTests : IDisposable
     {
         await MakeFriends(_luigi, _peach);
         // Il party si registra quando c'è solo il creatore; Luigi entra dopo.
-        await _service.RegisterAsync(_marioSession, _group, PartyModes.Friends);
+        _service.Register(_marioSession, _group, PartyModes.Friends);
         _server.Groups[_group] = ["Mario", "Luigi"];
         _registry.Register(_group, "s-luigi", "Luigi");
 

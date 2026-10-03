@@ -36,8 +36,11 @@ public class WatchPartyHostedServiceTests
             new FriendStore(folder.FriendsFile, NullLogger<FriendStore>.Instance),
             server, server, server, new RateLimiter(time), time, NullLogger<FriendService>.Instance);
         using var presence = new PresenceTracker(friends, time, NullLogger<PresenceTracker>.Instance);
+        var directory = new PartyDirectory(time);
+        using var announcer = new PartyAnnouncer(
+            directory, server, server, friends, server, time, NullLogger<PartyAnnouncer>.Instance);
         var parties = new PartyService(
-            new PartyDirectory(time), server, server, server, friends, new PartyRegistry(), server,
+            directory, server, server, server, friends, new PartyRegistry(), announcer, server,
             new RateLimiter(time), NullLogger<PartyService>.Instance);
         using var service = new WatchPartyHostedService(
             manager, hub, friends, presence, parties, time, NullLogger<WatchPartyHostedService>.Instance);
@@ -91,8 +94,11 @@ public class WatchPartyHostedServiceTests
             ended = (EventHandler<SessionEventArgs>?)args[0];
             return null;
         };
+        var directory = new PartyDirectory(time);
+        using var announcer = new PartyAnnouncer(
+            directory, server, server, friends, server, time, NullLogger<PartyAnnouncer>.Instance);
         var parties = new PartyService(
-            new PartyDirectory(time), server, server, server, friends, new PartyRegistry(), server,
+            directory, server, server, server, friends, new PartyRegistry(), announcer, server,
             new RateLimiter(time), NullLogger<PartyService>.Instance);
         using var service = new WatchPartyHostedService(
             manager, hub, friends, presence, parties, time, NullLogger<WatchPartyHostedService>.Instance);

@@ -17,12 +17,17 @@ public sealed class PartyService(
     IUserDirectory users,
     FriendService friends,
     PartyRegistry registry,
+    PartyAnnouncer announcer,
     IEventSender sender,
     RateLimiter limiter,
     ILogger<PartyService> logger)
 {
-    /// <summary>Registra il party appena creato da caller e avvisa chi lo deve sapere.</summary>
-    public async Task<HubResult<RegisterPartyResponse>> RegisterAsync(CallerSession caller, Guid groupId, string? mode)
+    /// <summary>
+    /// Registra il party appena creato da caller. L'avviso a chi lo deve
+    /// sapere parte dopo, quando il gruppo ha la coda
+    /// (<see cref="PartyAnnouncer"/>): la risposta non lo aspetta.
+    /// </summary>
+    public HubResult<RegisterPartyResponse> Register(CallerSession caller, Guid groupId, string? mode)
     {
         if (!PartyModes.IsValid(mode))
         {
@@ -45,7 +50,7 @@ public sealed class PartyService(
         }
 
         logger.LogDebug("Watch party {GroupId} registrato da {UserId}: {Mode}", groupId, caller.UserId, mode);
-        await NotifyStartedAsync(caller.UserId, group, mode!).ConfigureAwait(false);
+        announcer.Schedule(caller.SessionId, caller.UserId, groupId, mode!);
         return HubResult<RegisterPartyResponse>.Ok(new RegisterPartyResponse(view.Code));
     }
 
@@ -184,18 +189,6 @@ public sealed class PartyService(
     private bool IsVisibleTo(GroupSummary group, Guid viewerId, string viewerName) =>
         IsParticipant(group, viewerName)
         || parties.IsVisible(group.Id, viewerId, creator => friends.AreFriends(creator, viewerId));
-
-    private async Task NotifyStartedAsync(Guid creatorId, GroupSummary group, string mode)
-    {
-        IEnumerable<Guid> audience = mode switch
-        {
-            PartyModes.Public => sessions.GetAppSessions().Select(s => s.UserId).Distinct().Where(id => id != creatorId),
-            PartyModes.Friends => friends.FriendsOf(creatorId),
-            _ => [],
-        };
-        var payload = JsonSerializer.Serialize(SocialEvent.PartyStarted(Id(group.Id), group.Name, mode));
-        await Task.WhenAll(audience.Select(id => SendToUserAsync(id, payload))).ConfigureAwait(false);
-    }
 
     private async Task SendToUserAsync(Guid userId, string payload)
     {

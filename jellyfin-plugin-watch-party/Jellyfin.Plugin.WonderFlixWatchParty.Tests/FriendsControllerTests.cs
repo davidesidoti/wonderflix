@@ -20,6 +20,7 @@ public sealed class FriendsControllerTests : IDisposable
     private readonly User _luigi = new("luigi", "provider", "reset");
     private readonly FriendService _friends;
     private readonly PartyRegistry _registry = new();
+    private readonly PartyAnnouncer _announcer;
     private readonly PartyService _parties;
 
     public FriendsControllerTests()
@@ -29,12 +30,19 @@ public sealed class FriendsControllerTests : IDisposable
         _friends = new FriendService(
             new FriendStore(_folder.FriendsFile, NullLogger<FriendStore>.Instance),
             _server, _server, _server, new RateLimiter(_time), _time, NullLogger<FriendService>.Instance);
+        var directory = new PartyDirectory(_time);
+        _announcer = new PartyAnnouncer(
+            directory, _server, _server, _friends, _server, _time, NullLogger<PartyAnnouncer>.Instance);
         _parties = new PartyService(
-            new PartyDirectory(_time), _server, _server, _server, _friends, _registry, _server,
+            directory, _server, _server, _server, _friends, _registry, _announcer, _server,
             new RateLimiter(_time), NullLogger<PartyService>.Instance);
     }
 
-    public void Dispose() => _folder.Dispose();
+    public void Dispose()
+    {
+        _announcer.Dispose();
+        _folder.Dispose();
+    }
 
     private FriendsController Controller(User user)
     {
@@ -73,7 +81,7 @@ public sealed class FriendsControllerTests : IDisposable
         _server.GroupNames[group] = "Luigi · Dune";
         _server.Sessions.Add(new CallerSession("s-luigi", _luigi.Id, "Luigi"));
         _registry.Register(group, "s-luigi", "Luigi");
-        await _parties.RegisterAsync(new CallerSession("s-luigi", _luigi.Id, "Luigi"), group, PartyModes.Friends);
+        _parties.Register(new CallerSession("s-luigi", _luigi.Id, "Luigi"), group, PartyModes.Friends);
 
         var friend = Assert.Single((await Controller(_mario).GetFriends()).Value!.Friends);
         Assert.Equal("Dune", friend.Party!.Title);

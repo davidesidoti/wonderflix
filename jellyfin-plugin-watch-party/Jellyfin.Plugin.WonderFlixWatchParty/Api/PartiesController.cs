@@ -36,7 +36,7 @@ public class PartiesController(
             return Conflict();
         }
 
-        var result = await parties.RegisterAsync(caller, groupId, request?.Mode).ConfigureAwait(false);
+        var result = parties.Register(caller, groupId, request?.Mode);
         if (result.Status != HubStatus.Ok)
         {
             return Failure(result.Status);

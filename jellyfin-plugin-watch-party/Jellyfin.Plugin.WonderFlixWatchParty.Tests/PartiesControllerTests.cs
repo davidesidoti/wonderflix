@@ -21,6 +21,7 @@ public sealed class PartiesControllerTests : IDisposable
     private readonly Guid _group = Guid.NewGuid();
     private readonly FriendService _friends;
     private readonly PresenceTracker _presence;
+    private readonly PartyAnnouncer _announcer;
     private readonly PartyService _parties;
 
     public PartiesControllerTests()
@@ -34,14 +35,18 @@ public sealed class PartiesControllerTests : IDisposable
             new FriendStore(_folder.FriendsFile, NullLogger<FriendStore>.Instance),
             _server, _server, _server, new RateLimiter(_time), _time, NullLogger<FriendService>.Instance);
         _presence = new PresenceTracker(_friends, _time, NullLogger<PresenceTracker>.Instance);
+        var directory = new PartyDirectory(_time);
+        _announcer = new PartyAnnouncer(
+            directory, _server, _server, _friends, _server, _time, NullLogger<PartyAnnouncer>.Instance);
         _parties = new PartyService(
-            new PartyDirectory(_time), _server, _server, _server, _friends, new PartyRegistry(), _server,
+            directory, _server, _server, _server, _friends, new PartyRegistry(), _announcer, _server,
             new RateLimiter(_time), NullLogger<PartyService>.Instance);
     }
 
     public void Dispose()
     {
         _presence.Dispose();
+        _announcer.Dispose();
         _folder.Dispose();
     }
 

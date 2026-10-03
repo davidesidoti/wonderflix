@@ -29,6 +29,7 @@ public class ServiceRegistrationTests
         Assert.NotNull(provider.GetRequiredService<FriendService>());
         Assert.NotNull(provider.GetRequiredService<PresenceTracker>());
         Assert.NotNull(provider.GetRequiredService<PartyService>());
+        Assert.Same(provider.GetRequiredService<PartyAnnouncer>(), provider.GetRequiredService<PartyAnnouncer>());
         Assert.EndsWith(
             Path.Combine("WonderFlixWatchParty", "friends.json"),
             provider.GetRequiredService<FriendStore>().FilePath);

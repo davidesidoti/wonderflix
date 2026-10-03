@@ -61,19 +61,32 @@ internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSen
     public bool Exists(string sessionId) => Sessions.Any(s => s.SessionId == sessionId);
 
     public IReadOnlyList<string>? GetParticipants(string sessionId, Guid groupId) =>
-        Exists(sessionId) && Groups.TryGetValue(groupId, out var participants) ? participants : null;
+        GetGroup(sessionId, groupId)?.Participants;
 
     /// <summary>Nome di ogni gruppo; di default "Host · Titolo".</summary>
     public Dictionary<Guid, string> GroupNames { get; } = [];
 
+    /// <summary>Stato di ogni gruppo (nomi di GroupStateType); di default "Idle", come un gruppo senza coda.</summary>
+    public Dictionary<Guid, string> GroupStates { get; } = [];
+
+    /// <summary>
+    /// Gruppi che una sessione non vede, come in Jellyfin quando l'utente
+    /// non può vedere la coda (es. niente accesso alla libreria).
+    /// </summary>
+    public HashSet<(string SessionId, Guid GroupId)> Hidden { get; } = [];
+
     public IReadOnlyList<GroupSummary> ListGroups(string sessionId) =>
-        Exists(sessionId) ? Groups.Keys.Select(Summary).ToList() : [];
+        Exists(sessionId) ? Groups.Keys.Where(id => !Hidden.Contains((sessionId, id))).Select(Summary).ToList() : [];
 
     public GroupSummary? GetGroup(string sessionId, Guid groupId) =>
-        Exists(sessionId) && Groups.ContainsKey(groupId) ? Summary(groupId) : null;
+        Exists(sessionId) && Groups.ContainsKey(groupId) && !Hidden.Contains((sessionId, groupId)) ? Summary(groupId) : null;
 
     private GroupSummary Summary(Guid groupId) =>
-        new(groupId, GroupNames.GetValueOrDefault(groupId, "Host · Titolo"), "Idle", Groups[groupId]);
+        new(
+            groupId,
+            GroupNames.GetValueOrDefault(groupId, "Host · Titolo"),
+            GroupStates.GetValueOrDefault(groupId, "Idle"),
+            Groups[groupId]);
 
     public Task<bool> TrySendAsync(string sessionId, string payload, CancellationToken cancellationToken)
     {
