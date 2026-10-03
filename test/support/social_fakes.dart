@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/core/social/social_models.dart';
+import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
@@ -114,6 +115,66 @@ class FakeSocialApi implements SocialApi {
     calls.add('remove $userId');
     _fail();
   }
+
+  /// Codice di [registerParty] per i privati (come il plugin).
+  String registerCode = 'K7PQ2X';
+
+  /// Errore di [registerParty], se valorizzato.
+  SocialFailure? registerFailure;
+
+  /// Chiamato a ogni [registerParty], prima della risposta.
+  void Function()? onRegister;
+
+  /// Risposta di [parties].
+  List<GroupInfo> partyList = const [];
+
+  /// Risposte di [partyDetails], per gruppo (di default pubblico).
+  final details = <String, PartyDetails>{};
+
+  /// Codice canonico → gruppo, per [joinByCode]; un codice assente è 403.
+  final codes = <String, String>{};
+
+  /// Errore di [joinByCode], se valorizzato (prima di [codes]).
+  SocialFailure? joinFailure;
+
+  @override
+  Future<String?> registerParty(String groupId, PartyMode mode) async {
+    calls.add('register $groupId ${mode.wire}');
+    onRegister?.call();
+    final failure = registerFailure;
+    if (failure != null) throw SocialException(failure);
+    return mode == PartyMode.private ? registerCode : null;
+  }
+
+  @override
+  Future<List<GroupInfo>> parties() async {
+    calls.add('parties');
+    _fail();
+    return partyList;
+  }
+
+  @override
+  Future<PartyDetails> partyDetails(String groupId) async {
+    calls.add('details $groupId');
+    _fail();
+    return details[groupId] ?? const PartyDetails(mode: PartyMode.public);
+  }
+
+  @override
+  Future<String> joinByCode(String code) async {
+    calls.add('code $code');
+    final failure = joinFailure;
+    if (failure != null) throw SocialException(failure);
+    final groupId = codes[code];
+    if (groupId == null) throw const SocialException(SocialFailure.forbidden);
+    return groupId;
+  }
+
+  @override
+  Future<void> invite(String groupId, List<String> userIds) async {
+    calls.add('invite $groupId ${userIds.join(',')}');
+    _fail();
+  }
 }
 
 /// Funzioni del plugin fisse, senza chiamate.
@@ -171,3 +232,25 @@ List<Override> socialTestOverrides(
       socialAvailabilityProvider
           .overrideWith(() => FakeSocialAvailability(features)),
     ];
+
+/// Come arriva dal WebSocket un party appena nato.
+PartyChannelReceived partyStartedReceived(String groupId, String name,
+        {PartyMode mode = PartyMode.public}) =>
+    PartyChannelReceived(jsonEncode({
+      'Protocol': 1,
+      'Type': 'PartyStarted',
+      'GroupId': groupId,
+      'Name': name,
+      'Mode': mode.wire,
+    }));
+
+/// Come arriva dal WebSocket un invito in un party.
+PartyChannelReceived partyInviteReceived(
+        String groupId, String name, String fromName) =>
+    PartyChannelReceived(jsonEncode({
+      'Protocol': 1,
+      'Type': 'PartyInvite',
+      'GroupId': groupId,
+      'Name': name,
+      'FromName': fromName,
+    }));

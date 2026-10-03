@@ -1,6 +1,9 @@
 import 'package:logging/logging.dart';
 
 import '../jellyfin/item_models.dart';
+import 'party_mode.dart';
+
+export 'party_mode.dart';
 
 final _log = Logger('watchparty');
 
@@ -29,6 +32,7 @@ class GroupInfo {
     required this.state,
     required this.participants,
     required this.lastUpdatedAt,
+    this.mode,
   });
 
   /// Lancia se manca `GroupId`.
@@ -52,6 +56,10 @@ class GroupInfo {
   /// Quando il server ha creato questa descrizione.
   final DateTime lastUpdatedAt;
 
+  /// Modalità del party, se l'elenco viene dal plugin (spec F §9.6);
+  /// `null` dall'elenco di Jellyfin.
+  final PartyMode? mode;
+
   GroupInfo copyWith({GroupState? state, List<String>? participants}) =>
       GroupInfo(
         id: id,
@@ -59,6 +67,7 @@ class GroupInfo {
         state: state ?? this.state,
         participants: participants ?? this.participants,
         lastUpdatedAt: lastUpdatedAt,
+        mode: mode,
       );
 }
 

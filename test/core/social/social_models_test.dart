@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/social/social_models.dart';
+import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 
 void main() {
   test('Info: versione e funzioni; senza Features nessuna', () {
@@ -69,5 +70,54 @@ void main() {
         isNull);
     expect(parseSocialEvent('{rotto'), isNull);
     expect(parseSocialEvent('{"Protocol":1,"Type":"FriendRequest"}'), isNull);
+  });
+
+  test('modalità in rete', () {
+    expect(PartyMode.fromWire('Friends'), PartyMode.friends);
+    expect(PartyMode.private.wire, 'Private');
+    expect(PartyMode.fromWire('friends'), isNull);
+  });
+
+  test('party dell\'elenco del plugin come gruppi con la modalità', () {
+    final group = partyGroupFromJson({
+      'GroupId': 'g1',
+      'Name': 'Mario · Dune',
+      'State': 'Playing',
+      'Participants': ['Mario', 'Luigi'],
+      'Mode': 'Private',
+    });
+    expect(group.id, 'g1');
+    expect(group.name, 'Mario · Dune');
+    expect(group.state, GroupState.playing);
+    expect(group.participants, ['Mario', 'Luigi']);
+    expect(group.mode, PartyMode.private);
+    expect(partyGroupFromJson({'GroupId': 'g2'}).mode, PartyMode.public);
+  });
+
+  test('dettagli del party: il codice può mancare', () {
+    final private =
+        PartyDetails.fromJson({'Mode': 'Private', 'Code': 'K7PQ2X'});
+    expect(private.mode, PartyMode.private);
+    expect(private.code, 'K7PQ2X');
+    expect(PartyDetails.fromJson({'Mode': 'Public'}).code, isNull);
+  });
+
+  test('avvisi dei party', () {
+    final started = parseSocialEvent('{"Protocol":1,"Type":"PartyStarted",'
+        '"GroupId":"g1","Name":"Mario \\u00b7 Dune","Mode":"Friends"}');
+    expect(started, isA<PartyStartedEvent>());
+    started as PartyStartedEvent;
+    expect(started.groupId, 'g1');
+    expect(started.name, 'Mario · Dune');
+    expect(started.mode, PartyMode.friends);
+    final invite = parseSocialEvent('{"Protocol":1,"Type":"PartyInvite",'
+        '"FromName":"Mario","GroupId":"g1","Name":"Mario · Dune"}');
+    expect((invite! as PartyInviteEvent).fromName, 'Mario');
+  });
+
+  test('codici: forma canonica e forma da mostrare', () {
+    expect(normalizePartyCode(' k7p-q2x '), 'K7PQ2X');
+    expect(formatPartyCode('k7pq2x'), 'K7P-Q2X');
+    expect(formatPartyCode('K7P'), 'K7P');
   });
 }

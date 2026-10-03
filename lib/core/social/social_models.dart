@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:logging/logging.dart';
 
 import '../party_channel/party_channel_models.dart';
+import '../syncplay/syncplay_models.dart';
 
 final _log = Logger('social');
 
@@ -138,6 +139,48 @@ class UserSearchResult {
   final FriendRelation relation;
 }
 
+/// Lettere di un codice dei party privati (spec F §6.5).
+const partyCodeLength = 6;
+
+/// Il codice senza spazi e trattini, in maiuscolo: come lo vuole il plugin.
+String normalizePartyCode(String text) =>
+    text.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toUpperCase();
+
+/// Il codice come si mostra: `K7P-Q2X`.
+String formatPartyCode(String code) {
+  final normalized = normalizePartyCode(code);
+  return normalized.length == partyCodeLength
+      ? '${normalized.substring(0, 3)}-${normalized.substring(3)}'
+      : normalized;
+}
+
+/// Un party di `GET Parties` come gruppo SyncPlay con la modalità.
+GroupInfo partyGroupFromJson(Map<String, dynamic> json) => GroupInfo(
+      id: json['GroupId'] as String,
+      name: json['Name'] as String? ?? '',
+      state: parseGroupState(json['State']) ?? GroupState.idle,
+      participants: (json['Participants'] as List? ?? const [])
+          .whereType<String>()
+          .toList(),
+      lastUpdatedAt: DateTime.utc(1970),
+      mode: PartyMode.fromWire(json['Mode']) ?? PartyMode.public,
+    );
+
+/// Modalità e codice del party in cui siamo (`GET Parties/{groupId}`).
+class PartyDetails {
+  const PartyDetails({required this.mode, this.code});
+
+  factory PartyDetails.fromJson(Map<String, dynamic> json) => PartyDetails(
+        mode: PartyMode.fromWire(json['Mode']) ?? PartyMode.public,
+        code: json['Code'] as String?,
+      );
+
+  final PartyMode mode;
+
+  /// Solo per i privati (il plugin può ometterlo se `null`).
+  final String? code;
+}
+
 /// Avvisi del plugin fuori dal canale di un gruppo (spec F §6.8).
 sealed class SocialEvent {
   const SocialEvent();
@@ -154,6 +197,28 @@ final class FriendRequestEvent extends SocialEvent {
 /// Amici o richieste sono cambiati: si rilegge `GET Friends`.
 final class FriendsChangedEvent extends SocialEvent {
   const FriendsChangedEvent();
+}
+
+/// Un party appena nato che possiamo vedere (pubblico, o di un amico).
+final class PartyStartedEvent extends SocialEvent {
+  const PartyStartedEvent(
+      {required this.groupId, required this.name, required this.mode});
+
+  final String groupId;
+
+  /// "Host · Titolo".
+  final String name;
+  final PartyMode mode;
+}
+
+/// Un amico ci invita nel suo party.
+final class PartyInviteEvent extends SocialEvent {
+  const PartyInviteEvent(
+      {required this.groupId, required this.name, required this.fromName});
+
+  final String groupId;
+  final String name;
+  final String fromName;
 }
 
 /// Legge un avviso del plugin (stringa JSON dal WebSocket). `null` se non è
@@ -173,6 +238,18 @@ SocialEvent? parseSocialEvent(Object? raw) {
         );
       case 'FriendsChanged':
         return const FriendsChangedEvent();
+      case 'PartyStarted':
+        return PartyStartedEvent(
+          groupId: json['GroupId'] as String,
+          name: json['Name'] as String,
+          mode: PartyMode.fromWire(json['Mode']) ?? PartyMode.public,
+        );
+      case 'PartyInvite':
+        return PartyInviteEvent(
+          groupId: json['GroupId'] as String,
+          name: json['Name'] as String,
+          fromName: json['FromName'] as String,
+        );
     }
     return null;
   } on Object catch (error) {

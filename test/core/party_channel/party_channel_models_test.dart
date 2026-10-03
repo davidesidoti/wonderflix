@@ -123,6 +123,14 @@ void main() {
         parsePartyEvent('{"Protocol":1,"Type":"FriendRequest",'
             '"FromUserId":"u2","FromName":"Luigi"}'),
         isNull);
+    expect(
+        parsePartyEvent('{"Protocol":1,"Type":"PartyStarted","GroupId":"g1",'
+            '"Name":"Dune","Mode":"Public"}'),
+        isNull);
+    expect(
+        parsePartyEvent('{"Protocol":1,"Type":"PartyInvite","GroupId":"g1",'
+            '"Name":"Dune","FromName":"Mario"}'),
+        isNull);
     expect(records, isEmpty);
   });
 }

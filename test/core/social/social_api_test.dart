@@ -5,6 +5,7 @@ import 'package:logging/logging.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
 import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/core/social/social_models.dart';
+import 'package:wonderflix/core/syncplay/party_mode.dart';
 
 import '../../support/fake_adapter.dart';
 import '../../support/test_data.dart';
@@ -118,5 +119,49 @@ void main() {
       for (final record in records)
         if (record.loggerName == 'http') record.level,
     ], [Level.INFO, Level.INFO, Level.INFO, Level.INFO, Level.WARNING]);
+  });
+
+  test('party: registrazione, elenco, dettagli, codice, inviti', () async {
+    adapter.handler = (options) => switch ('${options.method} ${options.path}') {
+          'POST /WonderFlixWatchParty/Parties/g1' =>
+            const FakeResponse(200, {'Code': 'K7PQ2X'}),
+          'GET /WonderFlixWatchParty/Parties' => const FakeResponse(200, [
+              {
+                'GroupId': 'g1',
+                'Name': 'Mario · Dune',
+                'State': 'Idle',
+                'Participants': ['Mario'],
+                'Mode': 'Private',
+              },
+            ]),
+          'GET /WonderFlixWatchParty/Parties/g1' =>
+            const FakeResponse(200, {'Mode': 'Private', 'Code': 'K7PQ2X'}),
+          'POST /WonderFlixWatchParty/Parties/Join' =>
+            const FakeResponse(200, {'GroupId': 'g1'}),
+          _ => const FakeResponse(204),
+        };
+
+    expect(await api.registerParty('g1', PartyMode.private), 'K7PQ2X');
+    expect(adapter.requests.last.data, {'Mode': 'Private'});
+    expect((await api.parties()).single.mode, PartyMode.private);
+    expect((await api.partyDetails('g1')).code, 'K7PQ2X');
+    expect(await api.joinByCode('K7PQ2X'), 'g1');
+    expect(adapter.requests.last.data, {'Code': 'K7PQ2X'});
+    await api.invite('g1', ['u2', 'u3']);
+    expect(adapter.requests.last.path,
+        '/WonderFlixWatchParty/Parties/g1/Invites');
+    expect(adapter.requests.last.data, {
+      'UserIds': ['u2', 'u3'],
+    });
+  });
+
+  test('party: registrazione senza codice e codice sbagliato', () async {
+    adapter.handler = (_) => const FakeResponse(200, <String, dynamic>{});
+    expect(await api.registerParty('g1', PartyMode.public), isNull);
+    adapter.handler = (_) => const FakeResponse(403);
+    await expectLater(
+        api.joinByCode('ZZZZZZ'),
+        throwsA(isA<SocialException>().having(
+            (e) => e.failure, 'failure', SocialFailure.forbidden)));
   });
 }

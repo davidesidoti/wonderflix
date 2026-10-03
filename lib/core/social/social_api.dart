@@ -2,6 +2,7 @@ import 'package:logging/logging.dart';
 
 import '../jellyfin/api_exception.dart';
 import '../jellyfin/jellyfin_http.dart';
+import '../syncplay/syncplay_models.dart';
 import 'social_models.dart';
 
 final _log = Logger('social');
@@ -82,6 +83,39 @@ class SocialApi {
 
   Future<void> remove(String userId) => _call(
       () => _http.delete('$_base/Friends/$userId', quietStatuses: _quiet));
+
+  /// Registra il party appena creato (spec F §6.4): il codice per un
+  /// privato, altrimenti `null`.
+  Future<String?> registerParty(String groupId, PartyMode mode) =>
+      _call(() async {
+        final json = asJsonMap(await _http.post('$_base/Parties/$groupId',
+            body: {'Mode': mode.wire}, quietStatuses: _quiet));
+        return json['Code'] as String?;
+      });
+
+  /// I party che possiamo vedere, già filtrati dal plugin.
+  Future<List<GroupInfo>> parties() => _call(() async {
+        final json = await _http.get('$_base/Parties', quietStatuses: _quiet);
+        return [
+          for (final raw in json as List)
+            partyGroupFromJson(raw as Map<String, dynamic>),
+        ];
+      });
+
+  /// Modalità e codice del party in cui siamo.
+  Future<PartyDetails> partyDetails(String groupId) => _call(() async =>
+      PartyDetails.fromJson(asJsonMap(await _http
+          .get('$_base/Parties/$groupId', quietStatuses: _quiet))));
+
+  /// Il gruppo di un codice (già in forma canonica).
+  Future<String> joinByCode(String code) => _call(() async =>
+      asJsonMap(await _http.post('$_base/Parties/Join',
+          body: {'Code': code}, quietStatuses: _quiet))['GroupId'] as String);
+
+  /// Invita amici nel party (solo i nostri amici fuori dal gruppo).
+  Future<void> invite(String groupId, List<String> userIds) => _call(() =>
+      _http.post('$_base/Parties/$groupId/Invites',
+          body: {'UserIds': userIds}, quietStatuses: _quiet));
 
   Future<T> _call<T>(Future<T> Function() request) async {
     try {
