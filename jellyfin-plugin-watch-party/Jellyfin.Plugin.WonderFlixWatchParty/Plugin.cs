@@ -6,8 +6,8 @@ using MediaBrowser.Model.Serialization;
 namespace Jellyfin.Plugin.WonderFlixWatchParty;
 
 /// <summary>
-/// Plugin "WonderFlix Watch Party" (spec E): nomi, chat e reazioni nei
-/// watch party SyncPlay di WonderFlix. Non ha impostazioni.
+/// Plugin "WonderFlix Watch Party" (spec E, spec F): nomi, chat e reazioni
+/// nei watch party SyncPlay di WonderFlix, e gli amici. Non ha impostazioni.
 /// </summary>
 public class Plugin : BasePlugin<BasePluginConfiguration>
 {
@@ -23,5 +23,5 @@ public class Plugin : BasePlugin<BasePluginConfiguration>
 
     public override Guid Id => PluginId;
 
-    public override string Description => "Names, chat and reactions for SyncPlay watch parties in WonderFlix.";
+    public override string Description => "Names, chat, reactions and friends for SyncPlay watch parties in WonderFlix.";
 }

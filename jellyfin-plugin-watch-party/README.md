@@ -3,7 +3,9 @@
 Plugin del server Jellyfin per il watch party di WonderFlix (spec E,
 `docs/superpowers/specs/2026-10-02-wonderflix-watch-party-sociale-design.md`):
 dice chi ha agito, porta la chat e le reazioni tra i membri di un gruppo
-SyncPlay. Senza il plugin WonderFlix funziona lo stesso, con gli avvisi
+SyncPlay e tiene la lista amici (spec F,
+`docs/superpowers/specs/2026-10-03-wonderflix-amici-party-privati-design.md`).
+Senza il plugin WonderFlix funziona lo stesso, con gli avvisi
 anonimi.
 
 - Jellyfin **10.11.x** (net9.0, `targetAbi` 10.11.0.0). Per Jellyfin 12 serve
@@ -11,6 +13,10 @@ anonimi.
 - Nessuna configurazione. Endpoint sotto `/WonderFlixWatchParty`; gli eventi
   arrivano ai client come `GeneralCommand` `SendString` con la chiave
   `WonderFlixWatchParty`.
+- **Dati:** amicizie e richieste stanno in
+  `plugins/configurations/WonderFlixWatchParty/friends.json` (non nella
+  cartella del plugin, che cambia a ogni versione). Un file illeggibile
+  diventa `friends.json.bad` e il plugin riparte vuoto.
 
 ## Installazione dal repository
 
@@ -21,8 +27,8 @@ anonimi.
 
 ## Installazione a mano (prove)
 
-1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.0.0`.
-   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.0.0.0/`
+1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.1.0`.
+   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.1.0.0/`
    con la dll e `meta.json`.
 2. Copia la cartella dentro `plugins/` della cartella dati di Jellyfin (su
    Ultra.cc via SFTP).

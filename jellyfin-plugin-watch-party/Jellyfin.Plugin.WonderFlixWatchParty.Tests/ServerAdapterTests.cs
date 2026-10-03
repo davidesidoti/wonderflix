@@ -1,6 +1,10 @@
+using Jellyfin.Data;
+using Jellyfin.Database.Implementations.Entities;
+using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Server;
 using MediaBrowser.Common.Extensions;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
 using MediaBrowser.Controller.SyncPlay;
 using MediaBrowser.Model.Session;
@@ -54,6 +58,24 @@ public class ServerAdapterTests
         var directory = new JellyfinSessionDirectory(manager);
 
         Assert.Equal(new[] { new CallerSession("s-app", userId, "Mario") }, directory.GetAppSessions());
+    }
+
+    [Fact]
+    public void UsersComeFromTheUserManager()
+    {
+        var mario = new User("Mario", "provider", "reset");
+        var bowser = new User("Bowser", "provider", "reset");
+        bowser.SetPermission(PermissionKind.IsDisabled, true);
+        var (manager, stub) = InterfaceStub<IUserManager>.Create();
+        stub.Handlers["get_Users"] = _ => new[] { mario, bowser };
+        stub.Handlers["GetUserById"] = args => (Guid)args[0]! == mario.Id ? mario : null;
+        var directory = new JellyfinUserDirectory(manager);
+
+        Assert.Equal(
+            new[] { new UserRef(mario.Id, "Mario", true), new UserRef(bowser.Id, "Bowser", false) },
+            directory.GetUsers());
+        Assert.Equal(new UserRef(mario.Id, "Mario", true), directory.GetUser(mario.Id));
+        Assert.Null(directory.GetUser(Guid.NewGuid()));
     }
 
     [Fact]
