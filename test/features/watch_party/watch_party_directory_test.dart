@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/core/social/social_api.dart';
+import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/player/player_active.dart';
@@ -268,6 +270,43 @@ void main() {
       // Una lettura per il cambio di funzioni, forse una per l'avvio.
       expect(api.calls, isNotEmpty);
       expect(api.calls, everyElement('list'));
+      container.dispose();
+    });
+  });
+
+  test('Info senza rete al login: nessuna lettura di /SyncPlay/List', () {
+    fakeAsync((async) {
+      api.groups = [testGroup(id: 'g8', name: 'Luigi · Segreto')];
+      final social = FakeSocialApi()
+        ..install(features: {PluginFeatures.friends, PluginFeatures.parties})
+        ..infoFailure = SocialFailure.network
+        ..partyList = [
+          testGroup(id: 'g9', name: 'Mario · Up')
+              .copyWithMode(PartyMode.public),
+        ];
+      // Le funzioni le controlla `SocialAvailability` vera.
+      final container = ProviderContainer(overrides: [
+        sessionControllerProvider.overrideWith(
+            () => FakeSessionController(const SessionSignedIn(testUser))),
+        syncPlayApiProvider.overrideWithValue(api),
+        watchPartyEventsProvider.overrideWithValue(const Stream.empty()),
+        socialApiProvider.overrideWithValue(social),
+      ]);
+      container.listen(watchPartyDirectoryProvider, (_, _) {});
+      async.flushMicrotasks();
+      // Anche con l'elenco periodico e i nuovi tentativi di `Info`.
+      async.elapse(const Duration(seconds: 90));
+      expect(container.read(socialAvailabilityProvider).known, isFalse);
+      expect(api.calls, isEmpty,
+          reason: 'l\'elenco di Jellyfin mostrerebbe i party privati');
+      expect(container.read(watchPartyDirectoryProvider), isEmpty);
+
+      // Torna la rete: l'elenco arriva dal plugin, mai da Jellyfin.
+      social.infoFailure = null;
+      async.elapse(SocialAvailability.retryDelay);
+      expect(api.calls, isEmpty);
+      expect(social.calls, contains('parties'));
+      expect(container.read(watchPartyDirectoryProvider).single.id, 'g9');
       container.dispose();
     });
   });

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
@@ -94,7 +95,7 @@ void main() {
       ..infoFailure = SocialFailure.network;
     final c = container();
     await pumpEventQueue();
-    expect(c.read(socialAvailabilityProvider), SocialFeatures.none);
+    expect(c.read(socialAvailabilityProvider), SocialFeatures.unknown);
 
     api.infoFailure = null;
     events.add(const ServerConnected(false));
@@ -170,7 +171,7 @@ void main() {
     expect(c.read(socialAvailabilityProvider).known, isTrue);
   });
 
-  test('Info senza rete prima di conoscere le funzioni: come plugin assente',
+  test('Info senza rete prima di conoscere le funzioni: restano non note',
       () async {
     api
       ..install()
@@ -182,8 +183,139 @@ void main() {
 
     gate.complete();
     await pumpEventQueue();
-    expect(c.read(socialAvailabilityProvider), SocialFeatures.none);
+    // Non come plugin assente: con `none` l'elenco verrebbe da
+    // `/SyncPlay/List`, non filtrato, e mostrerebbe i party privati.
+    expect(c.read(socialAvailabilityProvider), SocialFeatures.unknown);
   });
+
+  test('Info senza rete: si riprova dopo 30 s finché le funzioni sono note',
+      () {
+    fakeAsync((async) {
+      api
+        ..install(features: {PluginFeatures.friends, PluginFeatures.parties})
+        ..infoFailure = SocialFailure.network;
+      final c = container();
+      async.flushMicrotasks();
+      expect(api.calls, ['info']);
+      expect(c.read(socialAvailabilityProvider), SocialFeatures.unknown);
+
+      // Ancora senza rete al primo nuovo tentativo: se ne fa un altro.
+      async.elapse(SocialAvailability.retryDelay);
+      expect(api.calls, ['info', 'info']);
+      expect(c.read(socialAvailabilityProvider), SocialFeatures.unknown);
+
+      api.infoFailure = null;
+      async.elapse(
+          SocialAvailability.retryDelay - const Duration(milliseconds: 1));
+      expect(api.calls, hasLength(2));
+      async.elapse(const Duration(milliseconds: 1));
+      expect(api.calls, ['info', 'info', 'info']);
+      expect(c.read(socialAvailabilityProvider),
+          const SocialFeatures(friends: true, parties: true));
+
+      // Note le funzioni, niente più tentativi.
+      async.elapse(SocialAvailability.retryDelay * 4);
+      expect(api.calls, hasLength(3));
+    });
+  });
+
+  test('Info senza rete: i tentativi si fermano al cambio di utente', () {
+    fakeAsync((async) {
+      api
+        ..install()
+        ..infoFailure = SocialFailure.network;
+      final c = container();
+      async.flushMicrotasks();
+      expect(api.calls, ['info']);
+
+      (c.read(sessionControllerProvider.notifier) as FakeSessionController)
+          .set(const SessionSignedOut());
+      async.flushMicrotasks();
+      expect(c.read(socialAvailabilityProvider), SocialFeatures.none);
+      async.elapse(SocialAvailability.retryDelay * 3);
+      expect(api.calls, ['info']);
+    });
+  });
+
+  test('404 o permesso negato: nessuna funzione, senza riprovare', () {
+    for (final failure in [SocialFailure.unavailable, SocialFailure.forbidden]) {
+      fakeAsync((async) {
+        api = FakeSocialApi()
+          ..install()
+          ..infoFailure = failure;
+        final c = container();
+        async.flushMicrotasks();
+        expect(c.read(socialAvailabilityProvider), SocialFeatures.none,
+            reason: failure.name);
+        async.elapse(SocialAvailability.retryDelay * 3);
+        expect(api.calls, ['info'], reason: failure.name);
+      });
+    }
+  });
+
+  test('troppe richieste: come un errore di rete, si riprova', () {
+    fakeAsync((async) {
+      api
+        ..install()
+        ..infoFailure = SocialFailure.rateLimited;
+      final c = container();
+      async.flushMicrotasks();
+      expect(c.read(socialAvailabilityProvider), SocialFeatures.unknown);
+      api.infoFailure = null;
+      async.elapse(SocialAvailability.retryDelay);
+      expect(c.read(socialAvailabilityProvider),
+          const SocialFeatures(friends: true));
+    });
+  });
+
+  test('Info senza parties né friends: funzioni note, nessuna', () async {
+    api.install(features: const {});
+    final c = container();
+    await pumpEventQueue();
+    expect(c.read(socialAvailabilityProvider), SocialFeatures.none);
+    expect(c.read(socialAvailabilityProvider).known, isTrue);
+  });
+
+  // Al login partono insieme il primo controllo e quello della connessione
+  // del WebSocket: una risposta riuscita vale anche se l'altro controllo
+  // fallisce, in qualunque ordine partano e finiscano.
+  for (final failure in [SocialFailure.network, SocialFailure.unavailable]) {
+    for (final failedCheck in [0, 1]) {
+      for (final failureFirst in [true, false]) {
+        test(
+            'controlli concorrenti: vince la risposta riuscita '
+            '(${failure.name}, fallisce il controllo $failedCheck, '
+            '${failureFirst ? 'prima' : 'dopo'} la risposta)', () async {
+          api.manualInfo = true;
+          final c = container();
+          await pumpEventQueue();
+          events.add(const ServerConnected(false));
+          await pumpEventQueue();
+          expect(api.pendingInfo, hasLength(2));
+
+          final failing = api.pendingInfo[failedCheck];
+          final succeeding = api.pendingInfo[1 - failedCheck];
+          void fail() => failing.completeError(SocialException(failure));
+          void succeed() => succeeding.complete(const SocialPluginInfo(
+              version: '1.1.0',
+              features: {PluginFeatures.friends, PluginFeatures.parties}));
+          if (failureFirst) {
+            fail();
+            await pumpEventQueue();
+            succeed();
+          } else {
+            succeed();
+            await pumpEventQueue();
+            fail();
+          }
+          await pumpEventQueue();
+
+          expect(c.read(socialAvailabilityProvider),
+              const SocialFeatures(friends: true, parties: true));
+        });
+      }
+    }
+  }
 
   test('un errore inatteso prima di conoscere le funzioni: come plugin assente',
       () async {

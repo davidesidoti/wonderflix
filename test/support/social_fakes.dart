@@ -35,6 +35,11 @@ class FakeSocialApi implements SocialApi {
   Completer<void>? friendsGate;
   Completer<void>? searchGate;
 
+  /// Se `true`, ogni [info] aspetta la sua risposta in [pendingInfo]: il
+  /// test la dà a mano, nell'ordine che vuole (controlli concorrenti).
+  bool manualInfo = false;
+  final pendingInfo = <Completer<SocialPluginInfo>>[];
+
   /// Chiamate in ordine: `info`, `friends`, `search lui`, `request u2`, …
   final calls = <String>[];
 
@@ -52,6 +57,11 @@ class FakeSocialApi implements SocialApi {
   @override
   Future<SocialPluginInfo> info() async {
     calls.add('info');
+    if (manualInfo) {
+      final answer = Completer<SocialPluginInfo>();
+      pendingInfo.add(answer);
+      return answer.future;
+    }
     final failure = infoFailure;
     final info = pluginInfo;
     await infoGate?.future;
