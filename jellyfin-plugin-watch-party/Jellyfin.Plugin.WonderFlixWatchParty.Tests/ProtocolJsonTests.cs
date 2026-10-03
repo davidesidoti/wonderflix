@@ -110,4 +110,38 @@ public class ProtocolJsonTests
         Assert.False(PartyModes.IsValid("public"));
         Assert.False(PartyModes.IsValid(null));
     }
+
+    [Fact]
+    public void InboxEntriesSkipTheFieldsOfOtherTypes()
+    {
+        var at = new DateTimeOffset(2026, 10, 3, 20, 0, 0, TimeSpan.Zero);
+        var entry = new InboxEntry
+        {
+            Id = "e1",
+            Seq = 3,
+            Type = InboxEntryTypes.Announcement,
+            CreatedAt = at,
+            Text = "Stasera manutenzione",
+        };
+
+        var json = JsonDocument.Parse(JsonSerializer.Serialize(entry)).RootElement;
+
+        Assert.Equal(
+            new[] { "Id", "Seq", "Type", "CreatedAt", "Read", "Text" },
+            json.EnumerateObject().Select(p => p.Name));
+        Assert.Equal(3, json.GetProperty("Seq").GetInt64());
+        Assert.Equal(at, json.GetProperty("CreatedAt").GetDateTimeOffset());
+        Assert.False(json.GetProperty("Read").GetBoolean());
+        Assert.Equal("{\"Entries\":[],\"Unread\":0}", JsonSerializer.Serialize(new InboxResponse([], 0)));
+        Assert.Equal("{\"Recipients\":4}", JsonSerializer.Serialize(new AnnouncementResponse(4)));
+        Assert.Equal("{\"Protocol\":1,\"Type\":\"InboxChanged\"}", JsonSerializer.Serialize(SocialEvent.InboxChanged()));
+    }
+
+    [Fact]
+    public void InboxRequestsReadAnyCaseOfNames()
+    {
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        Assert.Equal(42L, JsonSerializer.Deserialize<InboxReadRequest>("{\"upTo\":42}", options)!.UpTo);
+        Assert.Equal("ciao", JsonSerializer.Deserialize<AnnouncementRequest>("{\"text\":\"ciao\"}", options)!.Text);
+    }
 }

@@ -24,14 +24,6 @@ public class WatchPartyController(
     PartyHub hub,
     PresenceTracker presence) : ControllerBase
 {
-    private static string PluginVersion =>
-        typeof(Plugin).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
-
-    /// <summary>Versione del plugin, del protocollo e funzioni in più.</summary>
-    [HttpGet("Info")]
-    public ActionResult<InfoResponse> GetInfo() =>
-        new InfoResponse(PluginVersion, WatchPartyProtocol.Version, WatchPartyProtocol.Features);
-
     /// <summary>Registra la sessione nel gruppo; restituisce lo storico della chat.</summary>
     [HttpPost("Groups/{groupId:guid}/Join")]
     public async Task<ActionResult<JoinResponse>> Join([FromRoute] Guid groupId)

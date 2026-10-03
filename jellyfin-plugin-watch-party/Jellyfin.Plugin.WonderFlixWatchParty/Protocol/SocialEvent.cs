@@ -9,6 +9,9 @@ public static class SocialEventTypes
     public const string FriendsChanged = "FriendsChanged";
     public const string PartyStarted = "PartyStarted";
     public const string PartyInvite = "PartyInvite";
+
+    /// <summary>La cassetta delle notifiche dell'utente è cambiata (spec G §6.4).</summary>
+    public const string InboxChanged = "InboxChanged";
 }
 
 /// <summary>
@@ -55,4 +58,6 @@ public sealed class SocialEvent
 
     public static SocialEvent PartyInvite(string groupId, string name, string fromName) =>
         new() { Type = SocialEventTypes.PartyInvite, GroupId = groupId, Name = name, FromName = fromName };
+
+    public static SocialEvent InboxChanged() => new() { Type = SocialEventTypes.InboxChanged };
 }
