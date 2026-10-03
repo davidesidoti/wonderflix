@@ -7,15 +7,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/app_shell.dart';
 import 'package:wonderflix/app/shell_panels.dart';
+import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/social/inbox_models.dart';
+import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/inbox/inbox_button.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 
+import '../../support/fake_session_controller.dart';
 import '../../support/pump_app.dart';
 import '../../support/social_fakes.dart';
+import '../../support/test_data.dart';
 import '../../support/watch_party_fakes.dart';
 
 void main() {
@@ -30,12 +34,16 @@ void main() {
 
   Future<void> pumpShell(WidgetTester tester,
       {SocialFeatures features =
-          const SocialFeatures(friends: true, inbox: true)}) async {
+          const SocialFeatures(friends: true, inbox: true),
+      JellyfinUser user = testUser}) async {
     await pumpApp(
       tester,
       const AppShell(location: '/home', child: SizedBox()),
       overrides: [
-        ...socialTestOverrides(api, events: events.stream, features: features),
+        ...socialTestOverrides(api,
+            events: events.stream, features: features, session: false),
+        sessionControllerProvider
+            .overrideWith(() => FakeSessionController(SessionSignedIn(user))),
         // Nessun elenco dei watch party (né timer).
         watchPartyDirectoryProvider.overrideWith(FakeWatchPartyDirectory.new),
         syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
@@ -122,5 +130,85 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('friends-panel')), findsNothing);
     expect(find.byKey(const Key('inbox-panel')), findsOneWidget);
+  });
+
+  testWidgets('numero sull\'icona: con 100 e più non letti si vede "99+"',
+      (tester) async {
+    api.inboxSnapshot = InboxSnapshot(entries: [testAnnouncement()], unread: 150);
+    await pumpShell(tester);
+    await tester.pump();
+    expect(badge('99+'), findsOneWidget);
+    expect(badge('150'), findsNothing);
+  });
+
+  testWidgets('aprendo il pannello il fuoco passa alla × di chiusura',
+      (tester) async {
+    await pumpShell(tester);
+    await tester.tap(find.byKey(const Key('inbox-button')));
+    await tester.pumpAndSettle();
+
+    final focus = FocusManager.instance.primaryFocus;
+    expect(focus, isNotNull);
+    final close = find.descendant(
+        of: find.byKey(const Key('inbox-panel')),
+        matching: find.byTooltip('Chiudi'));
+    expect(close, findsOneWidget);
+    expect(
+        find.descendant(
+            of: close,
+            matching: find.byElementPredicate((e) => e == focus!.context)),
+        findsOneWidget,
+        reason: 'il fuoco è dentro il pannello, sulla × in alto');
+  });
+
+  group('elenco dei party', () {
+    DateTime fiveMinutesAgo() =>
+        clock.now().toUtc().subtract(const Duration(minutes: 5));
+
+    FakeWatchPartyDirectory directory(WidgetTester tester) =>
+        ProviderScope.containerOf(tester.element(find.byType(AppShell)))
+            .read(watchPartyDirectoryProvider.notifier)
+        as FakeWatchPartyDirectory;
+
+    testWidgets('aprire il pannello con un invito rilegge l\'elenco',
+        (tester) async {
+      api.inboxSnapshot = InboxSnapshot(
+          entries: [testInvite(createdAt: fiveMinutesAgo())], unread: 1);
+      await pumpShell(tester);
+      await tester.pump();
+      expect(directory(tester).refreshCalls, 0);
+
+      await tester.tap(find.byKey(const Key('inbox-button')));
+      await tester.pumpAndSettle();
+      expect(directory(tester).refreshCalls, 1);
+    });
+
+    testWidgets('senza inviti non rilegge l\'elenco', (tester) async {
+      api.inboxSnapshot = InboxSnapshot(
+          entries: [testAnnouncement(createdAt: fiveMinutesAgo())], unread: 1);
+      await pumpShell(tester);
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('inbox-button')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('inbox-panel')), findsOneWidget);
+      expect(directory(tester).refreshCalls, 0);
+    });
+
+    testWidgets('senza accesso ai watch party non rilegge l\'elenco',
+        (tester) async {
+      api.inboxSnapshot = InboxSnapshot(
+          entries: [testInvite(createdAt: fiveMinutesAgo())], unread: 1);
+      await pumpShell(tester,
+          features: const SocialFeatures(inbox: true),
+          user: const JellyfinUser(
+              id: 'u1', name: 'Mario', syncPlayAccess: SyncPlayAccess.none));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('inbox-button')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('inbox-panel')), findsOneWidget);
+      expect(directory(tester).refreshCalls, 0);
+    });
   });
 }

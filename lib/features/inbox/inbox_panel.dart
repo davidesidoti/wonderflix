@@ -15,6 +15,7 @@ import '../../ui/wf_image.dart';
 import '../library/library_providers.dart';
 import '../watch_party/watch_party_actions.dart';
 import '../watch_party/watch_party_directory.dart';
+import '../watch_party/watch_party_providers.dart';
 import '../watch_party/watch_party_session.dart';
 import 'inbox_controller.dart';
 import 'inbox_time.dart';
@@ -36,9 +37,24 @@ const _timeStyle = TextStyle(color: WfColors.creamMuted, fontSize: 12);
 /// Lo stesso gruppo, con o senza trattini e maiuscole.
 String _normalizeId(String id) => id.replaceAll('-', '').toLowerCase();
 
+/// "{nome} ti invita a guardare" con la prima occorrenza di [name] in
+/// grassetto e color crema (spec G §7.6); se il nome non c'è, testo semplice.
+TextSpan _inviteFromSpan(String text, String name) {
+  final at = name.isEmpty ? -1 : text.indexOf(name);
+  if (at < 0) return TextSpan(text: text);
+  return TextSpan(children: [
+    TextSpan(text: text.substring(0, at)),
+    TextSpan(
+        text: name,
+        style: const TextStyle(
+            color: WfColors.cream, fontWeight: FontWeight.w600)),
+    TextSpan(text: text.substring(at + name.length)),
+  ]);
+}
+
 /// Contenuto del pannello "Notifiche" (spec G §7.5–7.6): intestazione con
 /// Svuota, voci dalla più recente.
-class InboxPanel extends ConsumerWidget {
+class InboxPanel extends ConsumerStatefulWidget {
   const InboxPanel({super.key});
 
   /// Larghezza: quella dei pannelli laterali.
@@ -57,7 +73,50 @@ class InboxPanel extends ConsumerWidget {
   static const dotSize = 8.0;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<InboxPanel> createState() => _InboxPanelState();
+}
+
+class _InboxPanelState extends ConsumerState<InboxPanel> {
+  /// Fuoco della × in alto: a pannello aperto la tastiera parte da qui.
+  final _closeFocus = FocusNode(debugLabel: 'inbox-close');
+
+  @override
+  void initState() {
+    super.initState();
+    // Come in `FriendsPanel`: `autofocus` non basta, nella shell vera lo
+    // scope della pagina ha già un figlio col fuoco (il navigatore annidato)
+    // e verrebbe scartato; il fuoco resterebbe sull'icona della barra, sotto
+    // lo scuro.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _closeFocus.requestFocus();
+      _refreshPartiesForInvites();
+    });
+  }
+
+  @override
+  void dispose() {
+    _closeFocus.dispose();
+    super.dispose();
+  }
+
+  /// "Unisciti" dipende dall'elenco dei party, che si rilegge ogni 30 s: con
+  /// degli inviti nella cassetta lo si rilegge all'apertura. Senza accesso ai
+  /// watch party non ci sono inviti né elenco.
+  void _refreshPartiesForInvites() {
+    if (!ref.read(syncPlayAccessProvider).canJoin) return;
+    final hasInvites = ref
+        .read(inboxControllerProvider)
+        .snapshot
+        .entries
+        .any((entry) => entry is InviteEntry);
+    if (hasInvites) {
+      unawaited(ref.read(watchPartyDirectoryProvider.notifier).refresh());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final hasEntries = ref.watch(
         inboxControllerProvider.select((s) => s.snapshot.entries.isNotEmpty));
@@ -79,6 +138,7 @@ class InboxPanel extends ConsumerWidget {
                 ),
                 if (hasEntries) const _ClearButton(),
                 IconButton(
+                  focusNode: _closeFocus,
                   tooltip: l.friendsClose,
                   icon: const Icon(LucideIcons.x, size: 20),
                   onPressed: () =>
@@ -267,6 +327,8 @@ class _EntryTileState extends ConsumerState<_EntryTile> {
               onFocusChange: (focused) => setState(() => _focused = focused),
               child: Opacity(
                 opacity: _hovered || _focused ? 1 : 0,
+                // Nascosta resta per i lettori di schermo.
+                alwaysIncludeSemantics: true,
                 child: IconButton(
                   tooltip: l.inboxRemove,
                   visualDensity: VisualDensity.compact,
@@ -325,23 +387,44 @@ class _AnnouncementIcon extends StatelessWidget {
 }
 
 /// Invito: chi, cosa e Unisciti finché il party c'è (spec G §7.6).
-class _InviteContent extends ConsumerWidget {
+class _InviteContent extends ConsumerStatefulWidget {
   const _InviteContent({required this.entry, required this.time});
 
   final InviteEntry entry;
   final String time;
 
+  @override
+  ConsumerState<_InviteContent> createState() => _InviteContentState();
+}
+
+class _InviteContentState extends ConsumerState<_InviteContent> {
+  /// Un ingresso partito da questa voce è in corso: un secondo clic non deve
+  /// farne un altro (la sessione, già "in ingresso", risponderebbe subito di
+  /// sì e il pannello si chiuderebbe prima dell'esito vero).
+  bool _joining = false;
+
   /// Entra nel party; riuscito, il pannello si chiude.
-  Future<void> _join(BuildContext context, WidgetRef ref) async {
-    final joined = await joinWatchParty(context, ref, entry.groupId);
-    if (joined && context.mounted) {
-      ref.read(shellPanelProvider.notifier).close();
+  Future<void> _join() async {
+    if (_joining) return;
+    setState(() => _joining = true);
+    try {
+      final joined = await joinWatchParty(context, ref, widget.entry.groupId);
+      if (!mounted) return;
+      if (joined) {
+        ref.read(shellPanelProvider.notifier).close();
+      } else {
+        // Non riuscito: l'elenco può essere vecchio (il party è finito).
+        unawaited(ref.read(watchPartyDirectoryProvider.notifier).refresh());
+      }
+    } finally {
+      if (mounted) setState(() => _joining = false);
     }
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final entry = widget.entry;
     final groupId = _normalizeId(entry.groupId);
     final inGroupId = ref.watch(watchPartySessionProvider
         .select((s) => s.inGroup ? s.group?.id : null));
@@ -351,11 +434,12 @@ class _InviteContent extends ConsumerWidget {
         .select((groups) => groups.any((g) => _normalizeId(g.id) == groupId)));
     final Widget action;
     if (inGroupId != null && _normalizeId(inGroupId) == groupId) {
-      action = Text(l.inboxAlreadyIn, style: _mutedStyle);
+      action = Text(l.inboxAlreadyIn,
+          maxLines: 1, overflow: TextOverflow.ellipsis, style: _mutedStyle);
     } else if (listed) {
       action = TextButton(
         key: Key('inbox-join-${entry.id}'),
-        onPressed: () => unawaited(_join(context, ref)),
+        onPressed: _joining ? null : () => unawaited(_join()),
         style: TextButton.styleFrom(
           foregroundColor: WfColors.gold,
           visualDensity: VisualDensity.compact,
@@ -364,29 +448,36 @@ class _InviteContent extends ConsumerWidget {
         child: Text(l.watchPartyJoin),
       );
     } else {
-      action = Text(l.inboxPartyEnded, style: _mutedStyle);
+      action = Text(l.inboxPartyEnded,
+          maxLines: 1, overflow: TextOverflow.ellipsis, style: _mutedStyle);
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(l.inboxInviteFrom(entry.fromName),
-            maxLines: 2, overflow: TextOverflow.ellipsis, style: _mutedStyle),
+        // Il nome di chi invita in evidenza (spec G §7.6).
+        Text.rich(
+            _inviteFromSpan(l.inboxInviteFrom(entry.fromName), entry.fromName),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: _mutedStyle),
         Text(entry.title,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
                 color: WfColors.cream, fontWeight: FontWeight.w600)),
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // L'ora cede lo spazio all'azione (testi lunghi, font grandi).
-            Expanded(
-              child: Text(time,
+            // L'ora e lo stato si dividono lo spazio (testi lunghi, font
+            // grandi), lo stato ne ha di più; l'azione resta a destra.
+            Flexible(
+              child: Text(widget.time,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: _timeStyle),
             ),
-            action,
+            Flexible(flex: 2, child: action),
           ],
         ),
       ],
