@@ -144,4 +144,44 @@ public class ProtocolJsonTests
         Assert.Equal(42L, JsonSerializer.Deserialize<InboxReadRequest>("{\"upTo\":42}", options)!.UpTo);
         Assert.Equal("ciao", JsonSerializer.Deserialize<AnnouncementRequest>("{\"text\":\"ciao\"}", options)!.Text);
     }
+
+    [Fact]
+    public void NewTitlesEntriesUseProtocolNames()
+    {
+        var entry = new InboxEntry
+        {
+            Id = "e2",
+            Seq = 4,
+            Type = InboxEntryTypes.NewTitles,
+            CreatedAt = new DateTimeOffset(2026, 10, 4, 9, 0, 0, TimeSpan.Zero),
+            Movies =
+            [
+                new NewTitleMovie { ItemId = "m1", Name = "Dune", Year = 2024 },
+                new NewTitleMovie { ItemId = "m2", Name = "Senza anno" },
+            ],
+            Series =
+            [
+                new NewTitleSeries
+                {
+                    SeriesId = "s1",
+                    Name = "The Bear",
+                    Episodes = [new NewTitleEpisode { Season = 3, Episode = 1 }, new NewTitleEpisode()],
+                },
+            ],
+            More = 2,
+        };
+
+        var json = JsonDocument.Parse(JsonSerializer.Serialize(entry)).RootElement;
+
+        Assert.Equal(
+            new[] { "Id", "Seq", "Type", "CreatedAt", "Read", "Movies", "Series", "More" },
+            json.EnumerateObject().Select(p => p.Name));
+        Assert.Equal("{\"ItemId\":\"m1\",\"Name\":\"Dune\",\"Year\":2024}", json.GetProperty("Movies")[0].GetRawText());
+        Assert.Equal("{\"ItemId\":\"m2\",\"Name\":\"Senza anno\"}", json.GetProperty("Movies")[1].GetRawText());
+        var episodes = json.GetProperty("Series")[0].GetProperty("Episodes");
+        Assert.Equal("{\"Season\":3,\"Episode\":1}", episodes[0].GetRawText());
+        Assert.Equal("{}", episodes[1].GetRawText());
+        Assert.Equal("{\"Enabled\":true,\"Pending\":3}", JsonSerializer.Serialize(new NewTitlesStatus(true, 3)));
+        Assert.Equal("{\"Titles\":5,\"Recipients\":2}", JsonSerializer.Serialize(new NewTitlesSendResponse(5, 2)));
+    }
 }

@@ -7,8 +7,8 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 /// <summary>
 /// La cassetta delle notifiche (spec G §6): voci su disco con
 /// <see cref="InboxStore"/>, letture e cancellazioni, annunci dell'admin,
-/// voci d'invito, pulizia e avviso InboxChanged alle sessioni WonderFlix
-/// dell'utente. Sicuro tra thread.
+/// voci d'invito, voci dei nuovi titoli, pulizia e avviso InboxChanged alle
+/// sessioni WonderFlix dell'utente. Sicuro tra thread.
 /// </summary>
 public sealed class InboxService(
     InboxStore store,
@@ -156,6 +156,37 @@ public sealed class InboxService(
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(ex, "Voci d'invito al watch party {GroupId} non create o non notificate", group.Id);
+        }
+    }
+
+    /// <summary>
+    /// Le voci dei nuovi titoli (spec G §6.6), una per utente, e l'avviso alle
+    /// sue sessioni. Non lancia: un errore finisce nel log.
+    /// </summary>
+    public async Task AddNewTitlesAsync(IReadOnlyDictionary<Guid, InboxEntry> entries)
+    {
+        if (entries.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            lock (_lock)
+            {
+                foreach (var (userId, entry) in entries)
+                {
+                    Book.Add(userId, entry);
+                }
+
+                Persist();
+            }
+
+            await NotifyAsync(entries.Keys.ToList()).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Voci dei nuovi titoli non create o non notificate");
         }
     }
 

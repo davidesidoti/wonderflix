@@ -251,6 +251,31 @@ public sealed class InboxServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task NewTitlesEntriesGoToTheirUsersAndNotifyThem()
+    {
+        var entries = new Dictionary<Guid, InboxEntry>
+        {
+            [_mario.Id] = new InboxEntry
+            {
+                Type = InboxEntryTypes.NewTitles,
+                CreatedAt = _time.GetUtcNow(),
+                Movies = [new NewTitleMovie { ItemId = "m1", Name = "Dune" }],
+                Series = [],
+            },
+        };
+
+        await _inbox.AddNewTitlesAsync(entries);
+        await _inbox.AddNewTitlesAsync(new Dictionary<Guid, InboxEntry>());
+
+        var entry = Assert.Single(_inbox.Get(_mario.Id).Entries);
+        Assert.Equal(InboxEntryTypes.NewTitles, entry.Type);
+        Assert.False(entry.Read);
+        Assert.Empty(_inbox.Get(_luigi.Id).Entries);
+        Assert.Equal(new[] { "InboxChanged" }, _server.SentTo("s-mario").Select(Type));
+        Assert.Empty(_server.SentTo("s-luigi"));
+    }
+
+    [Fact]
     public async Task AFailedSaveKeepsTheChangeInMemory()
     {
         // Sotto la cartella temporanea c'è un file al posto della cartella del plugin: Save non può crearla.

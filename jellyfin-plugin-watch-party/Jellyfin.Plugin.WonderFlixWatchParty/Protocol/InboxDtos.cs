@@ -7,6 +7,9 @@ public static class InboxEntryTypes
 {
     public const string Invite = "Invite";
     public const string Announcement = "Announcement";
+
+    /// <summary>Riepilogo di un'ondata di nuovi titoli (spec G §6.6).</summary>
+    public const string NewTitles = "NewTitles";
 }
 
 /// <summary>
@@ -58,6 +61,22 @@ public sealed class InboxEntry
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Text { get; set; }
 
+    /// <summary>NewTitles: i film, per nome.</summary>
+    [JsonPropertyName("Movies")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<NewTitleMovie>? Movies { get; set; }
+
+    /// <summary>NewTitles: le serie seguite con i loro episodi nuovi, per nome.</summary>
+    [JsonPropertyName("Series")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<NewTitleSeries>? Series { get; set; }
+
+    /// <summary>NewTitles: film e serie oltre il tetto delle righe; manca se 0.</summary>
+    [JsonPropertyName("More")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? More { get; set; }
+
+    /// <summary>Copia superficiale: le liste di NewTitles non si cambiano mai dopo la creazione.</summary>
     public InboxEntry Copy() => (InboxEntry)MemberwiseClone();
 }
 
@@ -82,4 +101,56 @@ public sealed class AnnouncementRequest
 
 /// <summary>Risposta di POST Inbox/Announcements: a quanti utenti è arrivato.</summary>
 public sealed record AnnouncementResponse(
+    [property: JsonPropertyName("Recipients")] int Recipients);
+
+/// <summary>Un film nuovo nella voce NewTitles.</summary>
+public sealed class NewTitleMovie
+{
+    /// <summary>L'elemento, in formato "N".</summary>
+    [JsonPropertyName("ItemId")]
+    public string ItemId { get; set; } = string.Empty;
+
+    [JsonPropertyName("Name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("Year")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Year { get; set; }
+}
+
+/// <summary>Una serie seguita con i suoi episodi nuovi, nella voce NewTitles.</summary>
+public sealed class NewTitleSeries
+{
+    /// <summary>La serie, in formato "N": la riga apre la sua scheda.</summary>
+    [JsonPropertyName("SeriesId")]
+    public string SeriesId { get; set; } = string.Empty;
+
+    [JsonPropertyName("Name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Per stagione e numero.</summary>
+    [JsonPropertyName("Episodes")]
+    public List<NewTitleEpisode> Episodes { get; set; } = [];
+}
+
+/// <summary>Un episodio nuovo: stagione e numero, se Jellyfin li conosce.</summary>
+public sealed class NewTitleEpisode
+{
+    [JsonPropertyName("Season")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Season { get; set; }
+
+    [JsonPropertyName("Episode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Episode { get; set; }
+}
+
+/// <summary>Risposta di GET Inbox/NewTitles (admin): la casella e i titoli in attesa.</summary>
+public sealed record NewTitlesStatus(
+    [property: JsonPropertyName("Enabled")] bool Enabled,
+    [property: JsonPropertyName("Pending")] int Pending);
+
+/// <summary>Risposta di POST Inbox/NewTitles/Send (admin): titoli annunciati e utenti che li hanno ricevuti.</summary>
+public sealed record NewTitlesSendResponse(
+    [property: JsonPropertyName("Titles")] int Titles,
     [property: JsonPropertyName("Recipients")] int Recipients);

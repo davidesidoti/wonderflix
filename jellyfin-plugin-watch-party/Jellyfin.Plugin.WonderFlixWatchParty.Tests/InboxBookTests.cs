@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
 using Xunit;
@@ -144,5 +145,26 @@ public class InboxBookTests
             new InboxFile { Users = new() { [mario] = new InboxFileUser { Entries = [null] } } }));
         Assert.Throws<FormatException>(() => InboxBook.FromFile(
             new InboxFile { Users = new() { [mario] = new InboxFileUser { Entries = [new InboxEntry()] } } }));
+    }
+
+    [Fact]
+    public void NewTitlesEntriesRoundTripThroughTheFile()
+    {
+        var book = new InboxBook();
+        book.Add(_mario, new InboxEntry
+        {
+            Type = InboxEntryTypes.NewTitles,
+            CreatedAt = Now,
+            Movies = [new NewTitleMovie { ItemId = "m1", Name = "Dune", Year = 2024 }],
+            Series = [new NewTitleSeries { SeriesId = "s1", Name = "The Bear", Episodes = [new NewTitleEpisode { Season = 3, Episode = 1 }] }],
+            More = 3,
+        });
+
+        var copy = InboxBook.FromFile(JsonSerializer.Deserialize<InboxFile>(JsonSerializer.Serialize(book.ToFile()))!);
+
+        var entry = Assert.Single(copy.List(_mario));
+        Assert.Equal("Dune", Assert.Single(entry.Movies!).Name);
+        Assert.Equal(1, Assert.Single(Assert.Single(entry.Series!).Episodes).Episode);
+        Assert.Equal(3, entry.More);
     }
 }
