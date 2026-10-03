@@ -4,19 +4,26 @@ Plugin del server Jellyfin per il watch party di WonderFlix (spec E,
 `docs/superpowers/specs/2026-10-02-wonderflix-watch-party-sociale-design.md`):
 dice chi ha agito, porta la chat e le reazioni tra i membri di un gruppo
 SyncPlay e tiene la lista amici (spec F,
-`docs/superpowers/specs/2026-10-03-wonderflix-amici-party-privati-design.md`).
+`docs/superpowers/specs/2026-10-03-wonderflix-amici-party-privati-design.md`)
+e la cassetta delle notifiche (spec G,
+`docs/superpowers/specs/2026-10-03-wonderflix-notifiche-design.md`).
 Senza il plugin WonderFlix funziona lo stesso, con gli avvisi
 anonimi.
 
 - Jellyfin **10.11.x** (net9.0, `targetAbi` 10.11.0.0). Per Jellyfin 12 serve
   una build nuova (net10.0).
-- Nessuna configurazione. Endpoint sotto `/WonderFlixWatchParty`; gli eventi
-  arrivano ai client come `GeneralCommand` `SendString` con la chiave
-  `WonderFlixWatchParty`.
+- Nessuna impostazione. La pagina del plugin nella Dashboard (menu laterale,
+  sotto Plugin) serve per mandare un **annuncio** a tutti. Endpoint sotto
+  `/WonderFlixWatchParty`; gli eventi arrivano ai client come
+  `GeneralCommand` `SendString` con la chiave `WonderFlixWatchParty`.
 - **Dati:** amicizie e richieste stanno in
   `plugins/configurations/WonderFlixWatchParty/friends.json` (non nella
   cartella del plugin, che cambia a ogni versione). Un file illeggibile
   diventa `friends.json.bad` e il plugin riparte vuoto.
+- **Notifiche:** la cassetta di ogni utente (inviti ai watch party, annunci)
+  sta in `plugins/configurations/WonderFlixWatchParty/inbox.json`: 30 giorni,
+  al massimo 100 voci per utente. Un file illeggibile diventa
+  `inbox.json.bad`.
 - **Party:** l'app registra ogni gruppo con la sua modalità (pubblico, solo
   amici, privato con codice) e chiede al plugin l'elenco già filtrato
   (`GET Parties`). I party stanno in RAM e spariscono con i gruppi SyncPlay.
@@ -30,8 +37,8 @@ anonimi.
 
 ## Installazione a mano (prove)
 
-1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.1.0`.
-   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.1.0.0/`
+1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.2.0`.
+   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.2.0.0/`
    con la dll e `meta.json`.
 2. Copia la cartella dentro `plugins/` della cartella dati di Jellyfin (su
    Ultra.cc via SFTP).

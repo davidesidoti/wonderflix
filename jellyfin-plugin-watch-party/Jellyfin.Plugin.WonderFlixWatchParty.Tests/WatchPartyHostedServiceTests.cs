@@ -39,11 +39,12 @@ public class WatchPartyHostedServiceTests
         var directory = new PartyDirectory(time);
         using var announcer = new PartyAnnouncer(
             directory, server, server, friends, server, time, NullLogger<PartyAnnouncer>.Instance);
+        var inbox = TestInbox.Create(server, folder, time);
         var parties = new PartyService(
             directory, server, server, server, friends, new PartyRegistry(), announcer, server,
-            new RateLimiter(time), TestInbox.Create(server, folder, time), NullLogger<PartyService>.Instance);
+            new RateLimiter(time), inbox, NullLogger<PartyService>.Instance);
         using var service = new WatchPartyHostedService(
-            manager, hub, friends, presence, parties, time, NullLogger<WatchPartyHostedService>.Instance);
+            manager, hub, friends, presence, parties, inbox, time, NullLogger<WatchPartyHostedService>.Instance);
         await service.StartAsync(CancellationToken.None);
         Assert.NotNull(ended);
 
@@ -97,11 +98,12 @@ public class WatchPartyHostedServiceTests
         var directory = new PartyDirectory(time);
         using var announcer = new PartyAnnouncer(
             directory, server, server, friends, server, time, NullLogger<PartyAnnouncer>.Instance);
+        var inbox = TestInbox.Create(server, folder, time);
         var parties = new PartyService(
             directory, server, server, server, friends, new PartyRegistry(), announcer, server,
-            new RateLimiter(time), TestInbox.Create(server, folder, time), NullLogger<PartyService>.Instance);
+            new RateLimiter(time), inbox, NullLogger<PartyService>.Instance);
         using var service = new WatchPartyHostedService(
-            manager, hub, friends, presence, parties, time, NullLogger<WatchPartyHostedService>.Instance);
+            manager, hub, friends, presence, parties, inbox, time, NullLogger<WatchPartyHostedService>.Instance);
         await service.StartAsync(CancellationToken.None);
         Assert.NotNull(started);
         Assert.NotNull(ended);
@@ -124,5 +126,41 @@ public class WatchPartyHostedServiceTests
 
         await service.StopAsync(CancellationToken.None);
         Assert.Contains(stub.Calls, c => c.Name == "remove_SessionStarted");
+    }
+
+    [Fact]
+    public async Task CleanupAlsoDropsExpiredNotifications()
+    {
+        var server = new FakeServer();
+        var time = new FakeTimeProvider();
+        var hub = new PartyHub(
+            server, server, server, new PartyRegistry(), new ChatHistory(), new RateLimiter(time), time,
+            NullLogger<PartyHub>.Instance);
+        using var folder = new TempFolder();
+        var friends = new FriendService(
+            new FriendStore(folder.FriendsFile, NullLogger<FriendStore>.Instance),
+            server, server, server, new RateLimiter(time), time, NullLogger<FriendService>.Instance);
+        using var presence = new PresenceTracker(friends, time, NullLogger<PresenceTracker>.Instance);
+        var inbox = TestInbox.Create(server, folder, time);
+        var directory = new PartyDirectory(time);
+        using var announcer = new PartyAnnouncer(
+            directory, server, server, friends, server, time, NullLogger<PartyAnnouncer>.Instance);
+        var parties = new PartyService(
+            directory, server, server, server, friends, new PartyRegistry(), announcer, server,
+            new RateLimiter(time), inbox, NullLogger<PartyService>.Instance);
+        var mario = server.AddUser("Mario");
+        await inbox.AnnounceAsync("vecchio");
+        // Prima di creare il timer della pulizia: un timer periodico
+        // scatterebbe una volta per ogni periodo saltato.
+        time.Advance(InboxService.MaxAge + TimeSpan.FromMinutes(1));
+        using var service = new WatchPartyHostedService(
+            InterfaceStub<ISessionManager>.Create().Proxy, hub, friends, presence, parties, inbox, time,
+            NullLogger<WatchPartyHostedService>.Instance);
+        await service.StartAsync(CancellationToken.None);
+
+        time.Advance(WatchPartyHostedService.CleanupInterval);
+
+        Assert.Empty(inbox.Get(mario.Id).Entries);
+        await service.StopAsync(CancellationToken.None);
     }
 }

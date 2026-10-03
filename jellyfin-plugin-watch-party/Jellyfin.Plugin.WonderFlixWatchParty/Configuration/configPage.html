@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>WonderFlix Watch Party</title>
+</head>
+<body>
+    <div id="WonderFlixWatchPartyPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-textarea">
+        <div data-role="content">
+            <div class="content-primary">
+                <h2 class="sectionTitle">WonderFlix Watch Party</h2>
+                <form id="WonderFlixAnnouncementForm">
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Announcement</h3>
+                        <div class="inputContainer">
+                            <textarea is="emby-textarea" id="WonderFlixAnnouncementText" class="emby-textarea" rows="5" maxlength="500"></textarea>
+                            <div class="fieldDescription">
+                                Sent to the notifications of every active user in WonderFlix.
+                                <span id="WonderFlixAnnouncementCount">0</span>/500
+                            </div>
+                        </div>
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span>Send to everyone</span>
+                        </button>
+                        <div id="WonderFlixAnnouncementResult" class="fieldDescription"></div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <script type="text/javascript">
+            (function () {
+                var page = document.querySelector('#WonderFlixWatchPartyPage');
+                var text = page.querySelector('#WonderFlixAnnouncementText');
+                var count = page.querySelector('#WonderFlixAnnouncementCount');
+                var result = page.querySelector('#WonderFlixAnnouncementResult');
+
+                text.addEventListener('input', function () {
+                    count.textContent = text.value.length;
+                });
+
+                page.querySelector('#WonderFlixAnnouncementForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    var message = text.value.trim();
+                    if (!message) {
+                        result.textContent = 'Write a message first.';
+                        return false;
+                    }
+
+                    Dashboard.showLoadingMsg();
+                    ApiClient.ajax({
+                        type: 'POST',
+                        url: ApiClient.getUrl('WonderFlixWatchParty/Inbox/Announcements'),
+                        data: JSON.stringify({ Text: message }),
+                        contentType: 'application/json',
+                        dataType: 'json'
+                    }).then(function (response) {
+                        Dashboard.hideLoadingMsg();
+                        result.textContent = 'Sent to ' + response.Recipients + ' users.';
+                        text.value = '';
+                        count.textContent = '0';
+                    }, function () {
+                        Dashboard.hideLoadingMsg();
+                        result.textContent = 'Not sent: check the message (1 to 500 characters) and try again.';
+                    });
+                    return false;
+                });
+            })();
+        </script>
+    </div>
+</body>
+</html>

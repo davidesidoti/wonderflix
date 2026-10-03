@@ -6,13 +6,30 @@ using MediaBrowser.Model.Serialization;
 namespace Jellyfin.Plugin.WonderFlixWatchParty;
 
 /// <summary>
-/// Plugin "WonderFlix Watch Party" (spec E, spec F): nomi, chat e reazioni
-/// nei watch party SyncPlay di WonderFlix, e gli amici. Non ha impostazioni.
+/// Plugin "WonderFlix Watch Party" (spec E, F, G): nomi, chat e reazioni nei
+/// watch party SyncPlay di WonderFlix, gli amici e la cassetta delle
+/// notifiche. Non ha impostazioni; la sua pagina nella Dashboard serve per
+/// gli annunci (spec G §6.8).
 /// </summary>
-public class Plugin : BasePlugin<BasePluginConfiguration>
+public class Plugin : BasePlugin<BasePluginConfiguration>, IHasWebPages
 {
     /// <summary>Id del plugin, uguale in meta.json e manifest.json.</summary>
     public static readonly Guid PluginId = Guid.Parse("882eb47e-668a-4935-ba55-c2858eb4ed90");
+
+    /// <summary>
+    /// La pagina nella Dashboard (menu laterale, sotto Plugin). Name deve
+    /// essere unico tra tutti i plugin: Jellyfin cerca la pagina per nome.
+    /// </summary>
+    internal static readonly IReadOnlyList<PluginPageInfo> Pages =
+    [
+        new PluginPageInfo
+        {
+            Name = "WonderFlixWatchParty",
+            DisplayName = "WonderFlix Watch Party",
+            EmbeddedResourcePath = typeof(Plugin).Namespace + ".Configuration.configPage.html",
+            EnableInMainMenu = true,
+        },
+    ];
 
     public Plugin(IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer)
         : base(applicationPaths, xmlSerializer)
@@ -23,5 +40,8 @@ public class Plugin : BasePlugin<BasePluginConfiguration>
 
     public override Guid Id => PluginId;
 
-    public override string Description => "Names, chat, reactions and friends for SyncPlay watch parties in WonderFlix.";
+    public override string Description =>
+        "Names, chat, reactions, friends and notifications for SyncPlay watch parties in WonderFlix.";
+
+    public IEnumerable<PluginPageInfo> GetPages() => Pages;
 }

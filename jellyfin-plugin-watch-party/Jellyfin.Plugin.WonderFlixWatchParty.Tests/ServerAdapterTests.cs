@@ -4,6 +4,8 @@ using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Server;
 using MediaBrowser.Common.Extensions;
+using MediaBrowser.Controller.Entities.Movies;
+using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
 using MediaBrowser.Controller.SyncPlay;
@@ -221,5 +223,40 @@ public class ServerAdapterTests
         stub.Handlers["SendGeneralCommand"] =
             _ => Task.FromException(new ResourceNotFoundException("Session s2 not found."));
         Assert.False(await sender.TrySendAsync("s2", "{}", CancellationToken.None));
+    }
+
+    [Fact]
+    public void ThePlayingItemComesFromTheSessionWithTheSeriesPoster()
+    {
+        var movie = new Movie { Id = Guid.NewGuid() };
+        var episode = new Episode { Id = Guid.NewGuid(), SeriesId = Guid.NewGuid() };
+        var (manager, stub) = InterfaceStub<ISessionManager>.Create();
+        var withMovie = Session("s-1", "d1", "WonderFlix", Guid.NewGuid(), "Mario");
+        withMovie.FullNowPlayingItem = movie;
+        var withEpisode = Session("s-2", "d2", "WonderFlix", Guid.NewGuid(), "Luigi");
+        withEpisode.FullNowPlayingItem = episode;
+        var idle = Session("s-3", "d3", "WonderFlix", Guid.NewGuid(), "Peach");
+        stub.Handlers["get_Sessions"] = _ => new[] { withMovie, withEpisode, idle };
+        var access = new JellyfinLibraryAccess(
+            manager, InterfaceStub<ILibraryManager>.Create().Proxy, InterfaceStub<IUserManager>.Create().Proxy);
+
+        Assert.Equal(new PlayingItem(movie.Id, movie.Id), access.NowPlaying("s-1"));
+        Assert.Equal(new PlayingItem(episode.Id, episode.SeriesId), access.NowPlaying("s-2"));
+        Assert.Null(access.NowPlaying("s-3"));
+        Assert.Null(access.NowPlaying("s-x"));
+    }
+
+    [Fact]
+    public void WithoutTheUserOrTheItemNothingIsVisible()
+    {
+        // Gli stub restituiscono null: utente ed elemento non esistono.
+        var access = new JellyfinLibraryAccess(
+            InterfaceStub<ISessionManager>.Create().Proxy,
+            InterfaceStub<ILibraryManager>.Create().Proxy,
+            InterfaceStub<IUserManager>.Create().Proxy);
+
+        Assert.False(access.CanSee(Guid.NewGuid(), Guid.NewGuid()));
+        Assert.False(access.CanSee(Guid.Empty, Guid.NewGuid()));
+        Assert.False(access.CanSee(Guid.NewGuid(), Guid.Empty));
     }
 }

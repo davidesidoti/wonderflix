@@ -24,4 +24,8 @@
     <InternalsVisibleTo Include="Jellyfin.Plugin.WonderFlixWatchParty.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Configuration\configPage.html" />
+  </ItemGroup>
+
 </Project>

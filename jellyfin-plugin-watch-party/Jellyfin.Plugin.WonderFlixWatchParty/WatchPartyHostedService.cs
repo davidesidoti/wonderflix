@@ -10,7 +10,8 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty;
 /// Toglie dai gruppi le sessioni finite, avvisa gli amici quando una
 /// sessione WonderFlix si apre o si chiude (spec F §6.3) e, ogni
 /// <see cref="CleanupInterval"/>, pulisce registro e storico dei gruppi
-/// finiti (spec E §6.5).
+/// finiti (spec E §6.5). Alla stessa pulizia toglie le notifiche scadute
+/// (spec G §6.1).
 /// </summary>
 public sealed class WatchPartyHostedService(
     ISessionManager sessionManager,
@@ -18,6 +19,7 @@ public sealed class WatchPartyHostedService(
     FriendService friends,
     PresenceTracker presence,
     PartyService parties,
+    InboxService inbox,
     TimeProvider time,
     ILogger<WatchPartyHostedService> logger) : IHostedService, IDisposable
 {
@@ -39,6 +41,15 @@ public sealed class WatchPartyHostedService(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Amici non caricati all'avvio");
+        }
+
+        try
+        {
+            inbox.Load();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Cassetta delle notifiche non caricata all'avvio");
         }
 
         return Task.CompletedTask;
@@ -90,6 +101,12 @@ public sealed class WatchPartyHostedService(
             if (removedParties > 0)
             {
                 logger.LogDebug("Tolti {Count} party finiti", removedParties);
+            }
+
+            var removedEntries = inbox.Cleanup();
+            if (removedEntries > 0)
+            {
+                logger.LogDebug("Tolte {Count} notifiche scadute", removedEntries);
             }
         }
         catch (Exception ex)

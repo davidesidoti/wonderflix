@@ -1,10 +1,10 @@
 {
   "category": "General",
   "changelog": "",
-  "description": "Names, chat, reactions and friends for SyncPlay watch parties in WonderFlix.",
+  "description": "Names, chat, reactions, friends and notifications for SyncPlay watch parties in WonderFlix.",
   "guid": "882eb47e-668a-4935-ba55-c2858eb4ed90",
   "name": "WonderFlix Watch Party",
-  "overview": "WonderFlix watch party: names, chat, reactions, friends",
+  "overview": "WonderFlix watch party: names, chat, reactions, friends, notifications",
   "owner": "davidesidoti",
   "targetAbi": "10.11.0.0",
   "timestamp": "@TIMESTAMP@",
