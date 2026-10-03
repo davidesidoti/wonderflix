@@ -9,6 +9,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../core/jellyfin/auth_models.dart';
 import '../features/auth/session_controller.dart';
+import '../features/friends/friend_request_card.dart';
+import '../features/friends/friends_button.dart';
+import '../features/friends/friends_panel.dart';
 import '../features/library/server_events_binding.dart';
 import '../features/watch_party/watch_party_button.dart';
 import '../features/watch_party/watch_party_invites.dart';
@@ -112,6 +115,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                           ),
                         ),
                         const WatchPartyButton(),
+                        const FriendsButton(),
                         const SizedBox(width: 16),
                         if (user != null) _UserMenu(user: user),
                       ],
@@ -120,8 +124,20 @@ class _AppShellState extends ConsumerState<AppShell> {
                 ],
               ),
             ),
-            // Invito a un watch party appena nato (spec B §5.8).
-            const Positioned(top: 72, right: 24, child: WatchPartyInviteCard()),
+            // Invito a un watch party appena nato (spec B §5.8) e richiesta
+            // di amicizia appena arrivata (spec F §8.4), una sotto l'altra.
+            const Positioned(
+              top: 72,
+              right: 24,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                spacing: 8,
+                children: [WatchPartyInviteCard(), FriendRequestCard()],
+              ),
+            ),
+            // Pannello Amici, sopra la barra e le schede (spec F §8.3).
+            const Positioned.fill(child: FriendsPanelHost()),
           ],
         ),
       ),

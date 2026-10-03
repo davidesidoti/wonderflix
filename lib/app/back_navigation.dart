@@ -4,13 +4,15 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/friends/friends_panel.dart';
 import '../features/update/update_gate.dart';
 import '../ui/card_preview.dart';
 
 /// Esc, Alt+← e il tasto "indietro" del mouse chiudono la pagina corrente.
 /// Non fa nulla se sopra c'è un menu o un dialog (gestiscono loro Esc) o la
 /// schermata dell'aggiornamento obbligatorio; con un'anteprima di una card
-/// aperta Esc chiude solo l'anteprima.
+/// aperta Esc chiude solo l'anteprima; con il pannello Amici aperto Esc
+/// chiude solo lui.
 class BackNavigationHandler extends ConsumerStatefulWidget {
   const BackNavigationHandler({super.key, required this.child});
 
@@ -41,6 +43,11 @@ class _BackNavigationHandlerState extends ConsumerState<BackNavigationHandler> {
     // tutti i gestori ricevono il tasto, qui la pagina resta.
     if (key == LogicalKeyboardKey.escape &&
         ref.read(cardPreviewProvider).openId != null) {
+      return false;
+    }
+    // Con il pannello Amici aperto Esc chiude solo lui (lo gestisce il
+    // pannello). `friendsPanelProvider` non dipende da altri provider.
+    if (key == LogicalKeyboardKey.escape && ref.read(friendsPanelProvider)) {
       return false;
     }
     final isBack = key == LogicalKeyboardKey.escape ||

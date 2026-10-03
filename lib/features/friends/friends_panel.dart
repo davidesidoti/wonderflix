@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../core/social/social_api.dart';
 import '../../core/social/social_models.dart';
@@ -486,4 +489,123 @@ class _Note extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
         child: Text(text, style: _mutedStyle),
       );
+}
+
+/// Pannello Amici sopra la shell e la barra (spec F §8.3): entra da destra
+/// come "Audio e sottotitoli" (con le animazioni ridotte solo in
+/// dissolvenza), il resto si scurisce. Esc, × e un clic sullo scuro lo
+/// chiudono.
+class FriendsPanelHost extends ConsumerStatefulWidget {
+  const FriendsPanelHost({super.key});
+
+  @override
+  ConsumerState<FriendsPanelHost> createState() => _FriendsPanelHostState();
+}
+
+class _FriendsPanelHostState extends ConsumerState<FriendsPanelHost>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: WfMotion.medium,
+    reverseDuration: WfMotion.fast,
+    value: ref.read(friendsPanelVisibleProvider) ? 1 : 0,
+  );
+  late final CurvedAnimation _progress = CurvedAnimation(
+    parent: _controller,
+    curve: WfMotion.emphasized,
+    reverseCurve: WfMotion.accelerateReverse,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_onKey);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _controller.duration = WfMotion.of(context).duration(WfMotion.medium);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKey);
+    // Prima la curva (si stacca dal controller), poi il controller.
+    _progress.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// Esc chiude il pannello; `BackNavigationHandler` intanto non torna
+  /// indietro di pagina. Con un menu aperto (es. ⋯ di un amico) Esc è del
+  /// menu: lo chiude lui, il pannello resta.
+  bool _onKey(KeyEvent event) {
+    if (event is! KeyDownEvent ||
+        event.logicalKey != LogicalKeyboardKey.escape ||
+        !mounted ||
+        !(ModalRoute.of(context)?.isCurrent ?? true) ||
+        !ref.read(friendsPanelVisibleProvider)) {
+      return false;
+    }
+    ref.read(friendsPanelProvider.notifier).close();
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen(friendsPanelVisibleProvider, (_, visible) {
+      if (visible) {
+        _controller.forward();
+      } else {
+        _controller.reverse();
+        // Funzione sparita a pannello aperto: si chiude davvero.
+        ref.read(friendsPanelProvider.notifier).close();
+      }
+    });
+    final reduced = WfMotion.of(context).isReduced;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = math.min(FriendsPanel.width,
+            constraints.maxWidth * FriendsPanel.maxWidthFraction);
+        return AnimatedBuilder(
+          animation: _progress,
+          builder: (context, _) {
+            if (_controller.isDismissed) return const SizedBox.shrink();
+            final t = _progress.value.clamp(0.0, 1.0);
+            final closing = _controller.status == AnimationStatus.reverse;
+            return Stack(
+              children: [
+                Positioned.fill(
+                  child: GestureDetector(
+                    key: const Key('friends-panel-scrim'),
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () =>
+                        ref.read(friendsPanelProvider.notifier).close(),
+                    child: ColoredBox(
+                        color: Colors.black.withValues(alpha: 0.54 * t)),
+                  ),
+                ),
+                Positioned(
+                  top: 0,
+                  bottom: 0,
+                  right: 0,
+                  width: width,
+                  child: IgnorePointer(
+                    ignoring: closing,
+                    child: reduced
+                        ? Opacity(opacity: t, child: const FriendsPanel())
+                        : FractionalTranslation(
+                            translation: Offset(1 - t, 0),
+                            child: const FriendsPanel(),
+                          ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
 }

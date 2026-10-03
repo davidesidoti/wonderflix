@@ -11,6 +11,7 @@ import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/friends/friends_panel.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/library/server_events_binding.dart';
 import 'package:wonderflix/features/update/update_gate.dart';
@@ -164,4 +165,37 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('pagina B'), findsOneWidget);
   });
+
+  testWidgets('Esc con il pannello Amici aperto: la pagina resta',
+      (tester) async {
+    final router = GoRouter(
+      initialLocation: '/a',
+      routes: [
+        ShellRoute(
+          builder: (context, state, child) => BackNavigationHandler(child: child),
+          routes: [
+            GoRoute(path: '/a', builder: (c, s) => const Text('pagina A')),
+            GoRoute(path: '/b', builder: (c, s) => const Text('pagina B')),
+          ],
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [friendsPanelProvider.overrideWith(_OpenFriendsPanel.new)],
+      child: MaterialApp.router(routerConfig: router),
+    ));
+    router.push('/b');
+    await tester.pumpAndSettle();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('pagina B'), findsOneWidget);
+  });
+}
+
+/// Pannello Amici già aperto (senza toccare amici né plugin).
+class _OpenFriendsPanel extends FriendsPanelController {
+  @override
+  bool build() => true;
 }
