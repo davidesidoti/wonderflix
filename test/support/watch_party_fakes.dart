@@ -29,6 +29,10 @@ class FakeSyncPlayApi implements SyncPlayApi {
   /// Risposta di [list].
   List<GroupInfo> groups = const [];
 
+  /// Se valorizzato, [list] aspetta che si completi (la risposta è quella del
+  /// momento della chiamata).
+  Completer<void>? listGate;
+
   /// Risposta di [group] (`null` = gruppo non trovato).
   GroupInfo? groupInfo;
 
@@ -63,7 +67,9 @@ class FakeSyncPlayApi implements SyncPlayApi {
   @override
   Future<List<GroupInfo>> list() async {
     await _record('list');
-    return groups;
+    final result = groups;
+    await listGate?.future;
+    return result;
   }
 
   /// Lancia [error], se valorizzato.

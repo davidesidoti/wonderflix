@@ -125,6 +125,14 @@ class FakeSocialApi implements SocialApi {
   /// Chiamato a ogni [registerParty], prima della risposta.
   void Function()? onRegister;
 
+  /// Se valorizzato, [registerParty] aspetta che si completi.
+  Completer<void>? registerGate;
+
+  /// Se valorizzato, [parties] e [partyDetails] aspettano che si completi (la
+  /// risposta è quella del momento della chiamata).
+  Completer<void>? partiesGate;
+  Completer<void>? detailsGate;
+
   /// Risposta di [parties].
   List<GroupInfo> partyList = const [];
 
@@ -141,6 +149,7 @@ class FakeSocialApi implements SocialApi {
   Future<String?> registerParty(String groupId, PartyMode mode) async {
     calls.add('register $groupId ${mode.wire}');
     onRegister?.call();
+    await registerGate?.future;
     final failure = registerFailure;
     if (failure != null) throw SocialException(failure);
     return mode == PartyMode.private ? registerCode : null;
@@ -149,15 +158,20 @@ class FakeSocialApi implements SocialApi {
   @override
   Future<List<GroupInfo>> parties() async {
     calls.add('parties');
+    final result = partyList;
+    await partiesGate?.future;
     _fail();
-    return partyList;
+    return result;
   }
 
   @override
   Future<PartyDetails> partyDetails(String groupId) async {
     calls.add('details $groupId');
+    final result =
+        details[groupId] ?? const PartyDetails(mode: PartyMode.public);
+    await detailsGate?.future;
     _fail();
-    return details[groupId] ?? const PartyDetails(mode: PartyMode.public);
+    return result;
   }
 
   @override

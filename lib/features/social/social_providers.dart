@@ -17,31 +17,47 @@ final socialApiProvider =
 
 /// Funzioni del plugin che l'app può usare (spec F §7.2).
 class SocialFeatures {
-  const SocialFeatures({this.friends = false, this.parties = false});
+  const SocialFeatures({
+    this.friends = false,
+    this.parties = false,
+    this.known = true,
+  });
 
+  /// Plugin assente o senza funzioni (già verificato).
   static const none = SocialFeatures();
+
+  /// Dopo il login, finché `Info` non ha risposto: non si sa ancora se
+  /// l'elenco dei party va chiesto al plugin o a Jellyfin. Chi mostra i
+  /// party aspetta, perché `/SyncPlay/List` non è filtrato per modalità.
+  static const unknown = SocialFeatures(known: false);
 
   final bool friends;
   final bool parties;
+
+  /// `false` solo prima della prima risposta (o del primo errore) di `Info`.
+  final bool known;
 
   @override
   bool operator ==(Object other) =>
       other is SocialFeatures &&
       other.friends == friends &&
-      other.parties == parties;
+      other.parties == parties &&
+      other.known == known;
 
   @override
-  int get hashCode => Object.hash(friends, parties);
+  int get hashCode => Object.hash(friends, parties, known);
 
   @override
-  String toString() => 'SocialFeatures(friends: $friends, parties: $parties)';
+  String toString() =>
+      'SocialFeatures(friends: $friends, parties: $parties, known: $known)';
 }
 
 /// Chiede `Info` al plugin dopo il login e a ogni connessione del WebSocket,
 /// anche la prima (spec F §7.2): se il controllo del login è fallito, quando
 /// il WebSocket si connette il server è raggiungibile e ha una seconda
 /// possibilità. Senza utente, senza accesso ai watch party o senza plugin:
-/// nessuna funzione, e l'app si comporta come la 0.5.1.
+/// nessuna funzione, e l'app si comporta come la 0.5.1. Dal login alla prima
+/// risposta (o al primo errore) le funzioni sono [SocialFeatures.unknown].
 class SocialAvailability extends Notifier<SocialFeatures> {
   /// Cresce a ogni cambio di utente (`build`) e a ogni controllo: vale solo
   /// il risultato dell'ultimo, uno più lento di un logout o di un altro
@@ -66,7 +82,7 @@ class SocialAvailability extends Notifier<SocialFeatures> {
     unawaited(Future.microtask(() {
       if (built == _checks) unawaited(refresh());
     }));
-    return SocialFeatures.none;
+    return SocialFeatures.unknown;
   }
 
   Future<void> refresh() async {
@@ -81,15 +97,19 @@ class SocialAvailability extends Notifier<SocialFeatures> {
       );
     } on SocialException catch (error) {
       // Plugin assente, vecchio o senza permesso: niente funzioni. Un
-      // errore di rete lascia quelle che c'erano.
+      // errore di rete lascia quelle che c'erano; se non c'erano ancora
+      // (spec F §10: `Info` non risponde) vale come plugin assente.
       if (ref.mounted &&
           check == _checks &&
-          error.failure != SocialFailure.network) {
+          (error.failure != SocialFailure.network || !state.known)) {
         state = SocialFeatures.none;
       }
     } on Object catch (error) {
       // Anche un provider che non si può creare (es. nei test).
       _log.info('funzioni del plugin non verificate: ${error.runtimeType}');
+      if (ref.mounted && check == _checks && !state.known) {
+        state = SocialFeatures.none;
+      }
     }
   }
 }

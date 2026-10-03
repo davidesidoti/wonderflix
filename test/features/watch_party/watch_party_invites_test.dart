@@ -41,31 +41,26 @@ void main() {
   tearDown(() => events.close());
 
   /// Dentro la zona finta: container e inviti attivi.
-  void mount({JellyfinUser user = testUser}) {
+  /// Con le funzioni del plugin [features]: di default nessuna, come la 0.5.1.
+  void mount(
+      {JellyfinUser user = testUser,
+      SocialFeatures features = SocialFeatures.none}) {
     container = ProviderContainer(overrides: [
       sessionControllerProvider
           .overrideWith(() => FakeSessionController(SessionSignedIn(user))),
       syncPlayApiProvider.overrideWithValue(api),
       watchPartyEventsProvider.overrideWithValue(events.stream),
       watchPartyDirectoryProvider.overrideWith(FakeWatchPartyDirectory.new),
+      socialApiProvider.overrideWithValue(FakeSocialApi()),
+      socialAvailabilityProvider
+          .overrideWith(() => FakeSocialAvailability(features)),
     ]);
     container.listen(watchPartyInvitesProvider, (_, _) {});
   }
 
   /// Come [mount], con la funzione `parties` del plugin.
-  void mountWithParties() {
-    container = ProviderContainer(overrides: [
-      sessionControllerProvider.overrideWith(
-          () => FakeSessionController(const SessionSignedIn(testUser))),
-      syncPlayApiProvider.overrideWithValue(api),
-      watchPartyEventsProvider.overrideWithValue(events.stream),
-      watchPartyDirectoryProvider.overrideWith(FakeWatchPartyDirectory.new),
-      socialApiProvider.overrideWithValue(FakeSocialApi()),
-      socialAvailabilityProvider.overrideWith(() => FakeSocialAvailability(
-          const SocialFeatures(friends: true, parties: true))),
-    ]);
-    container.listen(watchPartyInvitesProvider, (_, _) {});
-  }
+  void mountWithParties() => mount(
+      features: const SocialFeatures(friends: true, parties: true));
 
   void groups(FakeAsync async, List<GroupInfo> list) {
     (container.read(watchPartyDirectoryProvider.notifier)
@@ -236,6 +231,61 @@ void main() {
       groups(async, [g1]);
       groups(async, [g1, g2]);
       expect(invite(), isNull);
+    });
+  });
+
+  test('funzioni non ancora note: nessuna scheda, poi vale la logica giusta',
+      () {
+    fakeAsync((async) {
+      mount(features: SocialFeatures.unknown);
+      async.flushMicrotasks();
+      groups(async, const []);
+      groups(async, [g2]);
+      groups(async, [g2, g3]);
+      expect(invite(), isNull);
+      events.add(partyStartedReceived('g7', 'Luigi · Arrival'));
+      async.flushMicrotasks();
+      expect(invite(), isNull);
+
+      // Note le funzioni (senza parties) le schede tornano dall'elenco.
+      (container.read(socialAvailabilityProvider.notifier)
+              as FakeSocialAvailability)
+          .set(SocialFeatures.none);
+      async.flushMicrotasks();
+      // Leggere fa ricostruire il provider con la logica dell'elenco.
+      expect(invite(), isNull);
+      groups(async, [g2]);
+      expect(invite(), isNull, reason: 'la prima lettura è la base');
+      groups(async, [g2, g3]);
+      expect(invite()?.id, 'g3');
+      container.dispose();
+    });
+  });
+
+  test('con la funzione parties: niente scheda per un gruppo visitato o '
+      'dentro un gruppo', () {
+    fakeAsync((async) {
+      mountWithParties();
+      async.flushMicrotasks();
+      unawaited(container.read(watchPartySessionProvider.notifier).join('g1'));
+      async.flushMicrotasks();
+      expect(container.read(watchPartySessionProvider).inGroup, isTrue);
+
+      events.add(partyStartedReceived('g5', 'Peach · Up'));
+      async.flushMicrotasks();
+      expect(invite(), isNull, reason: 'dentro un gruppo');
+
+      unawaited(container.read(watchPartySessionProvider.notifier).leave());
+      async.flushMicrotasks();
+      events.add(partyStartedReceived('g1', 'Mario · Dune'));
+      events.add(partyInviteReceived('g1', 'Mario · Dune', 'Mario'));
+      async.flushMicrotasks();
+      expect(invite(), isNull, reason: 'gruppo già visitato');
+
+      events.add(partyStartedReceived('g5', 'Peach · Up'));
+      async.flushMicrotasks();
+      expect(invite()?.id, 'g5', reason: 'un party nuovo sì');
+      container.dispose();
     });
   });
 

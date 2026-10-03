@@ -152,6 +152,66 @@ void main() {
     expect(api.calls, ['info'], reason: 'per il nuovo utente nessuna chiamata');
   });
 
+  test('dopo il login le funzioni non sono note finché Info non risponde',
+      () async {
+    api.install();
+    final gate = api.infoGate = Completer<void>();
+    final c = container();
+    await pumpEventQueue();
+    expect(c.read(socialAvailabilityProvider), SocialFeatures.unknown);
+    expect(c.read(socialAvailabilityProvider).known, isFalse);
+    expect(SocialFeatures.unknown, isNot(SocialFeatures.none));
+    expect(SocialFeatures.none.known, isTrue);
+
+    gate.complete();
+    await pumpEventQueue();
+    expect(c.read(socialAvailabilityProvider),
+        const SocialFeatures(friends: true));
+    expect(c.read(socialAvailabilityProvider).known, isTrue);
+  });
+
+  test('Info senza rete prima di conoscere le funzioni: come plugin assente',
+      () async {
+    api
+      ..install()
+      ..infoFailure = SocialFailure.network;
+    final gate = api.infoGate = Completer<void>();
+    final c = container();
+    await pumpEventQueue();
+    expect(c.read(socialAvailabilityProvider), SocialFeatures.unknown);
+
+    gate.complete();
+    await pumpEventQueue();
+    expect(c.read(socialAvailabilityProvider), SocialFeatures.none);
+  });
+
+  test('un errore inatteso prima di conoscere le funzioni: come plugin assente',
+      () async {
+    final c = ProviderContainer.test(overrides: [
+      sessionControllerProvider.overrideWith(
+          () => FakeSessionController(const SessionSignedIn(testUser))),
+      watchPartyEventsProvider.overrideWithValue(events.stream),
+      socialApiProvider.overrideWith((ref) => throw StateError('non pronto')),
+    ]);
+    c.listen(socialAvailabilityProvider, (_, _) {});
+    expect(c.read(socialAvailabilityProvider), SocialFeatures.unknown);
+    await pumpEventQueue();
+    expect(c.read(socialAvailabilityProvider), SocialFeatures.none);
+  });
+
+  test('un nuovo controllo non rimette le funzioni tra le non note', () async {
+    api.install();
+    final c = container();
+    await pumpEventQueue();
+    final gate = api.infoGate = Completer<void>();
+    events.add(const ServerConnected(true));
+    await pumpEventQueue();
+    expect(c.read(socialAvailabilityProvider).known, isTrue);
+    expect(c.read(socialAvailabilityProvider).friends, isTrue);
+    gate.complete();
+    await pumpEventQueue();
+  });
+
   test('avvisi sociali dal WebSocket', () async {
     final c = container();
     final received = <SocialEvent>[];

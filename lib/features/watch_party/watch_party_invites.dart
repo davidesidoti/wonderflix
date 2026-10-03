@@ -66,12 +66,16 @@ class WatchPartyInvites extends Notifier<WatchPartyInvite?> {
     _visited.clear();
     _timer = null;
     // Spec F §9.6: con la funzione `parties` le schede le annuncia il
-    // plugin; altrimenti nascono dal confronto tra due letture dell'elenco.
-    if (ref.watch(socialAvailabilityProvider.select((f) => f.parties))) {
+    // plugin; senza, nascono dal confronto tra due letture dell'elenco.
+    // Finché le funzioni non sono note niente: l'elenco di Jellyfin non è
+    // filtrato per modalità.
+    final (known, parties) = ref.watch(
+        socialAvailabilityProvider.select((f) => (f.known, f.parties)));
+    if (parties) {
       final subscription =
           ref.watch(socialEventsProvider).listen(_onSocialEvent);
       ref.onDispose(() => unawaited(subscription.cancel()));
-    } else {
+    } else if (known) {
       ref.listen(watchPartyDirectoryProvider, (_, groups) => _onGroups(groups));
     }
     ref.listen(playerActiveProvider, (_, active) {
