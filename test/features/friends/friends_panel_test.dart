@@ -98,6 +98,11 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(api.calls, containsAllInOrder(['search lu', 'request u2', 'search lu']));
+
+    // Una sola ripetizione (il limite del plugin è 30 ricerche al minuto):
+    // la ripete la lista amici riletta dopo l'azione, non l'azione stessa.
+    await tester.pumpAndSettle();
+    expect(api.calls.where((call) => call == 'search lu'), hasLength(2));
   });
 
   testWidgets('ricerca senza risultati', (tester) async {

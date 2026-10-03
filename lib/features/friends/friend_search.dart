@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/social/social_api.dart';
 import '../../core/social/social_models.dart';
 import '../social/social_providers.dart';
+import 'friends_controller.dart';
 
 /// Ricerca di utenti nel pannello Amici (spec F §8.1, §8.3).
 class FriendSearchState {
@@ -44,6 +45,14 @@ class FriendSearch extends Notifier<FriendSearchState> {
   @override
   FriendSearchState build() {
     ref.onDispose(() => _timer?.cancel());
+    // Gli amici cambiano (azione fatta qui, avviso dell'altra parte, altro
+    // dispositivo): la relazione dei risultati è cambiata, si ripete. Se la
+    // ricerca aspetta ancora il debounce, partirà lei con i dati nuovi.
+    ref.listen(friendsControllerProvider.select((s) => s.snapshot), (_, _) {
+      if (state.active && !(_timer?.isActive ?? false)) {
+        unawaited(_run(state.query));
+      }
+    });
     return const FriendSearchState();
   }
 

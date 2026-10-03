@@ -64,7 +64,13 @@ class FakeSocialApi implements SocialApi {
   @override
   Future<FriendsSnapshot> friends() async {
     calls.add('friends');
-    final result = snapshot;
+    // Come la risposta vera, un oggetto nuovo a ogni chiamata (chi
+    // confronta gli snapshot se ne accorge anche se il contenuto è uguale).
+    final result = FriendsSnapshot(
+      friends: snapshot.friends,
+      incoming: snapshot.incoming,
+      outgoing: snapshot.outgoing,
+    );
     await friendsGate?.future;
     _fail();
     return result;

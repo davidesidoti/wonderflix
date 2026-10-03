@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
 import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/core/social/social_models.dart';
@@ -98,5 +99,24 @@ void main() {
         api.info(),
         throwsA(isA<SocialException>().having(
             (e) => e.failure, 'failure', SocialFailure.network)));
+  });
+
+  test('esiti previsti nel log come info, il resto come avviso', () async {
+    final records = <LogRecord>[];
+    Logger.root.level = Level.ALL;
+    final subscription = Logger.root.onRecord.listen(records.add);
+    addTearDown(subscription.cancel);
+
+    // Accettare una richiesta già annullata è una corsa normale (403).
+    for (final status in [403, 404, 409, 429, 500]) {
+      adapter.handler = (_) => FakeResponse(status);
+      await expectLater(
+          api.accept('u2'), throwsA(isA<SocialException>()));
+    }
+
+    expect([
+      for (final record in records)
+        if (record.loggerName == 'http') record.level,
+    ], [Level.INFO, Level.INFO, Level.INFO, Level.INFO, Level.WARNING]);
   });
 }

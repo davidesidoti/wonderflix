@@ -41,9 +41,11 @@ class SocialApi {
 
   static const _base = '/WonderFlixWatchParty';
 
-  /// Esiti previsti (plugin assente, già amici, troppe richieste): nel log
-  /// come info, non tra gli "Ultimi errori" della diagnostica.
-  static const _quiet = {404, 409, 429};
+  /// Esiti previsti (plugin assente, già amici, troppe richieste, richiesta
+  /// non più valida: accettare o rifiutare una richiesta già annullata è una
+  /// corsa normale, 403): nel log come info, non tra gli "Ultimi errori"
+  /// della diagnostica.
+  static const _quiet = {403, 404, 409, 429};
 
   final JellyfinHttp _http;
 

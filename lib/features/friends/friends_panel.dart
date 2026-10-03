@@ -197,13 +197,10 @@ class _SearchAction extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final friends = ref.read(friendsControllerProvider.notifier);
-    final search = ref.read(friendSearchProvider.notifier);
-    // Dopo l'azione la ricerca si ripete: la relazione è cambiata.
+    // Dopo l'azione la ricerca si ripete da sola: gli amici vengono riletti
+    // e `FriendSearch` ascolta la lista (la relazione è cambiata).
     void run(Future<SocialFailure?> Function() action) =>
-        unawaited(() async {
-          await runFriendAction(context, action);
-          await search.rerun();
-        }());
+        unawaited(runFriendAction(context, action));
     final id = result.userId;
     return switch (result.relation) {
       FriendRelation.none => _ActionButton(
