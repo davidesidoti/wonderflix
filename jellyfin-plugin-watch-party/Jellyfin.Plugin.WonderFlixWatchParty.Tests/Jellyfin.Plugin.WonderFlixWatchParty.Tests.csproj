@@ -14,9 +14,12 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" PrivateAssets="All" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="9.10.0" />
     <!-- Il plugin esclude le dll di Jellyfin (le ha il server); i test le
-         devono caricare, quindi si riferiscono di nuovo qui. -->
-    <PackageReference Include="Jellyfin.Controller" Version="10.11.0" />
-    <PackageReference Include="Jellyfin.Model" Version="10.11.0" />
+         devono caricare, quindi si riferiscono di nuovo qui. Le caricano
+         della versione che gira sul server (10.11.9): un membro tolto in una
+         patch 10.11.x emerge nei test. Il plugin resta compilato contro
+         10.11.0, il minimo. -->
+    <PackageReference Include="Jellyfin.Controller" Version="10.11.9" />
+    <PackageReference Include="Jellyfin.Model" Version="10.11.9" />
   </ItemGroup>
 
   <ItemGroup>

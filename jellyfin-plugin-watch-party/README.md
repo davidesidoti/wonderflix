@@ -40,6 +40,12 @@ Prima di installare dal Catalogo togli la cartella copiata a mano.
 ## Sviluppo
 
 - Test: `dotnet test jellyfin-plugin-watch-party/Jellyfin.Plugin.WonderFlixWatchParty.Tests`.
+- Versioni di Jellyfin: il plugin è compilato contro Jellyfin 10.11.0 (il
+  minimo), i test girano con quella del server (10.11.9). Jellyfin ha tolto
+  `IUserManager.Users` in una patch 10.11.x, quindi i membri che sono cambiati
+  si cercano a runtime (`Server/UserListing.cs`). Quando si aggiorna il
+  server, si alzano i pacchetti `Jellyfin.Controller` e `Jellyfin.Model` del
+  progetto di test a quella versione.
 - Release: tag `watch-party-plugin-vX.Y.Z` → il workflow
   `watch-party-plugin.yml` pubblica una **pre-release** con lo zip e il suo
   MD5. Mai "latest": l'app legge `releases/latest` per i propri

@@ -9,7 +9,15 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Server;
 /// <summary>Gli utenti di Jellyfin.</summary>
 public sealed class JellyfinUserDirectory(IUserManager userManager) : IUserDirectory
 {
-    public IReadOnlyList<UserRef> GetUsers() => userManager.Users.Select(ToRef).ToList();
+    // In 10.11.0 IUserManager ha la proprietà Users, nelle 10.11.x successive il
+    // metodo GetUsers(): quale usare si decide una volta sola a runtime (vedi
+    // UserListing).
+    private static readonly Func<object, IEnumerable<User>>? ListUsers = UserListing.For(typeof(IUserManager));
+
+    public IReadOnlyList<UserRef> GetUsers() =>
+        (ListUsers ?? throw new MissingMemberException(typeof(IUserManager).FullName, "GetUsers"))(userManager)
+            .Select(ToRef)
+            .ToList();
 
     // Con un id vuoto UserManager lancia: l'utente non c'è e basta.
     public UserRef? GetUser(Guid userId) =>

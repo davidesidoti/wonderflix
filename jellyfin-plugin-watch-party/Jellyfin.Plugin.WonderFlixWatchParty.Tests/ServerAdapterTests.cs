@@ -67,7 +67,7 @@ public class ServerAdapterTests
         var bowser = new User("Bowser", "provider", "reset");
         bowser.SetPermission(PermissionKind.IsDisabled, true);
         var (manager, stub) = InterfaceStub<IUserManager>.Create();
-        stub.Handlers["get_Users"] = _ => new[] { mario, bowser };
+        stub.Handlers["GetUsers"] = _ => new[] { mario, bowser };
         // Come UserManager vero: con un id vuoto lancia.
         stub.Handlers["GetUserById"] = args => (Guid)args[0]! == Guid.Empty
             ? throw new ArgumentException("userId vuoto")
@@ -89,7 +89,7 @@ public class ServerAdapterTests
         var toad = new User("Toad", "provider", "reset") { SyncPlayAccess = SyncPlayUserAccessType.None };
         var joinOnly = new User("Daisy", "provider", "reset") { SyncPlayAccess = SyncPlayUserAccessType.JoinGroups };
         var (manager, stub) = InterfaceStub<IUserManager>.Create();
-        stub.Handlers["get_Users"] = _ => new[] { toad, joinOnly };
+        stub.Handlers["GetUsers"] = _ => new[] { toad, joinOnly };
         var directory = new JellyfinUserDirectory(manager);
 
         Assert.Equal(
