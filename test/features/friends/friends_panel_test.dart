@@ -350,6 +350,64 @@ void main() {
       await leaveParty(tester);
     });
 
+    group('Unisciti cliccato due volte di fila', () {
+      // Il gruppo conferma l'ingresso solo quando lo dice il test.
+      setUp(() => syncPlay.onCall = null);
+
+      Finder joinButton() => find.descendant(
+          of: find.byKey(const Key('friend-join-u2')),
+          matching: find.byType(TextButton));
+
+      /// Pannello aperto con Luigi nel party g1; Unisciti cliccato due volte.
+      Future<ProviderContainer> doubleTapJoin(WidgetTester tester) async {
+        api.snapshot = const FriendsSnapshot(friends: [
+          FriendEntry(
+            userId: 'u2',
+            name: 'Luigi',
+            online: true,
+            party: FriendParty(groupId: 'g1', title: 'Dune'),
+          ),
+        ]);
+        await pumpPartyPanel(tester);
+        final container = ProviderScope.containerOf(
+            tester.element(find.byType(FriendsPanel)));
+        container.listen(friendsPanelProvider, (_, _) {});
+        container.read(friendsPanelProvider.notifier).open();
+        await tester.pump();
+        await tester.tap(joinButton());
+        await tester.pump();
+        await tester.tap(joinButton());
+        await tester.pump();
+        return container;
+      }
+
+      testWidgets('un solo ingresso; il pannello si chiude quando riesce',
+          (tester) async {
+        final container = await doubleTapJoin(tester);
+        expect(syncPlay.calls.where((call) => call == 'join g1'), hasLength(1));
+        expect(tester.widget<TextButton>(joinButton()).onPressed, isNull,
+            reason: 'Unisciti spento finché l\'ingresso è in corso');
+        expect(container.read(friendsPanelProvider), isTrue);
+
+        events.add(SyncPlayGroupUpdated(GroupJoined('g1', testGroup())));
+        await tester.pumpAndSettle();
+        expect(container.read(friendsPanelProvider), isFalse);
+        await leaveParty(tester);
+      });
+
+      testWidgets('ingresso fallito: il pannello resta aperto con l\'errore',
+          (tester) async {
+        final container = await doubleTapJoin(tester);
+        await tester.pump(WatchPartySession.joinTimeout);
+        await tester.pump();
+        expect(find.text('Non è stato possibile entrare nel watch party.'),
+            findsOneWidget);
+        expect(container.read(friendsPanelProvider), isTrue);
+        expect(tester.widget<TextButton>(joinButton()).onPressed, isNotNull,
+            reason: 'si può riprovare');
+      });
+    });
+
     testWidgets('senza la funzione parties: niente "Ho un codice"',
         (tester) async {
       await pumpApp(

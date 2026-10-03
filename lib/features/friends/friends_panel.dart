@@ -478,6 +478,7 @@ class _FriendRow extends ConsumerStatefulWidget {
 
 class _FriendRowState extends ConsumerState<_FriendRow> {
   Timer? _confirm;
+  bool _joining = false;
 
   @override
   void dispose() {
@@ -506,8 +507,16 @@ class _FriendRowState extends ConsumerState<_FriendRow> {
 
   /// Entra nel party dell'amico; riuscito, il pannello si chiude.
   Future<void> _join(String groupId) async {
-    final joined = await joinWatchParty(context, ref, groupId);
-    if (joined && mounted) ref.read(friendsPanelProvider.notifier).close();
+    // Unisciti resta spento finché l'ingresso è in corso: un secondo clic
+    // tornerebbe subito (la sessione è già in `joining`) e chiuderebbe il
+    // pannello prima dell'esito (spec F §8.3).
+    setState(() => _joining = true);
+    try {
+      final joined = await joinWatchParty(context, ref, groupId);
+      if (joined && mounted) ref.read(friendsPanelProvider.notifier).close();
+    } finally {
+      if (mounted) setState(() => _joining = false);
+    }
   }
 
   @override
@@ -555,7 +564,9 @@ class _FriendRowState extends ConsumerState<_FriendRow> {
                 _ActionButton(
                   key: Key('friend-join-${friend.userId}'),
                   label: l.watchPartyJoin,
-                  onPressed: () => unawaited(_join(party.groupId)),
+                  onPressed: _joining
+                      ? null
+                      : () => unawaited(_join(party.groupId)),
                 ),
                 menu,
               ],
@@ -657,7 +668,9 @@ class _ActionButton extends StatelessWidget {
   });
 
   final String label;
-  final VoidCallback onPressed;
+
+  /// `null` = spento.
+  final VoidCallback? onPressed;
   final bool muted;
   final bool danger;
 
