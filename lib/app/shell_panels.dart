@@ -4,18 +4,28 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/friends/friends_controller.dart';
 import '../features/inbox/inbox_controller.dart';
+import '../features/player/player_active.dart';
 
 /// I pannelli laterali della shell (spec F §8.3, spec G §7.5).
 enum ShellPanel { none, friends, inbox }
 
 /// Il pannello laterale aperto: uno alla volta, aprirne uno chiude l'altro.
 /// Aprire Amici rilegge gli amici; aprire e chiudere Notifiche lo dice alla
-/// cassetta (letture e pallini). Non dipende da altri provider: lo legge
-/// anche la gestione dei tasti indietro. Si azzera quando nessuno lo guarda
-/// più (es. la shell smontata al logout).
+/// cassetta (letture e pallini). Ascolta solo il player, per chiudersi
+/// quando si apre (la shell resta montata sotto): `build` non si ricostruisce
+/// mai per altri provider, perché lo legge anche la gestione dei tasti
+/// indietro. Si azzera quando nessuno lo guarda più (es. la shell smontata al
+/// logout).
 class ShellPanelController extends Notifier<ShellPanel> {
   @override
-  ShellPanel build() => ShellPanel.none;
+  ShellPanel build() {
+    // Il player si apre sopra la shell: il pannello non resta aperto sotto
+    // (la cassetta non segna lette le voci arrivate durante il film).
+    ref.listen(playerActiveProvider, (_, active) {
+      if (active) close();
+    });
+    return ShellPanel.none;
+  }
 
   void open(ShellPanel panel) {
     if (panel == ShellPanel.none) {
