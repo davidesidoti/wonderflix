@@ -106,12 +106,15 @@ public sealed class InboxService(
     }
 
     /// <summary>
-    /// Le voci d'invito (spec G §6.5), solo per gli invitati che possono
-    /// vedere l'elemento in riproduzione nel party: quello della sessione di
-    /// chi invita o, se lì non c'è, di un altro partecipante con l'app.
-    /// Senza elemento, nessuna voce. Non lancia: un errore finisce nel log.
+    /// Le voci d'invito (spec G §6.5), solo per gli invitati attivi che
+    /// possono vedere l'elemento in riproduzione nel party: quello della prima
+    /// delle partySessions (le sessioni WonderFlix nel canale del party, con
+    /// chi invita davanti) che sta riproducendo qualcosa. Mai l'elemento di
+    /// una sessione fuori dal party; se nessuna sessione del party sta
+    /// riproducendo, nessuna voce. Non lancia: un errore finisce nel log.
     /// </summary>
-    public async Task AddInvitesAsync(CallerSession inviter, GroupSummary group, IReadOnlyList<Guid> invitees)
+    public async Task AddInvitesAsync(
+        string inviterName, GroupSummary group, IReadOnlyList<string> partySessions, IReadOnlyList<Guid> invitees)
     {
         if (invitees.Count == 0)
         {
@@ -121,14 +124,16 @@ public sealed class InboxService(
         List<Guid> allowed;
         try
         {
-            var playing = FindPlaying(inviter, group);
+            var playing = FindPlaying(partySessions);
             if (playing is null)
             {
                 logger.LogDebug("Inviti al watch party {GroupId}: niente in riproduzione, nessuna voce", group.Id);
                 return;
             }
 
-            allowed = invitees.Where(userId => library.CanSee(userId, playing.ItemId)).ToList();
+            allowed = invitees
+                .Where(userId => users.GetUser(userId) is { Enabled: true } && library.CanSee(userId, playing.ItemId))
+                .ToList();
             var groupId = group.Id.ToString("N");
             var title = PartyNames.TitleOf(group.Name);
             var image = playing.ImageItemId.ToString("N");
@@ -137,7 +142,7 @@ public sealed class InboxService(
             {
                 foreach (var userId in allowed)
                 {
-                    Book.UpsertInvite(userId, groupId, inviter.UserName, title, image, now);
+                    Book.UpsertInvite(userId, groupId, inviterName, title, image, now);
                 }
 
                 if (allowed.Count > 0)
@@ -174,23 +179,11 @@ public sealed class InboxService(
         }
     }
 
-    private PlayingItem? FindPlaying(CallerSession inviter, GroupSummary group)
+    private PlayingItem? FindPlaying(IReadOnlyList<string> partySessions)
     {
-        var playing = library.NowPlaying(inviter.SessionId);
-        if (playing is not null)
+        foreach (var sessionId in partySessions)
         {
-            return playing;
-        }
-
-        foreach (var session in sessions.GetAppSessions())
-        {
-            if (session.SessionId == inviter.SessionId
-                || !group.Participants.Contains(session.UserName, StringComparer.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            playing = library.NowPlaying(session.SessionId);
+            var playing = library.NowPlaying(sessionId);
             if (playing is not null)
             {
                 return playing;

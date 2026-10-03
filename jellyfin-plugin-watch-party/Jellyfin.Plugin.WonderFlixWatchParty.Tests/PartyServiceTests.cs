@@ -250,6 +250,7 @@ public sealed class PartyServiceTests : IDisposable
     {
         await MakeFriends(_mario, _luigi);
         _service.Register(_marioSession, _group, PartyModes.Private);
+        _registry.Register(_group, "s-mario", "Mario");
         var movie = Guid.NewGuid();
         _server.Playing["s-mario"] = new PlayingItem(movie, movie);
         _server.Sent.Clear();
@@ -261,6 +262,56 @@ public sealed class PartyServiceTests : IDisposable
         Assert.Equal(GroupN, entry.GroupId);
         Assert.Equal("Mario", entry.FromName);
         Assert.Equal("Dune", entry.Title);
+    }
+
+    [Fact]
+    public async Task InvitesLeaveNoEntryWhenNoSessionInThePartyIsPlaying()
+    {
+        await MakeFriends(_mario, _luigi);
+        _service.Register(_marioSession, _group, PartyModes.Private);
+        // La sessione di Mario guarda qualcosa ma non è nel canale del party.
+        var movie = Guid.NewGuid();
+        _server.Playing["s-mario"] = new PlayingItem(movie, movie);
+        _server.Sent.Clear();
+
+        Assert.Equal(HubStatus.Ok, await _service.InviteAsync(_marioSession, _group, [_luigi.Id.ToString("N")]));
+
+        Assert.Equal(new[] { "PartyInvite" }, _server.SentTo("s-luigi").Select(Type));
+        Assert.Empty(_inbox.Get(_luigi.Id).Entries);
+    }
+
+    [Fact]
+    public async Task InvitesIgnoreAStaleRegistryEntryForTheInboxItem()
+    {
+        await MakeFriends(_mario, _luigi);
+        _service.Register(_marioSession, _group, PartyModes.Private);
+        // Peach risulta ancora nel canale (Leave fallita) ma non è tra i partecipanti del gruppo.
+        _registry.Register(_group, "s-peach", "Peach");
+        var movie = Guid.NewGuid();
+        _server.Playing["s-peach"] = new PlayingItem(movie, movie);
+
+        await _service.InviteAsync(_marioSession, _group, [_luigi.Id.ToString("N")]);
+
+        Assert.Empty(_inbox.Get(_luigi.Id).Entries);
+    }
+
+    [Fact]
+    public async Task TheInviterSessionComesFirstForTheInboxItem()
+    {
+        await MakeFriends(_luigi, _peach);
+        _server.Groups[_group] = ["Mario", "Luigi"];
+        _registry.Register(_group, "s-mario", "Mario");
+        _registry.Register(_group, "s-luigi", "Luigi");
+        var marioPoster = Guid.NewGuid();
+        var luigiPoster = Guid.NewGuid();
+        _server.Playing["s-mario"] = new PlayingItem(Guid.NewGuid(), marioPoster);
+        _server.Playing["s-luigi"] = new PlayingItem(Guid.NewGuid(), luigiPoster);
+
+        await _service.InviteAsync(_luigiSession, _group, [_peach.Id.ToString("N")]);
+
+        var entry = Assert.Single(_inbox.Get(_peach.Id).Entries);
+        Assert.Equal("Luigi", entry.FromName);
+        Assert.Equal(luigiPoster.ToString("N"), entry.ImageItemId);
     }
 
     [Fact]

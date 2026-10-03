@@ -115,7 +115,9 @@ public sealed class PartyService(
     /// L'avviso va solo alle sessioni degli invitati che vedono il gruppo:
     /// dalle altre (niente accesso alla libreria della coda) non si entra.
     /// Gli invitati che possono vedere il titolo trovano anche la voce nella
-    /// cassetta delle notifiche (spec G §6.5).
+    /// cassetta delle notifiche (spec G §6.5): l'elemento è quello di una
+    /// sessione WonderFlix registrata nel party, prima la tua, e senza
+    /// nessuna sessione che riproduce non c'è voce.
     /// </summary>
     public async Task<HubStatus> InviteAsync(CallerSession caller, Guid groupId, IReadOnlyList<string>? userIds)
     {
@@ -157,7 +159,14 @@ public sealed class PartyService(
             .Select(s => s.SessionId)
             .ToList();
         await Task.WhenAll(invitees.Select(sessionId => SendAsync(sessionId, payload))).ConfigureAwait(false);
-        await inbox.AddInvitesAsync(caller, group, targets).ConfigureAwait(false);
+        // Solo le sessioni nel canale del party e ancora tra i partecipanti (la
+        // voce del registro può essere vecchia, come in PartyOf); prima chi invita.
+        var partySessions = registry.GetSessions(groupId)
+            .Where(s => IsParticipant(group, s.UserName))
+            .OrderByDescending(s => string.Equals(s.SessionId, caller.SessionId, StringComparison.Ordinal))
+            .Select(s => s.SessionId)
+            .ToList();
+        await inbox.AddInvitesAsync(caller.UserName, group, partySessions, targets).ConfigureAwait(false);
         return limited ? HubStatus.RateLimited : HubStatus.Ok;
     }
 

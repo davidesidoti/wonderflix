@@ -14,14 +14,13 @@ public sealed class InboxServiceTests : IDisposable
     private readonly InboxService _inbox;
     private readonly UserRef _mario;
     private readonly UserRef _luigi;
-    private readonly CallerSession _marioSession;
 
     public InboxServiceTests()
     {
         _inbox = TestInbox.Create(_server, _folder, _time);
         _mario = _server.AddUser("Mario");
         _luigi = _server.AddUser("Luigi");
-        _marioSession = _server.AddSession("s-mario", _mario);
+        _server.AddSession("s-mario", _mario);
         _server.AddSession("s-luigi", _luigi);
     }
 
@@ -122,7 +121,7 @@ public sealed class InboxServiceTests : IDisposable
         var peach = _server.AddUser("Peach");
 
         // Niente in riproduzione: nessuna voce.
-        await _inbox.AddInvitesAsync(_marioSession, group, [_luigi.Id]);
+        await _inbox.AddInvitesAsync("Mario", group, ["s-mario"], [_luigi.Id]);
         Assert.Empty(_inbox.Get(_luigi.Id).Entries);
 
         var movie = Guid.NewGuid();
@@ -130,7 +129,7 @@ public sealed class InboxServiceTests : IDisposable
         _server.Playing["s-mario"] = new PlayingItem(movie, poster);
         // Peach non ha accesso alla libreria del film.
         _server.Unseen.Add((peach.Id, movie));
-        await _inbox.AddInvitesAsync(_marioSession, group, [_luigi.Id, peach.Id]);
+        await _inbox.AddInvitesAsync("Mario", group, ["s-mario"], [_luigi.Id, peach.Id]);
 
         var entry = Assert.Single(_inbox.Get(_luigi.Id).Entries);
         Assert.Equal(InboxEntryTypes.Invite, entry.Type);
@@ -144,13 +143,13 @@ public sealed class InboxServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ThePlayingItemCanComeFromAnotherParticipant()
+    public async Task ThePlayingItemCanComeFromAnotherSessionInTheParty()
     {
         var peach = _server.AddUser("Peach");
         var movie = Guid.NewGuid();
         _server.Playing["s-luigi"] = new PlayingItem(movie, movie);
 
-        await _inbox.AddInvitesAsync(_marioSession, Group("Mario", "Luigi"), [peach.Id]);
+        await _inbox.AddInvitesAsync("Mario", Group("Mario", "Luigi"), ["s-mario", "s-luigi"], [peach.Id]);
 
         Assert.Single(_inbox.Get(peach.Id).Entries);
     }
@@ -161,9 +160,76 @@ public sealed class InboxServiceTests : IDisposable
         _server.Playing["s-mario"] = new PlayingItem(Guid.NewGuid(), Guid.NewGuid());
         _server.LibraryFails = true;
 
-        await _inbox.AddInvitesAsync(_marioSession, Group("Mario"), [_luigi.Id]);
+        await _inbox.AddInvitesAsync("Mario", Group("Mario"), ["s-mario"], [_luigi.Id]);
 
         Assert.Empty(_inbox.Get(_luigi.Id).Entries);
         Assert.Empty(_server.SentTo("s-luigi"));
+    }
+
+    [Fact]
+    public async Task ASessionOutsideThePartyGivesNoEntry()
+    {
+        var peach = _server.AddUser("Peach");
+        _server.Playing["s-mario"] = new PlayingItem(Guid.NewGuid(), Guid.NewGuid());
+
+        // Mario sta guardando qualcosa, ma la sua sessione non è nel party.
+        await _inbox.AddInvitesAsync("Mario", Group("Mario", "Luigi"), ["s-luigi"], [peach.Id]);
+        await _inbox.AddInvitesAsync("Mario", Group("Mario", "Luigi"), [], [peach.Id]);
+
+        Assert.Empty(_inbox.Get(peach.Id).Entries);
+        Assert.Empty(_server.SentTo("s-mario"));
+    }
+
+    [Fact]
+    public async Task TheFirstSessionInThePartyThatIsPlayingWins()
+    {
+        var peach = _server.AddUser("Peach");
+        var marioPoster = Guid.NewGuid();
+        var luigiPoster = Guid.NewGuid();
+        _server.Playing["s-mario"] = new PlayingItem(Guid.NewGuid(), marioPoster);
+        _server.Playing["s-luigi"] = new PlayingItem(Guid.NewGuid(), luigiPoster);
+        var first = Group("Mario", "Luigi");
+        var second = Group("Mario", "Luigi");
+
+        await _inbox.AddInvitesAsync("Mario", first, ["s-mario", "s-luigi"], [peach.Id]);
+        await _inbox.AddInvitesAsync("Mario", second, ["s-luigi", "s-mario"], [peach.Id]);
+
+        var entries = _inbox.Get(peach.Id).Entries;
+        Assert.Equal(marioPoster.ToString("N"), entries.Single(e => e.GroupId == first.Id.ToString("N")).ImageItemId);
+        Assert.Equal(luigiPoster.ToString("N"), entries.Single(e => e.GroupId == second.Id.ToString("N")).ImageItemId);
+    }
+
+    [Fact]
+    public async Task ASecondInviteToTheSameGroupMakesTheEntryUnreadAgain()
+    {
+        var group = Group("Mario");
+        _server.Playing["s-mario"] = new PlayingItem(Guid.NewGuid(), Guid.NewGuid());
+        await _inbox.AddInvitesAsync("Mario", group, ["s-mario"], [_luigi.Id]);
+        var entry = Assert.Single(_inbox.Get(_luigi.Id).Entries);
+        await _inbox.MarkReadAsync(_luigi.Id, entry.Seq);
+        Assert.Equal(0, _inbox.Get(_luigi.Id).Unread);
+
+        await _inbox.AddInvitesAsync("Mario", group, ["s-mario"], [_luigi.Id]);
+
+        var inbox = _inbox.Get(_luigi.Id);
+        var again = Assert.Single(inbox.Entries);
+        Assert.Equal(entry.Id, again.Id);
+        Assert.False(again.Read);
+        Assert.True(again.Seq > entry.Seq);
+        Assert.Equal(1, inbox.Unread);
+    }
+
+    [Fact]
+    public async Task InvitesSkipDisabledUsers()
+    {
+        var bowser = _server.AddUser("Bowser", enabled: false);
+        _server.AddSession("s-bowser", bowser);
+        _server.Playing["s-mario"] = new PlayingItem(Guid.NewGuid(), Guid.NewGuid());
+
+        await _inbox.AddInvitesAsync("Mario", Group("Mario"), ["s-mario"], [bowser.Id, _luigi.Id]);
+
+        Assert.Empty(_inbox.Get(bowser.Id).Entries);
+        Assert.Empty(_server.SentTo("s-bowser"));
+        Assert.Single(_inbox.Get(_luigi.Id).Entries);
     }
 }
