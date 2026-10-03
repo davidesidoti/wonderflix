@@ -142,6 +142,9 @@ class UserSearchResult {
 /// Lettere di un codice dei party privati (spec F §6.5).
 const partyCodeLength = 6;
 
+/// Lettere prima del trattino, nel codice come si mostra.
+const partyCodeGroupLength = 3;
+
 /// Il codice senza spazi e trattini, in maiuscolo: come lo vuole il plugin.
 String normalizePartyCode(String text) =>
     text.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toUpperCase();
@@ -150,7 +153,8 @@ String normalizePartyCode(String text) =>
 String formatPartyCode(String code) {
   final normalized = normalizePartyCode(code);
   return normalized.length == partyCodeLength
-      ? '${normalized.substring(0, 3)}-${normalized.substring(3)}'
+      ? '${normalized.substring(0, partyCodeGroupLength)}-'
+          '${normalized.substring(partyCodeGroupLength)}'
       : normalized;
 }
 

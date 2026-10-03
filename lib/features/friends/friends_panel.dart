@@ -153,9 +153,14 @@ class _FriendsPanelState extends ConsumerState<FriendsPanel> {
                   ref.read(friendSearchProvider.notifier).setQuery(text),
             ),
           ),
-          if (!searching &&
-              ref.watch(socialAvailabilityProvider.select((f) => f.parties)))
-            const _PartyCodeEntry(),
+          if (ref.watch(socialAvailabilityProvider.select((f) => f.parties)))
+            // Durante una ricerca i risultati prendono il suo posto (spec F
+            // §8.3); un codice scritto a metà resta.
+            Visibility(
+              visible: !searching,
+              maintainState: true,
+              child: const _PartyCodeEntry(),
+            ),
           Expanded(
             child: searching ? const _SearchResults() : const _FriendLists(),
           ),
@@ -163,6 +168,14 @@ class _FriendsPanelState extends ConsumerState<FriendsPanel> {
       ),
     );
   }
+}
+
+/// Focus del campo "Ho un codice": con lui il primo Esc chiude il campo, non
+/// il pannello (lo chiede [FriendsPanelHost]).
+class _PartyCodeFocusNode extends FocusNode {
+  _PartyCodeFocusNode(this.onEscape) : super(debugLabel: 'party-code');
+
+  final VoidCallback onEscape;
 }
 
 /// "Ho un codice" (spec F §9.4): un campo per entrare in un party privato.
@@ -175,7 +188,10 @@ class _PartyCodeEntry extends ConsumerStatefulWidget {
 
 class _PartyCodeEntryState extends ConsumerState<_PartyCodeEntry> {
   final _code = TextEditingController();
-  final _focus = FocusNode();
+  late final _focus = _PartyCodeFocusNode(_collapse);
+
+  /// Focus di "Ho un codice": ci torna chiudendo il campo con Esc.
+  final _buttonFocus = FocusNode(debugLabel: 'party-code-button');
   bool _open = false;
   bool _busy = false;
   String? _error;
@@ -184,7 +200,20 @@ class _PartyCodeEntryState extends ConsumerState<_PartyCodeEntry> {
   void dispose() {
     _code.dispose();
     _focus.dispose();
+    _buttonFocus.dispose();
     super.dispose();
+  }
+
+  /// Esc nel campo: si svuota e si chiude, il focus torna su "Ho un codice".
+  void _collapse() {
+    _code.clear();
+    setState(() {
+      _open = false;
+      _error = null;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _buttonFocus.requestFocus();
+    });
   }
 
   void _show() {
@@ -218,9 +247,13 @@ class _PartyCodeEntryState extends ConsumerState<_PartyCodeEntry> {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = error.failure == SocialFailure.rateLimited
-            ? l.partyCodeTooMany
-            : l.partyCodeInvalid;
+        // 403: codice sbagliato o party finito; 429: troppi tentativi; il
+        // resto (rete, plugin sparito) non dipende dal codice.
+        _error = switch (error.failure) {
+          SocialFailure.forbidden => l.partyCodeInvalid,
+          SocialFailure.rateLimited => l.partyCodeTooMany,
+          _ => l.friendsActionFailed,
+        };
       });
     }
   }
@@ -234,6 +267,7 @@ class _PartyCodeEntryState extends ConsumerState<_PartyCodeEntry> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 0, 20, 4),
           child: TextButton.icon(
+            focusNode: _buttonFocus,
             onPressed: _show,
             icon: const Icon(LucideIcons.ticket, size: 16),
             label: Text(l.partyHaveCode),
@@ -505,7 +539,11 @@ class _FriendRowState extends ConsumerState<_FriendRow> {
         ? null
         : ref.watch(watchPartySessionProvider
             .select((s) => s.inGroup ? s.group?.id : null));
-    final showJoin = party != null && !_sameGroup(party.groupId, inGroupId);
+    // Durante "Conferma rimozione" Unisciti si nasconde: il nome resta
+    // leggibile.
+    final showJoin = party != null &&
+        _confirm == null &&
+        !_sameGroup(party.groupId, inGroupId);
     return _PersonRow(
       name: friend.name,
       online: friend.online,
@@ -718,7 +756,8 @@ class _FriendsPanelHostState extends ConsumerState<FriendsPanelHost>
 
   /// Esc chiude il pannello; `BackNavigationHandler` intanto non torna
   /// indietro di pagina. Con un menu aperto (es. ⋯ di un amico) Esc è del
-  /// menu: lo chiude lui, il pannello resta.
+  /// menu: lo chiude lui, il pannello resta. Con il focus nel campo "Ho un
+  /// codice" il primo Esc chiude il campo.
   bool _onKey(KeyEvent event) {
     if (event is! KeyDownEvent ||
         event.logicalKey != LogicalKeyboardKey.escape ||
@@ -726,6 +765,11 @@ class _FriendsPanelHostState extends ConsumerState<FriendsPanelHost>
         !(ModalRoute.of(context)?.isCurrent ?? true) ||
         !ref.read(friendsPanelVisibleProvider)) {
       return false;
+    }
+    final focus = FocusManager.instance.primaryFocus;
+    if (focus is _PartyCodeFocusNode) {
+      focus.onEscape();
+      return true;
     }
     ref.read(friendsPanelProvider.notifier).close();
     return true;

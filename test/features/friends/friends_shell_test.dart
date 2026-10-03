@@ -170,4 +170,25 @@ void main() {
     expect(api.calls, contains('accept u3'));
     expect(find.text('Peach vuole essere tuo amico'), findsNothing);
   });
+
+  testWidgets('"Ho un codice": il primo Esc chiude il campo, il secondo il '
+      'pannello', (tester) async {
+    await pumpShell(tester,
+        features: const SocialFeatures(friends: true, parties: true));
+    await tester.tap(find.byKey(const Key('friends-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ho un codice'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('party-code-field')), 'K7P');
+    await tester.pump();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('party-code-field')), findsNothing);
+    expect(find.byKey(const Key('friends-panel')), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('friends-panel')), findsNothing);
+  });
 }

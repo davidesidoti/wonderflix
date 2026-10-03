@@ -211,10 +211,15 @@ void main() {
       await tester.pump();
     }
 
-    testWidgets('"Ho un codice": il trattino da sé, poi entra',
-        (tester) async {
+    testWidgets('"Ho un codice": il trattino da sé, poi entra e il pannello '
+        'si chiude', (tester) async {
       api.codes['K7PQ2X'] = 'g1';
       await pumpPartyPanel(tester);
+      final container =
+          ProviderScope.containerOf(tester.element(find.byType(FriendsPanel)));
+      container.listen(friendsPanelProvider, (_, _) {});
+      container.read(friendsPanelProvider.notifier).open();
+      await tester.pump();
       await tester.tap(find.text('Ho un codice'));
       await tester.pump();
       await tester.enterText(
@@ -225,6 +230,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(api.calls, contains('code K7PQ2X'));
       expect(syncPlay.calls, contains('join g1'));
+      expect(container.read(friendsPanelProvider), isFalse);
       await leaveParty(tester);
     });
 
@@ -244,6 +250,72 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Troppi tentativi, riprova tra un minuto'),
           findsOneWidget);
+
+      // Rete o plugin sparito: non è colpa del codice.
+      api.joinFailure = SocialFailure.network;
+      await tester.tap(find.text('Entra'));
+      await tester.pumpAndSettle();
+      expect(find.text('Operazione non riuscita'), findsOneWidget);
+    });
+
+    testWidgets('un codice a metà resta durante una ricerca', (tester) async {
+      await pumpPartyPanel(tester);
+      await tester.tap(find.text('Ho un codice'));
+      await tester.pump();
+      await tester.enterText(find.byKey(const Key('party-code-field')), 'K7P');
+      await tester.enterText(find.byKey(const Key('friends-search')), 'lu');
+      await tester.pump(FriendSearch.debounce);
+      await tester.pump();
+      expect(find.byKey(const Key('party-code-field')), findsNothing,
+          reason: 'i risultati prendono il suo posto');
+      await tester.enterText(find.byKey(const Key('friends-search')), '');
+      await tester.pump();
+      expect(find.text('K7P'), findsOneWidget);
+    });
+
+    testWidgets('"Conferma rimozione": Unisciti si nasconde', (tester) async {
+      api.snapshot = const FriendsSnapshot(friends: [
+        FriendEntry(
+          userId: 'u2',
+          name: 'Luigi',
+          online: true,
+          party: FriendParty(groupId: 'g1', title: 'Dune'),
+        ),
+      ]);
+      await pumpPartyPanel(tester);
+      await tester.tap(find.byTooltip('Altre azioni'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Rimuovi dagli amici'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('friend-remove-confirm')), findsOneWidget);
+      expect(find.byKey(const Key('friend-join-u2')), findsNothing);
+      await tester.pump(FriendsPanel.removeConfirmFor);
+      await tester.pump();
+      expect(find.byKey(const Key('friend-join-u2')), findsOneWidget);
+    });
+
+    testWidgets('Unisciti nascosto anche con l\'id del gruppo scritto in un '
+        'altro modo', (tester) async {
+      syncPlay.onCall = (call) {
+        if (call.startsWith('join')) {
+          events.add(SyncPlayGroupUpdated(
+              GroupJoined('0a1b2c3d', testGroup(id: '0a1b2c3d'))));
+        }
+      };
+      api.snapshot = const FriendsSnapshot(friends: [
+        FriendEntry(
+          userId: 'u2',
+          name: 'Luigi',
+          online: true,
+          party: FriendParty(groupId: '0A1B-2C3D', title: 'Dune'),
+        ),
+      ]);
+      await pumpPartyPanel(tester);
+      await tester.tap(find.byKey(const Key('friend-join-u2')));
+      await tester.pumpAndSettle();
+      expect(syncPlay.calls, contains('join 0A1B-2C3D'));
+      expect(find.byKey(const Key('friend-join-u2')), findsNothing);
+      await leaveParty(tester);
     });
 
     testWidgets('codice incompleto: lo dice senza chiedere al plugin',
