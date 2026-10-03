@@ -6,16 +6,19 @@ import 'package:logging/logging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/logging/app_log.dart';
+import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/discord/discord_settings.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
 import 'package:wonderflix/features/settings/diagnostics.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/party_channel.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 
 import '../../support/pump_app.dart';
 import '../../support/settings_fakes.dart';
+import '../../support/social_fakes.dart';
 import '../../support/test_data.dart';
 import '../../support/watch_party_fakes.dart';
 
@@ -56,7 +59,7 @@ void main() {
   });
 
   Future<ProviderContainer> container(FakeSystemApi system,
-      {FakePartyChannelApi? channelApi}) async {
+      {FakePartyChannelApi? channelApi, FakeSocialApi? socialApi}) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     final log = AppLog()
@@ -71,6 +74,7 @@ void main() {
       appLogProvider.overrideWithValue(log),
       partyChannelApiProvider
           .overrideWithValue(channelApi ?? FakePartyChannelApi()),
+      socialApiProvider.overrideWithValue(socialApi ?? FakeSocialApi()),
     ]);
   }
 
@@ -204,5 +208,37 @@ void main() {
         text,
         contains('Plugin watch party: 1.0.0 (protocollo 1), canale=spento, '
             'inviati=0, ricevuti=0\n'));
+  });
+
+  test('describePluginFeatures', () {
+    expect(describePluginFeatures(const {}), 'nessuna');
+    expect(describePluginFeatures(const {PluginFeatures.friends}), 'amici');
+    expect(
+        describePluginFeatures(
+            const {PluginFeatures.friends, PluginFeatures.parties}),
+        'amici, party');
+  });
+
+  test('buildDiagnostics: riga delle funzioni del plugin', () {
+    final text = buildDiagnostics(
+      appVersion: '0.1.0',
+      windowsVersion: 'w',
+      serverVersion: '10.11.9',
+      player: const PlayerSettings(),
+      discord: const DiscordSettings(),
+      recentErrors: const [],
+      pluginFeatures: 'amici',
+    );
+    expect(text, contains('Funzioni del plugin: amici\n'));
+  });
+
+  test('collectDiagnostics: funzioni del plugin, se c\'è', () async {
+    final present = await container(FakeSystemApi(),
+        socialApi: FakeSocialApi()..install());
+    expect(await present.read(collectDiagnosticsProvider)(),
+        contains('Funzioni del plugin: amici\n'));
+    final absent = await container(FakeSystemApi());
+    expect(await absent.read(collectDiagnosticsProvider)(),
+        isNot(contains('Funzioni del plugin')));
   });
 }

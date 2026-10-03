@@ -6,8 +6,10 @@ import 'package:logging/logging.dart';
 import '../../app/providers.dart';
 import '../../core/logging/app_log.dart';
 import '../../core/party_channel/party_channel_models.dart';
+import '../../core/social/social_models.dart';
 import '../discord/discord_settings.dart';
 import '../player/player_settings.dart';
+import '../social/social_providers.dart';
 import '../watch_party/party_channel.dart';
 import '../watch_party/watch_party_session.dart';
 
@@ -45,6 +47,15 @@ String describePartyChannel(PartyChannelState state) {
       'inviati=${state.sent}, ricevuti=${state.received}';
 }
 
+/// Funzioni del plugin per la diagnostica (spec F §7.2).
+String describePluginFeatures(Set<String> features) {
+  final names = [
+    if (features.contains(PluginFeatures.friends)) 'amici',
+    if (features.contains(PluginFeatures.parties)) 'party',
+  ];
+  return names.isEmpty ? 'nessuna' : names.join(', ');
+}
+
 /// Testo da incollare nelle richieste di aiuto. Non contiene dati
 /// dell'account; gli errori sono già senza segreti. L'host del server negli
 /// errori lo toglie [collectDiagnosticsProvider].
@@ -57,6 +68,7 @@ String buildDiagnostics({
   required List<String> recentErrors,
   String? watchParty,
   String? watchPartyPlugin,
+  String? pluginFeatures,
 }) {
   final buffer = StringBuffer()
     ..writeln('WonderFlix $appVersion')
@@ -72,6 +84,9 @@ String buildDiagnostics({
   if (watchParty != null) buffer.writeln('Watch party: $watchParty');
   if (watchPartyPlugin != null) {
     buffer.writeln('Plugin watch party: $watchPartyPlugin');
+  }
+  if (pluginFeatures != null) {
+    buffer.writeln('Funzioni del plugin: $pluginFeatures');
   }
   buffer
     ..writeln()
@@ -125,6 +140,17 @@ final collectDiagnosticsProvider =
             _log.info('stato del plugin del watch party non disponibile: '
                 '$error');
           }
+          String? pluginFeatures;
+          try {
+            final info = await ref
+                .read(socialApiProvider)
+                .info()
+                .timeout(PartyChannel.infoTimeout);
+            pluginFeatures = describePluginFeatures(info.features);
+          } on Object catch (error) {
+            _log.info(
+                'funzioni del plugin non disponibili: ${error.runtimeType}');
+          }
           return buildDiagnostics(
             appVersion: ref.read(clientInfoProvider).version,
             windowsVersion: Platform.operatingSystemVersion,
@@ -134,6 +160,7 @@ final collectDiagnosticsProvider =
             recentErrors: errors,
             watchParty: watchParty,
             watchPartyPlugin: watchPartyPlugin,
+            pluginFeatures: pluginFeatures,
           );
         });
 
