@@ -10,6 +10,9 @@ abstract final class WfColors {
   static const cream = Color(0xFFF2EAD3);
   static const creamMuted = Color(0x99F2EAD3);
   static const error = Color(0xFFC8463C);
+
+  /// Pallino degli amici online (spec F §8.3).
+  static const online = Color(0xFF5BBF6A);
 }
 
 abstract final class WfText {

@@ -1,0 +1,489 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+
+import '../../app/theme.dart';
+import '../../core/social/social_api.dart';
+import '../../core/social/social_models.dart';
+import '../../l10n/gen/app_localizations.dart';
+import '../../ui/wf_menus.dart';
+import '../social/social_providers.dart';
+import '../watch_party/party_badge.dart';
+import 'friend_search.dart';
+import 'friends_controller.dart';
+
+/// Pannello Amici aperto o chiuso (spec F §8.3). Non dipende da niente:
+/// lo legge anche la gestione di Esc. Si azzera quando nessuno lo guarda
+/// più (es. la shell smontata al logout).
+class FriendsPanelController extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  /// Apre il pannello e rilegge gli amici.
+  void open() {
+    if (state) return;
+    state = true;
+    unawaited(ref.read(friendsControllerProvider.notifier).reload());
+  }
+
+  void close() => state = false;
+
+  void toggle() => state ? close() : open();
+}
+
+final friendsPanelProvider =
+    NotifierProvider.autoDispose<FriendsPanelController, bool>(
+        FriendsPanelController.new);
+
+/// Il pannello si vede: aperto e con la funzione amici del plugin.
+final friendsPanelVisibleProvider = Provider.autoDispose<bool>((ref) =>
+    ref.watch(friendsPanelProvider) &&
+    ref.watch(socialAvailabilityProvider.select((f) => f.friends)));
+
+/// Online prima, poi in ordine alfabetico (spec F §8.3).
+List<FriendEntry> sortFriends(List<FriendEntry> friends) => [...friends]
+  ..sort((a, b) {
+    if (a.online != b.online) return a.online ? -1 : 1;
+    return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  });
+
+/// Esegue un'azione sugli amici; se non riesce lo dice con una snackbar
+/// (spec F §8.1).
+Future<void> runFriendAction(
+    BuildContext context, Future<SocialFailure?> Function() action) async {
+  final l = AppLocalizations.of(context);
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  final failure = await action();
+  if (failure == null) return;
+  messenger?.showSnackBar(SnackBar(
+      content: Text(failure == SocialFailure.rateLimited
+          ? l.friendsTooMany
+          : l.friendsActionFailed)));
+}
+
+const _mutedStyle = TextStyle(color: WfColors.creamMuted, fontSize: 13);
+
+/// Contenuto del pannello Amici (spec F §8.3): ricerca, richieste, amici.
+class FriendsPanel extends ConsumerStatefulWidget {
+  const FriendsPanel({super.key});
+
+  /// Larghezza, e quota massima della finestra.
+  static const width = 360.0;
+  static const maxWidthFraction = 0.9;
+
+  /// Per quanto resta "Conferma rimozione".
+  static const removeConfirmFor = Duration(seconds: 4);
+
+  @override
+  ConsumerState<FriendsPanel> createState() => _FriendsPanelState();
+}
+
+class _FriendsPanelState extends ConsumerState<FriendsPanel> {
+  final _search = TextEditingController();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final searching = ref.watch(friendSearchProvider.select((s) => s.active));
+    return Material(
+      key: const Key('friends-panel'),
+      color: WfColors.surface,
+      elevation: 12,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 8, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(l.friendsTitle,
+                      style: const TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.w700)),
+                ),
+                IconButton(
+                  tooltip: l.friendsClose,
+                  icon: const Icon(LucideIcons.x, size: 20),
+                  onPressed: () =>
+                      ref.read(friendsPanelProvider.notifier).close(),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            child: TextField(
+              key: const Key('friends-search'),
+              controller: _search,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: l.friendsSearchHint,
+                prefixIcon: const Icon(LucideIcons.search, size: 18),
+                isDense: true,
+              ),
+              onChanged: (text) =>
+                  ref.read(friendSearchProvider.notifier).setQuery(text),
+            ),
+          ),
+          Expanded(
+            child: searching ? const _SearchResults() : const _FriendLists(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SearchResults extends ConsumerWidget {
+  const _SearchResults();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final search = ref.watch(friendSearchProvider);
+    if (search.results.isEmpty) {
+      if (search.searching) return const SizedBox.shrink();
+      return _Note(switch (search.failure) {
+        null => l.friendsSearchEmpty,
+        SocialFailure.rateLimited => l.friendsTooMany,
+        _ => l.friendsActionFailed,
+      });
+    }
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 16),
+      children: [
+        for (final result in search.results)
+          _PersonRow(
+            key: ValueKey('search-${result.userId}'),
+            name: result.name,
+            trailing: _SearchAction(result: result),
+          ),
+      ],
+    );
+  }
+}
+
+/// Azione su un risultato della ricerca, secondo la relazione.
+class _SearchAction extends ConsumerWidget {
+  const _SearchAction({required this.result});
+
+  final UserSearchResult result;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final friends = ref.read(friendsControllerProvider.notifier);
+    final search = ref.read(friendSearchProvider.notifier);
+    // Dopo l'azione la ricerca si ripete: la relazione è cambiata.
+    void run(Future<SocialFailure?> Function() action) =>
+        unawaited(() async {
+          await runFriendAction(context, action);
+          await search.rerun();
+        }());
+    final id = result.userId;
+    return switch (result.relation) {
+      FriendRelation.none => _ActionButton(
+          label: l.friendsAdd, onPressed: () => run(() => friends.request(id))),
+      FriendRelation.incoming => _ActionButton(
+          label: l.friendsAccept,
+          onPressed: () => run(() => friends.accept(id))),
+      FriendRelation.outgoing => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(l.friendsSent, style: _mutedStyle),
+            _ActionButton(
+                label: l.friendsCancel,
+                muted: true,
+                onPressed: () => run(() => friends.cancel(id))),
+          ],
+        ),
+      FriendRelation.friend => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(LucideIcons.check, size: 16, color: WfColors.gold),
+            const SizedBox(width: 4),
+            Text(l.friendsAlready, style: _mutedStyle),
+          ],
+        ),
+    };
+  }
+}
+
+class _FriendLists extends ConsumerWidget {
+  const _FriendLists();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final friendsState = ref.watch(friendsControllerProvider);
+    final controller = ref.read(friendsControllerProvider.notifier);
+    if (!friendsState.loaded) {
+      // Mentre carica la prima volta il pannello resta vuoto.
+      if (!friendsState.failed) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l.friendsUnavailable, style: _mutedStyle),
+            const SizedBox(height: 8),
+            _ActionButton(
+                label: l.retry, onPressed: () => unawaited(controller.reload())),
+          ],
+        ),
+      );
+    }
+    final snapshot = friendsState.snapshot;
+    final requests = snapshot.incoming.length + snapshot.outgoing.length;
+    final friends = sortFriends(snapshot.friends);
+    void run(Future<SocialFailure?> Function() action) =>
+        unawaited(runFriendAction(context, action));
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 16),
+      children: [
+        if (requests > 0) ...[
+          _SectionTitle(l.friendsRequests(requests)),
+          for (final person in snapshot.incoming)
+            _PersonRow(
+              key: ValueKey('incoming-${person.userId}'),
+              name: person.name,
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _ActionButton(
+                      label: l.friendsAccept,
+                      onPressed: () =>
+                          run(() => controller.accept(person.userId))),
+                  _ActionButton(
+                      label: l.friendsDecline,
+                      muted: true,
+                      onPressed: () =>
+                          run(() => controller.decline(person.userId))),
+                ],
+              ),
+            ),
+          for (final person in snapshot.outgoing)
+            _PersonRow(
+              key: ValueKey('outgoing-${person.userId}'),
+              name: person.name,
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(l.friendsPending, style: _mutedStyle),
+                  _ActionButton(
+                      label: l.friendsCancel,
+                      muted: true,
+                      onPressed: () =>
+                          run(() => controller.cancel(person.userId))),
+                ],
+              ),
+            ),
+        ],
+        _SectionTitle(l.friendsTitle),
+        if (friends.isEmpty)
+          _Note(l.friendsEmpty)
+        else
+          for (final friend in friends)
+            _FriendRow(key: ValueKey('friend-${friend.userId}'), friend: friend),
+      ],
+    );
+  }
+}
+
+/// Un amico: ⋯ → "Rimuovi dagli amici" → "Conferma rimozione" per
+/// [FriendsPanel.removeConfirmFor] (nell'app non ci sono dialoghi).
+class _FriendRow extends ConsumerStatefulWidget {
+  const _FriendRow({super.key, required this.friend});
+
+  final FriendEntry friend;
+
+  @override
+  ConsumerState<_FriendRow> createState() => _FriendRowState();
+}
+
+class _FriendRowState extends ConsumerState<_FriendRow> {
+  Timer? _confirm;
+
+  @override
+  void dispose() {
+    _confirm?.cancel();
+    super.dispose();
+  }
+
+  void _askConfirm() {
+    _confirm?.cancel();
+    setState(() {
+      _confirm = Timer(FriendsPanel.removeConfirmFor, () {
+        if (mounted) setState(() => _confirm = null);
+      });
+    });
+  }
+
+  void _remove() {
+    _confirm?.cancel();
+    setState(() => _confirm = null);
+    unawaited(runFriendAction(
+        context,
+        () => ref
+            .read(friendsControllerProvider.notifier)
+            .remove(widget.friend.userId)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final friend = widget.friend;
+    return _PersonRow(
+      name: friend.name,
+      online: friend.online,
+      trailing: _confirm != null
+          ? _ActionButton(
+              key: const Key('friend-remove-confirm'),
+              label: l.friendsRemoveConfirm,
+              danger: true,
+              onPressed: _remove,
+            )
+          : PopupMenuButton<String>(
+              tooltip: l.friendsMore,
+              icon: const Icon(LucideIcons.ellipsis,
+                  size: 18, color: WfColors.creamMuted),
+              popUpAnimationStyle: wfPopUpAnimation(context),
+              onSelected: (_) => _askConfirm(),
+              itemBuilder: (context) => [
+                PopupMenuItem<String>(
+                    value: 'remove', child: Text(l.friendsRemove)),
+              ],
+            ),
+    );
+  }
+}
+
+class _PersonRow extends StatelessWidget {
+  const _PersonRow({
+    super.key,
+    required this.name,
+    required this.trailing,
+    this.online,
+  });
+
+  final String name;
+  final Widget trailing;
+
+  /// `null`: stato non mostrato (ricerca, richieste).
+  final bool? online;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final status = online;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      child: Row(
+        children: [
+          Semantics(
+            label: status == null
+                ? null
+                : (status ? l.friendsOnline : l.friendsOffline),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                MemberAvatar(name: name),
+                if (status == true)
+                  Positioned(
+                    right: -1,
+                    bottom: -1,
+                    child: Container(
+                      key: const Key('online-dot'),
+                      width: 9,
+                      height: 9,
+                      decoration: BoxDecoration(
+                        color: WfColors.online,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: WfColors.surface, width: 1.5),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    color: status == false
+                        ? WfColors.creamMuted
+                        : WfColors.cream)),
+          ),
+          const SizedBox(width: 8),
+          trailing,
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  const _ActionButton({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.muted = false,
+    this.danger = false,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+  final bool muted;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) => TextButton(
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          foregroundColor: danger
+              ? WfColors.error
+              : muted
+                  ? WfColors.creamMuted
+                  : WfColors.gold,
+          visualDensity: VisualDensity.compact,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+        ),
+        child: Text(label),
+      );
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
+        child: Text(text.toUpperCase(),
+            style: const TextStyle(
+                color: WfColors.creamMuted, fontSize: 12, letterSpacing: 1)),
+      );
+}
+
+class _Note extends StatelessWidget {
+  const _Note(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+        child: Text(text, style: _mutedStyle),
+      );
+}
