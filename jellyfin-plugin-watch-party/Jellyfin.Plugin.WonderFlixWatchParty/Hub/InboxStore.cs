@@ -22,7 +22,8 @@ public sealed class InboxStore(string filePath, ILogger<InboxStore> logger)
 
     /// <summary>
     /// Legge il file; vuoto se non c'è. Un file illeggibile va in
-    /// inbox.json.bad e si riparte vuoti.
+    /// inbox.json.bad e si riparte vuoti; se non si riesce a spostarlo si
+    /// riparte vuoti lo stesso (il prossimo salvataggio lo sovrascrive).
     /// </summary>
     public InboxBook Load()
     {
@@ -40,8 +41,19 @@ public sealed class InboxStore(string filePath, ILogger<InboxStore> logger)
         catch (Exception ex) when (ex is JsonException or FormatException)
         {
             var bad = FilePath + ".bad";
-            File.Move(FilePath, bad, overwrite: true);
-            logger.LogWarning(ex, "Cassetta delle notifiche illeggibile: file spostato in {Path}, si riparte vuoti", bad);
+            try
+            {
+                File.Move(FilePath, bad, overwrite: true);
+                logger.LogWarning(ex, "Cassetta delle notifiche illeggibile: file spostato in {Path}, si riparte vuoti", bad);
+            }
+            catch (Exception moveError) when (moveError is IOException or UnauthorizedAccessException)
+            {
+                // Lo spostamento è solo una copia di cortesia: se fallisce la cassetta deve
+                // comunque funzionare. Il file illeggibile resta dov'è e il prossimo
+                // salvataggio lo sovrascrive. Nel log solo il percorso, mai il contenuto.
+                logger.LogWarning(moveError, "Cassetta delle notifiche illeggibile e non spostabile in {Path}: si riparte vuoti, il prossimo salvataggio sovrascrive {File}", bad, FilePath);
+            }
+
             return new InboxBook();
         }
     }

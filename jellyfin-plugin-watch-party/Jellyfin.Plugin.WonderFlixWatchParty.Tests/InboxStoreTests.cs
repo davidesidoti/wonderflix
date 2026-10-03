@@ -52,6 +52,29 @@ public sealed class InboxStoreTests : IDisposable
     }
 
     [Fact]
+    public void FailedMoveAsideStillStartsEmptyAndTheNextSaveOverwrites()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_folder.InboxFile)!);
+        File.WriteAllText(_folder.InboxFile, "{ non è json");
+
+        // Una cartella al posto di inbox.json.bad: File.Move(..., overwrite: true) fallisce.
+        Directory.CreateDirectory(_folder.InboxFile + ".bad");
+
+        var store = Store();
+        var book = store.Load();
+
+        Assert.Empty(book.List(Guid.NewGuid()));
+        Assert.Equal("{ non è json", File.ReadAllText(_folder.InboxFile));
+
+        var mario = Guid.NewGuid();
+        book.Add(mario, new InboxEntry { Type = InboxEntryTypes.Announcement, CreatedAt = Now, Text = "ciao" });
+        store.Save(book);
+
+        var entry = Assert.Single(Store().Load().List(mario));
+        Assert.Equal("ciao", entry.Text);
+    }
+
+    [Fact]
     public void NullEntriesAreMovedAsideToo()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_folder.InboxFile)!);
