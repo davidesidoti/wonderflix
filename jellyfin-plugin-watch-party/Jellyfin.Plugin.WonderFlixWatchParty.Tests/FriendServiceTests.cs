@@ -150,6 +150,81 @@ public sealed class FriendServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task EveryChangeIsSavedToTheFile()
+    {
+        // Ogni controllo usa un servizio nuovo: legge solo quello che c'è sul disco.
+        await _friends.RequestAsync(_mario.Id, _luigi.Id);
+        Assert.Equal("Luigi", Assert.Single(Service().GetFriends(_mario.Id).Outgoing).Name);
+        Assert.Equal("Mario", Assert.Single(Service().GetFriends(_luigi.Id).Incoming).Name);
+
+        await _friends.DeclineAsync(_luigi.Id, _mario.Id);
+        Assert.Empty(Service().GetFriends(_mario.Id).Outgoing);
+        Assert.Empty(Service().GetFriends(_luigi.Id).Incoming);
+
+        await _friends.RequestAsync(_mario.Id, _luigi.Id);
+        await _friends.CancelAsync(_mario.Id, _luigi.Id);
+        Assert.Empty(Service().GetFriends(_mario.Id).Outgoing);
+        Assert.Empty(Service().GetFriends(_luigi.Id).Incoming);
+
+        await MakeFriends(_mario, _luigi);
+        Assert.Equal("Luigi", Assert.Single(Service().GetFriends(_mario.Id).Friends).Name);
+        await _friends.RemoveAsync(_luigi.Id, _mario.Id);
+        Assert.Empty(Service().GetFriends(_mario.Id).Friends);
+        Assert.Empty(Service().GetFriends(_luigi.Id).Friends);
+
+        // Richieste incrociate: amici subito, senza richieste rimaste.
+        await _friends.RequestAsync(_mario.Id, _luigi.Id);
+        await _friends.RequestAsync(_luigi.Id, _mario.Id);
+        var reloaded = Service().GetFriends(_mario.Id);
+        Assert.Equal("Luigi", Assert.Single(reloaded.Friends).Name);
+        Assert.Empty(reloaded.Incoming);
+        Assert.Empty(reloaded.Outgoing);
+    }
+
+    [Fact]
+    public async Task DeletedUsersLeaveTheFileOnTheNextWrite()
+    {
+        var daisy = _server.AddUser("Daisy");
+        await MakeFriends(_mario, daisy);
+        await MakeFriends(_mario, _luigi);
+        await _friends.RequestAsync(daisy.Id, _peach.Id);
+        _server.Users.Remove(daisy.Id);
+
+        // Qualunque cambio riuscito riscrive il file senza l'utente che non c'è più.
+        Assert.Equal(HubStatus.Ok, await _friends.RequestAsync(_mario.Id, _peach.Id));
+
+        var graph = new FriendStore(_folder.FriendsFile, NullLogger<FriendStore>.Instance).Load();
+        Assert.Equal(new[] { _luigi.Id }, graph.FriendsOf(_mario.Id));
+        Assert.Empty(graph.FriendsOf(daisy.Id));
+        Assert.Equal(_mario.Id, Assert.Single(graph.IncomingOf(_peach.Id)).From);
+    }
+
+    [Fact]
+    public async Task AcceptingWithTheMaximumOfFriendsIsAConflict()
+    {
+        // Il file di Mario ha già il massimo di amici: si prepara a mano, i 200 amici passando dal servizio sarebbero lenti.
+        // Gli amici sono utenti veri: alla prima scrittura il servizio toglie quelli che non esistono.
+        var seeded = new FriendGraph();
+        for (var i = 0; i < FriendGraph.MaxFriends; i++)
+        {
+            var other = _server.AddUser($"Amico {i:000}");
+            seeded.Request(other.Id, _mario.Id, _time.GetUtcNow());
+            Assert.Equal(FriendChange.Done, seeded.Accept(_mario.Id, other.Id));
+        }
+
+        new FriendStore(_folder.FriendsFile, NullLogger<FriendStore>.Instance).Save(seeded);
+        var friends = Service();
+        Assert.Equal(HubStatus.Ok, await friends.RequestAsync(_luigi.Id, _mario.Id));
+        _server.Sent.Clear();
+
+        Assert.Equal(HubStatus.Conflict, await friends.AcceptAsync(_mario.Id, _luigi.Id));
+
+        // La richiesta resta in sospeso e nessuno viene avvisato.
+        Assert.Equal("Luigi", Assert.Single(friends.GetFriends(_mario.Id).Incoming).Name);
+        Assert.Empty(_server.Sent);
+    }
+
+    [Fact]
     public async Task FriendsAreSortedWithOnlineStateAndWithoutDeletedUsers()
     {
         await MakeFriends(_mario, _peach);
