@@ -47,11 +47,12 @@ String describePartyChannel(PartyChannelState state) {
       'inviati=${state.sent}, ricevuti=${state.received}';
 }
 
-/// Funzioni del plugin per la diagnostica (spec F §7.2).
+/// Funzioni del plugin per la diagnostica (spec F §7.2, spec G §7.2).
 String describePluginFeatures(Set<String> features) {
   final names = [
     if (features.contains(PluginFeatures.friends)) 'amici',
     if (features.contains(PluginFeatures.parties)) 'party',
+    if (features.contains(PluginFeatures.inbox)) 'notifiche',
   ];
   return names.isEmpty ? 'nessuna' : names.join(', ');
 }

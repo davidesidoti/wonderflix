@@ -36,18 +36,36 @@ void main() {
     return c;
   }
 
-  test('senza utente o senza watch party: nessuna funzione, nessuna chiamata',
-      () async {
+  test('senza utente: nessuna funzione, nessuna chiamata', () async {
     api.install();
     final signedOut = container(session: const SessionSignedOut());
     await pumpEventQueue();
     expect(signedOut.read(socialAvailabilityProvider), SocialFeatures.none);
-    final noAccess = container(
+    expect(api.calls, isEmpty);
+  });
+
+  test('senza accesso ai watch party: Info si chiede, resta solo la cassetta',
+      () async {
+    api.install(features: const {
+      PluginFeatures.friends,
+      PluginFeatures.parties,
+      PluginFeatures.inbox,
+    });
+    final c = container(
         session: const SessionSignedIn(JellyfinUser(
             id: 'u1', name: 'Mario', syncPlayAccess: SyncPlayAccess.none)));
     await pumpEventQueue();
-    expect(noAccess.read(socialAvailabilityProvider), SocialFeatures.none);
-    expect(api.calls, isEmpty);
+    expect(c.read(socialAvailabilityProvider),
+        const SocialFeatures(inbox: true));
+    expect(api.calls, ['info']);
+  });
+
+  test('Info con la cassetta: funzione inbox', () async {
+    api.install(features: const {PluginFeatures.friends, PluginFeatures.inbox});
+    final c = container();
+    await pumpEventQueue();
+    expect(c.read(socialAvailabilityProvider),
+        const SocialFeatures(friends: true, inbox: true));
   });
 
   test('Info con gli amici: funzione attiva', () async {
@@ -150,7 +168,9 @@ void main() {
     await pumpEventQueue();
 
     expect(c.read(socialAvailabilityProvider), SocialFeatures.none);
-    expect(api.calls, ['info'], reason: 'per il nuovo utente nessuna chiamata');
+    expect(api.calls, ['info', 'info'],
+        reason: 'il nuovo utente chiede Info per sé; amici e party restano '
+            'spenti perché non ha accesso ai watch party');
   });
 
   test('dopo il login le funzioni non sono note finché Info non risponde',

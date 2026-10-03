@@ -217,6 +217,13 @@ void main() {
         describePluginFeatures(
             const {PluginFeatures.friends, PluginFeatures.parties}),
         'amici, party');
+    expect(
+        describePluginFeatures(const {
+          PluginFeatures.friends,
+          PluginFeatures.parties,
+          PluginFeatures.inbox,
+        }),
+        'amici, party, notifiche');
   });
 
   test('buildDiagnostics: riga delle funzioni del plugin', () {

@@ -20,6 +20,7 @@ class SocialFeatures {
   const SocialFeatures({
     this.friends = false,
     this.parties = false,
+    this.inbox = false,
     this.known = true,
   });
 
@@ -34,6 +35,10 @@ class SocialFeatures {
   final bool friends;
   final bool parties;
 
+  /// La cassetta delle notifiche (spec G): c'è anche per chi non ha accesso
+  /// ai watch party.
+  final bool inbox;
+
   /// `false` finché `Info` non dà una risposta certa: le funzioni, oppure
   /// un 400/401/403/404. Un errore di rete non basta (vedi
   /// [SocialAvailability]).
@@ -44,22 +49,25 @@ class SocialFeatures {
       other is SocialFeatures &&
       other.friends == friends &&
       other.parties == parties &&
+      other.inbox == inbox &&
       other.known == known;
 
   @override
-  int get hashCode => Object.hash(friends, parties, known);
+  int get hashCode => Object.hash(friends, parties, inbox, known);
 
   @override
-  String toString() =>
-      'SocialFeatures(friends: $friends, parties: $parties, known: $known)';
+  String toString() => 'SocialFeatures(friends: $friends, parties: $parties, '
+      'inbox: $inbox, known: $known)';
 }
 
 /// Chiede `Info` al plugin dopo il login e a ogni connessione del WebSocket,
 /// anche la prima (spec F §7.2): se il controllo del login è fallito, quando
 /// il WebSocket si connette il server è raggiungibile e ha una seconda
-/// possibilità. Senza utente, senza accesso ai watch party o senza plugin:
-/// nessuna funzione, e l'app si comporta come la 0.5.1. Dal login alla prima
-/// risposta certa le funzioni sono [SocialFeatures.unknown].
+/// possibilità. Senza utente o senza plugin: nessuna funzione, e l'app si
+/// comporta come la 0.5.1. Senza accesso ai watch party `Info` si chiede lo
+/// stesso (la cassetta delle notifiche vale per tutti, spec G §7.2), ma amici
+/// e party restano spenti. Dal login alla prima risposta certa le funzioni
+/// sono [SocialFeatures.unknown].
 ///
 /// Un errore di rete (anche timeout, errore del server, risposta di forma
 /// inattesa, troppe richieste) non dice nulla del plugin: le funzioni
@@ -95,6 +103,10 @@ class SocialAvailability extends Notifier<SocialFeatures> {
 
   Timer? _retry;
 
+  /// L'utente può entrare nei watch party: senza, amici e party restano
+  /// spenti anche se il plugin li ha.
+  bool _canJoin = false;
+
   @override
   SocialFeatures build() {
     _generation++;
@@ -105,9 +117,8 @@ class SocialAvailability extends Notifier<SocialFeatures> {
     ref.onDispose(_stopRetry);
     final userId = ref.watch(sessionControllerProvider
         .select((s) => s is SessionSignedIn ? s.user.id : null));
-    if (userId == null || !ref.watch(syncPlayAccessProvider).canJoin) {
-      return SocialFeatures.none;
-    }
+    if (userId == null) return SocialFeatures.none;
+    _canJoin = ref.watch(syncPlayAccessProvider).canJoin;
     final subscription = ref.watch(watchPartyEventsProvider).listen((event) {
       if (event is ServerConnected) unawaited(refresh());
     });
@@ -133,8 +144,9 @@ class SocialAvailability extends Notifier<SocialFeatures> {
       _success = check;
       _startedBeforeSuccess = _checks;
       _apply(SocialFeatures(
-        friends: info.features.contains(PluginFeatures.friends),
-        parties: info.features.contains(PluginFeatures.parties),
+        friends: _canJoin && info.features.contains(PluginFeatures.friends),
+        parties: _canJoin && info.features.contains(PluginFeatures.parties),
+        inbox: info.features.contains(PluginFeatures.inbox),
       ));
     } on SocialException catch (error) {
       if (!_isCurrent(generation)) return;
