@@ -11,4 +11,10 @@ public static class LimitTypes
 
     /// <summary>Ricerche di utenti.</summary>
     public const string Searches = "Searches";
+
+    /// <summary>Codici dei party privati provati (ogni tentativo conta).</summary>
+    public const string CodeAttempts = "CodeAttempts";
+
+    /// <summary>Destinatari degli inviti ai party.</summary>
+    public const string Invites = "Invites";
 }

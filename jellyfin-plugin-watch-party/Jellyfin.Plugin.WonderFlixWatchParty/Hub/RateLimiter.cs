@@ -17,6 +17,8 @@ public sealed class RateLimiter(TimeProvider time)
             [EventTypes.Action] = (20, TimeSpan.FromSeconds(10)),
             [LimitTypes.FriendRequests] = (20, TimeSpan.FromHours(1)),
             [LimitTypes.Searches] = (30, TimeSpan.FromMinutes(1)),
+            [LimitTypes.CodeAttempts] = (5, TimeSpan.FromMinutes(1)),
+            [LimitTypes.Invites] = (20, TimeSpan.FromMinutes(1)),
         };
 
     private readonly Lock _lock = new();

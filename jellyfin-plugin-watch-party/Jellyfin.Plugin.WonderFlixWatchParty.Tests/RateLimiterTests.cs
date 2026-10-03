@@ -83,4 +83,26 @@ public class RateLimiterTests
         time.Advance(TimeSpan.FromMinutes(1));
         Assert.True(limiter.TryAcquire("u1", LimitTypes.Searches));
     }
+
+    [Fact]
+    public void CodeAttemptsAndInvitesArePerMinute()
+    {
+        var time = new FakeTimeProvider();
+        var limiter = new RateLimiter(time);
+        for (var i = 0; i < 5; i++)
+        {
+            Assert.True(limiter.TryAcquire("u1", LimitTypes.CodeAttempts));
+        }
+
+        Assert.False(limiter.TryAcquire("u1", LimitTypes.CodeAttempts));
+        for (var i = 0; i < 20; i++)
+        {
+            Assert.True(limiter.TryAcquire("u1", LimitTypes.Invites));
+        }
+
+        Assert.False(limiter.TryAcquire("u1", LimitTypes.Invites));
+        time.Advance(TimeSpan.FromMinutes(1));
+        Assert.True(limiter.TryAcquire("u1", LimitTypes.CodeAttempts));
+        Assert.True(limiter.TryAcquire("u1", LimitTypes.Invites));
+    }
 }

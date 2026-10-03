@@ -70,4 +70,44 @@ public class ProtocolJsonTests
             "{\"UserId\":\"u2\",\"Name\":\"Luigi\",\"Relation\":\"Friend\"}",
             JsonSerializer.Serialize(new UserSearchResult("u2", "Luigi", FriendRelations.Friend)));
     }
+
+    [Fact]
+    public void PartyEventsAndResponsesUseProtocolNames()
+    {
+        Assert.Equal(
+            "{\"Protocol\":1,\"Type\":\"PartyStarted\",\"GroupId\":\"g1\",\"Name\":\"Dune\",\"Mode\":\"Friends\"}",
+            JsonSerializer.Serialize(SocialEvent.PartyStarted("g1", "Dune", PartyModes.Friends)));
+        Assert.Equal(
+            "{\"Protocol\":1,\"Type\":\"PartyInvite\",\"FromName\":\"Mario\",\"GroupId\":\"g1\",\"Name\":\"Dune\"}",
+            JsonSerializer.Serialize(SocialEvent.PartyInvite("g1", "Dune", "Mario")));
+        Assert.Equal("{\"Code\":\"K7PQ2X\"}", JsonSerializer.Serialize(new RegisterPartyResponse("K7PQ2X")));
+        Assert.Equal(
+            "{\"GroupId\":\"g1\",\"Name\":\"Dune\",\"State\":\"Idle\",\"Participants\":[\"Mario\"],\"Mode\":\"Private\"}",
+            JsonSerializer.Serialize(new PartySummary("g1", "Dune", "Idle", new[] { "Mario" }, PartyModes.Private)));
+        Assert.Equal(
+            "{\"Mode\":\"Public\",\"Code\":null}",
+            JsonSerializer.Serialize(new PartyDetails(PartyModes.Public, null)));
+        Assert.Equal("{\"GroupId\":\"g1\"}", JsonSerializer.Serialize(new JoinByCodeResponse("g1")));
+    }
+
+    [Fact]
+    public void PartyRequestsReadAnyCaseOfNames()
+    {
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        Assert.Equal("Friends", JsonSerializer.Deserialize<RegisterPartyRequest>("{\"mode\":\"Friends\"}", options)!.Mode);
+        Assert.Equal("K7P-Q2X", JsonSerializer.Deserialize<JoinByCodeRequest>("{\"code\":\"K7P-Q2X\"}", options)!.Code);
+        Assert.Equal(
+            new[] { "u2", "u3" },
+            JsonSerializer.Deserialize<InviteRequest>("{\"userIds\":[\"u2\",\"u3\"]}", options)!.UserIds);
+    }
+
+    [Fact]
+    public void PartyModesAreExact()
+    {
+        Assert.True(PartyModes.IsValid("Public"));
+        Assert.True(PartyModes.IsValid("Friends"));
+        Assert.True(PartyModes.IsValid("Private"));
+        Assert.False(PartyModes.IsValid("public"));
+        Assert.False(PartyModes.IsValid(null));
+    }
 }

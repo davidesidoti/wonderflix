@@ -52,7 +52,7 @@ public class WatchPartyControllerTests
         var info = Controller().GetInfo().Value!;
         Assert.Equal("1.1.0", info.Version);
         Assert.Equal(1, info.Protocol);
-        Assert.Equal(new[] { "friends" }, info.Features);
+        Assert.Equal(new[] { "friends", "parties" }, info.Features);
     }
 
     [Fact]
