@@ -292,5 +292,11 @@
   "inboxMinutesAgo": "{count} min ago",
   "inboxHoursAgo": "{count} h ago",
   "inboxYesterday": "yesterday",
-  "inboxDaysAgo": "{count} days ago"
+  "inboxDaysAgo": "{count} days ago",
+  "inboxNewTitles": "New: {summary}",
+  "inboxMovies": "{count, plural, =1{1 movie} other{{count} movies}}",
+  "inboxEpisodes": "{count, plural, =1{1 episode} other{{count} episodes}}",
+  "inboxNewEpisodes": "{count, plural, =1{1 new episode} other{{count} new episodes}}",
+  "inboxShowAll": "Show all ({count})",
+  "inboxMore": "{count, plural, =1{…and 1 more} other{…and {count} more}}"
 }

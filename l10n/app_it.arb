@@ -336,5 +336,17 @@
   "@inboxHoursAgo": {"placeholders": {"count": {"type": "int"}}},
   "inboxYesterday": "ieri",
   "inboxDaysAgo": "{count} giorni fa",
-  "@inboxDaysAgo": {"placeholders": {"count": {"type": "int"}}}
+  "@inboxDaysAgo": {"placeholders": {"count": {"type": "int"}}},
+  "inboxNewTitles": "Novità: {summary}",
+  "@inboxNewTitles": {"placeholders": {"summary": {"type": "String"}}},
+  "inboxMovies": "{count, plural, =1{1 film} other{{count} film}}",
+  "@inboxMovies": {"placeholders": {"count": {"type": "int"}}},
+  "inboxEpisodes": "{count, plural, =1{1 episodio} other{{count} episodi}}",
+  "@inboxEpisodes": {"placeholders": {"count": {"type": "int"}}},
+  "inboxNewEpisodes": "{count, plural, =1{1 episodio nuovo} other{{count} episodi nuovi}}",
+  "@inboxNewEpisodes": {"placeholders": {"count": {"type": "int"}}},
+  "inboxShowAll": "Mostra tutto ({count})",
+  "@inboxShowAll": {"placeholders": {"count": {"type": "int"}}},
+  "inboxMore": "{count, plural, =1{…e un altro titolo} other{…e altri {count} titoli}}",
+  "@inboxMore": {"placeholders": {"count": {"type": "int"}}}
 }
