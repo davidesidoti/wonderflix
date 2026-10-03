@@ -51,23 +51,52 @@ public sealed class FriendService(
         }
     }
 
-    public FriendsResponse GetFriends(Guid userId)
+    public bool AreFriends(Guid a, Guid b)
+    {
+        lock (_lock)
+        {
+            return Graph.AreFriends(a, b);
+        }
+    }
+
+    public IReadOnlyList<Guid> FriendsOf(Guid userId)
+    {
+        lock (_lock)
+        {
+            return Graph.FriendsOf(userId);
+        }
+    }
+
+    /// <summary>
+    /// Amici e richieste. partyOf dice il party visibile in cui sta un amico
+    /// online (spec F §6.3); si chiama fuori dal lock.
+    /// </summary>
+    public FriendsResponse GetFriends(Guid userId, Func<Guid, FriendParty?>? partyOf = null)
     {
         var online = OnlineUsers();
+        List<UserRef> friendUsers;
+        List<PersonEntry> incoming;
+        List<PersonEntry> outgoing;
         lock (_lock)
         {
             var graph = Graph;
-            var friends = graph.FriendsOf(userId)
+            friendUsers = graph.FriendsOf(userId)
                 .Select(id => users.GetUser(id))
                 .OfType<UserRef>()
                 .OrderBy(u => u.Name, StringComparer.OrdinalIgnoreCase)
-                .Select(u => new FriendEntry(Id(u.Id), u.Name, online.Contains(u.Id), null))
                 .ToList();
-            return new FriendsResponse(
-                friends,
-                People(graph.IncomingOf(userId).Select(r => r.From)),
-                People(graph.OutgoingOf(userId).Select(r => r.To)));
+            incoming = People(graph.IncomingOf(userId).Select(r => r.From));
+            outgoing = People(graph.OutgoingOf(userId).Select(r => r.To));
         }
+
+        var friends = friendUsers
+            .Select(u =>
+            {
+                var isOnline = online.Contains(u.Id);
+                return new FriendEntry(Id(u.Id), u.Name, isOnline, isOnline ? partyOf?.Invoke(u.Id) : null);
+            })
+            .ToList();
+        return new FriendsResponse(friends, incoming, outgoing);
     }
 
     public HubResult<IReadOnlyList<UserSearchResult>> Search(Guid userId, string? query)

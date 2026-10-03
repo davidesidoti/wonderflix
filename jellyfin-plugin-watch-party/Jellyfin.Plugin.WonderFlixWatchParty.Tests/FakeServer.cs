@@ -63,6 +63,18 @@ internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSen
     public IReadOnlyList<string>? GetParticipants(string sessionId, Guid groupId) =>
         Exists(sessionId) && Groups.TryGetValue(groupId, out var participants) ? participants : null;
 
+    /// <summary>Nome di ogni gruppo; di default "Host · Titolo".</summary>
+    public Dictionary<Guid, string> GroupNames { get; } = [];
+
+    public IReadOnlyList<GroupSummary> ListGroups(string sessionId) =>
+        Exists(sessionId) ? Groups.Keys.Select(Summary).ToList() : [];
+
+    public GroupSummary? GetGroup(string sessionId, Guid groupId) =>
+        Exists(sessionId) && Groups.ContainsKey(groupId) ? Summary(groupId) : null;
+
+    private GroupSummary Summary(Guid groupId) =>
+        new(groupId, GroupNames.GetValueOrDefault(groupId, "Host · Titolo"), "Idle", Groups[groupId]);
+
     public Task<bool> TrySendAsync(string sessionId, string payload, CancellationToken cancellationToken)
     {
         if (Failing.Contains(sessionId))

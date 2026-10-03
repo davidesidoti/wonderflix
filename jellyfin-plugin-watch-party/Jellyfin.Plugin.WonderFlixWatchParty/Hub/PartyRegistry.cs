@@ -33,6 +33,23 @@ public sealed class PartyRegistry
         }
     }
 
+    /// <summary>Il gruppo in cui è registrata la sessione; null se in nessuno.</summary>
+    public Guid? GroupOf(string sessionId)
+    {
+        lock (_lock)
+        {
+            foreach (var (groupId, sessions) in _groups)
+            {
+                if (sessions.ContainsKey(sessionId))
+                {
+                    return groupId;
+                }
+            }
+
+            return null;
+        }
+    }
+
     public void Unregister(Guid groupId, string sessionId)
     {
         lock (_lock)

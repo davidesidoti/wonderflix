@@ -289,4 +289,32 @@ public sealed class FriendServiceTests : IDisposable
         Assert.Equal(new[] { "FriendsChanged" }, _server.SentTo("s-luigi").Select(Type));
         Assert.Empty(_server.SentTo("s-mario"));
     }
+
+    [Fact]
+    public async Task FriendshipQueriesForParties()
+    {
+        await MakeFriends(_mario, _luigi);
+        Assert.True(_friends.AreFriends(_mario.Id, _luigi.Id));
+        Assert.True(_friends.AreFriends(_luigi.Id, _mario.Id));
+        Assert.False(_friends.AreFriends(_mario.Id, _peach.Id));
+        Assert.Equal(new[] { _luigi.Id }, _friends.FriendsOf(_mario.Id));
+    }
+
+    [Fact]
+    public async Task GetFriendsAsksThePartyOnlyForOnlineFriends()
+    {
+        await MakeFriends(_mario, _luigi);
+        await MakeFriends(_mario, _peach);
+        var asked = new List<Guid>();
+
+        var friends = _friends.GetFriends(_mario.Id, id =>
+        {
+            asked.Add(id);
+            return new FriendParty("g1", "Dune");
+        }).Friends;
+
+        Assert.Equal(new[] { _luigi.Id }, asked);
+        Assert.Equal("Dune", friends.Single(f => f.Name == "Luigi").Party!.Title);
+        Assert.Null(friends.Single(f => f.Name == "Peach").Party);
+    }
 }

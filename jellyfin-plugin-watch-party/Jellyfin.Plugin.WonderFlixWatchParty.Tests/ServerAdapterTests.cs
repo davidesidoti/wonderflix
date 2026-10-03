@@ -7,6 +7,7 @@ using MediaBrowser.Common.Extensions;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
 using MediaBrowser.Controller.SyncPlay;
+using MediaBrowser.Controller.SyncPlay.Requests;
 using MediaBrowser.Model.Session;
 using MediaBrowser.Model.SyncPlay;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -113,6 +114,29 @@ public class ServerAdapterTests
         Assert.Equal(new[] { "Mario", "Luigi" }, directory.GetParticipants("s1", group));
         Assert.Null(directory.GetParticipants("s1", Guid.NewGuid()));
         Assert.Null(directory.GetParticipants("s-x", group));
+    }
+
+    [Fact]
+    public void GroupsAreListedAndReadFromSyncPlay()
+    {
+        var group = Guid.NewGuid();
+        var (manager, sessions) = InterfaceStub<ISessionManager>.Create();
+        var mario = Session("s1", "d1", "WonderFlix", Guid.NewGuid(), "Mario");
+        sessions.Handlers["get_Sessions"] = _ => new[] { mario };
+        var dto = new GroupInfoDto(group, "Mario · Dune", GroupStateType.Playing, new[] { "Mario", "Luigi" }, DateTime.UtcNow);
+        var (syncPlay, groups) = InterfaceStub<ISyncPlayManager>.Create();
+        groups.Handlers["ListGroups"] = args => ReferenceEquals(args[0], mario) && args[1] is ListGroupsRequest
+            ? new List<GroupInfoDto> { dto }
+            : new List<GroupInfoDto>();
+        groups.Handlers["GetGroup"] = args => ReferenceEquals(args[0], mario) && (Guid)args[1]! == group ? dto : null;
+        var directory = new JellyfinGroupDirectory(manager, syncPlay);
+
+        var listed = Assert.Single(directory.ListGroups("s1"));
+        Assert.Equal(new GroupSummary(group, "Mario · Dune", "Playing", dto.Participants), listed);
+        Assert.Empty(directory.ListGroups("s-x"));
+        Assert.Equal("Mario · Dune", directory.GetGroup("s1", group)!.Name);
+        Assert.Null(directory.GetGroup("s1", Guid.NewGuid()));
+        Assert.Null(directory.GetGroup("s-x", group));
     }
 
     [Fact]

@@ -47,4 +47,16 @@ public class PartyRegistryTests
         registry.RemoveGroup(G1);
         Assert.Empty(registry.GetSessions(G1));
     }
+
+    [Fact]
+    public void GroupOfASession()
+    {
+        var registry = new PartyRegistry();
+        var group = Guid.NewGuid();
+        registry.Register(group, "s1", "Mario");
+        Assert.Equal(group, registry.GroupOf("s1"));
+        Assert.Null(registry.GroupOf("s2"));
+        registry.Unregister(group, "s1");
+        Assert.Null(registry.GroupOf("s1"));
+    }
 }
