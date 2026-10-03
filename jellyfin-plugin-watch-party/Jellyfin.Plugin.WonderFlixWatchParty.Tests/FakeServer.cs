@@ -3,7 +3,7 @@ using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
 
 /// <summary>Server finto: sessioni, gruppi SyncPlay e invii, in memoria.</summary>
-internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSender, IUserDirectory, ILibraryAccess
+internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSender, IUserDirectory, ILibraryAccess, ILibraryTitles, INewTitlesSettings
 {
     public List<CallerSession> Sessions { get; } = [];
 
@@ -104,6 +104,26 @@ internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSen
     public bool CanSee(Guid userId, Guid itemId) =>
         LibraryFails ? throw new InvalidOperationException("libreria non disponibile")
         : Users.ContainsKey(userId) && !Unseen.Contains((userId, itemId));
+
+    /// <summary>Titoli della libreria per id, come li rilegge il raccoglitore dei nuovi titoli.</summary>
+    public Dictionary<Guid, LibraryTitle> Titles { get; } = [];
+
+    /// <summary>Coppie (utente, serie) seguite.</summary>
+    public HashSet<(Guid UserId, Guid SeriesId)> Following { get; } = [];
+
+    /// <summary>Jellyfin sta scansionando la libreria.</summary>
+    public bool ScanRunning { get; set; }
+
+    /// <summary>La casella "Notify new titles".</summary>
+    public bool NotifyNewTitles { get; set; } = true;
+
+    public bool IsScanRunning => ScanRunning;
+
+    public LibraryTitle? Get(Guid itemId) =>
+        LibraryFails ? throw new InvalidOperationException("libreria non disponibile") : Titles.GetValueOrDefault(itemId);
+
+    public bool FollowsSeries(Guid userId, Guid seriesId, string seriesKey, IReadOnlyCollection<Guid> excludeEpisodes) =>
+        Following.Contains((userId, seriesId));
 
     public Task<bool> TrySendAsync(string sessionId, string payload, CancellationToken cancellationToken)
     {
