@@ -20,11 +20,9 @@ public sealed class PartyService(
     PartyAnnouncer announcer,
     IEventSender sender,
     RateLimiter limiter,
+    InboxService inbox,
     ILogger<PartyService> logger)
 {
-    /// <summary>Tra host e titolo nel nome del gruppo che dà l'app ("Host · Titolo").</summary>
-    private const string GroupNameSeparator = " · ";
-
     /// <summary>
     /// Registra il party appena creato da caller. L'avviso a chi lo deve
     /// sapere parte dopo, quando il gruppo ha la coda
@@ -116,6 +114,8 @@ public sealed class PartyService(
     /// Oltre il limite invita quelli che ci stanno e risponde RateLimited.
     /// L'avviso va solo alle sessioni degli invitati che vedono il gruppo:
     /// dalle altre (niente accesso alla libreria della coda) non si entra.
+    /// Gli invitati che possono vedere il titolo trovano anche la voce nella
+    /// cassetta delle notifiche (spec G §6.5).
     /// </summary>
     public async Task<HubStatus> InviteAsync(CallerSession caller, Guid groupId, IReadOnlyList<string>? userIds)
     {
@@ -157,6 +157,7 @@ public sealed class PartyService(
             .Select(s => s.SessionId)
             .ToList();
         await Task.WhenAll(invitees.Select(sessionId => SendAsync(sessionId, payload))).ConfigureAwait(false);
+        await inbox.AddInvitesAsync(caller, group, targets).ConfigureAwait(false);
         return limited ? HubStatus.RateLimited : HubStatus.Ok;
     }
 
@@ -183,7 +184,7 @@ public sealed class PartyService(
                 && IsVisibleTo(group, viewer.UserId, viewer.UserName)
                 && groups.GetGroup(viewer.SessionId, group.Id) is not null)
             {
-                return new FriendParty(Id(group.Id), TitleOf(group.Name));
+                return new FriendParty(Id(group.Id), PartyNames.TitleOf(group.Name));
             }
         }
 
@@ -216,13 +217,6 @@ public sealed class PartyService(
 
     private static bool IsParticipant(GroupSummary group, string userName) =>
         group.Participants.Contains(userName, StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>Il titolo da "Host · Titolo"; il nome intero se non ha quella forma.</summary>
-    private static string TitleOf(string name)
-    {
-        var separator = name.IndexOf(GroupNameSeparator, StringComparison.Ordinal);
-        return separator < 0 ? name : name[(separator + GroupNameSeparator.Length)..];
-    }
 
     private static string Id(Guid id) => id.ToString("N");
 }

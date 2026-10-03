@@ -32,7 +32,7 @@ public sealed class PartyAnnouncerTests : IDisposable
             _parties, _server, _server, _friends, _server, _time, NullLogger<PartyAnnouncer>.Instance);
         _service = new PartyService(
             _parties, _server, _server, _server, _friends, new PartyRegistry(), _announcer, _server,
-            new RateLimiter(_time), NullLogger<PartyService>.Instance);
+            new RateLimiter(_time), TestInbox.Create(_server, _folder, _time), NullLogger<PartyService>.Instance);
         _mario = _server.AddUser("Mario");
         _luigi = _server.AddUser("Luigi");
         _peach = _server.AddUser("Peach");

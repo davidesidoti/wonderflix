@@ -19,6 +19,7 @@ public class ServiceRegistrationTests
         services.AddSingleton(InterfaceStub<ISessionManager>.Create().Proxy);
         services.AddSingleton(InterfaceStub<ISyncPlayManager>.Create().Proxy);
         services.AddSingleton(InterfaceStub<IUserManager>.Create().Proxy);
+        services.AddSingleton(InterfaceStub<ILibraryManager>.Create().Proxy);
         var (paths, stub) = InterfaceStub<IApplicationPaths>.Create();
         stub.Handlers["get_PluginConfigurationsPath"] = _ => Path.GetTempPath();
         services.AddSingleton(paths);
@@ -33,6 +34,10 @@ public class ServiceRegistrationTests
         Assert.EndsWith(
             Path.Combine("WonderFlixWatchParty", "friends.json"),
             provider.GetRequiredService<FriendStore>().FilePath);
+        Assert.NotNull(provider.GetRequiredService<InboxService>());
+        Assert.EndsWith(
+            Path.Combine("WonderFlixWatchParty", "inbox.json"),
+            provider.GetRequiredService<InboxStore>().FilePath);
         Assert.Single(provider.GetServices<IHostedService>());
     }
 }

@@ -15,6 +15,7 @@ public sealed class PartyServiceTests : IDisposable
     private readonly FriendService _friends;
     private readonly PartyRegistry _registry = new();
     private readonly PartyAnnouncer _announcer;
+    private readonly InboxService _inbox;
     private readonly PartyService _service;
     private readonly Guid _group = Guid.NewGuid();
     private readonly UserRef _mario;
@@ -32,9 +33,10 @@ public sealed class PartyServiceTests : IDisposable
         var parties = new PartyDirectory(_time);
         _announcer = new PartyAnnouncer(
             parties, _server, _server, _friends, _server, _time, NullLogger<PartyAnnouncer>.Instance);
+        _inbox = TestInbox.Create(_server, _folder, _time);
         _service = new PartyService(
             parties, _server, _server, _server, _friends, _registry, _announcer, _server,
-            new RateLimiter(_time), NullLogger<PartyService>.Instance);
+            new RateLimiter(_time), _inbox, NullLogger<PartyService>.Instance);
         _mario = _server.AddUser("Mario");
         _luigi = _server.AddUser("Luigi");
         _peach = _server.AddUser("Peach");
@@ -241,6 +243,24 @@ public sealed class PartyServiceTests : IDisposable
 
         Assert.Empty(_server.SentTo("s-luigi"));
         Assert.Equal(new[] { "PartyInvite" }, _server.SentTo("s-peach").Select(Type));
+    }
+
+    [Fact]
+    public async Task InvitesAlsoLeaveAnEntryInTheInbox()
+    {
+        await MakeFriends(_mario, _luigi);
+        _service.Register(_marioSession, _group, PartyModes.Private);
+        var movie = Guid.NewGuid();
+        _server.Playing["s-mario"] = new PlayingItem(movie, movie);
+        _server.Sent.Clear();
+
+        await _service.InviteAsync(_marioSession, _group, [_luigi.Id.ToString("N")]);
+
+        Assert.Equal(new[] { "PartyInvite", "InboxChanged" }, _server.SentTo("s-luigi").Select(Type));
+        var entry = Assert.Single(_inbox.Get(_luigi.Id).Entries);
+        Assert.Equal(GroupN, entry.GroupId);
+        Assert.Equal("Mario", entry.FromName);
+        Assert.Equal("Dune", entry.Title);
     }
 
     [Fact]

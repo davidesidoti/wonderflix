@@ -35,7 +35,7 @@ public sealed class FriendsControllerTests : IDisposable
             directory, _server, _server, _friends, _server, _time, NullLogger<PartyAnnouncer>.Instance);
         _parties = new PartyService(
             directory, _server, _server, _server, _friends, _registry, _announcer, _server,
-            new RateLimiter(_time), NullLogger<PartyService>.Instance);
+            new RateLimiter(_time), TestInbox.Create(_server, _folder, _time), NullLogger<PartyService>.Instance);
     }
 
     public void Dispose()

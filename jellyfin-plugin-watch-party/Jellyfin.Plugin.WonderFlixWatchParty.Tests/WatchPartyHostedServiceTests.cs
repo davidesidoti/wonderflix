@@ -41,7 +41,7 @@ public class WatchPartyHostedServiceTests
             directory, server, server, friends, server, time, NullLogger<PartyAnnouncer>.Instance);
         var parties = new PartyService(
             directory, server, server, server, friends, new PartyRegistry(), announcer, server,
-            new RateLimiter(time), NullLogger<PartyService>.Instance);
+            new RateLimiter(time), TestInbox.Create(server, folder, time), NullLogger<PartyService>.Instance);
         using var service = new WatchPartyHostedService(
             manager, hub, friends, presence, parties, time, NullLogger<WatchPartyHostedService>.Instance);
         await service.StartAsync(CancellationToken.None);
@@ -99,7 +99,7 @@ public class WatchPartyHostedServiceTests
             directory, server, server, friends, server, time, NullLogger<PartyAnnouncer>.Instance);
         var parties = new PartyService(
             directory, server, server, server, friends, new PartyRegistry(), announcer, server,
-            new RateLimiter(time), NullLogger<PartyService>.Instance);
+            new RateLimiter(time), TestInbox.Create(server, folder, time), NullLogger<PartyService>.Instance);
         using var service = new WatchPartyHostedService(
             manager, hub, friends, presence, parties, time, NullLogger<WatchPartyHostedService>.Instance);
         await service.StartAsync(CancellationToken.None);

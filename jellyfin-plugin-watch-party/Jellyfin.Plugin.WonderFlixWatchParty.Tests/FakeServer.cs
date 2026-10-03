@@ -3,7 +3,7 @@ using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
 
 /// <summary>Server finto: sessioni, gruppi SyncPlay e invii, in memoria.</summary>
-internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSender, IUserDirectory
+internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSender, IUserDirectory, ILibraryAccess
 {
     public List<CallerSession> Sessions { get; } = [];
 
@@ -87,6 +87,23 @@ internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSen
             GroupNames.GetValueOrDefault(groupId, "Host · Titolo"),
             GroupStates.GetValueOrDefault(groupId, "Idle"),
             Groups[groupId]);
+
+    /// <summary>Elemento in riproduzione per sessione (spec G §6.5).</summary>
+    public Dictionary<string, PlayingItem> Playing { get; } = [];
+
+    /// <summary>Coppie (utente, elemento) che l'utente non può vedere (librerie o limiti d'età).</summary>
+    public HashSet<(Guid UserId, Guid ItemId)> Unseen { get; } = [];
+
+    /// <summary>Se true, la libreria lancia, come un errore di Jellyfin.</summary>
+    public bool LibraryFails { get; set; }
+
+    public PlayingItem? NowPlaying(string sessionId) =>
+        LibraryFails ? throw new InvalidOperationException("libreria non disponibile")
+        : Exists(sessionId) ? Playing.GetValueOrDefault(sessionId) : null;
+
+    public bool CanSee(Guid userId, Guid itemId) =>
+        LibraryFails ? throw new InvalidOperationException("libreria non disponibile")
+        : Users.ContainsKey(userId) && !Unseen.Contains((userId, itemId));
 
     public Task<bool> TrySendAsync(string sessionId, string payload, CancellationToken cancellationToken)
     {
