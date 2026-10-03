@@ -96,6 +96,8 @@ void main() {
     expect(find.text('Lo vedono tutti, avviso a tutti'), findsOneWidget);
     expect(find.text('Solo amici'), findsOneWidget);
     expect(find.text('Privato'), findsOneWidget);
+    expect(tester.getSize(find.byKey(const Key('party-mode-Public'))).width,
+        partyModeMenuWidth);
     expect(
         find.descendant(
             of: find.byKey(const Key('party-mode-Friends')),
@@ -139,6 +141,26 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Privato'), findsNothing);
     expect(api.calls.first, 'create Mario · Dune');
+    expect(social.calls, isNot(contains(startsWith('register'))));
+    await leave(tester);
+  });
+
+  testWidgets('dentro un gruppo: nessun menu, cambia la coda', (tester) async {
+    await pump(tester);
+    api.onCall = (call) {
+      if (call.startsWith('join')) {
+        events.add(SyncPlayGroupUpdated(GroupJoined('g1', testGroup())));
+      }
+    };
+    final container =
+        ProviderScope.containerOf(tester.element(find.text('insieme')));
+    unawaited(container.read(watchPartySessionProvider.notifier).join('g1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('insieme'));
+    await tester.pumpAndSettle();
+    expect(find.text('Privato'), findsNothing);
+    expect(api.calls, contains('queue m1'));
+    expect(api.calls, isNot(contains(startsWith('create'))));
     expect(social.calls, isNot(contains(startsWith('register'))));
     await leave(tester);
   });

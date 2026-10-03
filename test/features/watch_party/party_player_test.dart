@@ -1526,4 +1526,26 @@ void main() {
       await finish(tester);
     });
   });
+
+  testWidgets('menu del distintivo aperto: i controlli non si nascondono',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    events.add(SyncPlayCommandReceived(command(SyncPlayCommandType.unpause)));
+    await tester.pump();
+    await tester.pump();
+    double opacity() => tester
+        .widget<AnimatedOpacity>(
+            find.byKey(const Key('player-controls-bottom')))
+        .opacity;
+    await tester.tap(find.byKey(const Key('party-badge')));
+    await tester.pumpAndSettle();
+    await tester.pump(PlayerChromeController.hideDelay * 2);
+    expect(opacity(), 1, reason: 'con il menu aperto i controlli restano');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    await tester.pump(PlayerChromeController.hideDelay);
+    expect(opacity(), 0, reason: 'chiuso il menu, si nascondono come sempre');
+    await finish(tester);
+  });
 }

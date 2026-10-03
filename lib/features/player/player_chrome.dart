@@ -85,6 +85,12 @@ class PlayerChromeController extends ChangeNotifier {
 
   /// La schermata di pausa è ammessa adesso (lo decide `PlayerScreen`).
   bool _canShowPauseScreen = false;
+
+  /// `true` se sopra il player c'è un'altra rotta (un menu aperto dai
+  /// controlli): i controlli non si nascondono e la schermata di pausa
+  /// aspetta; il conto riparte e si riprova alla scadenza dopo. Lo imposta
+  /// `PlayerScreen`.
+  bool Function()? isCovered;
   PlayerFeedback? _feedback;
 
   /// Ultimo riscontro e quando è arrivato: restano anche dopo che la
@@ -276,6 +282,10 @@ class PlayerChromeController extends ChangeNotifier {
     if (_playing) {
       if (!_controlsVisible) return;
       _hideTimer = Timer(hideDelay, () {
+        if (isCovered?.call() ?? false) {
+          _scheduleHide();
+          return;
+        }
         _controlsVisible = false;
         notifyListeners();
       });
@@ -283,6 +293,10 @@ class PlayerChromeController extends ChangeNotifier {
         !_pauseScreen &&
         _popup != PlayerPopup.chat) {
       _pauseTimer = Timer(pauseScreenDelay, () {
+        if (isCovered?.call() ?? false) {
+          _scheduleHide();
+          return;
+        }
         _pauseScreen = true;
         _controlsVisible = false;
         notifyListeners();

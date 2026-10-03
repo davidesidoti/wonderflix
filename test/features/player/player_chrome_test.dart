@@ -413,4 +413,28 @@ void main() {
       chrome.dispose();
     });
   });
+
+  test('coperto da un menu: i controlli e la pausa aspettano che si chiuda',
+      () {
+    fakeAsync((async) {
+      var covered = true;
+      final chrome = PlayerChromeController()
+        ..isCovered = (() => covered)
+        ..setPlayback(playing: true, canShowPauseScreen: false);
+      async.elapse(PlayerChromeController.hideDelay * 3);
+      expect(chrome.controlsVisible, isTrue);
+      covered = false;
+      async.elapse(PlayerChromeController.hideDelay);
+      expect(chrome.controlsVisible, isFalse, reason: 'chiuso, il conto vale');
+
+      covered = true;
+      chrome.setPlayback(playing: false, canShowPauseScreen: true);
+      async.elapse(PlayerChromeController.pauseScreenDelay * 2);
+      expect(chrome.pauseScreen, isFalse);
+      covered = false;
+      async.elapse(PlayerChromeController.pauseScreenDelay);
+      expect(chrome.pauseScreen, isTrue);
+      chrome.dispose();
+    });
+  });
 }

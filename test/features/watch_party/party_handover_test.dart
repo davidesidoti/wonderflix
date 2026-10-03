@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wonderflix/app/navigation.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/app/router.dart';
@@ -14,10 +16,14 @@ import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/player/playback_service.dart';
+import 'package:wonderflix/features/player/player_chrome.dart';
+import 'package:wonderflix/features/player/player_overlay.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
 import 'package:wonderflix/features/player/player_volume.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
+import 'package:wonderflix/features/watch_party/party_mode_menu.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_routing.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
@@ -28,6 +34,7 @@ import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
 import '../../support/playback_fakes.dart';
 import '../../support/pump_app.dart';
+import '../../support/social_fakes.dart';
 import '../../support/test_data.dart';
 import '../../support/watch_party_fakes.dart';
 
@@ -42,6 +49,7 @@ void main() {
   late FakeLibraryApi library;
   late FakePlayerWindow window;
   late FakeMediaSession mediaSession;
+  late FakeSocialApi social;
 
   /// Motori dei player, in ordine di apertura.
   late List<FakeVideoEngine> engines;
@@ -59,8 +67,13 @@ void main() {
       );
 
   /// Home con il routing del watch party attivo; l'utente entra nel gruppo
-  /// `g1`, che guarda la serie (e4, poi e5 ed e6).
-  Future<void> pumpApp(WidgetTester tester, {bool join = true}) async {
+  /// `g1`, che guarda la serie (e4, poi e5 ed e6). Con [parties] il plugin
+  /// ha amici e party ("Guarda insieme" chiede la modalità).
+  Future<void> pumpApp(WidgetTester tester,
+      {bool join = true, bool parties = false}) async {
+    social = FakeSocialApi();
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
     api = FakeSyncPlayApi();
     events = StreamController<ServerEvent>.broadcast();
     addTearDown(events.close);
@@ -118,6 +131,12 @@ void main() {
         syncPlayApiProvider.overrideWithValue(api),
         watchPartyEventsProvider.overrideWithValue(events.stream),
         partyChannelApiProvider.overrideWithValue(FakePartyChannelApi()),
+        if (parties) ...[
+          socialApiProvider.overrideWithValue(social),
+          socialAvailabilityProvider.overrideWith(() => FakeSocialAvailability(
+              const SocialFeatures(friends: true, parties: true))),
+          sharedPreferencesProvider.overrideWithValue(prefs),
+        ],
       ],
       retry: (_, _) => null,
     );
@@ -155,6 +174,10 @@ void main() {
     container.dispose();
     await tester.pump();
   }
+
+  double controlsOpacity(WidgetTester tester) => tester
+      .widget<AnimatedOpacity>(find.byKey(const Key('player-controls-bottom')))
+      .opacity;
 
   List<String> pages() => [
         for (final match in router.routerDelegate.currentConfiguration.matches)
@@ -295,6 +318,83 @@ void main() {
     await tester.pump();
     expect(find.byTooltip('Guarda insieme'), findsOneWidget);
     expect(api.calls.where((call) => call.startsWith('create')), hasLength(1));
+    await finish(tester);
+  });
+
+  testWidgets(
+      '"Guarda insieme" dal player con le modalità: menu sopra il pulsante, '
+      'pulsante e controlli restano; il gruppo parte dal punto della scelta',
+      (tester) async {
+    await pumpApp(tester, join: false, parties: true);
+    library.seriesEpisodes['s1'] = [
+      episode('e4', 4),
+      episode('e5', 5),
+      episode('e6', 6),
+    ];
+    unawaited(router.push('/play/e4'));
+    await tester.pumpAndSettle();
+    engines.single.emitPosition(const Duration(minutes: 10));
+    await tester.pump();
+    api.onCall = (call) {
+      if (call.startsWith('create')) {
+        emit(GroupJoined('g1', testGroup(participants: ['Mario'])));
+      }
+      if (call.startsWith('queue')) {
+        emit(PlayQueueUpdate('g1', testSeriesQueue()));
+      }
+    };
+
+    await tester.tap(find.byTooltip('Guarda insieme'));
+    await tester.pumpAndSettle();
+    expect(find.text('Privato'), findsOneWidget);
+    expect(find.byTooltip('Guarda insieme'), findsOneWidget,
+        reason: 'il pulsante resta finché si sceglie');
+    // Nella barra in basso il menu si apre sopra il pulsante: finisce
+    // (secondo l'altezza prevista) dove il pulsante comincia.
+    final buttonTop = tester
+        .getTopLeft(find.ancestor(
+            of: find.byTooltip('Guarda insieme'),
+            matching: find.byType(PlayerIconButton)))
+        .dy;
+    final menuTop = tester
+        .getTopLeft(find
+            .ancestor(
+                of: find.byKey(const Key('party-mode-Public')),
+                matching: find.byType(Material))
+            .first)
+        .dy;
+    expect(menuTop, buttonTop - partyModeMenuHeight);
+    await tester.pump(PlayerChromeController.hideDelay * 2);
+    expect(controlsOpacity(tester), 1,
+        reason: 'con il menu aperto i controlli restano');
+
+    // Si sceglie con calma: il gruppo parte da dove si è arrivati.
+    engines.single.emitPosition(const Duration(minutes: 12));
+    await tester.pump();
+    await tester.tap(find.text('Pubblico'));
+    await tester.pumpAndSettle();
+    expect(api.calls.take(2), ['create Mario · Breaking Bad', 'queue e4,e5,e6']);
+    expect(api.queues.last.start, const Duration(minutes: 12));
+    expect(social.calls, contains('register g1 Public'));
+    expect(router.state.uri.toString(), '/play/e4?party=p1');
+    await finish(tester);
+  });
+
+  testWidgets(
+      '"Guarda insieme" con le modalità, menu chiuso senza scegliere: niente '
+      'gruppo, il pulsante resta', (tester) async {
+    await pumpApp(tester, join: false, parties: true);
+    unawaited(router.push('/play/e4'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Guarda insieme'));
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('Privato'), findsNothing);
+    expect(api.calls, isNot(contains(startsWith('create'))));
+    expect(find.byTooltip('Guarda insieme'), findsOneWidget);
+    expect(router.state.uri.toString(), '/play/e4',
+        reason: 'Esc chiude solo il menu');
     await finish(tester);
   });
 }

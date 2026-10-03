@@ -152,6 +152,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// fa nulla.
   bool _startingParty = false;
 
+  /// Il menu delle modalità di "Guarda insieme" è aperto: il pulsante resta,
+  /// ma un secondo tocco non ne apre un altro.
+  bool _choosingMode = false;
+
   /// Il routing del watch party segnala qui che sostituisce questo player
   /// da solo con quello del gruppo (letto alla chiusura, senza `ref`).
   late final PlayerHandover _handover;
@@ -219,6 +223,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _timelineTimer =
         Timer.periodic(const Duration(seconds: 5), (_) => _sendTimeline());
     _chrome.addListener(_onChromeChanged);
+    // Un menu aperto dai controlli (modalità di "Guarda insieme", distintivo
+    // del party) è una rotta sopra il player: finché c'è, i controlli non si
+    // nascondono (il mouse sul menu non arriva al player).
+    _chrome.isCovered =
+        () => mounted && !(ModalRoute.isCurrentOf(context) ?? true);
     // Il caricamento resta finché il motore non disegna il primo
     // fotogramma (spec D §10.1). Se il controller nativo fallisce il futuro
     // finisce in errore: si ignora, il conto di 3 s toglie comunque il
@@ -615,17 +624,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// gruppo (sostituendo questo, vedi [PlayerHandover]). Se la coda non
   /// arriva, o si esce prima, questo player esce come sempre. Riuscita la
   /// richiesta il pulsante non torna: si aspetta il player del gruppo. Il
-  /// menu delle modalità (spec F §9.1) è ancorato a [buttonContext]; se si
-  /// chiude senza scegliere il pulsante torna.
+  /// menu delle modalità (spec F §9.1) è ancorato a [buttonContext]: mentre
+  /// è aperto il pulsante resta, e chiuso senza scegliere non cambia nulla.
+  /// Il punto di partenza si legge dopo la scelta.
   Future<void> _watchTogether(BuildContext buttonContext) async {
     final item = ref.read(playerControllerProvider(widget.args)).item;
-    if (item == null || _leaving || _startingParty) return;
-    final start = _controller.engine.position;
-    setState(() => _startingParty = true);
-    final started = await watchTogether(context, ref, item,
-        start: start, menuAnchor: buttonContext);
+    if (item == null || _leaving || _startingParty || _choosingMode) return;
+    _choosingMode = true;
+    final bool started;
+    try {
+      started = await watchTogether(
+        context,
+        ref,
+        item,
+        startAt: () => _controller.engine.position,
+        menuAnchor: buttonContext,
+        onStarting: () {
+          _choosingMode = false;
+          if (mounted) setState(() => _startingParty = true);
+        },
+      );
+    } finally {
+      _choosingMode = false;
+    }
     if (!mounted || _leaving) return;
-    if (!started) setState(() => _startingParty = false);
+    if (!started && _startingParty) setState(() => _startingParty = false);
   }
 
   void _sendTimeline() {
