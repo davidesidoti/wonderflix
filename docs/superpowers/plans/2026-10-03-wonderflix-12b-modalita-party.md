@@ -4434,6 +4434,7 @@ Prerequisiti: Task 6 fatto. Due istanze dell'exe del worktree: A (utente A) e B 
 6. **Lista amici:** con A nel party, nel pannello Amici di B c'è "Nel watch party: titolo" con **Unisciti** (se B può vederlo); dentro lo stesso gruppo Unisciti sparisce.
 7. **Senza modalità:** "Guarda insieme" dentro un gruppo cambia solo la coda, senza menu.
 8. (facoltativo) La 0.5.1 installata: un party creato lì compare agli altri come pubblico dopo una decina di secondi.
+9. (facoltativo, se c'è un utente senza accesso alla libreria del film) Party **Pubblico** di A su quel film: quell'utente non riceve la scheda, non lo vede nell'elenco e, se è amico di A, nel pannello Amici non vede "Nel watch party".
 
 ## Dopo la prova: release (orchestratore con l'utente, fuori dai task)
 
@@ -4452,6 +4453,12 @@ Prerequisiti: Task 6 fatto. Due istanze dell'exe del worktree: A (utente A) e B 
    ```
 
    Commit `chore: publish the watch party plugin 1.1.0` e push.
-3. **Server:** nessuno sta guardando (log); `mkdir -p ~/wfwp-backup && mv ~/.apps/jellyfin/data/plugins/"WonderFlix Watch Party_1.1.0.0" ~/wfwp-backup/1.1.0.0-manuale` (stesso nome della cartella che crea il Catalogo); l'utente aggiorna **WonderFlix Watch Party** a 1.1.0.0 dal Catalogo; `app-jellyfin restart`; nel log `Loaded plugin: "WonderFlix Watch Party" "1.1.0.0"` e `Amici in …` (gli amici restano: il file è nelle configurazioni).
+3. **Server:** nessuno sta guardando (log). La cartella copiata a mano ha lo stesso nome di quella che crea il Catalogo e finché è caricata il Catalogo può credere la 1.1.0.0 già installata, quindi:
+   1. guardare se c'è ancora la cartella 1.0.0.0 del Catalogo (`ls ~/.apps/jellyfin/data/plugins/`);
+   2. `mkdir -p ~/wfwp-backup && mv ~/.apps/jellyfin/data/plugins/"WonderFlix Watch Party_1.1.0.0" ~/wfwp-backup/1.1.0.0-manuale`;
+   3. `app-jellyfin restart` (ora gira la 1.0.0.0 del Catalogo, o nessuna);
+   4. l'utente installa o aggiorna **WonderFlix Watch Party** a 1.1.0.0 dal Catalogo;
+   5. `app-jellyfin restart`;
+   6. nel log `Loaded plugin: "WonderFlix Watch Party" "1.1.0.0"` e `Amici in …` (gli amici restano: il file è nelle configurazioni).
 4. **App 0.6.0 obbligatoria:** `version: 0.6.0` in `pubspec.yaml`, commit `chore: release 0.6.0`, tag `v0.6.0`, push; finita la pipeline Release, note in italiano nella bozza con la riga `<!-- wonderflix:min-version=0.6.0 -->` (amici, modalità dei party, codice, inviti; perché è obbligatoria: le versioni vecchie vedrebbero i party privati). L'utente pubblica **solo dopo** il punto 3.
 5. Con l'ok dell'utente, dopo la pubblicazione: commento e chiusura di **#5** e **#6** (cosa c'è, link a v0.6.0).

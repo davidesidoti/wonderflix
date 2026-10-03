@@ -1,7 +1,7 @@
 # WonderFlix — Spec F: amici e party privati
 
 - **Data:** 2026-10-03
-- **Stato:** approvato; piano 12a realizzato (`docs/superpowers/plans/2026-10-03-wonderflix-12a-amici.md`); piano 12b da scrivere
+- **Stato:** approvato; piani 12a e 12b realizzati (`docs/superpowers/plans/2026-10-03-wonderflix-12a-amici.md`, `docs/superpowers/plans/2026-10-03-wonderflix-12b-modalita-party.md`)
 - **Ambito:** Spec F. Realizza l'issue #6 (lista amici) e l'issue #5 (watch party pubblico / solo amici / privato). L'issue #7 (collegamento a Discord) resta fuori: sarà la Spec G. Si appoggia allo Spec B (`2026-09-30-wonderflix-watch-party-design.md`: §5.8 elenco e inviti, §7 interfaccia) e allo Spec E (`2026-10-02-wonderflix-watch-party-sociale-design.md`: §6 plugin, §7 canale), entrambi realizzati (v0.5.1).
 
 ## 1. Obiettivo
@@ -64,9 +64,8 @@ Tutto passa dal plugin "WonderFlix Watch Party", che diventa la 1.1.0. **Senza i
 ```
 Plugin 1.1.0
   FriendStore (friends.json, su disco)  ─┐
-  FriendService (richieste, regole)      ├─ SocialHub ── SocialController (REST)
-  PresenceTracker (sessioni WonderFlix)  │            └─ avvisi (SendString)
-  PartyDirectory (modalità, codici,     ─┘
+  PresenceTracker (sessioni WonderFlix)  ├─ FriendService / PartyService / PartyAnnouncer ── FriendsController / PartiesController (REST)
+  PartyDirectory (modalità, codici,     ─┘  └─ avvisi (SendString)
                   inviti, visibilità; RAM)
 
 App 0.6.0
@@ -102,26 +101,30 @@ Il plugin continua a non conoscere Jellyfin dentro il nucleo: le nuove classi pa
 ### 6.3 Presenza
 
 - **Online:** l'utente ha almeno una sessione Jellyfin con `Client == "WonderFlix"`.
-- **Nel party:** l'utente è registrato nel `PartyRegistry` di 1.0.0 (l'app fa `Join` sul canale entrando in un gruppo).
+- **Nel party:** una sessione WonderFlix dell'utente è nel canale del gruppo (`PartyRegistry` di 1.0.0: l'app fa `Join` sul canale entrando in un gruppo) e l'utente è ancora tra i partecipanti del gruppo SyncPlay (una voce del registro può essere vecchia, es. un `Leave` non riuscito).
 - Il plugin ascolta `ISessionManager.SessionStarted` / `SessionEnded` (solo client WonderFlix) e i propri `Join` / `Leave`: quando lo stato di un utente cambia manda `FriendsChanged` ai suoi amici online, **al massimo uno ogni 2 s per utente** (raccoglie i cambi ravvicinati, es. riconnessioni).
+- `Join` / `Leave` del canale e `POST Parties/{groupId}` contano come cambio di presenza (stesso raggruppamento di 2 s): la registrazione arriva dopo il `Join`, quando il party non era ancora visibile, e gli amici lo rileggono.
 
 ### 6.4 Registro dei party (RAM)
 
-- Per ogni gruppo SyncPlay registrato: `GroupId`, `CreatorId`, `Mode` (`Public` | `Friends` | `Private`), `Code` (solo `Private`), `Invited` (insieme di id utente), `RegisteredAt`.
-- **Registrazione** (`POST Parties/{groupId}`): solo un partecipante del gruppo (come il `Join` di 1.0.0); una sola volta (la seconda risponde 409); il creatore è chi registra.
-- **Visibile a U** se: U è partecipante del gruppo, oppure `Mode == Public`, oppure `Mode == Friends` e U è amico del creatore, oppure U è in `Invited`.
-- **Gruppi non registrati** (creati da jellyfin-web, da app 0.5.x o non ancora registrati): trattati come `Public`, ma solo dopo **10 s** dalla prima volta che il plugin li vede (`FirstSeen`, in RAM). Così un party privato appena creato non compare mai per un attimo come pubblico.
-- **Pulizia:** quando il gruppo SyncPlay non esiste più, la voce sparisce (stessa pulizia del registro di 1.0.0).
+- Per ogni gruppo SyncPlay registrato: `GroupId`, `CreatorId`, `Mode` (`Public` | `Friends` | `Private`), `Code` (solo `Private`), `Invited` (insieme di id utente).
+- **Registrazione** (`POST Parties/{groupId}`): solo se chi chiama è l'**unico** partecipante del gruppo (l'app registra appena creato il gruppo, prima della coda: un gruppo con altri dentro, es. di jellyfin-web, non si nasconde da fuori); altrimenti 403. Una sola volta (la seconda risponde 409); il creatore è chi registra. Un gruppo già dimenticato dalla pulizia (sotto) non si registra più: 409.
+- **Visibile a U** se: U è partecipante del gruppo, oppure U è il creatore, oppure `Mode == Public`, oppure `Mode == Friends` e U è amico del creatore, oppure U è in `Invited`.
+- **Gruppi non registrati** (creati da jellyfin-web, da app 0.5.x o non ancora registrati): trattati come `Public`, ma solo dopo **10 s** (`FirstSeen`, in RAM). Il conto parte la prima volta che il gruppo compare in un `GET Parties` di chiunque; un gruppo mai elencato non compare nemmeno in `GET Friends`. Così un party privato appena creato non compare mai per un attimo come pubblico.
+- **Pulizia:** ogni 5 minuti (con la pulizia del registro di 1.0.0) un party sparisce quando nessuna sessione WonderFlix vede più il suo gruppo; il suo codice non vale più. Il suo id resta per 24 h (al massimo 1000, poi si dimentica il più vecchio): se il gruppo ricompare (per esempio un errore di Jellyfin nella lettura della coda, §14) non diventa pubblico, lo vedono solo i partecipanti (che lo vedono senza modalità, come "Pubblico").
 
 ### 6.5 Codici
 
 - 6 caratteri da `ABCDEFGHJKMNPQRSTUVWXYZ23456789` (31 simboli, senza 0/O/1/I/L), generati con `RandomNumberGenerator`; unici tra i party attivi. In rete viaggiano senza trattino; l'app mostra `K7P-Q2X`.
 - `POST Parties/Join {Code}`: il codice si normalizza (maiuscole, senza spazi e trattini). Se corrisponde a un party attivo l'utente entra in `Invited` (così il party compare nel suo elenco) e la risposta è `{GroupId}`; l'app poi entra nel gruppo con SyncPlay come oggi.
-- Codice sbagliato o party finito: **403**. Oltre **5 tentativi sbagliati al minuto** per utente: **429**.
+- Codice sbagliato o party finito: **403**. 403 anche se chi chiama non può vedere il gruppo (coda in una libreria a cui non ha accesso): l'app mostra "Codice non valido o party finito".
+- **Ogni tentativo** conta per il limite: oltre 5 al minuto per utente, **429**.
 
 ### 6.6 Inviti
 
-- `POST Parties/{groupId}/Invites {UserIds}`: chi chiama deve essere partecipante del gruppo; ogni destinatario deve essere suo amico e non già partecipante (gli altri si saltano in silenzio). I destinatari entrano in `Invited` e ricevono `PartyInvite` sulle sessioni aperte.
+- `POST Parties/{groupId}/Invites {UserIds}`: chi chiama deve essere partecipante del gruppo; ogni destinatario deve essere suo amico e non già partecipante (gli altri si saltano in silenzio). I destinatari entrano in `Invited` e ricevono `PartyInvite` sulle sessioni aperte che vedono il gruppo (sotto).
+- Oltre 20 destinatari al minuto (§6.9) si invitano quelli che ci stanno e la risposta è 429.
+- L'avviso `PartyInvite` arriva solo alle sessioni degli invitati che possono vedere la coda del gruppo (da Jellyfin: accesso alla libreria degli elementi in coda); il permesso di vederlo (`Invited`) resta comunque.
 
 ### 6.7 Endpoint (nuovi, sotto `/WonderFlixWatchParty`)
 
@@ -130,19 +133,23 @@ Tutti autenticati come in 1.0.0 (`[Authorize]`, chi chiama da `UserId` + `Device
 | Metodo e percorso | Corpo / risposta |
 |---|---|
 | `GET Info` | `{Version, Protocol: 1, Features: ["friends", "parties"]}` |
-| `GET Friends` | `{Friends: [{UserId, Name, Online, Party: {GroupId, Title} \| null}], Incoming: [{UserId, Name}], Outgoing: [{UserId, Name}]}`; `Party` è omesso o `null` se l'amico non è in un party visibile |
+| `GET Friends` | `{Friends: [{UserId, Name, Online, Party: {GroupId, Title}}], Incoming: [{UserId, Name}], Outgoing: [{UserId, Name}]}`; `Party` solo per gli amici online in un party visibile, e solo se chi chiama può vedere la coda del gruppo dalla propria sessione; senza la sessione di chi chiama nessun `Party` |
 | `GET Users/Search?q=` | `[{UserId, Name, Relation}]` (`Relation`: `None`, `Friend`, `Incoming`, `Outgoing`) |
 | `POST Friends/Requests/{userId}` | 204; 409 se non ammessa (§6.2) |
 | `POST Friends/Requests/{userId}/Accept` · `/Decline` | 204; 403 se la richiesta non c'è |
 | `DELETE Friends/Requests/{userId}` | 204 (annulla la propria) |
 | `DELETE Friends/{userId}` | 204 |
-| `POST Parties/{groupId}` `{Mode}` | `{Code}` (`null` se non privato); 403 se non partecipante; 409 se già registrato |
+| `POST Parties/{groupId}` `{Mode}` | `{Code}` (omesso se non privato); 400 se la modalità non è valida; 403 se chi chiama non è l'unico partecipante; 409 se già registrato o già dimenticato (§6.4) |
 | `GET Parties` | `[{GroupId, Name, Participants, State, Mode}]`: i party visibili (§6.4), dall'elenco SyncPlay visto dalla sessione di chi chiama |
-| `GET Parties/{groupId}` | `{Mode, Code}`: solo per i partecipanti (il codice di un privato); 403 altrimenti |
-| `POST Parties/Join` `{Code}` | `{GroupId}`; 403 codice non valido; 429 troppi tentativi |
-| `POST Parties/{groupId}/Invites` `{UserIds}` | 204; 403 se non partecipante |
+| `GET Parties/{groupId}` | `{Mode, Code}`: solo per i partecipanti (il codice di un privato); un gruppo non registrato risponde `{Mode: "Public"}`; 403 altrimenti |
+| `POST Parties/Join` `{Code}` | `{GroupId}`; 403 codice non valido, party finito o gruppo non visibile a chi chiama; 429 troppi tentativi |
+| `POST Parties/{groupId}/Invites` `{UserIds}` | 204; 403 se non partecipante; 429 oltre il limite (§6.6) |
 
-`Party` in `GET Friends` è presente solo se l'amico è in un party visibile a chi chiama; `Title` è la parte del nome dopo "Host · ".
+`Party` in `GET Friends` è presente solo se l'amico è online e in un party visibile a chi chiama (§6.3, §6.4); `Title` è la parte del nome dopo "Host · ".
+
+Gli endpoint dei party vogliono la sessione di chi chiama (i gruppi SyncPlay si vedono da una sessione): senza, 409.
+
+I campi `null` mancano dalle risposte (`WhenWritingNull`): `Code`, `Party`.
 
 ### 6.8 Avvisi
 
@@ -152,8 +159,12 @@ Stesso trasporto di 1.0.0 (`SendString`, chiave `WonderFlixWatchParty`), **solo 
 |---|---|---|
 | `FriendRequest` | sessioni di B quando A gli chiede l'amicizia | `FromUserId`, `FromName` |
 | `FriendsChanged` | le due persone a ogni accetta / rifiuta / annulla / rimuovi / richiesta incrociata; gli amici online a ogni cambio di presenza (§6.3) | — (l'app rilegge `GET Friends`) |
-| `PartyStarted` | alla registrazione: `Public` → tutte le sessioni WonderFlix tranne quelle del creatore; `Friends` → gli amici online del creatore; `Private` → nessuno | `GroupId`, `Name`, `Mode` |
-| `PartyInvite` | sessioni degli invitati | `GroupId`, `Name`, `FromName` |
+| `PartyStarted` | quando il gruppo ha la coda (sotto): `Public` → le sessioni WonderFlix di tutti tranne il creatore; `Friends` → quelle degli amici del creatore in quel momento; `Private` → nessuno. Solo le sessioni che possono vedere la coda e i cui utenti non fanno già parte del gruppo | `GroupId`, `Name`, `Mode` |
+| `PartyInvite` | sessioni degli invitati che possono vedere la coda del gruppo (§6.6) | `GroupId`, `Name`, `FromName` |
+
+`PartyStarted` (Pubblico e Solo amici) non parte alla registrazione: l'app registra il gruppo prima di mandare la coda, e un gruppo senza coda lo vede chiunque (Jellyfin controlla l'accesso alla libreria sugli elementi in coda). `PartyAnnouncer` controlla ogni 2 s, per al massimo 20 s, che il gruppo abbia la coda (stato diverso da `Idle`); poi manda l'avviso alle sessioni della tabella. Se nel frattempo il gruppo o il party non ci sono più, o la coda non arriva in 20 s, niente avviso. Il `POST Parties/{groupId}` non aspetta l'invio.
+
+I gruppi non registrati (jellyfin-web, app 0.5.x) non hanno avviso: compaiono solo nell'elenco, dopo 10 s (§6.4).
 
 ### 6.9 Limiti e log
 
@@ -163,23 +174,27 @@ Stesso trasporto di 1.0.0 (`SendString`, chiave `WonderFlixWatchParty`), **solo 
 | Richieste inviate in sospeso | 50 | 409 |
 | Nuove richieste | 20 all'ora per utente | 429 |
 | Ricerche | 30 al minuto per utente | 429 |
-| Codici sbagliati | 5 al minuto per utente | 429 |
-| Inviti | 20 destinatari al minuto per utente | 429 |
+| Codici provati | 5 al minuto per utente | 429 |
+| Inviti | 20 destinatari al minuto per utente | 429 (invitati quelli che ci stanno) |
 
-Log come in 1.0.0: mai testi o codici, solo id e tipi di esito; `Debug` per le operazioni, `Warning` per il file illeggibile e gli errori di scrittura.
+Log come in 1.0.0: mai testi o codici, solo id e tipi di esito; `Debug` per le operazioni, `Warning` per il file illeggibile, gli errori di scrittura e gli errori di SyncPlay (§14).
 
 ## 7. App: il nucleo sociale
 
 ### 7.1 `lib/core/social/` (Dart puro)
 
-- Modelli: `PartyMode` (`public` / `friends` / `private`, in rete `Public` / `Friends` / `Private`), `FriendEntry {userId, name, online, party: (groupId, title)?}`, `FriendRequestEntry {userId, name}`, `FriendsSnapshot {friends, incoming, outgoing}`, `UserSearchResult {userId, name, relation}`, `PartySummary {groupId, name, participants, state, mode}`, `PartyDetails {mode, code}`.
+- Modelli: `PartyMode` (`public` / `friends` / `private`, in rete `Public` / `Friends` / `Private`; sta in `lib/core/syncplay/party_mode.dart`, perché lo porta anche `GroupInfo`), `FriendEntry {userId, name, online, party: (groupId, title)?}`, `PersonEntry {userId, name}` (richieste in arrivo e inviate), `FriendsSnapshot {friends, incoming, outgoing}`, `UserSearchResult {userId, name, relation}`, `PartyDetails {mode, code}`. L'app legge `GET Parties` come `GroupInfo` con `mode` (`partyGroupFromJson`), lo stesso modello di `/SyncPlay/List`.
 - `formatPartyCode('K7PQ2X') → 'K7P-Q2X'`, `normalizePartyCode` (maiuscole, senza spazi e trattini).
-- `SocialApi` (HTTP verso gli endpoint §6.7, con `JellyfinHttp` e `quietStatuses` come `PartyChannelApi`): errori come `SocialException(SocialFailure.{unavailable, forbidden, conflict, rateLimited, network})`.
+- `SocialApi` (HTTP verso gli endpoint §6.7, con `JellyfinHttp` e `quietStatuses` come `PartyChannelApi`): errori come `SocialException(SocialFailure.{unavailable, forbidden, conflict, rateLimited, network})`; 400 vale come `forbidden`, come 401 e 403.
 - `parseSocialEvent(payload)` → `FriendRequestEvent`, `FriendsChangedEvent`, `PartyStartedEvent`, `PartyInviteEvent`, oppure `null` (gli eventi del canale con `GroupId` restano a `parsePartyEvent`).
 
 ### 7.2 Disponibilità
 
-`SocialAvailability` (`Notifier`): chiede `Info` dopo il login e a ogni connessione del WebSocket (anche la prima: un controllo fallito al login si ripete); una risposta arrivata dopo un cambio di utente si scarta; `friends` e `parties` valgono se `Features` li contiene. Errore o 404 → nessuna funzione (l'app si comporta come la 0.5.1). La diagnostica aggiunge la riga "Funzioni del plugin: amici, party" (o "nessuna"; assente se il plugin non risponde).
+`SocialAvailability` (`Notifier`): chiede `Info` dopo il login e a ogni connessione del WebSocket (anche la prima: un controllo fallito al login si ripete); una risposta arrivata dopo un cambio di utente si scarta; `friends` e `parties` valgono se `Features` li contiene. 400/401/403/404 → nessuna funzione (l'app si comporta come la 0.5.1). La diagnostica aggiunge la riga "Funzioni del plugin: amici, party" (o "nessuna"; assente se il plugin non risponde).
+
+Dal login, e a ogni cambio di utente, fino alla prima risposta certa di `Info` le funzioni sono `SocialFeatures.unknown` (`known: false`): niente elenco dei party né schede (l'elenco di Jellyfin non è filtrato per modalità), niente icona Amici, e "Guarda insieme" aspetta al massimo 2 s che diventino note prima di decidere se mostrare il menu (§9.1). I controlli successivi non tornano a `unknown`.
+
+Un errore di rete, un timeout o un 5xx (anche 409, 429 o una risposta di forma inattesa) non dice nulla del plugin: prima della prima risposta lascia `unknown` e si riprova ogni 30 s e a ogni connessione del WebSocket; dopo, restano le funzioni che ci sono. Solo 400/401/403/404 valgono come plugin assente. Una risposta riuscita non viene scavalcata dall'errore di un controllo già in corso quando è arrivata (al login partono insieme il controllo del login e quello della prima connessione del WebSocket); quello di un controllo partito dopo vale (plugin tolto e server riavviato, §10).
 
 `party_channel.dart` continua ad accettare solo `Protocol == 1`: niente da cambiare lì.
 
@@ -206,12 +221,13 @@ Log come in 1.0.0: mai testi o codici, solo id e tipi di esito; `Debug` per le o
 - **Contenuto**, dall'alto:
   1. Titolo "Amici" + ×.
   2. Campo "Cerca per nome" (prende il fuoco all'apertura). Con 2+ lettere i risultati sostituiscono le sezioni 3–5. Ogni risultato: iniziale, nome, azione secondo la relazione — `None` → **Aggiungi**; `Outgoing` → "Inviata" + **Annulla**; `Incoming` → **Accetta**; `Friend` → "Amici ✓" (non cliccabile). Nessun risultato: "Nessun utente trovato". La ricerca si ripete quando cambia la lista amici.
-  3. **"Ho un codice"** (§9.4).
+  3. **"Ho un codice"** (§9.4), solo con la funzione `parties`.
   4. **Richieste ({n})**, solo se ce ne sono: in arrivo con **Accetta / Rifiuta**, poi quelle inviate con "In attesa" + **Annulla**.
-  5. **Amici**: online prima (pallino verde), poi offline (nome attenuato), in ordine alfabetico. Amico in un party visibile: seconda riga "Nel watch party: {titolo}" + **Unisciti** (nascosto se siamo già in quel gruppo). **⋯** (sempre visibile) → "Rimuovi dagli amici" → la riga mostra **Conferma rimozione** per 4 s.
+  5. **Amici**: online prima (pallino verde), poi offline (nome attenuato), in ordine alfabetico. Amico in un party visibile: seconda riga "Nel watch party: {titolo}" + **Unisciti** (nascosto se siamo già in quel gruppo, e durante "Conferma rimozione"). **⋯** (sempre visibile) → "Rimuovi dagli amici" → la riga mostra **Conferma rimozione** per 4 s.
   6. Vuoto: "Nessun amico ancora. Cerca qualcuno per nome qui sopra."
 - **Errore** del caricamento: "Amici non disponibili" + **Riprova**.
 - Le liste lunghe scorrono dentro il pannello; il campo di ricerca resta fermo in alto.
+- **Unisciti** ed **Entra** (§9.4) chiudono il pannello solo se l'ingresso nel gruppo riesce.
 
 ### 8.4 Scheda della richiesta
 
@@ -227,44 +243,69 @@ Su `FriendRequest`, con l'app aperta e il player chiuso: scheda nello stesso pos
   - `lock` **Privato** — "Nessun avviso; si entra con il codice o con un invito".
 - L'ultima modalità usata è evidenziata (bordo oro) ed è salvata in `party.lastMode` (`SharedPreferences`; predefinita Pubblico).
 - Senza `parties`: nessun menu, il party nasce come oggi. Dentro un gruppo "Guarda insieme" cambia la coda, senza menu.
+- Finché le funzioni del plugin non sono note (§7.2), si aspetta al massimo 2 s; poi, se ancora ignote, si parte senza menu.
+- Il menu è largo 380 px; se sotto il pulsante non c'è posto (nel player), si apre sopra il pulsante. La modalità scelta si salva subito.
+- Nel player: con il menu aperto i controlli non si nascondono e la schermata di pausa aspetta; un secondo clic su "Guarda insieme" non apre un altro menu; il punto di partenza si legge dopo la scelta (il video intanto va avanti).
+- Se il player si chiude da solo (fine del video, tasto Stop) con un menu aperto sopra (modalità, distintivo, inviti), prima si chiudono i menu.
 
 ### 9.2 Creazione
 
 `startWatchParty(context, ref, item, start:, mode:)`:
 
-1. crea il gruppo e la coda come oggi;
-2. con `parties` disponibile, `POST Parties/{groupId} {mode}` appena il gruppo esiste;
-3. se la registrazione fallisce: esce dal gruppo e mostra "Non è stato possibile creare il watch party". Nessun party è meglio di un privato visibile a tutti (§6.4: dopo 10 s un gruppo non registrato diventa pubblico).
+1. crea il gruppo come oggi;
+2. con `parties` disponibile, il party si registra (`POST Parties/{groupId} {mode}`) dentro `WatchPartySession.create`, appena il gruppo esiste e **prima della coda** (§6.4: solo l'unico partecipante registra). La registrazione ha un limite di 5 s, ben sotto i 10 s dopo cui il plugin mostra come pubblico un gruppo non registrato;
+3. poi la coda, come oggi;
+4. se la registrazione fallisce o scade: si esce dal gruppo, ma solo se si è ancora in quel gruppo, e si mostra "Non è stato possibile creare il watch party". Nessun party è meglio di un privato visibile a tutti (§6.4: dopo 10 s un gruppo non registrato diventa pubblico);
+5. se la registrazione (riuscita o no) finisce quando siamo già usciti dal gruppo, o siamo in un altro: niente coda, nessuna uscita, errore "Questo watch party non esiste più".
 
 Per un privato, il codice ricevuto si mostra subito nella pillola del player: "Party privato · codice K7P-Q2X" (avviso del party, una volta).
 
 ### 9.3 Il party corrente
 
-`CurrentPartyDetails` (`Notifier`): entrando in un gruppo (creato o raggiunto) legge `GET Parties/{groupId}` → modalità e codice; si azzera all'uscita. Serve al menu del chip e al distintivo nel player.
+`CurrentParty` (`currentPartyProvider`, `Notifier`): `{groupId, mode, code, invited, announceCode}`. Entrando in un gruppo (creato o raggiunto) legge `GET Parties/{groupId}` → modalità e codice; si azzera all'uscita. Serve al menu del chip e al distintivo nel player.
+
+- Il codice c'è solo per i privati, anche se il plugin lo manda.
+- Senza `parties` nessuna lettura.
+- Una lettura finita dopo un cambio di gruppo si scarta e non sovrascrive il party appena registrato da noi (§9.2, che lo scrive con la risposta della registrazione).
+- Una registrazione o un invito per un gruppo che non è più il nostro si ignora.
+- `invited`: gli amici invitati da noi in questo party (§9.5).
+- `announceCode`: il codice di un privato appena creato da noi si mostra una volta nella pillola (lo fa il distintivo del party).
 
 ### 9.4 Codice
 
 - **Mostrarlo:** nel menu del chip "Nel watch party" e nel menu del distintivo del party nel player, una voce `Codice K7P-Q2X` con icona `copy`: copia `K7P-Q2X` negli appunti e mostra "Codice copiato" (snackbar nella shell, pillola nel player). Solo per i privati.
-- **Usarlo:** nel pannello Amici, "Ho un codice" apre un campo (6 caratteri, maiuscole automatiche, il trattino si aggiunge da sé) + **Entra** → `POST Parties/Join` → `joinWatchParty(groupId)`; il pannello si chiude. Errori: 403 → "Codice non valido o party finito"; 429 → "Troppi tentativi, riprova tra un minuto".
+- **Usarlo:** nel pannello Amici, "Ho un codice" (icona `ticket`) apre un campo, che prende il focus (6 caratteri, maiuscole automatiche, il trattino si aggiunge da sé) + **Entra** (o Invio) → `POST Parties/Join` → `joinWatchParty(groupId)`; se l'ingresso riesce il pannello si chiude.
+  - Esc nel campo lo svuota e lo chiude, e il focus torna su "Ho un codice"; un secondo Esc chiude il pannello.
+  - Durante una ricerca il campo si nasconde ma tiene il testo.
+  - Backspace/Canc accanto al trattino tolgono il carattere vicino (il trattino si rimetterebbe da sé).
+  - Con meno di 6 caratteri appare "Codice non valido o party finito" senza chiamare il plugin.
+  - Errori: 403 → "Codice non valido o party finito"; 429 → "Troppi tentativi, riprova tra un minuto"; altri errori (rete, 404, 409) → "Operazione non riuscita". Il testo dell'errore sta sotto il campo.
 
 ### 9.5 Invita amici
 
-- Voce **"Invita amici"** negli stessi due menu (chip e distintivo), con `friends` disponibile. Apre un secondo menu ancorato allo stesso punto con gli amici non partecipanti: online prima, poi offline (attenuati). Nessuno: "Nessun amico da invitare" (non cliccabile).
-- Un clic manda l'invito a quell'amico (`POST …/Invites`), mostra "Invito mandato a {nome}" e, finché si resta nel party, quell'amico compare come "Invitato ✓" (non cliccabile).
+- Voce **"Invita amici"** negli stessi due menu (chip e distintivo), con `friends` e `parties` disponibili. Apre un secondo menu ancorato allo stesso punto con gli amici non partecipanti: online prima, poi offline (attenuati). Nessuno: "Nessun amico da invitare" (non cliccabile).
+- La lista degli amici si rilegge prima di aprire il menu, aspettando al massimo 2 s; poi vale quella che l'app ha. Senza nessuna lista: "Amici non disponibili" (non cliccabile).
+- Un secondo "Invita amici" mentre uno è in corso non fa nulla. Se intanto cambiano la pagina, un menu sopra o il gruppo, il menu non si apre; se il gruppo cambia a menu aperto, l'invito non parte.
+- Un clic manda l'invito a quell'amico (`POST …/Invites`); l'esito è una snackbar nella shell e la pillola nel player: "Invito mandato a {nome}"; 429 → "Troppe richieste, riprova più tardi"; altri errori → "Operazione non riuscita". Finché si resta nel party, quell'amico compare come "Invitato ✓" (non cliccabile): vale per gli inviti mandati da noi in questo party.
 - L'invitato con l'app aperta e il player chiuso vede la scheda "{nome} ti invita" con il titolo e **Unisciti** (10 s), come la scheda d'avviso di oggi.
 
 ### 9.6 Elenco dei party e schede
 
-- Con `parties` disponibile, `WatchPartyDirectory` legge `GET Parties` invece di `/SyncPlay/List` (stessi tempi: ogni 30 s, alla chiusura del player, all'apertura del menu) e rilegge subito a ogni `PartyStarted` / `PartyInvite`. Ogni riga del chip mostra l'icona della modalità (`globe` / `users` / `lock`).
-- `WatchPartyInvites`: con `parties` disponibile la scheda nasce da `PartyStarted` ("{host} ha avviato un watch party") e da `PartyInvite` ("{nome} ti invita"), non più dal confronto tra due letture; restano le regole di oggi (non dentro un gruppo, non con il player aperto, non per i gruppi già visitati, 10 s). Senza `parties`: logica di oggi.
+- Con `parties` disponibile, `WatchPartyDirectory` legge `GET Parties` invece di `/SyncPlay/List` (stessi tempi: ogni 30 s, alla chiusura del player, all'apertura del menu) e rilegge subito a ogni `PartyStarted` / `PartyInvite`. Ogni riga del chip mostra l'icona della modalità (`globe` / `users` / `lock`); le righe dall'elenco di Jellyfin non hanno icona.
+- L'elenco si rilegge anche a ogni riconnessione del WebSocket e quando le funzioni del plugin diventano note o cambiano. Passando a `parties`, l'elenco di Jellyfin si svuota subito, e una risposta lenta dell'altra fonte si scarta. Finché le funzioni non sono note (§7.2), niente elenco né schede.
+- `WatchPartyInvites` tiene un `WatchPartyInvite` (gruppo + chi invita): con `parties` disponibile la scheda nasce da `PartyStarted` ("{host} ha avviato un watch party") e da `PartyInvite` ("{nome} ti invita"), non più dal confronto tra due letture; a ogni avviso del plugin anche l'elenco si rilegge. Restano le regole di oggi (non dentro un gruppo, non con il player aperto, non per i gruppi già visitati, 10 s). Senza `parties`: logica di oggi.
 
 ## 10. Senza plugin ed errori
 
 | Situazione | Comportamento |
 |---|---|
 | Plugin assente o 1.0.0 | come la 0.5.1: niente icona Amici, menu, codice, inviti; elenco da `/SyncPlay/List` |
-| `Info` non risponde | come plugin assente; si riprova alla riconnessione successiva |
+| `Info` non risponde (rete, timeout, 5xx) | prima della prima risposta resta `unknown` e si riprova ogni 30 s e alla riconnessione; dopo restano le funzioni già note (§7.2) |
+| `Info` risponde 400/401/403/404 | come plugin assente |
+| Plugin tolto mentre l'app gira | `GET Parties` risponde 404 e resta l'ultimo elenco fino alla riconnessione (riavvio di Jellyfin); poi `Info` risponde 404 → come plugin assente |
 | Registrazione del party fallita | si esce dal gruppo + errore (§9.2) |
+| Registrazione oltre 5 s | errore di creazione, si esce dal gruppo (§9.2) |
+| Registrazione finita dopo l'uscita dal gruppo | niente coda, "Questo watch party non esiste più" (§9.2) |
 | Azione sugli amici fallita | snackbar; lo stato si rilegge |
 | `GET Parties` fallisce | resta l'ultimo elenco; riga di log `info` come oggi |
 | Avviso perso (WebSocket giù) | alla riconnessione si rileggono amici ed elenco |
@@ -313,7 +354,7 @@ Per un privato, il codice ricevuto si mostra subito nella pillola del player: "P
 | `partyNoFriendsToInvite` | Nessun amico da invitare | No friends to invite |
 | `partyInviteTitle(name)` | {name} ti invita | {name} invites you |
 
-Se una chiave equivalente esiste già (es. "Riprova", "Annulla"), il piano la riusa invece di crearne una nuova.
+Se una chiave equivalente esiste già (es. "Riprova", "Annulla"), il piano la riusa invece di crearne una nuova. Riusate anche: `watchPartyJoin` (Unisciti), `friendsUnavailable` (menu degli inviti senza lista), `friendsActionFailed` (esiti di inviti e codice), `friendsTooMany` (429 degli inviti; nel player la pillola `inviteRateLimited` usa questo testo, il codice ha `partyCodeTooMany`), `watchPartyGone` (registrazione finita dopo l'uscita dal gruppo).
 
 ## 12. Test
 
@@ -324,11 +365,11 @@ Se una chiave equivalente esiste già (es. "Riprova", "Annulla"), il piano la ri
 ## 13. Piani e release
 
 - **12a — amici da capo a fondo:** plugin (`FriendStore`, `FriendService`, ricerca, presenza, endpoint Friends/Users, `FriendRequest` / `FriendsChanged`, `Features: ["friends"]`) + app (`lib/core/social/` per la parte amici, `SocialAvailability`, `SocialEvents`, `FriendsController`, icona, pannello senza "Ho un codice", scheda della richiesta). Fino al 12b `Party` in `GET Friends` è sempre `null`. Il plugin si prova copiandolo a mano sul server (`ssh ultra`, come in 10a), senza release. Fine: due utenti diventano amici e si vedono online.
-- **12b — modalità da capo a fondo:** plugin (`PartyDirectory`, codici, inviti, endpoint Parties, `PartyStarted` / `PartyInvite`, `Features: [..., "parties"]`) + app (menu, registrazione, `CurrentPartyDetails`, codice nei menu e nel pannello, "Invita amici", elenco dal plugin, schede dagli avvisi, "Nel watch party" nella lista amici). Poi:
+- **12b — modalità da capo a fondo:** plugin (`PartyDirectory`, codici, inviti, endpoint Parties, `PartyStarted` / `PartyInvite`, `Features: [..., "parties"]`) + app (menu, registrazione, `CurrentParty`, codice nei menu e nel pannello, "Invita amici", elenco dal plugin, schede dagli avvisi, "Nel watch party" nella lista amici). Poi:
   1. plugin **1.1.0**: tag `watch-party-plugin-v1.1.0` → pre-release, voce nel `manifest.json`, cartella copiata a mano tolta dal server, aggiornamento dal Catalogo;
   2. app **0.6.0 obbligatoria** (`<!-- wonderflix:min-version=0.6.0 -->`), da pubblicare solo dopo il plugin;
   3. commento e chiusura di #5 e #6 con l'ok dell'utente.
-- `docs/RELEASING.md`: nessuna procedura nuova; si aggiunge solo che i dati del plugin stanno in `plugins/configurations/WonderFlixWatchParty/`.
+- `docs/RELEASING.md`: nessuna procedura nuova; si aggiungono solo le versioni di Jellyfin dei test (quella del server) e del plugin (10.11.0) e che i dati del plugin stanno in `plugins/configurations/WonderFlixWatchParty/`.
 
 ## 14. Rischi e punti da verificare
 
@@ -338,3 +379,5 @@ Se una chiave equivalente esiste già (es. "Riprova", "Annulla"), il piano la ri
 - **Due istanze sulla stessa macchina** devono usare due utenti diversi, altrimenti la presenza di uno nasconde l'uscita dell'altro.
 - **Esc nella shell:** oggi torna indietro di pagina (`BackNavigationHandler`); con il pannello aperto deve chiuderlo e basta (come l'anteprima della card).
 - **Secondo menu "Invita amici" dentro il player:** il player non dà il focus ai suoi elementi; i menu esistenti (distintivo) funzionano già, il secondo va aperto dopo la chiusura del primo.
+- **Jellyfin 10.11.9, coda con un elemento cancellato:** `Group.HasAccessToQueue` va in `NullReferenceException` (anche in `ListGroups` / `GetGroup`). Il plugin risponde "nessun gruppo" (niente 500 da `Friends` o `Parties`) e lo scrive nel log come `Warning` una volta ogni 10 minuti per gruppo (le ripetizioni a `Debug`). Il party sparisce alla pulizia e, se il gruppo torna leggibile, non diventa pubblico (§6.4).
+- **Copiare la dll sopra quella caricata** (prova a mano sul server) fa cadere il vecchio processo in chiusura (`BadImageFormatException: Bad IL range`); il riavvio va comunque a buon fine.

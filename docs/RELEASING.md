@@ -75,6 +75,12 @@ Prima di ogni release, su un utente di prova:
 Il plugin del server (cartella `jellyfin-plugin-watch-party/`, spec E) ha versioni e release sue, separate dall'app.
 
 1. Aggiorna `<Version>` in `jellyfin-plugin-watch-party/Jellyfin.Plugin.WonderFlixWatchParty/Jellyfin.Plugin.WonderFlixWatchParty.csproj` (es. `1.0.1`) e fai commit su `main`. Il workflow compila con la versione del tag: tienila uguale a quella del csproj.
+   I test del plugin girano con le dll della versione di Jellyfin del server
+   (oggi 10.11.9, nel progetto di test), il plugin si compila contro la
+   10.11.0: Jellyfin cambia API anche nelle patch. Quando il server si
+   aggiorna, alza `Jellyfin.Controller`/`Jellyfin.Model` nel progetto di test
+   e rilancia i test. Amicizie e richieste stanno in
+   `plugins/configurations/WonderFlixWatchParty/friends.json`.
 2. Prova a mano sul server (README del plugin: `pack.sh` e copia via SFTP nei `plugins/` di Jellyfin). Finita la prova, la cartella copiata va tolta prima del passo 6.
 3. Crea il tag e fai push:
    ```bash
