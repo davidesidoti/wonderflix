@@ -23,6 +23,10 @@ class ShellSidePanel extends StatefulWidget {
   static const width = 360.0;
   static const maxWidthFraction = 0.9;
 
+  /// Opacità del nero sul resto della finestra a pannello aperto (come lo
+  /// scrim dei dialog di Material).
+  static const scrimOpacity = 0.54;
+
   final bool open;
   final VoidCallback onClose;
 
@@ -116,12 +120,18 @@ class _ShellSidePanelState extends State<ShellSidePanel>
             return Stack(
               children: [
                 Positioned.fill(
-                  child: GestureDetector(
-                    key: widget.scrimKey,
-                    behavior: HitTestBehavior.opaque,
-                    onTap: widget.onClose,
-                    child: ColoredBox(
-                        color: Colors.black.withValues(alpha: 0.54 * t)),
+                  // In uscita lo scuro non prende i clic: un clic lì non
+                  // deve chiudere un altro pannello che intanto si apre.
+                  child: IgnorePointer(
+                    ignoring: closing,
+                    child: GestureDetector(
+                      key: widget.scrimKey,
+                      behavior: HitTestBehavior.opaque,
+                      onTap: widget.onClose,
+                      child: ColoredBox(
+                          color: Colors.black.withValues(
+                              alpha: ShellSidePanel.scrimOpacity * t)),
+                    ),
                   ),
                 ),
                 Positioned(

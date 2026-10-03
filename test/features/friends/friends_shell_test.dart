@@ -9,6 +9,7 @@ import 'package:wonderflix/app/app_shell.dart';
 import 'package:wonderflix/app/page_transitions.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/app/router.dart';
+import 'package:wonderflix/app/shell_panels.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/social/social_models.dart';
@@ -189,6 +190,30 @@ void main() {
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
+    expect(find.byKey(const Key('friends-panel')), findsNothing);
+  });
+
+  testWidgets('con il pannello aperto, la funzione amici che sparisce lo '
+      'chiude davvero', (tester) async {
+    await pumpShell(tester);
+    await tester.tap(find.byKey(const Key('friends-button')));
+    await tester.pumpAndSettle();
+    final container =
+        ProviderScope.containerOf(tester.element(find.byType(AppShell)));
+    final features = container.read(socialAvailabilityProvider.notifier)
+        as FakeSocialAvailability;
+    expect(container.read(shellPanelProvider), ShellPanel.friends);
+    expect(find.byKey(const Key('friends-panel')), findsOneWidget);
+
+    features.set(SocialFeatures.none);
+    await tester.pumpAndSettle();
+    expect(container.read(shellPanelProvider), ShellPanel.none);
+    expect(find.byKey(const Key('friends-panel')), findsNothing);
+
+    // Tornata la funzione il pannello non si riapre da solo.
+    features.set(const SocialFeatures(friends: true));
+    await tester.pumpAndSettle();
+    expect(container.read(shellPanelProvider), ShellPanel.none);
     expect(find.byKey(const Key('friends-panel')), findsNothing);
   });
 }

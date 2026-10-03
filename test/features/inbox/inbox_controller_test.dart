@@ -2,12 +2,15 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/social/inbox_models.dart';
 import 'package:wonderflix/core/social/social_api.dart';
+import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/inbox/inbox_controller.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 
+import '../../support/fake_session_controller.dart';
 import '../../support/social_fakes.dart';
 
 void main() {
@@ -162,5 +165,175 @@ void main() {
     await slow;
 
     expect(c.read(inboxControllerProvider).snapshot.entries.single.id, 'new');
+  });
+
+  test('Rimuovi riuscita: si rilegge, la risposta lenta di prima non vale',
+      () async {
+    api.inboxSnapshot = InboxSnapshot(entries: [
+      testInvite(id: 'i1', seq: 2),
+      testAnnouncement(id: 'a1', seq: 1),
+    ], unread: 2);
+    final c = container();
+    await pumpEventQueue();
+    final controller = c.read(inboxControllerProvider.notifier);
+
+    // Una lettura lenta porta una voce nuova (il plugin avvisa una volta
+    // sola: se la sua risposta si perdesse, la voce non arriverebbe più).
+    final gate = api.inboxGate = Completer<void>();
+    api.inboxSnapshot = InboxSnapshot(entries: [
+      testAnnouncement(id: 'n1', seq: 3),
+      testInvite(id: 'i1', seq: 2),
+      testAnnouncement(id: 'a1', seq: 1),
+    ], unread: 3);
+    final slow = controller.reload();
+    api.inboxGate = null;
+    api.inboxSnapshot = InboxSnapshot(entries: [
+      testAnnouncement(id: 'n1', seq: 3),
+      testAnnouncement(id: 'a1', seq: 1),
+    ], unread: 2);
+
+    expect(await controller.remove('i1'), isNull);
+    await pumpEventQueue();
+    gate.complete();
+    await slow;
+    await pumpEventQueue();
+
+    expect(c.read(inboxControllerProvider).snapshot.entries.map((e) => e.id),
+        ['n1', 'a1']);
+    expect(loads(), 3, reason: 'si rilegge anche dopo un\'azione riuscita');
+  });
+
+  test('pannello aperto prima del primo caricamento: all\'arrivo pallini e '
+      'lettura', () async {
+    api.inboxSnapshot = InboxSnapshot(entries: [
+      testInvite(id: 'i1', seq: 2),
+      testAnnouncement(id: 'a1', seq: 1, read: true),
+      testAnnouncement(id: 'a0', seq: 0),
+    ], unread: 2);
+    final gate = api.inboxGate = Completer<void>();
+    final c = container();
+    await pumpEventQueue();
+    final controller = c.read(inboxControllerProvider.notifier);
+
+    controller.panelOpened();
+    expect(c.read(inboxControllerProvider).loaded, isFalse);
+    expect(c.read(inboxControllerProvider).highlighted, isEmpty);
+    expect(api.calls, isNot(contains('read 2')));
+
+    gate.complete();
+    await pumpEventQueue();
+    expect(c.read(inboxControllerProvider).loaded, isTrue);
+    expect(c.read(inboxControllerProvider).unread, 0);
+    expect(c.read(inboxControllerProvider).highlighted, {'i1', 'a0'});
+    expect(api.calls, contains('read 2'));
+  });
+
+  test('una lettura partita a pannello aperto che finisce dopo la chiusura: '
+      'niente lettura, il numero resta', () async {
+    final c = container();
+    await pumpEventQueue();
+    final controller = c.read(inboxControllerProvider.notifier);
+    controller.panelOpened();
+    await pumpEventQueue();
+    api.calls.clear();
+
+    final gate = api.inboxGate = Completer<void>();
+    api.inboxSnapshot =
+        InboxSnapshot(entries: [testAnnouncement(id: 'a2', seq: 3)], unread: 1);
+    events.add(inboxChangedReceived());
+    await pumpEventQueue();
+    expect(api.calls, ['inbox'], reason: 'la lettura è partita');
+
+    controller.panelClosed();
+    gate.complete();
+    await pumpEventQueue();
+
+    expect(c.read(inboxControllerProvider).unread, 1);
+    expect(c.read(inboxControllerProvider).highlighted, isEmpty);
+    expect(api.calls, ['inbox'], reason: 'nessun "read", il pannello è chiuso');
+  });
+
+  test('una lettura segnata non riuscita si ignora; la prossima ci riprova',
+      () async {
+    api.inboxSnapshot =
+        InboxSnapshot(entries: [testInvite(id: 'i1', seq: 2)], unread: 1);
+    final c = container();
+    await pumpEventQueue();
+    final controller = c.read(inboxControllerProvider.notifier);
+    api.calls.clear();
+
+    // La prima chiamata dopo l'apertura è proprio "read".
+    api.nextFailure = SocialFailure.network;
+    controller.panelOpened();
+    await pumpEventQueue();
+    expect(api.calls.first, 'read 2');
+    expect(c.read(inboxControllerProvider).failed, isFalse);
+    expect(c.read(inboxControllerProvider).unread, 0);
+    expect(c.read(inboxControllerProvider).highlighted, {'i1'});
+
+    api.calls.clear();
+    api.inboxSnapshot = InboxSnapshot(entries: [
+      testAnnouncement(id: 'a2', seq: 3),
+      testInvite(id: 'i1', seq: 2, read: true),
+    ], unread: 1);
+    events.add(inboxChangedReceived());
+    await pumpEventQueue();
+    expect(api.calls, ['inbox', 'read 3']);
+    expect(c.read(inboxControllerProvider).highlighted, {'i1', 'a2'});
+  });
+
+  group('cambio utente', () {
+    FakeSessionController session(ProviderContainer c) =>
+        c.read(sessionControllerProvider.notifier) as FakeSessionController;
+
+    test('a pannello aperto: niente pallini né letture per il nuovo utente',
+        () async {
+      api.inboxSnapshot =
+          InboxSnapshot(entries: [testInvite(id: 'i1', seq: 2)], unread: 1);
+      final c = container();
+      await pumpEventQueue();
+      c.read(inboxControllerProvider.notifier).panelOpened();
+      await pumpEventQueue();
+      expect(c.read(inboxControllerProvider).highlighted, {'i1'});
+      api.calls.clear();
+
+      session(c)
+          .set(const SessionSignedIn(JellyfinUser(id: 'u5', name: 'Toad')));
+      await pumpEventQueue();
+
+      expect(c.read(inboxControllerProvider).highlighted, isEmpty);
+      expect(c.read(inboxControllerProvider).unread, 1);
+      expect(api.calls, ['inbox'], reason: 'nessuna lettura segnata');
+    });
+
+    test('stesso utente (la funzione va e viene): il pannello resta aperto',
+        () async {
+      api.inboxSnapshot =
+          InboxSnapshot(entries: [testInvite(id: 'i1', seq: 2)], unread: 1);
+      final c = container();
+      await pumpEventQueue();
+      c.read(inboxControllerProvider.notifier).panelOpened();
+      await pumpEventQueue();
+      api.calls.clear();
+
+      final features =
+          c.read(socialAvailabilityProvider.notifier) as FakeSocialAvailability;
+      features.set(SocialFeatures.none);
+      await pumpEventQueue();
+      expect(c.read(inboxControllerProvider).unread, 0);
+      expect(api.calls, isEmpty);
+
+      api.inboxSnapshot = InboxSnapshot(entries: [
+        testAnnouncement(id: 'a2', seq: 3),
+        testInvite(id: 'i1', seq: 2, read: true),
+      ], unread: 1);
+      features.set(const SocialFeatures(inbox: true));
+      await pumpEventQueue();
+
+      // Il pannello è ancora aperto: la voce nuova ha il pallino ed è letta.
+      expect(c.read(inboxControllerProvider).highlighted, {'a2'});
+      expect(c.read(inboxControllerProvider).unread, 0);
+      expect(api.calls, ['inbox', 'read 3']);
+    });
   });
 }

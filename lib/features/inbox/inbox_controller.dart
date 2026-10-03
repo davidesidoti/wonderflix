@@ -65,13 +65,20 @@ class InboxController extends Notifier<InboxState> {
   /// Il pannello Notifiche è aperto (lo dice `ShellPanelController`).
   bool _panelOpen = false;
 
+  /// L'utente collegato all'ultima `build`: `null` senza sessione.
+  String? _userId;
+
   @override
   InboxState build() {
-    ref.watch(sessionControllerProvider
+    final userId = ref.watch(sessionControllerProvider
         .select((s) => s is SessionSignedIn ? s.user.id : null));
     _loads++;
-    // Utente nuovo o logout: il pannello di prima non c'è più.
-    _panelOpen = false;
+    // Utente nuovo o logout: il pannello di prima non c'è più. Con lo stesso
+    // utente (es. la funzione che va e viene) il pannello resta com'è.
+    if (userId != _userId) {
+      _userId = userId;
+      _panelOpen = false;
+    }
     if (!ref.watch(socialAvailabilityProvider.select((f) => f.inbox))) {
       return const InboxState();
     }
@@ -157,24 +164,26 @@ class InboxController extends Notifier<InboxState> {
     }
   }
 
-  /// Mostra subito [optimistic]; se l'azione non riesce rilegge (nel
-  /// frattempo la cassetta può essere cambiata). `null` se riuscita.
+  /// Mostra subito [optimistic], esegue l'azione e rilegge, anche se è
+  /// riuscita: una lettura partita prima è stata scartata, e il plugin
+  /// avvisa (`InboxChanged`) solo se qualcosa è cambiato, quindi le sue
+  /// novità non tornerebbero. `null` se riuscita.
   Future<SocialFailure?> _act(
       InboxSnapshot optimistic, Future<void> Function(SocialApi api) action) async {
     // Una lettura partita prima non deve rimettere la voce tolta.
     _loads++;
     state = state.copyWith(snapshot: optimistic);
+    SocialFailure? failure;
     try {
       await action(ref.read(socialApiProvider));
-      return null;
     } on SocialException catch (error) {
-      if (ref.mounted) unawaited(reload());
-      return error.failure;
+      failure = error.failure;
     } on Object catch (error) {
       _log.info('azione sulle notifiche non riuscita: ${error.runtimeType}');
-      if (ref.mounted) unawaited(reload());
-      return SocialFailure.network;
+      failure = SocialFailure.network;
     }
+    if (ref.mounted) unawaited(reload());
+    return failure;
   }
 }
 
