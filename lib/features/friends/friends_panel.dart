@@ -1,16 +1,15 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../app/motion.dart';
+import '../../app/shell_panels.dart';
 import '../../app/theme.dart';
 import '../../core/social/social_api.dart';
 import '../../core/social/social_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/shell_side_panel.dart';
 import '../../ui/wf_menus.dart';
 import '../social/social_providers.dart';
 import '../watch_party/party_badge.dart';
@@ -20,32 +19,9 @@ import 'friend_search.dart';
 import 'friends_controller.dart';
 import 'party_code_field.dart';
 
-/// Pannello Amici aperto o chiuso (spec F §8.3). Non dipende da niente:
-/// lo legge anche la gestione di Esc. Si azzera quando nessuno lo guarda
-/// più (es. la shell smontata al logout).
-class FriendsPanelController extends Notifier<bool> {
-  @override
-  bool build() => false;
-
-  /// Apre il pannello e rilegge gli amici.
-  void open() {
-    if (state) return;
-    state = true;
-    unawaited(ref.read(friendsControllerProvider.notifier).reload());
-  }
-
-  void close() => state = false;
-
-  void toggle() => state ? close() : open();
-}
-
-final friendsPanelProvider =
-    NotifierProvider.autoDispose<FriendsPanelController, bool>(
-        FriendsPanelController.new);
-
 /// Il pannello si vede: aperto e con la funzione amici del plugin.
 final friendsPanelVisibleProvider = Provider.autoDispose<bool>((ref) =>
-    ref.watch(friendsPanelProvider) &&
+    ref.watch(shellPanelProvider) == ShellPanel.friends &&
     ref.watch(socialAvailabilityProvider.select((f) => f.friends)));
 
 /// Online prima, poi in ordine alfabetico (spec F §8.3).
@@ -76,9 +52,8 @@ const _mutedStyle = TextStyle(color: WfColors.creamMuted, fontSize: 13);
 class FriendsPanel extends ConsumerStatefulWidget {
   const FriendsPanel({super.key});
 
-  /// Larghezza, e quota massima della finestra.
-  static const width = 360.0;
-  static const maxWidthFraction = 0.9;
+  /// Larghezza: quella dei pannelli laterali.
+  static const width = ShellSidePanel.width;
 
   /// Per quanto resta "Conferma rimozione".
   static const removeConfirmFor = Duration(seconds: 4);
@@ -133,7 +108,7 @@ class _FriendsPanelState extends ConsumerState<FriendsPanel> {
                   tooltip: l.friendsClose,
                   icon: const Icon(LucideIcons.x, size: 20),
                   onPressed: () =>
-                      ref.read(friendsPanelProvider.notifier).close(),
+                      ref.read(shellPanelProvider.notifier).close(),
                 ),
               ],
             ),
@@ -242,7 +217,7 @@ class _PartyCodeEntryState extends ConsumerState<_PartyCodeEntry> {
       final joined = await joinWatchParty(context, ref, groupId);
       if (!mounted) return;
       setState(() => _busy = false);
-      if (joined) ref.read(friendsPanelProvider.notifier).close();
+      if (joined) ref.read(shellPanelProvider.notifier).close();
     } on SocialException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -513,7 +488,7 @@ class _FriendRowState extends ConsumerState<_FriendRow> {
     setState(() => _joining = true);
     try {
       final joined = await joinWatchParty(context, ref, groupId);
-      if (joined && mounted) ref.read(friendsPanelProvider.notifier).close();
+      if (joined && mounted) ref.read(shellPanelProvider.notifier).close();
     } finally {
       if (mounted) setState(() => _joining = false);
     }
@@ -721,127 +696,31 @@ bool _sameGroup(String a, String? b) =>
     b != null &&
     a.replaceAll('-', '').toLowerCase() == b.replaceAll('-', '').toLowerCase();
 
-/// Pannello Amici sopra la shell e la barra (spec F §8.3): entra da destra
-/// come "Audio e sottotitoli" (con le animazioni ridotte solo in
-/// dissolvenza), il resto si scurisce. Esc, × e un clic sullo scuro lo
-/// chiudono.
-class FriendsPanelHost extends ConsumerStatefulWidget {
+/// Pannello Amici sopra la shell e la barra (spec F §8.3), nel contenitore
+/// comune dei pannelli laterali. Con il fuoco nel campo "Ho un codice" il
+/// primo Esc chiude il campo, non il pannello.
+class FriendsPanelHost extends ConsumerWidget {
   const FriendsPanelHost({super.key});
 
   @override
-  ConsumerState<FriendsPanelHost> createState() => _FriendsPanelHostState();
-}
-
-class _FriendsPanelHostState extends ConsumerState<FriendsPanelHost>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: WfMotion.medium,
-    reverseDuration: WfMotion.fast,
-    value: ref.read(friendsPanelVisibleProvider) ? 1 : 0,
-  );
-  late final CurvedAnimation _progress = CurvedAnimation(
-    parent: _controller,
-    curve: WfMotion.emphasized,
-    reverseCurve: WfMotion.accelerateReverse,
-  );
-
-  @override
-  void initState() {
-    super.initState();
-    HardwareKeyboard.instance.addHandler(_onKey);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _controller.duration = WfMotion.of(context).duration(WfMotion.medium);
-  }
-
-  @override
-  void dispose() {
-    HardwareKeyboard.instance.removeHandler(_onKey);
-    // Prima la curva (si stacca dal controller), poi il controller.
-    _progress.dispose();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  /// Esc chiude il pannello; `BackNavigationHandler` intanto non torna
-  /// indietro di pagina. Con un menu aperto (es. ⋯ di un amico) Esc è del
-  /// menu: lo chiude lui, il pannello resta. Con il focus nel campo "Ho un
-  /// codice" il primo Esc chiude il campo.
-  bool _onKey(KeyEvent event) {
-    if (event is! KeyDownEvent ||
-        event.logicalKey != LogicalKeyboardKey.escape ||
-        !mounted ||
-        !(ModalRoute.of(context)?.isCurrent ?? true) ||
-        !ref.read(friendsPanelVisibleProvider)) {
-      return false;
-    }
-    final focus = FocusManager.instance.primaryFocus;
-    if (focus is _PartyCodeFocusNode) {
-      focus.onEscape();
-      return true;
-    }
-    ref.read(friendsPanelProvider.notifier).close();
-    return true;
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Funzione sparita a pannello aperto: si chiude davvero.
     ref.listen(friendsPanelVisibleProvider, (_, visible) {
-      if (visible) {
-        _controller.forward();
-      } else {
-        _controller.reverse();
-        // Funzione sparita a pannello aperto: si chiude davvero.
-        ref.read(friendsPanelProvider.notifier).close();
+      if (!visible && ref.read(shellPanelProvider) == ShellPanel.friends) {
+        ref.read(shellPanelProvider.notifier).close();
       }
     });
-    final reduced = WfMotion.of(context).isReduced;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = math.min(FriendsPanel.width,
-            constraints.maxWidth * FriendsPanel.maxWidthFraction);
-        return AnimatedBuilder(
-          animation: _progress,
-          builder: (context, _) {
-            if (_controller.isDismissed) return const SizedBox.shrink();
-            final t = _progress.value.clamp(0.0, 1.0);
-            final closing = _controller.status == AnimationStatus.reverse;
-            return Stack(
-              children: [
-                Positioned.fill(
-                  child: GestureDetector(
-                    key: const Key('friends-panel-scrim'),
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () =>
-                        ref.read(friendsPanelProvider.notifier).close(),
-                    child: ColoredBox(
-                        color: Colors.black.withValues(alpha: 0.54 * t)),
-                  ),
-                ),
-                Positioned(
-                  top: 0,
-                  bottom: 0,
-                  right: 0,
-                  width: width,
-                  child: IgnorePointer(
-                    ignoring: closing,
-                    child: reduced
-                        ? Opacity(opacity: t, child: const FriendsPanel())
-                        : FractionalTranslation(
-                            translation: Offset(1 - t, 0),
-                            child: const FriendsPanel(),
-                          ),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
+    return ShellSidePanel(
+      open: ref.watch(friendsPanelVisibleProvider),
+      onClose: () => ref.read(shellPanelProvider.notifier).close(),
+      scrimKey: const Key('friends-panel-scrim'),
+      onEscape: () {
+        final focus = FocusManager.instance.primaryFocus;
+        if (focus is! _PartyCodeFocusNode) return false;
+        focus.onEscape();
+        return true;
       },
+      child: const FriendsPanel(),
     );
   }
 }

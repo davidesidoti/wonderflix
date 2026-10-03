@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/app/shell_panels.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/core/social/social_models.dart';
@@ -217,8 +218,8 @@ void main() {
       await pumpPartyPanel(tester);
       final container =
           ProviderScope.containerOf(tester.element(find.byType(FriendsPanel)));
-      container.listen(friendsPanelProvider, (_, _) {});
-      container.read(friendsPanelProvider.notifier).open();
+      container.listen(shellPanelProvider, (_, _) {});
+      container.read(shellPanelProvider.notifier).open(ShellPanel.friends);
       await tester.pump();
       await tester.tap(find.text('Ho un codice'));
       await tester.pump();
@@ -230,7 +231,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(api.calls, contains('code K7PQ2X'));
       expect(syncPlay.calls, contains('join g1'));
-      expect(container.read(friendsPanelProvider), isFalse);
+      expect(container.read(shellPanelProvider), ShellPanel.none);
       await leaveParty(tester);
     });
 
@@ -371,8 +372,8 @@ void main() {
         await pumpPartyPanel(tester);
         final container = ProviderScope.containerOf(
             tester.element(find.byType(FriendsPanel)));
-        container.listen(friendsPanelProvider, (_, _) {});
-        container.read(friendsPanelProvider.notifier).open();
+        container.listen(shellPanelProvider, (_, _) {});
+        container.read(shellPanelProvider.notifier).open(ShellPanel.friends);
         await tester.pump();
         await tester.tap(joinButton());
         await tester.pump();
@@ -387,11 +388,11 @@ void main() {
         expect(syncPlay.calls.where((call) => call == 'join g1'), hasLength(1));
         expect(tester.widget<TextButton>(joinButton()).onPressed, isNull,
             reason: 'Unisciti spento finché l\'ingresso è in corso');
-        expect(container.read(friendsPanelProvider), isTrue);
+        expect(container.read(shellPanelProvider), ShellPanel.friends);
 
         events.add(SyncPlayGroupUpdated(GroupJoined('g1', testGroup())));
         await tester.pumpAndSettle();
-        expect(container.read(friendsPanelProvider), isFalse);
+        expect(container.read(shellPanelProvider), ShellPanel.none);
         await leaveParty(tester);
       });
 
@@ -402,7 +403,7 @@ void main() {
         await tester.pump();
         expect(find.text('Non è stato possibile entrare nel watch party.'),
             findsOneWidget);
-        expect(container.read(friendsPanelProvider), isTrue);
+        expect(container.read(shellPanelProvider), ShellPanel.friends);
         expect(tester.widget<TextButton>(joinButton()).onPressed, isNotNull,
             reason: 'si può riprovare');
       });

@@ -4,16 +4,16 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../features/friends/friends_panel.dart';
 import '../features/update/update_gate.dart';
 import '../ui/card_preview.dart';
+import 'shell_panels.dart';
 
 /// Esc, Alt+← e il tasto "indietro" del mouse chiudono la pagina corrente.
 /// Non fa nulla se sopra c'è un menu o un dialog (gestiscono loro Esc) o la
 /// schermata dell'aggiornamento obbligatorio; con un'anteprima di una card
-/// aperta Esc chiude solo l'anteprima; con il pannello Amici aperto Esc e
-/// i tasti indietro (Alt+←, tasto indietro, tasto indietro del mouse) chiudono
-/// solo lui, senza cambiare pagina.
+/// aperta Esc chiude solo l'anteprima; con un pannello laterale aperto (Amici
+/// o Notifiche) Esc e i tasti indietro (Alt+←, tasto indietro, tasto indietro
+/// del mouse) chiudono solo lui, senza cambiare pagina.
 class BackNavigationHandler extends ConsumerStatefulWidget {
   const BackNavigationHandler({super.key, required this.child});
 
@@ -46,9 +46,10 @@ class _BackNavigationHandlerState extends ConsumerState<BackNavigationHandler> {
         ref.read(cardPreviewProvider).openId != null) {
       return false;
     }
-    // Con il pannello Amici aperto Esc chiude solo lui (lo gestisce il
-    // pannello). `friendsPanelProvider` non dipende da altri provider.
-    if (key == LogicalKeyboardKey.escape && ref.read(friendsPanelProvider)) {
+    // Con un pannello laterale aperto Esc chiude solo lui (lo gestisce il
+    // pannello). `shellPanelProvider` non dipende da altri provider.
+    if (key == LogicalKeyboardKey.escape &&
+        ref.read(shellPanelProvider) != ShellPanel.none) {
       return false;
     }
     final isBack = key == LogicalKeyboardKey.escape ||
@@ -62,10 +63,10 @@ class _BackNavigationHandlerState extends ConsumerState<BackNavigationHandler> {
     if (!mounted) return false;
     if (ref.read(updateBlockedProvider)) return false;
     if (!(ModalRoute.of(context)?.isCurrent ?? true)) return false;
-    // Con il pannello Amici aperto i tasti indietro chiudono lui e basta
+    // Con un pannello laterale aperto i tasti indietro chiudono lui e basta
     // (Esc non arriva qui: lo gestisce il pannello).
-    if (ref.read(friendsPanelProvider)) {
-      ref.read(friendsPanelProvider.notifier).close();
+    if (ref.read(shellPanelProvider) != ShellPanel.none) {
+      ref.read(shellPanelProvider.notifier).close();
       return true;
     }
     final router = GoRouter.maybeOf(context);

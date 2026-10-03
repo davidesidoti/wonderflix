@@ -9,9 +9,9 @@ import 'package:go_router/go_router.dart';
 import 'package:wonderflix/app/back_navigation.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/providers.dart';
+import 'package:wonderflix/app/shell_panels.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
-import 'package:wonderflix/features/friends/friends_panel.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/library/server_events_binding.dart';
 import 'package:wonderflix/features/update/update_gate.dart';
@@ -182,7 +182,7 @@ void main() {
     );
     addTearDown(router.dispose);
     await tester.pumpWidget(ProviderScope(
-      overrides: [friendsPanelProvider.overrideWith(_OpenFriendsPanel.new)],
+      overrides: [shellPanelProvider.overrideWith(_OpenFriendsPanel.new)],
       child: MaterialApp.router(routerConfig: router),
     ));
     router.push('/b');
@@ -198,7 +198,7 @@ void main() {
   group('tasti indietro con il pannello Amici aperto', () {
     /// Pagina B sopra A, pannello Amici aperto; ascolta il pannello per
     /// tenerlo vivo e poterne leggere lo stato.
-    Future<ProviderSubscription<bool>> pumpWithOpenPanel(
+    Future<ProviderSubscription<ShellPanel>> pumpWithOpenPanel(
         WidgetTester tester) async {
       final router = GoRouter(
         initialLocation: '/a',
@@ -215,16 +215,16 @@ void main() {
       );
       addTearDown(router.dispose);
       await tester.pumpWidget(ProviderScope(
-        overrides: [friendsPanelProvider.overrideWith(_OpenFriendsPanel.new)],
+        overrides: [shellPanelProvider.overrideWith(_OpenFriendsPanel.new)],
         child: MaterialApp.router(routerConfig: router),
       ));
       unawaited(router.push('/b'));
       await tester.pumpAndSettle();
       final container =
           ProviderScope.containerOf(tester.element(find.text('pagina B')));
-      final panel = container.listen(friendsPanelProvider, (_, _) {});
+      final panel = container.listen(shellPanelProvider, (_, _) {});
       addTearDown(panel.close);
-      expect(panel.read(), isTrue);
+      expect(panel.read(), ShellPanel.friends);
       return panel;
     }
 
@@ -236,7 +236,7 @@ void main() {
       await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
       await tester.pumpAndSettle();
       expect(find.text('pagina B'), findsOneWidget);
-      expect(panel.read(), isFalse);
+      expect(panel.read(), ShellPanel.none);
     });
 
     testWidgets('tasto indietro: chiude il pannello, la pagina resta',
@@ -246,7 +246,7 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.browserBack, platform: 'windows');
       await tester.pumpAndSettle();
       expect(find.text('pagina B'), findsOneWidget);
-      expect(panel.read(), isFalse);
+      expect(panel.read(), ShellPanel.none);
     });
 
     testWidgets('tasto indietro del mouse: chiude il pannello, la pagina resta',
@@ -260,7 +260,7 @@ void main() {
       await mouse.up();
       await tester.pumpAndSettle();
       expect(find.text('pagina B'), findsOneWidget);
-      expect(panel.read(), isFalse);
+      expect(panel.read(), ShellPanel.none);
     });
 
     testWidgets('a pannello chiuso tornano indietro come sempre',
@@ -268,7 +268,7 @@ void main() {
       final panel = await pumpWithOpenPanel(tester);
       panel.read(); // vivo
       ProviderScope.containerOf(tester.element(find.text('pagina B')))
-          .read(friendsPanelProvider.notifier)
+          .read(shellPanelProvider.notifier)
           .close();
 
       await tester.sendKeyEvent(LogicalKeyboardKey.browserBack, platform: 'windows');
@@ -279,7 +279,7 @@ void main() {
 }
 
 /// Pannello Amici già aperto (senza toccare amici né plugin).
-class _OpenFriendsPanel extends FriendsPanelController {
+class _OpenFriendsPanel extends ShellPanelController {
   @override
-  bool build() => true;
+  ShellPanel build() => ShellPanel.friends;
 }
