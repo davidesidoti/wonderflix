@@ -188,6 +188,23 @@ public sealed class PartyServiceTests : IDisposable
     }
 
     [Fact]
+    public void APartyForgottenByMistakeStaysVisibleOnlyToItsParticipants()
+    {
+        _service.Register(_marioSession, _group, PartyModes.Private);
+        _server.Groups[_group] = ["Mario", "Luigi"];
+        // Coda illeggibile (Jellyfin 10.11.9): nessuna sessione WonderFlix vede il gruppo e la pulizia lo toglie.
+        _server.Hidden.UnionWith(_server.Sessions.Select(s => (s.SessionId, _group)));
+        Assert.Equal(1, _service.Cleanup());
+
+        _server.Hidden.Clear();
+        Assert.Empty(Visible(_peachSession));
+        _time.Advance(PartyDirectory.UnregisteredGrace);
+        Assert.Empty(Visible(_peachSession));
+        Assert.Equal(new[] { GroupN }, Visible(_marioSession));
+        Assert.Equal(new[] { GroupN }, Visible(_luigiSession));
+    }
+
+    [Fact]
     public async Task InvitesGoOnlyToFriendsOutsideTheParty()
     {
         await MakeFriends(_mario, _luigi);

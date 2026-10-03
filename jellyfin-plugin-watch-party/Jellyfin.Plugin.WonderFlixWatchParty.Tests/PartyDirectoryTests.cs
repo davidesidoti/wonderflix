@@ -92,4 +92,67 @@ public class PartyDirectoryTests
         Assert.Null(_parties.FindByCode(code));
         Assert.NotNull(_parties.Get(alive));
     }
+
+    [Fact]
+    public void AForgottenPartyIsNeverUnregisteredAgain()
+    {
+        // Il gruppo sembrava finito (coda illeggibile, o dentro solo jellyfin-web) ma c'è ancora.
+        _parties.Register(_group, _mario, PartyModes.Private);
+        Assert.Equal(1, _parties.Forget(_ => false));
+
+        _parties.Seen(_group);
+        _time.Advance(PartyDirectory.UnregisteredGrace);
+        Assert.False(_parties.IsVisible(_group, _luigi, _ => true));
+        Assert.False(_parties.IsVisible(_group, _mario, _ => true));
+        Assert.Null(_parties.Get(_group));
+        // Né si registra di nuovo.
+        Assert.Null(_parties.Register(_group, _mario, PartyModes.Public));
+
+        // Un gruppo mai registrato invece torna come prima.
+        var unregistered = Guid.NewGuid();
+        _parties.Seen(unregistered);
+        _parties.Forget(_ => false);
+        _parties.Seen(unregistered);
+        _time.Advance(PartyDirectory.UnregisteredGrace);
+        Assert.True(_parties.IsVisible(unregistered, _luigi, _ => false));
+    }
+
+    [Fact]
+    public void ForgottenPartiesAreRememberedForALimitedTime()
+    {
+        _parties.Register(_group, _mario, PartyModes.Private);
+        _parties.Forget(_ => false);
+        _parties.Seen(_group);
+
+        _time.Advance(PartyDirectory.TombstoneLifetime - TimeSpan.FromSeconds(1));
+        _parties.Forget(_ => true);
+        Assert.False(_parties.IsVisible(_group, _luigi, _ => false));
+
+        _time.Advance(TimeSpan.FromSeconds(1));
+        Assert.True(_parties.IsVisible(_group, _luigi, _ => false));
+        _parties.Forget(_ => true);
+        Assert.True(_parties.IsVisible(_group, _luigi, _ => false));
+    }
+
+    [Fact]
+    public void ForgottenPartiesAreRememberedUpToALimit()
+    {
+        _parties.Register(_group, _mario, PartyModes.Private);
+        _parties.Forget(_ => false);
+        _time.Advance(TimeSpan.FromSeconds(1));
+        var others = Enumerable.Range(0, PartyDirectory.MaxTombstones).Select(_ => Guid.NewGuid()).ToList();
+        foreach (var id in others)
+        {
+            _parties.Register(id, _mario, PartyModes.Private);
+        }
+
+        Assert.Equal(PartyDirectory.MaxTombstones, _parties.Forget(_ => false));
+
+        // Il più vecchio lascia il posto: il suo gruppo torna come uno mai registrato.
+        _parties.Seen(_group);
+        _parties.Seen(others[0]);
+        _time.Advance(PartyDirectory.UnregisteredGrace);
+        Assert.True(_parties.IsVisible(_group, _luigi, _ => false));
+        Assert.False(_parties.IsVisible(others[0], _luigi, _ => false));
+    }
 }

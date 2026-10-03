@@ -9,7 +9,9 @@ public sealed record PartyView(Guid GroupId, Guid CreatorId, string Mode, string
 /// <summary>
 /// Party registrati, in RAM (spec F §6.4–6.6): modalità, codici dei privati,
 /// invitati e da quando il plugin vede i gruppi non registrati. Vivono
-/// quanto i gruppi SyncPlay. Sicuro tra thread.
+/// quanto i gruppi SyncPlay. Dei party tolti dalla pulizia resta l'id per
+/// un po' (<see cref="TombstoneLifetime"/>): se il gruppo ricompare non
+/// diventa pubblico. Sicuro tra thread.
 /// </summary>
 public sealed class PartyDirectory(TimeProvider time)
 {
@@ -21,17 +23,31 @@ public sealed class PartyDirectory(TimeProvider time)
     /// <summary>Simboli dei codici: niente 0/O/1/I/L, che si confondono.</summary>
     public const string CodeAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
+    /// <summary>
+    /// Per quanto si ricorda un party registrato tolto dalla pulizia. Il
+    /// gruppo può sembrare finito senza esserlo (coda illeggibile in
+    /// Jellyfin 10.11.9, dentro solo client senza WonderFlix): se ricompare,
+    /// lo vede solo chi ci è dentro. Gli id dei gruppi non si riusano.
+    /// </summary>
+    public static readonly TimeSpan TombstoneLifetime = TimeSpan.FromHours(24);
+
+    /// <summary>Quanti party tolti si ricordano al massimo; oltre, si dimentica il più vecchio.</summary>
+    public const int MaxTombstones = 1000;
+
     private readonly Lock _lock = new();
     private readonly Dictionary<Guid, Entry> _parties = [];
     private readonly Dictionary<string, Guid> _codes = new(StringComparer.Ordinal);
     private readonly Dictionary<Guid, DateTimeOffset> _firstSeen = [];
 
-    /// <summary>Registra il party; null se lo era già. I privati hanno un codice.</summary>
+    /// <summary>Party registrati tolti dalla pulizia → quando.</summary>
+    private readonly Dictionary<Guid, DateTimeOffset> _tombstones = [];
+
+    /// <summary>Registra il party; null se lo era già (anche se poi è stato tolto). I privati hanno un codice.</summary>
     public PartyView? Register(Guid groupId, Guid creatorId, string mode)
     {
         lock (_lock)
         {
-            if (_parties.ContainsKey(groupId))
+            if (_parties.ContainsKey(groupId) || IsTombstone(groupId))
             {
                 return null;
             }
@@ -85,7 +101,11 @@ public sealed class PartyDirectory(TimeProvider time)
         {
             if (!_parties.TryGetValue(groupId, out var entry))
             {
-                return _firstSeen.TryGetValue(groupId, out var seen) && time.GetUtcNow() - seen >= UnregisteredGrace;
+                // Un party tolto dalla pulizia non torna "mai registrato":
+                // niente attesa, niente pubblico.
+                return !IsTombstone(groupId)
+                    && _firstSeen.TryGetValue(groupId, out var seen)
+                    && time.GetUtcNow() - seen >= UnregisteredGrace;
             }
 
             (mode, creator, invited) = (entry.Mode, entry.CreatorId, entry.Invited.Contains(viewer));
@@ -126,7 +146,8 @@ public sealed class PartyDirectory(TimeProvider time)
 
     /// <summary>
     /// Toglie party e attese dei gruppi finiti (alive si chiama fuori dal
-    /// lock: chiede a Jellyfin). Restituisce quanti party ha tolto.
+    /// lock: chiede a Jellyfin) e ne ricorda i party; dimentica i ricordi
+    /// scaduti. Restituisce quanti party ha tolto.
     /// </summary>
     public int Forget(Func<Guid, bool> alive)
     {
@@ -140,6 +161,12 @@ public sealed class PartyDirectory(TimeProvider time)
         var removed = 0;
         lock (_lock)
         {
+            var now = time.GetUtcNow();
+            foreach (var id in _tombstones.Where(t => now - t.Value >= TombstoneLifetime).Select(t => t.Key).ToList())
+            {
+                _tombstones.Remove(id);
+            }
+
             foreach (var id in ended)
             {
                 if (_parties.Remove(id, out var entry))
@@ -149,6 +176,8 @@ public sealed class PartyDirectory(TimeProvider time)
                     {
                         _codes.Remove(entry.Code);
                     }
+
+                    Bury(id, now);
                 }
 
                 _firstSeen.Remove(id);
@@ -156,6 +185,21 @@ public sealed class PartyDirectory(TimeProvider time)
         }
 
         return removed;
+    }
+
+    // Solo sotto _lock.
+    private bool IsTombstone(Guid groupId) =>
+        _tombstones.TryGetValue(groupId, out var buried) && time.GetUtcNow() - buried < TombstoneLifetime;
+
+    // Solo sotto _lock. Al limite si dimentica il ricordo più vecchio.
+    private void Bury(Guid groupId, DateTimeOffset now)
+    {
+        if (_tombstones.Count >= MaxTombstones && !_tombstones.ContainsKey(groupId))
+        {
+            _tombstones.Remove(_tombstones.MinBy(t => t.Value).Key);
+        }
+
+        _tombstones[groupId] = now;
     }
 
     /// <summary>Il codice in forma canonica; null se non ha la lunghezza giusta.</summary>
