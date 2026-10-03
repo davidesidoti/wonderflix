@@ -75,12 +75,26 @@ public class ServerAdapterTests
         var directory = new JellyfinUserDirectory(manager);
 
         Assert.Equal(
-            new[] { new UserRef(mario.Id, "Mario", true), new UserRef(bowser.Id, "Bowser", false) },
+            new[] { new UserRef(mario.Id, "Mario", true, true), new UserRef(bowser.Id, "Bowser", false, true) },
             directory.GetUsers());
-        Assert.Equal(new UserRef(mario.Id, "Mario", true), directory.GetUser(mario.Id));
+        Assert.Equal(new UserRef(mario.Id, "Mario", true, true), directory.GetUser(mario.Id));
         Assert.Null(directory.GetUser(Guid.NewGuid()));
         Assert.Null(directory.GetUser(Guid.Empty));
         Assert.DoesNotContain(stub.Calls, c => c.Name == "GetUserById" && (Guid)c.Args[0]! == Guid.Empty);
+    }
+
+    [Fact]
+    public void UsersWithoutSyncPlayAccessCannotJoinParties()
+    {
+        var toad = new User("Toad", "provider", "reset") { SyncPlayAccess = SyncPlayUserAccessType.None };
+        var joinOnly = new User("Daisy", "provider", "reset") { SyncPlayAccess = SyncPlayUserAccessType.JoinGroups };
+        var (manager, stub) = InterfaceStub<IUserManager>.Create();
+        stub.Handlers["get_Users"] = _ => new[] { toad, joinOnly };
+        var directory = new JellyfinUserDirectory(manager);
+
+        Assert.Equal(
+            new[] { new UserRef(toad.Id, "Toad", true, false), new UserRef(joinOnly.Id, "Daisy", true, true) },
+            directory.GetUsers());
     }
 
     [Fact]

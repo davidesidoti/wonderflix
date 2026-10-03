@@ -1,7 +1,10 @@
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 
-/// <summary>Un utente di Jellyfin, come serve agli amici.</summary>
-public sealed record UserRef(Guid Id, string Name, bool Enabled);
+/// <summary>
+/// Un utente di Jellyfin, come serve agli amici. <paramref name="CanJoinParties"/>:
+/// può usare i watch party (accesso SyncPlay diverso da nessuno).
+/// </summary>
+public sealed record UserRef(Guid Id, string Name, bool Enabled, bool CanJoinParties);
 
 /// <summary>Gli utenti del server (adattatore di IUserManager).</summary>
 public interface IUserDirectory

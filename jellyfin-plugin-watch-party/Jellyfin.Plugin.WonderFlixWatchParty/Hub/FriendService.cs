@@ -86,8 +86,11 @@ public sealed class FriendService(
         lock (_lock)
         {
             var graph = Graph;
+
+            // Chi non può usare i watch party non ha gli endpoint degli amici (policy SyncPlayHasAccess): non si cerca.
             IReadOnlyList<UserSearchResult> results = users.GetUsers()
-                .Where(u => u.Enabled && u.Id != userId && u.Name.Contains(text, StringComparison.OrdinalIgnoreCase))
+                .Where(u => u.Enabled && u.CanJoinParties && u.Id != userId
+                    && u.Name.Contains(text, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(u => u.Name, StringComparer.OrdinalIgnoreCase)
                 .Take(MaxSearchResults)
                 .Select(u => new UserSearchResult(Id(u.Id), u.Name, RelationOf(graph, userId, u.Id)))
@@ -104,8 +107,10 @@ public sealed class FriendService(
             return HubStatus.RateLimited;
         }
 
-        if (users.GetUser(to) is not { Enabled: true })
+        // Senza accesso ai watch party l'altro non può rispondere (policy SyncPlayHasAccess): la richiesta resterebbe in sospeso per sempre.
+        if (users.GetUser(to) is not { Enabled: true, CanJoinParties: true })
         {
+            logger.LogDebug("Richiesta di amicizia {From} → {To}: utente non disponibile", from, to);
             return HubStatus.Conflict;
         }
 
@@ -118,6 +123,8 @@ public sealed class FriendService(
                 Persist();
             }
         }
+
+        logger.LogDebug("Richiesta di amicizia {From} → {To}: {Outcome}", from, to, outcome);
 
         switch (outcome)
         {
@@ -146,6 +153,7 @@ public sealed class FriendService(
             }
         }
 
+        logger.LogDebug("Accettazione di {User} per la richiesta di {From}: {Change}", user, from, change);
         switch (change)
         {
             case FriendChange.Done:
@@ -160,15 +168,15 @@ public sealed class FriendService(
 
     /// <summary>user rifiuta la richiesta di from: a from sparisce e basta.</summary>
     public Task<HubStatus> DeclineAsync(Guid user, Guid from) =>
-        ChangeAsync(user, from, graph => graph.Decline(user, from), missing: HubStatus.Forbidden);
+        ChangeAsync("Rifiuto", user, from, graph => graph.Decline(user, from), missing: HubStatus.Forbidden);
 
     /// <summary>user annulla la propria richiesta a to.</summary>
     public Task<HubStatus> CancelAsync(Guid user, Guid to) =>
-        ChangeAsync(user, to, graph => graph.Cancel(user, to), missing: HubStatus.Ok);
+        ChangeAsync("Annullamento", user, to, graph => graph.Cancel(user, to), missing: HubStatus.Ok);
 
     /// <summary>user toglie friend dagli amici, per tutti e due.</summary>
     public Task<HubStatus> RemoveAsync(Guid user, Guid friend) =>
-        ChangeAsync(user, friend, graph => graph.Remove(user, friend), missing: HubStatus.Ok);
+        ChangeAsync("Rimozione", user, friend, graph => graph.Remove(user, friend), missing: HubStatus.Ok);
 
     /// <summary>
     /// Dice agli amici online di userId di rileggere gli amici (presenza,
@@ -186,7 +194,8 @@ public sealed class FriendService(
         return Task.WhenAll(friends.Where(online.Contains).Select(f => NotifyAsync(f, SocialEvent.FriendsChanged())));
     }
 
-    private async Task<HubStatus> ChangeAsync(Guid a, Guid b, Func<FriendGraph, bool> change, HubStatus missing)
+    private async Task<HubStatus> ChangeAsync(
+        string operation, Guid a, Guid b, Func<FriendGraph, bool> change, HubStatus missing)
     {
         bool changed;
         lock (_lock)
@@ -203,6 +212,7 @@ public sealed class FriendService(
             return missing;
         }
 
+        logger.LogDebug("{Operation} tra {A} e {B}: fatto", operation, a, b);
         await NotifyChangedAsync(a, b).ConfigureAwait(false);
         return HubStatus.Ok;
     }

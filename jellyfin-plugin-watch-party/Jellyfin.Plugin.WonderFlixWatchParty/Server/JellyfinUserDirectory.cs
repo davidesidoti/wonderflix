@@ -15,6 +15,9 @@ public sealed class JellyfinUserDirectory(IUserManager userManager) : IUserDirec
     public UserRef? GetUser(Guid userId) =>
         userId != Guid.Empty && userManager.GetUserById(userId) is { } user ? ToRef(user) : null;
 
-    private static UserRef ToRef(User user) =>
-        new(user.Id, user.Username, !user.HasPermission(PermissionKind.IsDisabled));
+    private static UserRef ToRef(User user) => new(
+        user.Id,
+        user.Username,
+        !user.HasPermission(PermissionKind.IsDisabled),
+        user.SyncPlayAccess != SyncPlayUserAccessType.None);
 }

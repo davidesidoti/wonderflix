@@ -28,9 +28,9 @@ internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSen
         return session;
     }
 
-    public UserRef AddUser(string name, bool enabled = true)
+    public UserRef AddUser(string name, bool enabled = true, bool canJoinParties = true)
     {
-        var user = new UserRef(Guid.NewGuid(), name, enabled);
+        var user = new UserRef(Guid.NewGuid(), name, enabled, canJoinParties);
         Users[user.Id] = user;
         return user;
     }

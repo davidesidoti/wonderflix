@@ -99,6 +99,16 @@ public sealed class FriendServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task RequestToAUserWhoCannotJoinPartiesIsRefused()
+    {
+        // Senza accesso al watch party gli endpoint degli amici non rispondono: la richiesta resterebbe in sospeso.
+        var toad = _server.AddUser("Toad", canJoinParties: false);
+
+        Assert.Equal(HubStatus.Conflict, await _friends.RequestAsync(_mario.Id, toad.Id));
+        Assert.Empty(_friends.GetFriends(_mario.Id).Outgoing);
+    }
+
+    [Fact]
     public async Task RequestsAreRateLimited()
     {
         for (var i = 0; i < 20; i++)
@@ -163,6 +173,7 @@ public sealed class FriendServiceTests : IDisposable
         await _friends.RequestAsync(_peach.Id, _mario.Id);
         _server.AddUser("Luisa", enabled: false);
         _server.AddUser("Waluigi");
+        _server.AddUser("Luigina", canJoinParties: false);
 
         Assert.Empty(_friends.Search(_mario.Id, "l").Value!);
         Assert.Empty(_friends.Search(_mario.Id, "  ").Value!);

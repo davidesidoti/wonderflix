@@ -22,8 +22,8 @@ public sealed class FriendsControllerTests : IDisposable
 
     public FriendsControllerTests()
     {
-        _server.Users[_mario.Id] = new UserRef(_mario.Id, "Mario", true);
-        _server.Users[_luigi.Id] = new UserRef(_luigi.Id, "Luigi", true);
+        _server.Users[_mario.Id] = new UserRef(_mario.Id, "Mario", true, true);
+        _server.Users[_luigi.Id] = new UserRef(_luigi.Id, "Luigi", true, true);
         _friends = new FriendService(
             new FriendStore(_folder.FriendsFile, NullLogger<FriendStore>.Instance),
             _server, _server, _server, new RateLimiter(_time), _time, NullLogger<FriendService>.Instance);
