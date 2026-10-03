@@ -10,7 +10,9 @@ using MediaBrowser.Controller.SyncPlay;
 using MediaBrowser.Controller.SyncPlay.Requests;
 using MediaBrowser.Model.Session;
 using MediaBrowser.Model.SyncPlay;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
@@ -109,7 +111,7 @@ public class ServerAdapterTests
         groups.Handlers["GetGroup"] = args => ReferenceEquals(args[0], mario) && (Guid)args[1]! == group
             ? new GroupInfoDto(group, "Mario · Dune", GroupStateType.Paused, new[] { "Mario", "Luigi" }, DateTime.UtcNow)
             : null;
-        var directory = new JellyfinGroupDirectory(manager, syncPlay, NullLogger<JellyfinGroupDirectory>.Instance);
+        var directory = new JellyfinGroupDirectory(manager, syncPlay, TimeProvider.System, NullLogger<JellyfinGroupDirectory>.Instance);
 
         Assert.Equal(new[] { "Mario", "Luigi" }, directory.GetParticipants("s1", group));
         Assert.Null(directory.GetParticipants("s1", Guid.NewGuid()));
@@ -129,7 +131,7 @@ public class ServerAdapterTests
             ? new List<GroupInfoDto> { dto }
             : new List<GroupInfoDto>();
         groups.Handlers["GetGroup"] = args => ReferenceEquals(args[0], mario) && (Guid)args[1]! == group ? dto : null;
-        var directory = new JellyfinGroupDirectory(manager, syncPlay, NullLogger<JellyfinGroupDirectory>.Instance);
+        var directory = new JellyfinGroupDirectory(manager, syncPlay, TimeProvider.System, NullLogger<JellyfinGroupDirectory>.Instance);
 
         var listed = Assert.Single(directory.ListGroups("s1"));
         Assert.Equal(new GroupSummary(group, "Mario · Dune", "Playing", dto.Participants), listed);
@@ -157,11 +159,49 @@ public class ServerAdapterTests
         var (syncPlay, groups) = InterfaceStub<ISyncPlayManager>.Create();
         groups.Handlers["ListGroups"] = _ => throw new NullReferenceException();
         groups.Handlers["GetGroup"] = _ => throw new NullReferenceException();
-        var directory = new JellyfinGroupDirectory(manager, syncPlay, NullLogger<JellyfinGroupDirectory>.Instance);
+        var directory = new JellyfinGroupDirectory(
+            manager, syncPlay, TimeProvider.System, NullLogger<JellyfinGroupDirectory>.Instance);
 
         Assert.Empty(directory.ListGroups("s1"));
         Assert.Null(directory.GetGroup("s1", group));
         Assert.Null(directory.GetParticipants("s1", group));
+    }
+
+    [Fact]
+    public void ARepeatedSyncPlayFailureIsLoggedInFullOncePerInterval()
+    {
+        // Un gruppo con la coda rotta fallisce a ogni lettura (elenco, amici, pulizia): una volta basta.
+        var group = Guid.NewGuid();
+        var other = Guid.NewGuid();
+        var (manager, sessions) = InterfaceStub<ISessionManager>.Create();
+        var mario = Session("s1", "d1", "WonderFlix", Guid.NewGuid(), "Mario");
+        sessions.Handlers["get_Sessions"] = _ => new[] { mario };
+        var (syncPlay, groups) = InterfaceStub<ISyncPlayManager>.Create();
+        groups.Handlers["ListGroups"] = _ => throw new NullReferenceException();
+        groups.Handlers["GetGroup"] = _ => throw new NullReferenceException();
+        var time = new FakeTimeProvider();
+        var logger = new RecordingLogger<JellyfinGroupDirectory>();
+        var directory = new JellyfinGroupDirectory(manager, syncPlay, time, logger);
+
+        directory.GetGroup("s1", group);
+        directory.GetGroup("s1", group);
+        directory.GetGroup("s1", other);
+        directory.ListGroups("s1");
+        directory.ListGroups("s1");
+
+        Assert.Equal(
+            new[] { LogLevel.Warning, LogLevel.Debug, LogLevel.Warning, LogLevel.Warning, LogLevel.Debug },
+            logger.Entries.Select(e => e.Level));
+        Assert.All(logger.Entries.Where(e => e.Level == LogLevel.Warning), e => Assert.IsType<NullReferenceException>(e.Exception));
+        Assert.All(logger.Entries.Where(e => e.Level == LogLevel.Debug), e => Assert.Null(e.Exception));
+        Assert.Contains(group.ToString(), logger.Entries[1].Message, StringComparison.Ordinal);
+
+        time.Advance(JellyfinGroupDirectory.FailureLogInterval - TimeSpan.FromSeconds(1));
+        directory.GetGroup("s1", group);
+        Assert.Equal(LogLevel.Debug, logger.Entries[^1].Level);
+        time.Advance(TimeSpan.FromSeconds(1));
+        directory.GetGroup("s1", group);
+        Assert.Equal(LogLevel.Warning, logger.Entries[^1].Level);
     }
 
     [Fact]

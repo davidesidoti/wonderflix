@@ -11,8 +11,28 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Server;
 public sealed class JellyfinGroupDirectory(
     ISessionManager sessionManager,
     ISyncPlayManager syncPlayManager,
+    TimeProvider time,
     ILogger<JellyfinGroupDirectory> logger) : IGroupDirectory
 {
+    /// <summary>
+    /// Ogni quanto lo stesso errore di SyncPlay finisce di nuovo nel log per
+    /// intero (Warning con lo stack). Un gruppo con la coda rotta fallisce a
+    /// ogni lettura (elenco dei party, amici, pulizia: circa ogni 30 s per
+    /// client); in mezzo, Debug senza stack.
+    /// </summary>
+    public static readonly TimeSpan FailureLogInterval = TimeSpan.FromMinutes(10);
+
+    /// <summary>Quanti errori diversi (gruppi, più l'elenco) si ricordano al massimo.</summary>
+    public const int MaxRememberedFailures = 100;
+
+    /// <summary>La chiave degli errori dell'elenco, che non sono di un gruppo.</summary>
+    private static readonly Guid ListFailureKey = Guid.Empty;
+
+    private readonly Lock _lock = new();
+
+    /// <summary>Gruppo (o <see cref="ListFailureKey"/>) → ultimo errore scritto per intero.</summary>
+    private readonly Dictionary<Guid, DateTimeOffset> _lastWarnings = [];
+
     public IReadOnlyList<string>? GetParticipants(string sessionId, Guid groupId) =>
         GetGroup(sessionId, groupId)?.Participants;
 
@@ -20,7 +40,8 @@ public sealed class JellyfinGroupDirectory(
     // sugli elementi in coda, anche su quelli che non esistono più, e
     // ListGroups/GetGroup vanno in NullReferenceException. Un errore di
     // SyncPlay qui non deve diventare un 500 di Friends o Parties: si
-    // risponde "nessun gruppo" e si scrive nel log.
+    // risponde "nessun gruppo" e si scrive nel log (per intero una volta
+    // ogni FailureLogInterval).
     public IReadOnlyList<GroupSummary> ListGroups(string sessionId)
     {
         var session = Find(sessionId);
@@ -35,7 +56,15 @@ public sealed class JellyfinGroupDirectory(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning(ex, "Elenco dei gruppi SyncPlay non riuscito");
+            if (ShouldWarn(ListFailureKey))
+            {
+                logger.LogWarning(ex, "Elenco dei gruppi SyncPlay non riuscito");
+            }
+            else
+            {
+                logger.LogDebug("Elenco dei gruppi SyncPlay non riuscito, di nuovo: {Error}", ex.Message);
+            }
+
             return [];
         }
     }
@@ -56,8 +85,49 @@ public sealed class JellyfinGroupDirectory(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning(ex, "Gruppo SyncPlay {GroupId} non letto", groupId);
+            if (ShouldWarn(groupId))
+            {
+                logger.LogWarning(ex, "Gruppo SyncPlay {GroupId} non letto", groupId);
+            }
+            else
+            {
+                logger.LogDebug("Gruppo SyncPlay {GroupId} non letto, di nuovo: {Error}", groupId, ex.Message);
+            }
+
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Il primo errore di key, o il primo dopo <see cref="FailureLogInterval"/>,
+    /// va scritto per intero. Oltre <see cref="MaxRememberedFailures"/> si
+    /// tolgono le voci scadute; se sono tutte recenti, si riparte da capo.
+    /// </summary>
+    private bool ShouldWarn(Guid key)
+    {
+        var now = time.GetUtcNow();
+        lock (_lock)
+        {
+            if (_lastWarnings.TryGetValue(key, out var last) && now - last < FailureLogInterval)
+            {
+                return false;
+            }
+
+            if (_lastWarnings.Count >= MaxRememberedFailures)
+            {
+                foreach (var old in _lastWarnings.Where(w => now - w.Value >= FailureLogInterval).Select(w => w.Key).ToList())
+                {
+                    _lastWarnings.Remove(old);
+                }
+
+                if (_lastWarnings.Count >= MaxRememberedFailures)
+                {
+                    _lastWarnings.Clear();
+                }
+            }
+
+            _lastWarnings[key] = now;
+            return true;
         }
     }
 
