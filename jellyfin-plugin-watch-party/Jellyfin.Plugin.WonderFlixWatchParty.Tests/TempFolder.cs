@@ -8,6 +8,9 @@ internal sealed class TempFolder : IDisposable
     /// <summary>Percorso di friends.json in una sottocartella non ancora creata.</summary>
     public string FriendsFile => System.IO.Path.Combine(Path, "WonderFlixWatchParty", "friends.json");
 
+    /// <summary>Percorso di inbox.json, accanto a friends.json.</summary>
+    public string InboxFile => System.IO.Path.Combine(Path, "WonderFlixWatchParty", "inbox.json");
+
     public void Dispose()
     {
         if (Directory.Exists(Path))
