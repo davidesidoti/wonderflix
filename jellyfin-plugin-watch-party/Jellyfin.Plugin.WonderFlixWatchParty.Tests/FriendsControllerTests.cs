@@ -19,6 +19,8 @@ public sealed class FriendsControllerTests : IDisposable
     private readonly User _mario = new("mario", "provider", "reset");
     private readonly User _luigi = new("luigi", "provider", "reset");
     private readonly FriendService _friends;
+    private readonly PartyRegistry _registry = new();
+    private readonly PartyService _parties;
 
     public FriendsControllerTests()
     {
@@ -27,6 +29,9 @@ public sealed class FriendsControllerTests : IDisposable
         _friends = new FriendService(
             new FriendStore(_folder.FriendsFile, NullLogger<FriendStore>.Instance),
             _server, _server, _server, new RateLimiter(_time), _time, NullLogger<FriendService>.Instance);
+        _parties = new PartyService(
+            new PartyDirectory(_time), _server, _server, _server, _friends, _registry, _server,
+            new RateLimiter(_time), NullLogger<PartyService>.Instance);
     }
 
     public void Dispose() => _folder.Dispose();
@@ -34,7 +39,7 @@ public sealed class FriendsControllerTests : IDisposable
     private FriendsController Controller(User user)
     {
         var auth = new AuthorizationInfo { DeviceId = "d", Client = "WonderFlix", User = user, IsAuthenticated = true };
-        return new FriendsController(new FakeAuthorizationContext(auth), _friends)
+        return new FriendsController(new FakeAuthorizationContext(auth), _friends, _parties)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
         };
@@ -56,6 +61,22 @@ public sealed class FriendsControllerTests : IDisposable
 
         var friends = (await Controller(_mario).GetFriends()).Value!;
         Assert.Equal("Luigi", Assert.Single(friends.Friends).Name);
+    }
+
+    [Fact]
+    public async Task FriendsShowTheirVisibleParty()
+    {
+        await Controller(_mario).SendRequest(_luigi.Id);
+        await Controller(_luigi).AcceptRequest(_mario.Id);
+        var group = Guid.NewGuid();
+        _server.Groups[group] = ["Luigi"];
+        _server.GroupNames[group] = "Luigi · Dune";
+        _server.Sessions.Add(new CallerSession("s-luigi", _luigi.Id, "Luigi"));
+        _registry.Register(group, "s-luigi", "Luigi");
+        await _parties.RegisterAsync(new CallerSession("s-luigi", _luigi.Id, "Luigi"), group, PartyModes.Friends);
+
+        var friend = Assert.Single((await Controller(_mario).GetFriends()).Value!.Friends);
+        Assert.Equal("Dune", friend.Party!.Title);
     }
 
     [Fact]

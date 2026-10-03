@@ -17,12 +17,19 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Api;
 [Route("WonderFlixWatchParty")]
 [Authorize(Policy = Policies.SyncPlayHasAccess)]
 [Produces(MediaTypeNames.Application.Json)]
-public class FriendsController(IAuthorizationContext authorizationContext, FriendService friends) : ControllerBase
+public class FriendsController(
+    IAuthorizationContext authorizationContext,
+    FriendService friends,
+    PartyService parties) : ControllerBase
 {
-    /// <summary>Amici con il loro stato, richieste in arrivo e inviate.</summary>
+    /// <summary>Amici con il loro stato (e il party visibile in cui stanno), richieste in arrivo e inviate.</summary>
     [HttpGet("Friends")]
-    public async Task<ActionResult<FriendsResponse>> GetFriends() =>
-        friends.GetFriends(await CallerAsync().ConfigureAwait(false));
+    public async Task<ActionResult<FriendsResponse>> GetFriends()
+    {
+        var auth = await authorizationContext.GetAuthorizationInfo(HttpContext).ConfigureAwait(false);
+        var userName = auth.User?.Username ?? string.Empty;
+        return friends.GetFriends(auth.UserId, friendId => parties.PartyOf(auth.UserId, userName, friendId));
+    }
 
     /// <summary>Utenti il cui nome contiene q (almeno 2 lettere), al massimo 10.</summary>
     [HttpGet("Users/Search")]

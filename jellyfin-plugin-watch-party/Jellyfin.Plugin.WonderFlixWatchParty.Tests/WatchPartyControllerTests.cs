@@ -11,22 +11,35 @@ using Xunit;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
 
-public class WatchPartyControllerTests
+public sealed class WatchPartyControllerTests : IDisposable
 {
     private static readonly Guid Group = Guid.NewGuid();
 
+    private readonly TempFolder _folder = new();
     private readonly FakeServer _server = new();
     private readonly FakeTimeProvider _time = new();
     private readonly User _user = new("mario", "provider", "reset");
     private readonly PartyHub _hub;
+    private readonly FriendService _friends;
+    private readonly PresenceTracker _presence;
 
     public WatchPartyControllerTests()
     {
         _hub = new PartyHub(
             _server, _server, _server, new PartyRegistry(), new ChatHistory(), new RateLimiter(_time), _time,
             NullLogger<PartyHub>.Instance);
+        _friends = new FriendService(
+            new FriendStore(_folder.FriendsFile, NullLogger<FriendStore>.Instance),
+            _server, _server, _server, new RateLimiter(_time), _time, NullLogger<FriendService>.Instance);
+        _presence = new PresenceTracker(_friends, _time, NullLogger<PresenceTracker>.Instance);
         _server.Sessions.Add(new CallerSession("s-mario", _user.Id, "Mario"));
         _server.Groups[Group] = ["Mario"];
+    }
+
+    public void Dispose()
+    {
+        _presence.Dispose();
+        _folder.Dispose();
     }
 
     private WatchPartyController Controller(string deviceId = "s-mario")
@@ -38,7 +51,7 @@ public class WatchPartyControllerTests
             User = _user,
             IsAuthenticated = true,
         };
-        return new WatchPartyController(new FakeAuthorizationContext(auth), _server, _hub)
+        return new WatchPartyController(new FakeAuthorizationContext(auth), _server, _hub, _presence)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
         };
@@ -100,5 +113,24 @@ public class WatchPartyControllerTests
         Assert.IsType<NoContentResult>(await Controller().Leave(Group));
         await _hub.PostAsync(luigi, Group, Chat("ciao"), CancellationToken.None);
         Assert.Empty(_server.Sent);
+    }
+
+    [Fact]
+    public async Task JoiningOrLeavingTellsFriends()
+    {
+        var luigi = _server.AddUser("Luigi");
+        _server.Users[_user.Id] = new UserRef(_user.Id, "Mario", true, true);
+        _server.AddSession("s-luigi", luigi);
+        await _friends.RequestAsync(_user.Id, luigi.Id);
+        await _friends.AcceptAsync(luigi.Id, _user.Id);
+        _server.Sent.Clear();
+
+        await Controller().Join(Group);
+        _time.Advance(PresenceTracker.Delay);
+        Assert.Single(_server.SentTo("s-luigi"));
+
+        await Controller().Leave(Group);
+        _time.Advance(PresenceTracker.Delay);
+        Assert.Equal(2, _server.SentTo("s-luigi").Count);
     }
 }

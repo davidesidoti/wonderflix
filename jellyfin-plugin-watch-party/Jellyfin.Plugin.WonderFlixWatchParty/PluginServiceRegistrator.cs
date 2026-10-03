@@ -25,6 +25,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             provider.GetRequiredService<ILogger<FriendStore>>()));
         serviceCollection.AddSingleton<FriendService>();
         serviceCollection.AddSingleton<PresenceTracker>();
+        serviceCollection.AddSingleton<PartyDirectory>();
+        serviceCollection.AddSingleton<PartyService>();
         serviceCollection.AddSingleton<PartyRegistry>();
         serviceCollection.AddSingleton<ChatHistory>();
         serviceCollection.AddSingleton<RateLimiter>();

@@ -17,6 +17,9 @@ anonimi.
   `plugins/configurations/WonderFlixWatchParty/friends.json` (non nella
   cartella del plugin, che cambia a ogni versione). Un file illeggibile
   diventa `friends.json.bad` e il plugin riparte vuoto.
+- **Party:** l'app registra ogni gruppo con la sua modalità (pubblico, solo
+  amici, privato con codice) e chiede al plugin l'elenco già filtrato
+  (`GET Parties`). I party stanno in RAM e spariscono con i gruppi SyncPlay.
 
 ## Installazione dal repository
 

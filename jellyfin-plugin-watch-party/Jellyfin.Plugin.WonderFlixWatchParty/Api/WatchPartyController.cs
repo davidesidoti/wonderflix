@@ -11,7 +11,8 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Api;
 
 /// <summary>
 /// Endpoint del plugin (spec E §6.2). Non risponde mai 404: per l'app un 404
-/// vuol dire che la rotta non esiste, cioè plugin assente.
+/// vuol dire che la rotta non esiste, cioè plugin assente. Ingresso e uscita
+/// cambiano la presenza: gli amici vedono "Nel watch party" (spec F §6.3).
 /// </summary>
 [ApiController]
 [Route("WonderFlixWatchParty")]
@@ -20,7 +21,8 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Api;
 public class WatchPartyController(
     IAuthorizationContext authorizationContext,
     ISessionDirectory sessions,
-    PartyHub hub) : ControllerBase
+    PartyHub hub,
+    PresenceTracker presence) : ControllerBase
 {
     private static string PluginVersion =>
         typeof(Plugin).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
@@ -46,6 +48,7 @@ public class WatchPartyController(
             return Failure(result.Status);
         }
 
+        presence.Changed(caller.UserId);
         return new JoinResponse(result.Value!);
     }
 
@@ -57,6 +60,7 @@ public class WatchPartyController(
         if (caller is not null)
         {
             hub.Leave(caller, groupId);
+            presence.Changed(caller.UserId);
         }
 
         return NoContent();

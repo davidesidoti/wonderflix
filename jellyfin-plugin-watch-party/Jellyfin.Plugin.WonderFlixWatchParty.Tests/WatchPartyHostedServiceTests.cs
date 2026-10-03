@@ -36,8 +36,11 @@ public class WatchPartyHostedServiceTests
             new FriendStore(folder.FriendsFile, NullLogger<FriendStore>.Instance),
             server, server, server, new RateLimiter(time), time, NullLogger<FriendService>.Instance);
         using var presence = new PresenceTracker(friends, time, NullLogger<PresenceTracker>.Instance);
+        var parties = new PartyService(
+            new PartyDirectory(time), server, server, server, friends, new PartyRegistry(), server,
+            new RateLimiter(time), NullLogger<PartyService>.Instance);
         using var service = new WatchPartyHostedService(
-            manager, hub, friends, presence, time, NullLogger<WatchPartyHostedService>.Instance);
+            manager, hub, friends, presence, parties, time, NullLogger<WatchPartyHostedService>.Instance);
         await service.StartAsync(CancellationToken.None);
         Assert.NotNull(ended);
 
@@ -88,8 +91,11 @@ public class WatchPartyHostedServiceTests
             ended = (EventHandler<SessionEventArgs>?)args[0];
             return null;
         };
+        var parties = new PartyService(
+            new PartyDirectory(time), server, server, server, friends, new PartyRegistry(), server,
+            new RateLimiter(time), NullLogger<PartyService>.Instance);
         using var service = new WatchPartyHostedService(
-            manager, hub, friends, presence, time, NullLogger<WatchPartyHostedService>.Instance);
+            manager, hub, friends, presence, parties, time, NullLogger<WatchPartyHostedService>.Instance);
         await service.StartAsync(CancellationToken.None);
         Assert.NotNull(started);
         Assert.NotNull(ended);

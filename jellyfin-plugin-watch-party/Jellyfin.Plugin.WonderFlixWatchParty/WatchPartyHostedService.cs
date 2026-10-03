@@ -17,6 +17,7 @@ public sealed class WatchPartyHostedService(
     PartyHub hub,
     FriendService friends,
     PresenceTracker presence,
+    PartyService parties,
     TimeProvider time,
     ILogger<WatchPartyHostedService> logger) : IHostedService, IDisposable
 {
@@ -83,6 +84,12 @@ public sealed class WatchPartyHostedService(
             if (removed > 0)
             {
                 logger.LogDebug("Tolti {Count} watch party finiti", removed);
+            }
+
+            var removedParties = parties.Cleanup();
+            if (removedParties > 0)
+            {
+                logger.LogDebug("Tolti {Count} party finiti", removedParties);
             }
         }
         catch (Exception ex)
