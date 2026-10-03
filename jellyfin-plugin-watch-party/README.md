@@ -12,18 +12,24 @@ anonimi.
 
 - Jellyfin **10.11.x** (net9.0, `targetAbi` 10.11.0.0). Per Jellyfin 12 serve
   una build nuova (net10.0).
-- Nessuna impostazione. La pagina del plugin nella Dashboard (menu laterale,
-  sotto Plugin) serve per mandare un **annuncio** a tutti. Endpoint sotto
-  `/WonderFlixWatchParty`; gli eventi arrivano ai client come
-  `GeneralCommand` `SendString` con la chiave `WonderFlixWatchParty`.
+- Un'impostazione, **Notify new titles** (accesa di default), nella pagina del
+  plugin nella Dashboard (menu laterale, sotto Plugin): la stessa pagina manda
+  un **annuncio** a tutti e, con **Send now**, il riepilogo dei nuovi titoli in
+  attesa. Endpoint sotto `/WonderFlixWatchParty`; gli eventi arrivano ai client
+  come `GeneralCommand` `SendString` con la chiave `WonderFlixWatchParty`.
 - **Dati:** amicizie e richieste stanno in
   `plugins/configurations/WonderFlixWatchParty/friends.json` (non nella
   cartella del plugin, che cambia a ogni versione). Un file illeggibile
   diventa `friends.json.bad` e il plugin riparte vuoto.
-- **Notifiche:** la cassetta di ogni utente (inviti ai watch party, annunci)
-  sta in `plugins/configurations/WonderFlixWatchParty/inbox.json`: 30 giorni,
-  al massimo 100 voci per utente. Un file illeggibile diventa
-  `inbox.json.bad`.
+- **Notifiche:** la cassetta di ogni utente (inviti ai watch party, annunci,
+  nuovi titoli) sta in `plugins/configurations/WonderFlixWatchParty/inbox.json`:
+  30 giorni, al massimo 100 voci per utente. Un file illeggibile diventa
+  `inbox.json.bad`. **Nuovi titoli:** i film e gli episodi aggiunti alla
+  libreria si raccolgono in un'ondata che si chiude dopo 15 minuti senza novità
+  (al massimo 2 ore); ogni utente riceve i film che può vedere e gli episodi
+  delle serie che segue (La mia lista, o un episodio visto o iniziato).
+  L'impostazione sta in
+  `plugins/configurations/Jellyfin.Plugin.WonderFlixWatchParty.xml`.
 - **Party:** l'app registra ogni gruppo con la sua modalità (pubblico, solo
   amici, privato con codice) e chiede al plugin l'elenco già filtrato
   (`GET Parties`). I party stanno in RAM e spariscono con i gruppi SyncPlay.

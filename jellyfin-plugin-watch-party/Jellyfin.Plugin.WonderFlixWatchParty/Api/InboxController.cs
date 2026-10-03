@@ -10,15 +10,20 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Api;
 
 /// <summary>
 /// La cassetta delle notifiche (spec G §6.3): per ogni utente autenticato,
-/// anche senza accesso ai watch party; gli annunci solo per gli admin. Chi
-/// chiama è l'utente dell'autenticazione. Come il resto del plugin, mai 404:
-/// l'id di una voce è una stringa (un vincolo di rotta risponderebbe 404).
+/// anche senza accesso ai watch party; gli annunci e i nuovi titoli in attesa
+/// solo per gli admin. Chi chiama è l'utente dell'autenticazione. Come il
+/// resto del plugin, mai 404: l'id di una voce è una stringa (un vincolo di
+/// rotta risponderebbe 404).
 /// </summary>
 [ApiController]
 [Route("WonderFlixWatchParty")]
 [Authorize]
 [Produces(MediaTypeNames.Application.Json)]
-public class InboxController(IAuthorizationContext authorizationContext, InboxService inbox) : ControllerBase
+public class InboxController(
+    IAuthorizationContext authorizationContext,
+    InboxService inbox,
+    NewTitlesCollector newTitles,
+    INewTitlesSettings newTitlesSettings) : ControllerBase
 {
     /// <summary>Le voci dalla più recente e quante non lette.</summary>
     [HttpGet("Inbox")]
@@ -62,6 +67,18 @@ public class InboxController(IAuthorizationContext authorizationContext, InboxSe
         var result = await inbox.AnnounceAsync(request?.Text).ConfigureAwait(false);
         return result.Status == HubStatus.Ok ? result.Value! : BadRequest();
     }
+
+    /// <summary>La casella dei nuovi titoli e quanti ne aspettano (pagina della Dashboard); solo per gli admin.</summary>
+    [HttpGet("Inbox/NewTitles")]
+    [Authorize(Policy = Policies.RequiresElevation)]
+    public ActionResult<NewTitlesStatus> GetNewTitles() =>
+        new NewTitlesStatus(newTitlesSettings.NotifyNewTitles, newTitles.Pending);
+
+    /// <summary>Chiude subito l'ondata dei nuovi titoli ("Send now"); solo per gli admin.</summary>
+    [HttpPost("Inbox/NewTitles/Send")]
+    [Authorize(Policy = Policies.RequiresElevation)]
+    public async Task<ActionResult<NewTitlesSendResponse>> SendNewTitles() =>
+        await newTitles.SendNowAsync().ConfigureAwait(false);
 
     private async Task<Guid> CallerAsync() =>
         (await authorizationContext.GetAuthorizationInfo(HttpContext).ConfigureAwait(false)).UserId;

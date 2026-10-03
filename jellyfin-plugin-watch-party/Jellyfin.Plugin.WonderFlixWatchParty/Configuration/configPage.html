@@ -5,7 +5,7 @@
     <title>WonderFlix Watch Party</title>
 </head>
 <body>
-    <div id="WonderFlixWatchPartyPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-textarea">
+    <div id="WonderFlixWatchPartyPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-textarea,emby-checkbox">
         <div data-role="content">
             <div class="content-primary">
                 <h2 class="sectionTitle">WonderFlix Watch Party</h2>
@@ -25,14 +25,55 @@
                         <div id="WonderFlixAnnouncementResult" class="fieldDescription"></div>
                     </div>
                 </form>
+                <div class="verticalSection">
+                    <h3 class="sectionTitle">New titles</h3>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="WonderFlixNotifyNewTitles" type="checkbox" is="emby-checkbox" />
+                            <span>Notify new titles</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">
+                            New movies, and new episodes of the series each user follows, are summed up in their notifications
+                            after 15 quiet minutes (2 hours at most). Turn it off before a big import: titles waiting are dropped.
+                        </div>
+                    </div>
+                    <div id="WonderFlixNewTitlesPending" class="fieldDescription"></div>
+                    <button is="emby-button" id="WonderFlixNewTitlesSend" type="button" class="raised block emby-button">
+                        <span>Send now</span>
+                    </button>
+                    <div id="WonderFlixNewTitlesResult" class="fieldDescription"></div>
+                </div>
             </div>
         </div>
         <script type="text/javascript">
             (function () {
+                var pluginId = '882eb47e-668a-4935-ba55-c2858eb4ed90';
                 var page = document.querySelector('#WonderFlixWatchPartyPage');
                 var text = page.querySelector('#WonderFlixAnnouncementText');
                 var count = page.querySelector('#WonderFlixAnnouncementCount');
                 var result = page.querySelector('#WonderFlixAnnouncementResult');
+                var notify = page.querySelector('#WonderFlixNotifyNewTitles');
+                var pending = page.querySelector('#WonderFlixNewTitlesPending');
+                var sendNow = page.querySelector('#WonderFlixNewTitlesSend');
+                var newTitlesResult = page.querySelector('#WonderFlixNewTitlesResult');
+
+                function refreshNewTitles() {
+                    ApiClient.ajax({
+                        type: 'GET',
+                        url: ApiClient.getUrl('WonderFlixWatchParty/Inbox/NewTitles'),
+                        dataType: 'json'
+                    }).then(function (status) {
+                        notify.checked = status.Enabled;
+                        pending.textContent = status.Pending === 1 ? '1 title waiting.' : status.Pending + ' titles waiting.';
+                        sendNow.disabled = !status.Enabled || status.Pending === 0;
+                    }, function () {
+                        pending.textContent = 'Status not available.';
+                        sendNow.disabled = true;
+                    });
+                }
+
+                page.addEventListener('pageshow', refreshNewTitles);
+                refreshNewTitles();
 
                 text.addEventListener('input', function () {
                     count.textContent = text.value.length;
@@ -63,6 +104,42 @@
                         result.textContent = 'Not sent: check the message (1 to 500 characters) and try again.';
                     });
                     return false;
+                });
+
+                // La casella si salva subito, nella configurazione del plugin (NotifyNewTitles).
+                notify.addEventListener('change', function () {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        config.NotifyNewTitles = notify.checked;
+                        return ApiClient.updatePluginConfiguration(pluginId, config);
+                    }).then(function (saved) {
+                        Dashboard.processPluginConfigurationUpdateResult(saved);
+                        refreshNewTitles();
+                    }, function () {
+                        Dashboard.hideLoadingMsg();
+                        newTitlesResult.textContent = 'Setting not saved.';
+                        refreshNewTitles();
+                    });
+                });
+
+                sendNow.addEventListener('click', function () {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.ajax({
+                        type: 'POST',
+                        url: ApiClient.getUrl('WonderFlixWatchParty/Inbox/NewTitles/Send'),
+                        dataType: 'json'
+                    }).then(function (response) {
+                        Dashboard.hideLoadingMsg();
+                        newTitlesResult.textContent = response.Titles === 0
+                            ? 'Nothing to send.'
+                            : 'Sent ' + response.Titles + (response.Titles === 1 ? ' title' : ' titles')
+                                + ' to ' + response.Recipients + (response.Recipients === 1 ? ' user.' : ' users.');
+                        refreshNewTitles();
+                    }, function () {
+                        Dashboard.hideLoadingMsg();
+                        newTitlesResult.textContent = 'Not sent: try again.';
+                        refreshNewTitles();
+                    });
                 });
             })();
         </script>

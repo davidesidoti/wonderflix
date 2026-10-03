@@ -19,5 +19,10 @@ public class PluginPagesTests
         Assert.Contains("pluginConfigurationPage", html);
         Assert.Contains("WonderFlixWatchParty/Inbox/Announcements", html);
         Assert.Contains("maxlength=\"500\"", html);
+        Assert.Contains("WonderFlixWatchParty/Inbox/NewTitles", html);
+        Assert.Contains("NotifyNewTitles", html);
+        Assert.Contains("emby-checkbox", html);
+        // L'id con cui la pagina legge e salva la configurazione è quello del plugin.
+        Assert.Contains(Plugin.PluginId.ToString(), html);
     }
 }
