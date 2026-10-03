@@ -57,6 +57,7 @@ void main() {
     await pumpEventQueue();
     expect(c.read(socialAvailabilityProvider),
         const SocialFeatures(inbox: true));
+    expect(c.read(socialAvailabilityProvider).inbox, isTrue);
     expect(api.calls, ['info']);
   });
 
@@ -66,6 +67,7 @@ void main() {
     await pumpEventQueue();
     expect(c.read(socialAvailabilityProvider),
         const SocialFeatures(friends: true, inbox: true));
+    expect(c.read(socialAvailabilityProvider).inbox, isTrue);
   });
 
   test('Info con gli amici: funzione attiva', () async {
@@ -155,11 +157,16 @@ void main() {
 
   test('un Info lento non vale per chi entra dopo senza watch party',
       () async {
-    api.install();
+    api.install(features: const {PluginFeatures.friends, PluginFeatures.inbox});
     final gate = api.infoGate = Completer<void>();
     final c = container();
     await pumpEventQueue();
+    expect(api.calls, ['info']);
 
+    // Il primo Info ha già la sua risposta (con la cassetta); quello del
+    // nuovo utente trova invece il plugin assente (404). Se la risposta
+    // vecchia valesse ancora, resterebbe `inbox: true`.
+    api.pluginInfo = null;
     (c.read(sessionControllerProvider.notifier) as FakeSessionController).set(
         const SessionSignedIn(JellyfinUser(
             id: 'u5', name: 'Toad', syncPlayAccess: SyncPlayAccess.none)));
@@ -271,6 +278,25 @@ void main() {
         expect(api.calls, ['info'], reason: failure.name);
       });
     }
+  });
+
+  test(
+      'senza accesso ai watch party con un plugin vecchio: 403 a Info, '
+      'nessuna funzione, senza riprovare', () {
+    fakeAsync((async) {
+      api
+        ..install()
+        ..infoFailure = SocialFailure.forbidden;
+      final c = container(
+          session: const SessionSignedIn(JellyfinUser(
+              id: 'u1', name: 'Mario', syncPlayAccess: SyncPlayAccess.none)));
+      async.flushMicrotasks();
+      expect(c.read(socialAvailabilityProvider), SocialFeatures.none);
+      expect(c.read(socialAvailabilityProvider).known, isTrue);
+      expect(api.calls, ['info']);
+      async.elapse(SocialAvailability.retryDelay * 3);
+      expect(api.calls, ['info']);
+    });
   });
 
   test('troppe richieste: come un errore di rete, si riprova', () {

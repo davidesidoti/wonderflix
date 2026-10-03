@@ -39,7 +39,9 @@ void main() {
     });
 
     expect(snapshot.entries, hasLength(2));
-    expect(snapshot.unread, 2);
+    // Il `Unread: 2` del server conta anche la voce di tipo sconosciuto, che
+    // l'app non mostra e non può segnare letta: vale solo l'invito.
+    expect(snapshot.unread, 1);
     expect(snapshot.maxSeq, 3);
     final invite = snapshot.entries.first as InviteEntry;
     expect(invite.id, 'i1');
@@ -54,6 +56,47 @@ void main() {
     expect(announcement.text, 'Stasera manutenzione');
     expect(announcement.read, isTrue);
     expect(announcement.createdAt, DateTime.utc(2026, 10, 3, 16));
+  });
+
+  test('una voce malformata si salta, le altre restano', () {
+    final snapshot = InboxSnapshot.fromJson({
+      'Entries': [
+        {
+          'Id': 'i1',
+          'Seq': 3,
+          'Type': 'Invite',
+          'CreatedAt': '2026-10-03T20:00:00+00:00',
+          'GroupId': 'g1',
+          'FromName': 'Luigi',
+        },
+        {
+          'Id': 'a0',
+          'Seq': 2,
+          'Type': 'Announcement',
+          'CreatedAt': 'non una data',
+          'Text': 'Stasera manutenzione',
+        },
+        {
+          'Id': 'a2',
+          'Seq': 4,
+          'Type': 'Announcement',
+          'CreatedAt': '2026-10-03T18:00:00+00:00',
+          'Text': 7,
+        },
+        {
+          'Id': 'a1',
+          'Seq': 1,
+          'Type': 'Announcement',
+          'CreatedAt': '2026-10-03T18:00:00+00:00',
+          'Text': 'Stasera manutenzione',
+        },
+      ],
+      'Unread': 4,
+    });
+
+    expect(snapshot.entries.map((e) => e.id), ['a1']);
+    expect(snapshot.unread, 1);
+    expect(snapshot.maxSeq, 1);
   });
 
   test('cassetta vuota; invito senza locandina', () {

@@ -1,5 +1,9 @@
 import 'dart:math' as math;
 
+import 'package:logging/logging.dart';
+
+final _log = Logger('social');
+
 /// Una voce della cassetta delle notifiche (spec G §6.2).
 sealed class InboxEntry {
   const InboxEntry({
@@ -88,13 +92,28 @@ InboxEntry? inboxEntryFromJson(Map<String, dynamic> json) {
 class InboxSnapshot {
   const InboxSnapshot({this.entries = const [], this.unread = 0});
 
-  factory InboxSnapshot.fromJson(Map<String, dynamic> json) => InboxSnapshot(
-        entries: [
-          for (final raw in json['Entries'] as List? ?? const [])
-            ?inboxEntryFromJson(raw as Map<String, dynamic>),
-        ],
-        unread: (json['Unread'] as num?)?.toInt() ?? 0,
-      );
+  factory InboxSnapshot.fromJson(Map<String, dynamic> json) {
+    final entries = <InboxEntry>[];
+    for (final raw in json['Entries'] as List? ?? const []) {
+      try {
+        final entry = inboxEntryFromJson(raw as Map<String, dynamic>);
+        if (entry != null) entries.add(entry);
+      } on Object catch (error) {
+        // Una voce malformata non deve rompere tutta la cassetta: si salta.
+        // Nel log solo il tipo dell'errore, mai il contenuto.
+        _log.info('voce della cassetta non valida: ${error.runtimeType}');
+      }
+    }
+    return InboxSnapshot(
+      entries: entries,
+      // Non si usa l'`Unread` del server: conta anche le voci di tipi che
+      // l'app non conosce (es. un plugin più nuovo), che qui non ci sono e
+      // che `markRead(maxSeq)` non può coprire perché vede solo le voci
+      // lette: il pallino resterebbe acceso per sempre. Si contano solo le
+      // voci che l'utente può vedere e quindi segnare lette.
+      unread: entries.where((e) => !e.read).length,
+    );
+  }
 
   static const empty = InboxSnapshot();
 

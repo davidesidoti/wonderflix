@@ -117,8 +117,11 @@ class SocialAvailability extends Notifier<SocialFeatures> {
     ref.onDispose(_stopRetry);
     final userId = ref.watch(sessionControllerProvider
         .select((s) => s is SessionSignedIn ? s.user.id : null));
-    if (userId == null) return SocialFeatures.none;
-    _canJoin = ref.watch(syncPlayAccessProvider).canJoin;
+    if (userId == null) {
+      _canJoin = false;
+      return SocialFeatures.none;
+    }
+    _canJoin = ref.watch(syncPlayAccessProvider.select((a) => a.canJoin));
     final subscription = ref.watch(watchPartyEventsProvider).listen((event) {
       if (event is ServerConnected) unawaited(refresh());
     });
