@@ -14,8 +14,11 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_menus.dart';
 import '../social/social_providers.dart';
 import '../watch_party/party_badge.dart';
+import '../watch_party/watch_party_actions.dart';
+import '../watch_party/watch_party_session.dart';
 import 'friend_search.dart';
 import 'friends_controller.dart';
+import 'party_code_field.dart';
 
 /// Pannello Amici aperto o chiuso (spec F §8.3). Non dipende da niente:
 /// lo legge anche la gestione di Esc. Si azzera quando nessuno lo guarda
@@ -68,7 +71,8 @@ Future<void> runFriendAction(
 
 const _mutedStyle = TextStyle(color: WfColors.creamMuted, fontSize: 13);
 
-/// Contenuto del pannello Amici (spec F §8.3): ricerca, richieste, amici.
+/// Contenuto del pannello Amici (spec F §8.3): ricerca, "Ho un codice" (con
+/// la funzione `parties` del plugin), richieste, amici.
 class FriendsPanel extends ConsumerStatefulWidget {
   const FriendsPanel({super.key});
 
@@ -149,9 +153,125 @@ class _FriendsPanelState extends ConsumerState<FriendsPanel> {
                   ref.read(friendSearchProvider.notifier).setQuery(text),
             ),
           ),
+          if (!searching &&
+              ref.watch(socialAvailabilityProvider.select((f) => f.parties)))
+            const _PartyCodeEntry(),
           Expanded(
             child: searching ? const _SearchResults() : const _FriendLists(),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Ho un codice" (spec F §9.4): un campo per entrare in un party privato.
+class _PartyCodeEntry extends ConsumerStatefulWidget {
+  const _PartyCodeEntry();
+
+  @override
+  ConsumerState<_PartyCodeEntry> createState() => _PartyCodeEntryState();
+}
+
+class _PartyCodeEntryState extends ConsumerState<_PartyCodeEntry> {
+  final _code = TextEditingController();
+  final _focus = FocusNode();
+  bool _open = false;
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _code.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _show() {
+    setState(() => _open = true);
+    // Il campo di ricerca ha già il focus: `autofocus` non basterebbe.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.requestFocus();
+    });
+  }
+
+  Future<void> _join() async {
+    if (_busy) return;
+    final l = AppLocalizations.of(context);
+    final code = normalizePartyCode(_code.text);
+    if (code.length != partyCodeLength) {
+      setState(() => _error = l.partyCodeInvalid);
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final groupId = await ref.read(socialApiProvider).joinByCode(code);
+      if (!mounted) return;
+      final joined = await joinWatchParty(context, ref, groupId);
+      if (!mounted) return;
+      setState(() => _busy = false);
+      if (joined) ref.read(friendsPanelProvider.notifier).close();
+    } on SocialException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = error.failure == SocialFailure.rateLimited
+            ? l.partyCodeTooMany
+            : l.partyCodeInvalid;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    if (!_open) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 20, 4),
+          child: TextButton.icon(
+            onPressed: _show,
+            icon: const Icon(LucideIcons.ticket, size: 16),
+            label: Text(l.partyHaveCode),
+            style: TextButton.styleFrom(foregroundColor: WfColors.gold),
+          ),
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  key: const Key('party-code-field'),
+                  controller: _code,
+                  focusNode: _focus,
+                  inputFormatters: [PartyCodeFormatter()],
+                  decoration: InputDecoration(
+                      hintText: l.partyCodeHint, isDense: true),
+                  onSubmitted: (_) => unawaited(_join()),
+                ),
+              ),
+              const SizedBox(width: 8),
+              _ActionButton(
+                  label: l.partyCodeJoin, onPressed: () => unawaited(_join())),
+            ],
+          ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(_error!,
+                  style:
+                      const TextStyle(color: WfColors.error, fontSize: 12)),
+            ),
         ],
       ),
     );
@@ -350,31 +470,59 @@ class _FriendRowState extends ConsumerState<_FriendRow> {
             .remove(widget.friend.userId)));
   }
 
+  /// Entra nel party dell'amico; riuscito, il pannello si chiude.
+  Future<void> _join(String groupId) async {
+    final joined = await joinWatchParty(context, ref, groupId);
+    if (joined && mounted) ref.read(friendsPanelProvider.notifier).close();
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final friend = widget.friend;
+    final Widget menu = _confirm != null
+        ? _ActionButton(
+            key: const Key('friend-remove-confirm'),
+            label: l.friendsRemoveConfirm,
+            danger: true,
+            onPressed: _remove,
+          )
+        : PopupMenuButton<String>(
+            tooltip: l.friendsMore,
+            icon: const Icon(LucideIcons.ellipsis,
+                size: 18, color: WfColors.creamMuted),
+            popUpAnimationStyle: wfPopUpAnimation(context),
+            onSelected: (_) => _askConfirm(),
+            itemBuilder: (context) => [
+              PopupMenuItem<String>(
+                  value: 'remove', child: Text(l.friendsRemove)),
+            ],
+          );
+    final party = friend.party;
+    // La sessione del watch party si guarda solo se serve (test e app
+    // senza party non la costruiscono).
+    final inGroupId = party == null
+        ? null
+        : ref.watch(watchPartySessionProvider
+            .select((s) => s.inGroup ? s.group?.id : null));
+    final showJoin = party != null && !_sameGroup(party.groupId, inGroupId);
     return _PersonRow(
       name: friend.name,
       online: friend.online,
-      trailing: _confirm != null
-          ? _ActionButton(
-              key: const Key('friend-remove-confirm'),
-              label: l.friendsRemoveConfirm,
-              danger: true,
-              onPressed: _remove,
-            )
-          : PopupMenuButton<String>(
-              tooltip: l.friendsMore,
-              icon: const Icon(LucideIcons.ellipsis,
-                  size: 18, color: WfColors.creamMuted),
-              popUpAnimationStyle: wfPopUpAnimation(context),
-              onSelected: (_) => _askConfirm(),
-              itemBuilder: (context) => [
-                PopupMenuItem<String>(
-                    value: 'remove', child: Text(l.friendsRemove)),
+      subtitle: party == null ? null : l.friendsInParty(party.title),
+      trailing: showJoin
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _ActionButton(
+                  key: Key('friend-join-${friend.userId}'),
+                  label: l.watchPartyJoin,
+                  onPressed: () => unawaited(_join(party.groupId)),
+                ),
+                menu,
               ],
-            ),
+            )
+          : menu,
     );
   }
 }
@@ -385,6 +533,7 @@ class _PersonRow extends StatelessWidget {
     required this.name,
     required this.trailing,
     this.online,
+    this.subtitle,
   });
 
   final String name;
@@ -392,6 +541,9 @@ class _PersonRow extends StatelessWidget {
 
   /// `null`: stato non mostrato (ricerca, richieste).
   final bool? online;
+
+  /// Seconda riga sotto il nome (es. "Nel watch party: Dune").
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -429,13 +581,25 @@ class _PersonRow extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                    color: status == false
-                        ? WfColors.creamMuted
-                        : WfColors.cream)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        color: status == false
+                            ? WfColors.creamMuted
+                            : WfColors.cream)),
+                if (subtitle != null)
+                  Text(subtitle!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: WfColors.creamMuted, fontSize: 12)),
+              ],
+            ),
           ),
           const SizedBox(width: 8),
           trailing,
@@ -500,6 +664,11 @@ class _Note extends StatelessWidget {
         child: Text(text, style: _mutedStyle),
       );
 }
+
+/// Lo stesso gruppo, con o senza trattini e maiuscole.
+bool _sameGroup(String a, String? b) =>
+    b != null &&
+    a.replaceAll('-', '').toLowerCase() == b.replaceAll('-', '').toLowerCase();
 
 /// Pannello Amici sopra la shell e la barra (spec F §8.3): entra da destra
 /// come "Audio e sottotitoli" (con le animazioni ridotte solo in

@@ -1,12 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/core/social/social_models.dart';
+import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/friends/friend_search.dart';
 import 'package:wonderflix/features/friends/friends_panel.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
+import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
+import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 
 import '../../support/pump_app.dart';
 import '../../support/social_fakes.dart';
+import '../../support/watch_party_fakes.dart';
 
 void main() {
   late FakeSocialApi api;
@@ -156,5 +165,133 @@ void main() {
     await tester.tap(find.text('Accetta'));
     await tester.pumpAndSettle();
     expect(find.text('Troppe richieste, riprova più tardi'), findsOneWidget);
+  });
+
+  group('party', () {
+    late FakeSyncPlayApi syncPlay;
+    late StreamController<ServerEvent> events;
+
+    setUp(() {
+      syncPlay = FakeSyncPlayApi();
+      events = StreamController<ServerEvent>.broadcast();
+      syncPlay.onCall = (call) {
+        if (call.startsWith('join')) {
+          events.add(SyncPlayGroupUpdated(GroupJoined('g1', testGroup())));
+        }
+      };
+    });
+
+    tearDown(() => events.close());
+
+    Future<void> pumpPartyPanel(WidgetTester tester) async {
+      await pumpApp(
+        tester,
+        const Scaffold(
+          body: Align(
+            alignment: Alignment.centerRight,
+            child: SizedBox(width: FriendsPanel.width, child: FriendsPanel()),
+          ),
+        ),
+        overrides: [
+          ...socialTestOverrides(api,
+              events: events.stream,
+              features: const SocialFeatures(friends: true, parties: true)),
+          syncPlayApiProvider.overrideWithValue(syncPlay),
+          partyChannelApiProvider
+              .overrideWithValue(FakePartyChannelApi()..install()),
+        ],
+      );
+      await tester.pump();
+    }
+
+    Future<void> leaveParty(WidgetTester tester) async {
+      final container =
+          ProviderScope.containerOf(tester.element(find.byType(FriendsPanel)));
+      await container.read(watchPartySessionProvider.notifier).leave();
+      await tester.pump();
+    }
+
+    testWidgets('"Ho un codice": il trattino da sé, poi entra',
+        (tester) async {
+      api.codes['K7PQ2X'] = 'g1';
+      await pumpPartyPanel(tester);
+      await tester.tap(find.text('Ho un codice'));
+      await tester.pump();
+      await tester.enterText(
+          find.byKey(const Key('party-code-field')), 'k7pq2x');
+      await tester.pump();
+      expect(find.text('K7P-Q2X'), findsOneWidget);
+      await tester.tap(find.text('Entra'));
+      await tester.pumpAndSettle();
+      expect(api.calls, contains('code K7PQ2X'));
+      expect(syncPlay.calls, contains('join g1'));
+      await leaveParty(tester);
+    });
+
+    testWidgets('codice sbagliato o troppi tentativi: lo dice',
+        (tester) async {
+      await pumpPartyPanel(tester);
+      await tester.tap(find.text('Ho un codice'));
+      await tester.pump();
+      await tester.enterText(
+          find.byKey(const Key('party-code-field')), 'ZZZZZZ');
+      await tester.tap(find.text('Entra'));
+      await tester.pumpAndSettle();
+      expect(find.text('Codice non valido o party finito'), findsOneWidget);
+
+      api.joinFailure = SocialFailure.rateLimited;
+      await tester.tap(find.text('Entra'));
+      await tester.pumpAndSettle();
+      expect(find.text('Troppi tentativi, riprova tra un minuto'),
+          findsOneWidget);
+    });
+
+    testWidgets('codice incompleto: lo dice senza chiedere al plugin',
+        (tester) async {
+      await pumpPartyPanel(tester);
+      await tester.tap(find.text('Ho un codice'));
+      await tester.pump();
+      await tester.enterText(find.byKey(const Key('party-code-field')), 'K7P');
+      await tester.tap(find.text('Entra'));
+      await tester.pumpAndSettle();
+      expect(find.text('Codice non valido o party finito'), findsOneWidget);
+      expect(api.calls, isNot(contains(startsWith('code'))));
+    });
+
+    testWidgets('amico in un party visibile: "Nel watch party" e Unisciti',
+        (tester) async {
+      api.snapshot = const FriendsSnapshot(friends: [
+        FriendEntry(
+          userId: 'u2',
+          name: 'Luigi',
+          online: true,
+          party: FriendParty(groupId: 'g1', title: 'Dune'),
+        ),
+      ]);
+      await pumpPartyPanel(tester);
+      expect(find.text('Nel watch party: Dune'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('friend-join-u2')));
+      await tester.pumpAndSettle();
+      expect(syncPlay.calls, contains('join g1'));
+      expect(find.byKey(const Key('friend-join-u2')), findsNothing,
+          reason: 'già nel gruppo');
+      await leaveParty(tester);
+    });
+
+    testWidgets('senza la funzione parties: niente "Ho un codice"',
+        (tester) async {
+      await pumpApp(
+        tester,
+        const Scaffold(
+          body: Align(
+            alignment: Alignment.centerRight,
+            child: SizedBox(width: FriendsPanel.width, child: FriendsPanel()),
+          ),
+        ),
+        overrides: socialTestOverrides(api),
+      );
+      await tester.pump();
+      expect(find.text('Ho un codice'), findsNothing);
+    });
   });
 }
