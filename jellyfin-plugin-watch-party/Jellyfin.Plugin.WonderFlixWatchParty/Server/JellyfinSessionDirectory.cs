@@ -1,4 +1,5 @@
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
+using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
 using MediaBrowser.Controller.Session;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Server;
@@ -23,4 +24,11 @@ public sealed class JellyfinSessionDirectory(ISessionManager sessionManager) : I
 
     public bool Exists(string sessionId) =>
         sessionManager.Sessions.Any(s => string.Equals(s.Id, sessionId, StringComparison.Ordinal));
+
+    public IReadOnlyList<CallerSession> GetAppSessions() =>
+        sessionManager.Sessions
+            .Where(s => string.Equals(s.Client, WatchPartyProtocol.ClientName, StringComparison.Ordinal)
+                && !s.UserId.Equals(Guid.Empty))
+            .Select(s => new CallerSession(s.Id, s.UserId, s.UserName))
+            .ToList();
 }

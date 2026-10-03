@@ -11,4 +11,10 @@ public interface ISessionDirectory
 
     /// <summary>La sessione esiste ancora.</summary>
     bool Exists(string sessionId);
+
+    /// <summary>
+    /// Le sessioni aperte delle app WonderFlix con un utente: chi è online e
+    /// a chi mandare gli avvisi (spec F §6.3).
+    /// </summary>
+    IReadOnlyList<CallerSession> GetAppSessions();
 }

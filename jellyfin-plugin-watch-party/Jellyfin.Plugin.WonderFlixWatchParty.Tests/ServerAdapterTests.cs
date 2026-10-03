@@ -41,6 +41,22 @@ public class ServerAdapterTests
     }
 
     [Fact]
+    public void AppSessionsAreWonderFlixWithAUser()
+    {
+        var userId = Guid.NewGuid();
+        var (manager, stub) = InterfaceStub<ISessionManager>.Create();
+        stub.Handlers["get_Sessions"] = _ => new[]
+        {
+            Session("s-web", "d1", "Jellyfin Web", userId, "Mario"),
+            Session("s-app", "d1", "WonderFlix", userId, "Mario"),
+            Session("s-anon", "d2", "WonderFlix", Guid.Empty, string.Empty),
+        };
+        var directory = new JellyfinSessionDirectory(manager);
+
+        Assert.Equal(new[] { new CallerSession("s-app", userId, "Mario") }, directory.GetAppSessions());
+    }
+
+    [Fact]
     public void ParticipantsComeFromSyncPlay()
     {
         var group = Guid.NewGuid();

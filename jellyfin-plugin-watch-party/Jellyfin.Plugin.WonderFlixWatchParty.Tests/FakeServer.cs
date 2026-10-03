@@ -3,7 +3,7 @@ using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
 
 /// <summary>Server finto: sessioni, gruppi SyncPlay e invii, in memoria.</summary>
-internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSender
+internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSender, IUserDirectory
 {
     public List<CallerSession> Sessions { get; } = [];
 
@@ -18,12 +18,41 @@ internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSen
     /// <summary>Sessioni per cui l'invio lancia un errore.</summary>
     public HashSet<string> Failing { get; } = [];
 
+    /// <summary>Utenti di Jellyfin, per id.</summary>
+    public Dictionary<Guid, UserRef> Users { get; } = [];
+
     public CallerSession AddSession(string sessionId, string userName)
     {
         var session = new CallerSession(sessionId, Guid.NewGuid(), userName);
         Sessions.Add(session);
         return session;
     }
+
+    public UserRef AddUser(string name, bool enabled = true)
+    {
+        var user = new UserRef(Guid.NewGuid(), name, enabled);
+        Users[user.Id] = user;
+        return user;
+    }
+
+    /// <summary>Una sessione WonderFlix aperta di un utente di <see cref="Users"/>.</summary>
+    public CallerSession AddSession(string sessionId, UserRef user)
+    {
+        var session = new CallerSession(sessionId, user.Id, user.Name);
+        Sessions.Add(session);
+        return session;
+    }
+
+    /// <summary>I payload mandati a una sessione, in ordine.</summary>
+    public IReadOnlyList<string> SentTo(string sessionId) =>
+        Sent.Where(s => s.SessionId == sessionId).Select(s => s.Payload).ToList();
+
+    // Nei test tutte le sessioni sono di WonderFlix.
+    public IReadOnlyList<CallerSession> GetAppSessions() => Sessions;
+
+    public IReadOnlyList<UserRef> GetUsers() => Users.Values.ToList();
+
+    public UserRef? GetUser(Guid userId) => Users.GetValueOrDefault(userId);
 
     // Nei test il dispositivo di una sessione ha lo stesso id della sessione.
     public CallerSession? FindCaller(string? deviceId, string? client, Guid userId) =>
