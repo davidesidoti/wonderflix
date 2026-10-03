@@ -154,6 +154,12 @@ public sealed class FriendGraph
 
         foreach (var request in file.Requests ?? [])
         {
+            // Un elemento null (es. "Requests":[null]) è un file rovinato.
+            if (request is null)
+            {
+                throw new FormatException("richiesta vuota");
+            }
+
             graph._requests.Add(new FriendRequestRecord(ParseId(request.From), ParseId(request.To), request.CreatedAt));
         }
 

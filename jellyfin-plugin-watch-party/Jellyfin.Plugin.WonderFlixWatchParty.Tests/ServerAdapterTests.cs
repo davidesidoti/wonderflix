@@ -68,7 +68,10 @@ public class ServerAdapterTests
         bowser.SetPermission(PermissionKind.IsDisabled, true);
         var (manager, stub) = InterfaceStub<IUserManager>.Create();
         stub.Handlers["get_Users"] = _ => new[] { mario, bowser };
-        stub.Handlers["GetUserById"] = args => (Guid)args[0]! == mario.Id ? mario : null;
+        // Come UserManager vero: con un id vuoto lancia.
+        stub.Handlers["GetUserById"] = args => (Guid)args[0]! == Guid.Empty
+            ? throw new ArgumentException("userId vuoto")
+            : (Guid)args[0]! == mario.Id ? mario : null;
         var directory = new JellyfinUserDirectory(manager);
 
         Assert.Equal(
@@ -76,6 +79,8 @@ public class ServerAdapterTests
             directory.GetUsers());
         Assert.Equal(new UserRef(mario.Id, "Mario", true), directory.GetUser(mario.Id));
         Assert.Null(directory.GetUser(Guid.NewGuid()));
+        Assert.Null(directory.GetUser(Guid.Empty));
+        Assert.DoesNotContain(stub.Calls, c => c.Name == "GetUserById" && (Guid)c.Args[0]! == Guid.Empty);
     }
 
     [Fact]

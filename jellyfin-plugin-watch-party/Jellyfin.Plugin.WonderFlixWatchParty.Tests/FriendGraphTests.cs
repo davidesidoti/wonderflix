@@ -135,5 +135,8 @@ public class FriendGraphTests
         Assert.Throws<FormatException>(() => FriendGraph.FromFile(new FriendFile { Friendships = [["only-one"]] }));
         Assert.Throws<FormatException>(() =>
             FriendGraph.FromFile(new FriendFile { Requests = [new FriendFileRequest { From = null, To = "y" }] }));
+        // Un elemento null nell'elenco (es. "Requests":[null]) o in una coppia.
+        Assert.Throws<FormatException>(() => FriendGraph.FromFile(new FriendFile { Requests = [null!] }));
+        Assert.Throws<FormatException>(() => FriendGraph.FromFile(new FriendFile { Friendships = [null!] }));
     }
 }

@@ -64,6 +64,19 @@ public sealed class FriendStoreTests : IDisposable
     }
 
     [Fact]
+    public void NullEntriesAreMovedAsideToo()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_folder.FriendsFile)!);
+        File.WriteAllText(_folder.FriendsFile, "{\"Version\":1,\"Friendships\":[],\"Requests\":[null]}");
+
+        var graph = Store().Load();
+
+        Assert.Empty(graph.FriendsOf(Guid.NewGuid()));
+        Assert.False(File.Exists(_folder.FriendsFile));
+        Assert.True(File.Exists(_folder.FriendsFile + ".bad"));
+    }
+
+    [Fact]
     public void DefaultPathIsInThePluginConfigurations()
     {
         var (paths, stub) = InterfaceStub<IApplicationPaths>.Create();

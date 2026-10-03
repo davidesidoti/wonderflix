@@ -57,7 +57,14 @@ public sealed class FriendStore(string filePath, ILogger<FriendStore> logger)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
         var temporary = FilePath + ".tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(graph.ToFile(), Options));
+        using (var stream = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None))
+        {
+            JsonSerializer.Serialize(stream, graph.ToFile(), Options);
+
+            // Su disco prima della rinomina: senza, una caduta di corrente lascia friends.json vuoto.
+            stream.Flush(flushToDisk: true);
+        }
+
         File.Move(temporary, FilePath, overwrite: true);
     }
 }
