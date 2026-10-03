@@ -41,22 +41,26 @@ void main() {
     expect(api.calls, isEmpty);
   });
 
-  test('legge alla nascita, a ogni InboxChanged e a ogni riconnessione',
-      () async {
+  test('legge alla nascita, a ogni InboxChanged e a ogni connessione del '
+      'WebSocket, la prima compresa', () async {
     api.inboxSnapshot = InboxSnapshot(entries: [testAnnouncement()], unread: 1);
     final c = container();
     await pumpEventQueue();
     expect(c.read(inboxControllerProvider).loaded, isTrue);
     expect(c.read(inboxControllerProvider).unread, 1);
+    expect(loads(), 1);
 
     events.add(inboxChangedReceived());
     await pumpEventQueue();
+    expect(loads(), 2);
     events.add(const ServerConnected(true));
     await pumpEventQueue();
-    // La prima connessione non è una riconnessione: niente lettura in più.
+    expect(loads(), 3);
+    // Anche la prima connessione rilegge: un InboxChanged mandato tra la prima
+    // lettura e il WebSocket aperto altrimenti andrebbe perso.
     events.add(const ServerConnected(false));
     await pumpEventQueue();
-    expect(loads(), 3);
+    expect(loads(), 4);
   });
 
   test('pannello aperto: le non lette diventano lette e prendono il pallino',

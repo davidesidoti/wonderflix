@@ -53,7 +53,7 @@ class InboxState {
 }
 
 /// Legge la cassetta dal plugin: alla nascita, a ogni avviso
-/// `InboxChanged`, a ogni riconnessione del WebSocket e all'apertura del
+/// `InboxChanged`, a ogni connessione del WebSocket e all'apertura del
 /// pannello. Con il pannello aperto le voci non lette diventano subito
 /// lette (sul plugin fino alla più recente) e prendono il pallino.
 class InboxController extends Notifier<InboxState> {
@@ -86,8 +86,10 @@ class InboxController extends Notifier<InboxState> {
       if (event is InboxChangedEvent) unawaited(reload());
     });
     final connections = ref.watch(watchPartyEventsProvider).listen((event) {
-      // Gli avvisi persi mentre il WebSocket era giù.
-      if (event is ServerConnected && event.isReconnect) unawaited(reload());
+      // A ogni connessione, la prima compresa: un InboxChanged mandato tra la
+      // prima lettura e l'apertura del WebSocket andrebbe perso, e dopo una
+      // riconnessione ci sono gli avvisi persi mentre il WebSocket era giù.
+      if (event is ServerConnected) unawaited(reload());
     });
     ref.onDispose(() {
       unawaited(notices.cancel());
