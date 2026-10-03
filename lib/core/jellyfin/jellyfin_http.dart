@@ -62,8 +62,10 @@ class JellyfinHttp {
       _send(() => dio.post<dynamic>(path, data: body, queryParameters: query),
           quietStatuses: quietStatuses);
 
-  Future<dynamic> delete(String path, {Map<String, dynamic>? query}) =>
-      _send(() => dio.delete<dynamic>(path, queryParameters: query));
+  Future<dynamic> delete(String path,
+          {Map<String, dynamic>? query, Set<int> quietStatuses = const {}}) =>
+      _send(() => dio.delete<dynamic>(path, queryParameters: query),
+          quietStatuses: quietStatuses);
 
   Future<dynamic> _send(Future<Response<dynamic>> Function() request,
       {Set<int> quietStatuses = const {}}) async {

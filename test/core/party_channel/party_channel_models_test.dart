@@ -113,4 +113,16 @@ void main() {
     expect(info.version, '1.0.0');
     expect(info.protocol, 1);
   });
+
+  test('gli avvisi degli amici si scartano senza scrivere nel log', () {
+    final records = <LogRecord>[];
+    final subscription = Logger.root.onRecord.listen(records.add);
+    addTearDown(subscription.cancel);
+    expect(parsePartyEvent('{"Protocol":1,"Type":"FriendsChanged"}'), isNull);
+    expect(
+        parsePartyEvent('{"Protocol":1,"Type":"FriendRequest",'
+            '"FromUserId":"u2","FromName":"Luigi"}'),
+        isNull);
+    expect(records, isEmpty);
+  });
 }
