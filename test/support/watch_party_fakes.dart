@@ -196,6 +196,18 @@ class FakePartyNavigator implements PartyNavigator {
   }
 }
 
+extension GroupInfoWithMode on GroupInfo {
+  /// Lo stesso gruppo con la modalità del plugin (solo per i test).
+  GroupInfo copyWithMode(PartyMode mode) => GroupInfo(
+        id: id,
+        name: name,
+        state: state,
+        participants: participants,
+        lastUpdatedAt: lastUpdatedAt,
+        mode: mode,
+      );
+}
+
 /// Elenco dei gruppi fisso, senza richieste né timer.
 class FakeWatchPartyDirectory extends WatchPartyDirectory {
   FakeWatchPartyDirectory([this.initial = const []]);
@@ -258,7 +270,10 @@ class FakeWatchPartyInvites extends WatchPartyInvites {
   int dismissed = 0;
 
   @override
-  GroupInfo? build() => initial;
+  WatchPartyInvite? build() {
+    final group = initial;
+    return group == null ? null : WatchPartyInvite(group);
+  }
 
   @override
   void dismiss() {
@@ -266,8 +281,9 @@ class FakeWatchPartyInvites extends WatchPartyInvites {
     state = null;
   }
 
-  /// Un invito arriva (come un gruppo nuovo nell'elenco).
-  void show(GroupInfo group) => state = group;
+  /// Un invito arriva (come un gruppo nuovo nell'elenco, o di un amico).
+  void show(GroupInfo group, {String? invitedBy}) =>
+      state = WatchPartyInvite(group, invitedBy: invitedBy);
 }
 
 /// `PartyChannelApi` in memoria. Di default il plugin è assente: `info`

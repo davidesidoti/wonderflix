@@ -8,6 +8,7 @@ import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/player/player_active.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
 import 'package:wonderflix/features/watch_party/watch_party_invites.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
@@ -15,6 +16,7 @@ import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
+import '../../support/social_fakes.dart';
 import '../../support/test_data.dart';
 import '../../support/watch_party_fakes.dart';
 
@@ -50,6 +52,21 @@ void main() {
     container.listen(watchPartyInvitesProvider, (_, _) {});
   }
 
+  /// Come [mount], con la funzione `parties` del plugin.
+  void mountWithParties() {
+    container = ProviderContainer(overrides: [
+      sessionControllerProvider.overrideWith(
+          () => FakeSessionController(const SessionSignedIn(testUser))),
+      syncPlayApiProvider.overrideWithValue(api),
+      watchPartyEventsProvider.overrideWithValue(events.stream),
+      watchPartyDirectoryProvider.overrideWith(FakeWatchPartyDirectory.new),
+      socialApiProvider.overrideWithValue(FakeSocialApi()),
+      socialAvailabilityProvider.overrideWith(() => FakeSocialAvailability(
+          const SocialFeatures(friends: true, parties: true))),
+    ]);
+    container.listen(watchPartyInvitesProvider, (_, _) {});
+  }
+
   void groups(FakeAsync async, List<GroupInfo> list) {
     (container.read(watchPartyDirectoryProvider.notifier)
             as FakeWatchPartyDirectory)
@@ -57,7 +74,7 @@ void main() {
     async.flushMicrotasks();
   }
 
-  GroupInfo? invite() => container.read(watchPartyInvitesProvider);
+  GroupInfo? invite() => container.read(watchPartyInvitesProvider)?.group;
 
   test('i gruppi della prima lettura non sono inviti; uno nuovo sì, per 10 s',
       () {
@@ -187,6 +204,38 @@ void main() {
       expect(invite(), isNull);
       async.elapse(WatchPartySession.joinTimeout);
       container.dispose();
+    });
+  });
+
+  test('con la funzione parties: schede dagli avvisi del plugin', () {
+    fakeAsync((async) {
+      mountWithParties();
+      async.flushMicrotasks();
+      events.add(partyStartedReceived('g7', 'Luigi · Arrival'));
+      async.flushMicrotasks();
+      expect(invite()?.id, 'g7');
+      expect(container.read(watchPartyInvitesProvider)!.invitedBy, isNull);
+      final directory = container.read(watchPartyDirectoryProvider.notifier)
+          as FakeWatchPartyDirectory;
+      expect(directory.refreshCalls, greaterThan(0),
+          reason: 'il party nuovo entra subito nell\'elenco');
+
+      events.add(partyInviteReceived('g8', 'Peach · Up', 'Peach'));
+      async.flushMicrotasks();
+      expect(container.read(watchPartyInvitesProvider)!.invitedBy, 'Peach');
+      async.elapse(WatchPartyInvites.showFor);
+      expect(invite(), isNull);
+    });
+  });
+
+  test('con la funzione parties un gruppo nuovo nell\'elenco non è un invito',
+      () {
+    fakeAsync((async) {
+      mountWithParties();
+      async.flushMicrotasks();
+      groups(async, [g1]);
+      groups(async, [g1, g2]);
+      expect(invite(), isNull);
     });
   });
 

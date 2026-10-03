@@ -6,11 +6,13 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/motion.dart';
 import '../../app/theme.dart';
+import '../../core/social/social_models.dart';
 import '../../core/syncplay/syncplay_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_buttons.dart';
 import '../auth/session_controller.dart';
 import '../player/player_active.dart';
+import '../social/social_providers.dart';
 import 'watch_party_actions.dart';
 import 'watch_party_directory.dart';
 import 'watch_party_providers.dart';
@@ -30,12 +32,22 @@ import 'watch_party_session.dart';
 
 String _normalizeId(String id) => id.replaceAll('-', '').toLowerCase();
 
+/// La scheda d'invito: un gruppo appena nato o un invito di un amico.
+class WatchPartyInvite {
+  const WatchPartyInvite(this.group, {this.invitedBy});
+
+  final GroupInfo group;
+
+  /// Chi ci ha invitato (`PartyInvite`); `null` per un gruppo appena nato.
+  final String? invitedBy;
+}
+
 /// Invito a un watch party appena nato (spec B §5.8): l'ultimo gruppo nuovo
 /// comparso nell'elenco, per [showFor]. I gruppi della prima lettura dopo
 /// il login non sono inviti, né quelli in cui siamo stati. Niente inviti
 /// dentro un gruppo (o entrando), con il player aperto o senza il permesso
 /// di entrare.
-class WatchPartyInvites extends Notifier<GroupInfo?> {
+class WatchPartyInvites extends Notifier<WatchPartyInvite?> {
   static const showFor = Duration(seconds: 10);
 
   /// Gruppi dell'ultima lettura; `null` prima della prima.
@@ -47,13 +59,21 @@ class WatchPartyInvites extends Notifier<GroupInfo?> {
   Timer? _timer;
 
   @override
-  GroupInfo? build() {
+  WatchPartyInvite? build() {
     ref.watch(sessionControllerProvider
         .select((s) => s is SessionSignedIn ? s.user.id : null));
     _known = null;
     _visited.clear();
     _timer = null;
-    ref.listen(watchPartyDirectoryProvider, (_, groups) => _onGroups(groups));
+    // Spec F §9.6: con la funzione `parties` le schede le annuncia il
+    // plugin; altrimenti nascono dal confronto tra due letture dell'elenco.
+    if (ref.watch(socialAvailabilityProvider.select((f) => f.parties))) {
+      final subscription =
+          ref.watch(socialEventsProvider).listen(_onSocialEvent);
+      ref.onDispose(() => unawaited(subscription.cancel()));
+    } else {
+      ref.listen(watchPartyDirectoryProvider, (_, groups) => _onGroups(groups));
+    }
     ref.listen(playerActiveProvider, (_, active) {
       if (active) dismiss();
     });
@@ -85,19 +105,53 @@ class WatchPartyInvites extends Notifier<GroupInfo?> {
           group,
     ];
     if (fresh.isEmpty) return;
+    _offer(WatchPartyInvite(fresh.last));
+  }
+
+  void _onSocialEvent(SocialEvent event) {
+    final invite = switch (event) {
+      PartyStartedEvent() =>
+        WatchPartyInvite(_group(event.groupId, event.name, event.mode)),
+      PartyInviteEvent() => WatchPartyInvite(
+          _group(event.groupId, event.name, null),
+          invitedBy: event.fromName),
+      _ => null,
+    };
+    if (invite == null) return;
+    // Il party nuovo (o quello in cui siamo invitati) entra subito
+    // nell'elenco del chip.
+    unawaited(ref.read(watchPartyDirectoryProvider.notifier).refresh());
+    _offer(invite);
+  }
+
+  GroupInfo _group(String id, String name, PartyMode? mode) => GroupInfo(
+        id: id,
+        name: name,
+        state: GroupState.idle,
+        participants: const [],
+        lastUpdatedAt: DateTime.utc(1970),
+        mode: mode,
+      );
+
+  /// Mostra [invite] per [showFor], con le regole di sempre: non per i
+  /// gruppi già visitati, non dentro un gruppo o entrando, non con il player
+  /// aperto, non senza il permesso di entrare.
+  void _offer(WatchPartyInvite invite) {
+    if (_visited.contains(_normalizeId(invite.group.id))) return;
     if (!ref.read(syncPlayAccessProvider).canJoin ||
         ref.read(playerActiveProvider) ||
         ref.read(watchPartySessionProvider).phase != WatchPartyPhase.none) {
       return;
     }
     _timer?.cancel();
-    state = fresh.last;
+    state = invite;
     _timer = Timer(showFor, dismiss);
   }
 }
 
 final watchPartyInvitesProvider =
-    NotifierProvider<WatchPartyInvites, GroupInfo?>(WatchPartyInvites.new);
+    NotifierProvider<WatchPartyInvites, WatchPartyInvite?>(
+        WatchPartyInvites.new);
 
 /// Scheda dell'invito, in alto a destra nella shell: entra da destra e se
 /// ne va in dissolvenza (spec C §11.4).
@@ -106,11 +160,12 @@ class WatchPartyInviteCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final group = ref.watch(watchPartyInvitesProvider);
-    final current = group == null
+    final invite = ref.watch(watchPartyInvitesProvider);
+    final current = invite == null
         ? const SizedBox.shrink(key: ValueKey('no-invite'))
         : KeyedSubtree(
-            key: ValueKey(group.id), child: _card(context, ref, group));
+            key: ValueKey(invite.group.id),
+            child: _card(context, ref, invite));
     return AnimatedSwitcher(
       duration: WfMotion.of(context).duration(WfMotion.medium),
       transitionBuilder: (child, animation) => IgnorePointer(
@@ -130,9 +185,9 @@ class WatchPartyInviteCard extends ConsumerWidget {
     );
   }
 
-  Widget _card(BuildContext context, WidgetRef ref, GroupInfo group) {
+  Widget _card(BuildContext context, WidgetRef ref, WatchPartyInvite invite) {
     final l = AppLocalizations.of(context);
-    final names = partyNameParts(group);
+    final names = partyNameParts(invite.group);
     final invites = ref.read(watchPartyInvitesProvider.notifier);
     return Material(
       key: const Key('watch-party-invite'),
@@ -152,7 +207,10 @@ class WatchPartyInviteCard extends ConsumerWidget {
                   const Icon(LucideIcons.users, size: 18, color: WfColors.gold),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(l.watchPartyInviteTitle(names.host),
+                    child: Text(
+                        invite.invitedBy != null
+                            ? l.partyInviteTitle(invite.invitedBy!)
+                            : l.watchPartyInviteTitle(names.host),
                         style: const TextStyle(fontWeight: FontWeight.w600)),
                   ),
                   IconButton(
@@ -177,7 +235,7 @@ class WatchPartyInviteCard extends ConsumerWidget {
                   icon: LucideIcons.play,
                   onPressed: () {
                     invites.dismiss();
-                    unawaited(joinWatchParty(context, ref, group.id));
+                    unawaited(joinWatchParty(context, ref, invite.group.id));
                   },
                 ),
               ),

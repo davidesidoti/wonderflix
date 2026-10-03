@@ -11,6 +11,7 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_menus.dart';
 import 'party_badge.dart';
 import 'party_channel.dart';
+import 'party_mode_labels.dart';
 import 'watch_party_actions.dart';
 import 'watch_party_directory.dart';
 import 'watch_party_providers.dart';
@@ -83,10 +84,21 @@ class _GroupTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(group.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                Row(
+                  children: [
+                    if (group.mode != null) ...[
+                      Icon(partyModeIcon(group.mode!),
+                          size: 14, color: WfColors.creamMuted),
+                      const SizedBox(width: 6),
+                    ],
+                    Flexible(
+                      child: Text(group.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                  ],
+                ),
                 Text(
                     '${l.watchPartyMembers(group.participants.length)} · '
                     '${groupStateLabel(l, group.state)}',

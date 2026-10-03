@@ -3,12 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
+import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/player/player_active.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 
 import '../../support/fake_session_controller.dart';
+import '../../support/social_fakes.dart';
 import '../../support/test_data.dart';
 import '../../support/watch_party_fakes.dart';
 
@@ -82,6 +85,31 @@ void main() {
       async.elapse(const Duration(minutes: 2));
       expect(api.calls, isEmpty);
       expect(container.read(watchPartyDirectoryProvider), isEmpty);
+      container.dispose();
+    });
+  });
+
+  test('con la funzione parties l\'elenco viene dal plugin', () {
+    fakeAsync((async) {
+      final social = FakeSocialApi()
+        ..partyList = [
+          testGroup(id: 'g9', name: 'Mario · Up')
+              .copyWithMode(PartyMode.friends),
+        ];
+      final container = ProviderContainer(overrides: [
+        sessionControllerProvider.overrideWith(
+            () => FakeSessionController(const SessionSignedIn(testUser))),
+        syncPlayApiProvider.overrideWithValue(api),
+        socialApiProvider.overrideWithValue(social),
+        socialAvailabilityProvider.overrideWith(() => FakeSocialAvailability(
+            const SocialFeatures(friends: true, parties: true))),
+      ]);
+      container.listen(watchPartyDirectoryProvider, (_, _) {});
+      async.flushMicrotasks();
+      expect(social.calls, ['parties']);
+      expect(api.calls, isEmpty);
+      expect(container.read(watchPartyDirectoryProvider).single.mode,
+          PartyMode.friends);
       container.dispose();
     });
   });

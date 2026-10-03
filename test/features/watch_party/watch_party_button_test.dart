@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
@@ -59,6 +60,13 @@ void main() {
   testWidgets('nessun gruppo: nessun pulsante', (tester) async {
     await pumpButton(tester, const []);
     expect(find.byKey(const Key('watch-party-button')), findsNothing);
+  });
+
+  testWidgets('elenco dal plugin: icona della modalità', (tester) async {
+    await pumpButton(tester, [testGroup().copyWithMode(PartyMode.private)]);
+    await tester.tap(find.byKey(const Key('watch-party-button')));
+    await tester.pumpAndSettle();
+    expect(find.byIcon(LucideIcons.lock), findsOneWidget);
   });
 
   testWidgets('elenco dei gruppi e ingresso', (tester) async {
