@@ -28,8 +28,9 @@ class FakeSocialApi implements SocialApi {
   /// Errore della prossima chiamata (tranne [info]); poi si azzera.
   SocialFailure? nextFailure;
 
-  /// Se valorizzato, [friends] e [search] aspettano che si completi (la
-  /// risposta è quella del momento della chiamata).
+  /// Se valorizzato, [info], [friends] e [search] aspettano che si completi
+  /// (la risposta è quella del momento della chiamata).
+  Completer<void>? infoGate;
   Completer<void>? friendsGate;
   Completer<void>? searchGate;
 
@@ -51,8 +52,9 @@ class FakeSocialApi implements SocialApi {
   Future<SocialPluginInfo> info() async {
     calls.add('info');
     final failure = infoFailure;
-    if (failure != null) throw SocialException(failure);
     final info = pluginInfo;
+    await infoGate?.future;
+    if (failure != null) throw SocialException(failure);
     if (info == null) {
       throw const SocialException(SocialFailure.unavailable);
     }

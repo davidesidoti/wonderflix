@@ -41,6 +41,27 @@ void main() {
     });
   });
 
+  test('una richiesta più recente sostituisce la precedente e riavvia i 10 s',
+      () {
+    fakeAsync((async) {
+      final c = container();
+      async.flushMicrotasks();
+      events.add(friendRequestReceived('u2', 'Luigi'));
+      async.flushMicrotasks();
+      async.elapse(const Duration(seconds: 6));
+      expect(c.read(friendRequestNoticesProvider)?.fromName, 'Luigi');
+
+      events.add(friendRequestReceived('u3', 'Peach'));
+      async.flushMicrotasks();
+      expect(c.read(friendRequestNoticesProvider)?.fromName, 'Peach');
+      // 12 s dalla prima richiesta, 6 dalla seconda: il timer è ripartito.
+      async.elapse(const Duration(seconds: 6));
+      expect(c.read(friendRequestNoticesProvider)?.fromName, 'Peach');
+      async.elapse(const Duration(seconds: 4));
+      expect(c.read(friendRequestNoticesProvider), isNull);
+    });
+  });
+
   test('non con il player aperto; aprirlo la toglie', () {
     fakeAsync((async) {
       final c = container();

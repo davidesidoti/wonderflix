@@ -15,6 +15,9 @@ class FakeSessionController extends SessionController {
   @override
   SessionState build() => initial;
 
+  /// Cambia lo stato della sessione, come un login o un logout.
+  void set(SessionState next) => state = next;
+
   @override
   Future<void> restore() async {
     restoreCalls++;

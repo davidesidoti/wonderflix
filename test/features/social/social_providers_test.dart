@@ -64,14 +64,14 @@ void main() {
     expect(c.read(socialAvailabilityProvider), SocialFeatures.none);
   });
 
-  test('alla riconnessione rilegge Info; un errore di rete non cambia nulla',
+  test('a ogni connessione rilegge Info; un errore di rete non cambia nulla',
       () async {
     api.install();
     final c = container();
     await pumpEventQueue();
     events.add(const ServerConnected(false));
     await pumpEventQueue();
-    expect(api.calls, ['info'], reason: 'la prima connessione non conta');
+    expect(api.calls, ['info', 'info'], reason: 'anche la prima connessione');
 
     api.infoFailure = SocialFailure.network;
     events.add(const ServerConnected(true));
@@ -84,7 +84,72 @@ void main() {
     events.add(const ServerConnected(true));
     await pumpEventQueue();
     expect(c.read(socialAvailabilityProvider), SocialFeatures.none);
-    expect(api.calls, ['info', 'info', 'info']);
+    expect(api.calls, ['info', 'info', 'info', 'info']);
+  });
+
+  test('un primo controllo fallito si ripete alla prima connessione',
+      () async {
+    api
+      ..install()
+      ..infoFailure = SocialFailure.network;
+    final c = container();
+    await pumpEventQueue();
+    expect(c.read(socialAvailabilityProvider), SocialFeatures.none);
+
+    api.infoFailure = null;
+    events.add(const ServerConnected(false));
+    await pumpEventQueue();
+    expect(c.read(socialAvailabilityProvider),
+        const SocialFeatures(friends: true));
+  });
+
+  test('un Info lento non vale più dopo un logout', () async {
+    api.install();
+    final gate = api.infoGate = Completer<void>();
+    final c = container();
+    await pumpEventQueue();
+    expect(api.calls, ['info']);
+
+    (c.read(sessionControllerProvider.notifier) as FakeSessionController)
+        .set(const SessionSignedOut());
+    await pumpEventQueue();
+    gate.complete();
+    await pumpEventQueue();
+
+    expect(c.read(socialAvailabilityProvider), SocialFeatures.none);
+  });
+
+  test('il primo controllo non parte se l\'utente cambia prima del microtask',
+      () async {
+    api.install();
+    final c = container();
+    (c.read(sessionControllerProvider.notifier) as FakeSessionController)
+        .set(const SessionSignedOut());
+    // Leggere subito ricostruisce il provider prima del microtask con cui
+    // `build` aveva fatto partire il primo controllo.
+    expect(c.read(socialAvailabilityProvider), SocialFeatures.none);
+    await pumpEventQueue();
+
+    expect(api.calls, isEmpty);
+    expect(c.read(socialAvailabilityProvider), SocialFeatures.none);
+  });
+
+  test('un Info lento non vale per chi entra dopo senza watch party',
+      () async {
+    api.install();
+    final gate = api.infoGate = Completer<void>();
+    final c = container();
+    await pumpEventQueue();
+
+    (c.read(sessionControllerProvider.notifier) as FakeSessionController).set(
+        const SessionSignedIn(JellyfinUser(
+            id: 'u5', name: 'Toad', syncPlayAccess: SyncPlayAccess.none)));
+    await pumpEventQueue();
+    gate.complete();
+    await pumpEventQueue();
+
+    expect(c.read(socialAvailabilityProvider), SocialFeatures.none);
+    expect(api.calls, ['info'], reason: 'per il nuovo utente nessuna chiamata');
   });
 
   test('avvisi sociali dal WebSocket', () async {

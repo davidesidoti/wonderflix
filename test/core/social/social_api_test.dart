@@ -82,6 +82,7 @@ void main() {
     }
 
     expect(await failureOf(const FakeResponse(404)), SocialFailure.unavailable);
+    expect(await failureOf(const FakeResponse(400)), SocialFailure.forbidden);
     expect(await failureOf(const FakeResponse(403)), SocialFailure.forbidden);
     expect(await failureOf(const FakeResponse(409)), SocialFailure.conflict);
     expect(
