@@ -17,7 +17,7 @@ Nessuna notifica fuori dall'app (né Discord né notifiche di Windows): chi ha l
 ## 2. Situazione di partenza
 
 - **Plugin 1.1.0** (`jellyfin-plugin-watch-party/`): amici su disco (`FriendStore`, `friends.json` in `<PluginConfigurationsPath>/WonderFlixWatchParty/`), party in RAM (`PartyDirectory`), `PartyService.InviteAsync` con l'avviso `PartyInvite` alle sessioni degli invitati che vedono la coda (Spec F §6.6). Pulizia periodica ogni 5 minuti (`WatchPartyHostedService.CleanupInterval`). Il plugin non ha impostazioni (`BasePlugin<BasePluginConfiguration>`, niente pagina nella Dashboard). `Info` risponde `{Version, Protocol: 1, Features: ["friends", "parties"]}`.
-- **App 0.6.0:** `SocialAvailability` legge `Info.Features` (`SocialFeatures`, `known: false` finché `Info` non risponde); `SocialEvents` smista gli avvisi del plugin; `parseSocialEvent` scarta in silenzio i tipi sconosciuti, mentre `parsePartyEvent` scrive una riga `info` ("evento del canale non riconosciuto") per i tipi che non sono in `socialEventTypes`.
+- **App 0.6.0:** `SocialAvailability` legge `Info.Features` (`SocialFeatures`, `known: false` finché `Info` non risponde); `SocialEvents` smista gli avvisi del plugin; `parseSocialEvent` scarta in silenzio i tipi sconosciuti, mentre `parsePartyEvent` (solo mentre l'app è dentro un canale di party) per i tipi che non sono in `socialEventTypes` scrive una riga `info`: "evento del canale non riconosciuto" se l'evento ha l'`Id` dei messaggi del canale, "evento del canale non valido: TypeError" se non ce l'ha (come gli avvisi del plugin).
 - **Barra in alto** (`lib/app/app_shell.dart`): `WatchPartyButton`, `FriendsButton`, avatar. Il pannello Amici (`FriendsPanelHost`, `FriendsPanelController`) sta a destra, largo 360 px.
 - **Scheda d'invito** (`WatchPartyInvites`): "{nome} ti invita a un watch party" per 10 s, fuori dal player.
 - **Nell'app non ci sono dialoghi** (Spec C): le conferme sono pulsanti che diventano "Conferma" per 4 s.
@@ -84,7 +84,7 @@ Come in 1.1.0, il nucleo del plugin non conosce Jellyfin: le nuove classi parlan
 
 - File `inbox.json` in `<PluginConfigurationsPath>/WonderFlixWatchParty/`, accanto a `friends.json`.
 - Contenuto: `{"Version": 1, "Users": {"<userId>": {"NextSeq": 42, "Entries": [ … ]}}}`. Id in formato `N`.
-- Stesse regole di `FriendStore`: caricato all'avvio; ogni modifica riscrive il file in modo atomico (file temporaneo + rinomina), scritture serializzate da un lock; file illeggibile rinominato in `inbox.json.bad`, riga `Warning`, si riparte vuoti.
+- Stesse regole di `FriendStore`: caricato all'avvio; ogni modifica riscrive il file in modo atomico (file temporaneo + rinomina), scritture serializzate da un lock; file illeggibile rinominato in `inbox.json.bad`, riga `Warning`, si riparte vuoti. In più rispetto a `FriendStore`: se anche la rinomina fallisce (`IOException`, `UnauthorizedAccessException`) la cassetta funziona lo stesso: si riparte vuoti con una riga `Warning` (solo il percorso, mai il contenuto), il file illeggibile resta dov'è e il prossimo salvataggio lo sovrascrive.
 - **Limiti:** oltre 100 voci per utente si toglie quella con `Seq` più basso. Alla pulizia periodica (ogni 5 minuti) spariscono le voci con `CreatedAt` più vecchio di 30 giorni e gli utenti che non esistono più in Jellyfin. La pulizia delle notifiche ha il suo `try/catch` in `WatchPartyHostedService`, separato da quello dei gruppi e dei party: un errore dell'una non salta l'altra (riga `Warning`). Anche la lettura di `inbox.json` all'avvio ha il suo, separato da quello di `friends.json`.
 
 ### 6.2 Voci
@@ -118,7 +118,7 @@ Campi comuni: `Id` (Guid `N`), `Seq` (intero per utente, da `NextSeq`), `Type`, 
 
 ### 6.4 Avviso `InboxChanged`
 
-`{Protocol: 1, Type: "InboxChanged"}`, stesso trasporto della Spec E/F (`SendString`, chiave `WonderFlixWatchParty`), a tutte le sessioni WonderFlix dell'utente quando la sua cassetta cambia: voce nuova o aggiornata, lettura, cancellazione, svuotamento. L'app rilegge `GET Inbox`. Le app 0.6.0 lo scartano (`parseSocialEvent` → `null`) con una riga `info` di `parsePartyEvent`: innocuo.
+`{Protocol: 1, Type: "InboxChanged"}`, stesso trasporto della Spec E/F (`SendString`, chiave `WonderFlixWatchParty`), a tutte le sessioni WonderFlix dell'utente quando la sua cassetta cambia: voce nuova o aggiornata, lettura, cancellazione, svuotamento. L'app rilegge `GET Inbox`. Le app 0.6.0 lo scartano senza effetti: `parseSocialEvent` restituisce `null` e `parsePartyEvent` (solo mentre l'app è dentro un canale di party) scrive la riga `info` "evento del canale non valido: TypeError", perché l'evento non ha `Id`. Nessun effetto funzionale.
 
 ### 6.5 Voci d'invito
 
@@ -128,7 +128,7 @@ In `PartyService.InviteAsync`, dopo aver scelto gli invitati validi (amici, non 
 - **Accesso:** per ogni invitato **attivo** (non disabilitato), la voce si crea solo se l'invitato può vedere l'elemento (accesso alla libreria e limiti d'età del suo profilo, controllati sull'utente, non su una sessione: vale anche per chi è offline). Altrimenti niente voce.
 - **Errori:** un errore nella creazione delle voci o nell'avviso `InboxChanged` va nel log (`Warning`) e non arriva mai all'invito: l'avviso `PartyInvite` e la risposta restano quelli di sempre.
 - **Campi:** `FromName` = nome di chi invita; `Title` = la parte del nome del gruppo dopo "Host · " (come `Party.Title` in `GET Friends`); `ImageItemId` = la serie per un episodio, l'elemento stesso per un film.
-- **Una voce per party:** se l'invitato ha già una voce `Invite` con lo stesso `GroupId`, la voce si aggiorna (`FromName`, `CreatedAt`, `Read = false`, nuovo `Seq`) invece di aggiungerne un'altra.
+- **Una voce per party:** se l'invitato ha già una voce `Invite` con lo stesso `GroupId`, la voce si aggiorna (`FromName`, `Title`, `ImageItemId`, `CreatedAt`, `Read = false`, nuovo `Seq`) invece di aggiungerne un'altra.
 - **Party finito:** la voce resta; è l'app a mostrarla come finita (§7.6).
 
 ### 6.6 Nuovi titoli
@@ -184,7 +184,7 @@ Arriva con il piano 13b: il plugin del 13a non ha `NewTitlesCollector`, né la c
 ### 7.3 `InboxController`
 
 - Stato `InboxState {snapshot, loaded, failed, highlighted}`, vivo per tutta la sessione dell'utente (si azzera al logout). `loaded`: almeno un caricamento è riuscito. `failed`: l'ultimo non è riuscito (resta la cassetta di prima). `highlighted`: gli id delle voci con il pallino (§7.5), che si svuota alla chiusura del pannello.
-- Rilegge `GET Inbox` quando `inbox` diventa disponibile, a ogni `InboxChanged`, a ogni riconnessione del WebSocket e all'apertura del pannello. Le risposte superate da una lettura più recente si scartano (contatore, come in `FriendsController`); anche le azioni fanno avanzare il contatore, così una lettura partita prima non rimette la voce tolta.
+- Rilegge `GET Inbox` quando `inbox` diventa disponibile, a ogni `InboxChanged`, a ogni connessione del WebSocket e all'apertura del pannello. La **prima connessione rilegge come le altre**: un `InboxChanged` mandato tra la prima lettura e l'apertura del WebSocket andrebbe perso. Un ricaricamento fallito dopo un caricamento riuscito tiene l'ultimo elenco (`failed` sale, lo snapshot resta). Le risposte superate da una lettura più recente si scartano (contatore, come in `FriendsController`); anche le azioni fanno avanzare il contatore, così una lettura partita prima non rimette la voce tolta.
 - Azioni: `remove(id)`, `clear()`. Si vedono subito e **dopo ogni azione si rilegge, anche se è riuscita**: il plugin manda `InboxChanged` solo se qualcosa è cambiato, e la lettura scartata non tornerebbe. Se la chiamata fallisce compare la snackbar `inboxActionFailed` (la mostra il pannello, l'azione restituisce l'esito).
 - `ShellPanelController` chiama `panelOpened()` e `panelClosed()`: con il pannello aperto le voci non lette diventano lette (`markInboxRead(upTo)`, sul plugin fino alla più recente) e prendono il pallino; alla chiusura i pallini spariscono. Il flag "pannello aperto" si azzera solo al cambio di utente (non quando la funzione va e viene).
 - `unread` per il numero sull'icona.
@@ -200,7 +200,7 @@ Arriva con il piano 13b: il plugin del 13a non ha `NewTitlesCollector`, né la c
 - **Apertura:** se `unread > 0`, `markInboxRead(seq della prima voce)` e il numero sull'icona sparisce. Le voci che erano non lette all'apertura hanno un pallino dorato finché il pannello resta aperto. Una voce che arriva a pannello aperto prende il pallino e viene segnata subito come letta. La tastiera parte dalla × dell'intestazione. Se la cassetta ha inviti (e c'è l'accesso ai watch party), l'elenco dei party (`WatchPartyDirectory`, che si rilegge ogni 30 s) si rilegge all'apertura e dopo un ingresso non riuscito.
 - **Intestazione:** "Notifiche", **Svuota** (diventa **Conferma** per 4 s; nascosto se la cassetta è vuota), × (testo "Chiudi").
 - **Voci** per `Seq` decrescente; le liste lunghe scorrono dentro il pannello. Ogni voce: icona o miniatura, contenuto, ora relativa, × (visibile al passaggio del mouse e col fuoco; tooltip "Rimuovi").
-- **Vuota:** "Nessuna notifica". **Errore** del caricamento: "Notifiche non disponibili" + **Riprova**. Al primo caricamento il pannello resta vuoto (niente indicatore che gira), come Amici.
+- **Vuota:** "Nessuna notifica". **Errore** del primo caricamento (la cassetta non è mai stata caricata): "Notifiche non disponibili" + **Riprova**; dopo un caricamento riuscito un ricaricamento fallito lascia l'ultimo elenco. Al primo caricamento il pannello resta vuoto (niente indicatore che gira), come Amici.
 
 ### 7.6 Le voci
 
@@ -225,12 +225,12 @@ Arriva con il piano 13b: il plugin del 13a non ha `NewTitlesCollector`, né la c
 |---|---|
 | Plugin 1.0/1.1 o assente | niente icona; l'app si comporta come la 0.6.0 |
 | `Info` non ancora risposto / errore di rete | niente icona finché `inbox` non è noto (§7.2) |
-| `GET Inbox` fallisce | pannello "Notifiche non disponibili" + Riprova; il numero resta l'ultimo noto |
+| `GET Inbox` fallisce | "Notifiche non disponibili" + Riprova solo se la cassetta non è mai stata caricata; dopo un caricamento riuscito un ricaricamento fallito lascia l'ultimo elenco (§7.3); il numero resta l'ultimo noto |
 | `markInboxRead` fallisce | il numero torna alla prossima lettura; nessun messaggio |
 | Rimuovi / Svuota falliscono | si rilegge, snackbar `inboxActionFailed` |
 | Annuncio con testo non valido | 400; la pagina della Dashboard mostra l'errore |
 | Elemento di una riga Novità cancellato | la scheda mostra l'errore che mostra già per un elemento mancante |
-| App 0.6.0 con plugin 1.2.0 | `InboxChanged` scartato (riga `info`); il resto invariato |
+| App 0.6.0 con plugin 1.2.0 | `InboxChanged` scartato senza effetti (`parseSocialEvent` → `null`; solo dentro un canale di party `parsePartyEvent` scrive la riga `info` "evento del canale non valido: TypeError", perché manca `Id`); il resto invariato |
 
 ## 9. Testi nuovi (ARB, it + en)
 
