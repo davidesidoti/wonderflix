@@ -4,6 +4,7 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
+import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/party_channel/party_channel_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
@@ -15,6 +16,7 @@ import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 
 import '../../support/fake_session_controller.dart';
+import '../../support/library_fakes.dart';
 import '../../support/test_data.dart';
 import '../../support/watch_party_fakes.dart';
 
@@ -355,6 +357,198 @@ void main() {
       async.flushMicrotasks();
       expect(api.calls, isEmpty);
       finish(async);
+    });
+  });
+
+  group('aggiunta (spec H §8.3)', () {
+    final film = testItem(id: 'm9', name: 'Alien', year: 1979);
+    JellyfinItem episode(String id, int index) => testItem(
+        id: id,
+        name: 'E$index',
+        kind: ItemKind.episode,
+        seriesId: 's2',
+        seriesName: 'Dark',
+        index: index,
+        seasonIndex: 1);
+
+    /// La coda del server con [added] dopo il titolo in corso (o in fondo).
+    PlayQueue withAdded(List<String> added, {required bool next}) {
+      final before = ['e3', 'e4', 'e5', 'e6'];
+      final ids = next
+          ? [...before.take(2), ...added, ...before.skip(2)]
+          : [...before, ...added];
+      return PlayQueue(
+        reason: next ? 'QueueNext' : 'Queue',
+        lastUpdate: DateTime.utc(2026, 9, 30, 10, 5),
+        entries: [
+          for (var i = 0; i < ids.length; i++)
+            PlayQueueEntry(itemId: ids[i], playlistItemId: 'q$i'),
+        ],
+        playingIndex: 1,
+        startPosition: Duration.zero,
+        isPlaying: false,
+      );
+    }
+
+    test('riproduci dopo: manda, annuncia, aspetta la conferma, "Hai…"', () {
+      fakeAsync((async) {
+        mount(async);
+        PartyQueueAddOutcome? outcome;
+        unawaited(editor()
+            .add([film], next: true)
+            .then((value) => outcome = value));
+        async.flushMicrotasks();
+        expect(api.calls, ['add-next m9']);
+        expect(announced(), ['QueueNext']);
+        expect(notices.hiddenMineCalls, [PartyNoticeKind.queuedNext]);
+        expect(outcome, isNull, reason: 'aspetta la coda del server');
+
+        emit(async, withAdded(['m9'], next: true));
+        expect(outcome, PartyQueueAddOutcome.added);
+        expect(notices.shown.last.kind, PartyNoticeKind.queuedNext);
+        expect(notices.shown.last.mine, isTrue);
+        expect(notices.shown.last.title, 'Alien');
+        finish(async);
+      });
+    });
+
+    test('nessuna conferma in 4 s: rifiutata, eco dimenticata', () {
+      fakeAsync((async) {
+        mount(async);
+        PartyQueueAddOutcome? outcome;
+        unawaited(editor()
+            .add([film], next: false)
+            .then((value) => outcome = value));
+        async.flushMicrotasks();
+        expect(api.calls, ['add m9']);
+        async.elapse(PartyQueueEditor.addConfirmTimeout);
+        expect(outcome, PartyQueueAddOutcome.rejected);
+        expect(notices.shown.last.kind, PartyNoticeKind.queueRejected);
+        expect(notices.forgotten, [PartyNoticeKind.queued]);
+        finish(async);
+      });
+    });
+
+    test('una coda di un altro (altri titoli) non conferma', () {
+      fakeAsync((async) {
+        mount(async);
+        PartyQueueAddOutcome? outcome;
+        unawaited(editor()
+            .add([film], next: false)
+            .then((value) => outcome = value));
+        async.flushMicrotasks();
+        emit(async, withAdded(['zz'], next: false));
+        expect(outcome, isNull);
+        async.elapse(PartyQueueEditor.addConfirmTimeout);
+        expect(outcome, PartyQueueAddOutcome.rejected);
+        finish(async);
+      });
+    });
+
+    test('tutti già in coda: niente richiesta, niente avviso', () {
+      fakeAsync((async) {
+        mount(async);
+        PartyQueueAddOutcome? outcome;
+        unawaited(editor()
+            .add([testItem(id: 'e5')], next: false)
+            .then((value) => outcome = value));
+        async.flushMicrotasks();
+        expect(outcome, PartyQueueAddOutcome.alreadyQueued);
+        expect(api.calls, isEmpty);
+        expect(notices.shown, isEmpty);
+        finish(async);
+      });
+    });
+
+    test('coda piena: avviso, niente richiesta', () {
+      fakeAsync((async) {
+        mount(async);
+        emit(
+            async,
+            testSeriesQueue(
+                itemIds: [for (var i = 0; i < 100; i++) 'x$i'],
+                playingIndex: 0,
+                lastUpdate: DateTime.utc(2026, 9, 30, 10, 1)));
+        PartyQueueAddOutcome? outcome;
+        unawaited(editor()
+            .add([film], next: false)
+            .then((value) => outcome = value));
+        async.flushMicrotasks();
+        expect(outcome, PartyQueueAddOutcome.full);
+        expect(api.calls, isEmpty);
+        expect(notices.shown.last.kind, PartyNoticeKind.queueFull);
+        finish(async);
+      });
+    });
+
+    test('tagliata dal tetto: "Aggiunti 2 episodi su 3"', () {
+      fakeAsync((async) {
+        mount(async);
+        // 98 titoli: posto per 2.
+        final full = [for (var i = 0; i < 98; i++) 'x$i'];
+        emit(
+            async,
+            testSeriesQueue(
+                itemIds: full,
+                playingIndex: 0,
+                lastUpdate: DateTime.utc(2026, 9, 30, 10, 1)));
+        PartyQueueAddOutcome? outcome;
+        unawaited(editor()
+            .add([episode('d1', 1), episode('d2', 2), episode('d3', 3)],
+                next: false)
+            .then((value) => outcome = value));
+        async.flushMicrotasks();
+        expect(api.calls, ['add d1,d2']);
+        emit(
+            async,
+            PlayQueue(
+              reason: 'Queue',
+              lastUpdate: DateTime.utc(2026, 9, 30, 10, 5),
+              entries: [
+                for (var i = 0; i < 98; i++)
+                  PlayQueueEntry(itemId: full[i], playlistItemId: 'p${i + 1}'),
+                const PlayQueueEntry(itemId: 'd1', playlistItemId: 'n1'),
+                const PlayQueueEntry(itemId: 'd2', playlistItemId: 'n2'),
+              ],
+              playingIndex: 0,
+              startPosition: Duration.zero,
+              isPlaying: false,
+            ));
+        expect(outcome, PartyQueueAddOutcome.added);
+        final notice = notices.shown.last;
+        expect(notice.kind, PartyNoticeKind.queuePartial);
+        expect((notice.count, notice.total, notice.series), (2, 3, 'Dark'));
+        finish(async);
+      });
+    });
+
+    test('due aggiunte uguali insieme: la seconda non rimanda gli stessi', () {
+      fakeAsync((async) {
+        mount(async);
+        unawaited(editor().add([film], next: false));
+        unawaited(editor().add([film], next: true));
+        async.flushMicrotasks();
+        expect(api.calls, ['add m9']);
+        emit(async, withAdded(['m9'], next: false));
+        finish(async);
+      });
+    });
+
+    test('richiesta fallita: "Non riuscito", eco dimenticata', () {
+      fakeAsync((async) {
+        mount(async);
+        api.error = const ServerUnreachableException();
+        PartyQueueAddOutcome? outcome;
+        unawaited(editor()
+            .add([film], next: false)
+            .then((value) => outcome = value));
+        async.flushMicrotasks();
+        expect(outcome, PartyQueueAddOutcome.failed);
+        expect(notices.shown.last.kind, PartyNoticeKind.queueFailed);
+        expect(notices.forgotten, [PartyNoticeKind.queued]);
+        expect(announced(), isEmpty);
+        finish(async);
+      });
     });
   });
 }
