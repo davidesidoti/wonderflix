@@ -31,6 +31,12 @@ public sealed class JellyfinLibraryTitles(ILibraryManager libraryManager, IUserM
         var seriesKey = episode is null
             ? string.Empty
             : episode.SeriesPresentationUniqueKey ?? episode.FindSeriesPresentationUniqueKey() ?? string.Empty;
+
+        // La serie dell'episodio, come Episode.Series ma dall'ILibraryManager
+        // ricevuto; senza SeriesId l'episodio non si annuncia comunque.
+        var series = episode is null || episode.SeriesId == Guid.Empty
+            ? null
+            : libraryManager.GetItemById(episode.SeriesId) as Series;
         return new LibraryTitle(
             item.Id,
             item is Movie,
@@ -42,7 +48,10 @@ public sealed class JellyfinLibraryTitles(ILibraryManager libraryManager, IUserM
             episode?.ParentIndexNumber,
             episode?.IndexNumber,
             NewTitleRules.ExternalKeys(item),
-            item.DateLastRefreshed != DateTime.MinValue);
+            item.DateLastRefreshed != DateTime.MinValue)
+        {
+            SeriesExternalKeys = series is null ? [] : NewTitleRules.ExternalKeys(series),
+        };
     }
 
     // Conteggi sul database: i dati utente in memoria della serie possono

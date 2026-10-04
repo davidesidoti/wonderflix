@@ -10,8 +10,11 @@ public class NewTitlesWaveTests
     private static LibraryTitle Title(bool isMovie, params string[] keys) =>
         new(Guid.NewGuid(), isMovie, "x", null, Guid.Empty, string.Empty, string.Empty, null, null, keys, true);
 
-    private static LibraryTitle Episode(string seriesKey, int? season) =>
-        new(Guid.NewGuid(), false, "x", null, Guid.NewGuid(), "Serie", seriesKey, season, 1, [], true);
+    private static LibraryTitle Episode(string seriesKey, int? season, params string[] seriesExternalKeys) =>
+        new(Guid.NewGuid(), false, "x", null, Guid.NewGuid(), "Serie", seriesKey, season, 1, [], true)
+        {
+            SeriesExternalKeys = seriesExternalKeys,
+        };
 
     [Fact]
     public void QuietCountsFromTheLastChangeOverdueFromTheStart()
@@ -78,9 +81,9 @@ public class NewTitlesWaveTests
         var wave = new NewTitlesWave(T0);
 
         // Una serie intera (stagione null) e una stagione; la chiave vuota non conta.
-        wave.RemoveSeries("bear-key", season: null, T0.AddMinutes(1));
-        wave.RemoveSeries("lost-key", season: 2, T0.AddMinutes(2));
-        wave.RemoveSeries(string.Empty, season: null, T0.AddMinutes(3));
+        wave.RemoveSeries("bear-key", season: null, [], T0.AddMinutes(1));
+        wave.RemoveSeries("lost-key", season: 2, [], T0.AddMinutes(2));
+        wave.RemoveSeries(string.Empty, season: null, [], T0.AddMinutes(3));
 
         Assert.Equal(0, wave.Count);
         Assert.Equal(T0.AddMinutes(3), wave.LastChangeAt);
@@ -98,5 +101,29 @@ public class NewTitlesWaveTests
         Assert.True(older.IsReplacement(Episode("bear-key", 3)));
         Assert.True(older.IsReplacement(Episode("lost-key", 2)));
         Assert.False(older.IsReplacement(Episode("lost-key", 1)));
+    }
+
+    [Fact]
+    public void EpisodesSharingAnIdWithARemovedSeriesAreReplacements()
+    {
+        var wave = new NewTitlesWave(T0);
+
+        // Libreria di default: la serie tornata ha una chiave nuova (il suo id), gli id esterni restano.
+        wave.RemoveSeries("old-id", season: null, ["Tvdb:136311", "Imdb:tt14452776"], T0.AddMinutes(1));
+        // Una stagione non porta gli id della serie: vale solo il suo numero.
+        wave.RemoveSeries("lost-key", season: 2, ["Tvdb:4815"], T0.AddMinutes(2));
+
+        Assert.Equal(T0.AddMinutes(2), wave.LastChangeAt);
+        Assert.True(wave.IsReplacement(Episode("new-id", 1, "tvdb:136311")));
+        Assert.True(wave.IsReplacement(Episode("new-id", 2, "Tmdb:1", "Imdb:tt14452776")));
+        Assert.False(wave.IsReplacement(Episode("new-id", 1, "Tvdb:392573")));
+        Assert.False(wave.IsReplacement(Episode("new-id", 1)));
+        Assert.False(wave.IsReplacement(Episode("other-key", 1, "Tvdb:4815")));
+        Assert.False(wave.IsReplacement(Title(true) with { SeriesExternalKeys = ["Tvdb:136311"] }));
+
+        var older = new NewTitlesWave(T0);
+        older.Absorb(wave);
+        Assert.True(older.IsReplacement(Episode("new-id", 1, "Tvdb:136311")));
+        Assert.False(older.IsReplacement(Episode("new-id", 1, "Tvdb:392573")));
     }
 }

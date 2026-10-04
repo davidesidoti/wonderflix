@@ -106,11 +106,11 @@ public sealed class NewTitlesCollector(
     }
 
     /// <summary>
-    /// La cartella vera di una serie (season null) o di una stagione tolta,
-    /// con la chiave della serie: i suoi episodi che tornano in questa ondata
-    /// (cartella rinominata) non si annunciano.
+    /// La cartella vera di una serie (season null, con i suoi id esterni) o
+    /// di una stagione tolta, con la chiave della serie: i suoi episodi che
+    /// tornano in questa ondata (cartella rinominata) non si annunciano.
     /// </summary>
-    public void RemovedSeries(string seriesKey, int? season)
+    public void RemovedSeries(string seriesKey, int? season, IReadOnlyCollection<string> seriesExternalKeys)
     {
         if (!settings.NotifyNewTitles)
         {
@@ -120,7 +120,7 @@ public sealed class NewTitlesCollector(
 
         lock (_lock)
         {
-            Current().RemoveSeries(seriesKey, season, time.GetUtcNow());
+            Current().RemoveSeries(seriesKey, season, seriesExternalKeys, time.GetUtcNow());
         }
     }
 

@@ -32,37 +32,53 @@ public class NewTitlesAdapterTests
     }
 
     [Fact]
-    public void RemovedSeriesAndSeasonFoldersGiveTheSeriesKey()
+    public void RemovedSeriesAndSeasonFoldersGiveTheSeriesKeyAndIds()
     {
-        Assert.True(NewTitleRules.TryGetRemovedContainer(
-            new Series { Id = Guid.NewGuid(), Path = "/media/tv/The Bear", PresentationUniqueKey = "bear-key" },
-            out var key,
-            out var season));
+        var series = new Series { Id = Guid.NewGuid(), Path = "/media/tv/The Bear", PresentationUniqueKey = "bear-key" };
+        series.ProviderIds["Tvdb"] = "136311";
+        series.ProviderIds["Imdb"] = "tt14452776";
+        Assert.True(NewTitleRules.TryGetRemovedContainer(series, out var key, out var season, out var seriesIds));
         Assert.Equal("bear-key", key);
         Assert.Null(season);
+        Assert.Equal(new[] { "Imdb:tt14452776", "Tvdb:136311" }, seriesIds);
 
-        Assert.True(NewTitleRules.TryGetRemovedContainer(
-            new Season { Id = Guid.NewGuid(), Path = "/media/tv/The Bear/Season 2", SeriesPresentationUniqueKey = "bear-key", IndexNumber = 2 },
-            out key,
-            out season));
+        // Senza chiave ma con gli id esterni: la serie si riconosce lo stesso.
+        var withoutKey = new Series { Id = Guid.NewGuid(), Path = "/media/tv/Shogun" };
+        withoutKey.ProviderIds["Tvdb"] = "392573";
+        Assert.True(NewTitleRules.TryGetRemovedContainer(withoutKey, out key, out season, out seriesIds));
+        Assert.Equal(string.Empty, key);
+        Assert.Equal(new[] { "Tvdb:392573" }, seriesIds);
+
+        // Una stagione dà solo la chiave della serie e il suo numero.
+        var seasonItem = new Season
+        {
+            Id = Guid.NewGuid(), Path = "/media/tv/The Bear/Season 2", SeriesPresentationUniqueKey = "bear-key", IndexNumber = 2,
+        };
+        seasonItem.ProviderIds["Tvdb"] = "4815";
+        Assert.True(NewTitleRules.TryGetRemovedContainer(seasonItem, out key, out season, out seriesIds));
         Assert.Equal("bear-key", key);
         Assert.Equal(2, season);
+        Assert.Empty(seriesIds);
 
-        // Virtuale, senza cartella, senza chiave (anche cercando la serie), o non una serie né una stagione.
+        // Virtuale, senza cartella, senza chiave né id (anche cercando la serie), o non una serie né una stagione.
         Assert.False(NewTitleRules.TryGetRemovedContainer(
             new Season { Id = Guid.NewGuid(), Path = "/media/tv/x", IsVirtualItem = true, SeriesPresentationUniqueKey = "bear-key" },
             out _,
+            out _,
             out _));
         Assert.False(NewTitleRules.TryGetRemovedContainer(
-            new Season { Id = Guid.NewGuid(), SeriesPresentationUniqueKey = "bear-key", IndexNumber = 1 }, out _, out _));
+            new Season { Id = Guid.NewGuid(), SeriesPresentationUniqueKey = "bear-key", IndexNumber = 1 }, out _, out _, out _));
         Assert.False(NewTitleRules.TryGetRemovedContainer(
-            new Season { Id = Guid.NewGuid(), Path = "/media/tv/x/Season 1", IndexNumber = 1 }, out _, out _));
+            new Season { Id = Guid.NewGuid(), Path = "/media/tv/x/Season 1", IndexNumber = 1 }, out _, out _, out _));
         Assert.False(NewTitleRules.TryGetRemovedContainer(
-            new Series { Id = Guid.NewGuid(), Path = "/media/tv/The Bear" }, out _, out _));
-        Assert.False(NewTitleRules.TryGetRemovedContainer(Movie(), out _, out _));
+            new Series { Id = Guid.NewGuid(), Path = "/media/tv/The Bear" }, out _, out _, out _));
+        Assert.False(NewTitleRules.TryGetRemovedContainer(Movie(), out _, out _, out _));
         Assert.False(NewTitleRules.TryGetRemovedContainer(
-            new Episode { Id = Guid.NewGuid(), Path = "/media/tv/e1.mkv", SeriesPresentationUniqueKey = "bear-key" }, out _, out _));
-        Assert.False(NewTitleRules.TryGetRemovedContainer(null, out _, out _));
+            new Episode { Id = Guid.NewGuid(), Path = "/media/tv/e1.mkv", SeriesPresentationUniqueKey = "bear-key" },
+            out _,
+            out _,
+            out _));
+        Assert.False(NewTitleRules.TryGetRemovedContainer(null, out _, out _, out _));
     }
 
     [Fact]
@@ -95,9 +111,16 @@ public class NewTitlesAdapterTests
             IndexNumber = 1,
             DateLastRefreshed = new DateTime(2026, 10, 4, 0, 0, 0, DateTimeKind.Utc),
         };
+        var series = new Series { Id = seriesId, Name = "The Bear", Path = "/media/tv/The Bear" };
+        series.ProviderIds["Tvdb"] = "136311";
+        // Un episodio la cui serie non si trova più.
+        var orphan = new Episode
+        {
+            Id = Guid.NewGuid(), Path = "/media/tv/e2.mkv", SeriesId = Guid.NewGuid(), SeriesPresentationUniqueKey = "lost-key",
+        };
+        var items = new BaseItem[] { movie, episode, series, orphan }.ToDictionary(i => i.Id);
         var (library, stub) = InterfaceStub<ILibraryManager>.Create();
-        stub.Handlers["GetItemById"] = args =>
-            (Guid)args[0]! == movie.Id ? movie : (Guid)args[0]! == episode.Id ? episode : null;
+        stub.Handlers["GetItemById"] = args => items.GetValueOrDefault((Guid)args[0]!);
         var titles = new JellyfinLibraryTitles(library, InterfaceStub<IUserManager>.Create().Proxy);
 
         var film = titles.Get(movie.Id)!;
@@ -105,15 +128,18 @@ public class NewTitlesAdapterTests
         Assert.Equal("Dune", film.Name);
         Assert.Equal(2024, film.Year);
         Assert.Equal(new[] { "Tmdb:438631" }, film.ExternalKeys);
+        Assert.Empty(film.SeriesExternalKeys);
         Assert.False(film.Refreshed, "metadati mai aggiornati: DateLastRefreshed vuota");
         var ep = titles.Get(episode.Id)!;
         Assert.False(ep.IsMovie);
         Assert.Equal(seriesId, ep.SeriesId);
         Assert.Equal("The Bear", ep.SeriesName);
         Assert.Equal("bear-key", ep.SeriesKey);
+        Assert.Equal(new[] { "Tvdb:136311" }, ep.SeriesExternalKeys);
         Assert.Equal(3, ep.Season);
         Assert.Equal(1, ep.Episode);
         Assert.True(ep.Refreshed);
+        Assert.Empty(titles.Get(orphan.Id)!.SeriesExternalKeys);
         Assert.Null(titles.Get(Guid.NewGuid()));
         Assert.Null(titles.Get(Guid.Empty));
     }

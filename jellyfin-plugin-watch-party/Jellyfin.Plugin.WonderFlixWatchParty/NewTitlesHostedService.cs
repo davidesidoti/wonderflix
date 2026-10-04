@@ -62,9 +62,9 @@ public sealed class NewTitlesHostedService(
             {
                 collector.Removed(item.Id, item is Movie, NewTitleRules.ExternalKeys(item));
             }
-            else if (NewTitleRules.TryGetRemovedContainer(item, out var seriesKey, out var season))
+            else if (NewTitleRules.TryGetRemovedContainer(item, out var seriesKey, out var season, out var seriesExternalKeys))
             {
-                collector.RemovedSeries(seriesKey, season);
+                collector.RemovedSeries(seriesKey, season, seriesExternalKeys);
             }
         }
         catch (Exception ex)

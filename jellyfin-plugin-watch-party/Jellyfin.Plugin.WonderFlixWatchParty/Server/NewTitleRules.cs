@@ -32,13 +32,17 @@ public static class NewTitleRules
     /// tornano con id nuovi e i dati utente di prima: non sono nuovi. Dà la
     /// chiave della serie (quella degli episodi) e il numero della stagione;
     /// null vale per tutta la serie, anche per una stagione senza numero:
-    /// meglio non annunciare che annunciare episodi già visti. O(1), per il
-    /// gestore dell'evento.
+    /// meglio non annunciare che annunciare episodi già visti. Per una serie
+    /// dà anche i suoi id esterni: in una libreria senza raggruppamento
+    /// automatico la chiave è l'id, che viene dal percorso e cambia con la
+    /// cartella. O(1), per il gestore dell'evento.
     /// </summary>
-    public static bool TryGetRemovedContainer(BaseItem? item, out string seriesKey, out int? season)
+    public static bool TryGetRemovedContainer(
+        BaseItem? item, out string seriesKey, out int? season, out IReadOnlyCollection<string> seriesExternalKeys)
     {
         seriesKey = string.Empty;
         season = null;
+        seriesExternalKeys = [];
         if (item is null || item.IsVirtualItem || string.IsNullOrEmpty(item.Path))
         {
             return false;
@@ -47,6 +51,7 @@ public static class NewTitleRules
         if (item is Series series)
         {
             seriesKey = series.PresentationUniqueKey ?? string.Empty;
+            seriesExternalKeys = ExternalKeys(series);
         }
         else if (item is Season seasonItem)
         {
@@ -54,7 +59,7 @@ public static class NewTitleRules
             season = seasonItem.IndexNumber;
         }
 
-        return seriesKey.Length > 0;
+        return seriesKey.Length > 0 || seriesExternalKeys.Count > 0;
     }
 
     /// <summary>Gli id esterni TMDB, IMDb e TVDB, come "Tmdb:438631".</summary>

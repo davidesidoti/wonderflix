@@ -17,7 +17,15 @@ public sealed record LibraryTitle(
     int? Season,
     int? Episode,
     IReadOnlyCollection<string> ExternalKeys,
-    bool Refreshed);
+    bool Refreshed)
+{
+    /// <summary>
+    /// Gli id esterni della serie dell'episodio (TMDB, IMDb, TVDB, come
+    /// ExternalKeys); vuoto per i film. Riconoscono la stessa serie dopo una
+    /// cartella rinominata, quando SeriesKey cambia con l'id.
+    /// </summary>
+    public IReadOnlyCollection<string> SeriesExternalKeys { get; init; } = [];
+}
 
 /// <summary>La libreria come serve al riepilogo dei nuovi titoli (adattatore di ILibraryManager e IUserManager).</summary>
 public interface ILibraryTitles

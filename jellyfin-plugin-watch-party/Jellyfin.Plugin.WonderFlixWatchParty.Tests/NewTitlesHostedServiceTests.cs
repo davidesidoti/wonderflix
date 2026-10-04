@@ -56,12 +56,16 @@ public sealed class NewTitlesHostedServiceTests : IDisposable
     }
 
     // Un episodio vero arriva dalla libreria, con il titolo che il raccoglitore rilegge.
-    private void AddEpisode(Guid seriesId, string seriesKey, int season, int episode)
+    private void AddEpisode(
+        Guid seriesId, string seriesKey, int season, int episode, string seriesName = "The Bear", string[]? seriesExternalKeys = null)
     {
         var item = new Episode { Id = Guid.NewGuid(), Path = $"/media/tv/s{season}e{episode}.mkv", SeriesId = seriesId };
         _added!(_library, new ItemChangeEventArgs { Item = item });
         _server.Titles[item.Id] = new LibraryTitle(
-            item.Id, false, $"Episodio {episode}", null, seriesId, "The Bear", seriesKey, season, episode, [], true);
+            item.Id, false, $"Episodio {episode}", null, seriesId, seriesName, seriesKey, season, episode, [], true)
+        {
+            SeriesExternalKeys = seriesExternalKeys ?? [],
+        };
     }
 
     [Fact]
@@ -140,11 +144,39 @@ public sealed class NewTitlesHostedServiceTests : IDisposable
     public async Task EpisodesOfARenamedSeriesFolderAreNotAnnounced()
     {
         await StartAsync();
+        // Libreria di default (raggruppamento automatico delle serie spento):
+        // l'id viene dal percorso e la chiave della serie è l'id. Con la
+        // cartella rinominata Jellyfin toglie solo la serie, poi i suoi
+        // episodi tornano con id nuovi, sotto una serie con id e chiave nuovi
+        // (e i dati utente di prima): resta lo stesso id TVDB.
+        var oldSeries = new Series { Id = Guid.NewGuid(), Path = "/media/tv/The Bear" };
+        oldSeries.PresentationUniqueKey = oldSeries.Id.ToString("N");
+        oldSeries.ProviderIds["Tvdb"] = "136311";
+        var newSeriesId = Guid.NewGuid();
+        var otherSeriesId = Guid.NewGuid();
+        _server.Following.Add((_mario.Id, newSeriesId));
+        _server.Following.Add((_mario.Id, otherSeriesId));
+
+        _removed!(_library, new ItemChangeEventArgs { Item = oldSeries });
+        AddEpisode(newSeriesId, newSeriesId.ToString("N"), 1, 1, seriesExternalKeys: ["Tvdb:136311"]);
+        AddEpisode(newSeriesId, newSeriesId.ToString("N"), 2, 1, seriesExternalKeys: ["Tvdb:136311"]);
+        // Un'altra serie, con un altro id TVDB, si annuncia.
+        AddEpisode(otherSeriesId, otherSeriesId.ToString("N"), 1, 1, seriesName: "Shogun", seriesExternalKeys: ["Tvdb:392573"]);
+
+        Assert.Equal(new NewTitlesSendResponse(1, 1), await _collector.SendNowAsync());
+        var entry = _inbox.Get(_mario.Id).Entries.Single(e => e.Type == InboxEntryTypes.NewTitles);
+        Assert.Equal("Shogun", Assert.Single(entry.Series!).Name);
+    }
+
+    [Fact]
+    public async Task EpisodesOfARenamedSeriesFolderWithTheSameSeriesKeyAreNotAnnounced()
+    {
+        await StartAsync();
         var seriesId = Guid.NewGuid();
         _server.Following.Add((_mario.Id, seriesId));
 
-        // Cartella rinominata: Jellyfin toglie solo la serie, poi i suoi
-        // episodi tornano con id nuovi (e i dati utente di prima).
+        // Raggruppamento automatico acceso: la chiave della serie viene dagli
+        // id esterni e resta la stessa dopo la cartella rinominata.
         _removed!(_library, new ItemChangeEventArgs
         {
             Item = new Series { Id = Guid.NewGuid(), Path = "/media/tv/The Bear", PresentationUniqueKey = "bear-key" },

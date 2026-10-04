@@ -14,8 +14,10 @@ public sealed class NewTitlesWave(DateTimeOffset startedAt)
     private readonly HashSet<Guid> _removedIds = [];
     private readonly List<(bool IsMovie, HashSet<string> Keys)> _removed = [];
 
-    // Cartelle tolte (spesso rinominate): le serie intere e le stagioni, per chiave della serie.
+    // Cartelle tolte (spesso rinominate): le serie intere, per chiave e per
+    // id esterni (come quelli dei titoli), e le stagioni, per chiave della serie.
     private readonly HashSet<string> _removedSeries = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _removedSeriesExternalKeys = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<(string SeriesKey, int Season)> _removedSeasons = [];
 
     private int _failedCloses;
@@ -54,21 +56,28 @@ public sealed class NewTitlesWave(DateTimeOffset startedAt)
 
     /// <summary>
     /// Una cartella di serie (season null) o di stagione tolta, per chiave
-    /// della serie: i suoi episodi che tornano non sono nuovi. Una chiave
+    /// della serie: i suoi episodi che tornano non sono nuovi. Una serie
+    /// intera si riconosce anche dai suoi id esterni (la chiave può cambiare
+    /// con la cartella); una stagione solo da chiave e numero. Una chiave
     /// vuota non conta.
     /// </summary>
-    public void RemoveSeries(string seriesKey, int? season, DateTimeOffset now)
+    public void RemoveSeries(string seriesKey, int? season, IReadOnlyCollection<string> seriesExternalKeys, DateTimeOffset now)
     {
-        if (!string.IsNullOrEmpty(seriesKey))
+        if (season is { } number)
         {
-            if (season is { } number)
+            if (!string.IsNullOrEmpty(seriesKey))
             {
                 _removedSeasons.Add((seriesKey, number));
             }
-            else
+        }
+        else
+        {
+            if (!string.IsNullOrEmpty(seriesKey))
             {
                 _removedSeries.Add(seriesKey);
             }
+
+            _removedSeriesExternalKeys.UnionWith(seriesExternalKeys);
         }
 
         LastChangeAt = now;
@@ -86,9 +95,10 @@ public sealed class NewTitlesWave(DateTimeOffset startedAt)
 
     private bool IsInRemovedFolder(LibraryTitle title) =>
         !title.IsMovie
-        && !string.IsNullOrEmpty(title.SeriesKey)
-        && (_removedSeries.Contains(title.SeriesKey)
-            || (title.Season is { } season && _removedSeasons.Contains((title.SeriesKey, season))));
+        && ((!string.IsNullOrEmpty(title.SeriesKey)
+                && (_removedSeries.Contains(title.SeriesKey)
+                    || (title.Season is { } season && _removedSeasons.Contains((title.SeriesKey, season)))))
+            || title.SeriesExternalKeys.Any(_removedSeriesExternalKeys.Contains));
 
     /// <summary>
     /// Questa ondata (staccata, con la chiusura non riuscita) torna in corso e
@@ -103,6 +113,7 @@ public sealed class NewTitlesWave(DateTimeOffset startedAt)
         _removedIds.UnionWith(newer._removedIds);
         _removed.AddRange(newer._removed);
         _removedSeries.UnionWith(newer._removedSeries);
+        _removedSeriesExternalKeys.UnionWith(newer._removedSeriesExternalKeys);
         _removedSeasons.UnionWith(newer._removedSeasons);
         if (newer.LastChangeAt > LastChangeAt)
         {
