@@ -59,6 +59,8 @@ public sealed class JellyfinLibraryTitles(ILibraryManager libraryManager, IUserM
     // filtri per utente vogliono il costruttore con l'utente.
     // Senza utente: in Jellyfin 10.11 i filtri sull'utente (preferiti, visti,
     // iniziati, tag) entrano nella query solo se si chiedono; questi no.
+    // Stessi filtri di OtherEpisodes, senza l'utente: deve restarne un
+    // sovrainsieme, così un false non nasconde mai chi segue la serie.
     public bool HasOtherEpisodes(string seriesKey, IReadOnlyCollection<Guid> excludeEpisodes)
     {
         if (string.IsNullOrEmpty(seriesKey))
