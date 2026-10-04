@@ -351,6 +351,26 @@ AnnouncementEntry testAnnouncement({
       text: text,
     );
 
+/// Un riepilogo di nuovi titoli nella cassetta.
+NewTitlesEntry testNewTitles({
+  String id = 'n1',
+  int seq = 1,
+  bool read = false,
+  List<NewTitleMovie> movies = const [],
+  List<NewTitleSeries> series = const [],
+  int more = 0,
+  DateTime? createdAt,
+}) =>
+    NewTitlesEntry(
+      id: id,
+      seq: seq,
+      createdAt: createdAt ?? DateTime.utc(2026, 10, 4, 20),
+      read: read,
+      movies: movies,
+      series: series,
+      more: more,
+    );
+
 /// Come arriva dal WebSocket l'avviso che la cassetta è cambiata.
 PartyChannelReceived inboxChangedReceived() => PartyChannelReceived(
     jsonEncode({'Protocol': 1, 'Type': 'InboxChanged'}));

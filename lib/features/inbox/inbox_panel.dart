@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../app/navigation.dart';
 import '../../app/shell_panels.dart';
 import '../../app/theme.dart';
 import '../../core/social/inbox_models.dart';
@@ -71,6 +72,9 @@ class InboxPanel extends ConsumerStatefulWidget {
 
   /// Lato del pallino delle voci non lette.
   static const dotSize = 8.0;
+
+  /// Righe delle novità prima di "Mostra tutto".
+  static const newTitlesPreview = 5;
 
   @override
   ConsumerState<InboxPanel> createState() => _InboxPanelState();
@@ -311,6 +315,7 @@ class _EntryTileState extends ConsumerState<_EntryTile> {
             switch (entry) {
               InviteEntry() => _InvitePoster(entry: entry),
               AnnouncementEntry() => const _AnnouncementIcon(),
+              NewTitlesEntry() => const _NewTitlesIcon(),
             },
             const SizedBox(width: 12),
             Expanded(
@@ -319,6 +324,8 @@ class _EntryTileState extends ConsumerState<_EntryTile> {
                   _InviteContent(entry: entry, time: widget.time),
                 AnnouncementEntry() =>
                   _AnnouncementContent(entry: entry, time: widget.time),
+                NewTitlesEntry() =>
+                  _NewTitlesContent(entry: entry, time: widget.time),
               },
             ),
             Focus(
@@ -382,6 +389,20 @@ class _AnnouncementIcon extends StatelessWidget {
         decoration: const BoxDecoration(
             color: WfColors.surfaceHigh, shape: BoxShape.circle),
         child: const Icon(LucideIcons.megaphone,
+            size: 18, color: WfColors.gold),
+      );
+}
+
+class _NewTitlesIcon extends StatelessWidget {
+  const _NewTitlesIcon();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: InboxPanel.leadingSize,
+        height: InboxPanel.leadingSize,
+        decoration: const BoxDecoration(
+            color: WfColors.surfaceHigh, shape: BoxShape.circle),
+        child: const Icon(LucideIcons.sparkles,
             size: 18, color: WfColors.gold),
       );
 }
@@ -509,6 +530,90 @@ class _AnnouncementContent extends StatelessWidget {
             style: const TextStyle(color: WfColors.cream)),
         const SizedBox(height: 4),
         Text(time, style: _timeStyle),
+      ],
+    );
+  }
+}
+
+/// Novità (spec G §7.6): riepilogo, le prime righe e "Mostra tutto". Una
+/// riga apre la scheda del film o della serie e chiude il pannello.
+class _NewTitlesContent extends ConsumerStatefulWidget {
+  const _NewTitlesContent({required this.entry, required this.time});
+
+  final NewTitlesEntry entry;
+  final String time;
+
+  @override
+  ConsumerState<_NewTitlesContent> createState() => _NewTitlesContentState();
+}
+
+class _NewTitlesContentState extends ConsumerState<_NewTitlesContent> {
+  bool _expanded = false;
+
+  void _open(String itemId) {
+    ref.read(shellPanelProvider.notifier).close();
+    openItemById(context, itemId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final entry = widget.entry;
+    final summary = [
+      if (entry.movies.isNotEmpty) l.inboxMovies(entry.movies.length),
+      if (entry.episodeCount > 0) l.inboxEpisodes(entry.episodeCount),
+    ].join(', ');
+    final lines = [
+      for (final movie in entry.movies)
+        (
+          id: movie.itemId,
+          text: movie.year == null
+              ? movie.name
+              : '${movie.name} (${movie.year})',
+        ),
+      for (final series in entry.series)
+        (
+          id: series.seriesId,
+          text: '${series.name} · '
+              '${formatEpisodeRanges(series.episodes) ?? l.inboxNewEpisodes(series.episodes.length)}',
+        ),
+    ];
+    final shown = _expanded
+        ? lines
+        : lines.take(InboxPanel.newTitlesPreview).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(l.inboxNewTitles(summary),
+            style: const TextStyle(
+                color: WfColors.cream, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 2),
+        for (final line in shown)
+          InkWell(
+            key: Key('inbox-title-${line.id}'),
+            onTap: () => _open(line.id),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Text(line.text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _mutedStyle),
+            ),
+          ),
+        if (!_expanded && lines.length > InboxPanel.newTitlesPreview)
+          TextButton(
+            onPressed: () => setState(() => _expanded = true),
+            style: TextButton.styleFrom(
+              foregroundColor: WfColors.gold,
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+            ),
+            child: Text(l.inboxShowAll(lines.length)),
+          ),
+        if (entry.more > 0) Text(l.inboxMore(entry.more), style: _mutedStyle),
+        const SizedBox(height: 4),
+        Text(widget.time, style: _timeStyle),
       ],
     );
   }

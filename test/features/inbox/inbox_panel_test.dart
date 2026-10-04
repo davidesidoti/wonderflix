@@ -366,4 +366,62 @@ void main() {
     expect(node.getSemanticsData().tooltip, 'Rimuovi');
     semantics.dispose();
   });
+
+  testWidgets('novità: riepilogo, prime 5 righe, Mostra tutto, altri titoli',
+      (tester) async {
+    api.inboxSnapshot = InboxSnapshot(entries: [
+      testNewTitles(
+        createdAt: fiveMinutesAgo(),
+        movies: [
+          for (var i = 1; i <= 4; i++)
+            NewTitleMovie(itemId: 'm$i', name: 'Film $i', year: 2020 + i),
+        ],
+        series: const [
+          NewTitleSeries(seriesId: 's1', name: 'The Bear', episodes: [
+            NewTitleEpisode(season: 3, episode: 1),
+            NewTitleEpisode(season: 3, episode: 2),
+          ]),
+          NewTitleSeries(seriesId: 's2', name: 'Senza numeri', episodes: [
+            NewTitleEpisode(),
+            NewTitleEpisode(season: 1, episode: 4),
+          ]),
+        ],
+        more: 7,
+      ),
+    ], unread: 1);
+    await pumpPanel(tester);
+
+    expect(find.text('Novità: 4 film, 4 episodi'), findsOneWidget);
+    expect(find.text('Film 1 (2021)'), findsOneWidget);
+    expect(find.text('The Bear · S3 E1–E2'), findsOneWidget);
+    expect(find.text('Senza numeri · 2 episodi nuovi'), findsNothing,
+        reason: 'sesta riga, nascosta');
+    expect(find.text('…e altri 7 titoli'), findsOneWidget);
+    expect(find.text('5 min fa'), findsOneWidget);
+
+    await tester.tap(find.text('Mostra tutto (6)'));
+    await tester.pump();
+
+    expect(find.text('Senza numeri · 2 episodi nuovi'), findsOneWidget);
+    expect(find.text('Mostra tutto (6)'), findsNothing);
+  });
+
+  testWidgets('novità solo di film o solo di episodi', (tester) async {
+    api.inboxSnapshot = InboxSnapshot(entries: [
+      testNewTitles(id: 'n1', seq: 2, createdAt: fiveMinutesAgo(), movies: const [
+        NewTitleMovie(itemId: 'm1', name: 'Senza anno'),
+      ]),
+      testNewTitles(id: 'n2', seq: 1, createdAt: fiveMinutesAgo(), series: const [
+        NewTitleSeries(seriesId: 's1', name: 'The Bear', episodes: [
+          NewTitleEpisode(season: 1, episode: 1),
+        ]),
+      ]),
+    ], unread: 2);
+    await pumpPanel(tester);
+
+    expect(find.text('Novità: 1 film'), findsOneWidget);
+    expect(find.text('Senza anno'), findsOneWidget);
+    expect(find.text('Novità: 1 episodio'), findsOneWidget);
+    expect(find.textContaining('Mostra tutto'), findsNothing);
+  });
 }

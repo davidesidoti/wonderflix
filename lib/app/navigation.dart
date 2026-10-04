@@ -45,6 +45,11 @@ void openItem(BuildContext context, JellyfinItem item, {String? heroSource}) {
   unawaited(context.push(itemRoute(item), extra: launch));
 }
 
+/// Apre la scheda di un film o di una serie di cui si conosce solo l'id (es.
+/// una riga delle novità nella cassetta, spec G §7.6).
+void openItemById(BuildContext context, String itemId) =>
+    unawaited(context.push('/item/$itemId'));
+
 /// Apre la pagina di [person]; con [heroSource] la foto vola dal cast.
 void openPerson(BuildContext context, PersonRef person, {String? heroSource}) {
   HeroLaunch? launch;

@@ -150,6 +150,30 @@ String _episodeRuns(List<int> numbers) {
 String _episodeRun(int first, int last) =>
     first == last ? 'E$first' : 'E$first–E$last';
 
+/// Il riepilogo di un'ondata di nuovi titoli (spec G §6.6): film che
+/// l'utente può vedere ed episodi delle serie che segue.
+final class NewTitlesEntry extends InboxEntry {
+  const NewTitlesEntry({
+    required super.id,
+    required super.seq,
+    required super.createdAt,
+    required super.read,
+    this.movies = const [],
+    this.series = const [],
+    this.more = 0,
+  });
+
+  final List<NewTitleMovie> movies;
+  final List<NewTitleSeries> series;
+
+  /// Film e serie oltre il tetto delle righe del plugin.
+  final int more;
+
+  /// Episodi in tutto.
+  int get episodeCount =>
+      series.fold(0, (count, s) => count + s.episodes.length);
+}
+
 /// Una voce di `GET Inbox`; `null` se il tipo non lo conosciamo (es. le
 /// voci di una versione più nuova del plugin).
 InboxEntry? inboxEntryFromJson(Map<String, dynamic> json) {
@@ -174,6 +198,21 @@ InboxEntry? inboxEntryFromJson(Map<String, dynamic> json) {
         createdAt: createdAt,
         read: read,
         text: json['Text'] as String,
+      ),
+    'NewTitles' => NewTitlesEntry(
+        id: id,
+        seq: seq,
+        createdAt: createdAt,
+        read: read,
+        movies: [
+          for (final raw in json['Movies'] as List? ?? const [])
+            NewTitleMovie.fromJson(raw as Map<String, dynamic>),
+        ],
+        series: [
+          for (final raw in json['Series'] as List? ?? const [])
+            NewTitleSeries.fromJson(raw as Map<String, dynamic>),
+        ],
+        more: (json['More'] as num?)?.toInt() ?? 0,
       ),
     _ => null,
   };

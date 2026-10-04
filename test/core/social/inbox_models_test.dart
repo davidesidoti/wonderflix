@@ -22,7 +22,7 @@ void main() {
         {
           'Id': 'n1',
           'Seq': 2,
-          'Type': 'NewTitles',
+          'Type': 'Reminder',
           'CreatedAt': '2026-10-03T19:00:00+00:00',
           'Read': false,
         },
@@ -187,5 +187,51 @@ void main() {
         isNull,
         reason: 'basta un numero mancante');
     expect(formatEpisodeRanges(const []), isNull);
+  });
+
+  test('voce delle novità', () {
+    final snapshot = InboxSnapshot.fromJson({
+      'Entries': [
+        {
+          'Id': 'n1',
+          'Seq': 2,
+          'Type': 'NewTitles',
+          'CreatedAt': '2026-10-04T20:00:00+00:00',
+          'Read': false,
+          'Movies': [
+            {'ItemId': 'm1', 'Name': 'Dune', 'Year': 2024},
+          ],
+          'Series': [
+            {
+              'SeriesId': 's1',
+              'Name': 'The Bear',
+              'Episodes': [
+                {'Season': 3, 'Episode': 1},
+                {'Season': 3, 'Episode': 2},
+              ],
+            },
+          ],
+          'More': 4,
+        },
+        {
+          'Id': 'n2',
+          'Seq': 1,
+          'Type': 'NewTitles',
+          'CreatedAt': '2026-10-03T20:00:00+00:00',
+          'Read': true,
+        },
+      ],
+    });
+
+    final first = snapshot.entries.first as NewTitlesEntry;
+    expect(first.movies.single.name, 'Dune');
+    expect(first.series.single.episodes, hasLength(2));
+    expect(first.episodeCount, 2);
+    expect(first.more, 4);
+    final second = snapshot.entries.last as NewTitlesEntry;
+    expect(second.movies, isEmpty);
+    expect(second.series, isEmpty);
+    expect(second.more, 0);
+    expect(snapshot.unread, 1);
   });
 }
