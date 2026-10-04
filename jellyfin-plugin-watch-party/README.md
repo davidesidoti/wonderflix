@@ -29,7 +29,8 @@ anonimi.
   (al massimo 2 ore); ogni utente riceve i film che può vedere e gli episodi
   delle serie che segue (La mia lista, o un episodio visto o iniziato).
   Se un fornitore di metadati continua a fallire, i titoli senza metadati
-  tengono ferma l'ondata fino a 2 ore (poi partono con quello che hanno).
+  tengono ferma l'ondata fino a 2 ore (poi partono con quello che hanno, ma
+  solo agli utenti senza limiti sui contenuti, come con **Send now**).
   Prima di spostare una libreria in un altro percorso spegni **Notify new
   titles**: ogni titolo sembrerebbe nuovo. L'impostazione sta in
   `plugins/configurations/Jellyfin.Plugin.WonderFlixWatchParty.xml`.
