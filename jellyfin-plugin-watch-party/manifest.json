@@ -2,11 +2,19 @@
   {
     "guid": "882eb47e-668a-4935-ba55-c2858eb4ed90",
     "name": "WonderFlix Watch Party",
-    "description": "Names, chat, reactions, friends and public, friends-only or private parties for SyncPlay watch parties in WonderFlix.",
-    "overview": "WonderFlix watch party: names, chat, reactions, friends, party modes",
+    "description": "Names, chat, reactions, friends, public, friends-only or private parties and an in-app notifications inbox (invites, new titles, admin announcements) for SyncPlay watch parties in WonderFlix.",
+    "overview": "WonderFlix watch party: names, chat, reactions, friends, party modes, notifications",
     "owner": "davidesidoti",
     "category": "General",
     "versions": [
+      {
+        "version": "1.2.0.0",
+        "changelog": "Cassetta delle notifiche: inviti ai watch party, annunci dell'admin dalla Dashboard, riepilogo dei nuovi titoli.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.2.0/wonderflix-watch-party_1.2.0.zip",
+        "checksum": "d598fe4559bb224ab648e02b5e09f23f",
+        "timestamp": "2026-10-04T01:40:23Z"
+      },
       {
         "version": "1.1.0.0",
         "changelog": "Lista amici; watch party pubblici, solo amici o privati con codice; inviti.",
