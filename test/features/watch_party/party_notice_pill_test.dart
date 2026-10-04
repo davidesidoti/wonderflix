@@ -111,4 +111,31 @@ void main() {
     expect(partyNoticeIcon(PartyNoticeKind.inviteRateLimited),
         LucideIcons.circleAlert);
   });
+
+  test('avvisi della coda (spec H §10)', () {
+    final l = lookupAppLocalizations(const Locale('it'));
+    expect(
+        partyNoticeText(l,
+            const PartyNotice(PartyNoticeKind.previousItem, title: 'S1:E4 · Pilot')),
+        'Precedente: S1:E4 · Pilot');
+    expect(
+        partyNoticeText(
+            l,
+            const PartyNotice(PartyNoticeKind.previousItem,
+                title: 'S1:E4 · Pilot', name: 'Luigi')),
+        'Luigi ha avviato il precedente: S1:E4 · Pilot');
+    expect(partyNoticeText(l, const PartyNotice(PartyNoticeKind.shuffleOn)),
+        'Ordine casuale attivato');
+    expect(
+        partyNoticeText(
+            l, const PartyNotice(PartyNoticeKind.shuffleOff, name: 'Luigi')),
+        'Luigi ha tolto l\'ordine casuale');
+    expect(
+        partyNoticeText(
+            l, const PartyNotice(PartyNoticeKind.queueFailed, mine: true)),
+        'Non riuscito, riprova');
+    expect(partyNoticeIcon(PartyNoticeKind.previousItem), LucideIcons.skipBack);
+    expect(partyNoticeIcon(PartyNoticeKind.shuffleOn), LucideIcons.shuffle);
+    expect(partyNoticeIcon(PartyNoticeKind.queueFailed), LucideIcons.circleAlert);
+  });
 }

@@ -555,4 +555,173 @@ void main() {
       });
     });
   });
+
+  group('coda del party (spec H §10)', () {
+    test('precedente: titolo dell\'episodio e nome dall\'annuncio giusto', () {
+      fakeAsync((async) {
+        library.itemsById['e4'] = testItem(
+            id: 'e4',
+            name: 'Pilot',
+            kind: ItemKind.episode,
+            seriesName: 'Breaking Bad',
+            index: 4,
+            seasonIndex: 1);
+        mount(async);
+        notices().setAttribution(true);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue(playingIndex: 1)));
+        notices()
+          ..attribute(testActionEvent(PartyAction.nextItem, userName: 'Mario'))
+          ..attribute(testActionEvent(PartyAction.previousItem));
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                testSeriesQueue(
+                    reason: 'PreviousItem',
+                    lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+        expect(current()?.kind, PartyNoticeKind.previousItem);
+        expect(current()?.title, 'S1:E4 · Pilot');
+        expect(current()?.name, 'Luigi');
+        finish(async);
+      });
+    });
+
+    test('salto dalla coda: "Si guarda" con il nome di SetCurrentItem', () {
+      fakeAsync((async) {
+        mount(async);
+        notices().setAttribution(true);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+        notices()
+          ..attribute(testActionEvent(PartyAction.newQueue, userName: 'Mario'))
+          ..attribute(testActionEvent(PartyAction.setCurrentItem));
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                testSeriesQueue(
+                    playingIndex: 1,
+                    reason: 'SetCurrentItem',
+                    lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+        expect(current()?.kind, PartyNoticeKind.nowWatching);
+        expect(current()?.title, 'Breaking Bad');
+        expect(current()?.name, 'Luigi');
+        finish(async);
+      });
+    });
+
+    test('successivo verso un film: il titolo del film, non l\'anno', () {
+      fakeAsync((async) {
+        mount(async);
+        emit(async,
+            PlayQueueUpdate('g1', testSeriesQueue(itemIds: ['e4', 'm2'])));
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                testSeriesQueue(
+                    itemIds: ['e4', 'm2'],
+                    playingIndex: 1,
+                    reason: 'NextItem',
+                    lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+        expect(current()?.kind, PartyNoticeKind.nextEpisode);
+        expect(current()?.title, 'Arrival');
+        finish(async);
+      });
+    });
+
+    test('ordine casuale degli altri: acceso, poi spento', () {
+      fakeAsync((async) {
+        mount(async);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                testSeriesQueue(
+                    reason: 'ShuffleMode',
+                    shuffled: true,
+                    lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+        expect(current()?.kind, PartyNoticeKind.shuffleOn);
+        async.elapse(PartyNotices.showFor);
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                testSeriesQueue(
+                    reason: 'ShuffleMode',
+                    lastUpdate: DateTime.utc(2026, 9, 30, 10, 10))));
+        expect(current()?.kind, PartyNoticeKind.shuffleOff);
+        finish(async);
+      });
+    });
+
+    test('ordine casuale: il nome dall\'annuncio ShuffleMode', () {
+      fakeAsync((async) {
+        mount(async);
+        notices().setAttribution(true);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+        notices().attribute(testActionEvent(PartyAction.shuffleMode));
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                testSeriesQueue(
+                    reason: 'ShuffleMode',
+                    shuffled: true,
+                    lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+        expect(current()?.kind, PartyNoticeKind.shuffleOn);
+        expect(current()?.name, 'Luigi');
+        finish(async);
+      });
+    });
+
+    test('il mio ordine casuale: nessun avviso, anche con l\'eco dopo 3 s',
+        () {
+      fakeAsync((async) {
+        mount(async);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+        notices().mine(PartyNoticeKind.shuffleOn, show: false);
+        async.elapse(const Duration(milliseconds: 3500));
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                testSeriesQueue(
+                    reason: 'ShuffleMode',
+                    shuffled: true,
+                    lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+        expect(current(), isNull);
+        finish(async);
+      });
+    });
+
+    test('prima coda già mescolata, rimozioni e spostamenti: nessun avviso',
+        () {
+      fakeAsync((async) {
+        mount(async);
+        emit(async,
+            PlayQueueUpdate('g1', testSeriesQueue(shuffled: true)));
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                testSeriesQueue(
+                    itemIds: ['e4', 'e5'],
+                    shuffled: true,
+                    reason: 'RemoveItems',
+                    lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                testSeriesQueue(
+                    itemIds: ['e4', 'e5'],
+                    shuffled: true,
+                    reason: 'MoveItem',
+                    lastUpdate: DateTime.utc(2026, 9, 30, 10, 10))));
+        expect(current(), isNull);
+        finish(async);
+      });
+    });
+  });
 }

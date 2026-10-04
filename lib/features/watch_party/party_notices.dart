@@ -5,6 +5,7 @@ import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
+import '../../core/jellyfin/item_models.dart';
 import '../../core/party_channel/party_channel_models.dart';
 import '../../core/syncplay/syncplay_models.dart';
 import '../auth/session_controller.dart';
@@ -46,6 +47,18 @@ enum PartyNoticeKind {
 
   /// Troppi inviti in poco tempo (429).
   inviteRateLimited,
+
+  /// Il gruppo è tornato al titolo prima (spec H §10), in `title`.
+  previousItem,
+
+  /// Ordine casuale acceso da qualcuno.
+  shuffleOn,
+
+  /// Ordine casuale spento da qualcuno.
+  shuffleOff,
+
+  /// Un comando della coda non è arrivato al server (solo per chi agisce).
+  queueFailed,
 }
 
 /// Un avviso del watch party (spec B §5.7). Il testo lo compone
@@ -104,11 +117,26 @@ class PartyNotices extends Notifier<PartyNotice?> {
   /// Per quanto un annuncio del canale resta abbinabile a un avviso.
   static const announcementLifetime = Duration(seconds: 2);
 
+  /// Le proprie azioni sulla coda (spec H §10): l'eco può arrivare più tardi
+  /// di quella delle pause (per le aggiunte, fino alla conferma).
+  static const queueEchoWindow = Duration(seconds: 4);
+
+  static const _queueEchoKinds = {
+    PartyNoticeKind.shuffleOn,
+    PartyNoticeKind.shuffleOff,
+  };
+
+  static Duration _echoWindowOf(PartyNoticeKind kind) =>
+      _queueEchoKinds.contains(kind) ? queueEchoWindow : echoWindow;
+
   final _queue = Queue<PartyNotice>();
   final _echoes = <({PartyNoticeKind kind, DateTime at})>[];
   Timer? _timer;
   GroupState? _groupState;
   String? _playing;
+
+  /// Ordine casuale dell'ultima coda vista; `null` prima della prima.
+  bool? _shuffled;
   Duration? _lastSeek;
 
   /// Il canale del plugin è attivo: gli avvisi altrui aspettano il nome.
@@ -132,6 +160,7 @@ class PartyNotices extends Notifier<PartyNotice?> {
     _timer = null;
     _groupState = party.inGroup ? party.groupState : null;
     _playing = party.queue?.playing?.playlistItemId;
+    _shuffled = party.queue?.shuffled;
     _lastSeek = null;
     _attribution = false;
     _cancelWaiting();
@@ -155,6 +184,7 @@ class PartyNotices extends Notifier<PartyNotice?> {
       final joined = ref.read(watchPartySessionProvider);
       _groupState = joined.groupState;
       _playing = joined.queue?.playing?.playlistItemId;
+      _shuffled = joined.queue?.shuffled;
     });
     ref.onDispose(() {
       _timer?.cancel();
@@ -227,6 +257,7 @@ class PartyNotices extends Notifier<PartyNotice?> {
     _timer = null;
     _groupState = null;
     _playing = null;
+    _shuffled = null;
     _lastSeek = null;
     _cancelWaiting();
     if (ref.mounted) state = null;
@@ -235,7 +266,8 @@ class PartyNotices extends Notifier<PartyNotice?> {
   /// `true` (e l'eco si consuma) se [kind] è l'eco di una nostra azione.
   bool _isEcho(PartyNoticeKind kind) {
     final now = clock.now();
-    _echoes.removeWhere((echo) => now.difference(echo.at) > echoWindow);
+    _echoes.removeWhere(
+        (echo) => now.difference(echo.at) > _echoWindowOf(echo.kind));
     final index = _echoes.indexWhere((echo) =>
         echo.kind == kind ||
         (echo.kind == PartyNoticeKind.resumed &&
@@ -269,11 +301,10 @@ class PartyNotices extends Notifier<PartyNotice?> {
     return _announcements.removeAt(index).event.userName;
   }
 
-  /// Avviso di un'azione altrui (spec E §8): con il nome se l'annuncio è già
-  /// arrivato; altrimenti, con il canale attivo, lo aspetta al massimo
-  /// [attributionWait].
-  void _showOthers(PartyNotice notice) {
-    final action = _actionOf(notice.kind);
+  /// Avviso di un'azione altrui (spec E §8): con il nome se l'annuncio di
+  /// [action] è già arrivato; altrimenti, con il canale attivo, lo aspetta
+  /// al massimo [attributionWait]. Senza [action] esce subito.
+  void _showOthers(PartyNotice notice, PartyAction? action) {
     if (action == null) {
       show(notice);
       return;
@@ -299,8 +330,6 @@ class PartyNotices extends Notifier<PartyNotice?> {
         PartyNoticeKind.forcedResume =>
           PartyAction.unpause,
         PartyNoticeKind.seeked => PartyAction.seek,
-        PartyNoticeKind.nextEpisode => PartyAction.nextItem,
-        PartyNoticeKind.nowWatching => PartyAction.newQueue,
         _ => null,
       };
 
@@ -322,9 +351,10 @@ class PartyNotices extends Notifier<PartyNotice?> {
         if (kind == PartyNoticeKind.seeked) {
           final position = _lastSeek;
           if (position == null) return;
-          _showOthers(PartyNotice(kind, position: position));
+          _showOthers(
+              PartyNotice(kind, position: position), _actionOf(kind));
         } else {
-          _showOthers(PartyNotice(kind));
+          _showOthers(PartyNotice(kind), _actionOf(kind));
         }
       case UserJoined(:final userName):
         show(PartyNotice(PartyNoticeKind.joined, name: userName));
@@ -344,17 +374,42 @@ class PartyNotices extends Notifier<PartyNotice?> {
   void _onQueue(PlayQueue queue) {
     final entry = queue.playing;
     final previous = _playing;
+    final wasShuffled = _shuffled;
     _playing = entry?.playlistItemId;
+    _shuffled = queue.shuffled;
+    // Ordine casuale acceso o spento da qualcuno (spec H §10); la prima coda
+    // dopo l'ingresso non è un cambio. L'elemento in corso resta lui.
+    if (queue.reason == 'ShuffleMode') {
+      if (wasShuffled == null || wasShuffled == queue.shuffled) return;
+      final kind = queue.shuffled
+          ? PartyNoticeKind.shuffleOn
+          : PartyNoticeKind.shuffleOff;
+      if (!_isEcho(kind)) {
+        _showOthers(PartyNotice(kind), PartyAction.shuffleMode);
+      }
+      return;
+    }
     if (entry == null || previous == null || previous == entry.playlistItemId) {
       return;
     }
-    final kind = queue.reason == 'NextItem'
-        ? PartyNoticeKind.nextEpisode
-        : PartyNoticeKind.nowWatching;
-    unawaited(_announce(kind, entry.itemId));
+    // Il nome viene dall'annuncio dell'azione che ha cambiato titolo; un
+    // cambio per un altro motivo (per esempio una rimozione del titolo in
+    // corso da un altro client) resta senza nome.
+    final (kind, action) = switch (queue.reason) {
+      'NextItem' => (PartyNoticeKind.nextEpisode, PartyAction.nextItem),
+      'PreviousItem' => (PartyNoticeKind.previousItem, PartyAction.previousItem),
+      'SetCurrentItem' => (
+          PartyNoticeKind.nowWatching,
+          PartyAction.setCurrentItem
+        ),
+      'NewPlaylist' => (PartyNoticeKind.nowWatching, PartyAction.newQueue),
+      _ => (PartyNoticeKind.nowWatching, null),
+    };
+    unawaited(_announce(kind, entry.itemId, action));
   }
 
-  Future<void> _announce(PartyNoticeKind kind, String itemId) async {
+  Future<void> _announce(
+      PartyNoticeKind kind, String itemId, PartyAction? action) async {
     try {
       final item = await ref
           .read(libraryApiProvider)
@@ -363,13 +418,20 @@ class PartyNotices extends Notifier<PartyNotice?> {
       // Nel frattempo si è usciti dal gruppo o si guarda già altro.
       final party = ref.read(watchPartySessionProvider);
       if (!party.inGroup || party.queue?.playing?.itemId != itemId) return;
-      _showOthers(PartyNotice(kind,
-          title: kind == PartyNoticeKind.nextEpisode
-              ? cardSubtitle(item) ?? item.name
-              : cardTitle(item)));
+      _showOthers(PartyNotice(kind, title: _noticeTitle(kind, item)), action);
     } on Object catch (error) {
       _log.info('titolo per l\'avviso non disponibile: $error');
     }
+  }
+
+  /// Successivo e precedente: l'episodio ("S1:E5 · Titolo") o il film. Un
+  /// titolo nuovo: la serie o il film.
+  static String _noticeTitle(PartyNoticeKind kind, JellyfinItem item) {
+    final step = kind == PartyNoticeKind.nextEpisode ||
+        kind == PartyNoticeKind.previousItem;
+    return step && item.kind == ItemKind.episode
+        ? cardSubtitle(item) ?? item.name
+        : cardTitle(item);
   }
 }
 

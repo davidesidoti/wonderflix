@@ -45,6 +45,16 @@ String partyNoticeText(AppLocalizations l, PartyNotice notice) {
     PartyNoticeKind.inviteSent => l.partyInviteSent(notice.name ?? ''),
     PartyNoticeKind.inviteFailed => l.friendsActionFailed,
     PartyNoticeKind.inviteRateLimited => l.friendsTooMany,
+    PartyNoticeKind.previousItem => by != null
+        ? l.watchPartyNoticePreviousBy(by, title)
+        : l.watchPartyNoticePrevious(title),
+    PartyNoticeKind.shuffleOn => by != null
+        ? l.watchPartyNoticeShuffleOnBy(by)
+        : l.watchPartyNoticeShuffleOn,
+    PartyNoticeKind.shuffleOff => by != null
+        ? l.watchPartyNoticeShuffleOffBy(by)
+        : l.watchPartyNoticeShuffleOff,
+    PartyNoticeKind.queueFailed => l.partyQueueActionFailed,
   };
 }
 
@@ -65,7 +75,10 @@ IconData partyNoticeIcon(PartyNoticeKind kind) => switch (kind) {
       PartyNoticeKind.privateCode => LucideIcons.lock,
       PartyNoticeKind.codeCopied => LucideIcons.copy,
       PartyNoticeKind.inviteSent => LucideIcons.send,
+      PartyNoticeKind.previousItem => LucideIcons.skipBack,
+      PartyNoticeKind.shuffleOn || PartyNoticeKind.shuffleOff => LucideIcons.shuffle,
       PartyNoticeKind.inviteFailed ||
-      PartyNoticeKind.inviteRateLimited =>
+      PartyNoticeKind.inviteRateLimited ||
+      PartyNoticeKind.queueFailed =>
         LucideIcons.circleAlert,
     };
