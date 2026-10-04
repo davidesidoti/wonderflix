@@ -39,7 +39,12 @@ void main() {
           const PlayQueueEntry(itemId: 'e4', playlistItemId: 'p2'),
           for (final id in upcoming ?? const ['p3', 'p4', 'p5'])
             PlayQueueEntry(
-                itemId: const {'p3': 'e5', 'p4': 'm1', 'p5': 'x9'}[id]!,
+                itemId: const {
+                  'p3': 'e5',
+                  'p4': 'm1',
+                  'p5': 'x9',
+                  'p6': 'e6'
+                }[id]!,
                 playlistItemId: id),
         ],
         playingIndex: 1,
@@ -58,9 +63,10 @@ void main() {
 
   Future<List<String>> pumpPanel(WidgetTester tester,
       {ValueNotifier<PlayQueue>? notifier,
-      Map<String, JellyfinItem?>? details}) async {
+      ValueNotifier<Map<String, JellyfinItem?>>? details}) async {
     final calls = <String>[];
     final current = notifier ?? ValueNotifier(queue());
+    final currentDetails = details ?? ValueNotifier(items);
     await pumpApp(
       tester,
       Scaffold(
@@ -69,11 +75,11 @@ void main() {
           child: SizedBox(
             width: QueuePanel.width,
             height: 900,
-            child: ValueListenableBuilder<PlayQueue>(
-              valueListenable: current,
-              builder: (context, value, _) => QueuePanel(
-                queue: value,
-                items: details ?? items,
+            child: ListenableBuilder(
+              listenable: Listenable.merge([current, currentDetails]),
+              builder: (context, _) => QueuePanel(
+                queue: current.value,
+                items: currentDetails.value,
                 onJump: (id) => calls.add('jump $id'),
                 onRemove: (id) => calls.add('remove $id'),
                 onMove: (id, index) => calls.add('move $id $index'),
@@ -93,6 +99,25 @@ void main() {
 
   Finder inRow(String playlistItemId, Finder finder) =>
       find.descendant(of: row(playlistItemId), matching: finder);
+
+  /// L'unico mouse del test (ce n'è uno solo per dispositivo).
+  TestGesture? mouse;
+  setUp(() => mouse = null);
+
+  /// Il mouse sopra la riga: maniglia e ✕ compaiono (e prendono i clic).
+  Future<void> hoverRow(WidgetTester tester, String playlistItemId) async {
+    final target = tester.getCenter(row(playlistItemId));
+    var current = mouse;
+    if (current == null) {
+      current = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      mouse = current;
+      await current.addPointer(location: target);
+      addTearDown(current.removePointer);
+    } else {
+      await current.moveTo(target);
+    }
+    await tester.pump();
+  }
 
   test('riga secondaria: episodio, film, in riproduzione', () {
     expect(queueRowDetails(l, items['e5']!), 'The Office · S2:E5 · 22m');
@@ -155,9 +180,34 @@ void main() {
       (tester) async {
     final calls = await pumpPanel(tester);
     expect(inRow('p2', find.byTooltip(l.partyQueueRemove)), findsNothing);
+    await hoverRow(tester, 'p3');
     await tester.tap(inRow('p3', find.byTooltip(l.partyQueueRemove)));
+    await hoverRow(tester, 'p1');
     await tester.tap(inRow('p1', find.byTooltip(l.partyQueueRemove)));
     expect(calls, ['remove p3', 'remove p1']);
+  });
+
+  testWidgets('maniglia e ✕ nascoste non prendono i clic: va alla riga',
+      (tester) async {
+    final calls = await pumpPanel(tester);
+    // Senza il mouse sopra la ✕ è invisibile: il clic è della riga.
+    await tester.tap(inRow('p3', find.byTooltip(l.partyQueueRemove)));
+    expect(calls, ['jump p3']);
+    // E la maniglia invisibile non fa partire il trascinamento.
+    double top(String id) => tester.getTopLeft(row(id)).dy;
+    final rowHeight = tester.getSize(row('p3')).height;
+    final before = top('p4');
+    final gesture = await tester.startGesture(
+        tester.getCenter(inRow('p4', find.byIcon(LucideIcons.gripVertical))));
+    await tester.pump();
+    await gesture.moveBy(Offset(0, -rowHeight));
+    await tester.pump();
+    await gesture.moveBy(const Offset(0, -10));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(calls, ['jump p3']);
+    expect(top('p4'), before);
   });
 
   testWidgets('passando sopra una riga compaiono maniglia e ✕',
@@ -190,6 +240,7 @@ void main() {
     final calls = await pumpPanel(tester, notifier: notifier);
     double top(String id) => tester.getTopLeft(row(id)).dy;
     final rowHeight = tester.getSize(row('p3')).height;
+    await hoverRow(tester, 'p4');
     final gesture = await tester.startGesture(
         tester.getCenter(inRow('p4', find.byIcon(LucideIcons.gripVertical))));
     await tester.pump();
@@ -216,6 +267,7 @@ void main() {
     final calls = await pumpPanel(tester);
     double top(String id) => tester.getTopLeft(row(id)).dy;
     final rowHeight = tester.getSize(row('p3')).height;
+    await hoverRow(tester, 'p3');
     final gesture = await tester.startGesture(
         tester.getCenter(inRow('p3', find.byIcon(LucideIcons.gripVertical))));
     await tester.pump();
@@ -236,6 +288,7 @@ void main() {
     await pumpPanel(tester);
     double top(String id) => tester.getTopLeft(row(id)).dy;
     final rowHeight = tester.getSize(row('p3')).height;
+    await hoverRow(tester, 'p4');
     final gesture = await tester.startGesture(
         tester.getCenter(inRow('p4', find.byIcon(LucideIcons.gripVertical))));
     await tester.pump();
@@ -274,8 +327,107 @@ void main() {
 
   testWidgets('dettagli in arrivo: righe senza titolo, poi complete',
       (tester) async {
-    await pumpPanel(tester, details: const {});
+    final details = ValueNotifier<Map<String, JellyfinItem?>>(const {});
+    await pumpPanel(tester, details: details);
     expect(find.text('…'), findsNWidgets(5));
     expect(find.text('5 titoli'), findsOneWidget, reason: 'nessuna durata nota');
+
+    // Arrivano i dettagli: titoli e durata completano le righe.
+    details.value = items;
+    await tester.pump();
+    expect(find.text('…'), findsNothing);
+    expect(find.text('Ufficio in fiamme'), findsOneWidget);
+    expect(find.text('Alien'), findsOneWidget);
+    expect(find.text(l.partyQueueUnavailable), findsOneWidget);
+    expect(find.text('5 titoli · 2h 19m dopo questo'), findsOneWidget);
+  });
+
+  testWidgets('coda lunga: all\'apertura si vede la riga in corso',
+      (tester) async {
+    // 30 già visti, la riga in corso (p2) e i prossimi: una lista pigra non
+    // avrebbe ancora costruito la riga in corso, e non si potrebbe portarla
+    // in vista.
+    final long = PlayQueue(
+      reason: 'NewPlaylist',
+      lastUpdate: DateTime.utc(2026, 10, 4, 10),
+      entries: [
+        for (var i = 0; i < 30; i++)
+          PlayQueueEntry(itemId: 'e3', playlistItemId: 'w$i'),
+        const PlayQueueEntry(itemId: 'e4', playlistItemId: 'p2'),
+        const PlayQueueEntry(itemId: 'e5', playlistItemId: 'p3'),
+        const PlayQueueEntry(itemId: 'm1', playlistItemId: 'p4'),
+      ],
+      playingIndex: 30,
+      startPosition: Duration.zero,
+      isPlaying: true,
+    );
+    await pumpPanel(tester, notifier: ValueNotifier(long));
+    await tester.pumpAndSettle();
+    final list = tester.getRect(find.byType(CustomScrollView));
+    final playing = tester.getRect(row('p2'));
+    expect(playing.top, greaterThanOrEqualTo(list.top));
+    expect(playing.bottom, lessThanOrEqualTo(list.bottom));
+  });
+
+  group('trascinamento e coda che cambia in corsa', () {
+    /// Prende `p4` e lo porta sopra `p3`, senza lasciarlo.
+    Future<TestGesture> dragP4Up(WidgetTester tester) async {
+      final rowHeight = tester.getSize(row('p3')).height;
+      await hoverRow(tester, 'p4');
+      final gesture = await tester.startGesture(tester
+          .getCenter(inRow('p4', find.byIcon(LucideIcons.gripVertical))));
+      await tester.pump();
+      await gesture.moveBy(Offset(0, -rowHeight));
+      await tester.pump();
+      await gesture.moveBy(const Offset(0, -10));
+      await tester.pump();
+      return gesture;
+    }
+
+    testWidgets('stessi titoli in un altro ordine: si sposta quello preso, '
+        'mai un altro', (tester) async {
+      final notifier = ValueNotifier(queue());
+      final calls = await pumpPanel(tester, notifier: notifier);
+      final gesture = await dragP4Up(tester);
+      // Il server manda una coda con lo stesso numero di titoli: p5 sta
+      // ora prima di p4.
+      notifier.value = queue(
+          lastUpdate: DateTime.utc(2026, 10, 4, 10, 1),
+          upcoming: const ['p3', 'p5', 'p4']);
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(calls, ['move p4 0']);
+    });
+
+    testWidgets('il titolo preso sparisce (stesso numero di titoli): niente '
+        'spostamento', (tester) async {
+      final notifier = ValueNotifier(queue());
+      final calls = await pumpPanel(tester, notifier: notifier);
+      final gesture = await dragP4Up(tester);
+      // p4 non c'è più, al suo posto p6: spostare "la riga in quel punto"
+      // sarebbe spostare un altro titolo.
+      notifier.value = queue(
+          lastUpdate: DateTime.utc(2026, 10, 4, 10, 1),
+          upcoming: const ['p3', 'p6', 'p5']);
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(calls, isEmpty);
+    });
+
+    testWidgets('il titolo preso sparisce (meno titoli): niente '
+        'spostamento', (tester) async {
+      final notifier = ValueNotifier(queue());
+      final calls = await pumpPanel(tester, notifier: notifier);
+      final gesture = await dragP4Up(tester);
+      notifier.value = queue(
+          lastUpdate: DateTime.utc(2026, 10, 4, 10, 1),
+          upcoming: const ['p3', 'p5']);
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(calls, isEmpty);
+    });
   });
 }

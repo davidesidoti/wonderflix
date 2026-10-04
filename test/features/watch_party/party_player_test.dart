@@ -1836,6 +1836,13 @@ void main() {
     expect(announced(),
         contains(equals({'Type': 'Action', 'Action': 'SetCurrentItem'})));
 
+    // La ✕ compare e prende i clic solo con il mouse sopra la riga.
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(
+        location:
+            tester.getCenter(find.byKey(const ValueKey('party-queue-p3'))));
+    addTearDown(mouse.removePointer);
+    await tester.pump();
     await tester.tap(find.descendant(
         of: find.byKey(const ValueKey('party-queue-p3')),
         matching: find.byTooltip(l.partyQueueRemove)));
@@ -1863,6 +1870,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(QueuePanel), findsNothing);
     expect(find.byTooltip(l.partyQueueOpen), findsNothing);
+    // Il riquadro non resta aperto "dietro": il primo Esc esce dal player.
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byType(PlayerScreen), findsNothing,
+        reason: 'nessun riquadro aperto: Esc esce dal player');
     await finish(tester);
   });
 
@@ -1882,6 +1894,140 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
     expect(find.text(l.playerWatchCredits), findsOneWidget);
+    expect(find.byType(QueuePanel), findsNothing);
+    await finish(tester);
+  });
+
+  testWidgets('pannello Coda e riapertura non riuscita: si chiude, Esc esce '
+      'dal player', (tester) async {
+    // Il direct play non riesce: si guarda in transcodifica, dove cambiare
+    // l'audio riapre il file.
+    await pumpPartyPlayer(tester, failOpens: 1);
+    final args = tester.widget<PlayerScreen>(find.byType(PlayerScreen)).args;
+    // L'avviso della transcodifica coprirebbe il pulsante.
+    ScaffoldMessenger.of(tester.element(find.byType(PlayerScreen)))
+        .removeCurrentSnackBar();
+    await tester.pump();
+    await queueSeries(tester);
+    await tester.tap(find.byTooltip(l.partyQueueOpen));
+    await tester.pumpAndSettle();
+    expect(find.byType(QueuePanel), findsOneWidget);
+    engine.failOpens = 1;
+    unawaited(
+        container.read(playerControllerProvider(args).notifier).selectAudio(2));
+    await tester.pump();
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text(l.playerErrorTitle), findsOneWidget);
+    expect(find.byType(QueuePanel), findsNothing);
+    // Il riquadro non resta aperto "dietro" lo strato dell'errore.
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    expect(api.calls, contains('leave'),
+        reason: 'nessun riquadro aperto: Esc esce dal player');
+    await finish(tester);
+  });
+
+  testWidgets('pannello Coda: il clic sul film lo chiude senza mettere in '
+      'pausa', (tester) async {
+    await pumpPartyPlayer(tester);
+    await queueSeries(tester);
+    await tester.tap(find.byTooltip(l.partyQueueOpen));
+    await tester.pumpAndSettle();
+    api.calls.clear();
+    await tester.tapAt(const Offset(300, 450));
+    // Il film ha anche il doppio clic: il clic singolo vale dopo 300 ms.
+    await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
+    await tester.pumpAndSettle();
+    expect(find.byType(QueuePanel), findsNothing);
+    expect(api.calls.where((call) => call.contains('pause')), isEmpty,
+        reason: 'il clic chiude il pannello e basta');
+    await finish(tester);
+  });
+
+  testWidgets('pannello Coda: la rotella sul pannello non cambia il volume, '
+      'sul film sì', (tester) async {
+    await pumpPartyPlayer(tester);
+    await queueSeries(tester);
+    await tester.tap(find.byTooltip(l.partyQueueOpen));
+    await tester.pumpAndSettle();
+    final count = engine.volumes.length;
+    final wheel = TestPointer(1, PointerDeviceKind.mouse);
+    await tester.sendEventToBinding(
+        wheel.hover(tester.getCenter(find.byType(QueuePanel))));
+    // Prima in su: la lista è in cima e non può scorrere, quindi lavora la
+    // barriera del pannello; poi in giù.
+    await tester.sendEventToBinding(wheel.scroll(const Offset(0, -60)));
+    await tester.sendEventToBinding(wheel.scroll(const Offset(0, 60)));
+    await tester.pump();
+    expect(engine.volumes, hasLength(count));
+    // Sul film la rotella regola il volume, anche con il pannello aperto.
+    await tester.sendEventToBinding(wheel.hover(const Offset(300, 450)));
+    await tester.sendEventToBinding(wheel.scroll(const Offset(0, 60)));
+    await tester.pump();
+    expect(engine.volumes, hasLength(count + 1));
+    await finish(tester);
+  });
+
+  testWidgets('pannello Coda: dopo un clic su una riga i tasti restano del '
+      'player', (tester) async {
+    await pumpPartyPlayer(tester);
+    await queueSeries(tester);
+    await tester.tap(find.byTooltip(l.partyQueueOpen));
+    await tester.pumpAndSettle();
+    await tester.tap(find.descendant(
+        of: find.byType(QueuePanel), matching: find.text('Cat\'s in the Bag')));
+    await tester.pump();
+    expect(api.calls, contains('set-item p2'));
+    api.calls.clear();
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    await tester.pump();
+    expect(api.calls, contains('unpause'),
+        reason: 'Spazio va al player, non alla riga cliccata');
+    expect(api.calls, isNot(contains('set-item p2')));
+    await finish(tester);
+  });
+
+  testWidgets('pannello Coda aperto: il gruppo passa a un altro titolo, '
+      'resta aperto sul player nuovo', (tester) async {
+    await pumpPartyPlayer(tester);
+    await queueSeries(tester);
+    await tester.tap(find.byTooltip(l.partyQueueOpen));
+    await tester.pumpAndSettle();
+    expect(find.byType(QueuePanel), findsOneWidget);
+
+    emit(PlayQueueUpdate(
+        'g1',
+        testSeriesQueue(
+            playingIndex: 1,
+            reason: 'SetCurrentItem',
+            lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+    await tester.pumpAndSettle();
+    expect(router.state.uri.toString(), '/play/e5?party=p2');
+    expect(engines, hasLength(2), reason: 'un player nuovo');
+    expect(find.byType(QueuePanel), findsOneWidget);
+    // È aperto davvero (non solo per un residuo): Esc lo chiude e basta.
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byType(QueuePanel), findsNothing);
+    expect(find.byType(PlayerScreen), findsOneWidget);
+    await finish(tester);
+  });
+
+  testWidgets('pannello Coda chiuso: il gruppo passa a un altro titolo, '
+      'resta chiuso', (tester) async {
+    await pumpPartyPlayer(tester);
+    await queueSeries(tester);
+    emit(PlayQueueUpdate(
+        'g1',
+        testSeriesQueue(
+            playingIndex: 1,
+            reason: 'SetCurrentItem',
+            lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+    await tester.pumpAndSettle();
+    expect(router.state.uri.toString(), '/play/e5?party=p2');
+    expect(engines, hasLength(2), reason: 'un player nuovo');
     expect(find.byType(QueuePanel), findsNothing);
     await finish(tester);
   });

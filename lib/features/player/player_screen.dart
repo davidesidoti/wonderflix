@@ -227,6 +227,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         party != null && party.inGroup ? party.members.length : null));
     _timelineTimer =
         Timer.periodic(const Duration(seconds: 5), (_) => _sendTimeline());
+    // Il gruppo ha sostituito il player del titolo prima: la coda, se era
+    // aperta, resta aperta (spec H §9.1). Prima del listener, il pannello è
+    // aperto fin dal primo fotogramma.
+    if (widget.args.party != null &&
+        ref.read(partyQueuePanelCarryProvider).take()) {
+      _chrome.openPopup(PlayerPopup.queue);
+    }
     _chrome.addListener(_onChromeChanged);
     // Un menu aperto dai controlli (modalità di "Guarda insieme", distintivo
     // del party) è una rotta sopra il player: finché c'è, i controlli non si
@@ -675,6 +682,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final watched = view.finished || (from != null && engine.position >= from);
     unawaited(_controller.close(watched: watched));
     ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
+    // La coda aperta resta aperta nel player nuovo.
+    ref
+        .read(partyQueuePanelCarryProvider)
+        .carry(open: _chrome.popup == PlayerPopup.queue);
     context.pushReplacement(
         playerRoute(
           entry.itemId,
@@ -1143,8 +1154,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // chiude (sotto c'è il post-play; vale anche per la coda del gruppo), e
     // con lui la barretta delle reazioni (spariti i controlli con il suo
     // pulsante resterebbe aperta senza vedersi, e il primo Esc sarebbe
-    // suo); la schermata di pausa segue
-    // (spec D §12.1: non c'è durante il post-play).
+    // suo); la schermata di pausa segue (spec D §12.1: non c'è durante il
+    // post-play).
     if (postPlay != _postPlayWasShown) {
       _postPlayWasShown = postPlay;
       WidgetsBinding.instance.addPostFrameCallback((_) {

@@ -94,6 +94,11 @@ class _QueuePanelState extends State<QueuePanel> {
   List<String>? _pendingOrder;
   Timer? _pendingTimer;
 
+  /// Id nella coda della riga che si sta trascinando, preso all'inizio del
+  /// trascinamento: la coda può cambiare mentre la si trascina, e l'indice
+  /// che dà Flutter può non essere più quello della riga.
+  String? _draggedId;
+
   @override
   void initState() {
     super.initState();
@@ -125,12 +130,22 @@ class _QueuePanelState extends State<QueuePanel> {
     _pendingOrder = null;
   }
 
-  /// Il trascinamento è finito: [newIndex] è già contato dopo aver tolto la
-  /// riga (`onReorderItem`), come lo vuole `MovePlaylistItem`.
-  void _reorder(List<PlayQueueEntry> upcoming, int oldIndex, int newIndex) {
+  /// Il trascinamento è finito: la riga è quella presa all'inizio, cercata
+  /// nei [upcoming] di adesso (se nel frattempo è sparita non si sposta
+  /// niente). [newIndex] è già contato dopo aver tolto la riga
+  /// (`onReorderItem`), come lo vuole `MovePlaylistItem`, e si tiene dentro
+  /// la lista di adesso.
+  void _reorder(List<PlayQueueEntry> upcoming, int newIndex) {
+    final moved = _draggedId;
+    _draggedId = null;
+    if (moved == null) return;
+    final oldIndex =
+        upcoming.indexWhere((entry) => entry.playlistItemId == moved);
+    if (oldIndex < 0) return;
+    newIndex = newIndex.clamp(0, upcoming.length - 1);
     if (newIndex == oldIndex) return;
     final order = [for (final entry in upcoming) entry.playlistItemId];
-    final moved = order.removeAt(oldIndex);
+    order.removeAt(oldIndex);
     order.insert(newIndex, moved);
     _pendingTimer?.cancel();
     _pendingTimer = Timer(QueuePanel.pendingTimeout, () {
@@ -169,29 +184,43 @@ class _QueuePanelState extends State<QueuePanel> {
       slivers: [
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          sliver: SliverList.list(children: [
-            if (sections.watched.isNotEmpty) ...[
-              QueueSectionTitle(l.partyQueueWatched, muted: true),
-              for (final entry in sections.watched)
-                rowFor(entry, QueueRowKind.watched),
-            ],
-            if (playing != null) ...[
-              QueueSectionTitle(l.partyQueuePlaying),
-              KeyedSubtree(
-                  key: _playingKey,
-                  child: rowFor(playing, QueueRowKind.playing)),
-            ],
-            if (upcoming.isNotEmpty) QueueSectionTitle(l.partyQueueUpcoming),
-          ]),
+          // Già visti e riga in corso si costruiscono subito, non a
+          // richiesta (sono al massimo [partyQueueLimit] righe): una lista
+          // pigra non avrebbe ancora la riga in corso quando serve portarla
+          // in vista.
+          sliver: SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (sections.watched.isNotEmpty) ...[
+                  QueueSectionTitle(l.partyQueueWatched, muted: true),
+                  for (final entry in sections.watched)
+                    rowFor(entry, QueueRowKind.watched),
+                ],
+                if (playing != null) ...[
+                  QueueSectionTitle(l.partyQueuePlaying),
+                  KeyedSubtree(
+                      key: _playingKey,
+                      child: rowFor(playing, QueueRowKind.playing)),
+                ],
+                if (upcoming.isNotEmpty)
+                  QueueSectionTitle(l.partyQueueUpcoming),
+              ],
+            ),
+          ),
         ),
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
           sliver: SliverReorderableList(
             itemCount: upcoming.length,
-            onReorderItem: (oldIndex, newIndex) =>
-                _reorder(upcoming, oldIndex, newIndex),
-            // La riga trascinata sta in un `Overlay`: il suo `InkWell` vuole
-            // un `Material` sopra.
+            onReorderStart: (index) {
+              if (index < upcoming.length) {
+                _draggedId = upcoming[index].playlistItemId;
+              }
+            },
+            onReorderItem: (_, newIndex) => _reorder(upcoming, newIndex),
+            // Il proxy dà alla riga sollevata fondo e ombra; `QueueRow` ha
+            // già il suo `Material` trasparente per l'`InkWell`.
             proxyDecorator: (child, index, animation) => Material(
               color: WfColors.surfaceHigh,
               elevation: 6,

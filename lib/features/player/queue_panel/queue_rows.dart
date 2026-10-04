@@ -103,8 +103,12 @@ class _QueueRowState extends ConsumerState<QueueRow> {
         item?.name ?? (widget.known ? l.partyQueueUnavailable : '…');
     final details =
         item == null ? null : queueRowDetails(l, item, playing: playing);
+    // Maniglia e ✕ si vedono solo passando sopra, e finché non si vedono non
+    // prendono né clic né trascinamenti: restano alla riga.
     Widget hoverOnly(Widget child) => AnimatedOpacity(
-        opacity: _hovered ? 1 : 0, duration: WfMotion.fast, child: child);
+        opacity: _hovered ? 1 : 0,
+        duration: WfMotion.fast,
+        child: IgnorePointer(ignoring: !_hovered, child: child));
     final row = Padding(
       padding: const EdgeInsets.fromLTRB(4, 6, 4, 6),
       child: Row(

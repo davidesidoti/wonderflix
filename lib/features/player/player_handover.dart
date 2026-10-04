@@ -22,3 +22,25 @@ class PlayerHandover {
 
 final playerHandoverProvider =
     Provider<PlayerHandover>((ref) => PlayerHandover());
+
+/// Il pannello "Coda" del watch party (spec H §9.1) aperto nel player che il
+/// gruppo sostituisce con quello del titolo dopo (qualcuno ha saltato a una
+/// riga, o la coda è andata avanti): il player nuovo ha un suo stato dei
+/// riquadri, e senza questo il pannello sparirebbe a ogni cambio di titolo.
+/// Chi lascia segna se era aperto, chi arriva lo legge, una volta sola.
+class PartyQueuePanelCarry {
+  bool _open = false;
+
+  /// Il player che sta per essere sostituito dice se il pannello era aperto.
+  void carry({required bool open}) => _open = open;
+
+  /// `true`, una volta sola, se il pannello va riaperto nel player nuovo.
+  bool take() {
+    final open = _open;
+    _open = false;
+    return open;
+  }
+}
+
+final partyQueuePanelCarryProvider =
+    Provider<PartyQueuePanelCarry>((ref) => PartyQueuePanelCarry());
