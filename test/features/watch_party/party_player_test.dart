@@ -28,7 +28,9 @@ import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
 import 'package:wonderflix/features/player/player_volume.dart';
 import 'package:wonderflix/features/player/post_play.dart';
+import 'package:wonderflix/features/player/queue_panel/queue_add_view.dart';
 import 'package:wonderflix/features/player/queue_panel/queue_panel.dart';
+import 'package:wonderflix/features/player/queue_panel/queue_series_views.dart';
 import 'package:wonderflix/features/player/tracks_panel.dart';
 import 'package:wonderflix/features/watch_party/party_channel.dart';
 import 'package:wonderflix/features/watch_party/party_chat_bubble.dart';
@@ -2051,5 +2053,249 @@ void main() {
     expect(engines, hasLength(2), reason: 'un player nuovo');
     expect(find.byType(QueuePanel), findsNothing);
     await finish(tester);
+  });
+
+  group('aggiungere titoli (spec H §9.2)', () {
+    Future<void> openAdd(WidgetTester tester) async {
+      library.onItems = (query, start, limit) =>
+          pageOf([testItem(id: 'm9', name: 'Alien', year: 1979)]);
+      library.itemsById['m9'] = testItem(id: 'm9', name: 'Alien', year: 1979);
+      await tester.tap(find.byTooltip(l.partyQueueOpen));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l.partyQueueAddTitles));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('dalla vista Coda alla vista Aggiungi; riproduci dopo; la '
+        'conferma dà "Hai messo subito dopo"', (tester) async {
+      await pumpPartyPlayer(tester);
+      await queueSeries(tester);
+      await openAdd(tester);
+      expect(find.byType(QueueAddView), findsOneWidget);
+      await tester.tap(find.descendant(
+          of: find.byKey(const ValueKey('queue-add-m9')),
+          matching: find.byTooltip(l.partyQueuePlayNext)));
+      await tester.pump();
+      expect(api.calls, contains('add-next m9'));
+      expect(announced(),
+          contains(equals({'Type': 'Action', 'Action': 'QueueNext'})));
+      emit(PlayQueueUpdate(
+          'g1',
+          PlayQueue(
+            reason: 'QueueNext',
+            lastUpdate: DateTime.utc(2026, 9, 30, 10, 5),
+            entries: const [
+              PlayQueueEntry(itemId: 'e4', playlistItemId: 'p1'),
+              PlayQueueEntry(itemId: 'm9', playlistItemId: 'p9'),
+              PlayQueueEntry(itemId: 'e5', playlistItemId: 'p2'),
+              PlayQueueEntry(itemId: 'e6', playlistItemId: 'p3'),
+            ],
+            playingIndex: 0,
+            startPosition: Duration.zero,
+            isPlaying: false,
+          )));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Hai messo subito dopo: Alien'), findsOneWidget);
+      expect(
+          find.descendant(
+              of: find.byKey(const ValueKey('queue-add-m9')),
+              matching: find.text(l.partyQueueInQueue)),
+          findsOneWidget);
+      await finish(tester);
+    });
+
+    testWidgets('mentre si scrive i tasti del player sono fermi; Esc svuota, '
+        'poi chiude, e i tasti tornano al player', (tester) async {
+      await pumpPartyPlayer(tester);
+      await queueSeries(tester);
+      await openAdd(tester);
+      api.calls.clear();
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+      await tester.pump();
+      expect(api.calls.where((c) => c == 'unpause' || c.startsWith('next')),
+          isEmpty);
+      await tester.enterText(find.byType(TextField), 'al');
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(find.byType(QueueAddView), findsOneWidget, reason: 'ha svuotato');
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(QueueAddView), findsNothing);
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pump();
+      expect(api.calls, contains('unpause'));
+      await finish(tester);
+    });
+
+    testWidgets('← torna alla Coda; riaperto dal pulsante parte dalla Coda',
+        (tester) async {
+      await pumpPartyPlayer(tester);
+      await queueSeries(tester);
+      await openAdd(tester);
+      // C'è anche il ← della barra del player: si prende quello del pannello.
+      await tester.tap(find.descendant(
+          of: find.byType(QueueAddView), matching: find.byTooltip(l.navBack)));
+      await tester.pumpAndSettle();
+      expect(find.byType(QueuePanel), findsOneWidget);
+      await tester.tap(find.text(l.partyQueueAddTitles));
+      await tester.pumpAndSettle();
+      // Il pannello copre il pulsante Coda: si chiude con la ✕, poi si
+      // riapre dal pulsante.
+      await tester.tap(find.byTooltip(l.playerClosePanel));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip(l.partyQueueOpen));
+      await tester.pumpAndSettle();
+      expect(find.byType(QueuePanel), findsOneWidget);
+      expect(find.byType(QueueAddView), findsNothing);
+      await finish(tester);
+    });
+
+    testWidgets('il gruppo cambia titolo mentre si cerca: il pannello resta '
+        'sulla vista Aggiungi con il testo', (tester) async {
+      await pumpPartyPlayer(tester);
+      await queueSeries(tester);
+      await openAdd(tester);
+      await tester.enterText(find.byType(TextField), 'ali');
+      await tester.pump(const Duration(milliseconds: 300));
+      emit(PlayQueueUpdate(
+          'g1',
+          testSeriesQueue(
+              playingIndex: 1,
+              reason: 'SetCurrentItem',
+              lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.toString(), '/play/e5?party=p2');
+      expect(find.byType(QueueAddView), findsOneWidget);
+      expect(
+          tester.widget<TextField>(find.byType(TextField)).controller?.text,
+          'ali');
+      await finish(tester);
+    });
+
+    testWidgets('campo a fuoco: restano i tasti multimediali, Tab non lo '
+        'lascia', (tester) async {
+      await pumpPartyPlayer(tester);
+      await queueSeries(tester);
+      await openAdd(tester);
+      expect(primaryFocus(), 'party-queue-search');
+      await tester.sendKeyEvent(LogicalKeyboardKey.mediaPlayPause);
+      await tester.pump();
+      expect(api.calls.where((call) => call == 'unpause'), hasLength(1));
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(primaryFocus(), 'party-queue-search');
+      await finish(tester);
+    });
+
+    testWidgets('pannello chiuso con il campo a fuoco: i tasti tornano subito '
+        'al player, senza aspettare che il pannello esca', (tester) async {
+      await pumpPartyPlayer(tester);
+      await queueSeries(tester);
+      await openAdd(tester);
+      // Campo vuoto: Esc chiude il pannello. Niente `pumpAndSettle`: il
+      // pannello sta ancora uscendo e il campo è ancora nell'albero.
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      expect(find.byType(QueueAddView), findsOneWidget,
+          reason: 'sta ancora uscendo');
+      await expectPlayerKeys(tester);
+      await finish(tester);
+    });
+
+    testWidgets('← dalla vista Aggiungi: il campo sparisce e i tasti tornano '
+        'al player', (tester) async {
+      await pumpPartyPlayer(tester);
+      await queueSeries(tester);
+      await openAdd(tester);
+      await tester.tap(find.descendant(
+          of: find.byType(QueueAddView), matching: find.byTooltip(l.navBack)));
+      await tester.pumpAndSettle();
+      expect(find.byType(QueueAddView), findsNothing);
+      await expectPlayerKeys(tester);
+      await finish(tester);
+    });
+
+    testWidgets('clic fuori dal campo: il campo perde il focus e i tasti '
+        'tornano al player', (tester) async {
+      await pumpPartyPlayer(tester);
+      await queueSeries(tester);
+      await openAdd(tester);
+      expect(primaryFocus(), 'party-queue-search');
+      // Sul desktop un clic fuori dal campo lo sfoca: il focus andrebbe alla
+      // rotta, non al player.
+      await tester.tap(find.text(l.partyQueueAddTitle));
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(QueueAddView), findsOneWidget);
+      await expectPlayerKeys(tester);
+      await finish(tester);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
+    testWidgets('riaperto dal pulsante, anche la ricerca riparte da zero',
+        (tester) async {
+      await pumpPartyPlayer(tester);
+      await queueSeries(tester);
+      await openAdd(tester);
+      await tester.enterText(find.byType(TextField), 'ali');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.byTooltip(l.playerClosePanel));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip(l.partyQueueOpen));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l.partyQueueAddTitles));
+      await tester.pumpAndSettle();
+      expect(find.byType(QueueAddView), findsOneWidget);
+      expect(
+          tester.widget<TextField>(find.byType(TextField)).controller?.text,
+          isEmpty);
+      await finish(tester);
+    });
+
+    testWidgets('vista Serie: ← torna alla ricerca; il cambio di titolo non '
+        'la chiude', (tester) async {
+      await pumpPartyPlayer(tester);
+      await queueSeries(tester);
+      final dark = testItem(id: 's9', name: 'Dark', kind: ItemKind.series);
+      library.onItems = (query, start, limit) => pageOf([dark]);
+      library
+        ..seasonsBySeries['s9'] = [
+          testItem(id: 'se9', name: 'Stagione 1', kind: ItemKind.other),
+        ]
+        ..seriesEpisodes['s9'] = [
+          testItem(
+              id: 'd1',
+              name: 'Segreti',
+              kind: ItemKind.episode,
+              seriesId: 's9',
+              seriesName: 'Dark',
+              seasonId: 'se9',
+              index: 1,
+              seasonIndex: 1),
+        ];
+      await tester.tap(find.byTooltip(l.partyQueueOpen));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l.partyQueueAddTitles));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Dark'));
+      await tester.pumpAndSettle();
+      expect(find.byType(QueueSeriesView), findsOneWidget);
+      emit(PlayQueueUpdate(
+          'g1',
+          testSeriesQueue(
+              playingIndex: 1,
+              reason: 'SetCurrentItem',
+              lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.toString(), '/play/e5?party=p2');
+      expect(find.byType(QueueSeriesView), findsOneWidget,
+          reason: 'il pannello si riapre dove era');
+      await tester.tap(find.descendant(
+          of: find.byType(QueueSeriesView),
+          matching: find.byTooltip(l.navBack)));
+      await tester.pumpAndSettle();
+      expect(find.byType(QueueAddView), findsOneWidget);
+      await finish(tester);
+    });
   });
 }

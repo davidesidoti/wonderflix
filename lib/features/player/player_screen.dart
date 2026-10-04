@@ -50,6 +50,7 @@ import 'player_side_panel_host.dart';
 import 'player_volume.dart';
 import 'player_window.dart';
 import 'queue_panel/queue_panel.dart';
+import 'queue_panel/queue_panel_state.dart';
 import 'segments.dart';
 import 'skip_button.dart';
 import 'tracks_panel.dart';
@@ -100,6 +101,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// Focus del campo della chat del watch party: è del player, che glielo
   /// rimette se un tasto arriva a chat aperta mentre il campo non ce l'ha.
   final _chatFocusNode = FocusNode(debugLabel: 'party-chat');
+
+  /// Focus del campo di ricerca del pannello "Coda" (spec H §9.3): è del
+  /// player, che finché il campo ce l'ha gli lascia i tasti.
+  final _queueSearchFocusNode = FocusNode(debugLabel: 'party-queue-search');
 
   /// Invio apre la chat. Non `const`: le chiavi ridefiniscono `==`.
   static final _openChatKeys = {
@@ -235,6 +240,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _chrome.openPopup(PlayerPopup.queue);
     }
     _chrome.addListener(_onChromeChanged);
+    _queueSearchFocusNode.addListener(_onQueueSearchFocus);
     // Un menu aperto dai controlli (modalità di "Guarda insieme", distintivo
     // del party) è una rotta sopra il player: finché c'è, i controlli non si
     // nascondono (il mouse sul menu non arriva al player).
@@ -265,6 +271,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ..dispose();
     _focusNode.dispose();
     _chatFocusNode.dispose();
+    _queueSearchFocusNode.dispose();
     _window.removeCloseListener(_onWindowClose);
     unawaited(_window.setPreventClose(false));
     if (_fullscreen && !handingOver) unawaited(_window.setFullScreen(false));
@@ -330,6 +337,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (!chatOpen && (ModalRoute.isCurrentOf(context) ?? true)) {
         _focusNode.requestFocus();
       }
+    }
+    // Pannello "Coda" chiuso con il campo di ricerca a fuoco: i tasti tornano
+    // al player subito, non a fine animazione.
+    if (_chrome.popup != PlayerPopup.queue &&
+        _queueSearchFocusNode.hasFocus &&
+        (ModalRoute.isCurrentOf(context) ?? true)) {
+      _focusNode.requestFocus();
     }
     setState(() {});
   }
@@ -817,6 +831,36 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return KeyEventResult.ignored;
   }
 
+  /// Il campo di ricerca del pannello "Coda" ha il focus: i tasti vanno a
+  /// lui (spec H §9.3), tranne quelli multimediali; Tab non lo lascia. Esc lo
+  /// prende il campo stesso (svuota, poi chiude il pannello).
+  KeyEventResult _onQueueSearchKey(KeyEvent event) {
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+    _chrome.keyActivity();
+    final key = event.logicalKey;
+    if (isMediaKey(key)) {
+      final command = _commandFor(event);
+      if (command == null) return KeyEventResult.ignored;
+      _run(command);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.tab) return KeyEventResult.handled;
+    return KeyEventResult.ignored;
+  }
+
+  /// Il campo di ricerca ha perso il focus (vista cambiata, pannello chiuso):
+  /// se non l'ha preso nessun altro, torna al player.
+  void _onQueueSearchFocus() {
+    if (_queueSearchFocusNode.hasFocus) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !(ModalRoute.isCurrentOf(context) ?? true)) return;
+      final primary = FocusManager.instance.primaryFocus;
+      if (primary == null || primary is FocusScopeNode) {
+        _focusNode.requestFocus();
+      }
+    });
+  }
+
   /// Comando del player per [event]. I tasti multimediali valgono solo se
   /// non li riceve già la sessione media di sistema.
   PlayerCommand? _commandFor(KeyEvent event) => playerCommandFor(event,
@@ -833,6 +877,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (_chrome.chatOpen) return _onChatKey(event);
+    if (_queueSearchFocusNode.hasFocus) return _onQueueSearchKey(event);
     // Invio apre la chat del watch party, solo con il focus al player: su
     // un pulsante (per esempio "Riprova") lo preme.
     if (event is KeyDownEvent &&
@@ -1327,7 +1372,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         onToggleQueue: party != null &&
                                 party.inGroup &&
                                 party.queue != null
-                            ? () => _chrome.togglePopup(PlayerPopup.queue)
+                            ? () {
+                                // Aperto dal pulsante: si riparte dalla Coda
+                                // (spec H §9.1).
+                                if (_chrome.popup != PlayerPopup.queue) {
+                                  ref
+                                      .read(queuePanelNavProvider.notifier)
+                                      .reset();
+                                  ref
+                                      .read(queueAddSearchProvider.notifier)
+                                      .reset();
+                                }
+                                _chrome.togglePopup(PlayerPopup.queue);
+                              }
                             : null,
                       ),
                     ),
@@ -1540,17 +1597,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 if (party != null)
                   Positioned.fill(
                     key: const ValueKey('player-queue-panel'),
-                    child: ExcludeFocus(
-                      child: PlayerSidePanelHost(
-                        open: _chrome.popup == PlayerPopup.queue &&
-                            party.inGroup,
-                        panel: PartyQueuePanel(
-                          onClose: () =>
-                              _chrome.closePopup(PlayerPopup.queue),
-                          // Come ⏮ e ⏭: il `Seek` in sospeso non deve
-                          // arrivare dopo il salto di riga.
-                          onBeforeJump: () => _authority?.cancelPendingSeek(),
-                        ),
+                    // Non è dentro `ExcludeFocus`: il campo di ricerca deve
+                    // prendere il focus; il resto lo esclude il pannello.
+                    child: PlayerSidePanelHost(
+                      open: _chrome.popup == PlayerPopup.queue &&
+                          party.inGroup,
+                      panel: PartyQueuePanel(
+                        searchFocusNode: _queueSearchFocusNode,
+                        onClose: () => _chrome.closePopup(PlayerPopup.queue),
+                        // Come ⏮ e ⏭: il `Seek` in sospeso non deve
+                        // arrivare dopo il salto di riga.
+                        onBeforeJump: () => _authority?.cancelPendingSeek(),
                       ),
                     ),
                   ),

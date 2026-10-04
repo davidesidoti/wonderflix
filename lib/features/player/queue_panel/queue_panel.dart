@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../app/motion.dart';
 import '../../../app/theme.dart';
 import '../../../core/jellyfin/item_models.dart';
 import '../../../core/syncplay/syncplay_models.dart';
@@ -15,13 +16,25 @@ import '../../watch_party/party_queue_items.dart';
 import '../../watch_party/party_queue_rules.dart';
 import '../../watch_party/watch_party_session.dart';
 import '../player_side_panel_host.dart';
+import 'queue_add_view.dart';
 import 'queue_add_widgets.dart';
+import 'queue_panel_state.dart';
 import 'queue_rows.dart';
+import 'queue_series_views.dart';
 
-/// Il pannello "Coda" con i dati del watch party (spec H §9.2): la coda del
-/// gruppo, i dettagli dei titoli e i comandi di [PartyQueueEditor].
+/// Il pannello "Coda" con i dati del watch party (spec H §9.2): sceglie la
+/// vista dalla pila di [queuePanelNavProvider] (Coda, Aggiungi, Serie,
+/// Stagione) e le dà i dati del gruppo e i comandi di [PartyQueueEditor].
 class PartyQueuePanel extends ConsumerWidget {
-  const PartyQueuePanel({super.key, required this.onClose, this.onBeforeJump});
+  const PartyQueuePanel({
+    super.key,
+    required this.searchFocusNode,
+    required this.onClose,
+    this.onBeforeJump,
+  });
+
+  /// Il focus del campo di ricerca della vista Aggiungi: è del player.
+  final FocusNode searchFocusNode;
 
   final VoidCallback onClose;
 
@@ -36,17 +49,55 @@ class PartyQueuePanel extends ConsumerWidget {
         watchPartySessionProvider.select((s) => s.inGroup ? s.queue : null));
     if (queue == null) return const SizedBox.shrink();
     final editor = ref.read(partyQueueEditorProvider);
-    return QueuePanel(
-      queue: queue,
-      items: ref.watch(partyQueueItemsProvider),
-      onJump: (id) {
-        onBeforeJump?.call();
-        unawaited(editor.jumpTo(id));
-      },
-      onRemove: (id) => unawaited(editor.remove(id)),
-      onMove: (id, index) => unawaited(editor.move(id, index)),
-      onShuffle: (shuffle) => unawaited(editor.setShuffle(shuffle)),
-      onClose: onClose,
+    final pages = ref.watch(queuePanelNavProvider);
+    final nav = ref.read(queuePanelNavProvider.notifier);
+    Future<void> add(List<JellyfinItem> items, {required bool next}) =>
+        editor.add(items, next: next);
+    final view = switch (pages.last) {
+      QueuePanelQueue() => QueuePanel(
+          queue: queue,
+          items: ref.watch(partyQueueItemsProvider),
+          onJump: (id) {
+            onBeforeJump?.call();
+            unawaited(editor.jumpTo(id));
+          },
+          onRemove: (id) => unawaited(editor.remove(id)),
+          onMove: (id, index) => unawaited(editor.move(id, index)),
+          onShuffle: (shuffle) => unawaited(editor.setShuffle(shuffle)),
+          onAddTitles: () => nav.open(const QueuePanelAdd()),
+          onClose: onClose,
+        ),
+      QueuePanelAdd() => QueueAddView(
+          queue: queue,
+          focusNode: searchFocusNode,
+          onAdd: add,
+          onOpenSeries: (series) => nav.open(QueuePanelSeries(series)),
+          onBack: nav.back,
+          onClose: onClose,
+        ),
+      QueuePanelSeries(:final series) => QueueSeriesView(
+          series: series,
+          queue: queue,
+          onAdd: add,
+          onOpenSeason: (season) => nav.open(QueuePanelSeason(series, season)),
+          onBack: nav.back,
+          onClose: onClose,
+        ),
+      QueuePanelSeason(:final series, :final season) => QueueSeasonView(
+          series: series,
+          season: season,
+          queue: queue,
+          onAdd: add,
+          onBack: nav.back,
+          onClose: onClose,
+        ),
+    };
+    // Le viste si sostituiscono sfumando (spec H §9.2); la chiave è la
+    // profondità, così tornando indietro la vista è quella di prima.
+    return AnimatedSwitcher(
+      duration: WfMotion.of(context).duration(WfMotion.fast),
+      child: KeyedSubtree(
+          key: ValueKey('queue-page-${pages.length}'), child: view),
     );
   }
 }
