@@ -550,9 +550,27 @@ class _NewTitlesContent extends ConsumerStatefulWidget {
 class _NewTitlesContentState extends ConsumerState<_NewTitlesContent> {
   bool _expanded = false;
 
+  /// Fuoco della prima riga svelata da "Mostra tutto": il bottone sparisce e
+  /// il fuoco da tastiera non deve andare perso.
+  final _firstRevealed = FocusNode(debugLabel: 'inbox-first-revealed-title');
+
+  @override
+  void dispose() {
+    _firstRevealed.dispose();
+    super.dispose();
+  }
+
   void _open(String itemId) {
     ref.read(shellPanelProvider.notifier).close();
     openItemById(context, itemId);
+  }
+
+  void _showAll() {
+    setState(() => _expanded = true);
+    // La riga esiste solo dopo il rebuild.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _firstRevealed.requestFocus();
+    });
   }
 
   @override
@@ -589,21 +607,27 @@ class _NewTitlesContentState extends ConsumerState<_NewTitlesContent> {
             style: const TextStyle(
                 color: WfColors.cream, fontWeight: FontWeight.w600)),
         const SizedBox(height: 2),
-        for (final line in shown)
-          InkWell(
-            key: Key('inbox-title-${line.id}'),
-            onTap: () => _open(line.id),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Text(line.text,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: _mutedStyle),
+        for (final (index, line) in shown.indexed)
+          // Largo quanto il pannello: si tocca anche a destra del titolo.
+          SizedBox(
+            width: double.infinity,
+            child: InkWell(
+              key: Key('inbox-title-${line.id}'),
+              focusNode:
+                  index == InboxPanel.newTitlesPreview ? _firstRevealed : null,
+              onTap: () => _open(line.id),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Text(line.text,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _mutedStyle),
+              ),
             ),
           ),
         if (!_expanded && lines.length > InboxPanel.newTitlesPreview)
           TextButton(
-            onPressed: () => setState(() => _expanded = true),
+            onPressed: _showAll,
             style: TextButton.styleFrom(
               foregroundColor: WfColors.gold,
               visualDensity: VisualDensity.compact,

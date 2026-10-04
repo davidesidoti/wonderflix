@@ -406,6 +406,59 @@ void main() {
     expect(find.text('Mostra tutto (6)'), findsNothing);
   });
 
+  testWidgets('novità: con esattamente 5 righe niente Mostra tutto',
+      (tester) async {
+    api.inboxSnapshot = InboxSnapshot(entries: [
+      testNewTitles(
+        createdAt: fiveMinutesAgo(),
+        movies: [
+          for (var i = 1; i <= InboxPanel.newTitlesPreview; i++)
+            NewTitleMovie(itemId: 'm$i', name: 'Film $i'),
+        ],
+      ),
+    ], unread: 1);
+    await pumpPanel(tester);
+
+    expect(find.textContaining('Mostra tutto'), findsNothing);
+    for (var i = 1; i <= InboxPanel.newTitlesPreview; i++) {
+      expect(find.text('Film $i'), findsOneWidget);
+    }
+  });
+
+  testWidgets('novità: Mostra tutto porta il fuoco sulla prima riga nuova',
+      (tester) async {
+    api.inboxSnapshot = InboxSnapshot(entries: [
+      testNewTitles(
+        createdAt: fiveMinutesAgo(),
+        movies: [
+          for (var i = 1; i <= InboxPanel.newTitlesPreview + 2; i++)
+            NewTitleMovie(itemId: 'm$i', name: 'Film $i'),
+        ],
+      ),
+    ], unread: 1);
+    await pumpPanel(tester);
+
+    // Da tastiera: il fuoco è sul bottone, poi Invio lo attiva.
+    Focus.of(tester.element(find.text('Mostra tutto (7)'))).requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    await tester.pump();
+
+    final firstNew = find.byKey(
+        Key('inbox-title-m${InboxPanel.newTitlesPreview + 1}'));
+    expect(firstNew, findsOneWidget);
+    final focused = FocusManager.instance.primaryFocus;
+    expect(focused, isNotNull);
+    expect(
+        find.descendant(
+            of: firstNew,
+            matching: find.byWidgetPredicate((widget) =>
+                widget is Focus && widget.focusNode == focused)),
+        findsOneWidget,
+        reason: 'il fuoco è sulla sesta riga, non perso');
+  });
+
   testWidgets('novità solo di film o solo di episodi', (tester) async {
     api.inboxSnapshot = InboxSnapshot(entries: [
       testNewTitles(id: 'n1', seq: 2, createdAt: fiveMinutesAgo(), movies: const [

@@ -234,4 +234,40 @@ void main() {
     expect(second.more, 0);
     expect(snapshot.unread, 1);
   });
+
+  test('una voce delle novità malformata si salta, la valida resta', () {
+    final snapshot = InboxSnapshot.fromJson({
+      'Entries': [
+        {
+          'Id': 'n1',
+          'Seq': 3,
+          'Type': 'NewTitles',
+          'CreatedAt': '2026-10-04T20:00:00+00:00',
+          'Movies': [
+            {'ItemId': 'm1', 'Name': 'Dune'},
+          ],
+        },
+        {
+          'Id': 'n2',
+          'Seq': 2,
+          'Type': 'NewTitles',
+          'CreatedAt': '2026-10-04T19:00:00+00:00',
+          'Movies': [
+            {'ItemId': 'm2'},
+          ],
+        },
+        {
+          'Id': 'n3',
+          'Seq': 1,
+          'Type': 'NewTitles',
+          'CreatedAt': '2026-10-04T18:00:00+00:00',
+          'Movies': 'non una lista',
+        },
+      ],
+    });
+
+    expect(snapshot.entries.map((e) => e.id), ['n1']);
+    expect((snapshot.entries.single as NewTitlesEntry).movies.single.name,
+        'Dune');
+  });
 }

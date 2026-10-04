@@ -16,8 +16,9 @@ import '../../support/pump_app.dart';
 import '../../support/social_fakes.dart';
 
 void main() {
-  testWidgets('una riga delle novità apre la scheda e chiude il pannello',
-      (tester) async {
+  /// Apre il pannello con una voce di novità (un film e una serie) dentro un
+  /// router che ha anche la scheda `/item/:id`.
+  Future<ProviderContainer> pumpPanel(WidgetTester tester) async {
     final api = FakeSocialApi()
       ..inboxSnapshot = InboxSnapshot(entries: [
         testNewTitles(
@@ -75,11 +76,40 @@ void main() {
     container.listen(shellPanelProvider, (_, _) {});
     container.read(shellPanelProvider.notifier).open(ShellPanel.inbox);
     await tester.pump();
+    return container;
+  }
+
+  testWidgets('una riga delle novità apre la scheda e chiude il pannello',
+      (tester) async {
+    final container = await pumpPanel(tester);
 
     await tester.tap(find.text('The Bear · S1 E1'));
     await tester.pumpAndSettle();
 
     expect(find.text('scheda s1'), findsOneWidget);
+    expect(container.read(shellPanelProvider), ShellPanel.none);
+  });
+
+  testWidgets('la riga di un film apre la scheda del film', (tester) async {
+    final container = await pumpPanel(tester);
+
+    await tester.tap(find.text('Dune'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('scheda m1'), findsOneWidget);
+    expect(container.read(shellPanelProvider), ShellPanel.none);
+  });
+
+  testWidgets('la riga si tocca su tutta la larghezza, non solo sul testo',
+      (tester) async {
+    final container = await pumpPanel(tester);
+
+    // Il bordo destro della riga, ben oltre le lettere di "Dune".
+    final row = tester.getRect(find.byKey(const Key('inbox-title-m1')));
+    await tester.tapAt(Offset(row.right - 10, row.center.dy));
+    await tester.pumpAndSettle();
+
+    expect(find.text('scheda m1'), findsOneWidget);
     expect(container.read(shellPanelProvider), ShellPanel.none);
   });
 }
