@@ -1644,6 +1644,11 @@ void main() {
     withPreviousEpisode(
         positionTicks: durationToTicks(const Duration(minutes: 5)));
     await pumpPlayer(tester);
+    // Negli ultimi 30 s (durata: 2 h): di qui il successivo segnerebbe
+    // l'episodio come visto, il precedente no.
+    engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
+    await tester.pump();
+    await tester.pump();
     await tester.tap(find.byTooltip('Episodio precedente'));
     await tester.pumpAndSettle();
     expect(find.text('S1:E3 · The Cat'), findsOneWidget);

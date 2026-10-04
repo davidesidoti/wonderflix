@@ -503,6 +503,43 @@ void main() {
     expect(find.text('PROSSIMO NELLA CODA'), findsOneWidget);
   });
 
+  testWidgets('scheda: la serie solo se richiesta, sopra la riga '
+      'dell\'episodio (spec H §9.1)', (tester) async {
+    Future<void> pumpCard({required bool showSeries, JellyfinItem? item}) =>
+        pumpApp(
+          tester,
+          Scaffold(
+            body: Center(
+              child: NextEpisodeCard(
+                episode: item ?? episode,
+                showSeries: showSeries,
+                countdown: false,
+                onPlay: () {},
+                onCancel: () {},
+              ),
+            ),
+          ),
+        );
+
+    await pumpCard(showSeries: false);
+    await tester.pumpAndSettle();
+    expect(find.text('Breaking Bad'), findsNothing);
+    expect(find.text('S1:E5 · Cat in the Bag'), findsOneWidget);
+
+    await pumpCard(showSeries: true);
+    await tester.pumpAndSettle();
+    expect(find.text('Breaking Bad'), findsOneWidget);
+    expect(find.text('S1:E5 · Cat in the Bag'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('Breaking Bad')).dy,
+        lessThan(tester.getTopLeft(find.text('S1:E5 · Cat in the Bag')).dy));
+
+    // Un film non ha una serie: resta il titolo.
+    await pumpCard(
+        showSeries: true, item: testItem(id: 'm9', name: 'Alien', year: 1979));
+    await tester.pumpAndSettle();
+    expect(find.text('Alien'), findsOneWidget);
+  });
+
   testWidgets('scheda: un film (dalla coda del gruppo) mostra il titolo',
       (tester) async {
     await pumpApp(

@@ -27,6 +27,7 @@ import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
 import 'package:wonderflix/features/player/player_volume.dart';
+import 'package:wonderflix/features/player/post_play.dart';
 import 'package:wonderflix/features/player/tracks_panel.dart';
 import 'package:wonderflix/features/watch_party/party_channel.dart';
 import 'package:wonderflix/features/watch_party/party_chat_bubble.dart';
@@ -68,7 +69,8 @@ void main() {
       {int failOpens = 0,
       List<MediaSegment> segments = const [],
       bool plugin = true,
-      bool queueFeature = true}) async {
+      bool queueFeature = true,
+      bool previousInLibrary = false}) async {
     engine = FakeVideoEngine()..engineTracks = testEngineTracks;
     engine.failOpens = failOpens;
     engines = [];
@@ -100,6 +102,21 @@ void main() {
       )
       ..nextEpisodes['e4'] = testItem(
           id: 'e5', name: 'Cat\'s in the Bag', kind: ItemKind.episode);
+    if (previousInLibrary) {
+      // La libreria ha un episodio prima di e4 (conta fuori dal gruppo).
+      final previous = testItem(
+        id: 'e3',
+        name: 'The Cat',
+        kind: ItemKind.episode,
+        seriesName: 'Breaking Bad',
+        seriesId: 's1',
+        index: 3,
+        seasonIndex: 1,
+      );
+      library
+        ..itemsById['e3'] = previous
+        ..previousEpisodes['e4'] = previous;
+    }
     channelApi = FakePartyChannelApi();
     if (plugin) {
       channelApi.install(
@@ -397,6 +414,24 @@ void main() {
         end: Duration(hours: 2)),
   ];
 
+  testWidgets('titoli noti nel gruppo: se il prossimo è un film, il post-play '
+      'lo dice "nella coda" (spec H §9.1)', (tester) async {
+    await pumpPartyPlayer(tester, segments: credits);
+    library.itemsById['m9'] = testItem(id: 'm9', name: 'Alien', year: 1979);
+    emit(PlayQueueUpdate('g1', testSeriesQueue(itemIds: ['e4', 'm9'])));
+    await tester.pump();
+    await tester.pump();
+    engine.emitPosition(const Duration(hours: 1, minutes: 55, seconds: 10));
+    await tester.pump();
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.byType(PostPlayLayer), findsOneWidget);
+    expect(find.text(l.playerNextInQueueTitle.toUpperCase()), findsOneWidget);
+    expect(find.text('ALIEN'), findsOneWidget);
+    expect(find.text(l.playerWatchCredits), findsOneWidget);
+    await finish(tester);
+  });
+
   testWidgets(
       'titoli noti nel gruppo in pausa: arrivata la coda, il post-play prende '
       'il posto di "Stai guardando"', (tester) async {
@@ -566,6 +601,80 @@ void main() {
     await finish(tester);
   });
 
+  testWidgets('P sul primo della coda: il salto in sospeso non si perde',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    await queueSeries(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyP);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(api.calls.where((call) => call.startsWith('previous')), isEmpty,
+        reason: 'e4 è il primo della coda');
+    expect(api.calls.where((call) => call.startsWith('seek')), isNotEmpty,
+        reason: 'il salto non va perso: non c\'è un elemento prima');
+    await finish(tester);
+  });
+
+  testWidgets('N sull\'ultimo della coda: il salto in sospeso non si perde',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    emit(PlayQueueUpdate('g1', testSeriesQueue(itemIds: ['e4'])));
+    await tester.pump();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(api.calls.where((call) => call.startsWith('next')), isEmpty,
+        reason: 'e4 è l\'ultimo della coda');
+    expect(api.calls.where((call) => call.startsWith('seek')), isNotEmpty,
+        reason: 'il salto non va perso: non c\'è un elemento dopo');
+    await finish(tester);
+  });
+
+  testWidgets('scheda nel gruppo: il prossimo di un\'altra serie mostra la '
+      'serie (spec H §9.1)', (tester) async {
+    await pumpPartyPlayer(tester);
+    library.itemsById['x1'] = testItem(
+      id: 'x1',
+      name: 'Uno',
+      kind: ItemKind.episode,
+      seriesName: 'Better Call Saul',
+      seriesId: 's2',
+      index: 1,
+      seasonIndex: 1,
+    );
+    emit(PlayQueueUpdate('g1', testSeriesQueue(itemIds: ['e4', 'x1'])));
+    await tester.pump();
+    await tester.pump();
+    engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text(l.playerNextInQueueTitle.toUpperCase()), findsOneWidget);
+    expect(find.text('Better Call Saul'), findsOneWidget);
+    expect(find.text('S1:E1 · Uno'), findsOneWidget);
+    await finish(tester);
+  });
+
+  testWidgets('scheda nel gruppo: l\'episodio della stessa serie non ripete '
+      'il nome della serie', (tester) async {
+    await pumpPartyPlayer(tester);
+    await queueSeries(tester);
+    engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(NextEpisodeCard), findsOneWidget);
+    expect(
+        find.descendant(
+            of: find.byType(NextEpisodeCard),
+            matching: find.text('Breaking Bad')),
+        findsNothing);
+    await finish(tester);
+  });
+
   testWidgets('scheda nel gruppo: il prossimo della coda, anche un film '
       '(spec H §9.1)', (tester) async {
     await pumpPartyPlayer(tester);
@@ -585,6 +694,30 @@ void main() {
     await tester.tap(find.byType(PlayNowButton));
     await tester.pump();
     expect(api.calls, contains('next p1'));
+    await finish(tester);
+  });
+
+  testWidgets('scheda nel gruppo: arrivati i dettagli compare da sola',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    library.itemsById['m9'] = testItem(id: 'm9', name: 'Alien', year: 1979);
+    final gate = Completer<void>();
+    library.itemsByIdsGate = gate;
+    emit(PlayQueueUpdate('g1', testSeriesQueue(itemIds: ['e4', 'm9'])));
+    await tester.pump();
+    await tester.pump();
+    engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(NextEpisodeCard), findsNothing,
+        reason: 'i dettagli di m9 non sono ancora arrivati');
+
+    // Nessun altro evento: a farla comparire sono solo i dettagli.
+    gate.complete();
+    await tester.pump();
+    await tester.pump();
+    expect(find.text(l.playerNextInQueueTitle.toUpperCase()), findsOneWidget);
+    expect(find.text('Alien'), findsOneWidget);
     await finish(tester);
   });
 
@@ -1626,6 +1759,8 @@ void main() {
   testWidgets('precedente con un plugin vecchio: niente annuncio',
       (tester) async {
     await pumpPartyPlayer(tester, queueFeature: false);
+    // Il canale è attivo (plugin presente, senza la funzione `queue`).
+    expect(channelApi.calls, containsAllInOrder(['info', 'join g1']));
     emit(PlayQueueUpdate('g1', queueWithPrevious()));
     await tester.pump();
     await tester.pump();
@@ -1634,10 +1769,33 @@ void main() {
     await tester.pump();
     expect(api.calls, contains('previous p1'));
     expect(announced(), isEmpty);
+    // Le azioni che il plugin vecchio conosce si annunciano ancora.
+    await tester.tap(find.byTooltip(l.actionPlay));
+    await tester.pump();
+    expect(announced(), [
+      {'Type': 'Action', 'Action': 'Unpause'},
+    ]);
     await finish(tester);
   });
 
   testWidgets('gruppo chiuso dal server: il precedente torna quello da soli',
+      (tester) async {
+    await pumpPartyPlayer(tester, previousInLibrary: true);
+    emit(PlayQueueUpdate('g1', queueWithPrevious()));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byTooltip(l.playerPreviousInQueue), findsOneWidget);
+    emit(const GroupLeft('g1'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byTooltip(l.playerPreviousInQueue), findsNothing);
+    expect(find.byTooltip(l.playerPreviousEpisode), findsOneWidget,
+        reason: 'da soli il precedente è quello della libreria (e3)');
+    expect(mediaSession.previousEnabled.last, isTrue);
+    await finish(tester);
+  });
+
+  testWidgets('gruppo chiuso dal server senza episodio prima: niente ⏮',
       (tester) async {
     await pumpPartyPlayer(tester);
     emit(PlayQueueUpdate('g1', queueWithPrevious()));
@@ -1647,6 +1805,7 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.byTooltip(l.playerPreviousInQueue), findsNothing);
+    expect(find.byTooltip(l.playerPreviousEpisode), findsNothing);
     expect(mediaSession.previousEnabled.last, isFalse,
         reason: 'e4 non ha un episodio prima nella libreria finta');
     await finish(tester);

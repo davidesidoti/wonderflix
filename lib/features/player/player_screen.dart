@@ -494,7 +494,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // Nel gruppo l'episodio lo cambia il gruppo: il player passa a quello
     // nuovo quando arriva la coda (vedi [_handOverTo]).
     if (_inParty) {
-      if (!_leaving) {
+      // A fine coda non c'è niente da chiedere: il `Seek` in sospeso resta.
+      if (!_leaving && ref.read(watchPartySessionProvider).hasNext) {
         // Il `Seek` non dice l'elemento: partito dopo il cambio, salterebbe
         // nell'episodio nuovo.
         _authority?.cancelPendingSeek();
@@ -537,7 +538,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// segnare come visto quello che si lascia.
   void _playPrevious() {
     if (_inParty) {
-      if (!_leaving) {
+      // Sul primo della coda non c'è niente da chiedere: il `Seek` in
+      // sospeso resta.
+      if (!_leaving && ref.read(watchPartySessionProvider).hasPrevious) {
         // Come per il successivo: un `Seek` in sospeso salterebbe
         // nell'elemento nuovo.
         _authority?.cancelPendingSeek();
@@ -1354,6 +1357,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 key: ValueKey(offer.id),
                                 episode: offer,
                                 label: _nextOfferLabel(l, view, offer),
+                                // La coda del gruppo può mescolare serie: se
+                                // il prossimo è di un'altra, si dice quale.
+                                showSeries: offer.kind == ItemKind.episode &&
+                                    offer.seriesId != view.item?.seriesId,
                                 // Nel gruppo nessun conto alla rovescia: si
                                 // va avanti con il pulsante o a fine video.
                                 countdown: !_inParty && settings.autoplayNext,

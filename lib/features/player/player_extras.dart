@@ -281,6 +281,7 @@ class NextEpisodeCard extends ConsumerWidget {
     required this.onCancel,
     this.paused = false,
     this.label,
+    this.showSeries = false,
   });
 
   final JellyfinItem episode;
@@ -288,6 +289,11 @@ class NextEpisodeCard extends ConsumerWidget {
   /// Occhiello; di default "Prossimo episodio" (nel watch party può essere
   /// "Prossimo nella coda", spec H §9.1).
   final String? label;
+
+  /// Mostra il nome della serie sopra la riga dell'episodio: serve quando
+  /// il prossimo (nel watch party la coda può mescolare serie) non è della
+  /// serie che si sta guardando. Vale solo per gli episodi.
+  final bool showSeries;
 
   final bool countdown;
 
@@ -346,16 +352,31 @@ class NextEpisodeCard extends ConsumerWidget {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        // Un episodio: "S1:E5 · Titolo". Nel gruppo il
-                        // prossimo può essere un film: ci vuole il titolo,
-                        // non solo l'anno.
-                        episode.kind == ItemKind.episode
-                            ? cardSubtitle(episode) ?? episode.name
-                            : episode.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (showSeries && episode.kind == ItemKind.episode)
+                            Text(
+                              cardTitle(episode),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 12, color: WfColors.creamMuted),
+                            ),
+                          Text(
+                            // Un episodio: "S1:E5 · Titolo". Nel gruppo il
+                            // prossimo può essere un film: ci vuole il
+                            // titolo, non solo l'anno.
+                            episode.kind == ItemKind.episode
+                                ? cardSubtitle(episode) ?? episode.name
+                                : episode.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ],
                       ),
                     ),
                   ],

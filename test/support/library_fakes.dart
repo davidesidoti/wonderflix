@@ -29,6 +29,10 @@ class FakeLibraryApi implements LibraryApi {
   /// `favoritesProvider`) aspettano che si completi.
   Completer<void>? favoritesGate;
 
+  /// Se valorizzato, [itemsByIds] aspetta che si completi prima di
+  /// rispondere (i dettagli dei titoli in coda arrivano dopo).
+  Completer<void>? itemsByIdsGate;
+
   final itemQueries = <ItemQuery>[];
   /// Episodio successivo, per id dell'episodio corrente.
   final Map<String, JellyfinItem> nextEpisodes = {};
@@ -104,8 +108,11 @@ class FakeLibraryApi implements LibraryApi {
   /// Gli elementi di [itemsById] tra [ids]; gli altri mancano, come quelli
   /// cancellati sul server.
   @override
-  Future<List<JellyfinItem>> itemsByIds(String userId, List<String> ids) {
+  Future<List<JellyfinItem>> itemsByIds(
+      String userId, List<String> ids) async {
     itemsByIdsCalls.add(ids);
+    final gate = itemsByIdsGate;
+    if (gate != null) await gate.future;
     return _answer(() => [
           for (final id in ids) ?itemsById[id],
         ]);
