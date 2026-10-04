@@ -1,0 +1,74 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/item_models.dart';
+import 'package:wonderflix/core/syncplay/syncplay_models.dart';
+import 'package:wonderflix/features/watch_party/party_queue_rules.dart';
+
+import '../../support/library_fakes.dart';
+import '../../support/watch_party_fakes.dart';
+
+void main() {
+  /// e3 (p1), e4 (p2), e5 (p3), e6 (p4); in riproduzione [playingIndex].
+  PlayQueue queue({int playingIndex = 1}) => testSeriesQueue(
+      itemIds: const ['e3', 'e4', 'e5', 'e6'], playingIndex: playingIndex);
+
+  List<String> ids(List<PlayQueueEntry> entries) =>
+      [for (final entry in entries) entry.playlistItemId];
+
+  test('sezioni: già visti, in riproduzione, prossimi (spec H §9.2)', () {
+    final sections = partyQueueSections(queue());
+    expect(ids(sections.watched), ['p1']);
+    expect(sections.playing?.playlistItemId, 'p2');
+    expect(ids(sections.upcoming), ['p3', 'p4']);
+
+    final first = partyQueueSections(queue(playingIndex: 0));
+    expect(first.watched, isEmpty);
+    expect(ids(first.upcoming), ['p2', 'p3', 'p4']);
+
+    final last = partyQueueSections(queue(playingIndex: 3));
+    expect(ids(last.watched), ['p1', 'p2', 'p3']);
+    expect(last.upcoming, isEmpty);
+  });
+
+  test('sezioni senza elemento in riproduzione: tutto tra i prossimi', () {
+    final sections = partyQueueSections(queue(playingIndex: -1));
+    expect(sections.watched, isEmpty);
+    expect(sections.playing, isNull);
+    expect(ids(sections.upcoming), ['p1', 'p2', 'p3', 'p4']);
+  });
+
+  test('indice dello spostamento: dopo l\'elemento in riproduzione', () {
+    expect(partyQueueMoveIndex(queue(), 0), 2);
+    expect(partyQueueMoveIndex(queue(), 1), 3);
+    expect(partyQueueMoveIndex(queue(playingIndex: 0), 0), 1);
+    expect(partyQueueMoveIndex(queue(playingIndex: -1), 2), 2);
+  });
+
+  test('durata dei prossimi: solo quelli noti con una durata', () {
+    final items = <String, JellyfinItem?>{
+      'e4': testItem(id: 'e4', runtimeMinutes: 30),
+      'e5': testItem(id: 'e5', runtimeMinutes: 22),
+      'e6': null,
+    };
+    expect(partyQueueUpcomingRuntime(queue(), items),
+        const Duration(minutes: 22),
+        reason: 'e4 è in riproduzione, e6 non è disponibile');
+    expect(partyQueueUpcomingRuntime(queue(), const {}), isNull);
+    expect(
+        partyQueueUpcomingRuntime(queue(playingIndex: 3), items), isNull);
+  });
+
+  test('ordine provvisorio: vale solo con gli stessi elementi', () {
+    final upcoming = partyQueueSections(queue(playingIndex: 0)).upcoming;
+    expect(ids(partyQueueInOrder(upcoming, null)), ['p2', 'p3', 'p4']);
+    expect(ids(partyQueueInOrder(upcoming, const ['p4', 'p2', 'p3'])),
+        ['p4', 'p2', 'p3']);
+    expect(ids(partyQueueInOrder(upcoming, const ['p4', 'p2'])),
+        ['p2', 'p3', 'p4'], reason: 'un elemento in più nella coda');
+    expect(ids(partyQueueInOrder(upcoming, const ['p4', 'p2', 'p9'])),
+        ['p2', 'p3', 'p4'], reason: 'un elemento tolto');
+  });
+
+  test('tetto della coda', () {
+    expect(partyQueueLimit, 100);
+  });
+}
