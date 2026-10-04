@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/playback_models.dart';
+import 'package:wonderflix/features/player/player_side_panel_host.dart';
 import 'package:wonderflix/features/player/tracks_panel.dart';
 import 'package:wonderflix/ui/staggered_entrance.dart';
 
@@ -158,7 +159,7 @@ void main() {
         body: ValueListenableBuilder<bool>(
           valueListenable: open,
           builder: (context, value, _) =>
-              TracksPanelHost(open: value, panel: panel()),
+              PlayerSidePanelHost(open: value, panel: panel()),
         ),
       ),
       motion: motion,
@@ -169,7 +170,7 @@ void main() {
   // Lo scorrimento del pannello: solo dentro l'host (anche le transizioni di
   // pagina dell'app usano `FractionalTranslation`, più in alto nell'albero).
   final slideFinder = find.descendant(
-      of: find.byType(TracksPanelHost),
+      of: find.byType(PlayerSidePanelHost),
       matching: find.byType(FractionalTranslation));
 
   testWidgets('host: entra scorrendo da destra, esce e lascia l\'albero',

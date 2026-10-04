@@ -26,6 +26,7 @@ import 'package:wonderflix/features/player/player_pill.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
+import 'package:wonderflix/features/player/player_side_panel_host.dart';
 import 'package:wonderflix/features/player/player_volume.dart';
 import 'package:wonderflix/features/player/post_play.dart';
 import 'package:wonderflix/features/player/seek_bar.dart';
@@ -889,7 +890,7 @@ void main() {
         PlayerOverlay,
         PlayerLoadingLayer,
         PlayerPill,
-        TracksPanelHost,
+        PlayerSidePanelHost,
       ])
         layer: tester.element(find.byType(layer)),
     };

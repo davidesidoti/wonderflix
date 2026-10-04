@@ -46,6 +46,7 @@ import 'player_overlay.dart';
 import 'player_pill.dart';
 import 'player_providers.dart';
 import 'player_settings.dart';
+import 'player_side_panel_host.dart';
 import 'player_volume.dart';
 import 'player_window.dart';
 import 'segments.dart';
@@ -1490,7 +1491,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 Positioned.fill(
                   key: const ValueKey('player-tracks-panel'),
                   child: ExcludeFocus(
-                    child: TracksPanelHost(
+                    child: PlayerSidePanelHost(
                       open: _chrome.panelOpen && view.plan != null,
                       panel: TracksPanel(
                         audio: view.audioStreams,
