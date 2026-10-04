@@ -72,6 +72,19 @@ class WatchPartyState {
 
   bool get hasNext => nextEntry != null;
 
+  /// Elemento prima di quello in riproduzione; `null` sul primo.
+  PlayQueueEntry? get previousEntry {
+    final queue = this.queue;
+    if (queue == null ||
+        queue.playingIndex <= 0 ||
+        queue.playingIndex >= queue.entries.length) {
+      return null;
+    }
+    return queue.entries[queue.playingIndex - 1];
+  }
+
+  bool get hasPrevious => previousEntry != null;
+
   WatchPartyState copyWith(
           {GroupInfo? group,
           GroupState? groupState,
@@ -280,6 +293,27 @@ class WatchPartySession extends Notifier<WatchPartyState>
       return true;
     } on Object catch (error) {
       _log.warning('episodio successivo non chiesto: $error');
+      return false;
+    }
+  }
+
+  /// Il gruppo torna all'elemento prima (pulsante ⏮, tasto P, spec H §8.4),
+  /// se è ancora in riproduzione [fromPlaylistItemId]: con un id diverso il
+  /// server resterebbe in attesa (spec H §3). `false` se il gruppo è già
+  /// altrove, se non c'è un elemento prima o se la richiesta non è arrivata.
+  Future<bool> previousItem(String fromPlaylistItemId) async {
+    final playing = state.queue?.playing;
+    if (!state.inGroup ||
+        playing == null ||
+        playing.playlistItemId != fromPlaylistItemId ||
+        !state.hasPrevious) {
+      return false;
+    }
+    try {
+      await _api.previousItem(playing.playlistItemId);
+      return true;
+    } on Object catch (error) {
+      _log.warning('elemento precedente non chiesto: $error');
       return false;
     }
   }

@@ -497,6 +497,43 @@ void main() {
     expect(api.calls.last, 'next p1');
   });
 
+  test('previousItem: solo se c\'è un elemento prima (spec H §8.4)', () async {
+    mount();
+    serverAccepts();
+    await session().join('g1');
+    emit(PlayQueueUpdate('g1', testSeriesQueue()));
+    await pumpEventQueue();
+    expect(state().hasPrevious, isFalse);
+    expect(state().previousEntry, isNull);
+    expect(await session().previousItem('p1'), isFalse);
+    expect(api.calls, isNot(contains('previous p1')));
+
+    emit(PlayQueueUpdate(
+        'g1',
+        testSeriesQueue(
+            playingIndex: 1,
+            reason: 'NextItem',
+            lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+    await pumpEventQueue();
+    expect(state().previousEntry?.itemId, 'e4');
+    // Il player di e4 (p1) non chiede il precedente quando il gruppo è già
+    // su e5: il server resterebbe in attesa.
+    expect(await session().previousItem('p1'), isFalse);
+    expect(await session().previousItem('p2'), isTrue);
+    expect(api.calls.last, 'previous p2');
+  });
+
+  test('previousItem con la richiesta fallita: false', () async {
+    mount();
+    serverAccepts();
+    await session().join('g1');
+    emit(PlayQueueUpdate('g1', testSeriesQueue(playingIndex: 1)));
+    await pumpEventQueue();
+    api.error = const ServerUnreachableException();
+    expect(await session().previousItem('p2'), isFalse);
+    expect(api.calls.last, 'previous p2');
+  });
+
   test('membri: lo stesso utente con due sessioni compare una volta', () async {
     mount();
     serverAccepts(participants: ['Mario', 'Luigi']);
