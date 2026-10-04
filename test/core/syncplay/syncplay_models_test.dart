@@ -152,4 +152,19 @@ void main() {
     expect(queue.startPosition, Duration.zero);
     expect(queue.isPlaying, isFalse);
   });
+
+  test('PlayQueue: ordine casuale (spec H §8.1)', () {
+    final queue = PlayQueue.fromJson({
+      'Reason': 'ShuffleMode',
+      'LastUpdate': '2026-10-04T10:00:00Z',
+      'Playlist': [
+        {'ItemId': 'e4', 'PlaylistItemId': 'p1'},
+      ],
+      'PlayingItemIndex': 0,
+      'ShuffleMode': 'Shuffle',
+    });
+    expect(queue.shuffled, isTrue);
+    expect(PlayQueue.fromJson({'ShuffleMode': 'Sorted'}).shuffled, isFalse);
+    expect(PlayQueue.fromJson(const <String, dynamic>{}).shuffled, isFalse);
+  });
 }

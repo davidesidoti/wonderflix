@@ -160,6 +160,56 @@ void main() {
     expect(body(), {'PlaylistItemId': 'p1'});
   });
 
+  test('comandi della coda (spec H §8.1)', () async {
+    await api.previousItem('p2');
+    expect(adapter.requests.single.method, 'POST');
+    expect(adapter.requests.single.path, '/SyncPlay/PreviousItem');
+    expect(body(), {'PlaylistItemId': 'p2'});
+
+    adapter.requests.clear();
+    await api.setPlaylistItem('p3');
+    expect(adapter.requests.single.path, '/SyncPlay/SetPlaylistItem');
+    expect(body(), {'PlaylistItemId': 'p3'});
+
+    adapter.requests.clear();
+    await api.queue(['m1', 'm2'], next: false);
+    expect(adapter.requests.single.path, '/SyncPlay/Queue');
+    expect(body(), {
+      'ItemIds': ['m1', 'm2'],
+      'Mode': 'Queue',
+    });
+
+    adapter.requests.clear();
+    await api.queue(['m3'], next: true);
+    expect(body(), {
+      'ItemIds': ['m3'],
+      'Mode': 'QueueNext',
+    });
+
+    adapter.requests.clear();
+    await api.removeFromPlaylist('p4');
+    expect(adapter.requests.single.path, '/SyncPlay/RemoveFromPlaylist');
+    expect(body(), {
+      'PlaylistItemIds': ['p4'],
+      'ClearPlaylist': false,
+      'ClearPlayingItem': false,
+    });
+
+    adapter.requests.clear();
+    await api.movePlaylistItem('p4', 2);
+    expect(adapter.requests.single.path, '/SyncPlay/MovePlaylistItem');
+    expect(body(), {'PlaylistItemId': 'p4', 'NewIndex': 2});
+
+    adapter.requests.clear();
+    await api.setShuffleMode(shuffle: true);
+    expect(adapter.requests.single.path, '/SyncPlay/SetShuffleMode');
+    expect(body(), {'Mode': 'Shuffle'});
+
+    adapter.requests.clear();
+    await api.setShuffleMode(shuffle: false);
+    expect(body(), {'Mode': 'Sorted'});
+  });
+
   test('setIgnoreWait', () async {
     await api.setIgnoreWait(true);
     expect(adapter.requests.single.path, '/SyncPlay/SetIgnoreWait');

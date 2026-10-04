@@ -147,6 +147,7 @@ class PlayQueue {
     required this.playingIndex,
     required this.startPosition,
     required this.isPlaying,
+    this.shuffled = false,
   });
 
   factory PlayQueue.fromJson(Map<String, dynamic> json) => PlayQueue(
@@ -164,6 +165,7 @@ class PlayQueue {
         playingIndex: _int(json['PlayingItemIndex']) ?? -1,
         startPosition: ticksToDuration(_int(json['StartPositionTicks']) ?? 0),
         isPlaying: json['IsPlaying'] as bool? ?? false,
+        shuffled: json['ShuffleMode'] == 'Shuffle',
       );
 
   /// Cosa ha cambiato la coda (`NewPlaylist`, `NextItem`…).
@@ -177,6 +179,10 @@ class PlayQueue {
   /// Posizione del gruppo quando il server ha mandato la coda.
   final Duration startPosition;
   final bool isPlaying;
+
+  /// Ordine casuale attivo (`ShuffleMode`): [entries] è nell'ordine
+  /// mescolato (spec H §3).
+  final bool shuffled;
 
   PlayQueueEntry? get playing =>
       playingIndex >= 0 && playingIndex < entries.length

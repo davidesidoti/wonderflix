@@ -102,6 +102,31 @@ class FakeSyncPlayApi implements SyncPlayApi {
       _record('next $playlistItemId');
 
   @override
+  Future<void> previousItem(String playlistItemId) =>
+      _record('previous $playlistItemId');
+
+  @override
+  Future<void> setPlaylistItem(String playlistItemId) =>
+      _record('set-item $playlistItemId');
+
+  /// Registra `add a,b` o `add-next a,b`.
+  @override
+  Future<void> queue(List<String> itemIds, {required bool next}) =>
+      _record('${next ? 'add-next' : 'add'} ${itemIds.join(',')}');
+
+  @override
+  Future<void> removeFromPlaylist(String playlistItemId) =>
+      _record('remove $playlistItemId');
+
+  @override
+  Future<void> movePlaylistItem(String playlistItemId, int newIndex) =>
+      _record('move $playlistItemId $newIndex');
+
+  @override
+  Future<void> setShuffleMode({required bool shuffle}) =>
+      _record('shuffle ${shuffle ? 'on' : 'off'}');
+
+  @override
   Future<void> buffering(ClientPlaybackState state) {
     bufferingStates.add(state);
     return _record('buffering');
@@ -165,6 +190,7 @@ PlayQueue testSeriesQueue({
   int playingIndex = 0,
   String reason = 'NewPlaylist',
   DateTime? lastUpdate,
+  bool shuffled = false,
 }) =>
     PlayQueue(
       reason: reason,
@@ -176,6 +202,7 @@ PlayQueue testSeriesQueue({
       playingIndex: playingIndex,
       startPosition: Duration.zero,
       isPlaying: false,
+      shuffled: shuffled,
     );
 
 /// Navigazione in memoria: registra le aperture del player.

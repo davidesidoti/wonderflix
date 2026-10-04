@@ -103,6 +103,43 @@ class SyncPlayApi {
   Future<void> nextItem(String playlistItemId) =>
       _post('/SyncPlay/NextItem', {'PlaylistItemId': playlistItemId});
 
+  /// Torna all'elemento prima di quello in riproduzione. [playlistItemId] è
+  /// quello in riproduzione: con un id diverso il server 10.11 lascia il
+  /// gruppo in attesa (spec H §3), quindi lo si manda solo se è ancora lui.
+  Future<void> previousItem(String playlistItemId) =>
+      _post('/SyncPlay/PreviousItem', {'PlaylistItemId': playlistItemId});
+
+  /// Il gruppo passa all'elemento [playlistItemId] della coda, da 0.
+  Future<void> setPlaylistItem(String playlistItemId) =>
+      _post('/SyncPlay/SetPlaylistItem', {'PlaylistItemId': playlistItemId});
+
+  /// Aggiunge [itemIds] in fondo alla coda o, con [next], subito dopo
+  /// l'elemento in riproduzione; l'ordine dato si mantiene.
+  Future<void> queue(List<String> itemIds, {required bool next}) =>
+      _post('/SyncPlay/Queue',
+          {'ItemIds': itemIds, 'Mode': next ? 'QueueNext' : 'Queue'});
+
+  /// Toglie un elemento dalla coda. Uno per richiesta: con più id, tra cui
+  /// quello in riproduzione, il server 10.11 può rompere il gruppo (spec H
+  /// §3).
+  Future<void> removeFromPlaylist(String playlistItemId) =>
+      _post('/SyncPlay/RemoveFromPlaylist', {
+        'PlaylistItemIds': [playlistItemId],
+        'ClearPlaylist': false,
+        'ClearPlayingItem': false,
+      });
+
+  /// Sposta un elemento alla posizione [newIndex] della coda com'è adesso
+  /// (quella mescolata, con l'ordine casuale), contata dopo averlo tolto.
+  Future<void> movePlaylistItem(String playlistItemId, int newIndex) =>
+      _post('/SyncPlay/MovePlaylistItem',
+          {'PlaylistItemId': playlistItemId, 'NewIndex': newIndex});
+
+  /// Ordine casuale acceso o spento. `Sorted` su una coda già ordinata fa
+  /// rispondere 500 al server 10.11 (spec H §3): chi chiama controlla prima.
+  Future<void> setShuffleMode({required bool shuffle}) => _post(
+      '/SyncPlay/SetShuffleMode', {'Mode': shuffle ? 'Shuffle' : 'Sorted'});
+
   Future<void> buffering(ClientPlaybackState state) =>
       _post('/SyncPlay/Buffering', state.toJson());
 
