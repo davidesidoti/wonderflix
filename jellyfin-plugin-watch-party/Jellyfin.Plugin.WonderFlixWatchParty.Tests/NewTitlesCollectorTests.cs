@@ -421,6 +421,50 @@ public sealed class NewTitlesCollectorTests : IDisposable
     }
 
     [Fact]
+    public void AWaveIsNotSentIfTheSettingIsTurnedOffWhileItCloses()
+    {
+        _server.Following.Add((_mario.Id, _bear));
+        _collector.Added(AddEpisode(_bear, 1, 1));
+        _collector.Added(AddMovie("Dune"));
+        // Le serie seguite si leggono dopo il distacco: la casella si spegne lì, senza errori.
+        _server.OnFollowsSeries = () =>
+        {
+            _server.OnFollowsSeries = null;
+            _server.NotifyNewTitles = false;
+        };
+
+        Wait(NewTitlesCollector.QuietTime);
+        _server.NotifyNewTitles = true;
+
+        Assert.Null(NewTitlesOf(_mario));
+        Assert.Null(NewTitlesOf(_luigi));
+        Assert.Equal(0, _collector.Pending);
+        Wait(NewTitlesCollector.QuietTime);
+        Assert.Null(NewTitlesOf(_mario));
+    }
+
+    [Fact]
+    public void AWaveIsNotSentIfItIsDroppedWhileItCloses()
+    {
+        _server.Following.Add((_mario.Id, _bear));
+        _collector.Added(AddEpisode(_bear, 1, 1));
+        _collector.Added(AddMovie("Dune"));
+        // Casella spenta e riaccesa dopo il distacco: l'ondata è stata buttata.
+        _server.OnFollowsSeries = () =>
+        {
+            _server.OnFollowsSeries = null;
+            _server.NotifyNewTitles = false;
+            Assert.Equal(0, _collector.Pending);
+            _server.NotifyNewTitles = true;
+        };
+
+        Wait(NewTitlesCollector.QuietTime);
+
+        Assert.Null(NewTitlesOf(_mario));
+        Assert.Equal(0, _collector.Pending);
+    }
+
+    [Fact]
     public async Task DisposingDuringACheckDoesNotTurnItIntoAFailure()
     {
         _collector.Added(AddMovie("Dune"));

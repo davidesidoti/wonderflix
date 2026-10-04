@@ -276,6 +276,26 @@ public sealed class NewTitlesCollector(
                 .Where(title => !wave.IsReplacement(title))
                 .ToList();
             entries = BuildEntries(kept, now);
+
+            // Casella spenta mentre si leggeva, dopo il distacco: l'ondata non si
+            // manda (e se è spenta adesso si butta anche quella più nuova).
+            var enabled = settings.NotifyNewTitles;
+            bool dropped;
+            lock (_lock)
+            {
+                dropped = !enabled || _discards != discards;
+            }
+
+            if (dropped)
+            {
+                if (!enabled)
+                {
+                    Discard();
+                }
+
+                logger.LogDebug("Nuovi titoli: ondata scartata con {Titles} titoli, casella spenta durante la chiusura", kept.Count);
+                return Nothing;
+            }
         }
         catch (Exception)
         {
