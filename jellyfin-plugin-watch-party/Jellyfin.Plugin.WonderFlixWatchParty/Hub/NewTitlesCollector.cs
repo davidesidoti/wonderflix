@@ -395,13 +395,20 @@ public sealed class NewTitlesCollector(
 
         var movies = titles.Where(t => t.IsMovie).OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase).ToList();
         var episodesBySeries = titles.Where(t => !t.IsMovie && t.SeriesId != Guid.Empty).GroupBy(t => t.SeriesId).ToList();
+        var anyWithoutMetadata = titles.Any(t => !t.Refreshed);
         foreach (var user in users.GetUsers().Where(u => u.Enabled))
         {
-            var userMovies = movies.Where(m => access.CanSee(user.Id, m.ItemId)).ToList();
+            // Titoli senza metadati (chiusura forzata o dopo MaxWait): niente
+            // classificazione né tag, i limiti del profilo non li fermerebbero.
+            // Vanno solo a chi non ha limiti sui contenuti.
+            var limited = anyWithoutMetadata && access.HasContentLimits(user.Id);
+            bool Allowed(LibraryTitle title) => title.Refreshed || !limited;
+
+            var userMovies = movies.Where(m => Allowed(m) && access.CanSee(user.Id, m.ItemId)).ToList();
             var userSeries = new List<NewTitleSeries>();
             foreach (var episodes in episodesBySeries)
             {
-                var visible = episodes.Where(e => access.CanSee(user.Id, e.ItemId)).ToList();
+                var visible = episodes.Where(e => Allowed(e) && access.CanSee(user.Id, e.ItemId)).ToList();
                 if (visible.Count == 0)
                 {
                     continue;

@@ -105,6 +105,11 @@ internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSen
         LibraryFails ? throw new InvalidOperationException("libreria non disponibile")
         : Users.ContainsKey(userId) && !Unseen.Contains((userId, itemId));
 
+    /// <summary>Utenti con limiti sui contenuti (classificazione, tag, elementi senza classificazione).</summary>
+    public HashSet<Guid> Restricted { get; } = [];
+
+    public bool HasContentLimits(Guid userId) => !Users.ContainsKey(userId) || Restricted.Contains(userId);
+
     /// <summary>Titoli della libreria per id, come li rilegge il raccoglitore dei nuovi titoli.</summary>
     public Dictionary<Guid, LibraryTitle> Titles { get; } = [];
 

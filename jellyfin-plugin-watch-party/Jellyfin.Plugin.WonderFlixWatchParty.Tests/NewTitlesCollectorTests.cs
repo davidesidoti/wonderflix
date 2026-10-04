@@ -41,12 +41,12 @@ public sealed class NewTitlesCollectorTests : IDisposable
         return id;
     }
 
-    private Guid AddEpisode(Guid seriesId, int? season, int? episode, string seriesName = "The Bear")
+    private Guid AddEpisode(Guid seriesId, int? season, int? episode, string seriesName = "The Bear", bool refreshed = true)
     {
         var id = Guid.NewGuid();
         _server.Titles[id] = new LibraryTitle(
             id, false, $"Episodio {episode}", null, seriesId, seriesName, "chiave-" + seriesId.ToString("N"),
-            season, episode, [], true);
+            season, episode, [], refreshed);
         return id;
     }
 
@@ -418,6 +418,39 @@ public sealed class NewTitlesCollectorTests : IDisposable
         Wait(NewTitlesCollector.QuietTime);
         Assert.Null(NewTitlesOf(_mario));
         Assert.DoesNotContain(_log.Entries, e => e.Message.Contains("Dune", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task TitlesWithoutMetadataGoOnlyToUsersWithoutContentLimits()
+    {
+        // Luigi ha limiti sui contenuti (un profilo per bambini): un titolo
+        // senza metadati non ha classificazione e passerebbe i suoi limiti.
+        var peach = _server.AddUser("Peach");
+        _server.Restricted.Add(_luigi.Id);
+        _server.Restricted.Add(peach.Id);
+        _server.Following.Add((_mario.Id, _bear));
+        _server.Following.Add((_luigi.Id, _bear));
+        var raw = AddMovie("dune.part.two.mkv", refreshed: false);
+        _collector.Added(raw);
+        _collector.Added(AddMovie("Alien"));
+        _collector.Added(AddEpisode(_bear, 1, 1));
+        _collector.Added(AddEpisode(_bear, 1, 2, refreshed: false));
+        // Peach vede solo il titolo senza metadati: niente voce.
+        foreach (var id in _server.Titles.Keys.Where(id => id != raw))
+        {
+            _server.Unseen.Add((peach.Id, id));
+        }
+
+        // "Send now" chiude anche senza metadati.
+        Assert.Equal(new NewTitlesSendResponse(4, 2), await _collector.SendNowAsync());
+
+        var mario = NewTitlesOf(_mario)!;
+        Assert.Equal(new[] { "Alien", "dune.part.two.mkv" }, mario.Movies!.Select(m => m.Name));
+        Assert.Equal(new int?[] { 1, 2 }, Assert.Single(mario.Series!).Episodes.Select(e => e.Episode));
+        var luigi = NewTitlesOf(_luigi)!;
+        Assert.Equal(new[] { "Alien" }, luigi.Movies!.Select(m => m.Name));
+        Assert.Equal(new int?[] { 1 }, Assert.Single(luigi.Series!).Episodes.Select(e => e.Episode));
+        Assert.Null(NewTitlesOf(peach));
     }
 
     [Fact]

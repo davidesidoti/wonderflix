@@ -17,4 +17,12 @@ public interface ILibraryAccess
     /// anche senza una sessione aperta; false se uno dei due non esiste.
     /// </summary>
     bool CanSee(Guid userId, Guid itemId);
+
+    /// <summary>
+    /// Il profilo ha limiti sui contenuti: classificazione massima, tag
+    /// bloccati o consentiti, elementi senza classificazione bloccati. Un
+    /// titolo senza metadati non ha né classificazione né tag, e quei limiti
+    /// non lo fermerebbero. True anche se l'utente non esiste.
+    /// </summary>
+    bool HasContentLimits(Guid userId);
 }

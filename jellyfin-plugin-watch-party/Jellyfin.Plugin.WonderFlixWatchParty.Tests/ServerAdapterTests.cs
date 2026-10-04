@@ -1,4 +1,5 @@
 using Jellyfin.Data;
+using Jellyfin.Data.Enums;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
@@ -274,5 +275,41 @@ public class ServerAdapterTests
         Assert.False(access.CanSee(Guid.NewGuid(), Guid.NewGuid()));
         Assert.False(access.CanSee(Guid.Empty, Guid.NewGuid()));
         Assert.False(access.CanSee(Guid.NewGuid(), Guid.Empty));
+    }
+
+    [Fact]
+    public void ContentLimitsAreARatingTagsOrBlockedUnratedItems()
+    {
+        static User NewUser() => new("mario", "provider", "reset");
+        var free = NewUser();
+        // Preferenze salvate vuote, come le può scrivere la Dashboard: nessun limite.
+        free.SetPreference(PreferenceKind.BlockedTags, Array.Empty<string>());
+        free.SetPreference(PreferenceKind.AllowedTags, Array.Empty<string>());
+        free.SetPreference(PreferenceKind.BlockUnratedItems, Array.Empty<UnratedItem>());
+        var rating = NewUser();
+        rating.MaxParentalRatingScore = 10;
+        var subRating = NewUser();
+        subRating.MaxParentalRatingSubScore = 1;
+        var blockedTags = NewUser();
+        blockedTags.SetPreference(PreferenceKind.BlockedTags, ["horror"]);
+        var allowedTags = NewUser();
+        allowedTags.SetPreference(PreferenceKind.AllowedTags, ["kids"]);
+        var unrated = NewUser();
+        unrated.SetPreference(PreferenceKind.BlockUnratedItems, [UnratedItem.Movie]);
+        var all = new[] { free, rating, subRating, blockedTags, allowedTags, unrated }.ToDictionary(u => u.Id);
+        var (users, stub) = InterfaceStub<IUserManager>.Create();
+        stub.Handlers["GetUserById"] = args => all.GetValueOrDefault((Guid)args[0]!);
+        var access = new JellyfinLibraryAccess(
+            InterfaceStub<ISessionManager>.Create().Proxy, InterfaceStub<ILibraryManager>.Create().Proxy, users);
+
+        Assert.False(access.HasContentLimits(free.Id));
+        Assert.True(access.HasContentLimits(rating.Id));
+        Assert.True(access.HasContentLimits(subRating.Id));
+        Assert.True(access.HasContentLimits(blockedTags.Id));
+        Assert.True(access.HasContentLimits(allowedTags.Id));
+        Assert.True(access.HasContentLimits(unrated.Id));
+        // Un utente che non c'è: come uno con limiti.
+        Assert.True(access.HasContentLimits(Guid.NewGuid()));
+        Assert.True(access.HasContentLimits(Guid.Empty));
     }
 }
