@@ -854,7 +854,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (_queueSearchFocusNode.hasFocus) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !(ModalRoute.isCurrentOf(context) ?? true)) return;
+      // App inattiva (Alt+Tab): Flutter mette il focus sulla radice e si
+      // ricorda il campo, che gli rende al ritorno. Se il player lo
+      // prendesse ora, il campo andrebbe perso.
+      final lifecycle = WidgetsBinding.instance.lifecycleState;
+      if (lifecycle != null && lifecycle != AppLifecycleState.resumed) return;
       final primary = FocusManager.instance.primaryFocus;
+      if (primary == FocusManager.instance.rootScope) return;
       if (primary == null || primary is FocusScopeNode) {
         _focusNode.requestFocus();
       }

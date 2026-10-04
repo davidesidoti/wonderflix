@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:wonderflix/app/theme.dart';
+import 'package:wonderflix/features/player/player_side_panel_host.dart';
 import 'package:wonderflix/features/player/queue_panel/queue_add_widgets.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
@@ -99,5 +101,26 @@ void main() {
     );
     await tester.tap(find.text(l.retry));
     expect(retries, 1);
+  });
+
+  testWidgets('riquadro: da solo ha il suo fondo, sotto il fondo del pannello '
+      'no', (tester) async {
+    final background = find.byWidgetPredicate((widget) =>
+        widget is Material &&
+        widget.color == WfColors.surface.withValues(alpha: 0.94));
+    const frame =
+        QueuePanelFrame(header: SizedBox(height: 20), body: SizedBox());
+    await pumpApp(
+        tester, const Scaffold(body: SizedBox(width: 360, child: frame)));
+    expect(background, findsOneWidget);
+    expect(find.byType(PanelWheelBarrier), findsOneWidget);
+
+    await pumpApp(
+        tester,
+        const Scaffold(
+            body: SizedBox(
+                width: 360, child: QueuePanelBackdrop(child: frame))));
+    expect(background, findsOneWidget, reason: 'quello del pannello');
+    expect(find.byType(PanelWheelBarrier), findsOneWidget);
   });
 }

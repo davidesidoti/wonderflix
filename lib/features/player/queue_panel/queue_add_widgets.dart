@@ -8,9 +8,44 @@ import '../../../ui/wf_image.dart';
 import '../../watch_party/party_queue_rules.dart';
 import '../player_side_panel_host.dart';
 
-/// Il riquadro delle viste del pannello "Coda" (spec H §9.2): fondo al 94 %,
-/// bordo sinistro, la rotella che non arriva al volume. Tutto fuori dal
-/// focus tranne [field] (il campo della ricerca): i tasti restano al player.
+/// Il fondo del pannello "Coda" (spec H §9.2): fondo al 94 %, bordo
+/// sinistro, la rotella che non arriva al volume. `PartyQueuePanel` lo
+/// disegna una volta sola sotto le viste: se ognuna portasse il suo, nella
+/// dissolvenza tra due viste il pannello diventerebbe trasparente.
+class QueuePanelBackdrop extends StatelessWidget {
+  const QueuePanelBackdrop({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => _QueuePanelBackdropMarker(
+        child: PanelWheelBarrier(
+          child: Material(
+            color: WfColors.surface.withValues(alpha: 0.94),
+            child: DecoratedBox(
+              decoration: const BoxDecoration(
+                border: Border(left: BorderSide(color: WfColors.border)),
+              ),
+              child: child,
+            ),
+          ),
+        ),
+      );
+}
+
+/// Dice alle [QueuePanelFrame] sotto di lui che il fondo c'è già.
+class _QueuePanelBackdropMarker extends InheritedWidget {
+  const _QueuePanelBackdropMarker({required super.child});
+
+  @override
+  bool updateShouldNotify(_QueuePanelBackdropMarker oldWidget) => false;
+}
+
+/// Il riquadro di una vista del pannello "Coda" (spec H §9.2): intestazione,
+/// campo, corpo e piede. Tutto fuori dal focus tranne [field] (il campo
+/// della ricerca): i tasti restano al player. Il fondo lo dà
+/// [QueuePanelBackdrop]: sotto di lui il riquadro non lo ridisegna, da solo
+/// (nei test delle viste) sì.
 class QueuePanelFrame extends StatelessWidget {
   const QueuePanelFrame({
     super.key,
@@ -29,25 +64,19 @@ class QueuePanelFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     final field = this.field;
     final footer = this.footer;
-    return PanelWheelBarrier(
-      child: Material(
-        color: WfColors.surface.withValues(alpha: 0.94),
-        child: DecoratedBox(
-          decoration: const BoxDecoration(
-            border: Border(left: BorderSide(color: WfColors.border)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              ExcludeFocus(child: header),
-              ?field,
-              Expanded(child: ExcludeFocus(child: body)),
-              if (footer != null) ExcludeFocus(child: footer),
-            ],
-          ),
-        ),
-      ),
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ExcludeFocus(child: header),
+        ?field,
+        Expanded(child: ExcludeFocus(child: body)),
+        if (footer != null) ExcludeFocus(child: footer),
+      ],
     );
+    final hasBackdrop =
+        context.getInheritedWidgetOfExactType<_QueuePanelBackdropMarker>() !=
+            null;
+    return hasBackdrop ? content : QueuePanelBackdrop(child: content);
   }
 }
 

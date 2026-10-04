@@ -167,12 +167,21 @@ class _QueueAddViewState extends ConsumerState<QueueAddView> {
         padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
         child: CallbackShortcuts(
           bindings: {
-            const SingleActivator(LogicalKeyboardKey.escape): _escape,
+            // Tenuto premuto Esc svuota e basta: senza le ripetizioni non
+            // chiude anche il pannello.
+            const SingleActivator(LogicalKeyboardKey.escape,
+                includeRepeats: false): _escape,
           },
           child: TextField(
             controller: _controller,
             focusNode: widget.focusNode,
             onChanged: ref.read(queueAddSearchProvider.notifier).setTerm,
+            // Come nella chat: Invio non toglie il focus al campo (di
+            // default "fatto" lo sfoca)...
+            onEditingComplete: () {},
+            // ...e nemmeno un clic sugli altri pulsanti del pannello. Il
+            // campo lo lascia la chiusura del pannello o il cambio di vista.
+            onTapOutside: (_) {},
             style: const TextStyle(fontSize: 13),
             decoration: InputDecoration(
               hintText: l.partyQueueSearchHint,

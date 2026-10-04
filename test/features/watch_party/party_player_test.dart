@@ -2066,6 +2066,31 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    /// La coda dopo "Riproduci dopo" di Alien: m9 subito dopo e4.
+    PlayQueue queueWithAlienNext() => PlayQueue(
+          reason: 'QueueNext',
+          lastUpdate: DateTime.utc(2026, 9, 30, 10, 5),
+          entries: const [
+            PlayQueueEntry(itemId: 'e4', playlistItemId: 'p1'),
+            PlayQueueEntry(itemId: 'm9', playlistItemId: 'p9'),
+            PlayQueueEntry(itemId: 'e5', playlistItemId: 'p2'),
+            PlayQueueEntry(itemId: 'e6', playlistItemId: 'p3'),
+          ],
+          playingIndex: 0,
+          startPosition: Duration.zero,
+          isPlaying: false,
+        );
+
+    /// Spazio e N non arrivano al player: i tasti sono del campo.
+    Future<void> expectKeysBlocked(WidgetTester tester) async {
+      api.calls.clear();
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+      await tester.pump();
+      expect(api.calls.where((c) => c == 'unpause' || c.startsWith('next')),
+          isEmpty);
+    }
+
     testWidgets('dalla vista Coda alla vista Aggiungi; riproduci dopo; la '
         'conferma dà "Hai messo subito dopo"', (tester) async {
       await pumpPartyPlayer(tester);
@@ -2079,21 +2104,7 @@ void main() {
       expect(api.calls, contains('add-next m9'));
       expect(announced(),
           contains(equals({'Type': 'Action', 'Action': 'QueueNext'})));
-      emit(PlayQueueUpdate(
-          'g1',
-          PlayQueue(
-            reason: 'QueueNext',
-            lastUpdate: DateTime.utc(2026, 9, 30, 10, 5),
-            entries: const [
-              PlayQueueEntry(itemId: 'e4', playlistItemId: 'p1'),
-              PlayQueueEntry(itemId: 'm9', playlistItemId: 'p9'),
-              PlayQueueEntry(itemId: 'e5', playlistItemId: 'p2'),
-              PlayQueueEntry(itemId: 'e6', playlistItemId: 'p3'),
-            ],
-            playingIndex: 0,
-            startPosition: Duration.zero,
-            isPlaying: false,
-          )));
+      emit(PlayQueueUpdate('g1', queueWithAlienNext()));
       await tester.pump();
       await tester.pump();
       expect(find.text('Hai messo subito dopo: Alien'), findsOneWidget);
@@ -2171,6 +2182,9 @@ void main() {
       expect(
           tester.widget<TextField>(find.byType(TextField)).controller?.text,
           'ali');
+      // Il player nuovo ha un campo nuovo: ha il focus e i tasti sono suoi.
+      expect(primaryFocus(), 'party-queue-search');
+      await expectKeysBlocked(tester);
       await finish(tester);
     });
 
@@ -2216,21 +2230,173 @@ void main() {
       await finish(tester);
     });
 
-    testWidgets('clic fuori dal campo: il campo perde il focus e i tasti '
-        'tornano al player', (tester) async {
+    testWidgets('clic fuori dal campo (anche su un pulsante della vista): il '
+        'campo resta a fuoco; la chiusura del pannello ridà i tasti al '
+        'player', (tester) async {
       await pumpPartyPlayer(tester);
       await queueSeries(tester);
       await openAdd(tester);
       expect(primaryFocus(), 'party-queue-search');
-      // Sul desktop un clic fuori dal campo lo sfoca: il focus andrebbe alla
-      // rotta, non al player.
+      // Sul desktop un campo si sfoca da solo con un clic fuori: qui no,
+      // come nella chat.
       await tester.tap(find.text(l.partyQueueAddTitle));
+      await tester.pump();
+      await tester.pump();
+      expect(primaryFocus(), 'party-queue-search');
+      await tester.tap(find.descendant(
+          of: find.byKey(const ValueKey('queue-add-m9')),
+          matching: find.byTooltip(l.partyQueuePlayNext)));
+      await tester.pump();
+      expect(api.calls, contains('add-next m9'));
+      expect(primaryFocus(), 'party-queue-search');
+      await expectKeysBlocked(tester);
+      emit(PlayQueueUpdate('g1', queueWithAlienNext()));
+      await tester.pump();
+      await tester.pump();
+      expect(primaryFocus(), 'party-queue-search');
+      // La ✕ chiude il pannello: i tasti tornano al player.
+      await tester.tap(find.byTooltip(l.playerClosePanel));
+      await tester.pump();
+      await expectPlayerKeys(tester);
+      await finish(tester);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
+    testWidgets('il campo perde il focus per un altro motivo: il player se '
+        'lo riprende', (tester) async {
+      await pumpPartyPlayer(tester);
+      await queueSeries(tester);
+      await openAdd(tester);
+      expect(primaryFocus(), 'party-queue-search');
+      FocusManager.instance.primaryFocus!.unfocus();
       await tester.pump();
       await tester.pump();
       expect(find.byType(QueueAddView), findsOneWidget);
       await expectPlayerKeys(tester);
       await finish(tester);
+    });
+
+    testWidgets('app inattiva e di nuovo attiva (Alt+Tab): il campo resta a '
+        'fuoco e i tasti restano suoi', (tester) async {
+      await pumpPartyPlayer(tester);
+      // Il gestore del focus ascolta il ciclo di vita solo sulle piattaforme
+      // che lo prevedono: dopo il cambio di piattaforma del test va chiesto.
+      tester.binding.focusManager
+          .listenToApplicationLifecycleChangesIfSupported();
+      await queueSeries(tester);
+      await openAdd(tester);
+      expect(primaryFocus(), 'party-queue-search');
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      await tester.pump();
+      expect(primaryFocus(), 'party-queue-search');
+      await expectKeysBlocked(tester);
+      await finish(tester);
     }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
+    testWidgets('Invio nel campo: resta a fuoco, i tasti restano suoi e la '
+        'chat non si apre', (tester) async {
+      await pumpPartyPlayer(tester);
+      await queueSeries(tester);
+      await openAdd(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      // L'azione "fatto" della tastiera di testo: di solito sfoca il campo.
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+      await tester.pump();
+      expect(primaryFocus(), 'party-queue-search');
+      expect(chatField(), findsNothing);
+      await expectKeysBlocked(tester);
+      await finish(tester);
+    });
+
+    testWidgets('mentre si scrive 1-6 non mandano reazioni', (tester) async {
+      await pumpPartyPlayer(tester);
+      await queueSeries(tester);
+      await openAdd(tester);
+      for (final key in [
+        LogicalKeyboardKey.digit1,
+        LogicalKeyboardKey.digit4,
+        LogicalKeyboardKey.numpad2,
+        LogicalKeyboardKey.numpad6,
+      ]) {
+        await tester.sendKeyEvent(key);
+        await tester.pump(PlayerScreen.reactionInterval);
+      }
+      expect(sentReactions(), isEmpty);
+      expect(primaryFocus(), 'party-queue-search');
+      await finish(tester);
+    });
+
+    testWidgets('Esc tenuto premuto: svuota il campo ma non chiude il '
+        'pannello', (tester) async {
+      await pumpPartyPlayer(tester);
+      await queueSeries(tester);
+      await openAdd(tester);
+      await tester.enterText(find.byType(TextField), 'al');
+      await tester.pump();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.escape);
+      await tester.sendKeyRepeatEvent(LogicalKeyboardKey.escape);
+      await tester.sendKeyRepeatEvent(LogicalKeyboardKey.escape);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(QueueAddView), findsOneWidget);
+      expect(
+          tester.widget<TextField>(find.byType(TextField)).controller?.text,
+          isEmpty);
+      await finish(tester);
+    });
+
+    testWidgets('← e subito di nuovo "Aggiungi titoli", durante la '
+        'dissolvenza: il campo ha il focus', (tester) async {
+      await pumpPartyPlayer(tester);
+      await queueSeries(tester);
+      await openAdd(tester);
+      await tester.tap(find.descendant(
+          of: find.byType(QueueAddView), matching: find.byTooltip(l.navBack)));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(find.byType(QueueAddView), findsOneWidget,
+          reason: 'la vista di prima sta ancora uscendo');
+      await tester.tap(find.text(l.partyQueueAddTitles));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(find.byType(QueueAddView), findsNWidgets(2),
+          reason: 'quella che esce e una nuova, non la stessa riusata');
+      await tester.pumpAndSettle();
+      expect(find.byType(QueueAddView), findsOneWidget);
+      expect(primaryFocus(), 'party-queue-search');
+      await expectKeysBlocked(tester);
+      await finish(tester);
+    });
+
+    testWidgets('il fondo del pannello è uno solo anche a metà della '
+        'dissolvenza tra due viste', (tester) async {
+      await pumpPartyPlayer(tester);
+      await queueSeries(tester);
+      final panelBackground = find.descendant(
+          of: find.byType(PartyQueuePanel),
+          matching: find.byWidgetPredicate((widget) =>
+              widget is Material &&
+              widget.color == WfColors.surface.withValues(alpha: 0.94)));
+      await tester.tap(find.byTooltip(l.partyQueueOpen));
+      await tester.pumpAndSettle();
+      expect(panelBackground, findsOneWidget);
+      await tester.tap(find.text(l.partyQueueAddTitles));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(find.byType(QueuePanel), findsOneWidget);
+      expect(find.byType(QueueAddView), findsOneWidget,
+          reason: 'due viste insieme');
+      expect(panelBackground, findsOneWidget,
+          reason: 'il fondo non si somma né si dissolve con le viste');
+      await tester.pumpAndSettle();
+      expect(panelBackground, findsOneWidget);
+      await finish(tester);
+    });
 
     testWidgets('riaperto dal pulsante, anche la ricerca riparte da zero',
         (tester) async {

@@ -92,12 +92,19 @@ class PartyQueuePanel extends ConsumerWidget {
           onClose: onClose,
         ),
     };
-    // Le viste si sostituiscono sfumando (spec H §9.2); la chiave è la
-    // profondità, così tornando indietro la vista è quella di prima.
-    return AnimatedSwitcher(
-      duration: WfMotion.of(context).duration(WfMotion.fast),
-      child: KeyedSubtree(
-          key: ValueKey('queue-page-${pages.length}'), child: view),
+    // Le viste si sostituiscono sfumando (spec H §9.2). La chiave è la lista
+    // delle viste aperte: ogni navigazione ne dà una nuova, mentre gli
+    // aggiornamenti della coda no (la Coda non si rimonta). Una chiave per
+    // profondità non basta: lo `AnimatedSwitcher` dà alle uscite la chiave
+    // del figlio, e andando e tornando durante la dissolvenza la vista che
+    // esce verrebbe riusata come nuova, senza `initState` (il campo non
+    // riprenderebbe il focus). Il fondo sta fuori dal cambio: costante, il
+    // pannello non si schiarisce a metà.
+    return QueuePanelBackdrop(
+      child: AnimatedSwitcher(
+        duration: WfMotion.of(context).duration(WfMotion.fast),
+        child: KeyedSubtree(key: ObjectKey(pages), child: view),
+      ),
     );
   }
 }
