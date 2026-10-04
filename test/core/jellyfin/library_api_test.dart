@@ -133,6 +133,18 @@ void main() {
         reason: 'primo episodio');
   });
 
+  test('allEpisodes: tutti gli episodi della serie, senza i mancanti',
+      () async {
+    adapter.handler = (_) => FakeResponse(200, itemsResult(['e1', 'e2']));
+    final episodes = await api.allEpisodes('u1', 's1');
+    expect(last().path, '/Shows/s1/Episodes');
+    expect(last().query['isMissing'], false);
+    expect(last().query['userId'], 'u1');
+    expect(last().query, isNot(contains('seasonId')));
+    expect(last().query['enableImageTypes'], 'Primary,Backdrop,Thumb,Logo');
+    expect(episodes.map((e) => e.id), ['e1', 'e2']);
+  });
+
   test('itemsByIds: gli elementi indicati, con le immagini delle card',
       () async {
     adapter.handler = (_) => FakeResponse(200, itemsResult(['m2', 'm1']));

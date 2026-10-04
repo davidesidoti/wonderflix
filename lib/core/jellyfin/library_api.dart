@@ -71,6 +71,16 @@ class LibraryApi {
         'fields': 'Overview,PrimaryImageAspectRatio',
       }));
 
+  /// Tutti gli episodi veri della serie, in ordine e con le immagini delle
+  /// card (spec H §9.2, viste Serie e Stagione): senza i mancanti, che non
+  /// si possono guardare.
+  Future<List<JellyfinItem>> allEpisodes(String userId, String seriesId) async =>
+      _list(await _http.get('/Shows/$seriesId/Episodes', query: {
+        ...cardImageParams,
+        'userId': userId,
+        'isMissing': false,
+      }));
+
   /// Episodio che segue [episodeId] nella serie, anche nella stagione dopo;
   /// `null` se è l'ultimo.
   Future<JellyfinItem?> nextEpisode(
