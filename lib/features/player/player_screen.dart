@@ -49,6 +49,7 @@ import 'player_settings.dart';
 import 'player_side_panel_host.dart';
 import 'player_volume.dart';
 import 'player_window.dart';
+import 'queue_panel/queue_panel.dart';
 import 'segments.dart';
 import 'skip_button.dart';
 import 'tracks_panel.dart';
@@ -1026,13 +1027,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     });
     ref.listen(provider.select((s) => s.status), (previous, status) {
       // Una riapertura non riuscita (cambio di traccia) mentre il pannello è
-      // aperto: lo strato dell'errore non deve avere il pannello a fianco.
+      // aperto: lo strato dell'errore non deve avere il pannello a fianco
+      // (le tracce, o la coda del gruppo).
       // La barretta delle reazioni, sparito il suo pulsante con i controlli,
       // resterebbe aperta senza vedersi (e il primo Esc sarebbe suo).
       if (status == PlayerStatus.error) {
         _chrome
           ..closePanel()
-          ..closePopup(PlayerPopup.reactions);
+          ..closePopup(PlayerPopup.reactions)
+          ..closePopup(PlayerPopup.queue);
       }
       if (status != PlayerStatus.ready) {
         // Errore, "Riprova" o ripiego: i comandi del gruppo aspettano il
@@ -1097,7 +1100,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         setState(() => _partyDetached = true);
         _chrome
           ..closePopup(PlayerPopup.chat)
-          ..closePopup(PlayerPopup.reactions);
+          ..closePopup(PlayerPopup.reactions)
+          ..closePopup(PlayerPopup.queue);
         _detachParty();
         _controller.leaveParty();
         unawaited(_mediaSession
@@ -1136,9 +1140,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // Il post-play compare o sparisce anche senza un cambio di zona (la coda
     // del gruppo, l'uscita dal gruppo, l'episodio successivo arrivato tardi,
     // lo stato del file): dopo il fotogramma, all'arrivo il pannello si
-    // chiude (sotto c'è il post-play), e con lui la barretta delle reazioni
-    // (spariti i controlli con il suo pulsante resterebbe aperta senza
-    // vedersi, e il primo Esc sarebbe suo); la schermata di pausa segue
+    // chiude (sotto c'è il post-play; vale anche per la coda del gruppo), e
+    // con lui la barretta delle reazioni (spariti i controlli con il suo
+    // pulsante resterebbe aperta senza vedersi, e il primo Esc sarebbe
+    // suo); la schermata di pausa segue
     // (spec D §12.1: non c'è durante il post-play).
     if (postPlay != _postPlayWasShown) {
       _postPlayWasShown = postPlay;
@@ -1147,7 +1152,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         if (postPlay) {
           _chrome
             ..closePanel()
-            ..closePopup(PlayerPopup.reactions);
+            ..closePopup(PlayerPopup.reactions)
+            ..closePopup(PlayerPopup.queue);
         }
         _syncPlayback();
       });
@@ -1307,6 +1313,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             ? () => _chrome.togglePopup(PlayerPopup.reactions)
                             : null,
                         reactionsLink: _reactionsLink,
+                        onToggleQueue: party != null &&
+                                party.inGroup &&
+                                party.queue != null
+                            ? () => _chrome.togglePopup(PlayerPopup.queue)
+                            : null,
                       ),
                     ),
                   ),
@@ -1513,6 +1524,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
                   ),
                 ),
+                // Pannello "Coda" del watch party (spec H §9.1): come quello
+                // delle tracce, a destra sopra i controlli.
+                if (party != null)
+                  Positioned.fill(
+                    key: const ValueKey('player-queue-panel'),
+                    child: ExcludeFocus(
+                      child: PlayerSidePanelHost(
+                        open: _chrome.popup == PlayerPopup.queue &&
+                            party.inGroup,
+                        panel: PartyQueuePanel(
+                          onClose: () =>
+                              _chrome.closePopup(PlayerPopup.queue),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),

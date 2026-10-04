@@ -66,6 +66,7 @@ void main() {
     );
     expect(find.text('Breaking Bad'), findsOneWidget);
     expect(find.text('S1:E4 · Pilot'), findsOneWidget);
+    expect(find.byTooltip('Coda'), findsNothing);
 
     await tester.tap(find.byTooltip('Indietro'));
     await tester.tap(find.byTooltip('Pausa'));
@@ -367,5 +368,37 @@ void main() {
     await tester.tap(find.byTooltip('Titolo precedente'));
     await tester.tap(find.byTooltip('Titolo successivo'));
     expect(calls, ['previous', 'next', 'previous', 'next']);
+  });
+
+  testWidgets('coda del watch party: pulsante tra reazioni e tracce (spec H '
+      '§9.1)', (tester) async {
+    final calls = <String>[];
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: PlayerOverlay(
+          view: const PlayerViewState(status: PlayerStatus.ready),
+          engine: FakeVideoEngine(),
+          fullscreen: false,
+          onBack: () {},
+          onTogglePlay: () {},
+          onSeekBy: (_) {},
+          onSeekTo: (_) {},
+          onVolume: (_) {},
+          onToggleMute: () {},
+          onToggleTracks: () {},
+          onToggleFullscreen: () {},
+          onToggleReactions: () {},
+          onToggleQueue: () => calls.add('queue'),
+        ),
+      ),
+    );
+    await tester.tap(find.byTooltip('Coda'));
+    expect(calls, ['queue']);
+    final queue = tester.getCenter(find.byTooltip('Coda')).dx;
+    expect(tester.getCenter(find.byTooltip('Reazioni (1–6)')).dx,
+        lessThan(queue));
+    expect(queue,
+        lessThan(tester.getCenter(find.byTooltip('Audio e sottotitoli')).dx));
   });
 }

@@ -28,6 +28,7 @@ import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
 import 'package:wonderflix/features/player/player_volume.dart';
 import 'package:wonderflix/features/player/post_play.dart';
+import 'package:wonderflix/features/player/queue_panel/queue_panel.dart';
 import 'package:wonderflix/features/player/tracks_panel.dart';
 import 'package:wonderflix/features/watch_party/party_channel.dart';
 import 'package:wonderflix/features/watch_party/party_chat_bubble.dart';
@@ -1808,6 +1809,80 @@ void main() {
     expect(find.byTooltip(l.playerPreviousEpisode), findsNothing);
     expect(mediaSession.previousEnabled.last, isFalse,
         reason: 'e4 non ha un episodio prima nella libreria finta');
+    await finish(tester);
+  });
+
+  testWidgets('pannello Coda (spec H §9): si apre dal pulsante, salta, '
+      'toglie, mescola; Esc lo chiude', (tester) async {
+    await pumpPartyPlayer(tester);
+    await queueSeries(tester);
+    await tester.tap(find.byTooltip(l.partyQueueOpen));
+    await tester.pumpAndSettle();
+    expect(find.byType(QueuePanel), findsOneWidget);
+    final panel = find.byType(QueuePanel);
+    expect(
+        find.descendant(of: panel, matching: find.text('Cat\'s in the Bag')),
+        findsOneWidget);
+    expect(
+        find.descendant(
+            of: panel, matching: find.text(l.partyQueueUnavailable)),
+        findsOneWidget,
+        reason: 'e6 non è nella libreria finta');
+
+    await tester.tap(
+        find.descendant(of: panel, matching: find.text('Cat\'s in the Bag')));
+    await tester.pump();
+    expect(api.calls, contains('set-item p2'));
+    expect(announced(),
+        contains(equals({'Type': 'Action', 'Action': 'SetCurrentItem'})));
+
+    await tester.tap(find.descendant(
+        of: find.byKey(const ValueKey('party-queue-p3')),
+        matching: find.byTooltip(l.partyQueueRemove)));
+    await tester.pump();
+    expect(api.calls, contains('remove p3'));
+
+    await tester.tap(find.byTooltip(l.partyQueueShuffle));
+    await tester.pump();
+    expect(api.calls, contains('shuffle on'));
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byType(QueuePanel), findsNothing);
+    await finish(tester);
+  });
+
+  testWidgets('pannello Coda: si chiude se il server ci toglie dal gruppo',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    await queueSeries(tester);
+    await tester.tap(find.byTooltip(l.partyQueueOpen));
+    await tester.pumpAndSettle();
+    emit(const GroupLeft('g1'));
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.byType(QueuePanel), findsNothing);
+    expect(find.byTooltip(l.partyQueueOpen), findsNothing);
+    await finish(tester);
+  });
+
+  testWidgets('pannello Coda: si chiude quando compare il post-play',
+      (tester) async {
+    await pumpPartyPlayer(tester, segments: const [
+      MediaSegment(
+          type: MediaSegmentType.outro,
+          start: Duration(hours: 1, minutes: 55),
+          end: Duration(hours: 2)),
+    ]);
+    await queueSeries(tester);
+    await tester.tap(find.byTooltip(l.partyQueueOpen));
+    await tester.pumpAndSettle();
+    engine.emitPosition(const Duration(hours: 1, minutes: 55, seconds: 10));
+    await tester.pump();
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text(l.playerWatchCredits), findsOneWidget);
+    expect(find.byType(QueuePanel), findsNothing);
     await finish(tester);
   });
 }

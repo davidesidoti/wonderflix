@@ -166,6 +166,8 @@ void main() {
     expect(find.text('Breaking Bad'), findsOneWidget);
     expect(find.text('S1:E4 · Pilot'), findsOneWidget);
     expect(find.byTooltip('Pausa'), findsOneWidget);
+    expect(find.byTooltip('Coda'), findsNothing,
+        reason: 'solo nel watch party');
     expect(window.preventCloseCalls, [true]);
     await unmount(tester);
   });

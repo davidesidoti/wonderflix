@@ -41,6 +41,7 @@ class PlayerOverlay extends StatelessWidget {
     this.chatUnread = false,
     this.onToggleReactions,
     this.reactionsLink,
+    this.onToggleQueue,
   });
 
   final PlayerViewState view;
@@ -93,6 +94,10 @@ class PlayerOverlay extends StatelessWidget {
   /// Aggancio della barretta al pulsante (la barretta è un livello a sé del
   /// player).
   final LayerLink? reactionsLink;
+
+  /// Pannello "Coda" del watch party (spec H §9.1): solo nel gruppo; `null`
+  /// = nessun pulsante.
+  final VoidCallback? onToggleQueue;
 
   /// Di quanto la parte alta sale e la bassa scende a controlli nascosti.
   static const hiddenShift = 24.0;
@@ -326,6 +331,13 @@ class PlayerOverlay extends StatelessWidget {
                                 tooltip: l.partyReactionsOpen,
                                 onPressed: onToggleReactions,
                               ),
+                            ),
+                          if (onToggleQueue != null)
+                            PlayerIconButton(
+                              key: const Key('player-queue-button'),
+                              icon: const Icon(LucideIcons.listVideo),
+                              tooltip: l.partyQueueOpen,
+                              onPressed: onToggleQueue,
                             ),
                           PlayerIconButton(
                             icon: const Icon(LucideIcons.captions),
