@@ -1,14 +1,20 @@
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 
 /// <summary>
-/// Un'ondata di nuovi titoli (spec G §6.6): gli id aggiunti, gli id esterni
-/// di quelli tolti e i tempi. Solo id, mai elementi di Jellyfin. Non è sicura
-/// tra thread: la usa solo NewTitlesCollector, sotto lock.
+/// Un'ondata di nuovi titoli (spec G §6.6): gli id aggiunti e tolti, gli id
+/// esterni di quelli tolti, i tempi e le chiusure non riuscite. Solo id, mai
+/// elementi di Jellyfin. Non è sicura tra thread: la usa solo
+/// NewTitlesCollector, sotto lock.
 /// </summary>
 public sealed class NewTitlesWave(DateTimeOffset startedAt)
 {
     private readonly HashSet<Guid> _added = [];
+
+    // Gli id tolti: servono quando un'ondata più vecchia assorbe questa.
+    private readonly HashSet<Guid> _removedIds = [];
     private readonly List<(bool IsMovie, HashSet<string> Keys)> _removed = [];
+
+    private int _failedCloses;
 
     public DateTimeOffset StartedAt { get; } = startedAt;
 
@@ -33,6 +39,7 @@ public sealed class NewTitlesWave(DateTimeOffset startedAt)
     public void Remove(Guid itemId, bool isMovie, IReadOnlyCollection<string> externalKeys, DateTimeOffset now)
     {
         _added.Remove(itemId);
+        _removedIds.Add(itemId);
         if (externalKeys.Count > 0)
         {
             _removed.Add((isMovie, new HashSet<string>(externalKeys, StringComparer.OrdinalIgnoreCase)));
@@ -47,6 +54,27 @@ public sealed class NewTitlesWave(DateTimeOffset startedAt)
     /// </summary>
     public bool IsReplacement(LibraryTitle title) =>
         _removed.Any(r => r.IsMovie == title.IsMovie && title.ExternalKeys.Any(r.Keys.Contains));
+
+    /// <summary>
+    /// Questa ondata (staccata, con la chiusura non riuscita) torna in corso e
+    /// prende quello che è arrivato nel frattempo nell'ondata più nuova. Resta
+    /// l'inizio di questa: il tetto di attesa conta dal primo titolo.
+    /// </summary>
+    public void Absorb(NewTitlesWave newer)
+    {
+        // Prima i tolti e poi gli aggiunti: un titolo tolto e rimesso nella nuova resta.
+        _added.ExceptWith(newer._removedIds);
+        _added.UnionWith(newer._added);
+        _removedIds.UnionWith(newer._removedIds);
+        _removed.AddRange(newer._removed);
+        if (newer.LastChangeAt > LastChangeAt)
+        {
+            LastChangeAt = newer.LastChangeAt;
+        }
+    }
+
+    /// <summary>Conta una chiusura non riuscita; restituisce quante finora.</summary>
+    public int RecordFailedClose() => ++_failedCloses;
 
     public bool IsQuiet(DateTimeOffset now, TimeSpan quiet) => now - LastChangeAt >= quiet;
 

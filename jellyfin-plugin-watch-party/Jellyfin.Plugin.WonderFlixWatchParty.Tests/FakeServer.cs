@@ -122,8 +122,14 @@ internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSen
     public LibraryTitle? Get(Guid itemId) =>
         LibraryFails ? throw new InvalidOperationException("libreria non disponibile") : Titles.GetValueOrDefault(itemId);
 
-    public bool FollowsSeries(Guid userId, Guid seriesId, string seriesKey, IReadOnlyCollection<Guid> excludeEpisodes) =>
-        Following.Contains((userId, seriesId));
+    /// <summary>Chiamato a ogni FollowsSeries, prima della risposta (es. per lanciare un errore).</summary>
+    public Action? OnFollowsSeries { get; set; }
+
+    public bool FollowsSeries(Guid userId, Guid seriesId, string seriesKey, IReadOnlyCollection<Guid> excludeEpisodes)
+    {
+        OnFollowsSeries?.Invoke();
+        return Following.Contains((userId, seriesId));
+    }
 
     public Task<bool> TrySendAsync(string sessionId, string payload, CancellationToken cancellationToken)
     {

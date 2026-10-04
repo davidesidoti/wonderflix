@@ -35,6 +35,9 @@ public sealed class NewTitlesCollector(
     /// <summary>Righe al massimo per voce (un film o una serie = una riga); le altre si contano in More.</summary>
     public const int MaxLines = 500;
 
+    /// <summary>Chiusure non riuscite di fila dopo cui l'ondata si butta.</summary>
+    public const int MaxCloseAttempts = 5;
+
     private static readonly NewTitlesSendResponse Nothing = new(0, 0);
 
     private readonly Lock _lock = new();
@@ -121,7 +124,8 @@ public sealed class NewTitlesCollector(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning(ex, "Riepilogo dei nuovi titoli non riuscito: si riprova al prossimo controllo");
+            // Se l'ondata non è stata buttata (CloseFailed) si riprova al prossimo controllo.
+            logger.LogWarning(ex, "Riepilogo dei nuovi titoli non riuscito");
         }
     }
 
@@ -160,31 +164,45 @@ public sealed class NewTitlesCollector(
                 return Nothing;
             }
 
-            // Fuori dal lock: si legge dal database.
-            var titles = new Dictionary<Guid, LibraryTitle>();
-            Resolve(ids, titles);
-
-            // Metadati non ancora arrivati (nome dal file, niente numeri): si
-            // aspetta, entro MaxWait.
-            if (!due && titles.Values.Any(t => !t.Refreshed))
+            var detached = false;
+            List<LibraryTitle> kept;
+            Dictionary<Guid, InboxEntry> entries;
+            try
             {
-                return Nothing;
+                // Fuori dal lock: si legge dal database.
+                var titles = new Dictionary<Guid, LibraryTitle>();
+                Resolve(ids, titles);
+
+                // Metadati non ancora arrivati (nome dal file, niente numeri): si
+                // aspetta, entro MaxWait.
+                if (!due && titles.Values.Any(t => !t.Refreshed))
+                {
+                    return Nothing;
+                }
+
+                lock (_lock)
+                {
+                    // L'ondata si stacca: quello che arriva da adesso apre la prossima.
+                    _wave = null;
+                    detached = true;
+                    ids = wave.AddedIds.ToList();
+                }
+
+                Resolve(ids.Where(id => !titles.ContainsKey(id)), titles);
+                kept = ids
+                    .Where(titles.ContainsKey)
+                    .Select(id => titles[id])
+                    .Where(title => !wave.IsReplacement(title))
+                    .ToList();
+                entries = BuildEntries(kept, now);
+            }
+            catch (Exception)
+            {
+                CloseFailed(wave, detached);
+                throw;
             }
 
-            lock (_lock)
-            {
-                // L'ondata si stacca: quello che arriva da adesso apre la prossima.
-                _wave = null;
-                ids = wave.AddedIds.ToList();
-            }
-
-            Resolve(ids.Where(id => !titles.ContainsKey(id)), titles);
-            var kept = ids
-                .Where(titles.ContainsKey)
-                .Select(id => titles[id])
-                .Where(title => !wave.IsReplacement(title))
-                .ToList();
-            var entries = BuildEntries(kept, now);
+            // Da qui non si lancia più: AddNewTitlesAsync tiene per sé i suoi errori.
             await inbox.AddNewTitlesAsync(entries).ConfigureAwait(false);
             logger.LogDebug("Nuovi titoli: ondata chiusa con {Titles} titoli per {Recipients} utenti", kept.Count, entries.Count);
             return new NewTitlesSendResponse(kept.Count, entries.Count);
@@ -192,6 +210,49 @@ public sealed class NewTitlesCollector(
         finally
         {
             Volatile.Write(ref _closing, 0);
+        }
+    }
+
+    /// <summary>
+    /// Una chiusura non riuscita: niente è stato consegnato. L'ondata staccata
+    /// torna in corso, con quello che è arrivato nel frattempo, e si riprova al
+    /// prossimo controllo; dopo <see cref="MaxCloseAttempts"/> si butta.
+    /// </summary>
+    private void CloseFailed(NewTitlesWave wave, bool detached)
+    {
+        lock (_lock)
+        {
+            // Non staccata, ma buttata o sostituita mentre si leggeva: non c'è niente da contare.
+            if (!detached && !ReferenceEquals(_wave, wave))
+            {
+                return;
+            }
+
+            var attempts = wave.RecordFailedClose();
+            if (attempts >= MaxCloseAttempts)
+            {
+                // Staccata: l'ondata più nuova, se c'è, resta com'è.
+                if (!detached)
+                {
+                    _wave = null;
+                }
+
+                logger.LogWarning(
+                    "Nuovi titoli: ondata scartata con {Count} titoli dopo {Attempts} chiusure non riuscite",
+                    wave.Count,
+                    attempts);
+                return;
+            }
+
+            if (detached)
+            {
+                if (_wave is { } newer)
+                {
+                    wave.Absorb(newer);
+                }
+
+                _wave = wave;
+            }
         }
     }
 

@@ -1,5 +1,6 @@
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
@@ -10,6 +11,7 @@ public sealed class NewTitlesCollectorTests : IDisposable
     private readonly TempFolder _folder = new();
     private readonly FakeServer _server = new();
     private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 4, 20, 0, 0, TimeSpan.Zero));
+    private readonly RecordingLogger<NewTitlesCollector> _log = new();
     private readonly InboxService _inbox;
     private readonly NewTitlesCollector _collector;
     private readonly UserRef _mario;
@@ -19,7 +21,7 @@ public sealed class NewTitlesCollectorTests : IDisposable
     public NewTitlesCollectorTests()
     {
         _inbox = TestInbox.Create(_server, _folder, _time);
-        _collector = TestNewTitles.Create(_server, _inbox, _time);
+        _collector = TestNewTitles.Create(_server, _inbox, _time, _log);
         _collector.Start();
         _mario = _server.AddUser("Mario");
         _luigi = _server.AddUser("Luigi");
@@ -50,6 +52,16 @@ public sealed class NewTitlesCollectorTests : IDisposable
 
     private InboxEntry? NewTitlesOf(UserRef user) =>
         _inbox.Get(user.Id).Entries.SingleOrDefault(e => e.Type == InboxEntryTypes.NewTitles);
+
+    // Un controllo alla volta, come il timer vero: Advance di un tempo lungo
+    // farebbe tutti i controlli del periodo all'ora finale.
+    private void Wait(TimeSpan span)
+    {
+        for (var waited = TimeSpan.Zero; waited < span; waited += NewTitlesCollector.CheckInterval)
+        {
+            _time.Advance(NewTitlesCollector.CheckInterval);
+        }
+    }
 
     [Fact]
     public void AWaveClosesAfterFifteenQuietMinutes()
@@ -276,12 +288,90 @@ public sealed class NewTitlesCollectorTests : IDisposable
     {
         _collector.Added(AddMovie("Dune"));
         _server.LibraryFails = true;
-        _time.Advance(NewTitlesCollector.QuietTime);
+        Wait(NewTitlesCollector.QuietTime);
         Assert.Null(NewTitlesOf(_mario));
 
         _server.LibraryFails = false;
         _time.Advance(NewTitlesCollector.CheckInterval);
 
         Assert.NotNull(NewTitlesOf(_mario));
+    }
+
+    [Fact]
+    public void AWaveWhoseCloseFailsAfterTheDetachIsKeptAndRetried()
+    {
+        _server.Following.Add((_mario.Id, _bear));
+        _collector.Added(AddEpisode(_bear, 1, 1));
+        _collector.Added(AddMovie("Dune"));
+        // Le serie seguite si leggono dopo che l'ondata si è staccata.
+        _server.OnFollowsSeries = () =>
+        {
+            _server.OnFollowsSeries = null;
+            throw new InvalidOperationException("libreria non disponibile");
+        };
+
+        Wait(NewTitlesCollector.QuietTime);
+        Assert.Null(NewTitlesOf(_mario));
+        Assert.Equal(2, _collector.Pending);
+
+        _time.Advance(NewTitlesCollector.CheckInterval);
+
+        var entry = NewTitlesOf(_mario)!;
+        Assert.Equal(new[] { "Dune" }, entry.Movies!.Select(m => m.Name));
+        Assert.Single(entry.Series!);
+        Assert.Equal(0, _collector.Pending);
+    }
+
+    [Fact]
+    public void TitlesAddedOrRemovedWhileACloseFailsAreKept()
+    {
+        _server.Following.Add((_mario.Id, _bear));
+        _collector.Added(AddEpisode(_bear, 1, 1));
+        var dune = AddMovie("Dune");
+        _collector.Added(dune);
+        var alien = AddMovie("Alien");
+        _server.OnFollowsSeries = () =>
+        {
+            _server.OnFollowsSeries = null;
+            // Arrivano mentre l'ondata è staccata: aprono la prossima, che poi si fonde con quella rimessa.
+            _collector.Added(alien);
+            _collector.Removed(dune, isMovie: true, []);
+            throw new InvalidOperationException("libreria non disponibile");
+        };
+
+        Wait(NewTitlesCollector.QuietTime);
+        Assert.Null(NewTitlesOf(_mario));
+        Assert.Equal(2, _collector.Pending);
+
+        // Alien ha appena cambiato l'ondata: si aspetta di nuovo la quiete.
+        Wait(NewTitlesCollector.QuietTime);
+
+        var entry = NewTitlesOf(_mario)!;
+        Assert.Equal(new[] { "Alien" }, entry.Movies!.Select(m => m.Name));
+        Assert.Single(entry.Series!);
+        Assert.Equal(0, _collector.Pending);
+    }
+
+    [Fact]
+    public void AWaveThatKeepsFailingIsDroppedAfterTheLastAttempt()
+    {
+        _server.Following.Add((_mario.Id, _bear));
+        _collector.Added(AddEpisode(_bear, 1, 1));
+        _collector.Added(AddMovie("Dune"));
+        _server.OnFollowsSeries = () => throw new InvalidOperationException("libreria non disponibile");
+
+        // Il primo tentativo dopo la quiete, poi uno a ogni controllo.
+        Wait(NewTitlesCollector.QuietTime);
+        Wait(NewTitlesCollector.CheckInterval * (NewTitlesCollector.MaxCloseAttempts - 2));
+        Assert.Equal(2, _collector.Pending);
+
+        _time.Advance(NewTitlesCollector.CheckInterval);
+        Assert.Equal(0, _collector.Pending);
+        var warning = Assert.Single(_log.Entries, e => e.Level == LogLevel.Warning && e.Exception is null);
+        Assert.DoesNotContain("Dune", warning.Message, StringComparison.Ordinal);
+
+        _server.OnFollowsSeries = null;
+        _time.Advance(NewTitlesCollector.QuietTime);
+        Assert.Null(NewTitlesOf(_mario));
     }
 }
