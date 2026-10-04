@@ -606,4 +606,59 @@ void main() {
       finish(async);
     });
   });
+
+  test('azioni della coda: senza la funzione queue del plugin non partono',
+      () {
+    fakeAsync((async) {
+      channelApi.install();
+      mount(async);
+      joinGroup(async);
+      expect(channel().queueActions, isFalse);
+      notifier()
+        ..announce(PartyAction.shuffleMode)
+        ..announce(PartyAction.pause);
+      async.flushMicrotasks();
+      expect(sentJson(), [
+        {'Type': 'Action', 'Action': 'Pause'},
+      ]);
+      finish(async);
+    });
+  });
+
+  test('plugin 1.3.0: le azioni della coda partono (spec H §7)', () {
+    fakeAsync((async) {
+      channelApi.install(version: '1.3.0', features: const {partyQueueFeature});
+      mount(async);
+      joinGroup(async);
+      expect(channel().queueActions, isTrue);
+      notifier()
+        ..announce(PartyAction.previousItem)
+        ..announce(PartyAction.setCurrentItem)
+        ..announce(PartyAction.shuffleMode);
+      async.flushMicrotasks();
+      expect(sentJson(), [
+        {'Type': 'Action', 'Action': 'PreviousItem'},
+        {'Type': 'Action', 'Action': 'SetCurrentItem'},
+        {'Type': 'Action', 'Action': 'ShuffleMode'},
+      ]);
+
+      // Uscendo dal gruppo la funzione resta nota (come la versione).
+      leaveGroup(async);
+      expect(channel().queueActions, isTrue);
+      finish(async);
+    });
+  });
+
+  test('plugin sparito: la funzione queue si dimentica', () {
+    fakeAsync((async) {
+      channelApi.install(version: '1.3.0', features: const {partyQueueFeature});
+      mount(async);
+      joinGroup(async);
+      channelApi.sendFailures.add(PartyChannelFailure.unavailable);
+      notifier().announce(PartyAction.pause);
+      async.flushMicrotasks();
+      expect(channel().queueActions, isFalse);
+      finish(async);
+    });
+  });
 }

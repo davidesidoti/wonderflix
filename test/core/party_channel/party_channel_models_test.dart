@@ -112,6 +112,25 @@ void main() {
     final info = PartyPluginInfo.fromJson({'Version': '1.0.0', 'Protocol': 1});
     expect(info.version, '1.0.0');
     expect(info.protocol, 1);
+    expect(info.features, isEmpty);
+
+    final queue = PartyPluginInfo.fromJson({
+      'Version': '1.3.0',
+      'Protocol': 1,
+      'Features': ['friends', 'queue', 7],
+    });
+    expect(queue.features, {'friends', partyQueueFeature});
+  });
+
+  test('azioni della coda (spec H §7)', () {
+    expect(PartyAction.fromWire('PreviousItem'), PartyAction.previousItem);
+    expect(PartyAction.fromWire('SetCurrentItem'), PartyAction.setCurrentItem);
+    expect(PartyAction.fromWire('Queue'), PartyAction.queue);
+    expect(PartyAction.fromWire('QueueNext'), PartyAction.queueNext);
+    expect(PartyAction.fromWire('ShuffleMode'), PartyAction.shuffleMode);
+    expect(PartyAction.pause.queueFeature, isFalse);
+    expect(PartyAction.newQueue.queueFeature, isFalse);
+    expect(PartyAction.shuffleMode.queueFeature, isTrue);
   });
 
   test('gli avvisi degli amici si scartano senza scrivere nel log', () {

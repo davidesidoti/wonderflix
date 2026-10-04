@@ -27,18 +27,32 @@ String normalizeChatText(String text) =>
 /// Lunghezza di un messaggio in punti di codice (un'emoji semplice vale 1).
 int chatTextLength(String text) => text.runes.length;
 
+/// Funzione del plugin con le azioni della coda (spec H §7, plugin 1.3.0).
+const partyQueueFeature = 'queue';
+
 /// Risposta di `GET /WonderFlixWatchParty/Info`.
 class PartyPluginInfo {
-  const PartyPluginInfo({required this.version, required this.protocol});
+  const PartyPluginInfo({
+    required this.version,
+    required this.protocol,
+    this.features = const {},
+  });
 
   factory PartyPluginInfo.fromJson(Map<String, dynamic> json) =>
       PartyPluginInfo(
         version: json['Version'] as String,
         protocol: (json['Protocol'] as num).toInt(),
+        features: {
+          for (final feature in json['Features'] as List? ?? const [])
+            if (feature is String) feature,
+        },
       );
 
   final String version;
   final int protocol;
+
+  /// Funzioni in più del plugin (es. [partyQueueFeature]).
+  final Set<String> features;
 }
 
 /// Azioni annunciate al gruppo: hanno i nomi delle richieste SyncPlay.
@@ -47,12 +61,21 @@ enum PartyAction {
   unpause('Unpause'),
   seek('Seek'),
   nextItem('NextItem'),
-  newQueue('NewQueue');
+  newQueue('NewQueue'),
+  previousItem('PreviousItem', queueFeature: true),
+  setCurrentItem('SetCurrentItem', queueFeature: true),
+  queue('Queue', queueFeature: true),
+  queueNext('QueueNext', queueFeature: true),
+  shuffleMode('ShuffleMode', queueFeature: true);
 
-  const PartyAction(this.wire);
+  const PartyAction(this.wire, {this.queueFeature = false});
 
   /// Nome nel protocollo.
   final String wire;
+
+  /// Il plugin la accetta solo con la funzione [partyQueueFeature] (1.3.0):
+  /// uno più vecchio risponderebbe 400.
+  final bool queueFeature;
 
   static PartyAction? fromWire(Object? value) {
     for (final action in values) {

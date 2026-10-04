@@ -53,6 +53,7 @@ class PartyChannelState {
   const PartyChannelState({
     this.availability = PartyPluginAvailability.unknown,
     this.pluginVersion,
+    this.queueActions = false,
     this.active = false,
     this.messages = const [],
     this.unread = 0,
@@ -62,6 +63,10 @@ class PartyChannelState {
 
   final PartyPluginAvailability availability;
   final String? pluginVersion;
+
+  /// Il plugin accetta le azioni della coda (funzione [partyQueueFeature]):
+  /// solo allora si annunciano (spec H §7).
+  final bool queueActions;
 
   /// Il canale funziona per il gruppo in cui siamo.
   final bool active;
@@ -82,6 +87,7 @@ class PartyChannelState {
     PartyPluginAvailability? availability,
     String? pluginVersion,
     bool clearPluginVersion = false,
+    bool? queueActions,
     bool? active,
     List<PartyChatEntry>? messages,
     int? unread,
@@ -92,6 +98,8 @@ class PartyChannelState {
         availability: availability ?? this.availability,
         pluginVersion:
             clearPluginVersion ? null : pluginVersion ?? this.pluginVersion,
+        queueActions:
+            clearPluginVersion ? false : queueActions ?? this.queueActions,
         active: active ?? this.active,
         messages: messages ?? this.messages,
         unread: unread ?? this.unread,
@@ -260,9 +268,12 @@ class PartyChannel extends Notifier<PartyChannelState> {
     unawaited(_sendQuietly(PartyOutgoingReaction(reaction)));
   }
 
-  /// Annuncia agli altri un'azione nostra sul gruppo (spec E §7.4).
+  /// Annuncia agli altri un'azione nostra sul gruppo (spec E §7.4). Le
+  /// azioni della coda partono solo se il plugin le conosce (spec H §7):
+  /// senza, l'avviso degli altri resta senza nome.
   void announce(PartyAction action, {Duration? position}) {
     if (_groupId == null) return;
+    if (action.queueFeature && !state.queueActions) return;
     unawaited(_sendQuietly(PartyOutgoingAction(action, position: position)));
   }
 
@@ -307,6 +318,7 @@ class PartyChannel extends Notifier<PartyChannelState> {
             ? PartyPluginAvailability.available
             : PartyPluginAvailability.unavailable,
         pluginVersion: info.version,
+        queueActions: info.features.contains(partyQueueFeature),
       );
     } on PartyChannelException catch (error) {
       if (ref.mounted && error.failure == PartyChannelFailure.unavailable) {
@@ -345,7 +357,8 @@ class PartyChannel extends Notifier<PartyChannelState> {
         }
         state = state.copyWith(
             availability: PartyPluginAvailability.available,
-            pluginVersion: info.version);
+            pluginVersion: info.version,
+            queueActions: info.features.contains(partyQueueFeature));
       }
       _joiningGroupId = groupId;
       final history = await api.join(groupId);
@@ -395,7 +408,9 @@ class PartyChannel extends Notifier<PartyChannelState> {
     _joiningGroupId = null;
     _forgetSeen();
     state = PartyChannelState(
-        availability: state.availability, pluginVersion: state.pluginVersion);
+        availability: state.availability,
+        pluginVersion: state.pluginVersion,
+        queueActions: state.queueActions);
     ref.read(partyNoticesProvider.notifier).setAttribution(false);
     if (!registered) return;
     unawaited(ref.read(partyChannelApiProvider).leave(groupId).catchError(

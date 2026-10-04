@@ -349,9 +349,10 @@ class FakePartyChannelApi implements PartyChannelApi {
 
   int _ids = 0;
 
-  /// Plugin presente, con il nostro protocollo.
-  void install({String version = '1.0.0'}) => pluginInfo =
-      PartyPluginInfo(version: version, protocol: partyChannelProtocol);
+  /// Plugin presente, con il nostro protocollo e le funzioni [features].
+  void install({String version = '1.0.0', Set<String> features = const {}}) =>
+      pluginInfo = PartyPluginInfo(
+          version: version, protocol: partyChannelProtocol, features: features);
 
   @override
   Future<PartyPluginInfo> info() async {
