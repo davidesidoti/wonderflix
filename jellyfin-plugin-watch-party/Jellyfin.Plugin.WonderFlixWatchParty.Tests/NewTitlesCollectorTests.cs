@@ -376,6 +376,83 @@ public sealed class NewTitlesCollectorTests : IDisposable
     }
 
     [Fact]
+    public void OnlyFailuresInARowDropTheWave()
+    {
+        _server.Following.Add((_mario.Id, _bear));
+        _collector.Added(AddEpisode(_bear, 1, 1));
+        _collector.Added(AddMovie("Dune"));
+        _server.OnFollowsSeries = () => throw new InvalidOperationException("libreria non disponibile");
+        Wait(NewTitlesCollector.QuietTime);
+        Wait(NewTitlesCollector.CheckInterval * (NewTitlesCollector.MaxCloseAttempts - 2));
+
+        // Un controllo senza errori (durante una scansione si aspetta): il conto riparte.
+        _server.ScanRunning = true;
+        _time.Advance(NewTitlesCollector.CheckInterval);
+        _server.ScanRunning = false;
+        Wait(NewTitlesCollector.CheckInterval * (NewTitlesCollector.MaxCloseAttempts - 1));
+        Assert.Equal(2, _collector.Pending);
+
+        _time.Advance(NewTitlesCollector.CheckInterval);
+        Assert.Equal(0, _collector.Pending);
+    }
+
+    [Fact]
+    public void AWaveDroppedWhileItsCloseFailsDoesNotComeBack()
+    {
+        _server.Following.Add((_mario.Id, _bear));
+        _collector.Added(AddEpisode(_bear, 1, 1));
+        _collector.Added(AddMovie("Dune"));
+        _server.OnFollowsSeries = () =>
+        {
+            _server.OnFollowsSeries = null;
+            // Casella spenta (e riaccesa) mentre l'ondata è staccata, poi l'errore.
+            _server.NotifyNewTitles = false;
+            Assert.Equal(0, _collector.Pending);
+            _server.NotifyNewTitles = true;
+            throw new InvalidOperationException("libreria non disponibile");
+        };
+
+        Wait(NewTitlesCollector.QuietTime);
+        Assert.Equal(0, _collector.Pending);
+
+        Wait(NewTitlesCollector.QuietTime);
+        Assert.Null(NewTitlesOf(_mario));
+        Assert.DoesNotContain(_log.Entries, e => e.Message.Contains("Dune", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task DisposingDuringACheckDoesNotTurnItIntoAFailure()
+    {
+        _collector.Added(AddMovie("Dune"));
+        using var inside = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        _server.OnGet = _ =>
+        {
+            _server.OnGet = null;
+            inside.Set();
+            release.Wait(TimeSpan.FromSeconds(10));
+        };
+        Wait(NewTitlesCollector.QuietTime - NewTitlesCollector.CheckInterval);
+
+        // Il plugin si ferma mentre un controllo sta chiudendo l'ondata.
+        var check = Task.Run(() => _time.Advance(NewTitlesCollector.CheckInterval));
+        try
+        {
+            Assert.True(inside.Wait(TimeSpan.FromSeconds(10)));
+            _collector.Dispose();
+            release.Set();
+            await check;
+        }
+        finally
+        {
+            release.Set();
+        }
+
+        Assert.NotNull(NewTitlesOf(_mario));
+        Assert.DoesNotContain(_log.Entries, e => e.Level >= LogLevel.Warning);
+    }
+
+    [Fact]
     public async Task SendNowWaitsForACheckInProgress()
     {
         _collector.Added(AddMovie("dune.2021.mkv", refreshed: false));

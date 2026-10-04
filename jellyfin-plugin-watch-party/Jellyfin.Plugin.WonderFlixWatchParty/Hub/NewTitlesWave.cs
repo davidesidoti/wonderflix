@@ -121,8 +121,11 @@ public sealed class NewTitlesWave(DateTimeOffset startedAt)
         }
     }
 
-    /// <summary>Conta una chiusura non riuscita; restituisce quante finora.</summary>
+    /// <summary>Conta una chiusura non riuscita; restituisce quante di fila.</summary>
     public int RecordFailedClose() => ++_failedCloses;
+
+    /// <summary>Un tentativo senza errori: le chiusure non riuscite di fila ripartono da zero.</summary>
+    public void ResetFailedCloses() => _failedCloses = 0;
 
     public bool IsQuiet(DateTimeOffset now, TimeSpan quiet) => now - LastChangeAt >= quiet;
 

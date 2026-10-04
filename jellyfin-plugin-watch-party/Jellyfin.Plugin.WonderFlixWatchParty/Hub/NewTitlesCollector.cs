@@ -44,6 +44,10 @@ public sealed class NewTitlesCollector(
     private NewTitlesWave? _wave;
     private ITimer? _timer;
 
+    // Quante volte l'ondata è stata buttata (casella spenta), sotto _lock: una
+    // chiusura non riuscita rimette la sua ondata staccata solo se non è cambiato.
+    private long _discards;
+
     // Una chiusura alla volta: il timer e "Send now" possono arrivare insieme.
     // Il controllo del timer salta se è occupato, "Send now" aspetta il suo turno.
     private readonly SemaphoreSlim _closing = new(1, 1);
@@ -141,6 +145,10 @@ public sealed class NewTitlesCollector(
         }
     }
 
+    // _closing non si chiude: un controllo ancora in corso lo rilascia alla
+    // fine, e con il semaforo chiuso Release lancerebbe (un riepilogo già
+    // consegnato finirebbe nel log come non riuscito). AvailableWaitHandle non
+    // si usa, quindi non c'è niente da liberare.
     public void Dispose()
     {
         lock (_lock)
@@ -148,12 +156,8 @@ public sealed class NewTitlesCollector(
             _timer?.Dispose();
             _timer = null;
         }
-
-        _closing.Dispose();
     }
 
-    // Un controllo del timer che arriva mentre il plugin si ferma può trovare
-    // _closing già chiuso: l'errore finisce nel log come gli altri.
     private async Task CheckSafelyAsync()
     {
         try
@@ -194,6 +198,7 @@ public sealed class NewTitlesCollector(
         DateTimeOffset now;
         DateTimeOffset lastChangeAt;
         bool due;
+        long discards;
         lock (_lock)
         {
             wave = _wave;
@@ -206,24 +211,28 @@ public sealed class NewTitlesCollector(
             due = force || wave.IsOverdue(now, MaxWait);
             if (!due && !wave.IsQuiet(now, QuietTime))
             {
+                // Un controllo senza errori: le chiusure non riuscite di fila ripartono da zero.
+                wave.ResetFailedCloses();
                 return Nothing;
             }
 
             lastChangeAt = wave.LastChangeAt;
             ids = wave.AddedIds.ToList();
-        }
-
-        // Durante una scansione arrivano altri titoli: si aspetta, entro MaxWait.
-        if (!due && library.IsScanRunning)
-        {
-            return Nothing;
+            discards = _discards;
         }
 
         var detached = false;
+        var failed = false;
         List<LibraryTitle> kept;
         Dictionary<Guid, InboxEntry> entries;
         try
         {
+            // Durante una scansione arrivano altri titoli: si aspetta, entro MaxWait.
+            if (!due && library.IsScanRunning)
+            {
+                return Nothing;
+            }
+
             // Fuori dal lock: si legge dal database. Metadati non ancora
             // arrivati (nome dal file, niente numeri): si aspetta, entro
             // MaxWait, e basta il primo titolo senza per non leggere gli altri.
@@ -270,8 +279,21 @@ public sealed class NewTitlesCollector(
         }
         catch (Exception)
         {
-            CloseFailed(wave, detached);
+            failed = true;
+            CloseFailed(wave, detached, discards);
             throw;
+        }
+        finally
+        {
+            // Letto senza errori, ma non è il momento (o l'ondata è cambiata):
+            // le chiusure non riuscite di fila ripartono da zero.
+            if (!failed && !detached)
+            {
+                lock (_lock)
+                {
+                    wave.ResetFailedCloses();
+                }
+            }
         }
 
         // Da qui non si lancia più: AddNewTitlesAsync tiene per sé i suoi errori.
@@ -283,15 +305,24 @@ public sealed class NewTitlesCollector(
     /// <summary>
     /// Una chiusura non riuscita: niente è stato consegnato. L'ondata staccata
     /// torna in corso, con quello che è arrivato nel frattempo, e si riprova al
-    /// prossimo controllo; dopo <see cref="MaxCloseAttempts"/> si butta.
+    /// prossimo controllo; dopo <see cref="MaxCloseAttempts"/> di fila si
+    /// butta. Se nel frattempo la casella è stata spenta (discards cambiato)
+    /// non torna.
     /// </summary>
-    private void CloseFailed(NewTitlesWave wave, bool detached)
+    private void CloseFailed(NewTitlesWave wave, bool detached, long discards)
     {
         lock (_lock)
         {
             // Non staccata, ma buttata o sostituita mentre si leggeva: non c'è niente da contare.
             if (!detached && !ReferenceEquals(_wave, wave))
             {
+                return;
+            }
+
+            // Staccata e buttata nel frattempo: l'ondata più nuova, se c'è, resta com'è.
+            if (detached && _discards != discards)
+            {
+                logger.LogDebug("Nuovi titoli: ondata scartata con {Count} titoli, casella spenta durante la chiusura", wave.Count);
                 return;
             }
 
@@ -408,6 +439,8 @@ public sealed class NewTitlesCollector(
     {
         lock (_lock)
         {
+            // Anche senza ondata in corso: quella staccata da una chiusura non deve tornare.
+            _discards++;
             if (_wave is { Count: > 0 })
             {
                 logger.LogDebug("Nuovi titoli: ondata scartata con {Count} titoli, casella spenta", _wave.Count);
