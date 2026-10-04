@@ -1,7 +1,7 @@
 # WonderFlix — Spec H: coda del watch party
 
 - **Data:** 2026-10-04
-- **Stato:** approvato; piano 14a scritto (`docs/superpowers/plans/2026-10-04-wonderflix-14a-coda-party.md`)
+- **Stato:** approvato; piano 14a realizzato (`docs/superpowers/plans/2026-10-04-wonderflix-14a-coda-party.md`), piano 14b da scrivere
 - **Ambito:** Spec H. Riprende l'esclusione della Spec B (`2026-09-30-wonderflix-watch-party-design.md`, §3 "Escluso": "Gestione avanzata della coda") e si appoggia alla Spec D (player: `2026-10-01-wonderflix-rinnovo-player-design.md`), alla Spec E (nomi dal plugin: `2026-10-02-wonderflix-watch-party-sociale-design.md` §8) e alla Spec F (disponibilità del plugin, `Features`).
 
 ## 1. Obiettivo
@@ -124,6 +124,7 @@ La ricerca sul codice di `jellyfin/jellyfin` al tag `v10.11.9` ha dato questi fa
 App 0.8.0
   lib/core/syncplay/      SyncPlayApi (+6 metodi), PlayQueue.shuffled
   lib/core/jellyfin/      LibraryApi.itemsByIds, LibraryApi.previousEpisode
+  lib/core/party_channel/  PartyPluginInfo.features, PartyAction (+5)
   lib/features/watch_party/
     party_queue_rules.dart   funzioni pure: sezioni, posto libero, doppioni, indici
     party_queue_editor.dart  PartyQueueEditor: comandi, controlli, conferme, annunci
@@ -165,10 +166,10 @@ L'app parla direttamente con gli endpoint SyncPlay; il plugin serve solo per i n
 
   `FakeSyncPlayApi` le registra in `calls` come le altre.
 - **`PlayQueue.shuffled`:** `true` se `ShuffleMode == "Shuffle"`.
-- **`LibraryApi.itemsByIds(userId, ids)`:** `GET /Items?ids=…`, con i campi per le righe (serie, numeri di stagione ed episodio, durata, immagini). Una sola chiamata, perché i titoli sono al massimo 100.
+- **`LibraryApi.itemsByIds(userId, ids)`:** `GET /Items?ids=…`, con i campi per le righe (serie, numeri di stagione ed episodio, durata, immagini) e la sinossi (`Overview`, per il post-play del party). Con una lista vuota non parte nessuna richiesta.
 - **`LibraryApi.previousEpisode(userId, seriesId, episodeId)`:** `GET /Shows/{seriesId}/Episodes` con `adjacentTo` e `isMissing=false`. Restituisce l'episodio prima di quello dato, anche nella stagione precedente, oppure `null`.
 - **`WatchPartyState`:** `previousEntry`, cioè l'elemento prima di quello in corso, `null` se è il primo; e `hasPrevious`.
-- **`SocialFeatures.queue`:** da `Info.Features`.
+- **Funzione `queue` del plugin:** `PartyPluginInfo.features` (l'`Info` che chiede il canale del party) → `PartyChannelState.queueActions`, vera solo con il nostro protocollo; `PartyChannel.announce` manda le azioni della coda solo con questa funzione.
 - **`PartyAction`:** `previousItem('PreviousItem')`, `setCurrentItem('SetCurrentItem')`, `queue('Queue')`, `queueNext('QueueNext')`, `shuffleMode('ShuffleMode')`.
 
 ### 8.2 Regole (`party_queue_rules.dart`)
@@ -180,7 +181,8 @@ Funzioni pure, testate a parte:
 - **Posto libero:** `100 - entries.length`, mai meno di 0.
 - **Già in coda:** gli `ItemId` dell'elemento in corso e dei prossimi.
 - **Titoli da aggiungere:** dati i candidati in ordine, si tolgono quelli già in coda (e i doppioni tra i candidati), poi si taglia al posto libero. Il risultato dice quanti si mandano, quanti erano già in coda e quanti restano fuori per il tetto.
-- **Indice dello spostamento:** un titolo dei prossimi trascinato alla posizione *k* tra i prossimi (contata dopo averlo tolto) va al `NewIndex` = `playingIndex + 1 + k`. L'elemento in corso resta prima dei prossimi, perché trascinare un prossimo non ne cambia la posizione.
+- **Indice dello spostamento:** un titolo dei prossimi trascinato alla posizione *k* tra i prossimi (contata dopo averlo tolto) va al `NewIndex` = `playingIndex + 1 + k`. L'elemento in corso resta prima dei prossimi, perché trascinare un prossimo non ne cambia la posizione. Senza elemento in corso (tutti prossimi) il `NewIndex` è *k*.
+- **Ordine provvisorio:** dopo un trascinamento i prossimi si mostrano nell'ordine scelto finché sono gli stessi elementi, senza ripetizioni.
 
 ### 8.3 `PartyQueueEditor`
 
@@ -196,9 +198,9 @@ Funzioni pure, testate a parte:
 - **`jumpTo(playlistItemId)`:** solo per un elemento che non è quello in corso. Manda `setPlaylistItem` e annuncia `SetCurrentItem`.
 - **`remove(playlistItemId)`:** mai per l'elemento in corso. Manda `removeFromPlaylist`, senza annuncio.
 - **`move(playlistItemId, k)`:** solo per un prossimo. Calcola il `NewIndex` (§8.2) e manda `movePlaylistItem`, senza annuncio.
-- **`setShuffle(bool on)`:** manda solo se lo stato è diverso da `queue.shuffled`. È il modo per evitare `Sorted` su una coda ordinata (§3). Annuncia `ShuffleMode`.
+- **`setShuffle(bool on)`:** manda solo se lo stato è diverso da `queue.shuffled`. È il modo per evitare `Sorted` su una coda ordinata (§3). Annuncia `ShuffleMode`. Se la richiesta non riesce, l'azione registrata per l'eco si dimentica (`PartyNotices.forget`): l'ordine casuale cambiato da un altro nei 4 s dopo dà il suo avviso.
 - **Errori:**
-  - un'eccezione dell'API (rete, 4xx, 5xx) dà l'avviso "Non riuscito, riprova" (§10) e una riga di log con solo il tipo dell'errore;
+  - un'eccezione dell'API (rete, 4xx, 5xx) dà l'avviso "Non riuscito, riprova" (§10), se si è ancora nel gruppo, e una riga di log con solo il tipo dell'errore;
   - un 429 del plugin sull'annuncio si ignora: l'avviso esce senza nome.
 
 ### 8.4 Precedente
@@ -209,9 +211,11 @@ Funzioni pure, testate a parte:
 ### 8.5 Dettagli dei titoli in coda
 
 `partyQueueItemsProvider` tiene una mappa `ItemId → JellyfinItem`:
-- quando nella coda compaiono id che non conosce, li chiede con `itemsByIds` (una chiamata per volta, solo quelli nuovi);
+- quando nella coda compaiono id che non conosce, li chiede con `itemsByIds`, solo quelli nuovi e 50 alla volta (gli id stanno nell'indirizzo, e una coda costruita da un altro client può essere lunga);
+- segue solo l'ingresso, l'uscita e la coda della sessione, non gli altri cambi;
+- una richiesta non riuscita si riprova dopo 5 s, o prima se la coda cambia;
 - un id che il server non restituisce (titolo cancellato o non più visibile) diventa una riga "Titolo non disponibile";
-- la mappa si svuota all'uscita dal gruppo.
+- la mappa si svuota all'uscita dal gruppo, e le risposte arrivate dopo non valgono.
 
 ## 9. App: interfaccia
 
@@ -220,18 +224,22 @@ Funzioni pure, testate a parte:
 - **Fila destra in fondo:**
   - ⏮ (`LucideIcons.skipBack`) subito prima di ⏭;
   - il pulsante **Coda** (`LucideIcons.listVideo`) tra reazioni e tracce, **solo nel party**.
-- **⏮ è acceso:** nel party se `hasPrevious`; da soli se c'è `previousEpisode`.
+- **⏮ c'è** nel party se `hasPrevious`, da soli se c'è `previousEpisode`; altrimenti non compare, come ⏭.
+- **Ai bordi della coda** (P sul primo, N sull'ultimo) non si chiede nulla al gruppo, e un salto in sospeso parte lo stesso.
 - **Suggerimenti:**
   - nel party "Titolo precedente" e "Titolo successivo";
   - da soli "Episodio precedente" e "Episodio successivo" (quello di oggi).
 - **Tasti:** `PlayerCommand.previous` per **P** e `mediaTrackPrevious`, che è anche tra i tasti multimediali. `MediaButton.previous` arriva dall'SMTC, che lo accende o lo spegne come ⏭.
 - **Pannello:** `PlayerPopup.queue`. Il pulsante apre e chiude il pannello, e uno solo è aperto alla volta (come oggi).
   - Come quello delle tracce, prende tutta l'altezza a destra, sopra i controlli, e i controlli restano visibili.
-  - Si chiude con ✕, con un clic sul film, con Esc (vedi §9.3), oppure quando il player esce dal party.
+  - Si chiude con ✕, con un clic sul film, con Esc (vedi §9.3), quando compare il post-play, quando il video va in errore, oppure quando il player esce dal party.
+  - Resta aperto quando il gruppo passa a un altro titolo (clic su una riga, ⏮, ⏭, azioni degli altri): il player nuovo lo riapre subito (`partyQueuePanelCarryProvider`).
 - **`PlayerSidePanelHost`:** l'entrata da destra, il velo e il clic sul film che chiude, oggi in `TracksPanelHost`, vanno in un contenitore comune alle tracce e alla coda. Il comportamento delle tracce non cambia.
 - **Post-play e schedina "prossimo" nel party.**
   - Il titolo offerto è `nextEntry` della coda, con i dettagli da `partyQueueItemsProvider`. Restano le regole di oggi: post-play solo con il segmento Outro, schedina negli ultimi 30 s, nel party niente conto alla rovescia, alla vera fine si va avanti da soli.
   - L'etichetta è "Prossimo episodio" se è l'episodio che segue nella stessa serie, altrimenti "Prossimo nella coda".
+  - La schedina mostra il nome di un film (non solo l'anno), e per un episodio di un'altra serie anche il nome della serie.
+  - I dettagli possono arrivare dopo: la schedina compare appena ci sono.
   - Da soli resta tutto come oggi.
 
 ### 9.2 Pannello "Coda"
@@ -243,7 +251,7 @@ La cartella è `lib/features/player/queue_panel/`. Largo 360 px, stile del panne
   - "Coda";
   - ⤮ (`LucideIcons.shuffle`), dorato con fondo leggero quando è attivo, con il suggerimento "Ordine casuale";
   - ✕.
-- **Sotto l'intestazione:** "14 titoli · 3 h 40 min dopo questo". La somma delle durate conta l'elemento in corso e i prossimi; i titoli senza durata non contano.
+- **Sotto l'intestazione:** "14 titoli · 3h 40m dopo questo". La somma conta solo i prossimi; i titoli senza durata non contano. Le durate sono nel formato dell'app (`formatRuntime`).
 - **Sezioni:**
   - "Già visti": righe attenuate (opacità 0,5);
   - "In riproduzione": la riga ha fondo e bordo sinistro dorati, e "ora" al posto della durata;
@@ -251,15 +259,16 @@ La cartella è `lib/features/player/queue_panel/`. Largo 360 px, stile del panne
 
   Le sezioni vuote non compaiono. All'apertura la lista è già scorsa sulla riga in corso.
 - **Riga:** immagine 16:9 (64×36). Il titolo è il nome dell'episodio o del film. Sotto:
-  - per un episodio "The Office · S2:E5 · 22 min";
-  - per un film "Film · 1979 · 1 h 57 min".
+  - per un episodio "The Office · S2:E5 · 22m";
+  - per un film "Film · 1979 · 1h 57m";
+  - mentre i dettagli arrivano, "…".
 - **Clic** su una riga che non è quella in corso: `jumpTo`.
 - **Passando sopra** una riga dei prossimi:
   - a sinistra la maniglia (`LucideIcons.gripVertical`) per trascinarla;
   - a destra ✕ "Togli dalla coda", che compare anche sulle righe già viste.
 
-  La riga in corso non ha né ✕ né maniglia.
-- **Trascinamento:** solo tra i prossimi. Se durante il trascinamento arriva un aggiornamento, l'indice si calcola alla fine sulla coda aggiornata. Se l'elemento non c'è più, non si manda nulla.
+  La riga in corso non ha né ✕ né maniglia. Finché non compaiono, maniglia e ✕ non prendono i clic.
+- **Trascinamento:** solo tra i prossimi. Se durante il trascinamento arriva un aggiornamento, l'elemento trascinato si ritrova per id e l'indice si calcola alla fine sulla coda aggiornata. Se l'elemento non c'è più, non si manda nulla. Rilasciata la riga, il titolo resta dove lo si è lasciato finché arriva la coda nuova del server; se dopo 4 s non è arrivata, le righe tornano nell'ordine della coda.
 - **In fondo,** fisso: "＋ Aggiungi titoli" (bordo dorato) apre la vista Aggiungi.
 - **Con l'ordine casuale** non c'è la sezione "Già visti", perché il server mette l'elemento in corso in testa (§3).
 
@@ -313,7 +322,7 @@ La cartella è `lib/features/player/queue_panel/`. Largo 360 px, stile del panne
 | Evento (`Reason`) | Azione del plugin | Avviso agli altri | Con il nome | Chi ha agito |
 |---|---|---|---|---|
 | `PreviousItem` | `PreviousItem` | "Precedente: {title}" | "{name} ha avviato il precedente: {title}" | come ⏭ oggi: lo stesso avviso, senza nome |
-| `SetCurrentItem` | `SetCurrentItem` | "Si guarda: {title}" (c'è già) | "{name} ha scelto: {title}" (c'è già) | come sopra |
+| `SetCurrentItem` | `SetCurrentItem` | "Si guarda: {title}" (c'è già); per un episodio {title} è l'episodio ("S1:E5 · Titolo"), come per successivo e precedente | "{name} ha scelto: {title}" (c'è già) | come sopra |
 | `Queue` | `Queue` | "Aggiunto alla coda: {what}" | "{name} ha aggiunto alla coda: {what}" | "Hai aggiunto alla coda: {what}" |
 | `QueueNext` | `QueueNext` | "Subito dopo: {what}" | "{name} ha messo subito dopo: {what}" | "Hai messo subito dopo: {what}" |
 | `ShuffleMode` (acceso) | `ShuffleMode` | "Ordine casuale attivato" | "{name} ha attivato l'ordine casuale" | nessun avviso (si vede ⤮) |
