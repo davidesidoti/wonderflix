@@ -421,6 +421,28 @@ public sealed class NewTitlesCollectorTests : IDisposable
     }
 
     [Fact]
+    public void AMovieInTwoLibrariesIsListedOnce()
+    {
+        // "Film" e "Film 4K": due elementi dello stesso film, con lo stesso id TMDB.
+        var hd = AddMovie("Dune", keys: ["Tmdb:438631", "Imdb:tt1160419"]);
+        var uhd = AddMovie("Dune", keys: ["tmdb:438631"]);
+        _collector.Added(hd);
+        _collector.Added(uhd);
+        _collector.Added(AddMovie("Alien", keys: ["Tmdb:348"]));
+        // Luigi vede solo la libreria 4K: gli resta quella.
+        _server.Unseen.Add((_luigi.Id, hd));
+
+        _time.Advance(NewTitlesCollector.QuietTime);
+
+        var mario = NewTitlesOf(_mario)!;
+        Assert.Equal(new[] { "Alien", "Dune" }, mario.Movies!.Select(m => m.Name));
+        Assert.Null(mario.More);
+        var luigi = NewTitlesOf(_luigi)!;
+        Assert.Equal(new[] { "Alien", "Dune" }, luigi.Movies!.Select(m => m.Name));
+        Assert.Equal(uhd.ToString("N"), luigi.Movies![1].ItemId);
+    }
+
+    [Fact]
     public void EachTitleIsCheckedForAllUsersInARow()
     {
         // Prima i titoli e dentro gli utenti: Jellyfin rilegge ogni elemento

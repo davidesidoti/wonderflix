@@ -407,14 +407,16 @@ public sealed class NewTitlesCollector(
         }
 
         // Prima i titoli e dentro gli utenti: Jellyfin rilegge ogni elemento
-        // per tutti gli utenti di fila, finché è nella sua cache.
+        // per tutti gli utenti di fila, finché è nella sua cache. Lo stesso
+        // film in due librerie (es. "Film" e "Film 4K") è una riga sola: resta
+        // il primo che l'utente vede.
         foreach (var movie in titles.Where(t => t.IsMovie).OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase))
         {
             foreach (var recipient in recipients)
             {
-                if (recipient.Allows(movie) && access.CanSee(recipient.UserId, movie.ItemId))
+                if (recipient.Allows(movie) && !recipient.HasSameMovie(movie) && access.CanSee(recipient.UserId, movie.ItemId))
                 {
-                    recipient.Movies.Add(movie);
+                    recipient.AddMovie(movie);
                 }
             }
         }
@@ -526,6 +528,9 @@ public sealed class NewTitlesCollector(
     /// <summary>Le righe di un utente mentre si costruiscono le voci.</summary>
     private sealed class Recipient(Guid userId)
     {
+        // Gli id esterni dei film già in lista, confrontati come per le sostituzioni.
+        private readonly HashSet<string> _movieKeys = new(StringComparer.OrdinalIgnoreCase);
+
         public Guid UserId { get; } = userId;
 
         /// <summary>Limiti sui contenuti: niente titoli senza metadati.</summary>
@@ -536,5 +541,14 @@ public sealed class NewTitlesCollector(
         public List<NewTitleSeries> Series { get; } = [];
 
         public bool Allows(LibraryTitle title) => title.Refreshed || !HasContentLimits;
+
+        /// <summary>Un film già in lista ha un id esterno in comune: è lo stesso film in un'altra libreria.</summary>
+        public bool HasSameMovie(LibraryTitle movie) => movie.ExternalKeys.Any(_movieKeys.Contains);
+
+        public void AddMovie(LibraryTitle movie)
+        {
+            Movies.Add(movie);
+            _movieKeys.UnionWith(movie.ExternalKeys);
+        }
     }
 }
