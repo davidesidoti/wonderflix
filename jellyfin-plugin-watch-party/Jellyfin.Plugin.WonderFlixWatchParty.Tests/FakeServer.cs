@@ -114,13 +114,28 @@ internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSen
     /// <summary>Jellyfin sta scansionando la libreria.</summary>
     public bool ScanRunning { get; set; }
 
+    private bool _notifyNewTitles = true;
+
+    /// <summary>Se true, leggere la casella "Notify new titles" lancia.</summary>
+    public bool SettingsFail { get; set; }
+
     /// <summary>La casella "Notify new titles".</summary>
-    public bool NotifyNewTitles { get; set; } = true;
+    public bool NotifyNewTitles
+    {
+        get => SettingsFail ? throw new InvalidOperationException("configurazione non disponibile") : _notifyNewTitles;
+        set => _notifyNewTitles = value;
+    }
 
     public bool IsScanRunning => ScanRunning;
 
-    public LibraryTitle? Get(Guid itemId) =>
-        LibraryFails ? throw new InvalidOperationException("libreria non disponibile") : Titles.GetValueOrDefault(itemId);
+    /// <summary>Chiamato a ogni Get con l'id, prima della risposta (es. per cambiare lo stato a metà chiusura).</summary>
+    public Action<Guid>? OnGet { get; set; }
+
+    public LibraryTitle? Get(Guid itemId)
+    {
+        OnGet?.Invoke(itemId);
+        return LibraryFails ? throw new InvalidOperationException("libreria non disponibile") : Titles.GetValueOrDefault(itemId);
+    }
 
     /// <summary>Chiamato a ogni FollowsSeries, prima della risposta (es. per lanciare un errore).</summary>
     public Action? OnFollowsSeries { get; set; }

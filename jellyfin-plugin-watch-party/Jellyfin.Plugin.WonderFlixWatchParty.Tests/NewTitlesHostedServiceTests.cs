@@ -108,6 +108,35 @@ public sealed class NewTitlesHostedServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task TheHandlersDoNotThrowWhenTheCollectorThrows()
+    {
+        await StartAsync();
+        var movie = new Movie { Id = Guid.NewGuid(), Path = "/media/film/dune.mkv" };
+        _server.SettingsFail = true;
+
+        // Un'eccezione fermerebbe gli altri ascoltatori dello stesso evento di Jellyfin.
+        _added!(_library, new ItemChangeEventArgs { Item = movie });
+        _removed!(_library, new ItemChangeEventArgs { Item = movie });
+        _removed(_library, new ItemChangeEventArgs
+        {
+            Item = new Series { Id = Guid.NewGuid(), Path = "/media/tv/The Bear", PresentationUniqueKey = "bear-key" },
+        });
+        _removed(_library, new ItemChangeEventArgs
+        {
+            Item = new Season
+            {
+                Id = Guid.NewGuid(),
+                Path = "/media/tv/The Bear/Stagione 1",
+                SeriesPresentationUniqueKey = "bear-key",
+                IndexNumber = 1,
+            },
+        });
+
+        _server.SettingsFail = false;
+        Assert.Equal(0, _collector.Pending);
+    }
+
+    [Fact]
     public async Task EpisodesOfARenamedSeriesFolderAreNotAnnounced()
     {
         await StartAsync();

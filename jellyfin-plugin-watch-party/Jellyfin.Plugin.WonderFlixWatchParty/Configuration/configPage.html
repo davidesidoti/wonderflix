@@ -64,10 +64,13 @@
                         url: ApiClient.getUrl('WonderFlixWatchParty/Inbox/NewTitles'),
                         dataType: 'json'
                     }).then(function (status) {
+                        notify.disabled = false;
                         notify.checked = status.Enabled;
                         pending.textContent = status.Pending === 1 ? '1 title waiting.' : status.Pending + ' titles waiting.';
                         sendNow.disabled = !status.Enabled || status.Pending === 0;
                     }, function () {
+                        // Senza lo stato la casella non deve sembrare spenta: si blocca.
+                        notify.disabled = true;
                         pending.textContent = 'Status not available.';
                         sendNow.disabled = true;
                     });
@@ -109,6 +112,7 @@
 
                 // La casella si salva subito, nella configurazione del plugin (NotifyNewTitles).
                 notify.addEventListener('change', function () {
+                    newTitlesResult.textContent = '';
                     Dashboard.showLoadingMsg();
                     ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                         config.NotifyNewTitles = notify.checked;
@@ -124,6 +128,7 @@
                 });
 
                 sendNow.addEventListener('click', function () {
+                    newTitlesResult.textContent = '';
                     Dashboard.showLoadingMsg();
                     ApiClient.ajax({
                         type: 'POST',

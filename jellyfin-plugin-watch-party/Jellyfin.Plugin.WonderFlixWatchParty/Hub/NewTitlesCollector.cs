@@ -44,8 +44,9 @@ public sealed class NewTitlesCollector(
     private NewTitlesWave? _wave;
     private ITimer? _timer;
 
-    // 1 mentre una chiusura è in corso: il timer e "Send now" possono arrivare insieme.
-    private int _closing;
+    // Una chiusura alla volta: il timer e "Send now" possono arrivare insieme.
+    // Il controllo del timer salta se è occupato, "Send now" aspetta il suo turno.
+    private readonly SemaphoreSlim _closing = new(1, 1);
 
     /// <summary>Titoli in attesa nell'ondata in corso; 0 con la casella spenta (e l'ondata si butta).</summary>
     public int Pending
@@ -123,8 +124,22 @@ public sealed class NewTitlesCollector(
         }
     }
 
-    /// <summary>Chiude subito l'ondata ("Send now" nella Dashboard), anche durante una scansione.</summary>
-    public Task<NewTitlesSendResponse> SendNowAsync() => CloseAsync(force: true);
+    /// <summary>
+    /// Chiude subito l'ondata ("Send now" nella Dashboard), anche durante una
+    /// scansione; se un controllo la sta già chiudendo, aspetta che finisca.
+    /// </summary>
+    public async Task<NewTitlesSendResponse> SendNowAsync()
+    {
+        await _closing.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            return await CloseAsync(force: true).ConfigureAwait(false);
+        }
+        finally
+        {
+            _closing.Release();
+        }
+    }
 
     public void Dispose()
     {
@@ -133,13 +148,30 @@ public sealed class NewTitlesCollector(
             _timer?.Dispose();
             _timer = null;
         }
+
+        _closing.Dispose();
     }
 
+    // Un controllo del timer che arriva mentre il plugin si ferma può trovare
+    // _closing già chiuso: l'errore finisce nel log come gli altri.
     private async Task CheckSafelyAsync()
     {
         try
         {
-            await CloseAsync(force: false).ConfigureAwait(false);
+            // Una chiusura già in corso (un altro controllo o "Send now"): si salta.
+            if (!_closing.Wait(0))
+            {
+                return;
+            }
+
+            try
+            {
+                await CloseAsync(force: false).ConfigureAwait(false);
+            }
+            finally
+            {
+                _closing.Release();
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -148,88 +180,104 @@ public sealed class NewTitlesCollector(
         }
     }
 
+    // Solo con _closing preso: una chiusura alla volta.
     private async Task<NewTitlesSendResponse> CloseAsync(bool force)
     {
-        if (Interlocked.Exchange(ref _closing, 1) == 1)
+        if (!settings.NotifyNewTitles)
         {
+            Discard();
             return Nothing;
         }
 
-        try
+        NewTitlesWave? wave;
+        List<Guid> ids;
+        DateTimeOffset now;
+        DateTimeOffset lastChangeAt;
+        bool due;
+        lock (_lock)
         {
-            if (!settings.NotifyNewTitles)
-            {
-                Discard();
-                return Nothing;
-            }
-
-            NewTitlesWave? wave;
-            List<Guid> ids;
-            lock (_lock)
-            {
-                wave = _wave;
-                ids = wave?.AddedIds.ToList() ?? [];
-            }
-
+            wave = _wave;
             if (wave is null)
             {
                 return Nothing;
             }
 
-            var now = time.GetUtcNow();
-            var due = force || wave.IsOverdue(now, MaxWait);
-            if (!due && (!wave.IsQuiet(now, QuietTime) || library.IsScanRunning))
+            now = time.GetUtcNow();
+            due = force || wave.IsOverdue(now, MaxWait);
+            if (!due && !wave.IsQuiet(now, QuietTime))
             {
                 return Nothing;
             }
 
-            var detached = false;
-            List<LibraryTitle> kept;
-            Dictionary<Guid, InboxEntry> entries;
-            try
-            {
-                // Fuori dal lock: si legge dal database.
-                var titles = new Dictionary<Guid, LibraryTitle>();
-                Resolve(ids, titles);
+            lastChangeAt = wave.LastChangeAt;
+            ids = wave.AddedIds.ToList();
+        }
 
-                // Metadati non ancora arrivati (nome dal file, niente numeri): si
-                // aspetta, entro MaxWait.
-                if (!due && titles.Values.Any(t => !t.Refreshed))
+        // Durante una scansione arrivano altri titoli: si aspetta, entro MaxWait.
+        if (!due && library.IsScanRunning)
+        {
+            return Nothing;
+        }
+
+        var detached = false;
+        List<LibraryTitle> kept;
+        Dictionary<Guid, InboxEntry> entries;
+        try
+        {
+            // Fuori dal lock: si legge dal database. Metadati non ancora
+            // arrivati (nome dal file, niente numeri): si aspetta, entro
+            // MaxWait, e basta il primo titolo senza per non leggere gli altri.
+            var titles = new Dictionary<Guid, LibraryTitle>();
+            foreach (var id in ids)
+            {
+                if (library.Get(id) is not { } title)
+                {
+                    continue;
+                }
+
+                if (!due && !title.Refreshed)
                 {
                     return Nothing;
                 }
 
-                lock (_lock)
+                titles[id] = title;
+            }
+
+            lock (_lock)
+            {
+                // Buttata (casella spenta) o sostituita mentre si leggeva: non si
+                // manda. Arrivato un titolo: niente più quiete, si chiuderà a un
+                // prossimo controllo (se è scaduta si chiude adesso, con lui).
+                if (!ReferenceEquals(_wave, wave) || (!due && wave.LastChangeAt != lastChangeAt))
                 {
-                    // L'ondata si stacca: quello che arriva da adesso apre la prossima.
-                    _wave = null;
-                    detached = true;
-                    ids = wave.AddedIds.ToList();
+                    return Nothing;
                 }
 
-                Resolve(ids.Where(id => !titles.ContainsKey(id)), titles);
-                kept = ids
-                    .Where(titles.ContainsKey)
-                    .Select(id => titles[id])
-                    .Where(title => !wave.IsReplacement(title))
-                    .ToList();
-                entries = BuildEntries(kept, now);
-            }
-            catch (Exception)
-            {
-                CloseFailed(wave, detached);
-                throw;
+                // L'ondata si stacca: quello che arriva da adesso apre la prossima.
+                _wave = null;
+                detached = true;
+                ids = wave.AddedIds.ToList();
             }
 
-            // Da qui non si lancia più: AddNewTitlesAsync tiene per sé i suoi errori.
-            await inbox.AddNewTitlesAsync(entries).ConfigureAwait(false);
-            logger.LogDebug("Nuovi titoli: ondata chiusa con {Titles} titoli per {Recipients} utenti", kept.Count, entries.Count);
-            return new NewTitlesSendResponse(kept.Count, entries.Count);
+            // I titoli già letti si tengono: si leggono solo quelli arrivati nel frattempo.
+            Resolve(ids.Where(id => !titles.ContainsKey(id)), titles);
+            kept = ids
+                .Where(titles.ContainsKey)
+                .Select(id => titles[id])
+                .Where(title => !wave.IsReplacement(title))
+                .ToList();
+            entries = BuildEntries(kept, now);
         }
-        finally
+        catch (Exception)
         {
-            Volatile.Write(ref _closing, 0);
+            CloseFailed(wave, detached);
+            throw;
         }
+
+        // Da qui non si lancia più: AddNewTitlesAsync tiene per sé i suoi errori.
+        await inbox.AddNewTitlesAsync(entries).ConfigureAwait(false);
+        logger.LogDebug("Nuovi titoli: ondata chiusa con {Titles} titoli per {Recipients} utenti", kept.Count, entries.Count);
+        return new NewTitlesSendResponse(kept.Count, entries.Count);
     }
 
     /// <summary>

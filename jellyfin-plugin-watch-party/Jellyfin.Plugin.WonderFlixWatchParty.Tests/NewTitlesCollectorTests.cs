@@ -374,4 +374,168 @@ public sealed class NewTitlesCollectorTests : IDisposable
         _time.Advance(NewTitlesCollector.QuietTime);
         Assert.Null(NewTitlesOf(_mario));
     }
+
+    [Fact]
+    public async Task SendNowWaitsForACheckInProgress()
+    {
+        _collector.Added(AddMovie("dune.2021.mkv", refreshed: false));
+        using var inside = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        _server.OnGet = _ =>
+        {
+            _server.OnGet = null;
+            inside.Set();
+            release.Wait(TimeSpan.FromSeconds(10));
+        };
+        Wait(NewTitlesCollector.QuietTime - NewTitlesCollector.CheckInterval);
+
+        // Il controllo del timer, su un altro thread, si ferma mentre legge la libreria.
+        var check = Task.Run(() => _time.Advance(NewTitlesCollector.CheckInterval));
+        try
+        {
+            Assert.True(inside.Wait(TimeSpan.FromSeconds(10)));
+            var send = _collector.SendNowAsync();
+            Assert.False(send.IsCompleted);
+
+            // Il controllo trova un titolo senza metadati e lascia l'ondata: "Send now" la chiude.
+            release.Set();
+            await check;
+            Assert.Equal(new NewTitlesSendResponse(1, 2), await send);
+        }
+        finally
+        {
+            release.Set();
+        }
+    }
+
+    [Fact]
+    public void AWaveDroppedDuringItsCloseIsNotSent()
+    {
+        _collector.Added(AddMovie("Dune"));
+        var alien = AddMovie("Alien");
+        _server.OnGet = _ =>
+        {
+            _server.OnGet = null;
+            // Casella spenta e riaccesa mentre si legge la libreria: l'ondata si butta e ne comincia un'altra.
+            _server.NotifyNewTitles = false;
+            Assert.Equal(0, _collector.Pending);
+            _server.NotifyNewTitles = true;
+            _collector.Added(alien);
+        };
+
+        Wait(NewTitlesCollector.QuietTime);
+        Assert.Null(NewTitlesOf(_mario));
+        Assert.Equal(1, _collector.Pending);
+
+        Wait(NewTitlesCollector.QuietTime);
+        Assert.Equal(new[] { "Alien" }, NewTitlesOf(_mario)!.Movies!.Select(m => m.Name));
+    }
+
+    [Fact]
+    public void ATitleArrivingDuringTheCloseWaitsForQuietAgain()
+    {
+        _collector.Added(AddMovie("Dune"));
+        var alien = AddMovie("Alien");
+        _server.OnGet = _ =>
+        {
+            _server.OnGet = null;
+            _collector.Added(alien);
+        };
+
+        Wait(NewTitlesCollector.QuietTime);
+        Assert.Null(NewTitlesOf(_mario));
+        Assert.Equal(2, _collector.Pending);
+
+        Wait(NewTitlesCollector.QuietTime);
+        Assert.Equal(new[] { "Alien", "Dune" }, NewTitlesOf(_mario)!.Movies!.Select(m => m.Name));
+    }
+
+    [Fact]
+    public void AnOverdueWaveClosesEvenIfATitleArrivesDuringTheClose()
+    {
+        // Con le novità continue di un grande import l'ondata deve chiudersi comunque entro MaxWait.
+        _server.ScanRunning = true;
+        _collector.Added(AddMovie("Dune"));
+        Wait(NewTitlesCollector.MaxWait - NewTitlesCollector.CheckInterval);
+        var alien = AddMovie("Alien");
+        _server.OnGet = _ =>
+        {
+            _server.OnGet = null;
+            _collector.Added(alien);
+        };
+
+        _time.Advance(NewTitlesCollector.CheckInterval);
+
+        Assert.Equal(new[] { "Alien", "Dune" }, NewTitlesOf(_mario)!.Movies!.Select(m => m.Name));
+        Assert.Equal(0, _collector.Pending);
+    }
+
+    [Fact]
+    public void WaitingForMetadataStopsAtTheFirstTitleWithout()
+    {
+        for (var i = 0; i < 3; i++)
+        {
+            _collector.Added(AddMovie($"film.{i}.mkv", refreshed: false));
+        }
+
+        var reads = 0;
+        _server.OnGet = _ => reads++;
+
+        Wait(NewTitlesCollector.QuietTime);
+
+        Assert.Equal(1, reads);
+        Assert.Null(NewTitlesOf(_mario));
+        Assert.Equal(3, _collector.Pending);
+    }
+
+    [Fact]
+    public void AReplacementSpanningTwoWavesIsAnnounced()
+    {
+        // Limite accettato: una sostituzione si riconosce solo se il vecchio
+        // file è tolto nella stessa ondata in cui arriva il nuovo.
+        _collector.Removed(Guid.NewGuid(), isMovie: true, ["Tmdb:438631"]);
+        _time.Advance(NewTitlesCollector.QuietTime);
+
+        _collector.Added(AddMovie("Dune", keys: ["Tmdb:438631"]));
+        _time.Advance(NewTitlesCollector.QuietTime);
+
+        Assert.Single(NewTitlesOf(_mario)!.Movies!);
+    }
+
+    [Fact]
+    public void BeyondTheLimitMoviesComeFirstSeriesFillTheRestAndMoreCountsBoth()
+    {
+        var movies = new List<Guid>();
+        for (var i = 0; i < NewTitlesCollector.MaxLines + 1; i++)
+        {
+            var movie = AddMovie($"Film {i:000}");
+            movies.Add(movie);
+            _collector.Added(movie);
+        }
+
+        foreach (var name in new[] { "E", "D", "C", "B", "A" })
+        {
+            var seriesId = Guid.NewGuid();
+            _server.Following.Add((_mario.Id, seriesId));
+            _server.Following.Add((_luigi.Id, seriesId));
+            _collector.Added(AddEpisode(seriesId, 1, 1, seriesName: name));
+        }
+
+        // Luigi non vede tre film: gli restano righe per due serie.
+        foreach (var movie in movies.Take(3))
+        {
+            _server.Unseen.Add((_luigi.Id, movie));
+        }
+
+        _time.Advance(NewTitlesCollector.QuietTime);
+
+        var mario = NewTitlesOf(_mario)!;
+        Assert.Equal(NewTitlesCollector.MaxLines, mario.Movies!.Count);
+        Assert.Empty(mario.Series!);
+        Assert.Equal(6, mario.More);
+        var luigi = NewTitlesOf(_luigi)!;
+        Assert.Equal(NewTitlesCollector.MaxLines - 2, luigi.Movies!.Count);
+        Assert.Equal(new[] { "A", "B" }, luigi.Series!.Select(s => s.Name));
+        Assert.Equal(3, luigi.More);
+    }
 }
