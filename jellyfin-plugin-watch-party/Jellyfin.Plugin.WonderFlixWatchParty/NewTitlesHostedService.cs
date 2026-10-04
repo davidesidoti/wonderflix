@@ -50,7 +50,9 @@ public sealed class NewTitlesHostedService(
         }
     }
 
-    // Gli id esterni si leggono adesso: dopo la rimozione l'elemento non si rilegge più.
+    // Gli id esterni e la chiave della serie si leggono adesso: dopo la
+    // rimozione l'elemento non si rilegge più. Di una cartella rinominata
+    // Jellyfin toglie solo la serie o la stagione, non i suoi episodi.
     private void OnItemRemoved(object? sender, ItemChangeEventArgs e)
     {
         try
@@ -59,6 +61,10 @@ public sealed class NewTitlesHostedService(
             if (NewTitleRules.IsRealTitle(item))
             {
                 collector.Removed(item.Id, item is Movie, NewTitleRules.ExternalKeys(item));
+            }
+            else if (NewTitleRules.TryGetRemovedContainer(item, out var seriesKey, out var season))
+            {
+                collector.RemovedSeries(seriesKey, season);
             }
         }
         catch (Exception ex)

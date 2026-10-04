@@ -1,4 +1,5 @@
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
+using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
@@ -13,6 +14,7 @@ public sealed class NewTitlesHostedServiceTests : IDisposable
     private readonly TempFolder _folder = new();
     private readonly FakeServer _server = new();
     private readonly FakeTimeProvider _time = new();
+    private readonly InboxService _inbox;
     private readonly NewTitlesCollector _collector;
     private readonly UserRef _mario;
     private readonly ILibraryManager _library;
@@ -22,7 +24,8 @@ public sealed class NewTitlesHostedServiceTests : IDisposable
 
     public NewTitlesHostedServiceTests()
     {
-        _collector = TestNewTitles.Create(_server, TestInbox.Create(_server, _folder, _time), _time);
+        _inbox = TestInbox.Create(_server, _folder, _time);
+        _collector = TestNewTitles.Create(_server, _inbox, _time);
         _mario = _server.AddUser("Mario");
         (_library, _stub) = InterfaceStub<ILibraryManager>.Create();
         _stub.Handlers["add_ItemAdded"] = args =>
@@ -50,6 +53,15 @@ public sealed class NewTitlesHostedServiceTests : IDisposable
         Assert.NotNull(_added);
         Assert.NotNull(_removed);
         return service;
+    }
+
+    // Un episodio vero arriva dalla libreria, con il titolo che il raccoglitore rilegge.
+    private void AddEpisode(Guid seriesId, string seriesKey, int season, int episode)
+    {
+        var item = new Episode { Id = Guid.NewGuid(), Path = $"/media/tv/s{season}e{episode}.mkv", SeriesId = seriesId };
+        _added!(_library, new ItemChangeEventArgs { Item = item });
+        _server.Titles[item.Id] = new LibraryTitle(
+            item.Id, false, $"Episodio {episode}", null, seriesId, "The Bear", seriesKey, season, episode, [], true);
     }
 
     [Fact]
@@ -93,5 +105,55 @@ public sealed class NewTitlesHostedServiceTests : IDisposable
             better.Id, true, "Dune", 2021, Guid.Empty, string.Empty, string.Empty, null, null, ["Tmdb:438631"], true);
 
         Assert.Equal(new Protocol.NewTitlesSendResponse(0, 0), await _collector.SendNowAsync());
+    }
+
+    [Fact]
+    public async Task EpisodesOfARenamedSeriesFolderAreNotAnnounced()
+    {
+        await StartAsync();
+        var seriesId = Guid.NewGuid();
+        _server.Following.Add((_mario.Id, seriesId));
+
+        // Cartella rinominata: Jellyfin toglie solo la serie, poi i suoi
+        // episodi tornano con id nuovi (e i dati utente di prima).
+        _removed!(_library, new ItemChangeEventArgs
+        {
+            Item = new Series { Id = Guid.NewGuid(), Path = "/media/tv/The Bear", PresentationUniqueKey = "bear-key" },
+        });
+        AddEpisode(seriesId, "bear-key", 1, 1);
+        AddEpisode(seriesId, "bear-key", 2, 1);
+
+        Assert.Equal(new NewTitlesSendResponse(0, 0), await _collector.SendNowAsync());
+    }
+
+    [Fact]
+    public async Task EpisodesOfARenamedSeasonFolderAreNotAnnounced()
+    {
+        await StartAsync();
+        var seriesId = Guid.NewGuid();
+        _server.Following.Add((_mario.Id, seriesId));
+
+        _removed!(_library, new ItemChangeEventArgs
+        {
+            Item = new Season
+            {
+                Id = Guid.NewGuid(),
+                Path = "/media/tv/The Bear/Stagione 1",
+                SeriesPresentationUniqueKey = "bear-key",
+                IndexNumber = 1,
+            },
+        });
+        // Una stagione virtuale (senza cartella) tolta non conta.
+        _removed(_library, new ItemChangeEventArgs
+        {
+            Item = new Season { Id = Guid.NewGuid(), IsVirtualItem = true, SeriesPresentationUniqueKey = "bear-key", IndexNumber = 2 },
+        });
+        AddEpisode(seriesId, "bear-key", 1, 1);
+        AddEpisode(seriesId, "bear-key", 2, 1);
+
+        Assert.Equal(new NewTitlesSendResponse(1, 1), await _collector.SendNowAsync());
+        var entry = _inbox.Get(_mario.Id).Entries.Single(e => e.Type == InboxEntryTypes.NewTitles);
+        var series = Assert.Single(entry.Series!);
+        Assert.Equal(new int?[] { 2 }, series.Episodes.Select(e => e.Season));
     }
 }

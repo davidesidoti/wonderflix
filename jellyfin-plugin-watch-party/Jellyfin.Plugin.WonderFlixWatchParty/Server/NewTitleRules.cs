@@ -26,6 +26,37 @@ public static class NewTitleRules
         && item.ExtraType is null
         && item.OwnerId == Guid.Empty;
 
+    /// <summary>
+    /// Una serie o una stagione vera tolta (con una cartella, non virtuale).
+    /// Con la cartella rinominata Jellyfin toglie solo lei, e i suoi episodi
+    /// tornano con id nuovi e i dati utente di prima: non sono nuovi. Dà la
+    /// chiave della serie (quella degli episodi) e il numero della stagione;
+    /// null vale per tutta la serie, anche per una stagione senza numero:
+    /// meglio non annunciare che annunciare episodi già visti. O(1), per il
+    /// gestore dell'evento.
+    /// </summary>
+    public static bool TryGetRemovedContainer(BaseItem? item, out string seriesKey, out int? season)
+    {
+        seriesKey = string.Empty;
+        season = null;
+        if (item is null || item.IsVirtualItem || string.IsNullOrEmpty(item.Path))
+        {
+            return false;
+        }
+
+        if (item is Series series)
+        {
+            seriesKey = series.PresentationUniqueKey ?? string.Empty;
+        }
+        else if (item is Season seasonItem)
+        {
+            seriesKey = seasonItem.SeriesPresentationUniqueKey ?? seasonItem.FindSeriesPresentationUniqueKey() ?? string.Empty;
+            season = seasonItem.IndexNumber;
+        }
+
+        return seriesKey.Length > 0;
+    }
+
     /// <summary>Gli id esterni TMDB, IMDb e TVDB, come "Tmdb:438631".</summary>
     public static IReadOnlyCollection<string> ExternalKeys(BaseItem item)
     {

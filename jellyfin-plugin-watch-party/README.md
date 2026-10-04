@@ -28,7 +28,8 @@ anonimi.
   libreria si raccolgono in un'ondata che si chiude dopo 15 minuti senza novità
   (al massimo 2 ore); ogni utente riceve i film che può vedere e gli episodi
   delle serie che segue (La mia lista, o un episodio visto o iniziato).
-  L'impostazione sta in
+  Prima di spostare una libreria in un altro percorso spegni **Notify new
+  titles**: ogni titolo sembrerebbe nuovo. L'impostazione sta in
   `plugins/configurations/Jellyfin.Plugin.WonderFlixWatchParty.xml`.
 - **Party:** l'app registra ogni gruppo con la sua modalità (pubblico, solo
   amici, privato con codice) e chiede al plugin l'elenco già filtrato

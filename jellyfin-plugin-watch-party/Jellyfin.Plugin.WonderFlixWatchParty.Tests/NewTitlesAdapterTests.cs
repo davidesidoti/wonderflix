@@ -32,6 +32,40 @@ public class NewTitlesAdapterTests
     }
 
     [Fact]
+    public void RemovedSeriesAndSeasonFoldersGiveTheSeriesKey()
+    {
+        Assert.True(NewTitleRules.TryGetRemovedContainer(
+            new Series { Id = Guid.NewGuid(), Path = "/media/tv/The Bear", PresentationUniqueKey = "bear-key" },
+            out var key,
+            out var season));
+        Assert.Equal("bear-key", key);
+        Assert.Null(season);
+
+        Assert.True(NewTitleRules.TryGetRemovedContainer(
+            new Season { Id = Guid.NewGuid(), Path = "/media/tv/The Bear/Season 2", SeriesPresentationUniqueKey = "bear-key", IndexNumber = 2 },
+            out key,
+            out season));
+        Assert.Equal("bear-key", key);
+        Assert.Equal(2, season);
+
+        // Virtuale, senza cartella, senza chiave (anche cercando la serie), o non una serie né una stagione.
+        Assert.False(NewTitleRules.TryGetRemovedContainer(
+            new Season { Id = Guid.NewGuid(), Path = "/media/tv/x", IsVirtualItem = true, SeriesPresentationUniqueKey = "bear-key" },
+            out _,
+            out _));
+        Assert.False(NewTitleRules.TryGetRemovedContainer(
+            new Season { Id = Guid.NewGuid(), SeriesPresentationUniqueKey = "bear-key", IndexNumber = 1 }, out _, out _));
+        Assert.False(NewTitleRules.TryGetRemovedContainer(
+            new Season { Id = Guid.NewGuid(), Path = "/media/tv/x/Season 1", IndexNumber = 1 }, out _, out _));
+        Assert.False(NewTitleRules.TryGetRemovedContainer(
+            new Series { Id = Guid.NewGuid(), Path = "/media/tv/The Bear" }, out _, out _));
+        Assert.False(NewTitleRules.TryGetRemovedContainer(Movie(), out _, out _));
+        Assert.False(NewTitleRules.TryGetRemovedContainer(
+            new Episode { Id = Guid.NewGuid(), Path = "/media/tv/e1.mkv", SeriesPresentationUniqueKey = "bear-key" }, out _, out _));
+        Assert.False(NewTitleRules.TryGetRemovedContainer(null, out _, out _));
+    }
+
+    [Fact]
     public void ExternalKeysAreTmdbImdbAndTvdb()
     {
         var movie = Movie();

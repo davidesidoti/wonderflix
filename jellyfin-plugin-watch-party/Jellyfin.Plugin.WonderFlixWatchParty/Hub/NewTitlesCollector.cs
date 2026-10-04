@@ -104,6 +104,25 @@ public sealed class NewTitlesCollector(
         }
     }
 
+    /// <summary>
+    /// La cartella vera di una serie (season null) o di una stagione tolta,
+    /// con la chiave della serie: i suoi episodi che tornano in questa ondata
+    /// (cartella rinominata) non si annunciano.
+    /// </summary>
+    public void RemovedSeries(string seriesKey, int? season)
+    {
+        if (!settings.NotifyNewTitles)
+        {
+            Discard();
+            return;
+        }
+
+        lock (_lock)
+        {
+            Current().RemoveSeries(seriesKey, season, time.GetUtcNow());
+        }
+    }
+
     /// <summary>Chiude subito l'ondata ("Send now" nella Dashboard), anche durante una scansione.</summary>
     public Task<NewTitlesSendResponse> SendNowAsync() => CloseAsync(force: true);
 

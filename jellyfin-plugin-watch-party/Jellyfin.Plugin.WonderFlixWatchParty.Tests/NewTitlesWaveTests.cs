@@ -10,6 +10,9 @@ public class NewTitlesWaveTests
     private static LibraryTitle Title(bool isMovie, params string[] keys) =>
         new(Guid.NewGuid(), isMovie, "x", null, Guid.Empty, string.Empty, string.Empty, null, null, keys, true);
 
+    private static LibraryTitle Episode(string seriesKey, int? season) =>
+        new(Guid.NewGuid(), false, "x", null, Guid.NewGuid(), "Serie", seriesKey, season, 1, [], true);
+
     [Fact]
     public void QuietCountsFromTheLastChangeOverdueFromTheStart()
     {
@@ -67,5 +70,33 @@ public class NewTitlesWaveTests
         Assert.True(older.IsReplacement(Title(true, "Tmdb:7")));
         Assert.True(older.IsOverdue(T0.AddHours(2), TimeSpan.FromHours(2)));
         Assert.Equal(2, older.RecordFailedClose());
+    }
+
+    [Fact]
+    public void EpisodesOfARemovedSeriesOrSeasonFolderAreReplacements()
+    {
+        var wave = new NewTitlesWave(T0);
+
+        // Una serie intera (stagione null) e una stagione; la chiave vuota non conta.
+        wave.RemoveSeries("bear-key", season: null, T0.AddMinutes(1));
+        wave.RemoveSeries("lost-key", season: 2, T0.AddMinutes(2));
+        wave.RemoveSeries(string.Empty, season: null, T0.AddMinutes(3));
+
+        Assert.Equal(0, wave.Count);
+        Assert.Equal(T0.AddMinutes(3), wave.LastChangeAt);
+        Assert.True(wave.IsReplacement(Episode("bear-key", 1)));
+        Assert.True(wave.IsReplacement(Episode("bear-key", null)));
+        Assert.True(wave.IsReplacement(Episode("lost-key", 2)));
+        Assert.False(wave.IsReplacement(Episode("lost-key", 1)));
+        Assert.False(wave.IsReplacement(Episode("lost-key", null)));
+        Assert.False(wave.IsReplacement(Episode("Bear-Key", 1)));
+        Assert.False(wave.IsReplacement(Episode(string.Empty, 1)));
+        Assert.False(wave.IsReplacement(Title(true)));
+
+        var older = new NewTitlesWave(T0);
+        older.Absorb(wave);
+        Assert.True(older.IsReplacement(Episode("bear-key", 3)));
+        Assert.True(older.IsReplacement(Episode("lost-key", 2)));
+        Assert.False(older.IsReplacement(Episode("lost-key", 1)));
     }
 }
