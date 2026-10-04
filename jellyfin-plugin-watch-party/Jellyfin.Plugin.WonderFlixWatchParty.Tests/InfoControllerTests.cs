@@ -11,9 +11,9 @@ public class InfoControllerTests
     public void InfoReportsVersionProtocolAndFeatures()
     {
         var info = new InfoController().GetInfo().Value!;
-        Assert.Equal("1.2.0", info.Version);
+        Assert.Equal("1.3.0", info.Version);
         Assert.Equal(1, info.Protocol);
-        Assert.Equal(new[] { "friends", "parties", "inbox" }, info.Features);
+        Assert.Equal(new[] { "friends", "parties", "inbox", "queue" }, info.Features);
     }
 
     [Fact]

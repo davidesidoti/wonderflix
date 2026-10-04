@@ -18,6 +18,11 @@ public class EventValidatorTests
     [InlineData("Unpause")]
     [InlineData("NextItem")]
     [InlineData("NewQueue")]
+    [InlineData("PreviousItem")]
+    [InlineData("SetCurrentItem")]
+    [InlineData("Queue")]
+    [InlineData("QueueNext")]
+    [InlineData("ShuffleMode")]
     public void ActionsWithoutPosition(string action)
     {
         var valid = EventValidator.Validate(Request(EventTypes.Action, action, ticks: 5));

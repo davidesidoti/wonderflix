@@ -21,7 +21,7 @@ public static class WatchPartyProtocol
 
     /// <summary>
     /// Funzioni in più rispetto allo spec E, in GET Info (spec F §6.7, spec
-    /// G §6.3). Il protocollo resta 1: le app 0.5.x accettano solo quello.
+    /// G §6.3, spec H §7). Il protocollo resta 1: le app 0.5.x accettano solo quello.
     /// </summary>
-    public static readonly IReadOnlyList<string> Features = ["friends", "parties", "inbox"];
+    public static readonly IReadOnlyList<string> Features = ["friends", "parties", "inbox", "queue"];
 }

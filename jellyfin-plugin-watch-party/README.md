@@ -6,7 +6,9 @@ dice chi ha agito, porta la chat e le reazioni tra i membri di un gruppo
 SyncPlay e tiene la lista amici (spec F,
 `docs/superpowers/specs/2026-10-03-wonderflix-amici-party-privati-design.md`)
 e la cassetta delle notifiche (spec G,
-`docs/superpowers/specs/2026-10-03-wonderflix-notifiche-design.md`).
+`docs/superpowers/specs/2026-10-03-wonderflix-notifiche-design.md`). Dalla
+1.3.0 dice anche chi ha cambiato la coda del gruppo (spec H,
+`docs/superpowers/specs/2026-10-04-wonderflix-coda-party-design.md`).
 Senza il plugin WonderFlix funziona lo stesso, con gli avvisi
 anonimi.
 
@@ -47,8 +49,8 @@ anonimi.
 
 ## Installazione a mano (prove)
 
-1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.2.0`.
-   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.2.0.0/`
+1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.3.0`.
+   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.3.0.0/`
    con la dll e `meta.json`.
 2. Copia la cartella dentro `plugins/` della cartella dati di Jellyfin (su
    Ultra.cc via SFTP).

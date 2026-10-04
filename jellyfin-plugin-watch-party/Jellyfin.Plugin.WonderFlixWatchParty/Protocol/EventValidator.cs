@@ -16,6 +16,8 @@ public static partial class EventValidator
     private static readonly HashSet<string> Actions = new(StringComparer.Ordinal)
     {
         "Pause", "Unpause", "Seek", "NextItem", "NewQueue",
+        // Coda del watch party (spec H §7).
+        "PreviousItem", "SetCurrentItem", "Queue", "QueueNext", "ShuffleMode",
     };
 
     /// <summary>L'evento valido e normalizzato; null se non è valido.</summary>
