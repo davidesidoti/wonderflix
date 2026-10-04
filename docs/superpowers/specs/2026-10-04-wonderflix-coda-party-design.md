@@ -1,7 +1,7 @@
 # WonderFlix — Spec H: coda del watch party
 
 - **Data:** 2026-10-04
-- **Stato:** approvato nel brainstorming, in attesa della revisione dell'utente
+- **Stato:** approvato; piano 14a scritto (`docs/superpowers/plans/2026-10-04-wonderflix-14a-coda-party.md`)
 - **Ambito:** Spec H. Riprende l'esclusione della Spec B (`2026-09-30-wonderflix-watch-party-design.md`, §3 "Escluso": "Gestione avanzata della coda") e si appoggia alla Spec D (player: `2026-10-01-wonderflix-rinnovo-player-design.md`), alla Spec E (nomi dal plugin: `2026-10-02-wonderflix-watch-party-sociale-design.md` §8) e alla Spec F (disponibilità del plugin, `Features`).
 
 ## 1. Obiettivo
