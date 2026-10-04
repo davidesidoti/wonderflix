@@ -101,9 +101,15 @@ internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSen
         LibraryFails ? throw new InvalidOperationException("libreria non disponibile")
         : Exists(sessionId) ? Playing.GetValueOrDefault(sessionId) : null;
 
-    public bool CanSee(Guid userId, Guid itemId) =>
-        LibraryFails ? throw new InvalidOperationException("libreria non disponibile")
-        : Users.ContainsKey(userId) && !Unseen.Contains((userId, itemId));
+    /// <summary>Ogni CanSee, in ordine: utente ed elemento.</summary>
+    public List<(Guid UserId, Guid ItemId)> SeenChecks { get; } = [];
+
+    public bool CanSee(Guid userId, Guid itemId)
+    {
+        SeenChecks.Add((userId, itemId));
+        return LibraryFails ? throw new InvalidOperationException("libreria non disponibile")
+            : Users.ContainsKey(userId) && !Unseen.Contains((userId, itemId));
+    }
 
     /// <summary>Utenti con limiti sui contenuti (classificazione, tag, elementi senza classificazione).</summary>
     public HashSet<Guid> Restricted { get; } = [];
@@ -145,9 +151,26 @@ internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSen
     /// <summary>Chiamato a ogni FollowsSeries, prima della risposta (es. per lanciare un errore).</summary>
     public Action? OnFollowsSeries { get; set; }
 
-    public bool FollowsSeries(Guid userId, Guid seriesId, string seriesKey, IReadOnlyCollection<Guid> excludeEpisodes)
+    /// <summary>Ogni FollowsSeries: utente, serie e se la serie ha altri episodi.</summary>
+    public List<(Guid UserId, Guid SeriesId, bool HasOtherEpisodes)> FollowChecks { get; } = [];
+
+    /// <summary>Chiavi delle serie senza altri episodi oltre a quelli nuovi (appena arrivate).</summary>
+    public HashSet<string> BrandNewSeries { get; } = [];
+
+    /// <summary>Ogni HasOtherEpisodes: la chiave della serie.</summary>
+    public List<string> OtherEpisodesChecks { get; } = [];
+
+    public bool HasOtherEpisodes(string seriesKey, IReadOnlyCollection<Guid> excludeEpisodes)
+    {
+        OtherEpisodesChecks.Add(seriesKey);
+        return !BrandNewSeries.Contains(seriesKey);
+    }
+
+    public bool FollowsSeries(
+        Guid userId, Guid seriesId, string seriesKey, IReadOnlyCollection<Guid> excludeEpisodes, bool hasOtherEpisodes)
     {
         OnFollowsSeries?.Invoke();
+        FollowChecks.Add((userId, seriesId, hasOtherEpisodes));
         return Following.Contains((userId, seriesId));
     }
 

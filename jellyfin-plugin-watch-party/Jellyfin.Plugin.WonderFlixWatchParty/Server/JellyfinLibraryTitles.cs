@@ -57,7 +57,26 @@ public sealed class JellyfinLibraryTitles(ILibraryManager libraryManager, IUserM
     // Conteggi sul database: i dati utente in memoria della serie possono
     // essere vecchi (Jellyfin li azzera sul genitore a ogni aggiunta). I
     // filtri per utente vogliono il costruttore con l'utente.
-    public bool FollowsSeries(Guid userId, Guid seriesId, string seriesKey, IReadOnlyCollection<Guid> excludeEpisodes)
+    // Senza utente: in Jellyfin 10.11 i filtri sull'utente (preferiti, visti,
+    // iniziati, tag) entrano nella query solo se si chiedono; questi no.
+    public bool HasOtherEpisodes(string seriesKey, IReadOnlyCollection<Guid> excludeEpisodes)
+    {
+        if (string.IsNullOrEmpty(seriesKey))
+        {
+            return false;
+        }
+
+        return libraryManager.GetCount(new InternalItemsQuery
+        {
+            SeriesPresentationUniqueKey = seriesKey,
+            IncludeItemTypes = [BaseItemKind.Episode],
+            IsVirtualItem = false,
+            ExcludeItemIds = excludeEpisodes.ToArray(),
+        }) > 0;
+    }
+
+    public bool FollowsSeries(
+        Guid userId, Guid seriesId, string seriesKey, IReadOnlyCollection<Guid> excludeEpisodes, bool hasOtherEpisodes)
     {
         var user = userId == Guid.Empty ? null : userManager.GetUserById(userId);
         if (user is null)
@@ -71,7 +90,8 @@ public sealed class JellyfinLibraryTitles(ILibraryManager libraryManager, IUserM
             return true;
         }
 
-        if (string.IsNullOrEmpty(seriesKey))
+        // Senza altri episodi nessuno può averne visto o iniziato uno.
+        if (!hasOtherEpisodes || string.IsNullOrEmpty(seriesKey))
         {
             return false;
         }

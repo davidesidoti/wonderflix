@@ -164,42 +164,84 @@ public class NewTitlesAdapterTests
 
         // Preferita: basta la prima domanda.
         answers.Enqueue(1);
-        Assert.True(titles.FollowsSeries(user.Id, seriesId, "bear-key", [newEpisode]));
+        Assert.True(titles.FollowsSeries(user.Id, seriesId, "bear-key", [newEpisode], hasOtherEpisodes: true));
         var favourite = Assert.Single(queries);
         Assert.Equal(new[] { seriesId }, favourite.ItemIds);
         Assert.True(favourite.IsFavorite);
+        Assert.Same(user, favourite.User);
 
         // Un altro episodio visto.
         queries.Clear();
         answers.Enqueue(0);
         answers.Enqueue(1);
-        Assert.True(titles.FollowsSeries(user.Id, seriesId, "bear-key", [newEpisode]));
+        Assert.True(titles.FollowsSeries(user.Id, seriesId, "bear-key", [newEpisode], hasOtherEpisodes: true));
         var played = queries[1];
         Assert.Equal("bear-key", played.SeriesPresentationUniqueKey);
         Assert.Equal(new[] { BaseItemKind.Episode }, played.IncludeItemTypes);
         Assert.Equal(new[] { newEpisode }, played.ExcludeItemIds);
         Assert.True(played.IsPlayed);
         Assert.False(played.IsVirtualItem);
+        Assert.Same(user, played.User);
 
         // Un altro episodio iniziato.
         queries.Clear();
         answers.Enqueue(0);
         answers.Enqueue(0);
         answers.Enqueue(1);
-        Assert.True(titles.FollowsSeries(user.Id, seriesId, "bear-key", [newEpisode]));
+        Assert.True(titles.FollowsSeries(user.Id, seriesId, "bear-key", [newEpisode], hasOtherEpisodes: true));
         Assert.True(queries[2].IsResumable);
+        Assert.Same(user, queries[2].User);
 
         // Niente.
         answers.Enqueue(0);
         answers.Enqueue(0);
         answers.Enqueue(0);
-        Assert.False(titles.FollowsSeries(user.Id, seriesId, "bear-key", [newEpisode]));
+        Assert.False(titles.FollowsSeries(user.Id, seriesId, "bear-key", [newEpisode], hasOtherEpisodes: true));
+
+        // Una serie senza altri episodi: solo la preferita.
+        queries.Clear();
+        answers.Enqueue(0);
+        Assert.False(titles.FollowsSeries(user.Id, seriesId, "bear-key", [newEpisode], hasOtherEpisodes: false));
+        Assert.True(Assert.Single(queries).IsFavorite);
 
         // Senza la chiave della serie solo la preferita; utente sconosciuto: no.
         queries.Clear();
         answers.Enqueue(0);
-        Assert.False(titles.FollowsSeries(user.Id, seriesId, string.Empty, [newEpisode]));
+        Assert.False(titles.FollowsSeries(user.Id, seriesId, string.Empty, [newEpisode], hasOtherEpisodes: true));
         Assert.Single(queries);
-        Assert.False(titles.FollowsSeries(Guid.NewGuid(), seriesId, "bear-key", [newEpisode]));
+        Assert.False(titles.FollowsSeries(Guid.NewGuid(), seriesId, "bear-key", [newEpisode], hasOtherEpisodes: true));
+    }
+
+    [Fact]
+    public void OtherEpisodesAreCountedOnceForNoUser()
+    {
+        var newEpisodes = new[] { Guid.NewGuid(), Guid.NewGuid() };
+        var queries = new List<InternalItemsQuery>();
+        var answers = new Queue<int>([0, 3]);
+        var (library, stub) = InterfaceStub<ILibraryManager>.Create();
+        stub.Handlers["GetCount"] = args =>
+        {
+            queries.Add((InternalItemsQuery)args[0]!);
+            return answers.Dequeue();
+        };
+        var titles = new JellyfinLibraryTitles(library, InterfaceStub<IUserManager>.Create().Proxy);
+
+        Assert.False(titles.HasOtherEpisodes("bear-key", newEpisodes));
+        Assert.True(titles.HasOtherEpisodes("bear-key", newEpisodes));
+
+        // Una domanda per tutti: senza utente, solo gli episodi veri della serie, esclusi quelli nuovi.
+        var query = queries[0];
+        Assert.Null(query.User);
+        Assert.Equal("bear-key", query.SeriesPresentationUniqueKey);
+        Assert.Equal(new[] { BaseItemKind.Episode }, query.IncludeItemTypes);
+        Assert.False(query.IsVirtualItem);
+        Assert.Equal(newEpisodes, query.ExcludeItemIds);
+        Assert.Null(query.IsFavorite);
+        Assert.Null(query.IsPlayed);
+        Assert.Null(query.IsResumable);
+
+        // Senza la chiave della serie non si chiede niente.
+        Assert.False(titles.HasOtherEpisodes(string.Empty, newEpisodes));
+        Assert.Equal(2, queries.Count);
     }
 }

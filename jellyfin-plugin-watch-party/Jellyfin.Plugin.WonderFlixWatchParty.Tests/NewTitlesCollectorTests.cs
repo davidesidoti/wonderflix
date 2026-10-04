@@ -421,6 +421,62 @@ public sealed class NewTitlesCollectorTests : IDisposable
     }
 
     [Fact]
+    public void EachTitleIsCheckedForAllUsersInARow()
+    {
+        // Prima i titoli e dentro gli utenti: Jellyfin rilegge ogni elemento
+        // per tutti gli utenti di fila, finché è nella sua cache.
+        var dune = AddMovie("Dune");
+        var alien = AddMovie("Alien");
+        var episode = AddEpisode(_bear, 1, 1);
+        _collector.Added(dune);
+        _collector.Added(alien);
+        _collector.Added(episode);
+
+        _time.Advance(NewTitlesCollector.QuietTime);
+
+        Assert.Equal(
+            new[] { alien, alien, dune, dune, episode, episode },
+            _server.SeenChecks.Select(c => c.ItemId));
+    }
+
+    [Fact]
+    public void ABrandNewSeriesIsAskedOnceAndThenOnlyFavouritesCount()
+    {
+        // La serie non ha altri episodi fuori dall'ondata: nessuno può averne
+        // visto o iniziato uno, basta la preferita (niente conteggi per utente).
+        _server.BrandNewSeries.Add("chiave-" + _bear.ToString("N"));
+        _server.Following.Add((_mario.Id, _bear));
+        _collector.Added(AddEpisode(_bear, 1, 1));
+        _collector.Added(AddEpisode(_bear, 1, 2));
+
+        _time.Advance(NewTitlesCollector.QuietTime);
+
+        Assert.Equal(2, Assert.Single(NewTitlesOf(_mario)!.Series!).Episodes.Count);
+        Assert.Null(NewTitlesOf(_luigi));
+        Assert.Single(_server.OtherEpisodesChecks);
+        Assert.Equal(2, _server.FollowChecks.Count);
+        Assert.All(_server.FollowChecks, c => Assert.False(c.HasOtherEpisodes));
+    }
+
+    [Fact]
+    public void ASeriesWithOtherEpisodesIsAskedOnceForEveryone()
+    {
+        var shogun = Guid.NewGuid();
+        _server.Following.Add((_luigi.Id, _bear));
+        _server.Following.Add((_mario.Id, shogun));
+        _collector.Added(AddEpisode(_bear, 2, 1));
+        _collector.Added(AddEpisode(shogun, 1, 1, seriesName: "Shogun"));
+
+        _time.Advance(NewTitlesCollector.QuietTime);
+
+        Assert.Equal("The Bear", Assert.Single(NewTitlesOf(_luigi)!.Series!).Name);
+        Assert.Equal("Shogun", Assert.Single(NewTitlesOf(_mario)!.Series!).Name);
+        Assert.Equal(2, _server.OtherEpisodesChecks.Count);
+        Assert.Equal(4, _server.FollowChecks.Count);
+        Assert.All(_server.FollowChecks, c => Assert.True(c.HasOtherEpisodes));
+    }
+
+    [Fact]
     public async Task TitlesWithoutMetadataGoOnlyToUsersWithoutContentLimits()
     {
         // Luigi ha limiti sui contenuti (un profilo per bambini): un titolo

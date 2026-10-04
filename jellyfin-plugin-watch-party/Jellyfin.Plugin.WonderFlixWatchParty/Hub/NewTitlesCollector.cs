@@ -393,56 +393,99 @@ public sealed class NewTitlesCollector(
             return entries;
         }
 
-        var movies = titles.Where(t => t.IsMovie).OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase).ToList();
-        var episodesBySeries = titles.Where(t => !t.IsMovie && t.SeriesId != Guid.Empty).GroupBy(t => t.SeriesId).ToList();
-        var anyWithoutMetadata = titles.Any(t => !t.Refreshed);
-        foreach (var user in users.GetUsers().Where(u => u.Enabled))
+        var recipients = users.GetUsers().Where(u => u.Enabled).Select(u => new Recipient(u.Id)).ToList();
+
+        // Titoli senza metadati (chiusura forzata o dopo MaxWait): niente
+        // classificazione né tag, i limiti del profilo non li fermerebbero.
+        // Vanno solo a chi non ha limiti sui contenuti.
+        if (titles.Any(t => !t.Refreshed))
         {
-            // Titoli senza metadati (chiusura forzata o dopo MaxWait): niente
-            // classificazione né tag, i limiti del profilo non li fermerebbero.
-            // Vanno solo a chi non ha limiti sui contenuti.
-            var limited = anyWithoutMetadata && access.HasContentLimits(user.Id);
-            bool Allowed(LibraryTitle title) => title.Refreshed || !limited;
-
-            var userMovies = movies.Where(m => Allowed(m) && access.CanSee(user.Id, m.ItemId)).ToList();
-            var userSeries = new List<NewTitleSeries>();
-            foreach (var episodes in episodesBySeries)
+            foreach (var recipient in recipients)
             {
-                var visible = episodes.Where(e => Allowed(e) && access.CanSee(user.Id, e.ItemId)).ToList();
-                if (visible.Count == 0)
-                {
-                    continue;
-                }
-
-                var first = visible[0];
-                var newEpisodes = episodes.Select(e => e.ItemId).ToList();
-                if (!library.FollowsSeries(user.Id, episodes.Key, first.SeriesKey, newEpisodes))
-                {
-                    continue;
-                }
-
-                userSeries.Add(new NewTitleSeries
-                {
-                    SeriesId = episodes.Key.ToString("N"),
-                    Name = first.SeriesName,
-                    Episodes = visible
-                        .OrderBy(e => e.Season ?? int.MaxValue)
-                        .ThenBy(e => e.Episode ?? int.MaxValue)
-                        .Select(e => new NewTitleEpisode { Season = e.Season, Episode = e.Episode })
-                        .ToList(),
-                });
+                recipient.HasContentLimits = access.HasContentLimits(recipient.UserId);
             }
+        }
 
-            if (userMovies.Count + userSeries.Count == 0)
+        // Prima i titoli e dentro gli utenti: Jellyfin rilegge ogni elemento
+        // per tutti gli utenti di fila, finché è nella sua cache.
+        foreach (var movie in titles.Where(t => t.IsMovie).OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            foreach (var recipient in recipients)
+            {
+                if (recipient.Allows(movie) && access.CanSee(recipient.UserId, movie.ItemId))
+                {
+                    recipient.Movies.Add(movie);
+                }
+            }
+        }
+
+        foreach (var episodes in titles.Where(t => !t.IsMovie && t.SeriesId != Guid.Empty).GroupBy(t => t.SeriesId))
+        {
+            AddSeries(episodes.Key, episodes.ToList(), recipients);
+        }
+
+        foreach (var recipient in recipients.Where(r => r.Movies.Count + r.Series.Count > 0))
+        {
+            entries[recipient.UserId] = Entry(
+                recipient.Movies, recipient.Series.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase).ToList(), now);
+        }
+
+        return entries;
+    }
+
+    /// <summary>Gli episodi nuovi di una serie, a chi li vede e segue la serie.</summary>
+    private void AddSeries(Guid seriesId, List<LibraryTitle> episodes, List<Recipient> recipients)
+    {
+        var visible = new Dictionary<Recipient, List<LibraryTitle>>();
+        foreach (var episode in episodes)
+        {
+            foreach (var recipient in recipients)
+            {
+                if (!recipient.Allows(episode) || !access.CanSee(recipient.UserId, episode.ItemId))
+                {
+                    continue;
+                }
+
+                if (!visible.TryGetValue(recipient, out var seen))
+                {
+                    seen = [];
+                    visible[recipient] = seen;
+                }
+
+                seen.Add(episode);
+            }
+        }
+
+        // Nome e chiave della serie: meglio da un episodio con i metadati.
+        var first = episodes.FirstOrDefault(e => e.Refreshed) ?? episodes[0];
+        var newEpisodes = episodes.Select(e => e.ItemId).ToList();
+        bool? hasOtherEpisodes = null;
+        foreach (var recipient in recipients)
+        {
+            if (!visible.TryGetValue(recipient, out var seen))
             {
                 continue;
             }
 
-            entries[user.Id] = Entry(
-                userMovies, userSeries.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase).ToList(), now);
-        }
+            // Una domanda sola per tutti: senza altri episodi della serie, per
+            // ogni utente basta la preferita (niente conteggi di visti e iniziati).
+            hasOtherEpisodes ??= library.HasOtherEpisodes(first.SeriesKey, newEpisodes);
+            if (!library.FollowsSeries(recipient.UserId, seriesId, first.SeriesKey, newEpisodes, hasOtherEpisodes.Value))
+            {
+                continue;
+            }
 
-        return entries;
+            recipient.Series.Add(new NewTitleSeries
+            {
+                SeriesId = seriesId.ToString("N"),
+                Name = first.SeriesName,
+                Episodes = seen
+                    .OrderBy(e => e.Season ?? int.MaxValue)
+                    .ThenBy(e => e.Episode ?? int.MaxValue)
+                    .Select(e => new NewTitleEpisode { Season = e.Season, Episode = e.Episode })
+                    .ToList(),
+            });
+        }
     }
 
     private static InboxEntry Entry(List<LibraryTitle> movies, List<NewTitleSeries> series, DateTimeOffset now)
@@ -479,4 +522,19 @@ public sealed class NewTitlesCollector(
 
     // Solo sotto _lock.
     private NewTitlesWave Current() => _wave ??= new NewTitlesWave(time.GetUtcNow());
+
+    /// <summary>Le righe di un utente mentre si costruiscono le voci.</summary>
+    private sealed class Recipient(Guid userId)
+    {
+        public Guid UserId { get; } = userId;
+
+        /// <summary>Limiti sui contenuti: niente titoli senza metadati.</summary>
+        public bool HasContentLimits { get; set; }
+
+        public List<LibraryTitle> Movies { get; } = [];
+
+        public List<NewTitleSeries> Series { get; } = [];
+
+        public bool Allows(LibraryTitle title) => title.Refreshed || !HasContentLimits;
+    }
 }

@@ -37,9 +37,18 @@ public interface ILibraryTitles
     LibraryTitle? Get(Guid itemId);
 
     /// <summary>
+    /// La serie ha altri episodi veri oltre a excludeEpisodes (quelli appena
+    /// arrivati), per nessun utente in particolare: una domanda sola per tutti.
+    /// False senza la chiave della serie.
+    /// </summary>
+    bool HasOtherEpisodes(string seriesKey, IReadOnlyCollection<Guid> excludeEpisodes);
+
+    /// <summary>
     /// L'utente segue la serie: è tra i suoi preferiti (La mia lista), oppure
     /// ha visto o iniziato un episodio che non è tra excludeEpisodes (quelli
-    /// appena arrivati).
+    /// appena arrivati). Senza altri episodi (hasOtherEpisodes, da
+    /// <see cref="HasOtherEpisodes"/>) conta solo la preferita.
     /// </summary>
-    bool FollowsSeries(Guid userId, Guid seriesId, string seriesKey, IReadOnlyCollection<Guid> excludeEpisodes);
+    bool FollowsSeries(
+        Guid userId, Guid seriesId, string seriesKey, IReadOnlyCollection<Guid> excludeEpisodes, bool hasOtherEpisodes);
 }
