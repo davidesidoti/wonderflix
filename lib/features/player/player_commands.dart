@@ -21,6 +21,9 @@ enum PlayerCommand {
   subtitleDelayUp,
   nextEpisode,
 
+  /// Titolo o episodio precedente (spec H §9.1).
+  previous,
+
   /// Esc: chiude il pannello, poi esce dallo schermo intero, poi dal player.
   escape,
 
@@ -42,6 +45,8 @@ final _commands = <LogicalKeyboardKey, PlayerCommand>{
   LogicalKeyboardKey.keyH: PlayerCommand.subtitleDelayUp,
   LogicalKeyboardKey.keyN: PlayerCommand.nextEpisode,
   LogicalKeyboardKey.mediaTrackNext: PlayerCommand.nextEpisode,
+  LogicalKeyboardKey.keyP: PlayerCommand.previous,
+  LogicalKeyboardKey.mediaTrackPrevious: PlayerCommand.previous,
   LogicalKeyboardKey.escape: PlayerCommand.escape,
   LogicalKeyboardKey.browserBack: PlayerCommand.exit,
   LogicalKeyboardKey.mediaStop: PlayerCommand.exit,
@@ -62,11 +67,12 @@ const _repeatable = {
 final _mediaKeys = {
   LogicalKeyboardKey.mediaPlayPause,
   LogicalKeyboardKey.mediaTrackNext,
+  LogicalKeyboardKey.mediaTrackPrevious,
   LogicalKeyboardKey.mediaStop,
 };
 
-/// [key] è un tasto multimediale (play/pausa, successivo, stop): non scrive
-/// nulla, vale anche con la chat del watch party aperta.
+/// [key] è un tasto multimediale (play/pausa, successivo, precedente, stop):
+/// non scrive nulla, vale anche con la chat del watch party aperta.
 bool isMediaKey(LogicalKeyboardKey key) => _mediaKeys.contains(key);
 
 /// Comando del player per un evento di tastiera; `null` se il tasto non è

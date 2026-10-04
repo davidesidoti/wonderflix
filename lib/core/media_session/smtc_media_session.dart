@@ -81,6 +81,10 @@ class SmtcMediaSession implements MediaSession {
   Future<void> setNextEnabled(bool enabled) =>
       _run(() => _smtc.setIsNextEnabled(enabled));
 
+  @override
+  Future<void> setPreviousEnabled(bool enabled) =>
+      _run(() => _smtc.setIsPrevEnabled(enabled));
+
   /// Il pannello di Windows non mostra il watch party.
   @override
   Future<void> setParty(int? members) async {}
@@ -99,6 +103,7 @@ class SmtcMediaSession implements MediaSession {
         PressedButton.play => MediaButton.play,
         PressedButton.pause => MediaButton.pause,
         PressedButton.next => MediaButton.next,
+        PressedButton.previous => MediaButton.previous,
         PressedButton.stop => MediaButton.stop,
         _ => null,
       };

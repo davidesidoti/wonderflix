@@ -128,6 +128,7 @@ void main() {
     await pumpOverlay(tester,
         const PlayerViewState(status: PlayerStatus.ready, playing: true));
     expect(find.byTooltip('Episodio successivo'), findsNothing);
+    expect(find.byTooltip('Episodio precedente'), findsNothing);
   });
 
   Widget overlay({required bool visible}) => PlayerOverlay(
@@ -330,5 +331,41 @@ void main() {
     await pumpOverlay(tester, view, reactions: true, reactionsLinked: false);
     expect(find.byTooltip('Reazioni (1–6)'), findsOneWidget);
     expect(anchor, findsNothing);
+  });
+
+  testWidgets('precedente prima di successivo; nel watch party si parla di '
+      'titoli (spec H §9.1)', (tester) async {
+    final calls = <String>[];
+    Future<void> pump({required bool partyQueue}) => pumpApp(
+          tester,
+          Scaffold(
+            body: PlayerOverlay(
+              view: const PlayerViewState(status: PlayerStatus.ready),
+              engine: FakeVideoEngine(),
+              fullscreen: false,
+              onBack: () {},
+              onTogglePlay: () {},
+              onSeekBy: (_) {},
+              onSeekTo: (_) {},
+              onVolume: (_) {},
+              onToggleMute: () {},
+              onToggleTracks: () {},
+              onToggleFullscreen: () {},
+              onPrevious: () => calls.add('previous'),
+              onNextEpisode: () => calls.add('next'),
+              partyQueue: partyQueue,
+            ),
+          ),
+        );
+    await pump(partyQueue: false);
+    await tester.tap(find.byTooltip('Episodio precedente'));
+    await tester.tap(find.byTooltip('Episodio successivo'));
+    expect(
+        tester.getCenter(find.byTooltip('Episodio precedente')).dx,
+        lessThan(tester.getCenter(find.byTooltip('Episodio successivo')).dx));
+    await pump(partyQueue: true);
+    await tester.tap(find.byTooltip('Titolo precedente'));
+    await tester.tap(find.byTooltip('Titolo successivo'));
+    expect(calls, ['previous', 'next', 'previous', 'next']);
   });
 }

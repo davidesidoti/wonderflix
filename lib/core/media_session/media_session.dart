@@ -1,5 +1,5 @@
 /// Pulsanti del pannello media di sistema e dei tasti multimediali.
-enum MediaButton { play, pause, next, stop }
+enum MediaButton { play, pause, next, previous, stop }
 
 /// Pannello media di sistema (su Windows: SMTC): titolo, immagine, stato
 /// e tasti multimediali, attivi anche con l'app in secondo piano.
@@ -27,6 +27,9 @@ abstract class MediaSession {
   });
 
   Future<void> setNextEnabled(bool enabled);
+
+  /// Pulsante "precedente" del pannello (spec H §9.1).
+  Future<void> setPreviousEnabled(bool enabled);
 
   /// Persone nel watch party (`null` = fuori da un gruppo). Solo Discord lo
   /// mostra.
@@ -60,6 +63,9 @@ class NoopMediaSession implements MediaSession {
 
   @override
   Future<void> setNextEnabled(bool enabled) async {}
+
+  @override
+  Future<void> setPreviousEnabled(bool enabled) async {}
 
   @override
   Future<void> setParty(int? members) async {}

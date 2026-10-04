@@ -119,6 +119,9 @@ class DiscordPresence implements MediaSession {
   Future<void> setNextEnabled(bool enabled) async {}
 
   @override
+  Future<void> setPreviousEnabled(bool enabled) async {}
+
+  @override
   Future<void> setParty(int? members) async {
     _partySize = members;
     _sync();

@@ -475,6 +475,17 @@ void main() {
     expect(playback.segmentsCalls, ['m1']);
   });
 
+  test('episodio precedente caricato dopo la partenza (spec H §8.4)',
+      () async {
+    library.itemsById['m1'] =
+        testItem(id: 'm1', kind: ItemKind.episode, seriesId: 's1');
+    library.previousEpisodes['m1'] =
+        testItem(id: 'm0', kind: ItemKind.episode, seriesId: 's1');
+    await start();
+    expect(view().previousEpisode?.id, 'm0');
+    expect(library.previousEpisodeCalls, ['m1']);
+  });
+
   test('film: nessun episodio successivo; segmenti non disponibili ignorati',
       () async {
     playback.segmentsError = const ServerUnreachableException();
@@ -483,6 +494,8 @@ void main() {
     expect(view().segments, isEmpty);
     expect(view().nextEpisode, isNull);
     expect(library.nextEpisodeCalls, isEmpty);
+    expect(view().previousEpisode, isNull);
+    expect(library.previousEpisodeCalls, isEmpty);
   });
 
   test('salta il segmento in corso', () async {

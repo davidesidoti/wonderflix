@@ -217,6 +217,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final party = _inParty ? ref.read(watchPartySessionProvider) : null;
     unawaited(_mediaSession.setNextEnabled(
         party != null && party.inGroup && party.hasNext));
+    unawaited(_mediaSession.setPreviousEnabled(
+        party != null && party.inGroup && party.hasPrevious));
     // Discord: quante persone nel watch party (`null` fuori da un gruppo).
     unawaited(_mediaSession.setParty(
         party != null && party.inGroup ? party.members.length : null));
@@ -517,6 +519,45 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (requested) channel.announce(PartyAction.nextItem);
   }
 
+  /// Torna al titolo precedente (spec H §9.1). Nel gruppo lo chiede al
+  /// gruppo; da soli apre l'episodio prima, da dove era rimasto, senza
+  /// segnare come visto quello che si lascia.
+  void _playPrevious() {
+    if (_inParty) {
+      if (!_leaving) {
+        // Come per il successivo: un `Seek` in sospeso salterebbe
+        // nell'elemento nuovo.
+        _authority?.cancelPendingSeek();
+        unawaited(_requestPreviousInParty(widget.args.party!));
+      }
+      return;
+    }
+    final previous =
+        ref.read(playerControllerProvider(widget.args)).previousEpisode;
+    if (previous == null || _leaving) return;
+    _leaving = true;
+    _handingOver = true;
+    unawaited(_controller.close());
+    ScaffoldMessenger.maybeOf(context)?.clearSnackBars();
+    final userData =
+        ref.read(userDataOverridesProvider)[previous.id] ?? previous.userData;
+    final action = primaryActionFor(previous, userData);
+    final start = action is ResumeAction ? action.position : Duration.zero;
+    context.pushReplacement(
+        playerRoute(previous.id, start: start, fullscreen: _fullscreen),
+        extra: playerReplacement);
+  }
+
+  /// Chiede al gruppo l'elemento prima di [playlistItemId] e, se la
+  /// richiesta arriva al server, la annuncia agli altri (spec H §10).
+  Future<void> _requestPreviousInParty(String playlistItemId) async {
+    final channel = ref.read(partyChannelProvider.notifier);
+    final requested = await ref
+        .read(watchPartySessionProvider.notifier)
+        .previousItem(playlistItemId);
+    if (requested) channel.announce(PartyAction.previousItem);
+  }
+
   /// Fine del video: episodio successivo se previsto, altrimenti uscita.
   void _onFinished() {
     // Nel gruppo si passa all'elemento dopo della coda (il server scarta le
@@ -683,6 +724,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         unawaited(_controller.pause());
       case MediaButton.next:
         _playNext();
+      case MediaButton.previous:
+        _playPrevious();
       case MediaButton.stop:
         _exit();
     }
@@ -857,6 +900,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         unawaited(_toggleFullscreen());
       case PlayerCommand.nextEpisode:
         _playNext();
+      case PlayerCommand.previous:
+        _playPrevious();
       case PlayerCommand.escape:
         _escape();
       case PlayerCommand.exit:
@@ -947,6 +992,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     ref.listen(provider.select((s) => s.nextEpisode != null), (_, hasNext) {
       // Nel gruppo il "successivo" segue la coda (vedi sotto).
       if (!_inParty) unawaited(_mediaSession.setNextEnabled(hasNext));
+    });
+    ref.listen(provider.select((s) => s.previousEpisode != null),
+        (_, hasPrevious) {
+      // Nel gruppo il "precedente" segue la coda.
+      if (!_inParty) unawaited(_mediaSession.setPreviousEnabled(hasPrevious));
     });
     ref.listen(provider.select((s) => s.transcodingFallback), (_, fallback) {
       if (fallback) {
@@ -1203,6 +1253,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 ? _playNext
                                 : null)
                             : (next == null ? null : _playNext),
+                        onPrevious: _inParty
+                            ? null
+                            : (view.previousEpisode == null
+                                ? null
+                                : _playPrevious),
                         chapters: view.item?.chapters ?? const [],
                         preview: _previewFor(view),
                         partyBadge: party != null && party.inGroup

@@ -31,6 +31,8 @@ class PlayerOverlay extends StatelessWidget {
     required this.onToggleFullscreen,
     this.visible = true,
     this.onNextEpisode,
+    this.onPrevious,
+    this.partyQueue = false,
     this.chapters = const [],
     this.preview,
     this.partyBadge,
@@ -58,6 +60,13 @@ class PlayerOverlay extends StatelessWidget {
 
   /// `null` se non c'è un episodio successivo.
   final VoidCallback? onNextEpisode;
+
+  /// `null` se non c'è un titolo prima (spec H §9.1).
+  final VoidCallback? onPrevious;
+
+  /// Nel watch party ⏮ e ⏭ seguono la coda, che può avere anche film: i
+  /// suggerimenti dicono "Titolo", non "Episodio".
+  final bool partyQueue;
   final List<ChapterMark> chapters;
   final Widget? Function(Duration position)? preview;
 
@@ -273,10 +282,20 @@ class PlayerOverlay extends StatelessWidget {
                           const SizedBox(width: 12),
                           RepaintBoundary(child: TimeLabel(engine: engine)),
                           const Spacer(),
+                          if (onPrevious != null)
+                            PlayerIconButton(
+                              icon: const Icon(LucideIcons.skipBack),
+                              tooltip: partyQueue
+                                  ? l.playerPreviousInQueue
+                                  : l.playerPreviousEpisode,
+                              onPressed: onPrevious,
+                            ),
                           if (onNextEpisode != null)
                             PlayerIconButton(
                               icon: const Icon(LucideIcons.skipForward),
-                              tooltip: l.playerNextEpisode,
+                              tooltip: partyQueue
+                                  ? l.playerNextInQueue
+                                  : l.playerNextEpisode,
                               onPressed: onNextEpisode,
                             ),
                           if (onWatchTogether != null)

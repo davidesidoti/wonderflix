@@ -52,6 +52,10 @@ class MirroredMediaSession implements MediaSession {
       _all((s) => s.setNextEnabled(enabled));
 
   @override
+  Future<void> setPreviousEnabled(bool enabled) =>
+      _all((s) => s.setPreviousEnabled(enabled));
+
+  @override
   Future<void> setParty(int? members) => _all((s) => s.setParty(members));
 
   @override

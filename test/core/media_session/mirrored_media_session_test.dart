@@ -23,6 +23,7 @@ void main() {
         position: const Duration(seconds: 3),
         duration: const Duration(hours: 2));
     await session.setNextEnabled(true);
+    await session.setPreviousEnabled(false);
     await session.setParty(2);
     await session.clear();
 
@@ -31,6 +32,7 @@ void main() {
       expect(s.playingStates, [false]);
       expect(s.timelines, [const Duration(seconds: 3)]);
       expect(s.nextEnabled, [true]);
+      expect(s.previousEnabled, [false]);
       expect(s.parties, [2]);
       expect(s.cleared, 1);
     }

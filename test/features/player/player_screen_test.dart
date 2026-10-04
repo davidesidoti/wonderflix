@@ -796,6 +796,24 @@ void main() {
     library.nextEpisodes['e4'] = next;
   }
 
+  JellyfinItem episode3({int positionTicks = 0}) => testItem(
+        id: 'e3',
+        name: 'The Cat',
+        kind: ItemKind.episode,
+        seriesName: 'Breaking Bad',
+        seriesId: 's1',
+        index: 3,
+        seasonIndex: 1,
+        positionTicks: positionTicks,
+        playedPercentage: positionTicks > 0 ? 10 : null,
+      );
+
+  void withPreviousEpisode({int positionTicks = 0}) {
+    final previous = episode3(positionTicks: positionTicks);
+    library.itemsById['e3'] = previous;
+    library.previousEpisodes['e4'] = previous;
+  }
+
   testWidgets('salta intro: pulsante durante l\'intro', (tester) async {
     playback.segments = const [
       MediaSegment(
@@ -1618,6 +1636,58 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('home'), findsOneWidget);
     expect(container.read(playerActiveProvider), isFalse);
+    await unmount(tester);
+  });
+
+  testWidgets('episodio precedente (spec H §9.1): pulsante, da dove era',
+      (tester) async {
+    withPreviousEpisode(
+        positionTicks: durationToTicks(const Duration(minutes: 5)));
+    await pumpPlayer(tester);
+    await tester.tap(find.byTooltip('Episodio precedente'));
+    await tester.pumpAndSettle();
+    expect(find.text('S1:E3 · The Cat'), findsOneWidget);
+    expect(engines, hasLength(2));
+    expect(engines.last.opened.single.start, const Duration(minutes: 5));
+    expect(library.playedCalls, isEmpty,
+        reason: 'tornando indietro non si segna come visto');
+    await unmount(tester);
+  });
+
+  testWidgets('senza episodio precedente: né pulsante né tasto P',
+      (tester) async {
+    await pumpPlayer(tester);
+    expect(find.byTooltip('Episodio precedente'), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyP);
+    await tester.pumpAndSettle();
+    expect(engines, hasLength(1));
+    await unmount(tester);
+  });
+
+  testWidgets('P a schermo intero: il precedente resta a schermo intero',
+      (tester) async {
+    withPreviousEpisode();
+    await pumpPlayer(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyP);
+    await tester.pumpAndSettle();
+    expect(find.text('S1:E3 · The Cat'), findsOneWidget);
+    expect(window.fullScreenCalls, [true], reason: 'mai uscito');
+    await unmount(tester);
+  });
+
+  testWidgets('pannello media: "precedente" solo se c\'è un episodio prima',
+      (tester) async {
+    withPreviousEpisode();
+    await pumpPlayer(tester);
+    expect(mediaSession.previousEnabled.last, isTrue);
+    mediaSession.press(MediaButton.previous);
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('S1:E3 · The Cat'), findsOneWidget);
+    expect(mediaSession.previousEnabled.last, isFalse,
+        reason: 'e3 non ha un episodio prima');
     await unmount(tester);
   });
 }

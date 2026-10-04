@@ -94,4 +94,18 @@ void main() {
   test('il rilascio del tasto non fa nulla', () {
     expect(playerCommandFor(up(LogicalKeyboardKey.space)), isNull);
   });
+
+  test('P e il tasto multimediale "indietro": precedente (spec H §9.1)', () {
+    expect(playerCommandFor(down(LogicalKeyboardKey.keyP)),
+        PlayerCommand.previous);
+    expect(playerCommandFor(down(LogicalKeyboardKey.mediaTrackPrevious)),
+        PlayerCommand.previous);
+    expect(isMediaKey(LogicalKeyboardKey.mediaTrackPrevious), isTrue);
+    expect(
+        playerCommandFor(down(LogicalKeyboardKey.mediaTrackPrevious),
+            mediaKeys: false),
+        isNull,
+        reason: 'lo riceve già la sessione media di sistema');
+    expect(playerCommandFor(repeat(LogicalKeyboardKey.keyP)), isNull);
+  });
 }

@@ -44,6 +44,7 @@ class PlayerViewState {
     this.finished = false,
     this.segments = const [],
     this.nextEpisode,
+    this.previousEpisode,
   });
 
   final PlayerStatus status;
@@ -75,6 +76,9 @@ class PlayerViewState {
   /// Episodio che segue quello in riproduzione (solo per le serie).
   final JellyfinItem? nextEpisode;
 
+  /// Episodio che precede quello in riproduzione (solo per le serie).
+  final JellyfinItem? previousEpisode;
+
   List<MediaStreamInfo> get audioStreams =>
       plan?.mediaSource.audioStreams ?? const [];
 
@@ -100,6 +104,7 @@ class PlayerViewState {
     bool? finished,
     List<MediaSegment>? segments,
     JellyfinItem? nextEpisode,
+    JellyfinItem? previousEpisode,
   }) =>
       PlayerViewState(
         status: status ?? this.status,
@@ -120,6 +125,7 @@ class PlayerViewState {
         finished: finished ?? this.finished,
         segments: segments ?? this.segments,
         nextEpisode: nextEpisode ?? this.nextEpisode,
+        previousEpisode: previousEpisode ?? this.previousEpisode,
       );
 }
 
@@ -607,10 +613,20 @@ class PlayerController extends Notifier<PlayerViewState> {
             null,
             'episodio successivo')
         : Future<JellyfinItem?>.value();
+    final previous = item.kind == ItemKind.episode && seriesId != null
+        ? safely<JellyfinItem?>(
+            () => _library.previousEpisode(_userId, seriesId, item.id),
+            null,
+            'episodio precedente')
+        : Future<JellyfinItem?>.value();
     final loadedSegments = await segments;
     final loadedNext = await next;
+    final loadedPrevious = await previous;
     if (_closing != null) return;
-    _emit(_view.copyWith(segments: loadedSegments, nextEpisode: loadedNext));
+    _emit(_view.copyWith(
+        segments: loadedSegments,
+        nextEpisode: loadedNext,
+        previousEpisode: loadedPrevious));
   }
 
   /// Chiude la riproduzione: segnala la fine a Jellyfin (attesa massima 2 s),

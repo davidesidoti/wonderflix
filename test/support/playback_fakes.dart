@@ -557,6 +557,7 @@ class FakeMediaSession implements MediaSession {
   final playingStates = <bool>[];
   final timelines = <Duration>[];
   final nextEnabled = <bool>[];
+  final previousEnabled = <bool>[];
   final parties = <int?>[];
 
   /// Volte in cui il pannello è stato nascosto ([clear]).
@@ -585,6 +586,10 @@ class FakeMediaSession implements MediaSession {
 
   @override
   Future<void> setNextEnabled(bool enabled) async => nextEnabled.add(enabled);
+
+  @override
+  Future<void> setPreviousEnabled(bool enabled) async =>
+      previousEnabled.add(enabled);
 
   @override
   Future<void> setParty(int? members) async => parties.add(members);
