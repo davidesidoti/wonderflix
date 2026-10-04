@@ -414,6 +414,26 @@ void main() {
     });
   });
 
+  test('coda del watch party (spec H §9.1): come le tracce, controlli su e '
+      'niente pausa', () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController()
+        ..setPlayback(playing: true, canShowPauseScreen: false);
+      async.elapse(PlayerChromeController.hideDelay);
+      expect(chrome.controlsVisible, isFalse);
+      chrome.openPopup(PlayerPopup.queue);
+      expect(chrome.controlsVisible, isTrue);
+      async.elapse(const Duration(seconds: 10));
+      expect(chrome.controlsVisible, isTrue);
+      chrome.setPlayback(playing: false, canShowPauseScreen: true);
+      async.elapse(const Duration(seconds: 20));
+      expect(chrome.pauseScreen, isFalse);
+      chrome.togglePopup(PlayerPopup.tracks);
+      expect(chrome.popup, PlayerPopup.tracks, reason: 'uno alla volta');
+      chrome.dispose();
+    });
+  });
+
   test('coperto da un menu: i controlli e la pausa aspettano che si chiuda',
       () {
     fakeAsync((async) {

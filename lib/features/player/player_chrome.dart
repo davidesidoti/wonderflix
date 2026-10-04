@@ -52,8 +52,8 @@ final class SkipFeedback extends PlayerFeedback {
 
 /// Riquadri del player che si aprono uno alla volta (spec E §11): il
 /// pannello "Audio e sottotitoli", la chat e la barretta delle reazioni del
-/// watch party.
-enum PlayerPopup { tracks, chat, reactions }
+/// watch party, il pannello "Coda" del gruppo (spec H §9.1).
+enum PlayerPopup { tracks, chat, reactions, queue }
 
 /// Stato dell'interfaccia del player (spec D §5.1): controlli, pannello e
 /// riscontro dei tasti. Lo stato della riproduzione resta nel
@@ -166,14 +166,15 @@ class PlayerChromeController extends ChangeNotifier {
     _scheduleHide();
   }
 
-  /// Apre [popup], chiudendo quello aperto. Il pannello "Audio e sottotitoli" e la
-  /// barretta delle reazioni mostrano i controlli e li tengono su; la chat
-  /// no (spec E §9.6). Tutti chiudono la schermata di pausa.
+  /// Apre [popup], chiudendo quello aperto. I pannelli ("Audio e
+  /// sottotitoli" e "Coda") e la barretta delle reazioni mostrano i
+  /// controlli e li tengono su; la chat no (spec E §9.6). Tutti chiudono la
+  /// schermata di pausa.
   void openPopup(PlayerPopup popup) {
     if (_popup == popup) return;
     _popup = popup;
     _pauseScreen = false;
-    // Pannello e barretta stanno nei controlli: si vedono e restano.
+    // Pannelli e barretta stanno nei controlli: si vedono e restano.
     if (popup != PlayerPopup.chat) _controlsVisible = true;
     notifyListeners();
     _scheduleHide();
@@ -268,15 +269,18 @@ class PlayerChromeController extends ChangeNotifier {
 
   /// In riproduzione i controlli si nascondono dopo [hideDelay]; in pausa,
   /// se ammessa, dopo [pauseScreenDelay] compare la schermata di pausa (e i
-  /// controlli si nascondono). Con il pannello o la barretta delle reazioni
-  /// aperti nessuno dei due; con la chat aperta i controlli si nascondono ma
-  /// la schermata di pausa non parte (si sta scrivendo, spec E §9.6).
+  /// controlli si nascondono). Con uno dei due pannelli (tracce, coda) o la
+  /// barretta delle reazioni aperti nessuno dei due; con la chat aperta i
+  /// controlli si nascondono ma la schermata di pausa non parte (si sta
+  /// scrivendo, spec E §9.6).
   void _scheduleHide() {
     _hideTimer?.cancel();
     _hideTimer = null;
     _pauseTimer?.cancel();
     _pauseTimer = null;
-    if (_popup == PlayerPopup.tracks || _popup == PlayerPopup.reactions) {
+    if (_popup == PlayerPopup.tracks ||
+        _popup == PlayerPopup.reactions ||
+        _popup == PlayerPopup.queue) {
       return;
     }
     if (_playing) {
