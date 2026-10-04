@@ -9,7 +9,8 @@ import '../../../core/jellyfin/item_query.dart';
 import '../../library/library_providers.dart';
 import '../../watch_party/watch_party_session.dart';
 
-/// Una vista del pannello "Coda" (spec H §9.2).
+/// Una vista del pannello "Coda" (spec H §9.2). Due viste sono uguali se
+/// mostrano la stessa cosa: serve a [QueuePanelNav.open].
 sealed class QueuePanelPage {
   const QueuePanelPage();
 }
@@ -17,11 +18,23 @@ sealed class QueuePanelPage {
 /// La coda del gruppo.
 final class QueuePanelQueue extends QueuePanelPage {
   const QueuePanelQueue();
+
+  @override
+  bool operator ==(Object other) => other is QueuePanelQueue;
+
+  @override
+  int get hashCode => (QueuePanelQueue).hashCode;
 }
 
 /// Ricerca e La mia lista.
 final class QueuePanelAdd extends QueuePanelPage {
   const QueuePanelAdd();
+
+  @override
+  bool operator ==(Object other) => other is QueuePanelAdd;
+
+  @override
+  int get hashCode => (QueuePanelAdd).hashCode;
 }
 
 /// Le stagioni di una serie.
@@ -29,6 +42,13 @@ final class QueuePanelSeries extends QueuePanelPage {
   const QueuePanelSeries(this.series);
 
   final JellyfinItem series;
+
+  @override
+  bool operator ==(Object other) =>
+      other is QueuePanelSeries && other.series.id == series.id;
+
+  @override
+  int get hashCode => Object.hash(QueuePanelSeries, series.id);
 }
 
 /// Gli episodi di una stagione.
@@ -37,6 +57,15 @@ final class QueuePanelSeason extends QueuePanelPage {
 
   final JellyfinItem series;
   final JellyfinItem season;
+
+  @override
+  bool operator ==(Object other) =>
+      other is QueuePanelSeason &&
+      other.series.id == series.id &&
+      other.season.id == season.id;
+
+  @override
+  int get hashCode => Object.hash(QueuePanelSeason, series.id, season.id);
 }
 
 /// Le viste aperte nel pannello, dalla Coda in giù (l'ultima è quella
@@ -53,7 +82,12 @@ class QueuePanelNav extends Notifier<List<QueuePanelPage>> {
     return const [QueuePanelQueue()];
   }
 
-  void open(QueuePanelPage page) => state = [...state, page];
+  /// Apre [page] sopra le altre. Se è già quella in cima non fa nulla: un
+  /// doppio clic durante la dissolvenza tra due viste non la ripete.
+  void open(QueuePanelPage page) {
+    if (state.last == page) return;
+    state = [...state, page];
+  }
 
   /// Torna alla vista prima; la Coda resta.
   void back() {
@@ -67,14 +101,12 @@ final queuePanelNavProvider =
     NotifierProvider<QueuePanelNav, List<QueuePanelPage>>(QueuePanelNav.new);
 
 class QueueAddSearchState {
-  const QueueAddSearchState(
-      {this.term = '', this.results, this.loading = false, this.error});
+  const QueueAddSearchState({this.term = '', this.results, this.error});
 
   final String term;
 
   /// Film e serie trovati; `null` finché non c'è una risposta.
   final List<JellyfinItem>? results;
-  final bool loading;
   final Object? error;
 }
 
@@ -112,8 +144,8 @@ class QueueAddSearch extends Notifier<QueueAddSearchState> {
       state = QueueAddSearchState(term: term);
       return;
     }
-    state =
-        QueueAddSearchState(term: term, results: state.results, loading: true);
+    // I risultati di prima restano in vista finché arrivano quelli nuovi.
+    state = QueueAddSearchState(term: term, results: state.results);
     _debounce = Timer(debounce, () => unawaited(_search(term)));
   }
 
@@ -122,7 +154,7 @@ class QueueAddSearch extends Notifier<QueueAddSearchState> {
     final term = state.term;
     if (term.length < minLength) return;
     _stop();
-    state = QueueAddSearchState(term: term, loading: true);
+    state = QueueAddSearchState(term: term);
     unawaited(_search(term));
   }
 

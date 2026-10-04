@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/jellyfin/image_urls.dart';
 import '../../../core/jellyfin/item_models.dart';
 import '../../../core/syncplay/syncplay_models.dart';
 import '../../../l10n/gen/app_localizations.dart';
@@ -53,8 +54,9 @@ class QueueSeriesView extends ConsumerWidget {
     final episodes = ref.watch(queueSeriesEpisodesProvider(series.id));
     final queued = partyQueueQueuedIds(queue);
     final full = partyQueueRoom(queue) == 0;
-    final count = series.childCount;
 
+    // Quante stagioni si vedono, finché non si sa niente.
+    String? subtitle;
     final Widget body;
     if (seasons.hasError || episodes.hasError) {
       body = QueueMessage(
@@ -63,44 +65,31 @@ class QueueSeriesView extends ConsumerWidget {
           ..invalidate(seasonsProvider(series.id))
           ..invalidate(queueSeriesEpisodesProvider(series.id)),
       );
-    } else if (seasons.value case final seasonList?
-        when episodes.value != null) {
-      final bySeason = _bySeason(episodes.value!);
+    } else if ((seasons.value, episodes.value)
+        case (final seasonList?, final episodeList?)) {
+      final bySeason = _bySeason(episodeList);
+      // Solo le stagioni con episodi veri.
+      final visible = [
+        for (final season in seasonList)
+          if (bySeason[season.id] case final list? when list.isNotEmpty)
+            (season, list),
+      ];
+      // Le stagioni si contano qui: la ricerca e La mia lista non danno
+      // `ChildCount`.
+      subtitle = l.detailSeasons(visible.length);
       body = ListView(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
         children: [
-          for (final season in seasonList)
-            if (bySeason[season.id] case final list? when list.isNotEmpty)
-              () {
-                final remaining = [
-                  for (final episode in list)
-                    if (!queued.contains(episode.id)) episode,
-                ];
-                final already = list.length - remaining.length;
-                return QueueItemRow(
-                  key: ValueKey('queue-season-${season.id}'),
-                  image: urls.poster(season) ?? urls.poster(series),
-                  title: season.name,
-                  details: [
-                    l.partyQueueEpisodeCount(list.length),
-                    if (already > 0) l.partyQueueAlreadyQueuedCount(already),
-                  ].join(' · '),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      QueueAddButtons(
-                        queued: remaining.isEmpty,
-                        full: full,
-                        onAdd: ({required next}) =>
-                            onAdd(remaining, next: next),
-                      ),
-                      const Icon(LucideIcons.chevronRight,
-                          size: 18, color: WfColors.creamMuted),
-                    ],
-                  ),
-                  onTap: () => onOpenSeason(season),
-                );
-              }(),
+          for (final (season, list) in visible)
+            _SeasonRow(
+              season: season,
+              episodes: list,
+              image: urls.poster(season) ?? urls.poster(series),
+              queued: queued,
+              full: full,
+              onAdd: onAdd,
+              onOpen: () => onOpenSeason(season),
+            ),
         ],
       );
     } else {
@@ -110,11 +99,67 @@ class QueueSeriesView extends ConsumerWidget {
     return QueuePanelFrame(
       header: QueuePanelHeader(
         title: series.name,
-        subtitle: count == null ? null : l.detailSeasons(count),
+        subtitle: subtitle,
         onBack: onBack,
         onClose: onClose,
       ),
       body: body,
+    );
+  }
+}
+
+/// Una riga della vista Serie: la stagione con i suoi [episodes] veri, "N
+/// episodi · M già in coda", ↳/＋ per quelli che mancano e ›.
+class _SeasonRow extends StatelessWidget {
+  const _SeasonRow({
+    required this.season,
+    required this.episodes,
+    required this.image,
+    required this.queued,
+    required this.full,
+    required this.onAdd,
+    required this.onOpen,
+  });
+
+  final JellyfinItem season;
+  final List<JellyfinItem> episodes;
+  final ImageRef? image;
+
+  /// Gli `ItemId` già nella coda del gruppo.
+  final Set<String> queued;
+  final bool full;
+  final QueueAddCallback onAdd;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final remaining = [
+      for (final episode in episodes)
+        if (!queued.contains(episode.id)) episode,
+    ];
+    final already = episodes.length - remaining.length;
+    return QueueItemRow(
+      key: ValueKey('queue-season-${season.id}'),
+      image: image,
+      title: season.name,
+      details: [
+        l.partyQueueEpisodeCount(episodes.length),
+        if (already > 0) l.partyQueueAlreadyQueuedCount(already),
+      ].join(' · '),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          QueueAddButtons(
+            queued: remaining.isEmpty,
+            full: full,
+            onAdd: ({required next}) => onAdd(remaining, next: next),
+          ),
+          const Icon(LucideIcons.chevronRight,
+              size: 18, color: WfColors.creamMuted),
+        ],
+      ),
+      onTap: onOpen,
     );
   }
 }
@@ -195,7 +240,10 @@ class QueueSeasonView extends ConsumerWidget {
     return QueuePanelFrame(
       header: QueuePanelHeader(
         title: season.name,
-        subtitle: '${series.name} · ${l.partyQueueEpisodeCount(list.length)}',
+        // Il conto solo quando gli episodi sono arrivati.
+        subtitle: episodes.hasValue
+            ? '${series.name} · ${l.partyQueueEpisodeCount(list.length)}'
+            : series.name,
         onBack: onBack,
         onClose: onClose,
       ),
@@ -205,46 +253,81 @@ class QueueSeasonView extends ConsumerWidget {
 }
 
 /// "Tutta dopo" e "Tutta in coda": un'aggiunta alla volta, come
-/// [QueueAddButtons].
+/// [QueueAddButtons]. Durante l'attesa un indicatore compare accanto al
+/// pulsante premuto e nessuno dei due si ripreme; coda piena → spenti, con il
+/// motivo nel suggerimento.
 class _WholeSeasonButtons extends StatefulWidget {
   const _WholeSeasonButtons({required this.full, required this.onAdd});
 
   final bool full;
   final Future<void> Function({required bool next}) onAdd;
 
+  /// Spazio tra il pulsante che aspetta e il suo indicatore.
+  static const pendingGap = 8.0;
+
   @override
   State<_WholeSeasonButtons> createState() => _WholeSeasonButtonsState();
 }
 
 class _WholeSeasonButtonsState extends State<_WholeSeasonButtons> {
-  bool _pending = false;
+  /// Il pulsante che aspetta (`true` = "Tutta dopo"); `null` = nessuno.
+  bool? _pendingNext;
 
   Future<void> _run(bool next) async {
-    setState(() => _pending = true);
+    setState(() => _pendingNext = next);
     try {
       await widget.onAdd(next: next);
     } finally {
-      if (mounted) setState(() => _pending = false);
+      if (mounted) setState(() => _pendingNext = null);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final enabled = !widget.full && !_pending;
+    final enabled = !widget.full && _pendingNext == null;
+
+    Widget slot(bool next, Widget button) {
+      Widget child = button;
+      if (_pendingNext == next) {
+        child = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            button,
+            const SizedBox(width: _WholeSeasonButtons.pendingGap),
+            const SizedBox.square(
+              dimension: QueueAddButtons.pendingSize,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: WfColors.gold),
+            ),
+          ],
+        );
+      }
+      return widget.full
+          ? Tooltip(message: l.partyQueueFull(partyQueueLimit), child: child)
+          : child;
+    }
+
     return Wrap(
       spacing: 8,
       runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        WfButton.primary(
-          label: l.partyQueueWholeSeasonNext,
-          icon: LucideIcons.listStart,
-          onPressed: enabled ? () => _run(true) : null,
+        slot(
+          true,
+          WfButton.primary(
+            label: l.partyQueueWholeSeasonNext,
+            icon: LucideIcons.listStart,
+            onPressed: enabled ? () => _run(true) : null,
+          ),
         ),
-        WfButton.secondary(
-          label: l.partyQueueWholeSeasonEnd,
-          icon: LucideIcons.listPlus,
-          onPressed: enabled ? () => _run(false) : null,
+        slot(
+          false,
+          WfButton.secondary(
+            label: l.partyQueueWholeSeasonEnd,
+            icon: LucideIcons.listPlus,
+            onPressed: enabled ? () => _run(false) : null,
+          ),
         ),
       ],
     );

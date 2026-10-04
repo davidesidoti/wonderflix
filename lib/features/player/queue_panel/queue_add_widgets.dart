@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../app/theme.dart';
@@ -119,7 +118,7 @@ class QueuePanelHeader extends StatelessWidget {
 
 /// Una riga delle viste Aggiungi, Serie e Stagione: immagine, titolo, riga
 /// secondaria, in fondo [trailing].
-class QueueItemRow extends ConsumerWidget {
+class QueueItemRow extends StatelessWidget {
   const QueueItemRow({
     super.key,
     required this.image,
@@ -147,10 +146,11 @@ class QueueItemRow extends ConsumerWidget {
   static const thumbWidth = 64.0;
   static const thumbHeight = 36.0;
 
+  /// Raggio degli angoli della riga (il suo alone al passaggio).
   static const radius = 6.0;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final details = this.details;
     final trailing = this.trailing;
     return Material(
@@ -275,9 +275,15 @@ class _QueueAddButtonsState extends State<QueueAddButtons> {
       );
     }
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [button(true), button(false)],
+    // Un pulsante spento non prende il clic: lo prende questo, e non arriva
+    // alla riga (nella vista Serie aprirebbe la stagione).
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {},
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [button(true), button(false)],
+      ),
     );
   }
 }

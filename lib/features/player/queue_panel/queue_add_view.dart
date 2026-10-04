@@ -80,15 +80,13 @@ class _QueueAddViewState extends ConsumerState<QueueAddView> {
       bool full) {
     final urls = ref.watch(imageUrlsProvider);
     if (item.kind == ItemKind.series) {
-      final seasons = item.childCount;
       return QueueItemRow(
         key: ValueKey('queue-add-${item.id}'),
         image: urls.poster(item),
         title: item.name,
-        details: [
-          l.partyQueueSeries,
-          if (seasons != null) l.detailSeasons(seasons),
-        ].join(' · '),
+        // Le stagioni non si scrivono qui: la ricerca e La mia lista non
+        // chiedono `ChildCount`; le conta la vista Serie.
+        details: l.partyQueueSeries,
         trailing: const Padding(
           padding: EdgeInsets.only(right: 8),
           child: Icon(LucideIcons.chevronRight,
@@ -114,6 +112,9 @@ class _QueueAddViewState extends ConsumerState<QueueAddView> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final search = ref.watch(queueAddSearchProvider);
+    // Sempre osservata, anche mentre si cerca: cercando e tornando a un
+    // testo corto La mia lista è già lì, senza una seconda richiesta.
+    final favorites = ref.watch(favoritesProvider);
     final queued = partyQueueQueuedIds(widget.queue);
     final full = partyQueueRoom(widget.queue) == 0;
     final searching = search.term.length >= QueueAddSearch.minLength;
@@ -139,7 +140,10 @@ class _QueueAddViewState extends ConsumerState<QueueAddView> {
               ? const SizedBox.shrink()
               : list(l.partyQueueResults, results, l.partyQueueNoResults);
     } else {
-      body = ref.watch(favoritesProvider).when(
+      body = favorites.when(
+            // Ricaricando dopo un cambio sul server resta la lista di prima,
+            // come nella pagina La mia lista.
+            skipLoadingOnReload: true,
             data: (items) => list(
                 l.partyQueueMyList,
                 [...items]..sort((a, b) => (a.sortName ?? a.name)

@@ -79,10 +79,39 @@ void main() {
     });
   });
 
+  test('viste: riaprire la vista in cima non la ripete', () {
+    fakeAsync((async) {
+      mount(async);
+      final dark = testItem(id: 's1', name: 'Dark', kind: ItemKind.series);
+      final other = testItem(id: 's2', name: 'Altra', kind: ItemKind.series);
+      final season =
+          testItem(id: 'se1', name: 'Stagione 1', kind: ItemKind.other);
+      nav().open(const QueuePanelQueue());
+      expect(container.read(queuePanelNavProvider), hasLength(1));
+      nav()
+        ..open(const QueuePanelAdd())
+        ..open(const QueuePanelAdd())
+        ..open(QueuePanelSeries(dark))
+        ..open(QueuePanelSeries(dark));
+      expect(container.read(queuePanelNavProvider), hasLength(3));
+      nav().open(QueuePanelSeries(other));
+      expect(container.read(queuePanelNavProvider), hasLength(4),
+          reason: 'una serie diversa si apre');
+      nav()
+        ..open(QueuePanelSeason(other, season))
+        ..open(QueuePanelSeason(other, season));
+      expect(container.read(queuePanelNavProvider), hasLength(5));
+      container.dispose();
+    });
+  });
+
   test('ricerca: da 2 lettere, dopo 300 ms, film e serie, al massimo 20', () {
     fakeAsync((async) {
-      library.onItems = (query, start, limit) =>
-          pageOf([testItem(id: 'm1', name: 'Alien')]);
+      int? requestedLimit;
+      library.onItems = (query, start, limit) {
+        requestedLimit = limit;
+        return pageOf([testItem(id: 'm1', name: 'Alien')]);
+      };
       mount(async);
       search().setTerm('a');
       async.elapse(QueueAddSearch.debounce);
@@ -95,6 +124,7 @@ void main() {
       final query = library.itemQueries.single;
       expect(query.searchTerm, 'ali');
       expect(query.kinds, {ItemKind.movie, ItemKind.series});
+      expect(requestedLimit, 20);
       expect(container.read(queueAddSearchProvider).results?.single.id, 'm1');
       expect(container.read(queueAddSearchProvider).term, 'ali');
       container.dispose();
@@ -114,6 +144,59 @@ void main() {
       expect(container.read(queueAddSearchProvider).error, isNull);
       expect(container.read(queueAddSearchProvider).results, isNotNull);
       search().reset();
+      expect(container.read(queueAddSearchProvider).term, '');
+      expect(container.read(queueAddSearchProvider).results, isNull);
+      container.dispose();
+    });
+  });
+
+  test('ricerca: la risposta di un testo vecchio non compare', () {
+    fakeAsync((async) {
+      library
+        ..delay = const Duration(seconds: 1)
+        ..onItems = (query, start, limit) => pageOf(
+            [testItem(id: query.searchTerm!, name: query.searchTerm!)]);
+      mount(async);
+      search().setTerm('al');
+      async.elapse(QueueAddSearch.debounce);
+      // La richiesta "al" è in volo: cambia il testo.
+      search().setTerm('ali');
+      async.elapse(const Duration(seconds: 1));
+      expect(container.read(queueAddSearchProvider).results, isNull,
+          reason: '"al" ha risposto, ma il testo ora è "ali"');
+      async.elapse(const Duration(milliseconds: 400));
+      expect(container.read(queueAddSearchProvider).results?.single.id, 'ali');
+      container.dispose();
+    });
+  });
+
+  test('ricerca: azzerare scarta la richiesta in volo', () {
+    fakeAsync((async) {
+      library
+        ..delay = const Duration(seconds: 1)
+        ..onItems = (query, start, limit) =>
+            pageOf([testItem(id: 'm1', name: 'Alien')]);
+      mount(async);
+      search().setTerm('al');
+      async.elapse(QueueAddSearch.debounce);
+      search().reset();
+      async.elapse(const Duration(seconds: 2));
+      expect(container.read(queueAddSearchProvider).term, '');
+      expect(container.read(queueAddSearchProvider).results, isNull);
+      container.dispose();
+    });
+  });
+
+  test('ricerca: uscendo dal gruppo si azzera', () {
+    fakeAsync((async) {
+      library.onItems = (query, start, limit) =>
+          pageOf([testItem(id: 'm1', name: 'Alien')]);
+      mount(async);
+      search().setTerm('alien');
+      async.elapse(QueueAddSearch.debounce);
+      expect(container.read(queueAddSearchProvider).results, isNotNull);
+      unawaited(container.read(watchPartySessionProvider.notifier).leave());
+      async.flushMicrotasks();
       expect(container.read(queueAddSearchProvider).term, '');
       expect(container.read(queueAddSearchProvider).results, isNull);
       container.dispose();

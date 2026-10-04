@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
@@ -24,12 +25,9 @@ void main() {
   final heat = testItem(id: 'm1', name: 'Heat', year: 1995, sortName: 'heat');
   final alien =
       testItem(id: 'm2', name: 'Alien', year: 1979, sortName: 'alien');
+  // Come nelle risposte vere di ricerca e preferiti: senza `ChildCount`.
   final dark = testItem(
-      id: 's1',
-      name: 'Dark',
-      kind: ItemKind.series,
-      childCount: 3,
-      sortName: 'dark');
+      id: 's1', name: 'Dark', kind: ItemKind.series, sortName: 'dark');
 
   setUp(() {
     library = FakeLibraryApi()
@@ -40,7 +38,9 @@ void main() {
 
   /// La vista con la coda e4 (in corso), m2 (Alien, già in coda).
   Future<List<String>> pumpView(WidgetTester tester,
-      {PlayQueue? queue, FocusNode? focusNode}) async {
+      {PlayQueue? queue,
+      FocusNode? focusNode,
+      List<Override> overrides = const []}) async {
     final calls = <String>[];
     final node = focusNode ?? FocusNode();
     addTearDown(node.dispose);
@@ -71,6 +71,7 @@ void main() {
         // La ricerca ascolta la sessione del party: niente WebSocket.
         syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
         watchPartyEventsProvider.overrideWithValue(const Stream.empty()),
+        ...overrides,
       ],
     );
     await tester.pump();
@@ -88,7 +89,7 @@ void main() {
     ];
     expect(titles, orderedEquals([...titles]..sort()));
     expect(find.text('Film · 1995 · 2h'), findsOneWidget);
-    expect(find.text('Serie · 3 stagioni'), findsOneWidget);
+    expect(find.text('Serie'), findsOneWidget);
     expect(node.hasFocus, isTrue);
   });
 
@@ -175,4 +176,48 @@ void main() {
     await tester.pump();
     expect(find.text(l.partyQueueNoResults), findsOneWidget);
   });
+
+  testWidgets('La mia lista: errore con Riprova', (tester) async {
+    library.error = const ServerUnreachableException();
+    await pumpView(tester);
+    expect(find.text(l.partyQueueLoadFailed), findsOneWidget);
+    library.error = null;
+    await tester.tap(find.text(l.retry));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Heat'), findsOneWidget);
+    expect(find.text(l.partyQueueLoadFailed), findsNothing);
+  });
+
+  testWidgets('cercare e tornare a un testo corto: La mia lista è già lì, '
+      'senza una seconda richiesta', (tester) async {
+    await pumpView(tester);
+    await tester.enterText(find.byType(TextField), 'al');
+    await tester.pump(QueueAddSearch.debounce);
+    await tester.pump();
+    expect(find.text(l.partyQueueResults), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'a');
+    await tester.pump();
+    expect(find.text(l.partyQueueMyList), findsOneWidget);
+    expect(find.text('Heat'), findsOneWidget);
+    expect(library.itemQueries.where((query) => query.favoritesOnly),
+        hasLength(1));
+  });
+
+  testWidgets('il campo riparte dal testo della ricerca', (tester) async {
+    await pumpView(tester, overrides: [
+      queueAddSearchProvider.overrideWith(_SeededSearch.new),
+    ]);
+    expect(tester.widget<TextField>(find.byType(TextField)).controller?.text,
+        'dark');
+  });
+}
+
+/// Una ricerca già avviata, come dopo il cambio di player (spec H §9.1).
+class _SeededSearch extends QueueAddSearch {
+  @override
+  QueueAddSearchState build() {
+    super.build();
+    return const QueueAddSearchState(term: 'dark');
+  }
 }
