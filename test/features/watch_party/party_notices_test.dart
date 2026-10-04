@@ -603,7 +603,8 @@ void main() {
                     reason: 'SetCurrentItem',
                     lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
         expect(current()?.kind, PartyNoticeKind.nowWatching);
-        expect(current()?.title, 'Breaking Bad');
+        expect(current()?.title, 'S1:E5 · Cat\'s in the Bag',
+            reason: 'il salto nomina l\'episodio, come successivo e precedente');
         expect(current()?.name, 'Luigi');
         finish(async);
       });
@@ -720,6 +721,83 @@ void main() {
                     reason: 'MoveItem',
                     lastUpdate: DateTime.utc(2026, 9, 30, 10, 10))));
         expect(current(), isNull);
+        finish(async);
+      });
+    });
+
+    test('prima coda dopo l\'ingresso con motivo ShuffleMode: nessun avviso',
+        () {
+      fakeAsync((async) {
+        mount(async);
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                testSeriesQueue(reason: 'ShuffleMode', shuffled: true)));
+        expect(current(), isNull);
+        finish(async);
+      });
+    });
+
+    test('la mia eco più vecchia di 4 s non conta: l\'avviso c\'è', () {
+      fakeAsync((async) {
+        mount(async);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+        notices().mine(PartyNoticeKind.shuffleOn, show: false);
+        async.elapse(PartyNotices.queueEchoWindow +
+            const Duration(milliseconds: 500));
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                testSeriesQueue(
+                    reason: 'ShuffleMode',
+                    shuffled: true,
+                    lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+        expect(current()?.kind, PartyNoticeKind.shuffleOn);
+        finish(async);
+      });
+    });
+
+    test('forget: una richiesta non riuscita non scarta il cambio di un altro',
+        () {
+      fakeAsync((async) {
+        mount(async);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+        notices()
+          ..mine(PartyNoticeKind.shuffleOn, show: false)
+          ..forget(PartyNoticeKind.shuffleOn);
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                testSeriesQueue(
+                    reason: 'ShuffleMode',
+                    shuffled: true,
+                    lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+        expect(current()?.kind, PartyNoticeKind.shuffleOn);
+        finish(async);
+      });
+    });
+
+    test('rimozione che cambia il titolo in corso: subito, senza aspettare '
+        'un nome', () {
+      fakeAsync((async) {
+        mount(async);
+        notices().setAttribution(true);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                testSeriesQueue(
+                    itemIds: ['e4', 'e5'],
+                    playingIndex: 1,
+                    reason: 'RemoveItems',
+                    lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+        expect(current()?.kind, PartyNoticeKind.nowWatching);
+        expect(current()?.title, 'Breaking Bad');
+        expect(current()?.name, isNull);
         finish(async);
       });
     });

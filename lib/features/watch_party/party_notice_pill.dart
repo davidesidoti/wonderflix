@@ -76,7 +76,9 @@ IconData partyNoticeIcon(PartyNoticeKind kind) => switch (kind) {
       PartyNoticeKind.codeCopied => LucideIcons.copy,
       PartyNoticeKind.inviteSent => LucideIcons.send,
       PartyNoticeKind.previousItem => LucideIcons.skipBack,
-      PartyNoticeKind.shuffleOn || PartyNoticeKind.shuffleOff => LucideIcons.shuffle,
+      PartyNoticeKind.shuffleOn ||
+      PartyNoticeKind.shuffleOff =>
+        LucideIcons.shuffle,
       PartyNoticeKind.inviteFailed ||
       PartyNoticeKind.inviteRateLimited ||
       PartyNoticeKind.queueFailed =>

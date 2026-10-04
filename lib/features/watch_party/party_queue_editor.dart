@@ -81,13 +81,18 @@ class PartyQueueEditor {
     final queue = _queue;
     if (queue == null || queue.shuffled == shuffle) return;
     final channel = _ref.read(partyChannelProvider.notifier);
+    final notices = _ref.read(partyNoticesProvider.notifier);
+    final kind =
+        shuffle ? PartyNoticeKind.shuffleOn : PartyNoticeKind.shuffleOff;
     // La coda che torna dal server è nostra: niente avviso (spec H §10).
-    _ref.read(partyNoticesProvider.notifier).mine(
-        shuffle ? PartyNoticeKind.shuffleOn : PartyNoticeKind.shuffleOff,
-        show: false);
+    notices.mine(kind, show: false);
     if (await _send(
         'ordine casuale', (api) => api.setShuffleMode(shuffle: shuffle))) {
       channel.announce(PartyAction.shuffleMode);
+    } else {
+      // Nessuna eco in arrivo: il cambio di un altro membro nei prossimi
+      // secondi non va scartato.
+      notices.forget(kind);
     }
   }
 
@@ -105,7 +110,11 @@ class PartyQueueEditor {
     } on Object catch (error) {
       // Solo il tipo: il messaggio può citare la risposta.
       _log.warning('$what non riuscito: ${error.runtimeType}');
-      notices.show(const PartyNotice(PartyNoticeKind.queueFailed, mine: true));
+      // Se nel frattempo si è usciti dal gruppo l'avviso non ha più senso.
+      if (_ref.mounted && _ref.read(watchPartySessionProvider).inGroup) {
+        notices
+            .show(const PartyNotice(PartyNoticeKind.queueFailed, mine: true));
+      }
       return false;
     }
   }

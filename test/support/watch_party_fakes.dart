@@ -270,6 +270,9 @@ class FakePartyNotices extends PartyNotices {
   /// Azioni registrate con `show: false` (solo l'eco, nessun avviso).
   final hiddenMineCalls = <PartyNoticeKind>[];
 
+  /// Echi tolti con `forget`, in ordine.
+  final forgotten = <PartyNoticeKind>[];
+
   /// Chiamate di `setAttribution`, in ordine.
   final attributionCalls = <bool>[];
 
@@ -293,6 +296,9 @@ class FakePartyNotices extends PartyNotices {
     mineCalls.add((kind, position));
     if (!show) hiddenMineCalls.add(kind);
   }
+
+  @override
+  void forget(PartyNoticeKind kind) => forgotten.add(kind);
 }
 
 /// Invito fisso: registra le chiusure, senza timer.

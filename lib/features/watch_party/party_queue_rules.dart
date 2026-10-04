@@ -36,9 +36,13 @@ PartyQueueSections partyQueueSections(PlayQueue queue) {
 
 /// `NewIndex` di `MovePlaylistItem` per un prossimo portato alla posizione
 /// [upcomingIndex] tra i prossimi (contata dopo averlo tolto). Spostare un
-/// prossimo non cambia la posizione dell'elemento in riproduzione.
+/// prossimo non cambia la posizione dell'elemento in riproduzione. Senza un
+/// elemento in riproduzione (anche con l'indice oltre la fine) sono tutti
+/// prossimi: l'indice è lo stesso.
 int partyQueueMoveIndex(PlayQueue queue, int upcomingIndex) =>
-    queue.playingIndex + 1 + upcomingIndex;
+    queue.playing == null
+        ? upcomingIndex
+        : queue.playingIndex + 1 + upcomingIndex;
 
 /// Durata dei prossimi dai dettagli [items] (per `ItemId`); quelli senza
 /// durata, o non ancora noti, non contano. `null` se nessuno ne ha una.

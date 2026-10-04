@@ -38,7 +38,8 @@ void main() {
 
   tearDown(() => events.close());
 
-  void mount(FakeAsync async) {
+  /// Il container, con l'ingresso nel gruppo ma senza ancora i dettagli.
+  void join(FakeAsync async) {
     container = ProviderContainer(overrides: [
       sessionControllerProvider.overrideWith(
           () => FakeSessionController(const SessionSignedIn(testUser))),
@@ -46,9 +47,13 @@ void main() {
       watchPartyEventsProvider.overrideWithValue(events.stream),
       libraryApiProvider.overrideWithValue(library),
     ]);
-    container.listen(partyQueueItemsProvider, (_, _) {});
     unawaited(container.read(watchPartySessionProvider.notifier).join('g1'));
     async.flushMicrotasks();
+  }
+
+  void mount(FakeAsync async) {
+    join(async);
+    container.listen(partyQueueItemsProvider, (_, _) {});
   }
 
   void emit(FakeAsync async, PlayQueue queue) {
@@ -79,6 +84,49 @@ void main() {
     });
   });
 
+  test('prima lettura con la coda già nel gruppo: si caricano i titoli', () {
+    fakeAsync((async) {
+      join(async);
+      emit(async, testSeriesQueue());
+      expect(library.itemsByIdsCalls, isEmpty);
+      container.listen(partyQueueItemsProvider, (_, _) {});
+      async.flushMicrotasks();
+      expect(library.itemsByIdsCalls, [
+        ['e4', 'e5', 'e6'],
+      ]);
+      expect(items().keys, ['e4', 'e5', 'e6']);
+      container.dispose();
+    });
+  });
+
+  test('una richiesta in corso non si ripete per lo stesso titolo', () {
+    fakeAsync((async) {
+      mount(async);
+      library.delay = const Duration(seconds: 1);
+      emit(async, testSeriesQueue());
+      emit(async,
+          testSeriesQueue(lastUpdate: DateTime.utc(2026, 9, 30, 10, 5)));
+      expect(library.itemsByIdsCalls, hasLength(1));
+      async.elapse(const Duration(seconds: 2));
+      expect(library.itemsByIdsCalls, hasLength(1));
+      expect(items().keys, ['e4', 'e5', 'e6']);
+      container.dispose();
+    });
+  });
+
+  test('risposta arrivata dopo l\'uscita dal gruppo: ignorata', () {
+    fakeAsync((async) {
+      mount(async);
+      library.delay = const Duration(seconds: 1);
+      emit(async, testSeriesQueue());
+      unawaited(container.read(watchPartySessionProvider.notifier).leave());
+      async.flushMicrotasks();
+      async.elapse(const Duration(seconds: 2));
+      expect(items(), isEmpty);
+      container.dispose();
+    });
+  });
+
   test('richiesta fallita: si riprova al prossimo aggiornamento', () {
     fakeAsync((async) {
       mount(async);
@@ -90,6 +138,51 @@ void main() {
           testSeriesQueue(lastUpdate: DateTime.utc(2026, 9, 30, 10, 5)));
       expect(library.itemsByIdsCalls.last, ['e4', 'e5', 'e6']);
       expect(items().keys, ['e4', 'e5', 'e6']);
+      container.dispose();
+    });
+  });
+
+  test('richiesta fallita: si riprova dopo 5 s anche senza una coda nuova',
+      () {
+    fakeAsync((async) {
+      mount(async);
+      library.error = const ServerUnreachableException();
+      emit(async, testSeriesQueue());
+      expect(library.itemsByIdsCalls, hasLength(1));
+      library.error = null;
+      async.elapse(PartyQueueItems.retryDelay - const Duration(seconds: 1));
+      expect(library.itemsByIdsCalls, hasLength(1));
+      async.elapse(const Duration(seconds: 1));
+      expect(library.itemsByIdsCalls, hasLength(2));
+      expect(items().keys, ['e4', 'e5', 'e6']);
+      container.dispose();
+    });
+  });
+
+  test('uscita prima del nuovo tentativo: nessuna richiesta', () {
+    fakeAsync((async) {
+      mount(async);
+      library.error = const ServerUnreachableException();
+      emit(async, testSeriesQueue());
+      library.error = null;
+      unawaited(container.read(watchPartySessionProvider.notifier).leave());
+      async.flushMicrotasks();
+      async.elapse(PartyQueueItems.retryDelay * 2);
+      expect(library.itemsByIdsCalls, hasLength(1));
+      expect(items(), isEmpty);
+      container.dispose();
+    });
+  });
+
+  test('tanti titoli: richieste da 50, 50 e 20', () {
+    fakeAsync((async) {
+      mount(async);
+      final ids = [for (var i = 0; i < 120; i++) 'x$i'];
+      emit(async, testSeriesQueue(itemIds: ids));
+      expect([for (final call in library.itemsByIdsCalls) call.length],
+          [PartyQueueItems.fetchChunk, PartyQueueItems.fetchChunk, 20]);
+      expect(library.itemsByIdsCalls.expand((call) => call), ids);
+      expect(items(), hasLength(120));
       container.dispose();
     });
   });

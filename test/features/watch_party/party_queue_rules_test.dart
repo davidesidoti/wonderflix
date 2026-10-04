@@ -41,6 +41,8 @@ void main() {
     expect(partyQueueMoveIndex(queue(), 1), 3);
     expect(partyQueueMoveIndex(queue(playingIndex: 0), 0), 1);
     expect(partyQueueMoveIndex(queue(playingIndex: -1), 2), 2);
+    expect(partyQueueMoveIndex(queue(playingIndex: 4), 2), 2,
+        reason: 'indice oltre la fine: nessun elemento in riproduzione');
   });
 
   test('durata dei prossimi: solo quelli noti con una durata', () {

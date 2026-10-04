@@ -174,6 +174,58 @@ void main() {
     });
   });
 
+  test('rimozione e spostamento falliti: avviso "Non riuscito"', () {
+    fakeAsync((async) {
+      mount(async);
+      api.error = const ServerUnreachableException();
+      unawaited(editor().remove('p3'));
+      async.flushMicrotasks();
+      expect(notices.shown.map((n) => n.kind), [PartyNoticeKind.queueFailed]);
+      unawaited(editor().move('p4', 0));
+      async.flushMicrotasks();
+      expect(notices.shown.map((n) => n.kind),
+          [PartyNoticeKind.queueFailed, PartyNoticeKind.queueFailed]);
+      finish(async);
+    });
+  });
+
+  test('ordine casuale fallito: l\'eco registrata si toglie', () {
+    fakeAsync((async) {
+      mount(async);
+      api.error = const ServerUnreachableException();
+      unawaited(editor().setShuffle(true));
+      async.flushMicrotasks();
+      expect(notices.hiddenMineCalls, [PartyNoticeKind.shuffleOn]);
+      expect(notices.forgotten, [PartyNoticeKind.shuffleOn]);
+      expect(notices.shown.last.kind, PartyNoticeKind.queueFailed);
+      expect(announced(), isEmpty);
+      finish(async);
+    });
+  });
+
+  test('ordine casuale riuscito: l\'eco resta', () {
+    fakeAsync((async) {
+      mount(async);
+      unawaited(editor().setShuffle(true));
+      async.flushMicrotasks();
+      expect(notices.forgotten, isEmpty);
+      finish(async);
+    });
+  });
+
+  test('richiesta fallita dopo l\'uscita dal gruppo: nessun avviso', () {
+    fakeAsync((async) {
+      mount(async);
+      api.error = const ServerUnreachableException();
+      unawaited(editor().jumpTo('p3'));
+      unawaited(container.read(watchPartySessionProvider.notifier).leave());
+      async.flushMicrotasks();
+      expect(api.calls, contains('set-item p3'));
+      expect(notices.shown, isEmpty);
+      finish(async);
+    });
+  });
+
   test('fuori dal gruppo: niente', () {
     fakeAsync((async) {
       mount(async);

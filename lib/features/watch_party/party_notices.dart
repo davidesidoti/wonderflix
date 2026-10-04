@@ -79,7 +79,7 @@ class PartyNotice {
   /// annunciate dal plugin del watch party (spec E §8).
   final String? name;
 
-  /// Per episodio successivo e nuovo titolo.
+  /// Per successivo, precedente e nuovo titolo.
   final String? title;
 
   /// Lo stesso avviso con il nome di chi ha agito.
@@ -203,12 +203,20 @@ class PartyNotices extends Notifier<PartyNotice?> {
   }
 
   /// Azione dell'utente: l'avviso compare subito, e l'eco del server (entro
-  /// [echoWindow]) non ne produce un secondo. Con [show] `false` si registra
-  /// solo l'eco: l'azione l'ha già mostrata la pillola del tasto (spec D
-  /// §9.3).
+  /// [echoWindow], o [queueEchoWindow] per l'ordine casuale) non ne produce
+  /// un secondo. Con [show] `false` si registra solo l'eco: l'azione l'ha già
+  /// mostrata la pillola del tasto (spec D §9.3).
   void mine(PartyNoticeKind kind, {Duration? position, bool show = true}) {
     _echoes.add((kind: kind, at: clock.now()));
     if (show) this.show(PartyNotice(kind, mine: true, position: position));
+  }
+
+  /// Toglie l'ultima eco registrata con [mine] per [kind]: la richiesta non è
+  /// arrivata al server, quindi nessuna eco in arrivo, e un cambio uguale di
+  /// un altro membro nei secondi dopo non va scartato.
+  void forget(PartyNoticeKind kind) {
+    final index = _echoes.lastIndexWhere((echo) => echo.kind == kind);
+    if (index >= 0) _echoes.removeAt(index);
   }
 
   /// Il canale del plugin è attivo ([enabled]) o spento (spec E §8). Spento:
@@ -394,22 +402,34 @@ class PartyNotices extends Notifier<PartyNotice?> {
     }
     // Il nome viene dall'annuncio dell'azione che ha cambiato titolo; un
     // cambio per un altro motivo (per esempio una rimozione del titolo in
-    // corso da un altro client) resta senza nome.
-    final (kind, action) = switch (queue.reason) {
-      'NextItem' => (PartyNoticeKind.nextEpisode, PartyAction.nextItem),
-      'PreviousItem' => (PartyNoticeKind.previousItem, PartyAction.previousItem),
+    // corso da un altro client) resta senza nome. [step]: il titolo è
+    // l'episodio ("S1:E5 · Titolo"), come per successivo, precedente e salto
+    // dalla coda; per un titolo nuovo è la serie o il film.
+    final (kind, action, step) = switch (queue.reason) {
+      'NextItem' => (PartyNoticeKind.nextEpisode, PartyAction.nextItem, true),
+      'PreviousItem' => (
+          PartyNoticeKind.previousItem,
+          PartyAction.previousItem,
+          true
+        ),
       'SetCurrentItem' => (
           PartyNoticeKind.nowWatching,
-          PartyAction.setCurrentItem
+          PartyAction.setCurrentItem,
+          true
         ),
-      'NewPlaylist' => (PartyNoticeKind.nowWatching, PartyAction.newQueue),
-      _ => (PartyNoticeKind.nowWatching, null),
+      'NewPlaylist' => (
+          PartyNoticeKind.nowWatching,
+          PartyAction.newQueue,
+          false
+        ),
+      _ => (PartyNoticeKind.nowWatching, null, false),
     };
-    unawaited(_announce(kind, entry.itemId, action));
+    unawaited(_announce(kind, entry.itemId, action, step: step));
   }
 
   Future<void> _announce(
-      PartyNoticeKind kind, String itemId, PartyAction? action) async {
+      PartyNoticeKind kind, String itemId, PartyAction? action,
+      {required bool step}) async {
     try {
       final item = await ref
           .read(libraryApiProvider)
@@ -418,21 +438,19 @@ class PartyNotices extends Notifier<PartyNotice?> {
       // Nel frattempo si è usciti dal gruppo o si guarda già altro.
       final party = ref.read(watchPartySessionProvider);
       if (!party.inGroup || party.queue?.playing?.itemId != itemId) return;
-      _showOthers(PartyNotice(kind, title: _noticeTitle(kind, item)), action);
+      _showOthers(
+          PartyNotice(kind, title: _noticeTitle(item, step: step)), action);
     } on Object catch (error) {
       _log.info('titolo per l\'avviso non disponibile: $error');
     }
   }
 
-  /// Successivo e precedente: l'episodio ("S1:E5 · Titolo") o il film. Un
-  /// titolo nuovo: la serie o il film.
-  static String _noticeTitle(PartyNoticeKind kind, JellyfinItem item) {
-    final step = kind == PartyNoticeKind.nextEpisode ||
-        kind == PartyNoticeKind.previousItem;
-    return step && item.kind == ItemKind.episode
-        ? cardSubtitle(item) ?? item.name
-        : cardTitle(item);
-  }
+  /// Con [step] un episodio ("S1:E5 · Titolo"); altrimenti, e per un film,
+  /// la serie o il film.
+  static String _noticeTitle(JellyfinItem item, {required bool step}) =>
+      step && item.kind == ItemKind.episode
+          ? cardSubtitle(item) ?? item.name
+          : cardTitle(item);
 }
 
 final partyNoticesProvider =
