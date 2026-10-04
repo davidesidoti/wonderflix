@@ -41,6 +41,13 @@ class FakeLibraryApi implements LibraryApi {
   /// Trailer locali, per id dell'elemento.
   final Map<String, List<JellyfinItem>> localTrailerItems = {};
   final nextEpisodeCalls = <String>[];
+
+  /// Episodio precedente, per id dell'episodio corrente.
+  final Map<String, JellyfinItem> previousEpisodes = {};
+  final previousEpisodeCalls = <String>[];
+
+  /// Id chiesti a [itemsByIds], una lista per chiamata.
+  final itemsByIdsCalls = <List<String>>[];
   final nextUpCutoffs = <DateTime?>[];
   final nextUpCalls = <String?>[];
   final favoriteCalls = <(String, bool)>[];
@@ -85,6 +92,23 @@ class FakeLibraryApi implements LibraryApi {
       String userId, String seriesId, String episodeId) {
     nextEpisodeCalls.add(episodeId);
     return _answer(() => nextEpisodes[episodeId]);
+  }
+
+  @override
+  Future<JellyfinItem?> previousEpisode(
+      String userId, String seriesId, String episodeId) {
+    previousEpisodeCalls.add(episodeId);
+    return _answer(() => previousEpisodes[episodeId]);
+  }
+
+  /// Gli elementi di [itemsById] tra [ids]; gli altri mancano, come quelli
+  /// cancellati sul server.
+  @override
+  Future<List<JellyfinItem>> itemsByIds(String userId, List<String> ids) {
+    itemsByIdsCalls.add(ids);
+    return _answer(() => [
+          for (final id in ids) ?itemsById[id],
+        ]);
   }
 
   @override

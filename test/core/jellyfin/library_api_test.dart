@@ -116,6 +116,34 @@ void main() {
         reason: 'ultimo episodio');
   });
 
+  test('previousEpisode: l\'episodio prima di quello indicato (spec H §8.1)',
+      () async {
+    adapter.handler = (_) => FakeResponse(200, itemsResult(['e3', 'e4', 'e5']));
+    final previous = await api.previousEpisode('u1', 's1', 'e4');
+    expect(last().path, '/Shows/s1/Episodes');
+    expect(last().query['adjacentTo'], 'e4');
+    expect(last().query['isMissing'], false);
+    expect(last().query['userId'], 'u1');
+    expect(last().query, isNot(contains('seasonId')),
+        reason: 'anche dalla stagione prima');
+    expect(previous?.id, 'e3');
+
+    adapter.handler = (_) => FakeResponse(200, itemsResult(['e1', 'e2']));
+    expect(await api.previousEpisode('u1', 's1', 'e1'), isNull,
+        reason: 'primo episodio');
+  });
+
+  test('itemsByIds: gli elementi indicati, con le immagini delle card',
+      () async {
+    adapter.handler = (_) => FakeResponse(200, itemsResult(['m2', 'm1']));
+    final items = await api.itemsByIds('u1', ['m1', 'm2']);
+    expect(last().path, '/Items');
+    expect(last().query['ids'], 'm1,m2');
+    expect(last().query['userId'], 'u1');
+    expect(last().query['enableImageTypes'], 'Primary,Backdrop,Thumb,Logo');
+    expect(items.map((item) => item.id), ['m2', 'm1']);
+  });
+
   test('episodesFrom: l\'episodio indicato e i successivi', () async {
     adapter.handler = (_) => FakeResponse(200, itemsResult(['e4', 'e5', 'e6']));
     final episodes = await api.episodesFrom('u1', 's1', 'e4', limit: 50);

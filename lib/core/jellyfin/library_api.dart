@@ -87,6 +87,31 @@ class LibraryApi {
     return index >= 0 && index + 1 < episodes.length ? episodes[index + 1] : null;
   }
 
+  /// Episodio che precede [episodeId] nella serie, anche nella stagione
+  /// prima (spec H §8.1); `null` se è il primo. Jellyfin toglie i mancanti
+  /// prima di cercare i vicini.
+  Future<JellyfinItem?> previousEpisode(
+      String userId, String seriesId, String episodeId) async {
+    final episodes = _list(await _http.get('/Shows/$seriesId/Episodes', query: {
+      ...cardImageParams,
+      'userId': userId,
+      'adjacentTo': episodeId,
+      'isMissing': false,
+      'fields': 'Overview,PrimaryImageAspectRatio',
+    }));
+    final index = episodes.indexWhere((e) => e.id == episodeId);
+    return index > 0 ? episodes[index - 1] : null;
+  }
+
+  /// Gli elementi [ids] (la coda del watch party, spec H §8.5), in ordine
+  /// qualunque: quelli cancellati o che l'utente non vede mancano.
+  Future<List<JellyfinItem>> itemsByIds(String userId, List<String> ids) async =>
+      _list(await _http.get('/Items', query: {
+        ...cardImageParams,
+        'userId': userId,
+        'ids': ids.join(','),
+      }));
+
   /// [startItemId] e gli episodi che lo seguono nella serie, anche nelle
   /// stagioni dopo (al massimo [limit]); senza gli episodi mancanti. Solo i
   /// dati di base (servono gli id): niente immagini, dati utente e campi in
