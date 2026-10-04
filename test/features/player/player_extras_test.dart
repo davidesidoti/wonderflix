@@ -482,4 +482,44 @@ void main() {
     await tester.tap(find.text('Annulla'));
     expect((played, cancelled), (1, 1));
   });
+
+  testWidgets('scheda: occhiello scelto da chi la mostra (spec H §9.1)',
+      (tester) async {
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: Center(
+          child: NextEpisodeCard(
+            episode: episode,
+            label: 'Prossimo nella coda',
+            countdown: false,
+            onPlay: () {},
+            onCancel: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('PROSSIMO NELLA CODA'), findsOneWidget);
+  });
+
+  testWidgets('scheda: un film (dalla coda del gruppo) mostra il titolo',
+      (tester) async {
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: Center(
+          child: NextEpisodeCard(
+            episode: testItem(id: 'm9', name: 'Alien', year: 1979),
+            label: 'Prossimo nella coda',
+            countdown: false,
+            onPlay: () {},
+            onCancel: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Alien'), findsOneWidget);
+  });
 }

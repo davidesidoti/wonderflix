@@ -280,9 +280,15 @@ class NextEpisodeCard extends ConsumerWidget {
     required this.onPlay,
     required this.onCancel,
     this.paused = false,
+    this.label,
   });
 
   final JellyfinItem episode;
+
+  /// Occhiello; di default "Prossimo episodio" (nel watch party può essere
+  /// "Prossimo nella coda", spec H §9.1).
+  final String? label;
+
   final bool countdown;
 
   /// Video in pausa o in caricamento: il conto alla rovescia è fermo.
@@ -320,7 +326,7 @@ class NextEpisodeCard extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(l.playerNextEpisodeTitle.toUpperCase(),
+                Text((label ?? l.playerNextEpisodeTitle).toUpperCase(),
                     style: WfText.display(20, color: WfColors.gold)),
                 const SizedBox(height: 8),
                 Row(
@@ -341,7 +347,12 @@ class NextEpisodeCard extends ConsumerWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        cardSubtitle(episode) ?? episode.name,
+                        // Un episodio: "S1:E5 · Titolo". Nel gruppo il
+                        // prossimo può essere un film: ci vuole il titolo,
+                        // non solo l'anno.
+                        episode.kind == ItemKind.episode
+                            ? cardSubtitle(episode) ?? episode.name
+                            : episode.name,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.w600),

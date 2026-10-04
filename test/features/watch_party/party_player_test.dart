@@ -566,12 +566,12 @@ void main() {
     await finish(tester);
   });
 
-  testWidgets('scheda "Prossimo episodio" solo se è il prossimo della coda',
-      (tester) async {
+  testWidgets('scheda nel gruppo: il prossimo della coda, anche un film '
+      '(spec H §9.1)', (tester) async {
     await pumpPartyPlayer(tester);
-    // Nella coda del gruppo dopo e4 c'è e9, non e5 (il successivo nella
-    // libreria).
-    emit(PlayQueueUpdate('g1', testSeriesQueue(itemIds: ['e4', 'e9'])));
+    library.itemsById['m9'] = testItem(id: 'm9', name: 'Alien', year: 1979);
+    // Dopo e4 nella coda c'è un film, non e5 (il successivo nella libreria).
+    emit(PlayQueueUpdate('g1', testSeriesQueue(itemIds: ['e4', 'm9'])));
     await tester.pump();
     await tester.pump();
     expect(find.byTooltip(l.playerNextInQueue), findsOneWidget,
@@ -579,7 +579,37 @@ void main() {
     engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
     await tester.pump();
     await tester.pump();
+    expect(find.text(l.playerNextInQueueTitle.toUpperCase()), findsOneWidget);
     expect(find.text(l.playerNextEpisodeTitle.toUpperCase()), findsNothing);
+    expect(find.text('Alien'), findsOneWidget);
+    await tester.tap(find.byType(PlayNowButton));
+    await tester.pump();
+    expect(api.calls, contains('next p1'));
+    await finish(tester);
+  });
+
+  testWidgets('scheda nel gruppo: l\'episodio dopo è "Prossimo episodio"',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    await queueSeries(tester);
+    engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text(l.playerNextEpisodeTitle.toUpperCase()), findsOneWidget);
+    await finish(tester);
+  });
+
+  testWidgets('scheda nel gruppo: senza i dettagli del prossimo non compare',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    // e6 non è nella libreria finta: "non disponibile".
+    emit(PlayQueueUpdate('g1', testSeriesQueue(itemIds: ['e4', 'e6'])));
+    await tester.pump();
+    await tester.pump();
+    engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(NextEpisodeCard), findsNothing);
     await finish(tester);
   });
 

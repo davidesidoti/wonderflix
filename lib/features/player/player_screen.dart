@@ -27,6 +27,7 @@ import '../watch_party/party_channel.dart';
 import '../watch_party/party_chat_layer.dart';
 import '../watch_party/party_mode_menu.dart';
 import '../watch_party/party_notices.dart';
+import '../watch_party/party_queue_items.dart';
 import '../watch_party/party_reactions_layer.dart';
 import '../watch_party/party_reactions_tray.dart';
 import '../watch_party/party_waiting_overlay.dart';
@@ -390,21 +391,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (zone != _endZone) setState(() => _endZone = zone);
   }
 
-  /// C'è un episodio successivo da proporre (nel gruppo solo se è il
-  /// prossimo della coda, che è quello che parte), il caricamento è finito
+  /// Il titolo proposto come prossimo (spec H §9.1): da soli l'episodio
+  /// successivo della serie; nel gruppo il prossimo della coda (anche un
+  /// film), appena se ne conoscono i dettagli.
+  JellyfinItem? _nextOffer(PlayerViewState view) {
+    if (!_inParty) return view.nextEpisode;
+    final entry = ref.read(watchPartySessionProvider).nextEntry;
+    return entry == null
+        ? null
+        : ref.read(partyQueueItemsProvider)[entry.itemId];
+  }
+
+  /// "Prossimo episodio", o "Prossimo nella coda" se nel gruppo il prossimo
+  /// non è l'episodio che segue nella libreria.
+  String _nextOfferLabel(
+          AppLocalizations l, PlayerViewState view, JellyfinItem offer) =>
+      !_inParty || offer.id == view.nextEpisode?.id
+          ? l.playerNextEpisodeTitle
+          : l.playerNextInQueueTitle;
+
+  /// C'è un titolo da proporre ([_nextOffer]), il caricamento è finito
   /// (primo fotogramma: aprendo nei titoli il post-play e il suo conto non
   /// partono sotto il caricamento) e l'utente non l'ha rifiutato.
-  bool _canOfferNext(PlayerViewState view) {
-    final next = view.nextEpisode;
-    if (next == null ||
-        view.status != PlayerStatus.ready ||
-        !_firstFrame ||
-        _chrome.postPlayDismissed) {
-      return false;
-    }
-    if (!_inParty) return true;
-    return next.id == ref.read(watchPartySessionProvider).nextEntry?.itemId;
-  }
+  bool _canOfferNext(PlayerViewState view) =>
+      _nextOffer(view) != null &&
+      view.status == PlayerStatus.ready &&
+      _firstFrame &&
+      !_chrome.postPlayDismissed;
 
   /// Post-play: titoli di coda noti (spec D §12.1).
   bool _postPlayShown(PlayerViewState view) =>
@@ -961,6 +974,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final next = view.nextEpisode;
     if (_inParty) _attachParty(controller);
     final party = _inParty ? ref.watch(watchPartySessionProvider) : null;
+    // I dettagli dei titoli in coda arrivano dopo: il post-play li aspetta.
+    if (_inParty) ref.watch(partyQueueItemsProvider);
+    final offer = _nextOffer(view);
     final canWatchTogether = widget.args.party == null &&
         ref.watch(syncPlayAccessProvider).canCreate &&
         view.item != null &&
@@ -1333,10 +1349,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         duration: WfMotion.fast,
                         switchInCurve: _offerSwitchInCurve,
                         switchOutCurve: WfMotion.accelerateReverse,
-                        child: card && next != null
+                        child: card && offer != null
                             ? NextEpisodeCard(
-                                key: ValueKey(next.id),
-                                episode: next,
+                                key: ValueKey(offer.id),
+                                episode: offer,
+                                label: _nextOfferLabel(l, view, offer),
                                 // Nel gruppo nessun conto alla rovescia: si
                                 // va avanti con il pulsante o a fine video.
                                 countdown: !_inParty && settings.autoplayNext,
@@ -1358,11 +1375,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       duration: WfMotion.fast,
                       switchInCurve: _offerSwitchInCurve,
                       switchOutCurve: WfMotion.accelerateReverse,
-                      child: postPlay && next != null
+                      child: postPlay && offer != null
                           ? SizedBox.expand(
-                              key: ValueKey(next.id),
+                              key: ValueKey(offer.id),
                               child: PostPlayLayer(
-                                episode: next,
+                                episode: offer,
+                                label: _nextOfferLabel(l, view, offer),
                                 countdown: !_inParty && settings.autoplayNext,
                                 paused: !view.playing || view.buffering,
                                 onPlay: _playOffered,

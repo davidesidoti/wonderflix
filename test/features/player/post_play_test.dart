@@ -112,6 +112,26 @@ void main() {
       expect(played, 1, reason: 'conto alla rovescia finito');
     });
 
+    testWidgets('occhiello scelto da chi lo mostra (spec H §9.1)',
+        (tester) async {
+      await pumpApp(
+        tester,
+        Scaffold(
+          body: PostPlayLayer(
+            episode: episode,
+            label: 'Prossimo nella coda',
+            countdown: false,
+            paused: false,
+            onPlay: () {},
+            onWatchCredits: () {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('PROSSIMO NELLA CODA'), findsOneWidget);
+      expect(find.text('PROSSIMO EPISODIO'), findsNothing);
+    });
+
     Widget layer({double textScale = 1}) => Builder(
           builder: (context) => MediaQuery(
             data: MediaQuery.of(context)

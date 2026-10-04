@@ -86,9 +86,15 @@ class PostPlayLayer extends ConsumerWidget {
     required this.paused,
     required this.onPlay,
     required this.onWatchCredits,
+    this.label,
   });
 
   final JellyfinItem episode;
+
+  /// Occhiello; di default "Prossimo episodio" (nel watch party può essere
+  /// "Prossimo nella coda", spec H §9.1).
+  final String? label;
+
   final bool countdown;
 
   /// Video in pausa o in caricamento: il conto alla rovescia è fermo.
@@ -132,7 +138,7 @@ class PostPlayLayer extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(l.playerNextEpisodeTitle.toUpperCase(),
+                    Text((label ?? l.playerNextEpisodeTitle).toUpperCase(),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: WfText.display(20, color: WfColors.gold)),
