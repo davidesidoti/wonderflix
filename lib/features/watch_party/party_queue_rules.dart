@@ -1,5 +1,8 @@
+import 'dart:math' as math;
+
 import '../../core/jellyfin/item_models.dart';
 import '../../core/syncplay/syncplay_models.dart';
+import '../library/item_labels.dart';
 
 /// Al massimo questi titoli in tutta la coda del gruppo (spec H §4). La coda
 /// iniziale di una serie resta di `maxPartyQueue` (`party_queue.dart`).
@@ -69,4 +72,99 @@ List<PlayQueueEntry> partyQueueInOrder(
   final byId = {for (final entry in upcoming) entry.playlistItemId: entry};
   final sorted = [for (final id in order) ?byId[id]];
   return sorted.length == upcoming.length ? sorted : upcoming;
+}
+
+/// Posto libero nella coda, sotto il tetto di [partyQueueLimit] (mai meno
+/// di 0: una coda fatta da un altro client può essere più lunga).
+int partyQueueRoom(PlayQueue queue) =>
+    math.max(0, partyQueueLimit - queue.entries.length);
+
+/// `ItemId` già in coda per un'aggiunta (spec H §8.2): l'elemento in
+/// riproduzione e i prossimi. Un titolo già visto si può riaggiungere.
+Set<String> partyQueueQueuedIds(PlayQueue queue) {
+  final sections = partyQueueSections(queue);
+  return {
+    ?sections.playing?.itemId,
+    for (final entry in sections.upcoming) entry.itemId,
+  };
+}
+
+/// Cosa si manda per un'aggiunta (spec H §8.2).
+class PartyQueueAddPlan {
+  const PartyQueueAddPlan({
+    required this.send,
+    required this.alreadyQueued,
+    required this.cut,
+  });
+
+  /// Gli id da mandare, nell'ordine dato.
+  final List<String> send;
+
+  /// Quanti erano già in coda (o in un'aggiunta ancora in attesa).
+  final int alreadyQueued;
+
+  /// Quanti restano fuori per il tetto.
+  final int cut;
+}
+
+/// I candidati [itemIds], in ordine, senza quelli già in coda, quelli di
+/// un'aggiunta ancora in attesa ([pending]) e i doppioni; poi tagliati al
+/// posto libero.
+PartyQueueAddPlan partyQueueAddPlan(PlayQueue queue, List<String> itemIds,
+    {Set<String> pending = const {}}) {
+  final queued = {...partyQueueQueuedIds(queue), ...pending};
+  final fresh = <String>[];
+  var alreadyQueued = 0;
+  for (final id in itemIds) {
+    if (queued.contains(id)) {
+      alreadyQueued++;
+    } else if (!fresh.contains(id)) {
+      fresh.add(id);
+    }
+  }
+  final send = fresh.take(partyQueueRoom(queue)).toList();
+  return PartyQueueAddPlan(
+    send: send,
+    alreadyQueued: alreadyQueued,
+    cut: fresh.length - send.length,
+  );
+}
+
+/// Cosa dice un avviso di aggiunta (spec H §10): un titolo; oppure quanti
+/// episodi di quale serie; oppure quanti titoli.
+class PartyQueueAddition {
+  const PartyQueueAddition({required this.count, this.title, this.series});
+
+  final int count;
+
+  /// Un titolo solo: il film, o "Dark · S1:E1".
+  final String? title;
+
+  /// Più episodi, tutti della stessa serie.
+  final String? series;
+}
+
+/// [items]: i dettagli dei titoli aggiunti; [count]: quanti sono in tutto,
+/// se i dettagli sono solo di una parte (allora si dice solo quanti).
+PartyQueueAddition partyQueueAddition(List<JellyfinItem> items, {int? count}) {
+  final total = count ?? items.length;
+  if (items.length != total) return PartyQueueAddition(count: total);
+  if (total == 1) {
+    final item = items.single;
+    final code = episodeCode(item);
+    return PartyQueueAddition(
+      count: 1,
+      title: item.kind == ItemKind.episode && code != null
+          ? '${cardTitle(item)} · $code'
+          : cardTitle(item),
+    );
+  }
+  final seriesIds = {
+    for (final item in items) item.kind == ItemKind.episode ? item.seriesId : null,
+  };
+  final series = items.first.seriesName;
+  if (seriesIds.length == 1 && seriesIds.single != null && series != null) {
+    return PartyQueueAddition(count: total, series: series);
+  }
+  return PartyQueueAddition(count: total);
 }
