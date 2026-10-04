@@ -8,12 +8,14 @@ import '../../../app/theme.dart';
 import '../../../core/jellyfin/item_models.dart';
 import '../../../core/syncplay/syncplay_models.dart';
 import '../../../l10n/gen/app_localizations.dart';
+import '../../../ui/wf_buttons.dart';
 import '../../library/item_labels.dart';
 import '../../watch_party/party_queue_editor.dart';
 import '../../watch_party/party_queue_items.dart';
 import '../../watch_party/party_queue_rules.dart';
 import '../../watch_party/watch_party_session.dart';
 import '../player_side_panel_host.dart';
+import 'queue_add_widgets.dart';
 import 'queue_rows.dart';
 
 /// Il pannello "Coda" con i dati del watch party (spec H §9.2): la coda del
@@ -63,6 +65,7 @@ class QueuePanel extends StatefulWidget {
     required this.onMove,
     required this.onShuffle,
     required this.onClose,
+    this.onAddTitles,
   });
 
   final PlayQueue queue;
@@ -77,6 +80,9 @@ class QueuePanel extends StatefulWidget {
   final void Function(String playlistItemId, int upcomingIndex) onMove;
   final ValueChanged<bool> onShuffle;
   final VoidCallback onClose;
+
+  /// "＋ Aggiungi titoli" in fondo (spec H §9.2); `null` = nessun pulsante.
+  final VoidCallback? onAddTitles;
 
   static const width = PlayerSidePanelHost.defaultWidth;
 
@@ -249,62 +255,52 @@ class _QueuePanelState extends State<QueuePanel> {
       ],
     );
 
-    return PanelWheelBarrier(
-      child: Material(
-        color: WfColors.surface.withValues(alpha: 0.94),
-        child: DecoratedBox(
-          decoration: const BoxDecoration(
-            border: Border(left: BorderSide(color: WfColors.border)),
+    final onAddTitles = widget.onAddTitles;
+    return QueuePanelFrame(
+      header: QueuePanelHeader(
+        title: l.partyQueueTitle,
+        onClose: widget.onClose,
+        actions: [
+          IconButton(
+            key: const Key('party-queue-shuffle'),
+            icon: const Icon(LucideIcons.shuffle),
+            isSelected: queue.shuffled,
+            tooltip: l.partyQueueShuffle,
+            color: queue.shuffled ? WfColors.gold : WfColors.cream,
+            style: IconButton.styleFrom(
+              backgroundColor: queue.shuffled
+                  ? WfColors.gold.withValues(alpha: QueuePanel.shuffleOnFill)
+                  : null,
+            ),
+            onPressed: () => widget.onShuffle(!queue.shuffled),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 20, 12, 0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(l.partyQueueTitle,
-                          style: WfText.display(24)),
-                    ),
-                    IconButton(
-                      key: const Key('party-queue-shuffle'),
-                      icon: const Icon(LucideIcons.shuffle),
-                      isSelected: queue.shuffled,
-                      tooltip: l.partyQueueShuffle,
-                      color: queue.shuffled ? WfColors.gold : WfColors.cream,
-                      style: IconButton.styleFrom(
-                        backgroundColor: queue.shuffled
-                            ? WfColors.gold
-                                .withValues(alpha: QueuePanel.shuffleOnFill)
-                            : null,
-                      ),
-                      onPressed: () => widget.onShuffle(!queue.shuffled),
-                    ),
-                    IconButton(
-                      icon: const Icon(LucideIcons.x),
-                      tooltip: l.playerClosePanel,
-                      color: WfColors.cream,
-                      onPressed: widget.onClose,
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-                child: Text(
-                  runtime == null
-                      ? titles
-                      : l.partyQueueSummary(titles, formatRuntime(runtime)),
-                  style: const TextStyle(
-                      color: WfColors.creamMuted, fontSize: 12),
-                ),
-              ),
-              Expanded(child: list),
-            ],
-          ),
-        ),
+        ],
       ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+            child: Text(
+              runtime == null
+                  ? titles
+                  : l.partyQueueSummary(titles, formatRuntime(runtime)),
+              style: const TextStyle(color: WfColors.creamMuted, fontSize: 12),
+            ),
+          ),
+          Expanded(child: list),
+        ],
+      ),
+      footer: onAddTitles == null
+          ? null
+          : Padding(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+              child: WfButton.secondary(
+                label: l.partyQueueAddTitles,
+                icon: LucideIcons.plus,
+                onPressed: onAddTitles,
+              ),
+            ),
     );
   }
 }

@@ -63,7 +63,8 @@ void main() {
 
   Future<List<String>> pumpPanel(WidgetTester tester,
       {ValueNotifier<PlayQueue>? notifier,
-      ValueNotifier<Map<String, JellyfinItem?>>? details}) async {
+      ValueNotifier<Map<String, JellyfinItem?>>? details,
+      VoidCallback? onAddTitles}) async {
     final calls = <String>[];
     final current = notifier ?? ValueNotifier(queue());
     final currentDetails = details ?? ValueNotifier(items);
@@ -85,6 +86,7 @@ void main() {
                 onMove: (id, index) => calls.add('move $id $index'),
                 onShuffle: (on) => calls.add('shuffle $on'),
                 onClose: () => calls.add('close'),
+                onAddTitles: onAddTitles,
               ),
             ),
           ),
@@ -439,5 +441,17 @@ void main() {
       await tester.pumpAndSettle();
       expect(calls, isEmpty);
     });
+  });
+
+  testWidgets('"＋ Aggiungi titoli" in fondo alla vista Coda', (tester) async {
+    var opened = 0;
+    await pumpPanel(tester, onAddTitles: () => opened++);
+    await tester.tap(find.text(l.partyQueueAddTitles));
+    expect(opened, 1);
+  });
+
+  testWidgets('senza onAddTitles nessun pulsante', (tester) async {
+    await pumpPanel(tester);
+    expect(find.text(l.partyQueueAddTitles), findsNothing);
   });
 }
