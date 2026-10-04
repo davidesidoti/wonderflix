@@ -1062,6 +1062,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           unawaited(_mediaSession.setNextEnabled(hasNext));
         }
       });
+      ref.listen(
+          watchPartySessionProvider.select((s) => s.inGroup && s.hasPrevious),
+          (_, hasPrevious) {
+        if (_inParty && !_leaving) {
+          unawaited(_mediaSession.setPreviousEnabled(hasPrevious));
+        }
+      });
       ref.listen(watchPartySessionProvider.select((s) => s.inGroup),
           (_, inGroup) {
         if (inGroup || _leaving) return;
@@ -1075,6 +1082,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _controller.leaveParty();
         unawaited(_mediaSession
             .setNextEnabled(ref.read(provider).nextEpisode != null));
+        unawaited(_mediaSession
+            .setPreviousEnabled(ref.read(provider).previousEpisode != null));
       });
       ref.listen(
           watchPartySessionProvider.select((s) =>
@@ -1254,10 +1263,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 : null)
                             : (next == null ? null : _playNext),
                         onPrevious: _inParty
-                            ? null
+                            ? (party != null && party.hasPrevious
+                                ? _playPrevious
+                                : null)
                             : (view.previousEpisode == null
                                 ? null
                                 : _playPrevious),
+                        partyQueue: _inParty,
                         chapters: view.item?.chapters ?? const [],
                         preview: _previewFor(view),
                         partyBadge: party != null && party.inGroup

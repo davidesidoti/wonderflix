@@ -67,7 +67,8 @@ void main() {
   Future<void> pumpPartyPlayer(WidgetTester tester,
       {int failOpens = 0,
       List<MediaSegment> segments = const [],
-      bool plugin = true}) async {
+      bool plugin = true,
+      bool queueFeature = true}) async {
     engine = FakeVideoEngine()..engineTracks = testEngineTracks;
     engine.failOpens = failOpens;
     engines = [];
@@ -100,7 +101,10 @@ void main() {
       ..nextEpisodes['e4'] = testItem(
           id: 'e5', name: 'Cat\'s in the Bag', kind: ItemKind.episode);
     channelApi = FakePartyChannelApi();
-    if (plugin) channelApi.install();
+    if (plugin) {
+      channelApi.install(
+          features: queueFeature ? const {partyQueueFeature} : const {});
+    }
     router = GoRouter(routes: [
       GoRoute(
           path: '/',
@@ -284,7 +288,7 @@ void main() {
       (tester) async {
     await pumpPartyPlayer(tester);
     await tester.pump();
-    expect(find.byTooltip(l.playerNextEpisode), findsNothing);
+    expect(find.byTooltip(l.playerNextInQueue), findsNothing);
     await finish(tester);
   });
 
@@ -309,11 +313,25 @@ void main() {
     await tester.pump();
   }
 
+  /// La coda con un elemento prima: e3 (p0), e4 (p1, in riproduzione), e5.
+  PlayQueue queueWithPrevious() => PlayQueue(
+        reason: 'NewPlaylist',
+        lastUpdate: DateTime.utc(2026, 9, 30, 10),
+        entries: const [
+          PlayQueueEntry(itemId: 'e3', playlistItemId: 'p0'),
+          PlayQueueEntry(itemId: 'e4', playlistItemId: 'p1'),
+          PlayQueueEntry(itemId: 'e5', playlistItemId: 'p2'),
+        ],
+        playingIndex: 1,
+        startPosition: Duration.zero,
+        isPlaying: false,
+      );
+
   testWidgets('prossimo episodio: il pulsante lo chiede al gruppo',
       (tester) async {
     await pumpPartyPlayer(tester);
     await queueSeries(tester);
-    await tester.tap(find.byTooltip(l.playerNextEpisode));
+    await tester.tap(find.byTooltip(l.playerNextInQueue));
     await tester.pump();
     expect(api.calls, contains('next p1'));
     await finish(tester);
@@ -556,7 +574,7 @@ void main() {
     emit(PlayQueueUpdate('g1', testSeriesQueue(itemIds: ['e4', 'e9'])));
     await tester.pump();
     await tester.pump();
-    expect(find.byTooltip(l.playerNextEpisode), findsOneWidget,
+    expect(find.byTooltip(l.playerNextInQueue), findsOneWidget,
         reason: 'il pulsante segue la coda');
     engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
     await tester.pump();
@@ -778,7 +796,7 @@ void main() {
       (tester) async {
     await pumpPartyPlayer(tester);
     await queueSeries(tester);
-    await tester.tap(find.byTooltip(l.playerNextEpisode));
+    await tester.tap(find.byTooltip(l.playerNextInQueue));
     await tester.pump();
     await tester.pump();
     expect(api.calls, contains('next p1'));
@@ -1546,6 +1564,61 @@ void main() {
     await tester.pumpAndSettle();
     await tester.pump(PlayerChromeController.hideDelay);
     expect(opacity(), 0, reason: 'chiuso il menu, si nascondono come sempre');
+    await finish(tester);
+  });
+
+  testWidgets('precedente nel gruppo (spec H §9.1): pulsante, P, annuncio',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    await queueSeries(tester);
+    expect(find.byTooltip(l.playerPreviousInQueue), findsNothing,
+        reason: 'e4 è il primo della coda');
+    expect(mediaSession.previousEnabled.last, isFalse);
+
+    emit(PlayQueueUpdate('g1', queueWithPrevious()));
+    await tester.pump();
+    await tester.pump();
+    expect(mediaSession.previousEnabled.last, isTrue);
+    await tester.tap(find.byTooltip(l.playerPreviousInQueue));
+    await tester.pump();
+    await tester.pump();
+    expect(api.calls, contains('previous p1'));
+    expect(announced(),
+        contains(equals({'Type': 'Action', 'Action': 'PreviousItem'})));
+
+    api.calls.clear();
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyP);
+    await tester.pump();
+    expect(api.calls, ['previous p1']);
+    await finish(tester);
+  });
+
+  testWidgets('precedente con un plugin vecchio: niente annuncio',
+      (tester) async {
+    await pumpPartyPlayer(tester, queueFeature: false);
+    emit(PlayQueueUpdate('g1', queueWithPrevious()));
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.byTooltip(l.playerPreviousInQueue));
+    await tester.pump();
+    await tester.pump();
+    expect(api.calls, contains('previous p1'));
+    expect(announced(), isEmpty);
+    await finish(tester);
+  });
+
+  testWidgets('gruppo chiuso dal server: il precedente torna quello da soli',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    emit(PlayQueueUpdate('g1', queueWithPrevious()));
+    await tester.pump();
+    await tester.pump();
+    emit(const GroupLeft('g1'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byTooltip(l.playerPreviousInQueue), findsNothing);
+    expect(mediaSession.previousEnabled.last, isFalse,
+        reason: 'e4 non ha un episodio prima nella libreria finta');
     await finish(tester);
   });
 }
