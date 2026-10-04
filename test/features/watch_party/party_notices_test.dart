@@ -802,5 +802,104 @@ void main() {
         finish(async);
       });
     });
+
+    test('aggiunta di un altro: un film, con il nome (spec H §10)', () {
+      fakeAsync((async) {
+        mount(async);
+        notices().setAttribution(true);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+        notices().attribute(testActionEvent(PartyAction.queue));
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                testSeriesQueue(
+                    itemIds: const ['e4', 'e5', 'e6', 'm2'],
+                    reason: 'Queue',
+                    lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+        expect(current()?.kind, PartyNoticeKind.queued);
+        expect(current()?.title, 'Arrival');
+        expect(current()?.name, 'Luigi');
+        expect(library.itemsByIdsCalls.last, ['m2']);
+        finish(async);
+      });
+    });
+
+    test('subito dopo: più episodi della stessa serie', () {
+      fakeAsync((async) {
+        library.itemsById['e7'] = testItem(
+            id: 'e7',
+            name: 'E7',
+            kind: ItemKind.episode,
+            seriesId: 's1',
+            seriesName: 'Breaking Bad',
+            index: 7,
+            seasonIndex: 1);
+        library.itemsById['e8'] = testItem(
+            id: 'e8',
+            name: 'E8',
+            kind: ItemKind.episode,
+            seriesId: 's1',
+            seriesName: 'Breaking Bad',
+            index: 8,
+            seasonIndex: 1);
+        mount(async);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+        // Id nella coda stabili: e7 ed e8 entrano dopo e4 (p1).
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                PlayQueue(
+                  reason: 'QueueNext',
+                  lastUpdate: DateTime.utc(2026, 9, 30, 10, 5),
+                  entries: const [
+                    PlayQueueEntry(itemId: 'e4', playlistItemId: 'p1'),
+                    PlayQueueEntry(itemId: 'e7', playlistItemId: 'n1'),
+                    PlayQueueEntry(itemId: 'e8', playlistItemId: 'n2'),
+                    PlayQueueEntry(itemId: 'e5', playlistItemId: 'p2'),
+                    PlayQueueEntry(itemId: 'e6', playlistItemId: 'p3'),
+                  ],
+                  playingIndex: 0,
+                  startPosition: Duration.zero,
+                  isPlaying: false,
+                )));
+        expect(current()?.kind, PartyNoticeKind.queuedNext);
+        expect(current()?.count, 2);
+        expect(current()?.series, 'Breaking Bad');
+        expect(current()?.title, isNull);
+        finish(async);
+      });
+    });
+
+    test('la mia aggiunta: l\'eco non fa avvisi', () {
+      fakeAsync((async) {
+        mount(async);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+        notices().mine(PartyNoticeKind.queued, show: false);
+        async.elapse(const Duration(milliseconds: 3500));
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                testSeriesQueue(
+                    itemIds: const ['e4', 'e5', 'e6', 'm2'],
+                    reason: 'Queue',
+                    lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+        expect(current(), isNull);
+        expect(library.itemsByIdsCalls, isEmpty);
+        finish(async);
+      });
+    });
+
+    test('prima coda dopo l\'ingresso con Reason Queue: nessun avviso', () {
+      fakeAsync((async) {
+        mount(async);
+        emit(async,
+            PlayQueueUpdate('g1', testSeriesQueue(reason: 'Queue')));
+        expect(current(), isNull);
+        finish(async);
+      });
+    });
   });
 }

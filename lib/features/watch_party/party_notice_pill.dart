@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../library/item_labels.dart';
 import 'party_notices.dart';
+import 'party_queue_rules.dart';
 
 String partyNoticeText(AppLocalizations l, PartyNotice notice) {
   final time = formatClock(notice.position ?? Duration.zero);
@@ -58,7 +59,34 @@ String partyNoticeText(AppLocalizations l, PartyNotice notice) {
         ? l.watchPartyNoticeShuffleOffBy(by)
         : l.watchPartyNoticeShuffleOff,
     PartyNoticeKind.queueFailed => l.partyQueueActionFailed,
+    PartyNoticeKind.queued => notice.mine
+        ? l.watchPartyNoticeQueuedByYou(_what(l, notice))
+        : by != null
+            ? l.watchPartyNoticeQueuedBy(by, _what(l, notice))
+            : l.watchPartyNoticeQueued(_what(l, notice)),
+    PartyNoticeKind.queuedNext => notice.mine
+        ? l.watchPartyNoticeQueuedNextByYou(_what(l, notice))
+        : by != null
+            ? l.watchPartyNoticeQueuedNextBy(by, _what(l, notice))
+            : l.watchPartyNoticeQueuedNext(_what(l, notice)),
+    PartyNoticeKind.queueRejected => l.partyQueueRejected,
+    PartyNoticeKind.queuePartial => notice.series != null
+        ? l.partyQueuePartialEpisodes(notice.count ?? 0, notice.total ?? 0)
+        : l.partyQueuePartialTitles(notice.count ?? 0, notice.total ?? 0),
+    PartyNoticeKind.queueFull => l.partyQueueFull(partyQueueLimit),
   };
+}
+
+/// Cosa si è aggiunto (spec H §10): il titolo, "8 episodi di Dark" o "3
+/// titoli".
+String _what(AppLocalizations l, PartyNotice notice) {
+  final title = notice.title;
+  if (title != null) return title;
+  final count = notice.count ?? 0;
+  final series = notice.series;
+  return series != null
+      ? l.partyQueueWhatEpisodes(count, series)
+      : l.catalogCount(count);
 }
 
 /// Icona oro dell'avviso nella pillola del player (spec D §15.1).
@@ -84,8 +112,13 @@ IconData partyNoticeIcon(PartyNoticeKind kind) => switch (kind) {
       PartyNoticeKind.shuffleOn ||
       PartyNoticeKind.shuffleOff =>
         LucideIcons.shuffle,
+      PartyNoticeKind.queued => LucideIcons.listPlus,
+      PartyNoticeKind.queuedNext => LucideIcons.listStart,
       PartyNoticeKind.inviteFailed ||
       PartyNoticeKind.inviteRateLimited ||
-      PartyNoticeKind.queueFailed =>
+      PartyNoticeKind.queueFailed ||
+      PartyNoticeKind.queueRejected ||
+      PartyNoticeKind.queuePartial ||
+      PartyNoticeKind.queueFull =>
         LucideIcons.circleAlert,
     };

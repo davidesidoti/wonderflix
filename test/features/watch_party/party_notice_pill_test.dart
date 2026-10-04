@@ -149,4 +149,46 @@ void main() {
     expect(partyNoticeIcon(PartyNoticeKind.shuffleOn), LucideIcons.shuffle);
     expect(partyNoticeIcon(PartyNoticeKind.queueFailed), LucideIcons.circleAlert);
   });
+
+  test('avvisi delle aggiunte (spec H §10)', () {
+    final l = lookupAppLocalizations(const Locale('it'));
+    expect(
+        partyNoticeText(l,
+            const PartyNotice(PartyNoticeKind.queued, title: 'Alien', count: 1)),
+        'Aggiunto alla coda: Alien');
+    expect(
+        partyNoticeText(
+            l,
+            const PartyNotice(PartyNoticeKind.queued,
+                count: 8, series: 'Dark', name: 'Marco')),
+        'Marco ha aggiunto alla coda: 8 episodi di Dark');
+    expect(
+        partyNoticeText(l,
+            const PartyNotice(PartyNoticeKind.queuedNext, count: 3, mine: true)),
+        'Hai messo subito dopo: 3 titoli');
+    expect(
+        partyNoticeText(
+            l, const PartyNotice(PartyNoticeKind.queueRejected, mine: true)),
+        'Non aggiunto: qualcuno nel party non può vedere questo titolo');
+    expect(
+        partyNoticeText(
+            l,
+            const PartyNotice(PartyNoticeKind.queuePartial,
+                mine: true, count: 10, total: 24, series: 'Dark')),
+        'Aggiunti 10 episodi su 24: la coda è piena');
+    expect(
+        partyNoticeText(
+            l,
+            const PartyNotice(PartyNoticeKind.queuePartial,
+                mine: true, count: 2, total: 5)),
+        'Aggiunti 2 titoli su 5: la coda è piena');
+    expect(
+        partyNoticeText(
+            l, const PartyNotice(PartyNoticeKind.queueFull, mine: true)),
+        'La coda è piena (100 titoli)');
+    expect(partyNoticeIcon(PartyNoticeKind.queued), LucideIcons.listPlus);
+    expect(partyNoticeIcon(PartyNoticeKind.queuedNext), LucideIcons.listStart);
+    expect(partyNoticeIcon(PartyNoticeKind.queueRejected),
+        LucideIcons.circleAlert);
+  });
 }

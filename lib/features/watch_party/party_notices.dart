@@ -11,6 +11,7 @@ import '../../core/syncplay/syncplay_models.dart';
 import '../auth/session_controller.dart';
 import '../library/item_labels.dart';
 import '../library/library_providers.dart';
+import 'party_queue_rules.dart';
 import 'watch_party_session.dart';
 
 final _log = Logger('watchparty');
@@ -63,13 +64,37 @@ enum PartyNoticeKind {
 
   /// Un comando della coda non è arrivato al server (solo per chi agisce).
   queueFailed,
+
+  /// Titoli aggiunti in fondo alla coda (spec H §10): `title`, oppure
+  /// `count` e `series`.
+  queued,
+
+  /// Titoli messi subito dopo quello in corso.
+  queuedNext,
+
+  /// Aggiunta scartata dal server: qualcuno nel party non può vedere un
+  /// titolo (solo per chi agisce).
+  queueRejected,
+
+  /// Aggiunta tagliata dal tetto: `count` aggiunti su `total` (solo per chi
+  /// agisce); con `series`, erano episodi della stessa serie.
+  queuePartial,
+
+  /// Coda piena, niente aggiunto (solo per chi agisce).
+  queueFull,
 }
 
 /// Un avviso del watch party (spec B §5.7). Il testo lo compone
 /// `partyNoticeText`.
 class PartyNotice {
   const PartyNotice(this.kind,
-      {this.mine = false, this.position, this.name, this.title});
+      {this.mine = false,
+      this.position,
+      this.name,
+      this.title,
+      this.count,
+      this.total,
+      this.series});
 
   final PartyNoticeKind kind;
 
@@ -86,9 +111,24 @@ class PartyNotice {
   /// Per successivo, precedente e nuovo titolo.
   final String? title;
 
+  /// Aggiunte: quanti titoli (spec H §10).
+  final int? count;
+
+  /// Aggiunta tagliata: quanti se ne volevano.
+  final int? total;
+
+  /// Aggiunte: la serie, se sono tutti episodi della stessa.
+  final String? series;
+
   /// Lo stesso avviso con il nome di chi ha agito.
   PartyNotice withName(String name) => PartyNotice(kind,
-      mine: mine, position: position, name: name, title: title);
+      mine: mine,
+      position: position,
+      name: name,
+      title: title,
+      count: count,
+      total: total,
+      series: series);
 }
 
 /// Chi annuncia un'azione dell'utente (vedi [PartyNotices.mine]).
@@ -128,6 +168,8 @@ class PartyNotices extends Notifier<PartyNotice?> {
   static const _queueEchoKinds = {
     PartyNoticeKind.shuffleOn,
     PartyNoticeKind.shuffleOff,
+    PartyNoticeKind.queued,
+    PartyNoticeKind.queuedNext,
   };
 
   static Duration _echoWindowOf(PartyNoticeKind kind) =>
@@ -141,6 +183,9 @@ class PartyNotices extends Notifier<PartyNotice?> {
 
   /// Ordine casuale dell'ultima coda vista; `null` prima della prima.
   bool? _shuffled;
+
+  /// Id nella coda dell'ultima coda vista; `null` prima della prima.
+  Set<String>? _entryIds;
   Duration? _lastSeek;
 
   /// Il canale del plugin è attivo: gli avvisi altrui aspettano il nome.
@@ -165,6 +210,7 @@ class PartyNotices extends Notifier<PartyNotice?> {
     _groupState = party.inGroup ? party.groupState : null;
     _playing = party.queue?.playing?.playlistItemId;
     _shuffled = party.queue?.shuffled;
+    _entryIds = _idsOf(party.queue);
     _lastSeek = null;
     _attribution = false;
     _cancelWaiting();
@@ -189,6 +235,7 @@ class PartyNotices extends Notifier<PartyNotice?> {
       _groupState = joined.groupState;
       _playing = joined.queue?.playing?.playlistItemId;
       _shuffled = joined.queue?.shuffled;
+      _entryIds = _idsOf(joined.queue);
     });
     ref.onDispose(() {
       _timer?.cancel();
@@ -270,6 +317,7 @@ class PartyNotices extends Notifier<PartyNotice?> {
     _groupState = null;
     _playing = null;
     _shuffled = null;
+    _entryIds = null;
     _lastSeek = null;
     _cancelWaiting();
     if (ref.mounted) state = null;
@@ -383,12 +431,34 @@ class PartyNotices extends Notifier<PartyNotice?> {
     }
   }
 
+  static Set<String>? _idsOf(PlayQueue? queue) => queue == null
+      ? null
+      : {for (final entry in queue.entries) entry.playlistItemId};
+
   void _onQueue(PlayQueue queue) {
     final entry = queue.playing;
     final previous = _playing;
     final wasShuffled = _shuffled;
     _playing = entry?.playlistItemId;
     _shuffled = queue.shuffled;
+    final previousIds = _entryIds;
+    _entryIds = _idsOf(queue);
+    // Titoli aggiunti da qualcuno (spec H §10): gli id nuovi nella coda. La
+    // prima coda dopo l'ingresso non è un'aggiunta.
+    if (queue.reason == 'Queue' || queue.reason == 'QueueNext') {
+      if (previousIds == null) return;
+      final added = [
+        for (final entry in queue.entries)
+          if (!previousIds.contains(entry.playlistItemId)) entry.itemId,
+      ];
+      if (added.isEmpty) return;
+      final next = queue.reason == 'QueueNext';
+      final kind = next ? PartyNoticeKind.queuedNext : PartyNoticeKind.queued;
+      if (_isEcho(kind)) return;
+      unawaited(_announceAddition(
+          kind, added, next ? PartyAction.queueNext : PartyAction.queue));
+      return;
+    }
     // Ordine casuale acceso o spento da qualcuno (spec H §10); la prima coda
     // dopo l'ingresso non è un cambio. L'elemento in corso resta lui.
     if (queue.reason == 'ShuffleMode') {
@@ -451,6 +521,32 @@ class PartyNotices extends Notifier<PartyNotice?> {
           PartyNotice(shown, title: _noticeTitle(item, step: step)), action);
     } on Object catch (error) {
       _log.info('titolo per l\'avviso non disponibile: $error');
+    }
+  }
+
+  /// Al massimo tanti dettagli per il testo di un'aggiunta: oltre, una coda
+  /// fatta da un altro client direbbe solo "N titoli".
+  static const additionDetails = 50;
+
+  /// Avviso di un'aggiunta altrui: i dettagli dei titoli (una richiesta)
+  /// danno il testo; senza dettagli, nessun avviso.
+  Future<void> _announceAddition(
+      PartyNoticeKind kind, List<String> itemIds, PartyAction action) async {
+    try {
+      final items = await ref.read(libraryApiProvider).itemsByIds(
+          ref.read(currentUserIdProvider),
+          itemIds.take(additionDetails).toList());
+      if (!ref.mounted || !ref.read(watchPartySessionProvider).inGroup) return;
+      if (items.isEmpty) return;
+      final addition = partyQueueAddition(items, count: itemIds.length);
+      _showOthers(
+          PartyNotice(kind,
+              title: addition.title,
+              count: addition.count,
+              series: addition.series),
+          action);
+    } on Object catch (error) {
+      _log.info('titoli aggiunti non disponibili: ${error.runtimeType}');
     }
   }
 
