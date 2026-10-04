@@ -1,7 +1,7 @@
 # WonderFlix — Spec H: coda del watch party
 
 - **Data:** 2026-10-04
-- **Stato:** approvato; piano 14a realizzato (`docs/superpowers/plans/2026-10-04-wonderflix-14a-coda-party.md`), piano 14b scritto (`docs/superpowers/plans/2026-10-04-wonderflix-14b-aggiungere-release.md`)
+- **Stato:** approvato; piano 14a realizzato (`docs/superpowers/plans/2026-10-04-wonderflix-14a-coda-party.md`), piano 14b realizzato (`docs/superpowers/plans/2026-10-04-wonderflix-14b-aggiungere-release.md`)
 - **Ambito:** Spec H. Riprende l'esclusione della Spec B (`2026-09-30-wonderflix-watch-party-design.md`, §3 "Escluso": "Gestione avanzata della coda") e si appoggia alla Spec D (player: `2026-10-01-wonderflix-rinnovo-player-design.md`), alla Spec E (nomi dal plugin: `2026-10-02-wonderflix-watch-party-sociale-design.md` §8) e alla Spec F (disponibilità del plugin, `Features`).
 
 ## 1. Obiettivo
@@ -123,7 +123,7 @@ La ricerca sul codice di `jellyfin/jellyfin` al tag `v10.11.9` ha dato questi fa
 ```
 App 0.8.0
   lib/core/syncplay/      SyncPlayApi (+6 metodi), PlayQueue.shuffled
-  lib/core/jellyfin/      LibraryApi.itemsByIds, LibraryApi.previousEpisode
+  lib/core/jellyfin/      LibraryApi.itemsByIds, LibraryApi.previousEpisode, LibraryApi.allEpisodes
   lib/core/party_channel/  PartyPluginInfo.features, PartyAction (+5)
   lib/features/watch_party/
     party_queue_rules.dart   funzioni pure: sezioni, posto libero, doppioni, indici
@@ -167,6 +167,7 @@ L'app parla direttamente con gli endpoint SyncPlay; il plugin serve solo per i n
   `FakeSyncPlayApi` le registra in `calls` come le altre.
 - **`PlayQueue.shuffled`:** `true` se `ShuffleMode == "Shuffle"`.
 - **`LibraryApi.itemsByIds(userId, ids)`:** `GET /Items?ids=…`, con i campi per le righe (serie, numeri di stagione ed episodio, durata, immagini) e la sinossi (`Overview`, per il post-play del party). Con una lista vuota non parte nessuna richiesta.
+- **`LibraryApi.allEpisodes(userId, seriesId)`:** `GET /Shows/{seriesId}/Episodes` con `isMissing=false` e senza `seasonId`: tutti gli episodi veri della serie, una richiesta sola per le viste Serie e Stagione (§9.2).
 - **`LibraryApi.previousEpisode(userId, seriesId, episodeId)`:** `GET /Shows/{seriesId}/Episodes` con `adjacentTo` e `isMissing=false`. Restituisce l'episodio prima di quello dato, anche nella stagione precedente, oppure `null`.
 - **`WatchPartyState`:** `previousEntry`, cioè l'elemento prima di quello in corso, `null` se è il primo; e `hasPrevious`.
 - **Funzione `queue` del plugin:** `PartyPluginInfo.features` (l'`Info` che chiede il canale del party) → `PartyChannelState.queueActions`, vera solo con il nostro protocollo; `PartyChannel.announce` manda le azioni della coda solo con questa funzione.
@@ -180,7 +181,8 @@ Funzioni pure, testate a parte:
 - **Sezioni:** già visti (gli indici prima di `playingIndex`), in corso, prossimi (gli indici dopo).
 - **Posto libero:** `100 - entries.length`, mai meno di 0.
 - **Già in coda:** gli `ItemId` dell'elemento in corso e dei prossimi.
-- **Titoli da aggiungere:** dati i candidati in ordine, si tolgono quelli già in coda (e i doppioni tra i candidati), poi si taglia al posto libero. Il risultato dice quanti si mandano, quanti erano già in coda e quanti restano fuori per il tetto.
+- **Titoli da aggiungere:** dati i candidati in ordine, si tolgono quelli già in coda, quelli di un'aggiunta ancora in attesa e i doppioni tra i candidati, poi si taglia al posto libero. Il risultato dice quanti si mandano, quanti erano già in coda e quanti restano fuori per il tetto.
+- **Serie di un'aggiunta:** il nome della serie se i titoli sono tutti episodi della stessa serie, anche uno solo (`partyQueueSeriesOf`); serve agli avvisi.
 - **Indice dello spostamento:** un titolo dei prossimi trascinato alla posizione *k* tra i prossimi (contata dopo averlo tolto) va al `NewIndex` = `playingIndex + 1 + k`. L'elemento in corso resta prima dei prossimi, perché trascinare un prossimo non ne cambia la posizione. Senza elemento in corso (tutti prossimi) il `NewIndex` è *k*.
 - **Ordine provvisorio:** dopo un trascinamento i prossimi si mostrano nell'ordine scelto finché sono gli stessi elementi, senza ripetizioni.
 
@@ -192,9 +194,9 @@ Funzioni pure, testate a parte:
   1. calcola i titoli da mandare con le regole (§8.2);
   2. se non ne resta nessuno, risponde subito: tutti già in coda, oppure coda piena;
   3. altrimenti manda `queue` e, se il plugin ha `queue`, annuncia `Queue` o `QueueNext`;
-  4. aspetta **la conferma**: un aggiornamento `PlayQueue` con `Reason` `Queue` o `QueueNext` che contenga nuovi `PlaylistItemId` con gli `ItemId` mandati. L'attesa dura al massimo `addConfirmTimeout = 4 s`.
+  4. aspetta **la conferma**: un aggiornamento `PlayQueue` con `Reason` `Queue` o `QueueNext` che contenga nuovi `PlaylistItemId` con gli `ItemId` mandati. L'attesa dura al massimo `addConfirmTimeout = 4 s`. Si ascolta il flusso `updates` della sessione **prima** della richiesta: la coda può arrivare prima della risposta HTTP.
 
-  Il risultato è uno di: aggiunti (con quanti ne mancavano per il tetto), già tutti in coda, coda piena, rifiutato (tempo scaduto), errore (eccezione dell'API). Due aggiunte alla volta vanno bene: ognuna aspetta la sua conferma.
+  Il risultato è `PartyQueueAddOutcome`: `added` (anche solo una parte, per il tetto), `alreadyQueued`, `full`, `rejected` (tempo scaduto), `failed` (eccezione dell'API, o fuori dal gruppo). Due aggiunte alla volta vanno bene: ognuna aspetta la sua conferma. Gli id di un'aggiunta in attesa (`_pendingAdds`) non si rimandano. L'eco registrata prima della richiesta si rinnova quando la richiesta riesce (`PartyNotices.renew`), così dura quanto l'attesa della conferma.
 - **`jumpTo(playlistItemId)`:** solo per un elemento che non è quello in corso. Manda `setPlaylistItem` e annuncia `SetCurrentItem`.
 - **`remove(playlistItemId)`:** mai per l'elemento in corso. Manda `removeFromPlaylist`, senza annuncio.
 - **`move(playlistItemId, k)`:** solo per un prossimo. Calcola il `NewIndex` (§8.2) e manda `movePlaylistItem`, senza annuncio.
@@ -233,7 +235,7 @@ Funzioni pure, testate a parte:
 - **Pannello:** `PlayerPopup.queue`. Il pulsante apre e chiude il pannello, e uno solo è aperto alla volta (come oggi).
   - Come quello delle tracce, prende tutta l'altezza a destra, sopra i controlli, e i controlli restano visibili.
   - Si chiude con ✕, con un clic sul film, con Esc (vedi §9.3), quando compare il post-play, quando il video va in errore, oppure quando il player esce dal party.
-  - Resta aperto quando il gruppo passa a un altro titolo (clic su una riga, ⏮, ⏭, azioni degli altri): il player nuovo lo riapre subito (`partyQueuePanelCarryProvider`).
+  - Resta aperto quando il gruppo passa a un altro titolo (clic su una riga, ⏮, ⏭, azioni degli altri): il player nuovo lo riapre subito (`partyQueuePanelCarryProvider`), sulla stessa vista, con la stessa serie o stagione e lo stesso testo di ricerca (`queuePanelNavProvider`, `queueAddSearchProvider`, globali). Lo stato si azzera aprendo il pannello dal pulsante e uscendo dal gruppo. Un'aggiunta in attesa continua: si perde solo l'indicatore sul pulsante.
 - **`PlayerSidePanelHost`:** l'entrata da destra, il velo e il clic sul film che chiude, oggi in `TracksPanelHost`, vanno in un contenitore comune alle tracce e alla coda. Il comportamento delle tracce non cambia.
 - **Post-play e schedina "prossimo" nel party.**
   - Il titolo offerto è `nextEntry` della coda, con i dettagli da `partyQueueItemsProvider`. Restano le regole di oggi: post-play solo con il segmento Outro, schedina negli ultimi 30 s, nel party niente conto alla rovescia, alla vera fine si va avanti da soli.
@@ -244,7 +246,7 @@ Funzioni pure, testate a parte:
 
 ### 9.2 Pannello "Coda"
 
-La cartella è `lib/features/player/queue_panel/`. Largo 360 px, stile del pannello tracce: fondo `WfColors.surface` al 94 %, bordo sinistro, titoli in Bebas Neue. Le viste si sostituiscono una all'altra, con una sfumatura breve da `WfMotion`.
+La cartella è `lib/features/player/queue_panel/`. Largo 360 px, stile del pannello tracce: fondo `WfColors.surface` al 94 %, bordo sinistro, titoli in Bebas Neue. Le viste si sostituiscono una all'altra, con una sfumatura breve da `WfMotion`. Il fondo è uno solo per tutte le viste (`QueuePanelBackdrop`), quindi durante la sfumatura il film non traspare; ogni apertura di una vista è una vista nuova, anche tornando indietro e avanti in fretta.
 
 **Vista Coda**
 - **Intestazione:**
@@ -275,26 +277,26 @@ La cartella è `lib/features/player/queue_panel/`. Largo 360 px, stile del panne
 **Vista Aggiungi**
 - **Intestazione:** ← (torna alla Coda), "Aggiungi", ✕.
 - **Campo "Cerca film e serie":** prende il focus all'apertura, chiesto dopo il fotogramma (lezione della Spec F).
-  - A campo vuoto la sezione è **"La mia lista"**: i preferiti film e serie, per titolo.
-  - **Da 2 lettere**, dopo 300 ms dall'ultima battuta, la sezione diventa "Risultati": film e serie che contengono il testo, al massimo 20. Le risposte vecchie si scartano con un contatore.
+  - A campo vuoto la sezione è **"La mia lista"**: i preferiti film e serie, per titolo (gli stessi dati della pagina La mia lista, `favoritesProvider`, che resta in memoria anche mentre si cerca).
+  - **Da 2 lettere**, dopo 300 ms dall'ultima battuta, la sezione diventa "Risultati": film e serie che contengono il testo, al massimo 20, in ordine di titolo. Una ricerca nuova annulla la vecchia (`CancelToken`), e le risposte vecchie si scartano. Mentre una ricerca nuova è in corso restano i risultati di prima.
 - **Riga di un film:**
-  - locandina 2:3 (34×51), titolo, "Film · 1995 · 2 h 50 min";
+  - locandina 2:3 (34×51), titolo, "Film · 1995 · 2h 50m";
   - a destra ↳ (`LucideIcons.listStart`, "Riproduci dopo") e ＋ (`LucideIcons.listPlus`, "Aggiungi in coda");
   - se è già in coda, ✓ "In coda" al posto dei pulsanti.
-- **Riga di una serie:** "Serie · 3 stagioni" e › (`LucideIcons.chevronRight`). Il clic apre la vista Serie.
+- **Riga di una serie:** "Serie" e › (`LucideIcons.chevronRight`). Il clic apre la vista Serie. Il numero di stagioni non c'è: Jellyfin manda `ChildCount` di una serie solo se lo si chiede nei campi, e ricerca e La mia lista non lo chiedono.
 - **Stati:** se la lista è vuota, "La tua lista è vuota" o "Nessun risultato". Se c'è un errore, "Non riesco a caricare i titoli" con "Riprova".
 
 **Vista Serie**
-- **Intestazione:** ←, il nome della serie con "3 stagioni" sotto, ✕.
-- **Una riga per stagione:** locandina della stagione, "Stagione 1" e "10 episodi". Se serve, la riga aggiunge "· 2 già in coda".
+- **Intestazione:** ←, il nome della serie con "2 stagioni" sotto (le stagioni mostrate, quando sono arrivate), ✕.
+- **Una riga per stagione** con episodi veri (le altre non compaiono): locandina della stagione, "Stagione 1" e "10 episodi". Se serve, la riga aggiunge "· 2 già in coda".
   - ↳ e ＋ aggiungono **tutta la stagione**, saltando gli episodi già in coda.
   - Se sono tutti in coda, al posto dei pulsanti c'è ✓ "In coda".
-  - Il clic sulla riga, o ›, apre la vista Stagione.
-- Gli episodi di una stagione si chiedono la prima volta che servono (per i pulsanti o per la vista Stagione), senza gli episodi mancanti.
+  - Il clic sulla riga, o ›, apre la vista Stagione. Un clic su un pulsante spento o in attesa non apre la stagione.
+- Le stagioni vengono da `/Shows/{id}/Seasons`; gli episodi di tutta la serie da `allEpisodes`, una richiesta sola all'apertura della serie, che serve anche alla vista Stagione. Con un errore, "Non riesco a caricare i titoli" con "Riprova".
 
 **Vista Stagione**
-- **Intestazione:** ←, "Stagione 1" con "Dark · 10 episodi" sotto, ✕.
-- **Sotto l'intestazione:** "Tutta dopo" (pieno, dorato) e "Tutta in coda" (bordo dorato).
+- **Intestazione:** ←, "Stagione 1" con "Dark · 10 episodi" sotto (solo "Dark" finché gli episodi non sono arrivati), ✕.
+- **Sotto l'intestazione:** "Tutta dopo" (pieno, dorato) e "Tutta in coda" (bordo dorato), un'aggiunta alla volta, con l'indicatore dell'attesa accanto al pulsante premuto; con la coda piena sono spenti, con il suggerimento "La coda è piena (100 titoli)".
 - **Una riga per episodio:** immagine 16:9, "3. Passato e presente", durata, ↳ e ＋ oppure ✓ "In coda".
 
 **Pulsanti di aggiunta**
@@ -304,17 +306,19 @@ La cartella è `lib/features/player/queue_panel/`. Largo 360 px, stile del panne
 
 ### 9.3 Tasti e focus
 
-- **Esc nel pannello:** se il campo di ricerca ha del testo, lo svuota. Altrimenti chiude il pannello, da qualunque vista. La freccia ← torna indietro di una vista.
-- **Campo di ricerca con il focus:** i tasti vanno al campo e i comandi del player non scattano, come con la chat (Spec E). I tasti multimediali funzionano lo stesso.
+- **Esc nel pannello:** se il campo di ricerca ha del testo, lo svuota. Altrimenti chiude il pannello, da qualunque vista. Tenendo premuto Esc conta una pressione sola. La freccia ← torna indietro di una vista.
+- **Campo di ricerca con il focus:** i tasti vanno al campo e i comandi del player non scattano (spazio, frecce, P, N, 1–6, Invio per la chat), come con la chat (Spec E). I tasti multimediali funzionano lo stesso; Tab non porta fuori dal campo.
+- **Il campo tiene il focus** finché la vista Aggiungi è aperta: Invio non lo lascia, un clic altrove (↳, ＋, righe, intestazione) nemmeno, e dopo Alt-Tab lo ritrova. Lo lascia quando la vista cambia o il pannello si chiude.
 - **Senza focus nel campo:** valgono i tasti del player (spazio, frecce, P, N…), come con il pannello tracce aperto.
 - La rotella sul pannello fa scorrere la lista e non cambia il volume, come nel pannello tracce.
-- Alla chiusura del pannello il focus torna al player.
+- Alla chiusura del pannello il focus torna subito al player, senza aspettare la fine dell'animazione.
+- Il pannello non sta dentro `ExcludeFocus` nel player: è `QueuePanelFrame` a escludere dal focus tutto tranne il campo.
 
 ## 10. Avvisi
 
 **Da dove nascono**
 - Gli avvisi della coda nascono dagli aggiornamenti `PlayQueue`, come oggi quelli di "successivo" e "si guarda".
-- `PartyNotices` ricorda gli id della coda precedente: con `Reason` `Queue` o `QueueNext` i titoli aggiunti sono i `PlaylistItemId` nuovi.
+- `PartyNotices` ricorda gli id della coda precedente: con `Reason` `Queue` o `QueueNext` i titoli aggiunti sono i `PlaylistItemId` nuovi. Per il testo chiede i dettagli dei titoli aggiunti, con una richiesta sola; oltre 50 titoli (`additionDetails`) non li chiede e dice solo "N titoli". Senza dettagli (errore, o uscita dal gruppo nel frattempo) nessun avviso.
 - Il nome si aggancia come oggi (Spec E §8): dall'annuncio già arrivato (che vale 2 s), oppure aspettandolo al massimo 300 ms.
 
 **Testi**
@@ -340,7 +344,7 @@ Nella tabella, `{what}` vale:
 
 **Avvisi di errore**, solo per chi ha agito:
 - "Non aggiunto: qualcuno nel party non può vedere questo titolo", quando scade il tempo della conferma;
-- "Aggiunti {added} episodi su {wanted}: la coda è piena", e "Aggiunti {added} titoli su {wanted}: la coda è piena" se non sono tutti episodi della stessa serie;
+- "Aggiunti {added} episodi su {wanted}: la coda è piena" ("Aggiunto 1 episodio su …"), e "Aggiunti {added} titoli su {wanted}: la coda è piena" ("Aggiunto 1 titolo su …") se non sono tutti episodi della stessa serie;
 - "La coda è piena (100 titoli)", se non c'era posto per nulla;
 - "Non riuscito, riprova", per un errore dell'API.
 
