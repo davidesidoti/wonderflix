@@ -195,6 +195,9 @@ class PartyQueueEditor {
         notices.forget(kind);
         return PartyQueueAddOutcome.failed;
       }
+      // La conferma può arrivare fino a [addConfirmTimeout] dopo la risposta:
+      // l'eco dura altrettanto.
+      notices.renew(kind);
       channel.announce(next ? PartyAction.queueNext : PartyAction.queue);
       try {
         await confirmed.future.timeout(addConfirmTimeout);
@@ -215,7 +218,8 @@ class PartyQueueEditor {
               mine: true,
               count: plan.send.length,
               total: plan.send.length + plan.cut,
-              series: addition.series)
+              // Anche con un episodio solo: "Aggiunto 1 episodio su 3".
+              series: partyQueueSeriesOf(sent))
           : PartyNotice(kind,
               mine: true,
               title: addition.title,

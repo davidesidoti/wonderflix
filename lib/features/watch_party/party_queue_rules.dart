@@ -144,6 +144,17 @@ class PartyQueueAddition {
   final String? series;
 }
 
+/// Il nome della serie se [items] sono tutti episodi della stessa serie (anche
+/// uno solo); altrimenti `null`.
+String? partyQueueSeriesOf(List<JellyfinItem> items) {
+  if (items.isEmpty) return null;
+  final seriesIds = {
+    for (final item in items) item.kind == ItemKind.episode ? item.seriesId : null,
+  };
+  final series = items.first.seriesName;
+  return seriesIds.length == 1 && seriesIds.single != null ? series : null;
+}
+
 /// [items]: i dettagli dei titoli aggiunti; [count]: quanti sono in tutto,
 /// se i dettagli sono solo di una parte (allora si dice solo quanti).
 PartyQueueAddition partyQueueAddition(List<JellyfinItem> items, {int? count}) {
@@ -159,12 +170,5 @@ PartyQueueAddition partyQueueAddition(List<JellyfinItem> items, {int? count}) {
           : cardTitle(item),
     );
   }
-  final seriesIds = {
-    for (final item in items) item.kind == ItemKind.episode ? item.seriesId : null,
-  };
-  final series = items.first.seriesName;
-  if (seriesIds.length == 1 && seriesIds.single != null && series != null) {
-    return PartyQueueAddition(count: total, series: series);
-  }
-  return PartyQueueAddition(count: total);
+  return PartyQueueAddition(count: total, series: partyQueueSeriesOf(items));
 }

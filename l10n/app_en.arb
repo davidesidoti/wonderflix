@@ -349,6 +349,6 @@
   "watchPartyNoticeQueuedNextByYou": "You put up next: {what}",
   "partyQueueWhatEpisodes": "{count} episodes of {series}",
   "partyQueueRejected": "Not added: someone in the party can't see this title",
-  "partyQueuePartialEpisodes": "Added {added} of {wanted} episodes: the queue is full",
-  "partyQueuePartialTitles": "Added {added} of {wanted} titles: the queue is full"
+  "partyQueuePartialEpisodes": "{added, plural, =1{Added 1 of {wanted} episodes} other{Added {added} of {wanted} episodes}}: the queue is full",
+  "partyQueuePartialTitles": "{added, plural, =1{Added 1 of {wanted} titles} other{Added {added} of {wanted} titles}}: the queue is full"
 }

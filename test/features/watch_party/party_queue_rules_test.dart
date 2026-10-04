@@ -77,6 +77,18 @@ void main() {
   });
 
   group('aggiunta (spec H §8.2)', () {
+    final film = testItem(id: 'm1', name: 'Alien');
+    JellyfinItem episode(String id, int index,
+            {String series = 'Dark', String seriesId = 's1'}) =>
+        testItem(
+            id: id,
+            name: 'E$index',
+            kind: ItemKind.episode,
+            seriesName: series,
+            seriesId: seriesId,
+            index: index,
+            seasonIndex: 1);
+
     test('posto libero e titoli già in coda', () {
       final q = queue(); // e3 già visto, e4 in corso, e5, e6
       expect(partyQueueRoom(q), partyQueueLimit - 4);
@@ -106,18 +118,6 @@ void main() {
 
     test('cosa dice l\'avviso: un film, un episodio, episodi della stessa '
         'serie, titoli misti', () {
-      final film = testItem(id: 'm1', name: 'Alien');
-      JellyfinItem episode(String id, int index,
-              {String series = 'Dark', String seriesId = 's1'}) =>
-          testItem(
-              id: id,
-              name: 'E$index',
-              kind: ItemKind.episode,
-              seriesName: series,
-              seriesId: seriesId,
-              index: index,
-              seasonIndex: 1);
-
       final one = partyQueueAddition([film]);
       expect((one.count, one.title, one.series), (1, 'Alien', null));
 
@@ -139,6 +139,21 @@ void main() {
       // Dettagli di una parte soltanto: si dice solo quanti.
       final partial = partyQueueAddition([episode('e1', 1)], count: 3);
       expect((partial.count, partial.title, partial.series), (3, null, null));
+    });
+
+    test('serie dei titoli: la stessa per tutti gli episodi, anche uno solo',
+        () {
+      expect(partyQueueSeriesOf([episode('e1', 1)]), 'Dark');
+      expect(partyQueueSeriesOf([episode('e1', 1), episode('e2', 2)]), 'Dark');
+      expect(partyQueueSeriesOf([episode('e1', 1), film]), isNull);
+      expect(
+          partyQueueSeriesOf([
+            episode('e1', 1),
+            episode('x1', 1, series: 'Lost', seriesId: 's2'),
+          ]),
+          isNull);
+      expect(partyQueueSeriesOf([film]), isNull);
+      expect(partyQueueSeriesOf(const []), isNull);
     });
   });
 }

@@ -416,8 +416,8 @@
   "partyQueueWhatEpisodes": "{count} episodi di {series}",
   "@partyQueueWhatEpisodes": {"placeholders": {"count": {"type": "int"}, "series": {"type": "String"}}},
   "partyQueueRejected": "Non aggiunto: qualcuno nel party non può vedere questo titolo",
-  "partyQueuePartialEpisodes": "Aggiunti {added} episodi su {wanted}: la coda è piena",
+  "partyQueuePartialEpisodes": "{added, plural, =1{Aggiunto 1 episodio} other{Aggiunti {added} episodi}} su {wanted}: la coda è piena",
   "@partyQueuePartialEpisodes": {"placeholders": {"added": {"type": "int"}, "wanted": {"type": "int"}}},
-  "partyQueuePartialTitles": "Aggiunti {added} titoli su {wanted}: la coda è piena",
+  "partyQueuePartialTitles": "{added, plural, =1{Aggiunto 1 titolo} other{Aggiunti {added} titoli}} su {wanted}: la coda è piena",
   "@partyQueuePartialTitles": {"placeholders": {"added": {"type": "int"}, "wanted": {"type": "int"}}}
 }

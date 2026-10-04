@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/party_channel/party_channel_models.dart';
@@ -897,6 +898,143 @@ void main() {
         mount(async);
         emit(async,
             PlayQueueUpdate('g1', testSeriesQueue(reason: 'Queue')));
+        expect(current(), isNull);
+        finish(async);
+      });
+    });
+
+    test('la mia aggiunta: dopo la risposta l\'eco si rinnova per l\'attesa '
+        'della conferma', () {
+      fakeAsync((async) {
+        mount(async);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+        notices().mine(PartyNoticeKind.queued, show: false);
+        async.elapse(const Duration(milliseconds: 3500));
+        notices().renew(PartyNoticeKind.queued);
+        async.elapse(const Duration(milliseconds: 3500));
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                testSeriesQueue(
+                    itemIds: const ['e4', 'e5', 'e6', 'm2'],
+                    reason: 'Queue',
+                    lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+        expect(current(), isNull, reason: 'è ancora la nostra eco');
+        expect(library.itemsByIdsCalls, isEmpty);
+        finish(async);
+      });
+    });
+
+    test('rinnovare senza eco, o di un altro tipo, non nasconde le aggiunte '
+        'degli altri', () {
+      fakeAsync((async) {
+        mount(async);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+        notices()
+          ..renew(PartyNoticeKind.queued)
+          ..mine(PartyNoticeKind.queuedNext, show: false)
+          ..renew(PartyNoticeKind.queued);
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                testSeriesQueue(
+                    itemIds: const ['e4', 'e5', 'e6', 'm2'],
+                    reason: 'Queue',
+                    lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+        expect(current()?.kind, PartyNoticeKind.queued);
+        finish(async);
+      });
+    });
+
+    test('oltre 50 titoli aggiunti: niente richiesta dei dettagli, '
+        'si dice quanti', () {
+      fakeAsync((async) {
+        mount(async);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                testSeriesQueue(
+                    itemIds: [
+                      'e4',
+                      'e5',
+                      'e6',
+                      for (var i = 0; i < 51; i++) 'x$i',
+                    ],
+                    reason: 'Queue',
+                    lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+        expect(library.itemsByIdsCalls, isEmpty);
+        expect(current()?.kind, PartyNoticeKind.queued);
+        expect(current()?.count, 51);
+        expect(current()?.title, isNull);
+        expect(current()?.series, isNull);
+        finish(async);
+      });
+    });
+
+    test('esattamente 50 titoli aggiunti: i dettagli si chiedono ancora', () {
+      fakeAsync((async) {
+        mount(async);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                testSeriesQueue(
+                    itemIds: [
+                      'e4',
+                      'e5',
+                      'e6',
+                      for (var i = 0; i < 50; i++) 'x$i',
+                    ],
+                    reason: 'Queue',
+                    lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+        expect(library.itemsByIdsCalls, hasLength(1));
+        expect(library.itemsByIdsCalls.single, hasLength(50));
+        finish(async);
+      });
+    });
+
+    test('uscita dal gruppo prima dei dettagli: nessun avviso', () {
+      fakeAsync((async) {
+        library.itemsByIdsGate = Completer<void>();
+        mount(async);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                testSeriesQueue(
+                    itemIds: const ['e4', 'e5', 'e6', 'm2'],
+                    reason: 'Queue',
+                    lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+        expect(library.itemsByIdsCalls, hasLength(1));
+        unawaited(container.read(watchPartySessionProvider.notifier).leave());
+        async.flushMicrotasks();
+        library.itemsByIdsGate!.complete();
+        async.flushMicrotasks();
+        expect(current(), isNull, reason: 'fuori dal gruppo');
+        finish(async);
+      });
+    });
+
+    test('dettagli non disponibili (errore): nessun avviso', () {
+      fakeAsync((async) {
+        library.error = const ServerUnreachableException();
+        mount(async);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+        emit(
+            async,
+            PlayQueueUpdate(
+                'g1',
+                testSeriesQueue(
+                    itemIds: const ['e4', 'e5', 'e6', 'm2'],
+                    reason: 'Queue',
+                    lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+        expect(library.itemsByIdsCalls, hasLength(1));
         expect(current(), isNull);
         finish(async);
       });

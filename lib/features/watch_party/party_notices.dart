@@ -270,6 +270,15 @@ class PartyNotices extends Notifier<PartyNotice?> {
     if (index >= 0) _echoes.removeAt(index);
   }
 
+  /// Rinnova l'ultima eco registrata con [mine] per [kind], se c'è: la
+  /// finestra riparte da adesso. Serve a un'azione la cui conferma arriva
+  /// dopo la risposta del server (le aggiunte, spec H §10): l'eco deve durare
+  /// quanto l'attesa, non quanto la richiesta più l'attesa.
+  void renew(PartyNoticeKind kind) {
+    final index = _echoes.lastIndexWhere((echo) => echo.kind == kind);
+    if (index >= 0) _echoes[index] = (kind: kind, at: clock.now());
+  }
+
   /// Il canale del plugin è attivo ([enabled]) o spento (spec E §8). Spento:
   /// gli avvisi in attesa escono subito senza nome.
   void setAttribution(bool enabled) {
@@ -524,21 +533,28 @@ class PartyNotices extends Notifier<PartyNotice?> {
     }
   }
 
-  /// Al massimo tanti dettagli per il testo di un'aggiunta: oltre, una coda
-  /// fatta da un altro client direbbe solo "N titoli".
+  /// Al massimo tanti dettagli per il testo di un'aggiunta: con più titoli
+  /// (una coda fatta da un altro client) non si chiede niente e si dice solo
+  /// "N titoli".
   static const additionDetails = 50;
 
-  /// Avviso di un'aggiunta altrui: i dettagli dei titoli (una richiesta)
-  /// danno il testo; senza dettagli, nessun avviso.
+  /// Avviso di un'aggiunta altrui: i dettagli dei titoli (una richiesta, al
+  /// massimo [additionDetails] id) danno il testo; se non arrivano, nessun
+  /// avviso.
   Future<void> _announceAddition(
       PartyNoticeKind kind, List<String> itemIds, PartyAction action) async {
     try {
-      final items = await ref.read(libraryApiProvider).itemsByIds(
-          ref.read(currentUserIdProvider),
-          itemIds.take(additionDetails).toList());
+      final PartyQueueAddition addition;
+      if (itemIds.length > additionDetails) {
+        addition = PartyQueueAddition(count: itemIds.length);
+      } else {
+        final items = await ref
+            .read(libraryApiProvider)
+            .itemsByIds(ref.read(currentUserIdProvider), itemIds);
+        if (items.isEmpty) return;
+        addition = partyQueueAddition(items, count: itemIds.length);
+      }
       if (!ref.mounted || !ref.read(watchPartySessionProvider).inGroup) return;
-      if (items.isEmpty) return;
-      final addition = partyQueueAddition(items, count: itemIds.length);
       _showOthers(
           PartyNotice(kind,
               title: addition.title,

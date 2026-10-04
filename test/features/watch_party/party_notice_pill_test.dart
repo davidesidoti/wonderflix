@@ -182,6 +182,32 @@ void main() {
             const PartyNotice(PartyNoticeKind.queuePartial,
                 mine: true, count: 2, total: 5)),
         'Aggiunti 2 titoli su 5: la coda è piena');
+    // Un solo titolo aggiunto: singolare.
+    expect(
+        partyNoticeText(
+            l,
+            const PartyNotice(PartyNoticeKind.queuePartial,
+                mine: true, count: 1, total: 3, series: 'Dark')),
+        'Aggiunto 1 episodio su 3: la coda è piena');
+    expect(
+        partyNoticeText(
+            l,
+            const PartyNotice(PartyNoticeKind.queuePartial,
+                mine: true, count: 1, total: 5)),
+        'Aggiunto 1 titolo su 5: la coda è piena');
+    final en = lookupAppLocalizations(const Locale('en'));
+    expect(
+        partyNoticeText(
+            en,
+            const PartyNotice(PartyNoticeKind.queuePartial,
+                mine: true, count: 1, total: 3, series: 'Dark')),
+        'Added 1 of 3 episodes: the queue is full');
+    expect(
+        partyNoticeText(
+            en,
+            const PartyNotice(PartyNoticeKind.queuePartial,
+                mine: true, count: 2, total: 5)),
+        'Added 2 of 5 titles: the queue is full');
     expect(
         partyNoticeText(
             l, const PartyNotice(PartyNoticeKind.queueFull, mine: true)),

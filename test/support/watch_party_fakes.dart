@@ -273,6 +273,9 @@ class FakePartyNotices extends PartyNotices {
   /// Echi tolti con `forget`, in ordine.
   final forgotten = <PartyNoticeKind>[];
 
+  /// Echi rinnovati con `renew`, in ordine.
+  final renewed = <PartyNoticeKind>[];
+
   /// Chiamate di `setAttribution`, in ordine.
   final attributionCalls = <bool>[];
 
@@ -299,6 +302,9 @@ class FakePartyNotices extends PartyNotices {
 
   @override
   void forget(PartyNoticeKind kind) => forgotten.add(kind);
+
+  @override
+  void renew(PartyNoticeKind kind) => renewed.add(kind);
 }
 
 /// Invito fisso: registra le chiusure, senza timer.
