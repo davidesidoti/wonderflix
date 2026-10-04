@@ -465,6 +465,41 @@ void main() {
     });
   });
 
+  test('refreshInfo: la funzione queue arriva da Info, il Join non lo richiede',
+      () {
+    fakeAsync((async) {
+      channelApi.install(version: '1.3.0', features: const {partyQueueFeature});
+      mount(async);
+      unawaited(notifier().refreshInfo());
+      async.flushMicrotasks();
+      expect(channel().availability, PartyPluginAvailability.available);
+      expect(channel().queueActions, isTrue);
+
+      joinGroup(async);
+      expect(channelApi.calls.where((call) => call == 'info').length, 1,
+          reason: 'il plugin è già noto: il Join non chiede Info');
+      notifier().announce(PartyAction.shuffleMode);
+      async.flushMicrotasks();
+      expect(sentJson(), [
+        {'Type': 'Action', 'Action': 'ShuffleMode'},
+      ]);
+      finish(async);
+    });
+  });
+
+  test('refreshInfo: con un protocollo diverso la funzione queue non vale', () {
+    fakeAsync((async) {
+      channelApi.pluginInfo = const PartyPluginInfo(
+          version: '2.0.0', protocol: 2, features: {partyQueueFeature});
+      mount(async);
+      unawaited(notifier().refreshInfo());
+      async.flushMicrotasks();
+      expect(channel().availability, PartyPluginAvailability.unavailable);
+      expect(channel().queueActions, isFalse);
+      finish(async);
+    });
+  });
+
   test('uscita dal gruppo con il Join in corso: Leave, canale spento', () {
     fakeAsync((async) {
       channelApi

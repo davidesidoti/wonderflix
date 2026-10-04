@@ -53,11 +53,15 @@ Duration? partyQueueUpcomingRuntime(
 }
 
 /// I prossimi nell'ordine [order] (id nella coda) di un trascinamento non
-/// ancora confermato dal server, se sono ancora gli stessi elementi;
-/// altrimenti come sono nella coda.
+/// ancora confermato dal server, se sono ancora gli stessi elementi (senza
+/// ripetizioni); altrimenti come sono nella coda.
 List<PlayQueueEntry> partyQueueInOrder(
     List<PlayQueueEntry> upcoming, List<String>? order) {
-  if (order == null || order.length != upcoming.length) return upcoming;
+  if (order == null ||
+      order.length != upcoming.length ||
+      order.toSet().length != order.length) {
+    return upcoming;
+  }
   final byId = {for (final entry in upcoming) entry.playlistItemId: entry};
   final sorted = [for (final id in order) ?byId[id]];
   return sorted.length == upcoming.length ? sorted : upcoming;

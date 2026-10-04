@@ -318,7 +318,9 @@ class PartyChannel extends Notifier<PartyChannelState> {
             ? PartyPluginAvailability.available
             : PartyPluginAvailability.unavailable,
         pluginVersion: info.version,
-        queueActions: info.features.contains(partyQueueFeature),
+        // Le funzioni valgono solo con un protocollo che parliamo.
+        queueActions: info.protocol == partyChannelProtocol &&
+            info.features.contains(partyQueueFeature),
       );
     } on PartyChannelException catch (error) {
       if (ref.mounted && error.failure == PartyChannelFailure.unavailable) {
@@ -352,9 +354,11 @@ class PartyChannel extends Notifier<PartyChannelState> {
               'protocollo ${info.protocol}: canale spento');
           _deactivate(
               availability: PartyPluginAvailability.unavailable,
-              version: info.version);
+              version: info.version,
+              queueActions: false);
           return;
         }
+        // Qui il protocollo è il nostro (il ramo sopra è uscito).
         state = state.copyWith(
             availability: PartyPluginAvailability.available,
             pluginVersion: info.version,
@@ -422,6 +426,7 @@ class PartyChannel extends Notifier<PartyChannelState> {
   void _deactivate(
       {PartyPluginAvailability? availability,
       String? version,
+      bool? queueActions,
       bool clearVersion = false}) {
     _groupId = null;
     if (!ref.mounted) return;
@@ -429,6 +434,7 @@ class PartyChannel extends Notifier<PartyChannelState> {
         active: false,
         availability: availability,
         pluginVersion: version,
+        queueActions: queueActions,
         clearPluginVersion: clearVersion);
     ref.read(partyNoticesProvider.notifier).setAttribution(false);
   }

@@ -66,6 +66,8 @@ void main() {
         ['p2', 'p3', 'p4'], reason: 'un elemento in più nella coda');
     expect(ids(partyQueueInOrder(upcoming, const ['p4', 'p2', 'p9'])),
         ['p2', 'p3', 'p4'], reason: 'un elemento tolto');
+    expect(ids(partyQueueInOrder(upcoming, const ['p2', 'p2', 'p3'])),
+        ['p2', 'p3', 'p4'], reason: 'un elemento ripetuto');
   });
 
   test('tetto della coda', () {

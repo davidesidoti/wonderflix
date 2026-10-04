@@ -104,13 +104,20 @@ class LibraryApi {
   }
 
   /// Gli elementi [ids] (la coda del watch party, spec H §8.5), in ordine
-  /// qualunque: quelli cancellati o che l'utente non vede mancano.
-  Future<List<JellyfinItem>> itemsByIds(String userId, List<String> ids) async =>
-      _list(await _http.get('/Items', query: {
-        ...cardImageParams,
-        'userId': userId,
-        'ids': ids.join(','),
-      }));
+  /// qualunque: quelli cancellati o che l'utente non vede mancano. Con la
+  /// sinossi (`Overview`, che Jellyfin manda solo se richiesta): serve al
+  /// post-play del party. Con [ids] vuoto non parte nessuna richiesta: un
+  /// `ids=` vuoto farebbe rispondere a Jellyfin con le viste della libreria.
+  Future<List<JellyfinItem>> itemsByIds(
+      String userId, List<String> ids) async {
+    if (ids.isEmpty) return const [];
+    return _list(await _http.get('/Items', query: {
+      ...cardImageParams,
+      'fields': '${cardImageParams['fields']},Overview',
+      'userId': userId,
+      'ids': ids.join(','),
+    }));
+  }
 
   /// [startItemId] e gli episodi che lo seguono nella serie, anche nelle
   /// stagioni dopo (al massimo [limit]); senza gli episodi mancanti. Solo i

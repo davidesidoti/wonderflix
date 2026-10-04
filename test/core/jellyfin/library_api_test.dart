@@ -141,7 +141,18 @@ void main() {
     expect(last().query['ids'], 'm1,m2');
     expect(last().query['userId'], 'u1');
     expect(last().query['enableImageTypes'], 'Primary,Backdrop,Thumb,Logo');
+    // La sinossi serve al post-play del party: Jellyfin la manda solo se
+    // richiesta.
+    expect(last().query['fields'], contains('Overview'));
+    expect(last().query['fields'], contains('PrimaryImageAspectRatio'));
     expect(items.map((item) => item.id), ['m2', 'm1']);
+  });
+
+  test('itemsByIds: con una lista vuota non parte nessuna richiesta',
+      () async {
+    // `ids=` vuoto farebbe rispondere a Jellyfin con le viste della libreria.
+    expect(await api.itemsByIds('u1', const []), isEmpty);
+    expect(adapter.requests, isEmpty);
   });
 
   test('episodesFrom: l\'episodio indicato e i successivi', () async {
