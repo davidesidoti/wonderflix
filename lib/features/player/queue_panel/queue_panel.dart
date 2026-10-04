@@ -19,9 +19,14 @@ import 'queue_rows.dart';
 /// Il pannello "Coda" con i dati del watch party (spec H §9.2): la coda del
 /// gruppo, i dettagli dei titoli e i comandi di [PartyQueueEditor].
 class PartyQueuePanel extends ConsumerWidget {
-  const PartyQueuePanel({super.key, required this.onClose});
+  const PartyQueuePanel({super.key, required this.onClose, this.onBeforeJump});
 
   final VoidCallback onClose;
+
+  /// Chiamato subito prima del salto su una riga: il player cancella il
+  /// `Seek` in sospeso, che non dice l'elemento e il server applicherebbe al
+  /// titolo nuovo.
+  final VoidCallback? onBeforeJump;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -32,7 +37,10 @@ class PartyQueuePanel extends ConsumerWidget {
     return QueuePanel(
       queue: queue,
       items: ref.watch(partyQueueItemsProvider),
-      onJump: (id) => unawaited(editor.jumpTo(id)),
+      onJump: (id) {
+        onBeforeJump?.call();
+        unawaited(editor.jumpTo(id));
+      },
       onRemove: (id) => unawaited(editor.remove(id)),
       onMove: (id, index) => unawaited(editor.move(id, index)),
       onShuffle: (shuffle) => unawaited(editor.setShuffle(shuffle)),
@@ -165,29 +173,36 @@ class _QueuePanelState extends State<QueuePanel> {
     final titles = l.catalogCount(queue.entries.length);
     final playing = sections.playing;
 
-    QueueRow rowFor(PlayQueueEntry entry, QueueRowKind kind, {int? index}) =>
-        QueueRow(
-          key: ValueKey('party-queue-${entry.playlistItemId}'),
-          kind: kind,
-          item: widget.items[entry.itemId],
-          known: widget.items.containsKey(entry.itemId),
-          index: index,
-          onTap: kind == QueueRowKind.playing
-              ? null
-              : () => widget.onJump(entry.playlistItemId),
-          onRemove: kind == QueueRowKind.playing
-              ? null
-              : () => widget.onRemove(entry.playlistItemId),
-        );
+    QueueRow rowFor(PlayQueueEntry entry, QueueRowKind kind, {int? index}) {
+      final item = widget.items[entry.itemId];
+      final known = widget.items.containsKey(entry.itemId);
+      return QueueRow(
+        key: ValueKey('party-queue-${entry.playlistItemId}'),
+        kind: kind,
+        item: item,
+        known: known,
+        index: index,
+        // Un titolo non disponibile ("Titolo non disponibile") non si apre:
+        // resta la ✕ per toglierlo. Con i dettagli ancora in arrivo il
+        // clic vale.
+        onTap: kind == QueueRowKind.playing || (known && item == null)
+            ? null
+            : () => widget.onJump(entry.playlistItemId),
+        onRemove: kind == QueueRowKind.playing
+            ? null
+            : () => widget.onRemove(entry.playlistItemId),
+      );
+    }
 
     final list = CustomScrollView(
       slivers: [
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           // Già visti e riga in corso si costruiscono subito, non a
-          // richiesta (sono al massimo [partyQueueLimit] righe): una lista
-          // pigra non avrebbe ancora la riga in corso quando serve portarla
-          // in vista.
+          // richiesta: una lista pigra non avrebbe ancora la riga in corso
+          // quando serve portarla in vista. Sono al massimo
+          // [partyQueueLimit] righe, salvo una coda fatta da un altro
+          // client (es. Jellyfin web) più lunga: si accetta, è raro.
           sliver: SliverToBoxAdapter(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,

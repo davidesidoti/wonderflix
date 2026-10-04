@@ -23,6 +23,10 @@ enum PartyNoticeKind {
   joined,
   left,
   nextEpisode,
+
+  /// Il gruppo è passato al titolo dopo, che non è un episodio (un film), in
+  /// `title`: "Episodio successivo" non sarebbe vero.
+  nextTitle,
   nowWatching,
   resync,
 
@@ -438,8 +442,13 @@ class PartyNotices extends Notifier<PartyNotice?> {
       // Nel frattempo si è usciti dal gruppo o si guarda già altro.
       final party = ref.read(watchPartySessionProvider);
       if (!party.inGroup || party.queue?.playing?.itemId != itemId) return;
+      // Dopo un film non c'è "l'episodio successivo".
+      final shown = kind == PartyNoticeKind.nextEpisode &&
+              item.kind != ItemKind.episode
+          ? PartyNoticeKind.nextTitle
+          : kind;
       _showOthers(
-          PartyNotice(kind, title: _noticeTitle(item, step: step)), action);
+          PartyNotice(shown, title: _noticeTitle(item, step: step)), action);
     } on Object catch (error) {
       _log.info('titolo per l\'avviso non disponibile: $error');
     }

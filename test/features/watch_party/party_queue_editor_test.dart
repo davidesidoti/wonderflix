@@ -150,6 +150,123 @@ void main() {
     });
   });
 
+  /// La coda del server dopo un cambio di ordine; [minute] ne cambia
+  /// `lastUpdate`.
+  void emitShuffled(FakeAsync async, {required bool shuffled, int minute = 5}) =>
+      emit(
+          async,
+          testSeriesQueue(
+              itemIds: const ['e3', 'e4', 'e5', 'e6'],
+              playingIndex: 1,
+              shuffled: shuffled,
+              reason: 'ShuffleMode',
+              lastUpdate: DateTime.utc(2026, 9, 30, 10, minute)));
+
+  test('ordine casuale: due clic di fila, una sola richiesta', () {
+    fakeAsync((async) {
+      mount(async);
+      emitShuffled(async, shuffled: true);
+      unawaited(editor().setShuffle(false));
+      unawaited(editor().setShuffle(false));
+      async.flushMicrotasks();
+      expect(api.calls, ['shuffle off'],
+          reason: 'la coda cambia solo con la risposta del server: un secondo '
+              '"ordinato" su una coda già ordinata fa rispondere 500');
+      expect(announced(), ['ShuffleMode']);
+      expect(notices.hiddenMineCalls, [PartyNoticeKind.shuffleOff]);
+      finish(async);
+    });
+  });
+
+  test('ordine casuale: senza la coda nuova del server si riprova dopo '
+      'shuffleSettleTimeout', () {
+    fakeAsync((async) {
+      mount(async);
+      emitShuffled(async, shuffled: true);
+      unawaited(editor().setShuffle(false));
+      async.flushMicrotasks();
+      async.elapse(
+          PartyQueueEditor.shuffleSettleTimeout - const Duration(milliseconds: 1));
+      unawaited(editor().setShuffle(false));
+      async.flushMicrotasks();
+      expect(api.calls, ['shuffle off'], reason: 'il tempo non è finito');
+
+      async.elapse(const Duration(milliseconds: 1));
+      unawaited(editor().setShuffle(false));
+      async.flushMicrotasks();
+      expect(api.calls, ['shuffle off', 'shuffle off']);
+      expect(announced(), ['ShuffleMode', 'ShuffleMode']);
+      finish(async);
+    });
+  });
+
+  test('ordine casuale: richiesta fallita, si può riprovare subito', () {
+    fakeAsync((async) {
+      mount(async);
+      emitShuffled(async, shuffled: true);
+      api.error = const ServerUnreachableException();
+      unawaited(editor().setShuffle(false));
+      async.flushMicrotasks();
+      expect(notices.shown.last.kind, PartyNoticeKind.queueFailed);
+
+      api.error = null;
+      unawaited(editor().setShuffle(false));
+      async.flushMicrotasks();
+      expect(api.calls, ['shuffle off', 'shuffle off']);
+      expect(announced(), ['ShuffleMode'], reason: 'solo la richiesta riuscita');
+      finish(async);
+    });
+  });
+
+  test('ordine casuale: con la coda nuova del server il blocco finisce', () {
+    fakeAsync((async) {
+      mount(async);
+      emitShuffled(async, shuffled: true);
+      unawaited(editor().setShuffle(false));
+      async.flushMicrotasks();
+      emitShuffled(async, shuffled: false, minute: 6);
+
+      unawaited(editor().setShuffle(true));
+      async.flushMicrotasks();
+      expect(api.calls, ['shuffle off', 'shuffle on']);
+      expect(announced(), ['ShuffleMode', 'ShuffleMode']);
+      finish(async);
+    });
+  });
+
+  test('ordine casuale: il server che risponde piano non fa scadere la '
+      'richiesta in corso', () {
+    fakeAsync((async) {
+      final slow = _SlowShuffleApi();
+      api = slow;
+      api.onCall = (call) {
+        if (call.startsWith('join')) {
+          events.add(SyncPlayGroupUpdated(GroupJoined('g1', testGroup())));
+        }
+      };
+      mount(async);
+      emitShuffled(async, shuffled: true);
+      slow.shuffleGate = Completer<void>();
+      unawaited(editor().setShuffle(false));
+      async.flushMicrotasks();
+      async.elapse(PartyQueueEditor.shuffleSettleTimeout * 3);
+      unawaited(editor().setShuffle(false));
+      async.flushMicrotasks();
+      expect(api.calls, ['shuffle off'],
+          reason: 'la risposta non è ancora arrivata: niente scadenza');
+      expect(announced(), isEmpty);
+
+      slow.shuffleGate!.complete();
+      async.flushMicrotasks();
+      expect(announced(), ['ShuffleMode']);
+      unawaited(editor().setShuffle(false));
+      async.flushMicrotasks();
+      expect(api.calls, ['shuffle off'],
+          reason: 'il tempo per la coda nuova conta dalla risposta');
+      finish(async);
+    });
+  });
+
   test('plugin senza la funzione queue: comandi sì, annunci no', () {
     fakeAsync((async) {
       mount(async, queueFeature: false);
@@ -240,4 +357,15 @@ void main() {
       finish(async);
     });
   });
+}
+
+/// `FakeSyncPlayApi` con la risposta di `shuffle` in attesa di [shuffleGate].
+class _SlowShuffleApi extends FakeSyncPlayApi {
+  Completer<void>? shuffleGate;
+
+  @override
+  Future<void> setShuffleMode({required bool shuffle}) async {
+    await super.setShuffleMode(shuffle: shuffle);
+    await shuffleGate?.future;
+  }
 }

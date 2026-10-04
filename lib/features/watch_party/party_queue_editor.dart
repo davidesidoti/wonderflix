@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
@@ -19,6 +20,16 @@ class PartyQueueEditor {
   PartyQueueEditor(this._ref);
 
   final Ref _ref;
+
+  /// Dopo la risposta del server la coda nuova arriva dal WebSocket: se non
+  /// arriva entro questo tempo, una richiesta di ordine casuale non si
+  /// considera più in corso e se ne può fare un'altra.
+  static const shuffleSettleTimeout = Duration(seconds: 4);
+
+  /// Ordine casuale richiesto e non ancora visto nella coda del server: il
+  /// valore voluto e quando il server ha risposto (`null` = risposta ancora
+  /// in attesa, senza scadenza).
+  ({bool target, DateTime? at})? _shuffleRequest;
 
   PlayQueue? get _queue {
     final party = _ref.read(watchPartySessionProvider);
@@ -76,10 +87,26 @@ class PartyQueueEditor {
   }
 
   /// Ordine casuale acceso o spento, solo se cambia: `Sorted` su una coda già
-  /// ordinata fa rispondere 500 al server (spec H §3).
+  /// ordinata fa rispondere 500 al server (spec H §3). Una richiesta alla
+  /// volta: `queue.shuffled` cambia solo quando arriva la coda del server, e
+  /// un secondo clic prima di allora manderebbe `Sorted` due volte.
   Future<void> setShuffle(bool shuffle) async {
     final queue = _queue;
-    if (queue == null || queue.shuffled == shuffle) return;
+    if (queue == null) {
+      _shuffleRequest = null;
+      return;
+    }
+    final pending = _shuffleRequest;
+    if (pending != null) {
+      final settled = queue.shuffled == pending.target;
+      final answeredAt = pending.at;
+      final expired = answeredAt != null &&
+          clock.now().difference(answeredAt) >= shuffleSettleTimeout;
+      if (!settled && !expired) return;
+      _shuffleRequest = null;
+    }
+    if (queue.shuffled == shuffle) return;
+    _shuffleRequest = (target: shuffle, at: null);
     final channel = _ref.read(partyChannelProvider.notifier);
     final notices = _ref.read(partyNoticesProvider.notifier);
     final kind =
@@ -88,10 +115,13 @@ class PartyQueueEditor {
     notices.mine(kind, show: false);
     if (await _send(
         'ordine casuale', (api) => api.setShuffleMode(shuffle: shuffle))) {
+      // Il tempo per la coda nuova conta dalla risposta del server.
+      _shuffleRequest = (target: shuffle, at: clock.now());
       channel.announce(PartyAction.shuffleMode);
     } else {
       // Nessuna eco in arrivo: il cambio di un altro membro nei prossimi
-      // secondi non va scartato.
+      // secondi non va scartato, e si può riprovare subito.
+      _shuffleRequest = null;
       notices.forget(kind);
     }
   }

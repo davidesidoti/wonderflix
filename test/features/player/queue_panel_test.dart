@@ -176,6 +176,16 @@ void main() {
     expect(calls, ['jump p3', 'jump p1']);
   });
 
+  testWidgets('titolo non disponibile: il clic non salta, la ✕ toglie',
+      (tester) async {
+    final calls = await pumpPanel(tester);
+    await tester.tap(find.text(l.partyQueueUnavailable));
+    expect(calls, isEmpty, reason: 'non c\'è un titolo a cui andare');
+    await hoverRow(tester, 'p5');
+    await tester.tap(inRow('p5', find.byTooltip(l.partyQueueRemove)));
+    expect(calls, ['remove p5']);
+  });
+
   testWidgets('togli: sui prossimi e sui già visti, non su quella in corso',
       (tester) async {
     final calls = await pumpPanel(tester);

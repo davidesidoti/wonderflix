@@ -178,6 +178,7 @@
   "watchPartyNoticeSeek": "Jump to {time}",
   "watchPartyNoticeSeekByYou": "You jumped to {time}",
   "watchPartyNoticeNextEpisode": "Next episode: {title}",
+  "watchPartyNoticeNextTitle": "Next: {title}",
   "watchPartyNoticeNowWatching": "Now watching: {title}",
   "watchPartyNoticePausedBy": "{name} paused",
   "watchPartyNoticeResumedBy": "{name} resumed",

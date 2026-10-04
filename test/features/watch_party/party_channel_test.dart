@@ -156,7 +156,8 @@ void main() {
       ];
       events.add(const ServerConnected(true));
       async.flushMicrotasks();
-      expect(channelApi.calls, ['info', 'join g1', 'join g1']);
+      expect(channelApi.calls, ['info', 'join g1', 'info', 'join g1'],
+          reason: 'Info a ogni ingresso: il plugin può essere cambiato');
       expect(channel().messages.map((m) => m.event.text), ['ciao', 'pronti?']);
       finish(async);
     });
@@ -465,7 +466,7 @@ void main() {
     });
   });
 
-  test('refreshInfo: la funzione queue arriva da Info, il Join non lo richiede',
+  test('refreshInfo: la funzione queue arriva da Info, e il Join la rilegge',
       () {
     fakeAsync((async) {
       channelApi.install(version: '1.3.0', features: const {partyQueueFeature});
@@ -476,8 +477,9 @@ void main() {
       expect(channel().queueActions, isTrue);
 
       joinGroup(async);
-      expect(channelApi.calls.where((call) => call == 'info').length, 1,
-          reason: 'il plugin è già noto: il Join non chiede Info');
+      expect(channelApi.calls.where((call) => call == 'info').length, 2,
+          reason: 'il Join chiede Info anche con il plugin già noto');
+      expect(channel().queueActions, isTrue);
       notifier().announce(PartyAction.shuffleMode);
       async.flushMicrotasks();
       expect(sentJson(), [
@@ -538,7 +540,7 @@ void main() {
               id: 'h2', sentAt: DateTime.utc(2026, 10, 2, 21, 1)));
       events.add(const ServerConnected(true));
       async.flushMicrotasks();
-      expect(channelApi.calls, ['info', 'join g1', 'join g1']);
+      expect(channelApi.calls, ['info', 'join g1', 'info', 'join g1']);
       channelApi.joinGate!.complete();
       async.flushMicrotasks();
       expect(channel().active, isTrue);
@@ -693,6 +695,83 @@ void main() {
       notifier().announce(PartyAction.pause);
       async.flushMicrotasks();
       expect(channel().queueActions, isFalse);
+      finish(async);
+    });
+  });
+
+  test('plugin aggiornato tra un ingresso e l\'altro: la funzione queue '
+      'vale e gli annunci partono (app mai riavviata)', () {
+    fakeAsync((async) {
+      channelApi.install(version: '1.2.0');
+      mount(async);
+      joinGroup(async);
+      expect(channel().queueActions, isFalse);
+      leaveGroup(async);
+      expect(channel().queueActions, isFalse);
+
+      channelApi.install(version: '1.3.0', features: const {partyQueueFeature});
+      joinGroup(async);
+      expect(channel().pluginVersion, '1.3.0');
+      expect(channel().queueActions, isTrue);
+      notifier().announce(PartyAction.shuffleMode);
+      async.flushMicrotasks();
+      expect(sentJson(), [
+        {'Type': 'Action', 'Action': 'ShuffleMode'},
+      ]);
+      finish(async);
+    });
+  });
+
+  test('Info che fallisce al rientro con il plugin già noto: si entra con '
+      'quello che si sa', () {
+    fakeAsync((async) {
+      channelApi.install(version: '1.3.0', features: const {partyQueueFeature});
+      mount(async);
+      joinGroup(async);
+      leaveGroup(async);
+      expect(channel().active, isFalse);
+
+      channelApi.infoFailure = PartyChannelFailure.network;
+      joinGroup(async);
+      expect(channelApi.calls.where((call) => call == 'info').length, 2);
+      expect(channel().active, isTrue,
+          reason: 'un errore passeggero non spegne il canale');
+      expect(channel().availability, PartyPluginAvailability.available);
+      expect(channel().pluginVersion, '1.3.0');
+      expect(channel().queueActions, isTrue);
+      finish(async);
+    });
+  });
+
+  test('Info 404 al rientro con il plugin già noto: plugin sparito', () {
+    fakeAsync((async) {
+      channelApi.install(version: '1.3.0', features: const {partyQueueFeature});
+      mount(async);
+      joinGroup(async);
+      leaveGroup(async);
+
+      channelApi.infoFailure = PartyChannelFailure.unavailable;
+      joinGroup(async);
+      expect(channelApi.calls.where((call) => call.startsWith('join')).length,
+          1, reason: 'senza plugin niente Join');
+      expect(channel().active, isFalse);
+      expect(channel().availability, PartyPluginAvailability.unavailable);
+      expect(channel().pluginVersion, isNull);
+      expect(channel().queueActions, isFalse);
+      finish(async);
+    });
+  });
+
+  test('Info che fallisce con il plugin ancora ignoto: canale spento', () {
+    fakeAsync((async) {
+      channelApi
+        ..install()
+        ..infoFailure = PartyChannelFailure.network;
+      mount(async);
+      joinGroup(async);
+      expect(channelApi.calls, ['info']);
+      expect(channel().active, isFalse);
+      expect(channel().availability, PartyPluginAvailability.unknown);
       finish(async);
     });
   });

@@ -1989,6 +1989,27 @@ void main() {
     await finish(tester);
   });
 
+  testWidgets('pannello Coda: il salto su una riga cancella il salto in '
+      'sospeso (salterebbe nel titolo nuovo)', (tester) async {
+    await pumpPartyPlayer(tester);
+    await queueSeries(tester);
+    await tester.tap(find.byTooltip(l.partyQueueOpen));
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(engine.seeks, isNotEmpty, reason: 'il salto è in sospeso');
+
+    await tester.tap(find.descendant(
+        of: find.byType(QueuePanel), matching: find.text('Cat\'s in the Bag')));
+    await tester.pump();
+    expect(api.calls, contains('set-item p2'));
+    await tester.pump(const Duration(seconds: 1));
+    expect(api.calls.where((call) => call.startsWith('seek')), isEmpty,
+        reason: 'il Seek non dice l\'elemento: dopo il salto di riga '
+            'finirebbe nel titolo nuovo');
+    await finish(tester);
+  });
+
   testWidgets('pannello Coda aperto: il gruppo passa a un altro titolo, '
       'resta aperto sul player nuovo', (tester) async {
     await pumpPartyPlayer(tester);

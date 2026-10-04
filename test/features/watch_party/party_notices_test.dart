@@ -624,7 +624,8 @@ void main() {
                     playingIndex: 1,
                     reason: 'NextItem',
                     lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
-        expect(current()?.kind, PartyNoticeKind.nextEpisode);
+        expect(current()?.kind, PartyNoticeKind.nextTitle,
+            reason: 'un film non è un "episodio successivo"');
         expect(current()?.title, 'Arrival');
         finish(async);
       });

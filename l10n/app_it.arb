@@ -200,6 +200,8 @@
   "@watchPartyNoticeSeekByYou": {"placeholders": {"time": {"type": "String"}}},
   "watchPartyNoticeNextEpisode": "Episodio successivo: {title}",
   "@watchPartyNoticeNextEpisode": {"placeholders": {"title": {"type": "String"}}},
+  "watchPartyNoticeNextTitle": "Successivo: {title}",
+  "@watchPartyNoticeNextTitle": {"placeholders": {"title": {"type": "String"}}},
   "watchPartyNoticeNowWatching": "Si guarda: {title}",
   "@watchPartyNoticeNowWatching": {"placeholders": {"title": {"type": "String"}}},
   "watchPartyNoticePausedBy": "{name} ha messo in pausa",

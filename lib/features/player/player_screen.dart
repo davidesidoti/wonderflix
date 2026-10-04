@@ -1547,6 +1547,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         panel: PartyQueuePanel(
                           onClose: () =>
                               _chrome.closePopup(PlayerPopup.queue),
+                          // Come ⏮ e ⏭: il `Seek` in sospeso non deve
+                          // arrivare dopo il salto di riga.
+                          onBeforeJump: () => _authority?.cancelPendingSeek(),
                         ),
                       ),
                     ),

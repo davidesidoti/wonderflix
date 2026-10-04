@@ -340,15 +340,18 @@ class PartyChannel extends Notifier<PartyChannelState> {
     if (next != null) unawaited(_join(next.groupId));
   }
 
-  /// Entra nel canale del gruppo (anche dopo un rientro): `Info` finché il
-  /// plugin non risulta presente, poi `Join` con lo storico.
+  /// Entra nel canale del gruppo (anche dopo un rientro): `Info` a ogni
+  /// ingresso (il plugin può essere stato aggiornato con l'app in corso),
+  /// poi `Join` con lo storico.
   Future<void> _join(String groupId) async {
     final generation = ++_generation;
     try {
       final api = ref.read(partyChannelApiProvider);
-      if (state.availability != PartyPluginAvailability.available) {
-        final info = await api.info();
-        if (!ref.mounted || generation != _generation) return;
+      final info = await _infoForJoin(api,
+          known: state.availability == PartyPluginAvailability.available);
+      if (!ref.mounted || generation != _generation) return;
+      // `null`: `Info` non è riuscito, si entra con quello che si sa.
+      if (info != null) {
         if (info.protocol != partyChannelProtocol) {
           _log.warning('plugin del watch party ${info.version} con '
               'protocollo ${info.protocol}: canale spento');
@@ -386,6 +389,23 @@ class PartyChannel extends Notifier<PartyChannelState> {
       _deactivate();
     } finally {
       if (generation == _generation) _joiningGroupId = null;
+    }
+  }
+
+  /// `Info` per [_join]. Con il plugin già noto ([known]) un errore passeggero
+  /// non spegne il canale: si continua con quello che si sa (`null`). Il 404
+  /// (plugin sparito), e ogni errore con il plugin ancora ignoto, salgono a
+  /// [_join].
+  Future<PartyPluginInfo?> _infoForJoin(PartyChannelApi api,
+      {required bool known}) async {
+    try {
+      return await api.info();
+    } on Object catch (error) {
+      final gone = error is PartyChannelException &&
+          error.failure == PartyChannelFailure.unavailable;
+      if (!known || gone) rethrow;
+      _log.info('plugin del watch party non verificato al rientro: $error');
+      return null;
     }
   }
 

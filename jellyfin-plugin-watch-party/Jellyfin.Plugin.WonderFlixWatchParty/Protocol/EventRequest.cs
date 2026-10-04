@@ -8,7 +8,10 @@ public sealed class EventRequest
     [JsonPropertyName("Type")]
     public string? Type { get; set; }
 
-    /// <summary>Per Action: Pause, Unpause, Seek, NextItem, NewQueue.</summary>
+    /// <summary>
+    /// Per Action: Pause, Unpause, Seek, NextItem, NewQueue, e quelle della coda
+    /// (spec H §7): PreviousItem, SetCurrentItem, Queue, QueueNext, ShuffleMode.
+    /// </summary>
     [JsonPropertyName("Action")]
     public string? Action { get; set; }
 

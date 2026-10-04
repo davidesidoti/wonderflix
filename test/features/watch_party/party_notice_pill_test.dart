@@ -33,6 +33,8 @@ void main() {
         text(const PartyNotice(PartyNoticeKind.nextEpisode,
             title: 'S1:E5 · Titolo')),
         'Episodio successivo: S1:E5 · Titolo');
+    expect(text(const PartyNotice(PartyNoticeKind.nextTitle, title: 'Arrival')),
+        'Successivo: Arrival');
     expect(
         text(const PartyNotice(PartyNoticeKind.nowWatching, title: 'Dune')),
         'Si guarda: Dune');
@@ -74,6 +76,10 @@ void main() {
             name: 'Luigi', title: 'S1:E5 · Titolo')),
         'Luigi ha avviato: S1:E5 · Titolo');
     expect(
+        text(const PartyNotice(PartyNoticeKind.nextTitle,
+            name: 'Luigi', title: 'Arrival')),
+        'Luigi ha avviato: Arrival');
+    expect(
         text(const PartyNotice(PartyNoticeKind.nowWatching,
             name: 'Luigi', title: 'Dune')),
         'Luigi ha scelto: Dune');
@@ -89,6 +95,10 @@ void main() {
             const PartyNotice(PartyNoticeKind.seeked,
                 name: 'Luigi', position: time)),
         'Luigi jumped to 32:10');
+    expect(
+        partyNoticeText(en,
+            const PartyNotice(PartyNoticeKind.nextTitle, title: 'Arrival')),
+        'Next: Arrival');
   });
 
   test('icone degli avvisi', () {
@@ -99,6 +109,7 @@ void main() {
     expect(partyNoticeIcon(PartyNoticeKind.joined), LucideIcons.userPlus);
     expect(partyNoticeIcon(PartyNoticeKind.left), LucideIcons.userMinus);
     expect(partyNoticeIcon(PartyNoticeKind.nextEpisode), LucideIcons.skipForward);
+    expect(partyNoticeIcon(PartyNoticeKind.nextTitle), LucideIcons.skipForward);
     expect(partyNoticeIcon(PartyNoticeKind.nowWatching), LucideIcons.clapperboard);
     expect(partyNoticeIcon(PartyNoticeKind.resync), LucideIcons.refreshCw);
     expect(partyNoticeIcon(PartyNoticeKind.ended), LucideIcons.circleStop);

@@ -332,6 +332,9 @@ class FakePartyChannelApi implements PartyChannelApi {
   /// Risposta di [info]; `null` = plugin assente (404).
   PartyPluginInfo? pluginInfo;
 
+  /// Errore di [info], se valorizzato (prima di [pluginInfo]).
+  PartyChannelFailure? infoFailure;
+
   /// Storico restituito da [join].
   List<PartyChatEvent> history = const [];
 
@@ -363,6 +366,8 @@ class FakePartyChannelApi implements PartyChannelApi {
   @override
   Future<PartyPluginInfo> info() async {
     calls.add('info');
+    final failure = infoFailure;
+    if (failure != null) throw PartyChannelException(failure);
     final info = pluginInfo;
     if (info == null) {
       throw const PartyChannelException(PartyChannelFailure.unavailable);

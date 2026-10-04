@@ -34,6 +34,9 @@ String partyNoticeText(AppLocalizations l, PartyNotice notice) {
     PartyNoticeKind.nextEpisode => by != null
         ? l.watchPartyNoticeNextEpisodeBy(by, title)
         : l.watchPartyNoticeNextEpisode(title),
+    PartyNoticeKind.nextTitle => by != null
+        ? l.watchPartyNoticeNextEpisodeBy(by, title)
+        : l.watchPartyNoticeNextTitle(title),
     PartyNoticeKind.nowWatching => by != null
         ? l.watchPartyNoticeNowWatchingBy(by, title)
         : l.watchPartyNoticeNowWatching(title),
@@ -67,7 +70,9 @@ IconData partyNoticeIcon(PartyNoticeKind kind) => switch (kind) {
       PartyNoticeKind.seeked => LucideIcons.fastForward,
       PartyNoticeKind.joined => LucideIcons.userPlus,
       PartyNoticeKind.left => LucideIcons.userMinus,
-      PartyNoticeKind.nextEpisode => LucideIcons.skipForward,
+      PartyNoticeKind.nextEpisode ||
+      PartyNoticeKind.nextTitle =>
+        LucideIcons.skipForward,
       PartyNoticeKind.nowWatching => LucideIcons.clapperboard,
       PartyNoticeKind.resync => LucideIcons.refreshCw,
       PartyNoticeKind.ended => LucideIcons.circleStop,
