@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:math' as math;
 
 import 'package:logging/logging.dart';
@@ -58,6 +59,96 @@ final class AnnouncementEntry extends InboxEntry {
 
   final String text;
 }
+
+/// Un film nuovo (spec G §6.6).
+class NewTitleMovie {
+  const NewTitleMovie({required this.itemId, required this.name, this.year});
+
+  factory NewTitleMovie.fromJson(Map<String, dynamic> json) => NewTitleMovie(
+        itemId: json['ItemId'] as String,
+        name: json['Name'] as String,
+        year: (json['Year'] as num?)?.toInt(),
+      );
+
+  final String itemId;
+  final String name;
+  final int? year;
+}
+
+/// Un episodio nuovo: stagione e numero, se Jellyfin li conosce.
+class NewTitleEpisode {
+  const NewTitleEpisode({this.season, this.episode});
+
+  factory NewTitleEpisode.fromJson(Map<String, dynamic> json) =>
+      NewTitleEpisode(
+        season: (json['Season'] as num?)?.toInt(),
+        episode: (json['Episode'] as num?)?.toInt(),
+      );
+
+  final int? season;
+  final int? episode;
+}
+
+/// Una serie seguita con i suoi episodi nuovi; la riga apre la serie.
+class NewTitleSeries {
+  const NewTitleSeries({
+    required this.seriesId,
+    required this.name,
+    required this.episodes,
+  });
+
+  factory NewTitleSeries.fromJson(Map<String, dynamic> json) => NewTitleSeries(
+        seriesId: json['SeriesId'] as String,
+        name: json['Name'] as String,
+        episodes: [
+          for (final raw in json['Episodes'] as List? ?? const [])
+            NewTitleEpisode.fromJson(raw as Map<String, dynamic>),
+        ],
+      );
+
+  final String seriesId;
+  final String name;
+  final List<NewTitleEpisode> episodes;
+}
+
+/// Gli episodi come intervalli per stagione (spec G §7.6): `S3 E1–E10`,
+/// `S3 E1–E4, E6`, più stagioni unite da ` · ` (`S2 E10 · S3 E1–E3`).
+/// `null` se manca anche un solo numero (chi mostra la riga scrive allora
+/// "N episodi nuovi") o se non ci sono episodi.
+String? formatEpisodeRanges(List<NewTitleEpisode> episodes) {
+  if (episodes.isEmpty ||
+      episodes.any((e) => e.season == null || e.episode == null)) {
+    return null;
+  }
+  final bySeason = SplayTreeMap<int, SplayTreeSet<int>>();
+  for (final episode in episodes) {
+    (bySeason[episode.season!] ??= SplayTreeSet<int>()).add(episode.episode!);
+  }
+  return [
+    for (final MapEntry(key: season, value: numbers) in bySeason.entries)
+      'S$season ${_episodeRuns(numbers.toList())}',
+  ].join(' · ');
+}
+
+/// Numeri ordinati e senza doppioni come `E1–E4, E6`.
+String _episodeRuns(List<int> numbers) {
+  final runs = <String>[];
+  var start = numbers.first;
+  var previous = start;
+  for (final number in numbers.skip(1)) {
+    if (number == previous + 1) {
+      previous = number;
+      continue;
+    }
+    runs.add(_episodeRun(start, previous));
+    start = previous = number;
+  }
+  runs.add(_episodeRun(start, previous));
+  return runs.join(', ');
+}
+
+String _episodeRun(int first, int last) =>
+    first == last ? 'E$first' : 'E$first–E$last';
 
 /// Una voce di `GET Inbox`; `null` se il tipo non lo conosciamo (es. le
 /// voci di una versione più nuova del plugin).

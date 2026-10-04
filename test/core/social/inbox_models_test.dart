@@ -136,4 +136,56 @@ void main() {
     expect(snapshot.without('a1').unread, 1);
     expect(identical(snapshot.without('x'), snapshot), isTrue);
   });
+
+  test('film, serie ed episodi nuovi dal JSON', () {
+    final movie = NewTitleMovie.fromJson(
+        const {'ItemId': 'm1', 'Name': 'Dune', 'Year': 2024});
+    expect((movie.itemId, movie.name, movie.year), ('m1', 'Dune', 2024));
+    expect(NewTitleMovie.fromJson(const {'ItemId': 'm2', 'Name': 'X'}).year,
+        isNull);
+    final series = NewTitleSeries.fromJson(const {
+      'SeriesId': 's1',
+      'Name': 'The Bear',
+      'Episodes': [
+        {'Season': 3, 'Episode': 1},
+        <String, dynamic>{},
+      ],
+    });
+    expect(series.seriesId, 's1');
+    expect(series.name, 'The Bear');
+    expect(series.episodes.first.season, 3);
+    expect(series.episodes.first.episode, 1);
+    expect(series.episodes.last.season, isNull);
+    expect(
+        NewTitleSeries.fromJson(const {'SeriesId': 's2', 'Name': 'Y'})
+            .episodes,
+        isEmpty);
+  });
+
+  test('episodi in intervalli', () {
+    List<NewTitleEpisode> episodes(List<(int, int)> list) => [
+          for (final (season, episode) in list)
+            NewTitleEpisode(season: season, episode: episode),
+        ];
+    expect(
+        formatEpisodeRanges(episodes([for (var e = 1; e <= 10; e++) (3, e)])),
+        'S3 E1–E10');
+    expect(
+        formatEpisodeRanges(
+            episodes([(3, 6), (3, 1), (3, 2), (3, 3), (3, 4)])),
+        'S3 E1–E4, E6');
+    expect(formatEpisodeRanges(episodes([(3, 1), (2, 10), (3, 3), (3, 2)])),
+        'S2 E10 · S3 E1–E3');
+    expect(formatEpisodeRanges(episodes([(1, 5)])), 'S1 E5');
+    expect(formatEpisodeRanges(episodes([(1, 5), (1, 5)])), 'S1 E5',
+        reason: 'doppioni');
+    expect(
+        formatEpisodeRanges(const [
+          NewTitleEpisode(season: 1, episode: 1),
+          NewTitleEpisode(season: 1),
+        ]),
+        isNull,
+        reason: 'basta un numero mancante');
+    expect(formatEpisodeRanges(const []), isNull);
+  });
 }
