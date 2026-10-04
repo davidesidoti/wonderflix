@@ -81,6 +81,11 @@ Il plugin del server (cartella `jellyfin-plugin-watch-party/`, spec E) ha versio
    aggiorna, alza `Jellyfin.Controller`/`Jellyfin.Model` nel progetto di test
    e rilancia i test. Amicizie e richieste stanno in
    `plugins/configurations/WonderFlixWatchParty/friends.json`.
+   La cassetta delle notifiche sta in
+   `plugins/configurations/WonderFlixWatchParty/inbox.json` e l'impostazione
+   dei nuovi titoli in
+   `plugins/configurations/Jellyfin.Plugin.WonderFlixWatchParty.xml`: un
+   aggiornamento del plugin non le tocca.
 2. Prova a mano sul server (README del plugin: `pack.sh` e copia via SFTP nei `plugins/` di Jellyfin). Finita la prova, la cartella copiata va tolta prima del passo 6.
 3. Crea il tag e fai push:
    ```bash

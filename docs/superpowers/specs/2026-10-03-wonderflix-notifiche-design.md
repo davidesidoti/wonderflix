@@ -1,7 +1,7 @@
 # WonderFlix — Spec G: notifiche nell'app
 
 - **Data:** 2026-10-03
-- **Stato:** approvato; piano 13a realizzato (`docs/superpowers/plans/2026-10-03-wonderflix-13a-cassetta-notifiche.md`); nuovi titoli e release nel piano 13b
+- **Stato:** approvato; piani 13a e 13b realizzati (`docs/superpowers/plans/2026-10-03-wonderflix-13a-cassetta-notifiche.md`, `docs/superpowers/plans/2026-10-04-wonderflix-13b-nuovi-titoli-release.md`)
 - **Ambito:** Spec G. Nasce dall'issue #7 (collegamento a Discord); dopo la ricerca l'utente ha **scartato Discord** e scelto una **cassetta delle notifiche dentro WonderFlix**, conservata dal plugin. Si appoggia alla Spec F (`2026-10-03-wonderflix-amici-party-privati-design.md`: §6 plugin, §7 nucleo sociale, §8.3 pannello Amici, §9.5 inviti), realizzata nella v0.6.0.
 
 ## 1. Obiettivo
@@ -64,9 +64,9 @@ Plugin 1.2.0
         ▲                                   │
         │                                   └─ avviso InboxChanged (SendString)
   PartyService.InviteAsync ──── voce Invite
-  NewTitlesCollector (ItemAdded/ItemRemoved, ondate) ──── voce NewTitles (13b)
+  NewTitlesHostedService (ItemAdded/ItemRemoved) ── NewTitlesCollector (ondate) ──── voce NewTitles
   POST Inbox/Announcements (admin) ──── voce Announcement
-  Configuration page (Dashboard) ── annunci; PluginConfiguration.NotifyNewTitles (13b)
+  Configuration page (Dashboard) ── annunci; PluginConfiguration.NotifyNewTitles; Send now
 
 App 0.7.0
   lib/core/social/   modelli InboxEntry, SocialApi (cassetta), parseSocialEvent (InboxChanged)
@@ -76,7 +76,7 @@ App 0.7.0
   InboxButton/Panel   icona, pannello, tre tipi di voce
 ```
 
-Come in 1.1.0, il nucleo del plugin non conosce Jellyfin: le nuove classi parlano con interfacce (accesso agli elementi, dati utente, eventi della libreria) con adattatori in `Server/`.
+Come in 1.1.0, il nucleo del plugin non conosce Jellyfin: le nuove classi parlano con interfacce (accesso agli elementi, dati utente, titoli della libreria, la casella dei nuovi titoli) con adattatori in `Server/`. Gli eventi della libreria li ascolta `NewTitlesHostedService`, che filtra con `NewTitleRules` e passa al collector solo id e chiavi.
 
 ## 6. Plugin 1.2.0
 
@@ -102,7 +102,7 @@ Campi comuni: `Id` (Guid `N`), `Seq` (intero per utente, da `NextSeq`), `Type`, 
 
 ### 6.3 Endpoint (sotto `/WonderFlixWatchParty`)
 
-`InboxController` ha `[Authorize]` semplice: gli endpoint valgono per **ogni utente autenticato**, anche senza accesso ai watch party. Chi chiama si ricava come negli altri controller (`UserId`). Il plugin **non risponde mai 404** (404 = plugin assente).
+`InboxController` ha `[Authorize]` semplice: gli endpoint della cassetta valgono per **ogni utente autenticato**, anche senza accesso ai watch party; annunci e nuovi titoli sono **solo per gli admin** (`[Authorize(Policy = Policies.RequiresElevation)]` sul metodo). Chi chiama si ricava come negli altri controller (`UserId`). Il plugin **non risponde mai 404** (404 = plugin assente).
 
 | Metodo e percorso | Corpo / risposta |
 |---|---|
@@ -111,6 +111,8 @@ Campi comuni: `Id` (Guid `N`), `Seq` (intero per utente, da `NextSeq`), `Type`, 
 | `DELETE Inbox/Entries/{id}` | 204, anche se la voce non c'è |
 | `DELETE Inbox` | 204; svuota la cassetta di chi chiama (`NextSeq` resta) |
 | `POST Inbox/Announcements` `{Text}` | `{Recipients}`; **solo admin** (`[Authorize(Policy = Policies.RequiresElevation)]`); 400 se il testo, senza spazi ai bordi, è vuoto o supera 500 caratteri |
+| `GET Inbox/NewTitles` | `{Enabled, Pending}`: la casella e i titoli in attesa (0 con la casella spenta); **solo admin** (`RequiresElevation`) |
+| `POST Inbox/NewTitles/Send` | `{Titles, Recipients}`: chiude subito l'ondata ("Send now", §6.6) e dice quanti titoli ha annunciato e a quanti utenti; **solo admin** (`RequiresElevation`) |
 
 `GET Info` risponde `{Version: "1.2.0", Protocol: 1, Features: ["friends", "parties", "inbox"]}`: `Version` ha 3 numeri, come prima (non "1.2.0.0").
 
@@ -133,19 +135,25 @@ In `PartyService.InviteAsync`, dopo aver scelto gli invitati validi (amici, non 
 
 ### 6.6 Nuovi titoli
 
-Arriva con il piano 13b: il plugin del 13a non ha `NewTitlesCollector`, né la casella che lo spegne (§6.8).
+`NewTitlesHostedService` ascolta `ILibraryManager.ItemAdded` e `ItemRemoved` e passa a `NewTitlesCollector` solo id e chiavi; il collector tiene l'ondata in corso (`NewTitlesWave`) e la chiude.
 
-`NewTitlesCollector` (servizio del plugin):
-
-- **Raccolta:** ascolta `ILibraryManager.ItemAdded` e `ItemRemoved`. Tiene solo **film** ed **episodi** non virtuali (niente episodi "mancanti" segnaposto, collezioni, trailer, extra). Con `NotifyNewTitles` spento non raccoglie niente.
-- **Ondata:** comincia col primo titolo raccolto e si chiude dopo **15 minuti** senza nuovi titoli, o al massimo **2 ore** dopo il primo.
-- **Sostituzioni:** un titolo aggiunto non si annuncia se nella stessa ondata è stato tolto un elemento dello stesso tipo con un id esterno uguale (TMDB, IMDb o TVDB): è un file sostituito (es. qualità migliore da Radarr/Sonarr). Un titolo aggiunto e tolto nella stessa ondata sparisce.
-- **Alla chiusura** il collector rilegge ogni elemento per id: quelli che non esistono più si scartano, i nomi sono quelli definitivi (metadati aggiornati). Poi, per **ogni utente attivo** (non disabilitato):
+- **Raccolta:** contano solo i **titoli veri** (`NewTitleRules`): film ed episodi non virtuali, con un file, non extra né trailer (niente episodi "mancanti" segnaposto, collezioni, serie, stagioni). Il filtro vale per gli aggiunti **e** per i tolti: quando arriva l'episodio vero il plugin TVDB toglie il suo segnaposto, con lo stesso id TVDB, e non è una sostituzione. Gli eventi arrivano dai thread della scansione: i gestori fanno solo il filtro e una chiamata O(1) sotto lock, non toccano il database e non lanciano mai (un errore va nel log come `Warning`). Gli id esterni dei tolti si leggono subito (dopo la rimozione l'elemento non si rilegge più); gli aggiunti si rileggono alla chiusura.
+- **Casella spenta** (`NotifyNewTitles`, §6.8): non si raccoglie niente e l'ondata in corso si butta, anche quella che si sta chiudendo (non si manda).
+- **Ondata:** comincia col primo cambiamento (un titolo aggiunto o tolto, una cartella tolta) e si controlla **ogni minuto**. Si chiude dopo **15 minuti** senza cambiamenti, se Jellyfin non sta più scansionando la libreria e se i titoli aggiunti hanno già i metadati (`DateLastRefreshed`; la lettura si ferma al primo titolo senza). Altrimenti aspetta, sempre entro **2 ore** dal primo cambiamento: passate quelle si chiude comunque, anche durante una scansione e con i metadati che ci sono (un fornitore di metadati che continua a fallire la tiene ferma al massimo 2 ore). Se mentre si chiude arriva un cambiamento, l'ondata torna ad aspettare la quiete; se le 2 ore sono passate si chiude subito, con il titolo appena arrivato.
+- **Send now** (`POST Inbox/NewTitles/Send`, dalla Dashboard) chiude l'ondata subito, anche durante una scansione o senza metadati. Una chiusura alla volta: il controllo del minuto salta se ce n'è già una in corso, "Send now" aspetta il suo turno.
+- **Sostituzioni:** un titolo aggiunto non si annuncia se nella stessa ondata è stato tolto un elemento dello stesso tipo con un id esterno uguale (TMDB, IMDb o TVDB): è un file sostituito (es. qualità migliore da Radarr/Sonarr). Un titolo aggiunto e tolto nella stessa ondata sparisce. Se il vecchio file è tolto in un'ondata e il nuovo arriva nella successiva, il nuovo si annuncia (limite accettato).
+- **Cartelle rinominate:** con una cartella di serie o di stagione rinominata Jellyfin toglie solo la serie o la stagione, e i suoi episodi tornano con id nuovi e i dati utente di prima. Per questo si registrano anche le serie e le stagioni vere tolte (con una cartella, non virtuali), e un episodio che arriva nella stessa ondata non si annuncia se è:
+  - di una **serie tolta**: stessa chiave della serie, oppure un id TMDB, IMDb o TVDB della serie in comune (nelle librerie senza raggruppamento automatico delle serie, l'impostazione predefinita, la chiave è l'id, che cambia con la cartella);
+  - di una **stagione tolta**: chiave della serie e numero della stagione. Una stagione senza numero vale per tutta la serie: meglio non annunciare che annunciare episodi già visti.
+- **Libreria spostata:** spostare un'intera libreria in un altro percorso fa sembrare nuovo ogni titolo. L'admin spegne "Notify new titles" prima di farlo (lo dicono il README e la pagina della Dashboard).
+- **Alla chiusura** il collector rilegge ogni elemento per id (`ILibraryTitles`): quelli che non esistono più si scartano, nomi e numeri sono quelli definitivi. Poi, per **ogni utente attivo** (non disabilitato):
   - **film:** tutti quelli che l'utente può vedere;
-  - **episodi:** quelli che l'utente può vedere, solo delle serie che **segue**: la serie è tra i suoi preferiti (La mia lista), oppure l'utente ha almeno un altro episodio della serie visto o iniziato;
+  - **episodi:** quelli che l'utente può vedere, solo delle serie che **segue**: la serie è tra i suoi preferiti (La mia lista), oppure l'utente ha almeno un altro episodio della serie visto o iniziato. Si controlla con conteggi sul database (`GetCount`, esclusi gli episodi nuovi), non con i dati utente in memoria, che Jellyfin azzera sulla serie a ogni aggiunta. Un episodio senza serie non si annuncia;
   - se resta qualcosa, una voce `NewTitles` e `InboxChanged` alle sue sessioni.
+- **Serie nuove:** una serie appena arrivata che nessuno segue non compare (scelta dell'utente): si annunciano solo gli episodi delle serie seguite.
 - **Ordine:** film per nome; serie per nome; episodi per stagione ed episodio.
-- **Tetto:** al massimo 500 righe per voce (un film o una serie = una riga); le righe escluse vanno in `More` (numero di film e serie esclusi).
+- **Tetto:** al massimo 500 righe per voce (un film o una serie = una riga): prima i film, poi le serie fino al tetto; le righe escluse vanno in `More` (numero di film e serie esclusi).
+- **Chiusura non riuscita:** un errore nel leggere la libreria o il database lascia l'ondata in corso, unita a quello che è arrivato nel frattempo, e si riprova al controllo successivo (riga `Warning`). Dopo **5** chiusure non riuscite di fila l'ondata si butta (riga `Warning` con i soli numeri); un tentativo che finisce senza errori rimette il conto a zero. Se la casella si spegne mentre una chiusura non riesce, l'ondata non torna. Un errore nello scrivere le voci o nell'avviso `InboxChanged` va solo nel log, come per gli inviti (§6.9).
 - **Riavvio** di Jellyfin durante un'ondata: l'ondata si perde (accettato).
 
 ### 6.7 Annunci
@@ -154,28 +162,31 @@ Arriva con il piano 13b: il plugin del 13a non ha `NewTitlesCollector`, né la c
 
 ### 6.8 Pagina di configurazione
 
-- `Plugin` implementa `IHasWebPages`. Nel 13a resta `BasePlugin<BasePluginConfiguration>`; con il 13b diventa `BasePlugin<PluginConfiguration>`, con `PluginConfiguration : BasePluginConfiguration` e `bool NotifyNewTitles { get; set; } = true`. Il passaggio da `BasePluginConfiguration` è sicuro: Jellyfin, se l'XML non corrisponde, salva i valori predefiniti e continua.
+- `Plugin` implementa `IHasWebPages` ed è `BasePlugin<PluginConfiguration>`, con `PluginConfiguration : BasePluginConfiguration` e `bool NotifyNewTitles { get; set; } = true`. Il passaggio da `BasePluginConfiguration` (plugin 1.1.0) è sicuro: Jellyfin, se l'XML non corrisponde, salva i valori predefiniti e continua. La configurazione sta in `plugins/configurations/Jellyfin.Plugin.WonderFlixWatchParty.xml`.
+- Jellyfin crea `Plugin` ma non lo mette nel DI: la casella si legge da `Plugin.Instance` (`PluginNewTitlesSettings`, dietro `INewTitlesSettings`) **ogni volta**, mai messa da parte, perché salvando dalla Dashboard Jellyfin sostituisce l'oggetto della configurazione.
 - Una pagina HTML incorporata (`Configuration/configPage.html`, `EnableInMainMenu = true`, `DisplayName = "WonderFlix Watch Party"`, `Name` unico `WonderFlixWatchParty`), in inglese come il resto del plugin:
   - riquadro **"Announcement"**: testo (massimo 500 caratteri, con contatore) e **"Send to everyone"**, che chiama `POST Inbox/Announcements`; esito "Sent to N user(s)" (testo: "Sent to 1 user." / "Sent to N users.") o l'errore;
-  - casella **"Notify new titles"** salvata con `ApiClient.updatePluginConfiguration`: arriva con il piano 13b; nel 13a la pagina ha solo l'annuncio.
+  - riquadro **"New titles"**: la casella **"Notify new titles"**, che si salva subito nella configurazione (`ApiClient.getPluginConfiguration` e `updatePluginConfiguration`; poi la conferma di Jellyfin, o "Setting not saved."); la sua descrizione dice di spegnerla prima di una grande importazione (i titoli in attesa si buttano) e prima di spostare una libreria in un altro percorso (§6.6);
+  - sotto, i titoli in attesa ("1 title waiting." / "N titles waiting.", da `GET Inbox/NewTitles`, riletti a ogni apertura della pagina e dopo ogni azione) e **"Send now"**, spento con la casella spenta o senza titoli in attesa. Esito: "Sent N title(s) to M user(s)" (al singolare con 1), "Nothing to send." o "Not sent: try again.". La riga dell'esito si svuota a ogni azione;
+  - se lo stato non arriva, la casella e "Send now" si bloccano e compare "Status not available.": la casella non deve sembrare spenta quando non si sa.
 - La pagina HTML si scarica senza login (`/web/ConfigurationPage`): non contiene dati.
 
 ### 6.9 Limiti e log
 
 - Nessun limite di frequenza nuovo: gli inviti hanno già i loro (20 destinatari al minuto), gli annunci sono solo dell'admin, la cassetta è dell'utente stesso.
-- Log come in 1.0.0/1.1.0: **mai testi, titoli o nomi**, solo id, tipi e numeri; `Debug` per le operazioni (voce creata, ondata chiusa con N titoli e M destinatari), `Warning` per il file illeggibile e gli errori di scrittura.
-- Gli errori della cassetta (voci d'invito, avviso `InboxChanged`, pulizia) vanno nel log come `Warning` e non hanno effetto su inviti, party e sul resto della pulizia (§6.1, §6.5).
+- Log come in 1.0.0/1.1.0: **mai testi, titoli o nomi**, solo id, tipi e numeri; `Debug` per le operazioni (voce creata, ondata chiusa con N titoli e M destinatari, ondata buttata con la casella spenta), `Warning` per il file illeggibile, gli errori di scrittura, una chiusura dell'ondata non riuscita e l'ondata buttata dopo 5 chiusure non riuscite (§6.6).
+- Gli errori della cassetta (voci d'invito e dei nuovi titoli, avviso `InboxChanged`, pulizia) vanno nel log come `Warning` e non hanno effetto su inviti, party e sul resto della pulizia (§6.1, §6.5).
 
 ## 7. App 0.7.0
 
 ### 7.1 Nucleo (`lib/core/social/`, Dart puro)
 
-- Modelli: `InboxEntry` sigillato con `InviteEntry {groupId, fromName, title, imageItemId}` e `AnnouncementEntry {text}`; `NewTitlesEntry {movies, series, more}` arriva con il 13b. Campi comuni `id`, `seq`, `createdAt`, `read`. `InboxSnapshot {entries, unread}`.
-  - Una voce di tipo sconosciuto si salta (versioni future del plugin). Anche una voce **malformata** si salta, con una riga `info` nel log (solo il tipo dell'errore, mai il contenuto): non rompe la cassetta.
+- Modelli (`lib/core/social/inbox_models.dart`): `InboxEntry` sigillato con `InviteEntry {groupId, fromName, title, imageItemId}`, `AnnouncementEntry {text}` e `NewTitlesEntry {movies, series, more}` (`episodeCount`: gli episodi in tutto), con `NewTitleMovie {itemId, name, year}`, `NewTitleSeries {seriesId, name, episodes}` e `NewTitleEpisode {season, episode}`. Campi comuni `id`, `seq`, `createdAt`, `read`. `InboxSnapshot {entries, unread}`.
+  - Una voce di tipo sconosciuto si salta (versioni future del plugin). Anche una voce **malformata**, di qualunque tipo (anche una Novità), si salta, con una riga `info` nel log (solo il tipo dell'errore, mai il contenuto): non rompe la cassetta.
   - `unread` lo calcola l'app dalle voci che può mostrare (le non lette di `entries`). L'`Unread` del server si ignora: conterebbe anche le voci di tipi sconosciuti (un plugin più nuovo), che l'app non vede e non può segnare lette, e il numero resterebbe acceso per sempre.
 - `SocialApi`: `inbox()`, `markInboxRead(upTo)`, `removeInboxEntry(id)`, `clearInbox()`; errori come gli altri (`SocialException`).
 - `parseSocialEvent` riconosce `InboxChanged` (`InboxChangedEvent`); `socialEventTypes` lo include, così `parsePartyEvent` non lo scrive nel log.
-- Funzioni pure: `inboxTimeLabel(createdAt, now, l)` per l'ora relativa (§7.6; sta in `lib/features/inbox/inbox_time.dart`, perché usa i testi localizzati). `formatEpisodeRanges(episodes)` arriva con il 13b: `S3 E1–E10`, `S3 E1–E4, E6`, più stagioni unite da ` · ` (`S2 E10 · S3 E1–E3`); se manca anche un solo numero la riga dice "{n} episodi nuovi".
+- Funzioni pure: `inboxTimeLabel(createdAt, now, l)` per l'ora relativa (§7.6; sta in `lib/features/inbox/inbox_time.dart`, perché usa i testi localizzati). `formatEpisodeRanges(episodes)` (in `inbox_models.dart`): `S3 E1–E10`, `S3 E1–E4, E6`, più stagioni unite da ` · ` (`S2 E10 · S3 E1–E3`); restituisce `null` se manca anche un solo numero (o non ci sono episodi), e allora la riga dice "{n} episodi nuovi".
 
 ### 7.2 Disponibilità
 
@@ -210,7 +221,7 @@ Arriva con il piano 13b: il plugin del 13a non ha `NewTitlesCollector`, né la c
   - **Unisciti** se il gruppo è nell'elenco dei party (`WatchPartyDirectory`: l'invito lo rende visibile finché il party esiste) e non ci siamo già: stesso ingresso del pannello Amici, che chiude il pannello solo se l'ingresso riesce. Il pulsante resta **disattivato mentre l'ingresso è in corso**: un secondo clic non ne fa partire un altro;
   - "Ci sei già" se siamo in quel gruppo;
   - "Party finito" (attenuato) altrimenti.
-- **Novità** (piano 13b): icona Lucide `sparkles`, "Novità: 2 film, 10 episodi" (solo le parti presenti, con i plurali). Sotto le prime 5 righe — film "Dune: Parte Due (2024)", serie "The Bear · S3 E1–E10" — poi **Mostra tutto ({n})**, che apre l'elenco dentro la voce. Ogni riga apre la scheda (film o serie) e chiude il pannello. In fondo "…e altri {n} titoli" se `More > 0` (non cliccabile).
+- **Novità:** icona Lucide `sparkles`, "Novità: 2 film, 10 episodi" (solo le parti presenti, con i plurali). Sotto le prime 5 righe — film "Dune: Parte Due (2024)" (l'anno se c'è), serie "The Bear · S3 E1–E10" (o "The Bear · 3 episodi nuovi" se manca un numero) — e, se le righe sono di più, **Mostra tutto ({n})** (n = tutte le righe), che apre l'elenco dentro la voce e porta il fuoco della tastiera sulla prima riga svelata (il pulsante sparisce). Ogni riga è cliccabile su tutta la larghezza: apre la scheda (`/item/<id>`: il film, o la serie per gli episodi) e chiude il pannello. In fondo "…e altri {n} titoli" se `More > 0` (non cliccabile).
 - **Annuncio:** icona Lucide `megaphone`, "Annuncio" e il testo intero (selezionabile, con gli a capo).
 
 ### 7.7 Dal vivo e player
@@ -229,6 +240,7 @@ Arriva con il piano 13b: il plugin del 13a non ha `NewTitlesCollector`, né la c
 | `markInboxRead` fallisce | il numero torna alla prossima lettura; nessun messaggio |
 | Rimuovi / Svuota falliscono | si rilegge, snackbar `inboxActionFailed` |
 | Annuncio con testo non valido | 400; la pagina della Dashboard mostra l'errore |
+| "Send now" non riesce (errore della libreria) | la pagina mostra "Not sent: try again."; l'ondata resta e si riprova (§6.6) |
 | Elemento di una riga Novità cancellato | la scheda mostra l'errore che mostra già per un elemento mancante |
 | App 0.6.0 con plugin 1.2.0 | `InboxChanged` scartato senza effetti (`parseSocialEvent` → `null`; solo dentro un canale di party `parsePartyEvent` scrive la riga `info` "evento del canale non valido: TypeError", perché manca `Id`); il resto invariato |
 
@@ -252,11 +264,6 @@ Arriva con il piano 13b: il plugin del 13a non ha `NewTitlesCollector`, né la c
 | `inboxHoursAgo` | {count} h fa | {count} h ago |
 | `inboxYesterday` | ieri | yesterday |
 | `inboxDaysAgo` | {count} giorni fa | {count} days ago |
-
-Chiavi che restano per il piano 13b (voce Novità):
-
-| Chiave | Italiano | English |
-|---|---|---|
 | `inboxNewTitles` | Novità: {summary} | New: {summary} |
 | `inboxMovies` | {count, plural, =1{1 film} other{{count} film}} | {count, plural, =1{1 movie} other{{count} movies}} |
 | `inboxEpisodes` | {count, plural, =1{1 episodio} other{{count} episodi}} | {count, plural, =1{1 episode} other{{count} episodes}} |
@@ -273,25 +280,25 @@ Chiavi già esistenti, riusate (niente doppioni): `retry` ("Riprova", per il car
   - `InboxService`: `Seq`, lettura fino a `UpTo` (una voce aggiornata dopo resta non letta), cancellazione ripetibile, svuotamento, annunci (bordi, 0/500/501 caratteri, destinatari solo attivi, admin compreso), `InboxChanged` alle sole sessioni WonderFlix dell'utente;
   - voci d'invito: elemento dalle sole sessioni del party ancora tra i partecipanti (prima chi invita), mai da una sessione fuori dal party, nessuna voce senza elemento, senza accesso o per un invitato disabilitato, errori solo nel log (l'invito riesce lo stesso), aggiornamento invece del doppione;
   - pulizia periodica: notifiche scadute tolte; un errore dei party non salta le notifiche e viceversa;
-  - `NewTitlesCollector` (13b): 15 minuti / 2 ore, sostituzioni per id esterno, aggiunto+tolto, elementi spariti alla chiusura, film visibili, episodi solo di serie seguite (preferita / altro episodio visto o iniziato), tetto di 500 righe e `More`, casella spenta;
-  - controller: annunci solo admin, endpoint della cassetta e `Info` per un utente senza accesso ai watch party, mai 404;
-  - pagina di configurazione incorporata e registrata.
+  - nuovi titoli (`NewTitlesCollector`, `NewTitlesWave`, `NewTitleRules`, `JellyfinLibraryTitles`, `NewTitlesHostedService`): 15 minuti / 2 ore, attesa per la scansione e per i metadati, sostituzioni per id esterno, aggiunto+tolto, segnaposto TVDB, cartelle di serie e stagioni rinominate, elementi spariti alla chiusura, film visibili, episodi solo di serie seguite (preferita / altro episodio visto o iniziato), tetto di 500 righe e `More`, casella spenta, "Send now" e chiusure contemporanee, chiusure non riuscite (riprova, 5 di fila, casella spenta nel frattempo), gestori degli eventi che non lanciano;
+  - controller: annunci e nuovi titoli solo admin, endpoint della cassetta e `Info` per un utente senza accesso ai watch party, mai 404;
+  - pagina di configurazione incorporata e registrata; `PluginConfiguration` con `NotifyNewTitles` acceso di default.
 - **Controllo dei riferimenti** della dll contro Jellyfin 10.11.9 prima di ogni deploy (eventi della libreria, dati utente, visibilità degli elementi, `NowPlayingItem`).
-- **App:** modelli (voci sconosciute o malformate saltate, `unread` calcolato dall'app) e `parseSocialEvent`; `inboxTimeLabel` (e `formatEpisodeRanges`, 13b); `InboxController` (letture, risposte superate, azioni ottimistiche ed errori, rilettura dopo ogni azione, pallini); `InboxButton` (numero, 99+, visibilità); `shellPanelProvider` e `ShellSidePanel` (un pannello alla volta, chiusura all'apertura del player, tasti di chiusura); pannello (stati, pallini, Unisciti / Ci sei già / Party finito, Svuota → Conferma, ×, fuoco sulla × dell'intestazione; Mostra tutto con il 13b).
-- **Prova manuale sul server** (due istanze, `WONDERFLIX_PROFILE=b`): annuncio dalla Dashboard; invito a chi ha l'app chiusa, poi apertura; con il 13b, un titolo nuovo aggiunto alla libreria e attesa della fine dell'ondata (15 minuti).
+- **App:** modelli (voci sconosciute o malformate saltate, Novità comprese, `unread` calcolato dall'app) e `parseSocialEvent`; `inboxTimeLabel` e `formatEpisodeRanges`; `InboxController` (letture, risposte superate, azioni ottimistiche ed errori, rilettura dopo ogni azione, pallini); `InboxButton` (numero, 99+, visibilità); `shellPanelProvider` e `ShellSidePanel` (un pannello alla volta, chiusura all'apertura del player, tasti di chiusura); pannello (stati, pallini, Unisciti / Ci sei già / Party finito, Svuota → Conferma, ×, fuoco sulla × dell'intestazione; Novità: riepilogo, righe, Mostra tutto e il fuoco sulla prima riga svelata, "…e altri N titoli"); apertura della scheda da una riga, con un vero router.
+- **Prova manuale sul server** (due istanze, `WONDERFLIX_PROFILE=b`): annuncio dalla Dashboard; invito a chi ha l'app chiusa, poi apertura; un titolo nuovo aggiunto alla libreria, "Send now" e, senza, l'attesa della fine dell'ondata (15 minuti); casella spenta.
 
 ## 11. Piani e release
 
 - **13a — cassetta da capo a fondo:** plugin (archivio, servizio, endpoint, `InboxChanged`, voci d'invito, annunci, pagina di configurazione); app (nucleo, disponibilità, controller, icona, pannello e contenitore comune dei pannelli laterali, voci Invito e Annuncio). Plugin copiato a mano sul server per la prova (`ssh ultra`, stop → copia → avvio).
-- **13b — nuovi titoli e release:** plugin (`NewTitlesCollector`, `PluginConfiguration` con la casella "Notify new titles"); app (voce Novità, `formatEpisodeRanges`); poi plugin **1.2.0** (tag `watch-party-plugin-v1.2.0`, pre-release, voce nel manifest; sul server la copia manuale va in `~/wfwp-backup/`, poi aggiornamento dal Catalogo) e app **0.7.0 non obbligatoria** (niente `min-version`).
+- **13b — nuovi titoli e release:** plugin (`NewTitlesCollector` con `NewTitlesHostedService`, `PluginConfiguration` con la casella "Notify new titles", endpoint admin e "Send now" nella pagina della Dashboard); app (voce Novità, `formatEpisodeRanges`). Poi, dopo la prova manuale e il merge, la release come nella sezione "Release" del piano 13b: plugin **1.2.0** (tag `watch-party-plugin-v1.2.0`, pre-release, voce nel manifest; sul server la copia manuale va in `~/wfwp-backup/`, poi aggiornamento dal Catalogo) e app **0.7.0 non obbligatoria** (niente `min-version`).
 - **Issue #7:** dopo la pubblicazione e con l'ok dell'utente, commento ("Discord scartato; al suo posto la cassetta delle notifiche in [WonderFlix 0.7.0](link)") e chiusura come **non pianificata**.
 
 ## 12. Rischi e punti da verificare
 
 - **API di Jellyfin 10.11.x:** argomenti di `ItemAdded`/`ItemRemoved`, il controllo di visibilità di un elemento per un utente, i dati utente della serie (preferito, episodi visti o iniziati), `NowPlayingItem` della sessione. Jellyfin cambia API anche nelle patch: si verifica sulla 10.11.9 con il controllo dei riferimenti.
-- **Ondate durante le scansioni** (13b): `ItemAdded` arriva prima dei metadati definitivi; la rilettura alla chiusura lo copre. Una sostituzione con id esterni diversi o assenti si annuncia come titolo nuovo.
-- **Prima scansione di una libreria grande** (13b): una voce con 500 righe e "…e altri N titoli" per tutti; l'admin può spegnere la casella prima dell'importazione.
-- **Costo delle serie seguite** (13b): una domanda per utente per serie a ogni ondata; con 5–20 utenti è poco, ma va fatta fuori dai thread delle richieste (lo è: la chiusura dell'ondata gira su un timer).
+- **Ondate durante le scansioni:** `ItemAdded` arriva prima dei metadati definitivi; l'ondata aspetta la fine della scansione e i metadati (entro 2 ore) e alla chiusura rilegge i titoli. Una sostituzione con id esterni diversi o assenti, o a cavallo di due ondate, si annuncia come titolo nuovo.
+- **Prima scansione di una libreria grande, libreria spostata:** una voce con 500 righe e "…e altri N titoli" per tutti; l'admin può spegnere la casella prima dell'importazione o dello spostamento.
+- **Costo delle serie seguite:** fino a tre conteggi sul database per utente per serie a ogni ondata; con 5–20 utenti è poco, ma va fatto fuori dai thread delle richieste (lo è: la chiusura dell'ondata gira su un timer; "Send now" no, ma lo usa solo l'admin).
 - **Dashboard 10.11:** la pagina legacy si carica ancora dentro la dashboard React; l'icona del menu è sempre quella predefinita (`MenuIcon` ignorato nella 10.11).
 - **Backup di Jellyfin:** il backup integrato della 10.11 non copre `plugins/configurations`: amici e cassetta non sono nel backup (come oggi per `friends.json`).
 
