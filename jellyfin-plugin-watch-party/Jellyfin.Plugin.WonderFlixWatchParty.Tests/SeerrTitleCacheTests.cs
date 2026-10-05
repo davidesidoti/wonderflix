@@ -60,6 +60,24 @@ public class SeerrTitleCacheTests
         Assert.Equal(2, _seerr.Calls.Count(c => c == "GetMovie"));
     }
 
+    [Theory]
+    [InlineData(SeerrError.Unavailable)]
+    [InlineData(SeerrError.Auth)]
+    [InlineData(SeerrError.NotConfigured)]
+    public async Task AnErrorThatIsNotAMissingTitleIsNotRemembered(SeerrError error)
+    {
+        var cache = new SeerrTitleCache(_seerr, _time);
+
+        // Seerr in difficoltà non vuol dire che il titolo manca: niente memoria.
+        _seerr.FailWith = error;
+        Assert.Null(await cache.GetAsync("movie", 1, "it", Ct));
+
+        _seerr.FailWith = null;
+        _seerr.Movies[1] = new SeerrMovie { Title = "Uno" };
+        Assert.Equal("Uno", (await cache.GetAsync("movie", 1, "it", Ct))!.Title);
+        Assert.Equal(2, _seerr.Calls.Count(c => c == "GetMovie"));
+    }
+
     [Fact]
     public async Task OnlyAFewLookupsRunAtTheSameTime()
     {

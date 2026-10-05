@@ -95,6 +95,7 @@ public class SeerrClientTests
     [Theory]
     [InlineData(403, """{"message":"Movie Quota exceeded."}""", false, SeerrError.QuotaExceeded)]
     [InlineData(403, """{"message":"This media is blocklisted."}""", false, SeerrError.Blocklisted)]
+    [InlineData(403, """{"message":"This media is blacklisted."}""", false, SeerrError.Blocklisted)]
     [InlineData(403, """{"message":"You do not have permission to make movie requests."}""", false, SeerrError.NoPermission)]
     [InlineData(403, """{"error":"You do not have permission to access this endpoint"}""", true, SeerrError.Auth)]
     [InlineData(401, "{}", false, SeerrError.Auth)]

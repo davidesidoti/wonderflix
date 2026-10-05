@@ -113,7 +113,9 @@ public sealed class SeerrClient(
         401 => SeerrError.Auth,
         403 when asAdmin => SeerrError.Auth,
         403 when message.Contains("quota", StringComparison.OrdinalIgnoreCase) => SeerrError.QuotaExceeded,
-        403 when message.Contains("blocklist", StringComparison.OrdinalIgnoreCase) => SeerrError.Blocklisted,
+        // "blacklist" è il nome che le versioni più vecchie di Seerr danno alla blocklist.
+        403 when message.Contains("blocklist", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("blacklist", StringComparison.OrdinalIgnoreCase) => SeerrError.Blocklisted,
         403 => SeerrError.NoPermission,
         404 => SeerrError.NotFound,
         409 => SeerrError.AlreadyRequested,

@@ -9,8 +9,9 @@ public sealed record SeerrTitle(string Title, int? Year, string? PosterPath);
 /// <summary>
 /// I titoli degli elenchi delle richieste, che Seerr non dà (spec I §7.2):
 /// per tipo, id TMDB e lingua, per <see cref="CacheFor"/>, al massimo
-/// <see cref="MaxEntries"/>. Un titolo che Seerr non ha si ricorda per
-/// <see cref="MissCacheFor"/>; le letture da Seerr sono al massimo
+/// <see cref="MaxEntries"/>. Un titolo che Seerr non conosce (404) si ricorda
+/// per <see cref="MissCacheFor"/>; gli altri errori (Seerr giù, chiave
+/// rifiutata) non si ricordano. Le letture da Seerr sono al massimo
 /// <see cref="MaxParallelLookups"/> insieme. Sicuro tra thread.
 /// </summary>
 public sealed class SeerrTitleCache(ISeerrClient seerr, TimeProvider time)
@@ -30,7 +31,7 @@ public sealed class SeerrTitleCache(ISeerrClient seerr, TimeProvider time)
     private readonly ConcurrentDictionary<(string MediaType, int TmdbId, string Language), Entry> _titles = new();
     private readonly SemaphoreSlim _lookups = new(MaxParallelLookups, MaxParallelLookups);
 
-    /// <summary>Il titolo; null se Seerr non lo dà (l'elenco va avanti senza).</summary>
+    /// <summary>Il titolo; null se Seerr non lo dà o non risponde (l'elenco va avanti senza).</summary>
     public async Task<SeerrTitle?> GetAsync(
         string mediaType, int tmdbId, string language, CancellationToken cancellationToken)
     {
@@ -56,10 +57,16 @@ public sealed class SeerrTitleCache(ISeerrClient seerr, TimeProvider time)
                     ? From(await seerr.GetTvAsync(tmdbId, language, cancellationToken).ConfigureAwait(false))
                     : From(await seerr.GetMovieAsync(tmdbId, language, cancellationToken).ConfigureAwait(false));
             }
+            catch (SeerrException ex) when (ex.Error == SeerrError.NotFound)
+            {
+                // Titolo che Seerr non conosce: si ricorda per poco, senza chiederlo a Seerr a ogni riga.
+                Store(key, null);
+                return null;
+            }
             catch (SeerrException)
             {
-                // Titolo mancante: si ricorda per poco, senza chiederlo a Seerr a ogni riga.
-                Store(key, null);
+                // Seerr non risponde o rifiuta: non vuol dire che il titolo manchi, quindi non si
+                // ricorda e alla prossima riga si riprova.
                 return null;
             }
 
