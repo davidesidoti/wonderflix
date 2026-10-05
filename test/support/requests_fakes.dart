@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/requests/requests_api.dart';
 import 'package:wonderflix/core/requests/requests_models.dart';
+import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/features/requests/requests_providers.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
 
 /// Il plugin delle richieste finto: dati da preparare e chiamate registrate.
 class FakeRequestsApi implements RequestsApi {
@@ -40,6 +42,27 @@ class FakeRequestsApi implements RequestsApi {
   final searchLanguages = <String>[];
   final created =
       <({RequestMediaType type, int tmdbId, List<int>? seasons})>[];
+
+  /// Le richieste di ogni elenco, in ordine: `list` ne dà una pagina.
+  final lists = <RequestsFilter, List<MediaRequest>>{};
+
+  /// Se impostato, `list` aspetta che si completi.
+  Completer<void>? listGate;
+
+  /// I server per tipo di titolo.
+  final servicesByType = <RequestMediaType, List<ServiceOption>>{};
+
+  /// Errore solo per `services`.
+  RequestsFailure? servicesFailure;
+
+  /// Errore solo per `approve` e `decline`.
+  RequestsFailure? actionFailure;
+
+  /// Se impostato, `approve` e `decline` aspettano che si completi.
+  Completer<void>? actionGate;
+
+  final approved = <({int id, ApproveChoice choice})>[];
+  final declined = <int>[];
 
   void _fail() {
     final f = failure;
@@ -101,34 +124,58 @@ class FakeRequestsApi implements RequestsApi {
   @override
   Future<RequestPage> list(RequestsFilter filter,
       {required int skip, required int take, required String language}) async {
-    calls.add('list:${filter.wire}:$skip');
+    calls.add('list:${filter.wire}:$skip:$take');
+    final gate = listGate;
+    if (gate != null) await gate.future;
     _fail();
-    return const RequestPage(items: [], hasMore: false);
+    final all = lists[filter] ?? const <MediaRequest>[];
+    final page = all.skip(skip).take(take).toList();
+    return RequestPage(items: page, hasMore: skip + page.length < all.length);
   }
 
   @override
   Future<List<ServiceOption>> services(RequestMediaType type) async {
     calls.add('services:${type.wire}');
     _fail();
-    return const [];
+    final f = servicesFailure;
+    if (f != null) throw RequestsException(f);
+    return servicesByType[type] ?? const [];
   }
 
   @override
   Future<MediaRequest> approve(int requestId, ApproveChoice choice,
-          {required String language}) =>
-      throw UnimplementedError('piano 15b');
+      {required String language}) async {
+    calls.add('approve:$requestId');
+    approved.add((id: requestId, choice: choice));
+    return _act(requestId, RequestStatus.approved);
+  }
 
   @override
-  Future<MediaRequest> decline(int requestId, {required String language}) =>
-      throw UnimplementedError('piano 15b');
+  Future<MediaRequest> decline(int requestId, {required String language}) async {
+    calls.add('decline:$requestId');
+    declined.add(requestId);
+    return _act(requestId, RequestStatus.declined);
+  }
+
+  Future<MediaRequest> _act(int requestId, RequestStatus status) async {
+    final gate = actionGate;
+    if (gate != null) await gate.future;
+    _fail();
+    final f = actionFailure;
+    if (f != null) throw RequestsException(f);
+    return testMediaRequest(id: requestId, status: status);
+  }
 }
 
-/// Provider per i test delle richieste: plugin [api], funzione [available].
+/// Provider per i test delle richieste: plugin [api], funzione
+/// [available], avvisi della cassetta da [events].
 List<Override> requestsTestOverrides(FakeRequestsApi api,
-        {bool available = true}) =>
+        {bool available = true,
+        Stream<SocialEvent> events = const Stream.empty()}) =>
     [
       requestsApiProvider.overrideWithValue(api),
       requestsAvailableProvider.overrideWithValue(available),
+      socialEventsProvider.overrideWithValue(events),
     ];
 
 RequestableTitle testRequestable({
@@ -176,4 +223,32 @@ TitleDetails testDetails({
       requestedByMe: requestedByMe,
       requested: requested,
       seasons: seasons,
+    );
+
+MediaRequest testMediaRequest({
+  int id = 1,
+  String title = 'Dune - Parte due',
+  RequestMediaType type = RequestMediaType.movie,
+  int? year = 2024,
+  List<int> seasons = const [],
+  String requester = 'Mario',
+  bool isMe = false,
+  RequestStatus status = RequestStatus.pending,
+  double? progress,
+  String? jellyfinItemId,
+  DateTime? createdAt,
+}) =>
+    MediaRequest(
+      id: id,
+      mediaType: type,
+      tmdbId: 693000 + id,
+      title: title,
+      year: year,
+      posterPath: '/r$id.jpg',
+      seasons: seasons,
+      requestedBy: Requester(name: requester, isMe: isMe),
+      createdAt: createdAt ?? DateTime.utc(2026, 10, 3, 20),
+      status: status,
+      progress: progress,
+      jellyfinItemId: jellyfinItemId,
     );
