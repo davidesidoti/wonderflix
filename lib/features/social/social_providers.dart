@@ -21,6 +21,7 @@ class SocialFeatures {
     this.friends = false,
     this.parties = false,
     this.inbox = false,
+    this.requests = false,
     this.known = true,
   });
 
@@ -39,6 +40,9 @@ class SocialFeatures {
   /// ai watch party.
   final bool inbox;
 
+  /// Le richieste con Seerr (spec I §8.2): non dipendono dai watch party.
+  final bool requests;
+
   /// `false` finché `Info` non dà una risposta certa: le funzioni, oppure
   /// un 400/401/403/404. Un errore di rete non basta (vedi
   /// [SocialAvailability]).
@@ -50,14 +54,15 @@ class SocialFeatures {
       other.friends == friends &&
       other.parties == parties &&
       other.inbox == inbox &&
+      other.requests == requests &&
       other.known == known;
 
   @override
-  int get hashCode => Object.hash(friends, parties, inbox, known);
+  int get hashCode => Object.hash(friends, parties, inbox, requests, known);
 
   @override
   String toString() => 'SocialFeatures(friends: $friends, parties: $parties, '
-      'inbox: $inbox, known: $known)';
+      'inbox: $inbox, requests: $requests, known: $known)';
 }
 
 /// Chiede `Info` al plugin dopo il login e a ogni connessione del WebSocket,
@@ -150,6 +155,7 @@ class SocialAvailability extends Notifier<SocialFeatures> {
         friends: _canJoin && info.features.contains(PluginFeatures.friends),
         parties: _canJoin && info.features.contains(PluginFeatures.parties),
         inbox: info.features.contains(PluginFeatures.inbox),
+        requests: info.features.contains(PluginFeatures.requests),
       ));
     } on SocialException catch (error) {
       if (!_isCurrent(generation)) return;

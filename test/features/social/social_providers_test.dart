@@ -70,6 +70,17 @@ void main() {
     expect(c.read(socialAvailabilityProvider).inbox, isTrue);
   });
 
+  test('Info con le richieste: funzione requests, anche senza watch party',
+      () async {
+    api.install(features: const {PluginFeatures.inbox, PluginFeatures.requests});
+    final c = container(
+        session: const SessionSignedIn(JellyfinUser(
+            id: 'u1', name: 'Mario', syncPlayAccess: SyncPlayAccess.none)));
+    await pumpEventQueue();
+    expect(c.read(socialAvailabilityProvider),
+        const SocialFeatures(inbox: true, requests: true));
+  });
+
   test('Info con gli amici: funzione attiva', () async {
     api.install();
     final c = container();

@@ -14,6 +14,9 @@ abstract final class PluginFeatures {
 
   /// La cassetta delle notifiche (spec G).
   static const inbox = 'inbox';
+
+  /// Le richieste con Seerr (spec I §7.1): solo con Seerr configurato nel plugin.
+  static const requests = 'requests';
 }
 
 /// Risposta di `GET /WonderFlixWatchParty/Info`, con le funzioni.
