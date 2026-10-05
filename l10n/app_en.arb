@@ -113,6 +113,7 @@
   "settingsQualityLow": "Low ({mbps} Mbps)",
   "@settingsQualityLow": {"placeholders": {"mbps": {"type": "int"}}},
   "settingsSubtitleSize": "Subtitle size",
+  "settingsSubtitleTiny": "Extra small",
   "settingsSubtitleSmall": "Small",
   "settingsSubtitleNormal": "Normal",
   "settingsSubtitleLarge": "Large",

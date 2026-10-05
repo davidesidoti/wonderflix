@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wonderflix/app/providers.dart';
+import 'package:wonderflix/app/window_setup.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/settings/diagnostics.dart';
@@ -83,6 +84,9 @@ void main() {
     await tester.tap(find.text('Grandi'));
     await tester.pump();
     expect(prefs.getDouble('player.subtitleScale'), 1.25);
+    await tester.tap(find.text('Molto piccoli'));
+    await tester.pump();
+    expect(prefs.getDouble('player.subtitleScale'), 0.6);
 
     await tester.tap(find.text('Decodifica hardware'));
     await tester.pump();
@@ -95,6 +99,24 @@ void main() {
     await tester.tap(find.text('Avvia automaticamente il prossimo episodio'));
     await tester.pump();
     expect(prefs.getBool('player.autoplayNext'), isFalse);
+  });
+
+  testWidgets('dimensioni dei sottotitoli nella finestra più stretta',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await pumpApp(tester, const Scaffold(body: SettingsScreen()),
+        surfaceSize: Size(minWindowSize.width, 1600),
+        overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      clientInfoProvider.overrideWithValue(testClientInfo),
+      sessionControllerProvider.overrideWith(
+          () => FakeSessionController(const SessionSignedIn(testUser))),
+      userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
+    ]);
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Molto piccoli'), findsOneWidget);
   });
 
   Future<FakeUserConfigApi> pumpSettings(WidgetTester tester) async {

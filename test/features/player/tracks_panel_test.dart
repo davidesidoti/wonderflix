@@ -89,7 +89,13 @@ void main() {
     // Selezionati: audio 1 e "Nessuno".
     expect(find.byIcon(LucideIcons.check), findsNWidgets(2));
     expect(find.text('Dimensione'), findsOneWidget);
-    for (final label in ['Piccoli', 'Normali', 'Grandi', 'Molto grandi']) {
+    for (final label in [
+      'Molto piccoli',
+      'Piccoli',
+      'Normali',
+      'Grandi',
+      'Molto grandi',
+    ]) {
       expect(find.text(label), findsOneWidget);
     }
 
@@ -105,6 +111,8 @@ void main() {
     expect(step, const Duration(milliseconds: 100));
     await tester.tap(find.text('Grandi'));
     expect(scale, 1.25);
+    await tester.tap(find.text('Molto piccoli'));
+    expect(scale, 0.6);
     await tester.tap(find.byTooltip('Chiudi'));
     expect(closed, 1);
   });

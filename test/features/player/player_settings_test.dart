@@ -56,6 +56,12 @@ void main() {
     expect(settings.subtitleScale, 1.0);
   });
 
+  test('la dimensione molto piccola salvata resta', () async {
+    final settings = (await container({'player.subtitleScale': 0.6}))
+        .read(playerSettingsProvider);
+    expect(settings.subtitleScale, 0.6);
+  });
+
   test('bitrate delle qualità', () {
     expect(StreamQuality.original.bitrate, originalQualityBitrate);
     expect(StreamQuality.mbps20.bitrate, 20000000);
@@ -66,6 +72,6 @@ void main() {
   test('nomi delle dimensioni dei sottotitoli', () {
     final l = lookupAppLocalizations(const Locale('it'));
     expect([for (final scale in subtitleScaleOptions) subtitleScaleLabel(l, scale)],
-        ['Piccoli', 'Normali', 'Grandi', 'Molto grandi']);
+        ['Molto piccoli', 'Piccoli', 'Normali', 'Grandi', 'Molto grandi']);
   });
 }

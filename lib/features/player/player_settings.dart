@@ -18,11 +18,12 @@ enum StreamQuality {
 }
 
 /// Dimensioni dei sottotitoli proposte (scala di mpv `sub-scale`).
-const subtitleScaleOptions = [0.8, 1.0, 1.25, 1.5];
+const subtitleScaleOptions = [0.6, 0.8, 1.0, 1.25, 1.5];
 
 /// Nome di una dimensione dei sottotitoli (Impostazioni e pannello del
 /// player).
 String subtitleScaleLabel(AppLocalizations l, double scale) => switch (scale) {
+      0.6 => l.settingsSubtitleTiny,
       0.8 => l.settingsSubtitleSmall,
       1.25 => l.settingsSubtitleLarge,
       1.5 => l.settingsSubtitleHuge,
