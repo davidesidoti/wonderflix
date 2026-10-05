@@ -94,6 +94,9 @@ class RequestsListController extends Notifier<RequestsListState> {
     await _load(reset: false);
   }
 
+  /// La pagina successiva dopo un errore (il pulsante in fondo all'elenco).
+  Future<void> loadMoreAfterError() => _load(reset: false);
+
   Future<void> _load({required bool reset}) async {
     if (!ref.mounted) return;
     final generation = ++_generation;

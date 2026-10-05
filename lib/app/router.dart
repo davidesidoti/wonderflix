@@ -11,6 +11,8 @@ import '../features/home/home_screen.dart';
 import '../features/mylist/my_list_screen.dart';
 import '../features/person/person_screen.dart';
 import '../features/player/player_screen.dart';
+import '../features/requests/requests_navigation.dart';
+import '../features/requests/requests_screen.dart';
 import '../features/requests/tmdb_title_screen.dart';
 import '../features/search/search_screen.dart';
 import '../features/settings/settings_screen.dart';
@@ -149,6 +151,16 @@ final routerProvider = Provider<GoRouter>((ref) {
               pageBuilder: (context, state) =>
                   shellPage(context, state, const MyListScreen(),
                       underBar: true)),
+          GoRoute(
+              path: '/requests',
+              pageBuilder: (context, state) => shellPage(
+                  context,
+                  state,
+                  RequestsScreen(
+                      key: ValueKey(state.uri.toString()),
+                      initialTab:
+                          RequestsTab.parse(state.uri.queryParameters['tab'])),
+                  underBar: true)),
           GoRoute(
               path: '/search',
               pageBuilder: (context, state) =>

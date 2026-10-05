@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/app_shell.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 
 import '../support/fake_session_controller.dart';
 import '../support/pump_app.dart';
+import '../support/social_fakes.dart';
 import '../support/test_data.dart';
 import '../support/watch_party_fakes.dart';
 
@@ -31,6 +33,7 @@ void main() {
     expect(find.text('Serie'), findsOneWidget);
     expect(find.text('La mia lista'), findsOneWidget);
     expect(find.text('Cerca'), findsOneWidget);
+    expect(find.text('Richieste'), findsNothing);
 
     await tester.tap(find.byKey(const Key('user-menu')));
     await tester.pumpAndSettle();
@@ -38,5 +41,24 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(fake.logoutCalls, 1);
+  });
+
+  testWidgets('voce "Richieste" solo con la funzione delle richieste',
+      (tester) async {
+    await pumpApp(
+      tester,
+      const AppShell(location: '/requests', child: SizedBox()),
+      overrides: [
+        sessionControllerProvider
+            .overrideWith(() => FakeSessionController(const SessionSignedIn(testUser))),
+        watchPartyDirectoryProvider.overrideWith(FakeWatchPartyDirectory.new),
+        syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
+        watchPartyEventsProvider.overrideWithValue(const Stream.empty()),
+        socialAvailabilityProvider.overrideWith(
+            () => FakeSocialAvailability(const SocialFeatures(requests: true))),
+      ],
+    );
+
+    expect(find.text('Richieste'), findsOneWidget);
   });
 }

@@ -14,6 +14,7 @@ import '../features/friends/friends_button.dart';
 import '../features/friends/friends_panel.dart';
 import '../features/inbox/inbox_button.dart';
 import '../features/library/server_events_binding.dart';
+import '../features/requests/requests_providers.dart';
 import '../features/watch_party/watch_party_button.dart';
 import '../features/watch_party/watch_party_invites.dart';
 import '../l10n/gen/app_localizations.dart';
@@ -100,6 +101,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                           (label: l.navMovies, route: '/movies', icon: null),
                           (label: l.navSeries, route: '/series', icon: null),
                           (label: l.navMyList, route: '/mylist', icon: null),
+                          // Solo con le richieste con Seerr (spec I §9.4).
+                          if (ref.watch(requestsAvailableProvider))
+                            (label: l.navRequests, route: '/requests', icon: null),
                           (
                             label: l.navSearch,
                             route: '/search',
