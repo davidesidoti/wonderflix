@@ -67,4 +67,50 @@ void main() {
     await tester.pumpAndSettle();
     expect(path(), '/item/ee39');
   });
+
+  testWidgets('pagina Richieste e richieste: libreria o scheda da richiedere',
+      (tester) async {
+    late BuildContext home;
+    final router = GoRouter(routes: [
+      GoRoute(
+        path: '/',
+        builder: (context, state) {
+          home = context;
+          return const Scaffold(body: Text('home'));
+        },
+      ),
+      GoRoute(path: '/requests', builder: (context, state) => const Text('richieste')),
+      GoRoute(path: '/item/:id', builder: (context, state) => const Text('scheda')),
+      GoRoute(
+          path: '/tmdb/:type/:tmdbId',
+          builder: (context, state) => const Text('scheda tmdb')),
+    ]);
+    addTearDown(router.dispose);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+
+    openRequests(home, tab: RequestsTab.pending);
+    await tester.pumpAndSettle();
+    expect(router.state.uri.toString(), '/requests?tab=pending');
+
+    router.go('/');
+    await tester.pumpAndSettle();
+    openRequest(home, testMediaRequest(id: 4, jellyfinItemId: 'abc'));
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/item/abc');
+
+    router.go('/');
+    await tester.pumpAndSettle();
+    openRequest(home, testMediaRequest(id: 4));
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/tmdb/movie/693004');
+  });
+
+  test('scheda della pagina dall\'indirizzo', () {
+    expect(RequestsTab.parse('pending'), RequestsTab.pending);
+    expect(RequestsTab.parse('mine'), RequestsTab.mine);
+    expect(RequestsTab.parse('all'), RequestsTab.all);
+    expect(RequestsTab.parse('boh'), isNull);
+    expect(RequestsTab.parse(null), isNull);
+    expect(RequestsTab.pending.filter, RequestsFilter.pending);
+  });
 }

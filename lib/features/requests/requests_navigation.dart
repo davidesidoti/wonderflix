@@ -20,3 +20,37 @@ void openRequestable(BuildContext context, RequestableTitle title) {
   }
   unawaited(context.push(tmdbRoute(title.mediaType, title.tmdbId)));
 }
+
+/// Le schede della pagina Richieste (spec I §9.4).
+enum RequestsTab {
+  mine(RequestsFilter.mine),
+  pending(RequestsFilter.pending),
+  all(RequestsFilter.all);
+
+  const RequestsTab(this.filter);
+
+  final RequestsFilter filter;
+
+  /// Dal parametro `tab` dell'indirizzo; `null` se manca o non vale.
+  static RequestsTab? parse(String? raw) => switch (raw) {
+        'mine' => mine,
+        'pending' => pending,
+        'all' => all,
+        _ => null,
+      };
+}
+
+/// Apre la pagina Richieste, sulla scheda [tab] se c'è (spec I §9.6).
+void openRequests(BuildContext context, {RequestsTab? tab}) =>
+    context.go(tab == null ? '/requests' : '/requests?tab=${tab.name}');
+
+/// Apre una richiesta (spec I §9.4): la scheda della libreria se il titolo
+/// c'è, altrimenti la scheda da richiedere.
+void openRequest(BuildContext context, MediaRequest request) {
+  final itemId = request.jellyfinItemId;
+  if (itemId != null) {
+    openItemById(context, itemId);
+    return;
+  }
+  unawaited(context.push(tmdbRoute(request.mediaType, request.tmdbId)));
+}
