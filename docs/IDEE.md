@@ -16,25 +16,15 @@ Oggi l'amministrazione passa dalla Dashboard di Jellyfin nel browser, e così le
   - conferme per le azioni distruttive o che interrompono la visione (riavvio con qualcuno che guarda, come si fa oggi a mano con il log).
 - **Da chiarire:** pannello in una pagina sua o dentro il profilo; solo lettura (stato) o anche azioni; cosa resta nella Dashboard web.
 
-## 2. Integrazione di Seerr
-
-Seerr (l'erede di Overseerr e Jellyseerr) gira già sul server Ultra.cc (`~/.apps/seerr`), collegato a Jellyfin, con l'accesso tramite le credenziali di Jellyfin acceso. L'idea è chiedere film e serie che mancano direttamente dall'app.
-- **Da cercare:**
-  - API di Seerr (`/api/v1`): accesso dell'utente con le credenziali Jellyfin (`POST /api/v1/auth/jellyfin`, cookie di sessione) invece della chiave API dell'admin; ricerca, scoperta, richieste e il loro stato, quote, permessi;
-  - dove sta nell'app: titoli che non ci sono nei risultati della ricerca con "Richiedi", una pagina "Richieste" con lo stato, stagioni scelte per le serie;
-  - avviso quando un titolo richiesto arriva: notifiche di Seerr (webhook) verso la cassetta delle notifiche del plugin, o il riepilogo delle novità che c'è già;
-  - indirizzo di Seerr nella configurazione dell'app (`--dart-define-from-file`) e CORS se un giorno c'è la versione web.
-- **Da chiarire:** chi può chiedere (tutti o solo alcuni), richieste da approvare o automatiche, cosa vede chi non ha un account Seerr.
-
-## 3. Versione web
+## 2. Versione web
 
 Stesso client nel browser, usato da tutti con il protocollo WonderFlix, watch party compreso. La logica di sincronizzazione è in Dart puro (`lib/core/syncplay/`).
 - **Da cercare:** video con `<video>` invece di libmpv e ricorso alla transcodifica HLS; sottotitoli ASS/PGS senza libass; CORS e dove salvare il token; precisione di `currentTime`/`playbackRate` per il `DriftCorrector`; cosa non esiste sul web (SMTC, Discord, installer, `window_manager`, `dart:ffi`); hosting e configurazione.
 - È lo spec più grosso.
 
-## 4. Altre piattaforme: Smart TV, Android, iOS, macOS, Linux
+## 3. Altre piattaforme: Smart TV, Android, iOS, macOS, Linux
 
-Rifare l'app perché si possa usare anche su Smart TV (Fire TV Stick e simili, cioè Android TV / Fire OS), telefoni e tablet Android e iOS, macOS e Linux. Ha molto in comune con la versione web (idea 3): in entrambi i casi le parti legate a Windows vanno separate dal resto.
+Rifare l'app perché si possa usare anche su Smart TV (Fire TV Stick e simili, cioè Android TV / Fire OS), telefoni e tablet Android e iOS, macOS e Linux. Ha molto in comune con la versione web (idea 2): in entrambi i casi le parti legate a Windows vanno separate dal resto.
 - **Cosa c'è già:** Flutter gira su tutte queste piattaforme, e media_kit (libmpv) ha i pacchetti per Android, iOS, macOS e Linux; client Jellyfin, SyncPlay, watch party e plugin non dipendono da Windows.
 - **Cosa è solo Windows oggi:** `media_kit_libs_windows_video`, `smtc_windows` (pannello multimediale), `window_manager` e `screen_retriever` (solo desktop), la pipe di Discord e la preferenza delle animazioni via `dart:ffi` (`windows_discord_pipe.dart`, `windows_animation_pref.dart`), installer e aggiornamenti da GitHub (`installer/`, `docs/RELEASING.md`), il runner `windows/`.
 - **Da cercare:**
@@ -47,7 +37,7 @@ Rifare l'app perché si possa usare anche su Smart TV (Fire TV Stick e simili, c
   - pipeline di build e prove per ogni piattaforma.
 - **Da chiarire:** quali piattaforme prima (per esempio Fire TV e Android insieme, dato che sono quasi lo stesso codice); stessa app con implementazioni per piattaforma o app separata per la TV; se fare insieme alla versione web il lavoro di separazione dalle parti di Windows.
 
-## 5. Funzioni escluse dallo Spec A
+## 4. Funzioni escluse dallo Spec A
 
 - Profili "Chi guarda?" (più utenti sullo stesso PC).
 - Collezioni e saghe (`BoxSet`).
@@ -55,7 +45,7 @@ Rifare l'app perché si possa usare anche su Smart TV (Fire TV Stick e simili, c
 - HDR vero (oggi media_kit converte in SDR).
 - Firma del codice (pipeline già predisposta, `docs/RELEASING.md`).
 
-## 6. Rifinitura per la v1.0.0
+## 5. Rifinitura per la v1.0.0
 
 La v1.0.0 è la prima release per gli amici. Raccoglierebbe:
 - le prove mai fatte sul server: rete staccata, salvaschermo, trailer locali, tasti multimediali fisici;
@@ -70,3 +60,4 @@ La v1.0.0 è la prima release per gli amici. Raccoglierebbe:
 - Spec F — amici e party privati (plugin 1.1.0, app 0.6.0).
 - Spec G — cassetta delle notifiche (plugin 1.2.0, app 0.7.0).
 - Spec H — coda del watch party (plugin 1.3.0, app 0.8.0).
+- Spec I — richieste con Seerr (plugin 1.4.0, app 0.9.0).
