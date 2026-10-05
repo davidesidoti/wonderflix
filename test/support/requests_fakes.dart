@@ -24,12 +24,17 @@ class FakeRequestsApi implements RequestsApi {
   /// Errore solo per `create`.
   RequestsFailure? createFailure;
 
+  /// Errore solo per `me`.
+  RequestsFailure? meFailure;
+
   RequestStatus createdStatus = RequestStatus.pending;
 
-  /// Se impostati, `search`, `create` e `title` aspettano che si completino.
+  /// Se impostati, `search`, `create`, `title` e `me` aspettano che si
+  /// completino.
   Completer<void>? searchGate;
   Completer<void>? createGate;
   Completer<void>? titleGate;
+  Completer<void>? meGate;
 
   final calls = <String>[];
   final searchLanguages = <String>[];
@@ -44,7 +49,11 @@ class FakeRequestsApi implements RequestsApi {
   @override
   Future<RequestsMe> me() async {
     calls.add('me');
+    final gate = meGate;
+    if (gate != null) await gate.future;
     _fail();
+    final f = meFailure;
+    if (f != null) throw RequestsException(f);
     return meValue;
   }
 

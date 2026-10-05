@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/requests/requests_api.dart';
 import 'package:wonderflix/core/requests/requests_models.dart';
 import 'package:wonderflix/features/requests/tmdb_title_screen.dart';
+import 'package:wonderflix/ui/backdrop_image.dart';
+import 'package:wonderflix/ui/skeletons.dart';
+import 'package:wonderflix/ui/smooth_scroll.dart';
 
 import '../../support/pump_app.dart';
 import '../../support/requests_fakes.dart';
@@ -113,6 +118,64 @@ void main() {
 
     expect(find.text('Richiedi'), findsNothing);
     expect(api.calls, contains('me'));
+  });
+
+  testWidgets('i permessi si caricano con la scheda: scheletro finché non arrivano',
+      (tester) async {
+    final gate = api.meGate = Completer<void>();
+    api.titles[693134] = testDetails();
+    await pumpScreen(tester);
+
+    // La scheda è pronta, ma i permessi no: ancora lo scheletro.
+    expect(api.calls, containsAll(['me', 'title:movie:693134']));
+    expect(find.byType(DetailSkeleton), findsOneWidget);
+    expect(find.text('DUNE - PARTE DUE'), findsNothing);
+
+    gate.complete();
+    await tester.pump();
+    await tester.pump();
+
+    // Al primo fotogramma con i dati c'è già Richiedi.
+    expect(find.text('DUNE - PARTE DUE'), findsOneWidget);
+    expect(find.text('Richiedi'), findsOneWidget);
+  });
+
+  testWidgets('permessi che falliscono: la scheda resta, senza Richiedi',
+      (tester) async {
+    api
+      ..meFailure = RequestsFailure.seerrUnavailable
+      ..titles[693134] = testDetails();
+    await pumpScreen(tester);
+    // Finita la dissolvenza dallo scheletro.
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(find.text('DUNE - PARTE DUE'), findsOneWidget);
+    expect(find.text('Richiedi'), findsNothing);
+    expect(find.byType(DetailSkeleton), findsNothing);
+  });
+
+  testWidgets('lo sfondo scorre con la testata, con la rotella dolce',
+      (tester) async {
+    api.titles[90228] = testDetails(
+      tmdbId: 90228,
+      type: RequestMediaType.tv,
+      seasons: [
+        for (var n = 1; n <= 20; n++) SeasonInfo(seasonNumber: n, episodeCount: 8),
+      ],
+    );
+    await pumpScreen(tester, type: RequestMediaType.tv, tmdbId: 90228);
+    // Finita la dissolvenza dallo scheletro.
+    await tester.pump(const Duration(seconds: 1));
+    final backdrop = find.byType(BackdropImage);
+    expect(tester.getTopLeft(backdrop).dy, 0);
+    expect(tester.widget<ListView>(find.byType(ListView)).controller,
+        isA<SmoothScrollController>());
+
+    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.pump();
+
+    // Sale insieme alle sfumature della testata: non resta fermo dietro.
+    expect(tester.getTopLeft(backdrop).dy, -300);
   });
 
   testWidgets('Seerr giù: errore e Riprova', (tester) async {

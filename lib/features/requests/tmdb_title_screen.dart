@@ -12,6 +12,7 @@ import '../../core/requests/tmdb_images.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/backdrop_image.dart';
 import '../../ui/skeletons.dart';
+import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_switcher.dart';
@@ -63,16 +64,25 @@ class TmdbTitleScreen extends ConsumerWidget {
     );
     final provider = requestTitleControllerProvider(titleKey);
     final state = ref.watch(provider);
+    // I permessi partono insieme alla scheda: la scheda esce solo quando
+    // si sa se si può chiedere, così Richiedi non compare dopo. Se i
+    // permessi falliscono si va avanti senza Richiedi (niente scheletro
+    // senza fine); nei tentativi di Riverpod `hasError` resta vero.
+    final me = ref.watch(requestsMeProvider);
+    final meReady = me.hasValue || me.hasError;
     final error = state.error;
     final (name, content) = switch (state.details) {
-      TitleDetails() => ('data', _TmdbTitleView(titleKey: titleKey)),
+      TitleDetails() when meReady => (
+          'data',
+          _TmdbTitleView(titleKey: titleKey),
+        ),
       null when error != null => (
           'error',
           ErrorView(
               error: error,
               onRetry: () => unawaited(ref.read(provider.notifier).load())),
         ),
-      null => (
+      _ => (
           'loading',
           const DetailSkeleton(headerHeight: detailHeaderHeight),
         ),
@@ -84,19 +94,33 @@ class TmdbTitleScreen extends ConsumerWidget {
   }
 }
 
-class _TmdbTitleView extends ConsumerWidget {
+class _TmdbTitleView extends ConsumerStatefulWidget {
   const _TmdbTitleView({required this.titleKey});
 
   final RequestTitleKey titleKey;
 
+  @override
+  ConsumerState<_TmdbTitleView> createState() => _TmdbTitleViewState();
+}
+
+class _TmdbTitleViewState extends ConsumerState<_TmdbTitleView> {
   /// Larghezza massima dell'elenco delle stagioni.
   static const _seasonsMaxWidth = 560.0;
 
-  Future<void> _request(BuildContext context, WidgetRef ref) async {
+  /// Rotella dolce, come nelle pagine della libreria.
+  final _scroll = SmoothScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  Future<void> _request() async {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     final outcome = await ref
-        .read(requestTitleControllerProvider(titleKey).notifier)
+        .read(requestTitleControllerProvider(widget.titleKey).notifier)
         .submit();
     if (outcome == null) return;
     messenger.showSnackBar(
@@ -104,62 +128,47 @@ class _TmdbTitleView extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final provider = requestTitleControllerProvider(titleKey);
+    final provider = requestTitleControllerProvider(widget.titleKey);
     final state = ref.watch(provider);
     final details = state.details!;
     final controller = ref.read(provider.notifier);
     final canRequest = ref.watch(requestsMeProvider).value?.canRequest ?? false;
     final showSeasons =
         details.mediaType == RequestMediaType.tv && details.seasons.isNotEmpty;
-    return Stack(
+    // Lo sfondo sta dentro la testata e scorre con lei.
+    return ListView(
+      controller: _scroll,
+      padding: const EdgeInsets.only(bottom: 40),
       children: [
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          height: detailHeaderHeight,
-          child: BackdropImage(
-            backdrop: TmdbImages.backdrop(details.backdropPath),
-            fallback: TmdbImages.poster(details.posterPath),
-          ),
+        TmdbTitleHeader(
+          details: details,
+          state: state,
+          canRequest: canRequest,
+          onRequest: () => unawaited(_request()),
         ),
-        Positioned.fill(
-          child: ListView(
-            padding: const EdgeInsets.only(bottom: 40),
-            children: [
-              TmdbTitleHeader(
-                details: details,
-                state: state,
-                canRequest: canRequest,
-                onRequest: () => unawaited(_request(context, ref)),
-              ),
-              if (showSeasons)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(l.requestsSeasons, style: WfText.display(26)),
-                      const SizedBox(height: 12),
-                      ConstrainedBox(
-                        constraints:
-                            const BoxConstraints(maxWidth: _seasonsMaxWidth),
-                        child: SeasonPicker(
-                          seasons: details.seasons,
-                          selected: canRequest ? state.selected : const {},
-                          enabled: canRequest && !state.sending,
-                          onToggle: controller.toggleSeason,
-                          onToggleAll: controller.toggleAll,
-                        ),
-                      ),
-                    ],
+        if (showSeasons)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l.requestsSeasons, style: WfText.display(26)),
+                const SizedBox(height: 12),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: _seasonsMaxWidth),
+                  child: SeasonPicker(
+                    seasons: details.seasons,
+                    selected: canRequest ? state.selected : const {},
+                    enabled: canRequest && !state.sending,
+                    onToggle: controller.toggleSeason,
+                    onToggleAll: controller.toggleAll,
                   ),
                 ),
-            ],
+              ],
+            ),
           ),
-        ),
       ],
     );
   }
@@ -221,6 +230,11 @@ class TmdbTitleHeader extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
+          // Sotto le due sfumature, così scorre con loro.
+          BackdropImage(
+            backdrop: TmdbImages.backdrop(details.backdropPath),
+            fallback: TmdbImages.poster(details.posterPath),
+          ),
           const DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
