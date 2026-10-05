@@ -267,14 +267,23 @@ class FakePartyNotices extends PartyNotices {
   final shown = <PartyNotice>[];
   final mineCalls = <(PartyNoticeKind, Duration?)>[];
 
+  /// Gli `ItemId` delle chiamate di `mine`, nello stesso ordine.
+  final mineItemIds = <List<String>>[];
+
   /// Azioni registrate con `show: false` (solo l'eco, nessun avviso).
   final hiddenMineCalls = <PartyNoticeKind>[];
 
-  /// Echi tolti con `forget`, in ordine.
+  /// Echi tolti con `forget`, in ordine; i loro `ItemId` in
+  /// [forgottenItemIds].
   final forgotten = <PartyNoticeKind>[];
+  final forgottenItemIds = <List<String>>[];
 
-  /// Echi rinnovati con `renew`, in ordine.
+  /// Echi rinnovati con `renew`, in ordine; i loro `ItemId` in
+  /// [renewedItemIds] e la finestra chiesta (`null` = quella solita) in
+  /// [renewedWindows].
   final renewed = <PartyNoticeKind>[];
+  final renewedItemIds = <List<String>>[];
+  final renewedWindows = <Duration?>[];
 
   /// Chiamate di `setAttribution`, in ordine.
   final attributionCalls = <bool>[];
@@ -295,16 +304,26 @@ class FakePartyNotices extends PartyNotices {
   void show(PartyNotice notice) => shown.add(notice);
 
   @override
-  void mine(PartyNoticeKind kind, {Duration? position, bool show = true}) {
+  void mine(PartyNoticeKind kind,
+      {Duration? position, bool show = true, List<String> itemIds = const []}) {
     mineCalls.add((kind, position));
+    mineItemIds.add(itemIds);
     if (!show) hiddenMineCalls.add(kind);
   }
 
   @override
-  void forget(PartyNoticeKind kind) => forgotten.add(kind);
+  void forget(PartyNoticeKind kind, {List<String> itemIds = const []}) {
+    forgotten.add(kind);
+    forgottenItemIds.add(itemIds);
+  }
 
   @override
-  void renew(PartyNoticeKind kind) => renewed.add(kind);
+  void renew(PartyNoticeKind kind,
+      {List<String> itemIds = const [], Duration? window}) {
+    renewed.add(kind);
+    renewedItemIds.add(itemIds);
+    renewedWindows.add(window);
+  }
 }
 
 /// Invito fisso: registra le chiusure, senza timer.

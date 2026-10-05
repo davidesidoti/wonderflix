@@ -9,6 +9,7 @@ import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/party_channel/party_channel_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/watch_party/party_channel.dart';
 import 'package:wonderflix/features/watch_party/party_notices.dart';
 import 'package:wonderflix/features/watch_party/party_queue_editor.dart';
@@ -47,8 +48,13 @@ void main() {
   }
 
   /// Nel gruppo, con la coda e3 (p1, già visto), e4 (p2, in riproduzione),
-  /// e5 (p3), e6 (p4). Con [queueFeature] il plugin è il 1.3.0.
-  void mount(FakeAsync async, {bool queueFeature = true}) {
+  /// e5 (p3), e6 (p4). Con [queueFeature] il plugin è il 1.3.0. Con
+  /// [library] gli avvisi sono quelli veri (con i dettagli dei titoli da
+  /// lì), e quelli mostrati finiscono in [shown].
+  void mount(FakeAsync async,
+      {bool queueFeature = true,
+      FakeLibraryApi? library,
+      List<PartyNotice>? shown}) {
     channelApi.install(
         version: '1.3.0',
         features: queueFeature ? const {partyQueueFeature} : const {});
@@ -58,9 +64,17 @@ void main() {
       syncPlayApiProvider.overrideWithValue(api),
       watchPartyEventsProvider.overrideWithValue(events.stream),
       partyChannelApiProvider.overrideWithValue(channelApi),
-      partyNoticesProvider.overrideWith(() => notices),
+      if (library == null)
+        partyNoticesProvider.overrideWith(() => notices)
+      else
+        libraryApiProvider.overrideWithValue(library),
     ]);
     container.listen(partyChannelProvider, (_, _) {});
+    if (library != null) {
+      container.listen(partyNoticesProvider, (_, notice) {
+        if (notice != null) shown?.add(notice);
+      });
+    }
     unawaited(container.read(watchPartySessionProvider.notifier).join('g1'));
     async.flushMicrotasks();
     emit(
@@ -409,8 +423,14 @@ void main() {
         expect(api.calls, ['add-next m9']);
         expect(announced(), ['QueueNext']);
         expect(notices.hiddenMineCalls, [PartyNoticeKind.queuedNext]);
+        expect(notices.mineItemIds, [
+          ['m9'],
+        ]);
         expect(notices.renewed, [PartyNoticeKind.queuedNext],
             reason: 'l\'eco dura quanto l\'attesa della conferma');
+        expect(notices.renewedItemIds, [
+          ['m9'],
+        ]);
         expect(outcome, isNull, reason: 'aspetta la coda del server');
 
         emit(async, withAdded(['m9'], next: true));
@@ -422,7 +442,8 @@ void main() {
       });
     });
 
-    test('nessuna conferma in 4 s: rifiutata, eco dimenticata', () {
+    test('nessuna conferma in 4 s: rifiutata; l\'eco resta per una conferma '
+        'tardiva', () {
       fakeAsync((async) {
         mount(async);
         PartyQueueAddOutcome? outcome;
@@ -434,7 +455,83 @@ void main() {
         async.elapse(PartyQueueEditor.addConfirmTimeout);
         expect(outcome, PartyQueueAddOutcome.rejected);
         expect(notices.shown.last.kind, PartyNoticeKind.queueRejected);
-        expect(notices.forgotten, [PartyNoticeKind.queued]);
+        expect(notices.forgotten, isEmpty);
+        expect(
+            notices.renewed, [PartyNoticeKind.queued, PartyNoticeKind.queued]);
+        expect(notices.renewedItemIds, [
+          ['m9'],
+          ['m9'],
+        ]);
+        expect(notices.renewedWindows, [null, PartyNotices.lateAddEchoWindow]);
+        finish(async);
+      });
+    });
+
+    test('conferma arrivata dopo il rifiuto (avvisi veri): solo "Non '
+        'aggiunto…", nessun "Aggiunto…" anonimo', () {
+      fakeAsync((async) {
+        final library = FakeLibraryApi()..itemsById['m9'] = film;
+        final shown = <PartyNotice>[];
+        mount(async, library: library, shown: shown);
+        PartyQueueAddOutcome? outcome;
+        unawaited(editor()
+            .add([film], next: false)
+            .then((value) => outcome = value));
+        async.flushMicrotasks();
+        async.elapse(PartyQueueEditor.addConfirmTimeout);
+        expect(outcome, PartyQueueAddOutcome.rejected);
+        // La coda del server arriva 6 s dopo la risposta.
+        async.elapse(const Duration(seconds: 2));
+        emit(async, withAdded(['m9'], next: false));
+        async.elapse(PartyNotices.showFor * 2);
+        expect([for (final notice in shown) (notice.kind, notice.mine)],
+            [(PartyNoticeKind.queueRejected, true)]);
+        expect(library.itemsByIdsCalls, isEmpty);
+        finish(async);
+      });
+    });
+
+    test('un altro aggiunge mentre la nostra aspetta (avvisi veri): il suo '
+        'avviso c\'è, e la nostra è "Hai…"', () {
+      fakeAsync((async) {
+        final library = FakeLibraryApi()
+          ..itemsById['m9'] = film
+          ..itemsById['m2'] = testItem(id: 'm2', name: 'Arrival');
+        final shown = <PartyNotice>[];
+        mount(async, library: library, shown: shown);
+        PartyQueueAddOutcome? outcome;
+        unawaited(editor()
+            .add([film], next: false)
+            .then((value) => outcome = value));
+        async.flushMicrotasks();
+        // Arrival di un altro, prima della nostra coda.
+        final others = withAdded(['m2'], next: false, minute: 4);
+        emit(async, others);
+        expect(outcome, isNull);
+        // Nessun annuncio dal plugin: l'avviso esce senza nome.
+        async.elapse(PartyNotices.attributionWait);
+        // Poi la nostra, con Arrival già dentro.
+        emit(
+            async,
+            PlayQueue(
+              reason: 'Queue',
+              lastUpdate: DateTime.utc(2026, 9, 30, 10, 5),
+              entries: [
+                ...others.entries,
+                const PlayQueueEntry(itemId: 'm9', playlistItemId: 'n9'),
+              ],
+              playingIndex: 1,
+              startPosition: Duration.zero,
+              isPlaying: false,
+            ));
+        expect(outcome, PartyQueueAddOutcome.added);
+        async.elapse(PartyNotices.showFor * 3);
+        expect([
+          for (final notice in shown) (notice.kind, notice.mine, notice.title)
+        ], [
+          (PartyNoticeKind.queued, false, 'Arrival'),
+          (PartyNoticeKind.queued, true, 'Alien'),
+        ]);
         finish(async);
       });
     });
@@ -566,6 +663,9 @@ void main() {
         expect(outcome, PartyQueueAddOutcome.failed);
         expect(notices.shown.last.kind, PartyNoticeKind.queueFailed);
         expect(notices.forgotten, [PartyNoticeKind.queued]);
+        expect(notices.forgottenItemIds, [
+          ['m9'],
+        ]);
         expect(notices.renewed, isEmpty);
         expect(announced(), isEmpty);
         finish(async);

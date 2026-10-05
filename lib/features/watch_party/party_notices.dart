@@ -135,6 +135,16 @@ class PartyNotice {
 typedef PartyActionCallback = void Function(PartyNoticeKind kind,
     {Duration? position});
 
+/// Un'azione dell'utente di cui si aspetta l'eco del server (vedi
+/// [PartyNotices.mine]): vale da [at] per [window]. Per un'aggiunta
+/// [itemIds] sono i titoli mandati; per le altre azioni è vuota.
+typedef _Echo = ({
+  PartyNoticeKind kind,
+  List<String> itemIds,
+  DateTime at,
+  Duration window,
+});
+
 /// Avviso di un'azione altrui in attesa del nome (vedi
 /// [PartyNotices.attributionWait]).
 class _WaitingNotice {
@@ -165,6 +175,12 @@ class PartyNotices extends Notifier<PartyNotice?> {
   /// di quella delle pause (per le aggiunte, fino alla conferma).
   static const queueEchoWindow = Duration(seconds: 4);
 
+  /// Un'aggiunta nostra senza conferma in tempo si dà per rifiutata ("Non
+  /// aggiunto…", spec H §10), ma la coda del server può ancora arrivare: per
+  /// questo tempo resta la nostra eco, e non diventa l'aggiunta anonima di un
+  /// altro (vedi [renew]).
+  static const lateAddEchoWindow = Duration(seconds: 30);
+
   static const _queueEchoKinds = {
     PartyNoticeKind.shuffleOn,
     PartyNoticeKind.shuffleOff,
@@ -176,7 +192,7 @@ class PartyNotices extends Notifier<PartyNotice?> {
       _queueEchoKinds.contains(kind) ? queueEchoWindow : echoWindow;
 
   final _queue = Queue<PartyNotice>();
-  final _echoes = <({PartyNoticeKind kind, DateTime at})>[];
+  final _echoes = <_Echo>[];
   Timer? _timer;
   GroupState? _groupState;
   String? _playing;
@@ -254,29 +270,63 @@ class PartyNotices extends Notifier<PartyNotice?> {
   }
 
   /// Azione dell'utente: l'avviso compare subito, e l'eco del server (entro
-  /// [echoWindow], o [queueEchoWindow] per l'ordine casuale) non ne produce
-  /// un secondo. Con [show] `false` si registra solo l'eco: l'azione l'ha già
-  /// mostrata la pillola del tasto (spec D §9.3).
-  void mine(PartyNoticeKind kind, {Duration? position, bool show = true}) {
-    _echoes.add((kind: kind, at: clock.now()));
+  /// [echoWindow], o [queueEchoWindow] per la coda) non ne produce un
+  /// secondo. Con [show] `false` si registra solo l'eco: l'azione l'ha già
+  /// mostrata la pillola del tasto (spec D §9.3). Per un'aggiunta [itemIds]
+  /// sono i titoli mandati: l'eco è solo la coda che li ha tutti, e
+  /// un'aggiunta di un altro negli stessi secondi ha il suo avviso.
+  void mine(PartyNoticeKind kind,
+      {Duration? position, bool show = true, List<String> itemIds = const []}) {
+    _echoes.add((
+      kind: kind,
+      itemIds: [...itemIds],
+      at: clock.now(),
+      window: _echoWindowOf(kind),
+    ));
     if (show) this.show(PartyNotice(kind, mine: true, position: position));
   }
 
-  /// Toglie l'ultima eco registrata con [mine] per [kind]: la richiesta non è
-  /// arrivata al server, quindi nessuna eco in arrivo, e un cambio uguale di
-  /// un altro membro nei secondi dopo non va scartato.
-  void forget(PartyNoticeKind kind) {
-    final index = _echoes.lastIndexWhere((echo) => echo.kind == kind);
+  /// Toglie l'ultima eco registrata con [mine] per [kind] e gli stessi
+  /// [itemIds]: la richiesta non è arrivata al server, quindi nessuna eco in
+  /// arrivo, e un cambio uguale di un altro membro nei secondi dopo non va
+  /// scartato. Con due aggiunte in corso si toglie quella giusta.
+  void forget(PartyNoticeKind kind, {List<String> itemIds = const []}) {
+    final index = _echoIndex(kind, itemIds);
     if (index >= 0) _echoes.removeAt(index);
   }
 
-  /// Rinnova l'ultima eco registrata con [mine] per [kind], se c'è: la
-  /// finestra riparte da adesso. Serve a un'azione la cui conferma arriva
-  /// dopo la risposta del server (le aggiunte, spec H §10): l'eco deve durare
-  /// quanto l'attesa, non quanto la richiesta più l'attesa.
-  void renew(PartyNoticeKind kind) {
-    final index = _echoes.lastIndexWhere((echo) => echo.kind == kind);
-    if (index >= 0) _echoes[index] = (kind: kind, at: clock.now());
+  /// Rinnova l'ultima eco registrata con [mine] per [kind] e gli stessi
+  /// [itemIds], se c'è: la finestra riparte da adesso, e dura [window] (o
+  /// quella solita del tipo). Serve a un'azione la cui conferma arriva dopo
+  /// la risposta del server (le aggiunte, spec H §10): l'eco deve durare
+  /// quanto l'attesa, non quanto la richiesta più l'attesa; e a un'aggiunta
+  /// data per rifiutata, la cui conferma tardiva entro [lateAddEchoWindow]
+  /// resta nostra.
+  void renew(PartyNoticeKind kind,
+      {List<String> itemIds = const [], Duration? window}) {
+    final index = _echoIndex(kind, itemIds);
+    if (index < 0) return;
+    _echoes[index] = (
+      kind: kind,
+      itemIds: _echoes[index].itemIds,
+      at: clock.now(),
+      window: window ?? _echoWindowOf(kind),
+    );
+  }
+
+  /// L'ultima eco di [kind] con gli stessi [itemIds] (in qualunque ordine);
+  /// -1 se non c'è.
+  int _echoIndex(PartyNoticeKind kind, List<String> itemIds) =>
+      _echoes.lastIndexWhere((echo) =>
+          echo.kind == kind &&
+          echo.itemIds.length == itemIds.length &&
+          _containsAll(echo.itemIds, itemIds));
+
+  /// [ids] sono tutti in [added], contando le ripetizioni (un titolo può
+  /// essere in coda due volte).
+  static bool _containsAll(List<String> added, List<String> ids) {
+    final rest = [...added];
+    return ids.every(rest.remove);
   }
 
   /// Il canale del plugin è attivo ([enabled]) o spento (spec E §8). Spento:
@@ -332,13 +382,14 @@ class PartyNotices extends Notifier<PartyNotice?> {
     if (ref.mounted) state = null;
   }
 
-  /// `true` (e l'eco si consuma) se [kind] è l'eco di una nostra azione.
-  bool _isEcho(PartyNoticeKind kind) {
+  /// `true` (e l'eco si consuma) se [kind] è l'eco di una nostra azione. Per
+  /// un'aggiunta [added] sono gli `ItemId` aggiunti dall'aggiornamento: vale
+  /// solo un'eco i cui titoli ci sono tutti.
+  bool _isEcho(PartyNoticeKind kind, {List<String> added = const []}) {
     final now = clock.now();
-    _echoes.removeWhere(
-        (echo) => now.difference(echo.at) > _echoWindowOf(echo.kind));
+    _echoes.removeWhere((echo) => now.difference(echo.at) > echo.window);
     final index = _echoes.indexWhere((echo) =>
-        echo.kind == kind ||
+        (echo.kind == kind && _containsAll(added, echo.itemIds)) ||
         (echo.kind == PartyNoticeKind.resumed &&
             kind == PartyNoticeKind.forcedResume));
     if (index < 0) return false;
@@ -463,7 +514,7 @@ class PartyNotices extends Notifier<PartyNotice?> {
       if (added.isEmpty) return;
       final next = queue.reason == 'QueueNext';
       final kind = next ? PartyNoticeKind.queuedNext : PartyNoticeKind.queued;
-      if (_isEcho(kind)) return;
+      if (_isEcho(kind, added: added)) return;
       unawaited(_announceAddition(
           kind, added, next ? PartyAction.queueNext : PartyAction.queue));
       return;

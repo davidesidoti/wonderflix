@@ -877,7 +877,7 @@ void main() {
       fakeAsync((async) {
         mount(async);
         emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
-        notices().mine(PartyNoticeKind.queued, show: false);
+        notices().mine(PartyNoticeKind.queued, show: false, itemIds: ['m2']);
         async.elapse(const Duration(milliseconds: 3500));
         emit(
             async,
@@ -908,9 +908,9 @@ void main() {
       fakeAsync((async) {
         mount(async);
         emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
-        notices().mine(PartyNoticeKind.queued, show: false);
+        notices().mine(PartyNoticeKind.queued, show: false, itemIds: ['m2']);
         async.elapse(const Duration(milliseconds: 3500));
-        notices().renew(PartyNoticeKind.queued);
+        notices().renew(PartyNoticeKind.queued, itemIds: ['m2']);
         async.elapse(const Duration(milliseconds: 3500));
         emit(
             async,
@@ -944,6 +944,115 @@ void main() {
                     reason: 'Queue',
                     lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
         expect(current()?.kind, PartyNoticeKind.queued);
+        finish(async);
+      });
+    });
+
+    /// La coda di prima (e4, e5, e6) con [added] in fondo, ognuno con un id
+    /// nella coda nuovo; [minute]: l'ordine degli aggiornamenti.
+    PlayQueue queueWith(List<String> added, {int minute = 5}) =>
+        testSeriesQueue(
+            itemIds: ['e4', 'e5', 'e6', ...added],
+            reason: 'Queue',
+            lastUpdate: DateTime.utc(2026, 9, 30, 10, minute));
+
+    test('aggiunta di un altro mentre la mia aspetta la conferma: ha il suo '
+        'avviso, e la mia resta senza', () {
+      fakeAsync((async) {
+        library.itemsById['m9'] = testItem(id: 'm9', name: 'Alien');
+        mount(async);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+        notices().mine(PartyNoticeKind.queued, show: false, itemIds: ['m9']);
+        // Un altro aggiunge Arrival prima che arrivi la nostra coda.
+        emit(async, PlayQueueUpdate('g1', queueWith(['m2'])));
+        expect(current()?.kind, PartyNoticeKind.queued);
+        expect(current()?.title, 'Arrival');
+        expect(current()?.mine, isFalse);
+        // Poi la nostra: è l'eco, nessun avviso anonimo.
+        emit(async, PlayQueueUpdate('g1', queueWith(['m2', 'm9'], minute: 6)));
+        async.elapse(PartyNotices.showFor);
+        expect(current(), isNull);
+        expect(library.itemsByIdsCalls, [
+          ['m2'],
+        ]);
+        finish(async);
+      });
+    });
+
+    test('due mie aggiunte in corso, una non arriva al server: l\'eco '
+        'dell\'altra resta sua', () {
+      fakeAsync((async) {
+        library.itemsById['m9'] = testItem(id: 'm9', name: 'Alien');
+        mount(async);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+        notices()
+          ..mine(PartyNoticeKind.queued, show: false, itemIds: ['m2'])
+          ..mine(PartyNoticeKind.queued, show: false, itemIds: ['m9'])
+          // La prima non è arrivata al server.
+          ..forget(PartyNoticeKind.queued, itemIds: ['m2']);
+        emit(async, PlayQueueUpdate('g1', queueWith(['m9'])));
+        expect(current(), isNull, reason: 'è la nostra seconda aggiunta');
+        expect(library.itemsByIdsCalls, isEmpty);
+        // La prima non ha più eco: lo stesso titolo aggiunto da un altro si
+        // annuncia.
+        emit(async, PlayQueueUpdate('g1', queueWith(['m9', 'm2'], minute: 6)));
+        expect(current()?.title, 'Arrival');
+        finish(async);
+      });
+    });
+
+    test('due mie aggiunte in corso: si rinnova l\'eco con gli stessi '
+        'titoli', () {
+      fakeAsync((async) {
+        mount(async);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+        notices().mine(PartyNoticeKind.queued, show: false, itemIds: ['m2']);
+        async.elapse(const Duration(seconds: 1));
+        notices().mine(PartyNoticeKind.queued, show: false, itemIds: ['m9']);
+        // La risposta della prima: la sua eco riparte da qui.
+        async.elapse(const Duration(milliseconds: 2500));
+        notices().renew(PartyNoticeKind.queued, itemIds: ['m2']);
+        // Oltre i 4 s dalla prima registrazione, entro quelli dal rinnovo.
+        async.elapse(const Duration(milliseconds: 2500));
+        emit(async, PlayQueueUpdate('g1', queueWith(['m2'])));
+        expect(current(), isNull, reason: 'la sua eco è stata rinnovata');
+        expect(library.itemsByIdsCalls, isEmpty);
+        finish(async);
+      });
+    });
+
+    test('mia aggiunta data per rifiutata, conferma tardiva entro la '
+        'finestra lunga: nessun avviso anonimo', () {
+      fakeAsync((async) {
+        mount(async);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+        notices().mine(PartyNoticeKind.queued, show: false, itemIds: ['m2']);
+        notices().renew(PartyNoticeKind.queued, itemIds: ['m2']);
+        // Nessuna conferma in 4 s: per l'editor è rifiutata.
+        async.elapse(const Duration(seconds: 4));
+        notices().renew(PartyNoticeKind.queued,
+            itemIds: ['m2'], window: PartyNotices.lateAddEchoWindow);
+        async.elapse(const Duration(seconds: 6));
+        emit(async, PlayQueueUpdate('g1', queueWith(['m2'])));
+        expect(current(), isNull);
+        expect(library.itemsByIdsCalls, isEmpty);
+        finish(async);
+      });
+    });
+
+    test('mia aggiunta data per rifiutata: passata la finestra lunga, la '
+        'stessa aggiunta si annuncia', () {
+      fakeAsync((async) {
+        mount(async);
+        emit(async, PlayQueueUpdate('g1', testSeriesQueue()));
+        notices().mine(PartyNoticeKind.queued, show: false, itemIds: ['m2']);
+        notices().renew(PartyNoticeKind.queued,
+            itemIds: ['m2'], window: PartyNotices.lateAddEchoWindow);
+        async.elapse(
+            PartyNotices.lateAddEchoWindow + const Duration(seconds: 1));
+        emit(async, PlayQueueUpdate('g1', queueWith(['m2'])));
+        expect(current()?.kind, PartyNoticeKind.queued);
+        expect(current()?.title, 'Arrival');
         finish(async);
       });
     });

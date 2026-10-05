@@ -188,21 +188,27 @@ class PartyQueueEditor {
     });
     _pendingAdds.addAll(plan.send);
     // La coda che torna dal server è nostra: l'avviso lo dà la conferma.
-    notices.mine(kind, show: false);
+    // L'eco porta i titoli mandati: un'aggiunta di un altro negli stessi
+    // secondi non la consuma, e ha il suo avviso.
+    notices.mine(kind, show: false, itemIds: plan.send);
     try {
       if (!await _send(
           'aggiunta alla coda', (api) => api.queue(plan.send, next: next))) {
-        notices.forget(kind);
+        notices.forget(kind, itemIds: plan.send);
         return PartyQueueAddOutcome.failed;
       }
       // La conferma può arrivare fino a [addConfirmTimeout] dopo la risposta:
       // l'eco dura altrettanto.
-      notices.renew(kind);
+      notices.renew(kind, itemIds: plan.send);
       channel.announce(next ? PartyAction.queueNext : PartyAction.queue);
       try {
         await confirmed.future.timeout(addConfirmTimeout);
       } on TimeoutException {
-        notices.forget(kind);
+        // Si dà per rifiutata, ma la coda del server può ancora arrivare: per
+        // un po' resta la nostra eco, e dopo "Non aggiunto…" non compare
+        // l'aggiunta anonima di un altro.
+        notices.renew(kind,
+            itemIds: plan.send, window: PartyNotices.lateAddEchoWindow);
         if (_ref.mounted && _ref.read(watchPartySessionProvider).inGroup) {
           notices.show(
               const PartyNotice(PartyNoticeKind.queueRejected, mine: true));
