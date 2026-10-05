@@ -2350,6 +2350,88 @@ void main() {
       await finish(tester);
     });
 
+    testWidgets('post-play mentre si scrive: il pannello resta aperto, il '
+        'campo tiene il focus e le lettere restano sue', (tester) async {
+      await pumpPartyPlayer(tester, segments: credits);
+      await queueSeries(tester);
+      await openAdd(tester);
+      expect(primaryFocus(), 'party-queue-search');
+      api.calls.clear();
+      await toCredits(tester);
+      expect(find.byType(QueueAddView), findsOneWidget,
+          reason: 'il campo ha il focus: il pannello non si chiude da solo');
+      expect(primaryFocus(), 'party-queue-search');
+      // Si scrive "dune": la N non fa passare il gruppo al titolo dopo.
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+      await tester.pump();
+      tester.testTextInput.enterText('dune');
+      await tester.pump();
+      expect(api.calls.where((call) => call.startsWith('next')), isEmpty);
+      expect(
+          tester.widget<TextField>(find.byType(TextField)).controller?.text,
+          'dune');
+      // Esc svuota, poi chiude il pannello: sotto c'è il post-play.
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(QueueAddView), findsNothing);
+      expect(find.text(l.playerWatchCredits), findsOneWidget);
+      expect(primaryFocus(), 'player');
+      await finish(tester);
+    });
+
+    testWidgets('post-play con la vista Aggiungi ma il campo senza focus: il '
+        'pannello si chiude come sempre', (tester) async {
+      await pumpPartyPlayer(tester, segments: credits);
+      await queueSeries(tester);
+      await openAdd(tester);
+      FocusManager.instance.primaryFocus!.unfocus();
+      await tester.pump();
+      await tester.pump();
+      expect(primaryFocus(), 'player');
+      await toCredits(tester);
+      expect(find.byType(QueueAddView), findsNothing);
+      await finish(tester);
+    });
+
+    testWidgets('riapertura non riuscita mentre si scrive: il pannello resta '
+        'aperto con il campo a fuoco; chiuso, Esc esce dal player',
+        (tester) async {
+      // Il direct play non riesce: si guarda in transcodifica, dove cambiare
+      // l'audio riapre il file.
+      await pumpPartyPlayer(tester, failOpens: 1);
+      final args =
+          tester.widget<PlayerScreen>(find.byType(PlayerScreen)).args;
+      // L'avviso della transcodifica coprirebbe il pannello.
+      ScaffoldMessenger.of(tester.element(find.byType(PlayerScreen)))
+          .removeCurrentSnackBar();
+      await tester.pump();
+      await queueSeries(tester);
+      await openAdd(tester);
+      engine.failOpens = 1;
+      unawaited(container
+          .read(playerControllerProvider(args).notifier)
+          .selectAudio(2));
+      await tester.pump();
+      await tester.pump();
+      await tester.pumpAndSettle();
+      expect(find.text(l.playerErrorTitle), findsOneWidget);
+      expect(find.byType(QueueAddView), findsOneWidget,
+          reason: 'il campo ha il focus: il pannello non si chiude da solo');
+      expect(primaryFocus(), 'party-queue-search');
+      await expectKeysBlocked(tester);
+      // Campo vuoto: Esc chiude il pannello, il secondo esce dal player.
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(QueueAddView), findsNothing);
+      expect(api.calls, isNot(contains('leave')));
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(api.calls, contains('leave'));
+      await finish(tester);
+    });
+
     testWidgets('← e subito di nuovo "Aggiungi titoli", durante la '
         'dissolvenza: il campo ha il focus', (tester) async {
       await pumpPartyPlayer(tester);

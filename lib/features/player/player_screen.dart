@@ -867,6 +867,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     });
   }
 
+  /// Il post-play o l'errore chiudono il pannello "Coda" (spec H §9.1), ma
+  /// non mentre il suo campo di ricerca ha il focus: il focus tornerebbe al
+  /// player e le lettere dopo diventerebbero comandi (la N di "dune" farebbe
+  /// passare il gruppo al titolo dopo). Il pannello resta sopra, e lo chiude
+  /// l'utente con Esc o ✕.
+  void _closeQueueUnlessTyping() {
+    if (!_queueSearchFocusNode.hasFocus) _chrome.closePopup(PlayerPopup.queue);
+  }
+
   /// Comando del player per [event]. I tasti multimediali valgono solo se
   /// non li riceve già la sessione media di sistema.
   PlayerCommand? _commandFor(KeyEvent event) => playerCommandFor(event,
@@ -1090,14 +1099,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     ref.listen(provider.select((s) => s.status), (previous, status) {
       // Una riapertura non riuscita (cambio di traccia) mentre il pannello è
       // aperto: lo strato dell'errore non deve avere il pannello a fianco
-      // (le tracce, o la coda del gruppo).
+      // (le tracce, o la coda del gruppo, salvo mentre si scrive nel suo
+      // campo: vedi [_closeQueueUnlessTyping]).
       // La barretta delle reazioni, sparito il suo pulsante con i controlli,
       // resterebbe aperta senza vedersi (e il primo Esc sarebbe suo).
       if (status == PlayerStatus.error) {
         _chrome
           ..closePanel()
-          ..closePopup(PlayerPopup.reactions)
-          ..closePopup(PlayerPopup.queue);
+          ..closePopup(PlayerPopup.reactions);
+        _closeQueueUnlessTyping();
       }
       if (status != PlayerStatus.ready) {
         // Errore, "Riprova" o ripiego: i comandi del gruppo aspettano il
@@ -1202,11 +1212,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // Il post-play compare o sparisce anche senza un cambio di zona (la coda
     // del gruppo, l'uscita dal gruppo, l'episodio successivo arrivato tardi,
     // lo stato del file): dopo il fotogramma, all'arrivo il pannello si
-    // chiude (sotto c'è il post-play; vale anche per la coda del gruppo), e
-    // con lui la barretta delle reazioni (spariti i controlli con il suo
-    // pulsante resterebbe aperta senza vedersi, e il primo Esc sarebbe
-    // suo); la schermata di pausa segue (spec D §12.1: non c'è durante il
-    // post-play).
+    // chiude (sotto c'è il post-play; vale anche per la coda del gruppo,
+    // salvo mentre si scrive nel suo campo), e con lui la barretta delle
+    // reazioni (spariti i controlli con il suo pulsante resterebbe aperta
+    // senza vedersi, e il primo Esc sarebbe suo); la schermata di pausa
+    // segue (spec D §12.1: non c'è durante il post-play).
     if (postPlay != _postPlayWasShown) {
       _postPlayWasShown = postPlay;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1214,8 +1224,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         if (postPlay) {
           _chrome
             ..closePanel()
-            ..closePopup(PlayerPopup.reactions)
-            ..closePopup(PlayerPopup.queue);
+            ..closePopup(PlayerPopup.reactions);
+          _closeQueueUnlessTyping();
         }
         _syncPlayback();
       });
