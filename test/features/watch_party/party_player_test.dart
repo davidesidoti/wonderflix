@@ -2527,10 +2527,9 @@ void main() {
       await finish(tester);
     });
 
-    testWidgets('vista Serie: ← torna alla ricerca; il cambio di titolo non '
-        'la chiude', (tester) async {
-      await pumpPartyPlayer(tester);
-      await queueSeries(tester);
+    /// La serie Dark (s9), in La mia lista e nei risultati: una stagione
+    /// (se9) con un episodio.
+    void libraryWithDark() {
       final dark = testItem(id: 's9', name: 'Dark', kind: ItemKind.series);
       library.onItems = (query, start, limit) => pageOf([dark]);
       library
@@ -2548,6 +2547,72 @@ void main() {
               index: 1,
               seasonIndex: 1),
         ];
+    }
+
+    testWidgets('Aggiungi → serie → ←: La mia lista c\'è subito, senza una '
+        'seconda richiesta', (tester) async {
+      await pumpPartyPlayer(tester);
+      await queueSeries(tester);
+      libraryWithDark();
+      await tester.tap(find.byTooltip(l.partyQueueOpen));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l.partyQueueAddTitles));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Dark'));
+      await tester.pumpAndSettle();
+      expect(find.byType(QueueAddView), findsNothing);
+      await tester.tap(find.descendant(
+          of: find.byType(QueueSeriesView),
+          matching: find.byTooltip(l.navBack)));
+      await tester.pump();
+      expect(
+          find.descendant(
+              of: find.byType(QueueAddView),
+              matching: find.byKey(const ValueKey('queue-add-s9'))),
+          findsOneWidget,
+          reason: 'La mia lista è ancora in memoria');
+      await tester.pumpAndSettle();
+      expect(library.itemQueries.where((query) => query.favoritesOnly),
+          hasLength(1));
+      await finish(tester);
+    });
+
+    testWidgets('Serie → Stagione → ←: le stagioni ci sono subito, senza una '
+        'seconda richiesta', (tester) async {
+      await pumpPartyPlayer(tester);
+      await queueSeries(tester);
+      libraryWithDark();
+      await tester.tap(find.byTooltip(l.partyQueueOpen));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l.partyQueueAddTitles));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Dark'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('queue-season-se9')));
+      await tester.pumpAndSettle();
+      expect(find.byType(QueueSeasonView), findsOneWidget);
+      expect(find.byType(QueueSeriesView), findsNothing);
+      await tester.tap(find.descendant(
+          of: find.byType(QueueSeasonView),
+          matching: find.byTooltip(l.navBack)));
+      await tester.pump();
+      expect(
+          find.descendant(
+              of: find.byType(QueueSeriesView),
+              matching: find.byKey(const ValueKey('queue-season-se9'))),
+          findsOneWidget,
+          reason: 'le stagioni sono ancora in memoria');
+      await tester.pumpAndSettle();
+      expect(library.seasonsCalls, ['s9']);
+      expect(library.allEpisodesCalls, ['s9']);
+      await finish(tester);
+    });
+
+    testWidgets('vista Serie: ← torna alla ricerca; il cambio di titolo non '
+        'la chiude', (tester) async {
+      await pumpPartyPlayer(tester);
+      await queueSeries(tester);
+      libraryWithDark();
       await tester.tap(find.byTooltip(l.partyQueueOpen));
       await tester.pumpAndSettle();
       await tester.tap(find.text(l.partyQueueAddTitles));

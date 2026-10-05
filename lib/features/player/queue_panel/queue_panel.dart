@@ -10,7 +10,9 @@ import '../../../core/jellyfin/item_models.dart';
 import '../../../core/syncplay/syncplay_models.dart';
 import '../../../l10n/gen/app_localizations.dart';
 import '../../../ui/wf_buttons.dart';
+import '../../detail/detail_providers.dart';
 import '../../library/item_labels.dart';
+import '../../mylist/my_list_screen.dart';
 import '../../watch_party/party_queue_editor.dart';
 import '../../watch_party/party_queue_items.dart';
 import '../../watch_party/party_queue_rules.dart';
@@ -47,6 +49,23 @@ class PartyQueuePanel extends ConsumerWidget {
     final editor = ref.read(partyQueueEditorProvider);
     final pages = ref.watch(queuePanelNavProvider);
     final nav = ref.read(queuePanelNavProvider.notifier);
+    // Le liste delle viste ancora nella pila restano in memoria finché ci
+    // sono: la vista uscita dalla dissolvenza non le osserva più, e i
+    // provider `autoDispose` le butterebbero. Tornando indietro (Serie → ←,
+    // Stagione → ←) si vedrebbe un momento vuoto, con una seconda richiesta.
+    for (final page in pages) {
+      switch (page) {
+        case QueuePanelAdd():
+          ref.listen(favoritesProvider, (_, _) {});
+        case QueuePanelSeries(:final series) ||
+              QueuePanelSeason(:final series):
+          ref
+            ..listen(seasonsProvider(series.id), (_, _) {})
+            ..listen(queueSeriesEpisodesProvider(series.id), (_, _) {});
+        case QueuePanelQueue():
+          break;
+      }
+    }
     Future<void> add(List<JellyfinItem> items, {required bool next}) =>
         editor.add(items, next: next);
     final view = switch (pages.last) {

@@ -45,6 +45,9 @@ class FakeLibraryApi implements LibraryApi {
   /// Serie chieste ad [allEpisodes].
   final allEpisodesCalls = <String>[];
 
+  /// Serie chieste a [seasons].
+  final seasonsCalls = <String>[];
+
   /// Trailer locali, per id dell'elemento.
   final Map<String, List<JellyfinItem>> localTrailerItems = {};
   final nextEpisodeCalls = <String>[];
@@ -151,8 +154,10 @@ class FakeLibraryApi implements LibraryApi {
       _answer(() => itemsById[itemId] ?? (throw const NotFoundException()));
 
   @override
-  Future<List<JellyfinItem>> seasons(String userId, String seriesId) =>
-      _answer(() => seasonsBySeries[seriesId] ?? const []);
+  Future<List<JellyfinItem>> seasons(String userId, String seriesId) {
+    seasonsCalls.add(seriesId);
+    return _answer(() => seasonsBySeries[seriesId] ?? const []);
+  }
 
   @override
   Future<List<JellyfinItem>> episodes(
