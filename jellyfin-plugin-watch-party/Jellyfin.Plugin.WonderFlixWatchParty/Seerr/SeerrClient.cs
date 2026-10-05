@@ -177,9 +177,11 @@ public sealed class SeerrClient(
             throw new SeerrException(SeerrError.Unavailable);
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or NotSupportedException
-                                       or InvalidOperationException or UriFormatException)
+                                       or InvalidOperationException or FormatException)
         {
-            logger.LogWarning("Seerr {Method} {Path} non riuscita: {Error}", method, logPath, ex.GetType().Name);
+            // FormatException copre UriFormatException e Headers.Add con una chiave con a capo.
+            // Questi messaggi non contengono né la chiave né la query.
+            logger.LogWarning("Seerr {Method} {Path} non riuscita: {Error} {Message}", method, logPath, ex.GetType().Name, ex.Message);
             throw new SeerrException(SeerrError.Unavailable, ex);
         }
     }

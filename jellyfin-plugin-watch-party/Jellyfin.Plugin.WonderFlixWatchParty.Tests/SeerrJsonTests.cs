@@ -81,6 +81,10 @@ public class SeerrJsonTests
     }
 
     [Fact]
+    public void AnExplicitNullWhereAListIsExpectedIsAJsonException() =>
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<SeerrSearchPage>("""{"results":null}""", SeerrJson.Options));
+
+    [Fact]
     public void WritesANewRequestInCamelCaseWithoutSeasonsForAMovie()
     {
         Assert.Equal(

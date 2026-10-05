@@ -9,7 +9,14 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Seerr;
 
 internal static class SeerrJson
 {
-    public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
+    // RespectNullableAnnotations: un null esplicito dove Seerr dovrebbe
+    // mandare una lista (o un testo non annullabile) diventa una
+    // JsonException, cioè "Seerr non risponde", e non una
+    // NullReferenceException più avanti.
+    public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
+    {
+        RespectNullableAnnotations = true,
+    };
 }
 
 public sealed class SeerrStatusInfo

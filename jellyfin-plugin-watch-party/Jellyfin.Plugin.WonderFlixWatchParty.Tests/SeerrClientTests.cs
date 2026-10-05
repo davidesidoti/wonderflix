@@ -167,6 +167,45 @@ public class SeerrClientTests
     }
 
     [Fact]
+    public async Task AnExplicitNullInsteadOfTheListIsUnavailable()
+    {
+        Answer(HttpStatusCode.OK, """{"results":null}""");
+
+        var error = await Assert.ThrowsAsync<SeerrException>(() => Client().SearchAsync("dune", "it", CancellationToken.None));
+
+        Assert.Equal(SeerrError.Unavailable, error.Error);
+    }
+
+    [Fact]
+    public async Task AKeyThatCannotBeAHeaderIsUnavailableAndSendsNothing()
+    {
+        _settings.ApiKey = "chiave\r\nsegreta";
+
+        var error = await Assert.ThrowsAsync<SeerrException>(() => Client().GetStatusAsync(CancellationToken.None));
+
+        Assert.Equal(SeerrError.Unavailable, error.Error);
+        Assert.Empty(_http.Requests);
+        Assert.NotEmpty(_logger.Entries);
+        Assert.DoesNotContain(_logger.Entries, e => e.Message.Contains("segreta", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AFailedSearchNeverLogsTheQueryOrTheKey()
+    {
+        Answer(HttpStatusCode.InternalServerError, """{"message":"titolo-riservato"}""");
+
+        var error = await Assert.ThrowsAsync<SeerrException>(
+            () => Client().SearchAsync("titolo-riservato", "it", CancellationToken.None));
+
+        Assert.Equal(SeerrError.Unavailable, error.Error);
+        Assert.NotEmpty(_logger.Entries);
+        Assert.DoesNotContain(
+            _logger.Entries,
+            e => e.Message.Contains("titolo-riservato", StringComparison.Ordinal)
+                || e.Message.Contains("segreta", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ACancelledCallerGetsTheCancellation()
     {
         using var cancel = new CancellationTokenSource();
