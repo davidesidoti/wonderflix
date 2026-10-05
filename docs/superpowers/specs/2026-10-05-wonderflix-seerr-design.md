@@ -1,7 +1,7 @@
 # WonderFlix — Spec I: richieste con Seerr
 
 - **Data:** 2026-10-05
-- **Stato:** approvato; piano 15a realizzato (`docs/superpowers/plans/2026-10-05-wonderflix-15a-richieste-seerr.md`)
+- **Stato:** approvato; piano 15a realizzato (`docs/superpowers/plans/2026-10-05-wonderflix-15a-richieste-seerr.md`), piano 15b realizzato (`docs/superpowers/plans/2026-10-05-wonderflix-15b-richieste-approvazioni-release.md`)
 - **Ambito:** Spec I. Realizza l'idea 2 di `docs/IDEE.md` ("Integrazione di Seerr"). Si appoggia alla Spec F (disponibilità del plugin, `Features`: `2026-10-03-wonderflix-amici-party-privati-design.md`) e alla Spec G (cassetta delle notifiche: `2026-10-03-wonderflix-notifiche-design.md`).
 
 ## 1. Obiettivo
@@ -147,12 +147,19 @@ App 0.9.0
     requestable_poster_card.dart        card con immagine TMDB ed etichetta
     tmdb_title_screen.dart              scheda da richiedere
     season_picker.dart                  elenco delle stagioni con le caselle
-    request_seasons_dialog.dart         "Richiedi stagioni" per le serie della libreria
-    requests_screen.dart                pagina Richieste, schede, righe, pagine
+    request_seasons.dart                "Richiedi stagioni" per le serie della libreria (finestra e pulsante)
+    requests_list_controller.dart       elenchi della pagina Richieste (pagine, ricarica, Approva e Rifiuta), conteggio "Da approvare"
+    requests_screen.dart                pagina Richieste, schede, pagine
+    request_row.dart                    riga di una richiesta
+    pending_request_actions.dart        Rifiuta (a due tempi) e Approva nella riga
     approve_dialog.dart                 finestra Approva
+    requests_navigation.dart            schede dell'indirizzo, openRequest e openRequests
+    request_labels.dart                 etichette e colori degli stati
   lib/features/search/search_screen.dart     + sezione "Da richiedere"
   lib/features/detail/detail_header.dart     + "Richiedi stagioni"
   lib/features/inbox/inbox_panel.dart        + due righe
+  lib/features/inbox/inbox_request_rows.dart testi e icone delle due righe
+  lib/ui/wf_dialog.dart                      aspetto comune delle finestre (§9.5)
   lib/app/router.dart, app_shell.dart        + /requests, /tmdb/:type/:tmdbId, voce "Richieste"
 ```
 
@@ -332,13 +339,22 @@ Tutti sotto `/WonderFlixWatchParty/Requests` e con `[Authorize]`, tranne il webh
 
 - **`RequestTitleController`** (per scheda):
   - carica `Movie` o `Tv`;
-  - tiene le stagioni scelte. All'apertura sono scelte tutte le stagioni `None`;
+  - tiene le stagioni scelte. All'apertura sono scelte tutte le stagioni `None`; `resetSelection` riporta la scelta a tutte le stagioni ancora da chiedere;
   - manda la richiesta e blocca il pulsante finché non arriva la risposta;
-  - dopo la risposta, positiva o `AlreadyRequested`, ricarica la scheda, e il pulsante resta bloccato fino alla fine della ricarica.
-- **`RequestsListController`** (per scheda della pagina):
+  - dopo la risposta, positiva o `AlreadyRequested`, ricarica la scheda, e il pulsante resta bloccato fino alla fine della ricarica;
+  - lo usa anche "Richiedi stagioni" (§9.3), con la stessa chiave della scheda da richiedere: stagioni scelte, invio, blocco e avvisi sono gli stessi.
+- **`RequestsListController`** (per filtro e lingua dell'app):
   - carica a pagine di 20;
-  - ricarica all'apertura della pagina e a ogni `InboxChanged` che porta una voce `RequestAvailable` o `RequestPending`.
-- **Approva e Rifiuta** chiamano gli endpoint e poi tolgono la riga dalla scheda "Da approvare". Il conteggio "Da approvare (n)" usa `GET Requests?filter=pending&take=50`.
+  - ricarica all'apertura della pagina e a **ogni** `InboxChanged`, non solo per le voci `RequestAvailable` o `RequestPending`: l'evento non dice il tipo della voce, e una ricarica in più non costa niente;
+  - **ricarica e pagine:**
+    - le righe di prima restano finché non arrivano le nuove;
+    - un caricamento già in corso non rimette una riga appena approvata o rifiutata;
+    - i doppioni per id si scartano;
+    - la pagina dopo parte dalle righe mostrate, senza contare quelle con un'azione in corso;
+    - se le righe non riempiono la finestra, o dopo le azioni scendono sotto una pagina e sul server ce ne sono altre, la pagina dopo si carica da sola;
+    - "Riprova" in fondo all'elenco ripete il tipo di caricamento fallito: da capo se era un ricaricamento, la pagina dopo se era una pagina;
+  - **Approva e Rifiuta** chiamano gli endpoint e bloccano la riga (`busy`) finché la risposta non arriva, poi la tolgono dall'elenco. Se la chiamata non riesce la riga resta, e l'avviso è "Non riuscito, riprova". L'elenco resta vivo finché la risposta non arriva, anche se nel frattempo si cambia scheda: il conteggio e "Tutte" si ricaricano lo stesso.
+- **Conteggio "Da approvare (n)":** `GET Requests?filter=pending&take=50`, cioè la prima pagina; se oltre ce ne sono altre, si mostra "50+". Si ricarica dopo Approva e Rifiuta e a ogni `InboxChanged`.
 
 ## 9. App: interfaccia
 
@@ -382,15 +398,21 @@ Tutti sotto `/WonderFlixWatchParty/Requests` e con `[Authorize]`, tranne il webh
 
 ### 9.3 Serie della libreria
 
-- Se la funzione è disponibile, `CanRequest` è vero e la serie ha `tmdbId`, la scheda carica in silenzio `Tv/{tmdbId}`.
-- Se almeno una stagione è `None`, nella fila dei pulsanti compare **"Richiedi stagioni"** (secondario).
-- Il pulsante apre `RequestSeasonsDialog`: il `SeasonPicker` con Annulla e Richiedi, e gli stessi avvisi di §9.2.
+- Se la funzione è disponibile, `CanRequest` è vero e la serie ha `tmdbId`, la scheda carica in silenzio `Tv/{tmdbId}`, con lo stesso `RequestTitleController` della scheda da richiedere (§8.4).
+- Se almeno una stagione è `None`, nella fila dei pulsanti compare **"Richiedi stagioni"** (secondario), **dopo** i pulsanti del cuore e del visto: la scheda di Seerr arriva dopo le altre richieste, e prima di loro li farebbe saltare.
+- Il pulsante apre `RequestSeasonsDialog` (con l'aspetto di §9.5): il `SeasonPicker` con Annulla e Richiedi, e gli stessi avvisi di §9.2.
+  - Si apre sempre con **tutte** le stagioni ancora da chiedere scelte: la scelta sta nel controller, che resta vivo con la scheda della libreria, e un Annulla precedente non deve lasciare caselle tolte.
+  - Richiedi ha il fuoco: Invio richiede.
+  - Con la richiesta in viaggio la finestra non si chiude: né con Esc, né con il clic fuori, né con Annulla. L'avviso dell'esito arriva solo se la finestra è ancora lì a riceverlo.
 - Gli errori del caricamento non si mostrano: il pulsante semplicemente non compare.
 
 ### 9.4 Pagina Richieste (`/requests`)
 
 - **Voce "Richieste"** nella barra in alto, tra "La mia lista" e "Cerca", solo se la funzione è disponibile.
-- Titolo "Richieste". Le schede sono "Le mie" e, con `CanManage`, **"Da approvare ({n})"** e **"Tutte"**. Si apre su "Da approvare" se ce n'è almeno una, altrimenti su "Le mie".
+- Titolo "Richieste". Le schede sono "Le mie" e, con `CanManage`, **"Da approvare ({n})"** e **"Tutte"**.
+- **La scheda sta nell'indirizzo:** `/requests?tab=mine|pending|all`.
+  - I pulsanti delle schede cambiano l'indirizzo, e la pagina si rifà a ogni indirizzo nuovo. Senza `CanManage` vale sempre "Le mie".
+  - Senza `?tab=`, la scheda si sceglie **una volta**, quando la pagina si apre: "Da approvare" se ce n'è almeno una, altrimenti "Le mie". Per sceglierla la pagina aspetta i permessi e il conteggio. La scelta non cambia più: approvare l'ultima richiesta, o riceverne una nuova, non sposta la pagina.
 - **Riga:**
   - locandina piccola;
   - titolo e anno;
@@ -408,30 +430,37 @@ Tutti sotto `/WonderFlixWatchParty/Requests` e con `[Authorize]`, tranne il webh
   | `failed` | "Non riuscita" | rosso |
 
 - **Clic sulla riga:** la scheda della libreria se c'è `JellyfinItemId`, altrimenti la scheda da richiedere.
-- **"Da approvare"**: ogni riga ha **Rifiuta** (secondario) e **Approva** (oro).
-  - Rifiuta chiede "Rifiutare la richiesta di {title}?", con Annulla e Rifiuta.
-  - Dopo l'azione, la riga esce con un'animazione e compare l'avviso "Approvata" o "Rifiutata".
-- **Pagine:** altre 20 righe quando si arriva in fondo.
+- **"Da approvare"**: ogni riga ha **Rifiuta** (secondario) e **Approva** (oro), al posto dell'etichetta di stato.
+  - **Rifiuta è a due tempi, senza finestra**, come "Svuota" della cassetta: "Rifiuta" diventa "Conferma" (rosso) per 4 secondi, e il secondo clic rifiuta. Gli screen reader leggono "Conferma il rifiuto".
+  - **Approva** apre la finestra (§9.5).
+  - **Riga in lavorazione:** mentre la chiamata è in viaggio la riga **non cambia misura**. I pulsanti restano al loro posto ma nascosti e non si toccano, con l'indicatore sopra (letto come "Operazione in corso"), e il clic sulla riga non apre il titolo. "Conferma" si disarma quando parte un'azione: se la chiamata non riesce, Rifiuta riparte da capo.
+  - **Dopo l'azione** la riga esce subito dall'elenco, senza animazione, e compare l'avviso "Approvata" o "Rifiutata" ("Non riuscito, riprova" se la chiamata non è riuscita).
+- **Pagine:** altre 20 righe quando si arriva in fondo, o da sole se le righe non riempiono la finestra (§8.4).
 - **Pagina vuota:** "Non hai ancora chiesto niente. Cerca un titolo che manca e premi Richiedi." per "Le mie", "Niente da approvare" e "Nessuna richiesta" per le altre due.
-- **Errore:** `ErrorView` con Riprova.
+- **Errore:** `ErrorView` con Riprova. Se l'errore viene dopo le prime righe, resta l'elenco e in fondo compare "Riprova" (§8.4).
 
 ### 9.5 Finestra Approva
 
+- **Aspetto:** le finestre dell'app hanno un aspetto comune (`showWfDialog`, `lib/ui/wf_dialog.dart`): fondo `surface`, bordo, angoli arrotondati, larghezza massima 480; Esc e il clic fuori le chiudono. Approva e "Richiedi stagioni" (§9.3) sono le prime finestre dell'app. Ogni finestra ha un nome (il titolo, per esempio "Approva: {title}"), che gli screen reader annunciano quando si apre.
 - Titolo "Approva: {title}".
-- **Server**, in un menu: "Predefinito ({name del server predefinito})" e poi gli altri server dello stesso tipo, senza i 4K.
+- **Server**, in un menu: "Predefinito ({name del server predefinito})" sempre per primo, e poi **tutti** i server dello stesso tipo, senza i 4K. Anche il server predefinito compare, per sceglierne profilo e cartella. I nomi lunghi si tagliano con i puntini.
 - Con "Predefinito" profilo e cartella non compaiono, e Seerr decide da solo: per le serie riconosce anche gli anime.
 - Con un altro server compaiono i menu **Profilo** e **Cartella**, impostati sui valori predefiniti di quel server.
-- I server si caricano all'apertura (`GET Services/{type}`), con uno scheletro. Se il caricamento non riesce, resta solo "Predefinito" con una nota.
-- Pulsanti Annulla e **Approva**. Approva resta bloccato durante l'invio.
+- **Nessun server segnato come predefinito:** con "Predefinito" Seerr approverebbe senza mandare niente a Radarr o Sonarr. Quindi, quando i server arrivano, si parte dal **primo server** (con il suo profilo e la sua cartella). La voce "Predefinito" resta tra le altre.
+- I server si caricano all'apertura (`GET Services/{type}`), con uno scheletro. Finché non arrivano Approva è spento, così Invio non approva alla cieca. Se il caricamento non riesce, resta solo "Predefinito" con una nota.
+- Pulsanti Annulla e **Approva**. Approva ha il fuoco: con i server arrivati Invio approva.
+- **La finestra restituisce la scelta** (server, profilo e cartella, oppure "Predefinito") e si chiude: la chiamata parte dalla pagina, e la riga resta bloccata finché non arriva la risposta (§9.4).
 
 ### 9.6 Cassetta delle notifiche
 
 - **`RequestAvailable`:**
   - icona `clapperboard`, testo "Ora disponibile: {title}" ("Ora disponibile: {title}, stagioni {list}" con le stagioni);
-  - il clic apre la scheda della libreria (`openItemById`) se c'è `ItemId`, altrimenti la pagina Richieste.
+  - il clic apre la scheda della libreria (`openItemById`) se c'è `ItemId`, altrimenti la pagina Richieste (`/requests`).
 - **`RequestPending`:**
   - icona `inbox`, testo "{name} ha chiesto {title}" ("…, stagioni {list}");
-  - il clic apre Richieste sulla scheda "Da approvare".
+  - se il nome di chi ha chiesto manca (Seerr può mandarlo vuoto) la frase non regge, e il testo è "Nuova richiesta: {title}";
+  - il clic apre Richieste sulla scheda "Da approvare" (`/requests?tab=pending`).
+- Il testo di una voce sta in al massimo 3 righe, con i puntini: il titolo di Seerr arriva a 200 caratteri.
 
 ## 10. Testi nuovi (ARB, it + en)
 
@@ -444,11 +473,11 @@ Tutti sotto `/WonderFlixWatchParty/Requests` e con `[Authorize]`, tranne il webh
 | Etichette | "Film", "Serie", "Richiesto", "Richiesto da te", "In arrivo", "In parte", "In parte disponibile", "Su WonderFlix" |
 | Scheda | "Richiedi", "Richiedi {n} stagioni", "Guarda", "Richiedi stagioni", "Stagioni", "Tutte", "Stagione {n} · {count} episodi", "Da richiedere", "In attesa", "Disponibile" |
 | Avvisi | "Richiesta inviata", "Richiesta approvata", "Qualcuno l'ha già chiesto", "Hai raggiunto il limite di richieste", "Non è stato possibile creare il tuo account Seerr", "Non riuscito, riprova", "Approvata", "Rifiutata" |
-| Pagina | "Le mie", "Da approvare ({n})", "Tutte", "chiesto da {name}", "Stagioni {list}", "Approvata", "In arrivo · {p}%", "Rifiutata", "Non riuscita", "Approva", "Rifiuta", i tre messaggi di pagina vuota |
-| Finestre | "Approva: {title}", "Server", "Predefinito ({name})", "Profilo", "Cartella", "Rifiutare la richiesta di {title}?", "Annulla" |
-| Cassetta | "Ora disponibile: {title}", "{name} ha chiesto {title}", ", stagioni {list}" |
+| Pagina | "Le mie", "Da approvare ({n})", "Tutte", "chiesto da {name}", "Stagioni {list}", "Approvata", "In arrivo · {p}%", "Rifiutata", "Non riuscita", "Approva", "Rifiuta", "Conferma", "Conferma il rifiuto" (per gli screen reader), "Operazione in corso" (indicatore della riga), i tre messaggi di pagina vuota |
+| Finestre | "Approva: {title}", "Server", "Predefinito ({name})", "Profilo", "Cartella", "Annulla" |
+| Cassetta | "Ora disponibile: {title}", "{name} ha chiesto {title}", "Nuova richiesta: {title}" (senza il nome), ", stagioni {list}" |
 
-Un test dei testi (`test/app/l10n_plan15_requests_test.dart`) controlla che le chiavi ci siano in entrambe le lingue.
+Due test dei testi (`test/app/l10n_plan15a_test.dart` e `test/app/l10n_plan15b_test.dart`) controllano che le chiavi ci siano in entrambe le lingue.
 
 ## 11. Casi limite
 
