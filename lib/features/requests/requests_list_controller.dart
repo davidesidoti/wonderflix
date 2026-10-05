@@ -72,6 +72,15 @@ class RequestsListController extends Notifier<RequestsListState> {
   /// Numera i caricamenti: vale solo l'ultimo.
   int _generation = 0;
 
+  /// Le richieste su cui Approva o Rifiuta è riuscito: una lettura partita
+  /// prima non le rimette nell'elenco.
+  final _removed = <int>{};
+
+  /// Se l'ultimo caricamento fallito ripartiva dalla prima pagina: [retry]
+  /// ne ripete lo stesso tipo (un ricaricamento non deve diventare una
+  /// pagina in più).
+  bool _failedWasReset = true;
+
   @override
   RequestsListState build() {
     // Un avviso nella cassetta (nuova richiesta, titolo arrivato) può
@@ -94,27 +103,42 @@ class RequestsListController extends Notifier<RequestsListState> {
     await _load(reset: false);
   }
 
-  /// La pagina successiva dopo un errore (il pulsante in fondo all'elenco).
-  Future<void> loadMoreAfterError() => _load(reset: false);
+  /// Ripete il caricamento fallito (il pulsante in fondo all'elenco): da
+  /// capo se era un ricaricamento, la pagina dopo se era una pagina.
+  Future<void> retry() => _load(reset: _failedWasReset);
 
   Future<void> _load({required bool reset}) async {
     if (!ref.mounted) return;
     final generation = ++_generation;
-    final previous = state.items;
+    // Le righe mostrate sono quelle che il server ha dato e non ha ancora
+    // tolto (Approva e Rifiuta le tolgono da tutte e due le parti): la pagina
+    // dopo parte da lì.
+    final skip = reset ? 0 : state.items.length;
     state = state.copyWith(loading: true, clearError: true);
     try {
       final page = await ref.read(requestsApiProvider).list(listKey.filter,
-          skip: reset ? 0 : previous.length,
-          take: pageSize,
-          language: listKey.language);
+          skip: skip, take: pageSize, language: listKey.language);
       if (!ref.mounted || generation != _generation) return;
+      // Una lettura partita prima di Approva o Rifiuta non disfa l'azione:
+      // le righe tolte non tornano, e la pagina si aggiunge alle righe di
+      // adesso. Se nuove richieste hanno spostato gli offset, il server può
+      // ridare una riga già mostrata: niente doppioni.
+      final shown = {
+        for (final request in reset ? const <MediaRequest>[] : state.items)
+          request.id,
+      };
+      final fresh = [
+        for (final request in page.items)
+          if (!_removed.contains(request.id) && shown.add(request.id)) request,
+      ];
       state = state.copyWith(
-        items: reset ? page.items : [...previous, ...page.items],
+        items: reset ? fresh : [...state.items, ...fresh],
         hasMore: page.hasMore,
         loading: false,
       );
     } on Object catch (error) {
       if (!ref.mounted || generation != _generation) return;
+      _failedWasReset = reset;
       state = state.copyWith(loading: false, error: error);
     }
   }
@@ -135,29 +159,45 @@ class RequestsListController extends Notifier<RequestsListState> {
   Future<RequestActionOutcome?> _act(int requestId, RequestActionOutcome done,
       Future<MediaRequest> Function(RequestsApi api) call) async {
     if (state.busy.contains(requestId)) return null;
-    state = state.copyWith(busy: {...state.busy, requestId});
-    RequestActionOutcome outcome;
+    // Il controller resta vivo finché la risposta non arriva: se nel
+    // frattempo si cambia scheda, il conteggio e l'elenco "Tutte" si
+    // aggiornano lo stesso.
+    final link = ref.keepAlive();
     try {
-      await call(ref.read(requestsApiProvider));
-      outcome = done;
-    } on Object {
-      outcome = RequestActionOutcome.failed;
+      state = state.copyWith(busy: {...state.busy, requestId});
+      RequestActionOutcome outcome;
+      try {
+        await call(ref.read(requestsApiProvider));
+        outcome = done;
+      } on Object {
+        outcome = RequestActionOutcome.failed;
+      }
+      if (!ref.mounted) return outcome;
+      final failed = outcome == RequestActionOutcome.failed;
+      // Una lettura partita prima non rimette la riga tolta (non si
+      // aggiorna `_generation`: il suo `loading` non finirebbe più).
+      if (!failed) _removed.add(requestId);
+      state = state.copyWith(
+        items: failed
+            ? state.items
+            : [for (final request in state.items) if (request.id != requestId) request],
+        busy: {...state.busy}..remove(requestId),
+      );
+      if (!failed) {
+        // Il conteggio e l'elenco "Tutte" non sono più giusti.
+        ref.invalidate(pendingRequestsCountProvider(listKey.language));
+        ref.invalidate(requestsListControllerProvider(
+            (filter: RequestsFilter.all, language: listKey.language)));
+        // Con meno di una pagina e altre sul server, l'elenco non resta
+        // corto (e, se si è svuotato, non resta vuoto).
+        if (state.hasMore && state.items.length < pageSize) {
+          unawaited(loadMore());
+        }
+      }
+      return outcome;
+    } finally {
+      link.close();
     }
-    if (!ref.mounted) return outcome;
-    final failed = outcome == RequestActionOutcome.failed;
-    state = state.copyWith(
-      items: failed
-          ? state.items
-          : [for (final request in state.items) if (request.id != requestId) request],
-      busy: {...state.busy}..remove(requestId),
-    );
-    if (!failed) {
-      // Il conteggio e l'elenco "Tutte" non sono più giusti.
-      ref.invalidate(pendingRequestsCountProvider(listKey.language));
-      ref.invalidate(requestsListControllerProvider(
-          (filter: RequestsFilter.all, language: listKey.language)));
-    }
-    return outcome;
   }
 }
 

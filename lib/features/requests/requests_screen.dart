@@ -14,8 +14,11 @@ import 'requests_navigation.dart';
 import 'requests_providers.dart';
 
 /// La pagina Richieste (spec I §9.4): "Le mie" e, per chi può approvare,
-/// "Da approvare (n)" e "Tutte". Senza una scheda scelta si apre su "Da
-/// approvare" se c'è qualcosa da approvare, altrimenti su "Le mie".
+/// "Da approvare (n)" e "Tutte". La scheda sta nell'indirizzo (`?tab=`): i
+/// pulsanti delle schede cambiano l'indirizzo, e la rotta rifà la pagina a
+/// ogni indirizzo nuovo. Senza una scheda nell'indirizzo si apre su "Da
+/// approvare" se c'è qualcosa da approvare, altrimenti su "Le mie", e la
+/// scelta resta quella.
 class RequestsScreen extends ConsumerStatefulWidget {
   const RequestsScreen({super.key, this.initialTab});
 
@@ -27,8 +30,9 @@ class RequestsScreen extends ConsumerStatefulWidget {
 }
 
 class _RequestsScreenState extends ConsumerState<RequestsScreen> {
-  /// La scheda scelta dall'utente; `null` finché non ne sceglie una.
-  RequestsTab? _chosen;
+  /// La scheda scelta da sola, una volta, quando l'indirizzo non ne ha una:
+  /// approvare l'ultima richiesta o riceverne una nuova non sposta la pagina.
+  RequestsTab? _auto;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +41,7 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen> {
     final me = ref.watch(requestsMeProvider);
     final canManage = me.value?.canManage ?? false;
     final count = canManage ? ref.watch(pendingRequestsCountProvider(language)) : null;
-    final explicit = _chosen ?? widget.initialTab;
+    final explicit = widget.initialTab;
     // Per scegliere da sola la scheda la pagina aspetta i permessi e, per
     // chi approva, il conteggio.
     final ready = (me.hasValue || me.hasError) &&
@@ -47,8 +51,12 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen> {
       if (canManage) ...[RequestsTab.pending, RequestsTab.all],
     ];
     final pendingCount = count?.value;
-    var tab = explicit ??
-        ((pendingCount?.count ?? 0) > 0 ? RequestsTab.pending : RequestsTab.mine);
+    if (ready && explicit == null) {
+      _auto ??= (pendingCount?.count ?? 0) > 0
+          ? RequestsTab.pending
+          : RequestsTab.mine;
+    }
+    var tab = explicit ?? _auto ?? RequestsTab.mine;
     if (!tabs.contains(tab)) tab = RequestsTab.mine;
 
     String tabLabel(RequestsTab tab) => switch (tab) {
@@ -79,7 +87,7 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen> {
                       key: ValueKey('requests-tab-${item.name}'),
                       label: tabLabel(item),
                       selected: item == tab,
-                      onTap: () => setState(() => _chosen = item),
+                      onTap: () => openRequests(context, tab: item),
                     ),
                     const SizedBox(width: 24),
                   ],
@@ -152,6 +160,10 @@ class _RequestsListState extends ConsumerState<_RequestsList> {
 
   final _scroll = SmoothScrollController();
 
+  /// Numero di righe al momento dell'ultimo caricamento automatico: evita
+  /// un ciclo infinito se il server risponde con pagine vuote.
+  int _autoLoadedAt = -1;
+
   @override
   void initState() {
     super.initState();
@@ -183,6 +195,24 @@ class _RequestsListState extends ConsumerState<_RequestsList> {
     final state = ref.watch(provider);
     final controller = ref.read(provider.notifier);
     final error = state.error;
+
+    // Su schermi grandi le prime righe possono non riempire la finestra:
+    // senza scroll non scatterebbe mai il caricamento successivo.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final current = ref.read(provider);
+      if (current.items.isEmpty) _autoLoadedAt = -1; // elenco ripartito
+      if (!_scroll.hasClients) return;
+      if (_scroll.position.maxScrollExtent == 0 &&
+          current.hasMore &&
+          !current.loading &&
+          current.error == null &&
+          current.items.length != _autoLoadedAt) {
+        _autoLoadedAt = current.items.length;
+        unawaited(controller.loadMore());
+      }
+    });
+
     if (state.items.isEmpty) {
       if (error != null) {
         return ErrorView(error: error, onRetry: () => unawaited(controller.reload()));
@@ -206,7 +236,7 @@ class _RequestsListState extends ConsumerState<_RequestsList> {
             child: Center(
               child: error != null
                   ? TextButton(
-                      onPressed: () => unawaited(controller.loadMoreAfterError()),
+                      onPressed: () => unawaited(controller.retry()),
                       child: Text(l.retry))
                   : const SizedBox.square(
                       dimension: 20,

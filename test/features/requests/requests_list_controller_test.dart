@@ -160,4 +160,172 @@ void main() {
     await pumpEventQueue();
     expect(api.calls.where((c) => c == 'list:pending:0:50'), hasLength(2));
   });
+
+  test('con meno di una pagina e altre sul server, ne chiede altre', () async {
+    api.lists[RequestsFilter.pending] = requests(25);
+    final container = makeContainer();
+    await pumpEventQueue();
+    final controller =
+        container.read(requestsListControllerProvider(pending).notifier);
+    expect(container.read(requestsListControllerProvider(pending)).items,
+        hasLength(20));
+
+    // Il server toglie la richiesta approvata dall'elenco: le altre scalano.
+    api.lists[RequestsFilter.pending] = requests(25).skip(1).toList();
+    expect(
+        await controller.approve(1, ApproveChoice.defaults),
+        RequestActionOutcome.approved);
+    await pumpEventQueue();
+
+    expect(api.calls, contains('list:pending:19:20'));
+    final state = container.read(requestsListControllerProvider(pending));
+    expect(state.items.map((r) => r.id), [for (var i = 2; i <= 25; i++) i]);
+    expect(state.hasMore, isFalse);
+  });
+
+  test('tolte tutte le righe, se il server ne ha altre le chiede', () async {
+    api.lists[RequestsFilter.pending] = requests(25);
+    final container = makeContainer();
+    await pumpEventQueue();
+    final controller =
+        container.read(requestsListControllerProvider(pending).notifier);
+
+    for (var id = 1; id <= 20; id++) {
+      api.lists[RequestsFilter.pending] = requests(25).skip(id).toList();
+      await controller.decline(id);
+      await pumpEventQueue();
+    }
+
+    final state = container.read(requestsListControllerProvider(pending));
+    expect(state.items.map((r) => r.id), [for (var i = 21; i <= 25; i++) i]);
+    expect(state.hasMore, isFalse);
+  });
+
+  test('una pagina in viaggio non rimette la riga approvata nel frattempo',
+      () async {
+    api.lists[RequestsFilter.pending] = requests(25);
+    final container = makeContainer();
+    await pumpEventQueue();
+    final controller =
+        container.read(requestsListControllerProvider(pending).notifier);
+
+    final gate = api.listGate = Completer<void>();
+    final more = controller.loadMore();
+    expect(await controller.approve(1, ApproveChoice.defaults),
+        RequestActionOutcome.approved);
+    gate.complete();
+    await more;
+
+    final ids = container
+        .read(requestsListControllerProvider(pending))
+        .items
+        .map((r) => r.id);
+    expect(ids, [for (var i = 2; i <= 25; i++) i]);
+  });
+
+  test('un ricaricamento partito prima non rimette la riga rifiutata',
+      () async {
+    api.lists[RequestsFilter.pending] = requests(2);
+    final container = makeContainer();
+    await pumpEventQueue();
+    final controller =
+        container.read(requestsListControllerProvider(pending).notifier);
+
+    // Il ricaricamento vede ancora le due richieste (risposta di prima).
+    final gate = api.listGate = Completer<void>();
+    final reload = controller.reload();
+    expect(await controller.decline(1), RequestActionOutcome.declined);
+    gate.complete();
+    await reload;
+
+    final state = container.read(requestsListControllerProvider(pending));
+    expect(state.items.map((r) => r.id), [2]);
+    expect(state.loading, isFalse);
+  });
+
+  test('una riga già mostrata non si ripete nella pagina dopo', () async {
+    api.lists[RequestsFilter.mine] = requests(25);
+    final container = makeContainer();
+    await pumpEventQueue();
+
+    // Una nuova richiesta in cima sposta gli offset di una riga.
+    api.lists[RequestsFilter.mine] = [
+      testMediaRequest(id: 99, title: 'Nuova'),
+      ...requests(25),
+    ];
+    await container.read(requestsListControllerProvider(mine).notifier).loadMore();
+
+    final ids = container
+        .read(requestsListControllerProvider(mine))
+        .items
+        .map((r) => r.id)
+        .toList();
+    expect(ids, [for (var i = 1; i <= 25; i++) i]);
+    expect(ids.toSet(), hasLength(ids.length));
+  });
+
+  test('cambiando scheda durante Rifiuta, il conteggio si aggiorna lo stesso',
+      () async {
+    api.lists[RequestsFilter.pending] = requests(2);
+    final container = ProviderContainer.test(
+      overrides: requestsTestOverrides(api, events: events.stream),
+      retry: (_, _) => null,
+    );
+    final list = container.listen(requestsListControllerProvider(pending), (_, _) {});
+    container.listen(pendingRequestsCountProvider('it'), (_, _) {});
+    await pumpEventQueue();
+    final controller =
+        container.read(requestsListControllerProvider(pending).notifier);
+
+    final gate = api.actionGate = Completer<void>();
+    final action = controller.decline(1);
+    // L'utente cambia scheda: la pagina non ascolta più l'elenco.
+    list.close();
+    await pumpEventQueue();
+    gate.complete();
+    expect(await action, RequestActionOutcome.declined);
+    await pumpEventQueue();
+
+    expect(api.calls.where((c) => c == 'list:pending:0:50'), hasLength(2));
+  });
+
+  test('Riprova dopo un ricaricamento fallito ricarica da capo', () async {
+    api.lists[RequestsFilter.mine] = requests(25);
+    final container = makeContainer();
+    await pumpEventQueue();
+    expect(container.read(requestsListControllerProvider(mine)).items, hasLength(20));
+
+    api.failure = RequestsFailure.network;
+    events.add(const InboxChangedEvent());
+    await pumpEventQueue();
+    expect(container.read(requestsListControllerProvider(mine)).error,
+        isA<RequestsException>());
+
+    api.failure = null;
+    api.calls.clear();
+    await container.read(requestsListControllerProvider(mine).notifier).retry();
+
+    expect(api.calls, ['list:mine:0:20']);
+    final state = container.read(requestsListControllerProvider(mine));
+    expect(state.error, isNull);
+    expect(state.items, hasLength(20));
+  });
+
+  test('Riprova dopo una pagina fallita chiede la pagina dopo', () async {
+    api.lists[RequestsFilter.mine] = requests(25);
+    final container = makeContainer();
+    await pumpEventQueue();
+    final controller = container.read(requestsListControllerProvider(mine).notifier);
+
+    api.failure = RequestsFailure.network;
+    await controller.loadMore();
+    expect(container.read(requestsListControllerProvider(mine)).error, isNotNull);
+
+    api.failure = null;
+    api.calls.clear();
+    await controller.retry();
+
+    expect(api.calls, ['list:mine:20:20']);
+    expect(container.read(requestsListControllerProvider(mine)).items, hasLength(25));
+  });
 }
