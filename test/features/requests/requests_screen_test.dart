@@ -256,4 +256,70 @@ void main() {
     expect(api.calls.where((c) => c == 'list:mine:20:20'), hasLength(2));
     expect(find.text('Titolo 25 (2024)'), findsOneWidget);
   });
+
+  group('Da approvare', () {
+    setUp(() {
+      api
+        ..meValue = manager
+        ..lists[RequestsFilter.pending] = [
+          testMediaRequest(id: 1, title: 'Dune', requester: 'Garg'),
+          testMediaRequest(id: 2, title: 'Brothers', requester: 'sronweb'),
+        ]
+        ..servicesByType[RequestMediaType.movie] = const [
+          ServiceOption(
+            id: 0,
+            name: 'Radarr',
+            isDefault: true,
+            profiles: [ProfileOption(id: 8, name: 'Main Profile')],
+            rootFolders: ['/media/movies'],
+          ),
+        ];
+    });
+
+    testWidgets('Approva: finestra, poi la riga esce e c\'è l\'avviso',
+        (tester) async {
+      await pumpScreen(tester);
+
+      await tester.tap(find.text('Approva').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Approva: Dune'), findsOneWidget);
+
+      await tester.tap(find.text('Approva').last);
+      await tester.pumpAndSettle();
+
+      expect(api.approved.single.id, 1);
+      expect(api.approved.single.choice.serverId, isNull);
+      expect(find.text('Dune (2024)'), findsNothing);
+      expect(find.text('Brothers (2024)'), findsOneWidget);
+      expect(find.text('Approvata'), findsOneWidget);
+    });
+
+    testWidgets('Rifiuta con conferma', (tester) async {
+      await pumpScreen(tester);
+
+      await tester.tap(find.text('Rifiuta').last);
+      await tester.pump();
+      await tester.tap(find.text('Conferma'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(api.declined, [2]);
+      expect(find.text('Brothers (2024)'), findsNothing);
+      expect(find.text('Rifiutata'), findsOneWidget);
+    });
+
+    testWidgets('un errore lascia la riga e lo dice', (tester) async {
+      api.actionFailure = RequestsFailure.seerrUnavailable;
+      await pumpScreen(tester);
+
+      await tester.tap(find.text('Rifiuta').first);
+      await tester.pump();
+      await tester.tap(find.text('Conferma'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Dune (2024)'), findsOneWidget);
+      expect(find.text('Non riuscito, riprova'), findsOneWidget);
+    });
+  });
 }

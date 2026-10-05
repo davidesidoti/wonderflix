@@ -5,9 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
+import '../../core/requests/requests_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
+import 'approve_dialog.dart';
+import 'pending_request_actions.dart';
 import 'request_row.dart';
 import 'requests_list_controller.dart';
 import 'requests_navigation.dart';
@@ -186,6 +189,30 @@ class _RequestsListState extends ConsumerState<_RequestsList> {
     super.dispose();
   }
 
+  Future<void> _approve(MediaRequest request) async {
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final choice = await showApproveDialog(context, request);
+    if (choice == null || !mounted) return;
+    final outcome = await ref
+        .read(requestsListControllerProvider(widget.listKey).notifier)
+        .approve(request.id, choice);
+    if (outcome != null) {
+      messenger.showSnackBar(SnackBar(content: Text(requestActionText(l, outcome))));
+    }
+  }
+
+  Future<void> _decline(MediaRequest request) async {
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final outcome = await ref
+        .read(requestsListControllerProvider(widget.listKey).notifier)
+        .decline(request.id);
+    if (outcome != null) {
+      messenger.showSnackBar(SnackBar(content: Text(requestActionText(l, outcome))));
+    }
+  }
+
   String _emptyText(AppLocalizations l) => switch (widget.tab) {
         RequestsTab.mine => l.requestsEmptyMine,
         RequestsTab.pending => l.requestsEmptyPending,
@@ -258,6 +285,13 @@ class _RequestsListState extends ConsumerState<_RequestsList> {
           now: now,
           showRequester: widget.tab != RequestsTab.mine,
           onTap: () => openRequest(context, request),
+          trailing: widget.tab == RequestsTab.pending
+              ? PendingRequestActions(
+                  busy: state.busy.contains(request.id),
+                  onApprove: () => unawaited(_approve(request)),
+                  onDecline: () => unawaited(_decline(request)),
+                )
+              : null,
         );
       },
     );
