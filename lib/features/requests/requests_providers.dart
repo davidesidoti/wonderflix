@@ -13,6 +13,13 @@ final requestsApiProvider =
 final requestsAvailableProvider = Provider<bool>((ref) =>
     ref.watch(socialAvailabilityProvider.select((f) => f.requests)));
 
+/// Le richieste con Seerr sono sparite: le funzioni del plugin sono note e
+/// non hanno più `requests` (Seerr tolto dal plugin mentre l'app è aperta).
+/// Non vale finché le funzioni non sono note (dopo un nuovo accesso, per
+/// esempio): per quel momento la pagina Richieste non deve andare via.
+final requestsGoneProvider = Provider<bool>((ref) => ref.watch(
+    socialAvailabilityProvider.select((f) => f.known && !f.requests)));
+
 /// Cosa può fare l'utente con Seerr. Si rilegge ogni volta che una pagina
 /// lo usa di nuovo (`autoDispose`); senza la funzione, niente.
 final requestsMeProvider = FutureProvider.autoDispose<RequestsMe>((ref) async {

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../app/theme.dart';
 import '../../core/requests/requests_models.dart';
@@ -33,12 +34,30 @@ class RequestsScreen extends ConsumerStatefulWidget {
 }
 
 class _RequestsScreenState extends ConsumerState<RequestsScreen> {
+  /// Dove va la pagina quando le richieste spariscono: la Home.
+  static const _homeRoute = '/home';
+
+  /// Già partita verso la Home: la pagina ci va una volta sola.
+  bool _leaving = false;
+
   /// La scheda scelta da sola, una volta, quando l'indirizzo non ne ha una:
   /// approvare l'ultima richiesta o riceverne una nuova non sposta la pagina.
   RequestsTab? _auto;
 
   @override
   Widget build(BuildContext context) {
+    // Seerr tolto dal plugin mentre si guarda la pagina (o aperta senza la
+    // funzione): la voce nella barra è sparita, e le chiamate darebbero 503.
+    // Si torna alla Home, senza mostrare l'errore.
+    if (ref.watch(requestsGoneProvider)) {
+      if (!_leaving) {
+        _leaving = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) context.go(_homeRoute);
+        });
+      }
+      return const SizedBox.shrink();
+    }
     final l = AppLocalizations.of(context);
     final language = Localizations.localeOf(context).languageCode;
     final me = ref.watch(requestsMeProvider);
@@ -284,7 +303,10 @@ class _RequestsListState extends ConsumerState<_RequestsList> {
           request: request,
           now: now,
           showRequester: widget.tab != RequestsTab.mine,
-          onTap: () => openRequest(context, request),
+          // Con Approva o Rifiuta in viaggio la riga non apre niente.
+          onTap: state.busy.contains(request.id)
+              ? null
+              : () => openRequest(context, request),
           trailing: widget.tab == RequestsTab.pending
               ? PendingRequestActions(
                   busy: state.busy.contains(request.id),

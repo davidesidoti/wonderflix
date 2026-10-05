@@ -148,7 +148,7 @@ App 0.9.0
     tmdb_title_screen.dart              scheda da richiedere
     season_picker.dart                  elenco delle stagioni con le caselle
     request_seasons.dart                "Richiedi stagioni" per le serie della libreria (finestra e pulsante)
-    requests_list_controller.dart       elenchi della pagina Richieste (pagine, ricarica, Approva e Rifiuta), conteggio "Da approvare"
+    requests_list_controller.dart       elenchi della pagina Richieste (pagine, aggiornamento, ricarica, Approva e Rifiuta), conteggio "Da approvare"
     requests_screen.dart                pagina Richieste, schede, pagine
     request_row.dart                    riga di una richiesta
     pending_request_actions.dart        Rifiuta (a due tempi) e Approva nella riga
@@ -345,7 +345,12 @@ Tutti sotto `/WonderFlixWatchParty/Requests` e con `[Authorize]`, tranne il webh
   - lo usa anche "Richiedi stagioni" (§9.3), con la stessa chiave della scheda da richiedere: stagioni scelte, invio, blocco e avvisi sono gli stessi.
 - **`RequestsListController`** (per filtro e lingua dell'app):
   - carica a pagine di 20;
-  - ricarica all'apertura della pagina e a **ogni** `InboxChanged`, non solo per le voci `RequestAvailable` o `RequestPending`: l'evento non dice il tipo della voce, e una ricarica in più non costa niente;
+  - carica all'apertura della pagina e, a **ogni** `InboxChanged`, **aggiorna le righe mostrate**, non solo per le voci `RequestAvailable` o `RequestPending`: l'evento non dice il tipo della voce, e un aggiornamento in più non costa niente. Ne arrivano anche quando si apre il pannello delle notifiche (le voci si segnano lette), quindi l'elenco non deve accorciarsi;
+  - **aggiornare e ricaricare:**
+    - l'aggiornamento rilegge in una sola chiamata le righe mostrate, fino a 50 (il massimo del plugin), e le mette al posto delle prime; le righe oltre restano, tolte quelle già nella pagina nuova e quelle appena approvate o rifiutate. "Ce ne sono altre" vale quello della pagina nuova se non resta nessuna riga oltre, altrimenti resta com'era;
+    - se non riesce, l'elenco non cambia e non compare un errore: il prossimo avviso, o lo scorrimento, riprova;
+    - senza righe (elenco vuoto o primo caricamento) è un ricaricamento;
+    - il **ricaricamento** (primo caricamento, "Riprova" della pagina d'errore) riparte dalla prima pagina, di 20 righe;
   - **ricarica e pagine:**
     - le righe di prima restano finché non arrivano le nuove;
     - un caricamento già in corso non rimette una riga appena approvata o rifiutata;
@@ -353,7 +358,7 @@ Tutti sotto `/WonderFlixWatchParty/Requests` e con `[Authorize]`, tranne il webh
     - la pagina dopo parte dalle righe mostrate, senza contare quelle con un'azione in corso;
     - se le righe non riempiono la finestra, o dopo le azioni scendono sotto una pagina e sul server ce ne sono altre, la pagina dopo si carica da sola;
     - "Riprova" in fondo all'elenco ripete il tipo di caricamento fallito: da capo se era un ricaricamento, la pagina dopo se era una pagina;
-  - **Approva e Rifiuta** chiamano gli endpoint e bloccano la riga (`busy`) finché la risposta non arriva, poi la tolgono dall'elenco. Se la chiamata non riesce la riga resta, e l'avviso è "Non riuscito, riprova". L'elenco resta vivo finché la risposta non arriva, anche se nel frattempo si cambia scheda: il conteggio e "Tutte" si ricaricano lo stesso.
+  - **Approva e Rifiuta** chiamano gli endpoint e bloccano la riga (`busy`) finché la risposta non arriva, poi la tolgono dall'elenco. Se la chiamata non riesce la riga resta, e l'avviso è "Non riuscito, riprova". L'elenco resta vivo finché la risposta non arriva, anche se nel frattempo si cambia scheda: il conteggio si ricarica e "Tutte", se c'è, si aggiorna lo stesso, al suo posto (senza svuotarsi né perdere lo scroll).
 - **Conteggio "Da approvare (n)":** `GET Requests?filter=pending&take=50`, cioè la prima pagina; se oltre ce ne sono altre, si mostra "50+". Si ricarica dopo Approva e Rifiuta e a ogni `InboxChanged`.
 
 ## 9. App: interfaccia
@@ -433,11 +438,12 @@ Tutti sotto `/WonderFlixWatchParty/Requests` e con `[Authorize]`, tranne il webh
 - **"Da approvare"**: ogni riga ha **Rifiuta** (secondario) e **Approva** (oro), al posto dell'etichetta di stato.
   - **Rifiuta è a due tempi, senza finestra**, come "Svuota" della cassetta: "Rifiuta" diventa "Conferma" (rosso) per 4 secondi, e il secondo clic rifiuta. Gli screen reader leggono "Conferma il rifiuto".
   - **Approva** apre la finestra (§9.5).
-  - **Riga in lavorazione:** mentre la chiamata è in viaggio la riga **non cambia misura**. I pulsanti restano al loro posto ma nascosti e non si toccano, con l'indicatore sopra (letto come "Operazione in corso"), e il clic sulla riga non apre il titolo. "Conferma" si disarma quando parte un'azione: se la chiamata non riesce, Rifiuta riparte da capo.
+  - **Riga in lavorazione:** mentre la chiamata è in viaggio la riga **non cambia misura**. I pulsanti restano al loro posto ma nascosti e non si toccano, con l'indicatore sopra (letto come "Operazione in corso"), e la riga non si apre (né dalla locandina né dal titolo). "Conferma" si disarma quando parte un'azione: se la chiamata non riesce, Rifiuta riparte da capo.
   - **Dopo l'azione** la riga esce subito dall'elenco, senza animazione, e compare l'avviso "Approvata" o "Rifiutata" ("Non riuscito, riprova" se la chiamata non è riuscita).
 - **Pagine:** altre 20 righe quando si arriva in fondo, o da sole se le righe non riempiono la finestra (§8.4).
 - **Pagina vuota:** "Non hai ancora chiesto niente. Cerca un titolo che manca e premi Richiedi." per "Le mie", "Niente da approvare" e "Nessuna richiesta" per le altre due.
 - **Errore:** `ErrorView` con Riprova. Se l'errore viene dopo le prime righe, resta l'elenco e in fondo compare "Riprova" (§8.4).
+- **Funzione tolta:** se `requests` sparisce da `Features` mentre la pagina è aperta, o la pagina si apre senza, torna alla Home (`/home`) senza mostrare l'errore. Finché le funzioni non sono note (dopo un nuovo accesso) la pagina resta.
 
 ### 9.5 Finestra Approva
 
@@ -455,7 +461,7 @@ Tutti sotto `/WonderFlixWatchParty/Requests` e con `[Authorize]`, tranne il webh
 
 - **`RequestAvailable`:**
   - icona `clapperboard`, testo "Ora disponibile: {title}" ("Ora disponibile: {title}, stagioni {list}" con le stagioni);
-  - il clic apre la scheda della libreria (`openItemById`) se c'è `ItemId`, altrimenti la pagina Richieste (`/requests`).
+  - il clic apre la scheda della libreria (`openItemById`) se c'è `ItemId`, altrimenti la pagina Richieste sulla scheda "Le mie" (`/requests?tab=mine`): senza la scheda, un admin con richieste in attesa troverebbe "Da approvare".
 - **`RequestPending`:**
   - icona `inbox`, testo "{name} ha chiesto {title}" ("…, stagioni {list}");
   - se il nome di chi ha chiesto manca (Seerr può mandarlo vuoto) la frase non regge, e il testo è "Nuova richiesta: {title}";
@@ -486,7 +492,7 @@ Due test dei testi (`test/app/l10n_plan15a_test.dart` e `test/app/l10n_plan15b_t
   - schede e pagina Richieste mostrano `ErrorView`;
   - "Richiedi stagioni" non compare.
 - **Seerr risponde con `null` dove ci si aspetta una lista:** vale come una risposta inattesa. Il plugin risponde 502 `SeerrUnavailable` e l'app mostra "Seerr non risponde", come per Seerr spento.
-- **Seerr non configurato o tolto:** `requests` sparisce da `Features` e l'app torna quella di oggi. Una chiamata in volo riceve 503 (`NotConfigured`) e l'app mostra "Seerr non risponde", come per Seerr spento.
+- **Seerr non configurato o tolto:** `requests` sparisce da `Features` e l'app torna quella di oggi. Una chiamata in volo riceve 503 (`NotConfigured`) e l'app mostra "Seerr non risponde", come per Seerr spento. Se si sta guardando la pagina Richieste, l'app torna alla Home (§9.4).
 - **Due persone chiedono lo stesso titolo insieme:** la seconda riceve "Qualcuno l'ha già chiesto" e la scheda si ricarica.
 - **Stagioni chieste da altri nel frattempo:** Seerr toglie i doppioni. Se non resta nulla da chiedere arriva `NothingToRequest`, la scheda si ricarica e mostra lo stato.
 - **Serie con solo alcune delle stagioni chieste arrivate:** la richiesta è "In parte disponibile", a meno che non ci sia un download in corso, che ha la precedenza ("In arrivo"). Lo stato della serie intera non conta (§7.3).
@@ -498,7 +504,7 @@ Due test dei testi (`test/app/l10n_plan15a_test.dart` e `test/app/l10n_plan15b_t
 - **Doppio avviso:** un titolo chiesto e arrivato compare sia in "Ora disponibile" sia nel riepilogo delle novità. Va bene così, perché hanno scopi diversi.
 - **Webhook ripetuto o tardivo:** la voce con lo stesso `RequestId` sostituisce quella di prima (§7.6).
 - **Webhook con un `requestedBy_jellyfinUserId` che non esiste più o è disabilitato:** l'evento si scarta con una riga nel registro.
-- **Titolo disponibile senza `jellyfinMediaId`:** la riga e l'avviso aprono la pagina Richieste. Dalla scheda da richiedere manca "Guarda".
+- **Titolo disponibile senza `jellyfinMediaId`:** la riga apre la scheda da richiedere, e l'avviso la pagina Richieste su "Le mie" (`/requests?tab=mine`). Dalla scheda da richiedere manca "Guarda".
 - **Approvazione di una richiesta già approvata o rifiutata da un altro admin, o dal sito di Seerr:** Seerr risponde comunque. Il plugin restituisce la richiesta aggiornata, e la riga esce da "Da approvare".
 - **Lingua:** con `language=it` Seerr dà titoli e trame in italiano quando TMDB li ha, altrimenti in originale.
 - **Versione di Seerr diversa:** le risposte all'app sono oggetti del plugin, quindi un cambio dell'API di Seerr si sistema nel solo plugin. "Prova collegamento" mostra la versione.
@@ -516,12 +522,12 @@ Due test dei testi (`test/app/l10n_plan15a_test.dart` e `test/app/l10n_plan15b_t
 - **App:**
   - `RequestsApi` con `FakeAdapter`: percorsi, query, corpi, lettura delle risposte, `RequestsFailure`;
   - `JellyfinItem.tmdbId`;
-  - controller con un `FakeRequestsApi`: doppioni con la libreria (per id Jellyfin, e per id TMDB dello stesso tipo), risposte vecchie, stagioni scelte all'apertura, invio bloccato, ricarica dopo `AlreadyRequested`, pagine, ricarica su `InboxChanged`;
+  - controller con un `FakeRequestsApi`: doppioni con la libreria (per id Jellyfin, e per id TMDB dello stesso tipo), risposte vecchie, stagioni scelte all'apertura, invio bloccato, ricarica dopo `AlreadyRequested`, pagine, aggiornamento su `InboxChanged` (anche oltre la prima pagina), righe approvate o rifiutate che non tornano da una lettura partita prima;
   - widget:
     - sezione "Da richiedere" (etichette, stati, errore, nessun titolo);
     - scheda da richiedere (pulsanti nei vari stati, stagioni, avvisi);
     - "Richiedi stagioni" (presente e assente);
-    - pagina Richieste con e senza `CanManage` (schede, righe, conferma di Rifiuta, pagina vuota);
+    - pagina Richieste con e senza `CanManage` (schede nell'indirizzo, righe, conferma di Rifiuta, riga in lavorazione, pagina vuota, funzione tolta);
     - finestra Approva (Predefinito, altro server, errore dei server);
     - righe nuove della cassetta;
     - voce nella barra solo con `requests`;

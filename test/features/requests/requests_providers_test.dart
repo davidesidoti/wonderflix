@@ -19,6 +19,25 @@ void main() {
     expect(container.read(requestsAvailableProvider), isTrue);
   });
 
+  test('richieste sparite: solo con le funzioni note e senza `requests`', () {
+    final availability = FakeSocialAvailability(SocialFeatures.unknown);
+    final container = ProviderContainer.test(overrides: [
+      socialAvailabilityProvider.overrideWith(() => availability),
+    ]);
+    // Funzioni non ancora note: non si sa nulla, la pagina non va via.
+    expect(container.read(requestsGoneProvider), isFalse);
+
+    availability.set(const SocialFeatures(inbox: true));
+    expect(container.read(requestsGoneProvider), isTrue);
+
+    availability.set(const SocialFeatures(inbox: true, requests: true));
+    expect(container.read(requestsGoneProvider), isFalse);
+
+    // Un nuovo accesso le rende di nuovo non note: nemmeno qui va via.
+    availability.set(SocialFeatures.unknown);
+    expect(container.read(requestsGoneProvider), isFalse);
+  });
+
   test('Me: dal plugin solo con la funzione', () async {
     final api = FakeRequestsApi()
       ..meValue =

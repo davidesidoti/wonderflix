@@ -11,7 +11,7 @@ void main() {
   final fiveMinutesAgo = now.subtract(const Duration(minutes: 5));
 
   Future<List<String>> pumpRow(WidgetTester tester, MediaRequest request,
-      {bool showRequester = false, Widget? trailing}) async {
+      {bool showRequester = false, Widget? trailing, bool tappable = true}) async {
     final taps = <String>[];
     await pumpApp(
       tester,
@@ -21,7 +21,7 @@ void main() {
           now: now,
           showRequester: showRequester,
           trailing: trailing,
-          onTap: () => taps.add('tap'),
+          onTap: tappable ? () => taps.add('tap') : null,
         ),
       ),
     );
@@ -58,6 +58,17 @@ void main() {
 
     expect(find.text('Stagioni 1–2 · 5 min fa'), findsOneWidget);
     expect(find.text('In arrivo · 45%'), findsOneWidget);
+  });
+
+  testWidgets('senza il clic la riga non si apre (azione in corso)', (tester) async {
+    final taps = await pumpRow(tester, testMediaRequest(title: 'Dune', year: 2021),
+        tappable: false);
+
+    await tester.tap(find.text('Dune (2021)'));
+    await tester.pump();
+
+    expect(taps, isEmpty);
+    expect(tester.widget<InkWell>(find.byType(InkWell)).onTap, isNull);
   });
 
   testWidgets('titolo che Seerr non ha dato; azioni al posto dello stato',

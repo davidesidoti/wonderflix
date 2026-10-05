@@ -342,7 +342,10 @@ class _EntryTileState extends ConsumerState<_EntryTile> {
                       if (itemId != null) {
                         openItemById(context, itemId);
                       } else {
-                        openRequests(context);
+                        // Senza titolo in libreria: le richieste di chi guarda,
+                        // dove c'è quella arrivata (anche per un admin con
+                        // altre in attesa).
+                        openRequests(context, tab: RequestsTab.mine);
                       }
                     },
                   ),

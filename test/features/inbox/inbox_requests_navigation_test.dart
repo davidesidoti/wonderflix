@@ -77,7 +77,7 @@ void main() {
     expect(container.read(shellPanelProvider), ShellPanel.none);
   });
 
-  testWidgets('"Ora disponibile" apre la scheda, o Richieste senza id', (tester) async {
+  testWidgets('"Ora disponibile" apre la scheda, o "Le mie" senza id', (tester) async {
     final (router, container) = await pumpPanel(tester, [
       testRequestAvailable(id: 'r1', seq: 2, title: 'Dune (2021)', itemId: 'ee39'),
       testRequestAvailable(id: 'r2', seq: 1, title: 'Brothers (2026)'),
@@ -94,6 +94,6 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('Ora disponibile: Brothers (2026)'));
     await tester.pumpAndSettle();
-    expect(router.state.uri.toString(), '/requests');
+    expect(router.state.uri.toString(), '/requests?tab=mine');
   });
 }

@@ -14,20 +14,27 @@ import 'package:wonderflix/features/library/server_events_binding.dart';
 import 'package:wonderflix/features/requests/requests_list_controller.dart';
 import 'package:wonderflix/features/requests/requests_navigation.dart';
 import 'package:wonderflix/features/requests/requests_screen.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 import 'package:wonderflix/ui/wf_image.dart';
 
 import '../../support/pump_app.dart';
 import '../../support/requests_fakes.dart';
+import '../../support/social_fakes.dart';
 
 void main() {
   late FakeRequestsApi api;
   late StreamController<SocialEvent> events;
+
+  /// Le funzioni del plugin: da qui si toglie `requests` mentre la pagina è
+  /// aperta.
+  late FakeSocialAvailability availability;
   const manager = RequestsMe(canRequest: true, canManage: true, hasAccount: true);
 
   setUp(() {
     api = FakeRequestsApi();
     events = StreamController<SocialEvent>.broadcast();
+    availability = FakeSocialAvailability(const SocialFeatures(requests: true));
   });
 
   tearDown(() => events.close());
@@ -57,6 +64,15 @@ void main() {
             ),
           ),
         ),
+        GoRoute(
+          path: '/home',
+          builder: (context, state) => const Scaffold(body: Text('home')),
+        ),
+        GoRoute(
+          path: '/tmdb/:type/:tmdbId',
+          builder: (context, state) =>
+              Scaffold(body: Text('scheda ${state.pathParameters['tmdbId']}')),
+        ),
       ],
     );
     addTearDown(router.dispose);
@@ -67,6 +83,7 @@ void main() {
         imageBuilderProvider.overrideWithValue(
             (image, fit) => const ColoredBox(color: Color(0xFF333333))),
         ...requestsTestOverrides(api, events: events.stream),
+        socialAvailabilityProvider.overrideWith(() => availability),
       ],
       retry: (_, _) => null,
       child: MaterialApp.router(
@@ -249,12 +266,65 @@ void main() {
     await pumpScreen(tester, surfaceSize: const Size(1440, 4000));
     expect(api.calls.where((c) => c == 'list:mine:20:20'), hasLength(1));
 
-    // L'elenco torna a venti righe, che ancora non riempiono la finestra.
-    events.add(const InboxChangedEvent());
+    // L'elenco riparte da venti righe, che ancora non riempiono la finestra.
+    final container =
+        ProviderScope.containerOf(tester.element(find.byType(RequestsScreen)));
+    await container
+        .read(requestsListControllerProvider(
+                (filter: RequestsFilter.mine, language: 'it'))
+            .notifier)
+        .reload();
     await tester.pumpAndSettle();
 
     expect(api.calls.where((c) => c == 'list:mine:20:20'), hasLength(2));
     expect(find.text('Titolo 25 (2024)'), findsOneWidget);
+  });
+
+  group('senza la funzione', () {
+    testWidgets('tolta mentre si guarda la pagina, torna alla Home',
+        (tester) async {
+      api.lists[RequestsFilter.mine] = [
+        testMediaRequest(id: 1, title: 'Dune', year: 2021),
+      ];
+      final router = await pumpScreen(tester);
+      expect(find.text('Dune (2021)'), findsOneWidget);
+
+      // Seerr tolto dal plugin: le funzioni sono note e senza `requests`.
+      availability.set(const SocialFeatures());
+      await tester.pumpAndSettle();
+
+      expect(router.state.uri.path, '/home');
+      expect(find.text('home'), findsOneWidget);
+      expect(find.text('Riprova'), findsNothing);
+    });
+
+    testWidgets('aperta senza la funzione, va subito alla Home',
+        (tester) async {
+      availability = FakeSocialAvailability(const SocialFeatures());
+      final router = await pumpScreen(tester);
+
+      expect(router.state.uri.path, '/home');
+      expect(find.text('home'), findsOneWidget);
+      expect(api.calls, isEmpty);
+    });
+
+    testWidgets('finché le funzioni non sono note, la pagina resta',
+        (tester) async {
+      api.lists[RequestsFilter.mine] = [
+        testMediaRequest(id: 1, title: 'Dune', year: 2021),
+      ];
+      final router = await pumpScreen(tester);
+
+      availability.set(SocialFeatures.unknown);
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/requests');
+      expect(find.text('Dune (2021)'), findsOneWidget);
+
+      availability.set(const SocialFeatures(requests: true));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/requests');
+      expect(find.text('Dune (2021)'), findsOneWidget);
+    });
   });
 
   group('Da approvare', () {
@@ -292,6 +362,32 @@ void main() {
       expect(find.text('Dune (2024)'), findsNothing);
       expect(find.text('Brothers (2024)'), findsOneWidget);
       expect(find.text('Approvata'), findsOneWidget);
+    });
+
+    testWidgets('durante Approva, locandina e titolo della riga non aprono niente',
+        (tester) async {
+      final gate = api.actionGate = Completer<void>();
+      final router = await pumpScreen(tester);
+
+      await tester.tap(find.text('Approva').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Approva').last);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      final dune = find.byKey(const ValueKey('request-1'));
+      await tester.tap(find.text('Dune (2024)'));
+      await tester.tap(find.descendant(of: dune, matching: find.byType(ClipRRect)));
+      await tester.pump();
+      expect(router.state.uri.path, '/requests');
+
+      // L'altra riga si apre come sempre.
+      await tester.tap(find.text('Brothers (2024)'));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/tmdb/movie/693002');
+
+      gate.complete();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('Rifiuta con conferma', (tester) async {

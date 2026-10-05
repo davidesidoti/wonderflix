@@ -29,7 +29,9 @@ class RequestRow extends StatelessWidget {
 
   /// Per l'ora relativa ("5 min fa").
   final DateTime now;
-  final VoidCallback onTap;
+
+  /// Il clic sulla riga; `null` la blocca (Approva o Rifiuta in viaggio).
+  final VoidCallback? onTap;
 
   /// "chiesto da {name}", nelle schede da admin.
   final bool showRequester;

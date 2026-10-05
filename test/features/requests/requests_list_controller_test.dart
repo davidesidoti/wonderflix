@@ -14,6 +14,7 @@ void main() {
   late StreamController<SocialEvent> events;
   const mine = (filter: RequestsFilter.mine, language: 'it');
   const pending = (filter: RequestsFilter.pending, language: 'it');
+  const all = (filter: RequestsFilter.all, language: 'it');
 
   setUp(() {
     api = FakeRequestsApi();
@@ -340,14 +341,14 @@ void main() {
     expect(container.read(requestsListControllerProvider(mine)).items, hasLength(20));
 
     api.failure = RequestsFailure.network;
-    events.add(const InboxChangedEvent());
-    await pumpEventQueue();
+    final controller = container.read(requestsListControllerProvider(mine).notifier);
+    await controller.reload();
     expect(container.read(requestsListControllerProvider(mine)).error,
         isA<RequestsException>());
 
     api.failure = null;
     api.calls.clear();
-    await container.read(requestsListControllerProvider(mine).notifier).retry();
+    await controller.retry();
 
     expect(api.calls, ['list:mine:0:20']);
     final state = container.read(requestsListControllerProvider(mine));
@@ -371,5 +372,189 @@ void main() {
 
     expect(api.calls, ['list:mine:20:20']);
     expect(container.read(requestsListControllerProvider(mine)).items, hasLength(25));
+  });
+
+  group('avviso della cassetta: le righe mostrate si aggiornano, senza accorciare',
+      () {
+    /// Carica [total] richieste di "Le mie" a pagine di 20, fino a [shown]
+    /// righe mostrate.
+    Future<ProviderContainer> loadMine(int total, {required int shown}) async {
+      api.lists[RequestsFilter.mine] = requests(total);
+      final container = makeContainer();
+      await pumpEventQueue();
+      final controller = container.read(requestsListControllerProvider(mine).notifier);
+      while (container.read(requestsListControllerProvider(mine)).items.length < shown) {
+        await controller.loadMore();
+      }
+      return container;
+    }
+
+    List<int> ids(ProviderContainer container) => container
+        .read(requestsListControllerProvider(mine))
+        .items
+        .map((r) => r.id)
+        .toList();
+
+    // Anche l'elenco "Da approvare" ascolta gli avvisi: qui contano solo le
+    // chiamate di "Le mie".
+    List<String> mineCalls() =>
+        api.calls.where((c) => c.startsWith('list:mine')).toList();
+
+    test('con 60 righe ne ricarica 50, e le ultime 10 restano', () async {
+      final container = await loadMine(65, shown: 60);
+      expect(ids(container), hasLength(60));
+
+      // La richiesta 1 cambia stato sul server.
+      api.lists[RequestsFilter.mine] = [
+        testMediaRequest(id: 1, title: 'Titolo 1', status: RequestStatus.approved),
+        ...requests(65).skip(1),
+      ];
+      api.calls.clear();
+      events.add(const InboxChangedEvent());
+      await pumpEventQueue();
+
+      expect(mineCalls(), ['list:mine:0:50']);
+      final state = container.read(requestsListControllerProvider(mine));
+      expect(state.items.map((r) => r.id), [for (var i = 1; i <= 60; i++) i]);
+      expect(state.items.first.status, RequestStatus.approved);
+      expect(state.hasMore, isTrue);
+      expect(state.loading, isFalse);
+
+      // La pagina dopo riparte da dove si era arrivati.
+      await container.read(requestsListControllerProvider(mine).notifier).loadMore();
+      expect(api.calls.last, 'list:mine:60:20');
+      expect(ids(container), [for (var i = 1; i <= 65; i++) i]);
+    });
+
+    test('con 25 righe ne ricarica 25', () async {
+      final container = await loadMine(25, shown: 25);
+
+      api.calls.clear();
+      events.add(const InboxChangedEvent());
+      await pumpEventQueue();
+
+      expect(mineCalls(), ['list:mine:0:25']);
+      final state = container.read(requestsListControllerProvider(mine));
+      expect(state.items, hasLength(25));
+      expect(state.hasMore, isFalse);
+    });
+
+    test('con meno di una pagina ne ricarica una pagina', () async {
+      final container = await loadMine(5, shown: 5);
+
+      api.calls.clear();
+      events.add(const InboxChangedEvent());
+      await pumpEventQueue();
+
+      expect(mineCalls(), ['list:mine:0:20']);
+      expect(ids(container), [1, 2, 3, 4, 5]);
+    });
+
+    test('una richiesta nuova in cima compare', () async {
+      final container = await loadMine(25, shown: 25);
+
+      api.lists[RequestsFilter.mine] = [
+        testMediaRequest(id: 99, title: 'Nuova'),
+        ...requests(25),
+      ];
+      events.add(const InboxChangedEvent());
+      await pumpEventQueue();
+
+      final shown = ids(container);
+      expect(shown.first, 99);
+      expect(shown.toSet(), hasLength(shown.length));
+      // Una riga in più sul server: la 25 non entra più nelle 25 ricaricate,
+      // e "altre" torna vero.
+      expect(shown, [99, for (var i = 1; i <= 24; i++) i]);
+      expect(container.read(requestsListControllerProvider(mine)).hasMore, isTrue);
+    });
+
+    test('il ricaricamento dell\'utente torna alla prima pagina', () async {
+      final container = await loadMine(65, shown: 60);
+
+      api.calls.clear();
+      await container.read(requestsListControllerProvider(mine).notifier).reload();
+
+      expect(mineCalls(), ['list:mine:0:20']);
+      expect(ids(container), hasLength(20));
+    });
+
+    test('un elenco vuoto si ricarica come sempre', () async {
+      final container = await loadMine(0, shown: 0);
+      api.lists[RequestsFilter.mine] = requests(3);
+
+      api.calls.clear();
+      events.add(const InboxChangedEvent());
+      await pumpEventQueue();
+
+      expect(mineCalls(), ['list:mine:0:20']);
+      expect(ids(container), [1, 2, 3]);
+    });
+
+    test('una lettura partita prima non rimette la riga rifiutata', () async {
+      api.lists[RequestsFilter.pending] = requests(2);
+      final container = makeContainer();
+      await pumpEventQueue();
+      final controller =
+          container.read(requestsListControllerProvider(pending).notifier);
+
+      // L'avviso fa partire la lettura; il server ha ancora le due richieste.
+      final gate = api.listGate = Completer<void>();
+      events.add(const InboxChangedEvent());
+      await pumpEventQueue();
+      expect(await controller.decline(1), RequestActionOutcome.declined);
+      gate.complete();
+      await pumpEventQueue();
+
+      final state = container.read(requestsListControllerProvider(pending));
+      expect(state.items.map((r) => r.id), [2]);
+      expect(state.loading, isFalse);
+    });
+
+    test('se non riesce, le righe restano e non c\'è un errore', () async {
+      final container = await loadMine(25, shown: 25);
+
+      api.failure = RequestsFailure.network;
+      events.add(const InboxChangedEvent());
+      await pumpEventQueue();
+
+      final state = container.read(requestsListControllerProvider(mine));
+      expect(state.items, hasLength(25));
+      expect(state.error, isNull);
+      expect(state.loading, isFalse);
+    });
+  });
+
+  test('dopo Approva, "Tutte" si aggiorna al suo posto, senza svuotarsi',
+      () async {
+    api
+      ..lists[RequestsFilter.pending] = requests(2)
+      ..lists[RequestsFilter.all] = requests(30);
+    final container = makeContainer();
+    container.listen(requestsListControllerProvider(all), (_, _) {});
+    await pumpEventQueue();
+    final seen = <int>[];
+    container.listen(requestsListControllerProvider(all),
+        (_, next) => seen.add(next.items.length));
+    expect(container.read(requestsListControllerProvider(all)).items, hasLength(20));
+
+    // Sul server la richiesta 1 è approvata, ma resta tra "Tutte".
+    api.lists[RequestsFilter.all] = [
+      testMediaRequest(id: 1, title: 'Titolo 1', status: RequestStatus.approved),
+      ...requests(30).skip(1),
+    ];
+    api.calls.clear();
+    await container
+        .read(requestsListControllerProvider(pending).notifier)
+        .approve(1, ApproveChoice.defaults);
+    await pumpEventQueue();
+
+    expect(api.calls.where((c) => c.startsWith('list:all')), ['list:all:0:20']);
+    final state = container.read(requestsListControllerProvider(all));
+    expect(state.items, hasLength(20));
+    expect(state.items.first.status, RequestStatus.approved);
+    // Mai uno stato senza righe: l'elenco non è ripartito da zero.
+    expect(seen, isNotEmpty);
+    expect(seen.where((length) => length == 0), isEmpty);
   });
 }
