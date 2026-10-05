@@ -40,6 +40,10 @@ public class ServiceRegistrationTests
             provider.GetRequiredService<InboxStore>().FilePath);
         Assert.NotNull(provider.GetRequiredService<NewTitlesCollector>());
         Assert.IsType<Server.PluginNewTitlesSettings>(provider.GetRequiredService<INewTitlesSettings>());
+        Assert.NotNull(provider.GetRequiredService<RequestsService>());
+        Assert.NotNull(provider.GetRequiredService<RequestWebhookHandler>());
+        Assert.IsType<Seerr.SeerrClient>(provider.GetRequiredService<Seerr.ISeerrClient>());
+        Assert.IsType<Server.PluginSeerrSettings>(provider.GetRequiredService<Seerr.ISeerrSettings>());
         Assert.Equal(2, provider.GetServices<IHostedService>().Count());
     }
 }

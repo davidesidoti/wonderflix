@@ -32,6 +32,16 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<InboxService>();
         serviceCollection.AddSingleton<INewTitlesSettings, PluginNewTitlesSettings>();
         serviceCollection.AddSingleton<ISeerrSettings, PluginSeerrSettings>();
+        // La chiave API non va nei log del client HTTP e non segue un
+        // redirect verso un altro host (.NET toglie solo Authorization).
+        serviceCollection.AddHttpClient(SeerrClient.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false })
+            .RedactLoggedHeaders(["X-API-Key"]);
+        serviceCollection.AddSingleton<ISeerrClient, SeerrClient>();
+        serviceCollection.AddSingleton<SeerrUserMap>();
+        serviceCollection.AddSingleton<SeerrTitleCache>();
+        serviceCollection.AddSingleton<RequestsService>();
+        serviceCollection.AddSingleton<RequestWebhookHandler>();
         serviceCollection.AddSingleton<ILibraryTitles, JellyfinLibraryTitles>();
         serviceCollection.AddSingleton<NewTitlesCollector>();
         serviceCollection.AddSingleton<PresenceTracker>();
