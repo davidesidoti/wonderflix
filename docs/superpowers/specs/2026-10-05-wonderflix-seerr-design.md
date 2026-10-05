@@ -204,7 +204,7 @@ L'app parla solo con il plugin; il plugin parla con Seerr. La chiave API e l'id 
   - **Import:** se l'utente non ha un account, **alla prima `POST Requests`** il plugin chiama `POST /user/import-from-jellyfin` con il suo id, svuota la cache e riprova l'abbinamento. Se fallisce, risponde con il codice `AccountUnavailable`. Con due prime richieste insieme dello stesso utente l'import parte una volta sola (lo protegge un blocco a parte).
 - **`SeerrTitleCache`:** titolo, anno e locandina per (`mediaType`, `tmdbId`, lingua), per un'ora, al massimo 2000 voci. Serve a completare gli elenchi delle richieste, che non hanno il titolo (§3).
   - Le ricerche dei titoli fanno al massimo 6 chiamate a Seerr alla volta.
-  - Un titolo che Seerr non dà si ricorda per 5 minuti, così non lo si richiede a ogni elenco.
+  - Si ricorda per 5 minuti solo il titolo che Seerr non conosce (404), così non lo si richiede a ogni elenco. Gli altri errori (Seerr giù, chiave rifiutata) non si ricordano: alla riga successiva si riprova.
 
 ### 7.3 Endpoint
 
@@ -297,7 +297,7 @@ Tutti sotto `/WonderFlixWatchParty/Requests` e con `[Authorize]`, tranne il webh
 
 ### 8.1 Modelli e API
 
-- `JellyfinItem.tmdbId`: si legge `ProviderIds.Tmdb`, se c'è, e va aggiunto ai `Fields` delle chiamate della scheda.
+- `JellyfinItem.tmdbId`: si legge `ProviderIds.Tmdb`, se c'è, e va aggiunto ai `Fields` delle chiamate della scheda e della ricerca nella libreria (§8.3).
 - `RequestsApi` (`lib/core/requests/requests_api.dart`) ha un metodo per ogni endpoint di §7.3, tranne `Test` e `Webhook`. Mappa i `{Code}` in `RequestsFailure` (enum), sul modello di `SocialFailure`. Per leggere il `{Code}` anche nelle risposte 403 e 5xx, `ForbiddenException` e `ServerErrorException` (`lib/core/jellyfin/api_exception.dart`) portano il `body` della risposta.
 - Le righe con un `MediaType` sconosciuto (per esempio una persona) si saltano, nella ricerca e negli elenchi delle richieste: il resto della risposta si legge lo stesso.
 - **Modelli:**
@@ -320,7 +320,7 @@ Tutti sotto `/WonderFlixWatchParty/Requests` e con `[Authorize]`, tranne il webh
 ### 8.3 Sezione "Da richiedere"
 
 - `requestablesControllerProvider` segue il termine della ricerca di oggi, con la stessa attesa e lo stesso minimo di lettere, ma **è indipendente**: la ricerca nella libreria non aspetta Seerr.
-- **Doppioni:** si tolgono i titoli con `JellyfinItemId` uguale all'id di un risultato della libreria (film o serie).
+- **Doppioni:** si tolgono i titoli con `JellyfinItemId` uguale all'id di un risultato della libreria (film o serie), e anche quelli con lo stesso id TMDB e lo stesso tipo (film con film, serie con serie) di un risultato. La ricerca nella libreria chiede i `ProviderIds`, perché Seerr può non conoscere l'id Jellyfin dei titoli recenti (§3).
 - Restano in elenco:
   - i titoli `None`, `Pending`, `Processing` e `Partial`;
   - gli `Available` che la libreria non ha trovato (per esempio un titolo in un'altra lingua), con l'etichetta "Su WonderFlix": aprono la scheda della libreria.
@@ -457,7 +457,7 @@ Un test dei testi (`test/app/l10n_plan15_requests_test.dart`) controlla che le c
   - schede e pagina Richieste mostrano `ErrorView`;
   - "Richiedi stagioni" non compare.
 - **Seerr risponde con `null` dove ci si aspetta una lista:** vale come una risposta inattesa. Il plugin risponde 502 `SeerrUnavailable` e l'app mostra "Seerr non risponde", come per Seerr spento.
-- **Seerr non configurato o tolto:** `requests` sparisce da `Features` e l'app torna quella di oggi. Una chiamata in volo riceve 503 e mostra l'errore generico.
+- **Seerr non configurato o tolto:** `requests` sparisce da `Features` e l'app torna quella di oggi. Una chiamata in volo riceve 503 (`NotConfigured`) e l'app mostra "Seerr non risponde", come per Seerr spento.
 - **Due persone chiedono lo stesso titolo insieme:** la seconda riceve "Qualcuno l'ha già chiesto" e la scheda si ricarica.
 - **Stagioni chieste da altri nel frattempo:** Seerr toglie i doppioni. Se non resta nulla da chiedere arriva `NothingToRequest`, la scheda si ricarica e mostra lo stato.
 - **Serie con solo alcune delle stagioni chieste arrivate:** la richiesta è "In parte disponibile", a meno che non ci sia un download in corso, che ha la precedenza ("In arrivo"). Lo stato della serie intera non conta (§7.3).
@@ -487,7 +487,7 @@ Un test dei testi (`test/app/l10n_plan15_requests_test.dart`) controlla che le c
 - **App:**
   - `RequestsApi` con `FakeAdapter`: percorsi, query, corpi, lettura delle risposte, `RequestsFailure`;
   - `JellyfinItem.tmdbId`;
-  - controller con un `FakeRequestsApi`: doppioni con la libreria, risposte vecchie, stagioni scelte all'apertura, invio bloccato, ricarica dopo `AlreadyRequested`, pagine, ricarica su `InboxChanged`;
+  - controller con un `FakeRequestsApi`: doppioni con la libreria (per id Jellyfin, e per id TMDB dello stesso tipo), risposte vecchie, stagioni scelte all'apertura, invio bloccato, ricarica dopo `AlreadyRequested`, pagine, ricarica su `InboxChanged`;
   - widget:
     - sezione "Da richiedere" (etichette, stati, errore, nessun titolo);
     - scheda da richiedere (pulsanti nei vari stati, stagioni, avvisi);
