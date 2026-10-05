@@ -12,7 +12,10 @@ final class UnauthorizedException extends ApiException {
 }
 
 final class ForbiddenException extends ApiException {
-  const ForbiddenException();
+  const ForbiddenException([this.body]);
+
+  /// Corpo della risposta, se c'era (es. `{Code}` del plugin, spec I §7.3).
+  final Object? body;
 }
 
 final class NotFoundException extends ApiException {
@@ -28,8 +31,11 @@ final class ServerUnreachableException extends ApiException {
 }
 
 final class ServerErrorException extends ApiException {
-  const ServerErrorException(this.statusCode);
+  const ServerErrorException(this.statusCode, [this.body]);
   final int? statusCode;
+
+  /// Corpo della risposta, se c'era (es. `{Code}` del plugin, spec I §7.3).
+  final Object? body;
 
   @override
   String toString() => 'ServerErrorException($statusCode)';
@@ -56,9 +62,9 @@ ApiException mapDioException(DioException e) {
     case DioExceptionType.badResponse:
       return switch (e.response?.statusCode) {
         401 => const UnauthorizedException(),
-        403 => const ForbiddenException(),
+        403 => ForbiddenException(e.response?.data),
         404 => const NotFoundException(),
-        final code => ServerErrorException(code),
+        final code => ServerErrorException(code, e.response?.data),
       };
     case DioExceptionType.connectionTimeout ||
           DioExceptionType.sendTimeout ||

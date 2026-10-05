@@ -41,6 +41,12 @@ List<Map<String, dynamic>> _objectList(Object? value) => value is List
 
 int? _int(Object? value) => (value as num?)?.toInt();
 
+int? _providerId(Object? raw, String key) {
+  if (raw is! Map) return null;
+  final value = raw[key];
+  return value is String ? int.tryParse(value) : null;
+}
+
 double? _double(Object? value) => (value as num?)?.toDouble();
 
 DateTime? _date(Object? value) =>
@@ -230,6 +236,7 @@ class JellyfinItem {
     this.childCount,
     this.chapters = const [],
     this.trickplay = const {},
+    this.tmdbId,
   });
 
   factory JellyfinItem.fromJson(Map<String, dynamic> json) {
@@ -278,6 +285,7 @@ class JellyfinItem {
       childCount: _int(json['ChildCount']),
       chapters: _objectList(json['Chapters']).map(ChapterMark.fromJson).toList(),
       trickplay: _trickplay(json['Trickplay']),
+      tmdbId: _providerId(json['ProviderIds'], 'Tmdb'),
     );
   }
 
@@ -330,6 +338,10 @@ class JellyfinItem {
 
   /// Anteprime per la barra di avanzamento: sorgente → larghezza → info.
   final Map<String, Map<int, TrickplayInfo>> trickplay;
+
+  /// Id TMDB dai `ProviderIds`, se c'è (spec I §8.1): serve alle richieste
+  /// con Seerr. `GET /Items/{id}` lo dà sempre; gli elenchi solo se chiesto.
+  final int? tmdbId;
 
   Duration? get runtime {
     final ticks = runTimeTicks;
