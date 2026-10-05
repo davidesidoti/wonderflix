@@ -16,6 +16,7 @@ import '../../ui/wf_switcher.dart';
 import '../library/library_providers.dart';
 import '../requests/requestables_controller.dart';
 import '../requests/requestables_section.dart';
+import '../requests/requests_providers.dart';
 import 'search_controller.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -39,6 +40,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final l = AppLocalizations.of(context);
     final state = ref.watch(searchControllerProvider);
     final controller = ref.read(searchControllerProvider.notifier);
+    // La lista costruisce la sezione "Da richiedere" solo quando è vicina allo
+    // schermo: se esce, il controller (autoDispose) resterebbe senza
+    // ascoltatori e perderebbe timer, richiesta e titoli. Qui lo si tiene
+    // vivo, senza `watch`: lo schermo non si ricostruisce a ogni suo stato.
+    ref.listen(requestablesControllerProvider, (_, _) {});
+    // La funzione può arrivare quando il termine è già scritto (il controllo
+    // del plugin ritenta dopo 30 secondi): la ricerca parte da sola, senza
+    // aspettare un altro tasto.
+    ref.listen(requestsAvailableProvider, (previous, next) {
+      if (next && previous != true) {
+        ref.read(requestablesControllerProvider.notifier).setTerm(
+            ref.read(searchControllerProvider).term,
+            language: Localizations.localeOf(context).languageCode);
+      }
+    });
     return ListView(
       controller: _scroll,
       padding: const EdgeInsets.all(32),

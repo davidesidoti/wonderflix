@@ -8,11 +8,13 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/requests/requests_providers.dart';
 import 'package:wonderflix/features/search/search_screen.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/requests_fakes.dart';
+import '../../support/social_fakes.dart';
 import '../../support/test_data.dart';
 
 void main() {
@@ -149,5 +151,69 @@ void main() {
 
     expect(find.text('Da richiedere'), findsNothing);
     expect(requests.calls, isEmpty);
+  });
+
+  testWidgets(
+      '"Da richiedere" resta viva anche quando la sezione è fuori dallo schermo',
+      (tester) async {
+    // Tanti risultati della libreria: la sezione sta sotto, fuori dalla
+    // zona costruita della lista, e senza ascoltatori il controller sparirebbe.
+    final library = FakeLibraryApi()
+      ..onItems = ((query, start, limit) => query.kinds.contains(ItemKind.movie)
+          ? pageOf([
+              for (var i = 0; i < 24; i++)
+                testItem(id: 'movie$i', name: 'Dune $i'),
+            ])
+          : pageOf([
+              for (var i = 0; i < 24; i++)
+                testItem(
+                    id: 'series$i', name: 'Arrakis $i', kind: ItemKind.series),
+            ]))
+      ..people = [];
+    final requests = FakeRequestsApi()
+      ..searchResults['dune'] = [
+        testRequestable(tmdbId: 693134, title: 'Dune - Parte due'),
+      ];
+    await pumpApp(tester, const Scaffold(body: SearchScreen()),
+        overrides: overrides(library, requests));
+
+    await search(tester, 'dune');
+    await tester.scrollUntilVisible(
+        find.text('Da richiedere'), 500,
+        scrollable: find.byType(Scrollable).first);
+
+    expect(find.text('Dune - Parte due'), findsOneWidget);
+    expect(requests.calls, ['search:dune']);
+  });
+
+  testWidgets(
+      'se la funzione arriva dopo aver scritto, la ricerca parte da sola',
+      (tester) async {
+    // La funzione si può sapere tardi (il controllo del plugin ritenta dopo
+    // 30 secondi): si parte spenta e poi si accende.
+    final availability =
+        FakeSocialAvailability(const SocialFeatures(inbox: true));
+    final requests = FakeRequestsApi()
+      ..searchResults['dune'] = [testRequestable(title: 'Dune - Parte due')];
+    await pumpApp(tester, const Scaffold(body: SearchScreen()), overrides: [
+      libraryApiProvider.overrideWithValue(libraryWithDune()),
+      sessionControllerProvider.overrideWith(
+          () => FakeSessionController(const SessionSignedIn(testUser))),
+      requestsApiProvider.overrideWithValue(requests),
+      socialAvailabilityProvider.overrideWith(() => availability),
+    ]);
+
+    await search(tester, 'dune');
+    expect(find.text('Da richiedere'), findsNothing);
+    expect(requests.calls, isEmpty);
+
+    availability.set(const SocialFeatures(inbox: true, requests: true));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(find.text('Da richiedere'), findsOneWidget);
+    expect(find.text('Dune - Parte due'), findsOneWidget);
+    expect(requests.searchLanguages, ['it']);
   });
 }
