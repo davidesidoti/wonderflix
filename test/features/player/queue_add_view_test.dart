@@ -38,12 +38,8 @@ void main() {
 
   /// La vista con la coda e4 (in corso), m2 (Alien, già in coda).
   Future<List<String>> pumpView(WidgetTester tester,
-      {PlayQueue? queue,
-      FocusNode? focusNode,
-      List<Override> overrides = const []}) async {
+      {PlayQueue? queue, List<Override> overrides = const []}) async {
     final calls = <String>[];
-    final node = focusNode ?? FocusNode();
-    addTearDown(node.dispose);
     await pumpApp(
       tester,
       Scaffold(
@@ -54,7 +50,6 @@ void main() {
             height: 900,
             child: QueueAddView(
               queue: queue ?? testSeriesQueue(itemIds: const ['e4', 'm2']),
-              focusNode: node,
               onAdd: (items, {required next}) async => calls.add(
                   '${next ? 'next' : 'end'} ${items.map((i) => i.id).join(',')}'),
               onOpenSeries: (series) => calls.add('series ${series.id}'),
@@ -80,8 +75,7 @@ void main() {
 
   testWidgets('campo vuoto: La mia lista in ordine di titolo, il campo ha il '
       'focus', (tester) async {
-    final node = FocusNode();
-    await pumpView(tester, focusNode: node);
+    await pumpView(tester);
     expect(find.text(l.partyQueueMyList), findsOneWidget);
     final titles = [
       for (final name in ['Alien', 'Dark', 'Heat'])
@@ -90,7 +84,9 @@ void main() {
     expect(titles, orderedEquals([...titles]..sort()));
     expect(find.text('Film · 1995 · 2h'), findsOneWidget);
     expect(find.text('Serie'), findsOneWidget);
-    expect(node.hasFocus, isTrue);
+    expect(
+        tester.widget<TextField>(find.byType(TextField)).focusNode?.hasFocus,
+        isTrue);
   });
 
   testWidgets('film: riproduci dopo e in coda; già in coda → ✓', (tester) async {

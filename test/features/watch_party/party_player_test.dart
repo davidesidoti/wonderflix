@@ -2455,6 +2455,33 @@ void main() {
       await finish(tester);
     });
 
+    testWidgets('← e subito di nuovo "Aggiungi titoli", durante la '
+        'dissolvenza: quel che si scrive arriva al campo nuovo, anche dopo '
+        'che quello vecchio è uscito', (tester) async {
+      await pumpPartyPlayer(tester);
+      await queueSeries(tester);
+      await openAdd(tester);
+      await tester.tap(find.descendant(
+          of: find.byType(QueueAddView), matching: find.byTooltip(l.navBack)));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.tap(find.text(l.partyQueueAddTitles));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(find.byType(QueueAddView), findsNWidgets(2));
+      await tester.pumpAndSettle();
+      expect(find.byType(QueueAddView), findsOneWidget);
+      // La tastiera di sistema scrive nel campo che ha la connessione del
+      // testo: `enterText` del tester la riaprirebbe, qui no.
+      tester.testTextInput.enterText('dune');
+      await tester.pump();
+      expect(
+          tester.widget<TextField>(find.byType(TextField)).controller?.text,
+          'dune',
+          reason: 'il campo uscito non porta via la tastiera');
+      await finish(tester);
+    });
+
     testWidgets('il fondo del pannello è uno solo anche a metà della '
         'dissolvenza tra due viste', (tester) async {
       await pumpPartyPlayer(tester);

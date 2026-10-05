@@ -28,13 +28,9 @@ import 'queue_series_views.dart';
 class PartyQueuePanel extends ConsumerWidget {
   const PartyQueuePanel({
     super.key,
-    required this.searchFocusNode,
     required this.onClose,
     this.onBeforeJump,
   });
-
-  /// Il focus del campo di ricerca della vista Aggiungi: è del player.
-  final FocusNode searchFocusNode;
 
   final VoidCallback onClose;
 
@@ -69,7 +65,6 @@ class PartyQueuePanel extends ConsumerWidget {
         ),
       QueuePanelAdd() => QueueAddView(
           queue: queue,
-          focusNode: searchFocusNode,
           onAdd: add,
           onOpenSeries: (series) => nav.open(QueuePanelSeries(series)),
           onBack: nav.back,

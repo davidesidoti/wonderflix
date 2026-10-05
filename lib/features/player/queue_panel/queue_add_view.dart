@@ -26,7 +26,6 @@ class QueueAddView extends ConsumerStatefulWidget {
   const QueueAddView({
     super.key,
     required this.queue,
-    required this.focusNode,
     required this.onAdd,
     required this.onOpenSeries,
     required this.onBack,
@@ -34,9 +33,6 @@ class QueueAddView extends ConsumerStatefulWidget {
   });
 
   final PlayQueue queue;
-
-  /// Il focus del campo: è del player, che sa quando i tasti vanno al campo.
-  final FocusNode focusNode;
   final QueueAddCallback onAdd;
   final ValueChanged<JellyfinItem> onOpenSeries;
   final VoidCallback onBack;
@@ -52,18 +48,26 @@ class _QueueAddViewState extends ConsumerState<QueueAddView> {
   late final _controller =
       TextEditingController(text: ref.read(queueAddSearchProvider).term);
 
+  /// Il focus del campo, di questa vista soltanto: andando e tornando
+  /// durante la dissolvenza ci sono due viste Aggiungi, e con un nodo comune
+  /// la connessione della tastiera resterebbe al campo che esce, che uscendo
+  /// la chiude (il campo nuovo sembrerebbe a fuoco ma non scriverebbe). Il
+  /// player sa che il campo ha il focus dal pannello che lo contiene.
+  final _focusNode = FocusNode(debugLabel: 'party-queue-search');
+
   @override
   void initState() {
     super.initState();
     // `autofocus` non basta dentro il player: si chiede dopo il fotogramma.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) widget.focusNode.requestFocus();
+      if (mounted) _focusNode.requestFocus();
     });
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -174,7 +178,7 @@ class _QueueAddViewState extends ConsumerState<QueueAddView> {
           },
           child: TextField(
             controller: _controller,
-            focusNode: widget.focusNode,
+            focusNode: _focusNode,
             onChanged: ref.read(queueAddSearchProvider.notifier).setTerm,
             // Come nella chat: Invio non toglie il focus al campo (di
             // default "fatto" lo sfoca)...
