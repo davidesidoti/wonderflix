@@ -19,7 +19,7 @@ void main() {
     final settings = (await container({})).read(playerSettingsProvider);
     expect(settings.quality, StreamQuality.original);
     expect(settings.hardwareDecoding, isTrue);
-    expect(settings.subtitleScale, 1.0);
+    expect(settings.subtitleScale, 0.8);
     expect(settings.autoSkipIntro, isFalse);
     expect(settings.autoplayNext, isTrue);
   });
@@ -53,13 +53,19 @@ void main() {
     }))
         .read(playerSettingsProvider);
     expect(settings.quality, StreamQuality.original);
-    expect(settings.subtitleScale, 1.0);
+    expect(settings.subtitleScale, 0.8);
+  });
+
+  test('la vecchia dimensione 1.5 non esiste più: predefinita', () async {
+    final settings = (await container({'player.subtitleScale': 1.5}))
+        .read(playerSettingsProvider);
+    expect(settings.subtitleScale, 0.8);
   });
 
   test('la dimensione molto piccola salvata resta', () async {
-    final settings = (await container({'player.subtitleScale': 0.6}))
+    final settings = (await container({'player.subtitleScale': 0.45}))
         .read(playerSettingsProvider);
-    expect(settings.subtitleScale, 0.6);
+    expect(settings.subtitleScale, 0.45);
   });
 
   test('bitrate delle qualità', () {
@@ -70,6 +76,7 @@ void main() {
   });
 
   test('nomi delle dimensioni dei sottotitoli', () {
+    expect(subtitleScaleOptions, [0.45, 0.6, 0.8, 1.0, 1.25]);
     final l = lookupAppLocalizations(const Locale('it'));
     expect([for (final scale in subtitleScaleOptions) subtitleScaleLabel(l, scale)],
         ['Molto piccoli', 'Piccoli', 'Normali', 'Grandi', 'Molto grandi']);

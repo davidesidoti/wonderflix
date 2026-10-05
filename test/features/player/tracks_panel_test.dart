@@ -110,9 +110,9 @@ void main() {
     await tester.tap(find.byTooltip('Sottotitoli dopo (H)'));
     expect(step, const Duration(milliseconds: 100));
     await tester.tap(find.text('Grandi'));
-    expect(scale, 1.25);
+    expect(scale, 1.0);
     await tester.tap(find.text('Molto piccoli'));
-    expect(scale, 0.6);
+    expect(scale, 0.45);
     await tester.tap(find.byTooltip('Chiudi'));
     expect(closed, 1);
   });

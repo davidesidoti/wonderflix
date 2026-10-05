@@ -36,7 +36,7 @@ void main() {
         'WonderFlix 0.1.0\n'
         'Windows: "Windows 11 Pro" 10.0 (Build 26200)\n'
         'Jellyfin: 10.11.9\n'
-        'Player: quality=original, hardwareDecoding=true, subtitleScale=1.0, '
+        'Player: quality=original, hardwareDecoding=true, subtitleScale=0.8, '
         'autoSkipIntro=false, autoplayNext=true\n'
         'Discord: enabled=true, showTitle=true, showPoster=false\n'
         '\n'

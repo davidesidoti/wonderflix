@@ -83,10 +83,10 @@ void main() {
 
     await tester.tap(find.text('Grandi'));
     await tester.pump();
-    expect(prefs.getDouble('player.subtitleScale'), 1.25);
+    expect(prefs.getDouble('player.subtitleScale'), 1.0);
     await tester.tap(find.text('Molto piccoli'));
     await tester.pump();
-    expect(prefs.getDouble('player.subtitleScale'), 0.6);
+    expect(prefs.getDouble('player.subtitleScale'), 0.45);
 
     await tester.tap(find.text('Decodifica hardware'));
     await tester.pump();

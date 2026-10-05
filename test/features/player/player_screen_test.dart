@@ -608,10 +608,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Grandi'));
     await tester.pump();
-    expect(engine.subtitleScales.last, 1.25);
+    expect(engine.subtitleScales.last, 1.0);
     final container =
         ProviderScope.containerOf(tester.element(find.byType(PlayerScreen)));
-    expect(container.read(playerSettingsProvider).subtitleScale, 1.25);
+    expect(container.read(playerSettingsProvider).subtitleScale, 1.0);
 
     await tester.tap(find.byTooltip('Chiudi'));
     await tester.pumpAndSettle();

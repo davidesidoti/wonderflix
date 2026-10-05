@@ -452,7 +452,13 @@ void main() {
     expect(engine.subtitleScales, [1.25]);
   });
 
-  test('dimensione normale: nessuna modifica', () async {
+  test('dimensione predefinita (Normali) applicata all\'apertura', () async {
+    await start();
+    expect(engine.subtitleScales, [0.8]);
+  });
+
+  test('dimensione uguale a quella di mpv: nessuna modifica', () async {
+    settings = const PlayerSettings(subtitleScale: 1.0);
     await start();
     expect(engine.subtitleScales, isEmpty);
   });
@@ -650,7 +656,7 @@ void main() {
     // "Riprova" riapre con la dimensione nuova.
     await controller.retry();
     await pumpEventQueue();
-    expect(engine.subtitleScales, [1.25, 1.25],
+    expect(engine.subtitleScales, [0.8, 1.25, 1.25],
         reason: 'la riapertura applica di nuovo la dimensione');
   });
 }

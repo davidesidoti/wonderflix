@@ -291,6 +291,7 @@ class PlayerController extends Notifier<PlayerViewState> {
       await _engine.open(plan.source);
       if (stale()) return;
       await _engine.setVolume(_view.muted ? 0 : _view.volume);
+      // 1.0 è la scala di partenza di mpv.
       if (_settings.subtitleScale != 1.0) {
         await _engine.setSubtitleScale(_settings.subtitleScale);
       }

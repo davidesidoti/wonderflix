@@ -18,15 +18,15 @@ enum StreamQuality {
 }
 
 /// Dimensioni dei sottotitoli proposte (scala di mpv `sub-scale`).
-const subtitleScaleOptions = [0.6, 0.8, 1.0, 1.25, 1.5];
+const subtitleScaleOptions = [0.45, 0.6, 0.8, 1.0, 1.25];
 
 /// Nome di una dimensione dei sottotitoli (Impostazioni e pannello del
 /// player).
 String subtitleScaleLabel(AppLocalizations l, double scale) => switch (scale) {
-      0.6 => l.settingsSubtitleTiny,
-      0.8 => l.settingsSubtitleSmall,
-      1.25 => l.settingsSubtitleLarge,
-      1.5 => l.settingsSubtitleHuge,
+      0.45 => l.settingsSubtitleTiny,
+      0.6 => l.settingsSubtitleSmall,
+      1.0 => l.settingsSubtitleLarge,
+      1.25 => l.settingsSubtitleHuge,
       _ => l.settingsSubtitleNormal,
     };
 
@@ -35,7 +35,7 @@ class PlayerSettings {
   const PlayerSettings({
     this.quality = StreamQuality.original,
     this.hardwareDecoding = true,
-    this.subtitleScale = 1.0,
+    this.subtitleScale = 0.8,
     this.autoSkipIntro = false,
     this.autoplayNext = true,
   });
