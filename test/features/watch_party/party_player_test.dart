@@ -25,7 +25,9 @@ import 'package:wonderflix/features/player/player_controller.dart';
 import 'package:wonderflix/features/player/player_extras.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
+import 'package:wonderflix/features/player/player_pill.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
+import 'package:wonderflix/features/player/player_side_panel_host.dart';
 import 'package:wonderflix/features/player/player_volume.dart';
 import 'package:wonderflix/features/player/post_play.dart';
 import 'package:wonderflix/features/player/queue_panel/queue_add_view.dart';
@@ -2035,6 +2037,32 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(QueuePanel), findsNothing);
     expect(find.byType(PlayerScreen), findsOneWidget);
+    await finish(tester);
+  });
+
+  testWidgets('pannello Coda aperto in una finestra stretta: la pillola sta '
+      'al centro dello spazio libero, non sotto il pannello', (tester) async {
+    await pumpPartyPlayer(tester);
+    await tester.binding.setSurfaceSize(const Size(1000, 700));
+    await tester.pumpAndSettle();
+    await queueSeries(tester);
+    // Un avviso lungo: la pillola arriva alla sua larghezza massima.
+    container.read(partyNoticesProvider.notifier).show(PartyNotice(
+        PartyNoticeKind.nowWatching,
+        title: List.filled(12, 'Titolo molto lungo').join(' ')));
+    await tester.pumpAndSettle();
+    final pill = find.byKey(const Key('player-pill'));
+    expect(tester.getRect(pill).center.dx, closeTo(500, 0.5));
+
+    await tester.tap(find.byTooltip(l.partyQueueOpen));
+    await tester.pumpAndSettle();
+    final panel = tester.getRect(find.byType(PartyQueuePanel));
+    final free = 1000 - PlayerSidePanelHost.widthFor(1000);
+    expect(panel.left, closeTo(free, 0.5));
+    expect(tester.getRect(pill).center.dx, closeTo(free / 2, 0.5));
+    expect(tester.getRect(pill).overlaps(panel), isFalse);
+    expect(tester.getRect(pill).width, PlayerPill.maxWidth,
+        reason: 'la pillola è davvero larga');
     await finish(tester);
   });
 

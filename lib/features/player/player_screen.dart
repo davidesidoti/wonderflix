@@ -1221,6 +1221,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         party.groupState == GroupState.waiting &&
         !view.buffering;
     void resumeGroup() => unawaited(controller.play());
+    // I pannelli a destra: "Audio e sottotitoli" e la coda del gruppo (uno
+    // alla volta).
+    final tracksPanelOpen = _chrome.panelOpen && view.plan != null;
+    final queuePanelOpen = party != null &&
+        _chrome.popup == PlayerPopup.queue &&
+        party.inGroup;
+    final sidePanelOpen = tracksPanelOpen || queuePanelOpen;
+    final motion = WfMotion.of(context);
     // Il post-play compare o sparisce anche senza un cambio di zona (la coda
     // del gruppo, l'uscita dal gruppo, l'episodio successivo arrivato tardi,
     // lo stato del file): dopo il fotogramma, all'arrivo il pannello si
@@ -1570,24 +1578,48 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   ),
                 // Riscontro dei tasti e avvisi del watch party (anche dopo
                 // l'uscita dal gruppo: "terminato" e "non sei più nel watch
-                // party" devono vedersi).
-                Positioned(
+                // party" devono vedersi). Con un pannello aperto a destra sta
+                // al centro dello spazio libero: il pannello è disegnato
+                // sopra, e in una finestra stretta la coprirebbe in parte. Si
+                // sposta con il pannello (con le animazioni ridotte, di colpo).
+                Positioned.fill(
                   key: const ValueKey('player-pill-layer'),
-                  top: 96,
-                  left: 0,
-                  right: 0,
                   child: ExcludeFocus(
                     child: IgnorePointer(
-                      child: Center(
-                        child: RepaintBoundary(
-                          child: widget.args.party == null
-                              ? PlayerPill(feedback: _chrome.feedback)
-                              : Consumer(
-                                  builder: (context, ref, _) => PlayerPill(
-                                    feedback: _chrome.feedback,
-                                    notice: ref.watch(partyNoticesProvider),
-                                  ),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) => Stack(
+                          children: [
+                            AnimatedPositioned(
+                              top: 96,
+                              left: 0,
+                              right: sidePanelOpen
+                                  ? PlayerSidePanelHost.widthFor(
+                                      constraints.maxWidth)
+                                  : 0,
+                              duration: motion.isReduced
+                                  ? Duration.zero
+                                  : sidePanelOpen
+                                      ? WfMotion.medium
+                                      : WfMotion.fast,
+                              curve: sidePanelOpen
+                                  ? WfMotion.emphasized
+                                  : WfMotion.accelerate,
+                              child: Center(
+                                child: RepaintBoundary(
+                                  child: widget.args.party == null
+                                      ? PlayerPill(feedback: _chrome.feedback)
+                                      : Consumer(
+                                          builder: (context, ref, _) =>
+                                              PlayerPill(
+                                            feedback: _chrome.feedback,
+                                            notice:
+                                                ref.watch(partyNoticesProvider),
+                                          ),
+                                        ),
                                 ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -1599,7 +1631,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   key: const ValueKey('player-tracks-panel'),
                   child: ExcludeFocus(
                     child: PlayerSidePanelHost(
-                      open: _chrome.panelOpen && view.plan != null,
+                      open: tracksPanelOpen,
                       panel: TracksPanel(
                         audio: view.audioStreams,
                         subtitles: view.subtitleStreams,
@@ -1632,8 +1664,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       focusNode: _queuePanelFocusNode,
                       includeSemantics: false,
                       child: PlayerSidePanelHost(
-                        open: _chrome.popup == PlayerPopup.queue &&
-                            party.inGroup,
+                        open: queuePanelOpen,
                         panel: PartyQueuePanel(
                           onClose: () =>
                               _chrome.closePopup(PlayerPopup.queue),

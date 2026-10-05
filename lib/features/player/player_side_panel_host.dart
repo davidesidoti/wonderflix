@@ -31,6 +31,14 @@ class PlayerSidePanelHost extends StatefulWidget {
   static const defaultWidth = 360.0;
   static const defaultMaxWidthFraction = 0.35;
 
+  /// Larghezza del pannello in uno spazio largo [available]. La usa l'host,
+  /// e chi deve lasciargli posto (la pillola del player): i due conti non
+  /// possono divergere.
+  static double widthFor(double available,
+          {double width = defaultWidth,
+          double maxWidthFraction = defaultMaxWidthFraction}) =>
+      math.min(width, available * maxWidthFraction);
+
   @override
   State<PlayerSidePanelHost> createState() => _PlayerSidePanelHostState();
 }
@@ -83,8 +91,8 @@ class _PlayerSidePanelHostState extends State<PlayerSidePanelHost>
     // è la finestra intera), non su `MediaQuery`.
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = math.min(
-            widget.width, constraints.maxWidth * widget.maxWidthFraction);
+        final width = PlayerSidePanelHost.widthFor(constraints.maxWidth,
+            width: widget.width, maxWidthFraction: widget.maxWidthFraction);
         return AnimatedBuilder(
           animation: _progress,
           builder: (context, _) {
