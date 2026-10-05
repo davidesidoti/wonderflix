@@ -243,6 +243,50 @@ void main() {
     expect(state.loading, isFalse);
   });
 
+  test('con una riga in corso di Approva, la pagina dopo parte una riga prima',
+      () async {
+    api.lists[RequestsFilter.pending] = requests(25);
+    final container = makeContainer();
+    await pumpEventQueue();
+    final controller =
+        container.read(requestsListControllerProvider(pending).notifier);
+
+    // Il server non ha ancora tolto la richiesta 1: la pagina si sovrappone
+    // di una riga, e il doppione sparisce.
+    final gate = api.actionGate = Completer<void>();
+    final action = controller.approve(1, ApproveChoice.defaults);
+    await controller.loadMore();
+    expect(api.calls, contains('list:pending:19:20'));
+    expect(container.read(requestsListControllerProvider(pending)).items.map((r) => r.id),
+        [for (var i = 1; i <= 25; i++) i]);
+    gate.complete();
+    await action;
+
+    expect(container.read(requestsListControllerProvider(pending)).items.map((r) => r.id),
+        [for (var i = 2; i <= 25; i++) i]);
+  });
+
+  test('con la richiesta già tolta dal server, la pagina dopo non salta righe',
+      () async {
+    api.lists[RequestsFilter.pending] = requests(25);
+    final container = makeContainer();
+    await pumpEventQueue();
+    final controller =
+        container.read(requestsListControllerProvider(pending).notifier);
+
+    // Il server ha già tolto la richiesta 1, ma la risposta non è arrivata.
+    final gate = api.actionGate = Completer<void>();
+    final action = controller.approve(1, ApproveChoice.defaults);
+    api.lists[RequestsFilter.pending] = requests(25).skip(1).toList();
+    await controller.loadMore();
+    expect(api.calls, contains('list:pending:19:20'));
+    gate.complete();
+    await action;
+
+    expect(container.read(requestsListControllerProvider(pending)).items.map((r) => r.id),
+        [for (var i = 2; i <= 25; i++) i]);
+  });
+
   test('una riga già mostrata non si ripete nella pagina dopo', () async {
     api.lists[RequestsFilter.mine] = requests(25);
     final container = makeContainer();

@@ -112,8 +112,13 @@ class RequestsListController extends Notifier<RequestsListState> {
     final generation = ++_generation;
     // Le righe mostrate sono quelle che il server ha dato e non ha ancora
     // tolto (Approva e Rifiuta le tolgono da tutte e due le parti): la pagina
-    // dopo parte da lì.
-    final skip = reset ? 0 : state.items.length;
+    // dopo parte da lì. Una riga con Approva o Rifiuta in viaggio non si
+    // conta: se il server l'ha già tolta, l'offset è giusto; se no, la pagina
+    // si sovrappone di una riga e il doppione sparisce.
+    final skip = reset
+        ? 0
+        : state.items.length -
+            state.items.where((r) => state.busy.contains(r.id)).length;
     state = state.copyWith(loading: true, clearError: true);
     try {
       final page = await ref.read(requestsApiProvider).list(listKey.filter,

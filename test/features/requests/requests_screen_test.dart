@@ -240,4 +240,20 @@ void main() {
     expect(api.calls, contains('list:mine:20:20'));
     expect(find.text('Titolo 25 (2024)'), findsOneWidget);
   });
+
+  testWidgets('se un ricaricamento accorcia l\'elenco, carica ancora le altre',
+      (tester) async {
+    api.lists[RequestsFilter.mine] = [
+      for (var i = 1; i <= 25; i++) testMediaRequest(id: i, title: 'Titolo $i'),
+    ];
+    await pumpScreen(tester, surfaceSize: const Size(1440, 4000));
+    expect(api.calls.where((c) => c == 'list:mine:20:20'), hasLength(1));
+
+    // L'elenco torna a venti righe, che ancora non riempiono la finestra.
+    events.add(const InboxChangedEvent());
+    await tester.pumpAndSettle();
+
+    expect(api.calls.where((c) => c == 'list:mine:20:20'), hasLength(2));
+    expect(find.text('Titolo 25 (2024)'), findsOneWidget);
+  });
 }

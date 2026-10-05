@@ -164,6 +164,10 @@ class _RequestsListState extends ConsumerState<_RequestsList> {
   /// un ciclo infinito se il server risponde con pagine vuote.
   int _autoLoadedAt = -1;
 
+  /// Le righe all'ultimo controllo: se l'elenco si accorcia (un
+  /// ricaricamento, una riga tolta) il caricamento automatico può ripartire.
+  int _lastLength = 0;
+
   @override
   void initState() {
     super.initState();
@@ -201,7 +205,10 @@ class _RequestsListState extends ConsumerState<_RequestsList> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final current = ref.read(provider);
-      if (current.items.isEmpty) _autoLoadedAt = -1; // elenco ripartito
+      // Un elenco più corto di prima è ripartito: una pagina vuota, invece,
+      // lascia la lunghezza com'è e il ciclo resta fermo.
+      if (current.items.length < _lastLength) _autoLoadedAt = -1;
+      _lastLength = current.items.length;
       if (!_scroll.hasClients) return;
       if (_scroll.position.maxScrollExtent == 0 &&
           current.hasMore &&
@@ -209,7 +216,7 @@ class _RequestsListState extends ConsumerState<_RequestsList> {
           current.error == null &&
           current.items.length != _autoLoadedAt) {
         _autoLoadedAt = current.items.length;
-        unawaited(controller.loadMore());
+        unawaited(ref.read(provider.notifier).loadMore());
       }
     });
 
