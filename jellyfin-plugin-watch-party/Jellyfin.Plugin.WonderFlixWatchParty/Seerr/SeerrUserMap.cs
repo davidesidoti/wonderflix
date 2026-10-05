@@ -14,8 +14,16 @@ public sealed class SeerrUserMap(ISeerrClient seerr, TimeProvider time, ILogger<
     public static readonly TimeSpan CacheFor = TimeSpan.FromMinutes(10);
 
     private readonly SemaphoreSlim _gate = new(1, 1);
+
+    // Un import alla volta: due prime richieste dello stesso utente non
+    // creano l'account due volte.
+    private readonly SemaphoreSlim _import = new(1, 1);
     private Snapshot<IReadOnlyList<SeerrUser>>? _users;
     private Snapshot<int>? _defaultPermissions;
+
+    // Cresce a ogni Invalidate: una lettura iniziata prima non rimette in
+    // cache dati ormai vecchi.
+    private int _generation;
 
     /// <summary>L'utente Seerr dell'utente Jellyfin; null se non ha un account.</summary>
     public async Task<SeerrUser?> FindAsync(Guid jellyfinUserId, CancellationToken cancellationToken) =>
@@ -34,26 +42,41 @@ public sealed class SeerrUserMap(ISeerrClient seerr, TimeProvider time, ILogger<
             return user;
         }
 
+        await _import.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await seerr.ImportJellyfinUserAsync(jellyfinUserId, cancellationToken).ConfigureAwait(false);
-        }
-        catch (SeerrException ex) when (ex.Error is not (SeerrError.Unavailable or SeerrError.NotConfigured))
-        {
-            logger.LogWarning("Account Seerr non creato per l'utente {UserId}: {Error}", jellyfinUserId, ex.Error);
-            throw new SeerrException(SeerrError.AccountUnavailable, ex);
-        }
+            // Un'altra richiesta può aver creato l'account mentre aspettavo.
+            user = await FindAsync(jellyfinUserId, cancellationToken).ConfigureAwait(false);
+            if (user is not null)
+            {
+                return user;
+            }
 
-        Invalidate();
-        user = await FindAsync(jellyfinUserId, cancellationToken).ConfigureAwait(false);
-        if (user is null)
-        {
-            logger.LogWarning("Import in Seerr senza account per l'utente {UserId}", jellyfinUserId);
-            throw new SeerrException(SeerrError.AccountUnavailable);
-        }
+            try
+            {
+                await seerr.ImportJellyfinUserAsync(jellyfinUserId, cancellationToken).ConfigureAwait(false);
+            }
+            catch (SeerrException ex) when (ex.Error is not (SeerrError.Unavailable or SeerrError.NotConfigured))
+            {
+                logger.LogWarning("Account Seerr non creato per l'utente {UserId}: {Error}", jellyfinUserId, ex.Error);
+                throw new SeerrException(SeerrError.AccountUnavailable, ex);
+            }
 
-        logger.LogInformation("Account Seerr {SeerrId} creato per l'utente {UserId}", user.Id, jellyfinUserId);
-        return user;
+            Invalidate();
+            user = await FindAsync(jellyfinUserId, cancellationToken).ConfigureAwait(false);
+            if (user is null)
+            {
+                logger.LogWarning("Import in Seerr senza account per l'utente {UserId}", jellyfinUserId);
+                throw new SeerrException(SeerrError.AccountUnavailable);
+            }
+
+            logger.LogInformation("Account Seerr {SeerrId} creato per l'utente {UserId}", user.Id, jellyfinUserId);
+            return user;
+        }
+        finally
+        {
+            _import.Release();
+        }
     }
 
     /// <summary>Gli id Jellyfin di chi può approvare: account Seerr con ADMIN o MANAGE_REQUESTS.</summary>
@@ -74,7 +97,11 @@ public sealed class SeerrUserMap(ISeerrClient seerr, TimeProvider time, ILogger<
             cancellationToken);
 
     /// <summary>La prossima lettura chiede di nuovo gli utenti a Seerr (dopo un import).</summary>
-    public void Invalidate() => _users = null;
+    public void Invalidate()
+    {
+        Interlocked.Increment(ref _generation);
+        _users = null;
+    }
 
     internal static SeerrUser? Match(IEnumerable<SeerrUser> users, Guid jellyfinUserId) =>
         users.Where(u => SeerrMapping.ParseGuid(u.JellyfinUserId) == jellyfinUserId).MinBy(u => u.Id);
@@ -103,8 +130,16 @@ public sealed class SeerrUserMap(ISeerrClient seerr, TimeProvider time, ILogger<
                 return again.Value;
             }
 
+            var generation = Volatile.Read(ref _generation);
             var value = await load(cancellationToken).ConfigureAwait(false);
-            write(new Snapshot<T>(value, time.GetUtcNow()));
+
+            // Se nel frattempo c'è stato un Invalidate, il valore letto è
+            // vecchio: lo restituisco ma non lo tengo in cache.
+            if (Volatile.Read(ref _generation) == generation)
+            {
+                write(new Snapshot<T>(value, time.GetUtcNow()));
+            }
+
             return value;
         }
         finally

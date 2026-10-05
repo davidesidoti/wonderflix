@@ -49,6 +49,12 @@ internal sealed class FakeSeerrClient : ISeerrClient
     /// <summary>L'utente che l'import crea per un id Jellyfin; null = l'import riesce ma non crea nessuno.</summary>
     public Func<Guid, SeerrUser?> OnImport { get; set; } = _ => null;
 
+    /// <summary>Se impostato, <see cref="ImportJellyfinUserAsync"/> aspetta che finisca prima di creare l'utente.</summary>
+    public Task? ImportGate { get; set; }
+
+    /// <summary>Se impostato, <see cref="GetUsersAsync"/> aspetta che finisca prima di rispondere.</summary>
+    public Task? UsersGate { get; set; }
+
     /// <summary>La risposta a una nuova richiesta.</summary>
     public Func<int, SeerrCreateRequest, SeerrRequest> OnCreate { get; set; } =
         (_, body) => new SeerrRequest { Id = 100, Status = SeerrCodes.RequestPending, Type = body.MediaType };
@@ -65,21 +71,29 @@ internal sealed class FakeSeerrClient : ISeerrClient
         return Task.FromResult(new SeerrUser { Id = 1, Permissions = SeerrPermissions.Admin });
     }
 
-    public Task<IReadOnlyList<SeerrUser>> GetUsersAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<SeerrUser>> GetUsersAsync(CancellationToken cancellationToken)
     {
         Call("GetUsers");
-        return Task.FromResult<IReadOnlyList<SeerrUser>>(Users.ToList());
+        if (UsersGate is { } gate)
+        {
+            await gate.ConfigureAwait(false);
+        }
+
+        return Users.ToList();
     }
 
-    public Task ImportJellyfinUserAsync(Guid jellyfinUserId, CancellationToken cancellationToken)
+    public async Task ImportJellyfinUserAsync(Guid jellyfinUserId, CancellationToken cancellationToken)
     {
         Call("Import");
+        if (ImportGate is { } gate)
+        {
+            await gate.ConfigureAwait(false);
+        }
+
         if (OnImport(jellyfinUserId) is { } user)
         {
             Users.Add(user);
         }
-
-        return Task.CompletedTask;
     }
 
     public Task<SeerrMainSettings> GetMainSettingsAsync(CancellationToken cancellationToken)

@@ -55,6 +55,41 @@ public class SeerrUserMapTests
     }
 
     [Fact]
+    public async Task TwoFirstRequestsOfTheSameUserImportOnlyOnce()
+    {
+        _seerr.OnImport = id => new SeerrUser { Id = 30, Permissions = 32, JellyfinUserId = id.ToString("N") };
+        var gate = new TaskCompletionSource();
+        _seerr.ImportGate = gate.Task;
+        var map = Map();
+
+        var first = map.EnsureAsync(Mario, Ct);
+        var second = map.EnsureAsync(Mario, Ct);
+        await Task.Delay(50);
+        gate.SetResult();
+
+        Assert.Equal(30, (await first).Id);
+        Assert.Equal(30, (await second).Id);
+        Assert.Single(_seerr.Calls, "Import");
+    }
+
+    [Fact]
+    public async Task AnInvalidateWhileTheUsersAreBeingReadIsNotUndone()
+    {
+        var gate = new TaskCompletionSource();
+        _seerr.UsersGate = gate.Task;
+        var map = Map();
+
+        var pending = map.FindAsync(Mario, Ct);
+        await Task.Delay(50);
+        map.Invalidate();
+        gate.SetResult();
+        await pending;
+        await map.FindAsync(Mario, Ct);
+
+        Assert.Equal(2, _seerr.Calls.Count(c => c == "GetUsers"));
+    }
+
+    [Fact]
     public async Task AnImportThatCreatesNobodyOrIsRefusedMeansAccountUnavailable()
     {
         var map = Map();
