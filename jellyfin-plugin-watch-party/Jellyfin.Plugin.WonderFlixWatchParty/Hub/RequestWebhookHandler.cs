@@ -31,6 +31,12 @@ public sealed class RequestWebhookHandler(
     /// <summary>Corpo massimo del webhook.</summary>
     public const long MaxBodyBytes = 64 * 1024;
 
+    /// <summary>Caratteri al massimo del titolo che si tiene nella cassetta; il resto si taglia.</summary>
+    public const int MaxTitleLength = 200;
+
+    /// <summary>Caratteri al massimo del nome di chi ha chiesto che si tiene nella cassetta; il resto si taglia.</summary>
+    public const int MaxNameLength = 100;
+
     /// <summary>Al massimo una riga nel registro per i segreti sbagliati in questo intervallo.</summary>
     public static readonly TimeSpan RejectedLogEvery = TimeSpan.FromMinutes(1);
 
@@ -116,7 +122,7 @@ public sealed class RequestWebhookHandler(
             requestId,
             mediaType,
             tmdbId,
-            payload.Subject.Trim(),
+            Truncate(payload.Subject.Trim(), MaxTitleLength),
             mediaType == RequestMediaTypes.Tv ? ParseSeasons(payload.Extra) : null,
             SeerrMapping.JellyfinId(payload.MediaJellyfinMediaId));
     }
@@ -140,14 +146,25 @@ public sealed class RequestWebhookHandler(
         return seasons.Count == 0 ? null : seasons;
     }
 
+    /// <summary>Il testo tagliato a <paramref name="maxLength"/> caratteri, senza spezzare una coppia surrogata.</summary>
+    internal static string Truncate(string text, int maxLength)
+    {
+        if (text.Length <= maxLength)
+        {
+            return text;
+        }
+
+        return char.IsHighSurrogate(text[maxLength - 1]) ? text[..(maxLength - 1)] : text[..maxLength];
+    }
+
     private async Task AvailableAsync(SeerrWebhookPayload payload)
     {
         var request = Parse(payload);
         var requester = SeerrMapping.ParseGuid(payload.RequestedByJellyfinUserId);
-        if (request is null || requester is not { } userId || users.GetUser(userId) is null)
+        if (request is null || requester is not { } userId || users.GetUser(userId) is not { Enabled: true })
         {
             logger.LogInformation(
-                "Webhook di Seerr {Type} scartato: dati mancanti o utente sconosciuto", payload.NotificationType);
+                "Webhook di Seerr {Type} scartato: dati mancanti, utente sconosciuto o disattivato", payload.NotificationType);
             return;
         }
 
@@ -178,8 +195,8 @@ public sealed class RequestWebhookHandler(
         var recipients = managers
             .Where(id => id != requester && users.GetUser(id) is { Enabled: true })
             .ToList();
-        await inbox.AddRequestPendingAsync(recipients, request, payload.RequestedByUsername?.Trim() ?? string.Empty)
-            .ConfigureAwait(false);
+        var requesterName = Truncate(payload.RequestedByUsername?.Trim() ?? string.Empty, MaxNameLength);
+        await inbox.AddRequestPendingAsync(recipients, request, requesterName).ConfigureAwait(false);
     }
 
     private void LogRejected()

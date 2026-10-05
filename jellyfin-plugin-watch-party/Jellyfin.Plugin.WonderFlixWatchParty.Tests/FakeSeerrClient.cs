@@ -191,7 +191,9 @@ internal sealed class FakeSeerrClient : ISeerrClient
     public Task<SeerrServerDetails> GetServerDetailsAsync(string service, int serverId, CancellationToken cancellationToken)
     {
         Call("GetServerDetails");
-        return Task.FromResult(ServerDetails[(service, serverId)]);
+        return ServerDetails.TryGetValue((service, serverId), out var details)
+            ? Task.FromResult(details)
+            : throw new SeerrException(SeerrError.Unavailable);
     }
 
     // Conta le chiamate di titolo in corso (e il massimo raggiunto) mentre

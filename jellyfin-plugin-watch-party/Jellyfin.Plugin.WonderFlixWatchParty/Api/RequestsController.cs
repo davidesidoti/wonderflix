@@ -140,6 +140,13 @@ public class RequestsController(
         }
 
         var userId = (await authorizationContext.GetAuthorizationInfo(HttpContext).ConfigureAwait(false)).UserId;
+
+        // Una chiave API di Jellyfin è autenticata ma senza utente: non ha un account Seerr.
+        if (userId == Guid.Empty)
+        {
+            return Error(SeerrError.NoPermission);
+        }
+
         try
         {
             // Costruito a mano: ActionResult<T> non converte da un tipo interfaccia.

@@ -207,6 +207,24 @@ public class RequestsServiceTests
     }
 
     [Fact]
+    public async Task ASeriesRequestAsksForAtMostAHundredSeasons()
+    {
+        var tooMany = new CreateRequestBody
+        {
+            MediaType = "tv", TmdbId = 1, Seasons = Enumerable.Range(1, RequestsService.MaxSeasons + 1).ToList(),
+        };
+        Assert.Equal(SeerrError.BadRequest, await ErrorOf(() => _service.CreateAsync(Mario, tooMany, Ct)));
+        Assert.Empty(_seerr.Calls);
+
+        var limit = new CreateRequestBody
+        {
+            MediaType = "tv", TmdbId = 1, Seasons = Enumerable.Range(1, RequestsService.MaxSeasons).ToList(),
+        };
+        await _service.CreateAsync(Mario, limit, Ct);
+        Assert.Equal(RequestsService.MaxSeasons, Assert.Single(_seerr.Created).Body.Seasons!.Count);
+    }
+
+    [Fact]
     public async Task MineUsesRequestedByAndCompletesTheTitles()
     {
         _seerr.Movies[841] = new SeerrMovie { Title = "Dune", ReleaseDate = "1984-12-14", PosterPath = "/d.jpg" };
@@ -290,6 +308,25 @@ public class RequestsServiceTests
         Assert.Equal("/media/anime", services[1].DefaultRootFolder);
         Assert.Equal(SeerrError.NoPermission, await ErrorOf(() => _service.ServicesAsync(Mario, "movie", Ct)));
         Assert.Equal(SeerrError.BadRequest, await ErrorOf(() => _service.ServicesAsync(Davide, "music", Ct)));
+    }
+
+    [Fact]
+    public async Task ABrokenServerIsSkippedAndTheOthersStay()
+    {
+        _seerr.Servers[SeerrServices.Sonarr] =
+        [
+            new() { Id = 0, Name = "Sonarr", IsDefault = true, ActiveProfileId = 4, ActiveDirectory = "/media/tv" },
+            new() { Id = 1, Name = "Sonarr rotto" },
+        ];
+        _seerr.ServerDetails[(SeerrServices.Sonarr, 0)] = new SeerrServerDetails
+        {
+            Profiles = [new() { Id = 4, Name = "HD" }],
+            RootFolders = [new() { Path = "/media/tv" }],
+        };
+
+        var services = await _service.ServicesAsync(Davide, "tv", Ct);
+
+        Assert.Equal("Sonarr", Assert.Single(services).Name);
     }
 
     [Fact]

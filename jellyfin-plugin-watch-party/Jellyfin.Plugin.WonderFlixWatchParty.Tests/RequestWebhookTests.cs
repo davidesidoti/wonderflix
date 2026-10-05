@@ -92,6 +92,36 @@ public sealed class RequestWebhookTests : IDisposable
     }
 
     [Fact]
+    public async Task AvailableIsNotForADisabledRequester()
+    {
+        var off = _server.AddUser("Spento", enabled: false);
+        var payload = Payload("MEDIA_AVAILABLE");
+        payload.RequestedByJellyfinUserId = off.Id.ToString("N");
+
+        Assert.Equal(WebhookResult.Accepted, await _handler.HandleAsync(payload, Ct));
+
+        Assert.Empty(_inbox.Get(off.Id).Entries);
+    }
+
+    [Fact]
+    public async Task TitleAndRequesterNameAreCutToTheirLimits()
+    {
+        var available = Payload("MEDIA_AVAILABLE");
+        available.Subject = new string('t', 300);
+        var pending = Payload("MEDIA_PENDING");
+        pending.Subject = new string('t', 300);
+        pending.RequestedByUsername = new string('n', 150);
+
+        await _handler.HandleAsync(available, Ct);
+        await _handler.HandleAsync(pending, Ct);
+
+        Assert.Equal(RequestWebhookHandler.MaxTitleLength, Assert.Single(_inbox.Get(_mario.Id).Entries).Title!.Length);
+        var entry = Assert.Single(_inbox.Get(_davide.Id).Entries);
+        Assert.Equal(RequestWebhookHandler.MaxNameLength, entry.RequesterName!.Length);
+        Assert.Equal(RequestWebhookHandler.MaxTitleLength, entry.Title!.Length);
+    }
+
+    [Fact]
     public async Task AvailableForASeriesKeepsTheSeasonsAndARepeatReplacesTheEntry()
     {
         var payload = Payload("MEDIA_AVAILABLE");

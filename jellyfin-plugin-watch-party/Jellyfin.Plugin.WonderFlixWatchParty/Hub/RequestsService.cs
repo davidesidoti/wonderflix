@@ -16,6 +16,9 @@ public sealed class RequestsService(ISeerrClient seerr, SeerrUserMap users, Seer
     /// <summary>Lunghezza massima di una ricerca.</summary>
     public const int MaxQueryLength = 100;
 
+    /// <summary>Stagioni al massimo in una richiesta di serie (nessuna serie ne ha di più).</summary>
+    public const int MaxSeasons = 100;
+
     public const string FilterMine = "mine";
     public const string FilterPending = "pending";
     public const string FilterAll = "all";
@@ -141,7 +144,7 @@ public sealed class RequestsService(ISeerrClient seerr, SeerrUserMap users, Seer
         if (mediaType == RequestMediaTypes.Tv)
         {
             seasons = body.Seasons?.Distinct().Order().ToList() ?? [];
-            if (seasons.Count == 0 || seasons.Any(s => s <= 0))
+            if (seasons.Count == 0 || seasons.Count > MaxSeasons || seasons.Any(s => s <= 0))
             {
                 throw BadRequest();
             }
@@ -201,17 +204,22 @@ public sealed class RequestsService(ISeerrClient seerr, SeerrUserMap users, Seer
         var servers = (await seerr.GetServersAsync(service, cancellationToken).ConfigureAwait(false))
             .Where(s => !s.Is4k)
             .ToList();
-        var details = await Task.WhenAll(servers.Select(s => seerr.GetServerDetailsAsync(service, s.Id, cancellationToken)))
+        var details = await Task.WhenAll(servers.Select(s => DetailsOrNullAsync(service, s.Id, cancellationToken)))
             .ConfigureAwait(false);
+
+        // Un server che Seerr non riesce a leggere si salta: gli altri restano.
         return servers
-            .Zip(details, (server, detail) => new ServiceDto(
-                server.Id,
-                server.Name ?? string.Empty,
-                server.IsDefault,
-                detail.Profiles.Select(p => new ProfileDto(p.Id, p.Name ?? string.Empty)).ToList(),
-                detail.RootFolders.Select(f => f.Path).OfType<string>().ToList(),
-                server.ActiveProfileId,
-                server.ActiveDirectory))
+            .Zip(details, (server, detail) => detail is null
+                ? null
+                : new ServiceDto(
+                    server.Id,
+                    server.Name ?? string.Empty,
+                    server.IsDefault,
+                    detail.Profiles.Select(p => new ProfileDto(p.Id, p.Name ?? string.Empty)).ToList(),
+                    detail.RootFolders.Select(f => f.Path).OfType<string>().ToList(),
+                    server.ActiveProfileId,
+                    server.ActiveDirectory))
+            .OfType<ServiceDto>()
             .ToList();
     }
 
@@ -265,6 +273,19 @@ public sealed class RequestsService(ISeerrClient seerr, SeerrUserMap users, Seer
         var declined = await seerr.SetRequestStatusAsync(manager.Id, requestId, approve: false, cancellationToken)
             .ConfigureAwait(false);
         return await ToDtoAsync(declined, manager.Id, language, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<SeerrServerDetails?> DetailsOrNullAsync(
+        string service, int serverId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await seerr.GetServerDetailsAsync(service, serverId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (SeerrException)
+        {
+            return null;
+        }
     }
 
     private async Task<MediaRequestDto> ToDtoAsync(

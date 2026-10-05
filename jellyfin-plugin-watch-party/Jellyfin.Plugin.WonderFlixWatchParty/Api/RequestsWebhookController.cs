@@ -7,8 +7,10 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Api;
 
 /// <summary>
 /// Il webhook di Seerr (spec I §7.5): senza accesso Jellyfin, protetto dal
-/// segreto nel corpo. Solo 401 (segreto) o 200: mai altro, così Seerr non
-/// insiste con gli eventi che il plugin scarta.
+/// segreto nel corpo. Il plugin risponde solo 401 (segreto) o 200, così
+/// Seerr non insiste con gli eventi che il plugin scarta. Un corpo
+/// malformato, troppo grande o non JSON non arriva al plugin: lo rifiuta
+/// ASP.NET stesso con 400, 413 o 415.
 /// </summary>
 [ApiController]
 [Route("WonderFlixWatchParty/Requests")]

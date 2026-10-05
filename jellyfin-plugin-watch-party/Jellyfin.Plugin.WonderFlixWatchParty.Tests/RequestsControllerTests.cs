@@ -69,6 +69,22 @@ public sealed class RequestsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task ACallerWithoutAUserIsRefusedBeforeAnyCallToSeerr()
+    {
+        // Per esempio una chiave API di Jellyfin: autenticata ma senza utente.
+        var auth = new AuthorizationInfo { DeviceId = "d", Client = "WonderFlix", IsAuthenticated = true };
+        var controller = new RequestsController(new FakeAuthorizationContext(auth), _service, _settings, _seerr, _webhook)
+        {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
+        };
+
+        var me = await controller.Me();
+
+        Assert.Equal((403, "NoPermission"), (Status(me), Code(me)));
+        Assert.Empty(_seerr.Calls);
+    }
+
+    [Fact]
     public async Task WithoutSeerrEveryEndpointSaysNotConfigured()
     {
         _settings.Url = string.Empty;
