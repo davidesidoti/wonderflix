@@ -13,6 +13,14 @@ public class SeerrMappingTests
         Media = new SeerrRequestMedia { Status = mediaStatus },
     };
 
+    // Richiesta con le stagioni e lo stato di ognuna (codici delle richieste: 2 approvata, 5 arrivata).
+    private static SeerrRequest RequestWithSeasons(int status, int mediaStatus, params (int Number, int Status)[] seasons) => new()
+    {
+        Status = status,
+        Seasons = seasons.Select(s => new SeerrRequestSeason { SeasonNumber = s.Number, Status = s.Status }).ToList(),
+        Media = new SeerrRequestMedia { Status = mediaStatus },
+    };
+
     [Theory]
     [InlineData("2024-02-27", 2024)]
     [InlineData("2026", 2026)]
@@ -93,12 +101,30 @@ public class SeerrMappingTests
         Assert.Equal(RequestStatuses.Pending, SeerrMapping.RequestStatus(Request(SeerrCodes.RequestPending, SeerrCodes.MediaPartial)));
         Assert.Equal(RequestStatuses.Available, SeerrMapping.RequestStatus(Request(SeerrCodes.RequestCompleted, SeerrCodes.MediaPartial)));
         Assert.Equal(RequestStatuses.Available, SeerrMapping.RequestStatus(Request(SeerrCodes.RequestApproved, SeerrCodes.MediaAvailable)));
-        Assert.Equal(RequestStatuses.Partial, SeerrMapping.RequestStatus(Request(SeerrCodes.RequestApproved, SeerrCodes.MediaPartial)));
+
+        // La serie in parte disponibile non basta: conta cosa è arrivato di ciò che è stato chiesto.
+        Assert.Equal(RequestStatuses.Approved, SeerrMapping.RequestStatus(Request(SeerrCodes.RequestApproved, SeerrCodes.MediaPartial)));
         Assert.Equal(RequestStatuses.Approved, SeerrMapping.RequestStatus(Request(SeerrCodes.RequestApproved)));
+        Assert.Equal(
+            RequestStatuses.Partial,
+            SeerrMapping.RequestStatus(RequestWithSeasons(
+                SeerrCodes.RequestApproved,
+                SeerrCodes.MediaPartial,
+                (1, SeerrCodes.RequestCompleted),
+                (2, SeerrCodes.RequestApproved))));
 
         var downloading = Request(SeerrCodes.RequestApproved, SeerrCodes.MediaProcessing);
         downloading.Media!.DownloadStatus.Add(new SeerrDownload { Size = 1000, SizeLeft = 250 });
         Assert.Equal(RequestStatuses.Downloading, SeerrMapping.RequestStatus(downloading));
+
+        // Una stagione già arrivata e un download in corso: vince il download.
+        var partialAndDownloading = RequestWithSeasons(
+            SeerrCodes.RequestApproved,
+            SeerrCodes.MediaPartial,
+            (1, SeerrCodes.RequestCompleted),
+            (2, SeerrCodes.RequestApproved));
+        partialAndDownloading.Media!.DownloadStatus.Add(new SeerrDownload { Size = 1000, SizeLeft = 250 });
+        Assert.Equal(RequestStatuses.Downloading, SeerrMapping.RequestStatus(partialAndDownloading));
     }
 
     [Fact]

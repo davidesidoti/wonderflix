@@ -184,6 +184,9 @@ public sealed class SeerrRequestUser
 public sealed class SeerrRequestSeason
 {
     public int SeasonNumber { get; set; }
+
+    /// <summary>Stato della stagione nella richiesta, coi codici delle richieste (5 = arrivata).</summary>
+    public int Status { get; set; }
 }
 
 public sealed class SeerrRequestMedia

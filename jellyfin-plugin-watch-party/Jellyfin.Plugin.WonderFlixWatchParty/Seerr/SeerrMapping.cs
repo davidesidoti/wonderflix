@@ -73,9 +73,12 @@ public static class SeerrMapping
     }
 
     /// <summary>
-    /// Stato di una richiesta per l'app, nell'ordine: rifiutata, non
-    /// riuscita, in attesa, completata, titolo disponibile, titolo in parte,
-    /// download in corso, approvata (spec I §7.3 e decisione 1 del piano 15a).
+    /// Stato di una richiesta per l'app. Rifiutata, non riuscita, in attesa e
+    /// completata seguono il codice della richiesta. Se è approvata: titolo
+    /// disponibile, download in corso, almeno una stagione chiesta già arrivata
+    /// (in parte), altrimenti approvata. Lo stato dell'intera serie non decide
+    /// nulla: una serie in parte disponibile non dice se è arrivato ciò che è
+    /// stato chiesto (spec I §7.3 e decisione 1 del piano 15a).
     /// </summary>
     public static string RequestStatus(SeerrRequest request) => request.Status switch
     {
@@ -83,12 +86,10 @@ public static class SeerrMapping
         SeerrCodes.RequestFailed => RequestStatuses.Failed,
         SeerrCodes.RequestPending => RequestStatuses.Pending,
         SeerrCodes.RequestCompleted => RequestStatuses.Available,
-        _ => request.Media?.Status switch
-        {
-            SeerrCodes.MediaAvailable => RequestStatuses.Available,
-            SeerrCodes.MediaPartial => RequestStatuses.Partial,
-            _ => request.Media?.DownloadStatus.Count > 0 ? RequestStatuses.Downloading : RequestStatuses.Approved,
-        },
+        _ when request.Media?.Status == SeerrCodes.MediaAvailable => RequestStatuses.Available,
+        _ when request.Media?.DownloadStatus.Count > 0 => RequestStatuses.Downloading,
+        _ when request.Seasons.Any(s => s.Status == SeerrCodes.RequestCompleted) => RequestStatuses.Partial,
+        _ => RequestStatuses.Approved,
     };
 
     /// <summary>Avanzamento del primo download, da 0 a 1; null senza dimensione.</summary>
