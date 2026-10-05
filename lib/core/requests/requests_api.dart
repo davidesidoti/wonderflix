@@ -62,7 +62,8 @@ class RequestsApi {
   Future<RequestsMe> me() => _call(() async => RequestsMe.fromJson(
       asJsonMap(await _http.get('$_base/Me', quietStatuses: _quiet))));
 
-  /// Film e serie di Seerr per [query] (prima pagina).
+  /// Film e serie di Seerr per [query] (prima pagina). Le righe di un altro
+  /// tipo (persone, tipi nuovi) si saltano.
   Future<List<RequestableTitle>> search(String query,
           {required String language, CancelToken? cancelToken}) =>
       _call(() async {
@@ -72,7 +73,8 @@ class RequestsApi {
             quietStatuses: _quiet);
         return [
           for (final raw in json as List)
-            RequestableTitle.fromJson(raw as Map<String, dynamic>),
+            if (!isUnknownMediaTypeRow(raw))
+              RequestableTitle.fromJson(raw as Map<String, dynamic>),
         ];
       });
 

@@ -70,9 +70,9 @@ class SocialFeatures {
 /// il WebSocket si connette il server è raggiungibile e ha una seconda
 /// possibilità. Senza utente o senza plugin: nessuna funzione, e l'app si
 /// comporta come la 0.5.1. Senza accesso ai watch party `Info` si chiede lo
-/// stesso (la cassetta delle notifiche vale per tutti, spec G §7.2), ma amici
-/// e party restano spenti. Dal login alla prima risposta certa le funzioni
-/// sono [SocialFeatures.unknown].
+/// stesso (la cassetta delle notifiche vale per tutti, spec G §7.2, e così le
+/// richieste con Seerr, spec I §8.2), ma amici e party restano spenti. Dal
+/// login alla prima risposta certa le funzioni sono [SocialFeatures.unknown].
 ///
 /// Un errore di rete (anche timeout, errore del server, risposta di forma
 /// inattesa, troppe richieste) non dice nulla del plugin: le funzioni

@@ -50,6 +50,7 @@ enum RequestStatus {
   static RequestStatus parse(Object? raw) => switch (raw) {
         'Pending' => pending,
         'Downloading' => downloading,
+        'Approved' => approved,
         'Partial' => partial,
         'Available' => available,
         'Declined' => declined,
@@ -312,7 +313,8 @@ class RequestPage {
   factory RequestPage.fromJson(Map<String, dynamic> json) => RequestPage(
         items: [
           for (final item in json['Items'] as List? ?? const [])
-            MediaRequest.fromJson(item as Map<String, dynamic>),
+            if (!isUnknownMediaTypeRow(item))
+              MediaRequest.fromJson(item as Map<String, dynamic>),
         ],
         hasMore: json['HasMore'] == true,
       );
@@ -386,6 +388,13 @@ class ApproveChoice {
         'RootFolder': ?rootFolder,
       };
 }
+
+/// Una riga grezza con un `MediaType` che l'app non conosce (una persona, o un
+/// tipo di una versione futura del plugin): negli elenchi si salta, invece di
+/// far fallire tutto. Una riga che non è un oggetto non conta: fallisce come
+/// prima.
+bool isUnknownMediaTypeRow(Object? raw) =>
+    raw is Map && RequestMediaType.tryParse(raw['MediaType']) == null;
 
 RequestMediaType _mediaType(Object? raw) =>
     RequestMediaType.tryParse(raw) ?? (throw FormatException('MediaType: $raw'));

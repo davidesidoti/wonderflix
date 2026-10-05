@@ -25,10 +25,13 @@ void main() {
           const RequestsMe(canRequest: true, canManage: true, hasAccount: true);
     final off = ProviderContainer.test(
         overrides: requestsTestOverrides(api, available: false));
+    // Provider autoDispose: senza un ascoltatore si butterebbe via a metà.
+    off.listen(requestsMeProvider, (_, _) {});
     expect((await off.read(requestsMeProvider.future)).canRequest, isFalse);
     expect(api.calls, isEmpty);
 
     final on = ProviderContainer.test(overrides: requestsTestOverrides(api));
+    on.listen(requestsMeProvider, (_, _) {});
     expect((await on.read(requestsMeProvider.future)).canManage, isTrue);
     expect(api.calls, ['me']);
   });

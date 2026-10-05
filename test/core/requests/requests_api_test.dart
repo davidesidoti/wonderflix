@@ -123,6 +123,53 @@ void main() {
         throwsA(isA<RequestsException>().having((e) => e.failure, 'failure', RequestsFailure.network)));
   });
 
+  test('una risposta di forma inattesa è un errore di rete', () async {
+    // La ricerca risponde 200 ma non con un elenco.
+    adapter.handler = (_) => const FakeResponse(200, {});
+    await expectLater(
+        api.search('dune', language: 'it'),
+        throwsA(isA<RequestsException>()
+            .having((e) => e.failure, 'failure', RequestsFailure.network)));
+
+    // Una richiesta dell'elenco senza `CreatedAt`.
+    adapter.handler = (_) => const FakeResponse(200, {
+          'Items': [
+            {
+              'Id': 53,
+              'MediaType': 'movie',
+              'TmdbId': 841,
+              'Title': 'Dune',
+              'Seasons': [],
+              'RequestedBy': {'Name': 'mario', 'IsMe': false},
+              'Status': 'Approved',
+            },
+          ],
+          'HasMore': false,
+        });
+    await expectLater(
+        api.list(RequestsFilter.all, skip: 0, take: 20, language: 'it'),
+        throwsA(isA<RequestsException>()
+            .having((e) => e.failure, 'failure', RequestsFailure.network)));
+  });
+
+  test('la ricerca salta i tipi sconosciuti', () async {
+    adapter.handler = (_) => const FakeResponse(200, [
+          {'MediaType': 'person', 'Id': 12, 'Name': 'Timothée Chalamet'},
+          {'MediaType': 'movie', 'TmdbId': 841, 'Title': 'Dune', 'Status': 'None'},
+        ]);
+    final titles = await api.search('dune', language: 'it');
+    expect(titles.map((t) => t.tmdbId), [841]);
+
+    // Un tipo noto ma malformato fa ancora fallire la ricerca.
+    adapter.handler = (_) => const FakeResponse(200, [
+          {'MediaType': 'movie', 'Title': 'Dune'},
+        ]);
+    await expectLater(
+        api.search('dune', language: 'it'),
+        throwsA(isA<RequestsException>()
+            .having((e) => e.failure, 'failure', RequestsFailure.network)));
+  });
+
   test('una ricerca annullata resta annullata', () async {
     final cancel = CancelToken()..cancel();
     await expectLater(api.search('dune', language: 'it', cancelToken: cancel),

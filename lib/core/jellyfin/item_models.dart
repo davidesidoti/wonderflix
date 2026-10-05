@@ -339,8 +339,10 @@ class JellyfinItem {
   /// Anteprime per la barra di avanzamento: sorgente → larghezza → info.
   final Map<String, Map<int, TrickplayInfo>> trickplay;
 
-  /// Id TMDB dai `ProviderIds`, se c'è (spec I §8.1): serve alle richieste
-  /// con Seerr. `GET /Items/{id}` lo dà sempre; gli elenchi solo se chiesto.
+  /// Id TMDB dell'elemento stesso, dai `ProviderIds`, se c'è (spec I §8.1):
+  /// ha senso per film e serie, non è quello della serie di un episodio o di
+  /// una stagione. Serve alle richieste con Seerr. `GET /Items/{id}` lo dà
+  /// sempre; gli elenchi solo se chiesto.
   final int? tmdbId;
 
   Duration? get runtime {

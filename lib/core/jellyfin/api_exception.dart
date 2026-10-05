@@ -15,6 +15,7 @@ final class ForbiddenException extends ApiException {
   const ForbiddenException([this.body]);
 
   /// Corpo della risposta, se c'era (es. `{Code}` del plugin, spec I §7.3).
+  /// Mai in `toString` né nei log: può contenere la risposta del server.
   final Object? body;
 }
 
@@ -35,6 +36,7 @@ final class ServerErrorException extends ApiException {
   final int? statusCode;
 
   /// Corpo della risposta, se c'era (es. `{Code}` del plugin, spec I §7.3).
+  /// Mai in `toString` né nei log: può contenere la risposta del server.
   final Object? body;
 
   @override

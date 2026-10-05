@@ -134,6 +134,32 @@ void main() {
         {'ServerId': 1, 'ProfileId': 7, 'RootFolder': '/media/anime'});
   });
 
+  test('una pagina salta le richieste di tipo sconosciuto', () {
+    Map<String, Object?> item(int id, String type) => {
+          'Id': id,
+          'MediaType': type,
+          'TmdbId': 841,
+          'Title': 'Dune',
+          'Seasons': [],
+          'RequestedBy': {'Name': 'mario', 'IsMe': false},
+          'CreatedAt': '2026-10-03T20:31:16+00:00',
+          'Status': 'Pending',
+        };
+    final page = RequestPage.fromJson({
+      'Items': [item(1, 'movie'), item(2, 'music'), item(3, 'tv')],
+      'HasMore': false,
+    });
+    expect(page.items.map((r) => r.id), [1, 3]);
+
+    // Le due letture rigorose continuano a rifiutare un tipo sconosciuto.
+    expect(() => MediaRequest.fromJson(item(2, 'music')),
+        throwsA(isA<FormatException>()));
+    expect(
+        () => RequestableTitle.fromJson(
+            {'MediaType': 'person', 'TmdbId': 1, 'Title': 'x'}),
+        throwsA(isA<FormatException>()));
+  });
+
   test('immagini TMDB', () {
     expect(TmdbImages.poster('/p.jpg')!.url, 'https://image.tmdb.org/t/p/w342/p.jpg');
     expect(TmdbImages.backdrop('/b.jpg')!.url,
