@@ -15,12 +15,12 @@ import 'requests_providers.dart';
 /// che la ricerca nella libreria non ha trovato. Senza la funzione, o senza
 /// titoli da mostrare, non c'è.
 class RequestablesSection extends ConsumerWidget {
-  const RequestablesSection({super.key, required this.libraryIds});
+  const RequestablesSection({super.key, required this.library});
 
-  /// Id dei risultati della libreria per il termine di adesso, in
-  /// minuscolo; `null` mentre la ricerca nella libreria è in corso (la
-  /// sezione aspetta, per non mostrare doppioni).
-  final Set<String>? libraryIds;
+  /// Cosa hanno trovato i risultati della libreria per il termine di adesso;
+  /// `null` mentre la ricerca nella libreria è in corso (la sezione aspetta,
+  /// per non mostrare doppioni).
+  final LibraryMatches? library;
 
   /// Larghezza delle card, come quelle della libreria.
   static const cardWidth = 150.0;
@@ -33,7 +33,7 @@ class RequestablesSection extends ConsumerWidget {
       return const SizedBox.shrink();
     }
     final l = AppLocalizations.of(context);
-    final ids = libraryIds;
+    final matches = library;
     final titles = state.titles;
     final Widget body;
     if (state.error != null) {
@@ -53,12 +53,12 @@ class RequestablesSection extends ConsumerWidget {
           ),
         ],
       );
-    } else if (titles == null || ids == null || state.loading) {
+    } else if (titles == null || matches == null || state.loading) {
       // Mentre Seerr cerca il termine nuovo i titoli del vecchio non vanno
       // mostrati: non sono più quelli giusti, e si potrebbero aprire.
       body = const _RequestablesSkeleton(key: ValueKey('requestables-skeleton'));
     } else {
-      final visible = visibleRequestables(titles, ids);
+      final visible = visibleRequestables(titles, matches);
       if (visible.isEmpty) return const SizedBox.shrink();
       body = Wrap(
         spacing: 16,

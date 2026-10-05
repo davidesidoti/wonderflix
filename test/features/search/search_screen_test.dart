@@ -111,6 +111,36 @@ void main() {
     expect(requests.searchLanguages, ['it']);
   });
 
+  testWidgets(
+      '"Da richiedere" nasconde il titolo che la libreria ha, dall\'id TMDB '
+      'anche se Seerr non conosce l\'id Jellyfin', (tester) async {
+    // Dopo la scansione della notte Seerr non ha ancora l'id Jellyfin dei
+    // titoli nuovi: li riconosce solo l'id TMDB dei risultati della libreria.
+    final library = FakeLibraryApi()
+      ..onItems = ((query, start, limit) => query.kinds.contains(ItemKind.movie)
+          ? pageOf([
+              testItem(id: 'aaa', name: 'Dune - Parte due', tmdbId: 693134),
+            ])
+          : pageOf([]))
+      ..people = [];
+    final requests = FakeRequestsApi()
+      ..searchResults['dune'] = [
+        testRequestable(tmdbId: 693134, title: 'Dune - Parte due'),
+        testRequestable(
+            tmdbId: 90228, title: 'Dune: Prophecy', type: RequestMediaType.tv),
+      ];
+    await pumpApp(tester, const Scaffold(body: SearchScreen()),
+        overrides: overrides(library, requests));
+
+    await search(tester, 'dune');
+
+    expect(find.byKey(const ValueKey('requestable-movie-693134')), findsNothing);
+    // Dune - Parte due c'è una volta sola: la card della libreria.
+    expect(find.text('Dune - Parte due'), findsOneWidget);
+    expect(find.byKey(const ValueKey('requestable-tv-90228')), findsOneWidget);
+    expect(find.text('Dune: Prophecy'), findsOneWidget);
+  });
+
   testWidgets('Seerr giù: messaggio e Riprova, la libreria resta', (tester) async {
     final requests = FakeRequestsApi()..failure = RequestsFailure.seerrUnavailable;
     await pumpApp(tester, const Scaffold(body: SearchScreen()),

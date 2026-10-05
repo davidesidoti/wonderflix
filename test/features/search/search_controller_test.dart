@@ -64,4 +64,19 @@ void main() {
       expect(results.isEmpty, isFalse);
     });
   });
+
+  test('chiede anche i ProviderIds di film e serie, per "Da richiedere"', () {
+    fakeAsync((async) {
+      final container = makeContainer();
+      container.read(searchControllerProvider.notifier).setTerm('dune');
+      async.elapse(SearchController.debounce + const Duration(milliseconds: 1));
+      async.flushMicrotasks();
+
+      expect(api.itemQueries.map((q) => q.kinds), [
+        {ItemKind.movie},
+        {ItemKind.series},
+      ]);
+      expect(api.itemQueries.every((q) => q.includeProviderIds), isTrue);
+    });
+  });
 }

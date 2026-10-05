@@ -67,7 +67,10 @@ class SearchController extends Notifier<SearchState> {
       final api = ref.read(libraryApiProvider);
       final userId = ref.read(currentUserIdProvider);
       Future<List<JellyfinItem>> items(ItemKind kind) async => (await api.items(
-            ItemQuery(kinds: {kind}, searchTerm: term),
+            // `ProviderIds`: l'id TMDB serve a nascondere in "Da richiedere"
+            // i titoli che Seerr non sa ancora in libreria.
+            ItemQuery(
+                kinds: {kind}, searchTerm: term, includeProviderIds: true),
             userId: userId,
             startIndex: 0,
             limit: 24,

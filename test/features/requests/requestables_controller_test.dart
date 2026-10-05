@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/requests/requests_api.dart';
 import 'package:wonderflix/core/requests/requests_models.dart';
 import 'package:wonderflix/features/requests/requestables_controller.dart';
 import 'package:wonderflix/features/search/search_controller.dart';
 
+import '../../support/library_fakes.dart';
 import '../../support/requests_fakes.dart';
 
 void main() {
@@ -116,9 +118,46 @@ void main() {
       testRequestable(tmdbId: 2, status: TitleStatus.available, jellyfinItemId: 'aaa'),
       testRequestable(tmdbId: 3),
     ];
+    final library =
+        LibraryMatches(itemIds: {'EE39BEF06F503DD0E9DBD20593DF417F'.toLowerCase()});
+    expect(visibleRequestables(titles, library).map((t) => t.tmdbId), [2, 3]);
+  });
+
+  test('senza id Jellyfin da Seerr, il titolo si riconosce da id TMDB e tipo',
+      () {
+    // Seerr non ha ancora l'id Jellyfin dei titoli aggiunti dopo la
+    // scansione della notte: fa fede l'id TMDB dei risultati della libreria.
+    final titles = [
+      testRequestable(tmdbId: 1),
+      testRequestable(tmdbId: 1, type: RequestMediaType.tv),
+      testRequestable(tmdbId: 2),
+      testRequestable(tmdbId: 3, type: RequestMediaType.tv),
+      testRequestable(tmdbId: 3),
+    ];
+    const library = LibraryMatches(movieTmdbIds: {1}, seriesTmdbIds: {3});
     expect(
-        visibleRequestables(titles, {'EE39BEF06F503DD0E9DBD20593DF417F'.toLowerCase()})
-            .map((t) => t.tmdbId),
-        [2, 3]);
+        visibleRequestables(titles, library)
+            .map((t) => (t.mediaType, t.tmdbId)),
+        [
+          (RequestMediaType.tv, 1),
+          (RequestMediaType.movie, 2),
+          (RequestMediaType.movie, 3),
+        ]);
+  });
+
+  test('LibraryMatches dai risultati: id in minuscolo, TMDB per tipo', () {
+    final library = LibraryMatches.fromResults(SearchResults(
+      movies: [
+        testItem(id: 'EE39', tmdbId: 438631),
+        testItem(id: 'AAA'),
+      ],
+      series: [
+        testItem(id: 'S1', kind: ItemKind.series, tmdbId: 90228),
+      ],
+      people: [testItem(id: 'p1', kind: ItemKind.person, tmdbId: 5)],
+    ));
+    expect(library.itemIds, {'ee39', 'aaa', 's1'});
+    expect(library.movieTmdbIds, {438631});
+    expect(library.seriesTmdbIds, {90228});
   });
 }

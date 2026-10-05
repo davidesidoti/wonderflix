@@ -342,7 +342,7 @@ class JellyfinItem {
   /// Id TMDB dell'elemento stesso, dai `ProviderIds`, se c'è (spec I §8.1):
   /// ha senso per film e serie, non è quello della serie di un episodio o di
   /// una stagione. Serve alle richieste con Seerr. `GET /Items/{id}` lo dà
-  /// sempre; gli elenchi solo se chiesto.
+  /// sempre; gli elenchi solo se chiesto (`ItemQuery.includeProviderIds`).
   final int? tmdbId;
 
   Duration? get runtime {

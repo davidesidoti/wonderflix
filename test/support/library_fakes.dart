@@ -218,6 +218,7 @@ JellyfinItem testItem({
   double? rating,
   String? sortName,
   String? dateCreated,
+  int? tmdbId,
 }) =>
     JellyfinItem.fromJson({
       'Id': id,
@@ -247,6 +248,7 @@ JellyfinItem testItem({
       'CommunityRating': ?rating,
       'SortName': ?sortName,
       'DateCreated': ?dateCreated,
+      if (tmdbId != null) 'ProviderIds': {'Tmdb': '$tmdbId'},
     });
 
 ItemPage pageOf(List<JellyfinItem> items, [int? total]) =>

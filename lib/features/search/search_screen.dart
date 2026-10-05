@@ -74,7 +74,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         ),
         const SizedBox(height: 24),
         WfSwitcher(child: _results(context, l, state)),
-        RequestablesSection(libraryIds: _libraryIds(state)),
+        RequestablesSection(library: _libraryMatches(state)),
       ],
     );
   }
@@ -117,17 +117,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  /// Id dei film e delle serie trovati nella libreria, in minuscolo, per
-  /// non ripeterli in "Da richiedere"; `null` mentre la ricerca è in corso.
-  /// Con un errore della libreria la sezione non aspetta.
-  static Set<String>? _libraryIds(SearchState state) {
-    if (state.error != null) return const {};
+  /// Cosa ha trovato la libreria (id Jellyfin e TMDB di film e serie), per non
+  /// ripeterlo in "Da richiedere"; `null` mentre la ricerca è in corso. Con un
+  /// errore della libreria la sezione non aspetta.
+  static LibraryMatches? _libraryMatches(SearchState state) {
+    if (state.error != null) return const LibraryMatches();
     final results = state.results;
     if (state.loading || results == null) return null;
-    return {
-      for (final item in [...results.movies, ...results.series])
-        item.id.toLowerCase(),
-    };
+    return LibraryMatches.fromResults(results);
   }
 
   /// Sezione di locandine; le card entrano di nuovo a ogni ricerca

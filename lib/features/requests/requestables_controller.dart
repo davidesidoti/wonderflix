@@ -85,13 +85,54 @@ final requestablesControllerProvider =
     NotifierProvider.autoDispose<RequestablesController, RequestablesState>(
         RequestablesController.new);
 
+/// Quello che la ricerca nella libreria ha già trovato (spec I §8.3), per non
+/// ripeterlo in "Da richiedere". Un titolo di Seerr c'è già se ne conosce l'id
+/// Jellyfin, ma anche se non lo conosce (dopo la scansione della notte Seerr
+/// non ha l'id dei titoli nuovi) e coincidono tipo e id TMDB.
+class LibraryMatches {
+  const LibraryMatches({
+    this.itemIds = const {},
+    this.movieTmdbIds = const {},
+    this.seriesTmdbIds = const {},
+  });
+
+  /// Dai film e dalle serie dei [results]; le persone non contano.
+  factory LibraryMatches.fromResults(SearchResults results) => LibraryMatches(
+        itemIds: {
+          for (final item in [...results.movies, ...results.series])
+            item.id.toLowerCase(),
+        },
+        movieTmdbIds: {for (final movie in results.movies) ?movie.tmdbId},
+        seriesTmdbIds: {for (final series in results.series) ?series.tmdbId},
+      );
+
+  /// Id Jellyfin dei film e delle serie trovati, in minuscolo.
+  final Set<String> itemIds;
+
+  /// Id TMDB dei film trovati.
+  final Set<int> movieTmdbIds;
+
+  /// Id TMDB delle serie trovate.
+  final Set<int> seriesTmdbIds;
+
+  /// Se la libreria ha già [title]: per id Jellyfin, oppure per id TMDB dello
+  /// stesso tipo (un film e una serie possono avere lo stesso id TMDB).
+  bool contains(RequestableTitle title) {
+    final itemId = title.jellyfinItemId;
+    if (itemId != null && itemIds.contains(itemId.toLowerCase())) return true;
+    final tmdbIds = switch (title.mediaType) {
+      RequestMediaType.movie => movieTmdbIds,
+      RequestMediaType.tv => seriesTmdbIds,
+    };
+    return tmdbIds.contains(title.tmdbId);
+  }
+}
+
 /// I titoli da mostrare in "Da richiedere" (spec I §8.3): senza quelli che
-/// la ricerca nella libreria ha già trovato ([libraryIds], in minuscolo).
+/// la ricerca nella libreria ha già trovato ([library]).
 List<RequestableTitle> visibleRequestables(
-        List<RequestableTitle> titles, Set<String> libraryIds) =>
+        List<RequestableTitle> titles, LibraryMatches library) =>
     [
       for (final title in titles)
-        if (title.jellyfinItemId == null ||
-            !libraryIds.contains(title.jellyfinItemId!.toLowerCase()))
-          title,
+        if (!library.contains(title)) title,
     ];

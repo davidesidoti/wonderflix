@@ -85,6 +85,28 @@ void main() {
         isTrue);
   });
 
+  test('ProviderIds solo se richiesti, anche insieme ai campi per ordinare', () {
+    Map<String, dynamic> p(ItemQuery q) =>
+        q.toQueryParameters(userId: 'u', startIndex: 0, limit: 1);
+    expect(p(const ItemQuery(kinds: {ItemKind.movie}))['fields'],
+        isNot(contains('ProviderIds')));
+    expect(
+        p(const ItemQuery(kinds: {ItemKind.movie}, includeProviderIds: true))[
+            'fields'],
+        'PrimaryImageAspectRatio,Genres,ProviderIds');
+    expect(
+        p(const ItemQuery(
+            kinds: {ItemKind.movie},
+            includeSortFields: true,
+            includeProviderIds: true))['fields'],
+        'PrimaryImageAspectRatio,Genres,SortName,DateCreated,ProviderIds');
+    expect(
+        const ItemQuery(kinds: {ItemKind.movie}, includeProviderIds: true)
+            .copyWith(year: 2020)
+            .includeProviderIds,
+        isTrue);
+  });
+
   test('clearFilters toglie solo genere, anno e visti', () {
     const query = ItemQuery(
       kinds: {ItemKind.movie, ItemKind.series},
@@ -96,6 +118,7 @@ void main() {
       searchTerm: 'dune',
       personId: 'p9',
       includeSortFields: true,
+      includeProviderIds: true,
     );
     final cleared = query.clearFilters();
     expect(cleared.hasFilters, isFalse);
@@ -108,5 +131,6 @@ void main() {
     expect(cleared.searchTerm, 'dune');
     expect(cleared.personId, 'p9');
     expect(cleared.includeSortFields, isTrue);
+    expect(cleared.includeProviderIds, isTrue);
   });
 }

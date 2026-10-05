@@ -25,6 +25,7 @@ class ItemQuery {
     this.searchTerm,
     this.personId,
     this.includeSortFields = false,
+    this.includeProviderIds = false,
   });
 
   final Set<ItemKind> kinds;
@@ -39,6 +40,11 @@ class ItemQuery {
   /// Chiede anche `SortName` e `DateCreated`, per ordinare nell'app
   /// (La mia lista).
   final bool includeSortFields;
+
+  /// Chiede anche `ProviderIds`, per avere l'id TMDB degli elementi
+  /// (`JellyfinItem.tmdbId`): la ricerca lo usa per non ripetere in
+  /// "Da richiedere" i titoli che la libreria ha già.
+  final bool includeProviderIds;
 
   /// Filtri scelti dall'utente nel catalogo (esclusi ordinamento e tipo).
   bool get hasFilters =>
@@ -60,6 +66,7 @@ class ItemQuery {
         searchTerm: searchTerm,
         personId: personId,
         includeSortFields: includeSortFields,
+        includeProviderIds: includeProviderIds,
       );
 
   /// Toglie genere, anno e visti; il resto (tipi, ordinamento, preferiti,
@@ -88,8 +95,12 @@ class ItemQuery {
     final term = searchTerm;
     return {
       ...cardImageParams,
-      if (includeSortFields)
-        'fields': '${cardImageParams['fields']},SortName,DateCreated',
+      if (includeSortFields || includeProviderIds)
+        'fields': [
+          cardImageParams['fields'],
+          if (includeSortFields) 'SortName,DateCreated',
+          if (includeProviderIds) 'ProviderIds',
+        ].join(','),
       'userId': userId,
       'recursive': true,
       'includeItemTypes': (kinds.map((k) => k.apiName).toList()..sort()).join(','),
