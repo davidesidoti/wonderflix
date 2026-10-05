@@ -40,8 +40,10 @@ class RequestablesSection extends ConsumerWidget {
       body = Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(l.requestsSeerrDown,
-              style: const TextStyle(color: WfColors.creamMuted)),
+          Flexible(
+            child: Text(l.requestsSeerrDown,
+                style: const TextStyle(color: WfColors.creamMuted)),
+          ),
           const SizedBox(width: 12),
           OutlinedButton(
             onPressed: () => ref
@@ -51,8 +53,10 @@ class RequestablesSection extends ConsumerWidget {
           ),
         ],
       );
-    } else if (titles == null || ids == null) {
-      body = const _RequestablesSkeleton();
+    } else if (titles == null || ids == null || state.loading) {
+      // Mentre Seerr cerca il termine nuovo i titoli del vecchio non vanno
+      // mostrati: non sono più quelli giusti, e si potrebbero aprire.
+      body = const _RequestablesSkeleton(key: ValueKey('requestables-skeleton'));
     } else {
       final visible = visibleRequestables(titles, ids);
       if (visible.isEmpty) return const SizedBox.shrink();
@@ -87,9 +91,10 @@ class RequestablesSection extends ConsumerWidget {
   }
 }
 
-/// Una riga di locandine vuote mentre Seerr risponde.
+/// Locandine vuote mentre Seerr risponde: stessa griglia e stessa altezza
+/// delle card vere (locandina, titolo, anno), così il resto non salta.
 class _RequestablesSkeleton extends StatelessWidget {
-  const _RequestablesSkeleton();
+  const _RequestablesSkeleton({super.key});
 
   /// Locandine nello scheletro.
   static const _count = 6;
@@ -99,11 +104,22 @@ class _RequestablesSkeleton extends StatelessWidget {
     return WfShimmer(
       child: Wrap(
         spacing: 16,
+        runSpacing: 24,
         children: [
           for (var i = 0; i < _count; i++)
-            const SkeletonBox(
-                width: RequestablesSection.cardWidth,
-                height: RequestablesSection.cardWidth * 3 / 2),
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SkeletonBox(
+                    width: RequestablesSection.cardWidth,
+                    height: RequestablesSection.cardWidth * 3 / 2),
+                SizedBox(height: 8),
+                SkeletonBox(width: 110, height: 12),
+                SizedBox(height: 6),
+                SkeletonBox(width: 40, height: 10),
+              ],
+            ),
         ],
       ),
     );

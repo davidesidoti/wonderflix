@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -215,5 +217,37 @@ void main() {
     expect(find.text('Da richiedere'), findsOneWidget);
     expect(find.text('Dune - Parte due'), findsOneWidget);
     expect(requests.searchLanguages, ['it']);
+  });
+
+  testWidgets(
+      'nuovo termine: finché Seerr non risponde, lo scheletro e non i titoli vecchi',
+      (tester) async {
+    final requests = FakeRequestsApi()
+      ..searchResults['dune'] = [testRequestable(title: 'Dune - Parte due')]
+      ..searchResults['dunes'] = [
+        testRequestable(tmdbId: 1, title: 'Dunes of Mars'),
+      ];
+    await pumpApp(tester, const Scaffold(body: SearchScreen()),
+        overrides: overrides(libraryWithDune(), requests));
+
+    await search(tester, 'dune');
+    expect(find.text('Dune - Parte due'), findsOneWidget);
+    expect(find.byKey(const ValueKey('requestables-skeleton')), findsNothing);
+
+    // Seerr è trattenuto: la libreria risponde, Seerr no.
+    final gate = requests.searchGate = Completer<void>();
+    await search(tester, 'dunes');
+
+    expect(find.text('Dune'), findsOneWidget);
+    expect(find.text('Dune - Parte due'), findsNothing);
+    expect(find.byKey(const ValueKey('requestables-skeleton')), findsOneWidget);
+
+    gate.complete();
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('requestables-skeleton')), findsNothing);
+    expect(find.text('Dunes of Mars'), findsOneWidget);
+    expect(find.text('Dune - Parte due'), findsNothing);
   });
 }
