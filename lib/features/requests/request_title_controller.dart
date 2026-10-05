@@ -73,6 +73,11 @@ class RequestTitleController extends Notifier<RequestTitleState> {
   /// Numera i caricamenti: vale solo l'ultimo.
   int _loads = 0;
 
+  /// I numeri delle stagioni che si possono ancora chiedere.
+  static Set<int> _requestableNumbers(TitleDetails details) => {
+        for (final season in details.requestableSeasons) season.seasonNumber,
+      };
+
   @override
   RequestTitleState build() {
     unawaited(Future.microtask(load));
@@ -96,9 +101,7 @@ class RequestTitleController extends Notifier<RequestTitleState> {
       if (!ref.mounted || current != _loads) return;
       state = RequestTitleState(
         details: details,
-        selected: {
-          for (final season in details.requestableSeasons) season.seasonNumber,
-        },
+        selected: _requestableNumbers(details),
         sending: state.sending,
       );
     } on Object catch (error) {
@@ -123,11 +126,19 @@ class RequestTitleController extends Notifier<RequestTitleState> {
   void toggleAll() {
     final details = state.details;
     if (details == null || state.sending) return;
-    final all = {
-      for (final season in details.requestableSeasons) season.seasonNumber,
-    };
+    final all = _requestableNumbers(details);
     state = state.copyWith(
         selected: state.selected.containsAll(all) ? <int>{} : all);
+  }
+
+  /// Torna alla scelta di partenza: tutte le stagioni ancora da chiedere. Il
+  /// controller è condiviso e resta vivo con la scheda della libreria: chi
+  /// riapre "Richiedi stagioni" non deve ritrovare le caselle tolte l'ultima
+  /// volta. Non fa niente durante un invio o senza la scheda.
+  void resetSelection() {
+    final details = state.details;
+    if (details == null || state.sending) return;
+    state = state.copyWith(selected: _requestableNumbers(details));
   }
 
   /// Manda la richiesta: l'esito per l'avviso, `null` se non c'era niente

@@ -25,10 +25,14 @@ final seasonsToRequestProvider =
 });
 
 /// Apre "Richiedi stagioni" (spec I §9.3) e mostra l'esito come avviso.
-Future<void> showRequestSeasonsDialog(
-    BuildContext context, RequestTitleKey key, String title) async {
+/// Parte sempre con tutte le stagioni da chiedere scelte: la scelta sta nel
+/// controller della scheda, che la testata tiene vivo, e un Annulla
+/// precedente non deve lasciare caselle tolte.
+Future<void> showRequestSeasonsDialog(BuildContext context, WidgetRef ref,
+    RequestTitleKey key, String title) async {
   final l = AppLocalizations.of(context);
   final messenger = ScaffoldMessenger.of(context);
+  ref.read(requestTitleControllerProvider(key).notifier).resetSelection();
   final outcome = await showWfDialog<RequestOutcome>(context,
       semanticLabel: l.requestsMoreSeasons,
       builder: (_) => RequestSeasonsDialog(titleKey: key, title: title));
@@ -70,7 +74,7 @@ class RequestSeasonsDialog extends ConsumerWidget {
     }
     final chosen = state.selected.length;
     final all = chosen == details.requestableSeasons.length;
-    return Column(
+    final content = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -107,7 +111,7 @@ class RequestSeasonsDialog extends ConsumerWidget {
             runSpacing: 8,
             children: [
               TextButton(
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: state.sending ? null : () => Navigator.of(context).pop(),
                 child: Text(l.requestsCancel),
               ),
               WfButton.primary(
@@ -124,5 +128,9 @@ class RequestSeasonsDialog extends ConsumerWidget {
         ),
       ],
     );
+    // Con la richiesta in viaggio la finestra non si chiude (né Esc né il
+    // clic sul velo, che passano da `maybePop`): l'avviso dell'esito arriva
+    // solo se la finestra è ancora lì a riceverlo.
+    return PopScope(canPop: !state.sending, child: content);
   }
 }

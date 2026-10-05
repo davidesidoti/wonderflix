@@ -233,4 +233,56 @@ void main() {
     expect(state.details, isNotNull);
     expect(state.error, isNull);
   });
+
+  test('resetSelection: di nuovo tutte le stagioni da chiedere', () async {
+    final container = makeContainer();
+    await pumpEventQueue();
+    final controller =
+        container.read(requestTitleControllerProvider(seriesKey).notifier);
+    RequestTitleState state() =>
+        container.read(requestTitleControllerProvider(seriesKey));
+
+    controller.toggleSeason(2);
+    expect(state().selected, {3});
+    controller.resetSelection();
+    expect(state().selected, {2, 3});
+  });
+
+  test('resetSelection non fa niente senza la scheda', () async {
+    final gate = api.titleGate = Completer<void>();
+    final container = makeContainer();
+    await pumpEventQueue();
+    final controller =
+        container.read(requestTitleControllerProvider(seriesKey).notifier);
+
+    controller.resetSelection();
+    expect(container.read(requestTitleControllerProvider(seriesKey)).selected,
+        isEmpty);
+
+    gate.complete();
+    await pumpEventQueue();
+    expect(container.read(requestTitleControllerProvider(seriesKey)).selected,
+        {2, 3});
+  });
+
+  test('resetSelection non fa niente durante un invio', () async {
+    final container = makeContainer();
+    await pumpEventQueue();
+    final controller =
+        container.read(requestTitleControllerProvider(seriesKey).notifier);
+    RequestTitleState state() =>
+        container.read(requestTitleControllerProvider(seriesKey));
+    final gate = api.createGate = Completer<void>();
+
+    controller.toggleSeason(2);
+    final first = controller.submit();
+    expect(state().sending, isTrue);
+    controller.resetSelection();
+    // Parte solo la stagione 3, e la scelta non cambia sotto la richiesta.
+    expect(state().selected, {3});
+
+    gate.complete();
+    expect(await first, RequestOutcome.sent);
+    expect(api.created.single.seasons, [3]);
+  });
 }

@@ -306,4 +306,40 @@ void main() {
     expect(pending.seasons, isEmpty);
     expect(pending.read, isTrue);
   });
+
+  test('una voce delle richieste con le stagioni malformate si salta', () {
+    final snapshot = InboxSnapshot.fromJson({
+      'Entries': [
+        {
+          'Id': 'r1',
+          'Seq': 3,
+          'Type': 'RequestPending',
+          'CreatedAt': '2026-10-05T12:00:00+00:00',
+          'Title': 'Dune (2021)',
+          'RequesterName': 'Garg',
+          'Seasons': ['x'],
+        },
+        {
+          'Id': 'r2',
+          'Seq': 2,
+          'Type': 'RequestAvailable',
+          'CreatedAt': '2026-10-05T11:00:00+00:00',
+          'Title': 'Brothers (2026)',
+          'Seasons': [1, 2],
+        },
+        {
+          'Id': 'r3',
+          'Seq': 1,
+          'Type': 'RequestAvailable',
+          'CreatedAt': '2026-10-05T10:00:00+00:00',
+          'Title': 'Dune (2021)',
+          'Seasons': 'non una lista',
+        },
+      ],
+    });
+
+    // Le voci malformate non rompono la cassetta, e non contano come non lette.
+    expect(snapshot.entries.map((e) => e.id), ['r2']);
+    expect(snapshot.unread, 1);
+  });
 }

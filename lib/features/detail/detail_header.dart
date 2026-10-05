@@ -206,13 +206,6 @@ class DetailHeader extends ConsumerWidget {
                             onPressed: () =>
                                 unawaited(playTrailer(context, ref, item)),
                           ),
-                        if (seasonsKey != null && canRequestSeasons)
-                          WfButton.secondary(
-                            label: l.requestsMoreSeasons,
-                            icon: LucideIcons.plus,
-                            onPressed: () => unawaited(showRequestSeasonsDialog(
-                                context, seasonsKey, item.name)),
-                          ),
                         WfIconToggle(
                           icon: LucideIcons.heart,
                           selected: userData.isFavorite,
@@ -231,6 +224,15 @@ class DetailHeader extends ConsumerWidget {
                           onPressed: () => unawaited(
                               _toggle(context, () => overrides.togglePlayed(item))),
                         ),
+                        // Dopo i toggle: la scheda di Seerr arriva dopo due
+                        // richieste, e prima dei toggle li farebbe saltare.
+                        if (seasonsKey != null && canRequestSeasons)
+                          WfButton.secondary(
+                            label: l.requestsMoreSeasons,
+                            icon: LucideIcons.plus,
+                            onPressed: () => unawaited(showRequestSeasonsDialog(
+                                context, ref, seasonsKey, item.name)),
+                          ),
                       ],
                     ),
                   ),

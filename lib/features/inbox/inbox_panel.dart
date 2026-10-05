@@ -348,8 +348,8 @@ class _EntryTileState extends ConsumerState<_EntryTile> {
                   ),
                 RequestPendingEntry() => InboxRequestContent(
                     key: Key('inbox-request-${entry.id}'),
-                    text: l.inboxRequestPending(entry.requesterName,
-                        inboxRequestTitle(l, entry.title, entry.seasons)),
+                    text: inboxRequestPendingText(
+                        l, entry.requesterName, entry.title, entry.seasons),
                     time: widget.time,
                     onOpen: () => openRequests(context, tab: RequestsTab.pending),
                   ),

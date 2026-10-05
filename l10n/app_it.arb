@@ -491,6 +491,8 @@
   "@inboxRequestAvailable": {"placeholders": {"title": {"type": "String"}}},
   "inboxRequestPending": "{name} ha chiesto {title}",
   "@inboxRequestPending": {"placeholders": {"name": {"type": "String"}, "title": {"type": "String"}}},
+  "inboxRequestPendingNoName": "Nuova richiesta: {title}",
+  "@inboxRequestPendingNoName": {"placeholders": {"title": {"type": "String"}}},
   "inboxRequestTitleSeasons": "{title}, {count, plural, =1{stagione {list}} other{stagioni {list}}}",
   "@inboxRequestTitleSeasons": {"placeholders": {"title": {"type": "String"}, "count": {"type": "int"}, "list": {"type": "String"}}}
 }

@@ -123,6 +123,8 @@ class _PendingRequestActionsState extends State<PendingRequestActions> {
     return GestureDetector(
       behavior: widget.busy ? HitTestBehavior.opaque : HitTestBehavior.deferToChild,
       onTap: widget.busy ? () {} : null,
+      // Un assorbitore per il mouse: non un'azione in più per lo screen reader.
+      excludeFromSemantics: true,
       child: stack,
     );
   }

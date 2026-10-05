@@ -495,4 +495,62 @@ void main() {
     expect(find.text('Garg ha chiesto Dune (2021)'), findsOneWidget);
     expect(find.text('5 min fa'), findsNWidgets(2));
   });
+
+  testWidgets('"ha chiesto" con le stagioni: "Garg ha chiesto Brothers (2026), stagioni 1–2"',
+      (tester) async {
+    api.inboxSnapshot = InboxSnapshot(entries: [
+      testRequestPending(
+          title: 'Brothers (2026)',
+          seasons: const [1, 2],
+          createdAt: fiveMinutesAgo()),
+    ], unread: 1);
+    await pumpPanel(tester);
+
+    expect(find.text('Garg ha chiesto Brothers (2026), stagioni 1–2'),
+        findsOneWidget);
+  });
+
+  testWidgets('"ha chiesto" senza il nome di chi chiede: "Nuova richiesta"',
+      (tester) async {
+    api.inboxSnapshot = InboxSnapshot(entries: [
+      testRequestPending(
+          id: 'p1', seq: 2, requesterName: '', createdAt: fiveMinutesAgo()),
+      testRequestPending(
+          id: 'p2',
+          seq: 1,
+          requesterName: '  ',
+          title: 'Brothers (2026)',
+          createdAt: fiveMinutesAgo()),
+    ], unread: 2);
+    await pumpPanel(tester);
+
+    expect(find.text('Nuova richiesta: Dune (2021)'), findsOneWidget);
+    expect(find.text('Nuova richiesta: Brothers (2026)'), findsOneWidget);
+    expect(find.textContaining('ha chiesto'), findsNothing);
+  });
+
+  testWidgets('un titolo molto lungo: al massimo tre righe con i puntini',
+      (tester) async {
+    api.inboxSnapshot = InboxSnapshot(entries: [
+      testRequestAvailable(
+          title: 'Un titolo lunghissimo ' * 10,
+          seasons: const [1, 2, 3],
+          createdAt: fiveMinutesAgo()),
+      testRequestPending(
+          id: 'p1',
+          seq: 2,
+          title: 'Un titolo lunghissimo ' * 10,
+          createdAt: fiveMinutesAgo()),
+    ], unread: 2);
+    await pumpPanel(tester);
+
+    for (final id in ['r1', 'p1']) {
+      final text = tester.widget<Text>(find.descendant(
+          of: find.byKey(Key('inbox-request-$id')),
+          matching: find.textContaining('Un titolo lunghissimo')));
+      expect(text.maxLines, 3, reason: id);
+      expect(text.overflow, TextOverflow.ellipsis, reason: id);
+    }
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -412,5 +412,6 @@
   "requestsMoreSeasons": "Request seasons",
   "inboxRequestAvailable": "Now available: {title}",
   "inboxRequestPending": "{name} requested {title}",
+  "inboxRequestPendingNoName": "New request: {title}",
   "inboxRequestTitleSeasons": "{title}, {count, plural, =1{season {list}} other{seasons {list}}}"
 }

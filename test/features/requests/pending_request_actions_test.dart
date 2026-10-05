@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/features/requests/pending_request_actions.dart';
 
@@ -186,5 +187,19 @@ void main() {
     await tester.tapAt(approvePoint);
     await tester.pump();
     expect(calls, ['approva']);
+  });
+
+  testWidgets('il rilevatore che assorbe i clic non compare per lo screen reader',
+      (tester) async {
+    final semantics = tester.ensureSemantics();
+    // Con i pulsanti visibili le azioni di tocco ci sono (Rifiuta e Approva).
+    await pumpActions(tester);
+    expect(find.semantics.byAction(SemanticsAction.tap), findsWidgets);
+
+    // Occupata: il clic assorbito è solo per il mouse, non un'azione in più
+    // nell'albero semantico.
+    await pumpActions(tester, busy: true);
+    expect(find.semantics.byAction(SemanticsAction.tap), findsNothing);
+    semantics.dispose();
   });
 }
