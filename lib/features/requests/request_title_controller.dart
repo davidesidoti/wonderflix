@@ -80,8 +80,11 @@ class RequestTitleController extends Notifier<RequestTitleState> {
   }
 
   /// Carica (o ricarica) la scheda. Le stagioni scelte diventano tutte
-  /// quelle che si possono ancora chiedere.
+  /// quelle che si possono ancora chiedere. Il blocco di Richiedi
+  /// (`sending`) non lo tocca: lo scioglie solo `submit`.
   Future<void> load() async {
+    // Pagina già chiusa (anche prima del microtask di `build`): niente da fare.
+    if (!ref.mounted) return;
     final current = ++_loads;
     if (state.details == null && state.error != null) {
       state = const RequestTitleState();
@@ -96,6 +99,7 @@ class RequestTitleController extends Notifier<RequestTitleState> {
         selected: {
           for (final season in details.requestableSeasons) season.seasonNumber,
         },
+        sending: state.sending,
       );
     } on Object catch (error) {
       if (!ref.mounted || current != _loads) return;
@@ -161,9 +165,11 @@ class RequestTitleController extends Notifier<RequestTitleState> {
       outcome = RequestOutcome.failed;
     }
     if (ref.mounted) {
-      state = state.copyWith(sending: false);
-      // Il nuovo stato (Richiesto, In arrivo) lo dice Seerr.
-      unawaited(load());
+      // Il nuovo stato (Richiesto, In arrivo) lo dice Seerr. Richiedi resta
+      // bloccato finché la ricarica non è finita, così non si può chiedere
+      // di nuovo sul vecchio stato della scheda.
+      await load();
+      if (ref.mounted) state = state.copyWith(sending: false);
     }
     return outcome;
   }

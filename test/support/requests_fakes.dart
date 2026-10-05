@@ -26,9 +26,10 @@ class FakeRequestsApi implements RequestsApi {
 
   RequestStatus createdStatus = RequestStatus.pending;
 
-  /// Se impostati, `search` e `create` aspettano che si completino.
+  /// Se impostati, `search`, `create` e `title` aspettano che si completino.
   Completer<void>? searchGate;
   Completer<void>? createGate;
+  Completer<void>? titleGate;
 
   final calls = <String>[];
   final searchLanguages = <String>[];
@@ -65,6 +66,8 @@ class FakeRequestsApi implements RequestsApi {
   Future<TitleDetails> title(RequestMediaType type, int tmdbId,
       {required String language}) async {
     calls.add('title:${type.wire}:$tmdbId');
+    final gate = titleGate;
+    if (gate != null) await gate.future;
     _fail();
     final details = titles[tmdbId];
     if (details == null) {

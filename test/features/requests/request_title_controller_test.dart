@@ -114,6 +114,10 @@ void main() {
     expect(await withFailure(RequestsFailure.quotaExceeded), RequestOutcome.quota);
     expect(await withFailure(RequestsFailure.accountUnavailable),
         RequestOutcome.account);
+    expect(await withFailure(RequestsFailure.blocklisted),
+        RequestOutcome.blocklisted);
+    expect(await withFailure(RequestsFailure.noPermission),
+        RequestOutcome.noPermission);
     expect(await withFailure(RequestsFailure.seerrUnavailable),
         RequestOutcome.failed);
   });
@@ -150,6 +154,62 @@ void main() {
 
     expect(await first, RequestOutcome.sent);
     expect(api.created, hasLength(1));
+  });
+
+  test('Richiedi resta bloccato finché la ricarica dopo la richiesta non finisce',
+      () async {
+    final container = makeContainer();
+    await pumpEventQueue();
+    final controller =
+        container.read(requestTitleControllerProvider(movieKey).notifier);
+    RequestTitleState state() =>
+        container.read(requestTitleControllerProvider(movieKey));
+    final reload = api.titleGate = Completer<void>();
+
+    final first = controller.submit();
+    await pumpEventQueue();
+    // La richiesta è partita e la ricarica è in attesa.
+    expect(api.created, hasLength(1));
+    expect(api.calls.where((c) => c == 'title:movie:693134'), hasLength(2));
+    expect(state().sending, isTrue);
+    expect(await controller.submit(), isNull);
+    expect(api.created, hasLength(1));
+
+    reload.complete();
+    expect(await first, RequestOutcome.sent);
+    expect(state().sending, isFalse);
+  });
+
+  test('una ricarica che finisce durante un invio tiene il blocco', () async {
+    final container = makeContainer();
+    await pumpEventQueue();
+    final controller =
+        container.read(requestTitleControllerProvider(movieKey).notifier);
+    RequestTitleState state() =>
+        container.read(requestTitleControllerProvider(movieKey));
+    final gate = api.createGate = Completer<void>();
+
+    final first = controller.submit();
+    expect(state().sending, isTrue);
+    await controller.load();
+    expect(state().sending, isTrue);
+    expect(await controller.submit(), isNull);
+
+    gate.complete();
+    expect(await first, RequestOutcome.sent);
+    expect(state().sending, isFalse);
+    expect(api.created, hasLength(1));
+  });
+
+  test('una pagina chiusa prima del primo caricamento non fa niente', () async {
+    final container = ProviderContainer(
+        overrides: requestsTestOverrides(api), retry: (_, _) => null);
+    container.read(requestTitleControllerProvider(movieKey));
+    container.dispose();
+
+    await pumpEventQueue();
+
+    expect(api.calls, isNot(contains('title:movie:693134')));
   });
 
   test('errore al primo caricamento; una ricarica fallita tiene la scheda',
