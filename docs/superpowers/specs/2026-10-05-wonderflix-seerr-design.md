@@ -1,7 +1,7 @@
 # WonderFlix — Spec I: richieste con Seerr
 
 - **Data:** 2026-10-05
-- **Stato:** in revisione
+- **Stato:** approvato; piano 15a realizzato (`docs/superpowers/plans/2026-10-05-wonderflix-15a-richieste-seerr.md`)
 - **Ambito:** Spec I. Realizza l'idea 2 di `docs/IDEE.md` ("Integrazione di Seerr"). Si appoggia alla Spec F (disponibilità del plugin, `Features`: `2026-10-03-wonderflix-amici-party-privati-design.md`) e alla Spec G (cassetta delle notifiche: `2026-10-03-wonderflix-notifiche-design.md`).
 
 ## 1. Obiettivo
@@ -168,7 +168,7 @@ L'app parla solo con il plugin; il plugin parla con Seerr. La chiave API e l'id 
   - **"Prova collegamento"** (`POST Requests/Test`, solo admin) chiama `GET /status` e `GET /auth/me` con la chiave, e mostra "Collegato a Seerr 3.4.1" oppure l'errore: indirizzo irraggiungibile, chiave rifiutata o risposta inattesa;
   - il **segreto del webhook**, generato dal plugin al primo salvataggio, con "Rigenera";
   - le **istruzioni per il webhook**: l'indirizzo da incollare (`<indirizzo pubblico di Jellyfin>/WonderFlixWatchParty/Requests/Webhook`), i tipi da attivare ("Richiesta in attesa" e "Richiesta disponibile") e il modello JSON già completo del segreto, con un pulsante "Copia";
-  - "Ultimo evento ricevuto" con data e tipo, per capire se il webhook arriva.
+  - "Ultimo evento ricevuto" con data e tipo, per capire se il webhook arriva. La pagina lo legge da `GET Requests/Admin` (solo admin), che dice anche se Seerr è configurato (§7.3).
 - **Modello JSON del webhook:**
 
   ```json
@@ -182,9 +182,11 @@ L'app parla solo con il plugin; il plugin parla con Seerr. La chiave API e l'id 
     "media_jellyfinMediaId": "{{media_jellyfinMediaId}}",
     "requestedBy_jellyfinUserId": "{{requestedBy_jellyfinUserId}}",
     "requestedBy_username": "{{requestedBy_username}}",
-    "extra": "{{extra}}"
+    "{{extra}}": []
   }
   ```
+
+  `{{extra}}` non è una variabile di testo: con la chiave speciale `"{{extra}}": []` Seerr scrive nel corpo `"extra": [{name, value}]`, da cui il plugin legge le stagioni (§7.5).
 
 - `Info.Features` aggiunge `requests` solo quando indirizzo e chiave ci sono. Lo stato del collegamento non conta: se Seerr è giù, l'app mostra l'errore (§11).
 
@@ -193,12 +195,16 @@ L'app parla solo con il plugin; il plugin parla con Seerr. La chiave API e l'id 
 - `SeerrClient` usa `IHttpClientFactory`, con un'attesa massima di 10 s e `X-API-Key` su ogni chiamata.
   - **Chiamate di servizio** (elenco utenti, import, impostazioni, server Radarr/Sonarr) senza `X-API-User`: agiscono come l'utente n.1 (admin).
   - **Chiamate per conto di un utente** (richieste, elenchi, approvazioni) con `X-API-User`.
+  - **Chiave al sicuro:** il client non segue i redirect (la chiave andrebbe a un altro indirizzo) e l'header `X-API-Key` non compare nei log del client HTTP.
+  - **Risposte inattese:** un `null` esplicito dove Seerr dovrebbe mandare una lista conta come "Seerr non risponde" (`SeerrUnavailable`).
 - **`SeerrUserMap`:**
-  - Legge `GET /user?take=1000` e abbina per `jellyfinUserId`, senza badare a maiuscole e trattini. La cache dura 10 minuti e si svuota dopo un import.
+  - Legge `GET /user?take=1000` e abbina per `jellyfinUserId`, senza badare a maiuscole e trattini. La cache dura 10 minuti e si svuota dopo un import. Uno svuotamento (`Invalidate`) non viene annullato da un caricamento già in corso: quel caricamento non rimette in cache i dati letti prima.
   - Più utenti con lo stesso id Jellyfin: vince l'id Seerr più basso.
   - **L'id dell'utente viene solo dall'accesso Jellyfin della chiamata** (`IAuthorizationContext`), mai da un campo mandato dall'app.
-  - **Import:** se l'utente non ha un account, **alla prima `POST Requests`** il plugin chiama `POST /user/import-from-jellyfin` con il suo id, svuota la cache e riprova l'abbinamento. Se fallisce, risponde con il codice `AccountUnavailable`.
+  - **Import:** se l'utente non ha un account, **alla prima `POST Requests`** il plugin chiama `POST /user/import-from-jellyfin` con il suo id, svuota la cache e riprova l'abbinamento. Se fallisce, risponde con il codice `AccountUnavailable`. Con due prime richieste insieme dello stesso utente l'import parte una volta sola (lo protegge un blocco a parte).
 - **`SeerrTitleCache`:** titolo, anno e locandina per (`mediaType`, `tmdbId`, lingua), per un'ora, al massimo 2000 voci. Serve a completare gli elenchi delle richieste, che non hanno il titolo (§3).
+  - Le ricerche dei titoli fanno al massimo 6 chiamate a Seerr alla volta.
+  - Un titolo che Seerr non dà si ricorda per 5 minuti, così non lo si richiede a ogni elenco.
 
 ### 7.3 Endpoint
 
@@ -210,15 +216,17 @@ Tutti sotto `/WonderFlixWatchParty/Requests` e con `[Authorize]`, tranne il webh
 | `GET Search?query=&language=` | prima pagina di `GET /search`, **solo film e serie**, senza i titoli bloccati: `[{MediaType, TmdbId, Title, Year, PosterPath, Status, JellyfinItemId}]` |
 | `GET Movie/{tmdbId}?language=` | `{TmdbId, Title, Year, Overview, Genres, RuntimeMinutes, PosterPath, BackdropPath, TrailerUrl, Status, JellyfinItemId, RequestedByMe, Requested}` |
 | `GET Tv/{tmdbId}?language=` | come sopra, più `Seasons: [{SeasonNumber, EpisodeCount, Status}]`, senza la stagione 0 |
-| `POST Requests` | `{MediaType, TmdbId, Seasons?}` → la richiesta creata `{Id, Status}`; per conto dell'utente, con l'import se serve |
+| `POST Requests` | `{MediaType, TmdbId, Seasons?}` → la richiesta creata `{Id, Status}`; per conto dell'utente, con l'import se serve. Per le serie `Seasons` ha al massimo 100 stagioni |
 | `GET Requests?filter=mine\|pending\|all&skip=&take=&language=` | `{Items: [MediaRequest], HasMore}`, ordinate dalla più recente; `take` al massimo 50 |
-| `GET Services/{movie\|tv}` | solo con `CanManage`: `[{Id, Name, IsDefault, Profiles: [{Id, Name}], RootFolders: [Path], DefaultProfileId, DefaultRootFolder}]`, senza i server 4K |
+| `GET Services/{movie\|tv}` | solo con `CanManage`: `[{Id, Name, IsDefault, Profiles: [{Id, Name}], RootFolders: [Path], DefaultProfileId, DefaultRootFolder}]`, senza i server 4K. Un server di cui non si leggono i dettagli si salta |
 | `POST Requests/{id}/Approve` | solo con `CanManage`: `{ServerId?, ProfileId?, RootFolder?}`. Senza campi approva e basta; con i campi prima `PUT /request/{id}` (per le serie con le stagioni della richiesta), poi l'approvazione |
 | `POST Requests/{id}/Decline` | solo con `CanManage` |
+| `GET Admin` | solo admin Jellyfin: se Seerr è configurato e data e tipo dell'ultimo evento del webhook ("Ultimo evento ricevuto", §7.1) |
 | `POST Test` | solo admin Jellyfin (§7.1) |
 | `POST Webhook` | `[AllowAnonymous]` (§7.5) |
 
 - **`MediaRequest`:** `{Id, MediaType, TmdbId, Title, Year, PosterPath, Seasons: [int], RequestedBy: {Name, IsMe}, CreatedAt, Status, Progress?, JellyfinItemId?}`.
+- Una riga con un `MediaType` che l'app non conosce non la fa fallire: l'app la salta (§8.1).
 - **Filtri:**
   - `mine` usa `requestedBy` con l'id Seerr dell'utente;
   - `pending` e `all` richiedono `CanManage`;
@@ -234,10 +242,13 @@ Tutti sotto `/WonderFlixWatchParty/Requests` e con `[Authorize]`, tranne il webh
   1. rifiutata → `Declined`;
   2. non riuscita → `Failed`;
   3. in attesa → `Pending`;
-  4. titolo disponibile → `Available`;
-  5. titolo in parte disponibile → `Partial`;
-  6. approvata con un download in corso → `Downloading`, con `Progress` = 1 − `sizeLeft`/`size` del primo `downloadStatus`;
-  7. altrimenti approvata → `Approved`.
+  4. completata → `Available`;
+  5. approvata, con il titolo disponibile → `Available`;
+  6. approvata, con un download in corso → `Downloading`, con `Progress` = 1 − `sizeLeft`/`size` del primo `downloadStatus`;
+  7. approvata, con almeno una delle stagioni chieste già arrivata (nella richiesta la stagione è completata) → `Partial`;
+  8. altrimenti approvata → `Approved`.
+
+  Lo stato "in parte disponibile" della serie intera non conta: non dice se quello che è stato chiesto è arrivato. Per questo una serie con tutte le stagioni chieste arrivate è `Available` anche se la serie, nel suo insieme, è in parte.
 - **Errori**, con il corpo `{Code}`. Mai 404.
 
   | Caso | Risposta |
@@ -245,7 +256,7 @@ Tutti sotto `/WonderFlixWatchParty/Requests` e con `[Authorize]`, tranne il webh
   | Seerr non configurato | 503 `NotConfigured` |
   | Seerr irraggiungibile, lento o con risposta inattesa | 502 `SeerrUnavailable` |
   | Chiave rifiutata | 502 `SeerrAuth` |
-  | Permesso mancante | 403 `NoPermission` |
+  | Permesso mancante, o chiamata senza utente Jellyfin (per esempio con una chiave API) | 403 `NoPermission` |
   | Quota | 403 `QuotaExceeded` |
   | Titolo bloccato | 403 `Blocklisted` |
   | Già chiesto | 409 `AlreadyRequested` |
@@ -263,14 +274,15 @@ Tutti sotto `/WonderFlixWatchParty/Requests` e con `[Authorize]`, tranne il webh
 ### 7.5 Webhook
 
 - `POST Requests/Webhook`, senza accesso, corpo al massimo 64 KB.
+- Se il corpo è malformato, troppo grande o non è JSON, risponde ASP.NET stesso (400, 413 o 415): il plugin risponde solo 401 o 200.
 - **Segreto:** confrontato in tempo costante con `SeerrWebhookSecret`. Se manca o è sbagliato risponde 401 e scrive nel registro (al massimo una riga al minuto).
 - **Tipi:**
-  - `MEDIA_AVAILABLE` → `RequestAvailable` all'utente Jellyfin `requestedBy_jellyfinUserId`, se esiste;
+  - `MEDIA_AVAILABLE` → `RequestAvailable` all'utente Jellyfin `requestedBy_jellyfinUserId`, solo se esiste ed è abilitato;
   - `MEDIA_PENDING` → `RequestPending` agli utenti Jellyfin il cui account Seerr ha `ADMIN` o `MANAGE_REQUESTS`, **escluso chi ha chiesto**;
   - `TEST_NOTIFICATION` → aggiorna solo "Ultimo evento ricevuto";
   - tutti gli altri → 200 senza effetti.
 - Un evento senza `request_id` o con dati mancanti si scarta con una riga nel registro e risponde 200, così Seerr non riprova.
-- **Titolo dell'avviso:** `subject` (per esempio "Dune (2021)"). Le stagioni, se ci sono, vengono da `extra` ("Requested Seasons").
+- **Titolo dell'avviso:** `subject` (per esempio "Dune (2021)"), tagliato a 200 caratteri. Il nome di chi ha chiesto si taglia a 100. Le stagioni, se ci sono, vengono da `extra` ("Requested Seasons").
 
 ### 7.6 Cassetta delle notifiche
 
@@ -286,7 +298,8 @@ Tutti sotto `/WonderFlixWatchParty/Requests` e con `[Authorize]`, tranne il webh
 ### 8.1 Modelli e API
 
 - `JellyfinItem.tmdbId`: si legge `ProviderIds.Tmdb`, se c'è, e va aggiunto ai `Fields` delle chiamate della scheda.
-- `RequestsApi` (`lib/core/requests/requests_api.dart`) ha un metodo per ogni endpoint di §7.3, tranne `Test` e `Webhook`. Mappa i `{Code}` in `RequestsFailure` (enum), sul modello di `SocialFailure`.
+- `RequestsApi` (`lib/core/requests/requests_api.dart`) ha un metodo per ogni endpoint di §7.3, tranne `Test` e `Webhook`. Mappa i `{Code}` in `RequestsFailure` (enum), sul modello di `SocialFailure`. Per leggere il `{Code}` anche nelle risposte 403 e 5xx, `ForbiddenException` e `ServerErrorException` (`lib/core/jellyfin/api_exception.dart`) portano il `body` della risposta.
+- Le righe con un `MediaType` sconosciuto (per esempio una persona) si saltano, nella ricerca e negli elenchi delle richieste: il resto della risposta si legge lo stesso.
 - **Modelli:**
   - `RequestsMe`;
   - `RequestableTitle` (risultato della ricerca);
@@ -300,7 +313,7 @@ Tutti sotto `/WonderFlixWatchParty/Requests` e con `[Authorize]`, tranne il webh
 ### 8.2 Disponibilità
 
 - `requestsAvailableProvider` è vero se `Info.Features` contiene `requests`.
-- `requestsMeProvider` (`GET Me`) si carica quando la funzione è disponibile, e si ricarica a ogni nuova connessione al server.
+- `requestsMeProvider` (`GET Me`) è `autoDispose`: si carica quando una pagina lo usa e la funzione è disponibile, e si rilegge ogni volta che una pagina lo usa di nuovo, non a ogni connessione al server.
 - Senza `requests`, nell'app non cambia nulla: niente voce nella barra, niente sezione, niente pulsanti.
 - Con `CanRequest` falso si vedono le sezioni e le schede, ma senza i pulsanti per chiedere.
 
@@ -312,6 +325,8 @@ Tutti sotto `/WonderFlixWatchParty/Requests` e con `[Authorize]`, tranne il webh
   - i titoli `None`, `Pending`, `Processing` e `Partial`;
   - gli `Available` che la libreria non ha trovato (per esempio un titolo in un'altra lingua), con l'etichetta "Su WonderFlix": aprono la scheda della libreria.
 - Le risposte vecchie, quelle di un termine nel frattempo cambiato, si scartano.
+- La schermata della ricerca tiene vivo il controller anche quando la sezione è fuori dallo schermo (la lista la costruisce solo quando è vicina): senza, il controller perderebbe attesa, richiesta e titoli.
+- Se la funzione diventa disponibile quando un termine è già scritto, la ricerca parte da sola, senza aspettare un altro tasto.
 
 ### 8.4 Richieste e approvazioni
 
@@ -319,7 +334,7 @@ Tutti sotto `/WonderFlixWatchParty/Requests` e con `[Authorize]`, tranne il webh
   - carica `Movie` o `Tv`;
   - tiene le stagioni scelte. All'apertura sono scelte tutte le stagioni `None`;
   - manda la richiesta e blocca il pulsante finché non arriva la risposta;
-  - dopo la risposta, positiva o `AlreadyRequested`, ricarica la scheda.
+  - dopo la risposta, positiva o `AlreadyRequested`, ricarica la scheda, e il pulsante resta bloccato fino alla fine della ricarica.
 - **`RequestsListController`** (per scheda della pagina):
   - carica a pagine di 20;
   - ricarica all'apertura della pagina e a ogni `InboxChanged` che porta una voce `RequestAvailable` o `RequestPending`.
@@ -337,14 +352,15 @@ Tutti sotto `/WonderFlixWatchParty/Requests` e con `[Authorize]`, tranne il webh
   - etichetta in alto a sinistra: "Film" o "Serie" per i titoli `None`, "Richiesto" (`Pending`), "In arrivo" (`Processing`), "In parte" (`Partial`), "Su WonderFlix" (`Available`).
   - Il clic apre la scheda da richiedere, o quella della libreria per "Su WonderFlix". Non c'è l'anteprima al passaggio del mouse delle card di oggi.
 - **Stati della sezione:**
-  - in caricamento: uno scheletro di una riga;
+  - in caricamento: uno scheletro di una riga. Vale anche quando il termine cambia: mentre Seerr cerca, non restano mai i titoli del termine di prima;
   - errore: "Seerr non risponde" con Riprova;
   - nessun titolo: la sezione non compare;
   - se anche la libreria non trova nulla, il messaggio "Nessun risultato" resta sopra la sezione.
 
 ### 9.2 Scheda da richiedere (`/tmdb/:type/:tmdbId`)
 
-- **Impaginazione** di `detail_header.dart`: sfondo TMDB sfumato, titolo in Bebas Neue, riga con anno · Film/Serie · generi · durata o numero di stagioni, trama.
+- **Impaginazione** di `detail_header.dart`: sfondo TMDB sfumato, titolo in Bebas Neue, riga con anno · Film/Serie · generi · durata o numero di stagioni, trama. Lo sfondo scorre insieme all'intestazione.
+- **Permessi:** la pagina aspetta `Me` (o il suo errore) prima di mostrare i dati, così Richiedi e le caselle delle stagioni non cambiano dopo il primo fotogramma.
 - **Pulsanti:**
   - **Richiedi** (oro), se `CanRequest` e se c'è qualcosa da chiedere. Per le serie l'etichetta è "Richiedi" con tutte le stagioni scelte, e "Richiedi {n} stagioni" quando sono solo alcune.
   - Al suo posto, se il titolo è già chiesto o arrivato, un'etichetta di stato: "Richiesto da te", "Richiesto", "In arrivo", "In parte disponibile".
@@ -352,9 +368,11 @@ Tutti sotto `/WonderFlixWatchParty/Requests` e con `[Authorize]`, tranne il webh
   - **Trailer**, se c'è `TrailerUrl` (YouTube): si apre nel browser, come i trailer remoti di oggi.
 - **Stagioni** (solo serie), con `SeasonPicker`:
   - righe "Stagione {n} · {count} episodi" con la casella e lo stato a destra ("Da richiedere", "In attesa", "In arrivo", "In parte", "Disponibile"), e "Tutte" in cima;
+  - ogni riga è un solo punto di focus per la tastiera;
   - le stagioni non `None` sono segnate e non si possono scegliere;
   - Richiedi è spento se non è scelta nessuna stagione.
 - **Dopo l'invio:**
+  - Richiedi resta bloccato finché la scheda non si è ricaricata;
   - avviso flottante "Richiesta inviata" oppure, se Seerr l'ha approvata da sola, "Richiesta approvata";
   - per `AlreadyRequested`: "Qualcuno l'ha già chiesto";
   - per `QuotaExceeded`: "Hai raggiunto il limite di richieste";
@@ -438,16 +456,19 @@ Un test dei testi (`test/app/l10n_plan15_requests_test.dart`) controlla che le c
   - la sezione "Da richiedere" mostra "Seerr non risponde", e la ricerca nella libreria funziona come sempre;
   - schede e pagina Richieste mostrano `ErrorView`;
   - "Richiedi stagioni" non compare.
+- **Seerr risponde con `null` dove ci si aspetta una lista:** vale come una risposta inattesa. Il plugin risponde 502 `SeerrUnavailable` e l'app mostra "Seerr non risponde", come per Seerr spento.
 - **Seerr non configurato o tolto:** `requests` sparisce da `Features` e l'app torna quella di oggi. Una chiamata in volo riceve 503 e mostra l'errore generico.
 - **Due persone chiedono lo stesso titolo insieme:** la seconda riceve "Qualcuno l'ha già chiesto" e la scheda si ricarica.
 - **Stagioni chieste da altri nel frattempo:** Seerr toglie i doppioni. Se non resta nulla da chiedere arriva `NothingToRequest`, la scheda si ricarica e mostra lo stato.
+- **Serie con solo alcune delle stagioni chieste arrivate:** la richiesta è "In parte disponibile", a meno che non ci sia un download in corso, che ha la precedenza ("In arrivo"). Lo stato della serie intera non conta (§7.3).
 - **Richieste dell'admin:** Seerr le approva da sola. L'avviso è "Richiesta approvata", e non parte nessun `RequestPending`.
 - **Utente senza account Seerr:** "Le mie" è vuota e `HasAccount` è falso. L'account nasce alla prima richiesta (§7.2).
+- **Due prime richieste insieme dello stesso utente:** l'import parte una volta sola, e tutte e due le richieste usano l'account creato (§7.2).
 - **Utente Jellyfin cancellato o rinominato:** l'abbinamento usa l'id, quindi un cambio di nome non conta. Gli utenti Seerr legati a utenti cancellati non vengono mai usati.
 - **"Ora disponibile" in ritardo:** finché la sincronizzazione di Seerr è rotta (§3), l'avviso arriva dopo la scansione della notte. Il riepilogo delle novità della Spec G, invece, arriva come oggi.
 - **Doppio avviso:** un titolo chiesto e arrivato compare sia in "Ora disponibile" sia nel riepilogo delle novità. Va bene così, perché hanno scopi diversi.
 - **Webhook ripetuto o tardivo:** la voce con lo stesso `RequestId` sostituisce quella di prima (§7.6).
-- **Webhook con un `requestedBy_jellyfinUserId` che non esiste più:** l'evento si scarta con una riga nel registro.
+- **Webhook con un `requestedBy_jellyfinUserId` che non esiste più o è disabilitato:** l'evento si scarta con una riga nel registro.
 - **Titolo disponibile senza `jellyfinMediaId`:** la riga e l'avviso aprono la pagina Richieste. Dalla scheda da richiedere manca "Guarda".
 - **Approvazione di una richiesta già approvata o rifiutata da un altro admin, o dal sito di Seerr:** Seerr risponde comunque. Il plugin restituisce la richiesta aggiornata, e la riga esce da "Da approvare".
 - **Lingua:** con `language=it` Seerr dà titoli e trame in italiano quando TMDB li ha, altrimenti in originale.
@@ -459,7 +480,7 @@ Un test dei testi (`test/app/l10n_plan15_requests_test.dart`) controlla che le c
 - **Plugin (xunit):**
   - `SeerrClient` con un `HttpMessageHandler` finto: header `X-API-Key` sempre presente, `X-API-User` solo dove serve, attesa massima, mappatura degli errori (403 con quota o permesso, 409, 202, 401 della chiave, errori di rete);
   - `SeerrUserMap`: abbinamento senza badare a maiuscole e trattini, doppioni, cache, import alla prima richiesta e import non riuscito;
-  - `RequestsService`: stati dei titoli e delle stagioni, stato delle richieste nei sette casi, `Progress`, filtri, completamento dei titoli con `SeerrTitleCache`, approvazione con e senza `PUT`, persone e titoli bloccati tolti dalla ricerca;
+  - `RequestsService`: stati dei titoli e delle stagioni, stato delle richieste negli otto casi, `Progress`, filtri, completamento dei titoli con `SeerrTitleCache`, approvazione con e senza `PUT`, persone e titoli bloccati tolti dalla ricerca;
   - `RequestsController`: accesso, `CanManage` per le operazioni da admin, mai 404, `{Code}`;
   - webhook: segreto (giusto, sbagliato, mancante), i tipi, chi riceve `RequestPending`, eventi incompleti, doppioni nella cassetta;
   - `Info.Features` con e senza Seerr configurato.
