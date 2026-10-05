@@ -8,6 +8,7 @@ import '../../app/error_text.dart';
 import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
+import '../../core/requests/requests_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/staggered_entrance.dart';
 import '../../ui/wf_buttons.dart';
@@ -16,6 +17,7 @@ import '../library/item_labels.dart';
 import '../library/library_providers.dart';
 import '../library/user_data.dart';
 import '../playback/play_launcher.dart';
+import '../requests/request_seasons.dart';
 import '../watch_party/party_mode_menu.dart';
 import '../watch_party/watch_party_providers.dart';
 import 'header_parallax.dart';
@@ -69,6 +71,18 @@ class DetailHeader extends ConsumerWidget {
     final overview = item.overview;
     final hasTrailer =
         item.localTrailerCount > 0 || remoteTrailerUri(item) != null;
+    // Serie della libreria con stagioni che mancano (spec I §9.3): la
+    // scheda di Seerr si carica solo per le serie con l'id TMDB.
+    final tmdbId = item.kind == ItemKind.series ? item.tmdbId : null;
+    final seasonsKey = tmdbId == null
+        ? null
+        : (
+            type: RequestMediaType.tv,
+            tmdbId: tmdbId,
+            language: Localizations.localeOf(context).languageCode,
+          );
+    final canRequestSeasons =
+        seasonsKey != null && ref.watch(seasonsToRequestProvider(seasonsKey));
 
     return SizedBox(
       height: detailHeaderHeight,
@@ -191,6 +205,13 @@ class DetailHeader extends ConsumerWidget {
                             icon: LucideIcons.clapperboard,
                             onPressed: () =>
                                 unawaited(playTrailer(context, ref, item)),
+                          ),
+                        if (seasonsKey != null && canRequestSeasons)
+                          WfButton.secondary(
+                            label: l.requestsMoreSeasons,
+                            icon: LucideIcons.plus,
+                            onPressed: () => unawaited(showRequestSeasonsDialog(
+                                context, seasonsKey, item.name)),
                           ),
                         WfIconToggle(
                           icon: LucideIcons.heart,
