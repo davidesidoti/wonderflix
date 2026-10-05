@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/requests/requests_models.dart';
 import 'package:wonderflix/features/requests/season_picker.dart';
@@ -72,6 +73,45 @@ void main() {
     await tester.tap(find.text('Tutte'));
 
     expect(taps, isEmpty);
+  });
+
+  testWidgets('ogni riga è un solo nodo: la casella con la sua etichetta',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    await pumpPicker(tester);
+
+    final node = tester.getSemantics(find.byKey(const ValueKey('season-4')));
+    expect(node.label, contains('Stagione 4 · 8 episodi'));
+    expect(node.label, contains('Da richiedere'));
+    expect(
+        node,
+        isSemantics(
+            hasCheckedState: true,
+            isChecked: true,
+            hasEnabledState: true,
+            isEnabled: true,
+            hasTapAction: true));
+    handle.dispose();
+  });
+
+  testWidgets('con Tab ogni riga è un solo punto: la casella', (tester) async {
+    await pumpPicker(tester);
+
+    // Le righe bloccate (stagioni 1 e 3) non prendono il fuoco.
+    final stops = <bool>[];
+    for (final key in const ['season-all', 'season-2', 'season-4']) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      final focused = FocusManager.instance.primaryFocus?.context;
+      var inRow = false;
+      focused?.visitAncestorElements((element) {
+        inRow = element.widget.key == ValueKey(key);
+        return !inRow;
+      });
+      stops.add(inRow && focused?.findAncestorWidgetOfExactType<Checkbox>() != null);
+    }
+
+    expect(stops, [true, true, true]);
   });
 
   testWidgets('una sola stagione da chiedere: niente "Tutte"', (tester) async {

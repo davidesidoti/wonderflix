@@ -93,34 +93,40 @@ class _SeasonRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final tap = onTap;
     final status = this.status;
-    return InkWell(
-      onTap: tap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: WfColors.border)),
-        ),
-        child: Row(
-          children: [
-            Checkbox(
-              value: value,
-              tristate: value == null,
-              onChanged: tap == null ? null : (_) => tap(),
-              activeColor: WfColors.gold,
-              checkColor: WfColors.bg,
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Text(label,
-                  style: TextStyle(
-                      color: tap == null ? WfColors.creamMuted : WfColors.cream)),
-            ),
-            if (status != null)
-              Text(status,
-                  style: const TextStyle(
-                      color: WfColors.creamMuted, fontSize: 12.5)),
-            const SizedBox(width: 8),
-          ],
+    // Un solo nodo per la riga (casella + etichetta + stato) e un solo punto
+    // per Tab: la casella. Il tocco sulla riga resta.
+    return MergeSemantics(
+      child: InkWell(
+        onTap: tap,
+        canRequestFocus: false,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: WfColors.border)),
+          ),
+          child: Row(
+            children: [
+              Checkbox(
+                value: value,
+                tristate: value == null,
+                onChanged: tap == null ? null : (_) => tap(),
+                activeColor: WfColors.gold,
+                checkColor: WfColors.bg,
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(label,
+                    style: TextStyle(
+                        color:
+                            tap == null ? WfColors.creamMuted : WfColors.cream)),
+              ),
+              if (status != null)
+                Text(status,
+                    style: const TextStyle(
+                        color: WfColors.creamMuted, fontSize: 12.5)),
+              const SizedBox(width: 8),
+            ],
+          ),
         ),
       ),
     );
