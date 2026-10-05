@@ -14,6 +14,8 @@ import '../../ui/states.dart';
 import '../../ui/wf_image.dart';
 import '../../ui/wf_switcher.dart';
 import '../library/library_providers.dart';
+import '../requests/requestables_controller.dart';
+import '../requests/requestables_section.dart';
 import 'search_controller.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -43,7 +45,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       children: [
         TextField(
           autofocus: true,
-          onChanged: controller.setTerm,
+          onChanged: (value) {
+            controller.setTerm(value);
+            ref.read(requestablesControllerProvider.notifier).setTerm(value,
+                language: Localizations.localeOf(context).languageCode);
+          },
           style: const TextStyle(fontSize: 18),
           decoration: InputDecoration(
             hintText: l.searchHint,
@@ -52,6 +58,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         ),
         const SizedBox(height: 24),
         WfSwitcher(child: _results(context, l, state)),
+        RequestablesSection(libraryIds: _libraryIds(state)),
       ],
     );
   }
@@ -92,6 +99,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         if (results.people.isNotEmpty) _peopleSection(context, l, results.people),
       ],
     );
+  }
+
+  /// Id dei film e delle serie trovati nella libreria, in minuscolo, per
+  /// non ripeterli in "Da richiedere"; `null` mentre la ricerca è in corso.
+  /// Con un errore della libreria la sezione non aspetta.
+  static Set<String>? _libraryIds(SearchState state) {
+    if (state.error != null) return const {};
+    final results = state.results;
+    if (state.loading || results == null) return null;
+    return {
+      for (final item in [...results.movies, ...results.series])
+        item.id.toLowerCase(),
+    };
   }
 
   /// Sezione di locandine; le card entrano di nuovo a ogni ricerca
