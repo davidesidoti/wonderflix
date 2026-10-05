@@ -266,6 +266,27 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets('serie senza episodi veri: niente "0 stagioni", "Nessun '
+      'episodio disponibile"', (tester) async {
+    // Le stagioni ci sono, ma con soli episodi mancanti.
+    library.seriesEpisodes['s1'] = const [];
+    await pump(
+      tester,
+      QueueSeriesView(
+        series: dark,
+        queue: queue,
+        onAdd: (items, {required next}) async {},
+        onOpenSeason: (_) {},
+        onBack: () {},
+        onClose: () {},
+      ),
+    );
+    expect(find.text('Dark'), findsOneWidget);
+    expect(find.textContaining('stagioni'), findsNothing);
+    expect(find.text(l.partyQueueSeriesEmpty), findsOneWidget);
+    expect(find.text('Stagione 1'), findsNothing);
+  });
+
   testWidgets('serie: errore con Riprova', (tester) async {
     library.error = const ServerUnreachableException();
     await pump(

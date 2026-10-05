@@ -393,6 +393,7 @@
   "partyQueueFull": "La coda è piena ({limit} titoli)",
   "@partyQueueFull": {"placeholders": {"limit": {"type": "int"}}},
   "partyQueueSeries": "Serie",
+  "partyQueueSeriesEmpty": "Nessun episodio disponibile",
   "partyQueueEpisodeCount": "{count, plural, =1{1 episodio} other{{count} episodi}}",
   "@partyQueueEpisodeCount": {"placeholders": {"count": {"type": "int"}}},
   "partyQueueAlreadyQueuedCount": "{count} già in coda",

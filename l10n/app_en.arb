@@ -336,6 +336,7 @@
   "partyQueueInQueue": "In queue",
   "partyQueueFull": "The queue is full ({limit} titles)",
   "partyQueueSeries": "Series",
+  "partyQueueSeriesEmpty": "No episodes available",
   "partyQueueEpisodeCount": "{count, plural, =1{1 episode} other{{count} episodes}}",
   "partyQueueAlreadyQueuedCount": "{count} already queued",
   "partyQueueWholeSeasonNext": "All next",

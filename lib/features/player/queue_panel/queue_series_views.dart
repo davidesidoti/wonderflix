@@ -74,24 +74,30 @@ class QueueSeriesView extends ConsumerWidget {
           if (bySeason[season.id] case final list? when list.isNotEmpty)
             (season, list),
       ];
-      // Le stagioni si contano qui: la ricerca e La mia lista non danno
-      // `ChildCount`.
-      subtitle = l.detailSeasons(visible.length);
-      body = ListView(
-        padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
-        children: [
-          for (final (season, list) in visible)
-            _SeasonRow(
-              season: season,
-              episodes: list,
-              image: urls.poster(season) ?? urls.poster(series),
-              queued: queued,
-              full: full,
-              onAdd: onAdd,
-              onOpen: () => onOpenSeason(season),
-            ),
-        ],
-      );
+      if (visible.isEmpty) {
+        // Nessun episodio vero (solo mancanti): né "0 stagioni" né una lista
+        // vuota, lo si dice.
+        body = QueueMessage(text: l.partyQueueSeriesEmpty);
+      } else {
+        // Le stagioni si contano qui: la ricerca e La mia lista non danno
+        // `ChildCount`.
+        subtitle = l.detailSeasons(visible.length);
+        body = ListView(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+          children: [
+            for (final (season, list) in visible)
+              _SeasonRow(
+                season: season,
+                episodes: list,
+                image: urls.poster(season) ?? urls.poster(series),
+                queued: queued,
+                full: full,
+                onAdd: onAdd,
+                onOpen: () => onOpenSeason(season),
+              ),
+          ],
+        );
+      }
     } else {
       body = const SizedBox.shrink();
     }
