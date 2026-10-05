@@ -5,7 +5,7 @@
     <title>WonderFlix Watch Party</title>
 </head>
 <body>
-    <div id="WonderFlixWatchPartyPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-textarea,emby-checkbox">
+    <div id="WonderFlixWatchPartyPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-button,emby-textarea,emby-checkbox,emby-input">
         <div data-role="content">
             <div class="content-primary">
                 <h2 class="sectionTitle">WonderFlix Watch Party</h2>
@@ -44,6 +44,45 @@
                     </button>
                     <div id="WonderFlixNewTitlesResult" class="fieldDescription"></div>
                 </div>
+                <form id="WonderFlixSeerrForm">
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Seerr</h3>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="url" id="WonderFlixSeerrUrl" label="Seerr address" placeholder="https://example.com/seerr" />
+                            <div class="fieldDescription">As seen from the Jellyfin server. Empty: requests are off in WonderFlix.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="password" id="WonderFlixSeerrApiKey" label="Seerr API key" autocomplete="off" />
+                            <div class="fieldDescription">Seerr → Settings → General → API Key.</div>
+                        </div>
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span>Save</span>
+                        </button>
+                        <button is="emby-button" id="WonderFlixSeerrTest" type="button" class="raised block emby-button">
+                            <span>Test connection</span>
+                        </button>
+                        <div id="WonderFlixSeerrResult" class="fieldDescription"></div>
+                        <h3 class="sectionTitle">Seerr webhook</h3>
+                        <div class="fieldDescription">
+                            In Seerr → Settings → Notifications → Webhook: turn it on, paste the URL and the JSON payload below,
+                            and tick only "Request Pending Approval" and "Request Available".
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="text" id="WonderFlixSeerrWebhookUrl" label="Webhook URL" readonly />
+                        </div>
+                        <div class="inputContainer">
+                            <textarea is="emby-textarea" id="WonderFlixSeerrTemplate" class="emby-textarea" rows="13" readonly></textarea>
+                        </div>
+                        <button is="emby-button" id="WonderFlixSeerrCopy" type="button" class="raised block emby-button">
+                            <span>Copy the JSON payload</span>
+                        </button>
+                        <button is="emby-button" id="WonderFlixSeerrRegenerate" type="button" class="raised block emby-button">
+                            <span>New secret</span>
+                        </button>
+                        <div class="fieldDescription">A new secret needs the new JSON payload in Seerr too.</div>
+                        <div id="WonderFlixSeerrLastEvent" class="fieldDescription"></div>
+                    </div>
+                </form>
             </div>
         </div>
         <script type="text/javascript">
@@ -57,6 +96,123 @@
                 var pending = page.querySelector('#WonderFlixNewTitlesPending');
                 var sendNow = page.querySelector('#WonderFlixNewTitlesSend');
                 var newTitlesResult = page.querySelector('#WonderFlixNewTitlesResult');
+                var seerrUrl = page.querySelector('#WonderFlixSeerrUrl');
+                var seerrKey = page.querySelector('#WonderFlixSeerrApiKey');
+                var seerrResult = page.querySelector('#WonderFlixSeerrResult');
+                var webhookUrl = page.querySelector('#WonderFlixSeerrWebhookUrl');
+                var template = page.querySelector('#WonderFlixSeerrTemplate');
+                var lastEvent = page.querySelector('#WonderFlixSeerrLastEvent');
+                var webhookSecret = '';
+
+                // Segreto del webhook: 24 byte casuali in esadecimale.
+                function newSecret() {
+                    var bytes = new Uint8Array(24);
+                    crypto.getRandomValues(bytes);
+                    return Array.from(bytes, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+                }
+
+                // Il modello che Seerr riempie; '{{extra}}' è una chiave speciale
+                // che Seerr sostituisce con "extra": [{ name, value }].
+                function webhookTemplate(secret) {
+                    return JSON.stringify({
+                        secret: secret,
+                        notification_type: '{{notification_type}}',
+                        subject: '{{subject}}',
+                        request_id: '{{request_id}}',
+                        media_type: '{{media_type}}',
+                        media_tmdbid: '{{media_tmdbid}}',
+                        media_jellyfinMediaId: '{{media_jellyfinMediaId}}',
+                        requestedBy_jellyfinUserId: '{{requestedBy_jellyfinUserId}}',
+                        requestedBy_username: '{{requestedBy_username}}',
+                        '{{extra}}': []
+                    }, null, 2);
+                }
+
+                function renderWebhook() {
+                    webhookUrl.value = ApiClient.getUrl('WonderFlixWatchParty/Requests/Webhook');
+                    template.value = webhookSecret ? webhookTemplate(webhookSecret) : '';
+                }
+
+                function refreshSeerrStatus() {
+                    ApiClient.ajax({
+                        type: 'GET',
+                        url: ApiClient.getUrl('WonderFlixWatchParty/Requests/Admin'),
+                        dataType: 'json'
+                    }).then(function (status) {
+                        lastEvent.textContent = status.LastEventAt
+                            ? 'Last event received: ' + new Date(status.LastEventAt).toLocaleString() + ' (' + status.LastEventType + ').'
+                            : 'No event received since Jellyfin started.';
+                    }, function () {
+                        lastEvent.textContent = '';
+                    });
+                }
+
+                function loadSeerr() {
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        seerrUrl.value = config.SeerrUrl || '';
+                        seerrKey.value = config.SeerrApiKey || '';
+                        webhookSecret = config.SeerrWebhookSecret || '';
+                        renderWebhook();
+                        refreshSeerrStatus();
+                    });
+                }
+
+                // Salva indirizzo, chiave e segreto; il segreto nasce al primo salvataggio.
+                function saveSeerr(secret) {
+                    seerrResult.textContent = '';
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        config.SeerrUrl = seerrUrl.value.trim();
+                        config.SeerrApiKey = seerrKey.value.trim();
+                        config.SeerrWebhookSecret = secret || config.SeerrWebhookSecret || newSecret();
+                        return ApiClient.updatePluginConfiguration(pluginId, config);
+                    }).then(function (saved) {
+                        Dashboard.processPluginConfigurationUpdateResult(saved);
+                        loadSeerr();
+                    }, function () {
+                        Dashboard.hideLoadingMsg();
+                        seerrResult.textContent = 'Settings not saved.';
+                    });
+                }
+
+                page.addEventListener('pageshow', loadSeerr);
+                loadSeerr();
+
+                page.querySelector('#WonderFlixSeerrForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    saveSeerr(null);
+                    return false;
+                });
+
+                page.querySelector('#WonderFlixSeerrRegenerate').addEventListener('click', function () {
+                    saveSeerr(newSecret());
+                });
+
+                page.querySelector('#WonderFlixSeerrCopy').addEventListener('click', function () {
+                    navigator.clipboard.writeText(template.value).then(function () {
+                        seerrResult.textContent = 'JSON payload copied.';
+                    }, function () {
+                        template.select();
+                        seerrResult.textContent = 'Copy it by hand (Ctrl+C).';
+                    });
+                });
+
+                page.querySelector('#WonderFlixSeerrTest').addEventListener('click', function () {
+                    seerrResult.textContent = 'Testing…';
+                    ApiClient.ajax({
+                        type: 'POST',
+                        url: ApiClient.getUrl('WonderFlixWatchParty/Requests/Test'),
+                        dataType: 'json'
+                    }).then(function (result) {
+                        seerrResult.textContent = result.Ok
+                            ? 'Connected to Seerr ' + result.Version + '.'
+                            : result.Error === 'NotConfigured' ? 'Save the address and the API key first.'
+                            : result.Error === 'SeerrAuth' ? 'Seerr refused the API key.'
+                            : 'Seerr can\'t be reached from the Jellyfin server: check the address.';
+                    }, function () {
+                        seerrResult.textContent = 'Test failed: try again.';
+                    });
+                });
 
                 function refreshNewTitles() {
                     ApiClient.ajax({

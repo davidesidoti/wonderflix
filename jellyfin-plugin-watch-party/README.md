@@ -9,6 +9,8 @@ e la cassetta delle notifiche (spec G,
 `docs/superpowers/specs/2026-10-03-wonderflix-notifiche-design.md`). Dalla
 1.3.0 dice anche chi ha cambiato la coda del gruppo (spec H,
 `docs/superpowers/specs/2026-10-04-wonderflix-coda-party-design.md`).
+Dalla 1.4.0 fa da tramite verso Seerr per chiedere film e serie dall'app
+(spec I, `docs/superpowers/specs/2026-10-05-wonderflix-seerr-design.md`).
 Senza il plugin WonderFlix funziona lo stesso, con gli avvisi
 anonimi.
 
@@ -39,6 +41,17 @@ anonimi.
 - **Party:** l'app registra ogni gruppo con la sua modalità (pubblico, solo
   amici, privato con codice) e chiede al plugin l'elenco già filtrato
   (`GET Parties`). I party stanno in RAM e spariscono con i gruppi SyncPlay.
+- **Seerr (dalla 1.4.0):** nella pagina del plugin si mettono l'indirizzo di
+  Seerr (come lo vede il server Jellyfin) e la sua chiave API; **Test
+  connection** li prova. Con indirizzo e chiave `GET Info` annuncia
+  `requests` e l'app mostra le richieste. Il plugin agisce in Seerr per
+  conto dell'utente (`X-API-User`) e crea l'account Seerr mancante alla
+  prima richiesta. Il **webhook** di Seerr (indirizzo, modello JSON con il
+  segreto e i tipi "Request Pending Approval" e "Request Available"
+  sono nella stessa pagina) porta nella cassetta "Ora disponibile" a chi ha
+  chiesto il titolo e "Nuova richiesta" a chi può approvare. Indirizzo,
+  chiave e segreto stanno nella configurazione del plugin, leggibile solo
+  dagli admin.
 
 ## Installazione dal repository
 
@@ -49,8 +62,8 @@ anonimi.
 
 ## Installazione a mano (prove)
 
-1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.3.0`.
-   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.3.0.0/`
+1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.4.0`.
+   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.4.0.0/`
    con la dll e `meta.json`.
 2. Copia la cartella dentro `plugins/` della cartella dati di Jellyfin (su
    Ultra.cc via SFTP).
