@@ -31,14 +31,59 @@ public class SeerrTitleCacheTests
     }
 
     [Fact]
-    public async Task AMissingTitleIsNullAndNotRemembered()
+    public async Task AMissingTitleIsRememberedForAFewMinutes()
     {
         var cache = new SeerrTitleCache(_seerr, _time);
 
         Assert.Null(await cache.GetAsync("movie", 1, "it", Ct));
 
+        // Apparso su Seerr dopo: finché la mancanza è in memoria resta null.
         _seerr.Movies[1] = new SeerrMovie { Title = "Uno" };
+        Assert.Null(await cache.GetAsync("movie", 1, "it", Ct));
+
+        _time.Advance(SeerrTitleCache.MissCacheFor);
         Assert.Equal("Uno", (await cache.GetAsync("movie", 1, "it", Ct))!.Title);
+    }
+
+    [Fact]
+    public async Task AMissingTitleIsLookedUpOnceInFiveMinutesAndAgainAfter()
+    {
+        var cache = new SeerrTitleCache(_seerr, _time);
+
+        await cache.GetAsync("movie", 1, "it", Ct);
+        _time.Advance(SeerrTitleCache.MissCacheFor - TimeSpan.FromSeconds(1));
+        await cache.GetAsync("movie", 1, "it", Ct);
+        Assert.Single(_seerr.Calls, "GetMovie");
+
+        _time.Advance(TimeSpan.FromSeconds(1));
+        await cache.GetAsync("movie", 1, "it", Ct);
+        Assert.Equal(2, _seerr.Calls.Count(c => c == "GetMovie"));
+    }
+
+    [Fact]
+    public async Task OnlyAFewLookupsRunAtTheSameTime()
+    {
+        const int Titles = 10;
+        for (var id = 1; id <= Titles; id++)
+        {
+            _seerr.Movies[id] = new SeerrMovie { Title = $"Film {id}" };
+        }
+
+        var gate = new TaskCompletionSource();
+        _seerr.TitlesGate = gate.Task;
+        var cache = new SeerrTitleCache(_seerr, _time);
+
+        var lookups = Enumerable.Range(1, Titles).Select(id => cache.GetAsync("movie", id, "it", Ct)).ToList();
+        await Task.Delay(50);
+
+        // Il limite regge davvero: le prime chiamate sono in corso e le altre aspettano.
+        Assert.Equal(SeerrTitleCache.MaxParallelLookups, _seerr.InFlightTitles);
+        gate.SetResult();
+        var results = await Task.WhenAll(lookups);
+
+        Assert.True(_seerr.MaxInFlightTitles <= SeerrTitleCache.MaxParallelLookups);
+        Assert.All(results, title => Assert.NotNull(title));
+        Assert.Equal(Titles, _seerr.Calls.Count(c => c == "GetMovie"));
     }
 
     [Fact]

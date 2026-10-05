@@ -5,6 +5,9 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
 /// <summary>Seerr finto, in memoria: dati da preparare e chiamate registrate per nome.</summary>
 internal sealed class FakeSeerrClient : ISeerrClient
 {
+    private int _inFlightTitles;
+    private int _maxInFlightTitles;
+
     public string Version { get; set; } = "3.4.1";
 
     public List<SeerrUser> Users { get; } = [];
@@ -54,6 +57,15 @@ internal sealed class FakeSeerrClient : ISeerrClient
 
     /// <summary>Se impostato, <see cref="GetUsersAsync"/> aspetta che finisca prima di rispondere.</summary>
     public Task? UsersGate { get; set; }
+
+    /// <summary>Se impostato, <see cref="GetMovieAsync"/> e <see cref="GetTvAsync"/> aspettano che finisca prima di rispondere.</summary>
+    public Task? TitlesGate { get; set; }
+
+    /// <summary>Chiamate di titolo (film o serie) in corso in questo momento.</summary>
+    public int InFlightTitles => Volatile.Read(ref _inFlightTitles);
+
+    /// <summary>Il massimo di chiamate di titolo in corso insieme.</summary>
+    public int MaxInFlightTitles => Volatile.Read(ref _maxInFlightTitles);
 
     /// <summary>La risposta a una nuova richiesta.</summary>
     public Func<int, SeerrCreateRequest, SeerrRequest> OnCreate { get; set; } =
@@ -110,19 +122,21 @@ internal sealed class FakeSeerrClient : ISeerrClient
         return Task.FromResult<IReadOnlyList<SeerrSearchResult>>(SearchResults.ToList());
     }
 
-    public Task<SeerrMovie> GetMovieAsync(int tmdbId, string language, CancellationToken cancellationToken)
+    public async Task<SeerrMovie> GetMovieAsync(int tmdbId, string language, CancellationToken cancellationToken)
     {
         Call("GetMovie");
+        await HoldTitleAsync().ConfigureAwait(false);
         return Movies.TryGetValue(tmdbId, out var movie)
-            ? Task.FromResult(movie)
+            ? movie
             : throw new SeerrException(SeerrError.NotFound);
     }
 
-    public Task<SeerrTv> GetTvAsync(int tmdbId, string language, CancellationToken cancellationToken)
+    public async Task<SeerrTv> GetTvAsync(int tmdbId, string language, CancellationToken cancellationToken)
     {
         Call("GetTv");
+        await HoldTitleAsync().ConfigureAwait(false);
         return Shows.TryGetValue(tmdbId, out var tv)
-            ? Task.FromResult(tv)
+            ? tv
             : throw new SeerrException(SeerrError.NotFound);
     }
 
@@ -180,12 +194,41 @@ internal sealed class FakeSeerrClient : ISeerrClient
         return Task.FromResult(ServerDetails[(service, serverId)]);
     }
 
+    // Conta le chiamate di titolo in corso (e il massimo raggiunto) mentre
+    // aspettano TitlesGate.
+    private async Task HoldTitleAsync()
+    {
+        var now = Interlocked.Increment(ref _inFlightTitles);
+        int max;
+        while (now > (max = Volatile.Read(ref _maxInFlightTitles))
+            && Interlocked.CompareExchange(ref _maxInFlightTitles, now, max) != max)
+        {
+        }
+
+        try
+        {
+            if (TitlesGate is { } gate)
+            {
+                await gate.ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _inFlightTitles);
+        }
+    }
+
     private SeerrRequest Find(int requestId) =>
         Requests.FirstOrDefault(r => r.Id == requestId) ?? throw new SeerrException(SeerrError.NotFound);
 
     private void Call(string name)
     {
-        Calls.Add(name);
+        // Più chiamate possono arrivare da thread diversi.
+        lock (Calls)
+        {
+            Calls.Add(name);
+        }
+
         if (FailWith is { } error)
         {
             throw new SeerrException(error);
