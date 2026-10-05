@@ -11,6 +11,7 @@ import '../features/home/home_screen.dart';
 import '../features/mylist/my_list_screen.dart';
 import '../features/person/person_screen.dart';
 import '../features/player/player_screen.dart';
+import '../features/requests/tmdb_title_screen.dart';
 import '../features/search/search_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/startup/splash_screen.dart';
@@ -183,6 +184,21 @@ final routerProvider = Provider<GoRouter>((ref) {
                 launch: _heroLaunch(state),
               ),
               underBar: true,
+            ),
+          ),
+          GoRoute(
+            path: '/tmdb/:type/:tmdbId',
+            pageBuilder: (context, state) => detailPage(
+              context,
+              state,
+              // Tipo o id non validi: pagina vuota (si torna indietro).
+              TmdbTitleScreen.fromRoute(
+                    state.pathParameters['type'],
+                    state.pathParameters['tmdbId'],
+                    key: ValueKey(state.uri.toString()),
+                  ) ??
+                  const SizedBox.shrink(),
+              underBar: false,
             ),
           ),
         ],
