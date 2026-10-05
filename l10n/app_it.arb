@@ -470,6 +470,7 @@
   "requestsApprove": "Approva",
   "requestsDecline": "Rifiuta",
   "requestsDeclineConfirm": "Conferma",
+  "requestsDeclineConfirmLabel": "Conferma il rifiuto",
   "requestsEmptyMine": "Non hai ancora chiesto niente. Cerca un titolo che manca e premi Richiedi.",
   "requestsEmptyPending": "Niente da approvare",
   "requestsEmptyAll": "Nessuna richiesta",

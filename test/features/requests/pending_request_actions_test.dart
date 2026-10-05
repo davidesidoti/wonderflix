@@ -139,7 +139,52 @@ void main() {
     await tester.tap(find.text('Rifiuta'));
     await tester.pump();
 
-    expect(tester.getSemantics(decline).label, 'Rifiuta: Conferma');
+    expect(tester.getSemantics(decline).label, 'Conferma il rifiuto');
     semantics.dispose();
+  });
+
+  testWidgets('durante l\'invio un clic sui pulsanti nascosti non arriva alla riga',
+      (tester) async {
+    final calls = <String>[];
+    Future<void> pumpInRow({required bool busy}) => pumpApp(
+          tester,
+          Scaffold(
+            // Come in `RequestRow`: la riga intera apre la richiesta.
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: InkWell(
+                onTap: () => calls.add('riga'),
+                child: PendingRequestActions(
+                  busy: busy,
+                  onApprove: () => calls.add('approva'),
+                  onDecline: () => calls.add('rifiuta'),
+                ),
+              ),
+            ),
+          ),
+        );
+
+    // Con i pulsanti visibili il clic su Approva non apre la riga.
+    await pumpInRow(busy: false);
+    final approvePoint = tester.getCenter(find.text('Approva'));
+    final declinePoint = tester.getCenter(find.text('Rifiuta'));
+    await tester.tapAt(approvePoint);
+    await tester.pump();
+    expect(calls, ['approva']);
+    calls.clear();
+
+    // Occupata: i pulsanti non si vedono, e il clic dove erano non apre
+    // la richiesta.
+    await pumpInRow(busy: true);
+    await tester.tapAt(approvePoint);
+    await tester.tapAt(declinePoint);
+    await tester.pump();
+    expect(calls, isEmpty);
+
+    // Finito l'invio la riga torna a rispondere al clic.
+    await pumpInRow(busy: false);
+    await tester.tapAt(approvePoint);
+    await tester.pump();
+    expect(calls, ['approva']);
   });
 }

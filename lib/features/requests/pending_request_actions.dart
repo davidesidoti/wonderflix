@@ -74,7 +74,7 @@ class _PendingRequestActionsState extends State<PendingRequestActions> {
     final confirming = _confirm != null;
     // Con `busy` i pulsanti restano al loro posto ma non si vedono e non si
     // toccano, e l'indicatore sta sopra: la riga non salta.
-    return Stack(
+    final stack = Stack(
       alignment: Alignment.center,
       children: [
         Visibility(
@@ -95,9 +95,8 @@ class _PendingRequestActionsState extends State<PendingRequestActions> {
                 child: Text(
                   confirming ? l.requestsDeclineConfirm : l.requestsDecline,
                   // Lo screen reader sente cosa si conferma.
-                  semanticsLabel: confirming
-                      ? '${l.requestsDecline}: ${l.requestsDeclineConfirm}'
-                      : null,
+                  semanticsLabel:
+                      confirming ? l.requestsDeclineConfirmLabel : null,
                 ),
               ),
               const SizedBox(width: 8),
@@ -116,6 +115,15 @@ class _PendingRequestActionsState extends State<PendingRequestActions> {
                 strokeWidth: 2, semanticsLabel: l.requestsWorking),
           ),
       ],
+    );
+    // Il clic sull'area dei pulsanti nascosti non deve arrivare alla riga
+    // (aprirebbe la richiesta): solo con `busy` un rilevatore opaco lo
+    // assorbe. L'albero resta lo stesso nei due casi, così il fuoco dei
+    // pulsanti non va perso.
+    return GestureDetector(
+      behavior: widget.busy ? HitTestBehavior.opaque : HitTestBehavior.deferToChild,
+      onTap: widget.busy ? () {} : null,
+      child: stack,
     );
   }
 }

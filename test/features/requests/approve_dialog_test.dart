@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/requests/requests_api.dart';
 import 'package:wonderflix/core/requests/requests_models.dart';
 import 'package:wonderflix/features/requests/approve_dialog.dart';
+import 'package:wonderflix/ui/states.dart';
 
 import '../../support/pump_app.dart';
 import '../../support/requests_fakes.dart';
@@ -245,5 +248,71 @@ void main() {
       findsOneWidget,
     );
     semantics.dispose();
+  });
+
+  /// L'onPressed del pulsante "Approva" della finestra (nullo se spento).
+  VoidCallback? approvePressed(WidgetTester tester) => tester
+      .widget<ButtonStyleButton>(find.ancestor(
+          of: find.text('Approva'),
+          // `FilledButton.icon` è una sottoclasse: `byType` non la troverebbe.
+          matching: find.byWidgetPredicate((w) => w is ButtonStyleButton)))
+      .onPressed;
+
+  testWidgets('server in arrivo: "Approva" è spento, Invio non approva',
+      (tester) async {
+    final gate = Completer<void>();
+    api.servicesGate = gate;
+    final choice = await openDialog(tester);
+
+    expect(find.byType(SkeletonBox), findsOneWidget);
+    expect(approvePressed(tester), isNull);
+
+    // Prima che si sappia quale server è quello giusto, Invio non fa niente.
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(find.text('Approva: Dune'), findsOneWidget);
+
+    // Arrivati i server il pulsante si accende e riprende il fuoco: Invio approva.
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.byType(SkeletonBox), findsNothing);
+    expect(approvePressed(tester), isNotNull);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    final result = choice()!;
+    expect((result.serverId, result.profileId, result.rootFolder), (null, null, null));
+  });
+
+  testWidgets('server in arrivo e nessun predefinito: Invio approva col primo',
+      (tester) async {
+    final gate = Completer<void>();
+    api.servicesGate = gate;
+    api.servicesByType[RequestMediaType.movie] = const [
+      ServiceOption(
+        id: 2,
+        name: 'Radarr Uno',
+        isDefault: false,
+        profiles: [ProfileOption(id: 5, name: 'Alto')],
+        rootFolders: ['/media/b'],
+        defaultProfileId: 5,
+        defaultRootFolder: '/media/b',
+      ),
+    ];
+    final choice = await openDialog(tester);
+
+    // Con "Predefinito" Seerr non manderebbe niente a Radarr: Invio, mentre
+    // i server arrivano, non deve approvare così.
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(find.text('Approva: Dune'), findsOneWidget);
+
+    gate.complete();
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    final result = choice()!;
+    expect((result.serverId, result.profileId, result.rootFolder), (2, 5, '/media/b'));
   });
 }

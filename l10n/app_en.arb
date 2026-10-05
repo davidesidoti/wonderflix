@@ -395,6 +395,7 @@
   "requestsApprove": "Approve",
   "requestsDecline": "Decline",
   "requestsDeclineConfirm": "Confirm",
+  "requestsDeclineConfirmLabel": "Confirm decline",
   "requestsEmptyMine": "You haven't requested anything yet. Search for a missing title and press Request.",
   "requestsEmptyPending": "Nothing to approve",
   "requestsEmptyAll": "No requests",

@@ -55,6 +55,9 @@ class FakeRequestsApi implements RequestsApi {
   /// Errore solo per `services`.
   RequestsFailure? servicesFailure;
 
+  /// Se impostato, `services` aspetta che si completi.
+  Completer<void>? servicesGate;
+
   /// Errore solo per `approve` e `decline`.
   RequestsFailure? actionFailure;
 
@@ -136,6 +139,8 @@ class FakeRequestsApi implements RequestsApi {
   @override
   Future<List<ServiceOption>> services(RequestMediaType type) async {
     calls.add('services:${type.wire}');
+    final gate = servicesGate;
+    if (gate != null) await gate.future;
     _fail();
     final f = servicesFailure;
     if (f != null) throw RequestsException(f);

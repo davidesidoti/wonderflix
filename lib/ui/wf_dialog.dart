@@ -8,7 +8,8 @@ const _barrier = Color(0xB30A0A0A);
 /// Una finestra dell'app (decisione 2 del piano 15b): fondo `surface`,
 /// bordo, angoli arrotondati, larga al massimo [maxWidth]. Esc e il clic
 /// fuori la chiudono con `null`. Con [semanticLabel] (di solito il titolo)
-/// lo screen reader annuncia la finestra quando si apre.
+/// lo screen reader annuncia la finestra quando si apre; senza, la annuncia
+/// con il nome predefinito di Material, come `AlertDialog`.
 Future<T?> showWfDialog<T>(
   BuildContext context, {
   required WidgetBuilder builder,
@@ -30,7 +31,7 @@ Future<T?> showWfDialog<T>(
           scopesRoute: true,
           namesRoute: true,
           explicitChildNodes: true,
-          label: semanticLabel,
+          label: semanticLabel ?? MaterialLocalizations.of(context).dialogLabel,
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: maxWidth),
             child: Padding(

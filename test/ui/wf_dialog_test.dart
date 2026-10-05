@@ -79,4 +79,41 @@ void main() {
     expect(find.bySemanticsLabel('Titolo della finestra'), findsOneWidget);
     semantics.dispose();
   });
+
+  testWidgets('senza semanticLabel: il nome è quello predefinito delle finestre',
+      (tester) async {
+    final semantics = tester.ensureSemantics();
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showWfDialog<void>(
+              context,
+              builder: (_) => const Text('contenuto'),
+            ),
+            child: const Text('apri'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('apri'));
+    await tester.pumpAndSettle();
+
+    // Una rotta senza nome non va annunciata: ripiega sul testo di Material
+    // ("Finestra di dialogo"), come `AlertDialog`.
+    final fallback =
+        MaterialLocalizations.of(tester.element(find.byType(Dialog))).dialogLabel;
+    expect(fallback, isNotEmpty);
+    expect(
+      find.byWidgetPredicate((w) =>
+          w is Semantics &&
+          w.properties.namesRoute == true &&
+          w.properties.scopesRoute == true &&
+          w.properties.label == fallback),
+      findsOneWidget,
+    );
+    semantics.dispose();
+  });
 }

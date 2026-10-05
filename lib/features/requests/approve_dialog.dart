@@ -88,6 +88,9 @@ class _ApproveDialogState extends ConsumerState<ApproveDialog> {
     final request = widget.request;
     final title = _requestTitle(l, request);
     final services = ref.watch(requestServicesProvider(request.mediaType));
+    // Finché i server non arrivano non si sa quale sia il predefinito:
+    // Approva resta spento, così Invio non approva alla cieca.
+    final loading = services.isLoading && !services.hasValue;
     final servers = services.value ?? const <ServiceOption>[];
     final defaultServer = servers.where((s) => s.isDefault).firstOrNull;
     // Una volta, quando i server arrivano (e prima che l'utente possa
@@ -109,7 +112,7 @@ class _ApproveDialogState extends ConsumerState<ApproveDialog> {
         Text(l.requestsApproveTitle(title),
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
         const SizedBox(height: 20),
-        if (services.isLoading && !services.hasValue)
+        if (loading)
           const SkeletonBox(height: 48)
         else ...[
           _Field(
@@ -183,11 +186,16 @@ class _ApproveDialogState extends ConsumerState<ApproveDialog> {
             ),
             const SizedBox(width: 12),
             WfButton.primary(
-              // "Predefinito" è già scelto: Invio approva.
+              // Chiavi diverse: il pulsante si ricrea quando si accende e
+              // l'autofocus scatta di nuovo. Con i server arrivati
+              // "Predefinito" (o il primo server) è già scelto: Invio approva.
+              key: ValueKey('approve-loading-$loading'),
               autofocus: true,
               label: l.requestsApprove,
               icon: LucideIcons.check,
-              onPressed: choice == null ? null : () => Navigator.of(context).pop(choice),
+              onPressed: loading || choice == null
+                  ? null
+                  : () => Navigator.of(context).pop(choice),
             ),
           ],
         ),
