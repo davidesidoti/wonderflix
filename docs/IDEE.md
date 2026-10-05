@@ -32,7 +32,22 @@ Stesso client nel browser, usato da tutti con il protocollo WonderFlix, watch pa
 - **Da cercare:** video con `<video>` invece di libmpv e ricorso alla transcodifica HLS; sottotitoli ASS/PGS senza libass; CORS e dove salvare il token; precisione di `currentTime`/`playbackRate` per il `DriftCorrector`; cosa non esiste sul web (SMTC, Discord, installer, `window_manager`, `dart:ffi`); hosting e configurazione.
 - È lo spec più grosso.
 
-## 4. Funzioni escluse dallo Spec A
+## 4. Altre piattaforme: Smart TV, Android, iOS, macOS, Linux
+
+Rifare l'app perché si possa usare anche su Smart TV (Fire TV Stick e simili, cioè Android TV / Fire OS), telefoni e tablet Android e iOS, macOS e Linux. Ha molto in comune con la versione web (idea 3): in entrambi i casi le parti legate a Windows vanno separate dal resto.
+- **Cosa c'è già:** Flutter gira su tutte queste piattaforme, e media_kit (libmpv) ha i pacchetti per Android, iOS, macOS e Linux; client Jellyfin, SyncPlay, watch party e plugin non dipendono da Windows.
+- **Cosa è solo Windows oggi:** `media_kit_libs_windows_video`, `smtc_windows` (pannello multimediale), `window_manager` e `screen_retriever` (solo desktop), la pipe di Discord e la preferenza delle animazioni via `dart:ffi` (`windows_discord_pipe.dart`, `windows_animation_pref.dart`), installer e aggiornamenti da GitHub (`installer/`, `docs/RELEASING.md`), il runner `windows/`.
+- **Da cercare:**
+  - **TV:** interfaccia da divano con il telecomando (D-pad: focus visibile e navigazione su ogni schermata, niente passaggio del mouse, tasti indietro/play), testi più grandi, prestazioni sui chip delle chiavette, decodifica hardware e HDR; distribuzione (Amazon Appstore, Google Play per Android TV, o installazione manuale dell'APK);
+  - **telefoni e tablet:** tocco al posto del mouse (passaggio del mouse, anteprime, menu), schermi piccoli e verticali, player a tutto schermo con i gesti, controlli multimediali di sistema e riproduzione in background, picture-in-picture;
+  - **iOS e macOS:** account sviluppatore Apple, un Mac per compilare e firmare, notarizzazione, App Store o TestFlight;
+  - **Linux:** pacchetto (AppImage, Flatpak), MPRIS al posto dell'SMTC;
+  - **aggiornamenti:** l'aggiornamento automatico di oggi vale solo per Windows; sulle altre piattaforme lo fanno gli store, o serve un controllo con link;
+  - **Discord Rich Presence** sulle altre piattaforme desktop (pipe Unix) e cosa fare sui dispositivi mobili;
+  - pipeline di build e prove per ogni piattaforma.
+- **Da chiarire:** quali piattaforme prima (per esempio Fire TV e Android insieme, dato che sono quasi lo stesso codice); stessa app con implementazioni per piattaforma o app separata per la TV; se fare insieme alla versione web il lavoro di separazione dalle parti di Windows.
+
+## 5. Funzioni escluse dallo Spec A
 
 - Profili "Chi guarda?" (più utenti sullo stesso PC).
 - Collezioni e saghe (`BoxSet`).
@@ -40,7 +55,7 @@ Stesso client nel browser, usato da tutti con il protocollo WonderFlix, watch pa
 - HDR vero (oggi media_kit converte in SDR).
 - Firma del codice (pipeline già predisposta, `docs/RELEASING.md`).
 
-## 5. Rifinitura per la v1.0.0
+## 6. Rifinitura per la v1.0.0
 
 La v1.0.0 è la prima release per gli amici. Raccoglierebbe:
 - le prove mai fatte sul server: rete staccata, salvaschermo, trailer locali, tasti multimediali fisici;
