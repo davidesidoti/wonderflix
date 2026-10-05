@@ -477,4 +477,22 @@ void main() {
     expect(find.text('Novità: 1 episodio'), findsOneWidget);
     expect(find.textContaining('Mostra tutto'), findsNothing);
   });
+
+  testWidgets('richieste: "Ora disponibile" e "ha chiesto", con le stagioni',
+      (tester) async {
+    api.inboxSnapshot = InboxSnapshot(entries: [
+      testRequestAvailable(
+          id: 'r1',
+          seq: 2,
+          title: 'Brothers (2026)',
+          seasons: const [1, 2],
+          createdAt: fiveMinutesAgo()),
+      testRequestPending(id: 'p1', seq: 1, createdAt: fiveMinutesAgo()),
+    ], unread: 2);
+    await pumpPanel(tester);
+
+    expect(find.text('Ora disponibile: Brothers (2026), stagioni 1–2'), findsOneWidget);
+    expect(find.text('Garg ha chiesto Dune (2021)'), findsOneWidget);
+    expect(find.text('5 min fa'), findsNWidgets(2));
+  });
 }

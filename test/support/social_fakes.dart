@@ -371,6 +371,46 @@ NewTitlesEntry testNewTitles({
       more: more,
     );
 
+/// Una richiesta arrivata nella libreria, nella cassetta.
+RequestAvailableEntry testRequestAvailable({
+  String id = 'r1',
+  int seq = 1,
+  bool read = false,
+  String title = 'Dune (2021)',
+  List<int> seasons = const [],
+  String? itemId,
+  DateTime? createdAt,
+}) =>
+    RequestAvailableEntry(
+      id: id,
+      seq: seq,
+      createdAt: createdAt ?? DateTime.utc(2026, 10, 5, 10),
+      read: read,
+      title: title,
+      seasons: seasons,
+      itemId: itemId,
+    );
+
+/// Una richiesta da approvare, nella cassetta.
+RequestPendingEntry testRequestPending({
+  String id = 'p1',
+  int seq = 1,
+  bool read = false,
+  String title = 'Dune (2021)',
+  String requesterName = 'Garg',
+  List<int> seasons = const [],
+  DateTime? createdAt,
+}) =>
+    RequestPendingEntry(
+      id: id,
+      seq: seq,
+      createdAt: createdAt ?? DateTime.utc(2026, 10, 5, 10),
+      read: read,
+      title: title,
+      requesterName: requesterName,
+      seasons: seasons,
+    );
+
 /// Come arriva dal WebSocket l'avviso che la cassetta è cambiata.
 PartyChannelReceived inboxChangedReceived() => PartyChannelReceived(
     jsonEncode({'Protocol': 1, 'Type': 'InboxChanged'}));

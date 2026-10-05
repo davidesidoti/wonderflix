@@ -14,11 +14,13 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/shell_side_panel.dart';
 import '../../ui/wf_image.dart';
 import '../library/library_providers.dart';
+import '../requests/requests_navigation.dart';
 import '../watch_party/watch_party_actions.dart';
 import '../watch_party/watch_party_directory.dart';
 import '../watch_party/watch_party_providers.dart';
 import '../watch_party/watch_party_session.dart';
 import 'inbox_controller.dart';
+import 'inbox_request_rows.dart';
 import 'inbox_time.dart';
 
 /// Esegue un'azione sulla cassetta; se non riesce lo dice con una snackbar
@@ -316,6 +318,10 @@ class _EntryTileState extends ConsumerState<_EntryTile> {
               InviteEntry() => _InvitePoster(entry: entry),
               AnnouncementEntry() => const _AnnouncementIcon(),
               NewTitlesEntry() => const _NewTitlesIcon(),
+              RequestAvailableEntry() => const InboxRequestIcon(
+                  icon: LucideIcons.clapperboard, size: InboxPanel.leadingSize),
+              RequestPendingEntry() => const InboxRequestIcon(
+                  icon: LucideIcons.inbox, size: InboxPanel.leadingSize),
             },
             const SizedBox(width: 12),
             Expanded(
@@ -326,6 +332,27 @@ class _EntryTileState extends ConsumerState<_EntryTile> {
                   _AnnouncementContent(entry: entry, time: widget.time),
                 NewTitlesEntry() =>
                   _NewTitlesContent(entry: entry, time: widget.time),
+                RequestAvailableEntry() => InboxRequestContent(
+                    key: Key('inbox-request-${entry.id}'),
+                    text: l.inboxRequestAvailable(
+                        inboxRequestTitle(l, entry.title, entry.seasons)),
+                    time: widget.time,
+                    onOpen: () {
+                      final itemId = entry.itemId;
+                      if (itemId != null) {
+                        openItemById(context, itemId);
+                      } else {
+                        openRequests(context);
+                      }
+                    },
+                  ),
+                RequestPendingEntry() => InboxRequestContent(
+                    key: Key('inbox-request-${entry.id}'),
+                    text: l.inboxRequestPending(entry.requesterName,
+                        inboxRequestTitle(l, entry.title, entry.seasons)),
+                    time: widget.time,
+                    onOpen: () => openRequests(context, tab: RequestsTab.pending),
+                  ),
               },
             ),
             Focus(

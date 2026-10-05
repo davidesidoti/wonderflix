@@ -174,6 +174,45 @@ final class NewTitlesEntry extends InboxEntry {
       series.fold(0, (count, s) => count + s.episodes.length);
 }
 
+/// Un titolo chiesto è arrivato (spec I §9.6), a chi l'aveva chiesto.
+final class RequestAvailableEntry extends InboxEntry {
+  const RequestAvailableEntry({
+    required super.id,
+    required super.seq,
+    required super.createdAt,
+    required super.read,
+    required this.title,
+    this.seasons = const [],
+    this.itemId,
+  });
+
+  /// "Dune (2021)", dal webhook di Seerr.
+  final String title;
+
+  /// Le stagioni chieste, per le serie.
+  final List<int> seasons;
+
+  /// L'elemento della libreria, se Seerr lo conosce.
+  final String? itemId;
+}
+
+/// Una richiesta da approvare (spec I §9.6), a chi può approvare.
+final class RequestPendingEntry extends InboxEntry {
+  const RequestPendingEntry({
+    required super.id,
+    required super.seq,
+    required super.createdAt,
+    required super.read,
+    required this.title,
+    required this.requesterName,
+    this.seasons = const [],
+  });
+
+  final String title;
+  final String requesterName;
+  final List<int> seasons;
+}
+
 /// Una voce di `GET Inbox`; `null` se il tipo non lo conosciamo (es. le
 /// voci di una versione più nuova del plugin).
 InboxEntry? inboxEntryFromJson(Map<String, dynamic> json) {
@@ -214,9 +253,31 @@ InboxEntry? inboxEntryFromJson(Map<String, dynamic> json) {
         ],
         more: (json['More'] as num?)?.toInt() ?? 0,
       ),
+    'RequestAvailable' => RequestAvailableEntry(
+        id: id,
+        seq: seq,
+        createdAt: createdAt,
+        read: read,
+        title: json['Title'] as String? ?? '',
+        seasons: _seasons(json['Seasons']),
+        itemId: json['ItemId'] as String?,
+      ),
+    'RequestPending' => RequestPendingEntry(
+        id: id,
+        seq: seq,
+        createdAt: createdAt,
+        read: read,
+        title: json['Title'] as String? ?? '',
+        requesterName: json['RequesterName'] as String? ?? '',
+        seasons: _seasons(json['Seasons']),
+      ),
     _ => null,
   };
 }
+
+/// Le stagioni di una voce delle richieste; assenti, nessuna.
+List<int> _seasons(Object? raw) =>
+    [for (final season in raw as List? ?? const []) (season as num).toInt()];
 
 /// Risposta di `GET Inbox`: le voci dalla più recente e quante non lette.
 class InboxSnapshot {

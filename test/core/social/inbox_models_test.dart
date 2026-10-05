@@ -270,4 +270,40 @@ void main() {
     expect((snapshot.entries.single as NewTitlesEntry).movies.single.name,
         'Dune');
   });
+
+  test('voci delle richieste', () {
+    final available = inboxEntryFromJson({
+      'Id': 'r1',
+      'Seq': 3,
+      'Type': 'RequestAvailable',
+      'CreatedAt': '2026-10-05T12:00:00+00:00',
+      'Read': false,
+      'RequestId': 53,
+      'MediaType': 'tv',
+      'TmdbId': 250203,
+      'Title': 'Brothers (2026)',
+      'Seasons': [1, 2],
+      'ItemId': '6d1c8ea33a794f76fdbe92a216959073',
+    }) as RequestAvailableEntry;
+    expect(available.title, 'Brothers (2026)');
+    expect(available.seasons, [1, 2]);
+    expect(available.itemId, '6d1c8ea33a794f76fdbe92a216959073');
+
+    final pending = inboxEntryFromJson({
+      'Id': 'r2',
+      'Seq': 4,
+      'Type': 'RequestPending',
+      'CreatedAt': '2026-10-05T12:00:00+00:00',
+      'Read': true,
+      'RequestId': 54,
+      'MediaType': 'movie',
+      'TmdbId': 438631,
+      'Title': 'Dune (2021)',
+      'RequesterName': 'Garg',
+    }) as RequestPendingEntry;
+    expect(pending.title, 'Dune (2021)');
+    expect(pending.requesterName, 'Garg');
+    expect(pending.seasons, isEmpty);
+    expect(pending.read, isTrue);
+  });
 }
