@@ -45,4 +45,38 @@ void main() {
     expect(find.text('conferma'), findsNothing);
     expect(result, isNull);
   });
+
+  testWidgets('semanticLabel: la finestra ha un nome e fa da ambito', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showWfDialog<void>(
+              context,
+              semanticLabel: 'Titolo della finestra',
+              builder: (_) => const Text('contenuto'),
+            ),
+            child: const Text('apri'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('apri'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byWidgetPredicate((w) =>
+          w is Semantics &&
+          w.properties.scopesRoute == true &&
+          w.properties.namesRoute == true &&
+          w.explicitChildNodes &&
+          w.properties.label == 'Titolo della finestra'),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsLabel('Titolo della finestra'), findsOneWidget);
+    semantics.dispose();
+  });
 }

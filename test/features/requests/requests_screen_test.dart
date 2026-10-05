@@ -321,5 +321,50 @@ void main() {
       expect(find.text('Dune (2024)'), findsOneWidget);
       expect(find.text('Non riuscito, riprova'), findsOneWidget);
     });
+
+    testWidgets('durante Approva la riga mostra solo l\'indicatore, poi esce',
+        (tester) async {
+      final gate = api.actionGate = Completer<void>();
+      await pumpScreen(tester);
+
+      await tester.tap(find.text('Approva').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Approva').last);
+      // L'indicatore gira: niente `pumpAndSettle` finché la risposta non arriva.
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      final dune = find.byKey(const ValueKey('request-1'));
+      final brothers = find.byKey(const ValueKey('request-2'));
+      expect(api.approved.single.id, 1);
+      expect(find.descendant(of: dune, matching: find.byType(CircularProgressIndicator)),
+          findsOneWidget);
+      // I pulsanti tengono il posto ma non si vedono.
+      expect(
+        tester
+            .widget<Visibility>(find.descendant(
+                of: dune, matching: find.byType(Visibility)))
+            .visible,
+        isFalse,
+      );
+      // L'altra riga resta com'era.
+      expect(find.descendant(of: brothers, matching: find.byType(CircularProgressIndicator)),
+          findsNothing);
+      expect(
+        tester
+            .widget<Visibility>(find.descendant(
+                of: brothers, matching: find.byType(Visibility)))
+            .visible,
+        isTrue,
+      );
+
+      gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Dune (2024)'), findsNothing);
+      expect(find.text('Brothers (2024)'), findsOneWidget);
+      expect(find.text('Approvata'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
   });
 }

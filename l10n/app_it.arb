@@ -484,6 +484,7 @@
   "requestsFolder": "Cartella",
   "requestsServersUnavailable": "Server non disponibili: si approva con i valori predefiniti",
   "requestsCancel": "Annulla",
+  "requestsWorking": "Operazione in corso",
   "requestsMoreSeasons": "Richiedi stagioni",
   "inboxRequestAvailable": "Ora disponibile: {title}",
   "@inboxRequestAvailable": {"placeholders": {"title": {"type": "String"}}},

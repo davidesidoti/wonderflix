@@ -17,9 +17,18 @@ final requestServicesProvider = FutureProvider.autoDispose
 
 /// Apre la finestra Approva (spec I §9.5): la scelta, o `null` se annullata.
 Future<ApproveChoice?> showApproveDialog(
-        BuildContext context, MediaRequest request) =>
-    showWfDialog<ApproveChoice>(context,
-        builder: (_) => ApproveDialog(request: request));
+    BuildContext context, MediaRequest request) {
+  final l = AppLocalizations.of(context);
+  return showWfDialog<ApproveChoice>(
+    context,
+    semanticLabel: l.requestsApproveTitle(_requestTitle(l, request)),
+    builder: (_) => ApproveDialog(request: request),
+  );
+}
+
+/// Il titolo della richiesta, o il testo per un titolo che manca.
+String _requestTitle(AppLocalizations l, MediaRequest request) =>
+    request.title.isEmpty ? l.requestsUnknownTitle : request.title;
 
 /// Approva con il server "Predefinito" (decide Seerr, anche per gli anime)
 /// oppure con un server, un profilo e una cartella scelti (spec I §9.5).
@@ -40,23 +49,28 @@ class _ApproveDialogState extends ConsumerState<ApproveDialog> {
   int? _profileId;
   String? _folder;
 
-  void _selectServer(List<ServiceOption> servers, int? serverId) {
-    setState(() {
-      _serverId = serverId ?? _defaultServer;
-      final server = servers.where((s) => s.id == serverId).firstOrNull;
-      if (server == null) {
-        _profileId = null;
-        _folder = null;
-        return;
-      }
-      final profiles = server.profiles.map((p) => p.id).toList();
-      _profileId = profiles.contains(server.defaultProfileId)
-          ? server.defaultProfileId
-          : profiles.firstOrNull;
-      _folder = server.rootFolders.contains(server.defaultRootFolder)
-          ? server.defaultRootFolder
-          : server.rootFolders.firstOrNull;
-    });
+  /// Se la scelta di partenza è già stata fatta con i server arrivati.
+  bool _seeded = false;
+
+  void _selectServer(List<ServiceOption> servers, int? serverId) =>
+      setState(() => _applyServer(servers, serverId));
+
+  /// Sceglie il server con il suo profilo e la sua cartella predefiniti.
+  void _applyServer(List<ServiceOption> servers, int? serverId) {
+    _serverId = serverId ?? _defaultServer;
+    final server = servers.where((s) => s.id == serverId).firstOrNull;
+    if (server == null) {
+      _profileId = null;
+      _folder = null;
+      return;
+    }
+    final profiles = server.profiles.map((p) => p.id).toList();
+    _profileId = profiles.contains(server.defaultProfileId)
+        ? server.defaultProfileId
+        : profiles.firstOrNull;
+    _folder = server.rootFolders.contains(server.defaultRootFolder)
+        ? server.defaultRootFolder
+        : server.rootFolders.firstOrNull;
   }
 
   /// La scelta; `null` se manca il profilo o la cartella di un server scelto.
@@ -72,10 +86,20 @@ class _ApproveDialogState extends ConsumerState<ApproveDialog> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final request = widget.request;
-    final title = request.title.isEmpty ? l.requestsUnknownTitle : request.title;
+    final title = _requestTitle(l, request);
     final services = ref.watch(requestServicesProvider(request.mediaType));
     final servers = services.value ?? const <ServiceOption>[];
     final defaultServer = servers.where((s) => s.isDefault).firstOrNull;
+    // Una volta, quando i server arrivano (e prima che l'utente possa
+    // scegliere): se nessuno è il predefinito, con "Predefinito" Seerr
+    // approverebbe senza mandare niente a Radarr o Sonarr, quindi si parte
+    // dal primo server. "Predefinito" resta tra le voci.
+    if (!_seeded && services.hasValue) {
+      _seeded = true;
+      if (servers.isNotEmpty && defaultServer == null) {
+        _applyServer(servers, servers.first.id);
+      }
+    }
     final server = servers.where((s) => s.id == _serverId).firstOrNull;
     final choice = _choice;
     return Column(
@@ -98,12 +122,13 @@ class _ApproveDialogState extends ConsumerState<ApproveDialog> {
               items: [
                 DropdownMenuItem(
                   value: _defaultServer,
-                  child: Text(defaultServer == null
+                  child: _MenuLabel(defaultServer == null
                       ? l.requestsServerDefaultPlain
                       : l.requestsServerDefault(defaultServer.name)),
                 ),
                 for (final option in servers)
-                  DropdownMenuItem(value: option.id, child: Text(option.name)),
+                  DropdownMenuItem(
+                      value: option.id, child: _MenuLabel(option.name)),
               ],
               onChanged: (value) => _selectServer(servers, value),
             ),
@@ -125,7 +150,8 @@ class _ApproveDialogState extends ConsumerState<ApproveDialog> {
                 dropdownColor: WfColors.surfaceHigh,
                 items: [
                   for (final profile in server.profiles)
-                    DropdownMenuItem(value: profile.id, child: Text(profile.name)),
+                    DropdownMenuItem(
+                        value: profile.id, child: _MenuLabel(profile.name)),
                 ],
                 onChanged: (value) => setState(() => _profileId = value),
               ),
@@ -140,7 +166,7 @@ class _ApproveDialogState extends ConsumerState<ApproveDialog> {
                 dropdownColor: WfColors.surfaceHigh,
                 items: [
                   for (final folder in server.rootFolders)
-                    DropdownMenuItem(value: folder, child: Text(folder)),
+                    DropdownMenuItem(value: folder, child: _MenuLabel(folder)),
                 ],
                 onChanged: (value) => setState(() => _folder = value),
               ),
@@ -157,6 +183,8 @@ class _ApproveDialogState extends ConsumerState<ApproveDialog> {
             ),
             const SizedBox(width: 12),
             WfButton.primary(
+              // "Predefinito" è già scelto: Invio approva.
+              autofocus: true,
               label: l.requestsApprove,
               icon: LucideIcons.check,
               onPressed: choice == null ? null : () => Navigator.of(context).pop(choice),
@@ -166,6 +194,17 @@ class _ApproveDialogState extends ConsumerState<ApproveDialog> {
       ],
     );
   }
+}
+
+/// La voce di un menu: una riga sola, con i puntini se il nome è lungo.
+class _MenuLabel extends StatelessWidget {
+  const _MenuLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) =>
+      Text(text, maxLines: 1, overflow: TextOverflow.ellipsis);
 }
 
 /// Un menu con la sua etichetta sopra.

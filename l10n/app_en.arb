@@ -407,6 +407,7 @@
   "requestsFolder": "Folder",
   "requestsServersUnavailable": "Servers unavailable: approving with the defaults",
   "requestsCancel": "Cancel",
+  "requestsWorking": "Working on it",
   "requestsMoreSeasons": "Request seasons",
   "inboxRequestAvailable": "Now available: {title}",
   "inboxRequestPending": "{name} requested {title}",
