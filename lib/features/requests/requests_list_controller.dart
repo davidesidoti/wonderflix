@@ -203,7 +203,7 @@ class RequestsListController extends Notifier<RequestsListState> {
       );
     } on Object {
       // Un aggiornamento in secondo piano che non riesce non cambia l'elenco
-      // e non porta un errore: il prossimo avviso, o lo scorrimento, riprova.
+      // e non porta un errore: le prime righe si aggiornano al prossimo avviso.
       if (!ref.mounted || generation != _generation) return;
       state = state.copyWith(loading: false);
     }

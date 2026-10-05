@@ -348,7 +348,8 @@ Tutti sotto `/WonderFlixWatchParty/Requests` e con `[Authorize]`, tranne il webh
   - carica all'apertura della pagina e, a **ogni** `InboxChanged`, **aggiorna le righe mostrate**, non solo per le voci `RequestAvailable` o `RequestPending`: l'evento non dice il tipo della voce, e un aggiornamento in più non costa niente. Ne arrivano anche quando si apre il pannello delle notifiche (le voci si segnano lette), quindi l'elenco non deve accorciarsi;
   - **aggiornare e ricaricare:**
     - l'aggiornamento rilegge in una sola chiamata le righe mostrate, fino a 50 (il massimo del plugin), e le mette al posto delle prime; le righe oltre restano, tolte quelle già nella pagina nuova e quelle appena approvate o rifiutate. "Ce ne sono altre" vale quello della pagina nuova se non resta nessuna riga oltre, altrimenti resta com'era;
-    - se non riesce, l'elenco non cambia e non compare un errore: il prossimo avviso, o lo scorrimento, riprova;
+    - se non riesce, l'elenco non cambia e non compare un errore: le righe si aggiornano al prossimo avviso (lo scorrimento carica solo le pagine dopo);
+    - limite noto: con più di 50 righe caricate, ogni richiesta nuova in cima fa sparire la riga che era intorno alla cinquantesima, finché la pagina non si riapre;
     - senza righe (elenco vuoto o primo caricamento) è un ricaricamento;
     - il **ricaricamento** (primo caricamento, "Riprova" della pagina d'errore) riparte dalla prima pagina, di 20 righe;
   - **ricarica e pagine:**
