@@ -196,7 +196,9 @@ Funzioni pure, testate a parte:
   3. altrimenti manda `queue` e, se il plugin ha `queue`, annuncia `Queue` o `QueueNext`;
   4. aspetta **la conferma**: un aggiornamento `PlayQueue` con `Reason` `Queue` o `QueueNext` che contenga nuovi `PlaylistItemId` con gli `ItemId` mandati. L'attesa dura al massimo `addConfirmTimeout = 4 s`. Si ascolta il flusso `updates` della sessione **prima** della richiesta: la coda può arrivare prima della risposta HTTP.
 
-  Il risultato è `PartyQueueAddOutcome`: `added` (anche solo una parte, per il tetto), `alreadyQueued`, `full`, `rejected` (tempo scaduto), `failed` (eccezione dell'API, o fuori dal gruppo). Due aggiunte alla volta vanno bene: ognuna aspetta la sua conferma. Gli id di un'aggiunta in attesa (`_pendingAdds`) non si rimandano. L'eco registrata prima della richiesta si rinnova quando la richiesta riesce (`PartyNotices.renew`), così dura quanto l'attesa della conferma.
+  Il risultato è `PartyQueueAddOutcome`: `added` (anche solo una parte, per il tetto), `alreadyQueued`, `full`, `rejected` (tempo scaduto), `failed` (eccezione dell'API, o fuori dal gruppo). Due aggiunte alla volta vanno bene: ognuna aspetta la sua conferma. Gli id di un'aggiunta in attesa (`_pendingAdds`) non si rimandano.
+
+  L'eco registrata prima della richiesta porta gli `ItemId` mandati (`PartyNotices.mine(kind, itemIds: …)`), e vale solo per l'aggiornamento che li contiene tutti (§10). Si rinnova quando la richiesta riesce (`PartyNotices.renew`), così dura quanto l'attesa della conferma, e si dimentica se la richiesta non riesce (`PartyNotices.forget`). `renew` e `forget` agiscono sull'eco con quegli id, non sull'ultima dello stesso tipo: con due aggiunte in corso ognuna tiene la sua. Scaduto il tempo della conferma l'eco non si dimentica: si rinnova per `PartyNotices.lateAddEchoWindow = 30 s`, così una conferma che arriva tardi non diventa, dopo "Non aggiunto…", l'aggiunta anonima di un altro.
 - **`jumpTo(playlistItemId)`:** solo per un elemento che non è quello in corso. Manda `setPlaylistItem` e annuncia `SetCurrentItem`.
 - **`remove(playlistItemId)`:** mai per l'elemento in corso. Manda `removeFromPlaylist`, senza annuncio.
 - **`move(playlistItemId, k)`:** solo per un prossimo. Calcola il `NewIndex` (§8.2) e manda `movePlaylistItem`, senza annuncio.
@@ -234,9 +236,10 @@ Funzioni pure, testate a parte:
 - **Tasti:** `PlayerCommand.previous` per **P** e `mediaTrackPrevious`, che è anche tra i tasti multimediali. `MediaButton.previous` arriva dall'SMTC, che lo accende o lo spegne come ⏭.
 - **Pannello:** `PlayerPopup.queue`. Il pulsante apre e chiude il pannello, e uno solo è aperto alla volta (come oggi).
   - Come quello delle tracce, prende tutta l'altezza a destra, sopra i controlli, e i controlli restano visibili.
-  - Si chiude con ✕, con un clic sul film, con Esc (vedi §9.3), quando compare il post-play, quando il video va in errore, oppure quando il player esce dal party.
+  - Si chiude con ✕, con un clic sul film, con Esc (vedi §9.3), quando compare il post-play o quando il video va in errore (ma non mentre il campo di ricerca ha il focus, vedi §9.3), oppure quando il player esce dal party.
   - Resta aperto quando il gruppo passa a un altro titolo (clic su una riga, ⏮, ⏭, azioni degli altri): il player nuovo lo riapre subito (`partyQueuePanelCarryProvider`), sulla stessa vista, con la stessa serie o stagione e lo stesso testo di ricerca (`queuePanelNavProvider`, `queueAddSearchProvider`, globali). Lo stato si azzera aprendo il pannello dal pulsante e uscendo dal gruppo. Un'aggiunta in attesa continua: si perde solo l'indicatore sul pulsante.
 - **`PlayerSidePanelHost`:** l'entrata da destra, il velo e il clic sul film che chiude, oggi in `TracksPanelHost`, vanno in un contenitore comune alle tracce e alla coda. Il comportamento delle tracce non cambia.
+  - Con un pannello aperto (tracce o coda) la pillola dei tasti e degli avvisi sta al centro dello spazio libero alla sua sinistra, e si sposta con il pannello: il pannello è disegnato sopra di lei, e in una finestra stretta la coprirebbe in parte. La larghezza viene da `PlayerSidePanelHost.widthFor`, la stessa del pannello.
 - **Post-play e schedina "prossimo" nel party.**
   - Il titolo offerto è `nextEntry` della coda, con i dettagli da `partyQueueItemsProvider`. Restano le regole di oggi: post-play solo con il segmento Outro, schedina negli ultimi 30 s, nel party niente conto alla rovescia, alla vera fine si va avanti da soli.
   - L'etichetta è "Prossimo episodio" se è l'episodio che segue nella stessa serie, altrimenti "Prossimo nella coda".
@@ -246,7 +249,7 @@ Funzioni pure, testate a parte:
 
 ### 9.2 Pannello "Coda"
 
-La cartella è `lib/features/player/queue_panel/`. Largo 360 px, stile del pannello tracce: fondo `WfColors.surface` al 94 %, bordo sinistro, titoli in Bebas Neue. Le viste si sostituiscono una all'altra, con una sfumatura breve da `WfMotion`. Il fondo è uno solo per tutte le viste (`QueuePanelBackdrop`), quindi durante la sfumatura il film non traspare; ogni apertura di una vista è una vista nuova, anche tornando indietro e avanti in fretta.
+La cartella è `lib/features/player/queue_panel/`. Largo 360 px, stile del pannello tracce: fondo `WfColors.surface` al 94 %, bordo sinistro, titoli in Bebas Neue. Le viste si sostituiscono una all'altra, con una sfumatura breve da `WfMotion`. Il fondo è uno solo per tutte le viste (`QueuePanelBackdrop`), quindi durante la sfumatura il film non traspare; ogni apertura di una vista è una vista nuova, anche tornando indietro e avanti in fretta. I dati delle viste ancora nella pila (La mia lista, stagioni ed episodi di una serie) restano in memoria finché ci sono: tornando indietro (Serie → ←, Stagione → ←) la vista si vede subito, senza una seconda richiesta.
 
 **Vista Coda**
 - **Intestazione:**
@@ -292,7 +295,8 @@ La cartella è `lib/features/player/queue_panel/`. Largo 360 px, stile del panne
   - ↳ e ＋ aggiungono **tutta la stagione**, saltando gli episodi già in coda.
   - Se sono tutti in coda, al posto dei pulsanti c'è ✓ "In coda".
   - Il clic sulla riga, o ›, apre la vista Stagione. Un clic su un pulsante spento o in attesa non apre la stagione.
-- Le stagioni vengono da `/Shows/{id}/Seasons`; gli episodi di tutta la serie da `allEpisodes`, una richiesta sola all'apertura della serie, che serve anche alla vista Stagione. Con un errore, "Non riesco a caricare i titoli" con "Riprova".
+- Le stagioni vengono da `/Shows/{id}/Seasons`; gli episodi di tutta la serie da `allEpisodes`, una richiesta sola all'apertura della serie, che serve anche alla vista Stagione.
+- **Stati:** se nessuna stagione ha episodi veri (solo mancanti), niente "0 stagioni" sotto il nome e, al posto della lista, "Nessun episodio disponibile". Con un errore, "Non riesco a caricare i titoli" con "Riprova".
 
 **Vista Stagione**
 - **Intestazione:** ←, "Stagione 1" con "Dark · 10 episodi" sotto (solo "Dark" finché gli episodi non sono arrivati), ✕.
@@ -309,10 +313,12 @@ La cartella è `lib/features/player/queue_panel/`. Largo 360 px, stile del panne
 - **Esc nel pannello:** se il campo di ricerca ha del testo, lo svuota. Altrimenti chiude il pannello, da qualunque vista. Tenendo premuto Esc conta una pressione sola. La freccia ← torna indietro di una vista.
 - **Campo di ricerca con il focus:** i tasti vanno al campo e i comandi del player non scattano (spazio, frecce, P, N, 1–6, Invio per la chat), come con la chat (Spec E). I tasti multimediali funzionano lo stesso; Tab non porta fuori dal campo.
 - **Il campo tiene il focus** finché la vista Aggiungi è aperta: Invio non lo lascia, un clic altrove (↳, ＋, righe, intestazione) nemmeno, e dopo Alt-Tab lo ritrova. Lo lascia quando la vista cambia o il pannello si chiude.
+- **Post-play o errore mentre si scrive:** con il focus nel campo il pannello non si chiude da solo (§9.1): il focus tornerebbe al player e le lettere dopo diventerebbero comandi (la N di "dune" farebbe passare il gruppo al titolo dopo). Il pannello resta sopra il post-play o lo strato dell'errore finché lo si chiude con Esc o ✕. Senza focus nel campo si chiude come sempre.
 - **Senza focus nel campo:** valgono i tasti del player (spazio, frecce, P, N…), come con il pannello tracce aperto.
 - La rotella sul pannello fa scorrere la lista e non cambia il volume, come nel pannello tracce.
 - Alla chiusura del pannello il focus torna subito al player, senza aspettare la fine dell'animazione.
 - Il pannello non sta dentro `ExcludeFocus` nel player: è `QueuePanelFrame` a escludere dal focus tutto tranne il campo.
+- Ogni vista Aggiungi ha il nodo di focus del suo campo. Andando e tornando durante la sfumatura ci sono due viste Aggiungi, e con un nodo comune la connessione della tastiera resterebbe al campo che esce, che uscendo la chiude: il campo nuovo sembrerebbe a fuoco ma non scriverebbe. Il player sa che il campo ha il focus da un nodo intorno al pannello, che non lo prende ma ce l'ha quando ce l'ha il campo.
 
 ## 10. Avvisi
 
@@ -340,7 +346,8 @@ Nella tabella, `{what}` vale:
 
 **Le proprie azioni**
 - Per le proprie aggiunte e per l'ordine casuale, `PartyQueueEditor` registra l'azione prima di mandarla. L'aggiornamento che ne nasce non produce l'avviso "degli altri": per l'aggiunta compare "Hai…" alla conferma, per l'ordine casuale nulla.
-- L'attesa di questa registrazione è lunga quanto la conferma (4 s), non i 3 s dell'eco delle pause.
+- Per un'aggiunta la registrazione porta gli `ItemId` mandati: l'eco è solo l'aggiornamento che li contiene tutti. Un'aggiunta di un altro negli stessi secondi ha il suo avviso, e la propria non viene poi annunciata come di un altro.
+- L'attesa di questa registrazione è lunga quanto la conferma (4 s), non i 3 s dell'eco delle pause. Scaduta la conferma ("Non aggiunto…") l'eco resta altri 30 s (`lateAddEchoWindow`): una conferma tardiva non produce un "Aggiunto…" anonimo. Passati i 30 s, un aggiornamento uguale si annuncia come quello di un altro.
 
 **Avvisi di errore**, solo per chi ha agito:
 - "Non aggiunto: qualcuno nel party non può vedere questo titolo", quando scade il tempo della conferma;
@@ -389,10 +396,11 @@ Un'aggiunta in cui tutti i titoli erano già in coda non produce avvisi: i pulsa
 - **`PartyNotices`:**
   - ogni riga della tabella di §10, con e senza nome;
   - `{what}` nei tre casi;
-  - le proprie azioni non producono l'avviso degli altri.
+  - le proprie azioni non producono l'avviso degli altri;
+  - l'aggiunta di un altro durante l'attesa della propria ha il suo avviso; due aggiunte proprie in corso tengono ognuna la sua eco; la conferma tardiva non fa avvisi.
 - **Widget:**
   - le quattro viste: sezioni, righe, pulsanti, ✓, coda piena, stati vuoti ed errore, ← ed Esc, trascinamento, clic per saltare;
-  - il player: ⏮ acceso e spento, P, pulsante Coda solo nel party, focus del campo, post-play dalla coda con un film come prossimo.
+  - il player: ⏮ acceso e spento, P, pulsante Coda solo nel party, focus del campo (anche con post-play ed errore, e tra due viste Aggiungi nella sfumatura), post-play dalla coda con un film come prossimo, pillola accanto al pannello.
 - **Plugin:** `EventValidator` e `Info.Features`.
 
 ## 13. Divisione in piani
