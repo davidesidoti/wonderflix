@@ -72,6 +72,17 @@ public sealed class InboxBook
         return existing.Copy();
     }
 
+    /// <summary>
+    /// La voce di una richiesta (spec I §7.6): sostituisce quella dello
+    /// stesso tipo e della stessa richiesta, quindi torna non letta e in cima.
+    /// Restituisce una copia.
+    /// </summary>
+    public InboxEntry UpsertRequest(Guid userId, InboxEntry entry)
+    {
+        Inbox(userId).Entries.RemoveAll(e => e.Type == entry.Type && e.RequestId == entry.RequestId);
+        return Add(userId, entry);
+    }
+
     /// <summary>Segna lette le voci con Seq fino a upTo; true se qualcosa è cambiato.</summary>
     public bool MarkRead(Guid userId, long upTo)
     {

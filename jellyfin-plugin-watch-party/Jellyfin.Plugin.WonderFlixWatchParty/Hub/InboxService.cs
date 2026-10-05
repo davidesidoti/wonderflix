@@ -190,6 +190,56 @@ public sealed class InboxService(
         }
     }
 
+    /// <summary>"Ora disponibile" a chi ha chiesto il titolo (spec I §7.5). Non lancia.</summary>
+    public Task AddRequestAvailableAsync(Guid userId, RequestEvent request) =>
+        AddRequestAsync(InboxEntryTypes.RequestAvailable, [userId], request, requesterName: null);
+
+    /// <summary>"Nuova richiesta" a chi può approvare (spec I §7.5). Non lancia.</summary>
+    public Task AddRequestPendingAsync(IReadOnlyList<Guid> userIds, RequestEvent request, string requesterName) =>
+        AddRequestAsync(InboxEntryTypes.RequestPending, userIds, request, requesterName);
+
+    private async Task AddRequestAsync(
+        string type, IReadOnlyList<Guid> userIds, RequestEvent request, string? requesterName)
+    {
+        if (userIds.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var now = time.GetUtcNow();
+            lock (_lock)
+            {
+                foreach (var userId in userIds)
+                {
+                    Book.UpsertRequest(userId, new InboxEntry
+                    {
+                        Type = type,
+                        CreatedAt = now,
+                        RequestId = request.RequestId,
+                        MediaType = request.MediaType,
+                        TmdbId = request.TmdbId,
+                        Title = request.Title,
+                        Seasons = request.Seasons?.ToList(),
+                        ItemId = type == InboxEntryTypes.RequestAvailable ? request.ItemId : null,
+                        RequesterName = requesterName,
+                    });
+                }
+
+                Persist();
+            }
+
+            logger.LogDebug(
+                "Voce {Type} della richiesta {RequestId} a {Count} utenti", type, request.RequestId, userIds.Count);
+            await NotifyAsync(userIds).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Voci della richiesta {RequestId} non create o non notificate", request.RequestId);
+        }
+    }
+
     /// <summary>
     /// Toglie le voci più vecchie di <see cref="MaxAge"/> e le cassette degli
     /// utenti cancellati da Jellyfin; restituisce quante voci.

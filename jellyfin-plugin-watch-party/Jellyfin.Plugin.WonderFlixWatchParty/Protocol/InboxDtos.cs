@@ -10,6 +10,12 @@ public static class InboxEntryTypes
 
     /// <summary>Riepilogo di un'ondata di nuovi titoli (spec G §6.6).</summary>
     public const string NewTitles = "NewTitles";
+
+    /// <summary>Un titolo chiesto è arrivato (spec I §7.6), a chi l'ha chiesto.</summary>
+    public const string RequestAvailable = "RequestAvailable";
+
+    /// <summary>Una richiesta da approvare (spec I §7.6), a chi può approvare.</summary>
+    public const string RequestPending = "RequestPending";
 }
 
 /// <summary>
@@ -46,7 +52,7 @@ public sealed class InboxEntry
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? FromName { get; set; }
 
-    /// <summary>Invite: il titolo, dal nome del gruppo ("Host · Titolo").</summary>
+    /// <summary>Invite: il titolo, dal nome del gruppo ("Host · Titolo"). RequestAvailable e RequestPending: il titolo da Seerr ("Dune (2021)").</summary>
     [JsonPropertyName("Title")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Title { get; set; }
@@ -76,7 +82,37 @@ public sealed class InboxEntry
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? More { get; set; }
 
-    /// <summary>Copia superficiale: le liste di NewTitles non si cambiano mai dopo la creazione.</summary>
+    /// <summary>RequestAvailable, RequestPending: la richiesta in Seerr.</summary>
+    [JsonPropertyName("RequestId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? RequestId { get; set; }
+
+    /// <summary>RequestAvailable, RequestPending: "movie" o "tv".</summary>
+    [JsonPropertyName("MediaType")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? MediaType { get; set; }
+
+    /// <summary>RequestAvailable, RequestPending: l'id TMDB.</summary>
+    [JsonPropertyName("TmdbId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? TmdbId { get; set; }
+
+    /// <summary>RequestAvailable, RequestPending: le stagioni chieste, per le serie.</summary>
+    [JsonPropertyName("Seasons")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<int>? Seasons { get; set; }
+
+    /// <summary>RequestAvailable: il titolo nella libreria, in formato "N", se Seerr lo conosce.</summary>
+    [JsonPropertyName("ItemId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ItemId { get; set; }
+
+    /// <summary>RequestPending: chi ha chiesto il titolo.</summary>
+    [JsonPropertyName("RequesterName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RequesterName { get; set; }
+
+    /// <summary>Copia superficiale: le liste (NewTitles, Seasons) non si cambiano mai dopo la creazione.</summary>
     public InboxEntry Copy() => (InboxEntry)MemberwiseClone();
 }
 
