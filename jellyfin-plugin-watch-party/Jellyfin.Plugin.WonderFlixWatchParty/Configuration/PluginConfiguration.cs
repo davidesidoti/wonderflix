@@ -12,4 +12,16 @@ public class PluginConfiguration : BasePluginConfiguration
 {
     /// <summary>Raccogli i titoli nuovi della libreria e mandane il riepilogo (spec G §6.6).</summary>
     public bool NotifyNewTitles { get; set; } = true;
+
+    /// <summary>
+    /// Indirizzo di Seerr visto dal server Jellyfin, per esempio
+    /// https://host/seerr (spec I §7.1). Vuoto: richieste spente.
+    /// </summary>
+    public string SeerrUrl { get; set; } = string.Empty;
+
+    /// <summary>Chiave API di Seerr (Impostazioni → Generali). Il file lo leggono solo gli admin.</summary>
+    public string SeerrApiKey { get; set; } = string.Empty;
+
+    /// <summary>Segreto che Seerr mette nel corpo del webhook (spec I §7.5).</summary>
+    public string SeerrWebhookSecret { get; set; } = string.Empty;
 }

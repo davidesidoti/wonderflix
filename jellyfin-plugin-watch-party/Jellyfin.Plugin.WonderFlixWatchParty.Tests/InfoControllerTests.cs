@@ -10,10 +10,20 @@ public class InfoControllerTests
     [Fact]
     public void InfoReportsVersionProtocolAndFeatures()
     {
-        var info = new InfoController().GetInfo().Value!;
-        Assert.Equal("1.3.0", info.Version);
+        var info = new InfoController(new FakeSeerrSettings { Url = string.Empty }).GetInfo().Value!;
+        Assert.Equal("1.4.0", info.Version);
         Assert.Equal(1, info.Protocol);
         Assert.Equal(new[] { "friends", "parties", "inbox", "queue" }, info.Features);
+    }
+
+    [Fact]
+    public void RequestsAppearOnlyWithSeerrConfigured()
+    {
+        Assert.Equal(
+            new[] { "friends", "parties", "inbox", "queue", "requests" },
+            new InfoController(new FakeSeerrSettings()).GetInfo().Value!.Features);
+        Assert.DoesNotContain(
+            "requests", new InfoController(new FakeSeerrSettings { ApiKey = " " }).GetInfo().Value!.Features);
     }
 
     [Fact]

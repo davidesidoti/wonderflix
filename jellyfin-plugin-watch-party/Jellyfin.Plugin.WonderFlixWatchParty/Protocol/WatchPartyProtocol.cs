@@ -24,4 +24,11 @@ public static class WatchPartyProtocol
     /// G §6.3, spec H §7). Il protocollo resta 1: le app 0.5.x accettano solo quello.
     /// </summary>
     public static readonly IReadOnlyList<string> Features = ["friends", "parties", "inbox", "queue"];
+
+    /// <summary>Le richieste con Seerr (spec I §7.1): in GET Info solo con Seerr configurato.</summary>
+    public const string RequestsFeature = "requests";
+
+    /// <summary>Le funzioni di GET Info, con "requests" se Seerr è configurato.</summary>
+    public static IReadOnlyList<string> FeaturesWith(bool requests) =>
+        requests ? [.. Features, RequestsFeature] : Features;
 }

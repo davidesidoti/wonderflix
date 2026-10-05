@@ -1,4 +1,5 @@
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
+using Jellyfin.Plugin.WonderFlixWatchParty.Seerr;
 using Jellyfin.Plugin.WonderFlixWatchParty.Server;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller;
@@ -30,6 +31,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             provider.GetRequiredService<ILogger<InboxStore>>()));
         serviceCollection.AddSingleton<InboxService>();
         serviceCollection.AddSingleton<INewTitlesSettings, PluginNewTitlesSettings>();
+        serviceCollection.AddSingleton<ISeerrSettings, PluginSeerrSettings>();
         serviceCollection.AddSingleton<ILibraryTitles, JellyfinLibraryTitles>();
         serviceCollection.AddSingleton<NewTitlesCollector>();
         serviceCollection.AddSingleton<PresenceTracker>();
