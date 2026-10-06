@@ -20,8 +20,8 @@ void main() {
           '/Sessions' => FakeResponse(200, sessionsJson),
           '/SyncPlay/List' => FakeResponse(200, partyGroupsJson),
           '/System/Info' => FakeResponse(200, serverInfoJson),
-          '/System/Info/Public' =>
-            const FakeResponse(200, {'Version': '10.11.9'}),
+          '/System/Info/Public' => const FakeResponse(
+              200, {'Version': '10.11.9', 'StartupWizardCompleted': true}),
           '/System/Restart' => const FakeResponse(204),
           _ => const FakeResponse(404),
         });
@@ -67,6 +67,34 @@ void main() {
     test('risponde: su', () async {
       expect(await api.isServerUp(), isTrue);
       expect(adapter.requests.single.path, '/System/Info/Public');
+    });
+
+    test('risponde ma il setup non è finito: giù', () async {
+      // Jellyfin 10.11 avvia prima un server di setup, 6-18 s prima di
+      // quello vero, e quello risponde 200 a /System/Info/Public.
+      adapter.handler = (_) => const FakeResponse(
+          200, {'Version': '10.11.9', 'StartupWizardCompleted': false});
+      expect(await api.isServerUp(), isFalse);
+    });
+
+    test('risponde senza StartupWizardCompleted: giù', () async {
+      adapter.handler = (_) => const FakeResponse(200, {'Version': '10.11.9'});
+      expect(await api.isServerUp(), isFalse);
+      adapter.handler = (_) => const FakeResponse(
+          200, {'StartupWizardCompleted': 'true'});
+      expect(await api.isServerUp(), isFalse,
+          reason: 'solo il booleano vero conta');
+    });
+
+    test('risponde con un corpo che non è un oggetto: giù', () async {
+      adapter.handler = (_) => const FakeResponse(200, ['StartupWizardCompleted']);
+      expect(await api.isServerUp(), isFalse);
+      adapter.handler = (_) => const FakeResponse(200, 'true');
+      expect(await api.isServerUp(), isFalse);
+      adapter.handler = (_) => const FakeResponse(200, true);
+      expect(await api.isServerUp(), isFalse);
+      adapter.handler = (_) => const FakeResponse(204);
+      expect(await api.isServerUp(), isFalse);
     });
 
     test('502 o 503 di nginx durante il riavvio: giù', () async {
