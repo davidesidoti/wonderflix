@@ -63,6 +63,39 @@ void main() {
     expect(plugin.count('newTitles'), greaterThanOrEqualTo(3));
   });
 
+  test('scrittura riuscita e rilettura fallita: lo stato ha il valore scritto',
+      () async {
+    final container = makeContainer();
+    await pumpEventQueue();
+    expect(container.read(inboxAdminControllerProvider).value!.enabled, isTrue);
+
+    plugin.newTitlesError = const ServerUnreachableException();
+    await container
+        .read(inboxAdminControllerProvider.notifier)
+        .setNotifyNewTitles(false);
+
+    final data = container.read(inboxAdminControllerProvider);
+    expect(plugin.calls, contains('notify:false'));
+    expect(data.value!.enabled, isFalse, reason: 'il plugin ha scritto false');
+    expect(data.value!.pending, 3, reason: 'i titoli in attesa restano');
+    expect(data.error, isA<ServerUnreachableException>());
+    expect(data.stale, isTrue);
+  });
+
+  test('scrittura rifiutata: lo stato resta quello di prima', () async {
+    final container = makeContainer();
+    await pumpEventQueue();
+
+    plugin.actionError = const ServerUnreachableException();
+    await expectLater(
+        container
+            .read(inboxAdminControllerProvider.notifier)
+            .setNotifyNewTitles(false),
+        throwsA(isA<ServerUnreachableException>()));
+
+    expect(container.read(inboxAdminControllerProvider).value!.enabled, isTrue);
+  });
+
   test('403 su un\'azione: rilegge l\'utente', () async {
     plugin.actionError = const ForbiddenException();
     final container = makeContainer();

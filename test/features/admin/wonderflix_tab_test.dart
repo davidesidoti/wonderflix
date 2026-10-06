@@ -184,6 +184,21 @@ void main() {
       expect(find.text('Inviati 3 titoli a 12 persone'), findsOneWidget);
     });
 
+    testWidgets('scrittura riuscita e rilettura fallita: l\'interruttore '
+        'resta sul valore scritto', (tester) async {
+      await pumpTab(tester);
+
+      plugin.newTitlesError = const ServerUnreachableException();
+      await tester.tap(find.byKey(const Key('notify-new-titles')));
+      await tester.pumpAndSettle();
+
+      expect(plugin.calls, contains('notify:false'));
+      expect(tester.widget<Switch>(find.byKey(const Key('notify-new-titles'))).value,
+          isFalse);
+      expect(find.text('Le novità non vengono raccolte'), findsOneWidget);
+      expect(find.textContaining('Dati non aggiornati'), findsOneWidget);
+    });
+
     testWidgets('nessun titolo: Invia ora spento', (tester) async {
       plugin.newTitlesValue = const NewTitlesStatus(enabled: true, pending: 0);
       await pumpTab(tester);

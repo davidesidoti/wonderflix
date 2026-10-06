@@ -22,8 +22,20 @@ class InboxAdminController extends AdminTabController<NewTitlesStatus> {
   Future<int> announce(String text) =>
       act(() => ref.read(pluginAdminApiProvider).announce(text));
 
-  Future<void> setNotifyNewTitles(bool enabled) =>
-      act(() => ref.read(pluginAdminApiProvider).setNotifyNewTitles(enabled));
+  /// Accende o spegne la raccolta. Se la scrittura riesce, lo stato prende
+  /// subito il valore scritto, prima della rilettura: se quella fallisce,
+  /// l'interruttore non torna a un valore che sul server non c'è più.
+  Future<void> setNotifyNewTitles(bool enabled) => act(() async {
+        await ref.read(pluginAdminApiProvider).setNotifyNewTitles(enabled);
+        final current = state.value;
+        if (ref.mounted && current != null) {
+          state = AdminData<NewTitlesStatus>(
+            value: NewTitlesStatus(enabled: enabled, pending: current.pending),
+            error: state.error,
+            updatedAt: state.updatedAt,
+          );
+        }
+      });
 
   Future<NewTitlesSent> sendNewTitles() =>
       act(() => ref.read(pluginAdminApiProvider).sendNewTitles());
