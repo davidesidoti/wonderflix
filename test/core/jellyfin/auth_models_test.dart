@@ -47,4 +47,31 @@ void main() {
         isFalse);
     expect(const JellyfinUser(id: 'u1', name: 'Mario').isAdministrator, isFalse);
   });
+
+  test('due utenti con gli stessi campi sono uguali', () {
+    JellyfinUser build({
+      String id = 'u1',
+      String name = 'Mario',
+      String? tag = 'tag1',
+      SyncPlayAccess access = SyncPlayAccess.joinOnly,
+      bool admin = true,
+    }) =>
+        JellyfinUser(
+          id: id,
+          name: name,
+          primaryImageTag: tag,
+          syncPlayAccess: access,
+          isAdministrator: admin,
+        );
+
+    final user = build();
+    expect(build(), user);
+    expect(build().hashCode, user.hashCode);
+    expect(build(id: 'u2'), isNot(user));
+    expect(build(name: 'Luigi'), isNot(user));
+    expect(build(tag: null), isNot(user));
+    expect(build(tag: 'tag2'), isNot(user));
+    expect(build(access: SyncPlayAccess.none), isNot(user));
+    expect(build(admin: false), isNot(user));
+  });
 }

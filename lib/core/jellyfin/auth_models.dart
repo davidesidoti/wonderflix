@@ -51,6 +51,21 @@ class JellyfinUser {
   /// Vede la pagina Amministrazione (spec J §7). Il server controlla comunque
   /// ogni chiamata.
   final bool isAdministrator;
+
+  /// Uguali se hanno gli stessi campi: così una rilettura dell'utente che non
+  /// cambia niente non produce un nuovo stato di sessione.
+  @override
+  bool operator ==(Object other) =>
+      other is JellyfinUser &&
+      other.id == id &&
+      other.name == name &&
+      other.primaryImageTag == primaryImageTag &&
+      other.syncPlayAccess == syncPlayAccess &&
+      other.isAdministrator == isAdministrator;
+
+  @override
+  int get hashCode =>
+      Object.hash(id, name, primaryImageTag, syncPlayAccess, isAdministrator);
 }
 
 class AuthResult {

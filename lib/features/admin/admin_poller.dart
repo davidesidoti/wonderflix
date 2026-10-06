@@ -13,6 +13,9 @@ class AdminPoller {
   Duration _interval;
   Timer? _timer;
 
+  /// L'attesa del timer in corso, `null` se non ce n'è uno.
+  Duration? _pendingDelay;
+
   /// Le letture in corso (una, più quelle chieste nel frattempo).
   Future<void>? _running;
 
@@ -26,11 +29,14 @@ class AdminPoller {
   Duration get interval => _interval;
 
   /// Vale da subito: se si sta aspettando, l'attesa riparte con il valore
-  /// nuovo.
+  /// nuovo. La prima lettura (attesa a zero, subito dopo [start]) non si
+  /// ritarda.
   set interval(Duration value) {
     if (value == _interval) return;
     _interval = value;
-    if (_active && _running == null) _schedule(value);
+    if (_active && _running == null && _pendingDelay != Duration.zero) {
+      _schedule(value);
+    }
   }
 
   /// Accende la rilettura: una lettura subito, poi a ogni intervallo.
@@ -43,8 +49,7 @@ class AdminPoller {
   /// Spegne la rilettura; una lettura in corso finisce.
   void stop() {
     _active = false;
-    _timer?.cancel();
-    _timer = null;
+    _cancelTimer();
   }
 
   /// Una lettura adesso (dopo un'azione, "Riprova"). Se una è già in corso,
@@ -65,8 +70,7 @@ class AdminPoller {
   }
 
   Future<void> _run() {
-    _timer?.cancel();
-    _timer = null;
+    _cancelTimer();
     final run = _loop();
     _running = run;
     return run;
@@ -77,7 +81,9 @@ class AdminPoller {
       do {
         _again = false;
         try {
-          await _read();
+          // `Future.sync`: anche una lettura che lancia senza essere `async`
+          // finisce nel `catch`, e [_running] non resta appeso.
+          await Future.sync(_read);
         } on Object {
           // Lo stato dell'errore lo tiene chi legge.
         }
@@ -89,10 +95,18 @@ class AdminPoller {
   }
 
   void _schedule(Duration delay) {
-    _timer?.cancel();
+    _cancelTimer();
+    _pendingDelay = delay;
     _timer = Timer(delay, () {
       _timer = null;
+      _pendingDelay = null;
       unawaited(_run());
     });
+  }
+
+  void _cancelTimer() {
+    _timer?.cancel();
+    _timer = null;
+    _pendingDelay = null;
   }
 }

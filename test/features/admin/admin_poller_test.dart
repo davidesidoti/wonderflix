@@ -165,4 +165,118 @@ void main() {
       expect(reads, 1);
     });
   });
+
+  test('una lettura che lancia subito, senza essere async, non blocca nulla', () {
+    fakeAsync((async) {
+      var reads = 0;
+      final poller = AdminPoller(
+        read: () {
+          reads++;
+          throw StateError('subito');
+        },
+        interval: every,
+      );
+
+      poller.start();
+      async.elapse(Duration.zero);
+      expect(reads, 1);
+      async.elapse(every);
+      expect(reads, 2, reason: 'la rilettura continua');
+
+      poller.stop();
+      poller.start();
+      async.elapse(Duration.zero);
+      expect(reads, 3, reason: 'spenta e riaccesa legge subito');
+
+      unawaited(poller.now());
+      async.flushMicrotasks();
+      expect(reads, 4, reason: 'now legge davvero');
+      poller.dispose();
+    });
+  });
+
+  test('spenta durante una lettura: finita quella, non ne programma altre', () {
+    fakeAsync((async) {
+      final pending = <Completer<void>>[];
+      final poller = AdminPoller(
+        read: () {
+          final read = Completer<void>();
+          pending.add(read);
+          return read.future;
+        },
+        interval: every,
+      );
+
+      poller.start();
+      async.elapse(Duration.zero);
+      expect(pending, hasLength(1));
+
+      poller.stop();
+      pending[0].complete();
+      async.elapse(const Duration(seconds: 30));
+      expect(pending, hasLength(1));
+      poller.dispose();
+    });
+  });
+
+  test('accesa durante una lettura: nessuna lettura in più subito', () {
+    fakeAsync((async) {
+      final pending = <Completer<void>>[];
+      final poller = AdminPoller(
+        read: () {
+          final read = Completer<void>();
+          pending.add(read);
+          return read.future;
+        },
+        interval: every,
+      );
+
+      // Una lettura chiesta a poller spento, e poi lo si accende.
+      unawaited(poller.now());
+      async.flushMicrotasks();
+      expect(pending, hasLength(1));
+      poller.start();
+      async.elapse(const Duration(seconds: 30));
+      expect(pending, hasLength(1), reason: 'quella in corso basta');
+
+      pending[0].complete();
+      async.elapse(const Duration(seconds: 4));
+      expect(pending, hasLength(1));
+      async.elapse(const Duration(seconds: 1));
+      expect(pending, hasLength(2), reason: 'la prossima dopo un intervallo');
+      pending[1].complete();
+      poller.dispose();
+    });
+  });
+
+  test('now da spenta: legge una volta sola e non programma altre letture', () {
+    fakeAsync((async) {
+      var reads = 0;
+      final poller = AdminPoller(read: () async => reads++, interval: every);
+
+      unawaited(poller.now());
+      async.elapse(const Duration(seconds: 30));
+      expect(reads, 1);
+      expect(poller.active, isFalse);
+      poller.dispose();
+    });
+  });
+
+  test('un intervallo nuovo subito dopo start non ritarda la prima lettura', () {
+    fakeAsync((async) {
+      var reads = 0;
+      final poller = AdminPoller(read: () async => reads++, interval: every);
+
+      poller.start();
+      poller.interval = const Duration(seconds: 60);
+      async.elapse(Duration.zero);
+      expect(reads, 1, reason: 'la prima lettura resta a zero');
+
+      async.elapse(const Duration(seconds: 59));
+      expect(reads, 1);
+      async.elapse(const Duration(seconds: 1));
+      expect(reads, 2, reason: 'la seconda col ritmo nuovo');
+      poller.dispose();
+    });
+  });
 }

@@ -16,6 +16,10 @@ import '../../support/fake_session_controller.dart';
 final _answers = <Object>[];
 var _reads = 0;
 
+/// Se c'è, la lettura successiva aspetta che il test la completi (una lettura
+/// ancora in corso).
+Completer<int>? _hold;
+
 class _TestController extends AdminTabController<int> {
   @override
   Duration get interval => const Duration(seconds: 5);
@@ -23,6 +27,11 @@ class _TestController extends AdminTabController<int> {
   @override
   Future<int> fetch() async {
     _reads++;
+    final hold = _hold;
+    if (hold != null) {
+      _hold = null;
+      return hold.future;
+    }
     final next = _answers.isEmpty ? _reads : _answers.removeAt(0);
     if (next is int) return next;
     throw next;
@@ -43,6 +52,7 @@ void main() {
   setUp(() {
     _answers.clear();
     _reads = 0;
+    _hold = null;
     session = FakeSessionController(const SessionSignedIn(testAdmin));
     foreground = FakeAdminForeground();
   });
@@ -109,13 +119,19 @@ void main() {
     });
   });
 
-  test('un 403 fa rileggere l\'utente', () {
+  test('un 403 fa rileggere l\'utente; restano i dati e l\'errore', () {
     fakeAsync((async) {
-      _answers.add(const ForbiddenException());
-      makeContainer();
+      _answers.addAll([7, const ForbiddenException()]);
+      final container = makeContainer();
       async.elapse(Duration.zero);
+      expect(session.refreshUserCalls, 0);
 
+      async.elapse(const Duration(seconds: 5));
       expect(session.refreshUserCalls, 1);
+      final data = container.read(_testProvider);
+      expect(data.value, 7);
+      expect(data.error, isA<ForbiddenException>());
+      expect(data.stale, isTrue);
     });
   });
 
@@ -175,6 +191,58 @@ void main() {
       foreground.set(true);
       async.elapse(Duration.zero);
       expect(_reads, 2);
+    });
+  });
+
+  test('chiusa la pagina: non legge più', () {
+    fakeAsync((async) {
+      makeContainer();
+      async.elapse(Duration.zero);
+      expect(_reads, 1);
+
+      subscription.close();
+      async.elapse(const Duration(seconds: 30));
+      expect(_reads, 1);
+    });
+  });
+
+  test('chiusa la pagina durante una lettura: la lettura finita dopo non '
+      'scrive e non rilegge l\'utente', () {
+    fakeAsync((async) {
+      _hold = Completer<int>();
+      final hold = _hold!;
+      makeContainer();
+      async.elapse(Duration.zero);
+      expect(_reads, 1);
+
+      subscription.close();
+      async.elapse(Duration.zero);
+      hold.completeError(const ForbiddenException());
+      async.elapse(const Duration(seconds: 30));
+
+      expect(session.refreshUserCalls, 0);
+      expect(_reads, 1);
+    });
+  });
+
+  test('rebuild durante una lettura: la lettura vecchia non scrive', () {
+    fakeAsync((async) {
+      _hold = Completer<int>();
+      final firstRead = _hold!;
+      final container = makeContainer();
+      async.elapse(Duration.zero);
+      expect(_reads, 1);
+
+      // Il provider si ricostruisce con la prima lettura ancora in corso.
+      container.invalidate(_testProvider);
+      async.elapse(Duration.zero);
+      expect(_reads, 2);
+      expect(container.read(_testProvider).value, 2);
+
+      firstRead.complete(99);
+      async.elapse(Duration.zero);
+      expect(container.read(_testProvider).value, 2,
+          reason: 'la lettura vecchia non sovrascrive quella nuova');
     });
   });
 

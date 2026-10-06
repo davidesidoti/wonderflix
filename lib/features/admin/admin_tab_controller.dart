@@ -79,6 +79,11 @@ abstract class AdminTabController<T> extends Notifier<AdminData<T>> {
   void setInterval(Duration value) => _poller.interval = value;
 
   Future<void> _read() async {
+    // Il `Ref` di questa costruzione del provider: se mentre si legge il
+    // provider si ricostruisce, `this.ref` sarebbe quello nuovo e la lettura
+    // vecchia scriverebbe sopra quella nuova. Quello vecchio non è più
+    // `mounted`.
+    final ref = this.ref;
     try {
       final value = await fetch();
       if (!ref.mounted) return;

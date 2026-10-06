@@ -72,14 +72,30 @@ class SessionController extends Notifier<SessionState> {
     state = const SessionSignedOut();
   }
 
+  /// La rilettura dell'utente in corso, se c'è.
+  Future<void>? _refreshing;
+
   /// Rilegge l'utente (spec J §12): per esempio i permessi da admin dopo un
-  /// 403. Senza sessione non fa nulla. Un errore lascia la sessione com'è
-  /// (un 401 passa già da [_onUnauthorized]).
-  Future<void> refreshUser() async {
-    if (state is! SessionSignedIn) return;
+  /// 403. Senza sessione non fa nulla. Chi la chiede mentre una è in corso
+  /// riceve la stessa (più schede che prendono un 403 insieme fanno una sola
+  /// lettura).
+  Future<void> refreshUser() =>
+      _refreshing ??= _refreshUser().whenComplete(() => _refreshing = null);
+
+  /// Un errore lascia la sessione com'è (un 401 passa già da
+  /// [_onUnauthorized]). Il risultato vale solo se la sessione è ancora
+  /// quella dello stesso utente (un'uscita o un altro accesso, nel
+  /// frattempo, lo scartano) e solo se qualcosa è cambiato: senza un nuovo
+  /// stato il router e la shell non si ricostruiscono.
+  Future<void> _refreshUser() async {
+    final before = state;
+    if (before is! SessionSignedIn) return;
     try {
       final user = await _auth.currentUser();
-      if (state is SessionSignedIn) state = SessionSignedIn(user);
+      final now = state;
+      if (now is! SessionSignedIn || now.user.id != before.user.id) return;
+      if (now.user == user) return;
+      state = SessionSignedIn(user);
     } on ApiException {
       // La sessione resta quella di prima.
     }

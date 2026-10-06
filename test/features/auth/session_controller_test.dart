@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -146,6 +148,80 @@ void main() {
     test('senza sessione non chiede nulla', () async {
       await controller().refreshUser();
       verifyNever(() => auth.currentUser());
+    });
+
+    test('un utente diverso nel frattempo: il risultato non si applica',
+        () async {
+      await signIn();
+      final answer = Completer<JellyfinUser>();
+      when(() => auth.currentUser()).thenAnswer((_) => answer.future);
+
+      final refreshing = controller().refreshUser();
+      const other = JellyfinUser(id: 'u2', name: 'Luigi');
+      controller().quickConnectApproved(other);
+      answer.complete(testUser);
+      await refreshing;
+
+      expect((state() as SessionSignedIn).user, same(other));
+    });
+
+    test('uscito nel frattempo: il risultato non si applica', () async {
+      await signIn();
+      final answer = Completer<JellyfinUser>();
+      when(() => auth.currentUser()).thenAnswer((_) => answer.future);
+      when(() => auth.logout()).thenAnswer((_) async {});
+
+      final refreshing = controller().refreshUser();
+      await controller().logout();
+      answer.complete(testUser);
+      await refreshing;
+
+      expect(state(), isA<SessionSignedOut>());
+    });
+
+    test('utente invariato: nessun nuovo stato', () async {
+      await signIn();
+      final before = state();
+      // Un'istanza nuova ma uguale: nessun cambio, quindi niente da
+      // notificare (il router e la shell non si ricostruiscono).
+      when(() => auth.currentUser()).thenAnswer((_) async => JellyfinUser(
+          id: admin.id, name: admin.name, isAdministrator: true));
+
+      await controller().refreshUser();
+
+      expect(state(), same(before));
+    });
+
+    test('più richieste insieme: una sola lettura, poi di nuovo', () async {
+      await signIn();
+      final answer = Completer<JellyfinUser>();
+      when(() => auth.currentUser()).thenAnswer((_) => answer.future);
+
+      final first = controller().refreshUser();
+      final second = controller().refreshUser();
+      expect(second, same(first));
+      answer.complete(testUser);
+      await Future.wait([first, second]);
+
+      verify(() => auth.currentUser()).called(1);
+      expect((state() as SessionSignedIn).user.isAdministrator, isFalse);
+
+      when(() => auth.currentUser()).thenAnswer((_) async => admin);
+      await controller().refreshUser();
+      verify(() => auth.currentUser()).called(1);
+      expect((state() as SessionSignedIn).user.isAdministrator, isTrue);
+    });
+
+    test('un errore non blocca le richieste dopo', () async {
+      await signIn();
+      when(() => auth.currentUser())
+          .thenThrow(const ServerUnreachableException());
+      await controller().refreshUser();
+
+      when(() => auth.currentUser()).thenAnswer((_) async => testUser);
+      await controller().refreshUser();
+
+      expect((state() as SessionSignedIn).user.isAdministrator, isFalse);
     });
   });
 }
