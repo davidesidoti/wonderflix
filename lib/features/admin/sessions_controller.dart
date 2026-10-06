@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/jellyfin/admin_api.dart';
 import '../../core/jellyfin/admin_models.dart';
 import '../../core/jellyfin/auth_models.dart';
 import '../watch_party/watch_party_providers.dart';
@@ -58,19 +59,31 @@ class SessionsController extends AdminTabController<SessionsSnapshot> {
   @override
   Duration get interval => every;
 
+  /// Le sessioni e i party si leggono insieme. Le sessioni sono l'essenziale:
+  /// se falliscono, fallisce la lettura. Se fallisce solo l'elenco dei party,
+  /// restano le sessioni nuove e i party dell'ultima lettura riuscita.
   @override
   Future<SessionsSnapshot> fetch() async {
     final api = ref.read(adminApiProvider);
     // Senza accesso ai watch party Jellyfin rifiuterebbe l'elenco.
     final withParties = ref.read(syncPlayAccessProvider) != SyncPlayAccess.none;
-    final results = await Future.wait<Object>(
-      [api.sessions(), if (withParties) api.partyGroups()],
-      eagerError: true,
-    );
-    return SessionsSnapshot.from(
-      results[0] as List<SessionEntry>,
-      withParties ? results[1] as List<PartyGroup> : const [],
-    );
+    final sessionsRead = api.sessions();
+    final partiesRead = withParties ? _readParties(api) : null;
+    final sessions = await sessionsRead;
+    final parties = withParties
+        ? await partiesRead ?? state.value?.parties ?? const <PartyGroup>[]
+        : const <PartyGroup>[];
+    return SessionsSnapshot.from(sessions, parties);
+  }
+
+  /// `null` se i party non si leggono. Non lancia mai, così una lettura delle
+  /// sessioni già fallita non lascia un errore senza chi lo aspetta.
+  Future<List<PartyGroup>?> _readParties(AdminApi api) async {
+    try {
+      return await api.partyGroups();
+    } on Object {
+      return null;
+    }
   }
 }
 

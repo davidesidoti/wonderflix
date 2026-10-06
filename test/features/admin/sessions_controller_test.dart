@@ -107,7 +107,35 @@ void main() {
     expect(api.count('parties'), 0);
   });
 
-  test('un errore dei party è un errore della scheda', () async {
+  test('un errore delle sessioni è un errore della scheda', () async {
+    api
+      ..sessionsError = const ForbiddenException()
+      ..partiesValue = testParties();
+    final session = FakeSessionController(const SessionSignedIn(testAdmin));
+    final container = makeContainer(session: session);
+    await pumpEventQueue();
+
+    expect(container.read(sessionsControllerProvider).error,
+        isA<ForbiddenException>());
+    expect(container.read(sessionsControllerProvider).value, isNull);
+    expect(session.refreshUserCalls, 1);
+  });
+
+  test('sessioni e party falliti insieme: vale l\'errore delle sessioni',
+      () async {
+    api
+      ..sessionsError = const ServerUnreachableException()
+      ..partiesError = const ForbiddenException();
+    final session = FakeSessionController(const SessionSignedIn(testAdmin));
+    final container = makeContainer(session: session);
+    await pumpEventQueue();
+
+    expect(container.read(sessionsControllerProvider).error,
+        isA<ServerUnreachableException>());
+    expect(session.refreshUserCalls, 0);
+  });
+
+  test('i party non si leggono: restano le sessioni, senza errore', () async {
     api
       ..sessionsValue = testSessions()
       ..partiesError = const ForbiddenException();
@@ -115,8 +143,40 @@ void main() {
     final container = makeContainer(session: session);
     await pumpEventQueue();
 
-    expect(container.read(sessionsControllerProvider).error,
-        isA<ForbiddenException>());
-    expect(session.refreshUserCalls, 1);
+    final data = container.read(sessionsControllerProvider);
+    expect(data.error, isNull);
+    expect(data.stale, isFalse);
+    expect(data.value!.playing, isNotEmpty);
+    expect(data.value!.parties, isEmpty,
+        reason: 'alla prima lettura non ce ne sono di prima');
+    expect(session.refreshUserCalls, 0);
+  });
+
+  test('i party non si leggono più: restano quelli della lettura prima',
+      () async {
+    api
+      ..sessionsValue = testSessions()
+      ..partiesValue = testParties();
+    final container = makeContainer();
+    await pumpEventQueue();
+    expect(container.read(sessionsControllerProvider).value!.parties,
+        hasLength(1));
+
+    api
+      ..sessionsValue = [testSession('nuova', 'zoe', playing: testMovie)]
+      ..partiesError = const ServerErrorException(500);
+    await container.read(sessionsControllerProvider.notifier).refresh();
+
+    final data = container.read(sessionsControllerProvider);
+    expect(data.error, isNull);
+    expect(data.value!.playing.map((s) => s.userName), ['zoe']);
+    expect(data.value!.parties.single.name, 'Serata Lost');
+
+    // Tornano i party: si aggiornano.
+    api
+      ..partiesError = null
+      ..partiesValue = const [];
+    await container.read(sessionsControllerProvider.notifier).refresh();
+    expect(container.read(sessionsControllerProvider).value!.parties, isEmpty);
   });
 }
