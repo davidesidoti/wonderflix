@@ -29,10 +29,15 @@ Poi la release dell'app 0.10.0. Il plugin non cambia.
     - `act()` finisce dopo la rilettura quando l'azione riesce;
     - le risposte di novità e "Invia ora" senza i loro campi sono errori;
     - `AdminActionButton` ignora un secondo clic e non mostra l'avviso se non c'è più.
+13. **Dalle review del Gruppo B e finale** (già fatto; il codice dei Task 3, 6, 7 e 8 qui sotto è quello di prima, vale quello del branch):
+    - "Scansiona tutte" avvia l'attività "RefreshLibrary" con `startTask`, come la Dashboard web: in Jellyfin 10.11 `POST /Library/Refresh` risponde solo a scansione finita (oltre i 30 s dell'app). `AdminApi.scanAll` è tolto; il pulsante va solo con l'attività ferma;
+    - il Registro va avanti con un cursore del server e aggiunge solo voci più vecchie dell'ultima mostrata; "Aggiorna" e il ritorno dopo un riavvio ricaricano dall'inizio, in cima; "Riprova" ripete il caricamento fallito;
+    - la scheda WonderFlix aspetta le funzioni del plugin prima di mostrare Sessioni; l'annuncio tiene vivo il suo controller; Seerr mostra "Dati non aggiornati";
+    - l'interruttore delle novità tiene il valore scritto anche se la rilettura fallisce; gli avvisi d'errore non compaiono se la scheda non c'è più.
 
 **Architecture:**
 - **Dati:**
-  - `AdminApi` riceve `libraries`, `scanAll`, `scanLibrary`, `tasks`, `startTask`, `stopTask`, `activity`;
+  - `AdminApi` riceve `libraries`, `scanLibrary`, `tasks`, `startTask`, `stopTask`, `activity` (`scanAll` c'era nel piano, poi è stato tolto: decisione 13);
   - modelli nuovi: `LibraryFolder`, `ScheduledTask`, `TaskResult` in `maintenance_models.dart`; `ActivityEntry`, `ActivityPage` in `activity_models.dart`;
   - `PluginAdminApi` (`lib/core/social/`) con `NewTitlesStatus`, `NewTitlesSent`, `SeerrAdminStatus`, `SeerrTestResult`.
 - **Controller:**
