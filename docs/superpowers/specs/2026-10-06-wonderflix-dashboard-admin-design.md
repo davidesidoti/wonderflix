@@ -350,7 +350,7 @@ Si rilegge ogni 5 s.
 ### 9.5 Registro
 
 - Pagine da 50, dalla voce più recente. La pagina successiva si carica quando si arriva in fondo (o subito, se la prima non riempie la finestra); in fondo all'elenco c'è "Non ci sono altre voci".
-- **Voci arrivate in cima tra una pagina e l'altra:** spostano gli indici, e la pagina dopo può ridare voci già mostrate. Quelle non si ripetono. Una pagina fatta solo di voci già viste vale come la fine dell'elenco.
+- **Voci arrivate in cima tra una pagina e l'altra:** spostano gli indici. Le pagine si leggono con un cursore del server e si tengono solo le voci più vecchie dell'ultima mostrata: niente doppioni e niente voci nuove in fondo. Se una pagina non ne ha, si legge la successiva, fino a 5 pagine in più per volta. La fine dell'elenco la dà il totale del server, o una pagina vuota.
 - **Filtri:** "Tutto", "Utenti" (`hasUserId=true`), "Sistema" (`hasUserId=false`). Cambiare filtro ricomincia dalla prima pagina; la risposta di un caricamento con il filtro di prima si scarta.
 - **Riga:**
   - l'icona della gravità: informazione grigia, avviso ambra, errore rosso;

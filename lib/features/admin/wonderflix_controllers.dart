@@ -27,8 +27,11 @@ class InboxAdminController extends AdminTabController<NewTitlesStatus> {
   /// l'interruttore non torna a un valore che sul server non c'è più.
   Future<void> setNotifyNewTitles(bool enabled) => act(() async {
         await ref.read(pluginAdminApiProvider).setNotifyNewTitles(enabled);
+        // Pagina chiusa nel frattempo: lo stato non si legge più (Riverpod
+        // lancia), e la scrittura è comunque riuscita.
+        if (!ref.mounted) return;
         final current = state.value;
-        if (ref.mounted && current != null) {
+        if (current != null) {
           state = AdminData<NewTitlesStatus>(
             value: NewTitlesStatus(enabled: enabled, pending: current.pending),
             error: state.error,
