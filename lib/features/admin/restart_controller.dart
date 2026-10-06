@@ -2,10 +2,13 @@ import 'dart:async';
 
 import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 
 import '../../core/jellyfin/api_exception.dart';
 import '../auth/session_controller.dart';
 import 'admin_providers.dart';
+
+final _log = Logger('admin');
 
 /// A che punto è il riavvio di Jellyfin (spec J §9.2).
 enum RestartPhase { idle, sending, waiting, timedOut }
@@ -48,9 +51,13 @@ class RestartController extends Notifier<RestartPhase> {
     state = RestartPhase.sending;
     try {
       await ref.read(adminApiProvider).restart();
-    } on Object catch (error) {
+    } on Object catch (error, stack) {
       // Qualunque errore chiude l'invio: la fase non resta mai in `sending`.
       if (!(error is ApiException && _meansStarted(error))) {
+        // Un errore che non viene dall'API è inatteso: va nel log.
+        if (error is! ApiException) {
+          _log.warning('riavvio non riuscito', error, stack);
+        }
         if (!ref.mounted) return RestartOutcome.cancelled;
         state = RestartPhase.idle;
         // Sessione scaduta: l'app esce da sola, nessun avviso sopra il Login.

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/features/admin/admin_providers.dart';
 import 'package:wonderflix/features/admin/restart_controller.dart';
@@ -145,6 +146,54 @@ void main() {
       expect(container.read(restartControllerProvider), RestartPhase.idle);
       expect(api.count('up'), 0);
     });
+  });
+
+  /// I messaggi di livello WARNING del logger `admin` durante [body].
+  List<LogRecord> adminWarnings(void Function() body) {
+    final previous = Logger.root.level;
+    Logger.root.level = Level.ALL;
+    final records = <LogRecord>[];
+    final subscription = Logger.root.onRecord.listen((record) {
+      if (record.loggerName == 'admin' && record.level == Level.WARNING) {
+        records.add(record);
+      }
+    });
+    addTearDown(() {
+      subscription.cancel();
+      Logger.root.level = previous;
+    });
+    body();
+    return records;
+  }
+
+  test('errore inatteso sul POST: un avviso nel log', () {
+    final warnings = adminWarnings(() {
+      fakeAsync((async) {
+        api.restartError = StateError('inatteso');
+        final container = makeContainer();
+
+        unawaited(controller(container).restart());
+        async.flushMicrotasks();
+      });
+    });
+
+    expect(warnings, hasLength(1));
+    expect(warnings.single.error, isA<StateError>());
+    expect(warnings.single.stackTrace, isNotNull);
+  });
+
+  test('errore dell\'API sul POST: niente avvisi nel log', () {
+    final warnings = adminWarnings(() {
+      fakeAsync((async) {
+        api.restartError = const ServerErrorException(500);
+        final container = makeContainer();
+
+        unawaited(controller(container).restart());
+        async.flushMicrotasks();
+      });
+    });
+
+    expect(warnings, isEmpty);
   });
 
   test('401 sul POST: annullato senza avviso (l\'app esce da sola)', () {
