@@ -108,6 +108,14 @@ void main() {
                 videoCodec: 'hevc', hardwareAcceleration: 'vaapi')),
         '→ HEVC · VA-API');
 
+    // Niente da dire (video diretto, audio non letto, nessun bitrate): la
+    // riga non c'è.
+    expect(transcodeLine(it, const TranscodeInfo(isVideoDirect: true)), isNull);
+    expect(
+        transcodeLine(
+            it, const TranscodeInfo(isVideoDirect: true, isAudioDirect: true)),
+        isNull);
+
     // Due motivi di bitrate diventano uno; uno sconosciuto resta com'è.
     expect(
         transcodeReasons(it, [

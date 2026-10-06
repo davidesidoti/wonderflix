@@ -15,21 +15,35 @@ class SessionsSnapshot {
   });
 
   /// Chi guarda va per nome (senza badare alle maiuscole), chi è solo
-  /// collegato dal più recente.
+  /// collegato dal più recente. A parità, per dispositivo e poi per id: lo
+  /// stesso utente su due dispositivi non cambia posto a ogni lettura.
   factory SessionsSnapshot.from(
       List<SessionEntry> sessions, List<PartyGroup> parties) {
     final playing = [
       for (final session in sessions)
         if (session.nowPlaying != null) session,
-    ]..sort((a, b) =>
-        a.userName.toLowerCase().compareTo(b.userName.toLowerCase()));
+    ]..sort((a, b) {
+        final byName =
+            a.userName.toLowerCase().compareTo(b.userName.toLowerCase());
+        return byName != 0 ? byName : _byDeviceThenId(a, b);
+      });
     final never = DateTime.utc(0);
     final idle = [
       for (final session in sessions)
         if (session.nowPlaying == null) session,
-    ]..sort((a, b) =>
-        (b.lastActivity ?? never).compareTo(a.lastActivity ?? never));
+    ]..sort((a, b) {
+        final byActivity =
+            (b.lastActivity ?? never).compareTo(a.lastActivity ?? never);
+        return byActivity != 0 ? byActivity : _byDeviceThenId(a, b);
+      });
     return SessionsSnapshot(playing: playing, idle: idle, parties: parties);
+  }
+
+  static int _byDeviceThenId(SessionEntry a, SessionEntry b) {
+    final byDevice = (a.deviceName ?? '')
+        .toLowerCase()
+        .compareTo((b.deviceName ?? '').toLowerCase());
+    return byDevice != 0 ? byDevice : a.id.compareTo(b.id);
   }
 
   final List<SessionEntry> playing;

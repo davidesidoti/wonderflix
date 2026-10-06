@@ -100,14 +100,25 @@ class PlayingSessionCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final item = session.nowPlaying!;
-    final runtime = item.runtime;
     final position = session.position;
-    final progress = runtime == null || runtime == Duration.zero
+    // Una durata a zero (Jellyfin la dà così quando non la conosce) vale
+    // come nessuna durata.
+    final runtime = switch (item.runtime) {
+      final value? when value > Duration.zero => value,
+      _ => null,
+    };
+    final progress = runtime == null
         ? 0.0
         : (position.inMilliseconds / runtime.inMilliseconds).clamp(0.0, 1.0);
     final method = displayMethod(session);
     final methodLabel = displayMethodLabel(l, method);
-    final transcode = session.transcode;
+    final transcode =
+        method == DisplayMethod.transcode ? session.transcode : null;
+    final transcodeText =
+        transcode == null ? null : transcodeLine(l, transcode);
+    final reasonsText = transcode == null || transcode.reasons.isEmpty
+        ? null
+        : transcodeReasons(l, transcode.reasons);
     const muted = TextStyle(color: WfColors.creamMuted, fontSize: 13);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -179,11 +190,10 @@ class PlayingSessionCard extends ConsumerWidget {
                             : WfColors.cream,
                       )),
                 ],
-                if (method == DisplayMethod.transcode && transcode != null) ...[
+                if (transcodeText != null || reasonsText != null) ...[
                   const SizedBox(height: 4),
-                  Text(transcodeLine(l, transcode), style: muted),
-                  if (transcode.reasons.isNotEmpty)
-                    Text(transcodeReasons(l, transcode.reasons), style: muted),
+                  if (transcodeText != null) Text(transcodeText, style: muted),
+                  if (reasonsText != null) Text(reasonsText, style: muted),
                 ],
               ],
             ),
@@ -239,7 +249,11 @@ class PartyRow extends StatelessWidget {
         children: [
           const Icon(LucideIcons.users, size: 18, color: WfColors.gold),
           const SizedBox(width: 10),
-          Text(party.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+          Flexible(
+            child: Text(party.name,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+          ),
           if (state != null) ...[
             const SizedBox(width: 10),
             Text(state, style: muted),

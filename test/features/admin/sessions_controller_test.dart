@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/admin_models.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/features/admin/sessions_controller.dart';
@@ -41,6 +42,53 @@ void main() {
         ['recente', 'vecchio', 'senza ora']);
     expect(snapshot.parties.single.name, 'Serata Lost');
     expect(api.calls, containsAll(['sessions', 'parties']));
+  });
+
+  test('stesso utente su due dispositivi: l\'ordine non dipende dall\'arrivo',
+      () async {
+    final at = DateTime.utc(2026, 10, 6, 8);
+    SessionEntry anna(String id, String device,
+            {NowPlaying? playing, DateTime? last}) =>
+        SessionEntry(
+          id: id,
+          userId: 'ua',
+          userName: 'Anna',
+          deviceName: device,
+          nowPlaying: playing,
+          lastActivity: last,
+        );
+    final input = [
+      anna('p-tv', 'TV', playing: testMovie),
+      anna('p-pc', 'pc', playing: testMovie),
+      anna('p-b', 'Tablet', playing: testMovie),
+      anna('p-a', 'Tablet', playing: testMovie),
+      anna('i-tv', 'TV', last: at),
+      anna('i-pc', 'PC', last: at),
+      anna('i-b', 'Tablet', last: at),
+      anna('i-a', 'Tablet', last: at),
+      anna('i-none-b', 'Tablet'),
+      anna('i-none-a', 'Tablet'),
+    ];
+
+    Future<(List<String>, List<String>)> orderOf(
+        List<SessionEntry> sessions) async {
+      api.sessionsValue = sessions;
+      final container = makeContainer();
+      await pumpEventQueue();
+      final snapshot = container.read(sessionsControllerProvider).value!;
+      return (
+        [for (final s in snapshot.playing) s.id],
+        [for (final s in snapshot.idle) s.id],
+      );
+    }
+
+    final forward = await orderOf(input);
+    final backward = await orderOf(input.reversed.toList());
+
+    expect(forward.$1, ['p-pc', 'p-a', 'p-b', 'p-tv']);
+    expect(forward.$2, ['i-pc', 'i-a', 'i-b', 'i-tv', 'i-none-a', 'i-none-b']);
+    expect(backward.$1, forward.$1);
+    expect(backward.$2, forward.$2);
   });
 
   test('senza accesso ai watch party l\'elenco non si chiede', () async {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/admin_models.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/features/admin/sessions_tab.dart';
 
@@ -11,9 +12,10 @@ void main() {
 
   setUp(() => api = FakeAdminApi());
 
-  Future<void> pumpTab(WidgetTester tester) async {
+  Future<void> pumpTab(WidgetTester tester,
+      {Size surfaceSize = const Size(1440, 900)}) async {
     await pumpApp(tester, const Scaffold(body: SessionsTab()),
-        overrides: adminTestOverrides(api));
+        overrides: adminTestOverrides(api), surfaceSize: surfaceSize);
     await tester.pumpAndSettle();
   }
 
@@ -51,6 +53,90 @@ void main() {
 
     // La chiave API di Seerr non c'è.
     expect(find.text('Seerr'), findsNothing);
+  });
+
+  testWidgets(
+      'stringhe lunghe, metodo sconosciuto, durata zero: nessun overflow',
+      (tester) async {
+    final long = List.filled(14, 'lunghissimo').join(' ');
+    SessionEntry playing(
+      String id, {
+      required NowPlaying item,
+      Duration position = Duration.zero,
+      PlayMethod method = PlayMethod.unknown,
+      TranscodeInfo? transcode,
+    }) =>
+        SessionEntry(
+          id: id,
+          userId: 'u-$id',
+          userName: long,
+          client: long,
+          deviceName: long,
+          nowPlaying: item,
+          position: position,
+          playMethod: method,
+          transcode: transcode,
+        );
+    api
+      ..sessionsValue = [
+        // Metodo sconosciuto: niente riga del metodo.
+        playing('a',
+            item: NowPlaying(
+                itemId: 'm1',
+                name: long,
+                kind: NowPlayingKind.movie,
+                year: 2021,
+                runtime: const Duration(minutes: 100)),
+            position: const Duration(minutes: 10)),
+        // Durata zero: solo la posizione.
+        playing('b',
+            item: const NowPlaying(
+                itemId: 'm2', name: 'Senza durata', runtime: Duration.zero),
+            position: const Duration(minutes: 12, seconds: 34),
+            method: PlayMethod.directPlay),
+        // Transcodifica senza niente da dire: né riga né motivi.
+        playing('c',
+            item: const NowPlaying(itemId: 'm3', name: 'Muto'),
+            method: PlayMethod.transcode,
+            transcode: const TranscodeInfo(isVideoDirect: true)),
+        // Transcodifica con tutto lungo.
+        playing('d',
+            item: NowPlaying(itemId: 'm4', name: long),
+            method: PlayMethod.transcode,
+            transcode: TranscodeInfo(
+              videoCodec: 'hevc',
+              audioCodec: 'eac3',
+              bitrate: 8200000,
+              height: 2160,
+              hardwareAcceleration: long,
+              reasons: const ['VideoCodecNotSupported', 'AudioChannelsNotSupported'],
+            )),
+        testSession('e', long, lastActivity: DateTime.utc(2026, 10, 6, 8)),
+      ]
+      ..partiesValue = [
+        PartyGroup(
+          id: 'p1',
+          name: long,
+          state: PartyState.playing,
+          participants: [long, long],
+        ),
+      ];
+    await pumpTab(tester, surfaceSize: const Size(1024, 768));
+
+    // Un overflow farebbe fallire il test da solo.
+    expect(find.text('12:34'), findsOneWidget);
+    expect(find.textContaining('/ 00:00'), findsNothing);
+    expect(find.text('10:00 / 1:40:00'), findsOneWidget);
+    expect(find.text('Diretta'), findsOneWidget);
+    expect(find.text('Remux'), findsNothing);
+    expect(find.text('Transcodifica'), findsNWidgets(2));
+    expect(find.text('→ '), findsNothing);
+
+    // Il party sta in fondo: la lista è pigra, va portato in vista.
+    await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('party-p1')), 300,
+        scrollable: find.byType(Scrollable));
+    expect(find.byKey(const ValueKey('party-p1')), findsOneWidget);
   });
 
   testWidgets('nessuno: tre testi vuoti', (tester) async {

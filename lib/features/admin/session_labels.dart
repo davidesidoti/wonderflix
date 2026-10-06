@@ -59,8 +59,9 @@ String sessionDevice(SessionEntry session) =>
     [session.client, session.deviceName].whereType<String>().join(' · ');
 
 /// "→ H264 1080p · AAC · 8,2 Mbps · Software": cosa si transcodifica, il
-/// bitrate e, se si transcodifica il video, l'accelerazione.
-String transcodeLine(AppLocalizations l, TranscodeInfo info) {
+/// bitrate e, se si transcodifica il video, l'accelerazione. `null` se non
+/// c'è niente da dire.
+String? transcodeLine(AppLocalizations l, TranscodeInfo info) {
   final parts = <String>[];
   final video = info.videoCodec;
   if (!info.isVideoDirect && video != null) {
@@ -79,7 +80,7 @@ String transcodeLine(AppLocalizations l, TranscodeInfo info) {
   if (!info.isVideoDirect) {
     parts.add(hardwareLabel(l, info.hardwareAcceleration));
   }
-  return '→ ${parts.join(' · ')}';
+  return parts.isEmpty ? null : '→ ${parts.join(' · ')}';
 }
 
 /// Nome dell'accelerazione hardware; senza, "Software".
