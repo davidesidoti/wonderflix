@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../core/jellyfin/auth_models.dart';
+import '../features/admin/admin_navigation.dart';
 import '../features/auth/session_controller.dart';
 import '../features/friends/friend_request_card.dart';
 import '../features/friends/friends_button.dart';
@@ -360,7 +361,7 @@ class _UserMenu extends ConsumerWidget {
           case 'settings':
             context.go('/settings');
           case 'admin':
-            context.go('/admin');
+            openAdmin(context);
           case 'logout':
             unawaited(ref.read(sessionControllerProvider.notifier).logout());
         }
