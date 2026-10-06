@@ -207,6 +207,71 @@ void main() {
     });
   });
 
+  group('interruttore con Jellyfin che si riavvia: nel log', () {
+    const path = '/Plugins/882eb47e-668a-4935-ba55-c2858eb4ed90/Configuration';
+    late List<LogRecord> records;
+
+    setUp(() {
+      records = [];
+      final previousLevel = Logger.root.level;
+      Logger.root.level = Level.ALL;
+      addTearDown(() => Logger.root.level = previousLevel);
+      final subscription = Logger.root.onRecord.listen(records.add);
+      addTearDown(subscription.cancel);
+    });
+
+    List<(Level, String)> httpLog() => [
+          for (final record in records)
+            if (record.loggerName == 'http') (record.level, record.message),
+        ];
+
+    test('502, 503 e 504 della lettura della configurazione: info', () async {
+      for (final status in [502, 503, 504]) {
+        adapter.handler = (_) => FakeResponse(status);
+        await expectLater(api.setNotifyNewTitles(false),
+            throwsA(isA<ServerErrorException>()));
+      }
+
+      expect(httpLog(), [
+        (Level.INFO, 'GET $path: 502'),
+        (Level.INFO, 'GET $path: 503'),
+        (Level.INFO, 'GET $path: 504'),
+      ]);
+    });
+
+    test('502, 503 e 504 della scrittura della configurazione: info', () async {
+      for (final status in [502, 503, 504]) {
+        adapter.handler = (options) => options.method == 'GET'
+            ? FakeResponse(200, config())
+            : FakeResponse(status);
+        await expectLater(api.setNotifyNewTitles(false),
+            throwsA(isA<ServerErrorException>()));
+      }
+
+      expect(httpLog(), [
+        (Level.INFO, 'POST $path: 502'),
+        (Level.INFO, 'POST $path: 503'),
+        (Level.INFO, 'POST $path: 504'),
+      ]);
+    });
+
+    test('un 500 resta un avviso, in lettura e in scrittura', () async {
+      adapter.handler = (_) => const FakeResponse(500);
+      await expectLater(api.setNotifyNewTitles(false),
+          throwsA(isA<ServerErrorException>()));
+      adapter.handler = (options) => options.method == 'GET'
+          ? FakeResponse(200, config())
+          : const FakeResponse(500);
+      await expectLater(api.setNotifyNewTitles(false),
+          throwsA(isA<ServerErrorException>()));
+
+      expect(httpLog(), [
+        (Level.WARNING, 'GET $path: 500'),
+        (Level.WARNING, 'POST $path: 500'),
+      ]);
+    });
+  });
+
   group('interruttore: la configurazione non si riscrive se non torna', () {
     /// Risponde alla lettura con [body] e a ogni altra richiesta con 204.
     void configIs(Object? body) {

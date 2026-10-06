@@ -23,6 +23,10 @@ class PluginAdminApi {
   /// che si riavvia. Nel log come info.
   static const _quiet = {400, 404, ...restartGatewayStatuses};
 
+  /// La configurazione del plugin è un endpoint di Jellyfin, non del plugin:
+  /// un 400 o un 404 lì sono errori veri. Solo il riavvio è atteso.
+  static const _configQuiet = restartGatewayStatuses;
+
   /// Manda un annuncio a tutti gli utenti attivi; dà a quanti è arrivato.
   Future<int> announce(String text) async {
     final json = asJsonMap(await _http.post('$_base/Inbox/Announcements',
@@ -64,7 +68,8 @@ class PluginAdminApi {
   /// configurazione non resta nell'app e non va nel log. Se quello che
   /// torna non sembra la configurazione vera, non si scrive niente.
   Future<void> setNotifyNewTitles(bool enabled) async {
-    final config = Map<String, dynamic>.of(asJsonMap(await _http.get(_configPath)));
+    final config = Map<String, dynamic>.of(asJsonMap(
+        await _http.get(_configPath, quietStatuses: _configQuiet)));
     // Una POST di una mappa parziale riporterebbe ai valori di default le
     // chiavi che mancano (URL, chiave e segreto di Seerr): meglio un errore.
     if (config['NotifyNewTitles'] is! bool ||
@@ -72,6 +77,6 @@ class PluginAdminApi {
       throw const ServerErrorException(null);
     }
     config['NotifyNewTitles'] = enabled;
-    await _http.post(_configPath, body: config);
+    await _http.post(_configPath, body: config, quietStatuses: _configQuiet);
   }
 }
