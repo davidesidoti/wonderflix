@@ -133,6 +133,70 @@ void main() {
     });
   });
 
+  test('errore qualunque sul POST: non riuscito, e non resta in invio', () {
+    fakeAsync((async) {
+      api.restartError = StateError('inatteso');
+      final container = makeContainer();
+      RestartOutcome? outcome;
+
+      unawaited(controller(container).restart().then((o) => outcome = o));
+      async.flushMicrotasks();
+      expect(outcome, RestartOutcome.failed);
+      expect(container.read(restartControllerProvider), RestartPhase.idle);
+      expect(api.count('up'), 0);
+    });
+  });
+
+  test('401 sul POST: annullato senza avviso (l\'app esce da sola)', () {
+    fakeAsync((async) {
+      api.restartError = const UnauthorizedException();
+      final container = makeContainer();
+      RestartOutcome? outcome;
+
+      unawaited(controller(container).restart().then((o) => outcome = o));
+      async.flushMicrotasks();
+      expect(outcome, RestartOutcome.cancelled);
+      expect(container.read(restartControllerProvider), RestartPhase.idle);
+      expect(session.refreshUserCalls, 0);
+      expect(api.count('up'), 0);
+    });
+  });
+
+  test('un secondo riavvio durante l\'attesa: annullato, un solo POST', () {
+    fakeAsync((async) {
+      final container = makeContainer();
+      RestartOutcome? first;
+      RestartOutcome? second;
+
+      unawaited(controller(container).restart().then((o) => first = o));
+      async.flushMicrotasks();
+      expect(container.read(restartControllerProvider), RestartPhase.waiting);
+
+      unawaited(controller(container).restart().then((o) => second = o));
+      async.flushMicrotasks();
+      expect(second, RestartOutcome.cancelled);
+      expect(api.count('restart'), 1);
+      expect(container.read(restartControllerProvider), RestartPhase.waiting,
+          reason: 'la prima attesa continua');
+
+      async.elapse(const Duration(seconds: 60));
+      expect(first, RestartOutcome.back);
+    });
+  });
+
+  test('Ricontrolla senza il tempo scaduto: annullato, nessuna domanda', () {
+    fakeAsync((async) {
+      final container = makeContainer();
+      RestartOutcome? outcome;
+
+      unawaited(controller(container).recheck().then((o) => outcome = o));
+      async.flushMicrotasks();
+      expect(outcome, RestartOutcome.cancelled);
+      expect(container.read(restartControllerProvider), RestartPhase.idle);
+      expect(api.count('up'), 0);
+    });
+  });
+
   test('502/503/504 di nginx sul POST: il riavvio è partito', () {
     for (final status in [502, 503, 504]) {
       fakeAsync((async) {

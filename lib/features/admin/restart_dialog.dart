@@ -47,39 +47,45 @@ class _RestartDialogState extends ConsumerState<RestartDialog> {
         Text(l.adminRestartTitle,
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
         const SizedBox(height: 16),
-        FutureBuilder<List<SessionEntry>>(
-          future: _sessions,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const SizedBox.square(
-                  dimension: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2));
-            }
-            final sessions = snapshot.data;
-            if (sessions == null) return Text(l.adminRestartUnknown);
-            final viewers = [
-              for (final session in sessions)
-                if (session.nowPlaying != null) session,
-            ];
-            if (viewers.isEmpty) return Text(l.adminRestartNobody);
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(l.adminRestartViewers(viewers.length)),
-                const SizedBox(height: 8),
-                for (final viewer in viewers)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 12, bottom: 4),
-                    child: Text(
-                        l.adminViewer(viewer.userName,
-                            nowPlayingTitle(l, viewer.nowPlaying!)),
-                        style: const TextStyle(color: WfColors.creamMuted)),
-                  ),
-                const SizedBox(height: 8),
-                Text(l.adminRestartInterrupts),
-              ],
-            );
-          },
+        // Con tanti spettatori la lista scorre e i pulsanti restano in vista.
+        Flexible(
+          child: SingleChildScrollView(
+            child: FutureBuilder<List<SessionEntry>>(
+              future: _sessions,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2));
+                }
+                final sessions = snapshot.data;
+                if (sessions == null) return Text(l.adminRestartUnknown);
+                final viewers = [
+                  for (final session in sessions)
+                    if (session.nowPlaying != null) session,
+                ];
+                if (viewers.isEmpty) return Text(l.adminRestartNobody);
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l.adminRestartViewers(viewers.length)),
+                    const SizedBox(height: 8),
+                    for (final viewer in viewers)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 12, bottom: 4),
+                        child: Text(
+                            l.adminViewer(viewer.userName,
+                                nowPlayingTitle(l, viewer.nowPlaying!)),
+                            style: const TextStyle(color: WfColors.creamMuted)),
+                      ),
+                    const SizedBox(height: 8),
+                    Text(l.adminRestartInterrupts),
+                  ],
+                );
+              },
+            ),
+          ),
         ),
         const SizedBox(height: 24),
         Row(

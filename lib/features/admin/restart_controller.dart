@@ -48,13 +48,16 @@ class RestartController extends Notifier<RestartPhase> {
     state = RestartPhase.sending;
     try {
       await ref.read(adminApiProvider).restart();
-    } on ApiException catch (error) {
-      if (!_meansStarted(error)) {
+    } on Object catch (error) {
+      // Qualunque errore chiude l'invio: la fase non resta mai in `sending`.
+      if (!(error is ApiException && _meansStarted(error))) {
         if (!ref.mounted) return RestartOutcome.cancelled;
+        state = RestartPhase.idle;
+        // Sessione scaduta: l'app esce da sola, nessun avviso sopra il Login.
+        if (error is UnauthorizedException) return RestartOutcome.cancelled;
         if (error is ForbiddenException) {
           unawaited(ref.read(sessionControllerProvider.notifier).refreshUser());
         }
-        state = RestartPhase.idle;
         return RestartOutcome.failed;
       }
     }

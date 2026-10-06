@@ -15,7 +15,8 @@ void main() {
     result = null;
   });
 
-  Future<void> openDialog(WidgetTester tester) async {
+  Future<void> openDialog(WidgetTester tester,
+      {Size surfaceSize = const Size(1440, 900)}) async {
     await pumpApp(
       tester,
       Scaffold(
@@ -27,6 +28,7 @@ void main() {
         ),
       ),
       overrides: adminTestOverrides(api),
+      surfaceSize: surfaceSize,
     );
     await tester.tap(find.text('apri'));
     await tester.pumpAndSettle();
@@ -67,6 +69,26 @@ void main() {
     await openDialog(tester);
 
     expect(find.text('Non so chi sta guardando.'), findsOneWidget);
+  });
+
+  testWidgets('tanti spettatori: la lista scorre e i pulsanti restano',
+      (tester) async {
+    // Il minimo della finestra dell'app: 1024x640.
+    api.sessionsValue = [
+      for (var i = 0; i < 20; i++)
+        testSession('s$i', 'utente$i', playing: testMovie),
+    ];
+    await openDialog(tester, surfaceSize: const Size(1024, 640));
+
+    // Un overflow farebbe fallire il test da solo.
+    expect(find.text('20 persone stanno guardando:'), findsOneWidget);
+    expect(find.text('Annulla'), findsOneWidget);
+    final buttonRect = tester.getRect(find.widgetWithText(FilledButton, 'Riavvia'));
+    expect(buttonRect.bottom, lessThanOrEqualTo(640));
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Riavvia'));
+    await tester.pumpAndSettle();
+    expect(result, isTrue);
   });
 
   testWidgets('Annulla: no; Riavvia: sì', (tester) async {
