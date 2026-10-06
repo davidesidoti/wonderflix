@@ -67,6 +67,9 @@ class ActivityController extends Notifier<ActivityState> {
 
   @override
   ActivityState build() {
+    // Dopo un riavvio di Jellyfin (come le altre schede) si riparte dalla
+    // prima pagina: l'elenco di prima può non essere più quello del server.
+    ref.listen<int>(adminEpochProvider, (_, _) => unawaited(reload()));
     unawaited(Future.microtask(reload));
     return const ActivityState(loading: true);
   }

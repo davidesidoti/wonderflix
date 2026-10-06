@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/activity_models.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/features/admin/activity_controller.dart';
+import 'package:wonderflix/features/admin/admin_providers.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 
 import '../../support/admin_fakes.dart';
@@ -74,6 +75,20 @@ void main() {
     await controller.reload();
     expect(state(container).items, hasLength(50));
     expect(api.calls.last, 'activity:0:all');
+  });
+
+  test('Jellyfin torna da un riavvio: di nuovo dalla prima pagina', () async {
+    final container = makeContainer();
+    await pumpEventQueue();
+    await container.read(activityControllerProvider.notifier).loadMore();
+    expect(state(container).items, hasLength(100));
+    final calls = api.calls.length;
+
+    container.read(adminEpochProvider.notifier).bump();
+    await pumpEventQueue();
+
+    expect(api.calls.skip(calls), ['activity:0:all']);
+    expect(state(container).items, hasLength(50));
   });
 
   test('voci nuove in cima tra una pagina e l\'altra: niente doppioni',
