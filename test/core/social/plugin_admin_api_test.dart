@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
 import 'package:wonderflix/core/social/plugin_admin_api.dart';
@@ -102,5 +103,74 @@ void main() {
   test('un 403 arriva com\'è', () async {
     adapter.handler = (_) => const FakeResponse(403);
     await expectLater(api.newTitles(), throwsA(isA<ForbiddenException>()));
+  });
+
+  group('interruttore: la configurazione non si riscrive se non torna', () {
+    /// Risponde alla lettura con [body] e a ogni altra richiesta con 204.
+    void configIs(Object? body) {
+      adapter.handler = (options) =>
+          options.method == 'GET' ? FakeResponse(200, body) : const FakeResponse(204);
+    }
+
+    test('senza NotifyNewTitles: errore e nessuna scrittura', () async {
+      configIs({...config()}..remove('NotifyNewTitles'));
+      await expectLater(api.setNotifyNewTitles(true),
+          throwsA(isA<ServerErrorException>()));
+      expect(adapter.requests.map((r) => r.method), ['GET']);
+    });
+
+    test('NotifyNewTitles che non è un booleano: nessuna scrittura', () async {
+      configIs({...config(), 'NotifyNewTitles': 'true'});
+      await expectLater(api.setNotifyNewTitles(false),
+          throwsA(isA<ServerErrorException>()));
+      expect(adapter.requests.map((r) => r.method), ['GET']);
+    });
+
+    test('senza SeerrApiKey: errore e nessuna scrittura', () async {
+      // Una POST di una mappa parziale riporterebbe ai valori di default le
+      // chiavi mancanti (URL, chiave e segreto di Seerr).
+      configIs({...config()}..remove('SeerrApiKey'));
+      await expectLater(api.setNotifyNewTitles(false),
+          throwsA(isA<ServerErrorException>()));
+      expect(adapter.requests.map((r) => r.method), ['GET']);
+    });
+
+    test('corpo che non è un oggetto: nessuna scrittura', () async {
+      configIs(['NotifyNewTitles']);
+      await expectLater(api.setNotifyNewTitles(false),
+          throwsA(isA<ServerErrorException>()));
+      expect(adapter.requests.map((r) => r.method), ['GET']);
+    });
+
+    test('lettura che dà 500: nessuna scrittura', () async {
+      adapter.handler = (_) => const FakeResponse(500);
+      await expectLater(api.setNotifyNewTitles(false),
+          throwsA(isA<ServerErrorException>()));
+      expect(adapter.requests.map((r) => r.method), ['GET']);
+    });
+
+    test('scrittura che dà 500: chiave e segreto non vanno nel log', () async {
+      final previousLevel = Logger.root.level;
+      Logger.root.level = Level.ALL;
+      addTearDown(() => Logger.root.level = previousLevel);
+      final records = <LogRecord>[];
+      final subscription = Logger.root.onRecord.listen(records.add);
+      addTearDown(subscription.cancel);
+      adapter.handler = (options) => options.method == 'GET'
+          ? FakeResponse(200, config())
+          : const FakeResponse(500);
+
+      await expectLater(api.setNotifyNewTitles(false),
+          throwsA(isA<ServerErrorException>()));
+
+      expect(adapter.requests.map((r) => r.method), ['GET', 'POST']);
+      expect(records, isNotEmpty, reason: 'il 500 va nel log');
+      final logged = [
+        for (final record in records)
+          '${record.message} ${record.error} ${record.stackTrace}',
+      ].join('\n');
+      expect(logged, isNot(contains('chiave')));
+      expect(logged, isNot(contains('segreto')));
+    });
   });
 }

@@ -61,9 +61,16 @@ class PluginAdminApi {
   /// Accende o spegne la raccolta delle novità. Rilegge la configurazione
   /// intera del plugin e la riscrive con la sola `NotifyNewTitles` cambiata:
   /// le altre chiavi (Seerr, chiavi nuove) passano intatte. La
-  /// configurazione non resta nell'app e non va nel log.
+  /// configurazione non resta nell'app e non va nel log. Se quello che
+  /// torna non sembra la configurazione vera, non si scrive niente.
   Future<void> setNotifyNewTitles(bool enabled) async {
     final config = Map<String, dynamic>.of(asJsonMap(await _http.get(_configPath)));
+    // Una POST di una mappa parziale riporterebbe ai valori di default le
+    // chiavi che mancano (URL, chiave e segreto di Seerr): meglio un errore.
+    if (config['NotifyNewTitles'] is! bool ||
+        !config.containsKey('SeerrApiKey')) {
+      throw const ServerErrorException(null);
+    }
     config['NotifyNewTitles'] = enabled;
     await _http.post(_configPath, body: config);
   }
