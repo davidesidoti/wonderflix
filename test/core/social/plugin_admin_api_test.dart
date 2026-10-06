@@ -150,6 +150,48 @@ void main() {
       ]);
     });
 
+    test('stato di Seerr: Configured è obbligatorio', () async {
+      await expectServerError(api.seerrStatus, [
+        <String, Object?>{'LastEventType': 'MEDIA_PENDING'},
+        {'Configured': 'true'},
+        {'Configured': 1},
+        {'Configured': null},
+        <String, Object?>{},
+        ['Configured'],
+        null,
+      ]);
+
+      // Il resto è facoltativo.
+      adapter.handler = (_) => const FakeResponse(200, {'Configured': false});
+      final status = (await api.seerrStatus())!;
+      expect(status.configured, isFalse);
+      expect(status.lastEventAt, isNull);
+      expect(status.lastEventType, isNull);
+
+      // Un plugin più vecchio della 1.4.0 non ha l'endpoint: resta null.
+      adapter.handler = (_) => const FakeResponse(404);
+      expect(await api.seerrStatus(), isNull);
+    });
+
+    test('prova di Seerr: Ok è obbligatorio', () async {
+      await expectServerError(api.testSeerr, [
+        <String, Object?>{'Version': '3.4.1'},
+        {'Ok': 'true', 'Version': '3.4.1'},
+        {'Ok': 1},
+        {'Ok': null, 'Error': 'SeerrAuth'},
+        <String, Object?>{},
+        [true],
+        null,
+      ]);
+
+      // Il resto è facoltativo.
+      adapter.handler = (_) => const FakeResponse(200, {'Ok': false});
+      final result = await api.testSeerr();
+      expect(result.ok, isFalse);
+      expect(result.version, isNull);
+      expect(result.error, isNull);
+    });
+
     test('risposte giuste: zero è un valore vero', () async {
       adapter.handler = (_) =>
           const FakeResponse(200, {'Enabled': false, 'Pending': 0});

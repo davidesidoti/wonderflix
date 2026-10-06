@@ -48,9 +48,10 @@ class SeerrAdminStatus {
     this.lastEventType,
   });
 
+  /// `Configured` (booleano) ci deve essere; il resto è facoltativo.
   factory SeerrAdminStatus.fromJson(Map<String, dynamic> json) =>
       SeerrAdminStatus(
-        configured: json['Configured'] == true,
+        configured: _required<bool>(json, 'Configured'),
         lastEventAt: jsonDate(json, 'LastEventAt'),
         lastEventType: jsonString(json, 'LastEventType'),
       );
@@ -67,9 +68,10 @@ class SeerrAdminStatus {
 class SeerrTestResult {
   const SeerrTestResult({required this.ok, this.version, this.error});
 
+  /// `Ok` (booleano) ci deve essere; il resto è facoltativo.
   factory SeerrTestResult.fromJson(Map<String, dynamic> json) =>
       SeerrTestResult(
-        ok: json['Ok'] == true,
+        ok: _required<bool>(json, 'Ok'),
         version: jsonString(json, 'Version'),
         error: jsonString(json, 'Error'),
       );
