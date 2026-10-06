@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../app/error_text.dart';
 import '../../app/navigation.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/activity_models.dart';
@@ -145,9 +146,20 @@ class _ActivityTabState extends ConsumerState<ActivityTab> {
                     dimension: 20,
                     child: CircularProgressIndicator(strokeWidth: 2))
                 : error != null
-                    ? TextButton(
-                        onPressed: () => unawaited(controller.retry()),
-                        child: Text(l.retry))
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(describeError(l, error),
+                                style:
+                                    const TextStyle(color: WfColors.creamMuted)),
+                          ),
+                          const SizedBox(width: 8),
+                          TextButton(
+                              onPressed: () => unawaited(controller.retry()),
+                              child: Text(l.retry)),
+                        ],
+                      )
                     : state.hasMore
                         ? const SizedBox.shrink()
                         : Text(l.adminActivityEnd,

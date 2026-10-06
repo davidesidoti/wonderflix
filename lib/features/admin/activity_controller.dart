@@ -65,6 +65,9 @@ class ActivityController extends Notifier<ActivityState> {
   /// Numera i caricamenti: vale solo l'ultimo.
   int _generation = 0;
 
+  /// L'ultimo caricamento fallito ripartiva dalla prima pagina.
+  bool _failedWasReset = false;
+
   @override
   ActivityState build() {
     // Dopo un riavvio di Jellyfin (come le altre schede) si riparte dalla
@@ -91,9 +94,11 @@ class ActivityController extends Notifier<ActivityState> {
     await _load(reset: false);
   }
 
-  /// "Riprova": la prima pagina se l'elenco è vuoto, altrimenti la pagina
-  /// che non è arrivata.
-  Future<void> retry() => _load(reset: state.items.isEmpty);
+  /// "Riprova": ripete il caricamento che non è riuscito. Se era "Aggiorna"
+  /// (o la prima pagina) riparte dalla prima pagina; se era la pagina dopo,
+  /// ripete quella. Un "Aggiorna" fallito non deve aggiungere in coda alle
+  /// voci già mostrate.
+  Future<void> retry() => _load(reset: _failedWasReset || state.items.isEmpty);
 
   Future<void> _load({required bool reset}) async {
     if (!ref.mounted) return;
@@ -127,6 +132,7 @@ class ActivityController extends Notifier<ActivityState> {
       if (error is ForbiddenException) {
         unawaited(ref.read(sessionControllerProvider.notifier).refreshUser());
       }
+      _failedWasReset = reset;
       state = state.copyWith(loading: false, error: error);
     }
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/features/admin/activity_tab.dart';
+import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
 import '../../support/admin_fakes.dart';
 import '../../support/pump_app.dart';
@@ -94,6 +95,26 @@ void main() {
     await tester.tap(find.text('Riprova'));
     await tester.pumpAndSettle();
     expect(find.text('anna si è disconnesso da FireTV Soggiorno'), findsOneWidget);
+  });
+
+  testWidgets('pagina dopo fallita: in fondo l\'errore e Riprova', (tester) async {
+    api.activityValue = testActivityEntries(120);
+    await pumpTab(tester);
+
+    api.activityError = const ServerUnreachableException();
+    await tester.scrollUntilVisible(find.text('Riprova'), 500,
+        scrollable: find.byType(Scrollable).last);
+    await tester.pumpAndSettle();
+
+    final it = lookupAppLocalizations(const Locale('it'));
+    expect(find.text(it.errorServerUnreachable), findsOneWidget);
+    expect(find.text('Voce 120'), findsNothing, reason: 'siamo in fondo');
+
+    api.activityError = null;
+    await tester.tap(find.text('Riprova'));
+    await tester.pumpAndSettle();
+    expect(find.text(it.errorServerUnreachable), findsNothing);
+    expect(api.calls, contains('activity:50:all'));
   });
 
   testWidgets('scorrendo in fondo arriva la pagina dopo', (tester) async {

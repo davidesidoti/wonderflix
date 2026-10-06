@@ -127,6 +127,28 @@ void main() {
     expect(state(container).items, hasLength(100));
   });
 
+  test('Aggiorna fallito con l\'elenco in mano: Riprova riparte dalla prima pagina',
+      () async {
+    final container = makeContainer();
+    await pumpEventQueue();
+    final controller = container.read(activityControllerProvider.notifier);
+    await controller.loadMore();
+    expect(state(container).items, hasLength(100));
+
+    api.activityError = const ServerUnreachableException();
+    await controller.reload();
+    expect(state(container).error, isA<ServerUnreachableException>());
+    expect(state(container).items, hasLength(100),
+        reason: 'l\'elenco di prima resta');
+
+    api.activityError = null;
+    await controller.retry();
+    expect(api.calls.last, 'activity:0:all',
+        reason: 'si ripete la prima pagina, non si aggiunge in coda');
+    expect(state(container).error, isNull);
+    expect(state(container).items, hasLength(50));
+  });
+
   test('403: rilegge l\'utente', () async {
     api.activityError = const ForbiddenException();
     makeContainer();
