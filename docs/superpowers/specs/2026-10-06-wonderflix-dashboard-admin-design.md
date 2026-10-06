@@ -161,8 +161,8 @@ Le API stanno con le altre: `AdminApi` in `lib/core/jellyfin/` (endpoint di Jell
 | `sessions()` | `GET /Sessions?activeWithinSeconds=960` | Restano fuori le sessioni senza `UserId`, o con un `UserId` di soli zeri (chiavi API di Seerr, jfa-go…). |
 | `partyGroups()` | `GET /SyncPlay/List` | Con l'admin l'elenco è completo. |
 | `serverInfo()` | `GET /System/Info` | `ServerName`, `Version`, `OperatingSystemDisplayName` (sul server è vuoto), `HasPendingRestart`. |
-| `isServerUp()` | `GET /System/Info/Public` | Per l'attesa del riavvio: `true` con 200; `false` con qualunque `ApiException` (rete, 5xx…). |
-| `restart()` | `POST /System/Restart` | |
+| `isServerUp()` | `GET /System/Info/Public` | Per l'attesa del riavvio: `true` solo con 200 e `StartupWizardCompleted` a `true`; `false` con qualunque `ApiException` (rete, 5xx…) e con ogni altra risposta (campo `false` o mancante, corpo che non è un oggetto). |
+| `restart()` | `POST /System/Restart` | I 502/503/504 di nginx vanno nel registro come informazioni. |
 | `libraries()` | `GET /Library/VirtualFolders` | `Name`, `CollectionType`, `ItemId`, `RefreshStatus`, `RefreshProgress`. |
 | `scanAll()` | `POST /Library/Refresh` | |
 | `scanLibrary(itemId)` | `POST /Items/{itemId}/Refresh?metadataRefreshMode=Default&imageRefreshMode=Default&replaceAllMetadata=false&replaceAllImages=false` | Come "Scansiona libreria" della Dashboard web; il piano verifica i parametri contro le richieste della Dashboard. |
@@ -172,7 +172,10 @@ Le API stanno con le altre: `AdminApi` in `lib/core/jellyfin/` (endpoint di Jell
 | `activity({startIndex, limit, hasUserId})` | `GET /System/ActivityLog/Entries` | `limit` 50. `hasUserId` assente per "Tutto". Risposta `{Items, TotalRecordCount, StartIndex}`. |
 
 - **Chi è admin:** le letture della pagina (`/Sessions`, `/SyncPlay/List`, `/System/Info`) non chiedono di essere admin. Solo `/System/Restart` lo chiede. Un 403 dice con certezza "non sei admin" solo per il riavvio. Per le letture è un segnale in più, non quello su cui ci si affida (§12).
-- **Riavvio di Jellyfin:** le risposte 502/503/504 di nginx alle letture e a `isServerUp()` sono attese. Vanno nel registro dell'app come informazioni, non come avvisi.
+- **Riavvio di Jellyfin:**
+  - le risposte 502/503/504 di nginx alle letture, a `isServerUp()`, al `POST /System/Restart` e alla rilettura dell'utente (`/Users/Me`, quella che fa la pagina) sono attese. Vanno nel registro dell'app come informazioni, non come avvisi (un 500 resta un avviso);
+  - il ripristino della sessione all'avvio dell'app e l'accesso non cambiano;
+  - **il server di setup:** Jellyfin 10.11 avvia prima un piccolo server di setup, 6-18 s prima di quello vero, e lo stesso `GET /System/Info/Public` risponde 200 mentre l'app vera non c'è ancora. Per questo `isServerUp()` guarda `StartupWizardCompleted`: il server vero risponde `true`, quello di setup no.
 
 ### 8.2 Modelli
 
@@ -236,7 +239,7 @@ Le API stanno con le altre: `AdminApi` in `lib/core/jellyfin/` (endpoint di Jell
      - un **403**: l'utente si rilegge (§12) e compare "Riavvio non riuscito";
      - **qualsiasi altro errore** mostra "Riavvio non riuscito" e la striscia torna normale. Un errore inatteso, che non viene dall'API, va anche nel registro dell'app (mai il corpo di una risposta); quelli dell'API ci sono già, con metodo, percorso ed esito.
   2. Al posto di Riavvia la striscia mostra l'indicatore e "Riavvio in corso…". Un secondo Riavvia mentre si aspetta non fa niente: nessun altro `POST`.
-  3. Ogni 3 s `isServerUp()`. Jellyfin conta come **tornato** quando risponde dopo essere stato giù almeno una volta, oppure se in 60 s non è mai caduto.
+  3. Ogni 3 s `isServerUp()`. Jellyfin conta come **tornato** quando risponde dopo essere stato giù almeno una volta, oppure se in 60 s non è mai caduto. "Risponde" vuol dire che `/System/Info/Public` dà 200 con `StartupWizardCompleted` a `true` (§8.1): il server di setup che Jellyfin avvia per primo non conta.
   4. Al ritorno: l'avviso "Jellyfin è tornato", e la striscia e la scheda aperta si ricaricano.
   5. Dopo 3 minuti senza ritorno: "Jellyfin non risponde ancora" con "Ricontrolla", che fa ripartire l'attesa.
 - Il resto dell'app non cambia comportamento: il WebSocket si ricollega da solo come oggi. Un'eventuale riproduzione dell'admin si interrompe come per tutti.
@@ -266,11 +269,17 @@ Si rilegge ogni 5 s.
     - l'accelerazione hardware, se il video si transcodifica (nome, oppure "Software" se manca).
 
     Se non c'è niente da dire, la riga non compare.
-  - **Motivi tradotti**: contenitore, codec video, codec audio, codec dei sottotitoli, profilo, livello, risoluzione, profondità di colore, gamma dinamica (`VideoRangeTypeNotSupported`), canali audio, bitrate oltre il limite (`ContainerBitrateExceedsLimit`, `VideoBitrateNotSupported`, `AudioBitrateNotSupported`), audio esterno. Un motivo senza traduzione appare con il nome originale. I motivi stanno su una riga, senza doppioni.
+  - **Motivi tradotti**:
+    - contenitore, codec video, codec audio, codec dei sottotitoli, profilo, livello, risoluzione, profondità di colore, gamma dinamica (`VideoRangeTypeNotSupported`), canali audio, bitrate oltre il limite (`ContainerBitrateExceedsLimit`, `VideoBitrateNotSupported`, `AudioBitrateNotSupported`), audio esterno;
+    - frequenza dei fotogrammi (`VideoFramerateNotSupported`), frequenza di campionamento (`AudioSampleRateNotSupported`), profondità audio (`AudioBitDepthNotSupported`), traccia audio secondaria (`SecondaryAudioNotSupported`), video interlacciato (`InterlacedVideoNotSupported`), fotogrammi di riferimento (`RefFramesNotSupported`), video anamorfico (`AnamorphicVideoNotSupported`), troppe tracce (`StreamCountExceedsLimit`), errore della riproduzione diretta (`DirectPlayError`);
+    - "traccia sconosciuta" per `UnknownVideoStreamInfo` e `UnknownAudioStreamInfo`.
+
+    Un motivo senza traduzione appare con il nome originale. I motivi stanno su una riga, senza doppioni (le due tracce sconosciute fanno un motivo solo).
 - **"Collegati"**: una riga compatta per ogni sessione senza `nowPlaying`, ordinata per attività recente (a parità, per dispositivo e poi per id). Mostra utente, client e dispositivo, e "attivo {ora}" (§9.5).
 - **"Watch party"**: una riga per gruppo con nome, stato ("In riproduzione", "In pausa", "In attesa", "Fermo") e partecipanti. Senza accesso ai watch party (`SyncPlayAccess.none`) l'elenco non si chiede e resta vuoto: Jellyfin lo rifiuterebbe.
-- **Vuoti:** "Nessuno sta guardando", "Nessun altro collegato", "Nessun watch party in corso".
-- Le sessioni dell'admin stesso compaiono come le altre.
+  - Sessioni e watch party si leggono insieme. Se fallisce solo l'elenco dei watch party, la scheda non va in errore: restano le sessioni nuove e i party dell'ultima lettura riuscita (nessuno, se non c'è stata). Se falliscono le sessioni, fallisce la lettura (§10), e un 403 fa rileggere l'utente (§12).
+- **Vuoti:** "Nessuno sta guardando", "Nessuno collegato", "Nessun watch party in corso".
+- Le sessioni dell'admin stesso compaiono come le altre, anche in "Collegati": per questo il vuoto è "Nessuno collegato" e non "Nessun altro collegato".
 - Le sessioni senza un utente vero si scartano: senza `UserId`, o con un `UserId` di soli zeri (§8.1).
 
 ### 9.4 Manutenzione
@@ -352,7 +361,7 @@ Si rilegge all'apertura, dopo ogni azione e ogni 30 s. Ogni card ha il suo stato
 | Menu e pagina | "Amministrazione", "Sessioni", "Manutenzione", "Registro", "WonderFlix" |
 | Striscia | "Jellyfin {version}", "Jellyfin {version} · {os}", "Riavvia", "Riavvio necessario", "Jellyfin va riavviato per finire un'installazione o un aggiornamento", "Riavvio in corso…", "Jellyfin è tornato", "Jellyfin non risponde ancora", "Ricontrolla", "Riavvio non riuscito" |
 | Conferma | "Riavviare Jellyfin?", "{n} persone stanno guardando:" (plurale), "Il riavvio interrompe la visione e i watch party.", "Nessuno sta guardando.", "Non so chi sta guardando.", "Annulla", "Riavvia" |
-| Sessioni | "In riproduzione", "Collegati", "Watch party", "Diretta", "Remux", "Transcodifica", "Software", i motivi, "attivo {time}", gli stati dei party ("In riproduzione", "In pausa", "In attesa", "Fermo"), i tre vuoti |
+| Sessioni | "In riproduzione", "Collegati", "Watch party", "Diretta", "Remux", "Transcodifica", "Software", i motivi (l'elenco è in §9.3, fino a "traccia sconosciuta"), "attivo {time}", gli stati dei party ("In riproduzione", "In pausa", "In attesa", "Fermo"), i tre vuoti ("Nessuno sta guardando", "Nessuno collegato", "Nessun watch party in corso") |
 | Manutenzione | "Librerie", "Scansiona tutte", "Scansiona", "Attività pianificate", "Avvia", "Ferma", "Arresto…", "Ultima: {time}", "Completata in {duration}", "Non riuscita", "Annullata", "Interrotta", "Mai eseguita" |
 | Registro | "Tutto", "Utenti", "Sistema", "Aggiorna", "Apri il titolo", "Nessuna voce", "Non ci sono altre voci" |
 | WonderFlix | "Annuncio", "Invia a tutti", "L'annuncio arriva nella cassetta di tutti gli utenti attivi.", "Annuncio inviato a {n} persone", "Testo non valido", "Novità", "Avvisa delle novità", "{n} titoli in attesa del prossimo riepilogo", "Nessun titolo in attesa", "Le novità non vengono raccolte", "Invia ora", "Inviati {titles} titoli a {recipients} persone", "Seerr", "Ultimo evento dal webhook: {time} · {type}", "Nessun evento ricevuto", "Prova collegamento", "Collegato a Seerr {version}", gli errori di Seerr, "Non configurato: si imposta dalla pagina del plugin nella Dashboard web." |
@@ -385,10 +394,15 @@ Il test dei testi di ogni piano (`test/app/l10n_plan16a_test.dart` per il 16a) c
 
 ## 13. Test
 
-- **Modelli:** si leggono i JSON veri di `/Sessions` (con e senza riproduzione, con transcodifica), `/SyncPlay/List`, `/System/Info`, `/Library/VirtualFolders`, `/ScheduledTasks`, `/System/ActivityLog/Entries` e della configurazione del plugin. Vanno presi dal server all'inizio del piano, senza token né indirizzi IP, e si provano anche campi mancanti e valori sconosciuti.
+- **Modelli:** si leggono i JSON di `/Sessions` (con e senza riproduzione, con transcodifica), `/SyncPlay/List`, `/System/Info`, `/Library/VirtualFolders`, `/ScheduledTasks`, `/System/ActivityLog/Entries` e della configurazione del plugin.
+  - `/System/Info` viene dal server vero. Le sessioni e i watch party seguono invece lo schema OpenAPI 10.11.9 (`docs/reference/jellyfin-openapi-10.11.9.json`): quando si sono presi i campioni nessuno stava guardando, e `/SyncPlay/List` con una chiave API risponde 400.
+  - Gli altri JSON vanno presi dal server all'inizio del piano, senza token né indirizzi IP.
+  - Si provano anche campi mancanti e valori sconosciuti.
 - **`JellyfinUser.isAdministrator`:** vero, falso, mancante.
 - **`AdminApi` e `PluginAdminApi`** con `FakeAdapter`:
   - percorsi, query e corpi;
+  - `isServerUp()`: su solo con `StartupWizardCompleted` a `true`; giù con il campo `false` o mancante, con un corpo che non è un oggetto e con ogni errore;
+  - il livello del registro per 502/503/504 (info) e per un 500 (avviso), sulle letture, sul `POST` del riavvio e sulla rilettura dell'utente;
   - lettura delle risposte e mappatura degli errori;
   - `seerrStatus()` con 404 → `null`;
   - `setNotifyNewTitles`: le chiavi sconosciute passano intatte e cambia solo `NotifyNewTitles`.
@@ -402,6 +416,7 @@ Il test dei testi di ogni piano (`test/app/l10n_plan16a_test.dart` per il 16a) c
   - 401 (nessun avviso) e 403 (l'utente si rilegge);
   - un secondo riavvio durante l'attesa;
   - un errore inatteso, che va nel registro, e un errore dell'API, che non ci va.
+- **`SessionsController`:** ordine stabile (stesso utente su due dispositivi, in qualunque ordine arrivino), watch party che non si leggono (sessioni nuove e party di prima, senza errore) e sessioni che non si leggono (errore della scheda).
 - **Controller delle schede:** ritmo della Manutenzione, lettura subito dopo un'azione, ripristino dello stato dopo un'azione fallita, pagine e filtri del Registro, interruttore che torna com'era.
 - **Widget:**
   - voce del menu solo per gli admin, e rinvio dei non admin a `/home`, con l'avviso solo se si perdono i permessi (non con l'uscita dall'account);
