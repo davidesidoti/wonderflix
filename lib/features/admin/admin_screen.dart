@@ -6,10 +6,14 @@ import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_tab_button.dart';
 import '../auth/session_controller.dart';
+import '../social/social_providers.dart';
+import 'activity_tab.dart';
 import 'admin_navigation.dart';
 import 'admin_providers.dart';
+import 'maintenance_tab.dart';
 import 'server_strip.dart';
 import 'sessions_tab.dart';
+import 'wonderflix_tab.dart';
 
 /// La pagina Amministrazione (spec J §7, §9.1): la striscia del server, le
 /// schede e il contenuto della scheda scelta. La scheda sta nell'indirizzo;
@@ -59,7 +63,12 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
       return const SizedBox.shrink();
     }
     _wasAdmin = true;
-    final tab = widget.tab;
+    // Senza la cassetta del plugin la scheda WonderFlix non c'è; se è
+    // nell'indirizzo (o la funzione sparisce mentre la si guarda), si mostra
+    // Sessioni.
+    final tabs = adminTabs(
+        inbox: ref.watch(socialAvailabilityProvider.select((f) => f.inbox)));
+    final tab = tabs.contains(widget.tab) ? widget.tab : AdminTab.sessions;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -76,7 +85,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 32),
           child: Row(
             children: [
-              for (final item in AdminTab.values) ...[
+              for (final item in tabs) ...[
                 WfTabButton(
                   key: ValueKey('admin-tab-${item.name}'),
                   label: adminTabLabel(l, item),
@@ -92,6 +101,9 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
         Expanded(
           child: switch (tab) {
             AdminTab.sessions => const SessionsTab(),
+            AdminTab.maintenance => const MaintenanceTab(),
+            AdminTab.activity => const ActivityTab(),
+            AdminTab.wonderflix => const WonderflixTab(),
           },
         ),
       ],

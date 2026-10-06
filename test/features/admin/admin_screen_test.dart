@@ -10,6 +10,7 @@ import 'package:wonderflix/features/admin/admin_navigation.dart';
 import 'package:wonderflix/features/admin/admin_screen.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/server_events_binding.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 import 'package:wonderflix/ui/wf_image.dart';
 
@@ -39,6 +40,7 @@ void main() {
     required FakeSessionController session,
     String location = '/admin',
     bool withSessionRedirect = false,
+    SocialFeatures features = const SocialFeatures(inbox: true),
   }) async {
     await tester.binding.setSurfaceSize(const Size(1440, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -83,7 +85,7 @@ void main() {
         serverEventsBindingProvider.overrideWithValue(null),
         imageBuilderProvider.overrideWithValue(
             (image, fit) => const ColoredBox(color: Color(0xFF333333))),
-        ...adminTestOverrides(api, session: session),
+        ...adminTestOverrides(api, session: session, features: features),
       ],
       retry: (_, _) => null,
       child: MaterialApp.router(
@@ -111,7 +113,8 @@ void main() {
         session: FakeSessionController(const SessionSignedIn(testAdmin)));
 
     expect(find.text('AMMINISTRAZIONE'), findsOneWidget);
-    expect(find.text('WonderFlix'), findsOneWidget);
+    // Il nome del server nella striscia e la scheda.
+    expect(find.text('WonderFlix'), findsNWidgets(2));
     expect(find.text('Jellyfin 10.11.9'), findsOneWidget);
     expect(find.byKey(const ValueKey('admin-tab-sessions')), findsOneWidget);
     expect(find.text('viviroby'), findsOneWidget);
@@ -164,5 +167,40 @@ void main() {
     expect(find.text('login'), findsOneWidget);
     expect(find.text('Non sei più amministratore'), findsNothing);
     expect(find.text('home'), findsNothing);
+  });
+
+  testWidgets('quattro schede; un clic cambia scheda nell\'indirizzo',
+      (tester) async {
+    final router = await pumpScreen(tester,
+        session: FakeSessionController(const SessionSignedIn(testAdmin)));
+
+    for (final tab in ['sessions', 'maintenance', 'activity', 'wonderflix']) {
+      expect(find.byKey(ValueKey('admin-tab-$tab')), findsOneWidget);
+    }
+
+    await tester.tap(find.text('Manutenzione'));
+    await tester.pumpAndSettle();
+    expect(router.routerDelegate.currentConfiguration.uri.toString(),
+        '/admin?tab=maintenance');
+    expect(find.text('Librerie'), findsOneWidget);
+
+    await tester.tap(find.text('Registro'));
+    await tester.pumpAndSettle();
+    expect(find.text('Aggiorna'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('admin-tab-wonderflix')));
+    await tester.pumpAndSettle();
+    expect(find.text('Annuncio'), findsOneWidget);
+  });
+
+  testWidgets('senza la cassetta del plugin: niente WonderFlix, si mostra '
+      'Sessioni', (tester) async {
+    await pumpScreen(tester,
+        session: FakeSessionController(const SessionSignedIn(testAdmin)),
+        location: '/admin?tab=wonderflix',
+        features: SocialFeatures.none);
+
+    expect(find.byKey(const ValueKey('admin-tab-wonderflix')), findsNothing);
+    expect(find.text('viviroby'), findsOneWidget);
   });
 }
