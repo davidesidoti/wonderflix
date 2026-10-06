@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/auth_api.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
@@ -37,6 +38,54 @@ void main() {
     expect(adapter.requests.single.path, '/Users/Me');
     expect(user.name, 'Mario');
     expect(user.primaryImageTag, isNull);
+  });
+
+  group('getMe e il log degli stati attesi', () {
+    late List<LogRecord> records;
+
+    setUp(() {
+      records = [];
+      final previousLevel = Logger.root.level;
+      Logger.root.level = Level.ALL;
+      addTearDown(() => Logger.root.level = previousLevel);
+      final subscription = Logger.root.onRecord.listen(records.add);
+      addTearDown(subscription.cancel);
+    });
+
+    List<(Level, String)> httpLog() => [
+          for (final record in records)
+            if (record.loggerName == 'http') (record.level, record.message),
+        ];
+
+    test('senza stati attesi un 503 è un avviso', () async {
+      adapter.handler = (_) => const FakeResponse(503);
+      await expectLater(api.getMe(), throwsA(isA<ServerErrorException>()));
+
+      expect(httpLog(), [(Level.WARNING, 'GET /Users/Me: 503')]);
+    });
+
+    test('con 502, 503 e 504 attesi vanno nel log come info', () async {
+      for (final status in [502, 503, 504]) {
+        adapter.handler = (_) => FakeResponse(status);
+        await expectLater(
+            api.getMe(quietStatuses: const {502, 503, 504}),
+            throwsA(isA<ServerErrorException>()));
+      }
+
+      expect(httpLog(), [
+        (Level.INFO, 'GET /Users/Me: 502'),
+        (Level.INFO, 'GET /Users/Me: 503'),
+        (Level.INFO, 'GET /Users/Me: 504'),
+      ]);
+    });
+
+    test('un 500 resta un avviso anche con gli stati attesi', () async {
+      adapter.handler = (_) => const FakeResponse(500);
+      await expectLater(api.getMe(quietStatuses: const {502, 503, 504}),
+          throwsA(isA<ServerErrorException>()));
+
+      expect(httpLog(), [(Level.WARNING, 'GET /Users/Me: 500')]);
+    });
   });
 
   test('getMe con corpo malformato lancia ServerErrorException', () async {

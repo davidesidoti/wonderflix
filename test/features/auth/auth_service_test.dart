@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/auth_api.dart';
@@ -7,6 +8,7 @@ import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
 import 'package:wonderflix/core/storage/session_store.dart';
 import 'package:wonderflix/features/auth/auth_service.dart';
 
+import '../../support/fake_adapter.dart';
 import '../../support/memory_session_store.dart';
 import '../../support/test_data.dart';
 
@@ -73,10 +75,66 @@ void main() {
 
   test('currentUser rilegge /Users/Me', () async {
     const admin = JellyfinUser(id: 'u1', name: 'Mario', isAdministrator: true);
-    when(() => api.getMe()).thenAnswer((_) async => admin);
+    when(() => api.getMe(quietStatuses: any(named: 'quietStatuses')))
+        .thenAnswer((_) async => admin);
 
     expect((await service.currentUser()).isAdministrator, isTrue);
-    verify(() => api.getMe()).called(1);
+    // Durante un riavvio i 502/503/504 sono attesi: nel log come info.
+    verify(() => api.getMe(quietStatuses: const {502, 503, 504})).called(1);
+  });
+
+  group('log durante un riavvio (AuthApi vero)', () {
+    late FakeAdapter adapter;
+    late AuthService realService;
+    late List<LogRecord> records;
+
+    setUp(() {
+      records = [];
+      final previousLevel = Logger.root.level;
+      Logger.root.level = Level.ALL;
+      addTearDown(() => Logger.root.level = previousLevel);
+      final subscription = Logger.root.onRecord.listen(records.add);
+      addTearDown(subscription.cancel);
+
+      adapter = FakeAdapter((_) => const FakeResponse(503));
+      final realHttp = JellyfinHttp(
+          baseUrl: testServerUrl, clientInfo: testClientInfo, adapter: adapter);
+      realService = AuthService(
+          http: realHttp, api: AuthApi(realHttp), store: MemorySessionStore());
+    });
+
+    List<(Level, String)> httpLog() => [
+          for (final record in records)
+            if (record.loggerName == 'http') (record.level, record.message),
+        ];
+
+    test('currentUser: 502, 503 e 504 come info, un 500 come avviso',
+        () async {
+      for (final status in [502, 503, 504, 500]) {
+        adapter.handler = (_) => FakeResponse(status);
+        await expectLater(realService.currentUser(),
+            throwsA(isA<ServerErrorException>()));
+      }
+
+      expect(httpLog(), [
+        (Level.INFO, 'GET /Users/Me: 502'),
+        (Level.INFO, 'GET /Users/Me: 503'),
+        (Level.INFO, 'GET /Users/Me: 504'),
+        (Level.WARNING, 'GET /Users/Me: 500'),
+      ]);
+    });
+
+    test('il ripristino della sessione resta com\'era: un 503 è un avviso',
+        () async {
+      final store = MemorySessionStore()..session = stored;
+      final realHttp = JellyfinHttp(
+          baseUrl: testServerUrl, clientInfo: testClientInfo, adapter: adapter);
+      final restoring =
+          AuthService(http: realHttp, api: AuthApi(realHttp), store: store);
+
+      expect(await restoring.restore(), isA<RestoreServerUnreachable>());
+      expect(httpLog(), [(Level.WARNING, 'GET /Users/Me: 503')]);
+    });
   });
 
   test('loginWithPassword salva la sessione e imposta il token', () async {

@@ -123,7 +123,9 @@ void main() {
 
     setUp(() {
       records = [];
+      final previousLevel = Logger.root.level;
       Logger.root.level = Level.ALL;
+      addTearDown(() => Logger.root.level = previousLevel);
       final subscription = Logger.root.onRecord.listen(records.add);
       addTearDown(subscription.cancel);
     });
@@ -157,6 +159,28 @@ void main() {
           api.sessions(), throwsA(isA<ServerErrorException>()));
 
       expect(httpLog(), [(Level.WARNING, 'GET /Sessions: 500')]);
+    });
+
+    test('502, 503 e 504 del POST di riavvio vanno nel log come info',
+        () async {
+      for (final status in [502, 503, 504]) {
+        adapter.handler = (_) => FakeResponse(status);
+        await expectLater(
+            api.restart(), throwsA(isA<ServerErrorException>()));
+      }
+
+      expect(httpLog(), [
+        (Level.INFO, 'POST /System/Restart: 502'),
+        (Level.INFO, 'POST /System/Restart: 503'),
+        (Level.INFO, 'POST /System/Restart: 504'),
+      ]);
+    });
+
+    test('un 500 sul POST di riavvio resta un avviso', () async {
+      adapter.handler = (_) => const FakeResponse(500);
+      await expectLater(api.restart(), throwsA(isA<ServerErrorException>()));
+
+      expect(httpLog(), [(Level.WARNING, 'POST /System/Restart: 500')]);
     });
   });
 }

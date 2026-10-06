@@ -6,6 +6,11 @@ import 'client_info.dart';
 
 final _log = Logger('http');
 
+/// Le risposte di nginx mentre Jellyfin si riavvia (502, 503, 504): sono
+/// esiti attesi, quindi chi li aspetta li passa come `quietStatuses` (nel log
+/// come info) e li legge come "Jellyfin non c'è ancora".
+const restartGatewayStatuses = {502, 503, 504};
+
 /// Accesso HTTP a Jellyfin: aggiunge l'header di autenticazione, converte gli
 /// errori in [ApiException] e segnala i 401 di una sessione attiva.
 class JellyfinHttp {

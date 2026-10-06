@@ -15,20 +15,16 @@ class AdminApi {
   /// Come la Dashboard web: le sessioni attive negli ultimi 16 minuti.
   static const activeWithin = Duration(seconds: 960);
 
-  /// Durante un riavvio nginx risponde così finché Jellyfin non torna: sono
-  /// esiti attesi, nel log come info (e fuori dagli "Ultimi errori").
-  static const _restartStatuses = {502, 503, 504};
-
   Future<List<SessionEntry>> sessions() async => parseSessions(await _http.get(
       '/Sessions',
       query: {'activeWithinSeconds': activeWithin.inSeconds},
-      quietStatuses: _restartStatuses));
+      quietStatuses: restartGatewayStatuses));
 
   Future<List<PartyGroup>> partyGroups() async => parsePartyGroups(
-      await _http.get('/SyncPlay/List', quietStatuses: _restartStatuses));
+      await _http.get('/SyncPlay/List', quietStatuses: restartGatewayStatuses));
 
   Future<ServerInfo> serverInfo() async => parseJson(
-      await _http.get('/System/Info', quietStatuses: _restartStatuses),
+      await _http.get('/System/Info', quietStatuses: restartGatewayStatuses),
       ServerInfo.fromJson);
 
   /// Jellyfin è tornato (`/System/Info/Public`, senza accesso): per l'attesa
@@ -39,7 +35,7 @@ class AdminApi {
   Future<bool> isServerUp() async {
     try {
       final data = await _http.get('/System/Info/Public',
-          quietStatuses: _restartStatuses);
+          quietStatuses: restartGatewayStatuses);
       return data is Map<String, dynamic> &&
           data['StartupWizardCompleted'] == true;
     } on ApiException {
@@ -47,7 +43,9 @@ class AdminApi {
     }
   }
 
+  /// Jellyfin può fermarsi prima di rispondere: nginx dà 502/503/504, che il
+  /// chiamante conta come riavvio partito (nel log, info).
   Future<void> restart() async {
-    await _http.post('/System/Restart');
+    await _http.post('/System/Restart', quietStatuses: restartGatewayStatuses);
   }
 }

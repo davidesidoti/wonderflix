@@ -13,8 +13,11 @@ class AuthApi {
     return parseJson(data, AuthResult.fromJson);
   }
 
-  Future<JellyfinUser> getMe() async =>
-      parseJson(await _http.get('/Users/Me'), JellyfinUser.fromJson);
+  /// [quietStatuses]: esiti attesi da chi chiama (per esempio i 502/503/504
+  /// di un riavvio di Jellyfin), nel log come info.
+  Future<JellyfinUser> getMe({Set<int> quietStatuses = const {}}) async =>
+      parseJson(await _http.get('/Users/Me', quietStatuses: quietStatuses),
+          JellyfinUser.fromJson);
 
   Future<void> logout() async {
     await _http.post('/Sessions/Logout');

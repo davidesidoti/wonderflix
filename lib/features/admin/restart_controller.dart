@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
 import '../../core/jellyfin/api_exception.dart';
+import '../../core/jellyfin/jellyfin_http.dart';
 import '../auth/session_controller.dart';
 import 'admin_providers.dart';
 
@@ -37,9 +38,6 @@ class RestartController extends Notifier<RestartPhase> {
     ref.onDispose(() => _wait++);
     return RestartPhase.idle;
   }
-
-  /// Risposte di nginx quando Jellyfin chiude la connessione fermandosi.
-  static const _gatewayStatuses = {502, 503, 504};
 
   /// Chiede il riavvio e aspetta il ritorno. Una richiesta persa per rete, o
   /// un 502/503/504 di nginx, conta come riavvio partito: Jellyfin può
@@ -75,7 +73,7 @@ class RestartController extends Notifier<RestartPhase> {
   static bool _meansStarted(ApiException error) =>
       error is ServerUnreachableException ||
       (error is ServerErrorException &&
-          _gatewayStatuses.contains(error.statusCode));
+          restartGatewayStatuses.contains(error.statusCode));
 
   /// "Ricontrolla" dopo [RestartPhase.timedOut]: Jellyfin era già giù, la
   /// prima risposta basta.
