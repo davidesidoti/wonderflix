@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
+import 'package:wonderflix/core/jellyfin/maintenance_models.dart';
 import 'package:wonderflix/features/admin/maintenance_tab.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
@@ -57,7 +58,68 @@ void main() {
     expect(find.byKey(const Key('scan-all-status')), findsOneWidget);
     await tester.tap(find.text('Scansiona tutte'));
     await tester.pumpAndSettle();
-    expect(api.calls, contains('scanAll'));
+    expect(api.calls, contains('start:t-scan'));
+  });
+
+  group('"Scansiona tutte"', () {
+    /// Il fixture con "Scansione della libreria" nello stato [state].
+    List<ScheduledTask> withScanTask(TaskState state, {double? progress}) => [
+          for (final task in testTasks())
+            if (task.key == ScheduledTask.refreshLibraryKey)
+              ScheduledTask(
+                id: task.id,
+                name: task.name,
+                key: task.key,
+                category: task.category,
+                state: state,
+                progress: progress,
+              )
+            else
+              task,
+        ];
+
+    bool scanAllEnabled(WidgetTester tester) => enabled(
+        tester,
+        find.ancestor(
+            of: find.text('Scansiona tutte'),
+            matching: find.bySubtype<OutlinedButton>()));
+
+    String? statusText(WidgetTester tester) =>
+        tester.widget<Text>(find.byKey(const Key('scan-all-status'))).data;
+
+    testWidgets('ferma: attiva, con l\'ultima scansione accanto', (tester) async {
+      await pumpTab(tester);
+
+      expect(scanAllEnabled(tester), isTrue);
+      expect(statusText(tester), startsWith('Ultima: '));
+    });
+
+    testWidgets('scansione in corso: spenta, con la percentuale', (tester) async {
+      api.tasksValue = withScanTask(TaskState.running, progress: 12.4);
+      await pumpTab(tester);
+
+      expect(scanAllEnabled(tester), isFalse);
+      expect(statusText(tester), '12%');
+    });
+
+    testWidgets('scansione in arresto: spenta, con "Arresto…"', (tester) async {
+      api.tasksValue = withScanTask(TaskState.cancelling, progress: 80);
+      await pumpTab(tester);
+
+      expect(scanAllEnabled(tester), isFalse);
+      expect(statusText(tester), 'Arresto…');
+    });
+
+    testWidgets('senza l\'attività della scansione: spenta', (tester) async {
+      api.tasksValue = [
+        for (final task in testTasks())
+          if (task.key != ScheduledTask.refreshLibraryKey) task,
+      ];
+      await pumpTab(tester);
+
+      expect(scanAllEnabled(tester), isFalse);
+      expect(find.byKey(const Key('scan-all-status')), findsNothing);
+    });
   });
 
   testWidgets('attività: gruppi in ordine e stati', (tester) async {

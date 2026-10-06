@@ -86,7 +86,18 @@ class MaintenanceController extends AdminTabController<MaintenanceSnapshot> {
     return snapshot;
   }
 
-  Future<void> scanAll() => act(() => ref.read(adminApiProvider).scanAll());
+  /// "Scansiona tutte": come la Dashboard web 10.11, avvia l'attività
+  /// "Scansione della libreria" (la sua chiave è `RefreshLibrary`), così se ne
+  /// vede l'avanzamento. `POST /Library/Refresh` non risponde finché la
+  /// scansione non è finita. Senza quell'attività (il pulsante è spento) è un
+  /// errore chiaro, non una scansione che non parte.
+  Future<void> scanAll() async {
+    final scanTask = state.value?.scanTask;
+    if (scanTask == null) {
+      throw StateError('manca l\'attività "${ScheduledTask.refreshLibraryKey}"');
+    }
+    await startTask(scanTask.id);
+  }
 
   Future<void> scanLibrary(String itemId) =>
       act(() => ref.read(adminApiProvider).scanLibrary(itemId));

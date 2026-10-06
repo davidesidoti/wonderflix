@@ -157,13 +157,6 @@ class FakeAdminApi implements AdminApi {
   }
 
   @override
-  Future<void> scanAll() async {
-    calls.add('scanAll');
-    final error = actionError;
-    if (error != null) throw error;
-  }
-
-  @override
   Future<void> scanLibrary(String itemId) async {
     calls.add('scan:$itemId');
     final error = actionError;

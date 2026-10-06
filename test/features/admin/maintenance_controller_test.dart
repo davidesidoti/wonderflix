@@ -100,12 +100,50 @@ void main() {
       expect(
           api.calls,
           containsAllInOrder([
-            'scanAll',
+            'start:t-scan',
             'scan:a656b907eb3a73532e40e44b968d0225',
             'start:t-optimize',
             'stop:t-autocol',
           ]));
       expect(api.count('tasks'), greaterThanOrEqualTo(2));
+    });
+  });
+
+  test('"Scansiona tutte" avvia l\'attività della scansione, non /Library/Refresh',
+      () {
+    fakeAsync((async) {
+      final container = makeContainer();
+      async.elapse(Duration.zero);
+
+      unawaited(container.read(maintenanceControllerProvider.notifier).scanAll());
+      async.elapse(Duration.zero);
+
+      expect(api.calls.where((c) => c.startsWith('start:')), ['start:t-scan']);
+      expect(api.calls, isNot(contains('scanAll')));
+    });
+  });
+
+  test('senza l\'attività della scansione: scanAll non parte e dà un errore',
+      () {
+    fakeAsync((async) {
+      api.tasksValue = [
+        for (final task in testTasks())
+          if (task.key != ScheduledTask.refreshLibraryKey) task,
+      ];
+      final container = makeContainer();
+      async.elapse(Duration.zero);
+
+      Object? caught;
+      unawaited(container
+          .read(maintenanceControllerProvider.notifier)
+          .scanAll()
+          .catchError((Object error) {
+        caught = error;
+      }));
+      async.elapse(Duration.zero);
+
+      expect(caught, isA<StateError>());
+      expect(api.calls.where((c) => c.startsWith('start:')), isEmpty);
     });
   });
 

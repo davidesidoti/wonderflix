@@ -26,7 +26,6 @@ void main() {
           '/Library/VirtualFolders' => FakeResponse(200, librariesJson),
           '/ScheduledTasks' => FakeResponse(200, tasksJson),
           '/System/ActivityLog/Entries' => FakeResponse(200, activityJson),
-          '/Library/Refresh' => const FakeResponse(204),
           final path when path.startsWith('/Items/') ||
               path.startsWith('/ScheduledTasks/Running/') =>
             const FakeResponse(204),
@@ -196,13 +195,6 @@ void main() {
       final libraries = await api.libraries();
       expect(libraries, hasLength(4));
       expect(adapter.requests.single.path, '/Library/VirtualFolders');
-    });
-
-    test('scansiona tutte', () async {
-      await api.scanAll();
-      final request = adapter.requests.single;
-      expect(request.method, 'POST');
-      expect(request.path, '/Library/Refresh');
     });
 
     test('scansiona una libreria come la Dashboard web', () async {

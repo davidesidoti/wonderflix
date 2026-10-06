@@ -99,14 +99,20 @@ class _LibrariesHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final task = scanTask;
-    final running = task != null && task.state != TaskState.idle;
     final last = task?.lastResult;
     final when = last?.end ?? last?.start;
-    final status = running
-        ? taskProgressLabel(task.progress)
-        : when == null
-            ? null
-            : l.adminTaskLastRun(adminTimeLabel(when, now, l));
+    // La percentuale mentre va, "Arresto…" mentre si ferma, altrimenti
+    // l'ultima scansione.
+    final status = switch (task?.state) {
+      TaskState.running => taskProgressLabel(task?.progress),
+      TaskState.cancelling => l.adminTaskStopping,
+      _ => when == null
+          ? null
+          : l.adminTaskLastRun(adminTimeLabel(when, now, l)),
+    };
+    // "Scansiona tutte" avvia quell'attività: senza (o con l'attività già in
+    // corso) non c'è niente da avviare.
+    final canScan = task != null && task.state == TaskState.idle;
     return Padding(
       padding: const EdgeInsets.only(top: 24, bottom: 12),
       child: Row(
@@ -115,14 +121,17 @@ class _LibrariesHeader extends StatelessWidget {
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
           const Spacer(),
           if (status != null)
-            Text(status,
-                key: const Key('scan-all-status'),
-                style: const TextStyle(color: WfColors.creamMuted, fontSize: 13)),
+            Flexible(
+              child: Text(status,
+                  key: const Key('scan-all-status'),
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: WfColors.creamMuted, fontSize: 13)),
+            ),
           const SizedBox(width: 12),
           AdminActionButton(
             label: l.adminScanAll,
             icon: LucideIcons.refreshCw,
-            onPressed: running ? null : onScanAll,
+            onPressed: canScan ? onScanAll : null,
           ),
         ],
       ),

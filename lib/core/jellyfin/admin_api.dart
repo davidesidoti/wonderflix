@@ -71,11 +71,11 @@ class AdminApi {
   Future<List<LibraryFolder>> libraries() async => parseLibraries(await _http
       .get('/Library/VirtualFolders', quietStatuses: restartGatewayStatuses));
 
-  /// Scansiona tutte le librerie (l'attività "Scansione della libreria").
-  Future<void> scanAll() async {
-    await _http.post('/Library/Refresh');
-  }
-
+  /// Non c'è una `scanAll`: `POST /Library/Refresh` in Jellyfin 10.11 non
+  /// risponde finché la scansione di tutte le librerie non è finita (scade
+  /// il tempo della richiesta) e l'attività non mostra l'avanzamento. Come la
+  /// Dashboard web, "Scansiona tutte" avvia con [startTask] l'attività
+  /// "Scansione della libreria" (`ScheduledTask.refreshLibraryKey`).
   Future<void> scanLibrary(String itemId) async {
     await _http.post('/Items/$itemId/Refresh', query: _scanLibraryQuery);
   }
