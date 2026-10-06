@@ -1,7 +1,7 @@
 # WonderFlix — Spec J: dashboard admin
 
 - **Data:** 2026-10-06
-- **Stato:** approvato a voce, in attesa della revisione scritta
+- **Stato:** approvato; piano 16a realizzato (docs/superpowers/plans/2026-10-06-wonderflix-16a-admin-sessioni.md)
 - **Ambito:** Spec J. Realizza l'idea 1 di `docs/IDEE.md` ("Dashboard e azioni da admin dentro WonderFlix"). Usa gli endpoint admin del plugin delle Spec G (`2026-10-03-wonderflix-notifiche-design.md`) e I (`2026-10-05-wonderflix-seerr-design.md`).
 
 ## 1. Obiettivo
@@ -102,24 +102,32 @@ lib/core/jellyfin/
   admin_api.dart            AdminApi: Sessions, SyncPlay/List, System/Info, System/Restart,
                             Library/VirtualFolders, Library/Refresh, Items/{id}/Refresh,
                             ScheduledTasks, ScheduledTasks/Running/{id}, System/ActivityLog/Entries
-  admin_models.dart         SessionEntry, NowPlaying, PlayMethod, TranscodeInfo, PartyGroup, ServerInfo,
-                            LibraryFolder, ScheduledTask, TaskState, TaskResult, ActivityEntry, ActivitySeverity
+  admin_models.dart         SessionEntry, NowPlaying, NowPlayingKind, PlayMethod, TranscodeInfo, PartyGroup,
+                            PartyState, ServerInfo, LibraryFolder, ScheduledTask, TaskState, TaskResult,
+                            ActivityEntry, ActivitySeverity
 lib/core/social/
   plugin_admin_api.dart     PluginAdminApi: Inbox/Announcements, Inbox/NewTitles (+Send),
                             Requests/Admin, Requests/Test, /Plugins/{id}/Configuration
   plugin_admin_models.dart  NewTitlesStatus, NewTitlesSent, SeerrAdminStatus, SeerrTestResult
+lib/features/auth/
+  auth_service.dart         currentUser(): rilegge /Users/Me
+  session_controller.dart   refreshUser(): rilegge l'utente della sessione (§12)
 lib/features/admin/
-  admin_providers.dart      isAdminProvider, le due API, disponibilità della scheda WonderFlix
+  admin_providers.dart      isAdminProvider, le due API, adminForegroundProvider, adminEpochProvider,
+                            disponibilità della scheda WonderFlix
   admin_navigation.dart     AdminTab (sessions, maintenance, activity, wonderflix) e l'indirizzo
   admin_poller.dart         rilettura periodica (§10)
-  admin_time.dart           ore relative e assolute (§9.5)
-  admin_screen.dart         pagina, striscia del server, schede, rinvio dei non admin
-  server_strip.dart         striscia del server
-  restart_controller.dart   riavvio: conferma, POST, attesa del ritorno
+  admin_tab_controller.dart AdminData e AdminTabController: la base dei controller delle schede e della striscia (§10)
+  admin_time.dart           ore relative e assolute (§9.5), ora dell'ultimo aggiornamento
+  admin_widgets.dart        titolo di sezione, testo vuoto, riga utente con l'iniziale, "Dati non aggiornati"
+  admin_screen.dart         pagina, schede, rinvio dei non admin
+  server_info_controller.dart  ServerInfoController: le informazioni del server, e l'utente (§9.2, §12)
+  server_strip.dart         striscia del server, RestartArea
+  restart_controller.dart   riavvio: POST, attesa del ritorno
   restart_dialog.dart       finestra di conferma
   sessions_controller.dart  sessioni + watch party
   sessions_tab.dart         card "In riproduzione", righe "Collegati", watch party
-  transcode_labels.dart     metodo, motivi, accelerazione
+  session_labels.dart       metodo, titolo, dispositivo, motivi, accelerazione, stato dei party
   maintenance_controller.dart  librerie + attività
   maintenance_tab.dart
   activity_controller.dart  pagine del registro, filtro
@@ -132,17 +140,17 @@ lib/app/app_shell.dart      + voce "Amministrazione" nel menu dell'avatar
 l10n/app_it.arb, app_en.arb + testi (§11)
 ```
 
-Le API stanno con le altre: `AdminApi` in `lib/core/jellyfin/` (endpoint di Jellyfin), `PluginAdminApi` in `lib/core/social/` (endpoint del plugin). Hanno la forma di `RequestsApi`: classe sottile su `JellyfinHttp`, modelli con `fromJson` scritti a mano, niente codegen. I controller sono `Notifier` con stato immutabile e `NotifierProvider.autoDispose`, come in `lib/features/requests/`.
+Le API stanno con le altre: `AdminApi` in `lib/core/jellyfin/` (endpoint di Jellyfin), `PluginAdminApi` in `lib/core/social/` (endpoint del plugin). Hanno la forma di `RequestsApi`: classe sottile su `JellyfinHttp`, modelli con `fromJson` scritti a mano, niente codegen. I controller sono `Notifier` con stato immutabile e `NotifierProvider.autoDispose`, come in `lib/features/requests/`. Quelli delle schede e della striscia estendono `AdminTabController` (§10).
 
 ## 7. Accesso e navigazione
 
 - **`JellyfinUser.isAdministrator`:** viene da `Policy.IsAdministrator` e vale `false` se manca. Si legge all'accesso e a ogni `/Users/Me`.
 - **`isAdminProvider`:** vero solo con `SessionSignedIn` e `user.isAdministrator`.
 - **Menu dell'avatar:** per gli admin c'è "Amministrazione" (icona `LucideIcons.shieldCheck`) tra Impostazioni ed Esci, e apre `context.go('/admin')`. Per gli altri il menu resta com'è.
-- **Rotta:** `/admin?tab=sessions|maintenance|activity|wonderflix` nella shell (`shellPage`). Senza `tab`, o con un valore sconosciuto, si apre `sessions`. La scheda scelta finisce nell'indirizzo con `replace`, come nella pagina Richieste.
-- **Protezione:** la rotta non è protetta dal router. Se `isAdminProvider` è falso, la pagina fa `context.go('/home')` dopo il primo frame, come `RequestsScreen`. Il caso vale anche per un 403 (§12).
+- **Rotta:** `/admin?tab=sessions|maintenance|activity|wonderflix` nella shell (`shellPage`). Senza `tab`, o con un valore sconosciuto, si apre `sessions`. La scheda scelta finisce nell'indirizzo con `context.go` (`openAdmin`), come nella pagina Richieste. La rotta non mette una chiave alla pagina: cambiando scheda la pagina resta la stessa, e con lei la striscia e un riavvio in corso.
+- **Protezione:** la rotta non è protetta dal router. Se `isAdminProvider` è falso, la pagina fa `context.go('/home')` dopo il primo frame, come `RequestsScreen`. Vale anche quando l'utente smette di essere admin mentre guarda la pagina (§12).
 - **Scheda WonderFlix:** c'è solo con la funzione `inbox` del plugin (`socialAvailabilityProvider`). Se la funzione sparisce mentre la scheda è aperta, si torna a Sessioni.
-- **Titolo della barra:** "Amministrazione".
+- **Titolo:** nessun titolo nella barra. La pagina ha il titolo grande "AMMINISTRAZIONE", come la pagina Richieste, senza `ShellPageFrame`.
 
 ## 8. Dati: API e modelli
 
@@ -150,10 +158,10 @@ Le API stanno con le altre: `AdminApi` in `lib/core/jellyfin/` (endpoint di Jell
 
 | Metodo | Chiamata | Note |
 |---|---|---|
-| `sessions()` | `GET /Sessions?activeWithinSeconds=960` | Restano fuori le sessioni senza `UserId` (chiavi API di Seerr, jfa-go…). |
+| `sessions()` | `GET /Sessions?activeWithinSeconds=960` | Restano fuori le sessioni senza `UserId`, o con un `UserId` di soli zeri (chiavi API di Seerr, jfa-go…). |
 | `partyGroups()` | `GET /SyncPlay/List` | Con l'admin l'elenco è completo. |
-| `serverInfo()` | `GET /System/Info` | `ServerName`, `Version`, `OperatingSystemDisplayName`, `HasPendingRestart`. |
-| `isServerUp()` | `GET /System/Info/Public` | Per l'attesa del riavvio: `true` con 200; `false` con errore di rete o 5xx. |
+| `serverInfo()` | `GET /System/Info` | `ServerName`, `Version`, `OperatingSystemDisplayName` (sul server è vuoto), `HasPendingRestart`. |
+| `isServerUp()` | `GET /System/Info/Public` | Per l'attesa del riavvio: `true` con 200; `false` con qualunque `ApiException` (rete, 5xx…). |
 | `restart()` | `POST /System/Restart` | |
 | `libraries()` | `GET /Library/VirtualFolders` | `Name`, `CollectionType`, `ItemId`, `RefreshStatus`, `RefreshProgress`. |
 | `scanAll()` | `POST /Library/Refresh` | |
@@ -163,13 +171,16 @@ Le API stanno con le altre: `AdminApi` in `lib/core/jellyfin/` (endpoint di Jell
 | `stopTask(id)` | `DELETE /ScheduledTasks/Running/{id}` | |
 | `activity({startIndex, limit, hasUserId})` | `GET /System/ActivityLog/Entries` | `limit` 50. `hasUserId` assente per "Tutto". Risposta `{Items, TotalRecordCount, StartIndex}`. |
 
+- **Chi è admin:** le letture della pagina (`/Sessions`, `/SyncPlay/List`, `/System/Info`) non chiedono di essere admin. Solo `/System/Restart` lo chiede. Un 403 dice con certezza "non sei admin" solo per il riavvio. Per le letture è un segnale in più, non quello su cui ci si affida (§12).
+- **Riavvio di Jellyfin:** le risposte 502/503/504 di nginx alle letture e a `isServerUp()` sono attese. Vanno nel registro dell'app come informazioni, non come avvisi.
+
 ### 8.2 Modelli
 
 - **`SessionEntry`:**
-  - `id`, `userId`, `userName`, `userImageTag`, `client`, `deviceName`, `applicationVersion`, `lastActivity`;
-  - `nowPlaying` (facoltativo): `itemId`, `name`, `type` (Movie, Episode, altro), `productionYear`, `seriesName`, `seriesId`, `seasonNumber` (`ParentIndexNumber`), `episodeNumber` (`IndexNumber`), `runTimeTicks`, l'immagine;
-  - da `PlayState`: `positionTicks`, `isPaused`, `playMethod`;
-  - `transcode` (facoltativo, da `TranscodingInfo`): `videoCodec`, `audioCodec`, `container`, `isVideoDirect`, `isAudioDirect`, `bitrate`, `width`, `height`, `hardwareAcceleration`, `reasons` (stringhe), `completionPercentage`.
+  - `id`, `userId`, `userName`, `client`, `deviceName`, `lastActivity`;
+  - `nowPlaying` (facoltativo): `itemId`, `name`, `kind` (`NowPlayingKind`: film, episodio, altro; da `Type`), `year` (`ProductionYear`), `seriesName`, `seriesId`, `seasonNumber` (`ParentIndexNumber`), `episodeNumber` (`IndexNumber`), `runtime` (da `RunTimeTicks`). La locandina è quella dell'elemento, o della serie per gli episodi;
+  - da `PlayState`: `position` (da `PositionTicks`), `isPaused`, `playMethod`;
+  - `transcode` (facoltativo, da `TranscodingInfo`): `videoCodec`, `audioCodec`, `isVideoDirect`, `isAudioDirect`, `bitrate` (bit al secondo), `width`, `height`, `hardwareAcceleration`, `reasons` (stringhe).
 - **`PlayMethod`:** `directPlay`, `directStream`, `transcode`, `unknown`.
 - **`PartyGroup`:** `id`, `name`, `state` (Idle, Waiting, Paused, Playing; altro → `unknown`), `participants` (nomi).
 - **`ServerInfo`:** `name`, `version`, `operatingSystem`, `hasPendingRestart`.
@@ -200,24 +211,31 @@ Le API stanno con le altre: `AdminApi` in `lib/core/jellyfin/` (endpoint di Jell
 
 ### 9.1 Pagina
 
-- In cima la **striscia del server** (§9.2), sotto la fila delle schede, poi il contenuto della scheda.
+- In cima il titolo grande (§7), poi la **striscia del server** (§9.2), sotto la fila delle schede, poi il contenuto della scheda.
 - Le schede hanno lo stesso aspetto di quelle della pagina Richieste. Il pulsante privato `_TabButton` di `lib/features/requests/requests_screen.dart` diventa `WfTabButton` in `lib/ui/wf_tab_button.dart`, usato da tutte e due le pagine.
-- Ogni scheda ha i suoi stati: caricamento (scheletri), errore con "Riprova", vuoto, dati.
+- Ogni scheda ha i suoi stati: caricamento, errore con "Riprova", vuoto, dati. In caricamento la scheda mostra `LoadingView`, come la pagina Richieste, e la striscia uno `SkeletonBox`.
 
 ### 9.2 Striscia del server e riavvio
 
 - **Striscia:** nome del server, "Jellyfin 10.11.9 · <sistema>" e il pulsante **Riavvia**.
+  - Il sistema compare solo se Jellyfin lo dice. Sul server `OperatingSystemDisplayName` è vuoto, quindi si vede solo "Jellyfin 10.11.9".
   - Con `HasPendingRestart` compare l'avviso "Riavvio necessario: Jellyfin va riavviato per finire un'installazione o un aggiornamento".
-  - Si rilegge all'apertura della pagina, ogni 60 s e dopo un riavvio.
+  - Si rilegge all'apertura della pagina, ogni 60 s e dopo un riavvio. A ogni lettura si rilegge anche l'utente (§12).
+  - Senza dati e con la lettura fallita, la striscia mostra l'errore con "Riprova".
 - **Conferma:**
   - Riavvia apre una finestra (`wf_dialog.dart`). All'apertura l'app rilegge le sessioni, quindi i dati sono freschi; mentre legge mostra un indicatore.
   - Con qualcuno che guarda: "{n} persone stanno guardando:", l'elenco "nome — titolo", e "Il riavvio interrompe la visione e i watch party." Una sola persona ha il testo al singolare.
   - Senza nessuno: "Nessuno sta guardando."
   - Se la lettura fallisce: "Non so chi sta guardando."
+  - Con tanti spettatori l'elenco scorre e i pulsanti restano in vista.
   - Pulsanti: "Annulla" e **"Riavvia"** in rosso.
 - **Riavvio** (`RestartController`):
-  1. `POST /System/Restart`. Un errore di rete o un timeout contano come riavvio partito. Un 403 segue il §12. Un altro errore mostra "Riavvio non riuscito" e la striscia torna normale.
-  2. La striscia mostra "Riavvio in corso…" con un indicatore, e Riavvia è disattivato.
+  1. `POST /System/Restart`:
+     - un errore di rete, un timeout o un 502/503/504 di nginx contano come **riavvio partito**: Jellyfin può fermarsi prima di rispondere;
+     - un **401**: nessun avviso, l'app esce dall'account da sola (§12);
+     - un **403**: l'utente si rilegge (§12) e compare "Riavvio non riuscito";
+     - **qualsiasi altro errore** mostra "Riavvio non riuscito" e la striscia torna normale. Un errore inatteso, che non viene dall'API, va anche nel registro dell'app (mai il corpo di una risposta); quelli dell'API ci sono già, con metodo, percorso ed esito.
+  2. Al posto di Riavvia la striscia mostra l'indicatore e "Riavvio in corso…". Un secondo Riavvia mentre si aspetta non fa niente: nessun altro `POST`.
   3. Ogni 3 s `isServerUp()`. Jellyfin conta come **tornato** quando risponde dopo essere stato giù almeno una volta, oppure se in 60 s non è mai caduto.
   4. Al ritorno: l'avviso "Jellyfin è tornato", e la striscia e la scheda aperta si ricaricano.
   5. Dopo 3 minuti senza ritorno: "Jellyfin non risponde ancora" con "Ricontrolla", che fa ripartire l'attesa.
@@ -228,24 +246,32 @@ Le API stanno con le altre: `AdminApi` in `lib/core/jellyfin/` (endpoint di Jell
 
 Si rilegge ogni 5 s.
 
-- **"In riproduzione"**: una card per ogni sessione con `nowPlaying`, ordinate per nome dell'utente. Ogni card mostra:
-  - avatar dell'utente (l'iniziale, se non ha immagine) e nome;
+- **"In riproduzione"**: una card per ogni sessione con `nowPlaying`, ordinate per nome dell'utente (senza badare alle maiuscole). A parità, per nome del dispositivo e poi per id della sessione: lo stesso utente su due dispositivi non cambia posto a ogni lettura. Ogni card mostra:
+  - l'**avatar**, cioè l'iniziale del nome in un cerchio (l'app non ha un indirizzo per le immagini degli utenti), e il nome;
   - client e dispositivo ("Jellyfin Android TV · FireTV Soggiorno");
   - il **titolo**:
     - film: "Titolo (anno)";
     - episodio: "Serie · S1:E3 · Titolo";
     - altro: il nome;
   - l'**immagine**: la locandina; per gli episodi quella della serie;
-  - l'**avanzamento**: barra, "12:34 / 1:45:20", e l'icona di pausa se è in pausa;
+  - l'**avanzamento**: barra, "12:34 / 1:45:20", e l'icona di pausa se è in pausa. Se Jellyfin non dà la durata, o la dà a zero, la durata è sconosciuta: la barra resta vuota e si vede solo la posizione ("12:34");
   - il **metodo**:
     - **"Diretta"**: `DirectPlay`;
-    - **"Remux"**: `DirectStream`, oppure `Transcode` con video e audio entrambi diretti;
-    - **"Transcodifica"**: tutti gli altri casi con `TranscodingInfo`. Sotto c'è la riga "→ H264 1080p · 8,2 Mbps · Software", con l'accelerazione hardware (nome, oppure "Software" se manca), e poi i **motivi**.
-  - **Motivi tradotti**: contenitore, codec video, codec audio, codec dei sottotitoli, profilo, livello, risoluzione, profondità di colore, gamma dinamica (`VideoRangeTypeNotSupported`), canali audio, bitrate oltre il limite (`ContainerBitrateExceedsLimit`, `VideoBitrateNotSupported`, `AudioBitrateNotSupported`), audio esterno. Un motivo senza traduzione appare con il nome originale.
-- **"Collegati"**: una riga compatta per ogni sessione senza `nowPlaying`, ordinata per attività recente. Mostra utente, client e dispositivo, e "attivo {ora}" (§9.5).
-- **"Watch party"**: una riga per gruppo con nome, stato ("In riproduzione", "In pausa", "In attesa", "Fermo") e partecipanti.
+    - con `TranscodingInfo` decidono i suoi dati: video e audio entrambi diretti sono **"Remux"** (anche se il client dichiara `Transcode`), tutti gli altri casi sono **"Transcodifica"**;
+    - senza `TranscodingInfo` decide il metodo dichiarato: `DirectStream` è "Remux", `Transcode` è "Transcodifica", ogni altro valore non ha etichetta.
+  - **Solo con "Transcodifica"**, sotto, ci sono la riga "→ H264 1080p · AAC · 8,2 Mbps · Software" e i **motivi**. Il Remux non ha né la riga né i motivi. La riga dice:
+    - codec e altezza del video, se il video si transcodifica;
+    - codec dell'audio, se l'audio si transcodifica;
+    - il bitrate, se c'è;
+    - l'accelerazione hardware, se il video si transcodifica (nome, oppure "Software" se manca).
+
+    Se non c'è niente da dire, la riga non compare.
+  - **Motivi tradotti**: contenitore, codec video, codec audio, codec dei sottotitoli, profilo, livello, risoluzione, profondità di colore, gamma dinamica (`VideoRangeTypeNotSupported`), canali audio, bitrate oltre il limite (`ContainerBitrateExceedsLimit`, `VideoBitrateNotSupported`, `AudioBitrateNotSupported`), audio esterno. Un motivo senza traduzione appare con il nome originale. I motivi stanno su una riga, senza doppioni.
+- **"Collegati"**: una riga compatta per ogni sessione senza `nowPlaying`, ordinata per attività recente (a parità, per dispositivo e poi per id). Mostra utente, client e dispositivo, e "attivo {ora}" (§9.5).
+- **"Watch party"**: una riga per gruppo con nome, stato ("In riproduzione", "In pausa", "In attesa", "Fermo") e partecipanti. Senza accesso ai watch party (`SyncPlayAccess.none`) l'elenco non si chiede e resta vuoto: Jellyfin lo rifiuterebbe.
 - **Vuoti:** "Nessuno sta guardando", "Nessun altro collegato", "Nessun watch party in corso".
 - Le sessioni dell'admin stesso compaiono come le altre.
+- Le sessioni senza un utente vero si scartano: senza `UserId`, o con un `UserId` di soli zeri (§8.1).
 
 ### 9.4 Manutenzione
 
@@ -305,13 +331,17 @@ Si rilegge all'apertura, dopo ogni azione e ogni 30 s. Ogni card ha il suo stato
 
 ## 10. Rilettura periodica
 
-`AdminPoller` è un piccolo helper usato dai controller delle schede e della striscia:
+`AdminPoller` è un piccolo helper. Lo usano i controller delle schede e della striscia, che estendono `AdminTabController`:
 
-- prende una funzione di lettura e l'intervallo; l'intervallo può cambiare (Manutenzione: 2 s o 15 s);
-- **mai due letture insieme:** se la precedente è ancora in corso, il turno salta;
-- si **ferma** quando la scheda non è visibile o la finestra è ridotta a icona (`AppLifecycleState.hidden`/`paused`), e quando il controller si chiude (`autoDispose`). Quando riparte legge subito;
-- **lettura fallita:** restano i dati di prima e lo stato segna l'ora dell'ultima lettura riuscita. La scheda mostra la riga "Dati non aggiornati · ultimo aggiornamento {ora}", e i tentativi continuano al ritmo normale;
-- il tempo viene da un orologio iniettabile, per le prove con il tempo finto.
+- prende una funzione di lettura e l'intervallo; l'intervallo può cambiare (Manutenzione: 2 s o 15 s). Un intervallo nuovo vale da subito, ma non rimanda la prima lettura;
+- **mai due letture insieme:** l'intervallo parte dalla **fine** della lettura precedente. Una lettura chiesta mentre un'altra è in corso (dopo un'azione, "Riprova", dopo il riavvio) ne fa partire una sola, appena la prima finisce;
+- si **ferma** nei casi qui sotto, e quando riparte legge subito:
+  - quando la finestra è nascosta, per esempio ridotta a icona. `adminForegroundProvider` ascolta un `AppLifecycleListener` (`onHide`/`onShow`) e parte dallo stato vero della finestra, anche se la pagina si apre quando è già nascosta;
+  - quando la pagina è coperta da un'altra rotta (per esempio una pagina titolo o il player): Riverpod mette in pausa gli ascoltatori del controller, e `AdminTabController` ferma la rilettura (`onCancel`/`onResume`);
+  - quando il controller si chiude (`autoDispose`);
+- **dopo un riavvio** tutti i controller rileggono subito, tramite `adminEpochProvider`: un contatore che il riavvio fa crescere al ritorno di Jellyfin;
+- **lettura fallita:** restano i dati di prima e lo stato segna l'ora dell'ultima lettura riuscita. La scheda mostra la riga "Dati non aggiornati · ultimo aggiornamento {ora}", e i tentativi continuano al ritmo normale. Un 403 fa anche rileggere l'utente (§12);
+- i timer e l'ora (`clock`) si prestano al tempo finto delle prove (`fake_async`).
 
 ## 11. Testi nuovi (ARB, it + en)
 
@@ -320,7 +350,7 @@ Si rilegge all'apertura, dopo ogni azione e ogni 30 s. Ogni card ha il suo stato
 | Dove | Testi |
 |---|---|
 | Menu e pagina | "Amministrazione", "Sessioni", "Manutenzione", "Registro", "WonderFlix" |
-| Striscia | "Jellyfin {version} · {os}", "Riavvia", "Riavvio necessario", "Jellyfin va riavviato per finire un'installazione o un aggiornamento", "Riavvio in corso…", "Jellyfin è tornato", "Jellyfin non risponde ancora", "Ricontrolla", "Riavvio non riuscito" |
+| Striscia | "Jellyfin {version}", "Jellyfin {version} · {os}", "Riavvia", "Riavvio necessario", "Jellyfin va riavviato per finire un'installazione o un aggiornamento", "Riavvio in corso…", "Jellyfin è tornato", "Jellyfin non risponde ancora", "Ricontrolla", "Riavvio non riuscito" |
 | Conferma | "Riavviare Jellyfin?", "{n} persone stanno guardando:" (plurale), "Il riavvio interrompe la visione e i watch party.", "Nessuno sta guardando.", "Non so chi sta guardando.", "Annulla", "Riavvia" |
 | Sessioni | "In riproduzione", "Collegati", "Watch party", "Diretta", "Remux", "Transcodifica", "Software", i motivi, "attivo {time}", gli stati dei party ("In riproduzione", "In pausa", "In attesa", "Fermo"), i tre vuoti |
 | Manutenzione | "Librerie", "Scansiona tutte", "Scansiona", "Attività pianificate", "Avvia", "Ferma", "Arresto…", "Ultima: {time}", "Completata in {duration}", "Non riuscita", "Annullata", "Interrotta", "Mai eseguita" |
@@ -328,15 +358,17 @@ Si rilegge all'apertura, dopo ogni azione e ogni 30 s. Ogni card ha il suo stato
 | WonderFlix | "Annuncio", "Invia a tutti", "L'annuncio arriva nella cassetta di tutti gli utenti attivi.", "Annuncio inviato a {n} persone", "Testo non valido", "Novità", "Avvisa delle novità", "{n} titoli in attesa del prossimo riepilogo", "Nessun titolo in attesa", "Le novità non vengono raccolte", "Invia ora", "Inviati {titles} titoli a {recipients} persone", "Seerr", "Ultimo evento dal webhook: {time} · {type}", "Nessun evento ricevuto", "Prova collegamento", "Collegato a Seerr {version}", gli errori di Seerr, "Non configurato: si imposta dalla pagina del plugin nella Dashboard web." |
 | Comuni | "Dati non aggiornati · ultimo aggiornamento {time}", "Non sei più amministratore" |
 
-Il test dei testi (`test/app/l10n_plan16_test.dart`) controlla che le chiavi ci siano in entrambe le lingue.
+Il test dei testi di ogni piano (`test/app/l10n_plan16a_test.dart` per il 16a) controlla che le chiavi ci siano in entrambe le lingue.
 
 ## 12. Errori e casi limite
 
 - **401:** il flusso di oggi (`onUnauthorized`, uscita dall'account).
-- **403 su una chiamata admin:**
-  - l'app rilegge `/Users/Me` e aggiorna la sessione;
+- **Uscita dall'account, o 401, con la pagina aperta:** nessun avviso "Non sei più amministratore" e nessun rinvio a `/home`. Senza sessione non si sono persi dei permessi: il flusso normale porta al Login.
+- **Non più admin:**
+  - un 403 **non** è un segnale sicuro. Le letture della pagina (`/Sessions`, `/SyncPlay/List`, `/System/Info`) non chiedono di essere admin, e non lo danno a chi ha perso i permessi. Solo `/System/Restart` lo chiede;
+  - quindi l'app rilegge `/Users/Me` e aggiorna la sessione: all'apertura della pagina, ogni 60 s insieme alla striscia (§9.2), e dopo un 403 di una lettura o del riavvio. Più richieste insieme fanno una sola lettura, e la sessione cambia solo se l'utente è cambiato;
   - se l'utente non è più admin, compare l'avviso "Non sei più amministratore", la voce del menu sparisce e la pagina torna a `/home`;
-  - se lo è ancora, l'errore resta nella scheda.
+  - se lo è ancora, l'errore resta nella scheda (per il riavvio, "Riavvio non riuscito").
 - **Primo caricamento fallito:** stato d'errore della scheda con "Riprova".
 - **Rilettura fallita:** §10.
 - **Azione fallita** (Avvia, Ferma, Scansiona, Invia, interruttore): un avviso con l'errore, e lo stato torna com'era.
@@ -360,16 +392,20 @@ Il test dei testi (`test/app/l10n_plan16_test.dart`) controlla che le chiavi ci 
   - lettura delle risposte e mappatura degli errori;
   - `seerrStatus()` con 404 → `null`;
   - `setNotifyNewTitles`: le chiavi sconosciute passano intatte e cambia solo `NotifyNewTitles`.
-- **`AdminPoller`** con tempo finto: intervallo, cambio di intervallo, turno saltato, pausa e ripresa, dati vecchi tenuti dopo un errore.
+- **`AdminPoller`** con tempo finto: intervallo dalla fine della lettura, cambio di intervallo, una lettura chiesta durante un'altra, pausa e ripresa, dati vecchi tenuti dopo un errore.
+- **`AdminTabController`:** pausa con la finestra nascosta (anche all'apertura) e con la pagina coperta, rilettura dopo il riavvio, rilettura dell'utente dopo un 403.
 - **`RestartController`** con tempo finto:
   - giù → su;
   - nessuna caduta in 60 s;
   - timeout di 3 minuti e "Ricontrolla";
-  - errore di rete sul `POST` contato come riavvio partito;
-  - 403.
+  - errore di rete e 502/503/504 sul `POST` contati come riavvio partito;
+  - 401 (nessun avviso) e 403 (l'utente si rilegge);
+  - un secondo riavvio durante l'attesa;
+  - un errore inatteso, che va nel registro, e un errore dell'API, che non ci va.
 - **Controller delle schede:** ritmo della Manutenzione, lettura subito dopo un'azione, ripristino dello stato dopo un'azione fallita, pagine e filtri del Registro, interruttore che torna com'era.
 - **Widget:**
-  - voce del menu solo per gli admin, e rinvio dei non admin a `/home`;
+  - voce del menu solo per gli admin, e rinvio dei non admin a `/home`, con l'avviso solo se si perdono i permessi (non con l'uscita dall'account);
+  - striscia: l'utente si rilegge all'apertura e a ogni lettura;
   - scheda dall'indirizzo;
   - scheda WonderFlix solo con `inbox`;
   - testi della conferma di riavvio con zero, una e più persone, e con la lettura fallita;
@@ -400,8 +436,8 @@ Il test dei testi (`test/app/l10n_plan16_test.dart`) controlla che le chiavi ci 
 
 ## 15. Piano e release
 
-- **Un solo piano, il 16:** accesso e navigazione, API e modelli, `AdminPoller`, striscia e riavvio, le quattro schede, testi, allineamento della spec. Se scrivendolo risulta troppo lungo si divide:
-  - **16a:** accesso, API, striscia, riavvio, Sessioni;
+- **Due piani**, perché uno solo risultava troppo lungo:
+  - **16a (fatto)**, `docs/superpowers/plans/2026-10-06-wonderflix-16a-admin-sessioni.md`: accesso, API (`AdminApi` con `sessions`, `partyGroups`, `serverInfo`, `isServerUp`, `restart`), striscia, riavvio, Sessioni, allineamento della spec. La pagina ha una sola scheda;
   - **16b:** Manutenzione, Registro, WonderFlix, release.
 - **Release:** app **0.10.0 non obbligatoria**, con le note in italiano nella bozza. Il plugin non cambia.
 - **Alla fine:** in `docs/IDEE.md` l'idea 1 passa tra le fatte.
