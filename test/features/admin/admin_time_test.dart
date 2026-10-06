@@ -27,5 +27,13 @@ void main() {
         '20 min fa');
 
     expect(adminClockLabel(DateTime(2026, 10, 6, 12, 3), it), '12:03');
+
+    expect(adminDurationLabel(it, const Duration(seconds: 45)), '45 s');
+    expect(adminDurationLabel(it, const Duration(minutes: 3, seconds: 20)),
+        '3 min');
+    expect(adminDurationLabel(it, const Duration(hours: 1, minutes: 5)),
+        '1 h 5 min');
+    expect(adminFullDateTime(DateTime(2026, 10, 6, 8, 10, 3), it),
+        '6 ott 2026, 08:10:03');
   });
 }

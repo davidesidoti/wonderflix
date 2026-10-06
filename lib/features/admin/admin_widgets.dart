@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../app/error_text.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
 import 'admin_time.dart';
@@ -90,6 +91,71 @@ class AdminStaleNote extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Una card della pagina (scheda WonderFlix): titolo con l'icona e
+/// contenuto.
+class AdminCard extends StatelessWidget {
+  const AdminCard({
+    super.key,
+    required this.title,
+    required this.icon,
+    required this.child,
+  });
+
+  final String title;
+  final IconData icon;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: WfColors.surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: WfColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 20, color: WfColors.gold),
+                const SizedBox(width: 10),
+                Text(title,
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.w600)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            child,
+          ],
+        ),
+      );
+}
+
+/// L'errore di una card senza dati, con "Riprova".
+class AdminCardError extends StatelessWidget {
+  const AdminCardError({super.key, required this.error, required this.onRetry});
+
+  final Object error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return Row(
+      children: [
+        Flexible(
+          child: Text(describeError(l, error),
+              style: const TextStyle(color: WfColors.creamMuted)),
+        ),
+        const SizedBox(width: 8),
+        TextButton(onPressed: onRetry, child: Text(l.retry)),
+      ],
     );
   }
 }

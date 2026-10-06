@@ -26,3 +26,23 @@ String adminTimeLabel(DateTime at, DateTime now, AppLocalizations l) {
 /// "12:03": l'ora dell'ultimo aggiornamento riuscito.
 String adminClockLabel(DateTime at, AppLocalizations l) =>
     DateFormat.Hm(l.localeName).format(at.toLocal());
+
+/// "45 s", "3 min", "1 h 5 min": quanto è durata un'attività.
+String adminDurationLabel(AppLocalizations l, Duration duration) {
+  if (duration < const Duration(minutes: 1)) {
+    return l.adminDurationSeconds(duration.inSeconds);
+  }
+  if (duration < const Duration(hours: 1)) {
+    return l.adminDurationMinutes(duration.inMinutes);
+  }
+  return l.adminDurationHours(
+      duration.inHours, duration.inMinutes.remainder(60));
+}
+
+/// "6 ott 2026, 08:10:03": data e ora complete, al passaggio del mouse nel
+/// Registro (spec J §9.5).
+String adminFullDateTime(DateTime at, AppLocalizations l) {
+  final local = at.toLocal();
+  return '${DateFormat.yMMMd(l.localeName).format(local)}, '
+      '${DateFormat.Hms(l.localeName).format(local)}';
+}

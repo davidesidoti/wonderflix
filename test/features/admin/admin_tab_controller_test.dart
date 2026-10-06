@@ -36,6 +36,9 @@ class _TestController extends AdminTabController<int> {
     if (next is int) return next;
     throw next;
   }
+
+  /// Le azioni del controller, per i test di [act].
+  Future<R> runAction<R>(Future<R> Function() action) => act(action);
 }
 
 final _testProvider =
@@ -259,6 +262,47 @@ void main() {
       container.read(adminEpochProvider.notifier).bump();
       async.elapse(Duration.zero);
       expect(_reads, 3);
+    });
+  });
+
+  group('act', () {
+    test('esegue l\'azione e poi rilegge la scheda', () {
+      fakeAsync((async) {
+        final container = makeContainer();
+        async.elapse(Duration.zero);
+        expect(_reads, 1);
+
+        int? result;
+        unawaited(container
+            .read(_testProvider.notifier)
+            .runAction(() async => 42)
+            .then((value) => result = value));
+        async.elapse(Duration.zero);
+
+        expect(result, 42);
+        expect(_reads, 2);
+      });
+    });
+
+    test('403: rilegge l\'utente, l\'errore arriva a chi chiama, e rilegge',
+        () {
+      fakeAsync((async) {
+        final container = makeContainer();
+        async.elapse(Duration.zero);
+
+        Object? caught;
+        unawaited(container
+            .read(_testProvider.notifier)
+            .runAction<void>(() async => throw const ForbiddenException())
+            .catchError((Object error) {
+          caught = error;
+        }));
+        async.elapse(Duration.zero);
+
+        expect(caught, isA<ForbiddenException>());
+        expect(session.refreshUserCalls, 1);
+        expect(_reads, 2);
+      });
     });
   });
 }

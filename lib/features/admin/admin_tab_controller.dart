@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:clock/clock.dart';
+import 'package:flutter/foundation.dart' show protected;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/jellyfin/api_exception.dart';
@@ -77,6 +78,25 @@ abstract class AdminTabController<T> extends Notifier<AdminData<T>> {
 
   /// Cambia il ritmo della rilettura (Manutenzione, spec J §9.4).
   void setInterval(Duration value) => _poller.interval = value;
+
+  /// Un'azione della scheda (Avvia, Scansiona, Invia…). Un 403 fa rileggere
+  /// l'utente (spec J §12); dopo l'azione, riuscita o no, la scheda si
+  /// rilegge. L'errore arriva a chi chiama, che lo mostra.
+  @protected
+  Future<R> act<R>(Future<R> Function() action) async {
+    // Come in `_read`: il `Ref` di questa costruzione del provider.
+    final ref = this.ref;
+    try {
+      return await action();
+    } on ForbiddenException {
+      if (ref.mounted) {
+        unawaited(ref.read(sessionControllerProvider.notifier).refreshUser());
+      }
+      rethrow;
+    } finally {
+      if (ref.mounted) unawaited(refresh());
+    }
+  }
 
   Future<void> _read() async {
     // Il `Ref` di questa costruzione del provider: se mentre si legge il
