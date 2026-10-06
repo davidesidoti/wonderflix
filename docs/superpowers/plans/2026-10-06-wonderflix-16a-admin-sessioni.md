@@ -30,6 +30,13 @@ Il plugin non cambia. Manutenzione, Registro, WonderFlix e la release sono nel p
 11. **Sessioni senza utente:** si scartano anche quelle con `UserId` di soli zeri.
 12. **Sistema operativo:** sul server `OperatingSystemDisplayName` è vuoto, quindi la striscia mostra solo "Jellyfin 10.11.9".
 13. **Caricamento:** le schede mostrano `LoadingView` (come la pagina Richieste) e la striscia uno `SkeletonBox`, non gli scheletri della spec §9.1.
+14. **Dalla review del Gruppo A** (già fatto nel Gruppo A, commit `8d4d546`, `28d337b`, `6dd9ba9`):
+    - le riletture si fermano anche quando la pagina è coperta da un'altra rotta (Riverpod mette in pausa gli ascoltatori: `onCancel`/`onResume` in `AdminTabController`), e `AdminForeground` parte dallo stato vero della finestra;
+    - `JellyfinUser` ha `==`; `refreshUser` applica il risultato solo per lo stesso utente e solo se è cambiato, e le chiamate contemporanee ne fanno una sola;
+    - `AdminPoller` usa `Future.sync`, e un intervallo nuovo non rimanda la prima lettura;
+    - `isServerUp` dà "giù" per ogni `ApiException`; 502/503/504 delle letture vanno nel log come info.
+15. **Gli endpoint letti non danno 403 a chi non è più admin** (`/Sessions`, `/System/Info`, `/SyncPlay/List` non chiedono di essere admin; solo `/System/Restart` sì). Quindi `ServerInfoController` rilegge l'utente a ogni lettura: all'apertura della pagina e ogni 60 s (Task 7). Il 403 resta un segnale in più.
+16. **Riavvio:** un 502/503/504 di nginx sul `POST /System/Restart` conta come riavvio partito, come un errore di rete (Task 7).
 
 **Architecture:**
 - **Dati:**
@@ -3301,6 +3308,21 @@ void main() {
     });
   });
 
+  test('502/503/504 di nginx sul POST: il riavvio è partito', () {
+    for (final status in [502, 503, 504]) {
+      fakeAsync((async) {
+        api.restartError = ServerErrorException(status);
+        final container = makeContainer();
+
+        unawaited(controller(container).restart());
+        async.flushMicrotasks();
+        expect(container.read(restartControllerProvider), RestartPhase.waiting,
+            reason: '$status');
+        async.elapse(const Duration(seconds: 60));
+      });
+    }
+  });
+
   test('pagina chiusa durante l\'attesa: l\'attesa si ferma', () {
     fakeAsync((async) {
       final container = ProviderContainer(
@@ -3422,21 +3444,27 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/admin_models.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/features/admin/server_strip.dart';
+import 'package:wonderflix/features/auth/session_controller.dart';
 
 import '../../support/admin_fakes.dart';
+import '../../support/fake_session_controller.dart';
 import '../../support/pump_app.dart';
 
 void main() {
   late FakeAdminApi api;
+  late FakeSessionController session;
 
-  setUp(() => api = FakeAdminApi());
+  setUp(() {
+    api = FakeAdminApi();
+    session = FakeSessionController(const SessionSignedIn(testAdmin));
+  });
 
   Future<void> pumpStrip(WidgetTester tester) async {
     await pumpApp(
       tester,
       const Scaffold(
           body: Padding(padding: EdgeInsets.all(16), child: ServerStrip())),
-      overrides: adminTestOverrides(api),
+      overrides: adminTestOverrides(api, session: session),
     );
     await tester.pumpAndSettle();
   }
@@ -3449,6 +3477,16 @@ void main() {
     expect(find.text('Jellyfin 10.11.9'), findsOneWidget);
     expect(find.byKey(const Key('pending-restart')), findsNothing);
     expect(find.text('Riavvia'), findsOneWidget);
+  });
+
+  testWidgets('rilegge l\'utente all\'apertura e a ogni lettura del server',
+      (tester) async {
+    await pumpStrip(tester);
+    expect(session.refreshUserCalls, 1);
+
+    await tester.pump(const Duration(seconds: 60));
+    await tester.pump();
+    expect(session.refreshUserCalls, 2);
   });
 
   testWidgets('con il sistema e il riavvio necessario', (tester) async {
@@ -3599,8 +3637,12 @@ class RestartController extends Notifier<RestartPhase> {
     return RestartPhase.idle;
   }
 
-  /// Chiede il riavvio e aspetta il ritorno. Una richiesta persa per rete
-  /// conta come riavvio partito: Jellyfin può fermarsi prima di rispondere.
+  /// Risposte di nginx quando Jellyfin chiude la connessione fermandosi.
+  static const _gatewayStatuses = {502, 503, 504};
+
+  /// Chiede il riavvio e aspetta il ritorno. Una richiesta persa per rete, o
+  /// un 502/503/504 di nginx, conta come riavvio partito: Jellyfin può
+  /// fermarsi prima di rispondere.
   Future<RestartOutcome> restart() async {
     if (state == RestartPhase.sending || state == RestartPhase.waiting) {
       return RestartOutcome.cancelled;
@@ -3608,19 +3650,24 @@ class RestartController extends Notifier<RestartPhase> {
     state = RestartPhase.sending;
     try {
       await ref.read(adminApiProvider).restart();
-    } on ServerUnreachableException {
-      // Partito: si aspetta come sempre.
     } on ApiException catch (error) {
-      if (!ref.mounted) return RestartOutcome.cancelled;
-      if (error is ForbiddenException) {
-        unawaited(ref.read(sessionControllerProvider.notifier).refreshUser());
+      if (!_meansStarted(error)) {
+        if (!ref.mounted) return RestartOutcome.cancelled;
+        if (error is ForbiddenException) {
+          unawaited(ref.read(sessionControllerProvider.notifier).refreshUser());
+        }
+        state = RestartPhase.idle;
+        return RestartOutcome.failed;
       }
-      state = RestartPhase.idle;
-      return RestartOutcome.failed;
     }
     if (!ref.mounted) return RestartOutcome.cancelled;
     return _waitForServer(sawDown: false);
   }
+
+  static bool _meansStarted(ApiException error) =>
+      error is ServerUnreachableException ||
+      (error is ServerErrorException &&
+          _gatewayStatuses.contains(error.statusCode));
 
   /// "Ricontrolla" dopo [RestartPhase.timedOut]: Jellyfin era già giù, la
   /// prima risposta basta.
@@ -3797,13 +3844,17 @@ import '../../core/jellyfin/admin_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_buttons.dart';
+import '../auth/session_controller.dart';
 import 'admin_providers.dart';
 import 'admin_tab_controller.dart';
 import 'admin_widgets.dart';
 import 'restart_controller.dart';
 import 'restart_dialog.dart';
 
-/// Le informazioni del server, rilette ogni 60 s (spec J §9.2).
+/// Le informazioni del server, rilette ogni 60 s (spec J §9.2). A ogni
+/// lettura (all'apertura della pagina e ogni 60 s) rilegge anche l'utente:
+/// le letture della pagina non chiedono di essere admin e non danno 403, e
+/// chi perde i permessi va scoperto così (spec J §12).
 class ServerInfoController extends AdminTabController<ServerInfo> {
   static const every = Duration(seconds: 60);
 
@@ -3811,7 +3862,10 @@ class ServerInfoController extends AdminTabController<ServerInfo> {
   Duration get interval => every;
 
   @override
-  Future<ServerInfo> fetch() => ref.read(adminApiProvider).serverInfo();
+  Future<ServerInfo> fetch() {
+    unawaited(ref.read(sessionControllerProvider.notifier).refreshUser());
+    return ref.read(adminApiProvider).serverInfo();
+  }
 }
 
 final serverInfoControllerProvider =
@@ -4536,11 +4590,15 @@ In `docs/superpowers/specs/2026-10-06-wonderflix-dashboard-admin-design.md`:
   - senza accesso ai watch party l'elenco non si chiede (decisione 10);
   - si scartano anche le sessioni con `UserId` di soli zeri (decisione 11).
 - **§9.1:** la scheda in caricamento mostra `LoadingView`, la striscia uno `SkeletonBox` (decisione 13).
-- **§9.2:** la striscia mostra il sistema solo se Jellyfin lo dice; sul server è vuoto (decisione 12).
+- **§9.2:**
+  - la striscia mostra il sistema solo se Jellyfin lo dice; sul server è vuoto (decisione 12);
+  - un 502/503/504 sul `POST` di riavvio conta come riavvio partito (decisione 16).
 - **§10:**
   - l'intervallo parte dalla fine della lettura; una lettura chiesta durante un'altra ne fa partire una sola, subito dopo (decisione 4);
-  - la finestra in vista viene da `AppLifecycleListener` (decisione 5);
+  - la finestra in vista viene da `AppLifecycleListener`, e le riletture si fermano anche quando la pagina è coperta da un'altra rotta (decisioni 5 e 14);
   - dopo il riavvio si rilegge tramite `adminEpochProvider` (decisione 6).
+- **§12:** le letture della pagina non danno 403 a chi non è più admin; l'utente si rilegge all'apertura e ogni 60 s, con la striscia, e il 403 resta un segnale in più (decisione 15).
+- **§8.1:** togli "un 403 vuol dire che l'utente non è più admin": vale solo per il riavvio.
 - **§15:** il piano è diviso in 16a (fatto) e 16b.
 
 ```bash
