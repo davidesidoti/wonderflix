@@ -27,6 +27,27 @@ void main() {
     expect(() => parseLibraries({'x': 1}), throwsA(isA<ServerErrorException>()));
   });
 
+  test('libreria in coda: vale come scansione in corso', () {
+    LibraryFolder library(Object? status) => parseLibraries([
+          {
+            'ItemId': 'l1',
+            'Name': 'Movies',
+            if (status != 'missing') 'RefreshStatus': status,
+          },
+        ]).single;
+
+    // Jellyfin dice "Queued" per una libreria che aspetta dietro un'altra.
+    final queued = library('Queued');
+    expect(queued.refreshing, isTrue);
+    expect(queued.refreshProgress, isNull);
+    expect(library('Active').refreshing, isTrue);
+    expect(library('Idle').refreshing, isFalse);
+    expect(library('missing').refreshing, isFalse);
+    expect(library('').refreshing, isFalse);
+    expect(library(null).refreshing, isFalse);
+    expect(library(1).refreshing, isFalse, reason: 'non è una stringa');
+  });
+
   test('attività: stato, avanzamento, ultimo risultato', () {
     final tasks = {for (final task in parseTasks(tasksJson)) task.id: task};
 

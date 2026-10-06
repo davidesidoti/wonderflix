@@ -25,7 +25,10 @@ class LibraryFolder {
         'tvshows' => LibraryKind.shows,
         _ => LibraryKind.other,
       },
-      refreshing: json['RefreshStatus'] == 'Active',
+      refreshing: switch (jsonString(json, 'RefreshStatus')) {
+        null || 'Idle' => false,
+        _ => true,
+      },
       refreshProgress: jsonDouble(json, 'RefreshProgress'),
     );
   }
@@ -34,7 +37,9 @@ class LibraryFolder {
   final String name;
   final LibraryKind kind;
 
-  /// Una scansione è in corso (`RefreshStatus` "Active").
+  /// Una scansione è in corso o in coda: `RefreshStatus` è una stringa che
+  /// non è "Idle" (Jellyfin dice "Active", e "Queued" per una libreria che
+  /// aspetta dietro un'altra).
   final bool refreshing;
 
   /// Da 0 a 100, se Jellyfin lo dice.
