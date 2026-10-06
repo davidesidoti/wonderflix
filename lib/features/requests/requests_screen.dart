@@ -10,6 +10,7 @@ import '../../core/requests/requests_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
+import '../../ui/wf_tab_button.dart';
 import 'approve_dialog.dart';
 import 'pending_request_actions.dart';
 import 'request_row.dart';
@@ -105,7 +106,7 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen> {
               child: Row(
                 children: [
                   for (final item in tabs) ...[
-                    _TabButton(
+                    WfTabButton(
                       key: ValueKey('requests-tab-${item.name}'),
                       label: tabLabel(item),
                       selected: item == tab,
@@ -126,42 +127,6 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen> {
           ),
         ],
       ],
-    );
-  }
-}
-
-class _TabButton extends StatelessWidget {
-  const _TabButton({
-    super.key,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-                color: selected ? WfColors.gold : Colors.transparent, width: 2),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? WfColors.cream : WfColors.creamMuted,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-          ),
-        ),
-      ),
     );
   }
 }

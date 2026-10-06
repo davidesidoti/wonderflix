@@ -1,0 +1,93 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../app/theme.dart';
+import '../../l10n/gen/app_localizations.dart';
+import '../../ui/wf_tab_button.dart';
+import 'admin_navigation.dart';
+import 'admin_providers.dart';
+import 'server_strip.dart';
+import 'sessions_tab.dart';
+
+/// La pagina Amministrazione (spec J §7, §9.1): la striscia del server, le
+/// schede e il contenuto della scheda scelta. La scheda sta nell'indirizzo;
+/// cambiandola la pagina resta la stessa (con la striscia e un riavvio in
+/// corso). Chi non è admin torna alla Home; chi smette di esserlo mentre la
+/// guarda riceve anche un avviso.
+class AdminScreen extends ConsumerStatefulWidget {
+  const AdminScreen({super.key, this.tab = AdminTab.sessions});
+
+  final AdminTab tab;
+
+  @override
+  ConsumerState<AdminScreen> createState() => _AdminScreenState();
+}
+
+class _AdminScreenState extends ConsumerState<AdminScreen> {
+  static const _homeRoute = '/home';
+
+  /// La pagina è stata vista da admin: se smette di esserlo, l'avviso.
+  bool _wasAdmin = false;
+
+  /// Già partita verso la Home: ci va una volta sola.
+  bool _leaving = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    if (!ref.watch(isAdminProvider)) {
+      if (!_leaving) {
+        _leaving = true;
+        final lost = _wasAdmin;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (lost) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text(l.adminNoLongerAdmin)));
+          }
+          context.go(_homeRoute);
+        });
+      }
+      return const SizedBox.shrink();
+    }
+    _wasAdmin = true;
+    final tab = widget.tab;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(32, 16, 32, 12),
+          child: Text(l.menuAdmin.toUpperCase(), style: WfText.display(40)),
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 32),
+          child: ServerStrip(),
+        ),
+        const SizedBox(height: 16),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Row(
+            children: [
+              for (final item in AdminTab.values) ...[
+                WfTabButton(
+                  key: ValueKey('admin-tab-${item.name}'),
+                  label: adminTabLabel(l, item),
+                  selected: item == tab,
+                  onTap: () => openAdmin(context, tab: item),
+                ),
+                const SizedBox(width: 24),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: switch (tab) {
+            AdminTab.sessions => const SessionsTab(),
+          },
+        ),
+      ],
+    );
+  }
+}

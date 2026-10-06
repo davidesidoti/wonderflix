@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/jellyfin/item_models.dart';
+import '../features/admin/admin_navigation.dart';
+import '../features/admin/admin_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/session_controller.dart';
 import '../features/catalog/catalog_screen.dart';
@@ -171,6 +173,16 @@ final routerProvider = Provider<GoRouter>((ref) {
               pageBuilder: (context, state) =>
                   shellPage(context, state, const SettingsScreen(),
                       underBar: true)),
+          GoRoute(
+              path: '/admin',
+              // Senza chiave: cambiando scheda la pagina resta la stessa
+              // (striscia e riavvio in corso compresi).
+              pageBuilder: (context, state) => shellPage(
+                  context,
+                  state,
+                  AdminScreen(
+                      tab: AdminTab.parse(state.uri.queryParameters['tab'])),
+                  underBar: true)),
           GoRoute(
             path: '/item/:id',
             pageBuilder: (context, state) => detailPage(

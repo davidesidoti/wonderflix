@@ -359,6 +359,8 @@ class _UserMenu extends ConsumerWidget {
         switch (value) {
           case 'settings':
             context.go('/settings');
+          case 'admin':
+            context.go('/admin');
           case 'logout':
             unawaited(ref.read(sessionControllerProvider.notifier).logout());
         }
@@ -374,6 +376,19 @@ class _UserMenu extends ConsumerWidget {
             ],
           ),
         ),
+        // Solo per gli admin di Jellyfin (spec J §7).
+        if (user.isAdministrator)
+          PopupMenuItem(
+            value: 'admin',
+            child: Row(
+              children: [
+                const Icon(LucideIcons.shieldCheck,
+                    size: 18, color: WfColors.cream),
+                const SizedBox(width: 12),
+                Text(l.menuAdmin),
+              ],
+            ),
+          ),
         PopupMenuItem(
           value: 'logout',
           child: Row(
