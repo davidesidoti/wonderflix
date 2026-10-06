@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_tab_button.dart';
+import '../auth/session_controller.dart';
 import 'admin_navigation.dart';
 import 'admin_providers.dart';
 import 'server_strip.dart';
@@ -33,15 +34,21 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
   /// Già partita verso la Home: ci va una volta sola.
   bool _leaving = false;
 
+  bool get _signedIn => ref.read(sessionControllerProvider) is SessionSignedIn;
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     if (!ref.watch(isAdminProvider)) {
+      // Senza sessione (uscita, 401) non è che si perdano i permessi: il
+      // router porta al Login, e durante la transizione questa pagina resta
+      // montata. Niente avviso e niente Home.
+      if (!_signedIn) return const SizedBox.shrink();
       if (!_leaving) {
         _leaving = true;
         final lost = _wasAdmin;
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
+          if (!mounted || !_signedIn) return;
           if (lost) {
             ScaffoldMessenger.of(context)
                 .showSnackBar(SnackBar(content: Text(l.adminNoLongerAdmin)));

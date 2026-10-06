@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/providers.dart';
+import 'package:wonderflix/app/router.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/features/admin/admin_navigation.dart';
 import 'package:wonderflix/features/admin/admin_screen.dart';
@@ -26,17 +27,42 @@ void main() {
       ..partiesValue = testParties();
   });
 
-  /// La pagina in un router con `/admin` e `/home`, come nell'app.
+  /// Durata della transizione verso `/login` nel test del logout: finché
+  /// dura, la pagina vecchia resta montata, come in un cambio di pagina vero.
+  const loginTransition = Duration(milliseconds: 300);
+
+  /// La pagina in un router con `/admin` e `/home`, come nell'app. Con
+  /// [withSessionRedirect] il router segue la sessione come quello vero
+  /// (`/login` con una transizione lenta).
   Future<GoRouter> pumpScreen(
     WidgetTester tester, {
     required FakeSessionController session,
     String location = '/admin',
+    bool withSessionRedirect = false,
   }) async {
     await tester.binding.setSurfaceSize(const Size(1440, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
+    final sessionState = ValueNotifier<SessionState>(session.initial);
+    addTearDown(sessionState.dispose);
     final router = GoRouter(
       initialLocation: location,
+      refreshListenable: withSessionRedirect ? sessionState : null,
+      redirect: withSessionRedirect
+          ? (context, state) =>
+              sessionRedirect(sessionState.value, state.matchedLocation)
+          : null,
       routes: [
+        if (withSessionRedirect)
+          GoRoute(
+            path: '/login',
+            pageBuilder: (context, state) => CustomTransitionPage<void>(
+              key: state.pageKey,
+              transitionDuration: loginTransition,
+              child: const Scaffold(body: Text('login')),
+              transitionsBuilder: (context, animation, _, child) =>
+                  FadeTransition(opacity: animation, child: child),
+            ),
+          ),
         GoRoute(
           path: '/admin',
           builder: (context, state) => Scaffold(
@@ -71,6 +97,12 @@ void main() {
       ),
     ));
     await tester.pumpAndSettle();
+    if (withSessionRedirect) {
+      final container = ProviderScope.containerOf(
+          tester.element(find.byType(MaterialApp)));
+      container.listen(sessionControllerProvider,
+          (_, next) => sessionState.value = next);
+    }
     return router;
   }
 
@@ -115,5 +147,22 @@ void main() {
 
     expect(find.text('home'), findsOneWidget);
     expect(find.text('Non sei più amministratore'), findsOneWidget);
+  });
+
+  testWidgets('logout sulla pagina: Login, senza avviso né Home',
+      (tester) async {
+    final session = FakeSessionController(const SessionSignedIn(testAdmin));
+    await pumpScreen(tester, session: session, withSessionRedirect: true);
+    expect(find.text('viviroby'), findsOneWidget);
+
+    session.set(const SessionSignedOut());
+    // La pagina vecchia resta montata per tutta la transizione.
+    await tester.pump();
+    await tester.pump(loginTransition ~/ 2);
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(find.text('login'), findsOneWidget);
+    expect(find.text('Non sei più amministratore'), findsNothing);
+    expect(find.text('home'), findsNothing);
   });
 }
