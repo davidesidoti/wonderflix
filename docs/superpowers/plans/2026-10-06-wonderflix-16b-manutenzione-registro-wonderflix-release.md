@@ -16,13 +16,19 @@ Poi la release dell'app 0.10.0. Il plugin non cambia.
 2. **Ordine delle attività:** per categoria e poi per nome, senza badare alle maiuscole, come la Dashboard web. Il server le dà ordinate solo per nome, quindi "l'ordine del server" della spec mescolerebbe le categorie.
 3. **Registro senza avatar:** Jellyfin dà solo l'id dell'utente, e il nome è già nel testo della voce ("viviroby è online su …"). La riga ha l'icona della gravità.
 4. **Letture JSON in comune:** le letture tolleranti di `admin_models.dart` (`_string`, `_int`…) passano in `lib/core/jellyfin/json_fields.dart` come funzioni pubbliche, usate anche dai modelli nuovi (`maintenance_models.dart`, `activity_models.dart`, `plugin_admin_models.dart`). `admin_models.dart` riesporta `isEmptyJellyfinId`.
-5. **Azioni:** `AdminTabController.act()` esegue un'azione, rilegge l'utente dopo un 403 e rilegge la scheda alla fine. I pulsanti delle azioni sono `AdminActionButton`: disattivati mentre l'azione è in corso, e un errore diventa un avviso con `describeError`.
+5. **Azioni:** `AdminTabController.act()` esegue un'azione, rilegge l'utente dopo un 403 e rilegge la scheda alla fine (se l'azione riesce, finisce dopo la rilettura). I pulsanti delle azioni sono `AdminActionButton`: disattivati mentre l'azione è in corso, e un errore diventa un avviso con `describeError`.
 6. **WonderFlix in due controller:** `InboxAdminController` (novità, annuncio, interruttore, "Invia ora") e `SeerrAdminController` (stato e prova). Ogni card ha il suo stato e il suo errore (spec §9.6).
 7. **Tipo dell'ultimo evento di Seerr:** oltre a "Richiesta in attesa" (`MEDIA_PENDING`) e "Richiesta disponibile" (`MEDIA_AVAILABLE`), anche "Messaggio di prova" (`TEST_NOTIFICATION`, quello del pulsante Test di Seerr). Gli altri tipi restano come arrivano.
 8. **"Inviati {titles} titoli a {recipients} persone"** è fatto di due testi, uno per il plurale dei titoli e uno per quello delle persone.
 9. **Durata delle attività:** "45 s", "3 min", "1 h 5 min".
 10. **Data completa nel Registro** (passaggio del mouse): "6 ott 2026, 08:10:00".
 11. **Schede nell'indirizzo:** `?tab=sessions|maintenance|activity|wonderflix`. Senza la funzione `inbox` la scheda WonderFlix non c'è, e `?tab=wonderflix` mostra Sessioni.
+12. **Dalla review del Gruppo A** (già fatto, commit `5345ee2`…`174e567`):
+    - `setNotifyNewTitles` non riscrive una configurazione senza `NotifyNewTitles` booleano o senza `SeerrApiKey`: una riscrittura parziale cancellerebbe le chiavi di Seerr;
+    - una libreria con `RefreshStatus` diverso da "Idle" (anche "Queued", in coda dietro un'altra) conta come in scansione;
+    - `act()` finisce dopo la rilettura quando l'azione riesce;
+    - le risposte di novità e "Invia ora" senza i loro campi sono errori;
+    - `AdminActionButton` ignora un secondo clic e non mostra l'avviso se non c'è più.
 
 **Architecture:**
 - **Dati:**
@@ -4317,10 +4323,9 @@ class _NewTitlesCardState extends ConsumerState<NewTitlesCard> {
     final controller = ref.read(inboxAdminControllerProvider.notifier);
     setState(() => _writing = value);
     try {
+      // L'azione finisce dopo la rilettura (`act`): l'interruttore non torna
+      // indietro per un attimo.
       await controller.setNotifyNewTitles(value);
-      // L'azione fa già rileggere: si aspetta quella lettura, così
-      // l'interruttore non torna indietro per un attimo.
-      await controller.refresh();
     } on Object catch (error) {
       messenger.showSnackBar(SnackBar(content: Text(describeError(l, error))));
     } finally {
@@ -4650,7 +4655,7 @@ In `docs/superpowers/specs/2026-10-06-wonderflix-dashboard-admin-design.md` (in 
   - aggiungi `admin_action_button.dart`, `admin_confirm_dialog.dart`, `task_labels.dart`, `maintenance_controller.dart`, `activity_controller.dart`, `wonderflix_controllers.dart`, `wonderflix_labels.dart`;
   - togli i nomi che non esistono (`wonderflix_controller.dart` al singolare);
   - nota che le API admin del plugin passano da `pluginAdminApiProvider`.
-- **§8.1, `scanLibrary`:** i parametri sono quelli della decisione 1, con `Recursive=true` e `RegenerateTrickplay=false`; non "da verificare".
+- **§8.1, `scanLibrary`:** i parametri sono quelli della decisione 1, copiati dalla Dashboard web; non "da verificare". `Recursive` non è nell'OpenAPI 10.11.9 e Jellyfin lo ignora: la scansione di una libreria comprende comunque le sotto-cartelle.
 - **§8.2:**
   - `LibraryFolder.kind` (`LibraryKind`: film, serie, altro);
   - `ScheduledTask` ha uno stato sconosciuto che vale come fermo;
