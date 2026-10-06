@@ -105,6 +105,66 @@ void main() {
     await expectLater(api.newTitles(), throwsA(isA<ForbiddenException>()));
   });
 
+  group('risposte malformate: errore, non valori inventati', () {
+    Future<void> expectServerError(
+        Future<Object?> Function() call, List<Object?> bodies) async {
+      for (final body in bodies) {
+        adapter.handler = (_) => FakeResponse(200, body);
+        await expectLater(call(), throwsA(isA<ServerErrorException>()),
+            reason: 'corpo: $body');
+      }
+    }
+
+    test('stato delle novità: Enabled e Pending sono obbligatori', () async {
+      await expectServerError(api.newTitles, [
+        <String, Object?>{'Pending': 3},
+        {'Enabled': 'true', 'Pending': 3},
+        {'Enabled': true},
+        {'Enabled': true, 'Pending': '3'},
+        {'Enabled': true, 'Pending': null},
+        {'Enabled': true, 'Pending': 2.5},
+        <String, Object?>{},
+        ['Enabled'],
+        null,
+      ]);
+    });
+
+    test('"Invia ora": Titles e Recipients sono obbligatori', () async {
+      await expectServerError(api.sendNewTitles, [
+        <String, Object?>{'Recipients': 12},
+        {'Titles': 3},
+        {'Titles': '3', 'Recipients': 12},
+        {'Titles': 3, 'Recipients': null},
+        {'Titles': 3.5, 'Recipients': 12},
+        <String, Object?>{},
+        [3, 12],
+        null,
+      ]);
+    });
+
+    test('annuncio: Recipients è obbligatorio', () async {
+      await expectServerError(() => api.announce('x'), [
+        <String, Object?>{},
+        {'Recipients': '12'},
+        null,
+      ]);
+    });
+
+    test('risposte giuste: zero è un valore vero', () async {
+      adapter.handler = (_) =>
+          const FakeResponse(200, {'Enabled': false, 'Pending': 0});
+      final status = await api.newTitles();
+      expect(status.enabled, isFalse);
+      expect(status.pending, 0);
+
+      adapter.handler =
+          (_) => const FakeResponse(200, {'Titles': 0, 'Recipients': 0});
+      final sent = await api.sendNewTitles();
+      expect(sent.titles, 0);
+      expect(sent.recipients, 0);
+    });
+  });
+
   group('interruttore: la configurazione non si riscrive se non torna', () {
     /// Risponde alla lettura con [body] e a ogni altra richiesta con 204.
     void configIs(Object? body) {
