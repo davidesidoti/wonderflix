@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/features/admin/activity_tab.dart';
+import 'package:wonderflix/features/admin/admin_providers.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
 import '../../support/admin_fakes.dart';
@@ -73,6 +75,27 @@ void main() {
     expect(find.text('Voce 120'), findsNothing);
 
     await tester.tap(find.text('Aggiorna'));
+    await tester.pumpAndSettle();
+
+    expect(tester.state<ScrollableState>(scrollable).position.pixels, 0);
+    expect(find.text('Voce 120'), findsOneWidget);
+  });
+
+  testWidgets('Jellyfin torna da un riavvio: l\'elenco riparte dall\'alto',
+      (tester) async {
+    api.activityValue = testActivityEntries(120);
+    await pumpTab(tester);
+    final scrollable = find.byType(Scrollable).last;
+
+    await tester.scrollUntilVisible(find.text('Voce 80'), 500,
+        scrollable: scrollable);
+    await tester.pumpAndSettle();
+    expect(tester.state<ScrollableState>(scrollable).position.pixels,
+        greaterThan(0));
+
+    ProviderScope.containerOf(tester.element(find.byType(ActivityTab)))
+        .read(adminEpochProvider.notifier)
+        .bump();
     await tester.pumpAndSettle();
 
     expect(tester.state<ScrollableState>(scrollable).position.pixels, 0);

@@ -13,6 +13,7 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
 import 'activity_controller.dart';
+import 'admin_providers.dart';
 import 'admin_time.dart';
 
 /// La scheda Registro (spec J §9.5): filtri, "Aggiorna" e le voci a pagine.
@@ -61,6 +62,13 @@ class _ActivityTabState extends ConsumerState<ActivityTab> {
     final l = AppLocalizations.of(context);
     final state = ref.watch(activityControllerProvider);
     final controller = ref.read(activityControllerProvider.notifier);
+
+    // Dopo un riavvio di Jellyfin il controller riparte dalla prima pagina
+    // (`activity_controller.dart`): come con "Aggiorna", anche la vista
+    // torna in cima.
+    ref.listen<int>(adminEpochProvider, (_, _) {
+      if (_scroll.hasClients) _scroll.jumpTo(0);
+    });
 
     // Se la prima pagina non riempie la finestra, lo scorrimento non chiede
     // mai la pagina dopo: la si chiede qui.
