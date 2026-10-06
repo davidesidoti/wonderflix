@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/states.dart';
 import '../../ui/wf_tab_button.dart';
 import '../auth/session_controller.dart';
 import '../social/social_providers.dart';
@@ -65,10 +66,18 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
     _wasAdmin = true;
     // Senza la cassetta del plugin la scheda WonderFlix non c'è; se è
     // nell'indirizzo (o la funzione sparisce mentre la si guarda), si mostra
-    // Sessioni.
-    final tabs = adminTabs(
-        inbox: ref.watch(socialAvailabilityProvider.select((f) => f.inbox)));
-    final tab = tabs.contains(widget.tab) ? widget.tab : AdminTab.sessions;
+    // Sessioni. Ma finché non si sa se il plugin c'è (subito dopo il login)
+    // non si può dire che manchi: si aspetta, senza passare da Sessioni, che
+    // si rileggerebbe per niente e farebbe un lampo di contenuto sbagliato.
+    final features = ref.watch(socialAvailabilityProvider
+        .select((f) => (inbox: f.inbox, known: f.known)));
+    final tabs = adminTabs(inbox: features.inbox);
+    final waitingForPlugin = widget.tab == AdminTab.wonderflix &&
+        !features.inbox &&
+        !features.known;
+    final tab = tabs.contains(widget.tab) || waitingForPlugin
+        ? widget.tab
+        : AdminTab.sessions;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -99,12 +108,14 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
         ),
         const SizedBox(height: 8),
         Expanded(
-          child: switch (tab) {
-            AdminTab.sessions => const SessionsTab(),
-            AdminTab.maintenance => const MaintenanceTab(),
-            AdminTab.activity => const ActivityTab(),
-            AdminTab.wonderflix => const WonderflixTab(),
-          },
+          child: waitingForPlugin
+              ? const LoadingView()
+              : switch (tab) {
+                  AdminTab.sessions => const SessionsTab(),
+                  AdminTab.maintenance => const MaintenanceTab(),
+                  AdminTab.activity => const ActivityTab(),
+                  AdminTab.wonderflix => const WonderflixTab(),
+                },
         ),
       ],
     );

@@ -12,11 +12,13 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/server_events_binding.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
+import 'package:wonderflix/ui/states.dart';
 import 'package:wonderflix/ui/wf_image.dart';
 
 import '../../support/admin_fakes.dart';
 import '../../support/fake_session_controller.dart';
 import '../../support/pump_app.dart';
+import '../../support/social_fakes.dart';
 import '../../support/test_data.dart';
 
 void main() {
@@ -34,13 +36,17 @@ void main() {
 
   /// La pagina in un router con `/admin` e `/home`, come nell'app. Con
   /// [withSessionRedirect] il router segue la sessione come quello vero
-  /// (`/login` con una transizione lenta).
+  /// (`/login` con una transizione lenta). Con [availability] le funzioni del
+  /// plugin si cambiano durante il test; con [settle] falso si fanno solo
+  /// pochi `pump` (serve quando c'è un indicatore che non si ferma).
   Future<GoRouter> pumpScreen(
     WidgetTester tester, {
     required FakeSessionController session,
     String location = '/admin',
     bool withSessionRedirect = false,
     SocialFeatures features = const SocialFeatures(inbox: true),
+    FakeSocialAvailability? availability,
+    bool settle = true,
   }) async {
     await tester.binding.setSurfaceSize(const Size(1440, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -85,7 +91,10 @@ void main() {
         serverEventsBindingProvider.overrideWithValue(null),
         imageBuilderProvider.overrideWithValue(
             (image, fit) => const ColoredBox(color: Color(0xFF333333))),
-        ...adminTestOverrides(api, session: session, features: features),
+        ...adminTestOverrides(api,
+            session: session,
+            features: features,
+            availability: availability),
       ],
       retry: (_, _) => null,
       child: MaterialApp.router(
@@ -98,7 +107,13 @@ void main() {
         routerConfig: router,
       ),
     ));
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      for (var i = 0; i < 3; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+    }
     if (withSessionRedirect) {
       final container = ProviderScope.containerOf(
           tester.element(find.byType(MaterialApp)));
@@ -201,6 +216,54 @@ void main() {
         features: SocialFeatures.none);
 
     expect(find.byKey(const ValueKey('admin-tab-wonderflix')), findsNothing);
+    expect(find.text('viviroby'), findsOneWidget);
+  });
+
+  testWidgets('funzioni del plugin non ancora note: WonderFlix aspetta, senza '
+      'passare da Sessioni', (tester) async {
+    final availability = FakeSocialAvailability(SocialFeatures.unknown);
+    await pumpScreen(tester,
+        session: FakeSessionController(const SessionSignedIn(testAdmin)),
+        location: '/admin?tab=wonderflix',
+        availability: availability,
+        settle: false);
+
+    expect(find.byType(LoadingView), findsOneWidget);
+    expect(find.text('viviroby'), findsNothing);
+    expect(api.count('sessions'), 0, reason: 'Sessioni non si legge per niente');
+
+    availability.set(const SocialFeatures(inbox: true));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LoadingView), findsNothing);
+    expect(find.byKey(const ValueKey('admin-tab-wonderflix')), findsOneWidget);
+    expect(find.text('Annuncio'), findsOneWidget);
+    expect(api.count('sessions'), 0);
+  });
+
+  testWidgets('funzioni non note e poi senza cassetta: si mostra Sessioni',
+      (tester) async {
+    final availability = FakeSocialAvailability(SocialFeatures.unknown);
+    await pumpScreen(tester,
+        session: FakeSessionController(const SessionSignedIn(testAdmin)),
+        location: '/admin?tab=wonderflix',
+        availability: availability,
+        settle: false);
+    expect(find.byType(LoadingView), findsOneWidget);
+
+    availability.set(SocialFeatures.none);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('admin-tab-wonderflix')), findsNothing);
+    expect(find.text('viviroby'), findsOneWidget);
+  });
+
+  testWidgets('funzioni non note: le altre schede si vedono subito',
+      (tester) async {
+    await pumpScreen(tester,
+        session: FakeSessionController(const SessionSignedIn(testAdmin)),
+        availability: FakeSocialAvailability(SocialFeatures.unknown));
+
     expect(find.text('viviroby'), findsOneWidget);
   });
 }

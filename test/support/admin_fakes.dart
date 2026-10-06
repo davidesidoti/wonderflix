@@ -295,13 +295,16 @@ class FakePluginAdminApi implements PluginAdminApi {
 }
 
 /// Jellyfin e plugin finti, sessione di un admin, finestra in vista, plugin
-/// con la cassetta delle notifiche (scheda WonderFlix).
+/// con la cassetta delle notifiche (scheda WonderFlix). [availability]
+/// serve a cambiare le funzioni del plugin durante il test (con
+/// `availability.set`): vale al posto di [features].
 List<Override> adminTestOverrides(
   FakeAdminApi api, {
   FakeSessionController? session,
   FakeAdminForeground? foreground,
   FakePluginAdminApi? plugin,
   SocialFeatures features = const SocialFeatures(inbox: true),
+  FakeSocialAvailability? availability,
 }) =>
     [
       adminApiProvider.overrideWithValue(api),
@@ -311,5 +314,5 @@ List<Override> adminTestOverrides(
       adminForegroundProvider
           .overrideWith(() => foreground ?? FakeAdminForeground()),
       socialAvailabilityProvider
-          .overrideWith(() => FakeSocialAvailability(features)),
+          .overrideWith(() => availability ?? FakeSocialAvailability(features)),
     ];
