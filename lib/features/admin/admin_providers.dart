@@ -3,10 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../core/jellyfin/admin_api.dart';
+import '../../core/social/plugin_admin_api.dart';
 import '../auth/session_controller.dart';
 
 final adminApiProvider =
     Provider<AdminApi>((ref) => AdminApi(ref.watch(jellyfinHttpProvider)));
+
+final pluginAdminApiProvider = Provider<PluginAdminApi>(
+    (ref) => PluginAdminApi(ref.watch(jellyfinHttpProvider)));
 
 /// L'utente collegato è amministratore di Jellyfin (spec J §7): vede la voce
 /// "Amministrazione" e la pagina.

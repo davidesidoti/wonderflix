@@ -4,11 +4,15 @@ import 'package:wonderflix/core/jellyfin/admin_api.dart';
 import 'package:wonderflix/core/jellyfin/admin_models.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/maintenance_models.dart';
+import 'package:wonderflix/core/social/plugin_admin_api.dart';
+import 'package:wonderflix/core/social/plugin_admin_models.dart';
 import 'package:wonderflix/features/admin/admin_providers.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
 
 import 'admin_json.dart';
 import 'fake_session_controller.dart';
+import 'social_fakes.dart';
 
 const testAdmin = JellyfinUser(id: 'u1', name: 'Mario', isAdministrator: true);
 
@@ -216,16 +220,103 @@ class FakeAdminForeground extends AdminForeground {
   void set(bool visible) => state = visible;
 }
 
-/// Jellyfin finto, sessione di un admin e finestra in vista.
+/// Seerr configurato, ultimo evento "Richiesta in attesa" alle 9 del
+/// 2026-10-06.
+final testSeerrStatus = SeerrAdminStatus(
+  configured: true,
+  lastEventAt: DateTime.utc(2026, 10, 6, 9),
+  lastEventType: 'MEDIA_PENDING',
+);
+
+/// Il plugin finto per la scheda WonderFlix.
+class FakePluginAdminApi implements PluginAdminApi {
+  NewTitlesStatus newTitlesValue = const NewTitlesStatus(enabled: true, pending: 3);
+  NewTitlesSent sentValue = const NewTitlesSent(titles: 3, recipients: 12);
+
+  /// `null`: plugin più vecchio della 1.4.0.
+  SeerrAdminStatus? seerrValue = testSeerrStatus;
+  SeerrTestResult testValue = const SeerrTestResult(ok: true, version: '3.4.1');
+  int announceRecipients = 12;
+
+  Object? newTitlesError;
+  Object? seerrError;
+
+  /// Errore delle azioni: annuncio, interruttore, "Invia ora", prova.
+  Object? actionError;
+
+  /// Chiamate in ordine: `announce:<testo>`, `newTitles`, `send`, `seerr`,
+  /// `test`, `notify:<true|false>`.
+  final calls = <String>[];
+
+  int count(String call) => calls.where((c) => c == call).length;
+
+  @override
+  Future<int> announce(String text) async {
+    calls.add('announce:$text');
+    final error = actionError;
+    if (error != null) throw error;
+    return announceRecipients;
+  }
+
+  @override
+  Future<NewTitlesStatus> newTitles() async {
+    calls.add('newTitles');
+    final error = newTitlesError;
+    if (error != null) throw error;
+    return newTitlesValue;
+  }
+
+  @override
+  Future<NewTitlesSent> sendNewTitles() async {
+    calls.add('send');
+    final error = actionError;
+    if (error != null) throw error;
+    return sentValue;
+  }
+
+  @override
+  Future<SeerrAdminStatus?> seerrStatus() async {
+    calls.add('seerr');
+    final error = seerrError;
+    if (error != null) throw error;
+    return seerrValue;
+  }
+
+  @override
+  Future<SeerrTestResult> testSeerr() async {
+    calls.add('test');
+    final error = actionError;
+    if (error != null) throw error;
+    return testValue;
+  }
+
+  /// Come il plugin vero: la lettura dopo dà il valore scritto.
+  @override
+  Future<void> setNotifyNewTitles(bool enabled) async {
+    calls.add('notify:$enabled');
+    final error = actionError;
+    if (error != null) throw error;
+    newTitlesValue =
+        NewTitlesStatus(enabled: enabled, pending: newTitlesValue.pending);
+  }
+}
+
+/// Jellyfin e plugin finti, sessione di un admin, finestra in vista, plugin
+/// con la cassetta delle notifiche (scheda WonderFlix).
 List<Override> adminTestOverrides(
   FakeAdminApi api, {
   FakeSessionController? session,
   FakeAdminForeground? foreground,
+  FakePluginAdminApi? plugin,
+  SocialFeatures features = const SocialFeatures(inbox: true),
 }) =>
     [
       adminApiProvider.overrideWithValue(api),
+      pluginAdminApiProvider.overrideWithValue(plugin ?? FakePluginAdminApi()),
       sessionControllerProvider.overrideWith(() =>
           session ?? FakeSessionController(const SessionSignedIn(testAdmin))),
       adminForegroundProvider
           .overrideWith(() => foreground ?? FakeAdminForeground()),
+      socialAvailabilityProvider
+          .overrideWith(() => FakeSocialAvailability(features)),
     ];
