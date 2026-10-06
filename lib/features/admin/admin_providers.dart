@@ -26,7 +26,12 @@ class AdminForeground extends Notifier<bool> {
       onShow: () => state = true,
     );
     ref.onDispose(listener.dispose);
-    return true;
+    // Se la finestra è già nascosta quando la pagina si apre, il listener non
+    // ha visto nessun cambio: si parte dallo stato di adesso.
+    return switch (WidgetsBinding.instance.lifecycleState) {
+      AppLifecycleState.hidden || AppLifecycleState.paused => false,
+      _ => true,
+    };
   }
 }
 

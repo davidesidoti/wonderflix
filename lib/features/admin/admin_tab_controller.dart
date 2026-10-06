@@ -24,9 +24,9 @@ class AdminData<T> {
 }
 
 /// Base dei controller della pagina Amministrazione (spec J §10): legge con
-/// [fetch] subito e ogni [interval] mentre la finestra è in vista, e di nuovo
-/// quando Jellyfin torna da un riavvio. Un 403 fa rileggere l'utente: se non
-/// è più admin, la pagina va via (§12).
+/// [fetch] subito e ogni [interval] mentre la finestra è in vista e la
+/// pagina è visibile, e di nuovo quando Jellyfin torna da un riavvio. Un 403
+/// fa rileggere l'utente: se non è più admin, la pagina va via (§12).
 abstract class AdminTabController<T> extends Notifier<AdminData<T>> {
   late AdminPoller _poller;
 
@@ -41,12 +41,32 @@ abstract class AdminTabController<T> extends Notifier<AdminData<T>> {
     final poller = AdminPoller(read: _read, interval: interval);
     _poller = poller;
     ref.onDispose(poller.dispose);
-    ref.listen<bool>(adminForegroundProvider, (_, visible) {
-      if (visible) {
+
+    // Si rilegge solo con la finestra in vista e la pagina visibile. Quando
+    // un'altra pagina la copre (un titolo, il player), Riverpod mette in
+    // pausa l'ascolto: il provider riceve `onCancel`, e `onResume` quando
+    // torna in vista.
+    var listened = true;
+    var windowVisible = true;
+    void sync() {
+      if (listened && windowVisible) {
         poller.start();
       } else {
         poller.stop();
       }
+    }
+
+    ref.onCancel(() {
+      listened = false;
+      sync();
+    });
+    ref.onResume(() {
+      listened = true;
+      sync();
+    });
+    ref.listen<bool>(adminForegroundProvider, (_, visible) {
+      windowVisible = visible;
+      sync();
     }, fireImmediately: true);
     ref.listen<int>(adminEpochProvider, (_, _) => unawaited(poller.now()));
     return AdminData<T>();

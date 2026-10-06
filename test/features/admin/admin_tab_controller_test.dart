@@ -37,6 +37,9 @@ void main() {
   late FakeSessionController session;
   late FakeAdminForeground foreground;
 
+  /// L'ascolto della scheda finta: chi la mostra (la pagina).
+  late ProviderSubscription<AdminData<int>> subscription;
+
   setUp(() {
     _answers.clear();
     _reads = 0;
@@ -50,7 +53,7 @@ void main() {
           session: session, foreground: foreground),
       retry: (_, _) => null,
     );
-    container.listen(_testProvider, (_, _) {});
+    subscription = container.listen(_testProvider, (_, _) {});
     return container;
   }
 
@@ -125,6 +128,49 @@ void main() {
       foreground.set(false);
       async.elapse(const Duration(seconds: 30));
       expect(_reads, 1);
+
+      foreground.set(true);
+      async.elapse(Duration.zero);
+      expect(_reads, 2);
+    });
+  });
+
+  test('pagina coperta: non legge; di nuovo in vista: legge subito', () {
+    fakeAsync((async) {
+      makeContainer();
+      async.elapse(Duration.zero);
+      expect(_reads, 1);
+
+      // Un'altra pagina copre quella dell'amministrazione: Riverpod mette in
+      // pausa l'ascolto.
+      subscription.pause();
+      async.elapse(const Duration(seconds: 30));
+      expect(_reads, 1);
+
+      subscription.resume();
+      async.elapse(Duration.zero);
+      expect(_reads, 2);
+      async.elapse(const Duration(seconds: 5));
+      expect(_reads, 3, reason: 'poi riprende il ritmo di prima');
+    });
+  });
+
+  test('pagina coperta e finestra nascosta: legge solo con tutte e due', () {
+    fakeAsync((async) {
+      makeContainer();
+      async.elapse(Duration.zero);
+      expect(_reads, 1);
+
+      subscription.pause();
+      foreground.set(false);
+      foreground.set(true);
+      async.elapse(const Duration(seconds: 30));
+      expect(_reads, 1, reason: 'la finestra è tornata ma la pagina no');
+
+      foreground.set(false);
+      subscription.resume();
+      async.elapse(const Duration(seconds: 30));
+      expect(_reads, 1, reason: 'la pagina è tornata ma la finestra no');
 
       foreground.set(true);
       async.elapse(Duration.zero);
