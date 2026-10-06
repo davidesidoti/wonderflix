@@ -1,8 +1,12 @@
+import 'package:flutter_riverpod/misc.dart';
 import 'package:wonderflix/core/jellyfin/admin_api.dart';
 import 'package:wonderflix/core/jellyfin/admin_models.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
+import 'package:wonderflix/features/admin/admin_providers.dart';
+import 'package:wonderflix/features/auth/session_controller.dart';
 
 import 'admin_json.dart';
+import 'fake_session_controller.dart';
 
 const testAdmin = JellyfinUser(id: 'u1', name: 'Mario', isAdministrator: true);
 
@@ -103,3 +107,29 @@ class FakeAdminApi implements AdminApi {
     if (error != null) throw error;
   }
 }
+
+/// Finestra in vista finta: niente `AppLifecycleListener`, la cambia il test.
+class FakeAdminForeground extends AdminForeground {
+  FakeAdminForeground([this.initial = true]);
+
+  final bool initial;
+
+  @override
+  bool build() => initial;
+
+  void set(bool visible) => state = visible;
+}
+
+/// Jellyfin finto, sessione di un admin e finestra in vista.
+List<Override> adminTestOverrides(
+  FakeAdminApi api, {
+  FakeSessionController? session,
+  FakeAdminForeground? foreground,
+}) =>
+    [
+      adminApiProvider.overrideWithValue(api),
+      sessionControllerProvider.overrideWith(() =>
+          session ?? FakeSessionController(const SessionSignedIn(testAdmin))),
+      adminForegroundProvider
+          .overrideWith(() => foreground ?? FakeAdminForeground()),
+    ];
