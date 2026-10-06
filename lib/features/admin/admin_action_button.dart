@@ -36,6 +36,8 @@ class _AdminActionButtonState extends State<AdminActionButton> {
   bool _running = false;
 
   Future<void> _run(Future<void> Function() action) async {
+    // Una pressione in più prima del ridisegno non fa ripartire l'azione.
+    if (_running) return;
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _running = true);
@@ -46,7 +48,12 @@ class _AdminActionButtonState extends State<AdminActionButton> {
       if (error is! ApiException) {
         _log.warning('azione non riuscita', error, stack);
       }
-      messenger.showSnackBar(SnackBar(content: Text(describeError(l, error))));
+      // Se il pulsante non c'è più (scheda o pagina cambiata) non c'è un
+      // posto dove mostrare l'avviso: il `ScaffoldMessenger` potrebbe non
+      // avere più nessuna `Scaffold`.
+      if (mounted) {
+        messenger.showSnackBar(SnackBar(content: Text(describeError(l, error))));
+      }
     } finally {
       if (mounted) setState(() => _running = false);
     }
