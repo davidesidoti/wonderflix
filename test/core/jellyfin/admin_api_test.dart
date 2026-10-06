@@ -1,6 +1,8 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 import 'package:wonderflix/core/jellyfin/admin_api.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
@@ -74,9 +76,59 @@ void main() {
       expect(await api.isServerUp(), isFalse);
     });
 
-    test('nessuna connessione: giù', () async {
+    test('504, nessuna connessione, timeout, 404: giù', () async {
+      adapter.handler = (_) => const FakeResponse(504);
+      expect(await api.isServerUp(), isFalse);
       adapter.handler = (_) => throw const SocketException('refused');
       expect(await api.isServerUp(), isFalse);
+      adapter.handler = (options) => throw DioException.connectionTimeout(
+          timeout: const Duration(seconds: 10), requestOptions: options);
+      expect(await api.isServerUp(), isFalse);
+      adapter.handler = (_) => const FakeResponse(404);
+      expect(await api.isServerUp(), isFalse,
+          reason: 'qualunque errore del server vale come giù');
+    });
+  });
+
+  group('durante un riavvio', () {
+    late List<LogRecord> records;
+
+    setUp(() {
+      records = [];
+      Logger.root.level = Level.ALL;
+      final subscription = Logger.root.onRecord.listen(records.add);
+      addTearDown(subscription.cancel);
+    });
+
+    List<(Level, String)> httpLog() => [
+          for (final record in records)
+            if (record.loggerName == 'http') (record.level, record.message),
+        ];
+
+    test('502, 503 e 504 delle letture vanno nel log come info', () async {
+      adapter.handler = (_) => const FakeResponse(503);
+      await expectLater(
+          api.sessions(), throwsA(isA<ServerErrorException>()));
+      adapter.handler = (_) => const FakeResponse(502);
+      await expectLater(
+          api.partyGroups(), throwsA(isA<ServerErrorException>()));
+      adapter.handler = (_) => const FakeResponse(504);
+      await expectLater(
+          api.serverInfo(), throwsA(isA<ServerErrorException>()));
+
+      expect(httpLog(), [
+        (Level.INFO, 'GET /Sessions: 503'),
+        (Level.INFO, 'GET /SyncPlay/List: 502'),
+        (Level.INFO, 'GET /System/Info: 504'),
+      ]);
+    });
+
+    test('un 500 resta un avviso', () async {
+      adapter.handler = (_) => const FakeResponse(500);
+      await expectLater(
+          api.sessions(), throwsA(isA<ServerErrorException>()));
+
+      expect(httpLog(), [(Level.WARNING, 'GET /Sessions: 500')]);
     });
   });
 }
