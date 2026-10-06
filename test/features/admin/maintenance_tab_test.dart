@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
@@ -7,6 +9,19 @@ import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
 import '../../support/admin_fakes.dart';
 import '../../support/pump_app.dart';
+
+/// Come [FakeAdminApi], ma "Avvia" aspetta [startGate]: l'azione resta in
+/// corso finché il test non la lascia andare.
+class _GatedAdminApi extends FakeAdminApi {
+  Completer<void>? startGate;
+
+  @override
+  Future<void> startTask(String id) async {
+    final gate = startGate;
+    if (gate != null) await gate.future;
+    return super.startTask(id);
+  }
+}
 
 void main() {
   final it = lookupAppLocalizations(const Locale('it'));
@@ -125,6 +140,32 @@ void main() {
 
       expect(find.byKey(const Key('scan-all-status')), findsNothing);
       expect(scanAllRightEdge(tester), libraryRightEdge(tester));
+    });
+
+    testWidgets('azione in corso: "Dati non aggiornati" non smonta il pulsante',
+        (tester) async {
+      final gated = _GatedAdminApi()
+        ..librariesValue = testLibraries()
+        ..tasksValue = testTasks();
+      api = gated;
+      await pumpTab(tester);
+      final gate = gated.startGate = Completer<void>();
+
+      await tester.tap(find.text('Scansiona tutte'));
+      await tester.pump();
+      expect(scanAllEnabled(tester), isFalse, reason: 'l\'azione è in corso');
+
+      // Una lettura fallisce: in cima compare "Dati non aggiornati".
+      gated.tasksError = const ServerUnreachableException();
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pump();
+      expect(find.textContaining('Dati non aggiornati'), findsOneWidget);
+      expect(scanAllEnabled(tester), isFalse,
+          reason: 'la riga in più in cima non rifà la testata');
+
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(gated.calls, contains('start:t-scan'));
     });
 
     testWidgets('scansione in corso: spenta, con la percentuale', (tester) async {

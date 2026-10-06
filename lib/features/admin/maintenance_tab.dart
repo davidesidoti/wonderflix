@@ -52,8 +52,14 @@ class _MaintenanceTabState extends ConsumerState<MaintenanceTab> {
       padding: const EdgeInsets.fromLTRB(32, 0, 32, 40),
       children: [
         if (data.stale && updatedAt != null) AdminStaleNote(updatedAt: updatedAt),
+        // Con una chiave: la riga "Dati non aggiornati" in cima, che va e
+        // viene, non sposta la testata (e non smonta "Scansiona tutte" mentre
+        // la sua azione è in corso).
         _LibrariesHeader(
-            scanTask: snapshot.scanTask, now: now, onScanAll: controller.scanAll),
+            key: const ValueKey('libraries-header'),
+            scanTask: snapshot.scanTask,
+            now: now,
+            onScanAll: controller.scanAll),
         for (final library in snapshot.libraries)
           LibraryRow(
             key: ValueKey('library-${library.itemId}'),
@@ -86,6 +92,7 @@ class _MaintenanceTabState extends ConsumerState<MaintenanceTab> {
 /// tutte".
 class _LibrariesHeader extends StatelessWidget {
   const _LibrariesHeader({
+    super.key,
     required this.scanTask,
     required this.now,
     required this.onScanAll,

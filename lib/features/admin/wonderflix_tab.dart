@@ -285,16 +285,20 @@ class _SeerrCardState extends ConsumerState<SeerrCard> {
       );
     }
     // Come la card Novità: se l'ultima lettura è fallita ma ci sono i dati di
-    // prima, si dice che non sono aggiornati.
+    // prima, si dice che non sono aggiornati. La `Column` c'è sempre, così
+    // `child` non cambia posto quando la nota compare (e un'azione in corso,
+    // come "Prova collegamento", non perde il suo stato).
     return AdminCard(
       title: l.adminSeerr,
       icon: LucideIcons.listChecks,
-      child: data.stale && updatedAt != null
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [child, AdminStaleNote(updatedAt: updatedAt)],
-            )
-          : child,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          child,
+          if (data.stale && updatedAt != null)
+            AdminStaleNote(updatedAt: updatedAt),
+        ],
+      ),
     );
   }
 }

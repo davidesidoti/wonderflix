@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
@@ -7,6 +9,27 @@ import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
 import '../../support/admin_fakes.dart';
 import '../../support/pump_app.dart';
+
+/// Come [FakePluginAdminApi], ma le azioni aspettano un [Completer] del
+/// test: restano in corso finché non lo si completa.
+class _GatedPluginAdminApi extends FakePluginAdminApi {
+  Completer<void>? testGate;
+  Completer<void>? sendGate;
+
+  @override
+  Future<NewTitlesSent> sendNewTitles() async {
+    final gate = sendGate;
+    if (gate != null) await gate.future;
+    return super.sendNewTitles();
+  }
+
+  @override
+  Future<SeerrTestResult> testSeerr() async {
+    final gate = testGate;
+    if (gate != null) await gate.future;
+    return super.testSeerr();
+  }
+}
 
 void main() {
   final it = lookupAppLocalizations(const Locale('it'));
@@ -139,6 +162,28 @@ void main() {
       expect(find.text(it.errorServerUnreachable), findsOneWidget);
     });
 
+    testWidgets('"Invia ora" in corso: "Dati non aggiornati" non smonta il '
+        'pulsante', (tester) async {
+      final gated = _GatedPluginAdminApi();
+      plugin = gated;
+      await pumpTab(tester);
+      final gate = gated.sendGate = Completer<void>();
+
+      await tester.tap(find.text('Invia ora'));
+      await tester.pump();
+      expect(enabled(tester, 'Invia ora'), isFalse);
+
+      gated.newTitlesError = const ServerUnreachableException();
+      await tester.pump(const Duration(seconds: 31));
+      await tester.pump();
+      expect(find.textContaining('Dati non aggiornati'), findsOneWidget);
+      expect(enabled(tester, 'Invia ora'), isFalse);
+
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(find.text('Inviati 3 titoli a 12 persone'), findsOneWidget);
+    });
+
     testWidgets('nessun titolo: Invia ora spento', (tester) async {
       plugin.newTitlesValue = const NewTitlesStatus(enabled: true, pending: 0);
       await pumpTab(tester);
@@ -183,6 +228,31 @@ void main() {
       expect(find.textContaining('Dati non aggiornati'), findsOneWidget);
       expect(find.text('Prova collegamento'), findsOneWidget,
           reason: 'i dati di prima restano');
+    });
+
+    testWidgets('prova in corso: "Dati non aggiornati" non smonta la card',
+        (tester) async {
+      final gated = _GatedPluginAdminApi();
+      plugin = gated;
+      await pumpTab(tester);
+      final gate = gated.testGate = Completer<void>();
+
+      await tester.tap(find.text('Prova collegamento'));
+      await tester.pump();
+      expect(enabled(tester, 'Prova collegamento'), isFalse,
+          reason: 'la prova è in corso');
+
+      gated.seerrError = const ServerUnreachableException();
+      await tester.pump(const Duration(seconds: 31));
+      await tester.pump();
+      expect(find.textContaining('Dati non aggiornati'), findsOneWidget);
+      expect(enabled(tester, 'Prova collegamento'), isFalse,
+          reason: 'la riga in più non rifà il contenuto della card');
+
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(find.text('Collegato a Seerr 3.4.1'), findsOneWidget,
+          reason: 'l\'esito arriva alla card di prima');
     });
 
     testWidgets('nessun evento', (tester) async {
