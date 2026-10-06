@@ -11,6 +11,11 @@ class FakeSessionController extends SessionController {
   int logoutCalls = 0;
   final loginAttempts = <(String, String)>[];
   JellyfinUser? approvedUser;
+  int refreshUserCalls = 0;
+
+  /// L'utente che [refreshUser] mette nella sessione; `null`: la sessione
+  /// resta com'è.
+  JellyfinUser? refreshedUser;
 
   @override
   SessionState build() => initial;
@@ -41,5 +46,12 @@ class FakeSessionController extends SessionController {
   Future<void> logout() async {
     logoutCalls++;
     state = const SessionSignedOut();
+  }
+
+  @override
+  Future<void> refreshUser() async {
+    refreshUserCalls++;
+    final user = refreshedUser;
+    if (user != null) state = SessionSignedIn(user);
   }
 }

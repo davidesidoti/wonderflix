@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
+import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
 import 'package:wonderflix/features/auth/auth_service.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
@@ -111,5 +112,40 @@ void main() {
     expect(state(),
         isA<SessionSignedOut>().having((s) => s.expired, 'expired', true));
     verify(() => auth.clearLocalSession()).called(1);
+  });
+
+  group('refreshUser', () {
+    const admin = JellyfinUser(id: 'u1', name: 'Mario', isAdministrator: true);
+
+    Future<void> signIn() async {
+      when(() => auth.restore())
+          .thenAnswer((_) async => const RestoredSession(admin));
+      await controller().restore();
+    }
+
+    test('rilegge l\'utente e lo mette nella sessione', () async {
+      await signIn();
+      when(() => auth.currentUser()).thenAnswer((_) async => testUser);
+
+      await controller().refreshUser();
+
+      final session = state() as SessionSignedIn;
+      expect(session.user.isAdministrator, isFalse);
+    });
+
+    test('errore: la sessione resta com\'è', () async {
+      await signIn();
+      when(() => auth.currentUser())
+          .thenThrow(const ServerUnreachableException());
+
+      await controller().refreshUser();
+
+      expect((state() as SessionSignedIn).user.isAdministrator, isTrue);
+    });
+
+    test('senza sessione non chiede nulla', () async {
+      await controller().refreshUser();
+      verifyNever(() => auth.currentUser());
+    });
   });
 }

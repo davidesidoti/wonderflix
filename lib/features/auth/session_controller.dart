@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
+import '../../core/jellyfin/api_exception.dart';
 import '../../core/jellyfin/auth_models.dart';
 import 'auth_service.dart';
 
@@ -69,6 +70,19 @@ class SessionController extends Notifier<SessionState> {
   Future<void> logout() async {
     await _auth.logout();
     state = const SessionSignedOut();
+  }
+
+  /// Rilegge l'utente (spec J §12): per esempio i permessi da admin dopo un
+  /// 403. Senza sessione non fa nulla. Un errore lascia la sessione com'è
+  /// (un 401 passa già da [_onUnauthorized]).
+  Future<void> refreshUser() async {
+    if (state is! SessionSignedIn) return;
+    try {
+      final user = await _auth.currentUser();
+      if (state is SessionSignedIn) state = SessionSignedIn(user);
+    } on ApiException {
+      // La sessione resta quella di prima.
+    }
   }
 
   void _onUnauthorized() {

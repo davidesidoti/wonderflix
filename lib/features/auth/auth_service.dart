@@ -54,6 +54,11 @@ class AuthService {
     }
   }
 
+  /// L'utente della sessione riletto dal server (`/Users/Me`), per esempio
+  /// dopo un 403 di una chiamata da admin (spec J §12). Lancia
+  /// [ApiException].
+  Future<JellyfinUser> currentUser() => _api.getMe();
+
   Future<JellyfinUser> loginWithPassword(String username, String password) async {
     final result = await _api.authenticateByName(username.trim(), password);
     await _adopt(result);

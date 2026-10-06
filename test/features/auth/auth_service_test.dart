@@ -71,6 +71,14 @@ void main() {
     });
   });
 
+  test('currentUser rilegge /Users/Me', () async {
+    const admin = JellyfinUser(id: 'u1', name: 'Mario', isAdministrator: true);
+    when(() => api.getMe()).thenAnswer((_) async => admin);
+
+    expect((await service.currentUser()).isAdministrator, isTrue);
+    verify(() => api.getMe()).called(1);
+  });
+
   test('loginWithPassword salva la sessione e imposta il token', () async {
     when(() => api.authenticateByName('mario', 'pw')).thenAnswer((_) async =>
         const AuthResult(user: testUser, accessToken: 'tok-new'));

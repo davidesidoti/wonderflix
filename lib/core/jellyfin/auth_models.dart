@@ -21,12 +21,18 @@ SyncPlayAccess _syncPlayAccess(Object? policy) {
   };
 }
 
+/// L'utente è amministratore di Jellyfin (`Policy.IsAdministrator`, spec J
+/// §7): solo con un `true` vero.
+bool _isAdministrator(Object? policy) =>
+    policy is Map<String, dynamic> && policy['IsAdministrator'] == true;
+
 class JellyfinUser {
   const JellyfinUser({
     required this.id,
     required this.name,
     this.primaryImageTag,
     this.syncPlayAccess = SyncPlayAccess.createAndJoin,
+    this.isAdministrator = false,
   });
 
   factory JellyfinUser.fromJson(Map<String, dynamic> json) => JellyfinUser(
@@ -34,12 +40,17 @@ class JellyfinUser {
         name: json['Name'] as String,
         primaryImageTag: json['PrimaryImageTag'] as String?,
         syncPlayAccess: _syncPlayAccess(json['Policy']),
+        isAdministrator: _isAdministrator(json['Policy']),
       );
 
   final String id;
   final String name;
   final String? primaryImageTag;
   final SyncPlayAccess syncPlayAccess;
+
+  /// Vede la pagina Amministrazione (spec J §7). Il server controlla comunque
+  /// ogni chiamata.
+  final bool isAdministrator;
 }
 
 class AuthResult {

@@ -30,4 +30,21 @@ void main() {
     expect(SyncPlayAccess.none.canCreate, isFalse);
     expect(SyncPlayAccess.none.canJoin, isFalse);
   });
+
+  test('IsAdministrator dalla policy: vero, falso o assente', () {
+    JellyfinUser admin(Object? value) => JellyfinUser.fromJson({
+          'Id': 'u1',
+          'Name': 'Mario',
+          'Policy': {'IsAdministrator': ?value},
+        });
+
+    expect(admin(true).isAdministrator, isTrue);
+    expect(admin(false).isAdministrator, isFalse);
+    expect(admin(null).isAdministrator, isFalse);
+    expect(admin('true').isAdministrator, isFalse,
+        reason: 'solo un booleano vero');
+    expect(JellyfinUser.fromJson({'Id': 'u1', 'Name': 'Mario'}).isAdministrator,
+        isFalse);
+    expect(const JellyfinUser(id: 'u1', name: 'Mario').isAdministrator, isFalse);
+  });
 }
