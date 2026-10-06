@@ -122,6 +122,18 @@ String _reasonLabel(AppLocalizations l, String reason) => switch (reason) {
       'AudioBitrateNotSupported' =>
         l.adminReasonBitrate,
       'AudioIsExternal' => l.adminReasonExternalAudio,
+      'VideoFramerateNotSupported' => l.adminReasonFramerate,
+      'AudioSampleRateNotSupported' => l.adminReasonSampleRate,
+      'AudioBitDepthNotSupported' => l.adminReasonAudioBitDepth,
+      'SecondaryAudioNotSupported' => l.adminReasonSecondaryAudio,
+      'InterlacedVideoNotSupported' => l.adminReasonInterlaced,
+      'RefFramesNotSupported' => l.adminReasonRefFrames,
+      'AnamorphicVideoNotSupported' => l.adminReasonAnamorphic,
+      'StreamCountExceedsLimit' => l.adminReasonStreamCount,
+      'DirectPlayError' => l.adminReasonDirectPlayError,
+      'UnknownVideoStreamInfo' ||
+      'UnknownAudioStreamInfo' =>
+        l.adminReasonUnknownStream,
       _ => reason,
     };
 

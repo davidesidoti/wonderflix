@@ -464,6 +464,16 @@
   "adminReasonAudioChannels": "audio channels not supported",
   "adminReasonBitrate": "bitrate over the limit",
   "adminReasonExternalAudio": "external audio",
+  "adminReasonFramerate": "frame rate not supported",
+  "adminReasonSampleRate": "sample rate not supported",
+  "adminReasonAudioBitDepth": "audio bit depth not supported",
+  "adminReasonSecondaryAudio": "secondary audio not supported",
+  "adminReasonInterlaced": "interlaced video not supported",
+  "adminReasonRefFrames": "reference frames not supported",
+  "adminReasonAnamorphic": "anamorphic video not supported",
+  "adminReasonStreamCount": "too many streams",
+  "adminReasonDirectPlayError": "direct play error",
+  "adminReasonUnknownStream": "unknown stream",
   "adminStale": "Data not up to date · last update {time}",
   "adminNoLongerAdmin": "You are no longer an administrator"
 }

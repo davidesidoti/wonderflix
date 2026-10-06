@@ -126,6 +126,30 @@ void main() {
         'bitrate oltre il limite, SomethingNew');
   });
 
+  test('i motivi meno comuni hanno un testo', () {
+    const labels = {
+      'VideoFramerateNotSupported': 'frequenza dei fotogrammi non supportata',
+      'AudioSampleRateNotSupported': 'frequenza di campionamento non supportata',
+      'AudioBitDepthNotSupported': 'profondità audio non supportata',
+      'SecondaryAudioNotSupported': 'traccia audio secondaria non supportata',
+      'InterlacedVideoNotSupported': 'video interlacciato non supportato',
+      'RefFramesNotSupported': 'fotogrammi di riferimento non supportati',
+      'AnamorphicVideoNotSupported': 'video anamorfico non supportato',
+      'StreamCountExceedsLimit': 'troppe tracce',
+      'DirectPlayError': 'errore della riproduzione diretta',
+      'UnknownVideoStreamInfo': 'traccia sconosciuta',
+      'UnknownAudioStreamInfo': 'traccia sconosciuta',
+    };
+    labels.forEach((reason, label) {
+      expect(transcodeReasons(it, [reason]), label, reason: reason);
+    });
+
+    // Le due tracce sconosciute dicono la stessa cosa: una volta sola.
+    expect(
+        transcodeReasons(it, ['UnknownVideoStreamInfo', 'UnknownAudioStreamInfo']),
+        'traccia sconosciuta');
+  });
+
   test('accelerazione hardware', () {
     expect(hardwareLabel(it, null), 'Software');
     expect(hardwareLabel(it, 'none'), 'Software');

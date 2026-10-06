@@ -28,6 +28,28 @@ void main() {
     expect(en.adminRestartViewers(2), '2 people are watching:');
     expect(en.adminStale('12:03'), 'Data not up to date · last update 12:03');
 
+    // I motivi meno comuni della transcodifica, nelle due lingue.
+    expect(it.adminReasonFramerate, 'frequenza dei fotogrammi non supportata');
+    expect(en.adminReasonFramerate, 'frame rate not supported');
+    expect(it.adminReasonSampleRate, 'frequenza di campionamento non supportata');
+    expect(en.adminReasonSampleRate, 'sample rate not supported');
+    expect(it.adminReasonAudioBitDepth, 'profondità audio non supportata');
+    expect(en.adminReasonAudioBitDepth, 'audio bit depth not supported');
+    expect(it.adminReasonSecondaryAudio, 'traccia audio secondaria non supportata');
+    expect(en.adminReasonSecondaryAudio, 'secondary audio not supported');
+    expect(it.adminReasonInterlaced, 'video interlacciato non supportato');
+    expect(en.adminReasonInterlaced, 'interlaced video not supported');
+    expect(it.adminReasonRefFrames, 'fotogrammi di riferimento non supportati');
+    expect(en.adminReasonRefFrames, 'reference frames not supported');
+    expect(it.adminReasonAnamorphic, 'video anamorfico non supportato');
+    expect(en.adminReasonAnamorphic, 'anamorphic video not supported');
+    expect(it.adminReasonStreamCount, 'troppe tracce');
+    expect(en.adminReasonStreamCount, 'too many streams');
+    expect(it.adminReasonDirectPlayError, 'errore della riproduzione diretta');
+    expect(en.adminReasonDirectPlayError, 'direct play error');
+    expect(it.adminReasonUnknownStream, 'traccia sconosciuta');
+    expect(en.adminReasonUnknownStream, 'unknown stream');
+
     // Ogni testo del piano c'è in tutte e due le lingue.
     for (final l in [it, en]) {
       expect([
@@ -69,6 +91,16 @@ void main() {
         l.adminReasonAudioChannels,
         l.adminReasonBitrate,
         l.adminReasonExternalAudio,
+        l.adminReasonFramerate,
+        l.adminReasonSampleRate,
+        l.adminReasonAudioBitDepth,
+        l.adminReasonSecondaryAudio,
+        l.adminReasonInterlaced,
+        l.adminReasonRefFrames,
+        l.adminReasonAnamorphic,
+        l.adminReasonStreamCount,
+        l.adminReasonDirectPlayError,
+        l.adminReasonUnknownStream,
         l.adminNoLongerAdmin,
       ], everyElement(isNotEmpty));
     }
