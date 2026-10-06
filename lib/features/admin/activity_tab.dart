@@ -94,7 +94,12 @@ class _ActivityTabState extends ConsumerState<ActivityTab> {
               ],
               const Spacer(),
               TextButton.icon(
-                onPressed: () => unawaited(controller.reload()),
+                onPressed: () {
+                  // Si riparte dalla prima pagina: anche la vista torna in
+                  // cima, non resta a metà di un elenco che cambia.
+                  if (_scroll.hasClients) _scroll.jumpTo(0);
+                  unawaited(controller.reload());
+                },
                 icon: const Icon(LucideIcons.refreshCw, size: 16),
                 label: Text(l.adminActivityRefresh),
               ),

@@ -58,6 +58,26 @@ void main() {
     expect(api.count('activity:0:false'), 2);
   });
 
+  testWidgets('Aggiorna riparte dall\'alto, non da dove si era arrivati',
+      (tester) async {
+    api.activityValue = testActivityEntries(120);
+    await pumpTab(tester);
+    final scrollable = find.byType(Scrollable).last;
+
+    await tester.scrollUntilVisible(find.text('Voce 80'), 500,
+        scrollable: scrollable);
+    await tester.pumpAndSettle();
+    expect(tester.state<ScrollableState>(scrollable).position.pixels,
+        greaterThan(0));
+    expect(find.text('Voce 120'), findsNothing);
+
+    await tester.tap(find.text('Aggiorna'));
+    await tester.pumpAndSettle();
+
+    expect(tester.state<ScrollableState>(scrollable).position.pixels, 0);
+    expect(find.text('Voce 120'), findsOneWidget);
+  });
+
   testWidgets('vuoto', (tester) async {
     api.activityValue = const [];
     await pumpTab(tester);
