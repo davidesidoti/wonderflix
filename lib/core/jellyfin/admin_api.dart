@@ -29,8 +29,8 @@ class AdminApi {
 
   /// Jellyfin è tornato (`/System/Info/Public`, senza accesso): per l'attesa
   /// del riavvio. Jellyfin 10.11 avvia prima un server di setup, 6-18 s
-  /// prima di quello vero, che risponde 200 allo stesso indirizzo ma senza
-  /// `StartupWizardCompleted`: conta solo il valore `true`. Qualunque errore,
+  /// prima di quello vero, che può rispondere 200 allo stesso indirizzo senza
+  /// `StartupWizardCompleted` a `true`: conta solo quel valore. Qualunque errore,
   /// di rete o del server, o una risposta diversa vale come giù.
   Future<bool> isServerUp() async {
     try {

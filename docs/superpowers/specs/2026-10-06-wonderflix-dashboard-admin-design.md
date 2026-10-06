@@ -175,7 +175,7 @@ Le API stanno con le altre: `AdminApi` in `lib/core/jellyfin/` (endpoint di Jell
 - **Riavvio di Jellyfin:**
   - le risposte 502/503/504 di nginx alle letture, a `isServerUp()`, al `POST /System/Restart` e alla rilettura dell'utente (`/Users/Me`, quella che fa la pagina) sono attese. Vanno nel registro dell'app come informazioni, non come avvisi (un 500 resta un avviso);
   - il ripristino della sessione all'avvio dell'app e l'accesso non cambiano;
-  - **il server di setup:** Jellyfin 10.11 avvia prima un piccolo server di setup, 6-18 s prima di quello vero, e lo stesso `GET /System/Info/Public` risponde 200 mentre l'app vera non c'è ancora. Per questo `isServerUp()` guarda `StartupWizardCompleted`: il server vero risponde `true`, quello di setup no.
+  - **il server di setup:** Jellyfin 10.11 avvia prima un piccolo server di setup, 6-18 s prima di quello vero, e lo stesso `GET /System/Info/Public` può rispondere 200 mentre l'app vera non c'è ancora (non verificato: si vede solo durante un riavvio). Per questo `isServerUp()` guarda `StartupWizardCompleted`: il server vero risponde `true`, quello di setup no.
 
 ### 8.2 Modelli
 
