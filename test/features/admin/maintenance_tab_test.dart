@@ -94,6 +94,39 @@ void main() {
       expect(statusText(tester), startsWith('Ultima: '));
     });
 
+    /// Il bordo destro del pulsante "Scansiona tutte".
+    double scanAllRightEdge(WidgetTester tester) => tester
+        .getTopRight(find.ancestor(
+            of: find.text('Scansiona tutte'),
+            matching: find.bySubtype<OutlinedButton>()))
+        .dx;
+
+    /// Il bordo destro del "Scansiona" di Shows.
+    double libraryRightEdge(WidgetTester tester) => tester
+        .getTopRight(inRow('library-a656b907eb3a73532e40e44b968d0225',
+            find.bySubtype<OutlinedButton>()))
+        .dx;
+
+    testWidgets('con lo stato accanto: sul bordo destro, come "Scansiona"',
+        (tester) async {
+      await pumpTab(tester);
+
+      expect(find.byKey(const Key('scan-all-status')), findsOneWidget);
+      expect(scanAllRightEdge(tester), libraryRightEdge(tester));
+    });
+
+    testWidgets('senza stato accanto: sul bordo destro, come "Scansiona"',
+        (tester) async {
+      api.tasksValue = [
+        for (final task in testTasks())
+          if (task.key != ScheduledTask.refreshLibraryKey) task,
+      ];
+      await pumpTab(tester);
+
+      expect(find.byKey(const Key('scan-all-status')), findsNothing);
+      expect(scanAllRightEdge(tester), libraryRightEdge(tester));
+    });
+
     testWidgets('scansione in corso: spenta, con la percentuale', (tester) async {
       api.tasksValue = withScanTask(TaskState.running, progress: 12.4);
       await pumpTab(tester);

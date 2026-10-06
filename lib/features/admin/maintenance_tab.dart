@@ -119,14 +119,23 @@ class _LibrariesHeader extends StatelessWidget {
         children: [
           Text(l.adminLibraries,
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-          const Spacer(),
-          if (status != null)
-            Flexible(
-              child: Text(status,
-                  key: const Key('scan-all-status'),
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: WfColors.creamMuted, fontSize: 13)),
-            ),
+          const SizedBox(width: 12),
+          // Lo stato prende tutto lo spazio che resta, a destra, e si
+          // accorcia se non basta: così il pulsante sta sempre sul bordo
+          // destro, come "Scansiona" delle librerie.
+          Expanded(
+            child: status == null
+                ? const SizedBox.shrink()
+                : Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: Text(status,
+                        key: const Key('scan-all-status'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: WfColors.creamMuted, fontSize: 13)),
+                  ),
+          ),
           const SizedBox(width: 12),
           AdminActionButton(
             label: l.adminScanAll,
