@@ -437,7 +437,7 @@
   "adminSessionsIdle": "Online",
   "adminSessionsParties": "Watch parties",
   "adminSessionsNobodyPlaying": "Nobody is watching",
-  "adminSessionsNobodyIdle": "Nobody else is online",
+  "adminSessionsNobodyIdle": "Nobody online",
   "adminSessionsNoParties": "No watch party right now",
   "adminMethodDirect": "Direct play",
   "adminMethodRemux": "Remux",

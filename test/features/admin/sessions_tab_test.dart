@@ -143,7 +143,7 @@ void main() {
     await pumpTab(tester);
 
     expect(find.text('Nessuno sta guardando'), findsOneWidget);
-    expect(find.text('Nessun altro collegato'), findsOneWidget);
+    expect(find.text('Nessuno collegato'), findsOneWidget);
     expect(find.text('Nessun watch party in corso'), findsOneWidget);
   });
 

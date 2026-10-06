@@ -522,7 +522,7 @@
   "adminSessionsIdle": "Collegati",
   "adminSessionsParties": "Watch party",
   "adminSessionsNobodyPlaying": "Nessuno sta guardando",
-  "adminSessionsNobodyIdle": "Nessun altro collegato",
+  "adminSessionsNobodyIdle": "Nessuno collegato",
   "adminSessionsNoParties": "Nessun watch party in corso",
   "adminMethodDirect": "Diretta",
   "adminMethodRemux": "Remux",

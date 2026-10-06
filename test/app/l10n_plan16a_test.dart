@@ -20,6 +20,9 @@ void main() {
     expect(it.adminEpisodeNoCode('Lost', 'Pilota'), 'Lost · Pilota');
     expect(it.adminStale('12:03'), 'Dati non aggiornati · ultimo aggiornamento 12:03');
     expect(it.adminRestarting, 'Riavvio in corso…');
+    // Nell'elenco c'è anche la sessione dell'admin stesso: non "altro".
+    expect(it.adminSessionsNobodyIdle, 'Nessuno collegato');
+    expect(en.adminSessionsNobodyIdle, 'Nobody online');
     expect(en.menuAdmin, 'Administration');
     expect(en.adminRestartViewers(1), '1 person is watching:');
     expect(en.adminRestartViewers(2), '2 people are watching:');
