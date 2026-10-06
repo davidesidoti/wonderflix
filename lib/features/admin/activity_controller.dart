@@ -83,7 +83,8 @@ class ActivityController extends Notifier<ActivityState> {
   /// Cambia filtro e riparte dalla prima pagina.
   Future<void> setFilter(ActivityFilter filter) {
     if (filter == state.filter) return Future.value();
-    _generation++;
+    // `_load` numera il caricamento: quello in corso con il filtro di prima
+    // vale meno e si scarta.
     state = ActivityState(filter: filter, loading: true);
     return _load(reset: true);
   }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/activity_models.dart';
@@ -8,6 +10,23 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 
 import '../../support/admin_fakes.dart';
 import '../../support/fake_session_controller.dart';
+
+/// Come [FakeAdminApi], ma la risposta della prossima richiesta aspetta
+/// [gate]: la richiesta è già registrata in `calls`.
+class _GatedAdminApi extends FakeAdminApi {
+  Completer<void>? gate;
+
+  @override
+  Future<ActivityPage> activity(
+      {required int startIndex, bool? hasUserId}) async {
+    final wait = gate;
+    gate = null;
+    final page =
+        await super.activity(startIndex: startIndex, hasUserId: hasUserId);
+    if (wait != null) await wait.future;
+    return page;
+  }
+}
 
 void main() {
   late FakeAdminApi api;
@@ -64,6 +83,32 @@ void main() {
     await controller.setFilter(ActivityFilter.system);
     expect(state(container).items.every((e) => e.userId == null), isTrue);
     expect(api.calls.last, 'activity:0:false');
+  });
+
+  test('filtro cambiato mentre arriva una pagina: la risposta di prima si scarta',
+      () async {
+    final gated = _GatedAdminApi()..activityValue = testActivityEntries(120);
+    final container = ProviderContainer.test(
+      overrides: adminTestOverrides(gated, session: session),
+      retry: (_, _) => null,
+    );
+    container.listen(activityControllerProvider, (_, _) {});
+    await pumpEventQueue();
+    final controller = container.read(activityControllerProvider.notifier);
+
+    // La seconda pagina di "Tutto" resta in viaggio...
+    final gate = gated.gate = Completer<void>();
+    final pending = controller.loadMore();
+    await pumpEventQueue();
+    // ...e intanto si passa a "Utenti".
+    await controller.setFilter(ActivityFilter.users);
+    gate.complete();
+    await pending;
+
+    expect(state(container).filter, ActivityFilter.users);
+    expect(state(container).total, 60);
+    expect(state(container).items, hasLength(50));
+    expect(state(container).items.every((e) => e.userId != null), isTrue);
   });
 
   test('Aggiorna: di nuovo dalla prima pagina', () async {
