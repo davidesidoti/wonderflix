@@ -1,6 +1,8 @@
+import 'activity_models.dart';
 import 'admin_models.dart';
 import 'api_exception.dart';
 import 'jellyfin_http.dart';
+import 'maintenance_models.dart';
 
 /// Chiamate della pagina Amministrazione a Jellyfin (spec J §8.1). Gli
 /// errori sono [ApiException]. Le letture (sessioni, party, informazioni sul
@@ -48,4 +50,57 @@ class AdminApi {
   Future<void> restart() async {
     await _http.post('/System/Restart', quietStatuses: restartGatewayStatuses);
   }
+
+  /// Voci del registro per pagina (spec J §9.5).
+  static const activityPageSize = 50;
+
+  /// "Scansiona libreria" della Dashboard web 10.11.9 (`refreshdialog.js`,
+  /// modo "scan"): metadati e immagini solo dove mancano, sotto-cartelle
+  /// comprese.
+  static const _scanLibraryQuery = <String, Object>{
+    'Recursive': true,
+    'ImageRefreshMode': 'Default',
+    'MetadataRefreshMode': 'Default',
+    'ReplaceAllImages': false,
+    'RegenerateTrickplay': false,
+    'ReplaceAllMetadata': false,
+  };
+
+  Future<List<LibraryFolder>> libraries() async => parseLibraries(await _http
+      .get('/Library/VirtualFolders', quietStatuses: restartGatewayStatuses));
+
+  /// Scansiona tutte le librerie (l'attività "Scansione della libreria").
+  Future<void> scanAll() async {
+    await _http.post('/Library/Refresh');
+  }
+
+  Future<void> scanLibrary(String itemId) async {
+    await _http.post('/Items/$itemId/Refresh', query: _scanLibraryQuery);
+  }
+
+  /// Le attività pianificate visibili nella Dashboard.
+  Future<List<ScheduledTask>> tasks() async => parseTasks(await _http.get(
+      '/ScheduledTasks',
+      query: {'isHidden': false},
+      quietStatuses: restartGatewayStatuses));
+
+  Future<void> startTask(String id) async {
+    await _http.post('/ScheduledTasks/Running/$id');
+  }
+
+  Future<void> stopTask(String id) async {
+    await _http.delete('/ScheduledTasks/Running/$id');
+  }
+
+  /// Una pagina del registro dalla voce [startIndex], dalla più recente.
+  /// [hasUserId]: `true` solo le voci degli utenti, `false` solo quelle di
+  /// sistema, `null` tutte.
+  Future<ActivityPage> activity({required int startIndex, bool? hasUserId}) async =>
+      parseActivityPage(await _http.get('/System/ActivityLog/Entries',
+          query: {
+            'startIndex': startIndex,
+            'limit': activityPageSize,
+            'hasUserId': ?hasUserId,
+          },
+          quietStatuses: restartGatewayStatuses));
 }

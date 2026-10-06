@@ -23,6 +23,13 @@ void main() {
           '/System/Info/Public' => const FakeResponse(
               200, {'Version': '10.11.9', 'StartupWizardCompleted': true}),
           '/System/Restart' => const FakeResponse(204),
+          '/Library/VirtualFolders' => FakeResponse(200, librariesJson),
+          '/ScheduledTasks' => FakeResponse(200, tasksJson),
+          '/System/ActivityLog/Entries' => FakeResponse(200, activityJson),
+          '/Library/Refresh' => const FakeResponse(204),
+          final path when path.startsWith('/Items/') ||
+              path.startsWith('/ScheduledTasks/Running/') =>
+            const FakeResponse(204),
           _ => const FakeResponse(404),
         });
     api = AdminApi(JellyfinHttp(
@@ -181,6 +188,72 @@ void main() {
       await expectLater(api.restart(), throwsA(isA<ServerErrorException>()));
 
       expect(httpLog(), [(Level.WARNING, 'POST /System/Restart: 500')]);
+    });
+  });
+
+  group('manutenzione', () {
+    test('librerie', () async {
+      final libraries = await api.libraries();
+      expect(libraries, hasLength(4));
+      expect(adapter.requests.single.path, '/Library/VirtualFolders');
+    });
+
+    test('scansiona tutte', () async {
+      await api.scanAll();
+      final request = adapter.requests.single;
+      expect(request.method, 'POST');
+      expect(request.path, '/Library/Refresh');
+    });
+
+    test('scansiona una libreria come la Dashboard web', () async {
+      await api.scanLibrary('a656b907eb3a73532e40e44b968d0225');
+      final request = adapter.requests.single;
+      expect(request.method, 'POST');
+      expect(request.path, '/Items/a656b907eb3a73532e40e44b968d0225/Refresh');
+      expect(request.queryParameters, {
+        'Recursive': true,
+        'ImageRefreshMode': 'Default',
+        'MetadataRefreshMode': 'Default',
+        'ReplaceAllImages': false,
+        'RegenerateTrickplay': false,
+        'ReplaceAllMetadata': false,
+      });
+    });
+
+    test('attività visibili', () async {
+      final tasks = await api.tasks();
+      expect(tasks, hasLength(8));
+      expect(adapter.requests.single.path, '/ScheduledTasks');
+      expect(adapter.requests.single.queryParameters, {'isHidden': false});
+    });
+
+    test('avvia e ferma', () async {
+      await api.startTask('t-scan');
+      await api.stopTask('t-scan');
+      expect(adapter.requests.map((r) => '${r.method} ${r.path}'), [
+        'POST /ScheduledTasks/Running/t-scan',
+        'DELETE /ScheduledTasks/Running/t-scan',
+      ]);
+    });
+  });
+
+  group('registro', () {
+    test('pagina da 50, tutto', () async {
+      final page = await api.activity(startIndex: 0);
+      expect(page.items, hasLength(5));
+      expect(page.total, 12134);
+      final request = adapter.requests.single;
+      expect(request.path, '/System/ActivityLog/Entries');
+      expect(request.queryParameters, {'startIndex': 0, 'limit': 50});
+    });
+
+    test('filtro utenti o sistema', () async {
+      await api.activity(startIndex: 50, hasUserId: true);
+      await api.activity(startIndex: 0, hasUserId: false);
+      expect(adapter.requests[0].queryParameters,
+          {'startIndex': 50, 'limit': 50, 'hasUserId': true});
+      expect(adapter.requests[1].queryParameters,
+          {'startIndex': 0, 'limit': 50, 'hasUserId': false});
     });
   });
 }
