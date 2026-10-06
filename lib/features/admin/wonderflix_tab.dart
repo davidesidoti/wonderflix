@@ -85,8 +85,12 @@ class _AnnouncementCardState extends ConsumerState<AnnouncementCard> {
       if (mounted) _text.clear();
     } on ServerErrorException catch (error) {
       if (error.statusCode != 400) rethrow;
-      messenger
-          .showSnackBar(SnackBar(content: Text(l.adminAnnouncementInvalid)));
+      // Come `AdminActionButton`: se la scheda non c'è più, l'avviso non ha
+      // più senso (comparirebbe su un'altra pagina).
+      if (mounted) {
+        messenger
+            .showSnackBar(SnackBar(content: Text(l.adminAnnouncementInvalid)));
+      }
     }
   }
 
@@ -149,7 +153,11 @@ class _NewTitlesCardState extends ConsumerState<NewTitlesCard> {
       // indietro per un attimo.
       await controller.setNotifyNewTitles(value);
     } on Object catch (error) {
-      messenger.showSnackBar(SnackBar(content: Text(describeError(l, error))));
+      // Come `AdminActionButton`: con la scheda cambiata nel frattempo,
+      // niente avviso.
+      if (mounted) {
+        messenger.showSnackBar(SnackBar(content: Text(describeError(l, error))));
+      }
     } finally {
       if (mounted) setState(() => _writing = null);
     }

@@ -15,6 +15,22 @@ import '../../support/pump_app.dart';
 class _GatedPluginAdminApi extends FakePluginAdminApi {
   Completer<void>? testGate;
   Completer<void>? sendGate;
+  Completer<void>? writeGate;
+  Completer<void>? announceGate;
+
+  @override
+  Future<int> announce(String text) async {
+    final gate = announceGate;
+    if (gate != null) await gate.future;
+    return super.announce(text);
+  }
+
+  @override
+  Future<void> setNotifyNewTitles(bool enabled) async {
+    final gate = writeGate;
+    if (gate != null) await gate.future;
+    return super.setNotifyNewTitles(enabled);
+  }
 
   @override
   Future<NewTitlesSent> sendNewTitles() async {
@@ -48,6 +64,72 @@ void main() {
       .widget<OutlinedButton>(find.ancestor(
           of: find.text(label), matching: find.bySubtype<OutlinedButton>()))
       .onPressed != null;
+
+  group('dopo aver lasciato la scheda', () {
+    /// La scheda dentro un `Scaffold` che resta: [visible] la toglie, come un
+    /// cambio di scheda della pagina.
+    Future<void> pumpLeavable(
+        WidgetTester tester, ValueNotifier<bool> visible) async {
+      await pumpApp(
+        tester,
+        Scaffold(
+          body: ValueListenableBuilder<bool>(
+            valueListenable: visible,
+            builder: (context, show, _) =>
+                show ? const WonderflixTab() : const SizedBox.shrink(),
+          ),
+        ),
+        overrides: adminTestOverrides(FakeAdminApi(), plugin: plugin),
+        surfaceSize: const Size(1440, 1400),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('interruttore: l\'errore non compare più', (tester) async {
+      final gated = _GatedPluginAdminApi()
+        ..actionError = const ServerUnreachableException();
+      plugin = gated;
+      final visible = ValueNotifier(true);
+      addTearDown(visible.dispose);
+      await pumpLeavable(tester, visible);
+      final gate = gated.writeGate = Completer<void>();
+
+      await tester.tap(find.byKey(const Key('notify-new-titles')));
+      await tester.pump();
+      visible.value = false;
+      await tester.pumpAndSettle();
+      gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(gated.calls, contains('notify:false'));
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('annuncio rifiutato (400): l\'avviso non compare più',
+        (tester) async {
+      final gated = _GatedPluginAdminApi()
+        ..actionError = const ServerErrorException(400);
+      plugin = gated;
+      final visible = ValueNotifier(true);
+      addTearDown(visible.dispose);
+      await pumpLeavable(tester, visible);
+      final gate = gated.announceGate = Completer<void>();
+
+      await tester.enterText(find.byKey(const Key('announcement-text')), 'Ciao');
+      await tester.pump();
+      await tester.tap(find.text('Invia a tutti'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Invia'));
+      await tester.pumpAndSettle();
+      visible.value = false;
+      await tester.pumpAndSettle();
+      gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(gated.calls, contains('announce:Ciao'));
+      expect(find.byType(SnackBar), findsNothing);
+    });
+  });
 
   group('annuncio', () {
     testWidgets('si scrive, si conferma, arriva', (tester) async {
