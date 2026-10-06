@@ -1,63 +1,7 @@
 import 'api_exception.dart';
+import 'json_fields.dart';
 
-/// Tick di Jellyfin in un microsecondo (10 milioni al secondo).
-const _ticksPerMicrosecond = 10;
-
-String? _string(Map<String, dynamic> json, String key) {
-  final value = json[key];
-  return value is String && value.isNotEmpty ? value : null;
-}
-
-int? _int(Map<String, dynamic> json, String key) => switch (json[key]) {
-      final int value => value,
-      final double value => value.round(),
-      _ => null,
-    };
-
-DateTime? _date(Map<String, dynamic> json, String key) {
-  final value = json[key];
-  return value is String ? DateTime.tryParse(value) : null;
-}
-
-Duration? _ticks(Map<String, dynamic> json, String key) {
-  final ticks = _int(json, key);
-  return ticks == null
-      ? null
-      : Duration(microseconds: ticks ~/ _ticksPerMicrosecond);
-}
-
-Map<String, dynamic>? _map(Object? value) =>
-    value is Map<String, dynamic> ? value : null;
-
-/// Stringhe di un elenco JSON; una stringa sola con le virgole (forma di
-/// alcune versioni di Jellyfin) vale come elenco.
-List<String> _strings(Object? value) => switch (value) {
-      final List<dynamic> list => [
-          for (final item in list)
-            if (item is String && item.isNotEmpty) item,
-        ],
-      final String text => [
-          for (final item in text.split(','))
-            if (item.trim().isNotEmpty) item.trim(),
-        ],
-      _ => const [],
-    };
-
-/// Un id di Jellyfin di soli zeri, con o senza trattini: nessuno (per
-/// esempio l'utente delle voci di sistema o delle chiavi API).
-bool isEmptyJellyfinId(String id) => id.replaceAll(RegExp('[-0]'), '').isEmpty;
-
-/// Un elenco JSON di oggetti. Le voci che [parse] scarta (`null`) e quelle
-/// che non sono oggetti si saltano; un corpo che non è un elenco è una
-/// risposta inattesa.
-List<T> _list<T>(Object? data, T? Function(Map<String, dynamic> json) parse) {
-  if (data is! List) throw const ServerErrorException(null);
-  return [
-    for (final raw in data)
-      if (_map(raw) case final json?)
-        ?parse(json),
-  ];
-}
+export 'json_fields.dart' show isEmptyJellyfinId;
 
 /// Metodo di riproduzione dichiarato dal client (`PlayState.PlayMethod`).
 enum PlayMethod { directPlay, directStream, transcode, unknown }
@@ -87,8 +31,8 @@ class NowPlaying {
 
   /// `null` senza `Id` o senza nome: non c'è niente da mostrare.
   static NowPlaying? fromJson(Map<String, dynamic> json) {
-    final id = _string(json, 'Id');
-    final name = _string(json, 'Name');
+    final id = jsonString(json, 'Id');
+    final name = jsonString(json, 'Name');
     if (id == null || name == null) return null;
     return NowPlaying(
       itemId: id,
@@ -98,12 +42,12 @@ class NowPlaying {
         'Episode' => NowPlayingKind.episode,
         _ => NowPlayingKind.other,
       },
-      year: _int(json, 'ProductionYear'),
-      seriesName: _string(json, 'SeriesName'),
-      seriesId: _string(json, 'SeriesId'),
-      seasonNumber: _int(json, 'ParentIndexNumber'),
-      episodeNumber: _int(json, 'IndexNumber'),
-      runtime: _ticks(json, 'RunTimeTicks'),
+      year: jsonInt(json, 'ProductionYear'),
+      seriesName: jsonString(json, 'SeriesName'),
+      seriesId: jsonString(json, 'SeriesId'),
+      seasonNumber: jsonInt(json, 'ParentIndexNumber'),
+      episodeNumber: jsonInt(json, 'IndexNumber'),
+      runtime: jsonTicks(json, 'RunTimeTicks'),
     );
   }
 
@@ -137,15 +81,15 @@ class TranscodeInfo {
   });
 
   factory TranscodeInfo.fromJson(Map<String, dynamic> json) => TranscodeInfo(
-        videoCodec: _string(json, 'VideoCodec'),
-        audioCodec: _string(json, 'AudioCodec'),
+        videoCodec: jsonString(json, 'VideoCodec'),
+        audioCodec: jsonString(json, 'AudioCodec'),
         isVideoDirect: json['IsVideoDirect'] == true,
         isAudioDirect: json['IsAudioDirect'] == true,
-        bitrate: _int(json, 'Bitrate'),
-        width: _int(json, 'Width'),
-        height: _int(json, 'Height'),
-        hardwareAcceleration: _string(json, 'HardwareAccelerationType'),
-        reasons: _strings(json['TranscodeReasons']),
+        bitrate: jsonInt(json, 'Bitrate'),
+        width: jsonInt(json, 'Width'),
+        height: jsonInt(json, 'Height'),
+        hardwareAcceleration: jsonString(json, 'HardwareAccelerationType'),
+        reasons: jsonStrings(json['TranscodeReasons']),
       );
 
   final String? videoCodec;
@@ -184,21 +128,21 @@ class SessionEntry {
   /// `null` senza `Id` o senza un utente vero: le sessioni delle chiavi API
   /// (Seerr, jfa-go…) non si mostrano (spec J §8.1).
   static SessionEntry? fromJson(Map<String, dynamic> json) {
-    final id = _string(json, 'Id');
-    final userId = _string(json, 'UserId');
+    final id = jsonString(json, 'Id');
+    final userId = jsonString(json, 'UserId');
     if (id == null || userId == null || isEmptyJellyfinId(userId)) return null;
-    final playState = _map(json['PlayState']) ?? const <String, dynamic>{};
-    final nowPlaying = _map(json['NowPlayingItem']);
-    final transcode = _map(json['TranscodingInfo']);
+    final playState = jsonMap(json['PlayState']) ?? const <String, dynamic>{};
+    final nowPlaying = jsonMap(json['NowPlayingItem']);
+    final transcode = jsonMap(json['TranscodingInfo']);
     return SessionEntry(
       id: id,
       userId: userId,
-      userName: _string(json, 'UserName') ?? '',
-      client: _string(json, 'Client'),
-      deviceName: _string(json, 'DeviceName'),
-      lastActivity: _date(json, 'LastActivityDate'),
+      userName: jsonString(json, 'UserName') ?? '',
+      client: jsonString(json, 'Client'),
+      deviceName: jsonString(json, 'DeviceName'),
+      lastActivity: jsonDate(json, 'LastActivityDate'),
       nowPlaying: nowPlaying == null ? null : NowPlaying.fromJson(nowPlaying),
-      position: _ticks(playState, 'PositionTicks') ?? Duration.zero,
+      position: jsonTicks(playState, 'PositionTicks') ?? Duration.zero,
       isPaused: playState['IsPaused'] == true,
       playMethod: _playMethod(playState['PlayMethod']),
       transcode: transcode == null ? null : TranscodeInfo.fromJson(transcode),
@@ -221,7 +165,7 @@ class SessionEntry {
 }
 
 List<SessionEntry> parseSessions(Object? data) =>
-    _list(data, SessionEntry.fromJson);
+    jsonList(data, SessionEntry.fromJson);
 
 /// Stato di un watch party (`GroupStateType`).
 enum PartyState { idle, waiting, paused, playing, unknown }
@@ -236,11 +180,11 @@ class PartyGroup {
   });
 
   static PartyGroup? fromJson(Map<String, dynamic> json) {
-    final id = _string(json, 'GroupId');
+    final id = jsonString(json, 'GroupId');
     if (id == null) return null;
     return PartyGroup(
       id: id,
-      name: _string(json, 'GroupName') ?? '',
+      name: jsonString(json, 'GroupName') ?? '',
       state: switch (json['State']) {
         'Idle' => PartyState.idle,
         'Waiting' => PartyState.waiting,
@@ -248,7 +192,7 @@ class PartyGroup {
         'Playing' => PartyState.playing,
         _ => PartyState.unknown,
       },
-      participants: _strings(json['Participants']),
+      participants: jsonStrings(json['Participants']),
     );
   }
 
@@ -261,7 +205,7 @@ class PartyGroup {
 }
 
 List<PartyGroup> parsePartyGroups(Object? data) =>
-    _list(data, PartyGroup.fromJson);
+    jsonList(data, PartyGroup.fromJson);
 
 /// Il server, per la striscia in cima alla pagina (`/System/Info`).
 class ServerInfo {
@@ -274,12 +218,12 @@ class ServerInfo {
 
   /// Senza `Version` la risposta non è quella attesa.
   factory ServerInfo.fromJson(Map<String, dynamic> json) {
-    final version = _string(json, 'Version');
+    final version = jsonString(json, 'Version');
     if (version == null) throw const ServerErrorException(null);
     return ServerInfo(
-      name: _string(json, 'ServerName') ?? '',
+      name: jsonString(json, 'ServerName') ?? '',
       version: version,
-      operatingSystem: _string(json, 'OperatingSystemDisplayName'),
+      operatingSystem: jsonString(json, 'OperatingSystemDisplayName'),
       hasPendingRestart: json['HasPendingRestart'] == true,
     );
   }
