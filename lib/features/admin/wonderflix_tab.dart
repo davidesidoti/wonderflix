@@ -93,6 +93,11 @@ class _AnnouncementCardState extends ConsumerState<AnnouncementCard> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    // Il controller è `autoDispose` e l'annuncio lo usa solo con `read`:
+    // senza un ascoltatore potrebbe sparire prima della rilettura (e della
+    // rilettura dell'utente dopo un 403) che seguono l'azione. Finora lo
+    // teneva vivo la card Novità; così la card regge anche da sola.
+    ref.listen(inboxAdminControllerProvider, (_, _) {});
     return AdminCard(
       title: l.adminAnnouncement,
       icon: LucideIcons.megaphone,
@@ -238,6 +243,7 @@ class _SeerrCardState extends ConsumerState<SeerrCard> {
     final data = ref.watch(seerrAdminControllerProvider);
     final value = data.value;
     final error = data.error;
+    final updatedAt = data.updatedAt;
     const muted = TextStyle(color: WfColors.creamMuted);
     if (value != null && value.status == null) return const SizedBox.shrink();
     final status = value?.status;
@@ -278,6 +284,17 @@ class _SeerrCardState extends ConsumerState<SeerrCard> {
         ],
       );
     }
-    return AdminCard(title: l.adminSeerr, icon: LucideIcons.listChecks, child: child);
+    // Come la card Novità: se l'ultima lettura è fallita ma ci sono i dati di
+    // prima, si dice che non sono aggiornati.
+    return AdminCard(
+      title: l.adminSeerr,
+      icon: LucideIcons.listChecks,
+      child: data.stale && updatedAt != null
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [child, AdminStaleNote(updatedAt: updatedAt)],
+            )
+          : child,
+    );
   }
 }

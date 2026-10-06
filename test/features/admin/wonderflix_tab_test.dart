@@ -50,6 +50,35 @@ void main() {
       expect(find.text('Ciao a tutti'), findsNothing, reason: 'campo vuoto');
     });
 
+    testWidgets('solo spazi: Invia a tutti resta spento', (tester) async {
+      await pumpTab(tester);
+
+      await tester.enterText(find.byKey(const Key('announcement-text')), '    ');
+      await tester.pump();
+
+      expect(enabled(tester, 'Invia a tutti'), isFalse);
+    });
+
+    testWidgets('la card da sola tiene vivo il suo controller: dopo '
+        'l\'annuncio rilegge', (tester) async {
+      await pumpApp(
+          tester,
+          const Scaffold(body: SingleChildScrollView(child: AnnouncementCard())),
+          overrides: adminTestOverrides(FakeAdminApi(), plugin: plugin));
+      await tester.pumpAndSettle();
+      expect(plugin.count('newTitles'), 1, reason: 'letto all\'apertura');
+
+      await tester.enterText(find.byKey(const Key('announcement-text')), 'Ciao');
+      await tester.pump();
+      await tester.tap(find.text('Invia a tutti'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Invia'));
+      await tester.pumpAndSettle();
+
+      expect(plugin.calls, contains('announce:Ciao'));
+      expect(plugin.count('newTitles'), 2, reason: 'riletto dopo l\'annuncio');
+    });
+
     testWidgets('Annulla: niente annuncio', (tester) async {
       await pumpTab(tester);
       await tester.enterText(find.byKey(const Key('announcement-text')), 'Ciao');
@@ -140,6 +169,20 @@ void main() {
       await tester.tap(find.text('Prova collegamento'));
       await tester.pumpAndSettle();
       expect(find.text('Seerr ha rifiutato la chiave'), findsOneWidget);
+    });
+
+    testWidgets('lettura fallita con i dati di prima: "Dati non aggiornati"',
+        (tester) async {
+      await pumpTab(tester);
+      expect(find.textContaining('Dati non aggiornati'), findsNothing);
+
+      plugin.seerrError = const ServerUnreachableException();
+      await tester.pump(const Duration(seconds: 31));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Dati non aggiornati'), findsOneWidget);
+      expect(find.text('Prova collegamento'), findsOneWidget,
+          reason: 'i dati di prima restano');
     });
 
     testWidgets('nessun evento', (tester) async {
