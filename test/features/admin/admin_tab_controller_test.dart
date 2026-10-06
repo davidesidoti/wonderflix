@@ -304,5 +304,115 @@ void main() {
         expect(_reads, 2);
       });
     });
+
+    test('il risultato arriva solo dopo la rilettura', () {
+      fakeAsync((async) {
+        final container = makeContainer();
+        async.elapse(Duration.zero);
+        expect(_reads, 1);
+
+        // La rilettura dopo l'azione resta in sospeso finché il test non la
+        // completa.
+        _hold = Completer<int>();
+        final read = _hold!;
+        int? result;
+        unawaited(container
+            .read(_testProvider.notifier)
+            .runAction(() async => 42)
+            .then((value) => result = value));
+        async.elapse(Duration.zero);
+
+        expect(_reads, 2, reason: 'la rilettura è partita');
+        expect(result, isNull, reason: 'ma l\'azione non è ancora finita');
+
+        read.complete(7);
+        async.elapse(Duration.zero);
+
+        expect(result, 42);
+        expect(container.read(_testProvider).value, 7,
+            reason: 'chi riceve il risultato trova già i dati nuovi');
+      });
+    });
+
+    test('errore qualunque: arriva a chi chiama, senza rileggere l\'utente, '
+        'e la scheda si rilegge senza aspettarla', () {
+      fakeAsync((async) {
+        final container = makeContainer();
+        async.elapse(Duration.zero);
+
+        _hold = Completer<int>();
+        final read = _hold!;
+        Object? caught;
+        unawaited(container
+            .read(_testProvider.notifier)
+            .runAction<void>(() async => throw StateError('no'))
+            .catchError((Object error) {
+          caught = error;
+        }));
+        async.elapse(Duration.zero);
+
+        expect(caught, isA<StateError>(),
+            reason: 'l\'errore non aspetta la rilettura');
+        expect(session.refreshUserCalls, 0);
+        expect(_reads, 2);
+
+        read.complete(7);
+        async.elapse(Duration.zero);
+        expect(container.read(_testProvider).value, 7);
+      });
+    });
+
+    test('pagina chiusa durante l\'azione: né rilettura né utente, e '
+        'l\'esito è quello dell\'azione', () {
+      fakeAsync((async) {
+        final container = makeContainer();
+        async.elapse(Duration.zero);
+        expect(_reads, 1);
+
+        final done = Completer<int>();
+        int? result;
+        unawaited(container
+            .read(_testProvider.notifier)
+            .runAction(() => done.future)
+            .then((value) => result = value));
+        async.elapse(Duration.zero);
+
+        subscription.close();
+        async.elapse(Duration.zero);
+        done.complete(42);
+        async.elapse(const Duration(seconds: 30));
+
+        expect(result, 42);
+        expect(_reads, 1);
+        expect(session.refreshUserCalls, 0);
+      });
+    });
+
+    test('pagina chiusa durante un\'azione che dà 403: l\'errore arriva, '
+        'l\'utente non si rilegge', () {
+      fakeAsync((async) {
+        final container = makeContainer();
+        async.elapse(Duration.zero);
+
+        final done = Completer<void>();
+        Object? caught;
+        unawaited(container
+            .read(_testProvider.notifier)
+            .runAction<void>(() => done.future)
+            .catchError((Object error) {
+          caught = error;
+        }));
+        async.elapse(Duration.zero);
+
+        subscription.close();
+        async.elapse(Duration.zero);
+        done.completeError(const ForbiddenException());
+        async.elapse(const Duration(seconds: 30));
+
+        expect(caught, isA<ForbiddenException>());
+        expect(_reads, 1);
+        expect(session.refreshUserCalls, 0);
+      });
+    });
   });
 }

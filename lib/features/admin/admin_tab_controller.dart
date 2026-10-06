@@ -79,23 +79,30 @@ abstract class AdminTabController<T> extends Notifier<AdminData<T>> {
   /// Cambia il ritmo della rilettura (Manutenzione, spec J §9.4).
   void setInterval(Duration value) => _poller.interval = value;
 
-  /// Un'azione della scheda (Avvia, Scansiona, Invia…). Un 403 fa rileggere
-  /// l'utente (spec J §12); dopo l'azione, riuscita o no, la scheda si
-  /// rilegge. L'errore arriva a chi chiama, che lo mostra.
+  /// Un'azione della scheda (Avvia, Scansiona, Invia…). Se riesce, la scheda
+  /// si rilegge e solo dopo arriva il risultato: i pulsanti che aspettano
+  /// l'azione non si riattivano su dati vecchi. Se non riesce, l'errore
+  /// arriva subito a chi chiama, che lo mostra, e la scheda si rilegge senza
+  /// farlo aspettare; un 403 fa anche rileggere l'utente (spec J §12). Con la
+  /// pagina chiusa nel frattempo non si rilegge niente.
   @protected
   Future<R> act<R>(Future<R> Function() action) async {
     // Come in `_read`: il `Ref` di questa costruzione del provider.
     final ref = this.ref;
+    final R result;
     try {
-      return await action();
-    } on ForbiddenException {
+      result = await action();
+    } on Object catch (error) {
       if (ref.mounted) {
-        unawaited(ref.read(sessionControllerProvider.notifier).refreshUser());
+        if (error is ForbiddenException) {
+          unawaited(ref.read(sessionControllerProvider.notifier).refreshUser());
+        }
+        unawaited(refresh());
       }
       rethrow;
-    } finally {
-      if (ref.mounted) unawaited(refresh());
     }
+    if (ref.mounted) await refresh();
+    return result;
   }
 
   Future<void> _read() async {
