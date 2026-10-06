@@ -27,16 +27,17 @@ String adminTimeLabel(DateTime at, DateTime now, AppLocalizations l) {
 String adminClockLabel(DateTime at, AppLocalizations l) =>
     DateFormat.Hm(l.localeName).format(at.toLocal());
 
-/// "45 s", "3 min", "1 h 5 min": quanto è durata un'attività.
+/// "45 s", "3 min", "1 h 5 min": quanto è durata un'attività. Una durata
+/// negativa (l'orologio del server era indietro) vale zero.
 String adminDurationLabel(AppLocalizations l, Duration duration) {
-  if (duration < const Duration(minutes: 1)) {
-    return l.adminDurationSeconds(duration.inSeconds);
+  final value = duration.isNegative ? Duration.zero : duration;
+  if (value < const Duration(minutes: 1)) {
+    return l.adminDurationSeconds(value.inSeconds);
   }
-  if (duration < const Duration(hours: 1)) {
-    return l.adminDurationMinutes(duration.inMinutes);
+  if (value < const Duration(hours: 1)) {
+    return l.adminDurationMinutes(value.inMinutes);
   }
-  return l.adminDurationHours(
-      duration.inHours, duration.inMinutes.remainder(60));
+  return l.adminDurationHours(value.inHours, value.inMinutes.remainder(60));
 }
 
 /// "6 ott 2026, 08:10:03": data e ora complete, al passaggio del mouse nel

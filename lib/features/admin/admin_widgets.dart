@@ -125,9 +125,13 @@ class AdminCard extends StatelessWidget {
               children: [
                 Icon(icon, size: 20, color: WfColors.gold),
                 const SizedBox(width: 10),
-                Text(title,
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.w600)),
+                // Un titolo lungo si accorcia: non fa sbordare la riga.
+                Flexible(
+                  child: Text(title,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.w600)),
+                ),
               ],
             ),
             const SizedBox(height: 12),

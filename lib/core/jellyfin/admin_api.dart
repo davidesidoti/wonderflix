@@ -54,9 +54,11 @@ class AdminApi {
   /// Voci del registro per pagina (spec J §9.5).
   static const activityPageSize = 50;
 
-  /// "Scansiona libreria" della Dashboard web 10.11.9 (`refreshdialog.js`,
-  /// modo "scan"): metadati e immagini solo dove mancano, sotto-cartelle
-  /// comprese.
+  /// I parametri di "Scansiona libreria" della Dashboard web 10.11.9
+  /// (`refreshdialog.js`, modo "scan"), copiati uguali per avere lo stesso
+  /// comportamento: metadati e immagini solo dove mancano. `Recursive` non è
+  /// nell'OpenAPI di 10.11.9 e il server lo ignora: l'aggiornamento di una
+  /// libreria è comunque ricorsivo.
   static const _scanLibraryQuery = <String, Object>{
     'Recursive': true,
     'ImageRefreshMode': 'Default',

@@ -218,6 +218,9 @@ void main() {
         'RegenerateTrickplay': false,
         'ReplaceAllMetadata': false,
       });
+      // Com'è davvero sul filo: booleani minuscoli, come li legge Jellyfin.
+      expect(request.uri.query, contains('Recursive=true'));
+      expect(request.uri.query, contains('ReplaceAllImages=false'));
     });
 
     test('attività visibili', () async {

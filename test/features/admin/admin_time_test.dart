@@ -33,6 +33,9 @@ void main() {
         '3 min');
     expect(adminDurationLabel(it, const Duration(hours: 1, minutes: 5)),
         '1 h 5 min');
+    expect(adminDurationLabel(it, Duration.zero), '0 s');
+    expect(adminDurationLabel(it, const Duration(seconds: -5)), '0 s',
+        reason: 'un orologio indietro: mai una durata negativa');
     expect(adminFullDateTime(DateTime(2026, 10, 6, 8, 10, 3), it),
         '6 ott 2026, 08:10:03');
   });
