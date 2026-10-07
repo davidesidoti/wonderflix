@@ -111,7 +111,7 @@ class DetailHeader extends ConsumerWidget {
             left: 32,
             right: 32,
             bottom: detailHeaderTextBottom,
-            child: _ScrollFade(
+            child: HeaderScrollFade(
               controller: controller,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -246,9 +246,11 @@ class DetailHeader extends ConsumerWidget {
   }
 }
 
-/// Opacità e salita del testo della testata con lo scroll.
-class _ScrollFade extends StatelessWidget {
-  const _ScrollFade({required this.controller, required this.child});
+/// Opacità e salita del testo di una testata con lo scroll (scheda e pagina
+/// della saga).
+class HeaderScrollFade extends StatelessWidget {
+  const HeaderScrollFade(
+      {super.key, required this.controller, required this.child});
 
   final ScrollController? controller;
   final Widget child;

@@ -8,6 +8,7 @@ import '../features/admin/admin_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/session_controller.dart';
 import '../features/catalog/catalog_screen.dart';
+import '../features/collections/collection_screen.dart';
 import '../features/detail/item_detail_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/mylist/my_list_screen.dart';
@@ -208,6 +209,18 @@ final routerProvider = Provider<GoRouter>((ref) {
                 launch: _heroLaunch(state),
               ),
               underBar: true,
+            ),
+          ),
+          GoRoute(
+            path: '/collection/:id',
+            pageBuilder: (context, state) => detailPage(
+              context,
+              state,
+              CollectionScreen(
+                key: ValueKey(state.pathParameters['id']),
+                collectionId: state.pathParameters['id']!,
+              ),
+              underBar: false,
             ),
           ),
           GoRoute(
