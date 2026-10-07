@@ -93,7 +93,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
           right: 0,
           height: detailHeaderHeight,
           // Lo sfondo entra con la testata, non prima.
-          child: collection != null && state == 'data'
+          child: collection != null && state != 'loading'
               ? DetailBackdrop(
                   item: collection, launch: null, controller: _scroll)
               : const SizedBox.shrink(),

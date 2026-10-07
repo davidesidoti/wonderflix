@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/collections/collection_screen.dart';
+import 'package:wonderflix/features/detail/detail_backdrop.dart';
+import 'package:wonderflix/features/detail/detail_providers.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/ui/skeletons.dart';
 
@@ -92,6 +95,20 @@ void main() {
     api.itemsById.clear();
     await pumpCollection(tester);
     expect(find.text('Riprova'), findsOneWidget);
+  });
+
+  testWidgets('un errore sulla saga già letta lascia lo sfondo', (tester) async {
+    await pumpCollection(tester);
+    expect(find.byType(DetailBackdrop), findsOneWidget);
+
+    api.itemsById.clear();
+    ProviderScope.containerOf(tester.element(find.byType(CollectionScreen)))
+        .invalidate(itemProvider('c1'));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Riprova'), findsOneWidget);
+    expect(find.byType(DetailBackdrop), findsOneWidget);
   });
 
   testWidgets('la testata arriva con i titoli, già con conteggio e pulsante',
