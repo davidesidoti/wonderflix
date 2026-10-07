@@ -4,7 +4,8 @@ Le idee per i prossimi spec, in nessun ordine. All'inizio di uno spec l'utente s
 
 **Escluso per scelta dell'utente**, da non riproporre:
 - entrare in un watch party da Discord o con un collegamento `wonderflix://`;
-- nella coda del party, la ripetizione e lo svuotamento (Spec H §5).
+- nella coda del party, la ripetizione e lo svuotamento (Spec H §5);
+- HDR vero (oggi media_kit converte in SDR) e firma del codice (deciso all'inizio dello Spec K).
 
 ## 1. Versione web
 
@@ -29,11 +30,9 @@ Rifare l'app perché si possa usare anche su Smart TV (Fire TV Stick e simili, c
 
 ## 3. Funzioni escluse dallo Spec A
 
-- Profili "Chi guarda?" (più utenti sullo stesso PC).
-- Collezioni e saghe (`BoxSet`).
+- Profili "Chi guarda?" (più utenti sullo stesso PC): in corso, Spec K.
+- Collezioni e saghe (`BoxSet`): in corso, Spec K.
 - Download per la visione offline.
-- HDR vero (oggi media_kit converte in SDR).
-- Firma del codice (pipeline già predisposta, `docs/RELEASING.md`).
 
 ## 4. Rifinitura per la v1.0.0
 
