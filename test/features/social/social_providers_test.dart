@@ -81,6 +81,17 @@ void main() {
         const SocialFeatures(inbox: true, requests: true));
   });
 
+  test('Info con le saghe: funzione collections, anche senza watch party',
+      () async {
+    api.install(features: const {PluginFeatures.collections});
+    final c = container(
+        session: const SessionSignedIn(JellyfinUser(
+            id: 'u1', name: 'Mario', syncPlayAccess: SyncPlayAccess.none)));
+    await pumpEventQueue();
+    expect(c.read(socialAvailabilityProvider),
+        const SocialFeatures(collections: true));
+  });
+
   test('Info con gli amici: funzione attiva', () async {
     api.install();
     final c = container();

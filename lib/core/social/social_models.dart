@@ -17,6 +17,9 @@ abstract final class PluginFeatures {
 
   /// Le richieste con Seerr (spec I §7.1): solo con Seerr configurato nel plugin.
   static const requests = 'requests';
+
+  /// Le saghe, cioè le collezioni di Jellyfin (spec K §7.1).
+  static const collections = 'collections';
 }
 
 /// Risposta di `GET /WonderFlixWatchParty/Info`, con le funzioni.

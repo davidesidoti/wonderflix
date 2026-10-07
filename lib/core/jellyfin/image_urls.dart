@@ -47,6 +47,12 @@ class ImageUrls {
   ImageRef primaryOf(String itemId, {int maxWidth = 120}) => ImageRef(
       '$_base/Items/$itemId/Images/Primary?maxWidth=$maxWidth&quality=90');
 
+  /// Locandina di un elemento di cui si conoscono id e tag (una saga, spec K
+  /// §8.4): con il tag l'immagine si rinnova quando cambia.
+  ImageRef primaryWithTag(String itemId, String tag, {int maxWidth = 400}) =>
+      ImageRef(
+          '$_base/Items/$itemId/Images/Primary?tag=$tag&maxWidth=$maxWidth&quality=90');
+
   ImageRef? backdrop(JellyfinItem item, {int maxWidth = 1920}) {
     if (item.backdropTags.isNotEmpty) {
       return _ref(item, item.id, 'Backdrop', item.backdropTags.first, maxWidth,

@@ -167,6 +167,21 @@ void main() {
     expect(adapter.requests, isEmpty);
   });
 
+  test('collectionItems: i titoli della saga in ordine di uscita (spec K §8.1)',
+      () async {
+    adapter.handler = (_) => FakeResponse(200, itemsResult(['m1', 'm2']));
+    final items = await api.collectionItems('u1', 'c1');
+    expect(last().path, '/Items');
+    expect(last().query['userId'], 'u1');
+    expect(last().query['parentId'], 'c1');
+    expect(last().query['sortBy'], 'PremiereDate,ProductionYear,SortName');
+    expect(last().query['sortOrder'], 'Ascending');
+    // I titoli sono collegati alla collezione, non suoi discendenti.
+    expect(last().query.containsKey('recursive'), isFalse);
+    expect(last().query['enableImageTypes'], 'Primary,Backdrop,Thumb,Logo');
+    expect(items.map((item) => item.id), ['m1', 'm2']);
+  });
+
   test('episodesFrom: l\'episodio indicato e i successivi', () async {
     adapter.handler = (_) => FakeResponse(200, itemsResult(['e4', 'e5', 'e6']));
     final episodes = await api.episodesFrom('u1', 's1', 'e4', limit: 50);

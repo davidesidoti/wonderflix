@@ -20,6 +20,8 @@ void main() {
     expect(itemRoute(testItem(id: 'se1', kind: ItemKind.season, seriesId: 's1')),
         '/item/s1?season=se1');
     expect(itemRoute(testItem(id: 'p9', kind: ItemKind.person)), '/person/p9');
+    expect(ItemKind.parse('BoxSet'), ItemKind.boxSet);
+    expect(itemRoute(testItem(id: 'c1', kind: ItemKind.boxSet)), '/collection/c1');
   });
 
   test('playerRoute e playerStartFrom', () {

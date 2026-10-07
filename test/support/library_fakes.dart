@@ -58,6 +58,12 @@ class FakeLibraryApi implements LibraryApi {
 
   /// Id chiesti a [itemsByIds], una lista per chiamata.
   final itemsByIdsCalls = <List<String>>[];
+
+  /// Titoli di ogni saga, in ordine (per [collectionItems]).
+  final Map<String, List<JellyfinItem>> itemsByCollection = {};
+
+  /// Saghe chieste a [collectionItems].
+  final collectionItemsCalls = <String>[];
   final nextUpCutoffs = <DateTime?>[];
   final nextUpCalls = <String?>[];
   final favoriteCalls = <(String, bool)>[];
@@ -122,6 +128,13 @@ class FakeLibraryApi implements LibraryApi {
     return _answer(() => [
           for (final id in ids) ?itemsById[id],
         ]);
+  }
+
+  @override
+  Future<List<JellyfinItem>> collectionItems(
+      String userId, String collectionId) {
+    collectionItemsCalls.add(collectionId);
+    return _answer(() => itemsByCollection[collectionId] ?? const []);
   }
 
   @override

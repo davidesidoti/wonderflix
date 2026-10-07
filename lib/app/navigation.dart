@@ -23,6 +23,8 @@ String itemRoute(JellyfinItem item) {
         path: '/item/$seriesId',
         queryParameters: seasonId == null ? null : {'season': seasonId},
       ).toString();
+    case ItemKind.boxSet:
+      return '/collection/${item.id}';
     default:
       return '/item/${item.id}';
   }
@@ -49,6 +51,10 @@ void openItem(BuildContext context, JellyfinItem item, {String? heroSource}) {
 /// una riga delle novità nella cassetta, spec G §7.6).
 void openItemById(BuildContext context, String itemId) =>
     unawaited(context.push('/item/$itemId'));
+
+/// Apre la pagina della saga [collectionId] (spec K §8.2).
+void openCollection(BuildContext context, String collectionId) =>
+    unawaited(context.push('/collection/$collectionId'));
 
 /// Apre la pagina di [person]; con [heroSource] la foto vola dal cast.
 void openPerson(BuildContext context, PersonRef person, {String? heroSource}) {

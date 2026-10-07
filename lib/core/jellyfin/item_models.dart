@@ -7,6 +7,9 @@ enum ItemKind {
   season('Season'),
   episode('Episode'),
   person('Person'),
+
+  /// Una collezione (saga) di Jellyfin (spec K §8.1).
+  boxSet('BoxSet'),
   other('');
 
   const ItemKind(this.apiName);

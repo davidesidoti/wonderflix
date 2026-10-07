@@ -129,6 +129,19 @@ class LibraryApi {
     }));
   }
 
+  /// I titoli della saga [collectionId] che l'utente vede, in ordine di
+  /// uscita (spec K §8.1). Senza `recursive`: i titoli sono collegati alla
+  /// collezione, non suoi discendenti.
+  Future<List<JellyfinItem>> collectionItems(
+          String userId, String collectionId) async =>
+      _list(await _http.get('/Items', query: {
+        ...cardImageParams,
+        'userId': userId,
+        'parentId': collectionId,
+        'sortBy': 'PremiereDate,ProductionYear,SortName',
+        'sortOrder': 'Ascending',
+      }));
+
   /// [startItemId] e gli episodi che lo seguono nella serie, anche nelle
   /// stagioni dopo (al massimo [limit]); senza gli episodi mancanti. Solo i
   /// dati di base (servono gli id): niente immagini, dati utente e campi in

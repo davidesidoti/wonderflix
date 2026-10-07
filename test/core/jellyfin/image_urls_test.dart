@@ -76,4 +76,11 @@ void main() {
     expect(image.blurHash, isNull);
     expect(urls.primaryOf('m1', maxWidth: 300).url, contains('maxWidth=300'));
   });
+
+  test('locandina da id e tag (una saga, spec K §8.4)', () {
+    final image = urls.primaryWithTag('c1', 't1');
+    expect(image.url,
+        'https://media.example.com/jf/Items/c1/Images/Primary?tag=t1&maxWidth=400&quality=90');
+    expect(urls.primaryWithTag('c1', 't1', maxWidth: 300).url, contains('maxWidth=300'));
+  });
 }
