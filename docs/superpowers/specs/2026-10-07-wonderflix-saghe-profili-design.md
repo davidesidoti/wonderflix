@@ -273,7 +273,7 @@ I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a; quelli de
 - **Come si legge.** L'adattatore (`JellyfinCollectionDirectory`, con `ICollectionManager`, `IUserManager` e `IImageProcessor`) chiama `GetChildren(user, true, new InternalItemsQuery())` sulla cartella e su ogni `BoxSet`: la stessa chiamata che Jellyfin fa per `GET /Items?parentId=…`, quindi con gli stessi filtri di visibilità (librerie e controllo parentale).
   - La query è nuova a ogni chiamata, perché `GetChildren` la modifica.
   - Senza utente (o con un id vuoto) o senza cartella l'elenco è vuoto, e la cartella non si crea mai.
-- **Formato.** Gli id sono nel formato di Jellyfin: 32 caratteri esadecimali minuscoli, senza trattini (`Guid.ToString("N")`). Con le impostazioni JSON di Jellyfin (date con sette decimali e `Z`, valori nulli non scritti) `DateCreated` ha la forma `"2026-05-01T10:00:00.0000000Z"` e `PrimaryImageTag` **manca** se la collezione non ha la locandina. Non è una risposta osservata sul server: la forma vera si vede nella prova a mano (piano 17a, Task 12). L'app tratta un campo assente come `null`.
+- **Formato.** Gli id sono nel formato di Jellyfin: 32 caratteri esadecimali minuscoli, senza trattini (`Guid.ToString("N")`). Con le impostazioni JSON di Jellyfin (date con sette decimali e `Z`, valori nulli non scritti) `DateCreated` ha la forma `"2026-05-01T10:00:00.0000000Z"` e `PrimaryImageTag` **manca** se la collezione non ha la locandina. La forma non è stata letta byte per byte sul server, ma nella prova a mano del 2026-10-07 (piano 17a, Task 12) l'app ha letto senza problemi la risposta vera. L'app tratta un campo assente come `null`.
 - **Casi particolari.**
   - Senza la cartella delle collezioni la risposta è `{"Collections": []}`.
   - Un errore inatteso dà 500, mai 404 (§2.4).
@@ -281,7 +281,7 @@ I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a; quelli de
 - **Funzione:** `collections` è sempre in `Features`.
 - **Prove.**
   - I test del plugin simulano `Folder` e `BoxSet` con delle sottoclassi, che danno figli fissi e registrano chi li chiede: provano che ogni lettura passa dall'utente, non la visibilità vera.
-  - La visibilità per utente **non** si è verificata sul server (§14). Si sono controllate le policy degli utenti (nessuno ha librerie ristrette o limiti parentali) e che il `GET /Items?parentId=…` di Jellyfin funziona per un utente normale. L'output del plugin con il token di un utente vero si verifica nella prova a mano (piano 17a, Task 12).
+  - L'output del plugin con il token di un utente vero si è verificato nella prova a mano del 2026-10-07 (piano 17a, Task 12): saghe, righe, pagina e ricerca come previsto. Un utente che non vede una libreria, sul server, non c'è (§14): quel caso è coperto solo dai test del plugin.
 - **Versione.** Il csproj è già a 1.5.0 (§7.3).
 
 ### 7.2 Avatar
@@ -690,7 +690,7 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
 ## 14. Rischi e punti da verificare
 
 - **Corpo di `POST /UserImage` in base64.** Si prova all'inizio del piano 17c sull'account dell'utente, con il suo ok, e poi si toglie l'immagine di prova. Se Jellyfin vuole i byte grezzi, cambia solo `UserImageApi`.
-- **Collezioni nel plugin.** Fatto nel piano 17a: `ICollectionManager.GetCollectionsFolder(false)` e `GetChildren(user, true, …)` sulla cartella e su ogni collezione, come fa `GET /Items?parentId=…` (§7.1). La visibilità per utente **non** si è verificata sul server: si sono controllate le policy degli utenti (nessuno ha librerie ristrette o limiti parentali) e che il `GET /Items?parentId=…` di Jellyfin funziona per un utente normale, ma non c'è un utente che non vede una libreria con cui provare. L'output del plugin con il token di un utente vero si verifica nella prova a mano, anche con un secondo account (piano 17a, Task 12).
+- **Collezioni nel plugin.** Fatto nel piano 17a: `ICollectionManager.GetCollectionsFolder(false)` e `GetChildren(user, true, …)` sulla cartella e su ogni collezione, come fa `GET /Items?parentId=…` (§7.1). La prova a mano del 2026-10-07 (piano 17a, Task 12) ha confermato l'output del plugin con il token di un utente vero. Sul server nessun utente ha librerie ristrette o limiti parentali, quindi il caso di un titolo che un utente non può vedere è coperto solo dai test del plugin (che controllano che ogni lettura passi per l'utente).
 - **`IImageProcessor.GetImageCacheTag` per gli utenti** in Jellyfin 10.11: si verifica che dia lo stesso `PrimaryImageTag` di `/Users/Me`.
 - **Uscita dal party al cambio di profilo:** si verifica che il gruppo SyncPlay perda davvero il membro.
 - **Due WonderFlix aperti insieme** (non di sviluppo) con lo stesso file dei profili: oggi non è un caso previsto, e resta così.
