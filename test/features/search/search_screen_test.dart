@@ -7,11 +7,13 @@ import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/requests/requests_api.dart';
 import 'package:wonderflix/core/requests/requests_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/collections/collections_providers.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/requests/requests_providers.dart';
 import 'package:wonderflix/features/search/search_screen.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 
+import '../../support/collections_fakes.dart';
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
@@ -279,5 +281,67 @@ void main() {
     expect(find.byKey(const ValueKey('requestables-skeleton')), findsNothing);
     expect(find.text('Dunes of Mars'), findsOneWidget);
     expect(find.text('Dune - Parte due'), findsNothing);
+  });
+
+  group('saghe (spec K §8.5)', () {
+    late FakeCollectionsApi collections;
+
+    setUp(() {
+      collections = FakeCollectionsApi()
+        ..collectionsList = [
+          testCollection(id: 'c1', name: 'Mátrix - Collezione'),
+          testCollection(id: 'c2', name: 'Alien - Collezione'),
+        ];
+    });
+
+    Future<void> pumpSearch(WidgetTester tester, FakeLibraryApi api) async {
+      await pumpApp(tester, const Scaffold(body: SearchScreen()), overrides: [
+        libraryApiProvider.overrideWithValue(api),
+        requestsAvailableProvider.overrideWithValue(false),
+        sessionControllerProvider.overrideWith(
+            () => FakeSessionController(const SessionSignedIn(testUser))),
+        socialAvailabilityProvider.overrideWith(() =>
+            FakeSocialAvailability(const SocialFeatures(collections: true))),
+        collectionsApiProvider.overrideWithValue(collections),
+      ]);
+    }
+
+    testWidgets('senza badare a maiuscole e accenti, sopra i film',
+        (tester) async {
+      final api = FakeLibraryApi()
+        ..onItems = ((query, start, limit) => query.kinds.contains(ItemKind.movie)
+            ? pageOf([testItem(id: 'm1', name: 'Matrix')])
+            : pageOf([]))
+        ..people = [];
+      await pumpSearch(tester, api);
+      await tester.enterText(find.byType(TextField), 'MATRIX');
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump();
+      expect(find.text('Saghe'), findsOneWidget);
+      expect(find.text('Mátrix - Collezione'), findsOneWidget);
+      expect(find.text('Alien - Collezione'), findsNothing);
+      expect(tester.getTopLeft(find.text('Saghe')).dy,
+          lessThan(tester.getTopLeft(find.text('Film')).dy));
+      expect(collections.calls, 1);
+    });
+
+    testWidgets('solo saghe: niente "Nessun risultato"', (tester) async {
+      await pumpSearch(tester, FakeLibraryApi());
+      await tester.enterText(find.byType(TextField), 'alien');
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump();
+      expect(find.text('Alien - Collezione'), findsOneWidget);
+      expect(find.text('Nessun risultato per "alien"'), findsNothing);
+    });
+
+    testWidgets('niente saghe che corrispondono: nessuna sezione',
+        (tester) async {
+      await pumpSearch(tester, FakeLibraryApi());
+      await tester.enterText(find.byType(TextField), 'zzz');
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump();
+      expect(find.text('Saghe'), findsNothing);
+      expect(find.text('Nessun risultato per "zzz"'), findsOneWidget);
+    });
   });
 }

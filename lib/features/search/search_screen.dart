@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../app/navigation.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
+import '../../core/social/collections_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/poster_card.dart';
 import '../../ui/skeletons.dart';
@@ -13,6 +14,9 @@ import '../../ui/staggered_entrance.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_image.dart';
 import '../../ui/wf_switcher.dart';
+import '../collections/collections_logic.dart';
+import '../collections/collections_providers.dart';
+import '../collections/sagas_search_section.dart';
 import '../library/library_providers.dart';
 import '../requests/requestables_controller.dart';
 import '../requests/requestables_section.dart';
@@ -40,6 +44,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final l = AppLocalizations.of(context);
     final state = ref.watch(searchControllerProvider);
     final controller = ref.read(searchControllerProvider.notifier);
+    final sagas = state.term.length < SearchController.minLength
+        ? const <CollectionSummary>[]
+        : matchCollections(
+            ref.watch(collectionsProvider).value ?? const [], state.term,
+            max: SagasSearchSection.maxResults);
     // La lista costruisce la sezione "Da richiedere" solo quando è vicina allo
     // schermo: se esce, il controller (autoDispose) resterebbe senza
     // ascoltatori e perderebbe timer, richiesta e titoli. Qui lo si tiene
@@ -73,14 +82,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ),
         ),
         const SizedBox(height: 24),
-        WfSwitcher(child: _results(context, l, state)),
+        SagasSearchSection(sagas: sagas),
+        WfSwitcher(
+            child: _results(context, l, state, hasSagas: sagas.isNotEmpty)),
         RequestablesSection(library: _libraryMatches(state)),
       ],
     );
   }
 
-  /// Risultati, con una chiave per stato (per [WfSwitcher]).
-  Widget _results(BuildContext context, AppLocalizations l, SearchState state) {
+  /// Risultati, con una chiave per stato (per [WfSwitcher]). Con delle saghe
+  /// trovate ([hasSagas]) "Nessun risultato" non compare.
+  Widget _results(BuildContext context, AppLocalizations l, SearchState state,
+      {required bool hasSagas}) {
     const muted = TextStyle(color: WfColors.creamMuted);
     if (state.term.length < SearchController.minLength) {
       return Text(l.searchPrompt, key: const ValueKey('prompt'), style: muted);
@@ -99,6 +112,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       return const SearchResultsSkeleton(key: ValueKey('loading'));
     }
     if (results.isEmpty) {
+      if (hasSagas) return const SizedBox.shrink(key: ValueKey('empty'));
       return Text(l.searchNoResults(state.term),
           key: const ValueKey('empty'), style: muted);
     }
