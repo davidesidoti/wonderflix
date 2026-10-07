@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:wonderflix/core/social/collections_api.dart';
 import 'package:wonderflix/core/social/collections_models.dart';
 
@@ -10,9 +12,15 @@ class FakeCollectionsApi implements CollectionsApi {
 
   int calls = 0;
 
+  /// Se valorizzato, ogni chiamata aspetta che si completi prima di
+  /// rispondere (per provare lo stato di caricamento).
+  Completer<void>? gate;
+
   @override
   Future<List<CollectionSummary>> collections() async {
     calls++;
+    final pending = gate;
+    if (pending != null) await pending.future;
     final failure = error;
     if (failure != null) throw failure;
     return collectionsList;

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
@@ -12,13 +13,31 @@ import '../../ui/smooth_scroll.dart';
 import '../../ui/staggered_entrance.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_switcher.dart';
+import '../../ui/wf_tab_button.dart';
+import '../collections/collections_grid.dart';
+import '../collections/collections_providers.dart';
+import '../social/social_providers.dart';
 import 'catalog_controller.dart';
 import 'catalog_filters_bar.dart';
 
+/// Vista del catalogo Film: i titoli o le saghe (spec K §8.4). Sta
+/// nell'indirizzo (`/movies?view=sagas`).
+enum CatalogView {
+  titles,
+  sagas;
+
+  static CatalogView parse(String? value) => value == 'sagas' ? sagas : titles;
+}
+
 class CatalogScreen extends ConsumerStatefulWidget {
-  const CatalogScreen({super.key, required this.kind});
+  const CatalogScreen(
+      {super.key, required this.kind, this.view = CatalogView.titles});
 
   final ItemKind kind;
+
+  /// Solo per i film. Senza la funzione `collections` del plugin vale come
+  /// [CatalogView.titles].
+  final CatalogView view;
 
   @override
   ConsumerState<CatalogScreen> createState() => _CatalogScreenState();
@@ -51,12 +70,73 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final sagasAvailable = widget.kind == ItemKind.movie &&
+        ref.watch(socialAvailabilityProvider
+            .select((features) => features.collections));
+    final sagas = sagasAvailable && widget.view == CatalogView.sagas;
+    final title = widget.kind == ItemKind.series ? l.navSeries : l.navMovies;
+    final String? count;
+    if (sagas) {
+      final list = ref.watch(collectionsProvider).value;
+      count = list == null || list.isEmpty
+          ? null
+          : l.collectionsCount(list.length);
+    } else {
+      final total = ref.watch(catalogControllerProvider(widget.kind)).total;
+      count = total > 0 ? l.catalogCount(total) : null;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(32, 16, 32, 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(title.toUpperCase(), style: WfText.display(40)),
+              const SizedBox(width: 16),
+              if (count != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(count,
+                      style: const TextStyle(color: WfColors.creamMuted)),
+                ),
+            ],
+          ),
+        ),
+        if (sagasAvailable)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(32, 0, 32, 12),
+            child: Row(
+              children: [
+                WfTabButton(
+                    label: l.navMovies,
+                    selected: !sagas,
+                    onTap: () => context.go('/movies')),
+                const SizedBox(width: 20),
+                WfTabButton(
+                    label: l.collectionsTab,
+                    selected: sagas,
+                    onTap: () => context.go('/movies?view=sagas')),
+              ],
+            ),
+          ),
+        if (sagas)
+          const Expanded(child: CollectionsGrid())
+        else
+          ..._titles(context, l),
+      ],
+    );
+  }
+
+  /// Filtri e griglia dei titoli.
+  List<Widget> _titles(BuildContext context, AppLocalizations l) {
     final provider = catalogControllerProvider(widget.kind);
     final state = ref.watch(provider);
     final controller = ref.read(provider.notifier);
     final filters = ref.watch(catalogFiltersProvider(widget.kind)).value ??
         const LibraryFilters();
-    final title = widget.kind == ItemKind.series ? l.navSeries : l.navMovies;
 
     // Su schermi grandi la prima pagina può non riempire la finestra: senza
     // scroll non scatterebbe mai il caricamento successivo.
@@ -74,42 +154,23 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
       }
     });
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(32, 16, 32, 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(title.toUpperCase(), style: WfText.display(40)),
-              const SizedBox(width: 16),
-              if (state.total > 0)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Text(l.catalogCount(state.total),
-                      style: const TextStyle(color: WfColors.creamMuted)),
-                ),
-            ],
-          ),
+    return [
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: CatalogFiltersBar(
+          filters: filters,
+          query: state.query,
+          onChanged: (query) => unawaited(controller.setQuery(query)),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: CatalogFiltersBar(
-            filters: filters,
-            query: state.query,
-            onChanged: (query) => unawaited(controller.setQuery(query)),
-          ),
+      ),
+      const SizedBox(height: 16),
+      Expanded(
+        child: WfSwitcher(
+          expand: true,
+          child: _body(context, l, state, controller),
         ),
-        const SizedBox(height: 16),
-        Expanded(
-          child: WfSwitcher(
-            expand: true,
-            child: _body(context, l, state, controller),
-          ),
-        ),
-      ],
-    );
+      ),
+    ];
   }
 
   /// Contenuto sotto i filtri, con una chiave per stato (per [WfSwitcher]).

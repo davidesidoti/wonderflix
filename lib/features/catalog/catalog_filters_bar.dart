@@ -33,7 +33,7 @@ class CatalogFiltersBar extends StatelessWidget {
       runSpacing: 12,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        _Picker<CatalogSort>(
+        FilterPicker<CatalogSort>(
           value: query.sort,
           items: {
             CatalogSort.title: '${l.catalogSortLabel}: ${l.catalogSortTitle}',
@@ -43,7 +43,7 @@ class CatalogFiltersBar extends StatelessWidget {
           },
           onChanged: (sort) => onChanged(query.copyWith(sort: sort)),
         ),
-        _Picker<String?>(
+        FilterPicker<String?>(
           value: genre,
           items: {
             null: l.catalogAllGenres,
@@ -52,7 +52,7 @@ class CatalogFiltersBar extends StatelessWidget {
           onChanged: (g) =>
               onChanged(query.copyWith(genres: g == null ? const {} : {g})),
         ),
-        _Picker<int?>(
+        FilterPicker<int?>(
           value: query.year,
           items: {
             null: l.catalogAllYears,
@@ -83,8 +83,13 @@ class CatalogFiltersBar extends StatelessWidget {
   }
 }
 
-class _Picker<T> extends StatelessWidget {
-  const _Picker({required this.value, required this.items, required this.onChanged});
+/// Un menu della barra dei filtri (catalogo, La mia lista, vista "Saghe").
+class FilterPicker<T> extends StatelessWidget {
+  const FilterPicker(
+      {super.key,
+      required this.value,
+      required this.items,
+      required this.onChanged});
 
   final T value;
   final Map<T, String> items;

@@ -138,8 +138,13 @@ final routerProvider = Provider<GoRouter>((ref) {
               pageBuilder: (context, state) => shellPage(
                   context,
                   state,
-                  const CatalogScreen(
-                      key: ValueKey('movies'), kind: ItemKind.movie),
+                  // Stessa chiave per le due viste: cambiando vista la
+                  // pagina resta la stessa (spec K §8.4).
+                  CatalogScreen(
+                      key: const ValueKey('movies'),
+                      kind: ItemKind.movie,
+                      view: CatalogView.parse(
+                          state.uri.queryParameters['view'])),
                   underBar: true)),
           GoRoute(
               path: '/series',
