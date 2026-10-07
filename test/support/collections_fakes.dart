@@ -19,7 +19,9 @@ class FakeCollectionsApi implements CollectionsApi {
   }
 }
 
-/// Una saga di prova: `SortName` è il nome in minuscolo.
+/// Una saga di prova: `SortName` è il nome in minuscolo. Gli id vanno passati
+/// già normalizzati (minuscoli e senza trattini): il costruttore non li
+/// normalizza, lo fa solo `CollectionSummary.fromJson`.
 CollectionSummary testCollection({
   String id = 'c1',
   String name = 'Matrix - Collezione',

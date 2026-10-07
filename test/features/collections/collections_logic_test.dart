@@ -14,7 +14,7 @@ void main() {
   test('foldForSearch: accenti scritti come lettera più segno, macron e lettere speciali',
       () {
     // 'e' più accento acuto combinante.
-    expect(foldForSearch('Amélie'), 'amelie');
+    expect(foldForSearch('Ame\u0301lie'), 'amelie');
     // 'İ' in minuscolo diventa 'i' più un puntino combinante.
     expect(foldForSearch('İstanbul'), 'istanbul');
     expect(foldForSearch('Shōgun'), 'shogun');
