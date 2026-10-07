@@ -36,6 +36,7 @@ public sealed class JellyfinCollectionDirectory(
             return [];
         }
 
+        // Una query nuova a ogni chiamata: GetChildren la modifica (User, Limit).
         return folder.GetChildren(user, true, new InternalItemsQuery())
             .OfType<BoxSet>()
             .Select(boxSet => new CollectionInfo(
