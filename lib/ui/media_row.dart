@@ -69,6 +69,8 @@ class _MediaRowState extends State<MediaRow> {
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         key: const Key('row-title-link'),
+        // Anche lo spazio tra il titolo e la freccia è parte del link.
+        behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: Row(
           mainAxisSize: MainAxisSize.min,

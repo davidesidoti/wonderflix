@@ -19,6 +19,22 @@ final testAppConfig = AppConfig(
   supportUrl: Uri.parse('https://discord.gg/abc'),
 );
 
+/// I provider di base di ogni widget test, seguiti da [overrides]: per
+/// [pumpApp] e [pumpAppRouter].
+List<Override> _baseOverrides(
+        {required bool carouselAutoplay, required List<Override> overrides}) =>
+    [
+      appConfigProvider.overrideWithValue(testAppConfig),
+      // Nessun WebSocket reale nei widget test.
+      serverEventsBindingProvider.overrideWithValue(null),
+      // Nessuna immagine di rete nei widget test.
+      imageBuilderProvider.overrideWithValue(
+          (image, fit) => const ColoredBox(color: Color(0xFF333333))),
+      // Un carosello che avanza da solo non si ferma mai (pumpAndSettle).
+      carouselAutoplayProvider.overrideWithValue(carouselAutoplay),
+      ...overrides,
+    ];
+
 /// Monta [child] con tema, localizzazione italiana e provider di test.
 ///
 /// Il carosello della Home non avanza da solo salvo [carouselAutoplay]:
@@ -34,17 +50,8 @@ Future<void> pumpApp(
   await tester.binding.setSurfaceSize(surfaceSize);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(ProviderScope(
-    overrides: [
-      appConfigProvider.overrideWithValue(testAppConfig),
-      // Nessun WebSocket reale nei widget test.
-      serverEventsBindingProvider.overrideWithValue(null),
-      // Nessuna immagine di rete nei widget test.
-      imageBuilderProvider.overrideWithValue(
-          (image, fit) => const ColoredBox(color: Color(0xFF333333))),
-      // Un carosello che avanza da solo non si ferma mai (pumpAndSettle).
-      carouselAutoplayProvider.overrideWithValue(carouselAutoplay),
-      ...overrides,
-    ],
+    overrides: _baseOverrides(
+        carouselAutoplay: carouselAutoplay, overrides: overrides),
     retry: (_, _) => null,
     child: MaterialApp(
       theme: buildWonderflixTheme(),
@@ -70,14 +77,7 @@ Future<void> pumpAppRouter(
   await tester.binding.setSurfaceSize(surfaceSize);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(ProviderScope(
-    overrides: [
-      appConfigProvider.overrideWithValue(testAppConfig),
-      serverEventsBindingProvider.overrideWithValue(null),
-      imageBuilderProvider.overrideWithValue(
-          (image, fit) => const ColoredBox(color: Color(0xFF333333))),
-      carouselAutoplayProvider.overrideWithValue(false),
-      ...overrides,
-    ],
+    overrides: _baseOverrides(carouselAutoplay: false, overrides: overrides),
     retry: (_, _) => null,
     child: MaterialApp.router(
       routerConfig: router,

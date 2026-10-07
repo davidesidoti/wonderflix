@@ -50,6 +50,10 @@ class CollectionScreen extends ConsumerStatefulWidget {
 class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   final _scroll = SmoothScrollController();
 
+  /// Stato di caricamento: la saga o i suoi titoli non sono ancora arrivati.
+  static const (String, Widget) _loading =
+      ('loading', DetailSkeleton(headerHeight: detailHeaderHeight));
+
   @override
   void dispose() {
     _scroll.dispose();
@@ -59,18 +63,29 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(itemProvider(widget.collectionId));
+    // I titoli partono insieme alla saga, non dopo: finché non sono arrivati
+    // (o falliti) la pagina resta lo scheletro, e la testata non compare
+    // senza conteggio e pulsante.
+    final titles = ref.watch(collectionItemsProvider(widget.collectionId));
+    final titlesSettled = titles.hasValue || titles.hasError;
     final collection = async.value;
     final (state, content) = async.when(
-      loading: () =>
-          ('loading', const DetailSkeleton(headerHeight: detailHeaderHeight)),
+      loading: () => _loading,
       error: (error, _) => (
         'error',
         ErrorView(
             error: error,
             onRetry: () => ref.invalidate(itemProvider(widget.collectionId))),
       ),
-      data: (item) =>
-          ('data', CollectionView(collection: item, controller: _scroll)),
+      data: (item) => titlesSettled
+          ? (
+              'data',
+              CollectionView(
+                  collectionId: widget.collectionId,
+                  collection: item,
+                  controller: _scroll),
+            )
+          : _loading,
     );
     return Stack(
       children: [
@@ -79,7 +94,8 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
           left: 0,
           right: 0,
           height: detailHeaderHeight,
-          child: collection != null
+          // Lo sfondo entra con la testata, non prima.
+          child: collection != null && state == 'data'
               ? DetailBackdrop(
                   item: collection, launch: null, controller: _scroll)
               : const SizedBox.shrink(),
@@ -97,7 +113,16 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
 
 /// Testata e griglia dei titoli di una saga (spec K §8.2).
 class CollectionView extends ConsumerWidget {
-  const CollectionView({super.key, required this.collection, this.controller});
+  const CollectionView({
+    super.key,
+    required this.collectionId,
+    required this.collection,
+    this.controller,
+  });
+
+  /// Id della rotta: la stessa chiave dei provider della pagina, che può
+  /// non essere scritta come l'`Id` del server.
+  final String collectionId;
 
   final JellyfinItem collection;
 
@@ -111,7 +136,7 @@ class CollectionView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
-    final async = ref.watch(collectionItemsProvider(collection.id));
+    final async = ref.watch(collectionItemsProvider(collectionId));
     final items = async.value;
     final error = async.error;
     final target = items == null
@@ -148,20 +173,24 @@ class CollectionView extends ConsumerWidget {
                 ),
               ),
             )
-          else if (error != null)
+          // Con un nuovo tentativo in corso si torna allo scheletro: l'errore
+          // di prima resta nello stato, ma non è più quello che si vede.
+          else if (error != null && !async.isLoading)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 40),
                 child: ErrorView(
                     error: error,
                     onRetry: () =>
-                        ref.invalidate(collectionItemsProvider(collection.id))),
+                        ref.invalidate(collectionItemsProvider(collectionId))),
               ),
             )
           else
             const SliverToBoxAdapter(
               child: Padding(
-                  padding: EdgeInsets.only(bottom: 40), child: LoadingView()),
+                padding: EdgeInsets.only(top: 8),
+                child: PosterGridSkeleton(count: 6, shrinkWrap: true),
+              ),
             ),
         ],
       ),

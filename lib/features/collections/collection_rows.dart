@@ -65,13 +65,13 @@ class _SagaRow extends ConsumerWidget {
       itemBuilder: (context, i) {
         final item = items[i];
         final isCurrent = jellyfinIdKey(item.id) == current;
+        // Il film aperto non si riapre: né clic, né anteprima, né volo.
         return PosterCard(
           item: item,
           width: 160,
-          heroSource: 'saga.${saga.id}.$i',
+          heroSource: isCurrent ? null : 'saga.${saga.id}.$i',
           markLabel: isCurrent ? l.collectionThisMovie : null,
-          // Il film aperto non si riapre.
-          onTap: isCurrent ? () {} : null,
+          openable: !isCurrent,
         );
       },
     );

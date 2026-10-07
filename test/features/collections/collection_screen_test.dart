@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/collections/collection_screen.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/ui/skeletons.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
@@ -88,5 +92,61 @@ void main() {
     api.itemsById.clear();
     await pumpCollection(tester);
     expect(find.text('Riprova'), findsOneWidget);
+  });
+
+  testWidgets('la testata arriva con i titoli, già con conteggio e pulsante',
+      (tester) async {
+    final gate = Completer<void>();
+    api.collectionItemsGate = gate;
+    await pumpCollection(tester);
+    // La saga c'è e i titoli sono già partiti, ma non arrivati: lo
+    // scheletro, senza una testata a metà.
+    expect(api.collectionItemsCalls, ['c1']);
+    expect(find.byType(DetailSkeleton), findsOneWidget);
+    final title = find.text('MATRIX - COLLEZIONE');
+    expect(title, findsNothing);
+
+    gate.complete();
+    for (var i = 0; i < 4; i++) {
+      await tester.pump();
+      // In nessun fotogramma la testata c'è senza conteggio e pulsante.
+      if (title.evaluate().isNotEmpty) {
+        expect(find.text('3 film · 1 visto'), findsOneWidget);
+        expect(find.text('Riprendi "Matrix Reloaded"'), findsOneWidget);
+      }
+    }
+    expect(title, findsOneWidget);
+    expect(find.text('Matrix Revolutions'), findsOneWidget);
+  });
+
+  testWidgets('titoli non letti: errore con Riprova nella pagina, e li ricarica',
+      (tester) async {
+    api.collectionItemsError = const ServerErrorException(500);
+    await pumpCollection(tester);
+    // La testata c'è (senza conteggio né pulsante) e l'errore sta sotto.
+    expect(find.text('MATRIX - COLLEZIONE'), findsOneWidget);
+    expect(find.text('Due realtà.'), findsOneWidget);
+    expect(find.textContaining('film ·'), findsNothing);
+    expect(find.textContaining('Riproduci'), findsNothing);
+    expect(find.text('Riprova'), findsOneWidget);
+
+    // Durante il nuovo tentativo, lo scheletro al posto dell'errore.
+    api.collectionItemsError = null;
+    final gate = Completer<void>();
+    api.collectionItemsGate = gate;
+    await tester.tap(find.text('Riprova'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Riprova'), findsNothing);
+    expect(find.byType(PosterGridSkeleton), findsOneWidget);
+
+    gate.complete();
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Riprova'), findsNothing);
+    expect(find.text('Matrix Revolutions'), findsOneWidget);
+    expect(find.text('3 film · 1 visto'), findsOneWidget);
+    expect(find.text('Riprendi "Matrix Reloaded"'), findsOneWidget);
   });
 }

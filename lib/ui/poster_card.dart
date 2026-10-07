@@ -23,6 +23,7 @@ class PosterCard extends ConsumerStatefulWidget {
     this.heroSource,
     this.width,
     this.markLabel,
+    this.openable = true,
   });
 
   final JellyfinItem item;
@@ -37,6 +38,11 @@ class PosterCard extends ConsumerStatefulWidget {
   /// Etichetta fissa sulla locandina, con il bordo oro sempre acceso: il
   /// titolo aperto nella riga della sua saga ("Questo film", spec K §8.3).
   final String? markLabel;
+
+  /// Con `false` la card non apre niente: né il clic ([onTap] compreso), né
+  /// l'anteprima al passaggio del mouse, e il cursore resta normale. Serve al
+  /// titolo già aperto, nella riga della sua saga.
+  final bool openable;
 
   @override
   ConsumerState<PosterCard> createState() => _PosterCardState();
@@ -57,16 +63,19 @@ class _PosterCardState extends ConsumerState<PosterCard> {
     final heroSource =
         source == null ? null : WfHeroScope.source(context, source);
     final mark = widget.markLabel;
+    final openable = widget.openable;
 
     final card = SizedBox(
       width: widget.width,
       child: MouseRegion(
-        cursor: SystemMouseCursors.click,
+        cursor: openable ? SystemMouseCursors.click : MouseCursor.defer,
         onEnter: (_) => setState(() => _hover = true),
         onExit: (_) => setState(() => _hover = false),
         child: GestureDetector(
-          onTap: widget.onTap ??
-              () => openItem(context, widget.item, heroSource: heroSource),
+          onTap: !openable
+              ? null
+              : widget.onTap ??
+                  () => openItem(context, widget.item, heroSource: heroSource),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -103,8 +112,7 @@ class _PosterCardState extends ConsumerState<PosterCard> {
                           Positioned(
                               top: 6, right: 6, child: CountBadge(count: unplayed)),
                         if (mark != null)
-                          Positioned(
-                              top: 6, left: 6, child: _MarkChip(label: mark)),
+                          Positioned(top: 6, left: 6, child: _GoldPill(mark)),
                       ],
                     ),
                   ),
@@ -124,7 +132,10 @@ class _PosterCardState extends ConsumerState<PosterCard> {
         ),
       ),
     );
-    return CardPreviewHost(item: item, heroSource: heroSource, child: card);
+    // Una card che non si apre non ha neanche l'anteprima.
+    return openable
+        ? CardPreviewHost(item: item, heroSource: heroSource, child: card)
+        : card;
   }
 }
 
@@ -180,22 +191,16 @@ class CountBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final max = this.max;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(
-          color: WfColors.gold, borderRadius: BorderRadius.circular(10)),
-      child: Text(max != null && count > max ? '$max+' : '$count',
-          style: const TextStyle(
-              color: WfColors.bg, fontSize: 11, fontWeight: FontWeight.w700)),
-    );
+    return _GoldPill(max != null && count > max ? '$max+' : '$count');
   }
 }
 
-/// Etichetta oro in alto a sinistra della locandina.
-class _MarkChip extends StatelessWidget {
-  const _MarkChip({required this.label});
+/// Pillola oro con un testo breve: il conteggio ([CountBadge]) e l'etichetta
+/// fissa ([PosterCard.markLabel]) della locandina.
+class _GoldPill extends StatelessWidget {
+  const _GoldPill(this.text);
 
-  final String label;
+  final String text;
 
   @override
   Widget build(BuildContext context) {
@@ -203,7 +208,7 @@ class _MarkChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
           color: WfColors.gold, borderRadius: BorderRadius.circular(10)),
-      child: Text(label,
+      child: Text(text,
           style: const TextStyle(
               color: WfColors.bg, fontSize: 11, fontWeight: FontWeight.w700)),
     );

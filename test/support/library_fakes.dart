@@ -64,6 +64,13 @@ class FakeLibraryApi implements LibraryApi {
 
   /// Saghe chieste a [collectionItems].
   final collectionItemsCalls = <String>[];
+
+  /// Se valorizzato, [collectionItems] (solo lei) lancia questo errore.
+  Object? collectionItemsError;
+
+  /// Se valorizzato, [collectionItems] aspetta che si completi prima di
+  /// rispondere (i titoli di una saga arrivano dopo la saga).
+  Completer<void>? collectionItemsGate;
   final nextUpCutoffs = <DateTime?>[];
   final nextUpCalls = <String?>[];
   final favoriteCalls = <(String, bool)>[];
@@ -132,9 +139,15 @@ class FakeLibraryApi implements LibraryApi {
 
   @override
   Future<List<JellyfinItem>> collectionItems(
-      String userId, String collectionId) {
+      String userId, String collectionId) async {
     collectionItemsCalls.add(collectionId);
-    return _answer(() => itemsByCollection[collectionId] ?? const []);
+    final gate = collectionItemsGate;
+    if (gate != null) await gate.future;
+    return _answer(() {
+      final failure = collectionItemsError;
+      if (failure != null) throw failure;
+      return itemsByCollection[collectionId] ?? const [];
+    });
   }
 
   @override
