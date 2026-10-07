@@ -1,5 +1,7 @@
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using MediaBrowser.Common.Configuration;
+using MediaBrowser.Controller.Collections;
+using MediaBrowser.Controller.Drawing;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Session;
 using MediaBrowser.Controller.SyncPlay;
@@ -20,6 +22,8 @@ public class ServiceRegistrationTests
         services.AddSingleton(InterfaceStub<ISyncPlayManager>.Create().Proxy);
         services.AddSingleton(InterfaceStub<IUserManager>.Create().Proxy);
         services.AddSingleton(InterfaceStub<ILibraryManager>.Create().Proxy);
+        services.AddSingleton(InterfaceStub<ICollectionManager>.Create().Proxy);
+        services.AddSingleton(InterfaceStub<IImageProcessor>.Create().Proxy);
         var (paths, stub) = InterfaceStub<IApplicationPaths>.Create();
         stub.Handlers["get_PluginConfigurationsPath"] = _ => Path.GetTempPath();
         services.AddSingleton(paths);
@@ -44,6 +48,7 @@ public class ServiceRegistrationTests
         Assert.NotNull(provider.GetRequiredService<RequestWebhookHandler>());
         Assert.IsType<Seerr.SeerrClient>(provider.GetRequiredService<Seerr.ISeerrClient>());
         Assert.IsType<Server.PluginSeerrSettings>(provider.GetRequiredService<Seerr.ISeerrSettings>());
+        Assert.IsType<Server.JellyfinCollectionDirectory>(provider.GetRequiredService<ICollectionDirectory>());
         Assert.Equal(2, provider.GetServices<IHostedService>().Count());
     }
 }

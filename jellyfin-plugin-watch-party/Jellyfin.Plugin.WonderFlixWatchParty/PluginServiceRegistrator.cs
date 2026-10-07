@@ -26,6 +26,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             provider.GetRequiredService<ILogger<FriendStore>>()));
         serviceCollection.AddSingleton<FriendService>();
         serviceCollection.AddSingleton<ILibraryAccess, JellyfinLibraryAccess>();
+        serviceCollection.AddSingleton<ICollectionDirectory, JellyfinCollectionDirectory>();
         serviceCollection.AddSingleton(provider => new InboxStore(
             InboxStore.DefaultPath(provider.GetRequiredService<IApplicationPaths>()),
             provider.GetRequiredService<ILogger<InboxStore>>()));
