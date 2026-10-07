@@ -1,7 +1,7 @@
 # WonderFlix — Spec K: saghe e profili
 
 - **Data:** 2026-10-07
-- **Stato:** approvato nel brainstorming, da rileggere da parte dell'utente
+- **Stato:** approvato; piano 17a realizzato (`docs/superpowers/plans/2026-10-07-wonderflix-17a-saghe.md`), piani 17b e 17c da scrivere
 - **Ambito:** Spec K. Realizza due voci dell'idea 3 di `docs/IDEE.md` ("Funzioni escluse dallo Spec A"): **collezioni e saghe** (K1) e **profili "Chi guarda?"** (K2). K2 comprende anche le **immagini del profilo**, chieste durante il brainstorming. Delle altre voci dell'idea 3, il download offline resta in `docs/IDEE.md`. **HDR vero** e **firma del codice** escono dalla lista per scelta dell'utente.
 
 ## 1. Obiettivo
@@ -196,14 +196,15 @@ jellyfin-plugin-watch-party/Jellyfin.Plugin.WonderFlixWatchParty/
   Api/AvatarsController.cs            GET WonderFlixWatchParty/Users/Avatars
   Hub/ICollectionDirectory.cs         le collezioni che un utente vede, con i loro film
   Hub/IUserAvatars.cs                 utenti per id o per nome, con il tag dell'immagine
-  Server/JellyfinCollectionDirectory.cs   ICollectionManager, ILibraryManager, IUserManager
+  Server/JellyfinCollectionDirectory.cs   ICollectionManager, IUserManager, IImageProcessor
   Server/JellyfinUserAvatars.cs       IUserManager, IImageProcessor
   Protocol/CollectionDtos.cs, Protocol/AvatarDtos.cs
   Protocol/WatchPartyProtocol.cs      + "collections", "avatars"
 lib/core/jellyfin/
   item_models.dart                    ItemKind.boxSet
-  item_query.dart                     + parentId
-  image_urls.dart                     + user(userId, tag)
+  json_fields.dart                    + jellyfinIdKey (id confrontabili: senza trattini, minuscoli)
+  library_api.dart                    + collectionItems (i titoli di una saga, senza ItemQuery.parentId)
+  image_urls.dart                     + primaryWithTag(itemId, tag), + user(userId, tag)
   user_image_api.dart                 POST e DELETE /UserImage
   jellyfin_http.dart                  credenziali (token + DeviceId) che cambiano insieme
 lib/core/social/
@@ -213,9 +214,20 @@ lib/core/storage/
   profile_store.dart                  StoredProfile, ProfileStore, migrazione da wonderflix.session
 lib/features/collections/
   collections_providers.dart          elenco in cache, indice film → saghe, film di una saga
-  collection_screen.dart              pagina della saga
+  collections_logic.dart              funzioni pure: indice, ricerca, ordinamenti, titolo da proporre
+  collection_screen.dart              pagina della saga e CollectionHeader
   collection_rows.dart                righe "Fa parte di"
+  collection_card.dart                card di una saga (vista "Saghe" e ricerca)
   collections_grid.dart               vista "Saghe" del catalogo
+  sagas_search_section.dart           sezione "Saghe" della ricerca
+lib/features/catalog/
+  catalog_navigation.dart             CatalogView (titoli | saghe), openMovies
+  catalog_filters_bar.dart            FilterPicker, pubblico (anche per le saghe)
+lib/features/detail/
+  detail_header.dart                  DetailHeaderFrame e HeaderTitle, in comune con la pagina della saga
+lib/ui/
+  media_row.dart                      MediaRow.onTitleTap (titolo come link)
+  poster_card.dart                    PosterCard.markLabel e openable
 lib/features/profiles/
   profiles_screen.dart                "Chi guarda?" e "Gestisci profili"
   profile_preferences.dart            chiavi del profilo (§9.6)
@@ -225,10 +237,11 @@ lib/features/profiles/
 lib/features/social/avatars_provider.dart   tag degli altri utenti, in cache
 lib/ui/user_avatar.dart               UserAvatar
 lib/features/auth/                    SessionController e AuthService con i profili (§9)
-lib/app/router.dart                   + /profiles, /collection/:id, /login?add=1 e ?user=
+lib/app/navigation.dart               collectionRoute, openCollection; itemRoute porta un BoxSet alla sua pagina
+lib/app/router.dart                   + /profiles, /collection/:id, /movies?view=sagas, /login?add=1 e ?user=
 ```
 
-I nomi dei file sono indicativi: il piano può spostarli, ma senza cambiare le responsabilità. Le API seguono la forma di oggi: una classe sottile su `JellyfinHttp`, modelli con `fromJson` scritti a mano, niente codegen. Le letture del plugin sono tolleranti come in `json_fields.dart`.
+I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a; quelli dei profili (K2) sono indicativi: il piano può spostarli, ma senza cambiare le responsabilità. Le API seguono la forma di oggi: una classe sottile su `JellyfinHttp`, modelli con `fromJson` scritti a mano, niente codegen. Le letture del plugin sono tolleranti come in `json_fields.dart`.
 
 ## 7. Plugin 1.5.0
 
@@ -243,21 +256,32 @@ I nomi dei file sono indicativi: il piano può spostarli, ma senza cambiare le r
    "SortName": "matrix - collezione",
    "PrimaryImageTag": "a48dab12a8094e7fcae43d4ae573109b",
    "DateCreated": "2026-05-01T10:00:00.0000000Z",
-   "ItemIds": ["0088b3bf1b19ef2d962fa145c461538a", "bbd313bc922ab16278ca26167d51f291", "718742d5…"]}
+   "ItemIds": ["0088b3bf1b19ef2d962fa145c461538a", "bbd313bc922ab16278ca26167d51f291", "718742d5…"]},
+  {"Id": "5a1f0c2e…",
+   "Name": "Senza locandina",
+   "SortName": "senza locandina",
+   "DateCreated": "2026-05-01T10:00:00.0000000Z",
+   "ItemIds": ["4c9d17aa…"]}
 ]}
 ```
 
 - **Quali collezioni.** Quelle della cartella delle collezioni (`ICollectionManager.GetCollectionsFolder(false)`) che l'utente può vedere.
 - **Quali film.** Gli elementi collegati alla collezione (`LinkedChildren`) che l'utente può vedere, cioè che stanno in una sua libreria e passano il controllo parentale.
   - L'ordine non conta: l'app riordina.
-  - Una collezione senza film visibili non compare.
-- **Formato.** Gli id sono nel formato di Jellyfin: 32 caratteri esadecimali minuscoli, senza trattini (`Guid.ToString("N")`). `PrimaryImageTag` è `null` se la collezione non ha la locandina.
+  - Una collezione senza film visibili non compare (la toglie il controller).
+- **Come si legge.** L'adattatore (`JellyfinCollectionDirectory`, con `ICollectionManager`, `IUserManager` e `IImageProcessor`) chiama `GetChildren(user, true, new InternalItemsQuery())` sulla cartella e su ogni `BoxSet`: la stessa chiamata che Jellyfin fa per `GET /Items?parentId=…`, quindi con gli stessi filtri di visibilità (librerie e controllo parentale).
+  - La query è nuova a ogni chiamata, perché `GetChildren` la modifica.
+  - Senza utente (o con un id vuoto) o senza cartella l'elenco è vuoto, e la cartella non si crea mai.
+- **Formato.** Gli id sono nel formato di Jellyfin: 32 caratteri esadecimali minuscoli, senza trattini (`Guid.ToString("N")`). Nella risposta vera `DateCreated` ha sette decimali e `Z` (`"2026-05-01T10:00:00.0000000Z"`), e `PrimaryImageTag` **manca** se la collezione non ha la locandina: Jellyfin non scrive i valori nulli. L'app tratta un campo assente come `null`.
 - **Casi particolari.**
   - Senza la cartella delle collezioni la risposta è `{"Collections": []}`.
   - Un errore inatteso dà 500, mai 404 (§2.4).
 - **Peso:** circa 100 collezioni e 400 id, pochi KB.
 - **Funzione:** `collections` è sempre in `Features`.
-- **Da verificare** con un adattatore e una prova sul server (§14): `GetCollectionsFolder` e i figli collegati, con la visibilità giusta per un utente normale.
+- **Prove.**
+  - I test del plugin simulano `Folder` e `BoxSet` con delle sottoclassi, che danno figli fissi e registrano chi li chiede: provano che ogni lettura passa dall'utente, non la visibilità vera.
+  - La visibilità vera si è controllata sul server (§14). Sul server nessun utente ha librerie ristrette o limiti parentali.
+- **Versione.** Il csproj è già a 1.5.0 (§7.3).
 
 ### 7.2 Avatar
 
@@ -279,7 +303,8 @@ I nomi dei file sono indicativi: il piano può spostarli, ma senza cambiare le r
 ### 7.3 Versione
 
 - Il plugin passa a **1.5.0**; `Protocol` resta 1.
-- `InfoControllerTests` e la descrizione nel manifest si aggiornano.
+- Il csproj e `InfoControllerTests` sono già a 1.5.0 dal piano 17a, per la build di prova installata sul server. Tag, manifest e Catalogo si fanno nel 17c.
+- La descrizione nel manifest si aggiorna nel 17c.
 - Il manifest ha il changelog in italiano.
 
 ## 8. Saghe nell'app (K1)
@@ -287,19 +312,26 @@ I nomi dei file sono indicativi: il piano può spostarli, ma senza cambiare le r
 ### 8.1 Dati
 
 - **`ItemKind.boxSet`.** Si legge da `"BoxSet"`. `itemRoute` porta una saga a `/collection/<id>`, da qualunque card o link.
-- **`collectionsProvider`** legge `GET WonderFlixWatchParty/Collections` solo se il plugin ha la funzione `collections`. Senza la funzione l'elenco è vuoto e non parte nessuna chiamata.
+- **Funzione `collections`.** `PluginFeatures.collections` e `SocialFeatures.collections`: non dipendono dal watch party (come `requests`).
+- **`collectionsProvider`** legge `GET WonderFlixWatchParty/Collections` solo se il plugin ha la funzione `collections`. Senza la funzione l'elenco è vuoto e non parte nessuna chiamata. Il risultato è una lista non modificabile.
   - Si rilegge quando cresce `libraryRevisionProvider` e quando cambia l'utente.
+  - È `autoDispose`, ma dopo una lettura riuscita resta in cache anche senza ascoltatori (`keepAlive`): la usano la scheda del film, il catalogo e la ricerca.
+  - Un errore **non** resta in cache: si riprova quando qualcuno torna ad ascoltare.
   - Se la lettura fallisce:
-    - per le righe della scheda e per la ricerca l'elenco è vuoto, e nel registro va un avviso;
+    - per le righe della scheda e per la ricerca l'elenco è vuoto;
     - la vista "Saghe" mostra l'errore con "Riprova".
-- **Modelli.** `CollectionSummary{id, name, sortName, primaryImageTag, dateCreated, itemIds}`. Dall'elenco si costruisce l'indice `itemId → saghe`.
-- **`collectionItemsProvider(id)`** legge i film della saga: `GET /Items?userId&parentId=<saga>&sortBy=PremiereDate,ProductionYear,SortName&sortOrder=Ascending`, con `cardImageParams`. Guarda `libraryRevisionProvider` e `userDataRevisionProvider`. Serve a `ItemQuery` il campo `parentId`.
-- **`collectionProvider(id)`** legge la saga (`GET /Items/{id}`) per la pagina: sfondo, logo, sinossi.
+  - Nel registro: gli stati inattesi li scrive lo strato HTTP (502, 503 e 504 no, perché Jellyfin si sta riavviando). Il provider scrive solo il tipo dell'errore: come info per un `ApiException`, come avviso per ogni altro errore.
+- **Modelli.** `CollectionSummary{id, name, sortName, primaryImageTag, dateCreated, itemIds}`, con `size` = i titoli distinti.
+  - `fromJson` normalizza gli `ItemIds` con `jellyfinIdKey` (`lib/core/jellyfin/json_fields.dart`: senza trattini e in minuscolo) e toglie i doppioni.
+  - Un `ItemIds` che non è un elenco (per esempio una stringa con le virgole) non è valido: vale come elenco vuoto.
+  - Dall'elenco si costruisce l'indice `jellyfinIdKey(itemId) → saghe` (`collectionsByItemProvider`).
+- **`collectionItemsProvider(id)`** legge i film della saga con `LibraryApi.collectionItems`: `GET /Items?userId&parentId=<saga>&sortBy=PremiereDate,ProductionYear,SortName&sortOrder=Ascending`, con `cardImageParams`, **senza** `recursive`. Guarda `libraryRevisionProvider` e `userDataRevisionProvider`. `ItemQuery` **non** ha il campo `parentId`: il catalogo non ne ha bisogno.
+- **La saga** per la pagina (sfondo, logo, sinossi) si legge con `itemProvider(id)` (`GET /Items/{id}`), come la scheda di un titolo: non c'è un `collectionProvider`.
 
 ### 8.2 Pagina della saga (`/collection/:id`)
 
 - **Rotta:** nella shell, con la stessa transizione delle schede (`detailPage`) e lo sfondo sotto la barra.
-- **Testata:** come `DetailHeader`.
+- **Testata:** `CollectionHeader`, costruita sulle parti che condivide con `DetailHeader`, in `detail_header.dart`: `DetailHeaderFrame` (altezza, gradienti, testi che sfumano salendo) e `HeaderTitle` (logo o nome). Non usa `DetailHeader` stesso, che ha preferiti, visto e trailer pensati per un titolo.
   - Lo sfondo (`backdrop`) e il logo; senza logo, il nome.
   - La riga "{n} film · {m} visti", dove m conta i film con `played`.
   - La sinossi della collezione, se c'è.
@@ -308,38 +340,53 @@ I nomi dei file sono indicativi: il piano può spostarli, ma senza cambiare le r
   - Il pulsante dice **Riprendi "{titolo}"** se quel film è iniziato, altrimenti **Riproduci "{titolo}"**.
   - Se sono tutti visti, il pulsante è **Riproduci "{titolo}"** sul primo film.
   - Scorrendo, il pulsante passa nella barra in alto come nella scheda del film (`ShellHeaderPublisher`).
-- **Elenco:** sotto la testata, la griglia dei film come `PosterCard` (avanzamento, visto, non visto), in ordine di uscita.
-- **Errori:** caricamento ed errore con "Riprova" come nella scheda di un titolo. Una saga che non esiste più dà l'errore di "titolo non trovato".
+- **Elenco:** sotto la testata, la griglia dei film come `PosterCard` (avanzamento, visto, non visto), in ordine di uscita. Mentre i film si ricaricano, la griglia mostra lo scheletro delle locandine.
+- **Caricamento:** la pagina chiede la saga e i suoi film insieme, e resta lo scheletro finché i film non sono arrivati (o hanno fallito): così la testata entra già con il conteggio e il pulsante, e non salta.
+  - Lo sfondo entra con la testata e resta dietro un errore successivo.
+- **Errori:** caricamento ed errore con "Riprova" come nella scheda di un titolo. Una saga che non esiste più dà l'errore generico con "Riprova", come la pagina di un titolo: non c'è un testo "titolo non trovato". Se falliscono solo i film, la testata resta e sotto compare l'errore con "Riprova".
 
 ### 8.3 Righe "Fa parte di"
 
 - **Dove:** in `MovieDetailView`, prima di "Simili". C'è una riga per ogni saga del film che ha almeno 2 film, cercate nell'indice (§8.1).
 - **Ordine delle righe:** dalla saga più piccola alla più grande, quindi prima la più specifica ("Iron Man - Collezione" prima di "Marvel Universe"); a parità di dimensione, per nome.
-- **Titolo:** "Fa parte di: {nome}" con una freccia. Il titolo è cliccabile e apre la pagina della saga.
-- **Card:** i film della saga in ordine di uscita (`collectionItemsProvider`), come `PosterCard` alla larghezza di "Simili". Il film aperto ha il bordo dorato e l'etichetta "Questo film". Le saghe grandi (64 film) scorrono in orizzontale come le altre righe.
+- **Titolo:** "Fa parte di: {nome}" con una freccia (`LucideIcons.arrowRight`, `MediaRow.onTitleTap`). Il titolo è un link: apre la pagina della saga, anche con un clic sullo spazio tra il testo e la freccia.
+- **Card:** i film della saga in ordine di uscita (`collectionItemsProvider`), come `PosterCard` alla larghezza di "Simili". Le saghe grandi (64 film) scorrono in orizzontale come le altre righe.
+  - Il film aperto ha il bordo dorato sempre acceso e l'etichetta "Questo film" (`PosterCard.markLabel`).
+  - Non si apre per niente (`PosterCard.openable: false`): niente clic, niente anteprima al passaggio del mouse, niente cursore da clic.
 - **Errori:** finché carica, la riga non compare; un errore la nasconde, come "Simili".
 
 ### 8.4 Vista "Saghe" nel catalogo Film
 
-- **Selettore.** In `/movies`, sotto il titolo, c'è il selettore **Film | Saghe** (`WfTabButton`).
-  - La scelta va nell'indirizzo: `/movies?view=sagas`.
+- **Selettore.** In `/movies`, sotto il titolo, c'è il selettore **Film | Saghe** (`WfTabButton`, chiavi `catalog-view-titles` e `catalog-view-sagas`).
+  - La scelta va nell'indirizzo: `/movies?view=sagas`. Il selettore usa `openMovies` (`catalog_navigation.dart`, con `CatalogView`), cioè `context.go` come le schede delle pagine Richieste e Amministrazione. Un valore di `view` sconosciuto vale come i film.
   - Senza la funzione `collections` il selettore non c'è, e `?view=sagas` mostra i film.
+  - Le due viste hanno la stessa pagina (stessa chiave della rotta): passando da una all'altra non c'è una nuova transizione.
+  - Tornando da Saghe a Film i filtri dei film ripartono da zero. Non è richiesto dalla spec, ma si accetta.
 - **Contenuto della vista "Saghe":**
-  - il titolo "FILM" con "{n} saghe";
+  - il titolo "FILM" con "{n} saghe" (il conteggio compare quando l'elenco ha delle saghe);
   - un campo di ricerca per nome;
-  - l'ordinamento: Nome (`SortName`), Numero di film (dal più grande), Data di aggiunta (dalla più recente);
-  - una griglia di card: locandina della saga (`primaryOf` con il tag), nome, "{n} film".
+  - l'ordinamento (menu `FilterPicker`): Nome (`SortName`), Numero di film (dal più grande), Data di aggiunta (dalla più recente); a parità, per nome e poi per id, così l'ordine è fisso;
+  - una griglia di card (`CollectionCard`): locandina della saga (`ImageUrls.primaryWithTag`, con il tag), nome, "{n} film". Senza locandina c'è un'icona. Il clic apre la pagina della saga; non c'è l'anteprima al passaggio del mouse.
 
   La barra dei filtri dei film (generi, anni, visti) non c'è.
+- **Ricerca e ordinamento** restano nello stato della vista, non nell'indirizzo. Una nuova ricerca o un nuovo ordine riportano la griglia in cima.
 - **Niente pagine:** l'elenco è già tutto in cache.
+- **Caricamento ed errore.**
+  - Finché non c'è un elenco con delle saghe e la lettura è in corso, compare lo scheletro delle locandine (non "Nessuna saga", nemmeno quando la funzione del plugin passa da sconosciuta a nota). Lo stesso dopo "Riprova".
+  - Un errore vince anche sull'elenco vuoto di prima: si vede l'errore con "Riprova", non "Nessuna saga". Con un elenco pieno di prima resta la griglia.
 - **Vuoti:** "Nessuna saga"; con una ricerca, "Nessuna saga con questo nome".
 
 ### 8.5 Ricerca
 
-- **Sezione "Saghe".** Con almeno 2 caratteri compare una sezione "Saghe" sopra i film, con le saghe il cui nome contiene il testo cercato.
-- **Confronto:** senza badare a maiuscole e accenti (la stessa normalizzazione nel testo cercato e nel nome).
+- **Sezione "Saghe".** Con almeno 2 caratteri compare una sezione "Saghe" sopra i film, con le saghe il cui nome contiene il testo cercato. Sono delle `CollectionCard` in una fila che va a capo (`SagasSearchSection`).
+- **Confronto:** senza badare a maiuscole e accenti (la stessa normalizzazione nel testo cercato e nel nome, `foldForSearch`). La normalizzazione:
+  - porta in minuscolo e toglie gli spazi ai lati;
+  - toglie anche i segni combinanti (U+0300–U+036F), quindi vale pure per le lettere scritte come lettera più segno;
+  - sostituisce le lettere accentate comuni, i macron e: ø, æ, œ, ß, š, č, ž, ł;
+  - **non** tocca le lettere polacche ć, ź, ś, ą, ę, ż.
 - **Quante:** al massimo 12, in ordine di nome.
-- **Nessuna chiamata in più:** il filtro lavora sull'elenco in cache (§8.1). Senza saghe che corrispondono, la sezione non c'è.
+- **Quando si legge l'elenco:** appena si apre la schermata di ricerca (una chiamata, poi è in cache), non quando si scrive: così la sezione non arriva dopo i risultati. Poi il filtro lavora sull'elenco in cache (§8.1), senza chiamate in più. Senza saghe che corrispondono, la sezione non c'è.
+- **"Nessun risultato"** non compare se la libreria non trova niente ma ci sono delle saghe.
 
 ## 9. Profili (K2)
 
@@ -518,6 +565,8 @@ Il player non può essere aperto durante il cambio, perché il menu dell'avatar 
 | Login | "Annulla", "Sessione scaduta" (c'è già) |
 | Immagine | "Immagine del profilo", "Avatar", "Dal PC", "Rimuovi", "Usa questo", "Scegli un'immagine…", "Usa questa", "Rimuovi immagine", "Immagine troppo grande", "Immagine non valida", "Non hai il permesso di cambiare l'immagine", "Caricamento non riuscito" |
 
+In inglese "Saghe" e "saga" sono "Collections" e "collection", come in Jellyfin.
+
 Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`, `…17c…`) controlla che le chiavi ci siano in entrambe le lingue.
 
 ## 12. Errori e casi limite
@@ -530,7 +579,8 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
   - la sua pagina funziona;
   - non ha la riga "Fa parte di".
 - **Film in più saghe:** una riga per saga (§8.3).
-- **Saga cancellata mentre la sua pagina è aperta:** alla rilettura successiva compare l'errore "titolo non trovato".
+- **Saga cancellata mentre la sua pagina è aperta:** alla rilettura successiva compare l'errore generico con "Riprova", come per un titolo (§8.2).
+- **Lettura delle saghe fallita:** le righe della scheda e la ricerca non mostrano niente; la vista "Saghe" mostra l'errore con "Riprova". L'errore non resta in cache: la lettura si ripete quando qualcuno torna ad ascoltare (§8.1).
 - **Doppioni sul server** (le due "Star Wars"): compaiono tutti e due, finché non si sistemano sul server.
 
 ### Profili
@@ -551,11 +601,13 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
 
 - **Plugin** (xUnit):
   - Collezioni:
-    - solo quelle visibili, e solo i film visibili;
-    - una collezione senza film visibili non compare;
-    - id nel formato "N";
-    - senza la cartella delle collezioni, elenco vuoto;
-    - l'autorizzazione.
+    - l'adattatore, con `Folder` e `BoxSet` simulati da sottoclassi: la cartella e ogni collezione si leggono sempre attraverso l'utente e con i collegati; un film sciolto nella cartella non è una collezione; nome e `SortName` mancanti diventano vuoti; il tag della locandina c'è solo con la locandina;
+    - senza utente (anche con l'id vuoto, che farebbe lanciare `UserManager`) o senza la cartella delle collezioni, elenco vuoto, e la cartella non si crea mai;
+    - una collezione senza film visibili non compare (controller);
+    - id nel formato "N" (controller);
+    - l'autorizzazione: `[Authorize]` senza policy;
+    - il JSON del protocollo e la registrazione del servizio;
+    - la visibilità vera (librerie e controllo parentale) non si prova con i test: si controlla sul server (§14).
   - Avatar:
     - ricerca per id e per nome, con il nome senza badare alle maiuscole;
     - nessun doppione;
@@ -566,8 +618,10 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
   - Le funzioni in `Info` e la versione.
 - **Modelli e API dell'app:**
   - `ItemKind.boxSet` e `itemRoute`;
-  - `ItemQuery.parentId`;
-  - `CollectionsApi` e `AvatarsApi` (`FakeAdapter`): percorsi e letture tolleranti;
+  - `LibraryApi.collectionItems` (percorso e parametri, senza `recursive`), `ImageUrls.primaryWithTag` e `jellyfinIdKey` (non c'è un test su `ItemQuery.parentId`: il campo non esiste);
+  - `SocialFeatures.collections` letta da `Info`, anche senza watch party;
+  - `CollectionsApi` (`FakeAdapter`): percorso, letture tolleranti, `ItemIds` normalizzati e senza doppioni, corpo di forma inattesa, 404;
+  - `AvatarsApi` (`FakeAdapter`): percorsi e letture tolleranti;
   - `UserImageApi`: corpo in base64, `Content-Type`, `DELETE`, errori 403 e 401.
 - **Saghe:**
   - l'indice film → saghe;
@@ -575,7 +629,13 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
   - una riga solo con almeno 2 film;
   - il pulsante principale della pagina (primo non visto, iniziato, tutti visti);
   - la vista "Saghe": ricerca, ordinamenti, vuoti, selettore nascosto senza la funzione, `?view=sagas`;
-  - la ricerca: accenti e maiuscole, massimo 12, nessuna chiamata.
+  - la ricerca: accenti e maiuscole, massimo 12, nessuna chiamata;
+  - `collectionsProvider`: nessuna chiamata senza la funzione, rilettura con la libreria o l'utente, elenco non modificabile, una lettura riuscita che resta in cache senza ascoltatori, un errore che non resta in cache (si riprova tornando ad ascoltare), una rilettura fallita che lascia l'indice com'era;
+  - la vista "Saghe" in caricamento (scheletro, non "Nessuna saga"), l'errore che vince su un elenco vuoto di prima, "Riprova" che mostra lo scheletro, il ritorno in cima con una nuova ricerca o un nuovo ordine, il selettore che riporta ai film;
+  - la pagina della saga: errore con "Riprova" per una saga che non c'è, sfondo che resta dietro un errore, testata che arriva insieme ai film, errore dei soli film con "Riprova";
+  - le righe: titolo come link (anche lo spazio tra il titolo e la freccia), "Questo film" che non apre niente (né clic né anteprima), le altre card che si aprono;
+  - la ricerca: la sezione "Saghe" sopra i film, l'elenco letto all'apertura, "Nessun risultato" assente con le sole saghe;
+  - la normalizzazione della ricerca (`foldForSearch`): maiuscole, accenti, lettere accentate scritte come lettera più segno, macron e lettere speciali.
 - **Profili:**
   - `ProfileStore`: lettura, scrittura, file rovinato, massimo 5;
   - la migrazione da `wonderflix.session` con il DeviceId di oggi;
@@ -626,7 +686,7 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
 ## 14. Rischi e punti da verificare
 
 - **Corpo di `POST /UserImage` in base64.** Si prova all'inizio del piano 17c sull'account dell'utente, con il suo ok, e poi si toglie l'immagine di prova. Se Jellyfin vuole i byte grezzi, cambia solo `UserImageApi`.
-- **Collezioni nel plugin.** Si verifica all'inizio del piano 17a che `ICollectionManager.GetCollectionsFolder(false)` e i figli collegati, filtrati per l'utente, diano le stesse 101 collezioni e gli stessi film delle API (§3.1). Si verifica anche che un utente normale non veda film di librerie che non ha. Se non va, l'alternativa è una `InternalItemsQuery` con la cartella delle collezioni come genitore.
+- **Collezioni nel plugin.** Fatto nel piano 17a: `ICollectionManager.GetCollectionsFolder(false)` e `GetChildren(user, true, …)` sulla cartella e su ogni collezione, come fa `GET /Items?parentId=…` (§7.1). La visibilità vera si è controllata sul server; lì nessun utente ha librerie ristrette o limiti parentali, quindi un utente che non vede una libreria non si prova con dati veri. Resta la prova a mano con un secondo account (piano 17a, Task 12).
 - **`IImageProcessor.GetImageCacheTag` per gli utenti** in Jellyfin 10.11: si verifica che dia lo stesso `PrimaryImageTag` di `/Users/Me`.
 - **Uscita dal party al cambio di profilo:** si verifica che il gruppo SyncPlay perda davvero il membro.
 - **Due WonderFlix aperti insieme** (non di sviluppo) con lo stesso file dei profili: oggi non è un caso previsto, e resta così.

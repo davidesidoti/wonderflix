@@ -23,6 +23,17 @@ I profili sono nel piano 17b; le immagini del profilo, l'endpoint degli avatar e
 7. **`FilterPicker`:** il menu `_Picker` di `catalog_filters_bar.dart` diventa pubblico, per l'ordinamento delle saghe.
 8. **Ricerca:** se la libreria non trova niente ma ci sono saghe, "Nessun risultato" non compare.
 9. **Testi inglesi:** "Collections" e "collection", come in Jellyfin.
+10. **Dalle review dei gruppi** (il codice dei task sotto è quello di partenza: dove differisce, vale questa lista, e la spec è già allineata):
+    - **Plugin:** `JellyfinCollectionDirectory` usa `ICollectionManager`, `IUserManager` e `IImageProcessor`, non `ILibraryManager`. Il test dell'adattatore simula `Folder` e `BoxSet` con sottoclassi e prova che ogni lettura passa dall'utente.
+    - **Id:** `jellyfinIdKey` (in `json_fields.dart`) al posto di `collectionKey`. `CollectionSummary.fromJson` normalizza gli `ItemIds` con `jellyfinIdKey` e toglie i doppioni (`size` = titoli distinti); una stringa con le virgole non è accettata.
+    - **Titoli di una saga:** `ItemQuery` non ha `parentId`; li legge `LibraryApi.collectionItems`. Niente test su `ItemQuery.parentId`.
+    - **Cache:** `collectionsProvider` è `autoDispose` e resta in cache dopo una lettura riuscita (`keepAlive`); un errore non resta in cache, si riprova quando qualcuno torna ad ascoltare. L'elenco non è modificabile. Il provider scrive nel registro un `ApiException` come info, ogni altro errore come avviso.
+    - **`PosterCard.openable`:** il film aperto nella sua riga non si apre per niente (niente clic, anteprima o cursore), al posto dell'`onTap` vuoto.
+    - **Pagina della saga:** chiede la saga e i titoli insieme e resta lo scheletro finché i titoli non sono arrivati (o hanno fallito); lo sfondo entra con la testata e resta dietro un errore; mentre i titoli si ricaricano la griglia ha lo scheletro delle locandine; una saga cancellata dà l'errore generico con "Riprova" (nessun testo "titolo non trovato").
+    - **Testata:** `DetailHeaderFrame` e `HeaderTitle` in `detail_header.dart`, in comune con `DetailHeader`, al posto del `HeaderScrollFade` pubblico (`_ScrollFade` resta privato).
+    - **Catalogo:** `catalog_navigation.dart` con `CatalogView` e `openMovies`; schede con le chiavi `catalog-view-…`. Una nuova ricerca o un nuovo ordine riportano in cima. La vista "Saghe" mostra lo scheletro in caricamento senza saghe, e l'errore vince su un elenco vuoto di prima. Film → Saghe → Film azzera i filtri dei film (accettato).
+    - **Ricerca:** la schermata legge l'elenco delle saghe appena si apre (una chiamata, poi in cache). `foldForSearch` toglie anche i segni combinanti (U+0300–U+036F) e mappa macron, ø, æ, œ, ß, š, č, ž, ł.
+    - **Import:** `collection_screen.dart` importa `app_shell.dart` (`ShellHeaderPublisher`, `ShellHeader`) e non il file `shell_header.dart`, che è un `part`.
 
 **Architecture:**
 - **Plugin:** `ICollectionDirectory` (Hub) e `JellyfinCollectionDirectory` (Server), `CollectionsController`, DTO in `CollectionDtos.cs`, funzione `collections` in `WatchPartyProtocol.Features`.
