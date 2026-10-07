@@ -59,6 +59,9 @@ List<String> jsonStrings(Object? value) => switch (value) {
 /// esempio l'utente delle voci di sistema o delle chiavi API).
 bool isEmptyJellyfinId(String id) => id.replaceAll(RegExp('[-0]'), '').isEmpty;
 
+/// Id di Jellyfin confrontabili: senza trattini e in minuscolo.
+String jellyfinIdKey(String id) => id.replaceAll('-', '').toLowerCase();
+
 /// Un elenco JSON di oggetti. Le voci che [parse] scarta (`null`) e quelle
 /// che non sono oggetti si saltano; un corpo che non è un elenco è una
 /// risposta inattesa.

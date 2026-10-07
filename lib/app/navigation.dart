@@ -8,6 +8,9 @@ import '../core/jellyfin/item_models.dart';
 import '../features/library/library_providers.dart';
 import 'hero_launch.dart';
 
+/// Percorso della pagina della saga [collectionId] (spec K §8.2).
+String collectionRoute(String collectionId) => '/collection/$collectionId';
+
 /// Percorso da aprire per [item]: episodi e stagioni aprono la serie.
 String itemRoute(JellyfinItem item) {
   final seriesId = item.seriesId;
@@ -24,7 +27,7 @@ String itemRoute(JellyfinItem item) {
         queryParameters: seasonId == null ? null : {'season': seasonId},
       ).toString();
     case ItemKind.boxSet:
-      return '/collection/${item.id}';
+      return collectionRoute(item.id);
     default:
       return '/item/${item.id}';
   }
@@ -54,7 +57,7 @@ void openItemById(BuildContext context, String itemId) =>
 
 /// Apre la pagina della saga [collectionId] (spec K §8.2).
 void openCollection(BuildContext context, String collectionId) =>
-    unawaited(context.push('/collection/$collectionId'));
+    unawaited(context.push(collectionRoute(collectionId)));
 
 /// Apre la pagina di [person]; con [heroSource] la foto vola dal cast.
 void openPerson(BuildContext context, PersonRef person, {String? heroSource}) {

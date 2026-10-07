@@ -20,43 +20,51 @@ const _plainLetters = {
   'ì': 'i', 'í': 'i', 'î': 'i', 'ï': 'i', //
   'ò': 'o', 'ó': 'o', 'ô': 'o', 'õ': 'o', 'ö': 'o', //
   'ù': 'u', 'ú': 'u', 'û': 'u', 'ü': 'u', //
-  'ý': 'y', 'ÿ': 'y', 'ç': 'c', 'ñ': 'n',
+  'ý': 'y', 'ÿ': 'y', 'ç': 'c', 'ñ': 'n', //
+  'ā': 'a', 'ē': 'e', 'ī': 'i', 'ō': 'o', 'ū': 'u', //
+  'ø': 'o', 'æ': 'ae', 'œ': 'oe', 'ß': 'ss', //
+  'š': 's', 'č': 'c', 'ž': 'z', 'ł': 'l',
 };
+
+/// Primo e ultimo dei segni combinanti (U+0300–U+036F): gli accenti scritti
+/// come lettera più segno, e il puntino di 'İ' in minuscolo.
+const _combiningMarksStart = 0x0300;
+const _combiningMarksEnd = 0x036F;
 
 /// Testo per i confronti della ricerca: minuscolo, senza accenti e senza
 /// spazi ai lati (spec K §8.5).
 String foldForSearch(String text) {
   final buffer = StringBuffer();
-  for (final char in text.trim().toLowerCase().split('')) {
+  for (final rune in text.trim().toLowerCase().runes) {
+    if (rune >= _combiningMarksStart && rune <= _combiningMarksEnd) continue;
+    final char = String.fromCharCode(rune);
     buffer.write(_plainLetters[char] ?? char);
   }
   return buffer.toString();
 }
 
-/// Id di Jellyfin confrontabili: senza trattini e in minuscolo.
-String collectionKey(String id) => id.replaceAll('-', '').toLowerCase();
+/// Ordine stabile: per `SortName`, a parità per id.
+int _byName(CollectionSummary a, CollectionSummary b) {
+  final byName = a.sortName.compareTo(b.sortName);
+  return byName != 0 ? byName : a.id.compareTo(b.id);
+}
 
-int _byName(CollectionSummary a, CollectionSummary b) =>
-    a.sortName.compareTo(b.sortName);
-
-/// Le saghe di ogni titolo, per [collectionKey] dell'id: dalla più piccola
-/// alla più grande, a parità per nome (spec K §8.3). La grandezza conta i
-/// titoli distinti: un id ripetuto nell'elenco non fa pesare di più la saga.
+/// Le saghe di ogni titolo, per id normalizzato (`jellyfinIdKey`): dalla più
+/// piccola alla più grande, a parità per nome (spec K §8.3). Gli `itemIds`
+/// di una saga sono già normalizzati e senza doppioni.
 Map<String, List<CollectionSummary>> indexCollections(
     List<CollectionSummary> collections) {
   final index = <String, List<CollectionSummary>>{};
-  final sizes = <String, int>{};
   for (final collection in collections) {
-    final keys = {for (final id in collection.itemIds) collectionKey(id)};
-    sizes[collection.id] = keys.length;
-    for (final key in keys) {
-      final sagas = index.putIfAbsent(key, () => []);
+    for (final id in collection.itemIds) {
+      final sagas = index.putIfAbsent(id, () => []);
+      // Protegge solo dalla stessa saga presente due volte nell'elenco.
       if (sagas.every((saga) => saga.id != collection.id)) sagas.add(collection);
     }
   }
   for (final sagas in index.values) {
     sagas.sort((a, b) {
-      final bySize = sizes[a.id]!.compareTo(sizes[b.id]!);
+      final bySize = a.size.compareTo(b.size);
       return bySize != 0 ? bySize : _byName(a, b);
     });
   }
@@ -98,8 +106,9 @@ List<CollectionSummary> sortCollections(
     CollectionSort.dateAdded => (a, b) {
         final first = a.dateCreated;
         final second = b.dateCreated;
-        if (first != null && second != null && first != second) {
-          return second.compareTo(first);
+        if (first != null && second != null) {
+          final byDate = second.compareTo(first);
+          if (byDate != 0) return byDate;
         }
         if (first == null && second != null) return 1;
         if (first != null && second == null) return -1;

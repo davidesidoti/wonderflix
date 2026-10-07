@@ -54,4 +54,11 @@ void main() {
     expect(isEmptyJellyfinId('00000000-0000-0000-0000-000000000000'), isTrue);
     expect(isEmptyJellyfinId('ab8240c5fc1649e186f662fa00ca0fb0'), isFalse);
   });
+
+  test('jellyfinIdKey: senza trattini e in minuscolo', () {
+    expect(jellyfinIdKey('0088B3BF-1B19-EF2D-962F-A145C461538A'),
+        '0088b3bf1b19ef2d962fa145c461538a');
+    expect(jellyfinIdKey('0088b3bf1b19ef2d962fa145c461538a'),
+        '0088b3bf1b19ef2d962fa145c461538a');
+  });
 }

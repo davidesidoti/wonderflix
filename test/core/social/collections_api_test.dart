@@ -75,6 +75,26 @@ void main() {
     expect(dune.itemIds, ['m4']);
   });
 
+  test('ItemIds: id normalizzati e senza doppioni, nell\'ordine di arrivo',
+      () async {
+    adapter.handler = (_) => const FakeResponse(200, {
+          'Collections': [
+            {
+              'Id': 'c1',
+              'Name': 'Matrix',
+              'ItemIds': ['m1', 'M1', 'm-2', 'm2', 'AB-CD', 'abcd'],
+            },
+            // Una stringa con le virgole non è un elenco di `ItemIds`.
+            {'Id': 'c2', 'Name': 'Alien', 'ItemIds': 'm1,m2'},
+          ],
+        });
+    final sagas = await api.collections();
+    expect(sagas.first.itemIds, ['m1', 'm2', 'abcd']);
+    expect(sagas.first.size, 3);
+    expect(sagas.last.itemIds, isEmpty);
+    expect(sagas.last.size, 0);
+  });
+
   test('corpo di forma inattesa: errore del server', () async {
     adapter.handler = (_) => const FakeResponse(200, ['no']);
     await expectLater(api.collections(), throwsA(isA<ServerErrorException>()));

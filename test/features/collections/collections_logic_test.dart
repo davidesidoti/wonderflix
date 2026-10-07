@@ -11,17 +11,26 @@ void main() {
     expect(foldForSearch('Amélie, Pinocchio, Ñandú'), 'amelie, pinocchio, nandu');
   });
 
-  test('collectionKey: senza trattini e in minuscolo', () {
-    expect(collectionKey('0088B3BF-1B19-EF2D-962F-A145C461538A'),
-        '0088b3bf1b19ef2d962fa145c461538a');
+  test('foldForSearch: accenti scritti come lettera più segno, macron e lettere speciali',
+      () {
+    // 'e' più accento acuto combinante.
+    expect(foldForSearch('Amélie'), 'amelie');
+    // 'İ' in minuscolo diventa 'i' più un puntino combinante.
+    expect(foldForSearch('İstanbul'), 'istanbul');
+    expect(foldForSearch('Shōgun'), 'shogun');
+    expect(foldForSearch('Ā Ē Ī Ō Ū'), 'a e i o u');
+    expect(foldForSearch('Ørsted'), 'orsted');
+    expect(foldForSearch('Æon Flux, Cœur, Straße'), 'aeon flux, coeur, strasse');
+    expect(foldForSearch('Šaša Čapek Žižek Łukasz'), 'sasa capek zizek lukasz');
   });
 
   test('indexCollections: dalla saga più piccola, a parità per nome, senza doppioni',
       () {
     final marvel = testCollection(id: 'c1', name: 'Marvel Universe', itemIds: ['m1', 'm2', 'm3']);
-    final ironMan = testCollection(id: 'c2', name: 'Iron Man - Collezione', itemIds: ['M1', 'm2']);
-    final avengers = testCollection(id: 'c3', name: 'Avengers - Collezione', itemIds: ['m1', 'm1', 'm4']);
-    final index = indexCollections([marvel, ironMan, avengers]);
+    final ironMan = testCollection(id: 'c2', name: 'Iron Man - Collezione', itemIds: ['m1', 'm2']);
+    final avengers = testCollection(id: 'c3', name: 'Avengers - Collezione', itemIds: ['m1', 'm4']);
+    // La stessa saga due volte nell'elenco non si ripete nell'indice.
+    final index = indexCollections([marvel, ironMan, avengers, marvel]);
     expect(index['m1']!.map((c) => c.id), ['c3', 'c2', 'c1']);
     expect(index['m2']!.map((c) => c.id), ['c2', 'c1']);
     expect(index['m4']!.map((c) => c.id), ['c3']);
@@ -32,9 +41,12 @@ void main() {
     final sagas = [
       testCollection(id: 'c1', name: 'Mátrix - Collezione'),
       testCollection(id: 'c2', name: 'Alien - Collezione'),
+      testCollection(id: 'c3', name: 'Matrix - Collezione'),
     ];
-    expect(filterCollections(sagas, 'MATRIX').map((c) => c.id), ['c1']);
-    expect(filterCollections(sagas, ' ').map((c) => c.id), ['c1', 'c2']);
+    expect(filterCollections(sagas, 'MATRIX').map((c) => c.id), ['c1', 'c3']);
+    // L'accento nel testo cercato non conta: "mátrix" trova anche "Matrix".
+    expect(filterCollections(sagas, 'mátrix').map((c) => c.id), ['c1', 'c3']);
+    expect(filterCollections(sagas, ' ').map((c) => c.id), ['c1', 'c2', 'c3']);
     expect(filterCollections(sagas, 'zzz'), isEmpty);
   });
 
@@ -62,6 +74,35 @@ void main() {
     expect(sortCollections(sagas, CollectionSort.dateAdded).map((c) => c.id), ['m', 'a', 'd']);
     // L'elenco di partenza non cambia.
     expect(sagas.map((c) => c.id), ['m', 'd', 'a']);
+  });
+
+  test('sortCollections: a parità l\'ordine è fisso (nome, poi id)', () {
+    // Senza data tutte e due: per nome.
+    final noDates = [
+      testCollection(id: 'z', name: 'Zeta'),
+      testCollection(id: 'b', name: 'Beta'),
+      testCollection(id: 'a', name: 'Alfa'),
+    ];
+    expect(sortCollections(noDates, CollectionSort.dateAdded).map((c) => c.id),
+        ['a', 'b', 'z']);
+    // Con la stessa data: per nome.
+    final sameDate = DateTime.utc(2026, 3, 1);
+    final dated = [
+      testCollection(id: 'b', name: 'Beta', dateCreated: sameDate),
+      testCollection(id: 'a', name: 'Alfa', dateCreated: sameDate),
+    ];
+    expect(sortCollections(dated, CollectionSort.dateAdded).map((c) => c.id),
+        ['a', 'b']);
+    // Con lo stesso nome: per id, in qualunque ordine partano.
+    final twins = [
+      testCollection(id: 'x2', name: 'Gemelle'),
+      testCollection(id: 'x1', name: 'Gemelle'),
+    ];
+    for (final sort in CollectionSort.values) {
+      expect(sortCollections(twins, sort).map((c) => c.id), ['x1', 'x2']);
+      expect(sortCollections(twins.reversed.toList(), sort).map((c) => c.id),
+          ['x1', 'x2']);
+    }
   });
 
   test('sagaTarget e watchedCount', () {
