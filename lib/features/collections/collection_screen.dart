@@ -15,14 +15,12 @@ import '../../ui/smooth_scroll.dart';
 import '../../ui/staggered_entrance.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_buttons.dart';
-import '../../ui/wf_image.dart';
 import '../../ui/wf_switcher.dart';
 import '../detail/detail_backdrop.dart';
 import '../detail/detail_header.dart';
 import '../detail/detail_providers.dart';
 import '../detail/header_parallax.dart';
 import '../detail/primary_action.dart';
-import '../library/library_providers.dart';
 import '../library/user_data.dart';
 import '../playback/play_launcher.dart';
 import 'collections_logic.dart';
@@ -239,101 +237,52 @@ class CollectionHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
-    final logo = ref.watch(imageUrlsProvider).logo(collection);
     final list = items;
     final primary = action;
     final overview = collection.overview;
     final watched = list == null
         ? 0
         : watchedCount(list, (item) => watchUserData(ref, item));
-    return SizedBox(
-      height: detailHeaderHeight,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [WfColors.bg, Color(0xD90A0A0A), Colors.transparent],
-                stops: [0, 0.4, 0.8],
-              ),
-            ),
+    return DetailHeaderFrame(
+      controller: controller,
+      children: [
+        StaggerItem(index: 0, child: HeaderTitle(item: collection)),
+        if (list != null) ...[
+          const SizedBox(height: 12),
+          StaggerItem(
+            index: 1,
+            child: Text(
+                '${l.collectionFilmCount(list.length)} · '
+                '${l.collectionWatched(watched)}',
+                style: const TextStyle(color: WfColors.creamMuted)),
           ),
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-                colors: [WfColors.bg, Colors.transparent],
-                stops: [0, 0.5],
-              ),
-            ),
-          ),
-          Positioned(
-            left: 32,
-            right: 32,
-            bottom: detailHeaderTextBottom,
-            child: HeaderScrollFade(
-              controller: controller,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  StaggerItem(
-                    index: 0,
-                    child: logo != null
-                        ? SizedBox(
-                            height: 120,
-                            width: 460,
-                            child: Align(
-                              alignment: Alignment.bottomLeft,
-                              child: WfImage(image: logo, fit: BoxFit.contain),
-                            ),
-                          )
-                        : Text(collection.name.toUpperCase(),
-                            maxLines: 2, style: WfText.display(56)),
-                  ),
-                  if (list != null) ...[
-                    const SizedBox(height: 12),
-                    StaggerItem(
-                      index: 1,
-                      child: Text(
-                          '${l.collectionFilmCount(list.length)} · '
-                          '${l.collectionWatched(watched)}',
-                          style: const TextStyle(color: WfColors.creamMuted)),
-                    ),
-                  ],
-                  if (overview != null) ...[
-                    const SizedBox(height: 12),
-                    StaggerItem(
-                      index: 2,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 680),
-                        child: Text(overview,
-                            maxLines: 4,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(height: 1.45)),
-                      ),
-                    ),
-                  ],
-                  if (primary != null) ...[
-                    const SizedBox(height: 20),
-                    StaggerItem(
-                      index: 3,
-                      child: WfButton.primary(
-                        label: collectionActionLabel(l, primary),
-                        icon: LucideIcons.play,
-                        onPressed: () => unawaited(
-                            playItem(context, ref, primary.target)),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+        ],
+        if (overview != null) ...[
+          const SizedBox(height: 12),
+          StaggerItem(
+            index: 2,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 680),
+              child: Text(overview,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(height: 1.45)),
             ),
           ),
         ],
-      ),
+        if (primary != null) ...[
+          const SizedBox(height: 20),
+          StaggerItem(
+            index: 3,
+            child: WfButton.primary(
+              label: collectionActionLabel(l, primary),
+              icon: LucideIcons.play,
+              onPressed: () =>
+                  unawaited(playItem(context, ref, primary.target)),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

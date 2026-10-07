@@ -62,10 +62,8 @@ class DetailHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
-    final urls = ref.watch(imageUrlsProvider);
     final userData = watchUserData(ref, item);
     final overrides = ref.read(userDataOverridesProvider.notifier);
-    final logo = urls.logo(item);
     final action = primary;
     final canCreateParty = ref.watch(syncPlayAccessProvider).canCreate;
     final overview = item.overview;
@@ -84,6 +82,136 @@ class DetailHeader extends ConsumerWidget {
     final canRequestSeasons =
         seasonsKey != null && ref.watch(seasonsToRequestProvider(seasonsKey));
 
+    return DetailHeaderFrame(
+      controller: controller,
+      children: [
+        StaggerItem(index: 0, child: HeaderTitle(item: item)),
+        const SizedBox(height: 12),
+        StaggerItem(index: 1, child: MetaLine(item: item)),
+        if (item.genres.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          StaggerItem(
+            index: 2,
+            child: Text(item.genres.join(' · '),
+                style: const TextStyle(color: WfColors.creamMuted)),
+          ),
+        ],
+        if (overview != null) ...[
+          const SizedBox(height: 12),
+          StaggerItem(
+            index: 3,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 680),
+              child: Text(overview,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(height: 1.45)),
+            ),
+          ),
+        ],
+        const SizedBox(height: 20),
+        StaggerItem(
+          index: 4,
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if (action != null)
+                WfButton.primary(
+                  label: primaryActionLabel(l, action),
+                  icon: LucideIcons.play,
+                  onPressed: () =>
+                      unawaited(playItem(context, ref, action.target)),
+                ),
+              if (action is ResumeAction)
+                WfButton.secondary(
+                  label: l.actionRestart,
+                  icon: LucideIcons.rotateCcw,
+                  onPressed: () => unawaited(playItem(
+                      context, ref, action.target,
+                      fromStart: true)),
+                ),
+              // Film ed episodi; per una serie l'azione riproduce il
+              // prossimo episodio da vedere, e la coda parte da lì.
+              if (canCreateParty &&
+                  action != null &&
+                  const {ItemKind.movie, ItemKind.episode, ItemKind.series}
+                      .contains(item.kind))
+                Builder(
+                  // Il menu delle modalità si apre sotto il
+                  // pulsante (spec F §9.1).
+                  builder: (buttonContext) => WfButton.secondary(
+                    label: l.watchPartyWatchTogether,
+                    icon: LucideIcons.users,
+                    onPressed: () => unawaited(watchTogether(
+                      buttonContext,
+                      ref,
+                      action.target,
+                      start: action is ResumeAction
+                          ? action.position
+                          : Duration.zero,
+                    )),
+                  ),
+                ),
+              if (hasTrailer)
+                WfButton.secondary(
+                  label: l.actionTrailer,
+                  icon: LucideIcons.clapperboard,
+                  onPressed: () =>
+                      unawaited(playTrailer(context, ref, item)),
+                ),
+              WfIconToggle(
+                icon: LucideIcons.heart,
+                selected: userData.isFavorite,
+                tooltip: userData.isFavorite
+                    ? l.actionRemoveFromList
+                    : l.actionAddToList,
+                onPressed: () => unawaited(
+                    _toggle(context, () => overrides.toggleFavorite(item))),
+              ),
+              WfIconToggle(
+                icon: LucideIcons.check,
+                selected: userData.played,
+                tooltip: userData.played
+                    ? l.actionMarkUnwatched
+                    : l.actionMarkWatched,
+                onPressed: () => unawaited(
+                    _toggle(context, () => overrides.togglePlayed(item))),
+              ),
+              // Dopo i toggle: la scheda di Seerr arriva dopo due
+              // richieste, e prima dei toggle li farebbe saltare.
+              if (seasonsKey != null && canRequestSeasons)
+                WfButton.secondary(
+                  label: l.requestsMoreSeasons,
+                  icon: LucideIcons.plus,
+                  onPressed: () => unawaited(showRequestSeasonsDialog(
+                      context, ref, seasonsKey, item.name)),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Cornice di una testata (scheda e pagina della saga): altezza
+/// [detailHeaderHeight], i due gradienti sopra lo sfondo e, in basso a
+/// sinistra, il blocco dei testi [children], che sfuma salendo con lo scroll
+/// (spec C §9.1). Lo sfondo è un livello a parte dietro alla pagina
+/// (`DetailBackdrop`).
+class DetailHeaderFrame extends StatelessWidget {
+  const DetailHeaderFrame(
+      {super.key, required this.controller, required this.children});
+
+  /// Scroll della pagina; senza, il testo non sfuma.
+  final ScrollController? controller;
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
     return SizedBox(
       height: detailHeaderHeight,
       child: Stack(
@@ -111,132 +239,12 @@ class DetailHeader extends ConsumerWidget {
             left: 32,
             right: 32,
             bottom: detailHeaderTextBottom,
-            child: HeaderScrollFade(
+            child: _ScrollFade(
               controller: controller,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
-                children: [
-                  StaggerItem(
-                    index: 0,
-                    child: logo != null
-                        ? SizedBox(
-                            height: 120,
-                            width: 460,
-                            child: Align(
-                              alignment: Alignment.bottomLeft,
-                              child: WfImage(image: logo, fit: BoxFit.contain),
-                            ),
-                          )
-                        : Text(item.name.toUpperCase(),
-                            maxLines: 2, style: WfText.display(56)),
-                  ),
-                  const SizedBox(height: 12),
-                  StaggerItem(index: 1, child: MetaLine(item: item)),
-                  if (item.genres.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    StaggerItem(
-                      index: 2,
-                      child: Text(item.genres.join(' · '),
-                          style: const TextStyle(color: WfColors.creamMuted)),
-                    ),
-                  ],
-                  if (overview != null) ...[
-                    const SizedBox(height: 12),
-                    StaggerItem(
-                      index: 3,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 680),
-                        child: Text(overview,
-                            maxLines: 4,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(height: 1.45)),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 20),
-                  StaggerItem(
-                    index: 4,
-                    child: Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        if (action != null)
-                          WfButton.primary(
-                            label: primaryActionLabel(l, action),
-                            icon: LucideIcons.play,
-                            onPressed: () =>
-                                unawaited(playItem(context, ref, action.target)),
-                          ),
-                        if (action is ResumeAction)
-                          WfButton.secondary(
-                            label: l.actionRestart,
-                            icon: LucideIcons.rotateCcw,
-                            onPressed: () => unawaited(playItem(
-                                context, ref, action.target,
-                                fromStart: true)),
-                          ),
-                        // Film ed episodi; per una serie l'azione riproduce il
-                        // prossimo episodio da vedere, e la coda parte da lì.
-                        if (canCreateParty &&
-                            action != null &&
-                            const {ItemKind.movie, ItemKind.episode, ItemKind.series}
-                                .contains(item.kind))
-                          Builder(
-                            // Il menu delle modalità si apre sotto il
-                            // pulsante (spec F §9.1).
-                            builder: (buttonContext) => WfButton.secondary(
-                              label: l.watchPartyWatchTogether,
-                              icon: LucideIcons.users,
-                              onPressed: () => unawaited(watchTogether(
-                                buttonContext,
-                                ref,
-                                action.target,
-                                start: action is ResumeAction
-                                    ? action.position
-                                    : Duration.zero,
-                              )),
-                            ),
-                          ),
-                        if (hasTrailer)
-                          WfButton.secondary(
-                            label: l.actionTrailer,
-                            icon: LucideIcons.clapperboard,
-                            onPressed: () =>
-                                unawaited(playTrailer(context, ref, item)),
-                          ),
-                        WfIconToggle(
-                          icon: LucideIcons.heart,
-                          selected: userData.isFavorite,
-                          tooltip: userData.isFavorite
-                              ? l.actionRemoveFromList
-                              : l.actionAddToList,
-                          onPressed: () => unawaited(
-                              _toggle(context, () => overrides.toggleFavorite(item))),
-                        ),
-                        WfIconToggle(
-                          icon: LucideIcons.check,
-                          selected: userData.played,
-                          tooltip: userData.played
-                              ? l.actionMarkUnwatched
-                              : l.actionMarkWatched,
-                          onPressed: () => unawaited(
-                              _toggle(context, () => overrides.togglePlayed(item))),
-                        ),
-                        // Dopo i toggle: la scheda di Seerr arriva dopo due
-                        // richieste, e prima dei toggle li farebbe saltare.
-                        if (seasonsKey != null && canRequestSeasons)
-                          WfButton.secondary(
-                            label: l.requestsMoreSeasons,
-                            icon: LucideIcons.plus,
-                            onPressed: () => unawaited(showRequestSeasonsDialog(
-                                context, ref, seasonsKey, item.name)),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
+                children: children,
               ),
             ),
           ),
@@ -246,11 +254,33 @@ class DetailHeader extends ConsumerWidget {
   }
 }
 
-/// Opacità e salita del testo di una testata con lo scroll (scheda e pagina
-/// della saga).
-class HeaderScrollFade extends StatelessWidget {
-  const HeaderScrollFade(
-      {super.key, required this.controller, required this.child});
+/// Primo elemento di una testata: il logo di [item] o, senza, il nome in
+/// maiuscolo.
+class HeaderTitle extends ConsumerWidget {
+  const HeaderTitle({super.key, required this.item});
+
+  final JellyfinItem item;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final logo = ref.watch(imageUrlsProvider).logo(item);
+    return logo != null
+        ? SizedBox(
+            height: 120,
+            width: 460,
+            child: Align(
+              alignment: Alignment.bottomLeft,
+              child: WfImage(image: logo, fit: BoxFit.contain),
+            ),
+          )
+        : Text(item.name.toUpperCase(),
+            maxLines: 2, style: WfText.display(56));
+  }
+}
+
+/// Opacità e salita del testo della testata con lo scroll.
+class _ScrollFade extends StatelessWidget {
+  const _ScrollFade({required this.controller, required this.child});
 
   final ScrollController? controller;
   final Widget child;
