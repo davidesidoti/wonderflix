@@ -528,5 +528,18 @@
   "adminSeerrNotConfiguredError": "Seerr is not configured",
   "adminSeerrAuthError": "Seerr rejected the key",
   "adminSeerrUnavailable": "Seerr is not responding",
-  "adminSeerrNotConfigured": "Not configured: set it up from the plugin page in the web Dashboard."
+  "adminSeerrNotConfigured": "Not configured: set it up from the plugin page in the web Dashboard.",
+  "collectionsTab": "Collections",
+  "collectionsCount": "{count, plural, =1{1 collection} other{{count} collections}}",
+  "collectionFilmCount": "{count, plural, =1{1 movie} other{{count} movies}}",
+  "collectionWatched": "{count, plural, other{{count} watched}}",
+  "collectionPartOf": "Part of: {name}",
+  "collectionThisMovie": "This movie",
+  "collectionPlay": "Play \"{title}\"",
+  "collectionResume": "Resume \"{title}\"",
+  "collectionsSearchHint": "Search a collection",
+  "collectionsSortName": "Name",
+  "collectionsSortSize": "Number of movies",
+  "collectionsEmpty": "No collections",
+  "collectionsNoMatch": "No collection with this name"
 }
