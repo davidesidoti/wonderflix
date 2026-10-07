@@ -225,6 +225,7 @@ lib/features/catalog/
   catalog_filters_bar.dart            FilterPicker, pubblico (anche per le saghe)
 lib/features/detail/
   detail_header.dart                  DetailHeaderFrame e HeaderTitle, in comune con la pagina della saga
+  item_detail_screen.dart             un BoxSet passa a /collection/<id> (context.replace)
 lib/ui/
   media_row.dart                      MediaRow.onTitleTap (titolo come link)
   poster_card.dart                    PosterCard.markLabel e openable
@@ -272,7 +273,7 @@ I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a; quelli de
 - **Come si legge.** L'adattatore (`JellyfinCollectionDirectory`, con `ICollectionManager`, `IUserManager` e `IImageProcessor`) chiama `GetChildren(user, true, new InternalItemsQuery())` sulla cartella e su ogni `BoxSet`: la stessa chiamata che Jellyfin fa per `GET /Items?parentId=…`, quindi con gli stessi filtri di visibilità (librerie e controllo parentale).
   - La query è nuova a ogni chiamata, perché `GetChildren` la modifica.
   - Senza utente (o con un id vuoto) o senza cartella l'elenco è vuoto, e la cartella non si crea mai.
-- **Formato.** Gli id sono nel formato di Jellyfin: 32 caratteri esadecimali minuscoli, senza trattini (`Guid.ToString("N")`). Nella risposta vera `DateCreated` ha sette decimali e `Z` (`"2026-05-01T10:00:00.0000000Z"`), e `PrimaryImageTag` **manca** se la collezione non ha la locandina: Jellyfin non scrive i valori nulli. L'app tratta un campo assente come `null`.
+- **Formato.** Gli id sono nel formato di Jellyfin: 32 caratteri esadecimali minuscoli, senza trattini (`Guid.ToString("N")`). Con le impostazioni JSON di Jellyfin (date con sette decimali e `Z`, valori nulli non scritti) `DateCreated` ha la forma `"2026-05-01T10:00:00.0000000Z"` e `PrimaryImageTag` **manca** se la collezione non ha la locandina. Non è una risposta osservata sul server: la forma vera si vede nella prova a mano (piano 17a, Task 12). L'app tratta un campo assente come `null`.
 - **Casi particolari.**
   - Senza la cartella delle collezioni la risposta è `{"Collections": []}`.
   - Un errore inatteso dà 500, mai 404 (§2.4).
@@ -280,7 +281,7 @@ I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a; quelli de
 - **Funzione:** `collections` è sempre in `Features`.
 - **Prove.**
   - I test del plugin simulano `Folder` e `BoxSet` con delle sottoclassi, che danno figli fissi e registrano chi li chiede: provano che ogni lettura passa dall'utente, non la visibilità vera.
-  - La visibilità vera si è controllata sul server (§14). Sul server nessun utente ha librerie ristrette o limiti parentali.
+  - La visibilità per utente **non** si è verificata sul server (§14). Si sono controllate le policy degli utenti (nessuno ha librerie ristrette o limiti parentali) e che il `GET /Items?parentId=…` di Jellyfin funziona per un utente normale. L'output del plugin con il token di un utente vero si verifica nella prova a mano (piano 17a, Task 12).
 - **Versione.** Il csproj è già a 1.5.0 (§7.3).
 
 ### 7.2 Avatar
@@ -311,7 +312,7 @@ I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a; quelli de
 
 ### 8.1 Dati
 
-- **`ItemKind.boxSet`.** Si legge da `"BoxSet"`. `itemRoute` porta una saga a `/collection/<id>`, da qualunque card o link.
+- **`ItemKind.boxSet`.** Si legge da `"BoxSet"`. `itemRoute` porta una saga a `/collection/<id>`, da qualunque card o link. Se un link porta l'id di una saga a `/item/<id>` (la cassetta, il registro attività dell'admin), `ItemDetailScreen` appena legge un `BoxSet` mostra lo scheletro e sostituisce la rotta con `/collection/<id>` (`context.replace`, una volta sola): non mostra mai l'impaginazione di un film, e indietro non torna a `/item/<id>`.
 - **Funzione `collections`.** `PluginFeatures.collections` e `SocialFeatures.collections`: non dipendono dal watch party (come `requests`).
 - **`collectionsProvider`** legge `GET WonderFlixWatchParty/Collections` solo se il plugin ha la funzione `collections`. Senza la funzione l'elenco è vuoto e non parte nessuna chiamata. Il risultato è una lista non modificabile.
   - Si rilegge quando cresce `libraryRevisionProvider` e quando cambia l'utente.
@@ -340,10 +341,13 @@ I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a; quelli de
   - Il pulsante dice **Riprendi "{titolo}"** se quel film è iniziato, altrimenti **Riproduci "{titolo}"**.
   - Se sono tutti visti, il pulsante è **Riproduci "{titolo}"** sul primo film.
   - Scorrendo, il pulsante passa nella barra in alto come nella scheda del film (`ShellHeaderPublisher`).
-- **Elenco:** sotto la testata, la griglia dei film come `PosterCard` (avanzamento, visto, non visto), in ordine di uscita. Mentre i film si ricaricano, la griglia mostra lo scheletro delle locandine.
+  - Nella barra l'etichetta è corta, come nella scheda del film ("Riprendi da 23:14" o "Riproduci", `primaryActionLabel`); il titolo del film sta solo nel pulsante grande della testata.
+- **Elenco:** sotto la testata, la griglia dei film come `PosterCard` (avanzamento, visto, non visto), in ordine di uscita.
+  - Una rilettura in background (cambia la libreria o i dati utente) tiene le locandine che c'erano.
+  - Lo scheletro delle locandine compare solo quando i film si ricaricano dopo un errore ("Riprova").
 - **Caricamento:** la pagina chiede la saga e i suoi film insieme, e resta lo scheletro finché i film non sono arrivati (o hanno fallito): così la testata entra già con il conteggio e il pulsante, e non salta.
   - Lo sfondo entra con la testata e resta dietro un errore successivo.
-- **Errori:** caricamento ed errore con "Riprova" come nella scheda di un titolo. Una saga che non esiste più dà l'errore generico con "Riprova", come la pagina di un titolo: non c'è un testo "titolo non trovato". Se falliscono solo i film, la testata resta e sotto compare l'errore con "Riprova".
+- **Errori:** caricamento ed errore con "Riprova" come nella scheda di un titolo. Una saga che non esiste più dà l'errore generico con "Riprova", come la pagina di un titolo: non c'è un testo "titolo non trovato". Il "Riprova" della pagina rilegge la saga e i suoi film. Se falliscono solo i film, la testata resta e sotto compare l'errore con "Riprova", che rilegge i film.
 
 ### 8.3 Righe "Fa parte di"
 
@@ -607,7 +611,7 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
     - id nel formato "N" (controller);
     - l'autorizzazione: `[Authorize]` senza policy;
     - il JSON del protocollo e la registrazione del servizio;
-    - la visibilità vera (librerie e controllo parentale) non si prova con i test: si controlla sul server (§14).
+    - la visibilità vera (librerie e controllo parentale) non si prova con i test: si controlla nella prova a mano con il token di un utente vero (§14).
   - Avatar:
     - ricerca per id e per nome, con il nome senza badare alle maiuscole;
     - nessun doppione;
@@ -686,7 +690,7 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
 ## 14. Rischi e punti da verificare
 
 - **Corpo di `POST /UserImage` in base64.** Si prova all'inizio del piano 17c sull'account dell'utente, con il suo ok, e poi si toglie l'immagine di prova. Se Jellyfin vuole i byte grezzi, cambia solo `UserImageApi`.
-- **Collezioni nel plugin.** Fatto nel piano 17a: `ICollectionManager.GetCollectionsFolder(false)` e `GetChildren(user, true, …)` sulla cartella e su ogni collezione, come fa `GET /Items?parentId=…` (§7.1). La visibilità vera si è controllata sul server; lì nessun utente ha librerie ristrette o limiti parentali, quindi un utente che non vede una libreria non si prova con dati veri. Resta la prova a mano con un secondo account (piano 17a, Task 12).
+- **Collezioni nel plugin.** Fatto nel piano 17a: `ICollectionManager.GetCollectionsFolder(false)` e `GetChildren(user, true, …)` sulla cartella e su ogni collezione, come fa `GET /Items?parentId=…` (§7.1). La visibilità per utente **non** si è verificata sul server: si sono controllate le policy degli utenti (nessuno ha librerie ristrette o limiti parentali) e che il `GET /Items?parentId=…` di Jellyfin funziona per un utente normale, ma non c'è un utente che non vede una libreria con cui provare. L'output del plugin con il token di un utente vero si verifica nella prova a mano, anche con un secondo account (piano 17a, Task 12).
 - **`IImageProcessor.GetImageCacheTag` per gli utenti** in Jellyfin 10.11: si verifica che dia lo stesso `PrimaryImageTag` di `/Users/Me`.
 - **Uscita dal party al cambio di profilo:** si verifica che il gruppo SyncPlay perda davvero il membro.
 - **Due WonderFlix aperti insieme** (non di sviluppo) con lo stesso file dei profili: oggi non è un caso previsto, e resta così.
