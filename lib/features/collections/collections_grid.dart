@@ -38,6 +38,13 @@ class _CollectionsGridState extends ConsumerState<CollectionsGrid> {
     super.dispose();
   }
 
+  /// Cambia ricerca o ordinamento e riparte dall'inizio dell'elenco, come
+  /// con i filtri del catalogo.
+  void _update(VoidCallback change) {
+    setState(change);
+    if (_scroll.hasClients) _scroll.jumpTo(0);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -56,7 +63,7 @@ class _CollectionsGridState extends ConsumerState<CollectionsGrid> {
                 height: filtersBarHeight,
                 child: TextField(
                   key: const Key('collections-search'),
-                  onChanged: (value) => setState(() => _query = value),
+                  onChanged: (value) => _update(() => _query = value),
                   style: const TextStyle(fontSize: 13.5),
                   decoration: InputDecoration(
                     hintText: l.collectionsSearchHint,
@@ -76,7 +83,7 @@ class _CollectionsGridState extends ConsumerState<CollectionsGrid> {
                   CollectionSort.dateAdded:
                       '${l.catalogSortLabel}: ${l.catalogSortDateAdded}',
                 },
-                onChanged: (sort) => setState(() => _sort = sort),
+                onChanged: (sort) => _update(() => _sort = sort),
               ),
             ],
           ),
@@ -93,21 +100,25 @@ class _CollectionsGridState extends ConsumerState<CollectionsGrid> {
     const muted = TextStyle(color: WfColors.creamMuted);
     final async = ref.watch(collectionsProvider);
     final list = async.value;
+    final noSagas = list == null || list.isEmpty;
     // Con un nuovo tentativo Riverpod tiene l'errore o l'elenco di prima
     // mentre carica: finché non c'è un elenco con delle saghe, uno scheletro
     // (così "Nessuna saga" non compare un attimo dopo che la funzione del
     // plugin passa da sconosciuta a nota, e "Riprova" mostra il caricamento).
-    if (async.isLoading && (list == null || list.isEmpty)) {
+    if (async.isLoading && noSagas) {
       return const PosterGridSkeleton(key: ValueKey('loading'));
     }
+    // Senza saghe da mostrare l'errore vince anche sull'elenco vuoto di prima
+    // (Riverpod lo tiene nell'errore): Riprova, non "Nessuna saga". Con un
+    // elenco di prima pieno resta la griglia.
+    final error = async.error;
+    if (error != null && noSagas) {
+      return ErrorView(
+          key: const ValueKey('error'),
+          error: error,
+          onRetry: () => ref.invalidate(collectionsProvider));
+    }
     if (list == null) {
-      final error = async.error;
-      if (error != null) {
-        return ErrorView(
-            key: const ValueKey('error'),
-            error: error,
-            onRetry: () => ref.invalidate(collectionsProvider));
-      }
       return const PosterGridSkeleton(key: ValueKey('loading'));
     }
     if (list.isEmpty) {
@@ -144,8 +155,7 @@ class _CollectionsGridState extends ConsumerState<CollectionsGrid> {
               childAspectRatio: 0.55,
             ),
             delegate: SliverChildBuilderDelegate(
-              (context, i) => CollectionCard(
-                  key: ValueKey(shown[i].id), collection: shown[i]),
+              (context, i) => CollectionCard(collection: shown[i]),
               childCount: shown.length,
             ),
           ),

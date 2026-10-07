@@ -44,10 +44,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final l = AppLocalizations.of(context);
     final state = ref.watch(searchControllerProvider);
     final controller = ref.read(searchControllerProvider.notifier);
+    // L'elenco delle saghe si legge una volta all'apertura della ricerca, poi
+    // è in cache: così la sezione "Saghe" non arriva dopo i risultati.
+    final allSagas =
+        ref.watch(collectionsProvider).value ?? const <CollectionSummary>[];
     final sagas = state.term.length < SearchController.minLength
         ? const <CollectionSummary>[]
-        : matchCollections(
-            ref.watch(collectionsProvider).value ?? const [], state.term,
+        : matchCollections(allSagas, state.term,
             max: SagasSearchSection.maxResults);
     // La lista costruisce la sezione "Da richiedere" solo quando è vicina allo
     // schermo: se esce, il controller (autoDispose) resterebbe senza
@@ -112,7 +115,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       return const SearchResultsSkeleton(key: ValueKey('loading'));
     }
     if (results.isEmpty) {
-      if (hasSagas) return const SizedBox.shrink(key: ValueKey('empty'));
+      if (hasSagas) return const SizedBox.shrink(key: ValueKey('sagas-only'));
       return Text(l.searchNoResults(state.term),
           key: const ValueKey('empty'), style: muted);
     }

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/catalog/catalog_navigation.dart';
 import 'package:wonderflix/features/catalog/catalog_screen.dart';
 import 'package:wonderflix/features/collections/collections_providers.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
@@ -211,5 +212,70 @@ void main() {
     await tester.pump();
     expect(find.text('Matrix - Collezione'), findsOneWidget);
     subscription.close();
+  });
+
+  testWidgets(
+      'la funzione che da sconosciuta diventa nota ma la lettura fallisce: '
+      'Riprova, non "Nessuna saga"', (tester) async {
+    await pumpCatalog(tester, '/movies?view=sagas',
+        features: SocialFeatures.none);
+    final container =
+        ProviderScope.containerOf(tester.element(find.byType(CatalogScreen)));
+    // Come sopra: l'elenco vuoto di prima è ancora lì, sotto l'errore.
+    final subscription = container.listen(collectionsProvider, (_, _) {});
+    await tester.pump();
+    expect(collections.calls, 0);
+
+    collections.error = const ServerUnreachableException();
+    (container.read(socialAvailabilityProvider.notifier)
+            as FakeSocialAvailability)
+        .set(const SocialFeatures(collections: true));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Riprova'), findsOneWidget);
+    expect(find.text('Nessuna saga'), findsNothing);
+    subscription.close();
+  });
+
+  testWidgets('il selettore riporta dalle saghe ai film', (tester) async {
+    await pumpCatalog(tester, '/movies?view=sagas');
+    expect(find.text('Dune'), findsNothing);
+    expect(find.text('Matrix - Collezione'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('catalog-view-titles')));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Dune'), findsOneWidget);
+    expect(find.text('Tutti i generi'), findsOneWidget);
+    expect(find.text('Matrix - Collezione'), findsNothing);
+  });
+
+  testWidgets('una nuova ricerca o un nuovo ordine riparte dall\'inizio',
+      (tester) async {
+    collections.collectionsList = [
+      for (var i = 0; i < 40; i++)
+        testCollection(id: 'c$i', name: 'Saga ${'$i'.padLeft(2, '0')}'),
+    ];
+    await pumpCatalog(tester, '/movies?view=sagas');
+    final scrollable = find.descendant(
+        of: find.byType(CustomScrollView), matching: find.byType(Scrollable));
+    double offset() => tester.state<ScrollableState>(scrollable).position.pixels;
+
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -600));
+    await tester.pump();
+    expect(offset(), greaterThan(0));
+    await tester.enterText(find.byKey(const Key('collections-search')), 'saga');
+    await tester.pump();
+    expect(offset(), 0);
+
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -600));
+    await tester.pump();
+    expect(offset(), greaterThan(0));
+    await tester.tap(find.text('Ordina per: Nome'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ordina per: Numero di film').last);
+    await tester.pumpAndSettle();
+    expect(offset(), 0);
   });
 }

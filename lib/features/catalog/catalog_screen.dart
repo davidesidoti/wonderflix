@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
@@ -19,15 +18,7 @@ import '../collections/collections_providers.dart';
 import '../social/social_providers.dart';
 import 'catalog_controller.dart';
 import 'catalog_filters_bar.dart';
-
-/// Vista del catalogo Film: i titoli o le saghe (spec K §8.4). Sta
-/// nell'indirizzo (`/movies?view=sagas`).
-enum CatalogView {
-  titles,
-  sagas;
-
-  static CatalogView parse(String? value) => value == 'sagas' ? sagas : titles;
-}
+import 'catalog_navigation.dart';
 
 class CatalogScreen extends ConsumerStatefulWidget {
   const CatalogScreen(
@@ -75,15 +66,17 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
             .select((features) => features.collections));
     final sagas = sagasAvailable && widget.view == CatalogView.sagas;
     final title = widget.kind == ItemKind.series ? l.navSeries : l.navMovies;
+    // Il catalogo dei titoli si legge solo nella vista dei titoli.
+    final titlesState =
+        sagas ? null : ref.watch(catalogControllerProvider(widget.kind));
     final String? count;
-    if (sagas) {
+    if (titlesState == null) {
       final list = ref.watch(collectionsProvider).value;
       count = list == null || list.isEmpty
           ? null
           : l.collectionsCount(list.length);
     } else {
-      final total = ref.watch(catalogControllerProvider(widget.kind)).total;
-      count = total > 0 ? l.catalogCount(total) : null;
+      count = titlesState.total > 0 ? l.catalogCount(titlesState.total) : null;
     }
 
     return Column(
@@ -111,29 +104,32 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
             child: Row(
               children: [
                 WfTabButton(
+                    key: ValueKey('catalog-view-${CatalogView.titles.name}'),
                     label: l.navMovies,
                     selected: !sagas,
-                    onTap: () => context.go('/movies')),
+                    onTap: () => openMovies(context)),
                 const SizedBox(width: 20),
                 WfTabButton(
+                    key: ValueKey('catalog-view-${CatalogView.sagas.name}'),
                     label: l.collectionsTab,
                     selected: sagas,
-                    onTap: () => context.go('/movies?view=sagas')),
+                    onTap: () =>
+                        openMovies(context, view: CatalogView.sagas)),
               ],
             ),
           ),
-        if (sagas)
+        if (titlesState == null)
           const Expanded(child: CollectionsGrid())
         else
-          ..._titles(context, l),
+          ..._titles(context, l, titlesState),
       ],
     );
   }
 
-  /// Filtri e griglia dei titoli.
-  List<Widget> _titles(BuildContext context, AppLocalizations l) {
+  /// Filtri e griglia dei titoli, dallo stato [state] del catalogo.
+  List<Widget> _titles(
+      BuildContext context, AppLocalizations l, CatalogState state) {
     final provider = catalogControllerProvider(widget.kind);
-    final state = ref.watch(provider);
     final controller = ref.read(provider.notifier);
     final filters = ref.watch(catalogFiltersProvider(widget.kind)).value ??
         const LibraryFilters();

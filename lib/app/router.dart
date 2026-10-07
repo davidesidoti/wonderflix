@@ -7,6 +7,7 @@ import '../features/admin/admin_navigation.dart';
 import '../features/admin/admin_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/session_controller.dart';
+import '../features/catalog/catalog_navigation.dart';
 import '../features/catalog/catalog_screen.dart';
 import '../features/collections/collection_screen.dart';
 import '../features/detail/item_detail_screen.dart';

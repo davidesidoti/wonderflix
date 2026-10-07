@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../app/theme.dart';
 
-/// Il pulsante di una scheda (pagine Richieste e Amministrazione): testo,
-/// con la riga oro sotto quella scelta.
+/// Il pulsante di una scheda (pagine Richieste e Amministrazione, vista
+/// Film|Saghe del catalogo): testo, con la riga oro sotto quella scelta.
 class WfTabButton extends StatelessWidget {
   const WfTabButton({
     super.key,

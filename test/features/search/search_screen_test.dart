@@ -314,6 +314,8 @@ void main() {
             : pageOf([]))
         ..people = [];
       await pumpSearch(tester, api);
+      // L'elenco si legge all'apertura, prima di scrivere.
+      expect(collections.calls, 1);
       await tester.enterText(find.byType(TextField), 'MATRIX');
       await tester.pump(const Duration(milliseconds: 350));
       await tester.pump();
@@ -322,6 +324,14 @@ void main() {
       expect(find.text('Alien - Collezione'), findsNothing);
       expect(tester.getTopLeft(find.text('Saghe')).dy,
           lessThan(tester.getTopLeft(find.text('Film')).dy));
+      expect(collections.calls, 1);
+
+      // Un altro termine usa l'elenco già in cache, senza rileggerlo.
+      await tester.enterText(find.byType(TextField), 'alien');
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump();
+      expect(find.text('Alien - Collezione'), findsOneWidget);
+      expect(find.text('Mátrix - Collezione'), findsNothing);
       expect(collections.calls, 1);
     });
 
