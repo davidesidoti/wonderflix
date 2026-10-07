@@ -111,6 +111,26 @@ void main() {
     expect(find.byType(DetailBackdrop), findsOneWidget);
   });
 
+  testWidgets('Riprova sull\'errore della pagina rilegge anche i titoli',
+      (tester) async {
+    // La saga e i suoi titoli falliscono insieme.
+    final collection = api.itemsById.remove('c1')!;
+    api.collectionItemsError = const ServerErrorException(500);
+    await pumpCollection(tester);
+    expect(find.text('Riprova'), findsOneWidget);
+    expect(find.text('Matrix Revolutions'), findsNothing);
+
+    api.itemsById['c1'] = collection;
+    api.collectionItemsError = null;
+    await tester.tap(find.text('Riprova'));
+    for (var i = 0; i < 4; i++) {
+      await tester.pump();
+    }
+    expect(find.text('Riprova'), findsNothing);
+    expect(find.text('3 film · 1 visto'), findsOneWidget);
+    expect(find.text('Matrix Revolutions'), findsOneWidget);
+  });
+
   testWidgets('la testata arriva con i titoli, già con conteggio e pulsante',
       (tester) async {
     final gate = Completer<void>();

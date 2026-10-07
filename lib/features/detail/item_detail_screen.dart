@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../app/hero_launch.dart';
 import '../../app/motion.dart';
+import '../../app/navigation.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../ui/shimmer.dart';
 import '../../ui/skeletons.dart';
@@ -34,10 +36,29 @@ class ItemDetailScreen extends ConsumerStatefulWidget {
 class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
   final _scroll = SmoothScrollController();
 
+  /// Il passaggio alla pagina della saga è già partito.
+  bool _redirected = false;
+
+  /// Contenuto mentre una saga passa alla sua pagina.
+  static const (String, Widget) _redirecting =
+      ('loading', DetailSkeleton(headerHeight: detailHeaderHeight));
+
   @override
   void dispose() {
     _scroll.dispose();
     super.dispose();
+  }
+
+  /// L'id di una saga può arrivare fin qui da un link (la cassetta, il
+  /// registro attività dell'admin): una saga non ha una scheda, ha la sua
+  /// pagina, che prende il posto di questa. Parte una volta sola, a fine
+  /// fotogramma (la rotta non si cambia durante la build).
+  void _redirectToCollection(String collectionId) {
+    if (_redirected) return;
+    _redirected = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.replace(collectionRoute(collectionId));
+    });
   }
 
   @override
@@ -45,6 +66,8 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     final async = ref.watch(itemProvider(widget.itemId));
     final launch = widget.launch;
     final item = async.value;
+    final isCollection = item?.kind == ItemKind.boxSet;
+    if (item != null && isCollection) _redirectToCollection(item.id);
     // Con un volo Hero il contenuto entra a volo finito.
     final entranceDelay = launch != null ? WfMotion.hero : Duration.zero;
     final (state, content) = async.when(
@@ -69,23 +92,29 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
             error: error,
             onRetry: () => ref.invalidate(itemProvider(widget.itemId))),
       ),
-      data: (item) => (
-        'data',
-        item.kind == ItemKind.series
-            ? SeriesDetailView(
-                series: item,
-                initialSeasonId: widget.seasonId,
-                controller: _scroll,
-                entranceDelay: entranceDelay)
-            : MovieDetailView(
-                item: item,
-                controller: _scroll,
-                entranceDelay: entranceDelay),
-      ),
+      data: (item) => item.kind == ItemKind.boxSet
+          // Una saga non mostra mai l'impaginazione di un film: lo scheletro,
+          // finché non arriva la sua pagina.
+          ? _redirecting
+          : (
+              'data',
+              item.kind == ItemKind.series
+                  ? SeriesDetailView(
+                      series: item,
+                      initialSeasonId: widget.seasonId,
+                      controller: _scroll,
+                      entranceDelay: entranceDelay)
+                  : MovieDetailView(
+                      item: item,
+                      controller: _scroll,
+                      entranceDelay: entranceDelay),
+            ),
     );
-    // Sfondo solo con i dati o con un volo in arrivo. L'albero resta lo
-    // stesso in ogni stato, così la dissolvenza verso i dati c'è sempre.
-    final showBackdrop = item != null || (launch != null && !async.hasError);
+    // Sfondo solo con i dati o con un volo in arrivo, mai per una saga.
+    // L'albero resta lo stesso in ogni stato, così la dissolvenza verso i
+    // dati c'è sempre.
+    final showBackdrop =
+        !isCollection && (item != null || (launch != null && !async.hasError));
     return Stack(
       children: [
         Positioned(

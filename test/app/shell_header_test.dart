@@ -11,7 +11,9 @@ import 'package:wonderflix/app/page_transitions.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/app/router.dart';
 import 'package:wonderflix/app/theme.dart';
+import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/collections/collection_screen.dart';
 import 'package:wonderflix/features/detail/detail_header.dart';
 import 'package:wonderflix/features/detail/header_parallax.dart';
 import 'package:wonderflix/features/detail/item_detail_screen.dart';
@@ -97,6 +99,16 @@ void main() {
               context,
               state,
               ItemDetailScreen(itemId: state.pathParameters['id']!),
+              underBar: false,
+            ),
+          ),
+          // Pagina della saga vera, per l'etichetta pubblicata nella barra.
+          GoRoute(
+            path: '/collection/:id',
+            pageBuilder: (context, state) => detailPage(
+              context,
+              state,
+              CollectionScreen(collectionId: state.pathParameters['id']!),
               underBar: false,
             ),
           ),
@@ -343,6 +355,51 @@ void main() {
     controller.jumpTo(0);
     await tester.pumpAndSettle();
     expect(barTitle, findsNothing);
+  });
+
+  testWidgets('la pagina di una saga pubblica nella barra l\'etichetta corta, '
+      'come un film', (tester) async {
+    final api = FakeLibraryApi()
+      ..itemsById['c1'] = testItem(
+          id: 'c1',
+          name: 'Matrix - Collezione',
+          kind: ItemKind.boxSet,
+          year: null,
+          runtimeMinutes: null)
+      ..itemsByCollection['c1'] = [
+        testItem(id: 'm1', name: 'Matrix', played: true),
+        // 600000000 tick = 1 minuto.
+        testItem(
+            id: 'm2',
+            name: 'Matrix Reloaded',
+            positionTicks: 600000000,
+            playedPercentage: 10),
+      ];
+    // Finestra bassa: la pagina deve poter scorrere oltre la soglia.
+    final router = await pumpRouter(tester, size: const Size(1440, 400), overrides: [
+      libraryApiProvider.overrideWithValue(api),
+      // Nessuna immagine di rete nei widget test.
+      imageBuilderProvider.overrideWithValue(
+          (image, fit) => const ColoredBox(color: Color(0xFF333333))),
+    ]);
+    unawaited(router.push('/collection/c1'));
+    await tester.pumpAndSettle();
+    final controller =
+        tester.widget<CollectionView>(find.byType(CollectionView)).controller!;
+    expect(controller.position.maxScrollExtent,
+        greaterThan(detailBarTitleReducedOffset + 10));
+
+    controller.jumpTo(detailBarTitleReducedOffset + 10);
+    await tester.pumpAndSettle();
+    final barTitle = find.byKey(const Key('shell-bar-title'));
+    expect(find.descendant(of: barTitle, matching: find.text('MATRIX - COLLEZIONE')),
+        findsOneWidget);
+    // Corta come nella scheda di un film; il titolo da riprendere sta solo
+    // nel pulsante grande della testata.
+    expect(find.descendant(of: barTitle, matching: find.text('Riprendi da 01:00')),
+        findsOneWidget);
+    expect(find.descendant(of: barTitle, matching: find.textContaining('Matrix Reloaded')),
+        findsNothing);
   });
 
   testWidgets('animazioni complete, 1440×900: in fondo alla scheda il titolo '

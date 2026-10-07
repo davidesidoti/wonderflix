@@ -73,7 +73,12 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
         'error',
         ErrorView(
             error: error,
-            onRetry: () => ref.invalidate(itemProvider(widget.collectionId))),
+            // Anche i titoli, che partono insieme alla saga: se falliscono
+            // anche loro, il nuovo tentativo li rilegge.
+            onRetry: () {
+              ref.invalidate(itemProvider(widget.collectionId));
+              ref.invalidate(collectionItemsProvider(widget.collectionId));
+            }),
       ),
       data: (item) => titlesSettled
           ? (
@@ -203,7 +208,9 @@ class CollectionView extends ConsumerWidget {
       visibleAt: (offset) => barTitleVisible(offset, reduced: reduced),
       header: ShellHeader(
         title: collection.name,
-        actionLabel: action == null ? null : collectionActionLabel(l, action),
+        // Nella barra l'etichetta è corta, come nella scheda di un film; il
+        // titolo da riprodurre sta solo nel pulsante grande della testata.
+        actionLabel: action == null ? null : primaryActionLabel(l, action),
         onAction: action == null
             ? null
             : () => unawaited(playItem(context, ref, action.target)),
