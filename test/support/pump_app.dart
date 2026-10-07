@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/app/theme.dart';
@@ -53,6 +54,39 @@ Future<void> pumpApp(
       builder: (context, child) =>
           WfMotionScope(motion: WfMotion(motion), child: child!),
       home: child,
+    ),
+  ));
+  await tester.pump();
+}
+
+/// Come [pumpApp], ma con un [router]: per i test che navigano.
+Future<void> pumpAppRouter(
+  WidgetTester tester,
+  GoRouter router, {
+  List<Override> overrides = const [],
+  Size surfaceSize = const Size(1440, 900),
+}) async {
+  addTearDown(router.dispose);
+  await tester.binding.setSurfaceSize(surfaceSize);
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+  await tester.pumpWidget(ProviderScope(
+    overrides: [
+      appConfigProvider.overrideWithValue(testAppConfig),
+      serverEventsBindingProvider.overrideWithValue(null),
+      imageBuilderProvider.overrideWithValue(
+          (image, fit) => const ColoredBox(color: Color(0xFF333333))),
+      carouselAutoplayProvider.overrideWithValue(false),
+      ...overrides,
+    ],
+    retry: (_, _) => null,
+    child: MaterialApp.router(
+      routerConfig: router,
+      theme: buildWonderflixTheme(),
+      locale: const Locale('it'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      builder: (context, child) => WfMotionScope(
+          motion: const WfMotion(MotionLevel.reduced), child: child!),
     ),
   ));
   await tester.pump();

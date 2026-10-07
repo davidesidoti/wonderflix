@@ -8,14 +8,18 @@ import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/collections/collections_providers.dart';
 import 'package:wonderflix/features/detail/item_detail_screen.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 
+import '../../support/collections_fakes.dart';
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
+import '../../support/social_fakes.dart';
 import '../../support/test_data.dart';
 import '../../support/watch_party_fakes.dart';
 
@@ -200,5 +204,36 @@ void main() {
     await tester.pump();
     expect(find.text('Riprendi da 23:14'), findsOneWidget);
     expect(find.text('Guarda insieme'), findsNothing);
+  });
+
+  testWidgets('la riga "Fa parte di" sta prima di "Simili" (spec K §8.3)',
+      (tester) async {
+    api.itemsByCollection['c1'] = [
+      testItem(id: 'm1', name: 'Dune: Parte Due'),
+      testItem(id: 'm3', name: 'Dune: Messia'),
+    ];
+    final collections = FakeCollectionsApi()
+      ..collectionsList = [
+        testCollection(id: 'c1', name: 'Dune - Collezione', itemIds: ['m1', 'm3']),
+      ];
+    await pumpApp(
+        tester, const Scaffold(body: ItemDetailScreen(itemId: 'm1')),
+        surfaceSize: const Size(1440, 2200),
+        overrides: [
+          libraryApiProvider.overrideWithValue(api),
+          sessionControllerProvider.overrideWith(
+              () => FakeSessionController(const SessionSignedIn(testUser))),
+          socialAvailabilityProvider.overrideWith(() =>
+              FakeSocialAvailability(const SocialFeatures(collections: true))),
+          collectionsApiProvider.overrideWithValue(collections),
+        ]);
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+    final saga = find.text('Fa parte di: Dune - Collezione');
+    expect(saga, findsOneWidget);
+    expect(find.text('Dune: Messia'), findsOneWidget);
+    expect(tester.getTopLeft(saga).dy,
+        lessThan(tester.getTopLeft(find.text('Simili')).dy));
   });
 }

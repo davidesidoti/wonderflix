@@ -22,6 +22,7 @@ class PosterCard extends ConsumerStatefulWidget {
     this.onTap,
     this.heroSource,
     this.width,
+    this.markLabel,
   });
 
   final JellyfinItem item;
@@ -32,6 +33,10 @@ class PosterCard extends ConsumerStatefulWidget {
   /// Senza [onTap], il clic apre la scheda con il volo da qui.
   final String? heroSource;
   final double? width;
+
+  /// Etichetta fissa sulla locandina, con il bordo oro sempre acceso: il
+  /// titolo aperto nella riga della sua saga ("Questo film", spec K §8.3).
+  final String? markLabel;
 
   @override
   ConsumerState<PosterCard> createState() => _PosterCardState();
@@ -51,6 +56,7 @@ class _PosterCardState extends ConsumerState<PosterCard> {
     final source = widget.heroSource;
     final heroSource =
         source == null ? null : WfHeroScope.source(context, source);
+    final mark = widget.markLabel;
 
     final card = SizedBox(
       width: widget.width,
@@ -72,7 +78,9 @@ class _PosterCardState extends ConsumerState<PosterCard> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(
-                        color: _hover ? WfColors.gold : Colors.transparent,
+                        color: _hover || mark != null
+                            ? WfColors.gold
+                            : Colors.transparent,
                         width: 2),
                   ),
                   child: ClipRRect(
@@ -94,6 +102,9 @@ class _PosterCardState extends ConsumerState<PosterCard> {
                         else if (item.kind == ItemKind.series && unplayed > 0)
                           Positioned(
                               top: 6, right: 6, child: CountBadge(count: unplayed)),
+                        if (mark != null)
+                          Positioned(
+                              top: 6, left: 6, child: _MarkChip(label: mark)),
                       ],
                     ),
                   ),
@@ -174,6 +185,25 @@ class CountBadge extends StatelessWidget {
       decoration: BoxDecoration(
           color: WfColors.gold, borderRadius: BorderRadius.circular(10)),
       child: Text(max != null && count > max ? '$max+' : '$count',
+          style: const TextStyle(
+              color: WfColors.bg, fontSize: 11, fontWeight: FontWeight.w700)),
+    );
+  }
+}
+
+/// Etichetta oro in alto a sinistra della locandina.
+class _MarkChip extends StatelessWidget {
+  const _MarkChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+          color: WfColors.gold, borderRadius: BorderRadius.circular(10)),
+      child: Text(label,
           style: const TextStyle(
               color: WfColors.bg, fontSize: 11, fontWeight: FontWeight.w700)),
     );

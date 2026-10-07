@@ -8,6 +8,7 @@ import '../../app/motion.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/staggered_entrance.dart';
+import '../collections/collection_rows.dart';
 import '../library/user_data.dart';
 import '../playback/play_launcher.dart';
 import 'detail_header.dart';
@@ -46,7 +47,8 @@ class MovieDetailView extends ConsumerWidget {
           DetailHeader(item: item, primary: action, controller: controller),
           if (item.people.isNotEmpty)
             StaggerItem(index: 5, child: CastRow(people: item.people)),
-          StaggerItem(index: 6, child: SimilarRow(itemId: item.id)),
+          StaggerItem(index: 6, child: CollectionRows(itemId: item.id)),
+          StaggerItem(index: 7, child: SimilarRow(itemId: item.id)),
         ],
       ),
     );

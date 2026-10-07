@@ -21,6 +21,7 @@ class MediaRow extends StatefulWidget {
     required this.itemCount,
     required this.itemBuilder,
     this.animateEntrance = false,
+    this.onTitleTap,
   });
 
   final String title;
@@ -33,6 +34,9 @@ class MediaRow extends StatefulWidget {
   /// (vedi [StaggerGroup.nested]). Una riga già entrata, ricostruita più
   /// tardi, non le rifà volare.
   final bool animateEntrance;
+
+  /// Con [onTitleTap] il titolo è un link, con una freccia (spec K §8.3).
+  final VoidCallback? onTitleTap;
 
   @override
   State<MediaRow> createState() => _MediaRowState();
@@ -54,6 +58,28 @@ class _MediaRowState extends State<MediaRow> {
         .clamp(0.0, position.maxScrollExtent);
     _controller.animateTo(target,
         duration: WfMotion.medium, curve: WfMotion.decelerate);
+  }
+
+  Widget _title() {
+    final title = Text(widget.title,
+        overflow: TextOverflow.ellipsis, style: WfText.display(24));
+    final onTap = widget.onTitleTap;
+    if (onTap == null) return title;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        key: const Key('row-title-link'),
+        onTap: onTap,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(child: title),
+            const SizedBox(width: 8),
+            const Icon(LucideIcons.arrowRight, size: 20, color: WfColors.gold),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -92,7 +118,7 @@ class _MediaRowState extends State<MediaRow> {
             padding: const EdgeInsets.symmetric(horizontal: 32),
             child: Row(
               children: [
-                Flexible(child: Text(widget.title, style: WfText.display(24))),
+                Flexible(child: _title()),
                 const Spacer(),
                 IconButton(
                   key: const Key('row-previous'),
