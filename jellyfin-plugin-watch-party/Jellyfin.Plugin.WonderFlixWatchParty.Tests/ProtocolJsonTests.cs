@@ -194,4 +194,12 @@ public class ProtocolJsonTests
             + "\"DateCreated\":\"2026-05-01T10:00:00Z\",\"ItemIds\":[\"m1\"]}]}",
             JsonSerializer.Serialize(new CollectionsResponse([new CollectionEntry("c1", "Matrix", "matrix", null, created, ["m1"])])));
     }
+
+    [Fact]
+    public void AvatarsUseProtocolNames()
+    {
+        Assert.Equal(
+            "{\"Users\":[{\"UserId\":\"u1\",\"Name\":\"mario\",\"ImageTag\":null}]}",
+            JsonSerializer.Serialize(new AvatarsResponse([new AvatarEntry("u1", "mario", null)])));
+    }
 }

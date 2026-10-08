@@ -49,6 +49,7 @@ public class ServiceRegistrationTests
         Assert.IsType<Seerr.SeerrClient>(provider.GetRequiredService<Seerr.ISeerrClient>());
         Assert.IsType<Server.PluginSeerrSettings>(provider.GetRequiredService<Seerr.ISeerrSettings>());
         Assert.IsType<Server.JellyfinCollectionDirectory>(provider.GetRequiredService<ICollectionDirectory>());
+        Assert.IsType<Server.JellyfinUserAvatars>(provider.GetRequiredService<IUserAvatars>());
         Assert.Equal(2, provider.GetServices<IHostedService>().Count());
     }
 }

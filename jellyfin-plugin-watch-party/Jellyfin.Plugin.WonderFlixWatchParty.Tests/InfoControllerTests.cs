@@ -13,14 +13,14 @@ public class InfoControllerTests
         var info = new InfoController(new FakeSeerrSettings { Url = string.Empty }).GetInfo().Value!;
         Assert.Equal("1.5.0", info.Version);
         Assert.Equal(1, info.Protocol);
-        Assert.Equal(new[] { "friends", "parties", "inbox", "queue", "collections" }, info.Features);
+        Assert.Equal(new[] { "friends", "parties", "inbox", "queue", "collections", "avatars" }, info.Features);
     }
 
     [Fact]
     public void RequestsAppearOnlyWithSeerrConfigured()
     {
         Assert.Equal(
-            new[] { "friends", "parties", "inbox", "queue", "collections", "requests" },
+            new[] { "friends", "parties", "inbox", "queue", "collections", "avatars", "requests" },
             new InfoController(new FakeSeerrSettings()).GetInfo().Value!.Features);
         Assert.DoesNotContain(
             "requests", new InfoController(new FakeSeerrSettings { ApiKey = " " }).GetInfo().Value!.Features);
