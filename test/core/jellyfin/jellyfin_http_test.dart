@@ -33,7 +33,7 @@ void main() {
     expect(adapter.requests.last.headers['Authorization'],
         isNot(contains('Token=')));
 
-    http.token = 'tok';
+    http.setCredentials(token: 'tok', deviceId: null);
     await http.get('/a');
     expect(adapter.requests.last.headers['Authorization'],
         contains('Token="tok"'));
@@ -52,7 +52,7 @@ void main() {
     await expectLater(http.get('/a'), throwsA(isA<UnauthorizedException>()));
     expect(calls, 0, reason: 'senza token non è una sessione scaduta');
 
-    http.token = 'tok';
+    http.setCredentials(token: 'tok', deviceId: null);
     await expectLater(http.get('/a'), throwsA(isA<UnauthorizedException>()));
     expect(calls, 1);
   });
@@ -60,11 +60,11 @@ void main() {
   test('401 per un token non più corrente non chiama onUnauthorized', () async {
     var calls = 0;
     http.onUnauthorized = () => calls++;
-    http.token = 'A';
+    http.setCredentials(token: 'A', deviceId: null);
     adapter.handler = (_) {
       // Simula un login effettuato mentre la richiesta con il vecchio
       // token era ancora in volo.
-      http.token = 'B';
+      http.setCredentials(token: 'B', deviceId: null);
       return const FakeResponse(401);
     };
 
@@ -113,7 +113,7 @@ void main() {
     Logger.root.level = Level.ALL;
     final subscription = Logger.root.onRecord.listen(records.add);
     addTearDown(subscription.cancel);
-    http.token = 'tok';
+    http.setCredentials(token: 'tok', deviceId: null);
     adapter.handler = (_) => const FakeResponse(500);
 
     await expectLater(http.get('/Items/x', query: {'api_key': 'k'}),

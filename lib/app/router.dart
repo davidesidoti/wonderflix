@@ -28,7 +28,7 @@ import 'motion.dart';
 import 'navigation.dart';
 import 'page_transitions.dart';
 
-const _entryRoutes = {'/splash', '/login', '/unreachable'};
+const _entryRoutes = {'/splash', '/login', '/unreachable', '/profiles'};
 
 /// Dove deve stare l'utente in base allo stato di sessione.
 /// `null` = la posizione attuale va bene.
@@ -38,6 +38,7 @@ String? sessionRedirect(SessionState session, String location) {
     SessionStarting() => goTo('/splash'),
     SessionSignedOut() => goTo('/login'),
     SessionUnreachable() => goTo('/unreachable'),
+    SessionChoosingProfile() => goTo('/profiles'),
     SessionSignedIn() => _entryRoutes.contains(location) ? '/home' : null,
   };
 }

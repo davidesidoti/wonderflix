@@ -42,6 +42,17 @@ void main() {
         '/login');
   });
 
+  test('più profili: "Chi guarda?", con il login per aggiungerne uno', () {
+    expect(sessionRedirect(const SessionChoosingProfile(), '/home'),
+        '/profiles');
+    expect(sessionRedirect(const SessionChoosingProfile(), '/profiles'),
+        isNull);
+    expect(sessionRedirect(const SessionSignedOut(adding: true), '/profiles'),
+        '/login');
+    // Scelto un profilo si va alla Home.
+    expect(sessionRedirect(signedIn, '/profiles'), '/home');
+  });
+
   GoRouter playerTestRouter() {
     final router = GoRouter(routes: [
       GoRoute(

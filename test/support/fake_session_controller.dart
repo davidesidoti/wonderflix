@@ -17,6 +17,14 @@ class FakeSessionController extends SessionController {
   /// resta com'è.
   JellyfinUser? refreshedUser;
 
+  int prepareLoginCalls = 0;
+  int switchCalls = 0;
+  int addProfileCalls = 0;
+  int cancelLoginCalls = 0;
+  final openedProfiles = <String>[];
+  final reloginProfiles = <String>[];
+  final removedProfiles = <String>[];
+
   @override
   SessionState build() => initial;
 
@@ -27,6 +35,9 @@ class FakeSessionController extends SessionController {
   Future<void> restore() async {
     restoreCalls++;
   }
+
+  @override
+  Future<void> openProfile(String userId) async => openedProfiles.add(userId);
 
   @override
   Future<void> loginWithPassword(String username, String password) async {
@@ -43,10 +54,41 @@ class FakeSessionController extends SessionController {
   }
 
   @override
+  void prepareLogin() => prepareLoginCalls++;
+
+  @override
+  void switchProfile() {
+    switchCalls++;
+    state = const SessionChoosingProfile();
+  }
+
+  @override
+  void addProfile() {
+    addProfileCalls++;
+    state = const SessionSignedOut(adding: true);
+  }
+
+  @override
+  void relogin(String userId) {
+    reloginProfiles.add(userId);
+    state = SessionSignedOut(expired: true, reloginUserId: userId);
+  }
+
+  @override
+  void cancelLogin() {
+    cancelLoginCalls++;
+    state = const SessionChoosingProfile();
+  }
+
+  @override
   Future<void> logout() async {
     logoutCalls++;
     state = const SessionSignedOut();
   }
+
+  @override
+  Future<void> removeProfile(String userId) async =>
+      removedProfiles.add(userId);
 
   @override
   Future<void> refreshUser() async {

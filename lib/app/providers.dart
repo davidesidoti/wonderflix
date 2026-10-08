@@ -7,7 +7,7 @@ import '../core/jellyfin/auth_api.dart';
 import '../core/jellyfin/client_info.dart';
 import '../core/jellyfin/jellyfin_http.dart';
 import '../core/jellyfin/system_api.dart';
-import '../core/storage/session_store.dart';
+import '../core/storage/profile_store.dart';
 import '../features/auth/auth_service.dart';
 
 /// Sovrascritti in `main()`.
@@ -18,8 +18,16 @@ final sharedPreferencesProvider = Provider<SharedPreferences>((ref) =>
 final clientInfoProvider = Provider<ClientInfo>(
     (ref) => throw UnimplementedError('clientInfoProvider va sovrascritto'));
 
-final sessionStoreProvider = Provider<SessionStore>(
-    (ref) => SecureSessionStore(null, sessionKeyFor(devProfile())));
+/// I profili salvati (spec K §9.1). Il DeviceId dell'installazione è quello
+/// della sessione di prima, che la migrazione porta nel primo profilo.
+final profileStoreProvider = Provider<ProfileStore>((ref) {
+  final devInstance = devProfile();
+  return SecureProfileStore(
+    key: profilesKeyFor(devInstance),
+    legacyKey: sessionKeyFor(devInstance),
+    legacyDeviceId: ref.watch(clientInfoProvider).deviceId,
+  );
+});
 
 final jellyfinHttpProvider = Provider<JellyfinHttp>((ref) {
   final http = JellyfinHttp(
@@ -39,5 +47,5 @@ final systemApiProvider =
 final authServiceProvider = Provider<AuthService>((ref) => AuthService(
       http: ref.watch(jellyfinHttpProvider),
       api: ref.watch(authApiProvider),
-      store: ref.watch(sessionStoreProvider),
+      store: ref.watch(profileStoreProvider),
     ));

@@ -259,7 +259,8 @@ class SecureProfileStore implements ProfileStore {
     try {
       await write(book);
     } on Object catch (error) {
-      // La sessione di prima resta: si riprova al prossimo avvio.
+      // La sessione di prima resta: se nessun salvataggio riesce, si riprova
+      // al prossimo avvio.
       _log.warning('profili non salvati: ${error.runtimeType}');
       return book;
     }

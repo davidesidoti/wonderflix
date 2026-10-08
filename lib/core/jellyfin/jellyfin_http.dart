@@ -39,8 +39,11 @@ class JellyfinHttp {
   final Uri _baseUrl;
   final ClientInfo _clientInfo;
 
-  /// Token della sessione corrente, `null` se non autenticati.
-  String? token;
+  String? _token;
+
+  /// Token della sessione corrente, `null` se non autenticati. Cambia solo
+  /// con [setCredentials].
+  String? get token => _token;
 
   /// DeviceId del profilo attivo (spec K §9.2); `null`: quello
   /// dell'installazione (`ClientInfo.deviceId`).
@@ -52,7 +55,7 @@ class JellyfinHttp {
   /// Token e DeviceId del profilo attivo cambiano insieme (spec K §9.2). Con
   /// `null` si torna a nessun token e al DeviceId dell'installazione.
   void setCredentials({required String? token, required String? deviceId}) {
-    this.token = token;
+    _token = token;
     _deviceId = deviceId;
   }
 

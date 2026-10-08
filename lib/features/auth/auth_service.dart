@@ -1,8 +1,15 @@
+import 'package:clock/clock.dart';
+import 'package:logging/logging.dart';
+import 'package:uuid/uuid.dart';
+
 import '../../core/jellyfin/api_exception.dart';
 import '../../core/jellyfin/auth_api.dart';
 import '../../core/jellyfin/auth_models.dart';
 import '../../core/jellyfin/jellyfin_http.dart';
-import '../../core/storage/session_store.dart';
+import '../../core/jellyfin/json_fields.dart';
+import '../../core/storage/profile_store.dart';
+
+final _log = Logger('auth');
 
 sealed class RestoreResult {
   const RestoreResult();
@@ -17,39 +24,91 @@ final class NoStoredSession extends RestoreResult {
   const NoStoredSession();
 }
 
+/// Il server ha rifiutato il token del profilo [userId] (401).
 final class StoredSessionExpired extends RestoreResult {
-  const StoredSessionExpired();
+  const StoredSessionExpired(this.userId);
+  final String userId;
 }
 
 final class RestoreServerUnreachable extends RestoreResult {
   const RestoreServerUnreachable();
 }
 
-/// Login, ripristino e logout. Nessuna dipendenza da Flutter.
+/// Più profili salvati: si sceglie in "Chi guarda?" (spec K §9.3).
+final class ChooseProfile extends RestoreResult {
+  const ChooseProfile();
+}
+
+/// Profili, accesso e uscita (spec K §9). Nessuna dipendenza da Flutter.
 class AuthService {
   AuthService({
     required JellyfinHttp http,
     required AuthApi api,
-    required SessionStore store,
+    required ProfileStore store,
+    AuthApi Function(JellyfinHttp http)? apiFor,
+    String Function()? newDeviceId,
   })  : _http = http,
         _api = api,
-        _store = store;
+        _store = store,
+        _apiFor = apiFor ?? AuthApi.new,
+        _newDeviceId = newDeviceId ?? (() => const Uuid().v4());
 
   final JellyfinHttp _http;
   final AuthApi _api;
-  final SessionStore _store;
+  final ProfileStore _store;
+
+  /// Le chiamate con le credenziali di un profilo non attivo.
+  final AuthApi Function(JellyfinHttp http) _apiFor;
+  final String Function() _newDeviceId;
+
+  ProfileBook _book = const ProfileBook();
+  String? _activeUserId;
+
+  /// I profili come li conosce il servizio: letti da `restore`, aggiornati a
+  /// ogni modifica.
+  ProfileBook get book => _book;
+
+  /// Il profilo aperto; `null` in "Chi guarda?" e nell'accesso.
+  String? get activeUserId => _activeUserId;
 
   Future<RestoreResult> restore() async {
-    final session = await _store.read();
-    if (session == null) return const NoStoredSession();
+    _deactivate();
+    _book = await _store.read();
+    return switch (_book.profiles.length) {
+      0 => const NoStoredSession(),
+      1 => await openProfile(_book.profiles.single.userId),
+      _ => const ChooseProfile(),
+    };
+  }
 
-    _http.token = session.accessToken;
+  /// Apre il profilo [userId] (spec K §9.4): le sue credenziali nel client,
+  /// poi `/Users/Me`. Riuscito: nome e immagine aggiornati, ultimo usato.
+  /// 401: il profilo è scaduto. Altri errori: server irraggiungibile.
+  Future<RestoreResult> openProfile(String userId) async {
+    final profile = _book.byId(userId);
+    if (profile == null) {
+      return _book.isEmpty ? const NoStoredSession() : const ChooseProfile();
+    }
+    _http.setCredentials(
+        token: profile.accessToken, deviceId: profile.deviceId);
     try {
-      return RestoredSession(await _api.getMe());
+      final user = await _api.getMe();
+      _activeUserId = profile.userId;
+      await _save(_book
+          .upsert(profile.copyWith(
+            name: user.name,
+            imageTag: user.primaryImageTag,
+            lastUsedAt: clock.now(),
+            expired: false,
+          ))
+          .withLast(profile.userId));
+      return RestoredSession(user);
     } on UnauthorizedException {
-      await clearLocalSession();
-      return const StoredSessionExpired();
+      _deactivate();
+      await _save(_book.upsert(profile.copyWith(expired: true)));
+      return StoredSessionExpired(profile.userId);
     } on ApiException {
+      _deactivate();
       return const RestoreServerUnreachable();
     }
   }
@@ -61,7 +120,18 @@ class AuthService {
   Future<JellyfinUser> currentUser() =>
       _api.getMe(quietStatuses: restartGatewayStatuses);
 
-  Future<JellyfinUser> loginWithPassword(String username, String password) async {
+  /// Prepara un accesso (spec K §9.2): nessun token, il DeviceId del profilo
+  /// [userId] se rifà l'accesso, altrimenti uno nuovo.
+  void prepareLogin({String? userId}) {
+    _activeUserId = null;
+    final existing = userId == null ? null : _book.byId(userId);
+    _http.setCredentials(
+        token: null, deviceId: existing?.deviceId ?? _newDeviceId());
+  }
+
+  /// Lancia [ApiException], o [ProfileLimitException] per un sesto profilo.
+  Future<JellyfinUser> loginWithPassword(
+      String username, String password) async {
     final result = await _api.authenticateByName(username.trim(), password);
     await _adopt(result);
     return result.user;
@@ -73,24 +143,122 @@ class AuthService {
     return result.user;
   }
 
-  Future<void> logout() async {
+  /// Esce dal profilo aperto (spec K §9.5): annulla il token e toglie il
+  /// profilo dal PC. Dà l'id del profilo tolto (`null` senza profilo aperto).
+  Future<String?> logout() async {
+    final userId = _activeUserId;
+    if (userId == null) {
+      _deactivate();
+      return null;
+    }
     try {
       await _api.logout();
-    } on ApiException {
-      // Il token viene comunque dimenticato in locale.
-    } finally {
-      await clearLocalSession();
+    } on ApiException catch (error) {
+      // Il token resta solo sul server: qui si dimentica comunque.
+      _log.info('token non annullato: ${error.runtimeType}');
+    }
+    _deactivate();
+    await _save(_book.remove(userId));
+    return userId;
+  }
+
+  /// Toglie il profilo [userId] dal PC (spec K §9.4), con il suo token
+  /// annullato sul server (con le sue credenziali; gli errori si ignorano).
+  Future<void> removeProfile(String userId) async {
+    final active = _activeUserId;
+    if (active != null && jellyfinIdKey(active) == jellyfinIdKey(userId)) {
+      await logout();
+      return;
+    }
+    final profile = _book.byId(userId);
+    if (profile == null) return;
+    await _revoke(profile.accessToken, profile.deviceId);
+    await _save(_book.remove(userId));
+  }
+
+  /// Cambio di profilo (spec K §9.7): le credenziali spariscono dal client;
+  /// il token resta valido e salvato.
+  void deactivate() => _deactivate();
+
+  /// Un 401 durante la sessione: il profilo aperto è scaduto.
+  Future<void> markActiveExpired() async {
+    final userId = _activeUserId;
+    _deactivate();
+    final profile = userId == null ? null : _book.byId(userId);
+    if (profile != null) {
+      await _save(_book.upsert(profile.copyWith(expired: true)));
     }
   }
 
-  Future<void> clearLocalSession() async {
-    _http.token = null;
-    await _store.clear();
+  /// L'utente riletto (spec J §12): nome e immagine nel profilo aperto, solo
+  /// se cambiano.
+  Future<void> updateActiveProfile(JellyfinUser user) async {
+    final active = _activeUserId;
+    final profile = active == null ? null : _book.byId(active);
+    if (profile == null ||
+        jellyfinIdKey(profile.userId) != jellyfinIdKey(user.id)) {
+      return;
+    }
+    if (profile.name == user.name && profile.imageTag == user.primaryImageTag) {
+      return;
+    }
+    await _save(_book.upsert(
+        profile.copyWith(name: user.name, imageTag: user.primaryImageTag)));
   }
 
+  /// Un accesso riuscito (spec K §9.2): il profilo prende il token e il
+  /// DeviceId con cui l'ha ottenuto. Lo stesso utente già salvato non fa un
+  /// doppione, e il suo token vecchio si annulla.
   Future<void> _adopt(AuthResult result) async {
-    _http.token = result.accessToken;
-    await _store.write(
-        StoredSession(userId: result.user.id, accessToken: result.accessToken));
+    final user = result.user;
+    final deviceId = _http.deviceId;
+    final existing = _book.byId(user.id);
+    if (existing == null && _book.isFull) {
+      await _revoke(result.accessToken, deviceId);
+      throw const ProfileLimitException();
+    }
+    if (existing != null && existing.accessToken != result.accessToken) {
+      await _revoke(existing.accessToken, existing.deviceId);
+    }
+    _http.setCredentials(token: result.accessToken, deviceId: deviceId);
+    _activeUserId = user.id;
+    await _save(_book
+        .upsert(StoredProfile(
+          userId: user.id,
+          name: user.name,
+          accessToken: result.accessToken,
+          deviceId: deviceId,
+          imageTag: user.primaryImageTag,
+          lastUsedAt: clock.now(),
+        ))
+        .withLast(user.id));
+  }
+
+  /// Annulla un token sul server con le sue credenziali; gli errori si
+  /// ignorano (il token resta solo lì).
+  Future<void> _revoke(String token, String deviceId) async {
+    try {
+      await _apiFor(_http.withCredentials(token: token, deviceId: deviceId))
+          .logout();
+    } on ApiException catch (error) {
+      _log.info('token non annullato: ${error.runtimeType}');
+    }
+  }
+
+  void _deactivate() {
+    _http.setCredentials(token: null, deviceId: null);
+    _activeUserId = null;
+  }
+
+  Future<void> _save(ProfileBook book) async {
+    _book = book;
+    try {
+      await _store.write(book);
+    } on Object catch (error) {
+      // Lo storage non salva: i profili valgono lo stesso per questa
+      // esecuzione, e la sessione non si rompe. Al prossimo avvio si legge
+      // l'ultimo elenco salvato.
+      _log.warning('profili non salvati: ${error.runtimeType}');
+    }
   }
 }

@@ -1,11 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 
 import '../../app/providers.dart';
 import '../../core/jellyfin/api_exception.dart';
 import '../../core/jellyfin/auth_models.dart';
 import 'auth_service.dart';
+import 'profiles_state.dart';
+
+final _log = Logger('session');
 
 sealed class SessionState {
   const SessionState();
@@ -16,15 +20,29 @@ final class SessionStarting extends SessionState {
   const SessionStarting();
 }
 
+/// Schermata di accesso (spec K §9.3).
 final class SessionSignedOut extends SessionState {
-  const SessionSignedOut({this.expired = false});
+  const SessionSignedOut(
+      {this.expired = false, this.reloginUserId, this.adding = false});
 
-  /// `true` se l'utente è stato disconnesso per un token non più valido.
+  /// `true` se il token del profilo non vale più: l'avviso "Sessione scaduta".
   final bool expired;
+
+  /// Il profilo che rifà l'accesso ("Accedi di nuovo", spec K §9.4): il suo
+  /// nome già scritto e il suo DeviceId.
+  final String? reloginUserId;
+
+  /// Si aggiunge un profilo (spec K §9.5).
+  final bool adding;
 }
 
 final class SessionUnreachable extends SessionState {
   const SessionUnreachable();
+}
+
+/// "Chi guarda?" (spec K §9.3): più profili salvati, nessuno aperto.
+final class SessionChoosingProfile extends SessionState {
+  const SessionChoosingProfile();
 }
 
 final class SessionSignedIn extends SessionState {
@@ -45,31 +63,89 @@ class SessionController extends Notifier<SessionState> {
 
   Future<void> restore() async {
     try {
-      final result = await _auth.restore();
-      state = switch (result) {
-        RestoredSession(:final user) => SessionSignedIn(user),
-        NoStoredSession() => const SessionSignedOut(),
-        StoredSessionExpired() => const SessionSignedOut(expired: true),
-        RestoreServerUnreachable() => const SessionUnreachable(),
-      };
+      _apply(_stateFor(await _auth.restore()));
     } on Object {
       // Difesa in profondità: nessun errore imprevisto deve bloccare l'avvio
       // sulla schermata di splash.
-      state = const SessionUnreachable();
+      _apply(const SessionUnreachable());
     }
   }
 
-  /// Lancia [ApiException] in caso di errore: la UI mostra il messaggio.
-  Future<void> loginWithPassword(String username, String password) async {
-    final user = await _auth.loginWithPassword(username, password);
-    state = SessionSignedIn(user);
+  /// Apre un profilo da "Chi guarda?" (spec K §9.4). Un errore imprevisto
+  /// vale come server irraggiungibile.
+  Future<void> openProfile(String userId) async {
+    try {
+      _apply(_stateFor(await _auth.openProfile(userId)));
+    } on Object {
+      _apply(const SessionUnreachable());
+    }
   }
 
-  void quickConnectApproved(JellyfinUser user) => state = SessionSignedIn(user);
+  /// Lancia [ApiException] o `ProfileLimitException`: la UI mostra il
+  /// messaggio.
+  Future<void> loginWithPassword(String username, String password) async {
+    final user = await _auth.loginWithPassword(username, password);
+    _apply(SessionSignedIn(user));
+  }
 
+  void quickConnectApproved(JellyfinUser user) => _apply(SessionSignedIn(user));
+
+  /// La schermata di accesso si apre (spec K §9.2): il client prende il
+  /// DeviceId del profilo che rifà l'accesso, o uno nuovo. Quick Connect lo
+  /// usa già per la richiesta del codice.
+  void prepareLogin() {
+    final current = state;
+    _auth.prepareLogin(
+        userId: current is SessionSignedOut ? current.reloginUserId : null);
+  }
+
+  /// Cambio di profilo (spec K §9.7): le credenziali spariscono, il token
+  /// resta salvato, e tutto quello che dipende dall'utente si azzera come
+  /// all'uscita. Chi chiama esce prima dal watch party.
+  void switchProfile() {
+    _auth.deactivate();
+    _apply(_afterLeaving());
+  }
+
+  /// "Aggiungi profilo" (spec K §9.5): come un cambio, poi l'accesso.
+  void addProfile() {
+    _auth.deactivate();
+    _apply(const SessionSignedOut(adding: true));
+  }
+
+  /// "Accedi di nuovo" su un profilo scaduto (spec K §9.4).
+  void relogin(String userId) {
+    _auth.deactivate();
+    _apply(SessionSignedOut(expired: true, reloginUserId: userId));
+  }
+
+  /// "Annulla" nell'accesso: di nuovo "Chi guarda?" (spec K §9.3).
+  void cancelLogin() => _apply(_afterLeaving());
+
+  /// Un'uscita in corso: il 401 della sua richiesta (token già scaduto) non
+  /// apre l'accesso del profilo che si sta togliendo.
+  bool _leaving = false;
+
+  /// "Esci" (spec K §9.5): il profilo aperto si toglie dal PC.
   Future<void> logout() async {
-    await _auth.logout();
-    state = const SessionSignedOut();
+    _leaving = true;
+    try {
+      await _auth.logout();
+    } finally {
+      _leaving = false;
+    }
+    _apply(_afterLeaving());
+  }
+
+  /// "Rimuovi" in "Gestisci profili" (spec K §9.4).
+  Future<void> removeProfile(String userId) async {
+    _leaving = true;
+    try {
+      await _auth.removeProfile(userId);
+    } finally {
+      _leaving = false;
+    }
+    _apply(_afterLeaving());
   }
 
   /// La rilettura dell'utente in corso, se c'è.
@@ -86,7 +162,8 @@ class SessionController extends Notifier<SessionState> {
   /// [_onUnauthorized]). Il risultato vale solo se la sessione è ancora
   /// quella dello stesso utente (un'uscita o un altro accesso, nel
   /// frattempo, lo scartano) e solo se qualcosa è cambiato: senza un nuovo
-  /// stato il router e la shell non si ricostruiscono.
+  /// stato il router e la shell non si ricostruiscono. Il profilo prende il
+  /// nome e l'immagine nuovi.
   Future<void> _refreshUser() async {
     final before = state;
     if (before is! SessionSignedIn) return;
@@ -95,16 +172,56 @@ class SessionController extends Notifier<SessionState> {
       final now = state;
       if (now is! SessionSignedIn || now.user.id != before.user.id) return;
       if (now.user == user) return;
-      state = SessionSignedIn(user);
+      _apply(SessionSignedIn(user));
+      await _updateProfile(user);
     } on ApiException {
       // La sessione resta quella di prima.
     }
   }
 
+  Future<void> _updateProfile(JellyfinUser user) async {
+    try {
+      await _auth.updateActiveProfile(user);
+      _publishProfiles();
+    } on Object catch (error) {
+      _log.warning('profilo non aggiornato: ${error.runtimeType}');
+    }
+  }
+
+  /// Un 401 durante la sessione: il profilo è scaduto e rifà l'accesso.
   void _onUnauthorized() {
-    if (state is! SessionSignedIn) return;
-    unawaited(_auth.clearLocalSession());
-    state = const SessionSignedOut(expired: true);
+    final current = state;
+    if (current is! SessionSignedIn || _leaving) return;
+    unawaited(_auth.markActiveExpired().then((_) => _publishProfiles(),
+        onError: (Object error) =>
+            _log.warning('profilo non segnato: ${error.runtimeType}')));
+    _apply(SessionSignedOut(expired: true, reloginUserId: current.user.id));
+  }
+
+  /// Dove si va lasciando un profilo: "Chi guarda?" se ne restano,
+  /// altrimenti l'accesso.
+  SessionState _afterLeaving() => _auth.book.isEmpty
+      ? const SessionSignedOut()
+      : const SessionChoosingProfile();
+
+  SessionState _stateFor(RestoreResult result) => switch (result) {
+        RestoredSession(:final user) => SessionSignedIn(user),
+        NoStoredSession() => const SessionSignedOut(),
+        StoredSessionExpired(:final userId) =>
+          SessionSignedOut(expired: true, reloginUserId: userId),
+        RestoreServerUnreachable() => const SessionUnreachable(),
+        ChooseProfile() => const SessionChoosingProfile(),
+      };
+
+  void _apply(SessionState next) {
+    state = next;
+    _publishProfiles();
+  }
+
+  void _publishProfiles() {
+    if (!ref.mounted) return;
+    ref.read(profilesProvider.notifier).set(ProfilesState(
+        book: _auth.book, activeUserId: _auth.activeUserId));
   }
 }
 
