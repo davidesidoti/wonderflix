@@ -9,12 +9,14 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../core/jellyfin/auth_models.dart';
 import '../features/admin/admin_navigation.dart';
+import '../features/auth/profiles_state.dart';
 import '../features/auth/session_controller.dart';
 import '../features/friends/friend_request_card.dart';
 import '../features/friends/friends_button.dart';
 import '../features/friends/friends_panel.dart';
 import '../features/inbox/inbox_button.dart';
 import '../features/library/server_events_binding.dart';
+import '../features/profiles/profile_switch.dart';
 import '../features/requests/requests_providers.dart';
 import '../features/watch_party/watch_party_button.dart';
 import '../features/watch_party/watch_party_invites.dart';
@@ -351,6 +353,8 @@ class _UserMenu extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final initial = user.name.isEmpty ? '?' : user.name[0].toUpperCase();
+    final canAddProfile =
+        !ref.watch(profilesProvider.select((p) => p.book.isFull));
     return PopupMenuButton<String>(
       key: const Key('user-menu'),
       tooltip: user.name,
@@ -362,6 +366,10 @@ class _UserMenu extends ConsumerWidget {
             context.go('/settings');
           case 'admin':
             openAdmin(context);
+          case 'switch':
+            unawaited(switchProfile(context, ref));
+          case 'add':
+            unawaited(switchProfile(context, ref, addProfile: true));
           case 'logout':
             unawaited(ref.read(sessionControllerProvider.notifier).logout());
         }
@@ -387,6 +395,29 @@ class _UserMenu extends ConsumerWidget {
                     size: 18, color: WfColors.cream),
                 const SizedBox(width: 12),
                 Text(l.menuAdmin),
+              ],
+            ),
+          ),
+        PopupMenuItem(
+          value: 'switch',
+          child: Row(
+            children: [
+              const Icon(LucideIcons.users, size: 18, color: WfColors.cream),
+              const SizedBox(width: 12),
+              Text(l.profilesSwitch),
+            ],
+          ),
+        ),
+        // Al massimo 5 profili (spec K §9.5).
+        if (canAddProfile)
+          PopupMenuItem(
+            value: 'add',
+            child: Row(
+              children: [
+                const Icon(LucideIcons.userPlus,
+                    size: 18, color: WfColors.cream),
+                const SizedBox(width: 12),
+                Text(l.profilesAdd),
               ],
             ),
           ),

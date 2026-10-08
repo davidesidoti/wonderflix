@@ -14,6 +14,7 @@ import 'package:wonderflix/features/settings/diagnostics.dart';
 import 'package:wonderflix/features/settings/language_preferences.dart';
 import 'package:wonderflix/features/settings/locale_controller.dart';
 import 'package:wonderflix/features/settings/settings_screen.dart';
+import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/pump_app.dart';
@@ -46,6 +47,8 @@ void main() {
       clientInfoProvider.overrideWithValue(testClientInfo),
       sessionControllerProvider.overrideWith(() => session),
       userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
+      // "Cambia profilo" legge il watch party: niente eventi del server.
+      watchPartyEventsProvider.overrideWithValue(const Stream.empty()),
     ]);
 
     expect(find.text('Accesso come Mario'), findsOneWidget);
@@ -54,6 +57,13 @@ void main() {
     await tester.tap(find.text('English'));
     await tester.pump();
     expect(prefs.getString('locale'), 'en');
+
+    await tester.tap(find.text('Cambia profilo'));
+    await tester.pump();
+    expect(session.switchCalls, 1);
+    // Il fake è passato a "Chi guarda?": di nuovo dentro, per provare Esci.
+    session.set(const SessionSignedIn(testUser));
+    await tester.pump();
 
     await tester.tap(find.text('Esci'));
     await tester.pump();

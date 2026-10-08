@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/app_shell.dart';
+import 'package:wonderflix/core/storage/profile_store.dart';
+import 'package:wonderflix/features/auth/profiles_state.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 
 import '../support/fake_session_controller.dart';
+import '../support/profile_fakes.dart';
 import '../support/pump_app.dart';
 import '../support/social_fakes.dart';
 import '../support/test_data.dart';
@@ -60,5 +63,72 @@ void main() {
     );
 
     expect(find.text('Richieste'), findsOneWidget);
+  });
+
+  testWidgets('menu: Cambia profilo e Aggiungi profilo', (tester) async {
+    final fake = FakeSessionController(const SessionSignedIn(testUser));
+    await pumpApp(
+      tester,
+      const AppShell(location: '/home', child: SizedBox()),
+      overrides: [
+        sessionControllerProvider.overrideWith(() => fake),
+        watchPartyDirectoryProvider.overrideWith(FakeWatchPartyDirectory.new),
+        syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
+        watchPartyEventsProvider.overrideWithValue(const Stream.empty()),
+      ],
+    );
+
+    await tester.tap(find.byKey(const Key('user-menu')));
+    await tester.pumpAndSettle();
+    expect(find.text('Aggiungi profilo'), findsOneWidget);
+    await tester.tap(find.text('Cambia profilo'));
+    await tester.pumpAndSettle();
+    expect(fake.switchCalls, 1);
+  });
+
+  testWidgets('menu: Aggiungi profilo apre l\'accesso', (tester) async {
+    final fake = FakeSessionController(const SessionSignedIn(testUser));
+    await pumpApp(
+      tester,
+      const AppShell(location: '/home', child: SizedBox()),
+      overrides: [
+        sessionControllerProvider.overrideWith(() => fake),
+        watchPartyDirectoryProvider.overrideWith(FakeWatchPartyDirectory.new),
+        syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
+        watchPartyEventsProvider.overrideWithValue(const Stream.empty()),
+      ],
+    );
+
+    await tester.tap(find.byKey(const Key('user-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Aggiungi profilo'));
+    await tester.pumpAndSettle();
+    expect(fake.addProfileCalls, 1);
+    expect(fake.switchCalls, 0);
+  });
+
+  testWidgets('menu con 5 profili: niente "Aggiungi profilo"', (tester) async {
+    var book = const ProfileBook();
+    for (var i = 1; i <= ProfileBook.maxProfiles; i++) {
+      book = book.upsert(testProfile(userId: 'u$i'));
+    }
+    await pumpApp(
+      tester,
+      const AppShell(location: '/home', child: SizedBox()),
+      overrides: [
+        sessionControllerProvider.overrideWith(
+            () => FakeSessionController(const SessionSignedIn(testUser))),
+        watchPartyDirectoryProvider.overrideWith(FakeWatchPartyDirectory.new),
+        syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
+        watchPartyEventsProvider.overrideWithValue(const Stream.empty()),
+        profilesProvider.overrideWith(() =>
+            FixedProfiles(ProfilesState(book: book, activeUserId: 'u1'))),
+      ],
+    );
+
+    await tester.tap(find.byKey(const Key('user-menu')));
+    await tester.pumpAndSettle();
+    expect(find.text('Cambia profilo'), findsOneWidget);
+    expect(find.text('Aggiungi profilo'), findsNothing);
   });
 }

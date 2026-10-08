@@ -11,6 +11,7 @@ import '../../ui/smooth_scroll.dart';
 import '../../ui/staggered_entrance.dart';
 import '../../ui/wf_buttons.dart';
 import '../auth/session_controller.dart';
+import '../profiles/profile_switch.dart';
 import 'appearance_settings_section.dart';
 import 'discord_settings_section.dart';
 import 'language_settings_section.dart';
@@ -118,14 +119,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               if (session is SessionSignedIn)
                 Text(l.settingsSignedInAs(session.user.name)),
               const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: WfButton.secondary(
-                  label: l.menuLogout,
-                  icon: LucideIcons.logOut,
-                  onPressed: () => unawaited(
-                      ref.read(sessionControllerProvider.notifier).logout()),
-                ),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  WfButton.secondary(
+                    label: l.profilesSwitch,
+                    icon: LucideIcons.users,
+                    onPressed: () => unawaited(switchProfile(context, ref)),
+                  ),
+                  WfButton.secondary(
+                    label: l.menuLogout,
+                    icon: LucideIcons.logOut,
+                    onPressed: () => unawaited(
+                        ref.read(sessionControllerProvider.notifier).logout()),
+                  ),
+                ],
               ),
             ]),
             item(7, [
