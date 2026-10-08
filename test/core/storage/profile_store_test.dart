@@ -1,29 +1,12 @@
 import 'dart:convert';
 
-import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/device/dev_profile.dart';
 import 'package:wonderflix/core/storage/profile_store.dart';
 import 'package:wonderflix/core/storage/session_store.dart';
 
-/// Storage finto che fallisce in lettura.
-class _ThrowingReadStorage extends FlutterSecureStorage {
-  const _ThrowingReadStorage();
-
-  @override
-  Future<String?> read({
-    required String key,
-    AppleOptions? iOptions,
-    AndroidOptions? aOptions,
-    LinuxOptions? lOptions,
-    WebOptions? webOptions,
-    AppleOptions? mOptions,
-    WindowsOptions? wOptions,
-  }) {
-    throw PlatformException(code: 'boom');
-  }
-}
+import '../../support/throwing_secure_storage.dart';
 
 StoredProfile profile(String userId,
         {String name = 'Mario', bool expired = false, String? imageTag}) =>
@@ -92,6 +75,56 @@ void main() {
       // Un ultimo usato che non c'è più non vale.
       expect(book.lastUserId, isNull);
     });
+
+    test('fromJson: l\'ultimo usato con maiuscole e trattini diversi vale', () {
+      const id = 'ab8240c5-0000-0000-0000-00000000000a';
+      const last = 'AB8240C500000000000000000000000A';
+      final book = ProfileBook.fromJson({
+        'profiles': [profile(id).toJson()],
+        'lastUserId': last,
+      });
+      expect(book.lastUserId, last);
+      // E anche togliendo il profilo si riconosce.
+      expect(book.remove(id).lastUserId, isNull);
+    });
+
+    test('fromJson: senza un elenco di profili il risultato è vuoto', () {
+      expect(ProfileBook.fromJson({'profiles': 'non una lista'}).profiles,
+          isEmpty);
+      expect(ProfileBook.fromJson(const {}).profiles, isEmpty);
+    });
+
+    test('upsert in un elenco pieno: un utente già presente si aggiorna, '
+        'uno nuovo no', () {
+      var book = const ProfileBook();
+      for (var i = 0; i < ProfileBook.maxProfiles; i++) {
+        book = book.upsert(profile('u$i'));
+      }
+      expect(book.isFull, isTrue);
+      expect(book.upsert(profile('u0', name: 'Nuovo nome')).byId('u0')!.name,
+          'Nuovo nome');
+      // L'elenco pieno lo controlla chi chiama: qui è un errore di
+      // programmazione, che l'assert fa vedere.
+      expect(() => book.upsert(profile('u9')), throwsA(isA<AssertionError>()));
+    });
+  });
+
+  group('StoredProfile.copyWith', () {
+    test('senza argomenti tiene tutto, compresa l\'immagine', () {
+      final copy = profile('u1', imageTag: 'img1', expired: true).copyWith();
+      expect(copy.imageTag, 'img1');
+      expect(copy.expired, isTrue);
+      expect(copy.name, 'Mario');
+      expect(copy.accessToken, 'tok-u1');
+      expect(copy.deviceId, 'dev-u1');
+      expect(copy.lastUsedAt, DateTime.utc(2026, 10, 8, 20));
+    });
+
+    test('imageTag: null la toglie, un valore la cambia', () {
+      final tagged = profile('u1', imageTag: 'img1');
+      expect(tagged.copyWith(imageTag: null).imageTag, isNull);
+      expect(tagged.copyWith(imageTag: 'img2').imageTag, 'img2');
+    });
   });
 
   test('senza niente salvato: nessun profilo', () async {
@@ -139,15 +172,113 @@ void main() {
     expect((await store().read()).profiles.single.accessToken, 'tok-vecchio');
   });
 
+  test(
+      'migrazione: se il salvataggio dei profili fallisce, read() non lancia '
+      'e la sessione di prima resta', () async {
+    FlutterSecureStorage.setMockInitialValues({
+      SecureSessionStore.key:
+          jsonEncode({'userId': 'u1', 'accessToken': 'tok-vecchio'}),
+    });
+    final failing = SecureProfileStore(
+        storage: const ThrowingWriteStorage(),
+        legacyDeviceId: 'dev-installazione');
+
+    final book = await failing.read();
+
+    expect(book.profiles.single.userId, 'u1');
+    expect(book.profiles.single.accessToken, 'tok-vecchio');
+    const storage = FlutterSecureStorage();
+    expect(await storage.read(key: SecureSessionStore.key), isNotNull);
+    expect(await storage.read(key: SecureProfileStore.defaultKey), isNull);
+    // Al prossimo avvio, con lo storage di nuovo sano, si migra davvero.
+    expect((await store().read()).profiles.single.accessToken, 'tok-vecchio');
+    expect(await storage.read(key: SecureSessionStore.key), isNull);
+    expect(await storage.read(key: SecureProfileStore.defaultKey), isNotNull);
+  });
+
+  test(
+      'migrazione: se la sessione di prima non si cancella, read() non lancia '
+      'e i profili sono salvati', () async {
+    FlutterSecureStorage.setMockInitialValues({
+      SecureSessionStore.key:
+          jsonEncode({'userId': 'u1', 'accessToken': 'tok-vecchio'}),
+    });
+    final failing = SecureProfileStore(
+        storage: const ThrowingDeleteStorage(),
+        legacyDeviceId: 'dev-installazione');
+
+    final book = await failing.read();
+
+    expect(book.profiles.single.userId, 'u1');
+    expect(book.lastUserId, 'u1');
+    const storage = FlutterSecureStorage();
+    expect(await storage.read(key: SecureProfileStore.defaultKey), isNotNull);
+    // La sessione di prima è ancora lì, ma i profili hanno la precedenza.
+    expect(await storage.read(key: SecureSessionStore.key), isNotNull);
+    final again = await failing.read();
+    expect(again.profiles.single.userId, 'u1');
+    expect(again.profiles.single.deviceId, 'dev-installazione');
+  });
+
+  test(
+      'migrazione: una sessione di prima rovinata che non si cancella dà '
+      'nessun profilo, senza eccezioni', () async {
+    FlutterSecureStorage.setMockInitialValues(
+        {SecureSessionStore.key: 'non-json'});
+    final failing = SecureProfileStore(
+        storage: const ThrowingDeleteStorage(), legacyDeviceId: 'dev');
+    expect((await failing.read()).profiles, isEmpty);
+  });
+
+  test('migrazione nell\'istanza di sviluppo: le sue chiavi e il suo DeviceId',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({
+      sessionKeyFor('b'):
+          jsonEncode({'userId': 'u2', 'accessToken': 'tok-b'}),
+    });
+    final dev = SecureProfileStore(
+        key: profilesKeyFor('b'),
+        legacyKey: sessionKeyFor('b'),
+        legacyDeviceId: 'dev-b');
+
+    final book = await dev.read();
+
+    final migrated = book.profiles.single;
+    expect(migrated.userId, 'u2');
+    expect(migrated.accessToken, 'tok-b');
+    expect(migrated.deviceId, 'dev-b');
+    const storage = FlutterSecureStorage();
+    expect(await storage.read(key: sessionKeyFor('b')), isNull);
+    expect(await storage.read(key: profilesKeyFor('b')), isNotNull);
+    // L'istanza normale non vede niente e non scrive niente.
+    expect((await store().read()).profiles, isEmpty);
+    expect(await storage.read(key: SecureProfileStore.defaultKey), isNull);
+  });
+
   test('profili illeggibili: nessun profilo, nessuna eccezione', () async {
     FlutterSecureStorage.setMockInitialValues(
         {SecureProfileStore.defaultKey: 'non-json'});
     expect((await store().read()).profiles, isEmpty);
   });
 
+  test('JSON valido ma non un oggetto: nessun profilo, nessuna eccezione',
+      () async {
+    FlutterSecureStorage.setMockInitialValues(
+        {SecureProfileStore.defaultKey: '[]'});
+    expect((await store().read()).profiles, isEmpty);
+  });
+
+  test('JSON con i profili che non sono un elenco: nessun profilo', () async {
+    FlutterSecureStorage.setMockInitialValues({
+      SecureProfileStore.defaultKey:
+          jsonEncode({'version': 1, 'profiles': 'non una lista'}),
+    });
+    expect((await store().read()).profiles, isEmpty);
+  });
+
   test('uno storage che fallisce in lettura: nessun profilo', () async {
     final failing = SecureProfileStore(
-        storage: const _ThrowingReadStorage(), legacyDeviceId: 'dev');
+        storage: const ThrowingReadStorage(), legacyDeviceId: 'dev');
     expect((await failing.read()).profiles, isEmpty);
   });
 

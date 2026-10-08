@@ -102,7 +102,8 @@ class ProfileBook {
   /// tiene al massimo [maxProfiles]; un ultimo usato che non c'è più non vale.
   factory ProfileBook.fromJson(Map<String, dynamic> json) {
     final profiles = <StoredProfile>[];
-    for (final raw in json['profiles'] is List ? json['profiles'] as List : const []) {
+    final list = json['profiles'];
+    for (final raw in list is List ? list : const []) {
       final map = jsonMap(raw);
       final profile = map == null ? null : StoredProfile.fromJson(map);
       if (profile == null ||
@@ -142,6 +143,9 @@ class ProfileBook {
   ProfileBook upsert(StoredProfile profile) {
     final next = profiles.toList();
     final index = next.indexWhere((p) => _sameUser(p.userId, profile.userId));
+    // Un utente nuovo in un elenco pieno non deve arrivare qui: chi chiama
+    // (`AuthService`) controlla prima `isFull`.
+    assert(!isFull || index >= 0, 'elenco dei profili pieno: utente nuovo');
     if (index >= 0) {
       next[index] = profile;
     } else {
@@ -178,7 +182,9 @@ class ProfileLimitException implements Exception {
 
 /// Dove stanno i profili (spec K §9.1).
 abstract interface class ProfileStore {
-  /// I profili salvati; vuoto se non ce ne sono o se non si leggono.
+  /// I profili salvati; vuoto se non ce ne sono o se non si leggono. Non
+  /// lancia mai. La prima lettura porta nei profili la sessione unica di prima
+  /// della 0.11.0, se c'è (vedi [SecureProfileStore]).
   Future<ProfileBook> read();
 
   Future<void> write(ProfileBook book);
@@ -229,7 +235,15 @@ class SecureProfileStore implements ProfileStore {
   /// con il DeviceId di allora, così il token resta valido (spec K §9.1).
   Future<ProfileBook> _migrate() async {
     final legacy = SecureSessionStore(_storage, legacyKey);
-    final session = await legacy.read();
+    final StoredSession? session;
+    try {
+      session = await legacy.read();
+    } on Object catch (error) {
+      // `read()` cancella un valore rovinato: se anche questo fallisce, si
+      // riparte senza profili.
+      _log.warning('sessione di prima non letta: ${error.runtimeType}');
+      return const ProfileBook();
+    }
     if (session == null) return const ProfileBook();
     final book = ProfileBook(
       profiles: List.unmodifiable([
@@ -242,8 +256,20 @@ class SecureProfileStore implements ProfileStore {
       ]),
       lastUserId: session.userId,
     );
-    await write(book);
-    await legacy.clear();
+    try {
+      await write(book);
+    } on Object catch (error) {
+      // La sessione di prima resta: si riprova al prossimo avvio.
+      _log.warning('profili non salvati: ${error.runtimeType}');
+      return book;
+    }
+    try {
+      await legacy.clear();
+    } on Object catch (error) {
+      // I profili ci sono già: la sessione di prima resta, ma non serve più
+      // (con i profili salvati la lettura non migra).
+      _log.warning('sessione di prima non cancellata: ${error.runtimeType}');
+    }
     _log.info('sessione di prima portata nei profili');
     return book;
   }

@@ -196,5 +196,28 @@ void main() {
       expect(http.deviceId, 'dev-attivo');
       expect(unauthorized, 0);
     });
+
+    test('withCredentials: chiudere il client derivato non chiude l\'adattatore '
+        'del principale', () async {
+      final adapter =
+          FakeAdapter((_) => const FakeResponse(200, {'ok': true}));
+      final http = JellyfinHttp(
+          baseUrl: testServerUrl, clientInfo: testClientInfo, adapter: adapter);
+      final other = http.withCredentials(token: 'tok-2', deviceId: 'dev-2');
+
+      // Le richieste del derivato passano dall'adattatore del principale.
+      expect(await other.get('/Users/Me'), {'ok': true});
+      expect(adapter.requests, hasLength(1));
+
+      other.dio.close();
+      expect(adapter.closeCount, 0);
+      // Il principale continua a funzionare...
+      expect(await http.get('/Users/Me'), {'ok': true});
+      expect(adapter.requests, hasLength(2));
+
+      // ...e chiuderlo chiude l'adattatore, come prima.
+      http.dio.close();
+      expect(adapter.closeCount, 1);
+    });
   });
 }

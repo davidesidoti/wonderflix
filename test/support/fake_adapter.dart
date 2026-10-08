@@ -20,6 +20,9 @@ class FakeAdapter implements HttpClientAdapter {
   FakeHandler handler;
   final requests = <RequestOptions>[];
 
+  /// Quante volte è stato chiuso.
+  int closeCount = 0;
+
   @override
   Future<ResponseBody> fetch(
     RequestOptions options,
@@ -42,5 +45,5 @@ class FakeAdapter implements HttpClientAdapter {
   }
 
   @override
-  void close({bool force = false}) {}
+  void close({bool force = false}) => closeCount++;
 }

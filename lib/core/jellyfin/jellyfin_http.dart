@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:logging/logging.dart';
 
@@ -62,7 +64,7 @@ class JellyfinHttp {
       JellyfinHttp(
         baseUrl: _baseUrl,
         clientInfo: _clientInfo,
-        adapter: dio.httpClientAdapter,
+        adapter: _BorrowedAdapter(dio.httpClientAdapter),
       )..setCredentials(token: token, deviceId: deviceId);
 
   /// Chiamato quando una richiesta fatta con un token riceve 401.
@@ -125,6 +127,26 @@ class JellyfinHttp {
       throw mapped;
     }
   }
+}
+
+/// L'adattatore di un altro client, in prestito: le richieste passano da lì,
+/// ma `close` non fa niente. L'adattatore è del client principale: chiuderlo
+/// qui fermerebbe anche lui.
+class _BorrowedAdapter implements HttpClientAdapter {
+  _BorrowedAdapter(this._inner);
+
+  final HttpClientAdapter _inner;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) =>
+      _inner.fetch(options, requestStream, cancelFuture);
+
+  @override
+  void close({bool force = false}) {}
 }
 
 /// Converte il corpo di una risposta in oggetto JSON, o lancia
