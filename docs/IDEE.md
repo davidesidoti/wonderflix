@@ -30,8 +30,6 @@ Rifare l'app perché si possa usare anche su Smart TV (Fire TV Stick e simili, c
 
 ## 3. Funzioni escluse dallo Spec A
 
-- Profili "Chi guarda?" (più utenti sullo stesso PC): in corso, Spec K.
-- Collezioni e saghe (`BoxSet`): in corso, Spec K.
 - Download per la visione offline.
 
 ## 4. Rifinitura per la v1.0.0
@@ -51,3 +49,4 @@ La v1.0.0 è la prima release per gli amici. Raccoglierebbe:
 - Spec H — coda del watch party (plugin 1.3.0, app 0.8.0).
 - Spec I — richieste con Seerr (plugin 1.4.0, app 0.9.0).
 - Spec J — dashboard admin (app 0.10.0).
+- Spec K — saghe e profili (plugin 1.5.0, app 0.11.0).
