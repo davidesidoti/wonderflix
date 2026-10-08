@@ -15,6 +15,7 @@ import '../features/home/home_screen.dart';
 import '../features/mylist/my_list_screen.dart';
 import '../features/person/person_screen.dart';
 import '../features/player/player_screen.dart';
+import '../features/profiles/profiles_screen.dart';
 import '../features/requests/requests_navigation.dart';
 import '../features/requests/requests_screen.dart';
 import '../features/requests/tmdb_title_screen.dart';
@@ -111,6 +112,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           path: '/unreachable',
           pageBuilder: (context, state) =>
               entryPage(context, state, const UnreachableScreen())),
+      GoRoute(
+          path: '/profiles',
+          pageBuilder: (context, state) =>
+              entryPage(context, state, const ProfilesScreen())),
       GoRoute(
         path: '/play/:id',
         pageBuilder: (context, state) => playerPage(
