@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -91,6 +93,74 @@ void main() {
     expect(store.book.byId('u1')!.expired, isTrue);
     expect(container.read(profilesProvider).book.byId('u1')!.expired, isTrue);
     expect(http.token, isNull);
+  });
+
+  group('un accesso che finisce dopo "Annulla", mentre si apre Luigi', () {
+    late Completer<FakeResponse> login;
+    late Completer<FakeResponse> luigiMe;
+    late Future<void> signingIn;
+    late Future<void> opening;
+
+    setUp(() async {
+      login = Completer<FakeResponse>();
+      luigiMe = Completer<FakeResponse>();
+      adapter.handler = (options) {
+        if (options.path == '/Users/AuthenticateByName') return login.future;
+        if (options.path == '/Users/Me') return luigiMe.future;
+        return const FakeResponse(204);
+      };
+      // "Aggiungi profilo", la password, "Annulla", poi Luigi in "Chi
+      // guarda?": il server non ha ancora risposto a nessuno dei due.
+      controller().addProfile();
+      controller().prepareLogin();
+      signingIn = controller().loginWithPassword('peach', 'pw');
+      await pumpEventQueue();
+      controller().cancelLogin();
+      opening = controller().openProfile('u2');
+      await pumpEventQueue();
+    });
+
+    void answerLogin() => login.complete(const FakeResponse(200, {
+          'User': {'Id': 'u3', 'Name': 'Peach'},
+          'AccessToken': 'tok-u3',
+          'ServerId': 'srv',
+        }));
+
+    void answerLuigi() => luigiMe
+        .complete(const FakeResponse(200, {'Id': 'u2', 'Name': 'Luigi'}));
+
+    void expectLuigiOpen() {
+      expect((state() as SessionSignedIn).user.id, 'u2');
+      expect(http.token, 'tok-u2');
+      expect(http.deviceId, 'dev-u2');
+      final profiles = container.read(profilesProvider);
+      expect(profiles.activeUserId, 'u2');
+      // Il profilo nuovo è salvato e compare in "Chi guarda?".
+      expect(profiles.book.byId('u3')!.accessToken, 'tok-u3');
+      expect(store.book.byId('u3'), isNotNull);
+      expect(store.book.lastUserId, 'u2');
+    }
+
+    test('prima la password, poi Luigi', () async {
+      answerLogin();
+      await signingIn;
+      expect(state(), isA<SessionChoosingProfile>());
+      expect(container.read(profilesProvider).book.byId('u3'), isNotNull);
+
+      answerLuigi();
+      await opening;
+
+      expectLuigiOpen();
+    });
+
+    test('prima Luigi, poi la password', () async {
+      answerLuigi();
+      await opening;
+      answerLogin();
+      await signingIn;
+
+      expectLuigiOpen();
+    });
   });
 
   test('un 401 della richiesta di uscita: si esce e basta', () async {

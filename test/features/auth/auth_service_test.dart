@@ -222,8 +222,9 @@ void main() {
       await login;
 
       expect(store.book.byId('u1')!.deviceId, 'dev-nuovo-1');
-      expect(http.deviceId, 'dev-nuovo-1');
-      expect(http.token, 'tok-nuovo');
+      // Un altro accesso preparato nel frattempo: questo non si apre.
+      expect(http.deviceId, 'dev-nuovo-2');
+      expect(http.token, isNull);
     });
 
     test('Quick Connect: il DeviceId è quello della richiesta', () async {
@@ -238,7 +239,115 @@ void main() {
       await login;
 
       expect(store.book.byId('u1')!.deviceId, 'dev-nuovo-1');
-      expect(http.deviceId, 'dev-nuovo-1');
+      expect(http.deviceId, 'dev-nuovo-2');
+      expect(http.token, isNull);
+    });
+
+    group('un accesso superato mentre aspetta il server', () {
+      late Completer<AuthResult> answer;
+      const peach = AuthResult(
+          user: JellyfinUser(id: 'u3', name: 'Peach'), accessToken: 'tok-u3');
+
+      setUp(() async {
+        store.book = bookOf([mario, luigi]).withLast('u1');
+        await service.restore();
+        service.prepareLogin();
+        answer = Completer<AuthResult>();
+        when(() => api.authenticateByName(any(), any()))
+            .thenAnswer((_) => answer.future);
+      });
+
+      test('da "Annulla": il profilo si salva, ma non si apre', () async {
+        final login = service.loginWithPassword('peach', 'pw');
+        service.deactivate();
+        answer.complete(peach);
+        await login;
+
+        final saved = store.book.byId('u3')!;
+        expect(saved.accessToken, 'tok-u3');
+        expect(saved.deviceId, 'dev-nuovo-1');
+        expect(store.book.lastUserId, 'u1');
+        expect(service.activeUserId, isNull);
+        expect(http.token, isNull);
+        expect(http.deviceId, 'dev-test');
+      });
+
+      test('da un profilo aperto: il profilo aperto resta', () async {
+        when(() => api.getMe()).thenAnswer(
+            (_) async => const JellyfinUser(id: 'u2', name: 'Luigi'));
+
+        final login = service.loginWithPassword('peach', 'pw');
+        await service.openProfile('u2');
+        answer.complete(peach);
+        await login;
+
+        expect(store.book.byId('u3')!.accessToken, 'tok-u3');
+        expect(store.book.lastUserId, 'u2');
+        expect(service.activeUserId, 'u2');
+        expect(http.token, 'tok-u2');
+        expect(http.deviceId, 'dev-u2');
+      });
+
+      test('da un profilo che si sta aprendo: il profilo aperto resta',
+          () async {
+        final me = Completer<JellyfinUser>();
+        when(() => api.getMe()).thenAnswer((_) => me.future);
+
+        final login = service.loginWithPassword('peach', 'pw');
+        final opening = service.openProfile('u2');
+        answer.complete(peach);
+        await login;
+        me.complete(const JellyfinUser(id: 'u2', name: 'Luigi'));
+        await opening;
+
+        expect(store.book.byId('u3')!.accessToken, 'tok-u3');
+        expect(service.activeUserId, 'u2');
+        expect(http.token, 'tok-u2');
+      });
+    });
+
+    test('onProfilesChanged a ogni salvataggio, anche se lo storage non salva',
+        () async {
+      final unsaved = AuthService(
+          http: http, api: api, store: _UnwritableProfileStore());
+      final seen = <ProfileBook>[];
+      unsaved.onProfilesChanged = () => seen.add(unsaved.book);
+      when(() => api.authenticateByName('mario', 'pw')).thenAnswer((_) async =>
+          const AuthResult(user: testUser, accessToken: 'tok-nuovo'));
+
+      await unsaved.loginWithPassword('mario', 'pw');
+
+      expect(seen.single.byId('u1')!.accessToken, 'tok-nuovo');
+    });
+
+    test('un DeviceId già di un altro profilo: un avviso, senza token',
+        () async {
+      final records = <LogRecord>[];
+      final previousLevel = Logger.root.level;
+      Logger.root.level = Level.ALL;
+      addTearDown(() => Logger.root.level = previousLevel);
+      final subscription = Logger.root.onRecord.listen(records.add);
+      addTearDown(subscription.cancel);
+      // Senza prepareLogin il client ha il DeviceId dell'installazione, che
+      // qui è anche quello di Luigi.
+      store.book = bookOf([luigi.copyWith(deviceId: 'dev-test'), mario]);
+      await service.restore();
+      service.deactivate();
+      when(() => api.authenticateByName(any(), any())).thenAnswer((_) async =>
+          const AuthResult(
+              user: JellyfinUser(id: 'u3', name: 'Peach'),
+              accessToken: 'tok-u3'));
+
+      await service.loginWithPassword('peach', 'pw');
+
+      final warnings = [
+        for (final record in records)
+          if (record.loggerName == 'auth' && record.level == Level.WARNING)
+            record.message,
+      ];
+      expect(warnings, hasLength(1));
+      expect(warnings.single, allOf(contains('u2'), contains('u3')));
+      expect(warnings.single, isNot(contains('tok')));
     });
 
     test('password: profilo nuovo con il DeviceId dell\'accesso', () async {

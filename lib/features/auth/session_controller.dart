@@ -56,8 +56,15 @@ class SessionController extends Notifier<SessionState> {
   @override
   SessionState build() {
     final http = ref.watch(jellyfinHttpProvider);
+    final auth = ref.watch(authServiceProvider);
     http.onUnauthorized = _onUnauthorized;
-    ref.onDispose(() => http.onUnauthorized = null);
+    // Ogni profilo salvato arriva subito all'interfaccia, anche quello di un
+    // accesso che finisce dopo "Annulla".
+    auth.onProfilesChanged = _publishProfiles;
+    ref.onDispose(() {
+      http.onUnauthorized = null;
+      auth.onProfilesChanged = null;
+    });
     return const SessionStarting();
   }
 
@@ -86,20 +93,23 @@ class SessionController extends Notifier<SessionState> {
   /// Lancia [ApiException] o `ProfileLimitException`: la UI mostra il
   /// messaggio.
   Future<void> loginWithPassword(String username, String password) async {
-    final user = await _auth.loginWithPassword(username, password);
-    if (state is SessionChoosingProfile) {
-      // L'accesso è finito dopo "Annulla": il profilo resta salvato e
-      // compare in "Chi guarda?", ma non si apre (le sue credenziali escono
-      // dal client). Con una sessione aperta nel frattempo (Quick Connect)
-      // vale l'ultimo accesso, che ha già le credenziali nel client.
-      _auth.deactivate();
-      _publishProfiles();
-      return;
-    }
-    _apply(SessionSignedIn(user));
+    _signedIn(await _auth.loginWithPassword(username, password));
   }
 
-  void quickConnectApproved(JellyfinUser user) => _apply(SessionSignedIn(user));
+  void quickConnectApproved(JellyfinUser user) => _signedIn(user);
+
+  /// Un accesso finito: si apre solo se è il profilo aperto di
+  /// `AuthService`. Un accesso superato mentre aspettava il server
+  /// ("Annulla", un profilo aperto, un accesso venuto dopo) è salvato ma non
+  /// aperto: compare in "Chi guarda?" e la sessione resta com'è.
+  void _signedIn(JellyfinUser user) {
+    final active = _auth.activeUserId;
+    if (active != null && jellyfinIdKey(active) == jellyfinIdKey(user.id)) {
+      _apply(SessionSignedIn(user));
+    } else {
+      _publishProfiles();
+    }
+  }
 
   /// La schermata di accesso si apre (spec K §9.2): il client prende un
   /// DeviceId nuovo, anche per "Accedi di nuovo". Quick Connect lo usa già
@@ -160,6 +170,9 @@ class SessionController extends Notifier<SessionState> {
     // toglie un altro, valgono come sempre.
     final leaving =
         active != null && jellyfinIdKey(active) == jellyfinIdKey(userId);
+    final current = state;
+    final elsewhere = current is SessionSignedIn &&
+        jellyfinIdKey(current.user.id) != jellyfinIdKey(userId);
     if (leaving) _leaving = true;
     try {
       await _auth.removeProfile(userId);
@@ -167,8 +180,9 @@ class SessionController extends Notifier<SessionState> {
       if (leaving) _leaving = false;
     }
     await _forgetPreferences(userId);
-    if (_auth.activeUserId != null) {
-      // Tolto un altro profilo: si resta in quello aperto.
+    if (elsewhere) {
+      // Tolto un altro profilo da una sessione: lo stato resta quello che
+      // è, anche l'accesso aperto da un 401 nel frattempo.
       _publishProfiles();
     } else {
       _apply(_afterLeaving());

@@ -24,6 +24,10 @@ void main() {
   late ProviderContainer container;
   late SharedPreferences prefs;
 
+  /// Il profilo aperto del finto `AuthService`: come il vero, lo tolgono
+  /// `deactivate` e `markActiveExpired`.
+  String? active;
+
   final twoProfiles = const ProfileBook()
       .upsert(testProfile(userId: 'u1'))
       .upsert(testProfile(userId: 'u2', name: 'Luigi'));
@@ -33,14 +37,24 @@ void main() {
   SessionState state() => container.read(sessionControllerProvider);
   ProfilesState profiles() => container.read(profilesProvider);
 
+  /// Un accesso riuscito: `AuthService` apre [user], poi il controller.
+  void signIn(JellyfinUser user) {
+    active = user.id;
+    controller().quickConnectApproved(user);
+  }
+
   setUpAll(() => registerFallbackValue(testUser));
 
   setUp(() async {
     auth = MockAuthService();
+    active = null;
     when(() => auth.book).thenReturn(const ProfileBook());
-    when(() => auth.activeUserId).thenReturn(null);
+    when(() => auth.activeUserId).thenAnswer((_) => active);
+    when(() => auth.deactivate()).thenAnswer((_) => active = null);
     when(() => auth.updateActiveProfile(any())).thenAnswer((_) async {});
-    when(() => auth.markActiveExpired()).thenAnswer((_) async {});
+    when(() => auth.markActiveExpired()).thenAnswer((_) async {
+      active = null;
+    });
     http = JellyfinHttp(baseUrl: testServerUrl, clientInfo: testClientInfo);
     SharedPreferences.setMockInitialValues({
       'profile.u1.locale': 'en',
@@ -66,7 +80,7 @@ void main() {
       when(() => auth.restore())
           .thenAnswer((_) async => const RestoredSession(testUser));
       when(() => auth.book).thenReturn(twoProfiles);
-      when(() => auth.activeUserId).thenReturn('u1');
+      active = 'u1';
 
       await controller().restore();
 
@@ -146,15 +160,34 @@ void main() {
         throwsA(isA<UnauthorizedException>()));
     expect(state(), isA<SessionSignedOut>());
 
-    when(() => auth.loginWithPassword('mario', 'ok'))
-        .thenAnswer((_) async => testUser);
+    when(() => auth.loginWithPassword('mario', 'ok')).thenAnswer((_) async {
+      active = 'u1';
+      return testUser;
+    });
     await controller().loginWithPassword('mario', 'ok');
     expect(state(), isA<SessionSignedIn>());
   });
 
   test('quickConnectApproved → SignedIn', () {
+    active = 'U-1';
     controller().quickConnectApproved(testUser);
     expect(state(), isA<SessionSignedIn>());
+  });
+
+  test('quickConnectApproved di un accesso superato: non si apre', () {
+    when(() => auth.book).thenReturn(twoProfiles);
+    controller().addProfile();
+    controller().cancelLogin();
+
+    // `AuthService` ha salvato il profilo senza aprirlo.
+    final withNew =
+        twoProfiles.upsert(testProfile(userId: 'u3', name: 'Peach'));
+    when(() => auth.book).thenReturn(withNew);
+    controller()
+        .quickConnectApproved(const JellyfinUser(id: 'u3', name: 'Peach'));
+
+    expect(state(), isA<SessionChoosingProfile>());
+    expect(profiles().book, same(withNew));
   });
 
   group('cambi di profilo', () {
@@ -169,7 +202,7 @@ void main() {
 
     test('switchProfile: credenziali tolte, "Chi guarda?"', () {
       when(() => auth.book).thenReturn(twoProfiles);
-      controller().quickConnectApproved(testUser);
+      signIn(testUser);
 
       controller().switchProfile();
 
@@ -178,7 +211,7 @@ void main() {
     });
 
     test('addProfile: accesso per un profilo nuovo', () {
-      controller().quickConnectApproved(testUser);
+      signIn(testUser);
 
       controller().addProfile();
 
@@ -219,6 +252,7 @@ void main() {
       final login = controller().loginWithPassword('peach', 'pw');
       controller().cancelLogin();
       verify(() => auth.deactivate()).called(2);
+      // `AuthService` ha salvato il profilo senza aprirlo.
       final withNew =
           twoProfiles.upsert(testProfile(userId: 'u3', name: 'Peach'));
       when(() => auth.book).thenReturn(withNew);
@@ -226,35 +260,52 @@ void main() {
       await login;
 
       expect(state(), isA<SessionChoosingProfile>());
-      // Le credenziali del profilo nuovo spariscono dal client; il profilo
-      // compare in "Chi guarda?".
-      verify(() => auth.deactivate()).called(1);
+      // Il profilo compare in "Chi guarda?"; il client non si tocca più.
       expect(profiles().book, same(withNew));
+      verifyNever(() => auth.deactivate());
     });
 
-    test('password e Quick Connect insieme: vale l\'ultimo accesso', () async {
+    test('password e Quick Connect insieme: si apre l\'ultimo accesso salvato',
+        () async {
       controller().addProfile();
-      verify(() => auth.deactivate()).called(1);
       final answer = Completer<JellyfinUser>();
       when(() => auth.loginWithPassword('mario', 'pw'))
           .thenAnswer((_) => answer.future);
 
       final login = controller().loginWithPassword('mario', 'pw');
-      controller()
-          .quickConnectApproved(const JellyfinUser(id: 'u2', name: 'Luigi'));
+      signIn(const JellyfinUser(id: 'u2', name: 'Luigi'));
+      // Poi `AuthService` salva e apre la password, arrivata dopo.
+      active = 'u1';
       answer.complete(testUser);
       await login;
 
-      // Le credenziali nel client sono quelle della password, arrivata dopo.
       expect((state() as SessionSignedIn).user, same(testUser));
-      verifyNever(() => auth.deactivate());
+    });
+
+    test('la password finisce prima di Quick Connect: si apre Quick Connect',
+        () async {
+      controller().addProfile();
+      final answer = Completer<JellyfinUser>();
+      when(() => auth.loginWithPassword('mario', 'pw'))
+          .thenAnswer((_) => answer.future);
+
+      final login = controller().loginWithPassword('mario', 'pw');
+      // `AuthService` ha aperto per ultimo l'accesso di Quick Connect.
+      active = 'u2';
+      answer.complete(testUser);
+      await login;
+      expect(state(), isA<SessionSignedOut>());
+
+      controller()
+          .quickConnectApproved(const JellyfinUser(id: 'u2', name: 'Luigi'));
+      expect((state() as SessionSignedIn).user.id, 'u2');
     });
 
     test('logout: "Chi guarda?" se restano profili', () async {
       when(() => auth.logout()).thenAnswer((_) async => 'u1');
       when(() => auth.book)
           .thenReturn(const ProfileBook().upsert(testProfile(userId: 'u2')));
-      controller().quickConnectApproved(testUser);
+      signIn(testUser);
 
       await controller().logout();
 
@@ -264,7 +315,7 @@ void main() {
 
     test('logout dell\'ultimo profilo: accesso', () async {
       when(() => auth.logout()).thenAnswer((_) async => 'u1');
-      controller().quickConnectApproved(testUser);
+      signIn(testUser);
 
       await controller().logout();
 
@@ -286,8 +337,7 @@ void main() {
 
     test('removeProfile di un altro profilo da una sessione: si resta lì',
         () async {
-      when(() => auth.activeUserId).thenReturn('u1');
-      controller().quickConnectApproved(testUser);
+      signIn(testUser);
       final signedIn = state();
       when(() => auth.removeProfile('u2')).thenAnswer((_) async {});
       final onlyMario =
@@ -304,26 +354,28 @@ void main() {
 
     test('togliendo un altro profilo, un 401 della sessione apre l\'accesso',
         () async {
-      when(() => auth.activeUserId).thenReturn('u1');
-      controller().quickConnectApproved(testUser);
-      SessionState? during;
+      signIn(testUser);
+      when(() => auth.book).thenReturn(twoProfiles);
       when(() => auth.removeProfile('u2')).thenAnswer((_) async {
         // Una richiesta del profilo aperto prende un 401 nel frattempo.
         http.onUnauthorized!.call();
-        during = state();
       });
 
       await controller().removeProfile('u2');
 
-      expect(during, isA<SessionSignedOut>()
-          .having((s) => s.reloginUserId, 'reloginUserId', 'u1'));
+      // Resta l'accesso per il profilo scaduto, non "Chi guarda?".
+      expect(
+          state(),
+          isA<SessionSignedOut>()
+              .having((s) => s.expired, 'expired', true)
+              .having((s) => s.reloginUserId, 'reloginUserId', 'u1'));
       verify(() => auth.markActiveExpired()).called(1);
     });
 
     test('logout e rimozione cancellano le preferenze del profilo', () async {
       when(() => auth.logout()).thenAnswer((_) async => 'u1');
       when(() => auth.removeProfile('u2')).thenAnswer((_) async {});
-      controller().quickConnectApproved(testUser);
+      signIn(testUser);
 
       await controller().logout();
       expect(prefs.containsKey('profile.u1.locale'), isFalse);
@@ -336,7 +388,7 @@ void main() {
 
   test('un 401 durante la sessione: accesso per quel profilo, scaduto',
       () async {
-    controller().quickConnectApproved(testUser);
+    signIn(testUser);
 
     http.onUnauthorized!.call();
 
@@ -354,7 +406,7 @@ void main() {
       http.onUnauthorized!.call();
       return 'u1';
     });
-    controller().quickConnectApproved(testUser);
+    signIn(testUser);
 
     await controller().logout();
 
@@ -366,14 +418,14 @@ void main() {
   group('refreshUser', () {
     const admin = JellyfinUser(id: 'u1', name: 'Mario', isAdministrator: true);
 
-    Future<void> signIn() async {
+    Future<void> restoreAdmin() async {
       when(() => auth.restore())
           .thenAnswer((_) async => const RestoredSession(admin));
       await controller().restore();
     }
 
     test('rilegge l\'utente, lo mette nella sessione e nel profilo', () async {
-      await signIn();
+      await restoreAdmin();
       when(() => auth.currentUser()).thenAnswer((_) async => testUser);
 
       await controller().refreshUser();
@@ -383,7 +435,7 @@ void main() {
     });
 
     test('errore: la sessione resta com\'è', () async {
-      await signIn();
+      await restoreAdmin();
       when(() => auth.currentUser())
           .thenThrow(const ServerUnreachableException());
 
@@ -399,13 +451,13 @@ void main() {
 
     test('un utente diverso nel frattempo: il risultato non si applica',
         () async {
-      await signIn();
+      await restoreAdmin();
       final answer = Completer<JellyfinUser>();
       when(() => auth.currentUser()).thenAnswer((_) => answer.future);
 
       final refreshing = controller().refreshUser();
       const other = JellyfinUser(id: 'u2', name: 'Luigi');
-      controller().quickConnectApproved(other);
+      signIn(other);
       answer.complete(testUser);
       await refreshing;
 
@@ -413,7 +465,7 @@ void main() {
     });
 
     test('uscito nel frattempo: il risultato non si applica', () async {
-      await signIn();
+      await restoreAdmin();
       final answer = Completer<JellyfinUser>();
       when(() => auth.currentUser()).thenAnswer((_) => answer.future);
       when(() => auth.logout()).thenAnswer((_) async => 'u1');
@@ -427,7 +479,7 @@ void main() {
     });
 
     test('utente invariato: nessun nuovo stato', () async {
-      await signIn();
+      await restoreAdmin();
       final before = state();
       // Un'istanza nuova ma uguale: nessun cambio, quindi niente da
       // notificare (il router e la shell non si ricostruiscono).
@@ -441,7 +493,7 @@ void main() {
     });
 
     test('più richieste insieme: una sola lettura, poi di nuovo', () async {
-      await signIn();
+      await restoreAdmin();
       final answer = Completer<JellyfinUser>();
       when(() => auth.currentUser()).thenAnswer((_) => answer.future);
 
@@ -461,7 +513,7 @@ void main() {
     });
 
     test('un errore non blocca le richieste dopo', () async {
-      await signIn();
+      await restoreAdmin();
       when(() => auth.currentUser())
           .thenThrow(const ServerUnreachableException());
       await controller().refreshUser();

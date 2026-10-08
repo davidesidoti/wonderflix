@@ -66,12 +66,20 @@ class AuthService {
   ProfileBook _book = const ProfileBook();
   String? _activeUserId;
 
+  /// Cresce a ogni cambio delle credenziali del client (uscita, accesso
+  /// preparato, profilo aperto): un accesso partito prima non le tocca più.
+  int _generation = 0;
+
   /// I profili come li conosce il servizio: letti da `restore`, aggiornati a
   /// ogni modifica.
   ProfileBook get book => _book;
 
   /// Il profilo aperto; `null` in "Chi guarda?" e nell'accesso.
   String? get activeUserId => _activeUserId;
+
+  /// Chiamato dopo ogni modifica dei profili (anche se lo storage non la
+  /// salva): l'interfaccia li rilegge.
+  void Function()? onProfilesChanged;
 
   Future<RestoreResult> restore() async {
     _deactivate();
@@ -91,6 +99,7 @@ class AuthService {
     if (profile == null) {
       return _book.isEmpty ? const NoStoredSession() : const ChooseProfile();
     }
+    _generation++;
     _http.setCredentials(
         token: profile.accessToken, deviceId: profile.deviceId);
     try {
@@ -128,26 +137,32 @@ class AuthService {
   /// approvarlo un altro utente), e annullare il token vecchio non chiude la
   /// sessione nuova.
   void prepareLogin() {
+    _generation++;
     _activeUserId = null;
     _http.setCredentials(token: null, deviceId: _newDeviceId());
   }
 
   /// Lancia [ApiException], o [ProfileLimitException] per un sesto profilo.
+  /// Il profilo si apre solo se nel frattempo il client non è cambiato (vedi
+  /// [activeUserId]).
   Future<JellyfinUser> loginWithPassword(
       String username, String password) async {
     // Il token vale per il DeviceId della richiesta: si legge prima, il
     // client può cambiarlo nel frattempo.
     final deviceId = _http.deviceId;
+    final generation = _generation;
     final result = await _api.authenticateByName(username.trim(), password);
-    await _adopt(result, deviceId);
+    await _adopt(result, deviceId, generation);
     return result.user;
   }
 
+  /// Come [loginWithPassword]. Password e Quick Connect della stessa
+  /// schermata hanno la stessa generazione: vale l'ultimo accesso.
   Future<JellyfinUser> completeQuickConnect(String secret) async {
-    // Come per la password: il DeviceId della richiesta.
     final deviceId = _http.deviceId;
+    final generation = _generation;
     final result = await _api.authenticateWithQuickConnect(secret);
-    await _adopt(result, deviceId);
+    await _adopt(result, deviceId, generation);
     return result.user;
   }
 
@@ -218,29 +233,50 @@ class AuthService {
 
   /// Un accesso riuscito (spec K §9.2): il profilo prende il token e il
   /// [deviceId] con cui l'ha ottenuto. Lo stesso utente già salvato non fa un
-  /// doppione, e il suo token vecchio si annulla.
-  Future<void> _adopt(AuthResult result, String deviceId) async {
+  /// doppione, e il suo token vecchio si annulla. Con la [generation] di
+  /// prima della richiesta superata, il profilo si salva ma non si apre.
+  Future<void> _adopt(
+      AuthResult result, String deviceId, int generation) async {
     final user = result.user;
     final existing = _book.byId(user.id);
     if (existing == null && _book.isFull) {
       await _revoke(result.accessToken, deviceId);
       throw const ProfileLimitException();
     }
-    if (existing != null && existing.accessToken != result.accessToken) {
-      await _revoke(existing.accessToken, existing.deviceId);
+    for (final other in _book.profiles) {
+      if (other.deviceId == deviceId &&
+          jellyfinIdKey(other.userId) != jellyfinIdKey(user.id)) {
+        // Non dovrebbe succedere: ogni accesso prepara un DeviceId nuovo.
+        _log.warning('DeviceId già del profilo ${other.userId}, '
+            'accesso di ${user.id}');
+      }
     }
-    _http.setCredentials(token: result.accessToken, deviceId: deviceId);
-    _activeUserId = user.id;
-    await _save(_book
-        .upsert(StoredProfile(
-          userId: user.id,
-          name: user.name,
-          accessToken: result.accessToken,
-          deviceId: deviceId,
-          imageTag: user.primaryImageTag,
-          lastUsedAt: clock.now(),
-        ))
-        .withLast(user.id));
+    final profile = StoredProfile(
+      userId: user.id,
+      name: user.name,
+      accessToken: result.accessToken,
+      deviceId: deviceId,
+      imageTag: user.primaryImageTag,
+      lastUsedAt: clock.now(),
+    );
+    if (generation != _generation) {
+      // Mentre si aspettava il server il client è cambiato ("Annulla", un
+      // profilo aperto, un altro accesso preparato): le credenziali sono di
+      // chi è venuto dopo. Il profilo si salva e compare in "Chi guarda?",
+      // ma non si apre e non diventa l'ultimo usato.
+      await _save(_book.upsert(profile));
+    } else {
+      _http.setCredentials(token: result.accessToken, deviceId: deviceId);
+      _activeUserId = user.id;
+      await _save(_book.upsert(profile).withLast(user.id));
+    }
+    if (existing != null && existing.accessToken != result.accessToken) {
+      // Il token vecchio si annulla con il suo DeviceId (la sessione nuova
+      // non c'entra), dopo il salvataggio e senza aspettare: tra il
+      // controllo del limite e il salvataggio non c'è nessuna attesa in cui
+      // i profili possano cambiare.
+      unawaited(_revoke(existing.accessToken, existing.deviceId));
+    }
   }
 
   /// Annulla un token sul server con le sue credenziali; gli errori si
@@ -256,6 +292,7 @@ class AuthService {
   }
 
   void _deactivate() {
+    _generation++;
     _http.setCredentials(token: null, deviceId: null);
     _activeUserId = null;
   }
@@ -270,5 +307,6 @@ class AuthService {
       // l'ultimo elenco salvato.
       _log.warning('profili non salvati: ${error.runtimeType}');
     }
+    onProfilesChanged?.call();
   }
 }

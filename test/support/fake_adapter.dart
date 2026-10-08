@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -9,7 +10,8 @@ class FakeResponse {
   final Object? body;
 }
 
-typedef FakeHandler = FakeResponse Function(RequestOptions options);
+/// Una risposta subito, o un `Future` per una risposta che arriva più tardi.
+typedef FakeHandler = FutureOr<FakeResponse> Function(RequestOptions options);
 
 /// Adapter dio che non va in rete: registra le richieste e risponde con [handler].
 /// Se [handler] lancia un'eccezione (es. SocketException), dio la riceve come
@@ -30,7 +32,8 @@ class FakeAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requests.add(options);
-    final response = handler(options);
+    final answer = handler(options);
+    final response = answer is FakeResponse ? answer : await answer;
     // Come un vero 204: nessun corpo e nessun content-type.
     if (response.body == null) {
       return ResponseBody.fromString('', response.status);
