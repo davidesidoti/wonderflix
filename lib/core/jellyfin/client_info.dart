@@ -11,6 +11,14 @@ class ClientInfo {
   final String device;
   final String deviceId;
   final String version;
+
+  /// Lo stesso client con il DeviceId di un profilo (spec K §9.2).
+  ClientInfo copyWith({String? deviceId}) => ClientInfo(
+        client: client,
+        device: device,
+        deviceId: deviceId ?? this.deviceId,
+        version: version,
+      );
 }
 
 String _clean(String value) => value

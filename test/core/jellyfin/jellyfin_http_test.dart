@@ -151,4 +151,50 @@ void main() {
       (Level.WARNING, 'GET /Plugin/Info: 500'),
     ]);
   });
+
+  group('credenziali del profilo (spec K §9.2)', () {
+    test('token e DeviceId vanno nell\'intestazione insieme', () async {
+      final adapter = FakeAdapter((_) => const FakeResponse(200, {}));
+      final http = JellyfinHttp(
+          baseUrl: testServerUrl, clientInfo: testClientInfo, adapter: adapter);
+      expect(http.deviceId, 'dev-test');
+
+      http.setCredentials(token: 'tok-1', deviceId: 'dev-1');
+      await http.get('/Users/Me');
+      final header = adapter.requests.last.headers['Authorization'] as String;
+      expect(header, contains('DeviceId="dev-1"'));
+      expect(header, contains('Token="tok-1"'));
+      expect(http.deviceId, 'dev-1');
+
+      http.setCredentials(token: null, deviceId: null);
+      await http.get('/System/Info/Public');
+      final reset = adapter.requests.last.headers['Authorization'] as String;
+      expect(reset, contains('DeviceId="dev-test"'));
+      expect(reset, isNot(contains('Token=')));
+    });
+
+    test('withCredentials: un altro profilo, lo stesso server', () async {
+      final adapter = FakeAdapter((_) => const FakeResponse(401));
+      final http = JellyfinHttp(
+          baseUrl: testServerUrl, clientInfo: testClientInfo, adapter: adapter)
+        ..setCredentials(token: 'tok-attivo', deviceId: 'dev-attivo');
+      var unauthorized = 0;
+      http.onUnauthorized = () => unauthorized++;
+
+      final other = http.withCredentials(token: 'tok-2', deviceId: 'dev-2');
+      await expectLater(
+          other.post('/Sessions/Logout'), throwsA(isA<UnauthorizedException>()));
+
+      final header = adapter.requests.single.headers['Authorization'] as String;
+      expect(header, contains('Token="tok-2"'));
+      expect(header, contains('DeviceId="dev-2"'));
+      expect(adapter.requests.single.uri.toString(),
+          startsWith(testServerUrl.toString()));
+      // Le credenziali attive restano, e il 401 di un altro profilo non fa
+      // uscire nessuno.
+      expect(http.token, 'tok-attivo');
+      expect(http.deviceId, 'dev-attivo');
+      expect(unauthorized, 0);
+    });
+  });
 }

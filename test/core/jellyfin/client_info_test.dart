@@ -33,4 +33,13 @@ void main() {
     );
     expect(buildAuthorizationHeader(dirty), contains('Device="Mario PC casa"'));
   });
+
+  test('copyWith cambia solo il DeviceId', () {
+    final copy = info.copyWith(deviceId: 'dev-2');
+    expect(copy.deviceId, 'dev-2');
+    expect(copy.client, info.client);
+    expect(copy.device, info.device);
+    expect(copy.version, info.version);
+    expect(info.copyWith().deviceId, 'dev-1');
+  });
 }

@@ -18,7 +18,8 @@ class JellyfinHttp {
     required Uri baseUrl,
     required ClientInfo clientInfo,
     HttpClientAdapter? adapter,
-  })  : _clientInfo = clientInfo,
+  })  : _baseUrl = baseUrl,
+        _clientInfo = clientInfo,
         dio = Dio(BaseOptions(
           baseUrl: baseUrl.toString(),
           connectTimeout: const Duration(seconds: 10),
@@ -33,16 +34,43 @@ class JellyfinHttp {
   }
 
   final Dio dio;
+  final Uri _baseUrl;
   final ClientInfo _clientInfo;
 
   /// Token della sessione corrente, `null` se non autenticati.
   String? token;
 
+  /// DeviceId del profilo attivo (spec K §9.2); `null`: quello
+  /// dell'installazione (`ClientInfo.deviceId`).
+  String? _deviceId;
+
+  /// Il DeviceId che va nelle richieste.
+  String get deviceId => _deviceId ?? _clientInfo.deviceId;
+
+  /// Token e DeviceId del profilo attivo cambiano insieme (spec K §9.2). Con
+  /// `null` si torna a nessun token e al DeviceId dell'installazione.
+  void setCredentials({required String? token, required String? deviceId}) {
+    this.token = token;
+    _deviceId = deviceId;
+  }
+
+  /// Un client per le chiamate di un profilo non attivo (spec K §9.2): stesso
+  /// server e stesso adattatore, le credenziali di quel profilo. Non tocca
+  /// quelle di questo client e non segnala i 401 (nessun `onUnauthorized`).
+  JellyfinHttp withCredentials(
+          {required String token, required String deviceId}) =>
+      JellyfinHttp(
+        baseUrl: _baseUrl,
+        clientInfo: _clientInfo,
+        adapter: dio.httpClientAdapter,
+      )..setCredentials(token: token, deviceId: deviceId);
+
   /// Chiamato quando una richiesta fatta con un token riceve 401.
   void Function()? onUnauthorized;
 
-  String get authorizationHeader =>
-      buildAuthorizationHeader(_clientInfo, token: token);
+  String get authorizationHeader => buildAuthorizationHeader(
+      _clientInfo.copyWith(deviceId: deviceId),
+      token: token);
 
   /// Con [quietStatuses] le risposte con quei codici, attese da chi chiama,
   /// vanno nel log come info e non tra gli errori.
