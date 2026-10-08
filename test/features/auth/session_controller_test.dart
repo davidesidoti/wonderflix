@@ -265,7 +265,7 @@ void main() {
       verifyNever(() => auth.deactivate());
     });
 
-    test('password e Quick Connect insieme: si apre l\'ultimo accesso salvato',
+    test('password e Quick Connect insieme: vince il primo (Quick Connect)',
         () async {
       controller().addProfile();
       final answer = Completer<JellyfinUser>();
@@ -274,15 +274,14 @@ void main() {
 
       final login = controller().loginWithPassword('mario', 'pw');
       signIn(const JellyfinUser(id: 'u2', name: 'Luigi'));
-      // Poi `AuthService` salva e apre la password, arrivata dopo.
-      active = 'u1';
+      // La password finisce dopo: `AuthService` la salva senza aprirla.
       answer.complete(testUser);
       await login;
 
-      expect((state() as SessionSignedIn).user, same(testUser));
+      expect((state() as SessionSignedIn).user.id, 'u2');
     });
 
-    test('la password finisce prima di Quick Connect: si apre Quick Connect',
+    test('password e Quick Connect insieme: vince il primo (la password)',
         () async {
       controller().addProfile();
       final answer = Completer<JellyfinUser>();
@@ -290,15 +289,15 @@ void main() {
           .thenAnswer((_) => answer.future);
 
       final login = controller().loginWithPassword('mario', 'pw');
-      // `AuthService` ha aperto per ultimo l'accesso di Quick Connect.
-      active = 'u2';
+      active = 'u1';
       answer.complete(testUser);
       await login;
-      expect(state(), isA<SessionSignedOut>());
+      expect((state() as SessionSignedIn).user, same(testUser));
 
+      // Quick Connect finisce dopo: superato, la sessione resta.
       controller()
           .quickConnectApproved(const JellyfinUser(id: 'u2', name: 'Luigi'));
-      expect((state() as SessionSignedIn).user.id, 'u2');
+      expect((state() as SessionSignedIn).user, same(testUser));
     });
 
     test('logout: "Chi guarda?" se restano profili', () async {

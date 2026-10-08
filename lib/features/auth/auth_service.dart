@@ -67,7 +67,8 @@ class AuthService {
   String? _activeUserId;
 
   /// Cresce a ogni cambio delle credenziali del client (uscita, accesso
-  /// preparato, profilo aperto): un accesso partito prima non le tocca più.
+  /// preparato, profilo aperto, accesso riuscito): un accesso partito prima
+  /// non le tocca più.
   int _generation = 0;
 
   /// I profili come li conosce il servizio: letti da `restore`, aggiornati a
@@ -161,7 +162,8 @@ class AuthService {
   }
 
   /// Come [loginWithPassword]. Password e Quick Connect della stessa
-  /// schermata hanno la stessa generazione: vale l'ultimo accesso.
+  /// schermata partono con la stessa generazione: vale il primo accesso che
+  /// finisce, l'altro è superato.
   Future<JellyfinUser> completeQuickConnect(String secret) async {
     final deviceId = _http.deviceId;
     final generation = _generation;
@@ -266,8 +268,8 @@ class AuthService {
     );
     if (generation != _generation) {
       // Mentre si aspettava il server il client è cambiato ("Annulla", un
-      // profilo aperto, un altro accesso preparato): le credenziali sono di
-      // chi è venuto dopo. Il profilo si salva e compare in "Chi guarda?",
+      // profilo aperto, un altro accesso preparato o già riuscito): le
+      // credenziali sono di un altro. Il profilo si salva e compare in "Chi guarda?",
       // ma non si apre e non diventa l'ultimo usato.
       if (existing != null && !existing.expired) {
         // Accesso superato per un utente con un profilo valido (forse
@@ -280,6 +282,10 @@ class AuthService {
     } else {
       _http.setCredentials(token: result.accessToken, deviceId: deviceId);
       _activeUserId = user.id;
+      // Vince il primo accesso che finisce: un altro della stessa schermata
+      // (password e Quick Connect insieme) che finisce dopo è superato, e le
+      // credenziali non cambiano sotto una sessione aperta.
+      _generation++;
       await _save(_book.upsert(profile).withLast(user.id));
     }
     if (existing != null && existing.accessToken != result.accessToken) {

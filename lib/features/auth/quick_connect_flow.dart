@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../../core/jellyfin/api_exception.dart';
 import '../../core/jellyfin/auth_api.dart';
 import '../../core/jellyfin/auth_models.dart';
@@ -48,37 +50,60 @@ class QuickConnectFlow implements QuickConnectRunner {
   final AuthService _auth;
   final Duration _pollInterval;
 
+  /// Chi smette di ascoltare ("Annulla", un'altra scheda, la schermata che
+  /// si chiude) ferma tutto: niente più controlli, codici nuovi o accessi.
+  /// Userebbero le credenziali del profilo aperto dopo, e un loro 401 lo
+  /// segnerebbe scaduto.
   @override
-  Stream<QcState> run() async* {
-    yield const QcLoading();
+  Stream<QcState> run() {
+    var cancelled = false;
+    late final StreamController<QcState> states;
+    states = StreamController<QcState>(
+      onListen: () => unawaited(_run(states, () => cancelled)),
+      onCancel: () {
+        cancelled = true;
+      },
+    );
+    return states.stream;
+  }
+
+  /// Non lancia mai: un errore diventa [QcError]. Prima di ogni attesa e di
+  /// ogni richiesta guarda [cancelled].
+  Future<void> _run(
+      StreamController<QcState> states, bool Function() cancelled) async {
+    void emit(QcState state) {
+      if (!cancelled()) states.add(state);
+    }
+
     try {
+      emit(const QcLoading());
       if (!await _api.quickConnectEnabled()) {
-        yield const QcDisabled();
+        emit(const QcDisabled());
         return;
       }
-      while (true) {
+      while (!cancelled()) {
         final QuickConnectState session;
         try {
           session = await _api.initiateQuickConnect();
         } on UnauthorizedException {
           // Il server ha Quick Connect disattivato (può cambiare tra la
           // verifica iniziale e questa chiamata).
-          yield const QcDisabled();
+          emit(const QcDisabled());
           return;
         }
-        yield QcWaiting(session.code);
+        emit(QcWaiting(session.code));
 
         var expired = false;
         while (!expired) {
           await Future<void>.delayed(_pollInterval);
+          if (cancelled()) return;
           try {
             final state = await _api.quickConnectState(session.secret);
+            if (cancelled()) return;
             if (state.authenticated) {
-              // Se l'iscrizione viene cancellata qui (utente che chiude la
-              // schermata), il generatore si ferma a questo yield e non
-              // completa mai il login.
-              yield const QcLoading();
-              yield QcApproved(await _auth.completeQuickConnect(session.secret));
+              emit(const QcLoading());
+              final user = await _auth.completeQuickConnect(session.secret);
+              emit(QcApproved(user));
               return;
             }
           } on NotFoundException {
@@ -88,10 +113,10 @@ class QuickConnectFlow implements QuickConnectRunner {
           }
         }
       }
-    } on ApiException catch (e) {
-      yield QcError(e);
     } on Object catch (e) {
-      yield QcError(e);
+      emit(QcError(e));
+    } finally {
+      unawaited(states.close());
     }
   }
 }

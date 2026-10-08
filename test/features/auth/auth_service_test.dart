@@ -243,6 +243,54 @@ void main() {
       expect(http.token, isNull);
     });
 
+    group('password e Quick Connect insieme: vince il primo che finisce', () {
+      late Completer<AuthResult> password;
+      late Completer<AuthResult> quickConnect;
+
+      setUp(() {
+        service.prepareLogin();
+        password = Completer<AuthResult>();
+        quickConnect = Completer<AuthResult>();
+        when(() => api.authenticateByName(any(), any()))
+            .thenAnswer((_) => password.future);
+        when(() => api.authenticateWithQuickConnect('s1'))
+            .thenAnswer((_) => quickConnect.future);
+      });
+
+      test('un altro utente dopo: salvato, ma non apre', () async {
+        final first = service.loginWithPassword('mario', 'pw');
+        final second = service.completeQuickConnect('s1');
+        password.complete(
+            const AuthResult(user: testUser, accessToken: 'tok-pw'));
+        await first;
+        quickConnect.complete(const AuthResult(
+            user: JellyfinUser(id: 'u2', name: 'Luigi'),
+            accessToken: 'tok-qc'));
+        await second;
+
+        expect(service.activeUserId, 'u1');
+        expect(http.token, 'tok-pw');
+        expect(store.book.lastUserId, 'u1');
+        expect(store.book.byId('u2')!.accessToken, 'tok-qc');
+      });
+
+      test('lo stesso utente dopo: il profilo resta, il secondo token si '
+          'annulla', () async {
+        final first = service.completeQuickConnect('s1');
+        final second = service.loginWithPassword('mario', 'pw');
+        quickConnect.complete(
+            const AuthResult(user: testUser, accessToken: 'tok-qc'));
+        await first;
+        password.complete(
+            const AuthResult(user: testUser, accessToken: 'tok-pw'));
+        await second;
+
+        expect(http.token, 'tok-qc');
+        expect(store.book.byId('u1')!.accessToken, 'tok-qc');
+        expect(revoked, [('tok-pw', 'dev-nuovo-1')]);
+      });
+    });
+
     group('un accesso superato mentre aspetta il server', () {
       late Completer<AuthResult> answer;
       const peach = AuthResult(

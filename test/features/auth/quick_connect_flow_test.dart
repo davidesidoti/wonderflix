@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -130,6 +132,81 @@ void main() {
       async.elapse(const Duration(seconds: 3));
 
       verifyNever(() => auth.completeQuickConnect(any()));
+    });
+  });
+
+  group('"Annulla" (iscrizione cancellata) ferma tutto', () {
+    late int polls;
+
+    setUp(() {
+      polls = 0;
+      when(() => api.quickConnectEnabled()).thenAnswer((_) async => true);
+      when(() => api.initiateQuickConnect())
+          .thenAnswer((_) async => qc('482913', 's1'));
+      when(() => auth.completeQuickConnect('s1'))
+          .thenAnswer((_) async => testUser);
+    });
+
+    test('durante l\'attesa: nessun altro controllo, nessun codice nuovo', () {
+      fakeAsync((async) {
+        when(() => api.quickConnectState('s1')).thenAnswer((_) async {
+          polls++;
+          return qc('482913', 's1');
+        });
+        final subscription = flow.run().listen((_) {});
+        async.flushMicrotasks();
+        async.elapse(const Duration(seconds: 3));
+        expect(polls, 1);
+
+        subscription.cancel();
+        async.elapse(const Duration(minutes: 15));
+
+        expect(polls, 1);
+        verify(() => api.initiateQuickConnect()).called(1);
+        verifyNever(() => auth.completeQuickConnect(any()));
+      });
+    });
+
+    test('mentre il codice scade: nessun nuovo Initiate', () {
+      fakeAsync((async) {
+        final answer = Completer<QuickConnectState>();
+        when(() => api.quickConnectState('s1')).thenAnswer((_) {
+          polls++;
+          return answer.future;
+        });
+        final subscription = flow.run().listen((_) {});
+        async.flushMicrotasks();
+        async.elapse(const Duration(seconds: 3));
+        expect(polls, 1);
+
+        subscription.cancel();
+        answer.completeError(const NotFoundException());
+        async.elapse(const Duration(minutes: 1));
+
+        verify(() => api.initiateQuickConnect()).called(1);
+        expect(polls, 1);
+      });
+    });
+
+    test('durante un controllo che risulta approvato: l\'accesso non parte',
+        () {
+      fakeAsync((async) {
+        final answer = Completer<QuickConnectState>();
+        when(() => api.quickConnectState('s1')).thenAnswer((_) {
+          polls++;
+          return answer.future;
+        });
+        final subscription = flow.run().listen((_) {});
+        async.flushMicrotasks();
+        async.elapse(const Duration(seconds: 3));
+
+        subscription.cancel();
+        answer.complete(qc('482913', 's1', ok: true));
+        async.elapse(const Duration(seconds: 10));
+
+        verifyNever(() => auth.completeQuickConnect(any()));
+        expect(polls, 1);
+      });
     });
   });
 
