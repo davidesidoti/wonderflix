@@ -27,9 +27,12 @@ List<Override> _baseOverrides(
       appConfigProvider.overrideWithValue(testAppConfig),
       // Nessun WebSocket reale nei widget test.
       serverEventsBindingProvider.overrideWithValue(null),
-      // Nessuna immagine di rete nei widget test.
-      imageBuilderProvider.overrideWithValue(
-          (image, fit) => const ColoredBox(color: Color(0xFF333333))),
+      // Nessuna immagine di rete nei widget test. Un test può sostituire il
+      // disegno negli [overrides] (per esempio per registrare gli indirizzi):
+      // due override dello stesso provider farebbero lanciare il container.
+      if (!overrides.any((override) => override.origin == imageBuilderProvider))
+        imageBuilderProvider.overrideWithValue(
+            (image, fit) => const ColoredBox(color: Color(0xFF333333))),
       // Un carosello che avanza da solo non si ferma mai (pumpAndSettle).
       carouselAutoplayProvider.overrideWithValue(carouselAutoplay),
       ...overrides,
