@@ -17,6 +17,8 @@
   - l'immagine del profilo si sceglie da una galleria o da un file;
   - le immagini degli utenti prendono il posto delle iniziali in tutta l'app.
 
+  Non sono profili alla Netflix dentro un solo account: su Jellyfin cronologia, preferiti e "Continua a guardare" sono dell'utente, quindi ogni profilo è un utente Jellyfin e "Aggiungi profilo" è l'accesso con un altro account. L'utente l'ha confermato dopo la prova a mano del piano 17b (2026-10-08).
+
 ## 2. Situazione di partenza
 
 App 0.10.0, plugin 1.4.0.
@@ -744,7 +746,7 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
 - **Corpo di `POST /UserImage` in base64.** Si prova all'inizio del piano 17c sull'account dell'utente, con il suo ok, e poi si toglie l'immagine di prova. Se Jellyfin vuole i byte grezzi, cambia solo `UserImageApi`.
 - **Collezioni nel plugin.** Fatto nel piano 17a: `ICollectionManager.GetCollectionsFolder(false)` e `GetChildren(user, true, …)` sulla cartella e su ogni collezione, come fa `GET /Items?parentId=…` (§7.1). La prova a mano del 2026-10-07 (piano 17a, Task 12) ha confermato l'output del plugin con il token di un utente vero. Sul server nessun utente ha librerie ristrette o limiti parentali, quindi il caso di un titolo che un utente non può vedere è coperto solo dai test del plugin (che controllano che ogni lettura passi per l'utente).
 - **`IImageProcessor.GetImageCacheTag` per gli utenti** in Jellyfin 10.11: si verifica che dia lo stesso `PrimaryImageTag` di `/Users/Me`.
-- **Uscita dal party al cambio di profilo:** si verifica che il gruppo SyncPlay perda davvero il membro.
+- **Uscita dal party al cambio di profilo:** si verifica che il gruppo SyncPlay perda davvero il membro. Prova a mano del 2026-10-08 (piano 17b, Task 10): l'utente ha confermato che tutto funziona, cambio di profilo compreso.
 - **Due WonderFlix aperti insieme** (non di sviluppo) con lo stesso file dei profili: oggi non è un caso previsto, e resta così.
 
 ## 15. Piani e release
