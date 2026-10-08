@@ -73,6 +73,10 @@ Prima di ogni release, su un utente di prova:
 - [ ] Profilo scaduto: attenuato in "Chi guarda?", "Accedi di nuovo" con il nome già scritto.
 - [ ] Gestisci profili → Rimuovi; "Esci" dall'ultimo profilo porta all'accesso.
 - [ ] Server giù aprendo un profilo da "Chi guarda?": "Riprova" riapre quel profilo.
+- [ ] Immagine del profilo da Impostazioni ("Cambia immagine") e da "Gestisci profili" (matita, spenta su un profilo scaduto): un avatar della galleria, un file dal PC con il ritaglio (rotella e cursore; una foto girata del telefono si vede dritta) e "Rimuovi immagine". L'immagine cambia nel menu, in Impostazioni, in "Chi guarda?" e in jellyfin-web.
+- [ ] Dal PC: un file oltre 20 MB dà "Immagine troppo grande", un file che non è un'immagine "Immagine non valida".
+- [ ] Le immagini degli altri (con il plugin 1.5.0): amici e richieste, inviti, party (fila, menu, chat), richiesta d'amicizia, sessioni dell'admin; chi non ha un'immagine resta con l'iniziale.
+- [ ] Con un plugin senza la funzione `avatars` (1.4.0): solo iniziali per gli altri, nessun errore.
 - [ ] Aggiornamento da una versione precedente; aggiornamento obbligatorio.
 - [ ] Discord Rich Presence attiva e disattivata.
 - [ ] Pannello media di Windows con il nome "WonderFlix" (app installata).

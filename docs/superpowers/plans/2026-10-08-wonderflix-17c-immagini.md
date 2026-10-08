@@ -27,6 +27,40 @@
 12. **Profilo scaduto:** in "Gestisci profili" la matita è spenta. Un 401 durante il caricamento segna scaduto un profilo non aperto, e la finestra si chiude.
 13. **Il file e il lavoro sulle immagini stanno dietro provider** (`avatarFilePickerProvider`, `avatarImageToolsProvider`), da sostituire nei widget test: `file_selector` apre una finestra di sistema, e gli isolate e `toImage` nei widget test richiedono `runAsync`.
 14. **Pacchetti nuovi:** `file_selector` e `image`. Con `file_selector` cambiano davvero `windows/flutter/generated_plugin_registrant.cc` e `generated_plugins.cmake`: in quel commit si committano.
+15. **Dalle review dei gruppi** (il codice dei task sotto è quello di partenza: dove differisce, vale questa lista, e la spec è già allineata):
+    - **Plugin:**
+      - senza voci valide (solo voci vuote o id che non sono GUID, compreso il GUID vuoto) il controller risponde `{"Users":[]}` senza chiamare l'adattatore, quindi senza leggere gli utenti. Test in più: un GUID con i trattini vale, e i nomi con lettere non ASCII si confrontano senza maiuscole;
+      - una ricerca per nome conferma che un account esiste, anche nascosto: rischio basso, accettato (`/Users/Public` elenca già gli utenti non nascosti, e la ricerca degli amici trova i nomi per sottostringa).
+    - **Cache degli avatar** (`AvatarDirectory`):
+      - le richieste già partite si condividono (`_inFlight`), e `dispose` chiude anche quelle;
+      - un'immagine di `remember` (dopo un caricamento) vince su una chiamata già partita (`_Cached.remembered`); un errore o un "senza immagine" non copre mai un'immagine trovata da un'altra chiamata;
+      - `avatarImageProvider` si rilegge da solo dopo `ttl`, con il timer che parte dalla risposta: dopo un errore si riprova così;
+      - `AvatarLookup.query`: il nome va al plugin come è scritto, e solo la chiave è in minuscolo (Dart e .NET non sono d'accordo su qualche lettera);
+      - un id vuoto o un nome vuoto non fanno chiamate; un utente senza nome non vale per il nome vuoto (né in `remember`).
+    - **`UserAvatar`:**
+      - decorativo per lo screen reader (`ExcludeSemantics`);
+      - con un id vuoto cerca per nome; l'id di un tag noto si normalizza con `jellyfinIdKey`;
+      - non va misurato con il layout "a secco" (`WfImage` usa un `LayoutBuilder`). `PartyChatMessage` diventa uno `StatefulWidget` che tiene lo stesso avatar nel `WidgetSpan` finché il mittente non cambia.
+    - **Immagine dal PC** (`avatar_image.dart`):
+      - l'intestazione si legge prima di decodificare. Un JPEG con un parser suo (`readJpegSize`), che accetta solo i marcatori che il decoder legge allo stesso modo (DQT, DHT, DRI, APPn, COM, RST/TEM, byte di riempimento): ogni altra cosa è "Immagine non valida". Gli altri formati con `startDecode`;
+      - oltre 64 milioni di pixel (`maxSourcePixels`): "Immagine troppo grande". Qualche foto da 108 o 200 megapixel si rifiuta; la maggior parte dei telefoni ne salva da 12;
+      - si decodifica solo il primo fotogramma (`decodeFrame(0)`), non tutta l'animazione;
+      - l'orientamento dell'EXIF si applica dopo la riduzione a 2048 px (con la media dei pixel); tavolozza e 16 bit diventano 8 bit;
+      - **la decisione 10 cambia:** le parti trasparenti prendono il grigio scuro dell'app (`transparentFill`, `0xFF1B1B1B` come `WfColors.surfaceHigh`), non il nero, già nell'immagine di lavoro: l'anteprima è uguale all'immagine caricata;
+      - l'EXIF non arriva mai al server, GPS compreso (provato da un test);
+      - nel ritaglio, un riquadro che esce dall'immagine si sposta dentro invece di stringersi; ingrandendo un ritaglio piccolo, la bicubica invece della lineare.
+    - **Ritaglio** (`avatar_cropper.dart`): la rotella ignora gli scorrimenti solo orizzontali; il cursore ha l'etichetta "Ingrandimento" con il valore ("2,0×").
+    - **Finestra** (`avatar_dialog.dart`):
+      - la scheda "Dal PC" resta viva (cambiando scheda il ritaglio resta), e le schede non cambiano trascinando;
+      - durante il caricamento la finestra non si chiude (`PopScope`); mentre si prepara un'immagine dal PC, Esc la chiude;
+      - si chiude solo se è ancora in cima; la cache degli avatar si aggiorna anche se la finestra sparisce durante il caricamento;
+      - il messaggio d'errore sparisce cambiando scheda; la barra di avanzamento ha uno spazio fisso sotto le linguette;
+      - la galleria ha caselle fisse con gli avatar da 56 px, e 4 righe stanno nella finestra più piccola anche con un errore;
+      - gli avatar della galleria sono pulsanti per lo screen reader, con il testo nuovo `profileImageGalleryItem` ("Avatar {number}");
+      - come dice la decisione 12, un 401 chiude la finestra: cambia la frase della spec (§10.4) "in tutti i casi la finestra resta aperta".
+    - **Sessione:** `AuthService.isActive`. `setProfileImage` ignora una rilettura che dà un altro utente, aggiorna sempre il profilo salvato (`updateStoredProfile`) e la sessione solo se è aperta con quell'utente.
+    - **Limiti noti** (spec §12): un'immagine non quadrata caricata da jellyfin-web può sembrare sfocata, e una trasparente lascia vedere l'iniziale; niente zoom con due dita sul touchpad; Invio su un avatar della galleria non carica; un `refreshUser` durante un caricamento può rimettere per un momento il tag vecchio; un caricamento riuscito con la rilettura fallita dice "Caricamento non riuscito".
+    - **Da verificare:** che `GetImageCacheTag(User)` dia lo stesso `PrimaryImageTag` di `/Users`, con la build di prova del Task 2 (non ancora installata: sul server c'era qualcuno che guardava).
 
 **Architecture:**
 - **Plugin:** `Hub/IUserAvatars`, `Server/JellyfinUserAvatars`, `Protocol/AvatarDtos`, `Api/AvatarsController`, funzione `avatars`.

@@ -1,7 +1,7 @@
 # WonderFlix — Spec K: saghe e profili
 
 - **Data:** 2026-10-07
-- **Stato:** approvato; piano 17a realizzato (`docs/superpowers/plans/2026-10-07-wonderflix-17a-saghe.md`), piano 17b realizzato (`docs/superpowers/plans/2026-10-08-wonderflix-17b-profili.md`), piano 17c da scrivere
+- **Stato:** approvato; piano 17a realizzato (`docs/superpowers/plans/2026-10-07-wonderflix-17a-saghe.md`), piano 17b realizzato (`docs/superpowers/plans/2026-10-08-wonderflix-17b-profili.md`), piano 17c realizzato (`docs/superpowers/plans/2026-10-08-wonderflix-17c-immagini.md`); release da fare
 - **Ambito:** Spec K. Realizza due voci dell'idea 3 di `docs/IDEE.md` ("Funzioni escluse dallo Spec A"): **collezioni e saghe** (K1) e **profili "Chi guarda?"** (K2). K2 comprende anche le **immagini del profilo**, chieste durante il brainstorming. Delle altre voci dell'idea 3, il download offline resta in `docs/IDEE.md`. **HDR vero** e **firma del codice** escono dalla lista per scelta dell'utente.
 
 ## 1. Obiettivo
@@ -139,8 +139,12 @@ Fatti raccolti il 2026-10-07, in sola lettura, dal database e dalle API con la c
 ### 3.2 Immagini degli utenti
 
 - **Permessi.** Tutti i 23 utenti hanno `EnableUserPreferenceAccess`, quindi possono cambiare la propria immagine. Oggi solo 2 ne hanno una.
-- **Lettura.** `GET /UserImage?userId=&tag=&format=` non chiede l'accesso (OpenAPI 10.11.9) e non ridimensiona.
-- **Scrittura.** `POST /UserImage?userId=` (corpo: l'immagine) e `DELETE /UserImage?userId=` chiedono l'accesso, e rispondono 403 se l'utente non ha il permesso.
+- **Lettura.** `GET /UserImage?userId=&tag=&format=` non chiede l'accesso (OpenAPI 10.11.9) e non ridimensiona: accetta solo `userId`, `tag` e `format`. Con il tag la cache dura un anno.
+- **Scrittura.** `POST /UserImage?userId=` e `DELETE /UserImage?userId=` chiedono l'accesso, e rispondono 403 se l'utente non ha il permesso.
+  - Il corpo del `POST` è l'immagine **in base64**, con `Content-Type` `image/jpeg` o `image/png` (altrimenti 400); risposta 204. Il tag cambia a ogni caricamento.
+  - Il `DELETE` risponde 204 anche senza immagine.
+
+  Verificato nel piano 17c sul sorgente di Jellyfin 10.11.9 (`ImageController`, in sola lettura).
 
 ## 4. Decisioni
 
@@ -154,8 +158,8 @@ Fatti raccolti il 2026-10-07, in sola lettura, dal database e dalle API con la c
 | Cambio di profilo | **dentro l'app**, senza riavviarla |
 | DeviceId | **uno per profilo**, nuovo a ogni accesso, anche con "Accedi di nuovo" (§9.2) |
 | Numero di profili | al massimo 5 |
-| Immagine del profilo | si cambia dall'app, scegliendo da una galleria di icone a tema cinema o da un file da ritagliare; si può togliere |
-| Immagini degli altri | si vedono dovunque l'utente è noto; i tag li dà il **plugin 1.5.0**, `GET WonderFlixWatchParty/Users/Avatars` (§7.2) |
+| Immagine del profilo | si cambia dall'app, scegliendo da una galleria di 24 icone a tema cinema o da un file da ritagliare; si può togliere |
+| Immagini degli altri | si vedono dovunque l'utente è noto; i tag li dà il **plugin 1.5.0**, `GET WonderFlixWatchParty/Users/Avatars` (§7.2), tranne nelle sessioni dell'admin, dove li dà Jellyfin (§10.5) |
 | Release | plugin **1.5.0**; app **0.11.0 non obbligatoria** |
 
 ## 5. Perimetro
@@ -207,12 +211,14 @@ lib/core/jellyfin/
   json_fields.dart                    + jellyfinIdKey (id confrontabili: senza trattini, minuscoli)
   library_api.dart                    + collectionItems (i titoli di una saga, senza ItemQuery.parentId)
   image_urls.dart                     + primaryWithTag(itemId, tag), + user(userId, tag)
-  user_image_api.dart                 POST e DELETE /UserImage
+  user_image_api.dart                 UserImageApi (POST in base64 e DELETE /UserImage) e ImageUpload
+  admin_models.dart                   + SessionEntry.userImageTag (UserPrimaryImageTag di Jellyfin)
   client_info.dart                    + ClientInfo.copyWith(deviceId)
-  jellyfin_http.dart                  setCredentials (token + DeviceId insieme), withCredentials (un profilo non attivo)
+  jellyfin_http.dart                  setCredentials (token + DeviceId insieme), withCredentials (un profilo non attivo), post(contentType:)
 lib/core/social/
   collections_api.dart, collections_models.dart   endpoint del plugin
-  avatars_api.dart                    endpoint del plugin
+  avatars_api.dart                    AvatarsApi e UserAvatarInfo: endpoint del plugin
+  social_models.dart                  + PluginFeatures.collections, PluginFeatures.avatars
 lib/core/storage/
   profile_store.dart                  StoredProfile, ProfileBook, ProfileStore, SecureProfileStore (con la migrazione), ProfileLimitException
   session_store.dart                  la sessione di prima della 0.11.0: la legge solo la migrazione
@@ -238,21 +244,26 @@ lib/features/profiles/
   profiles_screen.dart                "Chi guarda?" e "Gestisci profili"
   profile_preferences.dart            ProfilePreferences e profilePreferencesProvider (§9.6)
   profile_switch.dart                 changeProfile e partyLeaveTimeout (§9.7)
-  avatar_dialog.dart                  finestra dell'immagine: Avatar | Dal PC | Rimuovi
-  avatar_gallery.dart                 le icone e il disegno in PNG
-  avatar_cropper.dart                 ritaglio quadrato
-lib/features/social/avatars_provider.dart   tag degli altri utenti, in cache
-lib/ui/user_avatar.dart               UserAvatar
+  avatar_dialog.dart                  finestra dell'immagine (Avatar | Dal PC | Rimuovi): showAvatarDialog, avatarFilePickerProvider, avatarImageToolsProvider
+  avatar_gallery.dart                 i 24 avatar e il disegno in PNG
+  avatar_image.dart                   l'immagine dal PC: preparazione e ritaglio, in isolate (pacchetto image)
+  avatar_cropper.dart                 il ritaglio quadrato: widget e conti
+lib/features/social/
+  avatars_provider.dart               AvatarLookup, AvatarImage, AvatarDirectory (i tag degli altri utenti, in cache), avatarDirectoryProvider, avatarImageProvider
+  social_providers.dart               + SocialFeatures.collections, SocialFeatures.avatars
+lib/features/watch_party/party_badge.dart   MemberAvatar: un uso di UserAvatar.lookup
+lib/ui/user_avatar.dart               UserAvatar e UserAvatar.lookup
 lib/ui/wf_confirm_dialog.dart         showWfConfirmDialog: Rimuovi, cambio di profilo nel party, conferme dell'admin
 lib/features/auth/
-  auth_service.dart, session_controller.dart   i profili (§9)
+  auth_service.dart                   i profili (§9); clientFor, isActive, updateStoredProfile, markProfileExpired (§10.4)
+  session_controller.dart             i profili (§9); setProfileImage (§10.4)
   profiles_state.dart                 ProfilesState e profilesProvider: i profili per l'interfaccia
 lib/app/providers.dart                profileStoreProvider al posto di sessionStoreProvider
 lib/app/navigation.dart               collectionRoute, openCollection; itemRoute porta un BoxSet alla sua pagina
 lib/app/router.dart                   + /profiles, /collection/:id, /movies?view=sagas
 ```
 
-I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a, quelli dei profili quelli del piano 17b. Quelli delle immagini del profilo (17c) sono indicativi: il piano può spostarli, ma senza cambiare le responsabilità. Le API seguono la forma di oggi: una classe sottile su `JellyfinHttp`, modelli con `fromJson` scritti a mano, niente codegen. Le letture del plugin sono tolleranti come in `json_fields.dart`.
+I nomi dei file sono quelli realizzati: delle saghe (K1) nel piano 17a, dei profili nel piano 17b, delle immagini nel piano 17c. Il 17c aggiunge i pacchetti `file_selector` (la finestra di Windows per scegliere il file) e `image` 4 (Dart puro, per lavorare l'immagine in un isolate). Le API seguono la forma di oggi: una classe sottile su `JellyfinHttp`, modelli con `fromJson` scritti a mano, niente codegen. Le letture del plugin sono tolleranti come in `json_fields.dart`.
 
 ## 7. Plugin 1.5.0
 
@@ -300,22 +311,29 @@ I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a, quelli de
 
 ```json
 {"Users": [{"UserId": "ab8240c5…", "Name": "viviroby", "ImageTag": "9f1c…"},
-           {"UserId": "4135c572…", "Name": "mario", "ImageTag": null}]}
+           {"UserId": "4135c572…", "Name": "mario"}]}
 ```
 
-- **Quali utenti.** Solo quelli chiesti che esistono e sono attivi.
-  - Un nome si cerca senza badare alle maiuscole: in Jellyfin i nomi utente sono unici.
+- **Parametri.** `ids` e `names` sono separati da virgole; gli spazi ai lati si tolgono e le voci vuote si ignorano.
+  - Un id vale con o senza trattini (`Guid.TryParse`). Un id che non è un GUID (o il GUID vuoto) non è di nessuno: si ignora.
+- **Quali utenti.** Solo quelli chiesti che esistono e non sono disattivati (`IsDisabled`).
+  - Un nome si cerca senza badare alle maiuscole (`OrdinalIgnoreCase`, anche con le lettere non ASCII): in Jellyfin i nomi utente sono unici.
   - Un utente chiesto due volte (per id e per nome) compare una volta.
+  - `Name` è il nome utente di Jellyfin; `UserId` è nel formato di Jellyfin (`Guid.ToString("N")`).
+- **Come si legge.** L'adattatore (`JellyfinUserAvatars`, con `IUserManager` e `IImageProcessor`) elenca gli utenti **una volta per richiesta** (`UserListing`, come `JellyfinUserDirectory`: in 10.11.0 la proprietà `Users`, in 10.11.9 il metodo `GetUsers()`) e confronta id e nomi in memoria. Con Jellyfin 10.11.9 ogni `GetUserById` o `GetUserByName` è una query al database, e `GetUserByName` lancia con un nome vuoto (diventerebbe un 400).
 - **Niente elenco completo:** il plugin risponde solo sugli utenti chiesti.
-- **Limite:** al massimo 100 voci per chiamata, sommando id e nomi; oltre si ha 400. Senza `ids` né `names` la risposta è `{"Users": []}`.
-- **`ImageTag`** è il tag che Jellyfin mette in `PrimaryImageTag` nei suoi `UserDto` (`IImageProcessor.GetImageCacheTag` sull'immagine dell'utente), oppure `null` se l'utente non ha un'immagine.
+  - Una ricerca per nome conferma che un account esiste, anche nascosto. Il rischio è basso e si accetta: `/Users/Public` elenca già gli utenti non nascosti, e la ricerca utenti degli amici trova i nomi per sottostringa.
+- **Limite:** al massimo 100 voci per chiamata, sommando id e nomi (dopo aver tolto le vuote; gli id che non sono GUID contano); oltre si ha 400, e gli utenti non si leggono.
+- **Niente da cercare:** senza voci valide (nessun parametro, solo voci vuote, solo id che non sono GUID) la risposta è `{"Users": []}`, senza leggere gli utenti.
+- **`ImageTag`** è `IImageProcessor.GetImageCacheTag` dell'utente, cioè il tag che Jellyfin mette in `PrimaryImageTag` nei suoi `UserDto` (da verificare con la build di prova, §14). Senza immagine è `null`, e con le impostazioni JSON di Jellyfin (valori nulli non scritti) **manca**, come `mario` nell'esempio. I test del protocollo usano `JsonSerializer.Serialize`, che invece scrive `null`; l'app tratta allo stesso modo il campo assente e `null`.
+- **Errori:** un errore inatteso dà 500, mai 404 (§2.4).
 - **Funzione:** `avatars` è sempre in `Features`.
 
 ### 7.3 Versione
 
 - Il plugin passa a **1.5.0**; `Protocol` resta 1.
-- Il csproj e `InfoControllerTests` sono già a 1.5.0 dal piano 17a, per la build di prova installata sul server. Tag, manifest e Catalogo si fanno nel 17c.
-- La descrizione nel manifest si aggiorna nel 17c.
+- Il csproj e `InfoControllerTests` sono già a 1.5.0 dal piano 17a, per la build di prova installata sul server. Tag, manifest e Catalogo si fanno con la release, dopo il merge del piano 17c (§15).
+- La descrizione nel manifest si aggiorna con la release.
 - Il manifest ha il changelog in italiano.
 
 ## 8. Saghe nell'app (K1)
@@ -468,7 +486,7 @@ I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a, quelli de
 ### 9.4 Schermata "Chi guarda?" (`/profiles`)
 
 - **Aspetto:** come il login: il logo, il titolo "Chi guarda?", le card dei profili in una fila che va a capo e "Gestisci profili", che entrano uno dopo l'altro. Il logo è di 140 px e gli spazi sono stretti: così la schermata sta tutta nella finestra più piccola (1024×640) senza scorrere, anche con un profilo scaduto.
-  - Ogni card ha l'avatar da 120 px e il nome. **In 17b l'avatar è l'iniziale** su un cerchio dorato; l'immagine (`UserAvatar`, §10.5) arriva nel 17c. Un profilo senza nome (quello migrato, se il suo primo `/Users/Me` non è riuscito) si chiama "Profilo".
+  - Ogni card ha l'avatar da 120 px e il nome. L'avatar è `UserAvatar` con il tag del profilo salvato (§10.5): l'immagine dell'utente, oppure l'iniziale scura su un cerchio dorato (fino al 17b c'era solo l'iniziale). Un profilo senza nome (quello migrato, se il suo primo `/Users/Me` non è riuscito) si chiama "Profilo".
   - Un profilo scaduto ha l'avatar attenuato e la scritta "Accedi di nuovo".
 - **Card "Aggiungi profilo"** (icona +), solo con meno di 5 profili. Apre l'accesso per un profilo nuovo (`SessionSignedOut(adding: true)`, §9.3).
 - **Clic su un profilo:**
@@ -481,7 +499,7 @@ I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a, quelli de
 
   Un profilo già segnato scaduto apre subito l'accesso, senza richieste. Durante la lettura l'avatar ha un velo scuro con un indicatore chiaro (sull'oro non si vedrebbe), e gli altri clic non fanno niente.
 - **"Gestisci profili"** mette le card in modifica: non si aprono, e "Aggiungi profilo" sparisce. Su ogni card compaiono:
-  - **"Modifica immagine"** (matita), che apre la finestra dell'immagine (§10) per quel profilo, con le sue credenziali. **Arriva nel 17c**: in 17b c'è solo "Rimuovi";
+  - **"Modifica immagine"** (matita, in alto a sinistra), che apre la finestra dell'immagine (§10) per quel profilo, con le sue credenziali. Su un profilo scaduto la matita è spenta: il suo token non vale più, e prima va rifatto l'accesso;
   - **"Rimuovi"** (cestino, con il tooltip "Rimuovi {nome}"), con la conferma "Rimuovere {nome} da questo PC? Per usarlo di nuovo servirà l'accesso." e i pulsanti "Annulla" e "Rimuovi". Rimuovere:
     1. toglie subito il profilo dal PC, poi le sue preferenze (§9.6);
     2. annulla il token di quel profilo in background (`POST /Sessions/Logout` con le sue credenziali; gli errori si ignorano): con il server giù non si aspetta il timeout della connessione.
@@ -495,7 +513,7 @@ I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a, quelli de
 
 ### 9.5 Menu dell'avatar e Impostazioni
 
-- **Menu dell'avatar:** Impostazioni, [Amministrazione], **Cambia profilo**, **Aggiungi profilo** (con meno di 5 profili), Esci. In 17b l'avatar del menu resta l'iniziale (`CircleAvatar`); `UserAvatar` arriva nel 17c.
+- **Menu dell'avatar:** Impostazioni, [Amministrazione], **Cambia profilo**, **Aggiungi profilo** (con meno di 5 profili), Esci. L'avatar del menu è `UserAvatar` da 30 px con il tag della sessione (§10.5), al posto dell'iniziale (`CircleAvatar`) del 17b.
 - **Cambia profilo** (§9.7) porta a "Chi guarda?".
 - **Aggiungi profilo** fa lo stesso cambio (in un party la conferma dice "Aggiungi profilo") e poi apre l'accesso per un profilo nuovo (`SessionSignedOut(adding: true)`, §9.3). "Annulla" porta a "Chi guarda?".
 - **Esci:**
@@ -503,7 +521,7 @@ I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a, quelli de
   2. **toglie il profilo dal PC**;
   3. va a "Chi guarda?" se restano profili, altrimenti all'accesso;
   4. cancella le preferenze del profilo (§9.6). Lo stato cambia prima: la shell non mostra un fotogramma con le preferenze del PC.
-- **Impostazioni → Account:** "Accesso come {nome}", Cambia profilo ed Esci. L'avatar grande con "Cambia immagine" (§10) arriva nel 17c.
+- **Impostazioni → Account:** l'avatar da 64 px accanto ad "Accesso come {nome}", poi i pulsanti **Cambia immagine** (la finestra dell'immagine del profilo aperto, §10), Cambia profilo ed Esci.
 
 ### 9.6 Preferenze del profilo
 
@@ -529,71 +547,110 @@ Il cambio lo fa `changeProfile(context, ref, {addProfile})` (`lib/features/profi
 3. **Azzeramento:** tutto quello che dipende dall'utente si azzera come all'uscita di oggi (§2.2): WebSocket, canale del party, amici, cassetta, richieste, admin, dati utente e cache dei provider.
 4. **Router:** porta a `/profiles` (a `/login`, con "Aggiungi profilo").
 
-Il player non può essere aperto durante il cambio, perché il menu dell'avatar sta nella shell. La cache delle immagini è comune a tutti i profili: gli indirizzi non dipendono dall'utente.
+Il player non può essere aperto durante il cambio, perché il menu dell'avatar sta nella shell. La cache delle immagini è comune a tutti i profili: gli indirizzi non dipendono dall'utente. La cache dei tag degli avatar (`AvatarDirectory`, §10.5) invece è nuova a ogni profilo.
 
 ## 10. Immagini del profilo
 
 ### 10.1 Finestra dell'immagine
 
-- **Da dove si apre:**
-  - da "Gestisci profili" (§9.4), per qualunque profilo salvato, con le credenziali di quel profilo (§9.2);
-  - da Impostazioni → Account, per il profilo attivo.
-- **Tre schede:**
-  - **Avatar:** la galleria (§10.2); un clic sceglie, e "Usa questo" carica;
-  - **Dal PC:** "Scegli un'immagine…", poi il ritaglio (§10.3);
-  - **Rimuovi:** l'anteprima con l'iniziale e il pulsante "Rimuovi immagine", disattivato se il profilo non ha un'immagine.
-- **Durante il caricamento** i pulsanti sono disattivati e c'è un indicatore. Finito, la finestra si chiude.
+- **Da dove si apre** (`showAvatarDialog`, `lib/features/profiles/avatar_dialog.dart`):
+  - da "Gestisci profili" (§9.4), con la matita "Modifica immagine", per qualunque profilo salvato non scaduto, con le credenziali di quel profilo (§9.2);
+  - da Impostazioni → Account, con "Cambia immagine", per il profilo aperto.
+- **"Immagine del profilo", con tre schede:**
+  - **Avatar:** la galleria (§10.2). Un clic sceglie (bordo dorato), e "Usa questo" (spento finché non si sceglie) carica il PNG dell'avatar;
+  - **Dal PC:** "Scegli un'immagine…", poi il ritaglio (§10.3) con "Scegli un'immagine…" (un altro file) e "Usa questa", che carica il JPEG;
+  - **Rimuovi** (il testo è `profilesRemove`): l'anteprima da 120 px (l'immagine di oggi, o l'iniziale) e il pulsante "Rimuovi immagine", spento se il profilo non ha un'immagine.
+- **Le schede:**
+  - la scheda "Dal PC" resta viva: passando a un'altra scheda e tornando, il ritaglio è com'era;
+  - non si cambia scheda trascinando: il trascinamento serve al ritaglio;
+  - il messaggio d'errore sparisce cambiando scheda (era della scheda di prima).
+- **Indicatore:** sotto le linguette c'è sempre lo spazio per una barra di avanzamento, così il contenuto non si sposta. La barra compare mentre si prepara un'immagine dal PC e durante il caricamento; il messaggio d'errore compare sotto.
+- **Dimensioni:** 560 px di larghezza. Nella finestra più piccola (1024×640), anche con un messaggio d'errore, le 4 righe della galleria ci stanno, con gli avatar sempre da 56 px.
+- **Durante il caricamento:**
+  - i pulsanti sono spenti;
+  - la finestra non si chiude, né con Esc né con un clic fuori. Mentre si prepara un'immagine dal PC invece Esc la chiude, e l'immagine preparata si scarta.
+
+  Riuscito il caricamento (o con un 401, §10.4), la finestra si chiude, ma solo se è ancora quella in cima: se nel frattempo è stata chiusa da altro, o c'è sopra un'altra finestra, un `pop` toglierebbe la pagina sotto.
 
 ### 10.2 Galleria
 
-- **24 avatar,** ognuno con un'icona Lucide (pacchetto `lucide_icons_flutter`, licenza ISC, già nell'app) a tema cinema e serate. L'elenco preciso è nel piano: popcorn, ciak, pellicola, biglietto, TV, proiettore, cinepresa, stella, razzo, fantasma, gatto, cane, coniglio, gufo, pesce, teschio, corona, cuore, nota musicale, gamepad, pizza, caffè, scintille, luna.
-- **Colori:** 8 sfumature dai colori di WonderFlix, abbinate alle icone in modo fisso.
-- **Disegno:** con `PictureRecorder`, 512×512: lo sfondo sfumato e l'icona bianca, grande il 55% del lato. Il risultato è un PNG. L'anteprima nella griglia è lo stesso disegno, in piccolo.
+- **24 avatar,** ognuno con un'icona Lucide (pacchetto `lucide_icons_flutter`, licenza ISC, già nell'app) a tema cinema e serate: popcorn, ciak, pellicola, biglietto, TV, proiettore, cinepresa, stella, razzo, fantasma, gatto, cane, coniglio, **uccello**, pesce, teschio, corona, cuore, nota musicale, gamepad, pizza, caffè, scintille, luna. La prima versione diceva il gufo: Lucide 3.1.20 non ce l'ha, e al suo posto c'è l'uccello (`LucideIcons.bird`).
+- **Colori:** 8 sfumature dai colori di WonderFlix (oro, rosso sipario, verde acqua, blu notte, viola, verde, arancio, ardesia), costanti in `avatar_gallery.dart`. Si ripetono in ordine sulle icone, quindi due avatar vicini hanno colori diversi.
+- **Disegno:** con `PictureRecorder`, 512×512: lo sfondo sfumato (dall'alto a sinistra al basso a destra) e l'icona bianca, grande il 55% del lato. Il risultato è un PNG.
+- **Griglia:** 6 avatar per riga, ognuno da 56 px: è lo stesso disegno, in piccolo e rotondo. Per lo screen reader ogni avatar è un pulsante "Avatar {numero}" (`profileImageGalleryItem`), che dice anche quale è scelto.
 
 ### 10.3 Immagine dal PC
 
-- **Scelta del file** con `file_selector` (pacchetto ufficiale di Flutter): jpg, jpeg, png, webp, gif, bmp.
-  - Oltre 20 MB: "Immagine troppo grande".
-  - Un file che non si decodifica: "Immagine non valida".
-- **Ritaglio:** il riquadro è quadrato e fisso; l'immagine si trascina e si ingrandisce con la rotella o con un cursore, da "riempie il riquadro" fino a 4×. "Usa questa" conferma.
-- **Codifica:** in un isolate, con il pacchetto `image` (Dart puro): ritaglio, ridimensionamento a 512×512, JPEG con qualità 90.
+- **Scelta del file** con `file_selector` (pacchetto ufficiale di Flutter), filtro "Immagini": jpg, jpeg, png, webp, gif, bmp.
+  - Oltre 20 MB (la dimensione del file, letta prima del contenuto): "Immagine troppo grande".
+- **Preparazione**, in un isolate con il pacchetto `image` (Dart puro). Il risultato è l'**immagine di lavoro**, su cui lavora il ritaglio.
+  1. **Intestazione prima di decodificare.** Un file piccolo può dichiarare un'immagine enorme, che in memoria non starebbe.
+     - Un JPEG si legge con un parser suo: scorre i segmenti fino al primo SOF e accetta solo i marcatori che il decoder legge allo stesso modo (DQT, DHT, DRI, APPn, COM, RST/TEM e i byte di riempimento). Ogni altra cosa prima del SOF (anche un SOF nascosto dietro `FF 00`) dà "Immagine non valida": il decoder la salterebbe a modo suo, e potrebbe trovare un SOF che il parser non ha visto.
+     - Gli altri formati si leggono con `startDecode` del pacchetto `image`.
+     - Oltre 64 milioni di pixel: "Immagine troppo grande". Qualche telefono che salva foto da 108 o 200 megapixel viene rifiutato; la maggior parte dei telefoni ne salva da 12.
+  2. **Decodifica.** Un file che non si decodifica: "Immagine non valida". Di un'immagine animata (GIF, WebP) vale solo il primo fotogramma.
+  3. **Immagine di lavoro:**
+     - una tavolozza diventa colori veri (gli indici non si possono mediare);
+     - si riduce a 2048 px di lato al massimo, con la media dei pixel: basta per un avatar di 512 px anche a 4×;
+     - 8 bit per canale, come il JPEG (16 bit, grigi a pochi bit, HDR);
+     - le parti trasparenti prendono il grigio scuro dell'app (`WfColors.surfaceHigh`, `0xFF1B1B1B`). La prima versione diceva nero: il colore va già nell'immagine di lavoro, così l'anteprima del ritaglio è uguale all'immagine caricata;
+     - l'orientamento dell'EXIF si applica alla fine, all'immagine già ridotta (più leggero);
+     - si salva in PNG, **senza EXIF**.
+- **Ritaglio** (`AvatarCropper`): un riquadro quadrato e fisso di 240 px, con un velo fuori dal cerchio che diventerà l'avatar.
+  - L'immagine si trascina, e copre sempre tutto il riquadro.
+  - Si ingrandisce con la rotella (1,1× a scatto; uno scorrimento solo orizzontale non conta) o con il cursore, da "riempie il riquadro" fino a 4×, tenendo fermo il centro del riquadro. Per lo screen reader il cursore è "Ingrandimento" con il valore ("2,0×").
+  - All'inizio l'immagine è centrata, a 1×.
+- **Codifica**, in un isolate: il quadrato scelto, ridimensionato a 512×512 (con la media dei pixel riducendo, con la bicubica ingrandendo un ritaglio piccolo), JPEG con qualità 90. Un riquadro che esce dall'immagine si sposta dentro, senza rimpicciolire; uno più grande del lato corto si stringe a quello.
+- **L'EXIF non arriva mai al server** (nemmeno il GPS): le immagini degli utenti si leggono senza accesso (§3.2), e l'EXIF di una foto può dire dove, quando e con cosa è stata scattata.
 
 ### 10.4 Caricamento e rimozione
 
-- **Caricamento:** `POST /UserImage?userId=<id>` con `Content-Type` `image/jpeg` o `image/png` e il **corpo in base64**, come fa jellyfin-web. Va verificato all'inizio del piano 17c (§14).
-- **Rimozione:** `DELETE /UserImage?userId=<id>`.
-- **Dopo la riuscita:**
-  1. si rilegge `/Users/Me` con le credenziali di quel profilo, per avere il `PrimaryImageTag` nuovo;
-  2. il tag va nel profilo salvato e, se è il profilo attivo, nella sessione;
-  3. `avatarsProvider` (§10.5) si aggiorna per quell'utente.
+- **Caricamento:** `POST /UserImage?userId=<id>` con il **corpo in base64**, come fa jellyfin-web, e `Content-Type` `image/png` (galleria) o `image/jpeg` (dal PC): `UserImageApi.upload` con `ImageUpload`, attraverso `JellyfinHttp.post(contentType:)` (senza, dio manderebbe `application/json`). Il base64 è **verificato** nel sorgente di Jellyfin 10.11.9 (§3.2, §14).
+- **Rimozione:** `DELETE /UserImage?userId=<id>` (`UserImageApi.remove`).
+- **Il flusso** sta in `SessionController.setProfileImage(userId, {image})` (senza `image` toglie):
+  1. il client è `AuthService.clientFor(userId)`: quello principale per il profilo aperto (`AuthService.isActive`), altrimenti uno con le credenziali di quel profilo (`JellyfinHttp.withCredentials`, che non segnala i 401). Un profilo che non c'è: niente;
+  2. carica o toglie, poi rilegge `/Users/Me` con lo stesso client, per avere il `PrimaryImageTag` nuovo;
+  3. se la risposta è di un altro utente (non dovrebbe succedere) non si aggiorna niente;
+  4. altrimenti il profilo salvato si aggiorna sempre (`AuthService.updateStoredProfile`: nome e tag, solo se cambiano), e la sessione solo se è aperta con quell'utente;
+  5. dà l'utente riletto.
+- **Dopo la riuscita** la finestra mette il tag nuovo nella cache degli avatar, se c'è (`AvatarDirectory.remember`, per id e per nome), e fa rileggere gli avatar di quell'utente; poi si chiude.
 - **Errori:**
-  - **403:** "Non hai il permesso di cambiare l'immagine";
-  - **401:** il profilo è scaduto, come in §9.4;
-  - **ogni altro errore:** "Caricamento non riuscito".
+  - **403:** "Non hai il permesso di cambiare l'immagine", e la finestra resta aperta;
+  - **401:** il token non vale più, e la finestra si chiude. Un profilo non aperto si segna scaduto (`AuthService.markProfileExpired`): in "Chi guarda?" ha "Accedi di nuovo" e la matita spenta. Per il profilo aperto ci pensa la sessione, come per ogni 401 (§9.3): l'accesso con "Sessione scaduta";
+  - **ogni altro errore:** "Caricamento non riuscito", e la finestra resta aperta.
 
-  In tutti i casi la finestra resta aperta.
+  La prima versione diceva che in tutti i casi la finestra restava aperta. Con un 401 si chiude: con lo stesso token un nuovo tentativo non riuscirebbe mai, e per il profilo aperto la sessione è già passata all'accesso.
 
 ### 10.5 `UserAvatar` dovunque
 
-- **`UserAvatar(userId?, name, size, imageTag?)`** mostra l'immagine dell'utente con `GET /UserImage?userId=&tag=`, attraverso `WfImage` e la cache di oggi, decodificata alla dimensione mostrata. Senza immagine mostra l'iniziale, come oggi.
+- **`UserAvatar`** (`lib/ui/user_avatar.dart`) mostra l'immagine dell'utente con `GET /UserImage?userId=&tag=` (`ImageUrls.user`), attraverso `WfImage` e la cache delle immagini di oggi, decodificata alla dimensione mostrata, perché il server non ridimensiona (§3.2). L'indirizzo non chiede l'accesso, quindi funziona anche in "Chi guarda?", senza sessione. Ha due costruttori:
+  - **`UserAvatar(userId:, name:, size:, imageTag:)`:** il tag è già noto (l'utente aperto, i profili salvati, le sessioni dell'admin); `null` vuol dire senza immagine;
+  - **`UserAvatar.lookup(userId:, name:, size:)`:** il tag lo cerca `avatarImageProvider`, per id (`AvatarLookup.byId`) o, senza id o con un id vuoto, per nome (`AvatarLookup.byName`: i membri del party, perché SyncPlay dà solo i nomi). La risposta del plugin dà sempre l'id dell'utente, che serve per l'indirizzo.
+- **Aspetto:**
+  - senza immagine, l'iniziale (grande 0,45 volte il diametro; "?" con un nome vuoto): scura su oro, oppure, con `muted`, dorata su grigio come le iniziali di prima (party, amici, inviti, chat, richiesta d'amicizia);
+  - l'immagine sta sopra l'iniziale, con il segnaposto trasparente: mentre si carica, o se non si carica, si vede l'iniziale;
+  - l'id nell'indirizzo è normalizzato (`jellyfinIdKey`), come quello delle immagini cercate: un utente ha un solo indirizzo, e la cache delle immagini una sola copia.
+- **Screen reader:** l'avatar è decorativo (`ExcludeSemantics`): il nome c'è sempre accanto.
+- **Layout:** `UserAvatar` non va misurato con il layout "a secco" (`IntrinsicWidth`, `IntrinsicHeight` e simili, anche dentro un `WidgetSpan`): `WfImage` decodifica attraverso un `LayoutBuilder`, che quel layout non lo sa fare. Oggi non lo fa nessuno. Nella chat l'avatar sta in un `WidgetSpan` e resta lo stesso widget finché il mittente non cambia: un widget nuovo a ogni build rifarebbe il layout del paragrafo (per esempio a ogni tasto nel campo della chat).
 - **Da dove prende il tag:**
-  - per l'utente attivo e per i profili salvati, dalla sessione o dal profilo;
-  - per gli altri utenti, da `avatarsProvider`.
-- **`avatarsProvider`:**
-  - tiene una cache per id e una per nome;
-  - raccoglie per 50 ms le richieste dei widget e le manda in una sola chiamata, al massimo 100 voci (§7.2);
-  - un risultato vale 10 minuti;
-  - senza la funzione `avatars` non fa chiamate, e i widget mostrano l'iniziale;
-  - un errore lascia le iniziali, e si ritenta dopo 10 minuti.
+  - l'utente aperto, dalla sessione (`JellyfinUser.primaryImageTag`); i profili salvati, dal profilo (`StoredProfile.imageTag`);
+  - le sessioni dell'admin, da Jellyfin: `UserPrimaryImageTag` della sessione (`SessionEntry.userImageTag`), che c'è anche senza il plugin;
+  - gli altri utenti, dalla cache degli avatar.
+- **La cache degli avatar** (`AvatarDirectory`, in `lib/features/social/avatars_provider.dart`; la prima versione la chiamava `avatarsProvider`):
+  - c'è solo con un profilo aperto e con la funzione `avatars` del plugin (`avatarDirectoryProvider`). Senza, `UserAvatar.lookup` mostra l'iniziale e non chiama niente (anche nei widget test senza sessione). È nuova a ogni profilo; quando si chiude, le richieste in attesa e quelle in viaggio finiscono con l'iniziale;
+  - la chiave è `AvatarLookup`: l'id senza trattini e in minuscolo, oppure il nome in minuscolo. Un utente trovato vale per id e per nome (non per il nome vuoto);
+  - i nomi vanno al plugin come sono scritti: solo la chiave della cache è in minuscolo. Su qualche lettera (İ, il segno del kelvin, ẞ) le regole delle maiuscole di Dart e di .NET non sono d'accordo, e il confronto lo fa il plugin;
+  - un id vuoto, o un nome vuoto senza id: nessuna richiesta, l'iniziale;
+  - raccoglie per 50 ms le richieste dei widget e le manda in una sola chiamata, al massimo 100 voci (§7.2); le altre partono in una chiamata subito dopo;
+  - una richiesta già partita si condivide: chi chiede lo stesso utente aspetta la sua risposta, senza un'altra chiamata;
+  - un risultato vale 10 minuti, e anche un errore, che lascia le iniziali. Un avatar sullo schermo si rilegge passati 10 minuti: il timer di `avatarImageProvider` parte quando arriva la risposta, così alla rilettura la cache è già scaduta. Così, dopo un errore, si riprova dopo 10 minuti;
+  - un errore va nel registro come info se è un `ApiException`, altrimenti come avviso;
+  - dopo un caricamento, l'immagine nuova (`remember`) vale subito e vince su una risposta del plugin già in viaggio. Anche un'immagine trovata da un'altra chiamata vale più di una risposta partita prima; un errore o un "senza immagine" di un'altra chiamata no: un errore non copre mai un'immagine trovata.
 - **Dove compare:**
-  - menu dell'avatar, "Chi guarda?", Impostazioni → Account;
-  - pannello amici: amici, richieste ricevute e inviate, ricerca (per id);
-  - menu degli inviti (per id);
-  - fila e menu dei membri del party (per nome, da SyncPlay);
-  - chat del party: un piccolo avatar accanto al nome del mittente (per id);
-  - scheda della richiesta d'amicizia (per id);
-  - righe utente della scheda Sessioni dell'admin (per id).
-- **`MemberAvatar`** diventa un uso di `UserAvatar` con il solo nome, oppure si sostituisce del tutto.
+  - con il tag noto: il menu dell'avatar (30 px), "Chi guarda?" (120 px), Impostazioni → Account (64 px), la scheda "Rimuovi" della finestra (120 px), le righe utente della scheda Sessioni dell'admin (28 px);
+  - per id, `muted`: il pannello amici (amici, richieste ricevute e inviate, ricerca; 26 px), il menu degli inviti (26 px), la scheda della richiesta d'amicizia (24 px, al posto dell'icona), la chat del party (18 px, accanto al nome del mittente, anche nei nostri messaggi);
+  - per nome, `muted`: la fila e il menu dei membri del party (26 px).
+- **`MemberAvatar(name, userId?)`** resta, come un uso di `UserAvatar.lookup` (`muted`, 26 px): per id quando c'è, altrimenti per nome.
 
 ## 11. Testi nuovi (ARB, it + en)
 
@@ -605,9 +662,11 @@ Il player non può essere aperto durante il cambio, perché il menu dell'avatar 
 | Chi guarda? | "Chi guarda?", "Aggiungi profilo", "Gestisci profili", "Fine", "Accedi di nuovo", "Modifica immagine", "Rimuovi", "Rimuovi {name}" (tooltip del cestino), "Rimuovere {name} da questo PC?", "Per usarlo di nuovo servirà l'accesso.", "Massimo 5 profili", "Profilo" (un profilo senza nome) |
 | Menu e Account | "Cambia profilo", "Aggiungi profilo", "Cambia immagine", "Uscirai dal watch party.", "Cambia profilo" (pulsante della conferma) |
 | Login | "Annulla", "Sessione scaduta" (c'è già) |
+| Immagine | "Immagine del profilo", "Avatar", "Dal PC", "Rimuovi" (la scheda), "Usa questo", "Scegli un'immagine…", "Usa questa", "Rimuovi immagine", "Immagine troppo grande", "Immagine non valida", "Non hai il permesso di cambiare l'immagine", "Caricamento non riuscito", "Immagini" (il filtro nella finestra di Windows), "Ingrandimento" (il cursore del ritaglio, per lo screen reader), "Avatar {number}" (un avatar della galleria, per lo screen reader) |
 
-I testi dei profili (piano 17b) hanno le chiavi `profiles…`. C'è un solo "Annulla" (`profilesCancel`) per l'accesso, la rimozione e la conferma del cambio, e un solo "Aggiungi profilo" e "Cambia profilo" per la card, il menu, le Impostazioni e la conferma. "Modifica immagine" e "Cambia immagine" arrivano con il piano 17c, insieme alla finestra dell'immagine.
-| Immagine | "Immagine del profilo", "Avatar", "Dal PC", "Rimuovi", "Usa questo", "Scegli un'immagine…", "Usa questa", "Rimuovi immagine", "Immagine troppo grande", "Immagine non valida", "Non hai il permesso di cambiare l'immagine", "Caricamento non riuscito" |
+I testi dei profili (piano 17b) hanno le chiavi `profiles…`. C'è un solo "Annulla" (`profilesCancel`) per l'accesso, la rimozione e la conferma del cambio, e un solo "Aggiungi profilo" e "Cambia profilo" per la card, il menu, le Impostazioni e la conferma.
+
+I testi delle immagini (piano 17c): "Modifica immagine" è `profilesEditImage`, "Cambia immagine" `settingsChangeImage`, quelli della finestra hanno le chiavi `profileImage…` (per esempio `profileImageGalleryItem`, "Avatar {number}"). La scheda "Rimuovi" usa `profilesRemove`, lo stesso "Rimuovi" di "Gestisci profili".
 
 In inglese "Saghe" e "saga" sono "Collections" e "collection", come in Jellyfin.
 
@@ -617,7 +676,7 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
 
 ### Plugin e saghe
 
-- **Plugin senza `collections` o senza `avatars`** (1.4.0 o più vecchio): niente saghe e solo iniziali. Nessun errore visibile.
+- **Plugin senza `collections` o senza `avatars`** (1.4.0 o più vecchio): niente saghe e solo iniziali per gli altri utenti (sotto, "Immagini"). Nessun errore visibile.
 - **Saga con un solo film visibile:**
   - c'è nella vista "Saghe" e nella ricerca, con "1 film";
   - la sua pagina funziona;
@@ -645,8 +704,18 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
 
 ### Immagini
 
+- **Plugin senza `avatars`:** solo iniziali per gli altri, nessuna chiamata e nessun errore; l'utente aperto, i profili e le sessioni dell'admin hanno l'immagine lo stesso (il tag viene da Jellyfin).
 - **Immagine di un altro utente molto grande** (caricata da jellyfin-web): si decodifica alla dimensione mostrata.
+- **File scelto:** oltre 20 MB, o un'intestazione che dichiara oltre 64 milioni di pixel: "Immagine troppo grande"; un file che non è un'immagine, o un JPEG con marcatori strani prima del SOF: "Immagine non valida" (§10.3).
+- **401 durante il caricamento:** la finestra si chiude; il profilo non aperto si segna scaduto, quello aperto passa all'accesso (§10.4).
+- **La sessione che cambia durante il caricamento:** la finestra non toglie la pagina sotto (si chiude solo se è ancora in cima), e la cache degli avatar si aggiorna lo stesso.
 - **Due finestre dell'immagine aperte per lo stesso utente:** vince l'ultimo caricamento.
+- **Limiti noti, accettati:**
+  - un'immagine non quadrata caricata da jellyfin-web può sembrare sfocata (si decodifica alla larghezza dell'avatar), e una con la trasparenza lascia vedere l'iniziale sotto;
+  - sul touchpad non si ingrandisce con due dita (solo rotella e cursore);
+  - Invio su un avatar della galleria lo sceglie, ma non carica: serve "Usa questo";
+  - un `refreshUser` della sessione che finisce durante un caricamento può rimettere per un momento il tag vecchio;
+  - se il caricamento riesce ma la rilettura dell'utente no, la finestra dice "Caricamento non riuscito" anche se l'immagine è cambiata (il tag nuovo arriva alla prossima lettura dell'utente).
 
 ## 13. Test
 
@@ -660,20 +729,19 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
     - il JSON del protocollo e la registrazione del servizio;
     - la visibilità vera (librerie e controllo parentale) non si prova con i test: si controlla nella prova a mano con il token di un utente vero (§14).
   - Avatar:
-    - ricerca per id e per nome, con il nome senza badare alle maiuscole;
-    - nessun doppione;
-    - utenti inesistenti o disattivati assenti;
-    - più di 100 voci danno 400;
-    - nessuna richiesta, elenco vuoto;
-    - `ImageTag` nullo senza immagine.
-  - Le funzioni in `Info` e la versione.
+    - l'adattatore, con gli utenti dello stub: ricerca per id e per nome, con il nome senza badare alle maiuscole (anche con lettere non ASCII); nessun doppione; utenti inesistenti, il GUID vuoto o disattivati assenti; il tag solo con l'immagine; nessuna richiesta, nessuna lettura degli utenti;
+    - il controller: id e nomi passati all'adattatore, con gli id che non sono GUID e le voci vuote saltati; un GUID con i trattini accettato; gli id nel formato "N"; più di 100 voci danno 400 senza chiedere niente (100 vanno bene); senza voci valide, elenco vuoto senza leggere gli utenti;
+    - l'autorizzazione: `[Authorize]` senza policy;
+    - il JSON del protocollo e la registrazione del servizio.
+  - Le funzioni in `Info` (con `avatars`) e la versione.
 - **Modelli e API dell'app:**
   - `ItemKind.boxSet` e `itemRoute`;
   - `LibraryApi.collectionItems` (percorso e parametri, senza `recursive`), `ImageUrls.primaryWithTag` e `jellyfinIdKey` (non c'è un test su `ItemQuery.parentId`: il campo non esiste);
   - `SocialFeatures.collections` letta da `Info`, anche senza watch party;
   - `CollectionsApi` (`FakeAdapter`): percorso, letture tolleranti, `ItemIds` normalizzati e senza doppioni, corpo di forma inattesa, 404;
-  - `AvatarsApi` (`FakeAdapter`): percorsi e letture tolleranti;
-  - `UserImageApi`: corpo in base64, `Content-Type`, `DELETE`, errori 403 e 401.
+  - `AvatarsApi` (`FakeAdapter`): id e nomi separati da virgole; letture tolleranti (id senza trattini, tag assente, voci rotte saltate); corpo di forma inattesa, 404;
+  - `UserImageApi`: corpo in base64, `Content-Type`, `DELETE`, errori 403 e 401; `JellyfinHttp.post` con il `Content-Type` di un corpo che non è JSON;
+  - `ImageUrls.user` (con il tag, senza ridimensionare); `SessionEntry.userImageTag`; `SocialFeatures.avatars` letta da `Info`, anche senza watch party.
 - **Saghe:**
   - l'indice film → saghe;
   - l'ordine delle righe;
@@ -706,12 +774,16 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
   - `describeError` per `ProfileLimitException`; i testi del piano (`l10n_plan17b_test.dart`).
 
   Non c'è un test che controlla l'azzeramento dei provider al cambio di profilo: lo fanno i provider che guardano la sessione, come all'uscita di oggi (§2.2).
-- **Immagini:**
-  - la galleria disegna 24 PNG 512×512;
-  - il ritaglio: limiti di zoom e trascinamento, uscita 512×512;
-  - i file troppo grandi o non validi;
-  - `avatarsProvider`: raccolta in 50 ms, massimo 100, cache di 10 minuti, nessuna chiamata senza `avatars`, aggiornamento dopo un caricamento;
-  - `UserAvatar`: immagine con il tag, iniziale senza.
+- **Immagini** (quelli del piano 17c):
+  - la galleria: 24 avatar con icone tutte diverse e colori diversi da quelli vicini; ogni avatar è un PNG 512×512; l'anteprima ha il suo lato;
+  - la preparazione (`avatar_image_test.dart`): un PNG; oltre 2048 px ridotta; una foto girata raddrizzata secondo l'EXIF, anche grande (ridotta, poi raddrizzata); un file che non è un'immagine; oltre 20 MB e troppi pixel nell'intestazione (anche di un JPEG) senza decodificare; un JPEG con l'intestazione troncata; le parti trasparenti con il colore di fondo dell'app; 16 bit e tavolozza a 8 bit; il lavoro in un isolate;
+  - le dimensioni di un JPEG dall'intestazione: il SOF, i byte di riempimento e i marcatori senza lunghezza, un JPEG progressivo e i segmenti saltati per lunghezza, un SOF nascosto dietro `FF 00`, un marcatore che il decoder non legge per lunghezza, intestazioni troncate o rovinate;
+  - il ritaglio: i conti, l'immagine che copre sempre il riquadro, trascinamento, cursore e rotella, il cursore letto dallo screen reader; l'uscita JPEG 512×512, l'EXIF (anche il GPS) che non arriva mai al JPEG, un riquadro che esce dall'immagine e si sposta dentro;
+  - `AvatarDirectory`: raccolta in 50 ms, massimo 100 voci per chiamata, per nome con l'id della risposta, un risultato e un errore che valgono 10 minuti, `remember` (anche durante una chiamata), le richieste già partite condivise, le chiamate fallite che non coprono un'immagine trovata, id o nome vuoti senza chiamate, `dispose` (anche durante una chiamata);
+  - i provider: niente cache senza un profilo aperto (e la sessione non si crea) o senza `avatars`, una cache per profilo (quella di prima si chiude), la funzione che arriva dopo, un avatar sullo schermo che si rilegge dopo 10 minuti;
+  - `UserAvatar`: l'immagine sopra l'iniziale con il tag, l'iniziale senza (anche `muted`), `lookup` senza profilo aperto, per nome, con l'id vuoto; l'id normalizzato; decorativo per lo screen reader;
+  - `AuthService`: `clientFor`, `isActive`, `updateActiveProfile` solo per il profilo aperto, `updateStoredProfile`, `markProfileExpired`;
+  - `SessionController.setProfileImage`: il profilo aperto (sessione e profilo aggiornati), il 401 del profilo aperto (ci pensa il client), la risposta di un altro utente, un profilo non aperto, la rimozione, il 403, il 401 di un profilo non aperto (scaduto), un profilo che non c'è.
 - **Widget:**
   - "Chi guarda?": card e apertura, l'indicatore mentre un profilo si apre (gli altri clic non fanno niente), scaduto, aggiungi, niente "Aggiungi profilo" con 5 profili, "Gestisci profili" con la rimozione confermata, Esc (anche con il fuoco su "Fine" o su Rimuovi), profilo senza nome, le card come pulsanti per lo screen reader, fuoco da tastiera (Invio, Tab, l'ultimo profilo usato), la finestra più piccola senza scorrere, l'entrata uno dopo l'altro;
   - menu dell'avatar con le voci nuove: "Aggiungi profilo" che apre l'accesso, la conferma in un party, niente "Aggiungi profilo" con 5 profili;
@@ -721,7 +793,9 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
   - pagina della saga;
   - vista "Saghe";
   - sezione "Saghe" della ricerca;
-  - finestra dell'immagine (schede, errori, Rimuovi disattivato senza immagine).
+  - finestra dell'immagine (`avatar_dialog_test.dart`): le tre schede e "Usa questo" solo con un avatar scelto; un avatar della galleria caricato come PNG, poi la finestra chiusa; 403 e altri errori con la finestra che resta; un 401 che la chiude; il messaggio che sparisce cambiando scheda; la finestra più piccola con l'errore (le 4 righe della galleria, avatar da 56 px); gli avatar della galleria come pulsanti con un nome; i pulsanti spenti durante il caricamento; Esc e il clic fuori che non la chiudono durante il caricamento, Esc che la chiude mentre si prepara un'immagine; un caricamento che finisce a finestra chiusa e non chiude la pagina sotto; "Dal PC" annullato, troppo grande, non valido, il ritaglio caricato come JPEG, il ritaglio che resta cambiando scheda, il trascinamento che non cambia scheda; "Rimuovi" spento senza immagine e riuscito con un'immagine; la cache degli avatar aggiornata dopo il caricamento, con gli avatar sullo schermo;
+  - gli avatar nei loro posti: il menu dell'avatar, "Chi guarda?" (immagine o iniziale; la matita di "Gestisci profili", spenta per un profilo scaduto), Impostazioni → Account ("Cambia immagine"), amici, richieste e ricerca (per id), la richiesta d'amicizia (per id), la fila e il menu del party (per nome) e gli amici da invitare (per id), la chat (per id, e lo stesso avatar finché il mittente non cambia), le sessioni dell'admin (con il tag di Jellyfin, e senza tag l'iniziale);
+  - i testi del piano (`l10n_plan17c_test.dart`).
 - **A mano, sul server vero e con l'utente:**
   - Saghe:
     - la riga su un film della Marvel e su Matrix;
@@ -743,9 +817,10 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
 
 ## 14. Rischi e punti da verificare
 
-- **Corpo di `POST /UserImage` in base64.** Si prova all'inizio del piano 17c sull'account dell'utente, con il suo ok, e poi si toglie l'immagine di prova. Se Jellyfin vuole i byte grezzi, cambia solo `UserImageApi`.
+- **Corpo di `POST /UserImage` in base64.** Verificato nel sorgente di Jellyfin 10.11.9 (`ImageController.PostUserImage` legge il corpo con `FromBase64Transform`; un altro `Content-Type` dà 400; risposta 204, §3.2), quindi non serve più una prova sull'account dell'utente prima del piano: la prova vera è quella a mano del 17c. Se Jellyfin volesse i byte grezzi, cambierebbe solo `UserImageApi`.
 - **Collezioni nel plugin.** Fatto nel piano 17a: `ICollectionManager.GetCollectionsFolder(false)` e `GetChildren(user, true, …)` sulla cartella e su ogni collezione, come fa `GET /Items?parentId=…` (§7.1). La prova a mano del 2026-10-07 (piano 17a, Task 12) ha confermato l'output del plugin con il token di un utente vero. Sul server nessun utente ha librerie ristrette o limiti parentali, quindi il caso di un titolo che un utente non può vedere è coperto solo dai test del plugin (che controllano che ogni lettura passi per l'utente).
-- **`IImageProcessor.GetImageCacheTag` per gli utenti** in Jellyfin 10.11: si verifica che dia lo stesso `PrimaryImageTag` di `/Users/Me`.
+- **`IImageProcessor.GetImageCacheTag` per gli utenti** in Jellyfin 10.11: la firma è la stessa in 10.11.0 e 10.11.9 (`null` senza immagine), e Jellyfin lo usa per `UserDto.PrimaryImageTag`. Che sul server dia lo stesso `PrimaryImageTag` di `/Users`, è **da verificare con la build di prova** del plugin 1.5.0 (piano 17c, Task 2), che non è ancora installata: sul server c'era qualcuno che guardava. Si guarda prima della prova a mano.
+- **Limiti accettati delle immagini:** in §12 (immagini non quadrate di jellyfin-web, niente zoom con due dita sul touchpad, Invio nella galleria, `refreshUser` durante un caricamento, rilettura fallita dopo un caricamento riuscito).
 - **Uscita dal party al cambio di profilo:** si verifica che il gruppo SyncPlay perda davvero il membro. Prova a mano del 2026-10-08 (piano 17b, Task 10): l'utente ha confermato che tutto funziona, cambio di profilo compreso.
 - **Due WonderFlix aperti insieme** (non di sviluppo) con lo stesso file dei profili: oggi non è un caso previsto, e resta così.
 
@@ -769,9 +844,11 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
     Il plugin non cambia. Gli avatar restano le iniziali. Realizzato: le differenze dalla prima versione di questa spec sono scritte nelle sezioni (§9.1–§9.7, §11, §12) e nella decisione 10 del piano.
   - **17c — immagini e release:**
     - endpoint `Users/Avatars` del plugin, con la funzione `avatars`;
-    - finestra dell'immagine, galleria, ritaglio, caricamento; "Modifica immagine" in "Gestisci profili" e l'avatar grande con "Cambia immagine" in Impostazioni → Account;
-    - `UserAvatar` e `avatarsProvider`, anche al posto dell'iniziale di "Chi guarda?" e del `CircleAvatar` del menu dell'avatar;
+    - finestra dell'immagine, galleria, ritaglio, caricamento; "Modifica immagine" in "Gestisci profili" e l'avatar con "Cambia immagine" in Impostazioni → Account;
+    - `UserAvatar` e la cache degli avatar (`AvatarDirectory`), anche al posto dell'iniziale di "Chi guarda?" e del `CircleAvatar` del menu dell'avatar;
     - release.
+
+    Realizzato: le differenze dalla prima versione di questa spec sono scritte nelle sezioni (§3.2, §6, §7.2, §9.4, §9.5, §10, §11, §12, §14) e nella decisione 15 del piano. La release (plugin 1.5.0 dal Catalogo, app 0.11.0) è il passo successivo, dopo la prova a mano.
 - **Release:**
   - plugin **1.5.0** (collezioni e avatar);
   - poi app **0.11.0 non obbligatoria**, con le note in italiano nella bozza.
