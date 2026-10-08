@@ -5,8 +5,10 @@ import 'package:logging/logging.dart';
 
 import '../../app/providers.dart';
 import '../../core/jellyfin/api_exception.dart';
+import '../../core/jellyfin/auth_api.dart';
 import '../../core/jellyfin/auth_models.dart';
 import '../../core/jellyfin/json_fields.dart';
+import '../../core/jellyfin/user_image_api.dart';
 import '../profiles/profile_preferences.dart';
 import 'auth_service.dart';
 import 'profiles_state.dart';
@@ -206,6 +208,50 @@ class SessionController extends Notifier<SessionState> {
       _apply(_afterLeaving());
     }
     await _forgetPreferences(userId);
+  }
+
+  /// Cambia o toglie l'immagine di un profilo salvato (spec K §10.4): con
+  /// [image] la carica, senza la toglie, con le credenziali di quel profilo.
+  /// Poi rilegge l'utente e aggiorna il profilo (e la sessione, se è quello
+  /// aperto). Dà l'utente riletto; `null` se il profilo non c'è.
+  ///
+  /// Lancia `ApiException`: 403 senza il permesso, 401 se il token non vale
+  /// più. Un profilo non aperto si segna scaduto; per quello aperto ci pensa
+  /// già il client (`_onUnauthorized`).
+  Future<JellyfinUser?> setProfileImage(String userId,
+      {ImageUpload? image}) async {
+    final client = _auth.clientFor(userId);
+    if (client == null) return null;
+    final active = _auth.activeUserId;
+    final isActive =
+        active != null && jellyfinIdKey(active) == jellyfinIdKey(userId);
+    try {
+      final images = UserImageApi(client);
+      if (image == null) {
+        await images.remove(userId);
+      } else {
+        await images.upload(userId, image);
+      }
+      final user = await AuthApi(client).getMe();
+      if (isActive) {
+        final current = state;
+        if (current is SessionSignedIn &&
+            jellyfinIdKey(current.user.id) == jellyfinIdKey(user.id)) {
+          _apply(SessionSignedIn(user));
+        }
+        await _auth.updateActiveProfile(user);
+      } else {
+        await _auth.updateStoredProfile(user);
+      }
+      _publishProfiles();
+      return user;
+    } on UnauthorizedException {
+      if (!isActive) {
+        await _auth.markProfileExpired(userId);
+        _publishProfiles();
+      }
+      rethrow;
+    }
   }
 
   Future<void> _forgetPreferences(String userId) async {

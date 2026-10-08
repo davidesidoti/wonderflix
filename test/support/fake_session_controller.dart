@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
+import 'package:wonderflix/core/jellyfin/user_image_api.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 
 class FakeSessionController extends SessionController {
@@ -103,5 +106,22 @@ class FakeSessionController extends SessionController {
     refreshUserCalls++;
     final user = refreshedUser;
     if (user != null) state = SessionSignedIn(user);
+  }
+
+  final profileImageCalls = <(String, ImageUpload?)>[];
+  Object? profileImageError;
+  Completer<void>? profileImageGate;
+
+  /// L'utente che [setProfileImage] dà, come riletto dal server.
+  JellyfinUser? profileImageResult;
+
+  @override
+  Future<JellyfinUser?> setProfileImage(String userId,
+      {ImageUpload? image}) async {
+    profileImageCalls.add((userId, image));
+    await profileImageGate?.future;
+    final error = profileImageError;
+    if (error != null) throw error;
+    return profileImageResult;
   }
 }

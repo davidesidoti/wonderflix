@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,11 +9,13 @@ import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
+import 'package:wonderflix/core/jellyfin/user_image_api.dart';
 import 'package:wonderflix/core/storage/profile_store.dart';
 import 'package:wonderflix/features/auth/auth_service.dart';
 import 'package:wonderflix/features/auth/profiles_state.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 
+import '../../support/fake_adapter.dart';
 import '../../support/profile_fakes.dart';
 import '../../support/test_data.dart';
 
@@ -592,6 +595,88 @@ void main() {
       await controller().refreshUser();
 
       expect((state() as SessionSignedIn).user.isAdministrator, isFalse);
+    });
+  });
+
+  group('setProfileImage (spec K §10.4)', () {
+    late FakeAdapter adapter;
+    late JellyfinHttp client;
+    final upload = ImageUpload(Uint8List.fromList([1, 2, 3]), 'image/png');
+
+    FakeResponse me(String id, String name, String tag) => FakeResponse(
+        200, {'Id': id, 'Name': name, 'PrimaryImageTag': tag});
+
+    setUp(() {
+      adapter = FakeAdapter((options) => options.path == '/Users/Me'
+          ? me('u1', 'Mario', 'img2')
+          : const FakeResponse(204));
+      client = JellyfinHttp(
+          baseUrl: testServerUrl, clientInfo: testClientInfo, adapter: adapter);
+      when(() => auth.updateStoredProfile(any())).thenAnswer((_) async {});
+      when(() => auth.markProfileExpired(any())).thenAnswer((_) async {});
+    });
+
+    test('profilo aperto: carica, rilegge, aggiorna la sessione e il profilo',
+        () async {
+      when(() => auth.clientFor('u1')).thenReturn(client);
+      signIn(testUser);
+
+      final user = await controller().setProfileImage('u1', image: upload);
+
+      expect(adapter.requests.map((r) => '${r.method} ${r.path}'),
+          ['POST /UserImage', 'GET /Users/Me']);
+      expect(user!.primaryImageTag, 'img2');
+      expect((state() as SessionSignedIn).user.primaryImageTag, 'img2');
+      verify(() => auth.updateActiveProfile(user)).called(1);
+      verifyNever(() => auth.updateStoredProfile(any()));
+    });
+
+    test('profilo non aperto: solo il profilo salvato', () async {
+      adapter.handler = (options) => options.path == '/Users/Me'
+          ? me('u2', 'Luigi', 'img3')
+          : const FakeResponse(204);
+      when(() => auth.clientFor('u2')).thenReturn(client);
+      final before = state();
+
+      final user = await controller().setProfileImage('u2', image: upload);
+
+      expect(user!.id, 'u2');
+      verify(() => auth.updateStoredProfile(user)).called(1);
+      expect(state(), same(before));
+    });
+
+    test('senza immagine: la toglie', () async {
+      when(() => auth.clientFor('u2')).thenReturn(client);
+
+      await controller().setProfileImage('u2');
+
+      expect(adapter.requests.first.method, 'DELETE');
+    });
+
+    test('403: lancia, e niente si aggiorna', () async {
+      adapter.handler = (_) => const FakeResponse(403);
+      when(() => auth.clientFor('u2')).thenReturn(client);
+
+      await expectLater(controller().setProfileImage('u2', image: upload),
+          throwsA(isA<ForbiddenException>()));
+      verifyNever(() => auth.updateStoredProfile(any()));
+      verifyNever(() => auth.markProfileExpired(any()));
+    });
+
+    test('401 di un profilo non aperto: scaduto, e lancia', () async {
+      adapter.handler = (_) => const FakeResponse(401);
+      when(() => auth.clientFor('u2')).thenReturn(client);
+
+      await expectLater(controller().setProfileImage('u2', image: upload),
+          throwsA(isA<UnauthorizedException>()));
+      verify(() => auth.markProfileExpired('u2')).called(1);
+    });
+
+    test('un profilo che non c\'è: niente', () async {
+      when(() => auth.clientFor('u9')).thenReturn(null);
+
+      expect(await controller().setProfileImage('u9', image: upload), isNull);
+      expect(adapter.requests, isEmpty);
     });
   });
 }

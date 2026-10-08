@@ -253,6 +253,42 @@ class AuthService {
         profile.copyWith(name: user.name, imageTag: user.primaryImageTag)));
   }
 
+  /// Il client per le chiamate del profilo [userId] (spec K §10.1): quello
+  /// principale per il profilo aperto, altrimenti uno con le credenziali del
+  /// profilo (che non segnala i 401). `null` se il profilo non c'è.
+  JellyfinHttp? clientFor(String userId) {
+    final active = _activeUserId;
+    if (active != null && jellyfinIdKey(active) == jellyfinIdKey(userId)) {
+      return _http;
+    }
+    final profile = _book.byId(userId);
+    return profile == null
+        ? null
+        : _http.withCredentials(
+            token: profile.accessToken, deviceId: profile.deviceId);
+  }
+
+  /// Nome e immagine di un profilo salvato, anche non aperto (spec K
+  /// §10.4), solo se cambiano.
+  Future<void> updateStoredProfile(JellyfinUser user) async {
+    final profile = _book.byId(user.id);
+    if (profile == null ||
+        (profile.name == user.name &&
+            profile.imageTag == user.primaryImageTag)) {
+      return;
+    }
+    await _save(_book.upsert(
+        profile.copyWith(name: user.name, imageTag: user.primaryImageTag)));
+  }
+
+  /// Un profilo non aperto il cui token il server ha rifiutato (401):
+  /// "Accedi di nuovo" in "Chi guarda?".
+  Future<void> markProfileExpired(String userId) async {
+    final profile = _book.byId(userId);
+    if (profile == null || profile.expired) return;
+    await _save(_book.upsert(profile.copyWith(expired: true)));
+  }
+
   /// Un accesso riuscito (spec K §9.2): il profilo prende il token e il
   /// [deviceId] con cui l'ha ottenuto. Lo stesso utente già salvato non fa un
   /// doppione, e il suo token vecchio si annulla. Con la [generation] di

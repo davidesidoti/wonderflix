@@ -13,6 +13,7 @@ import '../../ui/wf_buttons.dart';
 import '../../ui/wf_confirm_dialog.dart';
 import '../auth/profiles_state.dart';
 import '../auth/session_controller.dart';
+import 'avatar_dialog.dart';
 
 /// Diametro dell'avatar di un profilo in "Chi guarda?" (spec K §9.4).
 const profileAvatarSize = 120.0;
@@ -263,6 +264,26 @@ class _ProfileCard extends StatelessWidget {
                             strokeWidth: 3, color: WfColors.cream),
                       ),
                     ],
+                    if (managing)
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        child: IconButton(
+                          key: ValueKey('profile-image-${profile.userId}'),
+                          tooltip: l.profilesEditImage,
+                          style: IconButton.styleFrom(
+                              backgroundColor: WfColors.surfaceHigh),
+                          // Un profilo scaduto non ha un token valido.
+                          onPressed: profile.expired
+                              ? null
+                              : () => unawaited(showAvatarDialog(context,
+                                  userId: profile.userId,
+                                  name: name,
+                                  imageTag: profile.imageTag)),
+                          icon: const Icon(LucideIcons.pencil,
+                              color: WfColors.cream),
+                        ),
+                      ),
                     if (managing)
                       Positioned(
                         top: 0,

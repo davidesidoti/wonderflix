@@ -836,4 +836,50 @@ void main() {
       ]);
     });
   });
+
+  group('immagine del profilo (spec K §10)', () {
+    setUp(() async {
+      store.book = bookOf([mario, luigi]);
+      await service.restore();
+      when(() => anyGetMe(api)).thenAnswer((_) async => testUser);
+      await service.openProfile('u1');
+    });
+
+    test('clientFor: il client principale per il profilo aperto, '
+        'uno con le sue credenziali per gli altri', () {
+      expect(service.clientFor('U1'), same(http));
+      final other = service.clientFor('u2')!;
+      expect(other, isNot(same(http)));
+      expect(other.token, 'tok-u2');
+      expect(other.deviceId, 'dev-u2');
+      expect(service.clientFor('u9'), isNull);
+    });
+
+    test('updateStoredProfile: nome e immagine di un profilo non aperto',
+        () async {
+      final writes = store.writes;
+      const luigiNew =
+          JellyfinUser(id: 'u2', name: 'Luigi', primaryImageTag: 'img2');
+
+      await service.updateStoredProfile(luigiNew);
+      expect(store.book.byId('u2')!.imageTag, 'img2');
+
+      // Uguale: nessun salvataggio.
+      await service.updateStoredProfile(luigiNew);
+      expect(store.writes, writes + 1);
+
+      // Un utente senza profilo: niente.
+      await service.updateStoredProfile(const JellyfinUser(id: 'u9', name: 'X'));
+      expect(store.book.byId('u9'), isNull);
+    });
+
+    test('markProfileExpired: un profilo non aperto, senza toccare quello '
+        'aperto', () async {
+      await service.markProfileExpired('u2');
+
+      expect(store.book.byId('u2')!.expired, isTrue);
+      expect(service.activeUserId, 'u1');
+      expect(http.token, 'tok-u1');
+    });
+  });
 }

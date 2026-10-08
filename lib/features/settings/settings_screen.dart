@@ -9,8 +9,10 @@ import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/staggered_entrance.dart';
+import '../../ui/user_avatar.dart';
 import '../../ui/wf_buttons.dart';
 import '../auth/session_controller.dart';
+import '../profiles/avatar_dialog.dart';
 import '../profiles/profile_switch.dart';
 import 'appearance_settings_section.dart';
 import 'discord_settings_section.dart';
@@ -18,6 +20,9 @@ import 'language_settings_section.dart';
 import 'locale_controller.dart';
 import 'player_settings_section.dart';
 import 'support_section.dart';
+
+/// Diametro dell'avatar in Impostazioni → Account.
+const _accountAvatarSize = 64.0;
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -117,12 +122,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             item(6, [
               section(l.settingsAccount),
               if (session is SessionSignedIn)
-                Text(l.settingsSignedInAs(session.user.name)),
+                Row(
+                  children: [
+                    UserAvatar(
+                      userId: session.user.id,
+                      name: session.user.name,
+                      size: _accountAvatarSize,
+                      imageTag: session.user.primaryImageTag,
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                        child: Text(l.settingsSignedInAs(session.user.name))),
+                  ],
+                ),
               const SizedBox(height: 12),
               Wrap(
                 spacing: 12,
                 runSpacing: 12,
                 children: [
+                  if (session is SessionSignedIn)
+                    WfButton.secondary(
+                      label: l.settingsChangeImage,
+                      icon: LucideIcons.imagePlus,
+                      onPressed: () => unawaited(showAvatarDialog(context,
+                          userId: session.user.id,
+                          name: session.user.name,
+                          imageTag: session.user.primaryImageTag)),
+                    ),
                   WfButton.secondary(
                     label: l.profilesSwitch,
                     icon: LucideIcons.users,

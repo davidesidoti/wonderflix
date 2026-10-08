@@ -15,6 +15,7 @@ import 'package:wonderflix/features/settings/language_preferences.dart';
 import 'package:wonderflix/features/settings/locale_controller.dart';
 import 'package:wonderflix/features/settings/settings_screen.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
+import 'package:wonderflix/ui/user_avatar.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/pump_app.dart';
@@ -40,8 +41,10 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     final session = FakeSessionController(const SessionSignedIn(testUser));
+    // Alta abbastanza da avere i pulsanti dell'account (sotto l'avatar)
+    // senza scorrere.
     await pumpApp(tester, const Scaffold(body: SettingsScreen()),
-        surfaceSize: const Size(1440, 1600),
+        surfaceSize: const Size(1440, 1700),
         overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
       clientInfoProvider.overrideWithValue(testClientInfo),
@@ -52,6 +55,12 @@ void main() {
     ]);
 
     expect(find.text('Accesso come Mario'), findsOneWidget);
+    expect(find.byType(UserAvatar), findsOneWidget);
+    await tester.tap(find.text('Cambia immagine'));
+    await tester.pumpAndSettle();
+    expect(find.text('Immagine del profilo'), findsOneWidget);
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
     expect(find.text('Versione 0.0.1'), findsOneWidget);
 
     await tester.tap(find.text('English'));

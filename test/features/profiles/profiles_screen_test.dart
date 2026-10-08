@@ -338,4 +338,22 @@ void main() {
     expect(opacityOf(find.text('Chi guarda?')), 1);
     expect(opacityOf(find.text('Gestisci profili')), 1);
   });
+
+  testWidgets('Gestisci profili: la matita apre la finestra dell\'immagine; '
+      'spenta per un profilo scaduto', (tester) async {
+    await pumpProfiles(tester, [
+      testProfile(userId: 'u1', name: 'Mario'),
+      testProfile(userId: 'u2', name: 'Luigi', expired: true),
+    ]);
+    await tester.tap(find.text('Gestisci profili'));
+    await tester.pump();
+
+    final expired = tester
+        .widget<IconButton>(find.byKey(const ValueKey('profile-image-u2')));
+    expect(expired.onPressed, isNull);
+
+    await tester.tap(find.byKey(const ValueKey('profile-image-u1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Immagine del profilo'), findsOneWidget);
+  });
 }
