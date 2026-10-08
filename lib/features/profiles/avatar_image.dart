@@ -84,6 +84,36 @@ WorkingImage prepareAvatarImageSync(Uint8List bytes) {
   if (bytes.length > maxAvatarFileBytes) {
     throw const AvatarImageException(AvatarImageError.tooLarge);
   }
+  final image =
+      _toWorking(_isJpeg(bytes) ? _decodeJpeg(bytes) : _decodeOther(bytes));
+  // Il PNG di lavoro non ha l'EXIF (`encodePng` non lo scrive), e quindi
+  // nemmeno il JPEG caricato: le immagini degli utenti sono pubbliche, e
+  // l'EXIF di una foto può dire dove è stata scattata (GPS), quando e con
+  // cosa.
+  return WorkingImage(img.encodePng(image), image.width, image.height);
+}
+
+bool _isJpeg(Uint8List bytes) =>
+    bytes.length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xD8;
+
+/// Un JPEG: le dimensioni dall'intestazione ([readJpegSize]), poi una sola
+/// decodifica. Il decoder del pacchetto `image` alloca tutta l'immagine già
+/// leggendo l'intestazione (`startDecode`), anche quella dichiarata da un
+/// file rovinato.
+img.Image _decodeJpeg(Uint8List bytes) {
+  final size = readJpegSize(bytes);
+  if (size == null) {
+    throw const AvatarImageException(AvatarImageError.invalid);
+  }
+  if (size.width * size.height > maxSourcePixels) {
+    throw const AvatarImageException(AvatarImageError.tooLarge);
+  }
+  return _decodeOrInvalid(() => img.decodeJpg(bytes));
+}
+
+/// Gli altri formati (PNG, GIF, WebP, BMP): `startDecode` legge solo
+/// l'intestazione.
+img.Image _decodeOther(Uint8List bytes) {
   final header = _readHeader(bytes);
   if (header == null) {
     throw const AvatarImageException(AvatarImageError.invalid);
@@ -92,19 +122,64 @@ WorkingImage prepareAvatarImageSync(Uint8List bytes) {
   if (pixels > maxSourcePixels) {
     throw const AvatarImageException(AvatarImageError.tooLarge);
   }
+  // Di una GIF animata vale il primo fotogramma: si decodifica solo quello
+  // (con tutti, `encodePng` scriverebbe un PNG animato).
+  return _decodeOrInvalid(() => decoder.decodeFrame(0));
+}
+
+img.Image _decodeOrInvalid(img.Image? Function() decode) {
   img.Image? decoded;
   try {
-    // Di una GIF animata vale il primo fotogramma: si decodifica solo quello
-    // (con tutti, `encodePng` scriverebbe un PNG animato).
-    decoded = decoder.decodeFrame(0);
+    decoded = decode();
   } on Object {
     decoded = null;
   }
   if (decoded == null) {
     throw const AvatarImageException(AvatarImageError.invalid);
   }
-  final image = _toWorking(decoded);
-  return WorkingImage(img.encodePng(image), image.width, image.height);
+  return decoded;
+}
+
+/// I marcatori SOF di un JPEG: da C0 a CF, tranne DHT (C4), JPG (C8) e DAC
+/// (CC).
+const _jpegSofMarkers = {
+  0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, //
+  0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF,
+};
+
+/// Larghezza e altezza di un JPEG lette dal primo SOF, senza decodificare:
+/// si scorrono i segmenti dopo SOI con le loro lunghezze. `null` se
+/// l'intestazione è troncata o rovinata.
+({int width, int height})? readJpegSize(Uint8List bytes) {
+  if (!_isJpeg(bytes)) return null;
+  var i = 2;
+  while (i < bytes.length) {
+    if (bytes[i] != 0xFF) return null;
+    // I byte di riempimento (FF) prima del marcatore.
+    while (i < bytes.length && bytes[i] == 0xFF) {
+      i++;
+    }
+    if (i >= bytes.length) return null;
+    final marker = bytes[i++];
+    // Marcatori senza lunghezza: TEM e RST0-RST7.
+    if (marker == 0x01 || (marker >= 0xD0 && marker <= 0xD7)) continue;
+    // La fine dell'immagine, o i dati, prima del SOF: rovinato.
+    if (marker == 0xD9 || marker == 0xDA) return null;
+    if (i + 2 > bytes.length) return null;
+    final length = (bytes[i] << 8) | bytes[i + 1];
+    if (length < 2) return null;
+    if (_jpegSofMarkers.contains(marker)) {
+      // Dopo la lunghezza (2 byte): precisione (1), altezza (2), larghezza
+      // (2) e numero di componenti (1).
+      if (length < 8 || i + 7 > bytes.length) return null;
+      return (
+        width: (bytes[i + 5] << 8) | bytes[i + 6],
+        height: (bytes[i + 3] << 8) | bytes[i + 4],
+      );
+    }
+    i += length;
+  }
+  return null;
 }
 
 /// Il decoder del file e i pixel che dichiara la sua intestazione, senza

@@ -24,6 +24,7 @@ import '../../support/test_data.dart';
 /// Il lavoro sulle immagini, senza isolate né `toImage`.
 class _FakeTools extends AvatarImageTools {
   Object? prepareError;
+  Completer<void>? prepareGate;
   final prepared = <Uint8List>[];
   final cropped = <CropArea>[];
 
@@ -34,6 +35,7 @@ class _FakeTools extends AvatarImageTools {
   @override
   Future<WorkingImage> prepare(Uint8List bytes) async {
     prepared.add(bytes);
+    await prepareGate?.future;
     final error = prepareError;
     if (error != null) throw error;
     return WorkingImage(
@@ -252,6 +254,30 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Immagine del profilo'), findsNothing);
     expect(find.text('apri'), findsOneWidget);
+  });
+
+  testWidgets('mentre si prepara un\'immagine dal PC Esc la chiude',
+      (tester) async {
+    picked = PickedAvatarFile(
+        length: 3, read: () async => Uint8List.fromList([1, 2, 3]));
+    final gate = Completer<void>();
+    tools.prepareGate = gate;
+    await openDialog(tester);
+    await tester.tap(find.text('Dal PC'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Scegli un\'immagine…'));
+    await tester.pump();
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('Immagine del profilo'), findsNothing);
+
+    // La preparazione finisce a finestra chiusa: niente da fare.
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.text('apri'), findsOneWidget);
+    expect(session.profileImageCalls, isEmpty);
   });
 
   testWidgets('un caricamento che finisce a finestra chiusa non chiude la '

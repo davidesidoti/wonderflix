@@ -145,6 +145,10 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog>
   WorkingImage? _working;
   CropArea? _area;
   bool _busy = false;
+
+  /// Un caricamento in corso: la finestra non si chiude. Mentre si prepara
+  /// un'immagine dal PC sì ([_pick] si ferma da solo).
+  bool _uploading = false;
   String? _error;
 
   AvatarImageTools get _tools => ref.read(avatarImageToolsProvider);
@@ -185,6 +189,7 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog>
     final container = ProviderScope.containerOf(context, listen: false);
     setState(() {
       _busy = true;
+      _uploading = true;
       _error = null;
     });
     try {
@@ -210,7 +215,12 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog>
     } on Object {
       if (mounted) setState(() => _error = l.profileImageFailed);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _uploading = false;
+        });
+      }
     }
   }
 
@@ -254,7 +264,7 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog>
     final error = _error;
     // Durante il caricamento Esc e il clic fuori non la chiudono.
     return PopScope(
-      canPop: !_busy,
+      canPop: !_uploading,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

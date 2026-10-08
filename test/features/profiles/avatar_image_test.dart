@@ -35,6 +35,27 @@ Uint8List _pngDeclaring(int width, int height) {
   return bytes;
 }
 
+/// La posizione del marcatore SOF0 (`FF C0`) di un JPEG fatto da `encodeJpg`.
+int _sof0(Uint8List bytes) {
+  for (var i = 0; i < bytes.length - 1; i++) {
+    if (bytes[i] == 0xFF && bytes[i + 1] == 0xC0) return i;
+  }
+  throw StateError('nessun SOF0');
+}
+
+/// Un JPEG vero di 16×16; con [declare] il suo SOF0 dichiara un'altra
+/// larghezza e altezza.
+Uint8List _jpeg({(int, int)? declare}) {
+  final bytes = img.encodeJpg(img.Image(width: 16, height: 16));
+  if (declare != null) {
+    final sof = _sof0(bytes);
+    ByteData.sublistView(bytes)
+      ..setUint16(sof + 5, declare.$2)
+      ..setUint16(sof + 7, declare.$1);
+  }
+  return bytes;
+}
+
 /// I canali rossi, verdi e blu di un pixel, a meno delle perdite del JPEG.
 Matcher _rgb(int r, int g, int b) =>
     equals([closeTo(r, 40), closeTo(g, 40), closeTo(b, 40)]);
@@ -98,6 +119,23 @@ void main() {
           _fails(AvatarImageError.tooLarge));
     });
 
+    test('un JPEG che dichiara troppi pixel: troppo grande, subito', () {
+      final stopwatch = Stopwatch()..start();
+
+      // 65535×65535: decodificarlo, o anche solo prepararlo, vorrebbe dire
+      // allocare decine di GB.
+      expect(() => prepareAvatarImageSync(_jpeg(declare: (65535, 65535))),
+          _fails(AvatarImageError.tooLarge));
+      expect(stopwatch.elapsed, lessThan(const Duration(seconds: 1)));
+    });
+
+    test('un JPEG con l\'intestazione troncata: non valida', () {
+      final bytes = _jpeg();
+
+      expect(() => prepareAvatarImageSync(bytes.sublist(0, _sof0(bytes) + 4)),
+          _fails(AvatarImageError.invalid));
+    });
+
     test('le parti trasparenti prendono il colore di fondo dell\'app: '
         'l\'anteprima è uguale al risultato', () {
       final image = img.Image(width: 2, height: 1, numChannels: 4)
@@ -142,7 +180,50 @@ void main() {
     });
   });
 
+  group('dimensioni di un JPEG dall\'intestazione', () {
+    test('larghezza e altezza del SOF', () {
+      expect(readJpegSize(_jpeg()), (width: 16, height: 16));
+      expect(readJpegSize(_jpeg(declare: (3000, 2000))),
+          (width: 3000, height: 2000));
+    });
+
+    test('byte di riempimento e marcatori senza lunghezza prima del SOF', () {
+      final bytes = _jpeg();
+      // Dopo SOI: un riempimento (FF) e un RST0 (FF D0), poi il resto.
+      final padded = Uint8List.fromList(
+          [0xFF, 0xD8, 0xFF, 0xFF, 0xD0, ...bytes.sublist(2)]);
+
+      expect(readJpegSize(padded), (width: 16, height: 16));
+    });
+
+    test('troncata o rovinata: nessuna dimensione', () {
+      final bytes = _jpeg();
+      final sof = _sof0(bytes);
+
+      expect(readJpegSize(bytes.sublist(0, sof + 6)), isNull);
+      expect(readJpegSize(bytes.sublist(0, sof)), isNull);
+      expect(readJpegSize(Uint8List.fromList([0xFF, 0xD8, 0x00, 0x00])),
+          isNull);
+      expect(readJpegSize(Uint8List.fromList([0xFF, 0xD8])), isNull);
+    });
+  });
+
   group('ritaglio', () {
+    test('l\'EXIF non arriva mai al JPEG caricato (anche il GPS)', () {
+      final photo = img.Image(width: 300, height: 200);
+      photo.exif.imageIfd.orientation = 6;
+      photo.exif.imageIfd['Make'] = 'Fotocamera';
+      photo.exif.gpsIfd[0x0001] = img.IfdValueAscii('N');
+      photo.exif.gpsIfd[0x0002] = img.IfdValueRational(45, 1);
+      final source = img.encodeJpg(photo);
+      expect(img.decodeJpg(source)!.exif.gpsIfd.isEmpty, isFalse);
+
+      final working = prepareAvatarImageSync(source);
+      final jpeg = cropAvatarImageSync(working.bytes, const CropArea(0, 0, 200));
+
+      expect(img.decodeJpg(jpeg)!.exif.isEmpty, isTrue);
+    });
+
     test('un JPEG di 512×512', () {
       final working = prepareAvatarImageSync(_png(400, 200));
 
