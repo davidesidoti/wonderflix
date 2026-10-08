@@ -553,5 +553,7 @@
   "profilesLimit": "Up to 5 profiles",
   "profilesCancel": "Cancel",
   "profilesSwitch": "Switch profile",
-  "profilesSwitchLeavesParty": "You'll leave the watch party."
+  "profilesSwitchLeavesParty": "You'll leave the watch party.",
+  "profilesRemoveNamed": "Remove {name}",
+  "profilesUnnamed": "Profile"
 }

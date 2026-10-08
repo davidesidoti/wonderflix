@@ -126,7 +126,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   WfButton.secondary(
                     label: l.profilesSwitch,
                     icon: LucideIcons.users,
-                    onPressed: () => unawaited(switchProfile(context, ref)),
+                    onPressed: () => unawaited(changeProfile(context, ref)),
                   ),
                   WfButton.secondary(
                     label: l.menuLogout,

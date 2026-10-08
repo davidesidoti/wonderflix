@@ -662,5 +662,8 @@
   "profilesLimit": "Massimo 5 profili",
   "profilesCancel": "Annulla",
   "profilesSwitch": "Cambia profilo",
-  "profilesSwitchLeavesParty": "Uscirai dal watch party."
+  "profilesSwitchLeavesParty": "Uscirai dal watch party.",
+  "profilesRemoveNamed": "Rimuovi {name}",
+  "@profilesRemoveNamed": {"placeholders": {"name": {"type": "String"}}},
+  "profilesUnnamed": "Profilo"
 }

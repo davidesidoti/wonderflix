@@ -18,29 +18,40 @@ const partyLeaveTimeout = Duration(seconds: 3);
 /// Cambia profilo, o ne aggiunge uno con [addProfile] (spec K §9.5, §9.7). In
 /// un watch party chiede conferma ed esce dal gruppo: il token del profilo
 /// non si annulla, quindi il party non si chiuderebbe da solo.
-Future<void> switchProfile(BuildContext context, WidgetRef ref,
+///
+/// Un cambio confermato si fa anche se chi l'ha chiesto (il menu, le
+/// Impostazioni) sparisce mentre si esce dal party; non si fa se nel
+/// frattempo la sessione è cambiata (un'uscita, un 401).
+Future<void> changeProfile(BuildContext context, WidgetRef ref,
     {bool addProfile = false}) async {
+  // Tutto quello che serve dopo le attese si legge prima: dopo, `ref` e
+  // `context` possono non valere più.
+  final container = ProviderScope.containerOf(context, listen: false);
+  final session = ref.read(sessionControllerProvider.notifier);
+  final before = ref.read(sessionControllerProvider);
+  final userId = before is SessionSignedIn ? before.user.id : null;
   if (ref.read(watchPartySessionProvider).phase != WatchPartyPhase.none) {
+    final party = ref.read(watchPartySessionProvider.notifier);
     final l = AppLocalizations.of(context);
+    final action = addProfile ? l.profilesAdd : l.profilesSwitch;
     final confirmed = await showWfConfirmDialog(
       context,
-      title: l.profilesSwitch,
+      title: action,
       message: l.profilesSwitchLeavesParty,
-      confirmLabel: l.profilesSwitch,
+      confirmLabel: action,
       cancelLabel: l.profilesCancel,
     );
-    if (!confirmed || !context.mounted) return;
+    if (!confirmed) return;
     try {
-      await ref
-          .read(watchPartySessionProvider.notifier)
-          .leave()
-          .timeout(partyLeaveTimeout);
+      await party.leave().timeout(partyLeaveTimeout);
     } on TimeoutException {
       _log.info('uscita dal watch party lenta: si cambia profilo lo stesso');
     }
-    if (!context.mounted) return;
+    final now = container.read(sessionControllerProvider);
+    if (userId == null || now is! SessionSignedIn || now.user.id != userId) {
+      return;
+    }
   }
-  final session = ref.read(sessionControllerProvider.notifier);
   if (addProfile) {
     session.addProfile();
   } else {

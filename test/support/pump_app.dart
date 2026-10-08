@@ -72,21 +72,36 @@ Future<void> pumpAppRouter(
   GoRouter router, {
   List<Override> overrides = const [],
   Size surfaceSize = const Size(1440, 900),
-}) async {
+}) {
   addTearDown(router.dispose);
+  return pumpAppRouterOf(tester, (_) => router,
+      overrides: overrides, surfaceSize: surfaceSize);
+}
+
+/// Come [pumpAppRouter], ma il router si legge con [router] dallo stesso
+/// `ProviderScope` dei provider (per esempio `routerProvider`, che segue la
+/// sessione e si chiude con lo scope).
+Future<void> pumpAppRouterOf(
+  WidgetTester tester,
+  GoRouter Function(WidgetRef ref) router, {
+  List<Override> overrides = const [],
+  Size surfaceSize = const Size(1440, 900),
+}) async {
   await tester.binding.setSurfaceSize(surfaceSize);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(ProviderScope(
     overrides: _baseOverrides(carouselAutoplay: false, overrides: overrides),
     retry: (_, _) => null,
-    child: MaterialApp.router(
-      routerConfig: router,
-      theme: buildWonderflixTheme(),
-      locale: const Locale('it'),
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      builder: (context, child) => WfMotionScope(
-          motion: const WfMotion(MotionLevel.reduced), child: child!),
+    child: Consumer(
+      builder: (context, ref, _) => MaterialApp.router(
+        routerConfig: router(ref),
+        theme: buildWonderflixTheme(),
+        locale: const Locale('it'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        builder: (context, child) => WfMotionScope(
+            motion: const WfMotion(MotionLevel.reduced), child: child!),
+      ),
     ),
   ));
   await tester.pump();

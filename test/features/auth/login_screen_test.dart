@@ -8,12 +8,28 @@ import 'package:wonderflix/core/storage/profile_store.dart';
 import 'package:wonderflix/features/auth/auth_providers.dart';
 import 'package:wonderflix/features/auth/login_screen.dart';
 import 'package:wonderflix/features/auth/profiles_state.dart';
+import 'package:wonderflix/features/auth/quick_connect_flow.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/ui/staggered_entrance.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/profile_fakes.dart';
 import '../../support/pump_app.dart';
+
+/// Quick Connect che non arriva mai al codice: registra quante
+/// preparazioni dell'accesso c'erano state quando è partito.
+class _RecordingRunner implements QuickConnectRunner {
+  _RecordingRunner(this.prepareCalls);
+
+  final int Function() prepareCalls;
+  final prepareCallsAtRun = <int>[];
+
+  @override
+  Stream<QcState> run() {
+    prepareCallsAtRun.add(prepareCalls());
+    return const Stream.empty();
+  }
+}
 
 void main() {
   Future<FakeSessionController> pumpLogin(
@@ -123,6 +139,24 @@ void main() {
     expect(fake.prepareLoginCalls, 1);
     // Senza profili: niente "Annulla".
     expect(find.byKey(const Key('login-cancel')), findsNothing);
+  });
+
+  testWidgets('Quick Connect parte dopo la preparazione dell\'accesso',
+      (tester) async {
+    final fake = FakeSessionController(const SessionSignedOut());
+    final runner = _RecordingRunner(() => fake.prepareLoginCalls);
+    await pumpApp(tester, const LoginScreen(), overrides: [
+      sessionControllerProvider.overrideWith(() => fake),
+      quickConnectEnabledProvider.overrideWith((ref) async => true),
+      quickConnectRunnerProvider.overrideWithValue(runner),
+    ]);
+    await tester.pump();
+    await tester.tap(find.text('Quick Connect'));
+    // Il pannello resta sullo spinner: niente pumpAndSettle.
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    // Il codice si chiede con il DeviceId nuovo dell'accesso.
+    expect(runner.prepareCallsAtRun, [1]);
   });
 
   testWidgets('aggiungere un profilo: "Annulla" torna a "Chi guarda?"',

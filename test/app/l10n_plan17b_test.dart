@@ -18,9 +18,13 @@ void main() {
     expect(it.profilesCancel, 'Annulla');
     expect(it.profilesSwitch, 'Cambia profilo');
     expect(it.profilesSwitchLeavesParty, 'Uscirai dal watch party.');
+    expect(it.profilesRemoveNamed('Luigi'), 'Rimuovi Luigi');
+    expect(it.profilesUnnamed, 'Profilo');
     expect(en.profilesTitle, 'Who\'s watching?');
     expect(en.profilesRemoveTitle('Luigi'), 'Remove Luigi from this PC?');
     expect(en.profilesSwitch, 'Switch profile');
+    expect(en.profilesRemoveNamed('Luigi'), 'Remove Luigi');
+    expect(en.profilesUnnamed, 'Profile');
 
     // Ogni testo del piano c'è in tutte e due le lingue.
     for (final l in [it, en]) {
@@ -36,6 +40,8 @@ void main() {
         l.profilesCancel,
         l.profilesSwitch,
         l.profilesSwitchLeavesParty,
+        l.profilesRemoveNamed('Luigi'),
+        l.profilesUnnamed,
       ], everyElement(isNotEmpty));
     }
   });

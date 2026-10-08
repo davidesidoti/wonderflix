@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../app/theme.dart';
 import '../../core/storage/profile_store.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/staggered_entrance.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_confirm_dialog.dart';
 import '../auth/profiles_state.dart';
@@ -21,6 +22,31 @@ const _cardWidth = 150.0;
 /// Opacità dell'avatar di un profilo scaduto.
 const _expiredOpacity = 0.45;
 
+/// Opacità del velo scuro sull'avatar del profilo che si apre: sull'oro lo
+/// spinner non si vedrebbe.
+const _openingScrimAlpha = 0.55;
+
+// Misure verticali: con queste "Chi guarda?" sta tutta nella finestra più
+// piccola (1024×640, circa 600 px utili) senza scorrere, anche con un
+// profilo scaduto ("Accedi di nuovo" sotto il nome).
+
+/// Lato del logo (è quadrato).
+const _logoSize = 140.0;
+
+/// Margine intorno al contenuto.
+const _padding = 24.0;
+
+/// Distanza tra il logo e il titolo, e tra le card e "Gestisci profili".
+const _gap = 24.0;
+
+/// Distanza tra il titolo e le card.
+const _titleGap = 28.0;
+
+/// Il nome da mostrare: un profilo migrato il cui primo `/Users/Me` non è
+/// riuscito non ha ancora un nome.
+String _displayName(AppLocalizations l, StoredProfile profile) =>
+    profile.name.isEmpty ? l.profilesUnnamed : profile.name;
+
 /// "Chi guarda?" (spec K §9.4): i profili del PC, "Aggiungi profilo" e
 /// "Gestisci profili". La lingua è quella dell'ultimo profilo usato.
 class ProfilesScreen extends ConsumerStatefulWidget {
@@ -34,13 +60,14 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
   bool _managing = false;
 
   /// Il profilo che si sta aprendo: intanto gli altri clic non fanno niente.
+  /// Le card restano attive (il fuoco resta dov'è): è [_open] a ignorarli.
   String? _opening;
 
   SessionController get _session =>
       ref.read(sessionControllerProvider.notifier);
 
   Future<void> _open(StoredProfile profile) async {
-    if (_opening != null) return;
+    if (_opening != null || _managing) return;
     if (profile.expired) {
       _session.relogin(profile.userId);
       return;
@@ -57,7 +84,7 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
     final l = AppLocalizations.of(context);
     final confirmed = await showWfConfirmDialog(
       context,
-      title: l.profilesRemoveTitle(profile.name),
+      title: l.profilesRemoveTitle(_displayName(l, profile)),
       message: l.profilesRemoveBody,
       confirmLabel: l.profilesRemove,
       cancelLabel: l.profilesCancel,
@@ -66,52 +93,98 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
     await _session.removeProfile(profile.userId);
   }
 
+  void _setManaging(bool managing) => setState(() => _managing = managing);
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final book = ref.watch(profilesProvider.select((p) => p.book));
     final idle = _opening == null;
-    return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Image.asset('assets/brand/logo.png', width: 200),
-              const SizedBox(height: 32),
-              Text(l.profilesTitle, style: WfText.display(48)),
-              const SizedBox(height: 32),
-              Wrap(
-                spacing: 24,
-                runSpacing: 24,
-                alignment: WrapAlignment.center,
-                children: [
-                  for (final profile in book.profiles)
-                    _ProfileCard(
-                      key: ValueKey('profile-${profile.userId}'),
-                      profile: profile,
-                      managing: _managing,
-                      opening: _opening == profile.userId,
-                      onOpen: idle && !_managing
-                          ? () => unawaited(_open(profile))
-                          : null,
-                      onRemove: () => unawaited(_remove(profile)),
+    // Il fuoco parte dall'ultimo profilo usato, altrimenti dal primo: Invio
+    // lo apre subito.
+    final last = book.lastUserId;
+    final focusUserId = (last == null ? null : book.byId(last)?.userId) ??
+        book.profiles.firstOrNull?.userId;
+    return Actions(
+      actions: {
+        // Esc in "Gestisci profili" fa come "Fine".
+        if (_managing)
+          DismissIntent: CallbackAction<DismissIntent>(onInvoke: (_) {
+            _setManaging(false);
+            return null;
+          }),
+      },
+      // Il fuoco resta nella schermata: la card che lo aveva si spegne in
+      // "Gestisci profili", ed Esc deve arrivare lo stesso.
+      child: FocusScope(
+        child: Scaffold(
+          body: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(_padding),
+              // Il logo, il titolo, le card e "Gestisci profili", uno dopo
+              // l'altro come nel login (spec C §11.3).
+              child: StaggerGroup(
+                count: 4,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    StaggerItem(
+                      index: 0,
+                      // Con l'altezza fissa niente scatto quando l'immagine
+                      // arriva.
+                      child: Image.asset('assets/brand/logo.png',
+                          width: _logoSize, height: _logoSize),
                     ),
-                  if (!book.isFull && !_managing)
-                    _AddProfileCard(onTap: idle ? _session.addProfile : null),
-                ],
-              ),
-              const SizedBox(height: 32),
-              if (!book.isEmpty)
-                WfButton.secondary(
-                  label: _managing ? l.profilesDone : l.profilesManage,
-                  icon: _managing ? LucideIcons.check : LucideIcons.pencil,
-                  onPressed: idle
-                      ? () => setState(() => _managing = !_managing)
-                      : null,
+                    const SizedBox(height: _gap),
+                    StaggerItem(
+                      index: 1,
+                      child: Text(l.profilesTitle, style: WfText.display(48)),
+                    ),
+                    const SizedBox(height: _titleGap),
+                    StaggerItem(
+                      index: 2,
+                      child: Wrap(
+                        spacing: 24,
+                        runSpacing: 24,
+                        alignment: WrapAlignment.center,
+                        children: [
+                          for (final profile in book.profiles)
+                            _ProfileCard(
+                              key: ValueKey('profile-${profile.userId}'),
+                              profile: profile,
+                              managing: _managing,
+                              opening: _opening == profile.userId,
+                              autofocus: !_managing &&
+                                  profile.userId == focusUserId,
+                              onOpen: _managing
+                                  ? null
+                                  : () => unawaited(_open(profile)),
+                              onRemove: () => unawaited(_remove(profile)),
+                            ),
+                          if (!book.isFull && !_managing)
+                            _AddProfileCard(
+                                key: const ValueKey('profile-add'),
+                                onTap: idle ? _session.addProfile : null),
+                        ],
+                      ),
+                    ),
+                    if (!book.isEmpty) ...[
+                      const SizedBox(height: _gap),
+                      StaggerItem(
+                        index: 3,
+                        child: WfButton.secondary(
+                          label: _managing ? l.profilesDone : l.profilesManage,
+                          icon:
+                              _managing ? LucideIcons.check : LucideIcons.pencil,
+                          onPressed:
+                              idle ? () => _setManaging(!_managing) : null,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-            ],
+              ),
+            ),
           ),
         ),
       ),
@@ -120,12 +193,14 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
 }
 
 /// Un profilo: avatar (iniziale) e nome. Si apre con il clic o con Invio.
+/// Per lo screen reader è un pulsante con il nome.
 class _ProfileCard extends StatelessWidget {
   const _ProfileCard({
     super.key,
     required this.profile,
     required this.managing,
     required this.opening,
+    required this.autofocus,
     required this.onOpen,
     required this.onRemove,
   });
@@ -133,65 +208,95 @@ class _ProfileCard extends StatelessWidget {
   final StoredProfile profile;
   final bool managing;
   final bool opening;
+  final bool autofocus;
   final VoidCallback? onOpen;
   final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    return SizedBox(
-      width: _cardWidth,
-      child: InkWell(
-        onTap: onOpen,
-        borderRadius: BorderRadius.circular(12),
-        focusColor: WfColors.gold.withValues(alpha: 0.18),
-        hoverColor: WfColors.gold.withValues(alpha: 0.08),
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  Opacity(
-                    opacity: profile.expired ? _expiredOpacity : 1,
-                    child: _InitialAvatar(name: profile.name),
-                  ),
-                  if (opening)
-                    const SizedBox(
-                      width: 40,
-                      height: 40,
-                      child: CircularProgressIndicator(strokeWidth: 3),
-                    ),
-                  if (managing)
-                    Positioned(
-                      top: 0,
-                      right: 0,
-                      child: IconButton(
-                        key: ValueKey('profile-remove-${profile.userId}'),
-                        tooltip: l.profilesRemove,
-                        style: IconButton.styleFrom(
-                            backgroundColor: WfColors.surfaceHigh),
-                        onPressed: onRemove,
-                        icon: const Icon(LucideIcons.trash2,
-                            color: WfColors.cream),
+    final name = _displayName(l, profile);
+    return Semantics(
+      container: true,
+      button: true,
+      label: name,
+      hint: profile.expired ? l.profilesSignInAgain : null,
+      child: SizedBox(
+        width: _cardWidth,
+        child: InkWell(
+          onTap: onOpen,
+          autofocus: autofocus,
+          borderRadius: BorderRadius.circular(12),
+          focusColor: WfColors.gold.withValues(alpha: 0.18),
+          hoverColor: WfColors.gold.withValues(alpha: 0.08),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Il nome lo dice già la card.
+                    ExcludeSemantics(
+                      child: Opacity(
+                        opacity: profile.expired ? _expiredOpacity : 1,
+                        child: _InitialAvatar(name: profile.name),
                       ),
                     ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(profile.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w600)),
-              if (profile.expired)
-                Text(l.profilesSignInAgain,
-                    style:
-                        const TextStyle(color: WfColors.gold, fontSize: 12.5)),
-            ],
+                    if (opening) ...[
+                      Container(
+                        key: ValueKey('profile-opening-${profile.userId}'),
+                        width: profileAvatarSize,
+                        height: profileAvatarSize,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: WfColors.bg.withValues(alpha: _openingScrimAlpha),
+                        ),
+                      ),
+                      const SizedBox(
+                        width: 40,
+                        height: 40,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 3, color: WfColors.cream),
+                      ),
+                    ],
+                    if (managing)
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: IconButton(
+                          key: ValueKey('profile-remove-${profile.userId}'),
+                          tooltip: l.profilesRemoveNamed(name),
+                          style: IconButton.styleFrom(
+                              backgroundColor: WfColors.surfaceHigh),
+                          onPressed: onRemove,
+                          icon: const Icon(LucideIcons.trash2,
+                              color: WfColors.cream),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ExcludeSemantics(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600)),
+                      if (profile.expired)
+                        Text(l.profilesSignInAgain,
+                            style: const TextStyle(
+                                color: WfColors.gold, fontSize: 12.5)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -220,40 +325,47 @@ class _InitialAvatar extends StatelessWidget {
 
 /// "Aggiungi profilo": un cerchio con il più.
 class _AddProfileCard extends StatelessWidget {
-  const _AddProfileCard({required this.onTap});
+  const _AddProfileCard({super.key, required this.onTap});
 
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: _cardWidth,
-      child: InkWell(
-        key: const ValueKey('profile-add'),
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        focusColor: WfColors.gold.withValues(alpha: 0.18),
-        hoverColor: WfColors.gold.withValues(alpha: 0.08),
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: profileAvatarSize,
-                height: profileAvatarSize,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: WfColors.border, width: 2),
-                ),
-                child: const Icon(LucideIcons.plus,
-                    size: 40, color: WfColors.creamMuted),
+    final label = AppLocalizations.of(context).profilesAdd;
+    return Semantics(
+      container: true,
+      button: true,
+      label: label,
+      child: SizedBox(
+        width: _cardWidth,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          focusColor: WfColors.gold.withValues(alpha: 0.18),
+          hoverColor: WfColors.gold.withValues(alpha: 0.08),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: ExcludeSemantics(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: profileAvatarSize,
+                    height: profileAvatarSize,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: WfColors.border, width: 2),
+                    ),
+                    child: const Icon(LucideIcons.plus,
+                        size: 40, color: WfColors.creamMuted),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(label,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: WfColors.creamMuted)),
+                ],
               ),
-              const SizedBox(height: 12),
-              Text(AppLocalizations.of(context).profilesAdd,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: WfColors.creamMuted)),
-            ],
+            ),
           ),
         ),
       ),

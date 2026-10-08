@@ -367,9 +367,9 @@ class _UserMenu extends ConsumerWidget {
           case 'admin':
             openAdmin(context);
           case 'switch':
-            unawaited(switchProfile(context, ref));
+            unawaited(changeProfile(context, ref));
           case 'add':
-            unawaited(switchProfile(context, ref, addProfile: true));
+            unawaited(changeProfile(context, ref, addProfile: true));
           case 'logout':
             unawaited(ref.read(sessionControllerProvider.notifier).logout());
         }
