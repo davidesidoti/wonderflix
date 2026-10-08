@@ -196,6 +196,59 @@ void main() {
       expect(readJpegSize(padded), (width: 16, height: 16));
     });
 
+    test('un JPEG progressivo (SOF2), e i segmenti che il decoder salta per '
+        'lunghezza (COM, DRI)', () {
+      final bytes = _jpeg();
+      final progressive = Uint8List.fromList(bytes)..[_sof0(bytes) + 1] = 0xC2;
+      expect(readJpegSize(progressive), (width: 16, height: 16));
+
+      final withSegments = Uint8List.fromList([
+        0xFF, 0xD8, //
+        0xFF, 0xFE, 0x00, 0x05, 0x61, 0x62, 0x63, // COM "abc"
+        0xFF, 0xDD, 0x00, 0x04, 0x00, 0x00, // DRI
+        ...bytes.sublist(2),
+      ]);
+      expect(readJpegSize(withSegments), (width: 16, height: 16));
+      // Il decoder fa la stessa strada: il file si decodifica.
+      expect(prepareAvatarImageSync(withSegments).width, 16);
+    });
+
+    test('un SOF nascosto dietro FF 00: nessuna dimensione, e subito "non '
+        'valida"', () {
+      // Un SOF0 che dichiara 12000×12000.
+      const hidden = [
+        0xFF, 0xC0, 0x00, 0x11, 0x08, 0x2E, 0xE0, 0x2E, 0xE0, //
+        0x03, 0x01, 0x11, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01,
+      ];
+      // Letto come lunghezza, "FF 00 00 LL" salterebbe il SOF nascosto e
+      // arriverebbe al JPEG vero di 16×16; il decoder invece salta FF 00
+      // cercando il prossimo FF, e trova il SOF nascosto.
+      final crafted = Uint8List.fromList([
+        0xFF, 0xD8, 0xFF, 0x00, 0x00, 2 + hidden.length, //
+        ...hidden,
+        ..._jpeg().sublist(2),
+      ]);
+
+      expect(readJpegSize(crafted), isNull);
+      final stopwatch = Stopwatch()..start();
+      expect(() => prepareAvatarImageSync(crafted),
+          _fails(AvatarImageError.invalid));
+      expect(stopwatch.elapsed, lessThan(const Duration(seconds: 1)));
+    });
+
+    test('un marcatore che il decoder non legge per lunghezza, anche con una '
+        'lunghezza giusta: nessuna dimensione', () {
+      final rest = _jpeg().sublist(2);
+      for (final marker in [
+        0x00, 0xD8, 0xC8, 0xCC, 0xDC, 0xDE, 0xDF, 0xF0, 0xFD, //
+      ]) {
+        final crafted = Uint8List.fromList(
+            [0xFF, 0xD8, 0xFF, marker, 0x00, 0x04, 0xAA, 0xBB, ...rest]);
+        expect(readJpegSize(crafted), isNull,
+            reason: 'marcatore ${marker.toRadixString(16)}');
+      }
+    });
+
     test('troncata o rovinata: nessuna dimensione', () {
       final bytes = _jpeg();
       final sof = _sof0(bytes);

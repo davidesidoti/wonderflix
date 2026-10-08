@@ -147,9 +147,24 @@ const _jpegSofMarkers = {
   0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF,
 };
 
+/// I segmenti che il decoder del pacchetto `image` salta per la loro
+/// lunghezza, come [readJpegSize]: DHT, DQT, DRI, APP0-APP15 e COM.
+bool _isJpegLengthSegment(int marker) =>
+    marker == 0xC4 ||
+    marker == 0xDB ||
+    marker == 0xDD ||
+    (marker >= 0xE0 && marker <= 0xEF) ||
+    marker == 0xFE;
+
 /// Larghezza e altezza di un JPEG lette dal primo SOF, senza decodificare:
 /// si scorrono i segmenti dopo SOI con le loro lunghezze. `null` se
 /// l'intestazione è troncata o rovinata.
+///
+/// Prima del SOF valgono solo i marcatori che il decoder legge allo stesso
+/// modo (per lunghezza, o senza lunghezza). Gli altri il decoder li salta a
+/// modo suo (FF 00 cercando il prossimo FF, un marcatore sconosciuto
+/// tornando indietro di qualche byte): potrebbe trovare un SOF che qui non
+/// si è visto, e allocare l'immagine che dichiara.
 ({int width, int height})? readJpegSize(Uint8List bytes) {
   if (!_isJpeg(bytes)) return null;
   var i = 2;
@@ -163,12 +178,14 @@ const _jpegSofMarkers = {
     final marker = bytes[i++];
     // Marcatori senza lunghezza: TEM e RST0-RST7.
     if (marker == 0x01 || (marker >= 0xD0 && marker <= 0xD7)) continue;
-    // La fine dell'immagine, o i dati, prima del SOF: rovinato.
-    if (marker == 0xD9 || marker == 0xDA) return null;
+    // Tutto il resto (anche la fine dell'immagine, o i dati, prima del SOF):
+    // rovinato.
+    final isSof = _jpegSofMarkers.contains(marker);
+    if (!isSof && !_isJpegLengthSegment(marker)) return null;
     if (i + 2 > bytes.length) return null;
     final length = (bytes[i] << 8) | bytes[i + 1];
     if (length < 2) return null;
-    if (_jpegSofMarkers.contains(marker)) {
+    if (isSof) {
       // Dopo la lunghezza (2 byte): precisione (1), altezza (2), larghezza
       // (2) e numero di componenti (1).
       if (length < 8 || i + 7 > bytes.length) return null;
