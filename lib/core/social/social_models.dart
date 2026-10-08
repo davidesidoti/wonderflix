@@ -20,6 +20,9 @@ abstract final class PluginFeatures {
 
   /// Le saghe, cioè le collezioni di Jellyfin (spec K §7.1).
   static const collections = 'collections';
+
+  /// Le immagini degli altri utenti (spec K §7.2).
+  static const avatars = 'avatars';
 }
 
 /// Risposta di `GET /WonderFlixWatchParty/Info`, con le funzioni.

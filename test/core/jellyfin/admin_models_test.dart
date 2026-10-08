@@ -6,6 +6,16 @@ import '../../support/admin_json.dart';
 
 void main() {
   group('sessioni', () {
+    test('il tag dell\'immagine dell\'utente, se c\'è', () {
+      final sessions = parseSessions([
+        {'Id': 's1', 'UserId': 'u1', 'UserName': 'Mario', 'UserPrimaryImageTag': 'img1'},
+        {'Id': 's2', 'UserId': 'u2', 'UserName': 'Luigi'},
+      ]);
+
+      expect(sessions[0].userImageTag, 'img1');
+      expect(sessions[1].userImageTag, isNull);
+    });
+
     test('legge le sessioni e scarta quelle senza utente', () {
       final sessions = parseSessions(sessionsJson);
 

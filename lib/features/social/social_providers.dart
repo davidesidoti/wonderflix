@@ -23,6 +23,7 @@ class SocialFeatures {
     this.inbox = false,
     this.requests = false,
     this.collections = false,
+    this.avatars = false,
     this.known = true,
   });
 
@@ -47,6 +48,10 @@ class SocialFeatures {
   /// Le saghe (spec K §8.1): non dipendono dai watch party.
   final bool collections;
 
+  /// Le immagini degli altri utenti (spec K §10.5): non dipendono dai watch
+  /// party.
+  final bool avatars;
+
   /// `false` finché `Info` non dà una risposta certa: le funzioni, oppure
   /// un 400/401/403/404. Un errore di rete non basta (vedi
   /// [SocialAvailability]).
@@ -60,16 +65,17 @@ class SocialFeatures {
       other.inbox == inbox &&
       other.requests == requests &&
       other.collections == collections &&
+      other.avatars == avatars &&
       other.known == known;
 
   @override
-  int get hashCode =>
-      Object.hash(friends, parties, inbox, requests, collections, known);
+  int get hashCode => Object.hash(
+      friends, parties, inbox, requests, collections, avatars, known);
 
   @override
   String toString() => 'SocialFeatures(friends: $friends, parties: $parties, '
       'inbox: $inbox, requests: $requests, collections: $collections, '
-      'known: $known)';
+      'avatars: $avatars, known: $known)';
 }
 
 /// Chiede `Info` al plugin dopo il login e a ogni connessione del WebSocket,
@@ -165,6 +171,7 @@ class SocialAvailability extends Notifier<SocialFeatures> {
         inbox: info.features.contains(PluginFeatures.inbox),
         requests: info.features.contains(PluginFeatures.requests),
         collections: info.features.contains(PluginFeatures.collections),
+        avatars: info.features.contains(PluginFeatures.avatars),
       ));
     } on SocialException catch (error) {
       if (!_isCurrent(generation)) return;

@@ -83,4 +83,9 @@ void main() {
         'https://media.example.com/jf/Items/c1/Images/Primary?tag=t1&maxWidth=400&quality=90');
     expect(urls.primaryWithTag('c1', 't1', maxWidth: 300).url, contains('maxWidth=300'));
   });
+
+  test('immagine di un utente: con il tag, senza ridimensionare', () {
+    expect(urls.user('u1', 't1').url,
+        'https://media.example.com/jf/UserImage?userId=u1&tag=t1');
+  });
 }

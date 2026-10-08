@@ -115,6 +115,7 @@ class SessionEntry {
     required this.id,
     required this.userId,
     required this.userName,
+    this.userImageTag,
     this.client,
     this.deviceName,
     this.lastActivity,
@@ -138,6 +139,7 @@ class SessionEntry {
       id: id,
       userId: userId,
       userName: jsonString(json, 'UserName') ?? '',
+      userImageTag: jsonString(json, 'UserPrimaryImageTag'),
       client: jsonString(json, 'Client'),
       deviceName: jsonString(json, 'DeviceName'),
       lastActivity: jsonDate(json, 'LastActivityDate'),
@@ -152,6 +154,9 @@ class SessionEntry {
   final String id;
   final String userId;
   final String userName;
+
+  /// Tag dell'immagine dell'utente (spec K §10.5); `null` senza immagine.
+  final String? userImageTag;
   final String? client;
   final String? deviceName;
   final DateTime? lastActivity;

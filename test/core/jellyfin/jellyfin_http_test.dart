@@ -220,4 +220,12 @@ void main() {
       expect(adapter.closeCount, 1);
     });
   });
+
+  test('post con un corpo che non è JSON: il suo Content-Type', () async {
+    await http.post('/UserImage', body: 'QUJD', contentType: 'image/png');
+
+    final request = adapter.requests.last;
+    expect(request.data, 'QUJD');
+    expect(request.contentType, 'image/png');
+  });
 }

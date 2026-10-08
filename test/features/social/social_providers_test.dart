@@ -92,6 +92,17 @@ void main() {
         const SocialFeatures(collections: true));
   });
 
+  test('Info con gli avatar: funzione avatars, anche senza watch party',
+      () async {
+    api.install(features: const {PluginFeatures.avatars});
+    final c = container(
+        session: const SessionSignedIn(JellyfinUser(
+            id: 'u1', name: 'Mario', syncPlayAccess: SyncPlayAccess.none)));
+    await pumpEventQueue();
+    expect(c.read(socialAvailabilityProvider),
+        const SocialFeatures(avatars: true));
+  });
+
   test('Info con gli amici: funzione attiva', () async {
     api.install();
     final c = container();
