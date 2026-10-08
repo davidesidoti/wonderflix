@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
@@ -21,6 +22,7 @@ void main() {
   late MockAuthService auth;
   late JellyfinHttp http;
   late ProviderContainer container;
+  late SharedPreferences prefs;
 
   final twoProfiles = const ProfileBook()
       .upsert(testProfile(userId: 'u1'))
@@ -33,17 +35,23 @@ void main() {
 
   setUpAll(() => registerFallbackValue(testUser));
 
-  setUp(() {
+  setUp(() async {
     auth = MockAuthService();
     when(() => auth.book).thenReturn(const ProfileBook());
     when(() => auth.activeUserId).thenReturn(null);
     when(() => auth.updateActiveProfile(any())).thenAnswer((_) async {});
     when(() => auth.markActiveExpired()).thenAnswer((_) async {});
     http = JellyfinHttp(baseUrl: testServerUrl, clientInfo: testClientInfo);
+    SharedPreferences.setMockInitialValues({
+      'profile.u1.locale': 'en',
+      'profile.u2.locale': 'it',
+    });
+    prefs = await SharedPreferences.getInstance();
     container = ProviderContainer.test(
       overrides: [
         authServiceProvider.overrideWithValue(auth),
         jellyfinHttpProvider.overrideWithValue(http),
+        sharedPreferencesProvider.overrideWithValue(prefs),
       ],
       retry: (_, _) => null,
     );
@@ -229,6 +237,19 @@ void main() {
       verify(() => auth.removeProfile('u2')).called(1);
       expect(state(), isA<SessionChoosingProfile>());
       expect(profiles().book.profiles.single.userId, 'u1');
+    });
+
+    test('logout e rimozione cancellano le preferenze del profilo', () async {
+      when(() => auth.logout()).thenAnswer((_) async => 'u1');
+      when(() => auth.removeProfile('u2')).thenAnswer((_) async {});
+      controller().quickConnectApproved(testUser);
+
+      await controller().logout();
+      expect(prefs.containsKey('profile.u1.locale'), isFalse);
+      expect(prefs.getString('profile.u2.locale'), 'it');
+
+      await controller().removeProfile('u2');
+      expect(prefs.containsKey('profile.u2.locale'), isFalse);
     });
   });
 

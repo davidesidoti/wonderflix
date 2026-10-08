@@ -6,6 +6,7 @@ import 'package:logging/logging.dart';
 import '../../app/providers.dart';
 import '../../core/jellyfin/api_exception.dart';
 import '../../core/jellyfin/auth_models.dart';
+import '../profiles/profile_preferences.dart';
 import 'auth_service.dart';
 import 'profiles_state.dart';
 
@@ -126,18 +127,21 @@ class SessionController extends Notifier<SessionState> {
   /// apre l'accesso del profilo che si sta togliendo.
   bool _leaving = false;
 
-  /// "Esci" (spec K §9.5): il profilo aperto si toglie dal PC.
+  /// "Esci" (spec K §9.5): il profilo aperto si toglie dal PC, con le sue
+  /// preferenze.
   Future<void> logout() async {
     _leaving = true;
+    final String? removed;
     try {
-      await _auth.logout();
+      removed = await _auth.logout();
     } finally {
       _leaving = false;
     }
+    if (removed != null) await _forgetPreferences(removed);
     _apply(_afterLeaving());
   }
 
-  /// "Rimuovi" in "Gestisci profili" (spec K §9.4).
+  /// "Rimuovi" in "Gestisci profili" (spec K §9.4), con le preferenze.
   Future<void> removeProfile(String userId) async {
     _leaving = true;
     try {
@@ -145,7 +149,18 @@ class SessionController extends Notifier<SessionState> {
     } finally {
       _leaving = false;
     }
+    await _forgetPreferences(userId);
     _apply(_afterLeaving());
+  }
+
+  Future<void> _forgetPreferences(String userId) async {
+    try {
+      await ProfilePreferences.removeProfile(
+          ref.read(sharedPreferencesProvider), userId);
+    } on Object catch (error) {
+      _log.warning('preferenze del profilo non cancellate: '
+          '${error.runtimeType}');
+    }
   }
 
   /// La rilettura dell'utente in corso, se c'è.

@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../app/providers.dart';
+import '../profiles/profile_preferences.dart';
 
-/// Preferenze della Rich Presence di Discord, salvate su questo PC.
+/// Preferenze della Rich Presence di Discord, del profilo (spec K §9.6).
 class DiscordSettings {
   const DiscordSettings({
     this.enabled = true,
@@ -35,7 +35,7 @@ class DiscordSettingsController extends Notifier<DiscordSettings> {
 
   @override
   DiscordSettings build() {
-    final prefs = ref.watch(sharedPreferencesProvider);
+    final prefs = ref.watch(profilePreferencesProvider);
     const defaults = DiscordSettings();
     return DiscordSettings(
       enabled: prefs.getBool(_enabled) ?? defaults.enabled,
@@ -46,7 +46,7 @@ class DiscordSettingsController extends Notifier<DiscordSettings> {
 
   Future<void> update(DiscordSettings next) async {
     state = next;
-    final prefs = ref.read(sharedPreferencesProvider);
+    final prefs = ref.read(profilePreferencesProvider);
     await Future.wait([
       prefs.setBool(_enabled, next.enabled),
       prefs.setBool(_showTitle, next.showTitle),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../core/jellyfin/device_profile.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../profiles/profile_preferences.dart';
 
 /// Qualità massima dello streaming. Sotto il bitrate del file il server
 /// converte il video.
@@ -30,7 +31,8 @@ String subtitleScaleLabel(AppLocalizations l, double scale) => switch (scale) {
       _ => l.settingsSubtitleNormal,
     };
 
-/// Preferenze del player salvate su questo PC.
+/// Preferenze del player: qualità e decodifica del PC, il resto del profilo
+/// (spec K §9.6).
 class PlayerSettings {
   const PlayerSettings({
     this.quality = StreamQuality.original,
@@ -71,9 +73,11 @@ class PlayerSettingsController extends Notifier<PlayerSettings> {
 
   @override
   PlayerSettings build() {
+    // Qualità e decodifica sono del PC; il resto è del profilo (spec K §9.6).
     final prefs = ref.watch(sharedPreferencesProvider);
+    final profile = ref.watch(profilePreferencesProvider);
     const defaults = PlayerSettings();
-    final scale = prefs.getDouble(_subtitleScale);
+    final scale = profile.getDouble(_subtitleScale);
     return PlayerSettings(
       quality: StreamQuality.values.asNameMap()[prefs.getString(_quality)] ??
           defaults.quality,
@@ -82,20 +86,21 @@ class PlayerSettingsController extends Notifier<PlayerSettings> {
       subtitleScale: scale != null && subtitleScaleOptions.contains(scale)
           ? scale
           : defaults.subtitleScale,
-      autoSkipIntro: prefs.getBool(_autoSkipIntro) ?? defaults.autoSkipIntro,
-      autoplayNext: prefs.getBool(_autoplayNext) ?? defaults.autoplayNext,
+      autoSkipIntro: profile.getBool(_autoSkipIntro) ?? defaults.autoSkipIntro,
+      autoplayNext: profile.getBool(_autoplayNext) ?? defaults.autoplayNext,
     );
   }
 
   Future<void> update(PlayerSettings next) async {
     state = next;
     final prefs = ref.read(sharedPreferencesProvider);
+    final profile = ref.read(profilePreferencesProvider);
     await Future.wait([
       prefs.setString(_quality, next.quality.name),
       prefs.setBool(_hardwareDecoding, next.hardwareDecoding),
-      prefs.setDouble(_subtitleScale, next.subtitleScale),
-      prefs.setBool(_autoSkipIntro, next.autoSkipIntro),
-      prefs.setBool(_autoplayNext, next.autoplayNext),
+      profile.setDouble(_subtitleScale, next.subtitleScale),
+      profile.setBool(_autoSkipIntro, next.autoSkipIntro),
+      profile.setBool(_autoplayNext, next.autoplayNext),
     ]);
   }
 }
