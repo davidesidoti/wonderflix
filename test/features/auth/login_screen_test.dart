@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
+import 'package:wonderflix/core/storage/profile_store.dart';
 import 'package:wonderflix/features/auth/auth_providers.dart';
 import 'package:wonderflix/features/auth/login_screen.dart';
+import 'package:wonderflix/features/auth/profiles_state.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/ui/staggered_entrance.dart';
 
 import '../../support/fake_session_controller.dart';
+import '../../support/profile_fakes.dart';
 import '../../support/pump_app.dart';
 
 void main() {
@@ -19,15 +22,26 @@ void main() {
     Object? loginError,
     bool quickConnect = false,
     MotionLevel motion = MotionLevel.reduced,
+    List<StoredProfile> profiles = const [],
   }) async {
     final fake = FakeSessionController(initial, loginError: loginError);
+    final book = profiles.fold(const ProfileBook(), (b, p) => b.upsert(p));
     await pumpApp(tester, const LoginScreen(), motion: motion, overrides: [
       sessionControllerProvider.overrideWith(() => fake),
       quickConnectEnabledProvider.overrideWith((ref) async => quickConnect),
+      profilesProvider
+          .overrideWith(() => FixedProfiles(ProfilesState(book: book))),
     ]);
     await tester.pump();
     return fake;
   }
+
+  /// Il campo con la chiave [key] ha il fuoco.
+  bool hasFocus(WidgetTester tester, String key) => tester
+      .widget<EditableText>(find.descendant(
+          of: find.byKey(Key(key)), matching: find.byType(EditableText)))
+      .focusNode
+      .hasFocus;
 
   testWidgets('invia nome utente e password', (tester) async {
     final fake = await pumpLogin(tester);
@@ -102,5 +116,69 @@ void main() {
     // Senza Quick Connect nessuno spinner: nessuna animazione continua.
     await tester.pumpAndSettle();
     expect(panelOpacity(), 1);
+  });
+
+  testWidgets('aprendo il login si prepara l\'accesso', (tester) async {
+    final fake = await pumpLogin(tester);
+    expect(fake.prepareLoginCalls, 1);
+    // Senza profili: niente "Annulla".
+    expect(find.byKey(const Key('login-cancel')), findsNothing);
+  });
+
+  testWidgets('aggiungere un profilo: "Annulla" torna a "Chi guarda?"',
+      (tester) async {
+    final fake = await pumpLogin(tester,
+        initial: const SessionSignedOut(adding: true),
+        profiles: [testProfile(userId: 'u1')]);
+    await tester.tap(find.byKey(const Key('login-cancel')));
+    await tester.pump();
+    expect(fake.cancelLoginCalls, 1);
+  });
+
+  testWidgets('accedi di nuovo: nome già scritto, avviso, "Annulla"',
+      (tester) async {
+    await pumpLogin(tester,
+        initial: const SessionSignedOut(expired: true, reloginUserId: 'u2'),
+        profiles: [
+          testProfile(userId: 'u1'),
+          testProfile(userId: 'u2', name: 'Luigi', expired: true),
+        ]);
+    expect(find.text('Sessione scaduta, accedi di nuovo.'), findsOneWidget);
+    final username = tester.widget<TextField>(
+        find.byKey(const Key('login-username')));
+    expect(username.controller!.text, 'Luigi');
+    // Con il nome già scritto il fuoco va alla password.
+    expect(hasFocus(tester, 'login-password'), isTrue);
+    expect(find.byKey(const Key('login-cancel')), findsOneWidget);
+  });
+
+  testWidgets('accedi di nuovo senza nome salvato: il fuoco al nome',
+      (tester) async {
+    // Un profilo migrato il cui primo `/Users/Me` non è riuscito.
+    await pumpLogin(tester,
+        initial: const SessionSignedOut(expired: true, reloginUserId: 'u1'),
+        profiles: [testProfile(userId: 'u1', name: '', expired: true)]);
+    final username = tester.widget<TextField>(
+        find.byKey(const Key('login-username')));
+    expect(username.controller!.text, isEmpty);
+    expect(hasFocus(tester, 'login-username'), isTrue);
+    expect(hasFocus(tester, 'login-password'), isFalse);
+  });
+
+  testWidgets('accedi di nuovo con un solo profilo: niente "Annulla"',
+      (tester) async {
+    await pumpLogin(tester,
+        initial: const SessionSignedOut(expired: true, reloginUserId: 'u1'),
+        profiles: [testProfile(userId: 'u1', expired: true)]);
+    expect(find.byKey(const Key('login-cancel')), findsNothing);
+  });
+
+  testWidgets('sesto profilo: "Massimo 5 profili"', (tester) async {
+    await pumpLogin(tester, loginError: const ProfileLimitException());
+    await tester.enterText(find.byKey(const Key('login-username')), 'toad');
+    await tester.enterText(find.byKey(const Key('login-password')), 'x');
+    await tester.tap(find.byKey(const Key('login-submit')));
+    await tester.pump();
+    expect(find.text('Massimo 5 profili'), findsOneWidget);
   });
 }

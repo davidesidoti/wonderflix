@@ -6,18 +6,47 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/staggered_entrance.dart';
 import 'auth_providers.dart';
 import 'password_login_form.dart';
+import 'profiles_state.dart';
 import 'quick_connect_panel.dart';
 import 'session_controller.dart';
 
-class LoginScreen extends ConsumerWidget {
+/// Accesso (spec K §9.3): il primo, un profilo nuovo ("Aggiungi profilo") o
+/// uno scaduto ("Accedi di nuovo", con il nome già scritto).
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends ConsumerState<LoginScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Prima dei figli: Quick Connect chiede il codice con il DeviceId del
+    // profilo (spec K §9.2).
+    ref.read(sessionControllerProvider.notifier).prepareLogin();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final session = ref.watch(sessionControllerProvider);
     final quickConnectAsync = ref.watch(quickConnectEnabledProvider);
-    final expired = session is SessionSignedOut && session.expired;
+    final book = ref.watch(profilesProvider.select((p) => p.book));
+    final signedOut = session is SessionSignedOut ? session : null;
+    final expired = signedOut?.expired ?? false;
+    final reloginId = signedOut?.reloginUserId;
+    final reloginName = reloginId == null ? null : book.byId(reloginId)?.name;
+    // "Annulla" torna a "Chi guarda?": solo se c'è un altro profilo da
+    // scegliere.
+    final canCancel = ((signedOut?.adding ?? false) && !book.isEmpty) ||
+        (reloginId != null && book.profiles.length > 1);
+    // Un profilo migrato senza nome (il primo `/Users/Me` non è riuscito):
+    // il nome si scrive, e il fuoco resta lì.
+    final form = PasswordLoginForm(
+        initialUsername:
+            (reloginName == null || reloginName.isEmpty) ? null : reloginName);
 
     return Scaffold(
       body: Center(
@@ -59,7 +88,8 @@ class LoginScreen extends ConsumerWidget {
                               child: SizedBox(
                                 width: 28,
                                 height: 28,
-                                child: CircularProgressIndicator(strokeWidth: 2.5),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2.5),
                               ),
                             ),
                           )
@@ -79,18 +109,28 @@ class LoginScreen extends ConsumerWidget {
                                   ],
                                 ),
                                 const SizedBox(height: 16),
-                                const SizedBox(
+                                SizedBox(
                                   height: 300,
                                   child: TabBarView(children: [
-                                    PasswordLoginForm(),
-                                    QuickConnectPanel(),
+                                    form,
+                                    const QuickConnectPanel(),
                                   ]),
                                 ),
                               ],
                             ),
                           )
                         else
-                          const PasswordLoginForm(),
+                          form,
+                        if (canCancel) ...[
+                          const SizedBox(height: 8),
+                          TextButton(
+                            key: const Key('login-cancel'),
+                            onPressed: ref
+                                .read(sessionControllerProvider.notifier)
+                                .cancelLogin,
+                            child: Text(l.profilesCancel),
+                          ),
+                        ],
                       ],
                     ),
                   ),

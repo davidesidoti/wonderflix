@@ -11,14 +11,18 @@ import '../../l10n/gen/app_localizations.dart';
 import 'session_controller.dart';
 
 class PasswordLoginForm extends ConsumerStatefulWidget {
-  const PasswordLoginForm({super.key});
+  const PasswordLoginForm({super.key, this.initialUsername});
+
+  /// Il nome già scritto ("Accedi di nuovo", spec K §9.3): il fuoco va alla
+  /// password.
+  final String? initialUsername;
 
   @override
   ConsumerState<PasswordLoginForm> createState() => _PasswordLoginFormState();
 }
 
 class _PasswordLoginFormState extends ConsumerState<PasswordLoginForm> {
-  final _username = TextEditingController();
+  late final _username = TextEditingController(text: widget.initialUsername);
   final _password = TextEditingController();
   bool _busy = false;
   String? _error;
@@ -63,7 +67,7 @@ class _PasswordLoginFormState extends ConsumerState<PasswordLoginForm> {
         TextField(
           key: const Key('login-username'),
           controller: _username,
-          autofocus: true,
+          autofocus: widget.initialUsername == null,
           textInputAction: TextInputAction.next,
           decoration: InputDecoration(hintText: l.loginUsername),
         ),
@@ -71,6 +75,7 @@ class _PasswordLoginFormState extends ConsumerState<PasswordLoginForm> {
         TextField(
           key: const Key('login-password'),
           controller: _password,
+          autofocus: widget.initialUsername != null,
           obscureText: true,
           onSubmitted: (_) => unawaited(_submit()),
           decoration: InputDecoration(hintText: l.loginPassword),
