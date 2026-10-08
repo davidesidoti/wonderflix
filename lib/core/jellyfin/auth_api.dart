@@ -19,8 +19,10 @@ class AuthApi {
       parseJson(await _http.get('/Users/Me', quietStatuses: quietStatuses),
           JellyfinUser.fromJson);
 
-  Future<void> logout() async {
-    await _http.post('/Sessions/Logout');
+  /// [quietStatuses] come in [getMe] (per esempio il 401 di un token già
+  /// scaduto).
+  Future<void> logout({Set<int> quietStatuses = const {}}) async {
+    await _http.post('/Sessions/Logout', quietStatuses: quietStatuses);
   }
 
   Future<bool> quickConnectEnabled() async =>

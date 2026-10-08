@@ -17,14 +17,45 @@ import '../../support/test_data.dart';
 
 class MockAuthApi extends Mock implements AuthApi {}
 
+/// `getMe` e `logout` con qualunque esito atteso (`quietStatuses`).
+Future<JellyfinUser> anyGetMe(MockAuthApi api) =>
+    api.getMe(quietStatuses: any(named: 'quietStatuses'));
+Future<void> anyLogout(MockAuthApi api) =>
+    api.logout(quietStatuses: any(named: 'quietStatuses'));
+
 /// Uno storage che non riesce a salvare i profili.
 class _UnwritableProfileStore implements ProfileStore {
   @override
   Future<ProfileBook> read() async => const ProfileBook();
 
   @override
-  Future<void> write(ProfileBook book) async =>
+  Future<ProfileBook> write(ProfileBook book) async =>
       throw StateError('scrittura fallita');
+}
+
+/// In memoria, con le scritture che falliscono finché [failWrites] è vero.
+class _FlakyProfileStore extends MemoryProfileStore {
+  bool failWrites = false;
+
+  @override
+  Future<ProfileBook> write(ProfileBook book) async {
+    if (failWrites) throw StateError('scrittura fallita');
+    return super.write(book);
+  }
+}
+
+/// Uno storage che, salvando, aggiunge i profili che aveva (come dopo una
+/// lettura non riuscita).
+class _RecoveringProfileStore extends MemoryProfileStore {
+  _RecoveringProfileStore(this.recovered);
+
+  final StoredProfile recovered;
+
+  @override
+  Future<ProfileBook> write(ProfileBook book) =>
+      super.write(book.byId(recovered.userId) == null
+          ? book.upsert(recovered)
+          : book);
 }
 
 void main() {
@@ -48,7 +79,7 @@ void main() {
   setUp(() {
     api = MockAuthApi();
     revokeApi = MockAuthApi();
-    when(() => revokeApi.logout()).thenAnswer((_) async {});
+    when(() => anyLogout(revokeApi)).thenAnswer((_) async {});
     revoked = [];
     newDeviceIds = 0;
     http = JellyfinHttp(baseUrl: testServerUrl, clientInfo: testClientInfo);
@@ -68,13 +99,13 @@ void main() {
   group('restore', () {
     test('nessun profilo: NoStoredSession, nessuna chiamata', () async {
       expect(await service.restore(), isA<NoStoredSession>());
-      verifyNever(() => api.getMe());
+      verifyNever(() => anyGetMe(api));
     });
 
     test('un profilo valido: le sue credenziali, nome e immagine aggiornati',
         () async {
       store.book = bookOf([mario.copyWith(name: '')]);
-      when(() => api.getMe()).thenAnswer((_) async =>
+      when(() => anyGetMe(api)).thenAnswer((_) async =>
           const JellyfinUser(id: 'u1', name: 'Mario', primaryImageTag: 'img1'));
 
       final result = await withClock(Clock.fixed(now), service.restore);
@@ -93,7 +124,7 @@ void main() {
 
     test('un profilo scaduto (401): segnato, credenziali tolte', () async {
       store.book = bookOf([mario]);
-      when(() => api.getMe()).thenThrow(const UnauthorizedException());
+      when(() => anyGetMe(api)).thenThrow(const UnauthorizedException());
 
       final result = await service.restore();
 
@@ -106,7 +137,7 @@ void main() {
 
     test('un profilo e server giù: irraggiungibile, profilo intatto', () async {
       store.book = bookOf([mario]);
-      when(() => api.getMe()).thenThrow(const ServerUnreachableException());
+      when(() => anyGetMe(api)).thenThrow(const ServerUnreachableException());
 
       expect(await service.restore(), isA<RestoreServerUnreachable>());
       expect(store.book.byId('u1')!.expired, isFalse);
@@ -115,7 +146,7 @@ void main() {
 
     test('errore 500: come irraggiungibile, profilo intatto', () async {
       store.book = bookOf([mario]);
-      when(() => api.getMe()).thenThrow(const ServerErrorException(500));
+      when(() => anyGetMe(api)).thenThrow(const ServerErrorException(500));
 
       expect(await service.restore(), isA<RestoreServerUnreachable>());
       expect(store.book.byId('u1')!.accessToken, 'tok-u1');
@@ -124,7 +155,7 @@ void main() {
     test('due profili: si sceglie, nessuna chiamata', () async {
       store.book = bookOf([mario, luigi]);
       expect(await service.restore(), isA<ChooseProfile>());
-      verifyNever(() => api.getMe());
+      verifyNever(() => anyGetMe(api));
       expect(service.book.profiles, hasLength(2));
     });
   });
@@ -136,7 +167,7 @@ void main() {
     });
 
     test('apre il profilo scelto con le sue credenziali', () async {
-      when(() => api.getMe()).thenAnswer(
+      when(() => anyGetMe(api)).thenAnswer(
           (_) async => const JellyfinUser(id: 'u2', name: 'Luigi'));
 
       final result = await service.openProfile('u2');
@@ -149,7 +180,7 @@ void main() {
 
     test('un profilo che non c\'è: di nuovo la scelta', () async {
       expect(await service.openProfile('u9'), isA<ChooseProfile>());
-      verifyNever(() => api.getMe());
+      verifyNever(() => anyGetMe(api));
     });
   });
 
@@ -321,7 +352,7 @@ void main() {
       });
 
       test('da un profilo aperto: il profilo aperto resta', () async {
-        when(() => api.getMe()).thenAnswer(
+        when(() => anyGetMe(api)).thenAnswer(
             (_) async => const JellyfinUser(id: 'u2', name: 'Luigi'));
 
         final login = service.loginWithPassword('peach', 'pw');
@@ -339,7 +370,7 @@ void main() {
       test('da un profilo che si sta aprendo: il profilo aperto resta',
           () async {
         final me = Completer<JellyfinUser>();
-        when(() => api.getMe()).thenAnswer((_) => me.future);
+        when(() => anyGetMe(api)).thenAnswer((_) => me.future);
 
         final login = service.loginWithPassword('peach', 'pw');
         final opening = service.openProfile('u2');
@@ -355,7 +386,7 @@ void main() {
 
       test('per un utente con un profilo valido, aperto: il profilo resta, '
           'il token nuovo si annulla', () async {
-        when(() => api.getMe()).thenAnswer((_) async => testUser);
+        when(() => anyGetMe(api)).thenAnswer((_) async => testUser);
 
         final login = service.loginWithPassword('mario', 'pw');
         await service.openProfile('u1');
@@ -471,7 +502,7 @@ void main() {
       expect(store.book.byId('u1')!.accessToken, 'tok-nuovo');
       // Il token vecchio, con le sue credenziali.
       expect(revoked, [('tok-u1', 'dev-u1')]);
-      verify(() => revokeApi.logout()).called(1);
+      verify(() => anyLogout(revokeApi)).called(1);
     });
 
     test('sesto profilo: rifiutato, token nuovo annullato, niente salvato',
@@ -540,17 +571,17 @@ void main() {
     Future<void> openMario() async {
       store.book = bookOf([mario, luigi]);
       await service.restore();
-      when(() => api.getMe()).thenAnswer((_) async => testUser);
+      when(() => anyGetMe(api)).thenAnswer((_) async => testUser);
       await service.openProfile('u1');
     }
 
     test('logout: token annullato, profilo tolto, id restituito', () async {
       await openMario();
-      when(() => api.logout()).thenAnswer((_) async {});
+      when(() => anyLogout(api)).thenAnswer((_) async {});
 
       expect(await service.logout(), 'u1');
 
-      verify(() => api.logout()).called(1);
+      verify(() => anyLogout(api)).called(1);
       expect(store.book.byId('u1'), isNull);
       expect(store.book.byId('u2'), isNotNull);
       expect(http.token, isNull);
@@ -559,7 +590,7 @@ void main() {
 
     test('logout con il server giù: il profilo si toglie lo stesso', () async {
       await openMario();
-      when(() => api.logout()).thenThrow(const ServerUnreachableException());
+      when(() => anyLogout(api)).thenThrow(const ServerUnreachableException());
 
       expect(await service.logout(), 'u1');
       expect(store.book.byId('u1'), isNull);
@@ -567,7 +598,7 @@ void main() {
 
     test('logout senza profilo attivo: niente', () async {
       expect(await service.logout(), isNull);
-      verifyNever(() => api.logout());
+      verifyNever(() => anyLogout(api));
     });
 
     test('removeProfile di un altro profilo: con le sue credenziali', () async {
@@ -584,11 +615,11 @@ void main() {
 
     test('removeProfile del profilo attivo: come logout', () async {
       await openMario();
-      when(() => api.logout()).thenAnswer((_) async {});
+      when(() => anyLogout(api)).thenAnswer((_) async {});
 
       await service.removeProfile('u1');
 
-      verify(() => api.logout()).called(1);
+      verify(() => anyLogout(api)).called(1);
       expect(store.book.byId('u1'), isNull);
       expect(http.token, isNull);
     });
@@ -596,7 +627,7 @@ void main() {
     test('removeProfile con il server giù: il profilo si toglie lo stesso',
         () async {
       await openMario();
-      when(() => revokeApi.logout())
+      when(() => anyLogout(revokeApi))
           .thenThrow(const ServerUnreachableException());
 
       await service.removeProfile('u2');
@@ -607,7 +638,7 @@ void main() {
       await openMario();
       // Il server non risponde mai (giù, fino al timeout della connessione).
       final never = Completer<void>();
-      when(() => revokeApi.logout()).thenAnswer((_) => never.future);
+      when(() => anyLogout(revokeApi)).thenAnswer((_) => never.future);
 
       var done = false;
       unawaited(service.removeProfile('u2').then((_) => done = true));
@@ -621,7 +652,7 @@ void main() {
     test('removeProfile: un errore qualsiasi dell\'annullamento si ignora',
         () async {
       await openMario();
-      when(() => revokeApi.logout())
+      when(() => anyLogout(revokeApi))
           .thenAnswer((_) async => throw StateError('x'));
 
       await service.removeProfile('u2');
@@ -668,6 +699,54 @@ void main() {
       await service.updateActiveProfile(
           const JellyfinUser(id: 'u2', name: 'Altro'));
       expect(store.book.byId('u2')!.name, 'Luigi');
+    });
+  });
+
+  group('lo storage', () {
+    test('i profili che lo storage recupera salvando valgono subito', () async {
+      final recovering = _RecoveringProfileStore(luigi);
+      final service = AuthService(http: http, api: api, store: recovering);
+      final seen = <ProfileBook>[];
+      service.onProfilesChanged = () => seen.add(service.book);
+      when(() => api.authenticateByName('mario', 'pw')).thenAnswer((_) async =>
+          const AuthResult(user: testUser, accessToken: 'tok-nuovo'));
+
+      await service.loginWithPassword('mario', 'pw');
+
+      expect(service.book.profiles.map((p) => p.userId), ['u1', 'u2']);
+      expect(service.book.lastUserId, 'u1');
+      expect(seen.last.byId('u2'), isNotNull);
+    });
+
+    test('restore dopo un salvataggio non riuscito: i profili in memoria '
+        'restano', () async {
+      final flaky = _FlakyProfileStore()..failWrites = true;
+      final service = AuthService(http: http, api: api, store: flaky);
+      when(() => api.authenticateByName('mario', 'pw')).thenAnswer((_) async =>
+          const AuthResult(user: testUser, accessToken: 'tok-nuovo'));
+      when(() => anyGetMe(api)).thenAnswer((_) async => testUser);
+      await service.loginWithPassword('mario', 'pw');
+      expect(flaky.book.isEmpty, isTrue);
+
+      // Lo storage non salva ancora: il profilo resta lo stesso.
+      expect(await service.restore(), isA<RestoredSession>());
+      expect(http.token, 'tok-nuovo');
+      expect(flaky.book.isEmpty, isTrue);
+    });
+
+    test('restore dopo un salvataggio non riuscito: si riprova a salvare',
+        () async {
+      final flaky = _FlakyProfileStore()..failWrites = true;
+      final service = AuthService(http: http, api: api, store: flaky);
+      when(() => api.authenticateByName('mario', 'pw')).thenAnswer((_) async =>
+          const AuthResult(user: testUser, accessToken: 'tok-nuovo'));
+      when(() => anyGetMe(api)).thenAnswer((_) async => testUser);
+      await service.loginWithPassword('mario', 'pw');
+
+      flaky.failWrites = false;
+      expect(await service.restore(), isA<RestoredSession>());
+
+      expect(flaky.book.byId('u1')!.accessToken, 'tok-nuovo');
     });
   });
 
@@ -728,6 +807,33 @@ void main() {
 
       expect(await service.restore(), isA<RestoreServerUnreachable>());
       expect(httpLog(), [(Level.WARNING, 'GET /Users/Me: 503')]);
+    });
+
+    test('un profilo scaduto: il 401 di /Users/Me è un\'info', () async {
+      adapter.handler = (_) => const FakeResponse(401);
+      final service = realService(MemoryProfileStore(bookOf([mario])));
+
+      expect(await service.restore(), isA<StoredSessionExpired>());
+      expect(httpLog(), [(Level.INFO, 'GET /Users/Me: 401')]);
+    });
+
+    test('annullare un token già scaduto: il 401 è un\'info', () async {
+      adapter.handler = (options) => options.path == '/Users/Me'
+          ? const FakeResponse(200, {'Id': 'u1', 'Name': 'Mario'})
+          : const FakeResponse(401);
+      final service = realService(MemoryProfileStore(bookOf([mario, luigi])));
+      await service.restore();
+      await service.openProfile('u1');
+
+      // Il token di un altro profilo, poi quello del profilo aperto.
+      await service.removeProfile('u2');
+      await pumpEventQueue();
+      await service.logout();
+
+      expect(httpLog(), [
+        (Level.INFO, 'POST /Sessions/Logout: 401'),
+        (Level.INFO, 'POST /Sessions/Logout: 401'),
+      ]);
     });
   });
 }

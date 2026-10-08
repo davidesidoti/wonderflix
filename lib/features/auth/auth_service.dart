@@ -13,6 +13,10 @@ import '../../core/storage/profile_store.dart';
 
 final _log = Logger('auth');
 
+/// Il 401 di un token scaduto (aprendo un profilo, annullando un token) è un
+/// esito atteso: nel log come info, non tra gli errori della diagnostica.
+const _expiredTokenStatuses = {401};
+
 sealed class RestoreResult {
   const RestoreResult();
 }
@@ -66,6 +70,10 @@ class AuthService {
   ProfileBook _book = const ProfileBook();
   String? _activeUserId;
 
+  /// L'ultimo salvataggio non è riuscito: i profili in memoria sono più
+  /// nuovi di quelli dello storage.
+  bool _unsaved = false;
+
   /// Cresce a ogni cambio delle credenziali del client (uscita, accesso
   /// preparato, profilo aperto, accesso riuscito): un accesso partito prima
   /// non le tocca più.
@@ -82,9 +90,17 @@ class AuthService {
   /// salva): l'interfaccia li rilegge.
   void Function()? onProfilesChanged;
 
+  /// Riparte dai profili (spec K §9.3): nessuno → accesso, uno → si apre,
+  /// più di uno → "Chi guarda?".
   Future<RestoreResult> restore() async {
     _deactivate();
-    _book = await _store.read();
+    if (_unsaved) {
+      // Rileggere lo storage perderebbe i profili che non ha salvato: si
+      // tengono quelli in memoria e si riprova a salvarli.
+      await _save(_book);
+    } else {
+      _book = await _store.read();
+    }
     return switch (_book.profiles.length) {
       0 => const NoStoredSession(),
       1 => await openProfile(_book.profiles.single.userId),
@@ -108,7 +124,7 @@ class AuthService {
     _http.setCredentials(
         token: profile.accessToken, deviceId: profile.deviceId);
     try {
-      final user = await _api.getMe();
+      final user = await _api.getMe(quietStatuses: _expiredTokenStatuses);
       _activeUserId = profile.userId;
       await _save(_book
           .upsert(profile.copyWith(
@@ -181,7 +197,7 @@ class AuthService {
       return null;
     }
     try {
-      await _api.logout();
+      await _api.logout(quietStatuses: _expiredTokenStatuses);
     } on ApiException catch (error) {
       // Il token resta solo sul server: qui si dimentica comunque.
       _log.info('token non annullato: ${error.runtimeType}');
@@ -269,8 +285,8 @@ class AuthService {
     if (generation != _generation) {
       // Mentre si aspettava il server il client è cambiato ("Annulla", un
       // profilo aperto, un altro accesso preparato o già riuscito): le
-      // credenziali sono di un altro. Il profilo si salva e compare in "Chi guarda?",
-      // ma non si apre e non diventa l'ultimo usato.
+      // credenziali sono di un altro. Il profilo si salva e compare in "Chi
+      // guarda?", ma non si apre e non diventa l'ultimo usato.
       if (existing != null && !existing.expired) {
         // Accesso superato per un utente con un profilo valido (forse
         // aperto, o che si sta aprendo, con il token vecchio): il profilo
@@ -303,7 +319,7 @@ class AuthService {
   Future<void> _revoke(String token, String deviceId) async {
     try {
       await _apiFor(_http.withCredentials(token: token, deviceId: deviceId))
-          .logout();
+          .logout(quietStatuses: _expiredTokenStatuses);
     } on Object catch (error) {
       _log.info('token non annullato: ${error.runtimeType}');
     }
@@ -318,11 +334,15 @@ class AuthService {
   Future<void> _save(ProfileBook book) async {
     _book = book;
     try {
-      await _store.write(book);
+      final written = await _store.write(book);
+      // Lo storage può aggiungere i profili che aveva (dopo una lettura non
+      // riuscita): valgono subito, se intanto i profili non sono cambiati.
+      if (identical(_book, book)) _book = written;
+      _unsaved = false;
     } on Object catch (error) {
       // Lo storage non salva: i profili valgono lo stesso per questa
-      // esecuzione, e la sessione non si rompe. Al prossimo avvio si legge
-      // l'ultimo elenco salvato.
+      // esecuzione, e la sessione non si rompe; `restore` li tiene.
+      _unsaved = true;
       _log.warning('profili non salvati: ${error.runtimeType}');
     }
     onProfilesChanged?.call();

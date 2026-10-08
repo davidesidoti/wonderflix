@@ -147,6 +147,24 @@ void main() {
       await controller().openProfile('u2');
       expect(state(), isA<SessionUnreachable>());
     });
+
+    test('server giù → Unreachable, con il profilo da riprovare', () async {
+      when(() => auth.openProfile('u2'))
+          .thenAnswer((_) async => const RestoreServerUnreachable());
+      await controller().openProfile('u2');
+      expect((state() as SessionUnreachable).retryUserId, 'u2');
+
+      when(() => auth.openProfile('u2')).thenThrow(StateError('boom'));
+      await controller().openProfile('u2');
+      expect((state() as SessionUnreachable).retryUserId, 'u2');
+    });
+
+    test('restore con il server giù: niente profilo da riprovare', () async {
+      when(() => auth.restore())
+          .thenAnswer((_) async => const RestoreServerUnreachable());
+      await controller().restore();
+      expect((state() as SessionUnreachable).retryUserId, isNull);
+    });
   });
 
   test('login riuscito → SignedIn; errore propagato e stato invariato',
@@ -382,6 +400,24 @@ void main() {
 
       await controller().removeProfile('u2');
       expect(prefs.containsKey('profile.u2.locale'), isFalse);
+    });
+
+    test('togliere l\'ultimo profilo: lo stato cambia prima di cancellare le '
+        'preferenze', () async {
+      when(() => auth.removeProfile('u1')).thenAnswer((_) async {});
+      when(() => auth.restore()).thenAnswer((_) async => const ChooseProfile());
+      await controller().restore();
+      bool? keptWhenLeaving;
+      container.listen(sessionControllerProvider, (_, next) {
+        keptWhenLeaving = prefs.containsKey('profile.u1.locale');
+      });
+
+      await controller().removeProfile('u1');
+
+      // Nessun "Chi guarda?" vuoto mentre si cancellano le preferenze.
+      expect(state(), isA<SessionSignedOut>());
+      expect(keptWhenLeaving, isTrue);
+      expect(prefs.containsKey('profile.u1.locale'), isFalse);
     });
 
     test('logout: lo stato cambia prima di cancellare le preferenze', () async {

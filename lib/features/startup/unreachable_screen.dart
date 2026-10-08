@@ -34,11 +34,20 @@ class _UnreachableScreenState extends ConsumerState<UnreachableScreen> {
     super.dispose();
   }
 
+  /// Riapre il profilo scelto che non si è aperto, se c'è (con più profili
+  /// `restore` porterebbe solo a "Chi guarda?" senza chiedere niente al
+  /// server); altrimenti riparte da `restore`.
   Future<void> _retry() async {
     if (_busy) return;
     setState(() => _busy = true);
     try {
-      await ref.read(sessionControllerProvider.notifier).restore();
+      final session = ref.read(sessionControllerProvider.notifier);
+      final current = ref.read(sessionControllerProvider);
+      final retryUserId =
+          current is SessionUnreachable ? current.retryUserId : null;
+      await (retryUserId != null
+          ? session.openProfile(retryUserId)
+          : session.restore());
     } finally {
       if (mounted) setState(() => _busy = false);
     }

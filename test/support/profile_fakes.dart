@@ -12,9 +12,9 @@ class MemoryProfileStore implements ProfileStore {
   Future<ProfileBook> read() async => book;
 
   @override
-  Future<void> write(ProfileBook book) async {
+  Future<ProfileBook> write(ProfileBook book) async {
     writes++;
-    this.book = book;
+    return this.book = book;
   }
 }
 

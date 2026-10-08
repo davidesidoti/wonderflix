@@ -187,11 +187,15 @@ abstract interface class ProfileStore {
   /// della 0.11.0, se c'è (vedi [SecureProfileStore]).
   Future<ProfileBook> read();
 
-  Future<void> write(ProfileBook book);
+  /// Salva [book] e dà l'elenco salvato davvero: dopo una lettura non
+  /// riuscita ci sono anche i profili che lo storage aveva (vedi
+  /// [SecureProfileStore]). Lancia se non si può salvare senza perderne.
+  Future<ProfileBook> write(ProfileBook book);
 }
 
 /// I profili in `flutter_secure_storage`: su Windows un file JSON cifrato con
-/// DPAPI (`flutter_secure_storage.dat` nella cartella dei dati dell'app).
+/// DPAPI (`flutter_secure_storage.dat` nella cartella dei dati dell'app). Una
+/// lettura non riuscita non fa perdere i profili salvati (vedi [write]).
 class SecureProfileStore implements ProfileStore {
   SecureProfileStore({
     FlutterSecureStorage? storage,
@@ -212,15 +216,22 @@ class SecureProfileStore implements ProfileStore {
   /// dell'istanza di sviluppo).
   final String legacyDeviceId;
 
+  /// L'ultima lettura non è riuscita (per esempio il file bloccato
+  /// all'avvio): i profili salvati possono esserci ancora, e un salvataggio
+  /// non deve sovrascriverli alla cieca.
+  bool _readFailed = false;
+
   @override
   Future<ProfileBook> read() async {
     final String? raw;
     try {
       raw = await _storage.read(key: key);
     } on Object catch (error) {
+      _readFailed = true;
       _log.warning('profili non letti: ${error.runtimeType}');
       return const ProfileBook();
     }
+    _readFailed = false;
     if (raw == null) return _migrate();
     try {
       return ProfileBook.fromJson(jsonDecode(raw) as Map<String, dynamic>);
@@ -275,7 +286,38 @@ class SecureProfileStore implements ProfileStore {
     return book;
   }
 
+  /// Solo dati rovinati si sovrascrivono. Dopo una lettura non riuscita si
+  /// rilegge prima: se non riesce ancora non si salva (lancia), altrimenti si
+  /// tengono anche i profili salvati che [book] non ha.
   @override
-  Future<void> write(ProfileBook book) =>
-      _storage.write(key: key, value: jsonEncode(book.toJson()));
+  Future<ProfileBook> write(ProfileBook book) async {
+    var toWrite = book;
+    if (_readFailed) {
+      final stored = await read();
+      if (_readFailed) {
+        throw StateError('profili non riletti: non si sovrascrivono');
+      }
+      toWrite = _withStored(book, stored);
+    }
+    await _storage.write(key: key, value: jsonEncode(toWrite.toJson()));
+    return toWrite;
+  }
+
+  /// [book] con davanti i profili di [stored] che non ha, finché c'è posto
+  /// (al massimo [ProfileBook.maxProfiles]): quelli di [book] restano tutti
+  /// e vincono, e vale il suo ultimo usato.
+  static ProfileBook _withStored(ProfileBook book, ProfileBook stored) {
+    final room = ProfileBook.maxProfiles - book.profiles.length;
+    final recovered = [
+      for (final profile in stored.profiles)
+        if (book.byId(profile.userId) == null) profile,
+    ].take(room < 0 ? 0 : room).toList();
+    if (recovered.isEmpty) return book;
+    _log.info('profili recuperati dopo una lettura non riuscita: '
+        '${recovered.length}');
+    return ProfileBook(
+      profiles: List.unmodifiable([...recovered, ...book.profiles]),
+      lastUserId: book.lastUserId,
+    );
+  }
 }

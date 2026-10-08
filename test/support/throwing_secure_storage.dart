@@ -19,6 +19,36 @@ class ThrowingReadStorage extends FlutterSecureStorage {
   }
 }
 
+/// Storage finto che fallisce in lettura finché [failing] è vero (per esempio
+/// il file bloccato all'avvio); il resto va allo storage di prova.
+class FlakyReadStorage extends FlutterSecureStorage {
+  FlakyReadStorage();
+
+  bool failing = true;
+
+  @override
+  Future<String?> read({
+    required String key,
+    AppleOptions? iOptions,
+    AndroidOptions? aOptions,
+    LinuxOptions? lOptions,
+    WebOptions? webOptions,
+    AppleOptions? mOptions,
+    WindowsOptions? wOptions,
+  }) {
+    if (failing) throw PlatformException(code: 'boom');
+    return super.read(
+      key: key,
+      iOptions: iOptions,
+      aOptions: aOptions,
+      lOptions: lOptions,
+      webOptions: webOptions,
+      mOptions: mOptions,
+      wOptions: wOptions,
+    );
+  }
+}
+
 /// Storage finto che fallisce in scrittura; il resto va allo storage di prova.
 class ThrowingWriteStorage extends FlutterSecureStorage {
   const ThrowingWriteStorage();

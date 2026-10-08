@@ -39,7 +39,12 @@ final class SessionSignedOut extends SessionState {
 }
 
 final class SessionUnreachable extends SessionState {
-  const SessionUnreachable();
+  const SessionUnreachable({this.retryUserId});
+
+  /// Il profilo scelto in "Chi guarda?" che non si è aperto: "Riprova" apre
+  /// di nuovo quello. `null`: si riparte da `restore` (che con un solo
+  /// profilo lo riapre già).
+  final String? retryUserId;
 }
 
 /// "Chi guarda?" (spec K §9.3): più profili salvati, nessuno aperto.
@@ -81,12 +86,12 @@ class SessionController extends Notifier<SessionState> {
   }
 
   /// Apre un profilo da "Chi guarda?" (spec K §9.4). Un errore imprevisto
-  /// vale come server irraggiungibile.
+  /// vale come server irraggiungibile; "Riprova" riapre questo profilo.
   Future<void> openProfile(String userId) async {
     try {
-      _apply(_stateFor(await _auth.openProfile(userId)));
+      _apply(_stateFor(await _auth.openProfile(userId), retryUserId: userId));
     } on Object {
-      _apply(const SessionUnreachable());
+      _apply(SessionUnreachable(retryUserId: userId));
     }
   }
 
@@ -181,14 +186,16 @@ class SessionController extends Notifier<SessionState> {
     } finally {
       if (leaving) _leaving = false;
     }
-    await _forgetPreferences(userId);
     if (elsewhere) {
       // Tolto un altro profilo da una sessione: lo stato resta quello che
       // è, anche l'accesso aperto da un 401 nel frattempo.
       _publishProfiles();
     } else {
+      // Subito, come per "Esci": senza l'ultimo profilo, nessun "Chi
+      // guarda?" vuoto mentre si cancellano le preferenze.
       _apply(_afterLeaving());
     }
+    await _forgetPreferences(userId);
   }
 
   Future<void> _forgetPreferences(String userId) async {
@@ -257,12 +264,14 @@ class SessionController extends Notifier<SessionState> {
       ? const SessionSignedOut()
       : const SessionChoosingProfile();
 
-  SessionState _stateFor(RestoreResult result) => switch (result) {
+  SessionState _stateFor(RestoreResult result, {String? retryUserId}) =>
+      switch (result) {
         RestoredSession(:final user) => SessionSignedIn(user),
         NoStoredSession() => const SessionSignedOut(),
         StoredSessionExpired(:final userId) =>
           SessionSignedOut(expired: true, reloginUserId: userId),
-        RestoreServerUnreachable() => const SessionUnreachable(),
+        RestoreServerUnreachable() =>
+          SessionUnreachable(retryUserId: retryUserId),
         ChooseProfile() => const SessionChoosingProfile(),
       };
 

@@ -282,6 +282,91 @@ void main() {
     expect((await failing.read()).profiles, isEmpty);
   });
 
+  group('dopo una lettura non riuscita (spec K §9.1)', () {
+    late FlakyReadStorage flaky;
+    late SecureProfileStore failing;
+
+    List<String> ids(ProfileBook book) =>
+        [for (final p in book.profiles) p.userId];
+
+    setUp(() async {
+      await store().write(const ProfileBook()
+          .upsert(profile('u1'))
+          .upsert(profile('u2', name: 'Luigi'))
+          .withLast('u2'));
+      flaky = FlakyReadStorage();
+      failing = SecureProfileStore(storage: flaky, legacyDeviceId: 'dev');
+      expect((await failing.read()).profiles, isEmpty);
+    });
+
+    test('il salvataggio rilegge e tiene i profili che c\'erano', () async {
+      flaky.failing = false;
+
+      final written = await failing.write(const ProfileBook()
+          .upsert(profile('u3', name: 'Peach'))
+          .withLast('u3'));
+
+      expect(ids(written), ['u1', 'u2', 'u3']);
+      expect(written.lastUserId, 'u3');
+      final read = await store().read();
+      expect(ids(read), ['u1', 'u2', 'u3']);
+      expect(read.lastUserId, 'u3');
+    });
+
+    test('i profili nuovi vincono su quelli salvati', () async {
+      flaky.failing = false;
+
+      final written = await failing.write(const ProfileBook()
+          .upsert(profile('u1').copyWith(accessToken: 'tok-nuovo')));
+
+      expect(ids(written), ['u2', 'u1']);
+      expect(written.byId('u1')!.accessToken, 'tok-nuovo');
+    });
+
+    test('al massimo 5 profili: quelli nuovi restano tutti', () async {
+      await store().write([
+        for (var i = 1; i <= ProfileBook.maxProfiles; i++) profile('u$i'),
+      ].fold(const ProfileBook(), (book, p) => book.upsert(p)));
+      flaky.failing = false;
+
+      final written =
+          await failing.write(const ProfileBook().upsert(profile('u9')));
+
+      expect(ids(written), ['u1', 'u2', 'u3', 'u4', 'u9']);
+    });
+
+    test('se la rilettura fallisce ancora, non si sovrascrive', () async {
+      await expectLater(
+          failing.write(const ProfileBook().upsert(profile('u3'))),
+          throwsStateError);
+      expect(ids(await store().read()), ['u1', 'u2']);
+    });
+
+    test('dopo il primo salvataggio riuscito si scrive come sempre', () async {
+      flaky.failing = false;
+      final merged =
+          await failing.write(const ProfileBook().upsert(profile('u3')));
+
+      await failing.write(merged.remove('u1'));
+
+      expect(ids(await store().read()), ['u2', 'u3']);
+    });
+  });
+
+  test('profili illeggibili (dati rovinati): il salvataggio li sostituisce',
+      () async {
+    FlutterSecureStorage.setMockInitialValues(
+        {SecureProfileStore.defaultKey: 'non-json'});
+    final corrupt = store();
+    expect((await corrupt.read()).profiles, isEmpty);
+
+    final written =
+        await corrupt.write(const ProfileBook().upsert(profile('u3')));
+
+    expect(written.profiles.single.userId, 'u3');
+    expect((await store().read()).profiles.single.userId, 'u3');
+  });
+
   test('istanza di sviluppo: chiavi separate', () async {
     final dev = SecureProfileStore(
         key: profilesKeyFor('b'),
