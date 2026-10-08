@@ -40,6 +40,19 @@ public class UserAvatarsTests
     }
 
     [Fact]
+    public void NamesWithNonAsciiLettersIgnoreCaseToo()
+    {
+        var elena = new User("Èlena", "provider", "reset");
+        var (users, userStub) = InterfaceStub<IUserManager>.Create();
+        userStub.Handlers["GetUsers"] = _ => new[] { elena };
+        var (images, _) = InterfaceStub<IImageProcessor>.Create();
+
+        var found = Assert.Single(new JellyfinUserAvatars(users, images).Find([], ["èlena"]));
+
+        Assert.Equal("Èlena", found.Name);
+    }
+
+    [Fact]
     public void TheSameUserOnlyOnce()
     {
         var (avatars, _) = Create();

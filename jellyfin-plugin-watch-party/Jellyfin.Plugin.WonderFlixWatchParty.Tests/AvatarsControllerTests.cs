@@ -36,10 +36,28 @@ public class AvatarsControllerTests
     }
 
     [Fact]
-    public void WithoutIdsOrNamesTheListIsEmpty()
+    public void WithoutIdsOrNamesTheListIsEmptyAndNobodyIsAsked()
     {
         Assert.Empty(Controller().GetAvatars(null, null).Value!.Users);
         Assert.Empty(Controller().GetAvatars(" ", ",").Value!.Users);
+        // Solo id che non sono GUID (o il GUID vuoto): non c'è nessuno da cercare.
+        Assert.Empty(Controller().GetAvatars("non-un-id", null).Value!.Users);
+        Assert.Empty(Controller().GetAvatars($"non-un-id,{Guid.Empty:N}", " ").Value!.Users);
+
+        // L'elenco degli utenti non si legge nemmeno.
+        Assert.Empty(_avatars.Calls);
+    }
+
+    [Fact]
+    public void AGuidWithDashesIsAccepted()
+    {
+        var mario = Guid.NewGuid();
+
+        Controller().GetAvatars(mario.ToString("D"), null);
+
+        var (ids, names) = Assert.Single(_avatars.Calls);
+        Assert.Equal(new[] { mario }, ids);
+        Assert.Empty(names);
     }
 
     [Fact]

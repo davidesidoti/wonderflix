@@ -37,6 +37,12 @@ public class AvatarsController(IUserAvatars avatars) : ControllerBase
             .Select(raw => Guid.TryParse(raw, out var id) ? id : Guid.Empty)
             .Where(id => id != Guid.Empty)
             .ToList();
+        // Niente di valido da cercare: si risponde senza leggere gli utenti.
+        if (parsedIds.Count == 0 && nameValues.Count == 0)
+        {
+            return new AvatarsResponse([]);
+        }
+
         return new AvatarsResponse(avatars.Find(parsedIds, nameValues)
             .Select(user => new AvatarEntry(user.Id.ToString("N"), user.Name, user.ImageTag))
             .ToList());
