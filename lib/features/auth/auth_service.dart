@@ -94,6 +94,10 @@ class AuthService {
   /// Apre il profilo [userId] (spec K §9.4): le sue credenziali nel client,
   /// poi `/Users/Me`. Riuscito: nome e immagine aggiornati, ultimo usato.
   /// 401: il profilo è scaduto. Altri errori: server irraggiungibile.
+  ///
+  /// Chi chiama non sovrappone due aperture: "Chi guarda?" blocca i clic
+  /// mentre un profilo si apre, e [restore] parte dietro lo stato occupato
+  /// della schermata del server irraggiungibile.
   Future<RestoreResult> openProfile(String userId) async {
     final profile = _book.byId(userId);
     if (profile == null) {
@@ -234,7 +238,8 @@ class AuthService {
   /// Un accesso riuscito (spec K §9.2): il profilo prende il token e il
   /// [deviceId] con cui l'ha ottenuto. Lo stesso utente già salvato non fa un
   /// doppione, e il suo token vecchio si annulla. Con la [generation] di
-  /// prima della richiesta superata, il profilo si salva ma non si apre.
+  /// prima della richiesta superata, il profilo si salva ma non si apre; un
+  /// profilo valido dello stesso utente resta com'è.
   Future<void> _adopt(
       AuthResult result, String deviceId, int generation) async {
     final user = result.user;
@@ -264,6 +269,13 @@ class AuthService {
       // profilo aperto, un altro accesso preparato): le credenziali sono di
       // chi è venuto dopo. Il profilo si salva e compare in "Chi guarda?",
       // ma non si apre e non diventa l'ultimo usato.
+      if (existing != null && !existing.expired) {
+        // Accesso superato per un utente con un profilo valido (forse
+        // aperto, o che si sta aprendo, con il token vecchio): il profilo
+        // resta com'è e il token nuovo si annulla, con il suo DeviceId.
+        unawaited(_revoke(result.accessToken, deviceId));
+        return;
+      }
       await _save(_book.upsert(profile));
     } else {
       _http.setCredentials(token: result.accessToken, deviceId: deviceId);

@@ -157,8 +157,10 @@ class SessionController extends Notifier<SessionState> {
     } finally {
       _leaving = false;
     }
-    if (removed != null) await _forgetPreferences(removed);
+    // Lo stato cambia subito, senza aspettare le preferenze: la shell non
+    // mostra un fotogramma con quelle del PC.
     _apply(_afterLeaving());
+    if (removed != null) await _forgetPreferences(removed);
   }
 
   /// "Rimuovi" in "Gestisci profili" (spec K §9.4), con le preferenze.

@@ -384,6 +384,24 @@ void main() {
       await controller().removeProfile('u2');
       expect(prefs.containsKey('profile.u2.locale'), isFalse);
     });
+
+    test('logout: lo stato cambia prima di cancellare le preferenze', () async {
+      when(() => auth.logout()).thenAnswer((_) async => 'u1');
+      signIn(testUser);
+      bool? keptWhenLeaving;
+      container.listen(sessionControllerProvider, (_, next) {
+        if (next is! SessionSignedIn) {
+          keptWhenLeaving = prefs.containsKey('profile.u1.locale');
+        }
+      });
+
+      await controller().logout();
+
+      // Senza aspettare le preferenze: la shell non mostra un fotogramma con
+      // quelle del PC.
+      expect(keptWhenLeaving, isTrue);
+      expect(prefs.containsKey('profile.u1.locale'), isFalse);
+    });
   });
 
   test('un 401 durante la sessione: accesso per quel profilo, scaduto',

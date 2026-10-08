@@ -304,6 +304,45 @@ void main() {
         expect(service.activeUserId, 'u2');
         expect(http.token, 'tok-u2');
       });
+
+      test('per un utente con un profilo valido, aperto: il profilo resta, '
+          'il token nuovo si annulla', () async {
+        when(() => api.getMe()).thenAnswer((_) async => testUser);
+
+        final login = service.loginWithPassword('mario', 'pw');
+        await service.openProfile('u1');
+        answer.complete(
+            const AuthResult(user: testUser, accessToken: 'tok-nuovo'));
+        await login;
+
+        expect(store.book.byId('u1')!.accessToken, 'tok-u1');
+        expect(store.book.byId('u1')!.deviceId, 'dev-u1');
+        expect(service.activeUserId, 'u1');
+        expect(http.token, 'tok-u1');
+        // Il token nuovo, con il DeviceId della sua richiesta.
+        expect(revoked, [('tok-nuovo', 'dev-nuovo-1')]);
+      });
+
+      test('per un utente con un profilo scaduto: il profilo prende il token '
+          'nuovo, il vecchio si annulla', () async {
+        store.book = bookOf([mario, luigi.copyWith(expired: true)]);
+        await service.restore();
+        service.prepareLogin();
+
+        final login = service.loginWithPassword('luigi', 'pw');
+        service.deactivate();
+        answer.complete(const AuthResult(
+            user: JellyfinUser(id: 'u2', name: 'Luigi'),
+            accessToken: 'tok-nuovo'));
+        await login;
+
+        final saved = store.book.byId('u2')!;
+        expect(saved.accessToken, 'tok-nuovo');
+        expect(saved.expired, isFalse);
+        expect(service.activeUserId, isNull);
+        expect(http.token, isNull);
+        expect(revoked, [('tok-u2', 'dev-u2')]);
+      });
     });
 
     test('onProfilesChanged a ogni salvataggio, anche se lo storage non salva',
