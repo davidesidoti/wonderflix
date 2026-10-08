@@ -57,6 +57,10 @@ void main() {
   final mario = testProfile(userId: 'u1', name: 'Mario');
   final luigi = testProfile(userId: 'u2', name: 'Luigi');
 
+  /// Il fuoco è sul controllo che contiene [finder].
+  bool hasFocus(WidgetTester tester, Finder finder) =>
+      Focus.of(tester.element(finder)).hasPrimaryFocus;
+
   testWidgets('titolo, profili e "Aggiungi profilo"', (tester) async {
     await pumpProfiles(tester, [mario, luigi]);
     expect(find.text('Chi guarda?'), findsOneWidget);
@@ -177,6 +181,59 @@ void main() {
     expect(find.byKey(const ValueKey('profile-remove-u1')), findsNothing);
   });
 
+  testWidgets('solo tastiera: Esc dal pulsante "Fine"', (tester) async {
+    await pumpProfiles(tester, [mario, luigi]);
+    // Mario, Luigi, "Aggiungi profilo", "Gestisci profili".
+    for (var i = 0; i < 3; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+    }
+    expect(hasFocus(tester, find.text('Gestisci profili')), isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(hasFocus(tester, find.text('Fine')), isTrue);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    expect(find.text('Gestisci profili'), findsOneWidget);
+    expect(find.byKey(const ValueKey('profile-remove-u1')), findsNothing);
+  });
+
+  testWidgets('solo tastiera: Esc da un pulsante Rimuovi', (tester) async {
+    await pumpProfiles(tester, [mario, luigi]);
+    for (var i = 0; i < 3; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+    }
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    // Da "Fine" indietro: il Rimuovi di Luigi.
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shift);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shift);
+    await tester.pump();
+    final removeLuigi = find.descendant(
+        of: find.byKey(const ValueKey('profile-remove-u2')),
+        matching: find.byType(Icon));
+    expect(hasFocus(tester, removeLuigi), isTrue);
+
+    // Invio apre la conferma, Esc la chiude: il fuoco torna su Rimuovi.
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(find.text('Rimuovere Luigi da questo PC?'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('Rimuovere Luigi da questo PC?'), findsNothing);
+    expect(find.text('Fine'), findsOneWidget);
+    expect(hasFocus(tester, removeLuigi), isTrue);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    expect(find.text('Gestisci profili'), findsOneWidget);
+    expect(find.byKey(const ValueKey('profile-remove-u2')), findsNothing);
+    expect(session.removedProfiles, isEmpty);
+  });
+
   testWidgets('profilo senza nome: "Profilo" nella card e nella rimozione',
       (tester) async {
     // Un profilo migrato il cui primo `/Users/Me` non è riuscito.
@@ -214,6 +271,10 @@ void main() {
 
     await tester.tap(find.text('Gestisci profili'));
     await tester.pump();
+    // In modifica la card non si apre: non è un pulsante.
+    expect(
+        tester.getSemantics(find.byKey(const ValueKey('profile-u1'))),
+        isSemantics(label: 'Mario', isButton: false, hasTapAction: false));
     // Il pulsante Rimuovi dice di quale profilo.
     expect(find.byTooltip('Rimuovi Mario'), findsOneWidget);
     expect(find.byTooltip('Rimuovi Luigi'), findsOneWidget);

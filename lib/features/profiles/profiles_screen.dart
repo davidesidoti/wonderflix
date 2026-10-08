@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -105,14 +106,14 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
     final last = book.lastUserId;
     final focusUserId = (last == null ? null : book.byId(last)?.userId) ??
         book.profiles.firstOrNull?.userId;
-    return Actions(
-      actions: {
-        // Esc in "Gestisci profili" fa come "Fine".
+    // Esc in "Gestisci profili" fa come "Fine". Un tasto, non `DismissIntent`:
+    // le `Actions` dello `Scaffold` lo fermerebbero con il fuoco su "Fine" o
+    // su Rimuovi.
+    return CallbackShortcuts(
+      bindings: {
         if (_managing)
-          DismissIntent: CallbackAction<DismissIntent>(onInvoke: (_) {
-            _setManaging(false);
-            return null;
-          }),
+          const SingleActivator(LogicalKeyboardKey.escape): () =>
+              _setManaging(false),
       },
       // Il fuoco resta nella schermata: la card che lo aveva si spegne in
       // "Gestisci profili", ed Esc deve arrivare lo stesso.
@@ -218,7 +219,8 @@ class _ProfileCard extends StatelessWidget {
     final name = _displayName(l, profile);
     return Semantics(
       container: true,
-      button: true,
+      // In "Gestisci profili" la card non si apre.
+      button: !managing,
       label: name,
       hint: profile.expired ? l.profilesSignInAgain : null,
       child: SizedBox(
