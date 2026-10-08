@@ -570,5 +570,6 @@
   "profileImageForbidden": "You're not allowed to change the picture",
   "profileImageFailed": "Upload failed",
   "profileImageFiles": "Images",
-  "profileImageZoom": "Zoom"
+  "profileImageZoom": "Zoom",
+  "profileImageGalleryItem": "Avatar {number}"
 }

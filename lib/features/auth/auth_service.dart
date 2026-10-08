@@ -86,6 +86,12 @@ class AuthService {
   /// Il profilo aperto; `null` in "Chi guarda?" e nell'accesso.
   String? get activeUserId => _activeUserId;
 
+  /// [userId] è il profilo aperto (gli id si confrontano con [jellyfinIdKey]).
+  bool isActive(String userId) {
+    final active = _activeUserId;
+    return active != null && jellyfinIdKey(active) == jellyfinIdKey(userId);
+  }
+
   /// Chiamato dopo ogni modifica dei profili (anche se lo storage non la
   /// salva): l'interfaccia li rilegge.
   void Function()? onProfilesChanged;
@@ -210,8 +216,7 @@ class AuthService {
   /// Toglie il profilo [userId] dal PC (spec K §9.4), con il suo token
   /// annullato sul server (con le sue credenziali; gli errori si ignorano).
   Future<void> removeProfile(String userId) async {
-    final active = _activeUserId;
-    if (active != null && jellyfinIdKey(active) == jellyfinIdKey(userId)) {
+    if (isActive(userId)) {
       await logout();
       return;
     }
@@ -240,27 +245,15 @@ class AuthService {
   /// L'utente riletto (spec J §12): nome e immagine nel profilo aperto, solo
   /// se cambiano.
   Future<void> updateActiveProfile(JellyfinUser user) async {
-    final active = _activeUserId;
-    final profile = active == null ? null : _book.byId(active);
-    if (profile == null ||
-        jellyfinIdKey(profile.userId) != jellyfinIdKey(user.id)) {
-      return;
-    }
-    if (profile.name == user.name && profile.imageTag == user.primaryImageTag) {
-      return;
-    }
-    await _save(_book.upsert(
-        profile.copyWith(name: user.name, imageTag: user.primaryImageTag)));
+    if (!isActive(user.id)) return;
+    await updateStoredProfile(user);
   }
 
   /// Il client per le chiamate del profilo [userId] (spec K §10.1): quello
   /// principale per il profilo aperto, altrimenti uno con le credenziali del
   /// profilo (che non segnala i 401). `null` se il profilo non c'è.
   JellyfinHttp? clientFor(String userId) {
-    final active = _activeUserId;
-    if (active != null && jellyfinIdKey(active) == jellyfinIdKey(userId)) {
-      return _http;
-    }
+    if (isActive(userId)) return _http;
     final profile = _book.byId(userId);
     return profile == null
         ? null

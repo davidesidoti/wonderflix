@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
@@ -15,6 +16,9 @@ const _wheelStep = 1.1;
 
 /// Opacità del velo fuori dal cerchio.
 const _maskAlpha = 0.55;
+
+/// L'ingrandimento letto dallo screen reader: una cifra decimale ("2,0×").
+const _zoomPattern = '0.0';
 
 /// La scala che fa riempire il riquadro all'immagine (zoom 1).
 double cropBaseScale(Size image, double viewport) =>
@@ -91,7 +95,8 @@ class _AvatarCropperState extends State<AvatarCropper> {
   }
 
   void _onPointerSignal(PointerSignalEvent event) {
-    if (event is! PointerScrollEvent) return;
+    // Uno scorrimento solo orizzontale non è uno scatto della rotella.
+    if (event is! PointerScrollEvent || event.scrollDelta.dy == 0) return;
     GestureBinding.instance.pointerSignalResolver.register(event, (event) {
       final scroll = event as PointerScrollEvent;
       _zoomTo(scroll.scrollDelta.dy < 0 ? _zoom * _wheelStep : _zoom / _wheelStep);
@@ -101,6 +106,8 @@ class _AvatarCropperState extends State<AvatarCropper> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final zoomFormat =
+        NumberFormat(_zoomPattern, Localizations.localeOf(context).toString());
     final scale = cropBaseScale(_size, widget.viewport) * _zoom;
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -138,9 +145,19 @@ class _AvatarCropperState extends State<AvatarCropper> {
         ),
         SizedBox(
           width: widget.viewport,
-          child: Semantics(
-            label: l.profileImageZoom,
-            child: Slider(value: _zoom, min: 1, max: maxCropZoom, onChanged: _zoomTo),
+          // Un solo nodo: "Ingrandimento, 2,0×".
+          child: MergeSemantics(
+            child: Semantics(
+              label: l.profileImageZoom,
+              child: Slider(
+                value: _zoom,
+                min: 1,
+                max: maxCropZoom,
+                onChanged: _zoomTo,
+                semanticFormatterCallback: (value) =>
+                    '${zoomFormat.format(value)}×',
+              ),
+            ),
           ),
         ),
       ],

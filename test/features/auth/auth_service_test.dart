@@ -855,6 +855,23 @@ void main() {
       expect(service.clientFor('u9'), isNull);
     });
 
+    test('isActive: solo il profilo aperto, con gli id normalizzati', () {
+      expect(service.isActive('U1'), isTrue);
+      expect(service.isActive('u2'), isFalse);
+      service.deactivate();
+      expect(service.isActive('u1'), isFalse);
+    });
+
+    test('updateActiveProfile: solo per il profilo aperto', () async {
+      await service.updateActiveProfile(
+          const JellyfinUser(id: 'u2', name: 'Luigi', primaryImageTag: 'img2'));
+      expect(store.book.byId('u2')!.imageTag, isNull);
+
+      await service.updateActiveProfile(
+          const JellyfinUser(id: 'u1', name: 'Mario', primaryImageTag: 'img1'));
+      expect(store.book.byId('u1')!.imageTag, 'img1');
+    });
+
     test('updateStoredProfile: nome e immagine di un profilo non aperto',
         () async {
       final writes = store.writes;

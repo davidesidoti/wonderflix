@@ -24,22 +24,41 @@ import 'avatar_image.dart';
 const _dialogWidth = 560.0;
 
 /// Altezza delle schede: la galleria (4 righe) o il ritaglio con i pulsanti.
+/// Nella finestra più piccola, con un errore, si stringono.
 const _tabHeight = 380.0;
+
+/// Spazio tra le linguette e il contenuto, dove compare l'indicatore del
+/// caricamento: c'è sempre, così il contenuto non si sposta.
+const _progressSlotHeight = 16.0;
 
 /// Lato di un avatar nella galleria.
 const _galleryTileSize = 56.0;
 
+/// Spessore del bordo dell'avatar scelto.
+const _selectedBorder = 3.0;
+
+/// Spazio tra il bordo dell'avatar scelto e l'avatar.
+const _selectedGap = 2.0;
+
+/// Lato di una casella della galleria: l'avatar, lo spazio e il bordo.
+const _galleryTileExtent =
+    _galleryTileSize + 2 * (_selectedGap + _selectedBorder);
+
 /// Avatar per riga nella galleria.
 const _galleryColumns = 6;
+
+/// Spazio tra le colonne della galleria.
+const _galleryColumnGap = 12.0;
+
+/// Spazio tra le righe della galleria: stretto, così le 4 righe stanno anche
+/// nella finestra più piccola con un errore.
+const _galleryRowGap = 4.0;
 
 /// Lato del riquadro del ritaglio.
 const _cropViewport = 240.0;
 
 /// Lato dell'anteprima nella scheda "Rimuovi".
 const _previewSize = 120.0;
-
-/// Spessore del bordo dell'avatar scelto.
-const _selectedBorder = 3.0;
 
 /// Un file scelto: la dimensione si legge prima del contenuto.
 class PickedAvatarFile {
@@ -96,8 +115,9 @@ Future<void> showAvatarDialog(
     );
 
 /// La finestra dell'immagine del profilo (spec K §10.1): le schede Avatar,
-/// Dal PC e Rimuovi. Mentre carica i pulsanti sono spenti; riuscita, si
-/// chiude; con un errore resta aperta con il messaggio.
+/// Dal PC e Rimuovi. Mentre carica i pulsanti sono spenti e la finestra non
+/// si chiude; riuscita, si chiude; con un errore resta aperta con il
+/// messaggio.
 class AvatarDialog extends ConsumerStatefulWidget {
   const AvatarDialog({
     super.key,
@@ -114,7 +134,13 @@ class AvatarDialog extends ConsumerStatefulWidget {
   ConsumerState<AvatarDialog> createState() => _AvatarDialogState();
 }
 
-class _AvatarDialogState extends ConsumerState<AvatarDialog> {
+class _AvatarDialogState extends ConsumerState<AvatarDialog>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabs;
+
+  /// La scheda di prima: il messaggio d'errore era suo.
+  int _tabIndex = 0;
+
   int? _selected;
   WorkingImage? _working;
   CropArea? _area;
@@ -123,12 +149,39 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog> {
 
   AvatarImageTools get _tools => ref.read(avatarImageToolsProvider);
 
+  @override
+  void initState() {
+    super.initState();
+    _tabs = TabController(length: 3, vsync: this)..addListener(_onTabChanged);
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
+
+  void _onTabChanged() {
+    if (_tabs.index == _tabIndex) return;
+    _tabIndex = _tabs.index;
+    if (_error != null) setState(() => _error = null);
+  }
+
+  /// Chiude la finestra solo se è ancora quella in cima: chiusa da altro
+  /// (o con un'altra finestra sopra), un `pop` toglierebbe quello che c'è
+  /// sotto.
+  void _close(ModalRoute<Object?>? route) {
+    if (mounted && (route?.isCurrent ?? false)) Navigator.of(context).pop();
+  }
+
   /// Prepara l'immagine (`null`: la toglie) e la manda al server.
   Future<void> _save(Future<ImageUpload?> Function() prepare) async {
     if (_busy) return;
     final l = AppLocalizations.of(context);
-    // Durante il caricamento la finestra si può chiudere (Esc, clic fuori), e
-    // `ref` non si usa più: la cache degli avatar si aggiorna lo stesso.
+    final route = ModalRoute.of(context);
+    // La finestra può sparire durante il caricamento (la sessione che
+    // cambia), e `ref` non si usa più: la cache degli avatar si aggiorna lo
+    // stesso.
     final container = ProviderScope.containerOf(context, listen: false);
     setState(() {
       _busy = true;
@@ -142,13 +195,16 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog> {
         container
             .read(avatarDirectoryProvider)
             ?.remember(userId: user.id, name: user.name, tag: user.primaryImageTag);
-        container.invalidate(avatarImageProvider);
+        // Solo gli avatar di questo utente si rileggono (dalla cache).
+        container
+          ..invalidate(avatarImageProvider(AvatarLookup.byId(user.id)))
+          ..invalidate(avatarImageProvider(AvatarLookup.byName(user.name)));
       }
-      if (mounted) Navigator.of(context).pop();
+      _close(route);
     } on UnauthorizedException {
       // Il profilo è scaduto: la finestra si chiude, e "Chi guarda?" lo
       // mostra con "Accedi di nuovo".
-      if (mounted) Navigator.of(context).pop();
+      _close(route);
     } on ForbiddenException {
       if (mounted) setState(() => _error = l.profileImageForbidden);
     } on Object {
@@ -196,8 +252,9 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final error = _error;
-    return DefaultTabController(
-      length: 3,
+    // Durante il caricamento Esc e il clic fuori non la chiudono.
+    return PopScope(
+      canPop: !_busy,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -205,30 +262,37 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog> {
           Text(l.profileImageTitle,
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
           const SizedBox(height: 12),
-          TabBar(tabs: [
+          TabBar(controller: _tabs, tabs: [
             Tab(text: l.profileImageAvatars),
             Tab(text: l.profileImageFromPc),
             Tab(text: l.profilesRemove),
           ]),
-          const SizedBox(height: 16),
+          SizedBox(
+            height: _progressSlotHeight,
+            child: Center(child: _busy ? const LinearProgressIndicator() : null),
+          ),
           if (error != null) ...[
             ErrorBanner(error),
             const SizedBox(height: 12),
           ],
           // Nella finestra più piccola, con un errore, le schede si
-          // stringono: la galleria scorre.
+          // stringono.
           Flexible(
             child: SizedBox(
               height: _tabHeight,
               child: TabBarView(
-                  children: [_galleryTab(l), _fileTab(l), _removeTab(l)]),
+                controller: _tabs,
+                // Trascinare l'immagine nel ritaglio non deve cambiare scheda.
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  _galleryTab(l),
+                  // Il ritaglio resta com'è quando si guarda un'altra scheda.
+                  _KeepAlive(child: _fileTab(l)),
+                  _removeTab(l),
+                ],
+              ),
             ),
           ),
-          if (_busy)
-            const Padding(
-              padding: EdgeInsets.only(top: 12),
-              child: LinearProgressIndicator(),
-            ),
         ],
       ),
     );
@@ -239,19 +303,23 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog> {
     return Column(
       children: [
         Expanded(
-          child: GridView.count(
-            crossAxisCount: _galleryColumns,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            children: [
-              for (var i = 0; i < galleryAvatars.length; i++)
-                _GalleryTile(
-                  key: ValueKey('gallery-$i'),
-                  avatar: galleryAvatars[i],
-                  selected: selected == i,
-                  onTap: _busy ? null : () => setState(() => _selected = i),
-                ),
-            ],
+          child: GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: _galleryColumns,
+              mainAxisExtent: _galleryTileExtent,
+              crossAxisSpacing: _galleryColumnGap,
+              mainAxisSpacing: _galleryRowGap,
+            ),
+            itemCount: galleryAvatars.length,
+            itemBuilder: (context, i) => Center(
+              child: _GalleryTile(
+                key: ValueKey('gallery-$i'),
+                avatar: galleryAvatars[i],
+                label: l.profileImageGalleryItem(i + 1),
+                selected: selected == i,
+                onTap: _busy ? null : () => setState(() => _selected = i),
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 12),
@@ -342,35 +410,68 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog> {
       );
 }
 
+/// Tiene viva una scheda quando non si vede.
+class _KeepAlive extends StatefulWidget {
+  const _KeepAlive({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_KeepAlive> createState() => _KeepAliveState();
+}
+
+class _KeepAliveState extends State<_KeepAlive>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
+}
+
 /// Un avatar della galleria: si sceglie con un clic, il bordo dorato dice
-/// quale.
+/// quale. Per lo screen reader è un pulsante con il suo numero.
 class _GalleryTile extends StatelessWidget {
   const _GalleryTile({
     super.key,
     required this.avatar,
+    required this.label,
     required this.selected,
     required this.onTap,
   });
 
   final GalleryAvatar avatar;
+  final String label;
   final bool selected;
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) => InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        focusColor: WfColors.gold.withValues(alpha: 0.18),
-        child: Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: selected ? WfColors.gold : Colors.transparent,
-              width: _selectedBorder,
+  Widget build(BuildContext context) => Semantics(
+        container: true,
+        button: true,
+        selected: selected,
+        label: label,
+        child: SizedBox.square(
+          dimension: _galleryTileExtent,
+          child: InkWell(
+            onTap: onTap,
+            customBorder: const CircleBorder(),
+            focusColor: WfColors.gold.withValues(alpha: 0.18),
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected ? WfColors.gold : Colors.transparent,
+                  width: _selectedBorder,
+                ),
+              ),
+              padding: const EdgeInsets.all(_selectedGap),
+              child: GalleryAvatarView(avatar: avatar, size: _galleryTileSize),
             ),
           ),
-          padding: const EdgeInsets.all(_selectedBorder),
-          child: GalleryAvatarView(avatar: avatar, size: _galleryTileSize),
         ),
       );
 }

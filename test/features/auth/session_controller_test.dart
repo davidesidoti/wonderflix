@@ -9,6 +9,7 @@ import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
+import 'package:wonderflix/core/jellyfin/json_fields.dart';
 import 'package:wonderflix/core/jellyfin/user_image_api.dart';
 import 'package:wonderflix/core/storage/profile_store.dart';
 import 'package:wonderflix/features/auth/auth_service.dart';
@@ -53,6 +54,11 @@ void main() {
     active = null;
     when(() => auth.book).thenReturn(const ProfileBook());
     when(() => auth.activeUserId).thenAnswer((_) => active);
+    when(() => auth.isActive(any())).thenAnswer((invocation) {
+      final userId = invocation.positionalArguments.single as String;
+      final current = active;
+      return current != null && jellyfinIdKey(current) == jellyfinIdKey(userId);
+    });
     when(() => auth.deactivate()).thenAnswer((_) => active = null);
     when(() => auth.updateActiveProfile(any())).thenAnswer((_) async {});
     when(() => auth.markActiveExpired()).thenAnswer((_) async {
@@ -627,7 +633,37 @@ void main() {
           ['POST /UserImage', 'GET /Users/Me']);
       expect(user!.primaryImageTag, 'img2');
       expect((state() as SessionSignedIn).user.primaryImageTag, 'img2');
-      verify(() => auth.updateActiveProfile(user)).called(1);
+      verify(() => auth.updateStoredProfile(user)).called(1);
+    });
+
+    test('401 del profilo aperto: ci pensa il client, che apre l\'accesso',
+        () async {
+      // Il client principale, con il token del profilo: il suo 401 passa da
+      // `onUnauthorized` del controller.
+      http.dio.httpClientAdapter = FakeAdapter((_) => const FakeResponse(401));
+      http.setCredentials(token: 'tok-u1', deviceId: 'dev-u1');
+      when(() => auth.clientFor('u1')).thenReturn(http);
+      signIn(testUser);
+
+      await expectLater(controller().setProfileImage('u1', image: upload),
+          throwsA(isA<UnauthorizedException>()));
+
+      verify(() => auth.markActiveExpired()).called(1);
+      verifyNever(() => auth.markProfileExpired(any()));
+      expect(
+          state(),
+          isA<SessionSignedOut>()
+              .having((s) => s.expired, 'expired', true)
+              .having((s) => s.reloginUserId, 'reloginUserId', 'u1'));
+    });
+
+    test('la risposta è di un altro utente: niente si aggiorna', () async {
+      adapter.handler = (options) => options.path == '/Users/Me'
+          ? me('u3', 'Peach', 'img4')
+          : const FakeResponse(204);
+      when(() => auth.clientFor('u2')).thenReturn(client);
+
+      expect(await controller().setProfileImage('u2', image: upload), isNull);
       verifyNever(() => auth.updateStoredProfile(any()));
     });
 

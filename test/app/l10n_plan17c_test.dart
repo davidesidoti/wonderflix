@@ -22,6 +22,8 @@ void main() {
     expect(it.profileImageFailed, 'Caricamento non riuscito');
     expect(it.profileImageFiles, 'Immagini');
     expect(it.profileImageZoom, 'Ingrandimento');
+    expect(it.profileImageGalleryItem(4), 'Avatar 4');
+    expect(en.profileImageGalleryItem(4), 'Avatar 4');
     expect(en.profileImageTitle, 'Profile picture');
     expect(en.settingsChangeImage, 'Change picture');
 
@@ -43,6 +45,7 @@ void main() {
         l.profileImageFailed,
         l.profileImageFiles,
         l.profileImageZoom,
+        l.profileImageGalleryItem(1),
       ], everyElement(isNotEmpty));
     }
   });

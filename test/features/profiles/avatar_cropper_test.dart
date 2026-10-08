@@ -57,5 +57,30 @@ void main() {
         position: center, scrollDelta: const Offset(0, 20)));
     await tester.pump();
     expect(areas.last.side, closeTo(55, 0.01));
+
+    // Uno scorrimento solo orizzontale non ingrandisce né rimpicciolisce.
+    final changes = areas.length;
+    await tester.sendEventToBinding(PointerScrollEvent(
+        position: center, scrollDelta: const Offset(20, 0)));
+    await tester.pump();
+    expect(areas, hasLength(changes));
+  });
+
+  testWidgets('il cursore dice l\'ingrandimento allo screen reader',
+      (tester) async {
+    final semantics = tester.ensureSemantics();
+    final working = WorkingImage(
+        img.encodePng(img.Image(width: 4, height: 2)), 400, 200);
+    await pumpApp(
+        tester,
+        Material(
+          child: Center(
+              child: AvatarCropper(
+                  image: working, viewport: 200, onChanged: (_) {})),
+        ));
+
+    expect(tester.getSemantics(find.byType(Slider)),
+        isSemantics(label: 'Ingrandimento', value: '1,0×', isSlider: true));
+    semantics.dispose();
   });
 }

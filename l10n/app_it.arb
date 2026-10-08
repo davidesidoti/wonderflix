@@ -680,5 +680,7 @@
   "profileImageForbidden": "Non hai il permesso di cambiare l'immagine",
   "profileImageFailed": "Caricamento non riuscito",
   "profileImageFiles": "Immagini",
-  "profileImageZoom": "Ingrandimento"
+  "profileImageZoom": "Ingrandimento",
+  "profileImageGalleryItem": "Avatar {number}",
+  "@profileImageGalleryItem": {"placeholders": {"number": {"type": "int"}}}
 }
