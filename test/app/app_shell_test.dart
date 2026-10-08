@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/app_shell.dart';
+import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/storage/profile_store.dart';
 import 'package:wonderflix/features/auth/profiles_state.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
@@ -9,6 +10,7 @@ import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 
+import '../support/avatar_fakes.dart';
 import '../support/fake_session_controller.dart';
 import '../support/profile_fakes.dart';
 import '../support/pump_app.dart';
@@ -176,5 +178,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Cambia profilo'), findsOneWidget);
     expect(find.text('Aggiungi profilo'), findsNothing);
+  });
+
+  testWidgets('l\'avatar del menu è l\'immagine dell\'utente', (tester) async {
+    final urls = <String>[];
+    await pumpApp(
+      tester,
+      const AppShell(location: '/home', child: SizedBox()),
+      overrides: [
+        sessionControllerProvider.overrideWith(() => FakeSessionController(
+            const SessionSignedIn(
+                JellyfinUser(id: 'u1', name: 'Mario', primaryImageTag: 't1')))),
+        watchPartyDirectoryProvider.overrideWith(FakeWatchPartyDirectory.new),
+        syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
+        watchPartyEventsProvider.overrideWithValue(const Stream.empty()),
+        captureImageUrls(urls),
+      ],
+    );
+
+    expect(urls, contains('https://media.example.com/UserImage?userId=u1&tag=t1'));
   });
 }

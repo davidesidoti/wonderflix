@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/admin_models.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/features/admin/sessions_tab.dart';
 
 import '../../support/admin_fakes.dart';
+import '../../support/avatar_fakes.dart';
 import '../../support/pump_app.dart';
 
 void main() {
@@ -13,9 +15,11 @@ void main() {
   setUp(() => api = FakeAdminApi());
 
   Future<void> pumpTab(WidgetTester tester,
-      {Size surfaceSize = const Size(1440, 900)}) async {
+      {Size surfaceSize = const Size(1440, 900),
+      List<Override> overrides = const []}) async {
     await pumpApp(tester, const Scaffold(body: SessionsTab()),
-        overrides: adminTestOverrides(api), surfaceSize: surfaceSize);
+        overrides: [...adminTestOverrides(api), ...overrides],
+        surfaceSize: surfaceSize);
     await tester.pumpAndSettle();
   }
 
@@ -137,6 +141,29 @@ void main() {
         find.byKey(const ValueKey('party-p1')), 300,
         scrollable: find.byType(Scrollable));
     expect(find.byKey(const ValueKey('party-p1')), findsOneWidget);
+  });
+
+  testWidgets('le righe utente: l\'immagine con il tag della sessione',
+      (tester) async {
+    final urls = <String>[];
+    api.sessionsValue = const [
+      SessionEntry(
+          id: 's1',
+          userId: 'u1',
+          userName: 'Mario',
+          userImageTag: 't1',
+          nowPlaying: testMovie),
+      SessionEntry(
+          id: 's2', userId: 'u2', userName: 'Luigi', userImageTag: 't2'),
+    ];
+    await pumpTab(tester, overrides: [captureImageUrls(urls)]);
+
+    expect(
+        urls,
+        containsAll([
+          'https://media.example.com/UserImage?userId=u1&tag=t1',
+          'https://media.example.com/UserImage?userId=u2&tag=t2',
+        ]));
   });
 
   testWidgets('nessuno: tre testi vuoti', (tester) async {

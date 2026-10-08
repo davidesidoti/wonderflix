@@ -148,7 +148,10 @@ class PlayingSessionCard extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 AdminUserLine(
-                    name: session.userName, detail: sessionDevice(session)),
+                    name: session.userName,
+                    detail: sessionDevice(session),
+                    userId: session.userId,
+                    imageTag: session.userImageTag),
                 const SizedBox(height: 8),
                 Text(nowPlayingTitle(l, item),
                     maxLines: 2,
@@ -221,7 +224,10 @@ class IdleSessionRow extends StatelessWidget {
         children: [
           Expanded(
             child: AdminUserLine(
-                name: session.userName, detail: sessionDevice(session)),
+                name: session.userName,
+                detail: sessionDevice(session),
+                userId: session.userId,
+                imageTag: session.userImageTag),
           ),
           if (last != null)
             Text(l.adminActive(adminTimeLabel(last, now, l)),

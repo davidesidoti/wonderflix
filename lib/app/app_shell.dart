@@ -23,6 +23,7 @@ import '../features/watch_party/watch_party_invites.dart';
 import '../l10n/gen/app_localizations.dart';
 import '../ui/hover_builder.dart';
 import '../ui/sliding_underline.dart';
+import '../ui/user_avatar.dart';
 import '../ui/wf_menus.dart';
 import 'back_navigation.dart';
 import 'motion.dart';
@@ -32,6 +33,9 @@ part 'shell_header.dart';
 
 /// Altezza della barra in alto.
 const shellBarHeight = 64.0;
+
+/// Diametro dell'avatar del menu.
+const _menuAvatarSize = 30.0;
 
 /// Struttura comune alle schermate autenticate: contenuto con la barra
 /// superiore sovrapposta. Il contenuto occupa tutta la finestra; le pagine
@@ -352,7 +356,6 @@ class _UserMenu extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
-    final initial = user.name.isEmpty ? '?' : user.name[0].toUpperCase();
     final canAddProfile =
         !ref.watch(profilesProvider.select((p) => p.book.isFull));
     return PopupMenuButton<String>(
@@ -436,12 +439,11 @@ class _UserMenu extends ConsumerWidget {
         builder: (context, hovered) => Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircleAvatar(
-              radius: 15,
-              backgroundColor: WfColors.gold,
-              child: Text(initial,
-                  style: const TextStyle(
-                      color: WfColors.bg, fontWeight: FontWeight.w700)),
+            UserAvatar(
+              userId: user.id,
+              name: user.name,
+              size: _menuAvatarSize,
+              imageTag: user.primaryImageTag,
             ),
             const SizedBox(width: 8),
             Flexible(

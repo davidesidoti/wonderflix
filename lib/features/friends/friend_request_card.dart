@@ -9,10 +9,17 @@ import '../../app/theme.dart';
 import '../../core/social/social_api.dart';
 import '../../core/social/social_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/user_avatar.dart';
 import '../../ui/wf_buttons.dart';
 import 'friend_request_notices.dart';
 import 'friends_controller.dart';
 import 'friends_panel.dart';
+
+/// Diametro dell'avatar di chi chiede l'amicizia.
+const _requestAvatarSize = 24.0;
+
+/// Spazio tra l'avatar e il titolo; i pulsanti si allineano al titolo.
+const _requestAvatarGap = 8.0;
 
 /// Scheda "X vuole essere tuo amico" in alto a destra (spec F §8.4): entra
 /// da destra e se ne va in dissolvenza, come l'invito ai watch party.
@@ -70,9 +77,13 @@ class FriendRequestCard extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  const Icon(LucideIcons.userPlus,
-                      size: 18, color: WfColors.gold),
-                  const SizedBox(width: 8),
+                  UserAvatar.lookup(
+                    userId: request.fromUserId,
+                    name: request.fromName,
+                    size: _requestAvatarSize,
+                    muted: true,
+                  ),
+                  const SizedBox(width: _requestAvatarGap),
                   Expanded(
                     child: Text(l.friendRequestTitle(request.fromName),
                         style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -86,7 +97,8 @@ class FriendRequestCard extends ConsumerWidget {
               ),
               const SizedBox(height: 4),
               Padding(
-                padding: const EdgeInsets.only(left: 26),
+                padding: const EdgeInsets.only(
+                    left: _requestAvatarSize + _requestAvatarGap),
                 // Wrap e non Row: con testi lunghi o ingranditi i due
                 // pulsanti vanno a capo invece di uscire dalla scheda.
                 child: Wrap(

@@ -121,7 +121,7 @@ Future<InviteResult?> _inviteFriends(
                 enabled: !invited.contains(friend.userId),
                 child: Row(
                   children: [
-                    MemberAvatar(name: friend.name),
+                    MemberAvatar(name: friend.name, userId: friend.userId),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(friend.name,

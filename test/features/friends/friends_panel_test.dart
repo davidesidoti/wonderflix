@@ -2,18 +2,22 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/shell_panels.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/core/social/avatars_api.dart';
 import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/friends/friend_search.dart';
 import 'package:wonderflix/features/friends/friends_panel.dart';
+import 'package:wonderflix/features/social/avatars_provider.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 
+import '../../support/avatar_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/social_fakes.dart';
 import '../../support/watch_party_fakes.dart';
@@ -23,7 +27,8 @@ void main() {
 
   setUp(() => api = FakeSocialApi());
 
-  Future<void> pumpPanel(WidgetTester tester) async {
+  Future<void> pumpPanel(WidgetTester tester,
+      {List<Override> overrides = const []}) async {
     await pumpApp(
       tester,
       const Scaffold(
@@ -32,7 +37,7 @@ void main() {
           child: SizedBox(width: FriendsPanel.width, child: FriendsPanel()),
         ),
       ),
-      overrides: socialTestOverrides(api),
+      overrides: [...socialTestOverrides(api), ...overrides],
     );
     // Il primo caricamento parte da un microtask.
     await tester.pump();
@@ -53,6 +58,56 @@ void main() {
     expect(find.byKey(const Key('online-dot')), findsOneWidget);
     expect(find.text('AMICI'), findsOneWidget);
     expect(find.textContaining('RICHIESTE'), findsNothing);
+  });
+
+  testWidgets('un amico con un\'immagine la mostra, cercato per id; il '
+      'pallino resta', (tester) async {
+    final urls = <String>[];
+    api.snapshot =
+        FriendsSnapshot(friends: [testFriend('u2', 'Luigi', online: true)]);
+    await pumpPanel(tester, overrides: [
+      captureImageUrls(urls),
+      // Il nome non corrisponde: l'amico si cerca per id.
+      avatarsFor(const [
+        UserAvatarInfo(userId: 'u2', name: 'Luigi Verdi', imageTag: 't2'),
+      ]),
+    ]);
+    await tester.pump(AvatarDirectory.defaultBatchDelay);
+    await tester.pump();
+
+    expect(urls.toSet(), {'https://media.example.com/UserImage?userId=u2&tag=t2'});
+    expect(find.byKey(const Key('online-dot')), findsOneWidget);
+  });
+
+  testWidgets('richieste e ricerca: l\'immagine cercata per id',
+      (tester) async {
+    final urls = <String>[];
+    api.snapshot = FriendsSnapshot(
+      incoming: [testPerson('u3', 'Peach')],
+      outgoing: [testPerson('u4', 'Daisy')],
+    );
+    api.searchResults['lu'] = [testSearchResult('u6', 'Lucia')];
+    await pumpPanel(tester, overrides: [
+      captureImageUrls(urls),
+      avatarsFor(const [
+        UserAvatarInfo(userId: 'u3', name: 'x3', imageTag: 't3'),
+        UserAvatarInfo(userId: 'u4', name: 'x4', imageTag: 't4'),
+        UserAvatarInfo(userId: 'u6', name: 'x6', imageTag: 't6'),
+      ]),
+    ]);
+    await tester.pump(AvatarDirectory.defaultBatchDelay);
+    await tester.pump();
+    expect(urls.toSet(), {
+      'https://media.example.com/UserImage?userId=u3&tag=t3',
+      'https://media.example.com/UserImage?userId=u4&tag=t4',
+    });
+
+    await tester.enterText(find.byKey(const Key('friends-search')), 'lu');
+    await tester.pump(FriendSearch.debounce);
+    await tester.pump();
+    await tester.pump(AvatarDirectory.defaultBatchDelay);
+    await tester.pump();
+    expect(urls, contains('https://media.example.com/UserImage?userId=u6&tag=t6'));
   });
 
   testWidgets('nessun amico: invito a cercare', (tester) async {

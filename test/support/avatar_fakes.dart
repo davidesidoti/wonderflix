@@ -1,4 +1,25 @@
+import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:wonderflix/core/social/avatars_api.dart';
+import 'package:wonderflix/features/social/avatars_provider.dart';
+import 'package:wonderflix/ui/wf_image.dart';
+
+/// Sostituisce il disegno delle immagini e ne registra gli indirizzi.
+Override captureImageUrls(List<String> urls) =>
+    imageBuilderProvider.overrideWithValue((image, fit) {
+      urls.add(image.url);
+      return const SizedBox.expand();
+    });
+
+/// Una cache degli avatar che conosce [users] (come con un profilo aperto e
+/// la funzione `avatars`). Come il provider vero si chiude con lo scope: una
+/// richiesta partita alla fine del test lascerebbe il suo timer in sospeso.
+Override avatarsFor(List<UserAvatarInfo> users) =>
+    avatarDirectoryProvider.overrideWith((ref) {
+      final directory = AvatarDirectory(FakeAvatarsApi()..users = users);
+      ref.onDispose(directory.dispose);
+      return directory;
+    });
 
 /// `AvatarsApi` finto: risponde con gli utenti di [users] che corrispondono
 /// agli id o ai nomi (senza maiuscole), oppure lancia [error]. Con [hold]

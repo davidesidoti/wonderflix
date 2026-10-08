@@ -11,6 +11,7 @@ import '../../core/social/social_api.dart';
 import '../../core/social/social_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/poster_card.dart';
+import '../../ui/user_avatar.dart';
 import '../../ui/wf_menus.dart';
 import '../social/social_providers.dart';
 import 'current_party.dart';
@@ -58,25 +59,25 @@ class PartyChip extends StatelessWidget {
       );
 }
 
-/// Iniziale di un membro: il server dà solo i nomi utente.
+/// L'avatar di un membro del party o di un amico (spec K §10.5): l'immagine
+/// dell'utente, cercata per id o, senza id, per nome (SyncPlay dà solo i
+/// nomi); altrimenti l'iniziale.
 class MemberAvatar extends StatelessWidget {
-  const MemberAvatar({super.key, required this.name});
+  const MemberAvatar({super.key, required this.name, this.userId});
 
   final String name;
+  final String? userId;
 
   @override
-  Widget build(BuildContext context) => CircleAvatar(
-        radius: 13,
-        backgroundColor: WfColors.surfaceHigh,
-        child: Text(name.isEmpty ? '?' : name[0].toUpperCase(),
-            style: const TextStyle(
-                color: WfColors.gold,
-                fontSize: 12,
-                fontWeight: FontWeight.w700)),
+  Widget build(BuildContext context) => UserAvatar.lookup(
+        userId: userId,
+        name: name,
+        size: MemberAvatarStack.avatarSize,
+        muted: true,
       );
 }
 
-/// Iniziali dei membri, sovrapposte (spec D §15.2): al massimo
+/// Avatar dei membri, sovrapposti (spec D §15.2): al massimo
 /// [maxShown], poi "+N". Chi entra compare con un "pop"; chi esce lascia
 /// stringere la fila (con le animazioni ridotte la larghezza cambia di
 /// colpo).
@@ -90,7 +91,7 @@ class MemberAvatarStack extends StatelessWidget {
   /// Di quanto un'iniziale copre la precedente.
   static const overlap = 8.0;
 
-  /// Diametro di `MemberAvatar` (raggio 13).
+  /// Diametro di `MemberAvatar`.
   static const avatarSize = 26.0;
 
   @override

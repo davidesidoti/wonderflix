@@ -2,19 +2,24 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/core/social/avatars_api.dart';
 import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/social/avatars_provider.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/current_party.dart';
 import 'package:wonderflix/features/watch_party/party_badge.dart';
 import 'package:wonderflix/features/watch_party/party_notices.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
+import 'package:wonderflix/ui/user_avatar.dart';
 
+import '../../support/avatar_fakes.dart';
 import '../../support/fake_session_controller.dart';
 import '../../support/pump_app.dart';
 import '../../support/social_fakes.dart';
@@ -41,7 +46,8 @@ void main() {
 
   Future<ProviderContainer> pumpBadge(WidgetTester tester,
       {SocialFeatures features =
-          const SocialFeatures(friends: true, parties: true)}) async {
+          const SocialFeatures(friends: true, parties: true),
+      List<Override> overrides = const []}) async {
     await pumpApp(
       tester,
       Scaffold(body: Center(child: PartyBadge(onLeave: () {}))),
@@ -55,6 +61,7 @@ void main() {
         socialApiProvider.overrideWithValue(social),
         socialAvailabilityProvider
             .overrideWith(() => FakeSocialAvailability(features)),
+        ...overrides,
       ],
     );
     final container =
@@ -158,6 +165,46 @@ void main() {
     final notice = c.read(partyNoticesProvider)!;
     expect(notice.kind, PartyNoticeKind.inviteSent);
     expect(notice.name, 'Luigi');
+    await leave(c, tester);
+  });
+
+  testWidgets('membri per nome e amici da invitare per id: le loro immagini',
+      (tester) async {
+    final urls = <String>[];
+    social.snapshot =
+        FriendsSnapshot(friends: [testFriend('u2', 'Luigi', online: true)]);
+    final c = await pumpBadge(tester, overrides: [
+      captureImageUrls(urls),
+      avatarsFor(const [
+        UserAvatarInfo(userId: 'u1', name: 'Mario', imageTag: 't1'),
+        // Il nome non corrisponde: l'amico si cerca per id.
+        UserAvatarInfo(userId: 'u2', name: 'Luigi Verdi', imageTag: 't2'),
+      ]),
+    ]);
+    await tester.pump(AvatarDirectory.defaultBatchDelay);
+    await tester.pump();
+    // La fila del distintivo.
+    expect(urls.toSet(), {'https://media.example.com/UserImage?userId=u1&tag=t1'});
+
+    // Il menu dei membri.
+    urls.clear();
+    await tester.tap(find.byKey(const Key('party-badge')));
+    await tester.pumpAndSettle();
+    expect(urls, contains('https://media.example.com/UserImage?userId=u1&tag=t1'));
+
+    // Il menu degli inviti.
+    await tester.tap(find.text('Invita amici'));
+    await tester.pumpAndSettle();
+    await tester.pump(AvatarDirectory.defaultBatchDelay);
+    await tester.pump();
+    expect(
+        find.descendant(
+            of: find.byKey(const ValueKey('invite-u2')),
+            matching: find.byType(UserAvatar)),
+        findsOneWidget);
+    expect(urls, contains('https://media.example.com/UserImage?userId=u2&tag=t2'));
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
     await leave(c, tester);
   });
 

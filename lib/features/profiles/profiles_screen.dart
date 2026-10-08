@@ -9,6 +9,7 @@ import '../../app/theme.dart';
 import '../../core/storage/profile_store.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/staggered_entrance.dart';
+import '../../ui/user_avatar.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_confirm_dialog.dart';
 import '../auth/profiles_state.dart';
@@ -194,7 +195,7 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
   }
 }
 
-/// Un profilo: avatar (iniziale) e nome. Si apre con il clic o con Invio.
+/// Un profilo: avatar e nome. Si apre con il clic o con Invio.
 /// Per lo screen reader è un pulsante con il nome.
 class _ProfileCard extends StatelessWidget {
   const _ProfileCard({
@@ -244,7 +245,12 @@ class _ProfileCard extends StatelessWidget {
                     ExcludeSemantics(
                       child: Opacity(
                         opacity: profile.expired ? _expiredOpacity : 1,
-                        child: _InitialAvatar(name: profile.name),
+                        child: UserAvatar(
+                          userId: profile.userId,
+                          name: profile.name,
+                          size: profileAvatarSize,
+                          imageTag: profile.imageTag,
+                        ),
                       ),
                     ),
                     if (opening) ...[
@@ -325,25 +331,6 @@ class _ProfileCard extends StatelessWidget {
       ),
     );
   }
-}
-
-/// L'iniziale del nome su un cerchio dorato (il piano 17c la sostituisce con
-/// l'immagine dell'utente).
-class _InitialAvatar extends StatelessWidget {
-  const _InitialAvatar({required this.name});
-
-  final String name;
-
-  @override
-  Widget build(BuildContext context) => CircleAvatar(
-        radius: profileAvatarSize / 2,
-        backgroundColor: WfColors.gold,
-        child: Text(name.isEmpty ? '?' : name[0].toUpperCase(),
-            style: const TextStyle(
-                color: WfColors.bg,
-                fontSize: profileAvatarSize * 0.4,
-                fontWeight: FontWeight.w700)),
-      );
 }
 
 /// "Aggiungi profilo": un cerchio con il più.

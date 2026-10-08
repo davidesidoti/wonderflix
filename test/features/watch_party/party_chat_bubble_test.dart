@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/theme.dart';
+import 'package:wonderflix/core/social/avatars_api.dart';
+import 'package:wonderflix/features/social/avatars_provider.dart';
 import 'package:wonderflix/features/watch_party/party_channel.dart';
 import 'package:wonderflix/features/watch_party/party_chat_bubble.dart';
+import 'package:wonderflix/ui/user_avatar.dart';
 
+import '../../support/avatar_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/watch_party_fakes.dart';
 
@@ -20,8 +24,31 @@ void main() {
     expect(find.textContaining('che scena'), findsOneWidget);
     final rich = tester.widget<Text>(find.byType(Text).first);
     expect(rich.style?.fontFamilyFallback, ['Segoe UI Emoji']);
-    final name = (rich.textSpan! as TextSpan).children!.first as TextSpan;
+    // Prima l'avatar, poi il nome.
+    final name = (rich.textSpan! as TextSpan).children![1] as TextSpan;
+    expect(name.text, 'Luigi');
     expect(name.style?.color, WfColors.gold);
+  });
+
+  testWidgets('accanto al nome l\'avatar del mittente, cercato per id',
+      (tester) async {
+    final urls = <String>[];
+    await pumpApp(
+        tester, Scaffold(body: PartyChatMessage(entry: entry('che scena'))),
+        overrides: [
+          captureImageUrls(urls),
+          // Il nome non corrisponde: il mittente si cerca per id.
+          avatarsFor(const [
+            UserAvatarInfo(userId: 'u2', name: 'Luigi Verdi', imageTag: 't2'),
+          ]),
+        ]);
+    await tester.pump(AvatarDirectory.defaultBatchDelay);
+    await tester.pump();
+
+    final avatar = tester.widget<UserAvatar>(find.byType(UserAvatar));
+    expect(avatar.size, partyChatAvatarSize);
+    expect(avatar.muted, isTrue);
+    expect(urls.toSet(), {'https://media.example.com/UserImage?userId=u2&tag=t2'});
   });
 
   testWidgets('i nostri: "Tu"; in attesa più trasparenti', (tester) async {

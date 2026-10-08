@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/app/app_shell.dart';
 import 'package:wonderflix/app/page_transitions.dart';
 import 'package:wonderflix/app/providers.dart';
@@ -12,13 +14,17 @@ import 'package:wonderflix/app/router.dart';
 import 'package:wonderflix/app/shell_panels.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/core/social/avatars_api.dart';
 import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/features/library/server_events_binding.dart';
+import 'package:wonderflix/features/social/avatars_provider.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
+import 'package:wonderflix/ui/user_avatar.dart';
 
+import '../../support/avatar_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/social_fakes.dart';
 import '../../support/watch_party_fakes.dart';
@@ -34,7 +40,8 @@ void main() {
   });
 
   Future<void> pumpShell(WidgetTester tester,
-      {SocialFeatures features = const SocialFeatures(friends: true)}) async {
+      {SocialFeatures features = const SocialFeatures(friends: true),
+      List<Override> overrides = const []}) async {
     await pumpApp(
       tester,
       const AppShell(location: '/home', child: SizedBox()),
@@ -43,6 +50,7 @@ void main() {
         // Nessun elenco dei watch party (né timer).
         watchPartyDirectoryProvider.overrideWith(FakeWatchPartyDirectory.new),
         syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
+        ...overrides,
       ],
     );
     await tester.pump();
@@ -170,6 +178,29 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.calls, contains('accept u3'));
     expect(find.text('Peach vuole essere tuo amico'), findsNothing);
+  });
+
+  testWidgets('richiesta in arrivo: l\'avatar di chi chiede, cercato per id',
+      (tester) async {
+    final urls = <String>[];
+    await pumpShell(tester, overrides: [
+      captureImageUrls(urls),
+      // Il nome non corrisponde: chi chiede si cerca per id.
+      avatarsFor(const [
+        UserAvatarInfo(userId: 'u3', name: 'Peach Toadstool', imageTag: 't3'),
+      ]),
+    ]);
+    events.add(friendRequestReceived('u3', 'Peach'));
+    await tester.pumpAndSettle();
+    await tester.pump(AvatarDirectory.defaultBatchDelay);
+    await tester.pump();
+
+    final card = find.byKey(const Key('friend-request-card'));
+    expect(find.descendant(of: card, matching: find.byType(UserAvatar)),
+        findsOneWidget);
+    expect(find.descendant(of: card, matching: find.byIcon(LucideIcons.userPlus)),
+        findsNothing);
+    expect(urls, contains('https://media.example.com/UserImage?userId=u3&tag=t3'));
   });
 
   testWidgets('"Ho un codice": il primo Esc chiude il campo, il secondo il '

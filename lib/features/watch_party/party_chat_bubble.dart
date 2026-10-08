@@ -3,11 +3,15 @@ import 'package:flutter/material.dart';
 import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/user_avatar.dart';
 import 'party_channel.dart';
 
 /// Ripiego per le emoji scritte nella chat: quelle a colori di Windows
 /// (spec E §9.1).
 const partyEmojiFontFallback = ['Segoe UI Emoji'];
+
+/// Diametro dell'avatar accanto al nome nella chat.
+const partyChatAvatarSize = 18.0;
 
 /// Testo della chat: crema, con le emoji di Windows come ripiego. Il font
 /// resta quello dell'app (si eredita).
@@ -18,8 +22,9 @@ const partyChatTextStyle = TextStyle(
   fontFamilyFallback: partyEmojiFontFallback,
 );
 
-/// Una riga della chat: nome in oro e testo (spec E §9.1). I nostri
-/// messaggi non ancora confermati sono più trasparenti (§9.4).
+/// Una riga della chat: l'avatar del mittente (spec K §10.5), il nome in oro
+/// e il testo (spec E §9.1). I nostri messaggi non ancora confermati sono più
+/// trasparenti (§9.4).
 class PartyChatMessage extends StatelessWidget {
   const PartyChatMessage({super.key, required this.entry, this.maxLines});
 
@@ -39,6 +44,18 @@ class PartyChatMessage extends StatelessWidget {
       opacity: entry.pending ? pendingOpacity : 1,
       child: Text.rich(
         TextSpan(children: [
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: UserAvatar.lookup(
+                userId: entry.event.userId,
+                name: entry.event.userName,
+                size: partyChatAvatarSize,
+                muted: true,
+              ),
+            ),
+          ),
           TextSpan(
               text: name,
               style: const TextStyle(

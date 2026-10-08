@@ -308,6 +308,7 @@ class _SearchResults extends ConsumerWidget {
         for (final result in search.results)
           _PersonRow(
             key: ValueKey('search-${result.userId}'),
+            userId: result.userId,
             name: result.name,
             trailing: _SearchAction(result: result),
           ),
@@ -396,6 +397,7 @@ class _FriendLists extends ConsumerWidget {
           for (final person in snapshot.incoming)
             _PersonRow(
               key: ValueKey('incoming-${person.userId}'),
+              userId: person.userId,
               name: person.name,
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -415,6 +417,7 @@ class _FriendLists extends ConsumerWidget {
           for (final person in snapshot.outgoing)
             _PersonRow(
               key: ValueKey('outgoing-${person.userId}'),
+              userId: person.userId,
               name: person.name,
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -529,6 +532,7 @@ class _FriendRowState extends ConsumerState<_FriendRow> {
         _confirm == null &&
         !_sameGroup(party.groupId, inGroupId);
     return _PersonRow(
+      userId: friend.userId,
       name: friend.name,
       online: friend.online,
       subtitle: party == null ? null : l.friendsInParty(party.title),
@@ -554,12 +558,15 @@ class _FriendRowState extends ConsumerState<_FriendRow> {
 class _PersonRow extends StatelessWidget {
   const _PersonRow({
     super.key,
+    required this.userId,
     required this.name,
     required this.trailing,
     this.online,
     this.subtitle,
   });
 
+  /// L'utente: l'avatar si cerca per id.
+  final String userId;
   final String name;
   final Widget trailing;
 
@@ -584,7 +591,7 @@ class _PersonRow extends StatelessWidget {
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                MemberAvatar(name: name),
+                MemberAvatar(name: name, userId: userId),
                 if (status == true)
                   Positioned(
                     right: -1,

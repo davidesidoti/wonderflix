@@ -4,7 +4,11 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../app/error_text.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/user_avatar.dart';
 import 'admin_time.dart';
+
+/// Diametro dell'avatar di una riga utente.
+const _adminAvatarSize = 28.0;
 
 /// Titolo di una sezione di una scheda ("In riproduzione", "Collegati"…).
 class AdminSectionTitle extends StatelessWidget {
@@ -31,25 +35,33 @@ class AdminEmptyText extends StatelessWidget {
       Text(text, style: const TextStyle(color: WfColors.creamMuted));
 }
 
-/// Un utente: l'iniziale in un cerchio, il nome e un dettaglio (client e
-/// dispositivo).
+/// Un utente: l'avatar, il nome e un dettaglio (client e dispositivo).
 class AdminUserLine extends StatelessWidget {
-  const AdminUserLine({super.key, required this.name, this.detail = ''});
+  const AdminUserLine({
+    super.key,
+    required this.name,
+    this.detail = '',
+    this.userId,
+    this.imageTag,
+  });
 
   final String name;
   final String detail;
 
+  /// Con [imageTag], l'immagine dell'utente (spec K §10.5): il tag lo dà
+  /// Jellyfin con la sessione.
+  final String? userId;
+  final String? imageTag;
+
   @override
   Widget build(BuildContext context) {
-    final initial = name.isEmpty ? '?' : name[0].toUpperCase();
     return Row(
       children: [
-        CircleAvatar(
-          radius: 14,
-          backgroundColor: WfColors.gold,
-          child: Text(initial,
-              style: const TextStyle(
-                  color: WfColors.bg, fontWeight: FontWeight.w700, fontSize: 13)),
+        UserAvatar(
+          userId: userId,
+          name: name,
+          size: _adminAvatarSize,
+          imageTag: imageTag,
         ),
         const SizedBox(width: 10),
         Flexible(

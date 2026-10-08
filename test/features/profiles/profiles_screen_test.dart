@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/theme.dart';
@@ -11,6 +12,7 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/profiles/profiles_screen.dart';
 import 'package:wonderflix/ui/staggered_entrance.dart';
 
+import '../../support/avatar_fakes.dart';
 import '../../support/fake_session_controller.dart';
 import '../../support/profile_fakes.dart';
 import '../../support/pump_app.dart';
@@ -38,6 +40,7 @@ void main() {
     String? lastUserId,
     Size surfaceSize = const Size(1440, 900),
     MotionLevel motion = MotionLevel.reduced,
+    List<Override> overrides = const [],
   }) async {
     session =
         controller ?? FakeSessionController(const SessionChoosingProfile());
@@ -50,6 +53,7 @@ void main() {
           sessionControllerProvider.overrideWith(() => session),
           profilesProvider
               .overrideWith(() => FixedProfiles(ProfilesState(book: book))),
+          ...overrides,
         ]);
     await tester.pump();
   }
@@ -68,6 +72,18 @@ void main() {
     expect(find.text('Luigi'), findsOneWidget);
     expect(find.text('Aggiungi profilo'), findsOneWidget);
     expect(find.text('Gestisci profili'), findsOneWidget);
+  });
+
+  testWidgets('l\'avatar è l\'immagine del profilo; senza, l\'iniziale',
+      (tester) async {
+    final urls = <String>[];
+    await pumpProfiles(
+        tester, [testProfile(userId: 'u1', name: 'Mario', imageTag: 't1'), luigi],
+        overrides: [captureImageUrls(urls)]);
+
+    expect(urls.toSet(), {'https://media.example.com/UserImage?userId=u1&tag=t1'});
+    // Luigi non ha un'immagine: la sua iniziale.
+    expect(find.text('L'), findsOneWidget);
   });
 
   testWidgets('clic su un profilo: lo apre', (tester) async {

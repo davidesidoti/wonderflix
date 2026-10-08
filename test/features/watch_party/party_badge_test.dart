@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/motion.dart';
+import 'package:wonderflix/core/social/avatars_api.dart';
+import 'package:wonderflix/features/social/avatars_provider.dart';
 import 'package:wonderflix/features/watch_party/party_badge.dart';
 
+import '../../support/avatar_fakes.dart';
 import '../../support/pump_app.dart';
 
 void main() {
@@ -109,5 +112,23 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.getSize(find.byType(MemberAvatarStack)).height,
         MemberAvatarStack.avatarSize);
+  });
+
+  testWidgets('i membri con un\'immagine la mostrano, cercati per nome',
+      (tester) async {
+    final urls = <String>[];
+    await pumpApp(tester, const MemberAvatarStack(members: ['Mario', 'Luigi']),
+        overrides: [
+          captureImageUrls(urls),
+          avatarsFor(const [
+            UserAvatarInfo(userId: 'u1', name: 'Mario', imageTag: 't1'),
+          ]),
+        ]);
+    await tester.pump(AvatarDirectory.defaultBatchDelay);
+    await tester.pump();
+
+    expect(urls.toSet(), {'https://media.example.com/UserImage?userId=u1&tag=t1'});
+    // Luigi non ha un'immagine: l'iniziale.
+    expect(find.text('L'), findsOneWidget);
   });
 }
