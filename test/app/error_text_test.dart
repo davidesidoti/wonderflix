@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/error_text.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/requests/requests_api.dart';
+import 'package:wonderflix/core/storage/profile_store.dart';
 import 'package:wonderflix/core/video/video_engine.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
@@ -36,5 +37,9 @@ void main() {
         'Seerr non risponde');
     expect(describeError(l, const RequestsException(RequestsFailure.network)),
         l.errorGeneric);
+  });
+
+  test('un profilo in più del massimo', () {
+    expect(describeError(l, const ProfileLimitException()), 'Massimo 5 profili');
   });
 }

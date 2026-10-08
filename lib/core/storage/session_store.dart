@@ -22,7 +22,9 @@ abstract interface class SessionStore {
   Future<void> clear();
 }
 
-/// Salva la sessione nel Gestore credenziali di Windows.
+/// La sessione unica delle versioni prima della 0.11.0, in
+/// `flutter_secure_storage` (su Windows un file JSON cifrato con DPAPI). Dalla
+/// 0.11.0 serve solo alla migrazione nei profili (`SecureProfileStore`).
 class SecureSessionStore implements SessionStore {
   SecureSessionStore([FlutterSecureStorage? storage, String? storageKey])
       : _storage = storage ?? const FlutterSecureStorage(),

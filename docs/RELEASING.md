@@ -54,7 +54,7 @@ Prima di accenderla: passare i Secrets via `env:` invece che nello script, usare
 
 - Per utente, senza permessi di amministratore: `%LocalAppData%\Programs\WonderFlix`.
 - Collegamenti su Start e Desktop; disinstallazione da *Impostazioni → App*.
-- La disinstallazione toglie il programma. Log, preferenze e credenziali restano (log in `%LocalAppData%\WonderFlix`, credenziali nel Gestore credenziali di Windows).
+- La disinstallazione toglie il programma. Log, preferenze e credenziali restano (log in `%LocalAppData%\WonderFlix`, profili e token in `flutter_secure_storage.dat`, un file cifrato con DPAPI nella cartella dei dati dell'app).
 
 ## Checklist dei test manuali
 

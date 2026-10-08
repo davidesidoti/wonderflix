@@ -3,8 +3,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/storage/session_store.dart';
 
-/// Storage finto che fallisce in lettura, come farebbe il Gestore
-/// credenziali di Windows se non disponibile.
+/// Storage finto che fallisce in lettura.
 class _ThrowingReadStorage extends FlutterSecureStorage {
   const _ThrowingReadStorage();
 
