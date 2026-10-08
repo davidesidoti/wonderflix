@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:clock/clock.dart';
 import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
@@ -120,26 +122,32 @@ class AuthService {
   Future<JellyfinUser> currentUser() =>
       _api.getMe(quietStatuses: restartGatewayStatuses);
 
-  /// Prepara un accesso (spec K §9.2): nessun token, il DeviceId del profilo
-  /// [userId] se rifà l'accesso, altrimenti uno nuovo.
-  void prepareLogin({String? userId}) {
+  /// Prepara un accesso (spec K §9.2): nessun token e un DeviceId nuovo.
+  /// Ogni accesso ha un DeviceId nuovo, anche "Accedi di nuovo": due profili
+  /// non lo condividono mai (il nome si può cambiare, e Quick Connect può
+  /// approvarlo un altro utente), e annullare il token vecchio non chiude la
+  /// sessione nuova.
+  void prepareLogin() {
     _activeUserId = null;
-    final existing = userId == null ? null : _book.byId(userId);
-    _http.setCredentials(
-        token: null, deviceId: existing?.deviceId ?? _newDeviceId());
+    _http.setCredentials(token: null, deviceId: _newDeviceId());
   }
 
   /// Lancia [ApiException], o [ProfileLimitException] per un sesto profilo.
   Future<JellyfinUser> loginWithPassword(
       String username, String password) async {
+    // Il token vale per il DeviceId della richiesta: si legge prima, il
+    // client può cambiarlo nel frattempo.
+    final deviceId = _http.deviceId;
     final result = await _api.authenticateByName(username.trim(), password);
-    await _adopt(result);
+    await _adopt(result, deviceId);
     return result.user;
   }
 
   Future<JellyfinUser> completeQuickConnect(String secret) async {
+    // Come per la password: il DeviceId della richiesta.
+    final deviceId = _http.deviceId;
     final result = await _api.authenticateWithQuickConnect(secret);
-    await _adopt(result);
+    await _adopt(result, deviceId);
     return result.user;
   }
 
@@ -172,8 +180,10 @@ class AuthService {
     }
     final profile = _book.byId(userId);
     if (profile == null) return;
-    await _revoke(profile.accessToken, profile.deviceId);
     await _save(_book.remove(userId));
+    // Il token si annulla senza aspettare: gli errori si ignorano comunque,
+    // e con il server giù si aspetterebbe il timeout della connessione.
+    unawaited(_revoke(profile.accessToken, profile.deviceId));
   }
 
   /// Cambio di profilo (spec K §9.7): le credenziali spariscono dal client;
@@ -207,11 +217,10 @@ class AuthService {
   }
 
   /// Un accesso riuscito (spec K §9.2): il profilo prende il token e il
-  /// DeviceId con cui l'ha ottenuto. Lo stesso utente già salvato non fa un
+  /// [deviceId] con cui l'ha ottenuto. Lo stesso utente già salvato non fa un
   /// doppione, e il suo token vecchio si annulla.
-  Future<void> _adopt(AuthResult result) async {
+  Future<void> _adopt(AuthResult result, String deviceId) async {
     final user = result.user;
-    final deviceId = _http.deviceId;
     final existing = _book.byId(user.id);
     if (existing == null && _book.isFull) {
       await _revoke(result.accessToken, deviceId);
@@ -235,12 +244,13 @@ class AuthService {
   }
 
   /// Annulla un token sul server con le sue credenziali; gli errori si
-  /// ignorano (il token resta solo lì).
+  /// ignorano (il token resta solo lì). Non lancia mai: si può chiamare
+  /// senza aspettarla.
   Future<void> _revoke(String token, String deviceId) async {
     try {
       await _apiFor(_http.withCredentials(token: token, deviceId: deviceId))
           .logout();
-    } on ApiException catch (error) {
+    } on Object catch (error) {
       _log.info('token non annullato: ${error.runtimeType}');
     }
   }

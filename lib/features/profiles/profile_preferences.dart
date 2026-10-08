@@ -54,8 +54,7 @@ class ProfilePreferences {
       userId == null ? _prefs.remove(key) : _prefs.setString(_key(key), '');
 
   /// Cancella le preferenze di [userId] (profilo tolto dal PC, spec K §9.6).
-  static Future<void> removeProfile(
-      SharedPreferences prefs, String userId) async {
+  static Future<void> forget(SharedPreferences prefs, String userId) async {
     final prefix = profilePreferencesPrefix(userId);
     final keys = prefs.getKeys().where((k) => k.startsWith(prefix)).toList();
     for (final key in keys) {

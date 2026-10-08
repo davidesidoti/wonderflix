@@ -158,13 +158,13 @@ void main() {
   });
 
   group('cambi di profilo', () {
-    test('prepareLogin passa il profilo che rifà l\'accesso', () {
+    test('prepareLogin: un DeviceId nuovo, anche per "Accedi di nuovo"', () {
       controller().prepareLogin();
       verify(() => auth.prepareLogin()).called(1);
 
       controller().relogin('u2');
       controller().prepareLogin();
-      verify(() => auth.prepareLogin(userId: 'u2')).called(1);
+      verify(() => auth.prepareLogin()).called(1);
     });
 
     test('switchProfile: credenziali tolte, "Chi guarda?"', () {
@@ -196,13 +196,58 @@ void main() {
     test('cancelLogin: "Chi guarda?" se ci sono profili, altrimenti accesso',
         () {
       controller().addProfile();
+      verify(() => auth.deactivate()).called(1);
       when(() => auth.book).thenReturn(twoProfiles);
       controller().cancelLogin();
       expect(state(), isA<SessionChoosingProfile>());
+      // Le credenziali preparate per l'accesso spariscono.
+      verify(() => auth.deactivate()).called(1);
 
       when(() => auth.book).thenReturn(const ProfileBook());
       controller().cancelLogin();
       expect(state(), isA<SessionSignedOut>());
+    });
+
+    test('un accesso che finisce dopo "Annulla": salvato, ma non si apre',
+        () async {
+      when(() => auth.book).thenReturn(twoProfiles);
+      controller().addProfile();
+      final answer = Completer<JellyfinUser>();
+      when(() => auth.loginWithPassword('peach', 'pw'))
+          .thenAnswer((_) => answer.future);
+
+      final login = controller().loginWithPassword('peach', 'pw');
+      controller().cancelLogin();
+      verify(() => auth.deactivate()).called(2);
+      final withNew =
+          twoProfiles.upsert(testProfile(userId: 'u3', name: 'Peach'));
+      when(() => auth.book).thenReturn(withNew);
+      answer.complete(const JellyfinUser(id: 'u3', name: 'Peach'));
+      await login;
+
+      expect(state(), isA<SessionChoosingProfile>());
+      // Le credenziali del profilo nuovo spariscono dal client; il profilo
+      // compare in "Chi guarda?".
+      verify(() => auth.deactivate()).called(1);
+      expect(profiles().book, same(withNew));
+    });
+
+    test('password e Quick Connect insieme: vale l\'ultimo accesso', () async {
+      controller().addProfile();
+      verify(() => auth.deactivate()).called(1);
+      final answer = Completer<JellyfinUser>();
+      when(() => auth.loginWithPassword('mario', 'pw'))
+          .thenAnswer((_) => answer.future);
+
+      final login = controller().loginWithPassword('mario', 'pw');
+      controller()
+          .quickConnectApproved(const JellyfinUser(id: 'u2', name: 'Luigi'));
+      answer.complete(testUser);
+      await login;
+
+      // Le credenziali nel client sono quelle della password, arrivata dopo.
+      expect((state() as SessionSignedIn).user, same(testUser));
+      verifyNever(() => auth.deactivate());
     });
 
     test('logout: "Chi guarda?" se restano profili', () async {
@@ -237,6 +282,42 @@ void main() {
       verify(() => auth.removeProfile('u2')).called(1);
       expect(state(), isA<SessionChoosingProfile>());
       expect(profiles().book.profiles.single.userId, 'u1');
+    });
+
+    test('removeProfile di un altro profilo da una sessione: si resta lì',
+        () async {
+      when(() => auth.activeUserId).thenReturn('u1');
+      controller().quickConnectApproved(testUser);
+      final signedIn = state();
+      when(() => auth.removeProfile('u2')).thenAnswer((_) async {});
+      final onlyMario =
+          const ProfileBook().upsert(testProfile(userId: 'u1'));
+      when(() => auth.book).thenReturn(onlyMario);
+
+      await controller().removeProfile('u2');
+
+      expect(state(), same(signedIn));
+      verifyNever(() => auth.deactivate());
+      expect(profiles().book, same(onlyMario));
+      expect(profiles().activeUserId, 'u1');
+    });
+
+    test('togliendo un altro profilo, un 401 della sessione apre l\'accesso',
+        () async {
+      when(() => auth.activeUserId).thenReturn('u1');
+      controller().quickConnectApproved(testUser);
+      SessionState? during;
+      when(() => auth.removeProfile('u2')).thenAnswer((_) async {
+        // Una richiesta del profilo aperto prende un 401 nel frattempo.
+        http.onUnauthorized!.call();
+        during = state();
+      });
+
+      await controller().removeProfile('u2');
+
+      expect(during, isA<SessionSignedOut>()
+          .having((s) => s.reloginUserId, 'reloginUserId', 'u1'));
+      verify(() => auth.markActiveExpired()).called(1);
     });
 
     test('logout e rimozione cancellano le preferenze del profilo', () async {

@@ -57,11 +57,11 @@ void main() {
       expect(mario.getString('locale'), '');
     });
 
-    test('removeProfile cancella solo le chiavi di quel profilo', () async {
+    test('forget cancella solo le chiavi di quel profilo', () async {
       await ProfilePreferences(prefs, 'u1').setString('locale', 'en');
       await ProfilePreferences(prefs, 'u2').setString('locale', 'it');
 
-      await ProfilePreferences.removeProfile(prefs, 'U-1');
+      await ProfilePreferences.forget(prefs, 'U-1');
 
       expect(prefs.containsKey('profile.u1.locale'), isFalse);
       expect(prefs.getString('profile.u2.locale'), 'it');

@@ -6,6 +6,7 @@ import 'package:logging/logging.dart';
 import '../../app/providers.dart';
 import '../../core/jellyfin/api_exception.dart';
 import '../../core/jellyfin/auth_models.dart';
+import '../../core/jellyfin/json_fields.dart';
 import '../profiles/profile_preferences.dart';
 import 'auth_service.dart';
 import 'profiles_state.dart';
@@ -30,7 +31,7 @@ final class SessionSignedOut extends SessionState {
   final bool expired;
 
   /// Il profilo che rifà l'accesso ("Accedi di nuovo", spec K §9.4): il suo
-  /// nome già scritto e il suo DeviceId.
+  /// nome già scritto. Il DeviceId è nuovo, come per ogni accesso.
   final String? reloginUserId;
 
   /// Si aggiunge un profilo (spec K §9.5).
@@ -86,19 +87,24 @@ class SessionController extends Notifier<SessionState> {
   /// messaggio.
   Future<void> loginWithPassword(String username, String password) async {
     final user = await _auth.loginWithPassword(username, password);
+    if (state is SessionChoosingProfile) {
+      // L'accesso è finito dopo "Annulla": il profilo resta salvato e
+      // compare in "Chi guarda?", ma non si apre (le sue credenziali escono
+      // dal client). Con una sessione aperta nel frattempo (Quick Connect)
+      // vale l'ultimo accesso, che ha già le credenziali nel client.
+      _auth.deactivate();
+      _publishProfiles();
+      return;
+    }
     _apply(SessionSignedIn(user));
   }
 
   void quickConnectApproved(JellyfinUser user) => _apply(SessionSignedIn(user));
 
-  /// La schermata di accesso si apre (spec K §9.2): il client prende il
-  /// DeviceId del profilo che rifà l'accesso, o uno nuovo. Quick Connect lo
-  /// usa già per la richiesta del codice.
-  void prepareLogin() {
-    final current = state;
-    _auth.prepareLogin(
-        userId: current is SessionSignedOut ? current.reloginUserId : null);
-  }
+  /// La schermata di accesso si apre (spec K §9.2): il client prende un
+  /// DeviceId nuovo, anche per "Accedi di nuovo". Quick Connect lo usa già
+  /// per la richiesta del codice.
+  void prepareLogin() => _auth.prepareLogin();
 
   /// Cambio di profilo (spec K §9.7): le credenziali spariscono, il token
   /// resta salvato, e tutto quello che dipende dall'utente si azzera come
@@ -120,8 +126,12 @@ class SessionController extends Notifier<SessionState> {
     _apply(SessionSignedOut(expired: true, reloginUserId: userId));
   }
 
-  /// "Annulla" nell'accesso: di nuovo "Chi guarda?" (spec K §9.3).
-  void cancelLogin() => _apply(_afterLeaving());
+  /// "Annulla" nell'accesso: di nuovo "Chi guarda?" (spec K §9.3). Il
+  /// DeviceId preparato per l'accesso esce dal client.
+  void cancelLogin() {
+    _auth.deactivate();
+    _apply(_afterLeaving());
+  }
 
   /// Un'uscita in corso: il 401 della sua richiesta (token già scaduto) non
   /// apre l'accesso del profilo che si sta togliendo.
@@ -142,20 +152,32 @@ class SessionController extends Notifier<SessionState> {
   }
 
   /// "Rimuovi" in "Gestisci profili" (spec K §9.4), con le preferenze.
+  /// Togliere il profilo aperto è un'uscita; togliere un altro profilo
+  /// lascia aperto quello che c'è.
   Future<void> removeProfile(String userId) async {
-    _leaving = true;
+    final active = _auth.activeUserId;
+    // Solo l'uscita ignora i 401: quelli del profilo aperto, mentre se ne
+    // toglie un altro, valgono come sempre.
+    final leaving =
+        active != null && jellyfinIdKey(active) == jellyfinIdKey(userId);
+    if (leaving) _leaving = true;
     try {
       await _auth.removeProfile(userId);
     } finally {
-      _leaving = false;
+      if (leaving) _leaving = false;
     }
     await _forgetPreferences(userId);
-    _apply(_afterLeaving());
+    if (_auth.activeUserId != null) {
+      // Tolto un altro profilo: si resta in quello aperto.
+      _publishProfiles();
+    } else {
+      _apply(_afterLeaving());
+    }
   }
 
   Future<void> _forgetPreferences(String userId) async {
     try {
-      await ProfilePreferences.removeProfile(
+      await ProfilePreferences.forget(
           ref.read(sharedPreferencesProvider), userId);
     } on Object catch (error) {
       _log.warning('preferenze del profilo non cancellate: '

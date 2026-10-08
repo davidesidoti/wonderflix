@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
@@ -152,7 +154,7 @@ void main() {
   });
 
   group('accesso', () {
-    test('prepareLogin: DeviceId nuovo, o quello del profilo che rifà l\'accesso',
+    test('prepareLogin: un DeviceId nuovo a ogni accesso, nessun token',
         () async {
       store.book = bookOf([mario, luigi]);
       await service.restore();
@@ -161,8 +163,82 @@ void main() {
       expect(http.deviceId, 'dev-nuovo-1');
       expect(http.token, isNull);
 
-      service.prepareLogin(userId: 'u2');
-      expect(http.deviceId, 'dev-u2');
+      service.prepareLogin();
+      expect(http.deviceId, 'dev-nuovo-2');
+      expect(http.token, isNull);
+      expect(service.activeUserId, isNull);
+    });
+
+    test('"Accedi di nuovo": DeviceId nuovo, token vecchio annullato con il suo',
+        () async {
+      store.book = bookOf([mario, luigi.copyWith(expired: true)]);
+      await service.restore();
+      service.prepareLogin();
+      when(() => api.authenticateByName('luigi', 'pw')).thenAnswer((_) async =>
+          const AuthResult(
+              user: JellyfinUser(id: 'u2', name: 'Luigi'),
+              accessToken: 'tok-nuovo'));
+
+      await service.loginWithPassword('luigi', 'pw');
+
+      final saved = store.book.byId('u2')!;
+      expect(saved.accessToken, 'tok-nuovo');
+      expect(saved.deviceId, 'dev-nuovo-1');
+      expect(saved.expired, isFalse);
+      expect(http.deviceId, 'dev-nuovo-1');
+      // Il token vecchio, con il suo DeviceId: la sessione nuova non c'entra.
+      expect(revoked, [('tok-u2', 'dev-u2')]);
+    });
+
+    test('"Accedi di nuovo" ma accede un altro utente: tre DeviceId diversi',
+        () async {
+      store.book = bookOf([mario, luigi.copyWith(expired: true)]);
+      await service.restore();
+      service.prepareLogin();
+      when(() => api.authenticateByName(any(), any())).thenAnswer((_) async =>
+          const AuthResult(
+              user: JellyfinUser(id: 'u3', name: 'Peach'),
+              accessToken: 'tok-u3'));
+
+      await service.loginWithPassword('peach', 'pw');
+
+      expect(store.book.profiles.map((p) => p.deviceId),
+          ['dev-u1', 'dev-u2', 'dev-nuovo-1']);
+      expect(store.book.byId('u2')!.expired, isTrue);
+      expect(revoked, isEmpty);
+    });
+
+    test('password: il DeviceId è quello della richiesta, anche se cambia dopo',
+        () async {
+      service.prepareLogin();
+      final answer = Completer<AuthResult>();
+      when(() => api.authenticateByName(any(), any()))
+          .thenAnswer((_) => answer.future);
+
+      final login = service.loginWithPassword('mario', 'pw');
+      service.prepareLogin();
+      answer.complete(
+          const AuthResult(user: testUser, accessToken: 'tok-nuovo'));
+      await login;
+
+      expect(store.book.byId('u1')!.deviceId, 'dev-nuovo-1');
+      expect(http.deviceId, 'dev-nuovo-1');
+      expect(http.token, 'tok-nuovo');
+    });
+
+    test('Quick Connect: il DeviceId è quello della richiesta', () async {
+      service.prepareLogin();
+      final answer = Completer<AuthResult>();
+      when(() => api.authenticateWithQuickConnect('s1'))
+          .thenAnswer((_) => answer.future);
+
+      final login = service.completeQuickConnect('s1');
+      service.prepareLogin();
+      answer.complete(const AuthResult(user: testUser, accessToken: 'tok-qc'));
+      await login;
+
+      expect(store.book.byId('u1')!.deviceId, 'dev-nuovo-1');
+      expect(http.deviceId, 'dev-nuovo-1');
     });
 
     test('password: profilo nuovo con il DeviceId dell\'accesso', () async {
@@ -328,6 +404,34 @@ void main() {
           .thenThrow(const ServerUnreachableException());
 
       await service.removeProfile('u2');
+      expect(store.book.byId('u2'), isNull);
+    });
+
+    test('removeProfile di un altro profilo: non aspetta il server', () async {
+      await openMario();
+      // Il server non risponde mai (giù, fino al timeout della connessione).
+      final never = Completer<void>();
+      when(() => revokeApi.logout()).thenAnswer((_) => never.future);
+
+      var done = false;
+      unawaited(service.removeProfile('u2').then((_) => done = true));
+      await pumpEventQueue();
+
+      expect(done, isTrue);
+      expect(store.book.byId('u2'), isNull);
+      expect(revoked, [('tok-u2', 'dev-u2')]);
+    });
+
+    test('removeProfile: un errore qualsiasi dell\'annullamento si ignora',
+        () async {
+      await openMario();
+      when(() => revokeApi.logout())
+          .thenAnswer((_) async => throw StateError('x'));
+
+      await service.removeProfile('u2');
+      // Un errore non gestito farebbe fallire il test.
+      await pumpEventQueue();
+
       expect(store.book.byId('u2'), isNull);
     });
 
