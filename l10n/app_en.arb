@@ -555,5 +555,20 @@
   "profilesSwitch": "Switch profile",
   "profilesSwitchLeavesParty": "You'll leave the watch party.",
   "profilesRemoveNamed": "Remove {name}",
-  "profilesUnnamed": "Profile"
+  "profilesUnnamed": "Profile",
+  "profilesEditImage": "Edit picture",
+  "settingsChangeImage": "Change picture",
+  "profileImageTitle": "Profile picture",
+  "profileImageAvatars": "Avatars",
+  "profileImageFromPc": "From PC",
+  "profileImageUseAvatar": "Use this",
+  "profileImageChoose": "Choose an image…",
+  "profileImageUseFile": "Use this",
+  "profileImageRemove": "Remove picture",
+  "profileImageTooLarge": "Image too large",
+  "profileImageInvalid": "Invalid image",
+  "profileImageForbidden": "You're not allowed to change the picture",
+  "profileImageFailed": "Upload failed",
+  "profileImageFiles": "Images",
+  "profileImageZoom": "Zoom"
 }
