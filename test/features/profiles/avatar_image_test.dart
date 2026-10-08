@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -55,6 +56,85 @@ Uint8List _jpeg({(int, int)? declare}) {
   }
   return bytes;
 }
+
+/// Un JPEG fatto solo di SOI, un SOF0 di 4000×4000 con [components]
+/// componenti (campionamento [sampling]) ed EOI: abbastanza per
+/// l'intestazione.
+Uint8List _jpegSof({required int components, int sampling = 0x11}) =>
+    Uint8List.fromList([
+      0xFF, 0xD8, //
+      0xFF, 0xC0, 0x00, 8 + 3 * components, 0x08, //
+      0x0F, 0xA0, 0x0F, 0xA0, components,
+      for (var c = 0; c < components; c++) ...[c + 1, sampling, 0x00],
+      0xFF, 0xD9,
+    ]);
+
+/// Un blocco PNG: lunghezza, tipo, dati e CRC.
+List<int> _pngChunk(String type, List<int> data) {
+  final body = [...type.codeUnits, ...data];
+  final length = ByteData(4)..setUint32(0, data.length);
+  final crc = ByteData(4)..setUint32(0, _crc32(body));
+  return [
+    ...length.buffer.asUint8List(),
+    ...body,
+    ...crc.buffer.asUint8List(),
+  ];
+}
+
+/// Un PNG di 1×1 in grigi a 8 bit (2 byte decompressi al massimo) il cui
+/// IDAT si espande a [inflated] byte.
+Uint8List _pngInflatingTo(int inflated) {
+  final ihdr = ByteData(13)
+    ..setUint32(0, 1)
+    ..setUint32(4, 1)
+    ..setUint8(8, 8); // 8 bit, grigi, nessun interlacciamento
+  return Uint8List.fromList([
+    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, //
+    ..._pngChunk('IHDR', ihdr.buffer.asUint8List()),
+    ..._pngChunk('IDAT', ZLibCodec().encode(Uint8List(inflated))),
+    ..._pngChunk('IEND', const []),
+  ]);
+}
+
+/// Un blocco RIFF di un WebP: tipo, lunghezza (little-endian), dati e il
+/// byte di allineamento.
+List<int> _riffChunk(String type, List<int> data) => [
+      ...type.codeUnits,
+      ...(ByteData(4)..setUint32(0, data.length, Endian.little))
+          .buffer
+          .asUint8List(),
+      ...data,
+      if (data.length.isOdd) 0,
+    ];
+
+/// Un WebP: l'intestazione RIFF intorno a [chunks].
+Uint8List _webp(List<int> chunks) => Uint8List.fromList([
+      ...'RIFF'.codeUnits,
+      ...(ByteData(4)..setUint32(0, 4 + chunks.length, Endian.little))
+          .buffer
+          .asUint8List(),
+      ...'WEBP'.codeUnits,
+      ...chunks,
+    ]);
+
+/// Un'immagine VP8L (WebP senza perdite) di 1×1.
+final _vp8l1x1 = _riffChunk('VP8L', const [
+  0x2F, 0x00, 0x00, 0x00, 0x10, 0x07, 0x10, 0x11, 0x11, 0x88, 0x88, //
+  0xFE, 0x07,
+]);
+
+/// Un WebP animato: tela di 1×1 e un fotogramma, il VP8L di 1×1.
+Uint8List _animatedWebp() => _webp([
+      // VP8X: animazione e alfa, tela 1×1 (le misure meno uno).
+      ..._riffChunk('VP8X', const [0x12, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+      // ANIM: colore di fondo e numero di ripetizioni.
+      ..._riffChunk('ANIM', const [0xFF, 0xFF, 0xFF, 0xFF, 0, 0]),
+      // ANMF: posizione, misure meno uno, durata, opzioni; poi il fotogramma.
+      ..._riffChunk('ANMF', [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x64, 0, 0, 0, //
+        ..._vp8l1x1,
+      ]),
+    ]);
 
 /// I canali rossi, verdi e blu di un pixel, a meno delle perdite del JPEG.
 Matcher _rgb(int r, int g, int b) =>
@@ -249,6 +329,25 @@ void main() {
       }
     });
 
+    test('da 1 a 4 componenti, con campionamento da 1 a 4', () {
+      expect(readJpegSize(_jpegSof(components: 3)),
+          (width: 4000, height: 4000));
+      expect(readJpegSize(_jpegSof(components: 1, sampling: 0x44)),
+          (width: 4000, height: 4000));
+      for (final components in [0, 5, 24]) {
+        expect(readJpegSize(_jpegSof(components: components)), isNull,
+            reason: '$components componenti');
+      }
+      for (final sampling in [0x51, 0x15, 0x01, 0x10]) {
+        expect(readJpegSize(_jpegSof(components: 3, sampling: sampling)),
+            isNull,
+            reason: 'campionamento ${sampling.toRadixString(16)}');
+      }
+      // Le componenti dichiarate non ci sono tutte.
+      final cut = _jpegSof(components: 3);
+      expect(readJpegSize(cut.sublist(0, cut.length - 6)), isNull);
+    });
+
     test('troncata o rovinata: nessuna dimensione', () {
       final bytes = _jpeg();
       final sof = _sof0(bytes);
@@ -261,7 +360,63 @@ void main() {
     });
   });
 
+  group('file costruiti apposta: si scartano prima di decodificare', () {
+    test('un formato che non si sceglie (ICO): non valida', () {
+      final ico = img.encodeIco(img.Image(width: 16, height: 16));
+
+      expect(() => prepareAvatarImageSync(ico),
+          _fails(AvatarImageError.invalid));
+    });
+
+    test('un JPEG con 24 componenti: non valida, subito', () {
+      final stopwatch = Stopwatch()..start();
+
+      expect(() => prepareAvatarImageSync(_jpegSof(components: 24)),
+          _fails(AvatarImageError.invalid));
+      expect(stopwatch.elapsed, lessThan(const Duration(seconds: 1)));
+    });
+
+    test('un WebP animato: non valida; un WebP fermo va bene', () {
+      expect(prepareAvatarImageSync(_webp(_vp8l1x1)).width, 1);
+
+      expect(() => prepareAvatarImageSync(_animatedWebp()),
+          _fails(AvatarImageError.invalid));
+    });
+
+    test('un PNG che si espande oltre le sue misure: non valida', () {
+      // 1×1 in grigi: 2 byte decompressi; l'IDAT ne dà 1 MB.
+      expect(() => prepareAvatarImageSync(_pngInflatingTo(1 << 20)),
+          _fails(AvatarImageError.invalid));
+      // Gli stessi 2 byte: va bene.
+      expect(prepareAvatarImageSync(_pngInflatingTo(2)).width, 1);
+    });
+
+    test('misure nulle o negative: non valida', () {
+      expect(() => prepareAvatarImageSync(_pngDeclaring(0, 1)),
+          _fails(AvatarImageError.invalid));
+      // Un BMP di 2×2 con la larghezza negativa.
+      final bmp = img.encodeBmp(img.Image(width: 2, height: 2));
+      ByteData.sublistView(bmp).setInt32(18, -2, Endian.little);
+      expect(() => prepareAvatarImageSync(bmp),
+          _fails(AvatarImageError.invalid));
+    });
+  });
+
   group('ritaglio', () {
+    test('una foto dritta con il GPS: il JPEG caricato non ha l\'EXIF', () {
+      final photo = img.Image(width: 300, height: 200);
+      photo.exif.imageIfd.orientation = 1;
+      photo.exif.gpsIfd[0x0001] = img.IfdValueAscii('N');
+      photo.exif.gpsIfd[0x0002] = img.IfdValueRational(45, 1);
+      final source = img.encodeJpg(photo);
+      expect(img.decodeJpg(source)!.exif.gpsIfd.isEmpty, isFalse);
+
+      final working = prepareAvatarImageSync(source);
+      final jpeg = cropAvatarImageSync(working.bytes, const CropArea(0, 0, 200));
+
+      expect(img.decodeJpg(jpeg)!.exif.isEmpty, isTrue);
+    });
+
     test('l\'EXIF non arriva mai al JPEG caricato (anche il GPS)', () {
       final photo = img.Image(width: 300, height: 200);
       photo.exif.imageIfd.orientation = 6;

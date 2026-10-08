@@ -1,3 +1,4 @@
+import 'dart:io' show ZLibCodec;
 import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -86,11 +87,23 @@ WorkingImage prepareAvatarImageSync(Uint8List bytes) {
   }
   final image =
       _toWorking(_isJpeg(bytes) ? _decodeJpeg(bytes) : _decodeOther(bytes));
-  // Il PNG di lavoro non ha l'EXIF (`encodePng` non lo scrive), e quindi
-  // nemmeno il JPEG caricato: le immagini degli utenti sono pubbliche, e
-  // l'EXIF di una foto può dire dove è stata scattata (GPS), quando e con
-  // cosa.
+  // Niente EXIF nel PNG di lavoro, e quindi nemmeno nel JPEG caricato: le
+  // immagini degli utenti sono pubbliche, e l'EXIF di una foto può dire dove
+  // è stata scattata (GPS), quando e con cosa. Si toglie qui, senza contare
+  // su `encodePng` (che oggi non lo scrive).
+  image.exif = img.ExifData();
   return WorkingImage(img.encodePng(image), image.width, image.height);
+}
+
+/// Larghezza e altezza accettabili: positive, e non più di [maxSourcePixels]
+/// in tutto. Lancia [AvatarImageException].
+void _checkSize(int width, int height) {
+  if (width <= 0 || height <= 0) {
+    throw const AvatarImageException(AvatarImageError.invalid);
+  }
+  if (width * height > maxSourcePixels) {
+    throw const AvatarImageException(AvatarImageError.tooLarge);
+  }
 }
 
 bool _isJpeg(Uint8List bytes) =>
@@ -105,26 +118,119 @@ img.Image _decodeJpeg(Uint8List bytes) {
   if (size == null) {
     throw const AvatarImageException(AvatarImageError.invalid);
   }
-  if (size.width * size.height > maxSourcePixels) {
-    throw const AvatarImageException(AvatarImageError.tooLarge);
-  }
+  _checkSize(size.width, size.height);
   return _decodeOrInvalid(() => img.decodeJpg(bytes));
 }
 
-/// Gli altri formati (PNG, GIF, WebP, BMP): `startDecode` legge solo
-/// l'intestazione.
+/// Gli altri formati che si possono scegliere (PNG, GIF, WebP, BMP):
+/// `startDecode` legge solo l'intestazione. Ogni altro formato che il
+/// pacchetto `image` riconosce (ICO, TIFF, PSD, ...) non è valido: le sue
+/// misure non sono controllate qui (un ICO può contenere un PNG enorme).
 img.Image _decodeOther(Uint8List bytes) {
   final header = _readHeader(bytes);
   if (header == null) {
     throw const AvatarImageException(AvatarImageError.invalid);
   }
-  final (decoder, pixels) = header;
-  if (pixels > maxSourcePixels) {
-    throw const AvatarImageException(AvatarImageError.tooLarge);
+  final (decoder, info) = header;
+  final accepted = decoder is img.PngDecoder ||
+      decoder is img.GifDecoder ||
+      decoder is img.WebPDecoder ||
+      decoder is img.BmpDecoder;
+  if (!accepted) {
+    throw const AvatarImageException(AvatarImageError.invalid);
+  }
+  // Di un WebP animato `startDecode` dà la tela, ma il fotogramma ha le sue
+  // misure, non controllate: non si accetta. (Di una GIF il fotogramma sta
+  // sempre dentro la tela.)
+  if (info is img.WebPInfo &&
+      (info.hasAnimation || info.format == img.WebPFormat.animated)) {
+    throw const AvatarImageException(AvatarImageError.invalid);
+  }
+  _checkSize(info.width, info.height);
+  if (info is img.PngInfo && !_pngInflatesWithin(bytes, _pngDataLimit(info))) {
+    throw const AvatarImageException(AvatarImageError.invalid);
   }
   // Di una GIF animata vale il primo fotogramma: si decodifica solo quello
   // (con tutti, `encodePng` scriverebbe un PNG animato).
   return _decodeOrInvalid(() => decoder.decodeFrame(0));
+}
+
+/// Byte in più che un PNG può espandere oltre le sue righe, per un encoder
+/// poco preciso.
+const _pngInflateSlack = 1024;
+
+/// I passaggi dell'interlacciamento Adam7: colonna e riga di partenza, passo
+/// orizzontale e verticale.
+const _adam7Passes = [
+  (0, 0, 8, 8), (4, 0, 8, 8), (0, 4, 4, 8), (2, 0, 4, 4), //
+  (0, 2, 2, 4), (1, 0, 2, 2), (0, 1, 1, 2),
+];
+
+/// I byte che i dati di un PNG (IDAT) danno al massimo, decompressi: ogni
+/// riga ha il byte del filtro e i suoi pixel; interlacciato, le righe di ogni
+/// passaggio.
+int _pngDataLimit(img.PngInfo info) {
+  final channels = switch (info.colorType) {
+    2 => 3, // RGB
+    4 => 2, // grigi con alfa
+    6 => 4, // RGBA
+    _ => 1, // grigi, tavolozza
+  };
+  int rows(int width, int height) => width <= 0 || height <= 0
+      ? 0
+      : height * (1 + (width * channels * info.bits + 7) ~/ 8);
+  final width = info.width;
+  final height = info.height;
+  if (info.interlaceMethod == 0) return rows(width, height) + _pngInflateSlack;
+  var total = 0;
+  for (final (x, y, dx, dy) in _adam7Passes) {
+    total += rows((width - x + dx - 1) ~/ dx, (height - y + dy - 1) ~/ dy);
+  }
+  return total + _pngInflateSlack;
+}
+
+/// I dati IDAT di [bytes] (un PNG già riconosciuto) si espandono al massimo
+/// di [limit] byte. Si decomprimono a pezzi contando i byte, senza tenerli:
+/// il decoder del pacchetto `image` li espande tutti in memoria, anche
+/// gigabyte da un file di pochi MB.
+bool _pngInflatesWithin(Uint8List bytes, int limit) {
+  final counter = _CountingSink(limit);
+  final inflater = ZLibCodec().decoder.startChunkedConversion(counter);
+  try {
+    // Dopo la firma (8 byte), i blocchi: lunghezza (4), tipo (4), dati e CRC
+    // (4).
+    var i = 8;
+    while (i + 8 <= bytes.length) {
+      final length = ByteData.sublistView(bytes, i, i + 4).getUint32(0);
+      final type = String.fromCharCodes(bytes, i + 4, i + 8);
+      final end = i + 8 + length;
+      if (end + 4 > bytes.length) return false;
+      if (type == 'IDAT') inflater.add(Uint8List.sublistView(bytes, i + 8, end));
+      if (type == 'IEND') break;
+      i = end + 4;
+    }
+    inflater.close();
+    return true;
+  } on Object {
+    return false;
+  }
+}
+
+/// Conta i byte decompressi, e si ferma oltre [limit].
+class _CountingSink implements Sink<List<int>> {
+  _CountingSink(this.limit);
+
+  final int limit;
+  int _count = 0;
+
+  @override
+  void add(List<int> data) {
+    _count += data.length;
+    if (_count > limit) throw const FormatException('PNG troppo grande');
+  }
+
+  @override
+  void close() {}
 }
 
 img.Image _decodeOrInvalid(img.Image? Function() decode) {
@@ -139,6 +245,13 @@ img.Image _decodeOrInvalid(img.Image? Function() decode) {
   }
   return decoded;
 }
+
+/// Componenti al massimo di un JPEG (lo standard ne ammette 4 in un'immagine
+/// a colori: CMYK).
+const _maxJpegComponents = 4;
+
+/// Fattore di campionamento massimo di una componente JPEG (standard: 1-4).
+const _maxJpegSampling = 4;
 
 /// I marcatori SOF di un JPEG: da C0 a CF, tranne DHT (C4), JPG (C8) e DAC
 /// (CC).
@@ -187,8 +300,28 @@ bool _isJpegLengthSegment(int marker) =>
     if (length < 2) return null;
     if (isSof) {
       // Dopo la lunghezza (2 byte): precisione (1), altezza (2), larghezza
-      // (2) e numero di componenti (1).
-      if (length < 8 || i + 7 > bytes.length) return null;
+      // (2), numero di componenti (1), poi 3 byte per componente.
+      if (length < 8 || i + 8 > bytes.length) return null;
+      // Il decoder alloca i blocchi di ogni componente, moltiplicati per il
+      // campionamento: oltre i limiti dello standard, anche un'immagine
+      // piccola occuperebbe gigabyte.
+      final components = bytes[i + 7];
+      if (components < 1 || components > _maxJpegComponents) return null;
+      if (length < 8 + 3 * components ||
+          i + 8 + 3 * components > bytes.length) {
+        return null;
+      }
+      for (var c = 0; c < components; c++) {
+        final sampling = bytes[i + 9 + 3 * c];
+        final horizontal = sampling >> 4;
+        final vertical = sampling & 0x0F;
+        if (horizontal < 1 ||
+            horizontal > _maxJpegSampling ||
+            vertical < 1 ||
+            vertical > _maxJpegSampling) {
+          return null;
+        }
+      }
       return (
         width: (bytes[i + 5] << 8) | bytes[i + 6],
         height: (bytes[i + 3] << 8) | bytes[i + 4],
@@ -199,14 +332,14 @@ bool _isJpegLengthSegment(int marker) =>
   return null;
 }
 
-/// Il decoder del file e i pixel che dichiara la sua intestazione, senza
-/// decodificare l'immagine. `null` se non è un'immagine.
-(img.Decoder, int)? _readHeader(Uint8List bytes) {
+/// Il decoder del file e la sua intestazione, senza decodificare l'immagine.
+/// `null` se non è un'immagine.
+(img.Decoder, img.DecodeInfo)? _readHeader(Uint8List bytes) {
   try {
     final decoder = img.findDecoderForData(bytes);
     final info = decoder?.startDecode(bytes);
     if (decoder == null || info == null) return null;
-    return (decoder, info.width * info.height);
+    return (decoder, info);
   } on Object {
     return null;
   }
