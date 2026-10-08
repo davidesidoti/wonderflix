@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+/// La sessione unica delle versioni prima della 0.11.0.
 class StoredSession {
   const StoredSession({required this.userId, required this.accessToken});
 
@@ -12,20 +13,13 @@ class StoredSession {
 
   final String userId;
   final String accessToken;
-
-  Map<String, dynamic> toJson() => {'userId': userId, 'accessToken': accessToken};
 }
 
-abstract interface class SessionStore {
-  Future<StoredSession?> read();
-  Future<void> write(StoredSession session);
-  Future<void> clear();
-}
-
-/// La sessione unica delle versioni prima della 0.11.0, in
-/// `flutter_secure_storage` (su Windows un file JSON cifrato con DPAPI). Dalla
-/// 0.11.0 serve solo alla migrazione nei profili (`SecureProfileStore`).
-class SecureSessionStore implements SessionStore {
+/// Lettore della sessione unica delle versioni prima della 0.11.0, in
+/// `flutter_secure_storage` (su Windows un file JSON cifrato con DPAPI).
+/// Esiste solo per la migrazione 0.10 → 0.11 nei profili
+/// (`SecureProfileStore`): si legge una volta e si cancella.
+class SecureSessionStore {
   SecureSessionStore([FlutterSecureStorage? storage, String? storageKey])
       : _storage = storage ?? const FlutterSecureStorage(),
         storageKey = storageKey ?? key;
@@ -37,32 +31,23 @@ class SecureSessionStore implements SessionStore {
   /// Chiave usata da questa istanza (diversa per un profilo di sviluppo).
   final String storageKey;
 
-  @override
+  /// `null` se non c'è. Un valore rovinato si cancella e dà `null`. Uno
+  /// storage che non si legge lancia: la sessione può esserci ancora, e non
+  /// si cancella.
   Future<StoredSession?> read() async {
-    final String? raw;
-    try {
-      raw = await _storage.read(key: storageKey);
-    } on Object {
-      try {
-        await clear();
-      } on Object {
-        // Ignora: la lettura era già fallita.
-      }
-      return null;
-    }
+    final raw = await _storage.read(key: storageKey);
     if (raw == null) return null;
     try {
       return StoredSession.fromJson(jsonDecode(raw) as Map<String, dynamic>);
     } on Object {
-      await clear();
+      try {
+        await clear();
+      } on Object {
+        // Ignora: il valore era comunque inservibile.
+      }
       return null;
     }
   }
 
-  @override
-  Future<void> write(StoredSession session) =>
-      _storage.write(key: storageKey, value: jsonEncode(session.toJson()));
-
-  @override
   Future<void> clear() => _storage.delete(key: storageKey);
 }

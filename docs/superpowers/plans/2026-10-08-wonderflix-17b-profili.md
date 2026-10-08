@@ -52,6 +52,15 @@ Le immagini del profilo, `UserAvatar` e la release sono nel piano 17c. Qui gli a
         - testi nuovi `profilesRemoveNamed` ("Rimuovi {name}", tooltip del pulsante Rimuovi) e `profilesUnnamed` ("Profilo", per un profilo il cui nome non si è mai letto).
       - Login: un nome salvato vuoto non si scrive nel campo.
       - Gli avatar restano le iniziali: il piano 17c mette `UserAvatar` al posto dell'iniziale di "Chi guarda?" e del `CircleAvatar` del menu dell'avatar.
+    - **Dalla review finale:**
+      - Quick Connect si ferma del tutto quando si smette di ascoltarlo ("Annulla", un'altra scheda): `QuickConnectFlow.run` usa uno `StreamController` con `onCancel`, e prima di ogni attesa o richiesta guarda se è stato cancellato. Niente più controlli, `Initiate` o `completeQuickConnect` con le credenziali del profilo aperto dopo.
+      - Server giù aprendo un profilo da "Chi guarda?": `SessionUnreachable(retryUserId:)`, e "Riprova" (anche quello automatico) riapre quel profilo invece di `restore()`.
+      - Togliere l'ultimo profilo cambia lo stato prima di cancellare le preferenze, come "Esci": nessun "Chi guarda?" vuoto.
+      - Password e Quick Connect insieme: **vince il primo accesso che finisce** (l'accesso riuscito fa crescere la generazione); l'altro è superato, e le credenziali non cambiano sotto una sessione aperta.
+      - Una lettura dello storage che lancia non fa perdere i profili salvati: `ProfileStore.write` dà l'elenco salvato davvero; dopo una lettura non riuscita rilegge prima, e se non riesce non salva, altrimenti tiene anche i profili che mancano (al massimo 5, vincono i nuovi). Solo dati rovinati si sovrascrivono. Vale anche per la sessione di prima (il lettore della 0.10 lancia invece di cancellarla).
+      - Dopo un salvataggio non riuscito, `restore()` tiene i profili in memoria e riprova a salvarli invece di rileggere lo storage.
+      - I 401 attesi (aprire un profilo scaduto, annullare un token già scaduto) vanno nel registro come info (`quietStatuses`, anche in `AuthApi.logout`).
+      - Della sessione di prima resta solo il lettore (`SecureSessionStore.read` e `clear`), per la migrazione 0.10 → 0.11.
 
 **Architecture:**
 - **Dati:**

@@ -18,7 +18,9 @@ const _sheenPass = Interval(0.45, 1, curve: WfMotion.standard);
 /// Larghezza della fascia del riflesso, in frazione della larghezza del logo.
 const _sheenWidth = 0.35;
 
-/// Visibile mentre `SessionController.restore()` verifica il token salvato.
+/// Visibile mentre `SessionController.restore()` riparte dai profili salvati:
+/// nessuno → l'accesso, uno → lo apre (`/Users/Me`), più di uno → "Chi
+/// guarda?".
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 

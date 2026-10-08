@@ -250,8 +250,9 @@ class SecureProfileStore implements ProfileStore {
     try {
       session = await legacy.read();
     } on Object catch (error) {
-      // `read()` cancella un valore rovinato: se anche questo fallisce, si
-      // riparte senza profili.
+      // Lo storage non si legge: la sessione di prima può esserci ancora.
+      // Come per i profili, il prossimo salvataggio rilegge prima (e migra).
+      _readFailed = true;
       _log.warning('sessione di prima non letta: ${error.runtimeType}');
       return const ProfileBook();
     }

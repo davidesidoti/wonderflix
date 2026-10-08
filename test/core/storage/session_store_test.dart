@@ -1,17 +1,24 @@
+import 'dart:convert';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/storage/session_store.dart';
 
 import '../../support/throwing_secure_storage.dart';
 
+/// La sessione di prima della 0.11.0 come la scriveva la 0.10.
+String legacySession(String userId, String token) =>
+    jsonEncode({'userId': userId, 'accessToken': token});
+
 void main() {
   setUp(() => FlutterSecureStorage.setMockInitialValues({}));
 
-  test('scrive, legge e cancella la sessione', () async {
+  test('legge e cancella la sessione di prima', () async {
     final store = SecureSessionStore();
     expect(await store.read(), isNull);
 
-    await store.write(const StoredSession(userId: 'u1', accessToken: 'tok'));
+    FlutterSecureStorage.setMockInitialValues(
+        {SecureSessionStore.key: legacySession('u1', 'tok')});
     final read = await store.read();
     expect(read?.userId, 'u1');
     expect(read?.accessToken, 'tok');
@@ -29,16 +36,25 @@ void main() {
         isNull);
   });
 
-  test('uno storage che fallisce in lettura restituisce null', () async {
+  test('uno storage che fallisce in lettura lancia, e la sessione resta',
+      () async {
+    FlutterSecureStorage.setMockInitialValues(
+        {SecureSessionStore.key: legacySession('u1', 'tok')});
     final store = SecureSessionStore(const ThrowingReadStorage());
-    expect(await store.read(), isNull);
+
+    await expectLater(store.read(), throwsException);
+
+    expect(await const FlutterSecureStorage().read(key: SecureSessionStore.key),
+        isNotNull);
   });
 
   test('chiave personalizzata: sessioni separate', () async {
+    FlutterSecureStorage.setMockInitialValues({
+      SecureSessionStore.key: legacySession('u1', 'a'),
+      'wonderflix.session.b': legacySession('u2', 'b'),
+    });
     final first = SecureSessionStore();
     final other = SecureSessionStore(null, 'wonderflix.session.b');
-    await first.write(const StoredSession(userId: 'u1', accessToken: 'a'));
-    await other.write(const StoredSession(userId: 'u2', accessToken: 'b'));
     expect((await first.read())?.userId, 'u1');
     expect((await other.read())?.userId, 'u2');
     await other.clear();

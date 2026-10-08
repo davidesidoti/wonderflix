@@ -422,8 +422,9 @@ I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a, quelli de
   `read()` non lancia mai. Se il salvataggio del profilo migrato fallisce, il profilo vale lo stesso in memoria e `wonderflix.session` resta: la migrazione si rifà al prossimo avvio solo se nel frattempo nessun salvataggio riesce. Se fallisce la cancellazione di `wonderflix.session`, va solo un avviso nel registro: con i profili salvati la lettura non migra più.
 - **Chi aggiorna non rifà l'accesso:** il token resta legato allo stesso DeviceId.
 - **DeviceId dei profili nuovi:** un UUID v4 nuovo a ogni accesso (§9.2). `device_id` resta nelle preferenze come DeviceId del profilo migrato, e non si usa per i profili nuovi.
-- **File dei profili illeggibile o rovinato** (o uno storage che non si legge): si comporta come oggi con una sessione illeggibile. I profili si considerano assenti, si va all'accesso e nel registro va un avviso. La chiave rovinata non si cancella: la sostituisce il primo salvataggio.
-- **Salvataggio fallito** durante la sessione: i profili valgono lo stesso in memoria per questa esecuzione, l'errore va nel registro e la sessione non si rompe. Al prossimo avvio si legge l'ultimo elenco salvato.
+- **File dei profili rovinato** (dati che non si capiscono): si comporta come oggi con una sessione illeggibile. I profili si considerano assenti, si va all'accesso e nel registro va un avviso. La chiave rovinata non si cancella: la sostituisce il primo salvataggio.
+- **Storage che non si legge** (per esempio il file bloccato all'avvio; vale anche per la sessione di prima della migrazione): si va all'accesso, ma i profili salvati non si perdono. Il primo salvataggio rilegge lo storage: se non si legge ancora non salva (l'errore va nel registro e i profili valgono in memoria); altrimenti tiene anche i profili salvati che mancano (davanti, finché ce ne stanno 5; vincono quelli nuovi, e il loro ultimo usato) e "Chi guarda?" li mostra subito.
+- **Salvataggio fallito** durante la sessione: i profili valgono lo stesso in memoria per questa esecuzione, l'errore va nel registro e la sessione non si rompe. Un `restore()` nella stessa esecuzione (il "Riprova" del server irraggiungibile) tiene i profili in memoria e riprova a salvarli, invece di rileggere lo storage. Al prossimo avvio si legge l'ultimo elenco salvato.
 
 ### 9.2 Credenziali e DeviceId
 
@@ -433,8 +434,8 @@ I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a, quelli de
   - **Perché anche "Accedi di nuovo"** (la spec diceva di riusare il DeviceId del profilo): il profilo che rifà l'accesso è scaduto, quindi il suo dispositivo sul server non c'è già più. Riusarlo lo farebbe condividere a un altro utente (il nome si può cambiare, e Quick Connect lo approva chiunque), e annullare il token vecchio con lo stesso DeviceId potrebbe chiudere la sessione nuova.
   - Due profili salvati non hanno mai lo stesso DeviceId (se succedesse, un avviso nel registro).
   - Il DeviceId, e una "generazione" che cresce a ogni cambio delle credenziali del client, si leggono **prima** della richiesta: il token vale per il DeviceId con cui è stato chiesto, anche se il client cambia nel frattempo.
-- **Accesso riuscito:** il profilo si salva con il token e il DeviceId della richiesta, e si apre (§9.3). Password e Quick Connect dalla stessa schermata: vale l'ultimo accesso che finisce.
-- **Accesso superato:** finisce dopo "Annulla", dopo l'apertura di un altro profilo o dopo un altro accesso preparato (la generazione è cambiata). Il profilo si salva e compare in "Chi guarda?", ma non si apre e non diventa l'ultimo usato. Se quell'utente ha già un profilo valido (non scaduto), resta quello salvato e il token nuovo si annulla.
+- **Accesso riuscito:** il profilo si salva con il token e il DeviceId della richiesta, e si apre (§9.3). Password e Quick Connect dalla stessa schermata: vale il **primo** accesso che finisce; l'altro è superato (sotto), così le credenziali non cambiano sotto una sessione aperta.
+- **Accesso superato:** finisce dopo "Annulla", dopo l'apertura di un altro profilo, dopo un altro accesso preparato o dopo un altro accesso già riuscito (la generazione è cambiata). Il profilo si salva e compare in "Chi guarda?", ma non si apre e non diventa l'ultimo usato. Se quell'utente ha già un profilo valido (non scaduto), resta quello salvato e il token nuovo si annulla.
 - **Accesso con un utente già salvato** (lo stesso `userId`):
   1. il profilo prende il token e il DeviceId nuovi, invece di creare un doppione;
   2. il token vecchio si annulla (`POST /Sessions/Logout` con token e DeviceId vecchi; gli errori si ignorano), dopo il salvataggio e senza aspettare.
@@ -457,7 +458,7 @@ I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a, quelli de
     - il nome del profilo è già scritto e si può cambiare, e il fuoco va alla password; un nome vuoto (il profilo migrato mai letto) non si scrive, e il fuoco resta sul nome;
     - c'è l'avviso "Sessione scaduta";
     - c'è "Annulla" verso "Chi guarda?" (o nessun "Annulla", con un solo profilo).
-  - **"Annulla"** (`cancelLogin`) toglie dal client il DeviceId preparato per l'accesso e torna a "Chi guarda?".
+  - **"Annulla"** (`cancelLogin`) toglie dal client il DeviceId preparato per l'accesso e torna a "Chi guarda?". Quick Connect si ferma del tutto: niente più controlli del codice, codici nuovi o accessi.
 - **Un 401 durante la sessione:** il profilo aperto si segna scaduto e si apre l'accesso per quel profilo (`SessionSignedOut(expired: true, reloginUserId:)`), con "Annulla" se ci sono altri profili. Il 401 della richiesta di uscita ("Esci", §9.5) non conta: il profilo si sta già togliendo.
 - **Riuscito l'accesso** si entra con quel profilo (`SignedIn`), e il profilo diventa `lastUserId`. Un accesso superato non si apre (§9.2).
 
@@ -473,7 +474,7 @@ I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a, quelli de
   3. secondo la risposta:
      - **riuscita:** si entra (`SignedIn`); nome e tag dell'immagine si aggiornano nel profilo, insieme a `lastUsedAt` e `lastUserId`, e il profilo non è più scaduto;
      - **401:** il profilo si segna come scaduto e si apre l'accesso per quel profilo (`SessionSignedOut(expired: true, reloginUserId:)`, §9.3);
-     - **server non raggiungibile** (o un altro errore): `SessionUnreachable`, cioè la schermata di oggi. Il suo "Riprova" rifà `restore()`, che con più profili torna qui.
+     - **server non raggiungibile** (o un altro errore): `SessionUnreachable(retryUserId:)`, cioè la schermata di oggi. Il suo "Riprova" (e il tentativo ogni 15 s) riapre questo profilo; senza un profilo scelto (all'avvio, con un solo profilo) rifà `restore()`, che lo riapre già.
 
   Un profilo già segnato scaduto apre subito l'accesso, senza richieste. Durante la lettura l'avatar ha un velo scuro con un indicatore chiaro (sull'oro non si vedrebbe), e gli altri clic non fanno niente.
 - **"Gestisci profili"** mette le card in modifica: non si aprono, e "Aggiungi profilo" sparisce. Su ogni card compaiono:
@@ -482,7 +483,7 @@ I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a, quelli de
     1. toglie subito il profilo dal PC, poi le sue preferenze (§9.6);
     2. annulla il token di quel profilo in background (`POST /Sessions/Logout` con le sue credenziali; gli errori si ignorano): con il server giù non si aspetta il timeout della connessione.
 
-    In `SessionController.removeProfile` togliere il profilo aperto è un'uscita (§9.5), e togliere un altro profilo mentre se ne usa uno lascia la sessione com'è.
+    In `SessionController.removeProfile` togliere il profilo aperto è un'uscita (§9.5), e togliere un altro profilo mentre se ne usa uno lascia la sessione com'è. Come per "Esci", lo stato cambia prima di cancellare le preferenze: tolto l'ultimo profilo, nessun "Chi guarda?" vuoto.
 
   "Fine", o Esc, chiude la modifica. Tolto l'ultimo profilo si va all'accesso.
 - **Lingua della schermata:** quella dell'ultimo profilo usato (`lastUserId`), che senza una scelta sua parte da quella del PC (§9.6). Senza un ultimo usato (è stato tolto), e nell'accesso quando non ci sono profili, vale la lingua del PC: la chiave `locale` di prima della 0.11.0, altrimenti quella di Windows.
@@ -625,8 +626,10 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
 
 ### Profili
 
-- **Lettura dei profili fallita:** si va all'accesso, come oggi (§9.1).
-- **Salvataggio dei profili fallito:** i profili valgono in memoria per questa esecuzione, un avviso va nel registro e la sessione non si rompe. Nella migrazione la sessione di prima resta, per riprovare al prossimo avvio (§9.1).
+- **Lettura dei profili fallita:** si va all'accesso, come oggi, ma i profili salvati non si perdono: il primo salvataggio rilegge e li tiene, o non salva (§9.1). Dati rovinati invece si sostituiscono.
+- **Salvataggio dei profili fallito:** i profili valgono in memoria per questa esecuzione (anche dopo un `restore()`), un avviso va nel registro e la sessione non si rompe. Nella migrazione la sessione di prima resta, per riprovare al prossimo avvio (§9.1).
+- **Server giù aprendo un profilo da "Chi guarda?":** "Riprova" riapre quel profilo (§9.4).
+- **401 attesi** (aprendo un profilo scaduto, annullando un token già scaduto): nel registro come info, non tra gli "Ultimi errori" della diagnostica.
 - **Token di un profilo scaduto:** "Accedi di nuovo" (§9.4). Con un solo profilo, l'accesso con il nome già scritto (§9.3).
 - **Profilo migrato senza nome** (il suo primo `/Users/Me` non è riuscito): in "Chi guarda?" si chiama "Profilo", e "Accedi di nuovo" non scrive il nome (§9.3).
 - **Risposte in volo durante un cambio di profilo:** si scartano, perché i provider si ricostruiscono per il nuovo utente. Come all'uscita di oggi.

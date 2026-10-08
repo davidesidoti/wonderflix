@@ -342,6 +342,31 @@ void main() {
       expect(ids(await store().read()), ['u1', 'u2']);
     });
 
+    test('la sessione di prima che non si legge non si perde', () async {
+      FlutterSecureStorage.setMockInitialValues({
+        SecureSessionStore.key:
+            jsonEncode({'userId': 'u1', 'accessToken': 'tok-vecchio'}),
+      });
+      final legacyFlaky = FlakyReadStorage(onlyKey: SecureSessionStore.key);
+      final migrating = SecureProfileStore(
+          storage: legacyFlaky, legacyDeviceId: 'dev-installazione');
+      expect((await migrating.read()).profiles, isEmpty);
+      const storage = FlutterSecureStorage();
+      expect(await storage.read(key: SecureSessionStore.key), isNotNull);
+
+      legacyFlaky.failing = false;
+      final written = await migrating.write(
+          const ProfileBook().upsert(profile('u2')).withLast('u2'));
+
+      // Il primo salvataggio migra la sessione di prima e la tiene.
+      expect(ids(written), ['u1', 'u2']);
+      expect(written.byId('u1')!.accessToken, 'tok-vecchio');
+      expect(written.byId('u1')!.deviceId, 'dev-installazione');
+      expect(written.lastUserId, 'u2');
+      expect(await storage.read(key: SecureSessionStore.key), isNull);
+      expect(ids(await store().read()), ['u1', 'u2']);
+    });
+
     test('dopo il primo salvataggio riuscito si scrive come sempre', () async {
       flaky.failing = false;
       final merged =

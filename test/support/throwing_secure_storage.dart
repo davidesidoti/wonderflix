@@ -20,10 +20,12 @@ class ThrowingReadStorage extends FlutterSecureStorage {
 }
 
 /// Storage finto che fallisce in lettura finché [failing] è vero (per esempio
-/// il file bloccato all'avvio); il resto va allo storage di prova.
+/// il file bloccato all'avvio), solo per [onlyKey] se c'è; il resto va allo
+/// storage di prova.
 class FlakyReadStorage extends FlutterSecureStorage {
-  FlakyReadStorage();
+  FlakyReadStorage({this.onlyKey});
 
+  final String? onlyKey;
   bool failing = true;
 
   @override
@@ -36,7 +38,9 @@ class FlakyReadStorage extends FlutterSecureStorage {
     AppleOptions? mOptions,
     WindowsOptions? wOptions,
   }) {
-    if (failing) throw PlatformException(code: 'boom');
+    if (failing && (onlyKey == null || onlyKey == key)) {
+      throw PlatformException(code: 'boom');
+    }
     return super.read(
       key: key,
       iOptions: iOptions,

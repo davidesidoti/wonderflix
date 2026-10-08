@@ -65,6 +65,14 @@ Prima di ogni release, su un utente di prova:
 - [ ] Ripiego sulla transcodifica (forzato: `--dart-define=wfBreakDirectPlay=true`).
 - [ ] Salta intro, prossimo episodio, trickplay.
 - [ ] Login con password e con Quick Connect; sessione scaduta.
+- [ ] Profili: aggiornamento dalla 0.10 senza rifare l'accesso (la sessione diventa il primo profilo, con il suo nome nel menu).
+- [ ] "Chi guarda?" al riavvio con più profili, nella lingua dell'ultimo usato; un profilo si apre con un clic o con Invio.
+- [ ] Aggiungi profilo con password e con Quick Connect; "Annulla" torna a "Chi guarda?"; con 5 profili "Aggiungi profilo" non c'è più.
+- [ ] Cambia profilo dal menu dell'avatar e dalle Impostazioni; lingua, sottotitoli e Discord restano quelli di ogni profilo.
+- [ ] Cambio di profilo in un watch party: conferma, uscita dal gruppo, "Chi guarda?".
+- [ ] Profilo scaduto: attenuato in "Chi guarda?", "Accedi di nuovo" con il nome già scritto.
+- [ ] Gestisci profili → Rimuovi; "Esci" dall'ultimo profilo porta all'accesso.
+- [ ] Server giù aprendo un profilo da "Chi guarda?": "Riprova" riapre quel profilo.
 - [ ] Aggiornamento da una versione precedente; aggiornamento obbligatorio.
 - [ ] Discord Rich Presence attiva e disattivata.
 - [ ] Pannello media di Windows con il nome "WonderFlix" (app installata).

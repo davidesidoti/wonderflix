@@ -27,7 +27,8 @@ class _WonderflixAppState extends ConsumerState<WonderflixApp> {
   @override
   void initState() {
     super.initState();
-    // Una sola volta all'avvio: verifica il token salvato.
+    // Una sola volta all'avvio: riparte dai profili salvati (nessuno →
+    // accesso, uno → lo apre, più di uno → "Chi guarda?").
     unawaited(ref.read(sessionControllerProvider.notifier).restore());
     _refresher = _AnimationPreferenceRefresher(
         () => ref.read(systemAnimationsProvider.notifier).refresh());
