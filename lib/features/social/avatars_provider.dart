@@ -14,19 +14,30 @@ import 'social_providers.dart';
 final _log = Logger('avatars');
 
 /// Chi cercare (spec K §10.5): per id, o per nome quando c'è solo quello (i
-/// membri del party: SyncPlay dà solo i nomi). Id senza trattini e nomi in
-/// minuscolo, come li confronta il plugin.
+/// membri del party: SyncPlay dà solo i nomi). Come chiave della cache, id
+/// senza trattini e nomi in minuscolo.
 class AvatarLookup {
   AvatarLookup.byId(String userId)
       : userId = jellyfinIdKey(userId),
-        name = null;
+        name = null,
+        query = null;
 
   AvatarLookup.byName(String name)
       : userId = null,
-        name = name.toLowerCase();
+        name = name.toLowerCase(),
+        query = name;
 
   final String? userId;
   final String? name;
+
+  /// Il nome com'è scritto, da mandare al plugin (fuori da `==`): il plugin
+  /// lo confronta senza maiuscole a modo suo (.NET `OrdinalIgnoreCase`), e su
+  /// qualche lettera (İ, il segno del kelvin, ẞ) `toLowerCase` di Dart non
+  /// è d'accordo.
+  final String? query;
+
+  /// Senza id e con il nome vuoto: nessuno da cercare.
+  bool get _isEmpty => userId == null && (name?.isEmpty ?? true);
 
   @override
   bool operator ==(Object other) =>
@@ -63,6 +74,7 @@ class AvatarImage {
 /// - Le richieste dei widget si raccolgono per [batchDelay] e partono in una
 ///   sola chiamata, con al massimo [AvatarsApi.maxEntries] voci (le altre in
 ///   una chiamata subito dopo).
+/// - Una richiesta già partita non ne fa un'altra: si aspetta la sua risposta.
 /// - Un risultato vale [ttl]; anche un errore, che lascia le iniziali: si
 ///   riprova dopo [ttl].
 /// - Un utente trovato vale per id e per nome.
@@ -82,19 +94,22 @@ class AvatarDirectory {
 
   final _cache = <AvatarLookup, _Cached>{};
   final _waiting = <AvatarLookup, Completer<AvatarImage?>>{};
+
+  /// Le richieste già partite, finché il plugin non risponde.
+  final _inFlight = <AvatarLookup, Completer<AvatarImage?>>{};
   Timer? _timer;
   bool _disposed = false;
 
   /// L'immagine di [lookup]; `null` senza immagine, per un utente che non
   /// c'è o dopo un errore: si mostra l'iniziale.
   Future<AvatarImage?> imageFor(AvatarLookup lookup) {
-    if (_disposed) return Future.value(null);
+    if (_disposed || lookup._isEmpty) return Future.value(null);
     final cached = _cache[lookup];
     if (cached != null && clock.now().difference(cached.at) < ttl) {
       return Future.value(cached.image);
     }
-    final waiting = _waiting[lookup];
-    if (waiting != null) return waiting.future;
+    final pending = _waiting[lookup] ?? _inFlight[lookup];
+    if (pending != null) return pending.future;
     final completer = Completer<AvatarImage?>();
     _waiting[lookup] = completer;
     _timer ??= Timer(batchDelay, _flush);
@@ -102,33 +117,41 @@ class AvatarDirectory {
   }
 
   /// Un'immagine appena cambiata (spec K §10.4): vale subito, per id e per
-  /// nome.
+  /// nome (non per il nome vuoto). Una risposta del plugin già in viaggio
+  /// non la sovrascrive.
   void remember(
       {required String userId, required String name, required String? tag}) {
     final entry = _Cached(
         tag == null ? null : AvatarImage(jellyfinIdKey(userId), tag),
         clock.now());
     _cache[AvatarLookup.byId(userId)] = entry;
-    _cache[AvatarLookup.byName(name)] = entry;
+    if (name.isNotEmpty) _cache[AvatarLookup.byName(name)] = entry;
   }
 
   Future<void> _flush() async {
     _timer = null;
     final batch = _waiting.keys.take(AvatarsApi.maxEntries).toList();
     final completers = [for (final key in batch) _waiting.remove(key)!];
+    for (var i = 0; i < batch.length; i++) {
+      _inFlight[batch[i]] = completers[i];
+    }
     // Oltre il limite: un'altra chiamata, subito.
     if (_waiting.isNotEmpty) _timer = Timer(Duration.zero, _flush);
+    // Quello che entra nella cache da qui in poi (remember) è più nuovo
+    // della risposta: la risposta non lo sovrascrive.
+    final started = clock.now();
     final found = <AvatarLookup, AvatarImage?>{};
     try {
       final users = await _api.avatars(
         ids: [for (final key in batch) ?key.userId],
-        names: [for (final key in batch) ?key.name],
+        names: [for (final key in batch) ?key.query],
       );
       for (final user in users) {
         final tag = user.imageTag;
         final image = tag == null ? null : AvatarImage(user.userId, tag);
         found[AvatarLookup.byId(user.userId)] = image;
-        found[AvatarLookup.byName(user.name)] = image;
+        // Un utente senza nome non vale per il nome vuoto.
+        if (user.name.isNotEmpty) found[AvatarLookup.byName(user.name)] = image;
       }
     } on Object catch (error) {
       final message = 'immagini degli utenti non lette: ${error.runtimeType}';
@@ -138,26 +161,34 @@ class AvatarDirectory {
         _log.warning(message);
       }
     }
+    // Dopo dispose le richieste sono già finite con l'iniziale.
+    if (_disposed) return;
+    for (final key in batch) {
+      _inFlight.remove(key);
+      // Chiesto e non trovato: l'iniziale.
+      found.putIfAbsent(key, () => null);
+    }
     final now = clock.now();
     for (final MapEntry(:key, :value) in found.entries) {
+      final cached = _cache[key];
+      if (cached != null && !cached.at.isBefore(started)) continue;
       _cache[key] = _Cached(value, now);
     }
     for (var i = 0; i < batch.length; i++) {
-      final image = found[batch[i]];
-      _cache[batch[i]] = _Cached(image, now);
-      completers[i].complete(image);
+      completers[i].complete(_cache[batch[i]]?.image);
     }
   }
 
-  /// Le richieste in attesa finiscono con l'iniziale.
+  /// Le richieste in attesa, e quelle già partite, finiscono con l'iniziale.
   void dispose() {
     _disposed = true;
     _timer?.cancel();
     _timer = null;
-    for (final completer in _waiting.values) {
+    for (final completer in [..._waiting.values, ..._inFlight.values]) {
       completer.complete(null);
     }
     _waiting.clear();
+    _inFlight.clear();
   }
 }
 
@@ -194,5 +225,12 @@ final avatarImageProvider = FutureProvider.autoDispose
     .family<AvatarImage?, AvatarLookup>((ref, lookup) async {
   final directory = ref.watch(avatarDirectoryProvider);
   if (directory == null) return null;
-  return directory.imageFor(lookup);
+  final image = await directory.imageFor(lookup);
+  if (!ref.mounted) return image;
+  // Un risultato vale [AvatarDirectory.ttl]: poi, finché è sullo schermo, si
+  // rilegge (spec K §10.5: dopo un errore si riprova dopo 10 minuti). Il
+  // timer parte dalla risposta, così alla rilettura la cache è scaduta.
+  final expiry = Timer(directory.ttl, ref.invalidateSelf);
+  ref.onDispose(expiry.cancel);
+  return image;
 });

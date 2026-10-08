@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app/theme.dart';
+import '../core/jellyfin/json_fields.dart';
 import '../features/library/library_providers.dart';
 import '../features/social/avatars_provider.dart';
 import 'wf_image.dart';
@@ -18,6 +19,8 @@ const _initialScale = 0.45;
 ///
 /// L'immagine sta sopra l'iniziale, con il segnaposto trasparente: mentre si
 /// carica, o se non si carica, si vede l'iniziale.
+///
+/// Per i lettori di schermo è decorativo: il nome c'è sempre accanto.
 class UserAvatar extends ConsumerWidget {
   const UserAvatar({
     super.key,
@@ -53,22 +56,25 @@ class UserAvatar extends ConsumerWidget {
     final image =
         _lookup ? ref.watch(avatarImageProvider(_lookupKey)).value : _known;
     final initial = _Initial(name: name, size: size, muted: muted);
-    if (image == null) return initial;
-    return SizedBox.square(
-      dimension: size,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          initial,
-          ClipOval(
-            child: TransparentPlaceholders(
-              child: WfImage(
-                image: ref.watch(imageUrlsProvider).user(image.userId, image.tag),
-                fallbackIcon: null,
+    if (image == null) return ExcludeSemantics(child: initial);
+    return ExcludeSemantics(
+      child: SizedBox.square(
+        dimension: size,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            initial,
+            ClipOval(
+              child: TransparentPlaceholders(
+                child: WfImage(
+                  image:
+                      ref.watch(imageUrlsProvider).user(image.userId, image.tag),
+                  fallbackIcon: null,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -78,10 +84,14 @@ class UserAvatar extends ConsumerWidget {
     return id == null ? AvatarLookup.byName(name) : AvatarLookup.byId(id);
   }
 
+  /// L'id come quello delle immagini cercate ([jellyfinIdKey]): un utente ha
+  /// un solo indirizzo, e la cache delle immagini una sola copia.
   AvatarImage? get _known {
     final id = userId;
     final tag = imageTag;
-    return id == null || tag == null ? null : AvatarImage(id, tag);
+    return id == null || tag == null
+        ? null
+        : AvatarImage(jellyfinIdKey(id), tag);
   }
 }
 
