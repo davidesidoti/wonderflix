@@ -24,6 +24,34 @@ Le immagini del profilo, `UserAvatar` e la release sono nel piano 17c. Qui gli a
 7. **Massimo 5 profili:** oltre al pulsante nascosto, `AuthService` rifiuta un sesto profilo con `ProfileLimitException` (annulla subito il token appena ottenuto). Il login mostra "Massimo 5 profili".
 8. **Conferma generica:** `showAdminConfirmDialog` diventa un uso di `showWfConfirmDialog` (`lib/ui/wf_confirm_dialog.dart`), che serve anche a "Rimuovi" e al cambio di profilo durante un party.
 9. **Il client per un profilo non attivo** (annullare il token di un profilo tolto, 17c: la sua immagine) è `JellyfinHttp.withCredentials`: stesse impostazioni e stesso adattatore, credenziali sue, nessun `onUnauthorized`.
+10. **Dalle review dei gruppi** (il codice dei task sotto è quello di partenza: dove differisce, vale questa lista, e la spec è già allineata):
+    - **Dati:**
+      - `ProfileStore.read()` non lancia mai. Se il salvataggio del profilo migrato fallisce, il profilo vale in memoria e `wonderflix.session` resta: la migrazione si rifà al prossimo avvio solo se nessun salvataggio riesce. Se fallisce la cancellazione della chiave vecchia, va solo un avviso nel registro.
+      - Il client di `JellyfinHttp.withCredentials` usa in prestito l'adattatore del principale (`_BorrowedAdapter`): chiuderlo non chiude il client principale.
+      - `profilesKeyFor` sta in `lib/core/device/dev_profile.dart`, accanto a `sessionKeyFor`.
+      - I dati stanno in `%AppData%\it.wonderflix\WonderFlix\flutter_secure_storage.dat` (file cifrato con DPAPI), come scritto in `docs/RELEASING.md`.
+    - **Sessione:**
+      - **La decisione 2 cambia: ogni accesso ha un DeviceId nuovo, anche "Accedi di nuovo".** `prepareLogin()` non prende un utente (`prepareLogin(userId:)` non c'è). Il profilo che rifà l'accesso è scaduto, quindi il suo dispositivo sul server non c'è già più. Riusarne il DeviceId lo farebbe condividere a un altro utente (il nome si può cambiare, e Quick Connect lo approva chiunque), e annullare il token vecchio sullo stesso DeviceId potrebbe chiudere la sessione nuova. Due profili salvati non hanno mai lo stesso DeviceId (se succedesse, un avviso nel registro).
+      - Il DeviceId e una "generazione" si leggono prima della richiesta di accesso: il token è legato al DeviceId con cui è stato chiesto.
+      - Un accesso che finisce dopo "Annulla" o dopo l'apertura di un altro profilo (superato) si salva ma non si apre. Se quell'utente ha già un profilo valido, resta quello e il token nuovo si annulla.
+      - Stesso utente: il token vecchio si annulla dopo il salvataggio, senza aspettare, con il suo DeviceId.
+      - Un errore di scrittura dello storage non rompe la sessione: i profili si aggiornano in memoria e l'errore va nel registro.
+      - `JellyfinHttp.token` si legge e basta: token e DeviceId cambiano solo con `setCredentials`, sempre insieme.
+      - `profilesProvider` si ripubblica dopo ogni salvataggio (`AuthService.onProfilesChanged`).
+      - "Rimuovi" toglie subito il profilo e annulla il suo token in background (errori ignorati). Togliere un profilo mentre si è dentro un altro lascia la sessione. Il 401 della richiesta di uscita si ignora. "Annulla" toglie le credenziali preparate. "Esci" cambia schermata prima di cancellare le preferenze.
+      - Chi chiama `AuthService.openProfile` non sovrappone due aperture: "Chi guarda?" blocca i clic mentre un profilo si apre.
+      - Lingua senza nessun profilo: la chiave `locale` del PC (quella di prima della 0.11.0), altrimenti quella di Windows.
+      - Le preferenze di un profilo tolto si cancellano con `ProfilePreferences.forget` (non `removeProfile`).
+    - **Interfaccia:**
+      - Il cambio è `changeProfile(context, ref, {addProfile})` (`lib/features/profiles/profile_switch.dart`), non `switchProfile`. In un party "Aggiungi profilo" chiede la conferma con le parole "Aggiungi profilo". Un cambio confermato si fa anche se la schermata che l'ha chiesto sparisce durante l'uscita dal party (al massimo 3 s), ma solo se la sessione è ancora dello stesso utente.
+      - "Chi guarda?":
+        - logo da 140 px e spazi più stretti, così sta nella finestra più piccola (1024×640); entrata uno dopo l'altro come nel login;
+        - il fuoco parte dalla card dell'ultimo profilo usato (o dalla prima), e Invio la apre; Esc esce da "Gestisci profili";
+        - mentre un profilo si apre, il suo avatar ha un velo scuro con uno spinner chiaro, e gli altri clic non fanno niente;
+        - per lo screen reader le card sono pulsanti con il nome (un profilo scaduto ha il suggerimento "Accedi di nuovo");
+        - testi nuovi `profilesRemoveNamed` ("Rimuovi {name}", tooltip del pulsante Rimuovi) e `profilesUnnamed` ("Profilo", per un profilo il cui nome non si è mai letto).
+      - Login: un nome salvato vuoto non si scrive nel campo.
+      - Gli avatar restano le iniziali: il piano 17c mette `UserAvatar` al posto dell'iniziale di "Chi guarda?" e del `CircleAvatar` del menu dell'avatar.
 
 **Architecture:**
 - **Dati:**

@@ -1,7 +1,7 @@
 # WonderFlix — Spec K: saghe e profili
 
 - **Data:** 2026-10-07
-- **Stato:** approvato; piano 17a realizzato (`docs/superpowers/plans/2026-10-07-wonderflix-17a-saghe.md`), piani 17b e 17c da scrivere
+- **Stato:** approvato; piano 17a realizzato (`docs/superpowers/plans/2026-10-07-wonderflix-17a-saghe.md`), piano 17b realizzato (`docs/superpowers/plans/2026-10-08-wonderflix-17b-profili.md`), piano 17c da scrivere
 - **Ambito:** Spec K. Realizza due voci dell'idea 3 di `docs/IDEE.md` ("Funzioni escluse dallo Spec A"): **collezioni e saghe** (K1) e **profili "Chi guarda?"** (K2). K2 comprende anche le **immagini del profilo**, chieste durante il brainstorming. Delle altre voci dell'idea 3, il download offline resta in `docs/IDEE.md`. **HDR vero** e **firma del codice** escono dalla lista per scelta dell'utente.
 
 ## 1. Obiettivo
@@ -42,8 +42,8 @@ App 0.10.0, plugin 1.4.0.
 ### 2.2 Sessione
 
 - **Una sola sessione.** `StoredSession{userId, accessToken}` sta sotto la chiave `wonderflix.session` (`lib/core/storage/session_store.dart`), con `flutter_secure_storage` 11.2.0.
-  - Su Windows (`flutter_secure_storage_windows` 4.2.2) **tutte le chiavi stanno in un unico file JSON cifrato con DPAPI**: `flutter_secure_storage.dat`, nella cartella dei dati dell'app. **Non** stanno nel Gestore credenziali di Windows.
-  - Il commento di `SecureSessionStore` e `docs/RELEASING.md` dicono il contrario e vanno corretti (piano 17b).
+  - Su Windows (`flutter_secure_storage_windows` 4.2.2) **tutte le chiavi stanno in un unico file JSON cifrato con DPAPI**: `%AppData%\it.wonderflix\WonderFlix\flutter_secure_storage.dat`, nella cartella dei dati dell'app. **Non** stanno nel Gestore credenziali di Windows.
+  - Il commento di `SecureSessionStore`, quello di `sessionKeyFor` e `docs/RELEASING.md` dicevano il contrario: li ha corretti il piano 17b.
 - **`SessionController`** ha quattro stati: `SessionStarting`, `SessionSignedOut({expired})`, `SessionUnreachable`, `SessionSignedIn(user)`. `restore()` parte da `WonderflixApp.initState` e dalla schermata "server non raggiungibile": ogni 15 s, e quando si preme il pulsante.
 - **Router** (`lib/app/router.dart`). Le rotte d'ingresso sono `/splash`, `/login` e `/unreachable`. Con `SignedIn` si va a `/home` solo da una rotta d'ingresso; altrimenti si resta dove si è.
 - **Login** (`login_screen.dart`):
@@ -150,7 +150,7 @@ Fatti raccolti il 2026-10-07, in sola lettura, dal database e dalle API con la c
 | Avvio con più profili | schermata **"Chi guarda?"** a ogni avvio; con un solo profilo si entra diretti, come oggi |
 | Protezione dei profili | **nessuna**: niente PIN |
 | Cambio di profilo | **dentro l'app**, senza riavviarla |
-| DeviceId | **uno per profilo** |
+| DeviceId | **uno per profilo**, nuovo a ogni accesso, anche con "Accedi di nuovo" (§9.2) |
 | Numero di profili | al massimo 5 |
 | Immagine del profilo | si cambia dall'app, scegliendo da una galleria di icone a tema cinema o da un file da ritagliare; si può togliere |
 | Immagini degli altri | si vedono dovunque l'utente è noto; i tag li dà il **plugin 1.5.0**, `GET WonderFlixWatchParty/Users/Avatars` (§7.2) |
@@ -206,12 +206,15 @@ lib/core/jellyfin/
   library_api.dart                    + collectionItems (i titoli di una saga, senza ItemQuery.parentId)
   image_urls.dart                     + primaryWithTag(itemId, tag), + user(userId, tag)
   user_image_api.dart                 POST e DELETE /UserImage
-  jellyfin_http.dart                  credenziali (token + DeviceId) che cambiano insieme
+  client_info.dart                    + ClientInfo.copyWith(deviceId)
+  jellyfin_http.dart                  setCredentials (token + DeviceId insieme), withCredentials (un profilo non attivo)
 lib/core/social/
   collections_api.dart, collections_models.dart   endpoint del plugin
   avatars_api.dart                    endpoint del plugin
 lib/core/storage/
-  profile_store.dart                  StoredProfile, ProfileStore, migrazione da wonderflix.session
+  profile_store.dart                  StoredProfile, ProfileBook, ProfileStore, SecureProfileStore (con la migrazione), ProfileLimitException
+  session_store.dart                  la sessione di prima della 0.11.0: la legge solo la migrazione
+lib/core/device/dev_profile.dart      + profilesKeyFor, accanto a sessionKeyFor
 lib/features/collections/
   collections_providers.dart          elenco in cache, indice film → saghe, film di una saga
   collections_logic.dart              funzioni pure: indice, ricerca, ordinamenti, titolo da proporre
@@ -231,18 +234,23 @@ lib/ui/
   poster_card.dart                    PosterCard.markLabel e openable
 lib/features/profiles/
   profiles_screen.dart                "Chi guarda?" e "Gestisci profili"
-  profile_preferences.dart            chiavi del profilo (§9.6)
+  profile_preferences.dart            ProfilePreferences e profilePreferencesProvider (§9.6)
+  profile_switch.dart                 changeProfile e partyLeaveTimeout (§9.7)
   avatar_dialog.dart                  finestra dell'immagine: Avatar | Dal PC | Rimuovi
   avatar_gallery.dart                 le icone e il disegno in PNG
   avatar_cropper.dart                 ritaglio quadrato
 lib/features/social/avatars_provider.dart   tag degli altri utenti, in cache
 lib/ui/user_avatar.dart               UserAvatar
-lib/features/auth/                    SessionController e AuthService con i profili (§9)
+lib/ui/wf_confirm_dialog.dart         showWfConfirmDialog: Rimuovi, cambio di profilo nel party, conferme dell'admin
+lib/features/auth/
+  auth_service.dart, session_controller.dart   i profili (§9)
+  profiles_state.dart                 ProfilesState e profilesProvider: i profili per l'interfaccia
+lib/app/providers.dart                profileStoreProvider al posto di sessionStoreProvider
 lib/app/navigation.dart               collectionRoute, openCollection; itemRoute porta un BoxSet alla sua pagina
-lib/app/router.dart                   + /profiles, /collection/:id, /movies?view=sagas, /login?add=1 e ?user=
+lib/app/router.dart                   + /profiles, /collection/:id, /movies?view=sagas
 ```
 
-I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a; quelli dei profili (K2) sono indicativi: il piano può spostarli, ma senza cambiare le responsabilità. Le API seguono la forma di oggi: una classe sottile su `JellyfinHttp`, modelli con `fromJson` scritti a mano, niente codegen. Le letture del plugin sono tolleranti come in `json_fields.dart`.
+I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a, quelli dei profili quelli del piano 17b. Quelli delle immagini del profilo (17c) sono indicativi: il piano può spostarli, ma senza cambiare le responsabilità. Le API seguono la forma di oggi: una classe sottile su `JellyfinHttp`, modelli con `fromJson` scritti a mano, niente codegen. Le letture del plugin sono tolleranti come in `json_fields.dart`.
 
 ## 7. Plugin 1.5.0
 
@@ -396,100 +404,126 @@ I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a; quelli de
 
 ### 9.1 Dati e migrazione
 
-- **`StoredProfile`:** `userId`, `name`, `accessToken`, `deviceId`, `imageTag` (facoltativo), `lastUsedAt`.
-- **`ProfileStore`** salva una sola chiave, `wonderflix.profiles`, nello stesso `flutter_secure_storage` di oggi.
+- **`StoredProfile`:** `userId`, `name`, `accessToken`, `deviceId`, `imageTag` (facoltativo), `lastUsedAt`, `expired`.
+  - `name` è vuoto finché non si legge (il profilo migrato): "Chi guarda?" mostra "Profilo", e l'accesso non scrive un nome vuoto.
+  - `expired` (nel file solo quando è vero): il server ha rifiutato il token (401). "Chi guarda?" mostra il profilo attenuato anche dopo un riavvio, senza una richiesta. Lo toglie un accesso riuscito o un `/Users/Me` riuscito.
+- **`ProfileBook`** (immutabile) tiene i profili e `lastUserId`. **`ProfileStore`** (`SecureProfileStore`) salva una sola chiave, `wonderflix.profiles`, nello stesso `flutter_secure_storage` di oggi.
   - Contenuto: `{"version": 1, "profiles": […], "lastUserId": "…"}`.
-  - I profili sono nell'ordine in cui sono stati aggiunti.
-  - Nell'istanza di sviluppo la chiave è `wonderflix.profiles.<p>`.
+  - I profili sono nell'ordine in cui sono stati aggiunti. Gli id si confrontano con `jellyfinIdKey` (senza trattini e in minuscolo).
+  - Nell'istanza di sviluppo la chiave è `wonderflix.profiles.<p>` (`profilesKeyFor`, in `dev_profile.dart` accanto a `sessionKeyFor`).
+  - **Lettura tollerante:** un profilo senza id, token o DeviceId si salta; i doppioni dello stesso utente e i profili oltre il quinto si scartano; un `lastUserId` che non è tra i profili non vale.
+- **Dove stanno:** nel file `%AppData%\it.wonderflix\WonderFlix\flutter_secure_storage.dat`, cifrato con DPAPI (§2.2), come dice `docs/RELEASING.md`.
 - **Massimo 5 profili.**
 - **Migrazione** al primo avvio della 0.11.0, se c'è `wonderflix.session` e non c'è `wonderflix.profiles`:
   1. la sessione diventa il primo profilo, con il DeviceId di oggi (`device_id` delle preferenze, o quello dell'istanza di sviluppo);
   2. nome e tag dell'immagine si prendono al primo `/Users/Me` riuscito;
   3. `wonderflix.session` si cancella.
+
+  `read()` non lancia mai. Se il salvataggio del profilo migrato fallisce, il profilo vale lo stesso in memoria e `wonderflix.session` resta: la migrazione si rifà al prossimo avvio solo se nel frattempo nessun salvataggio riesce. Se fallisce la cancellazione di `wonderflix.session`, va solo un avviso nel registro: con i profili salvati la lettura non migra più.
 - **Chi aggiorna non rifà l'accesso:** il token resta legato allo stesso DeviceId.
-- **DeviceId dei profili nuovi:** un UUID v4 nuovo. `device_id` resta nelle preferenze come DeviceId del profilo migrato, e non si usa per i profili nuovi.
-- **File dei profili illeggibile o rovinato:** si comporta come oggi con una sessione illeggibile. I profili si considerano assenti, si va all'accesso e nel registro va un avviso.
+- **DeviceId dei profili nuovi:** un UUID v4 nuovo a ogni accesso (§9.2). `device_id` resta nelle preferenze come DeviceId del profilo migrato, e non si usa per i profili nuovi.
+- **File dei profili illeggibile o rovinato** (o uno storage che non si legge): si comporta come oggi con una sessione illeggibile. I profili si considerano assenti, si va all'accesso e nel registro va un avviso. La chiave rovinata non si cancella: la sostituisce il primo salvataggio.
+- **Salvataggio fallito** durante la sessione: i profili valgono lo stesso in memoria per questa esecuzione, l'errore va nel registro e la sessione non si rompe. Al prossimo avvio si legge l'ultimo elenco salvato.
 
 ### 9.2 Credenziali e DeviceId
 
-- **`JellyfinHttp`** tiene le credenziali del profilo attivo: token e DeviceId cambiano insieme (`setCredentials(token, deviceId)` o un metodo simile). L'intestazione `Authorization` si costruisce a ogni richiesta con il DeviceId attuale; il resto di `ClientInfo` (client, nome del PC, versione) non cambia.
-- **DeviceId usato per l'accesso:**
-  - per un profilo nuovo, con password o con Quick Connect, se ne crea uno nuovo prima della richiesta;
-  - con "Accedi di nuovo" (§9.4) si usa quello del profilo.
+- **`JellyfinHttp`** tiene le credenziali del profilo attivo: token e DeviceId cambiano insieme, e solo con `setCredentials(token:, deviceId:)` (`token` si legge e basta). Con `null` si torna a nessun token e al DeviceId dell'installazione (`ClientInfo.deviceId`). L'intestazione `Authorization` si costruisce a ogni richiesta con il DeviceId attuale (`ClientInfo.copyWith(deviceId:)`); il resto di `ClientInfo` (client, nome del PC, versione) non cambia.
+- **DeviceId usato per l'accesso: uno nuovo a ogni accesso**, con password o con Quick Connect, **anche con "Accedi di nuovo"** (§9.4).
+  - Lo prepara la schermata di accesso quando si apre (`SessionController.prepareLogin`, poi `AuthService.prepareLogin()`, senza utente): nessun token e un UUID v4 nuovo nel client. Quick Connect lo usa già per `Initiate`, prima dell'approvazione.
+  - **Perché anche "Accedi di nuovo"** (la spec diceva di riusare il DeviceId del profilo): il profilo che rifà l'accesso è scaduto, quindi il suo dispositivo sul server non c'è già più. Riusarlo lo farebbe condividere a un altro utente (il nome si può cambiare, e Quick Connect lo approva chiunque), e annullare il token vecchio con lo stesso DeviceId potrebbe chiudere la sessione nuova.
+  - Due profili salvati non hanno mai lo stesso DeviceId (se succedesse, un avviso nel registro).
+  - Il DeviceId, e una "generazione" che cresce a ogni cambio delle credenziali del client, si leggono **prima** della richiesta: il token vale per il DeviceId con cui è stato chiesto, anche se il client cambia nel frattempo.
+- **Accesso riuscito:** il profilo si salva con il token e il DeviceId della richiesta, e si apre (§9.3). Password e Quick Connect dalla stessa schermata: vale l'ultimo accesso che finisce.
+- **Accesso superato:** finisce dopo "Annulla", dopo l'apertura di un altro profilo o dopo un altro accesso preparato (la generazione è cambiata). Il profilo si salva e compare in "Chi guarda?", ma non si apre e non diventa l'ultimo usato. Se quell'utente ha già un profilo valido (non scaduto), resta quello salvato e il token nuovo si annulla.
 - **Accesso con un utente già salvato** (lo stesso `userId`):
   1. il profilo prende il token e il DeviceId nuovi, invece di creare un doppione;
-  2. il token vecchio si annulla (`POST /Sessions/Logout` con token e DeviceId vecchi; gli errori si ignorano).
-- **Chiamate per un profilo non attivo** (rimozione, immagine, §9.4 e §10.1): si fanno con le credenziali di quel profilo, senza toccare quelle attive.
+  2. il token vecchio si annulla (`POST /Sessions/Logout` con token e DeviceId vecchi; gli errori si ignorano), dopo il salvataggio e senza aspettare.
+- **Sesto profilo:** oltre al pulsante nascosto (§9.4, §9.5), `AuthService` rifiuta l'accesso di un utente nuovo quando ci sono già 5 profili (`ProfileLimitException`) e annulla subito il token appena ottenuto. L'accesso mostra "Massimo 5 profili".
+- **Chiamate per un profilo non attivo** (rimozione, immagine, §9.4 e §10.1): si fanno con le credenziali di quel profilo, senza toccare quelle attive. `JellyfinHttp.withCredentials(token:, deviceId:)` dà un client con lo stesso server e le stesse impostazioni, le credenziali di quel profilo e nessun `onUnauthorized`. Usa in prestito l'adattatore del client principale: chiuderlo non chiude il client principale.
+- **I profili per l'interfaccia** stanno in `profilesProvider` (`ProfilesState`: i profili e quello aperto), così le schermate e le preferenze non creano il controller della sessione. Dopo ogni salvataggio, anche se lo storage non salva, `AuthService.onProfilesChanged` li ripubblica.
+- **Aperture:** chi chiama `AuthService.openProfile` non ne sovrappone due: "Chi guarda?" ignora i clic mentre un profilo si apre.
 
 ### 9.3 Stati e rotte
 
-- **Nuovo stato `SessionChoosingProfile`.** Porta alla rotta d'ingresso `/profiles`, senza shell. Con questo stato sono ammesse `/profiles` e `/login` (aggiunta o nuovo accesso); ogni altra rotta porta a `/profiles`.
+- **Nuovo stato `SessionChoosingProfile`.** Porta alla rotta d'ingresso `/profiles`, senza shell; ogni altra rotta porta a `/profiles`. L'accesso (aggiunta o nuovo accesso) ha il suo stato, `SessionSignedOut` (sotto).
 - **Le rotte d'ingresso** diventano `/splash`, `/login`, `/unreachable`, `/profiles`. Con `SignedIn` si va a `/home` da una di queste, quindi anche dopo un cambio di profilo.
 - **`restore()` all'avvio:**
   - **0 profili:** `SignedOut`, cioè l'accesso, come oggi.
-  - **1 profilo:** come oggi, con quel profilo. Se il token è scaduto si va all'accesso con "Sessione scaduta" e il nome già scritto; il profilo resta salvato finché non si rifà l'accesso o lo si toglie.
-  - **2 o più:** `ChoosingProfile`.
-- **Login, nuovi parametri:**
-  - **`/login?add=1`** (aggiungi profilo): il pulsante "Annulla" riporta a "Chi guarda?". Senza profili salvati, "Annulla" non c'è.
-  - **`/login?user=<userId>`** ("Accedi di nuovo"):
-    - il nome del profilo è già scritto e si può cambiare;
+  - **1 profilo:** come oggi, con quel profilo. Se il token è scaduto il profilo si segna scaduto e si va all'accesso con "Sessione scaduta" e il nome già scritto; il profilo resta salvato finché non si rifà l'accesso o lo si toglie.
+  - **2 o più:** `ChoosingProfile`, senza richieste.
+- **Login: niente parametri nell'indirizzo.** La spec diceva `/login?add=1` e `/login?user=<userId>`. La modalità del login sta invece nello stato della sessione: il router porta già ogni `SignedOut` su `/login`, e lo stesso stato serve anche per un 401 durante la sessione.
+  - **`SessionSignedOut(adding: true)`** (aggiungi profilo): il pulsante "Annulla" riporta a "Chi guarda?". Senza profili salvati, "Annulla" non c'è.
+  - **`SessionSignedOut(expired: true, reloginUserId: <userId>)`** ("Accedi di nuovo"):
+    - il nome del profilo è già scritto e si può cambiare, e il fuoco va alla password; un nome vuoto (il profilo migrato mai letto) non si scrive, e il fuoco resta sul nome;
     - c'è l'avviso "Sessione scaduta";
     - c'è "Annulla" verso "Chi guarda?" (o nessun "Annulla", con un solo profilo).
-- **Riuscito l'accesso** si entra con quel profilo (`SignedIn`), e il profilo diventa `lastUserId`.
+  - **"Annulla"** (`cancelLogin`) toglie dal client il DeviceId preparato per l'accesso e torna a "Chi guarda?".
+- **Un 401 durante la sessione:** il profilo aperto si segna scaduto e si apre l'accesso per quel profilo (`SessionSignedOut(expired: true, reloginUserId:)`), con "Annulla" se ci sono altri profili. Il 401 della richiesta di uscita ("Esci", §9.5) non conta: il profilo si sta già togliendo.
+- **Riuscito l'accesso** si entra con quel profilo (`SignedIn`), e il profilo diventa `lastUserId`. Un accesso superato non si apre (§9.2).
 
 ### 9.4 Schermata "Chi guarda?" (`/profiles`)
 
-- **Aspetto:** lo sfondo e il logo del login, il titolo "Chi guarda?", e le card dei profili in una fila che va a capo.
-  - Ogni card ha l'avatar da 120 px (immagine o iniziale, §10.5) e il nome.
+- **Aspetto:** come il login: il logo, il titolo "Chi guarda?", le card dei profili in una fila che va a capo e "Gestisci profili", che entrano uno dopo l'altro. Il logo è di 140 px e gli spazi sono stretti: così la schermata sta tutta nella finestra più piccola (1024×640) senza scorrere, anche con un profilo scaduto.
+  - Ogni card ha l'avatar da 120 px e il nome. **In 17b l'avatar è l'iniziale** su un cerchio dorato; l'immagine (`UserAvatar`, §10.5) arriva nel 17c. Un profilo senza nome (quello migrato, se il suo primo `/Users/Me` non è riuscito) si chiama "Profilo".
   - Un profilo scaduto ha l'avatar attenuato e la scritta "Accedi di nuovo".
-- **Card "Aggiungi profilo"** (icona +), solo con meno di 5 profili. Porta a `/login?add=1`.
+- **Card "Aggiungi profilo"** (icona +), solo con meno di 5 profili. Apre l'accesso per un profilo nuovo (`SessionSignedOut(adding: true)`, §9.3).
 - **Clic su un profilo:**
   1. le credenziali del profilo vanno in `JellyfinHttp`;
   2. si legge `GET /Users/Me`;
   3. secondo la risposta:
-     - **riuscita:** si entra (`SignedIn`); nome e tag dell'immagine si aggiornano nel profilo, insieme a `lastUsedAt` e `lastUserId`;
-     - **401:** il profilo si segna come scaduto e si apre `/login?user=<userId>`;
-     - **server non raggiungibile:** `SessionUnreachable`, cioè la schermata di oggi. Il suo "Riprova" rifà `restore()`, che con più profili torna qui.
+     - **riuscita:** si entra (`SignedIn`); nome e tag dell'immagine si aggiornano nel profilo, insieme a `lastUsedAt` e `lastUserId`, e il profilo non è più scaduto;
+     - **401:** il profilo si segna come scaduto e si apre l'accesso per quel profilo (`SessionSignedOut(expired: true, reloginUserId:)`, §9.3);
+     - **server non raggiungibile** (o un altro errore): `SessionUnreachable`, cioè la schermata di oggi. Il suo "Riprova" rifà `restore()`, che con più profili torna qui.
 
-  Durante la lettura la card ha un indicatore, e gli altri clic non fanno niente.
-- **"Gestisci profili"** mette le card in modifica. Su ogni card compaiono:
-  - **"Modifica immagine"** (matita), che apre la finestra dell'immagine (§10) per quel profilo, con le sue credenziali;
-  - **"Rimuovi"** (cestino), con la conferma "Rimuovere {nome} da questo PC? Per usarlo di nuovo servirà l'accesso." Rimuovere:
-    1. annulla il token di quel profilo (`POST /Sessions/Logout` con le sue credenziali; gli errori si ignorano);
-    2. toglie il profilo e le sue preferenze (§9.6).
+  Un profilo già segnato scaduto apre subito l'accesso, senza richieste. Durante la lettura l'avatar ha un velo scuro con un indicatore chiaro (sull'oro non si vedrebbe), e gli altri clic non fanno niente.
+- **"Gestisci profili"** mette le card in modifica: non si aprono, e "Aggiungi profilo" sparisce. Su ogni card compaiono:
+  - **"Modifica immagine"** (matita), che apre la finestra dell'immagine (§10) per quel profilo, con le sue credenziali. **Arriva nel 17c**: in 17b c'è solo "Rimuovi";
+  - **"Rimuovi"** (cestino, con il tooltip "Rimuovi {nome}"), con la conferma "Rimuovere {nome} da questo PC? Per usarlo di nuovo servirà l'accesso." e i pulsanti "Annulla" e "Rimuovi". Rimuovere:
+    1. toglie subito il profilo dal PC, poi le sue preferenze (§9.6);
+    2. annulla il token di quel profilo in background (`POST /Sessions/Logout` con le sue credenziali; gli errori si ignorano): con il server giù non si aspetta il timeout della connessione.
 
-  "Fine" chiude la modifica. Tolto l'ultimo profilo si va all'accesso.
-- **Lingua della schermata:** quella dell'ultimo profilo usato (`lastUserId`), altrimenti quella di Windows.
-- **Tastiera:** le card ricevono il focus con Tab e si aprono con Invio, con il focus visibile.
+    In `SessionController.removeProfile` togliere il profilo aperto è un'uscita (§9.5), e togliere un altro profilo mentre se ne usa uno lascia la sessione com'è.
+
+  "Fine", o Esc, chiude la modifica. Tolto l'ultimo profilo si va all'accesso.
+- **Lingua della schermata:** quella dell'ultimo profilo usato (`lastUserId`), che senza una scelta sua parte da quella del PC (§9.6). Senza un ultimo usato (è stato tolto), e nell'accesso quando non ci sono profili, vale la lingua del PC: la chiave `locale` di prima della 0.11.0, altrimenti quella di Windows.
+- **Tastiera:** il fuoco parte dalla card dell'ultimo profilo usato (o dalla prima), quindi Invio la apre subito. Le card ricevono il focus con Tab e si aprono con Invio, con il focus visibile.
+- **Screen reader:** ogni card è un pulsante con il nome; un profilo scaduto ha il suggerimento "Accedi di nuovo".
 
 ### 9.5 Menu dell'avatar e Impostazioni
 
-- **Menu dell'avatar:** Impostazioni, [Amministrazione], **Cambia profilo**, **Aggiungi profilo** (con meno di 5 profili), Esci.
+- **Menu dell'avatar:** Impostazioni, [Amministrazione], **Cambia profilo**, **Aggiungi profilo** (con meno di 5 profili), Esci. In 17b l'avatar del menu resta l'iniziale (`CircleAvatar`); `UserAvatar` arriva nel 17c.
 - **Cambia profilo** (§9.7) porta a "Chi guarda?".
-- **Aggiungi profilo** fa lo stesso cambio e poi apre `/login?add=1`. "Annulla" porta a "Chi guarda?".
+- **Aggiungi profilo** fa lo stesso cambio (in un party la conferma dice "Aggiungi profilo") e poi apre l'accesso per un profilo nuovo (`SessionSignedOut(adding: true)`, §9.3). "Annulla" porta a "Chi guarda?".
 - **Esci:**
-  1. annulla il token come oggi;
-  2. **toglie il profilo dal PC**, con le sue preferenze;
-  3. va a "Chi guarda?" se restano profili, altrimenti all'accesso.
-- **Impostazioni → Account:** l'avatar grande con "Cambia immagine" (§10), "Accesso come {nome}", Cambia profilo ed Esci.
+  1. annulla il token come oggi; il 401 di questa richiesta (un token già scaduto) si ignora;
+  2. **toglie il profilo dal PC**;
+  3. va a "Chi guarda?" se restano profili, altrimenti all'accesso;
+  4. cancella le preferenze del profilo (§9.6). Lo stato cambia prima: la shell non mostra un fotogramma con le preferenze del PC.
+- **Impostazioni → Account:** "Accesso come {nome}", Cambia profilo ed Esci. L'avatar grande con "Cambia immagine" (§10) arriva nel 17c.
 
 ### 9.6 Preferenze del profilo
 
-- **Del profilo** (chiave `profile.<userId>.<chiave>`): `locale`, `party.lastMode`, `discord.enabled`, `discord.showTitle`, `discord.showPoster`, `player.subtitleScale`, `player.autoSkipIntro`, `player.autoplayNext`.
+- **Del profilo** (chiave `profile.<userId>.<chiave>`, con l'id di `jellyfinIdKey`): `locale`, `party.lastMode`, `discord.enabled`, `discord.showTitle`, `discord.showPoster`, `player.subtitleScale`, `player.autoSkipIntro`, `player.autoplayNext`.
 - **Del PC** (come oggi): `player.volume`, `player.quality`, `player.hardwareDecoding`, `appearance.motion`, `window_bounds`, `device_id`.
 - **Lettura:** si usa la chiave del profilo. Se manca, vale la chiave di oggi (quella del PC), come valore di partenza.
 - **Scrittura:** sempre nella chiave del profilo.
 
   Così il profilo migrato tiene le sue impostazioni, e i profili nuovi partono da quelle del PC.
-- **Rimozione:** togliendo un profilo si cancellano le sue chiavi.
-- **Al cambio di profilo** i controller di queste preferenze rileggono i valori (guardano l'utente attuale): la lingua dell'app cambia subito.
+- **Lingua "di Windows" in un profilo:** nella chiave del profilo si salva una stringa vuota, perché senza valore varrebbe la lingua del PC. Senza profilo la chiave `locale` si toglie, come prima.
+- **Di quale profilo:** `ProfilePreferences` arriva ai controller da `profilePreferencesProvider`, che segue `profilesProvider`: valgono le preferenze del profilo aperto, altrimenti quelle dell'ultimo usato ("Chi guarda?" e l'accesso). Senza nessuno dei due valgono le chiavi del PC, come prima della 0.11.0.
+- **Rimozione:** togliendo un profilo si cancellano le sue chiavi (`ProfilePreferences.forget`).
+- **Al cambio di profilo** i controller di queste preferenze (`LocaleController`, `PartyModePreference`, `DiscordSettingsController`, `PlayerSettingsController`) rileggono i valori, perché guardano `profilePreferencesProvider`: la lingua dell'app cambia subito.
 
 ### 9.7 Cambio di profilo
 
-1. **Party:** se l'utente è in un watch party (gruppo SyncPlay o canale del party), compare la conferma "Uscirai dal watch party.", con i pulsanti "Annulla" e "Cambia profilo". Confermato, l'app esce dal gruppo come con "Esci dal party", aspettando al massimo 3 s. Questo serve perché **il token non si annulla**, quindi il party non si chiuderebbe da solo.
-2. **Stato:** diventa `ChoosingProfile`, e le credenziali spariscono da `JellyfinHttp`. Il token resta valido e salvato.
+Il cambio lo fa `changeProfile(context, ref, {addProfile})` (`lib/features/profiles/profile_switch.dart`), dal menu dell'avatar e dalle Impostazioni; con `addProfile` è "Aggiungi profilo" (§9.5).
+
+1. **Party:** se l'utente è in un watch party (`WatchPartyState.phase` non è `none`: sta entrando nel gruppo SyncPlay o ci è dentro; il canale del party si chiude da solo uscendo dal gruppo), compare la conferma "Uscirai dal watch party.", con i pulsanti "Annulla" e "Cambia profilo". Con "Aggiungi profilo" il titolo e il pulsante dicono "Aggiungi profilo". Confermato, l'app esce dal gruppo come con "Esci dal party", aspettando al massimo 3 s (`partyLeaveTimeout`). Questo serve perché **il token non si annulla**, quindi il party non si chiuderebbe da solo.
+   - La conferma è `showWfConfirmDialog` (`lib/ui/wf_confirm_dialog.dart`), la stessa di "Rimuovi" (§9.4); `showAdminConfirmDialog` ora la usa.
+   - Un cambio confermato si fa anche se chi l'ha chiesto (il menu, le Impostazioni) sparisce durante l'uscita dal party, ma solo se la sessione è ancora dello stesso utente: un'uscita o un 401, nel frattempo, lo fermano.
+2. **Stato:** diventa `ChoosingProfile` (con "Aggiungi profilo", l'accesso per un profilo nuovo), e le credenziali spariscono da `JellyfinHttp`. Il token resta valido e salvato.
 3. **Azzeramento:** tutto quello che dipende dall'utente si azzera come all'uscita di oggi (§2.2): WebSocket, canale del party, amici, cassetta, richieste, admin, dati utente e cache dei provider.
-4. **Router:** porta a `/profiles`.
+4. **Router:** porta a `/profiles` (a `/login`, con "Aggiungi profilo").
 
 Il player non può essere aperto durante il cambio, perché il menu dell'avatar sta nella shell. La cache delle immagini è comune a tutti i profili: gli indirizzi non dipendono dall'utente.
 
@@ -564,9 +598,11 @@ Il player non può essere aperto durante il cambio, perché il menu dell'avatar 
 | Dove | Testi |
 |---|---|
 | Saghe | "Saghe", "Film" (selettore), "{n} saghe" (plurale), "{n} film" (plurale), "{n} film · {m} visti", "Fa parte di: {name}", "Questo film", "Riproduci \"{title}\"", "Riprendi \"{title}\"", "Cerca una saga", "Nome", "Numero di film", "Data di aggiunta", "Nessuna saga", "Nessuna saga con questo nome" |
-| Chi guarda? | "Chi guarda?", "Aggiungi profilo", "Gestisci profili", "Fine", "Accedi di nuovo", "Modifica immagine", "Rimuovi", "Rimuovere {name} da questo PC?", "Per usarlo di nuovo servirà l'accesso.", "Massimo 5 profili" |
+| Chi guarda? | "Chi guarda?", "Aggiungi profilo", "Gestisci profili", "Fine", "Accedi di nuovo", "Modifica immagine", "Rimuovi", "Rimuovi {name}" (tooltip del cestino), "Rimuovere {name} da questo PC?", "Per usarlo di nuovo servirà l'accesso.", "Massimo 5 profili", "Profilo" (un profilo senza nome) |
 | Menu e Account | "Cambia profilo", "Aggiungi profilo", "Cambia immagine", "Uscirai dal watch party.", "Cambia profilo" (pulsante della conferma) |
 | Login | "Annulla", "Sessione scaduta" (c'è già) |
+
+I testi dei profili (piano 17b) hanno le chiavi `profiles…`. C'è un solo "Annulla" (`profilesCancel`) per l'accesso, la rimozione e la conferma del cambio, e un solo "Aggiungi profilo" e "Cambia profilo" per la card, il menu, le Impostazioni e la conferma. "Modifica immagine" e "Cambia immagine" arrivano con il piano 17c, insieme alla finestra dell'immagine.
 | Immagine | "Immagine del profilo", "Avatar", "Dal PC", "Rimuovi", "Usa questo", "Scegli un'immagine…", "Usa questa", "Rimuovi immagine", "Immagine troppo grande", "Immagine non valida", "Non hai il permesso di cambiare l'immagine", "Caricamento non riuscito" |
 
 In inglese "Saghe" e "saga" sono "Collections" e "collection", come in Jellyfin.
@@ -590,11 +626,16 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
 ### Profili
 
 - **Lettura dei profili fallita:** si va all'accesso, come oggi (§9.1).
+- **Salvataggio dei profili fallito:** i profili valgono in memoria per questa esecuzione, un avviso va nel registro e la sessione non si rompe. Nella migrazione la sessione di prima resta, per riprovare al prossimo avvio (§9.1).
 - **Token di un profilo scaduto:** "Accedi di nuovo" (§9.4). Con un solo profilo, l'accesso con il nome già scritto (§9.3).
+- **Profilo migrato senza nome** (il suo primo `/Users/Me` non è riuscito): in "Chi guarda?" si chiama "Profilo", e "Accedi di nuovo" non scrive il nome (§9.3).
 - **Risposte in volo durante un cambio di profilo:** si scartano, perché i provider si ricostruiscono per il nuovo utente. Come all'uscita di oggi.
-- **Uscita dal party fallita o lenta** durante un cambio: dopo 3 s il cambio va avanti lo stesso. Il gruppo lo pulisce Jellyfin quando la sessione del profilo vecchio scade.
+- **Accesso che finisce tardi** (dopo "Annulla", dopo l'apertura di un altro profilo): il profilo si salva ma non si apre; se quell'utente ha già un profilo valido, resta quello e il token nuovo si annulla (§9.2).
+- **Uscita dal party fallita o lenta** durante un cambio: dopo 3 s il cambio va avanti lo stesso. Il gruppo lo pulisce Jellyfin quando la sessione del profilo vecchio scade. Se intanto il menu o le Impostazioni spariscono, il cambio si fa lo stesso, purché la sessione sia ancora dello stesso utente (§9.7).
 - **Stesso utente aggiunto due volte:** un solo profilo (§9.2).
-- **Sesto profilo:** "Aggiungi profilo" non c'è, né nel menu né in "Chi guarda?".
+- **Sesto profilo:** "Aggiungi profilo" non c'è, né nel menu né in "Chi guarda?". Se un accesso ci arriva lo stesso, `AuthService` lo rifiuta: "Massimo 5 profili", e il token appena ottenuto si annulla (§9.2).
+- **Rimozione con il server giù:** il profilo si toglie subito; il token si annulla in background e gli errori si ignorano (§9.4).
+- **"Esci" con il token già scaduto:** il 401 della richiesta di uscita si ignora, e il profilo si toglie lo stesso (§9.5).
 
 ### Immagini
 
@@ -640,18 +681,25 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
   - le righe: titolo come link (anche lo spazio tra il titolo e la freccia), "Questo film" che non apre niente (né clic né anteprima), le altre card che si aprono;
   - la ricerca: la sezione "Saghe" sopra i film, l'elenco letto all'apertura, "Nessun risultato" assente con le sole saghe;
   - la normalizzazione della ricerca (`foldForSearch`): maiuscole, accenti, lettere accentate scritte come lettera più segno, macron e lettere speciali.
-- **Profili:**
-  - `ProfileStore`: lettura, scrittura, file rovinato, massimo 5;
-  - la migrazione da `wonderflix.session` con il DeviceId di oggi;
-  - `restore()` con 0, 1 (anche scaduto) e 2 profili;
-  - la scelta di un profilo: riuscita, 401, server non raggiungibile;
-  - l'aggiunta: profilo nuovo con DeviceId nuovo; stesso utente aggiornato e token vecchio annullato;
-  - la rimozione: token annullato con le credenziali di quel profilo, preferenze cancellate;
-  - il cambio di profilo: uscita dal party con la conferma e il limite di 3 s, credenziali tolte, provider azzerati, rotta `/profiles`;
-  - "Esci" con e senza altri profili;
-  - `JellyfinHttp`: DeviceId e token nell'intestazione dopo un cambio;
-  - preferenze del profilo: lettura con il valore del PC, scrittura nel profilo, rimozione, lingua che cambia al cambio di profilo;
-  - router: le rotte ammesse con `ChoosingProfile`, e `/home` dopo la scelta.
+- **Profili** (quelli del piano 17b):
+  - `ProfileBook` e `StoredProfile`: lo stesso utente sostituito al suo posto, la rimozione (anche dell'ultimo usato), gli id confrontati senza trattini e maiuscole, pieno a 5, la lettura tollerante (profili rotti, doppioni, oltre 5, un elenco che non è un elenco), l'immagine in `copyWith`;
+  - `SecureProfileStore`: scrittura e rilettura (ultimo usato, immagine, scadenza), file illeggibile o di forma sbagliata, storage che non si legge, chiavi dell'istanza di sviluppo;
+  - la migrazione da `wonderflix.session` con il DeviceId di oggi (anche nell'istanza di sviluppo), con `read()` che non lancia se il salvataggio dei profili o la cancellazione della sessione di prima falliscono, o se la sessione di prima è rovinata e non si cancella;
+  - `JellyfinHttp`: token e DeviceId insieme nell'intestazione dopo `setCredentials`; `withCredentials` con le credenziali di un altro profilo, e il client derivato che, chiuso, non chiude l'adattatore del principale; `ClientInfo.copyWith`;
+  - `AuthService`:
+    - `restore()` con 0 profili, 1 (valido, scaduto, server giù, errore 500) e 2; `openProfile` riuscito e di un profilo che non c'è;
+    - l'accesso: un DeviceId nuovo a ogni accesso, anche con "Accedi di nuovo" (e quando accede un altro utente); il DeviceId della richiesta con la password e con Quick Connect; profilo nuovo; stesso utente con il token vecchio annullato; sesto profilo rifiutato con il token annullato; errore del server; profili non salvati;
+    - gli accessi superati: da "Annulla", da un profilo aperto o che si sta aprendo, per un utente con un profilo valido o scaduto;
+    - `onProfilesChanged` a ogni salvataggio; l'avviso per un DeviceId già di un altro profilo;
+    - uscita e rimozione: le credenziali di quel profilo, il server giù, la rimozione che non aspetta il server, gli errori ignorati; `deactivate`, `markActiveExpired`, `updateActiveProfile`;
+  - `SessionController`: `restore()` e `openProfile` per ogni esito; il login e Quick Connect, anche superati o insieme; `prepareLogin`, `switchProfile`, `addProfile`, `relogin`, `cancelLogin`; "Esci" con e senza altri profili, con lo stato che cambia prima di cancellare le preferenze; la rimozione da "Chi guarda?" e da una sessione (che resta, anche con un 401 nel frattempo); le preferenze cancellate; un 401 durante la sessione e quello, ignorato, della richiesta di uscita; `refreshUser`, che aggiorna anche il profilo;
+  - con `AuthService` e `JellyfinHttp` veri (`session_integration_test.dart`): un 401 aprendo un profilo, un 401 durante la sessione, un accesso che finisce dopo "Annulla" mentre si apre un altro profilo (nei due ordini), il 401 della richiesta di uscita;
+  - il cambio di profilo (`changeProfile`): senza party; "Aggiungi profilo"; nel party con la conferma (anche quella di "Aggiungi profilo") e con "Annulla"; l'uscita lenta (3 s); chi ha chiesto il cambio che sparisce; la sessione che cambia durante l'uscita;
+  - preferenze del profilo: le chiavi del PC senza profilo, la lettura con il valore del PC, la stringa vuota per la lingua, `forget`; i controller (lingua del profilo aperto o dell'ultimo usato, sottotitoli del profilo e qualità del PC, Discord e modalità del party);
+  - router: `/profiles` con `ChoosingProfile`, `/login` per aggiungere, `/home` dopo la scelta; con il router vero, "Chi guarda?" → "Aggiungi profilo" → "Annulla" → "Accedi di nuovo", con l'accesso preparato a ogni apertura del login;
+  - `describeError` per `ProfileLimitException`; i testi del piano (`l10n_plan17b_test.dart`).
+
+  Non c'è un test che controlla l'azzeramento dei provider al cambio di profilo: lo fanno i provider che guardano la sessione, come all'uscita di oggi (§2.2).
 - **Immagini:**
   - la galleria disegna 24 PNG 512×512;
   - il ritaglio: limiti di zoom e trascinamento, uscita 512×512;
@@ -659,10 +707,10 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
   - `avatarsProvider`: raccolta in 50 ms, massimo 100, cache di 10 minuti, nessuna chiamata senza `avatars`, aggiornamento dopo un caricamento;
   - `UserAvatar`: immagine con il tag, iniziale senza.
 - **Widget:**
-  - "Chi guarda?" (card, scaduto, aggiungi, modifica, rimozione con conferma, focus da tastiera);
-  - menu dell'avatar con le voci nuove;
-  - Impostazioni → Account;
-  - login con "Annulla" e con il nome già scritto;
+  - "Chi guarda?": card e apertura, l'indicatore mentre un profilo si apre (gli altri clic non fanno niente), scaduto, aggiungi, niente "Aggiungi profilo" con 5 profili, "Gestisci profili" con la rimozione confermata, Esc (anche con il fuoco su "Fine" o su Rimuovi), profilo senza nome, le card come pulsanti per lo screen reader, fuoco da tastiera (Invio, Tab, l'ultimo profilo usato), la finestra più piccola senza scorrere, l'entrata uno dopo l'altro;
+  - menu dell'avatar con le voci nuove: "Aggiungi profilo" che apre l'accesso, la conferma in un party, niente "Aggiungi profilo" con 5 profili;
+  - Impostazioni → Account: Cambia profilo ed Esci;
+  - login: "Annulla" per aggiungere un profilo; "Accedi di nuovo" con il nome già scritto, l'avviso e "Annulla"; senza nome salvato il fuoco al nome; con un solo profilo niente "Annulla"; "Massimo 5 profili"; l'accesso preparato all'apertura, prima di Quick Connect;
   - righe "Fa parte di";
   - pagina della saga;
   - vista "Saghe";
@@ -712,11 +760,11 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
     - preferenze del profilo;
     - correzione dei commenti sul Gestore credenziali.
 
-    Il plugin non cambia.
+    Il plugin non cambia. Gli avatar restano le iniziali. Realizzato: le differenze dalla prima versione di questa spec sono scritte nelle sezioni (§9.1–§9.7, §11, §12) e nella decisione 10 del piano.
   - **17c — immagini e release:**
     - endpoint `Users/Avatars` del plugin, con la funzione `avatars`;
-    - finestra dell'immagine, galleria, ritaglio, caricamento;
-    - `UserAvatar` e `avatarsProvider`;
+    - finestra dell'immagine, galleria, ritaglio, caricamento; "Modifica immagine" in "Gestisci profili" e l'avatar grande con "Cambia immagine" in Impostazioni → Account;
+    - `UserAvatar` e `avatarsProvider`, anche al posto dell'iniziale di "Chi guarda?" e del `CircleAvatar` del menu dell'avatar;
     - release.
 - **Release:**
   - plugin **1.5.0** (collezioni e avatar);
