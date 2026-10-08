@@ -193,6 +193,86 @@ void main() {
       });
     });
 
+    test('una chiamata fallita nel frattempo non copre la risposta di una '
+        'partita prima', () {
+      fakeAsync((async) {
+        final answer = Completer<void>();
+        api.hold = answer.future;
+        final directory = AvatarDirectory(api);
+        // La prima chiamata (per nome) resta in viaggio.
+        directory.imageFor(AvatarLookup.byName('Mario'));
+        async.elapse(AvatarDirectory.defaultBatchDelay);
+
+        // La seconda (per id) parte dopo e fallisce subito.
+        api
+          ..hold = null
+          ..error = const ServerUnreachableException();
+        AvatarImage? failed = const AvatarImage('x', 'x');
+        directory.imageFor(AvatarLookup.byId('u1')).then((v) => failed = v);
+        async.elapse(AvatarDirectory.defaultBatchDelay);
+        expect(failed, isNull);
+
+        // La prima risponde: Mario è u1, con l'immagine.
+        api.error = null;
+        answer.complete();
+        async.flushMicrotasks();
+
+        AvatarImage? byId;
+        directory.imageFor(AvatarLookup.byId('u1')).then((v) => byId = v);
+        async.flushMicrotasks();
+        expect(byId, const AvatarImage('u1', 't1'));
+        expect(api.calls, hasLength(2));
+      });
+    });
+
+    test('una chiamata che fallisce dopo non copre un\'immagine trovata nel '
+        'frattempo', () {
+      fakeAsync((async) {
+        final answer = Completer<void>();
+        api.hold = answer.future;
+        final directory = AvatarDirectory(api);
+        // La prima chiamata (per id) resta in viaggio.
+        AvatarImage? asked;
+        directory.imageFor(AvatarLookup.byId('u1')).then((v) => asked = v);
+        async.elapse(AvatarDirectory.defaultBatchDelay);
+
+        // La seconda (per nome) parte dopo e trova Mario, cioè u1.
+        api.hold = null;
+        directory.imageFor(AvatarLookup.byName('Mario'));
+        async.elapse(AvatarDirectory.defaultBatchDelay);
+
+        // La prima fallisce.
+        api.error = const ServerUnreachableException();
+        answer.complete();
+        async.flushMicrotasks();
+
+        expect(asked, const AvatarImage('u1', 't1'));
+        AvatarImage? byId;
+        directory.imageFor(AvatarLookup.byId('u1')).then((v) => byId = v);
+        async.flushMicrotasks();
+        expect(byId, const AvatarImage('u1', 't1'));
+        expect(api.calls, hasLength(2));
+      });
+    });
+
+    test('id vuoto: l\'iniziale subito, senza chiamate', () {
+      fakeAsync((async) {
+        api.users = const [UserAvatarInfo(userId: '', name: 'Nessuno', imageTag: 't0')];
+        final directory = AvatarDirectory(api);
+        AvatarImage? empty = const AvatarImage('x', 'x');
+        AvatarImage? dashes = const AvatarImage('x', 'x');
+        directory.imageFor(AvatarLookup.byId('')).then((v) => empty = v);
+        // Senza i trattini non resta niente.
+        directory.imageFor(AvatarLookup.byId('--')).then((v) => dashes = v);
+        async.flushMicrotasks();
+        expect(empty, isNull);
+        expect(dashes, isNull);
+
+        async.elapse(AvatarDirectory.defaultBatchDelay);
+        expect(api.calls, isEmpty);
+      });
+    });
+
     test('dispose durante una chiamata: tutto finisce con l\'iniziale, senza '
         'errori', () {
       fakeAsync((async) {

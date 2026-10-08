@@ -21,6 +21,11 @@ const _initialScale = 0.45;
 /// carica, o se non si carica, si vede l'iniziale.
 ///
 /// Per i lettori di schermo è decorativo: il nome c'è sempre accanto.
+///
+/// Non va misurato con `IntrinsicWidth`/`IntrinsicHeight` (né altro che
+/// chieda il layout "a secco"), nemmeno dentro un `WidgetSpan` come nella
+/// chat: `WfImage` decodifica attraverso un `LayoutBuilder`, che il layout a
+/// secco non lo sa fare (in debug lancia). Oggi non lo fa nessuno.
 class UserAvatar extends ConsumerWidget {
   const UserAvatar({
     super.key,
@@ -79,9 +84,12 @@ class UserAvatar extends ConsumerWidget {
     );
   }
 
+  /// Per id; senza id, o con un id vuoto (non trova nessuno), per nome.
   AvatarLookup get _lookupKey {
     final id = userId;
-    return id == null ? AvatarLookup.byName(name) : AvatarLookup.byId(id);
+    return id == null || jellyfinIdKey(id).isEmpty
+        ? AvatarLookup.byName(name)
+        : AvatarLookup.byId(id);
   }
 
   /// L'id come quello delle immagini cercate ([jellyfinIdKey]): un utente ha

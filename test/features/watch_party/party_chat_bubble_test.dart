@@ -51,6 +51,41 @@ void main() {
     expect(urls.toSet(), {'https://media.example.com/UserImage?userId=u2&tag=t2'});
   });
 
+  testWidgets('a ogni build lo stesso avatar finché il mittente non cambia: '
+      'il paragrafo non rifà il layout', (tester) async {
+    final message = ValueNotifier(entry('che scena'));
+    addTearDown(message.dispose);
+    await pumpApp(
+        tester,
+        Scaffold(
+            body: ValueListenableBuilder<PartyChatEntry>(
+                valueListenable: message,
+                builder: (context, value, _) =>
+                    PartyChatMessage(entry: value))));
+    Widget avatar() {
+      final text = tester.widget<Text>(find
+          .descendant(
+              of: find.byType(PartyChatMessage), matching: find.byType(Text))
+          .first);
+      return ((text.textSpan! as TextSpan).children!.first as WidgetSpan).child;
+    }
+
+    final first = avatar();
+    // Lo stesso mittente (per esempio il nostro messaggio confermato).
+    message.value = entry('che scena');
+    await tester.pump();
+    expect(avatar(), same(first));
+
+    // Un altro mittente: un avatar nuovo.
+    message.value = PartyChatEntry(
+        testChatEvent('eccomi', userId: 'u3', userName: 'Sara'),
+        mine: false,
+        pending: false);
+    await tester.pump();
+    expect(avatar(), isNot(same(first)));
+    expect(find.text('S'), findsOneWidget);
+  });
+
   testWidgets('i nostri: "Tu"; in attesa più trasparenti', (tester) async {
     await pumpApp(
         tester,

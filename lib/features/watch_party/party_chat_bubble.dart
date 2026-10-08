@@ -25,7 +25,7 @@ const partyChatTextStyle = TextStyle(
 /// Una riga della chat: l'avatar del mittente (spec K §10.5), il nome in oro
 /// e il testo (spec E §9.1). I nostri messaggi non ancora confermati sono più
 /// trasparenti (§9.4).
-class PartyChatMessage extends StatelessWidget {
+class PartyChatMessage extends StatefulWidget {
   const PartyChatMessage({super.key, required this.entry, this.maxLines});
 
   /// Opacità di un nostro messaggio non ancora confermato.
@@ -37,25 +37,51 @@ class PartyChatMessage extends StatelessWidget {
   final int? maxLines;
 
   @override
+  State<PartyChatMessage> createState() => _PartyChatMessageState();
+}
+
+class _PartyChatMessageState extends State<PartyChatMessage> {
+  /// L'avatar, sempre lo stesso widget finché il mittente non cambia: un
+  /// `WidgetSpan` confronta il figlio per identità, e un widget nuovo a ogni
+  /// build rifarebbe il layout del paragrafo (per esempio a ogni tasto nel
+  /// campo della chat). Niente misure "a secco" qui intorno (vedi
+  /// [UserAvatar]).
+  late Widget _avatar = _buildAvatar();
+
+  Widget _buildAvatar() {
+    final event = widget.entry.event;
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: UserAvatar.lookup(
+        userId: event.userId,
+        name: event.userName,
+        size: partyChatAvatarSize,
+        muted: true,
+      ),
+    );
+  }
+
+  @override
+  void didUpdateWidget(PartyChatMessage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final before = oldWidget.entry.event;
+    final event = widget.entry.event;
+    if (before.userId != event.userId || before.userName != event.userName) {
+      _avatar = _buildAvatar();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final entry = widget.entry;
+    final maxLines = widget.maxLines;
     final name = entry.mine ? l.partyChatYou : entry.event.userName;
     return Opacity(
-      opacity: entry.pending ? pendingOpacity : 1,
+      opacity: entry.pending ? PartyChatMessage.pendingOpacity : 1,
       child: Text.rich(
         TextSpan(children: [
-          WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: UserAvatar.lookup(
-                userId: entry.event.userId,
-                name: entry.event.userName,
-                size: partyChatAvatarSize,
-                muted: true,
-              ),
-            ),
-          ),
+          WidgetSpan(alignment: PlaceholderAlignment.middle, child: _avatar),
           TextSpan(
               text: name,
               style: const TextStyle(

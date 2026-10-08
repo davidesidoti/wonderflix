@@ -36,8 +36,8 @@ class AvatarLookup {
   /// è d'accordo.
   final String? query;
 
-  /// Senza id e con il nome vuoto: nessuno da cercare.
-  bool get _isEmpty => userId == null && (name?.isEmpty ?? true);
+  /// Con l'id vuoto, o senza id e con il nome vuoto: nessuno da cercare.
+  bool get _isEmpty => (userId?.isEmpty ?? true) && (name?.isEmpty ?? true);
 
   @override
   bool operator ==(Object other) =>
@@ -123,7 +123,8 @@ class AvatarDirectory {
       {required String userId, required String name, required String? tag}) {
     final entry = _Cached(
         tag == null ? null : AvatarImage(jellyfinIdKey(userId), tag),
-        clock.now());
+        clock.now(),
+        remembered: true);
     _cache[AvatarLookup.byId(userId)] = entry;
     if (name.isNotEmpty) _cache[AvatarLookup.byName(name)] = entry;
   }
@@ -137,8 +138,8 @@ class AvatarDirectory {
     }
     // Oltre il limite: un'altra chiamata, subito.
     if (_waiting.isNotEmpty) _timer = Timer(Duration.zero, _flush);
-    // Quello che entra nella cache da qui in poi (remember) è più nuovo
-    // della risposta: la risposta non lo sovrascrive.
+    // Quello che entra nella cache da qui in poi può valere più della
+    // risposta (vedi sotto).
     final started = clock.now();
     final found = <AvatarLookup, AvatarImage?>{};
     try {
@@ -171,7 +172,15 @@ class AvatarDirectory {
     final now = clock.now();
     for (final MapEntry(:key, :value) in found.entries) {
       final cached = _cache[key];
-      if (cached != null && !cached.at.isBefore(started)) continue;
+      // Entrati dopo la partenza, un'immagine appena cambiata (remember) o
+      // un'immagine trovata da un'altra chiamata valgono più della risposta.
+      // Un errore o un "senza immagine" di un'altra chiamata no: una
+      // chiamata fallita nel frattempo non copre questa.
+      if (cached != null &&
+          !cached.at.isBefore(started) &&
+          (cached.remembered || cached.image != null)) {
+        continue;
+      }
       _cache[key] = _Cached(value, now);
     }
     for (var i = 0; i < batch.length; i++) {
@@ -193,10 +202,13 @@ class AvatarDirectory {
 }
 
 class _Cached {
-  const _Cached(this.image, this.at);
+  const _Cached(this.image, this.at, {this.remembered = false});
 
   final AvatarImage? image;
   final DateTime at;
+
+  /// Scritto da [AvatarDirectory.remember]: un'immagine appena cambiata.
+  final bool remembered;
 }
 
 final avatarsApiProvider =

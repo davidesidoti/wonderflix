@@ -18,6 +18,7 @@ import 'package:wonderflix/features/watch_party/party_notices.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 import 'package:wonderflix/ui/user_avatar.dart';
+import 'package:wonderflix/ui/wf_image.dart';
 
 import '../../support/avatar_fakes.dart';
 import '../../support/fake_session_controller.dart';
@@ -186,11 +187,20 @@ void main() {
     // La fila del distintivo.
     expect(urls.toSet(), {'https://media.example.com/UserImage?userId=u1&tag=t1'});
 
-    // Il menu dei membri.
-    urls.clear();
+    // Il menu dei membri: l'immagine è nella sua voce.
     await tester.tap(find.byKey(const Key('party-badge')));
     await tester.pumpAndSettle();
-    expect(urls, contains('https://media.example.com/UserImage?userId=u1&tag=t1'));
+    final member = find.descendant(
+        of: find.byType(PopupMenuItem<String>),
+        matching: find.byType(UserAvatar));
+    expect(member, findsOneWidget);
+    expect(
+        tester
+            .widget<WfImage>(
+                find.descendant(of: member, matching: find.byType(WfImage)))
+            .image
+            ?.url,
+        'https://media.example.com/UserImage?userId=u1&tag=t1');
 
     // Il menu degli inviti.
     await tester.tap(find.text('Invita amici'));

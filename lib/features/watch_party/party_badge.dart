@@ -88,7 +88,7 @@ class MemberAvatarStack extends StatelessWidget {
 
   static const maxShown = 3;
 
-  /// Di quanto un'iniziale copre la precedente.
+  /// Di quanto un avatar copre il precedente.
   static const overlap = 8.0;
 
   /// Diametro di `MemberAvatar`.
@@ -107,7 +107,7 @@ class MemberAvatarStack extends StatelessWidget {
             key: ValueKey(shown[i]),
             alignment: Alignment.centerRight,
             widthFactor: i == 0 ? 1 : (avatarSize - overlap) / avatarSize,
-            // Alta quanto l'iniziale, anche se sopra c'è spazio in più.
+            // Alta quanto l'avatar, anche se sopra c'è spazio in più.
             heightFactor: 1,
             child: _AvatarPop(child: MemberAvatar(name: shown[i])),
           ),
@@ -129,7 +129,7 @@ class MemberAvatarStack extends StatelessWidget {
     return AnimatedSize(
       duration: WfMotion.medium,
       curve: WfMotion.emphasized,
-      // Ancorata a sinistra: mentre la larghezza si adatta, le iniziali che
+      // Ancorata a sinistra: mentre la larghezza si adatta, gli avatar che
       // restano non si spostano.
       alignment: Alignment.centerLeft,
       child: row,
@@ -137,7 +137,7 @@ class MemberAvatarStack extends StatelessWidget {
   }
 }
 
-/// Un'iniziale nuova cresce con un piccolo rimbalzo (con le animazioni
+/// Un avatar nuovo cresce con un piccolo rimbalzo (con le animazioni
 /// ridotte sfuma soltanto).
 class _AvatarPop extends StatelessWidget {
   const _AvatarPop({required this.child});
@@ -159,7 +159,7 @@ class _AvatarPop extends StatelessWidget {
   }
 }
 
-/// "Watch party · N" nei controlli del player, con le iniziali dei membri:
+/// "Watch party · N" nei controlli del player, con gli avatar dei membri:
 /// apre i membri, il codice dei privati, "Invita amici" (spec F §9.4–9.5)
 /// ed "Esci dal watch party". A ogni cambio di membri fa un piccolo
 /// sobbalzo (spec D §15.2).

@@ -93,6 +93,22 @@ void main() {
     expect(urls.last, 'https://media.example.com/UserImage?userId=u1&tag=t1');
   });
 
+  testWidgets('lookup con l\'id vuoto: si cerca per nome', (tester) async {
+    final api = FakeAvatarsApi()
+      ..users = const [UserAvatarInfo(userId: 'u1', name: 'Mario', imageTag: 't1')];
+    await pumpApp(
+        tester,
+        const Center(
+            child: UserAvatar.lookup(userId: '', name: 'Mario', size: 26)),
+        overrides: [captureImages(), directoryOf(api)]);
+    await tester.pump(AvatarDirectory.defaultBatchDelay);
+    await tester.pump();
+
+    expect(api.calls.single.ids, isEmpty);
+    expect(api.calls.single.names, ['Mario']);
+    expect(urls.last, 'https://media.example.com/UserImage?userId=u1&tag=t1');
+  });
+
   testWidgets('con il tag: l\'id come quello delle immagini cercate',
       (tester) async {
     await pumpApp(
