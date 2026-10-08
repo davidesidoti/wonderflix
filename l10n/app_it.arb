@@ -649,5 +649,18 @@
   "collectionsSortName": "Nome",
   "collectionsSortSize": "Numero di film",
   "collectionsEmpty": "Nessuna saga",
-  "collectionsNoMatch": "Nessuna saga con questo nome"
+  "collectionsNoMatch": "Nessuna saga con questo nome",
+  "profilesTitle": "Chi guarda?",
+  "profilesAdd": "Aggiungi profilo",
+  "profilesManage": "Gestisci profili",
+  "profilesDone": "Fine",
+  "profilesSignInAgain": "Accedi di nuovo",
+  "profilesRemove": "Rimuovi",
+  "profilesRemoveTitle": "Rimuovere {name} da questo PC?",
+  "@profilesRemoveTitle": {"placeholders": {"name": {"type": "String"}}},
+  "profilesRemoveBody": "Per usarlo di nuovo servirà l'accesso.",
+  "profilesLimit": "Massimo 5 profili",
+  "profilesCancel": "Annulla",
+  "profilesSwitch": "Cambia profilo",
+  "profilesSwitchLeavesParty": "Uscirai dal watch party."
 }

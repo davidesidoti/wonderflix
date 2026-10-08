@@ -541,5 +541,17 @@
   "collectionsSortName": "Name",
   "collectionsSortSize": "Number of movies",
   "collectionsEmpty": "No collections",
-  "collectionsNoMatch": "No collection with this name"
+  "collectionsNoMatch": "No collection with this name",
+  "profilesTitle": "Who's watching?",
+  "profilesAdd": "Add profile",
+  "profilesManage": "Manage profiles",
+  "profilesDone": "Done",
+  "profilesSignInAgain": "Sign in again",
+  "profilesRemove": "Remove",
+  "profilesRemoveTitle": "Remove {name} from this PC?",
+  "profilesRemoveBody": "You'll need to sign in again to use it.",
+  "profilesLimit": "Up to 5 profiles",
+  "profilesCancel": "Cancel",
+  "profilesSwitch": "Switch profile",
+  "profilesSwitchLeavesParty": "You'll leave the watch party."
 }
