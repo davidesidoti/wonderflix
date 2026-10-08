@@ -80,6 +80,14 @@ class FakeSessionController extends SessionController {
     state = const SessionChoosingProfile();
   }
 
+  int backToProfilesCalls = 0;
+
+  @override
+  void backToProfiles() {
+    backToProfilesCalls++;
+    state = const SessionChoosingProfile();
+  }
+
   @override
   Future<void> logout() async {
     logoutCalls++;

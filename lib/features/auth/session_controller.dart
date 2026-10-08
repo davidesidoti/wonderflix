@@ -148,6 +148,16 @@ class SessionController extends Notifier<SessionState> {
     _apply(_afterLeaving());
   }
 
+  /// "Cambia profilo" dalla schermata del server irraggiungibile (spec K
+  /// §9.4): di nuovo "Chi guarda?" (o l'accesso, senza profili), con le
+  /// credenziali tolte. Serve quando l'errore è di quel profilo (per esempio
+  /// un 403 per un account senza accesso da remoto) e "Riprova" non
+  /// riuscirebbe mai.
+  void backToProfiles() {
+    _auth.deactivate();
+    _apply(_afterLeaving());
+  }
+
   /// Un'uscita in corso: il 401 della sua richiesta (token già scaduto) non
   /// apre l'accesso del profilo che si sta togliendo.
   bool _leaving = false;

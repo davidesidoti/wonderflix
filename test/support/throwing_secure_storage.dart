@@ -19,9 +19,8 @@ class ThrowingReadStorage extends FlutterSecureStorage {
   }
 }
 
-/// Storage finto che fallisce in lettura finché [failing] è vero (per esempio
-/// il file bloccato all'avvio), solo per [onlyKey] se c'è; il resto va allo
-/// storage di prova.
+/// Storage finto che lancia in lettura finché [failing] è vero, solo per
+/// [onlyKey] se c'è; il resto va allo storage di prova.
 class FlakyReadStorage extends FlutterSecureStorage {
   FlakyReadStorage({this.onlyKey});
 

@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/wf_buttons.dart';
 import '../auth/session_controller.dart';
 
 class UnreachableScreen extends ConsumerStatefulWidget {
@@ -56,6 +57,9 @@ class _UnreachableScreenState extends ConsumerState<UnreachableScreen> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final session = ref.watch(sessionControllerProvider);
+    final retryUserId =
+        session is SessionUnreachable ? session.retryUserId : null;
     return Scaffold(
       body: Center(
         child: Column(
@@ -82,6 +86,24 @@ class _UnreachableScreenState extends ConsumerState<UnreachableScreen> {
                     : Text(l.retry),
               ),
             ),
+            // Il profilo scelto non si apre: si può tornare a "Chi guarda?",
+            // perché l'errore può essere di quel profilo e "Riprova" non
+            // riuscirebbe mai.
+            if (retryUserId != null) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: 200,
+                child: WfButton.secondary(
+                  label: l.profilesSwitch,
+                  icon: LucideIcons.users,
+                  onPressed: _busy
+                      ? null
+                      : ref
+                          .read(sessionControllerProvider.notifier)
+                          .backToProfiles,
+                ),
+              ),
+            ],
           ],
         ),
       ),

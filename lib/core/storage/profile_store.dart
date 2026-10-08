@@ -195,7 +195,12 @@ abstract interface class ProfileStore {
 
 /// I profili in `flutter_secure_storage`: su Windows un file JSON cifrato con
 /// DPAPI (`flutter_secure_storage.dat` nella cartella dei dati dell'app). Una
-/// lettura non riuscita non fa perdere i profili salvati (vedi [write]).
+/// lettura che lancia non fa sovrascrivere i profili salvati (vedi [write]).
+///
+/// Copre solo i casi rari: su Windows `flutter_secure_storage_windows` 4.2.2
+/// legge come vuoto un file che non riesce ad aprire (senza eccezione), e
+/// cancella un file che non riesce a decifrare o a leggere prima di lanciare.
+/// In quei casi i profili sono persi come con dati rovinati.
 class SecureProfileStore implements ProfileStore {
   SecureProfileStore({
     FlutterSecureStorage? storage,
@@ -216,9 +221,8 @@ class SecureProfileStore implements ProfileStore {
   /// dell'istanza di sviluppo).
   final String legacyDeviceId;
 
-  /// L'ultima lettura non è riuscita (per esempio il file bloccato
-  /// all'avvio): i profili salvati possono esserci ancora, e un salvataggio
-  /// non deve sovrascriverli alla cieca.
+  /// L'ultima lettura ha lanciato un'eccezione: i profili salvati possono
+  /// esserci ancora, e un salvataggio non deve sovrascriverli alla cieca.
   bool _readFailed = false;
 
   @override

@@ -159,6 +159,23 @@ void main() {
       expect((state() as SessionUnreachable).retryUserId, 'u2');
     });
 
+    test('backToProfiles: credenziali tolte, "Chi guarda?" o l\'accesso',
+        () async {
+      when(() => auth.openProfile('u2'))
+          .thenAnswer((_) async => const RestoreServerUnreachable());
+      await controller().openProfile('u2');
+      when(() => auth.book).thenReturn(twoProfiles);
+
+      controller().backToProfiles();
+
+      verify(() => auth.deactivate()).called(1);
+      expect(state(), isA<SessionChoosingProfile>());
+
+      when(() => auth.book).thenReturn(const ProfileBook());
+      controller().backToProfiles();
+      expect(state(), isA<SessionSignedOut>());
+    });
+
     test('restore con il server giù: niente profilo da riprovare', () async {
       when(() => auth.restore())
           .thenAnswer((_) async => const RestoreServerUnreachable());

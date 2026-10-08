@@ -423,7 +423,8 @@ I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a, quelli de
 - **Chi aggiorna non rifà l'accesso:** il token resta legato allo stesso DeviceId.
 - **DeviceId dei profili nuovi:** un UUID v4 nuovo a ogni accesso (§9.2). `device_id` resta nelle preferenze come DeviceId del profilo migrato, e non si usa per i profili nuovi.
 - **File dei profili rovinato** (dati che non si capiscono): si comporta come oggi con una sessione illeggibile. I profili si considerano assenti, si va all'accesso e nel registro va un avviso. La chiave rovinata non si cancella: la sostituisce il primo salvataggio.
-- **Storage che non si legge** (per esempio il file bloccato all'avvio; vale anche per la sessione di prima della migrazione): si va all'accesso, ma i profili salvati non si perdono. Il primo salvataggio rilegge lo storage: se non si legge ancora non salva (l'errore va nel registro e i profili valgono in memoria); altrimenti tiene anche i profili salvati che mancano (davanti, finché ce ne stanno 5; vincono quelli nuovi, e il loro ultimo usato) e "Chi guarda?" li mostra subito.
+- **Storage che lancia in lettura** (vale anche per la sessione di prima della migrazione): si va all'accesso, ma un salvataggio non sovrascrive alla cieca. Il primo salvataggio rilegge lo storage: se lancia ancora non salva (l'errore va nel registro e i profili valgono in memoria); altrimenti tiene anche i profili salvati che mancano (davanti, finché ce ne stanno 5; vincono quelli nuovi, e il loro ultimo usato) e "Chi guarda?" li mostra subito.
+  - **Copre solo i casi rari.** Su Windows `flutter_secure_storage_windows` 4.2.2 legge come vuoto un file che non riesce ad aprire (senza eccezione), e cancella un file che non riesce a decifrare o a leggere prima di lanciare. In quei casi i profili sono persi come con dati rovinati, e si rifà l'accesso.
 - **Salvataggio fallito** durante la sessione: i profili valgono lo stesso in memoria per questa esecuzione, l'errore va nel registro e la sessione non si rompe. Un `restore()` nella stessa esecuzione (il "Riprova" del server irraggiungibile) tiene i profili in memoria e riprova a salvarli, invece di rileggere lo storage. Al prossimo avvio si legge l'ultimo elenco salvato.
 
 ### 9.2 Credenziali e DeviceId
@@ -474,7 +475,7 @@ I nomi dei file delle saghe (K1) sono quelli realizzati nel piano 17a, quelli de
   3. secondo la risposta:
      - **riuscita:** si entra (`SignedIn`); nome e tag dell'immagine si aggiornano nel profilo, insieme a `lastUsedAt` e `lastUserId`, e il profilo non è più scaduto;
      - **401:** il profilo si segna come scaduto e si apre l'accesso per quel profilo (`SessionSignedOut(expired: true, reloginUserId:)`, §9.3);
-     - **server non raggiungibile** (o un altro errore): `SessionUnreachable(retryUserId:)`, cioè la schermata di oggi. Il suo "Riprova" (e il tentativo ogni 15 s) riapre questo profilo; senza un profilo scelto (all'avvio, con un solo profilo) rifà `restore()`, che lo riapre già.
+     - **server non raggiungibile** (o un altro errore): `SessionUnreachable(retryUserId:)`, cioè la schermata di oggi. Il suo "Riprova" (e il tentativo ogni 15 s) riapre questo profilo; senza un profilo scelto (all'avvio, con un solo profilo) rifà `restore()`, che lo riapre già. Con un profilo scelto c'è anche "Cambia profilo" (`backToProfiles`), che toglie le credenziali e torna qui: l'errore può essere di quel profilo (per esempio un 403 per un account senza accesso da remoto), e "Riprova" non riuscirebbe mai. Mentre si riprova è spento, come "Riprova".
 
   Un profilo già segnato scaduto apre subito l'accesso, senza richieste. Durante la lettura l'avatar ha un velo scuro con un indicatore chiaro (sull'oro non si vedrebbe), e gli altri clic non fanno niente.
 - **"Gestisci profili"** mette le card in modifica: non si aprono, e "Aggiungi profilo" sparisce. Su ogni card compaiono:
@@ -626,9 +627,9 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
 
 ### Profili
 
-- **Lettura dei profili fallita:** si va all'accesso, come oggi, ma i profili salvati non si perdono: il primo salvataggio rilegge e li tiene, o non salva (§9.1). Dati rovinati invece si sostituiscono.
+- **Lettura dei profili fallita:** si va all'accesso, come oggi. Se lo storage lancia, il primo salvataggio rilegge e tiene i profili salvati, o non salva (§9.1). Su Windows però il plugin di solito non lancia: un file che non si apre si legge vuoto, e uno che non si decifra si cancella; allora i profili sono persi, come con dati rovinati (che si sostituiscono).
 - **Salvataggio dei profili fallito:** i profili valgono in memoria per questa esecuzione (anche dopo un `restore()`), un avviso va nel registro e la sessione non si rompe. Nella migrazione la sessione di prima resta, per riprovare al prossimo avvio (§9.1).
-- **Server giù aprendo un profilo da "Chi guarda?":** "Riprova" riapre quel profilo (§9.4).
+- **Server giù aprendo un profilo da "Chi guarda?":** "Riprova" riapre quel profilo, e "Cambia profilo" torna a "Chi guarda?" (§9.4).
 - **401 attesi** (aprendo un profilo scaduto, annullando un token già scaduto): nel registro come info, non tra gli "Ultimi errori" della diagnostica.
 - **Token di un profilo scaduto:** "Accedi di nuovo" (§9.4). Con un solo profilo, l'accesso con il nome già scritto (§9.3).
 - **Profilo migrato senza nome** (il suo primo `/Users/Me` non è riuscito): in "Chi guarda?" si chiama "Profilo", e "Accedi di nuovo" non scrive il nome (§9.3).
