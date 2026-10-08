@@ -1,10 +1,10 @@
 {
   "category": "General",
   "changelog": "",
-  "description": "Names, chat, reactions, friends and notifications for SyncPlay watch parties in WonderFlix.",
+  "description": "Names, chat, reactions, friends, public, friends-only or private parties and an in-app notifications inbox (invites, new titles, admin announcements, requests) for SyncPlay watch parties in WonderFlix, plus Seerr requests (search, request and approve movies and series), collections (sagas) and user pictures.",
   "guid": "882eb47e-668a-4935-ba55-c2858eb4ed90",
   "name": "WonderFlix Watch Party",
-  "overview": "WonderFlix watch party: names, chat, reactions, friends, notifications",
+  "overview": "WonderFlix watch party: names, chat, reactions, friends, party modes, notifications, Seerr requests, collections, user pictures",
   "owner": "davidesidoti",
   "targetAbi": "10.11.0.0",
   "timestamp": "@TIMESTAMP@",

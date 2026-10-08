@@ -3889,7 +3889,7 @@ Ogni passo che pubblica (push dei tag, manifest, pubblicazione della release) va
      - `"version": "1.5.0.0"`, `"targetAbi": "10.11.0.0"`;
      - `sourceUrl` della pre-release, `checksum` uguale al contenuto del `.md5`, `timestamp` in UTC;
      - `changelog` in italiano, per esempio: "Saghe per WonderFlix 0.11.0: le collezioni di Jellyfin con i loro film (riga «Fa parte di», pagina della saga, vista Saghe, ricerca). Immagini degli utenti per amici, party e chat.";
-   - aggiorna la `description` in inglese (aggiungi "collections (sagas) and user pictures");
+   - aggiorna la `description` in inglese (aggiungi "collections (sagas) and user pictures") e anche l'`overview` (aggiungi "collections, user pictures"), come in `meta.template.json`;
    - commit `chore: publish the watch party plugin 1.5.0`, push.
 2. **Server:**
    - controlla che nessuno stia guardando;

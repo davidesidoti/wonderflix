@@ -585,17 +585,20 @@ Il player non può essere aperto durante il cambio, perché il menu dell'avatar 
   - Oltre 20 MB (la dimensione del file, letta prima del contenuto): "Immagine troppo grande".
 - **Preparazione**, in un isolate con il pacchetto `image` (Dart puro). Il risultato è l'**immagine di lavoro**, su cui lavora il ritaglio.
   1. **Intestazione prima di decodificare.** Un file piccolo può dichiarare un'immagine enorme, che in memoria non starebbe.
-     - Un JPEG si legge con un parser suo: scorre i segmenti fino al primo SOF e accetta solo i marcatori che il decoder legge allo stesso modo (DQT, DHT, DRI, APPn, COM, RST/TEM e i byte di riempimento). Ogni altra cosa prima del SOF (anche un SOF nascosto dietro `FF 00`) dà "Immagine non valida": il decoder la salterebbe a modo suo, e potrebbe trovare un SOF che il parser non ha visto.
-     - Gli altri formati si leggono con `startDecode` del pacchetto `image`.
+     - Un JPEG si legge con un parser suo: scorre i segmenti fino al primo SOF e accetta solo i marcatori che il decoder legge allo stesso modo (DQT, DHT, DRI, APPn, COM, RST/TEM e i byte di riempimento). Ogni altra cosa prima del SOF (anche un SOF nascosto dietro `FF 00`) dà "Immagine non valida": il decoder la salterebbe a modo suo, e potrebbe trovare un SOF che il parser non ha visto. Il SOF deve avere da 1 a 4 componenti, ognuna con il campionamento da 1 a 4 (i limiti dello standard): il decoder alloca i blocchi di ogni componente, e un JPEG piccolo con 24 componenti occuperebbe gigabyte.
+     - Gli altri formati si leggono con `startDecode` del pacchetto `image`, e valgono solo quelli del filtro: PNG, GIF, WebP e BMP. Ogni altro formato che il pacchetto riconosce (ICO, TIFF, PSD, EXR, TGA, PNM, PVR) dà "Immagine non valida": le sue misure qui non si controllano (un ICO che dice 1×1 può contenere un PNG enorme).
+     - **WebP animato:** "Immagine non valida". `startDecode` dà la tela, ma il primo fotogramma si decodifica con le sue misure, che possono essere molto più grandi. (Di una GIF il fotogramma sta sempre dentro la tela.)
+     - **PNG:** prima di decodificare, i dati compressi (IDAT) si decomprimono a pezzi contando i byte, senza tenerli: oltre quelli che le misure dell'intestazione permettono (una riga è il byte del filtro più i pixel; con l'interlacciamento, le righe dei 7 passaggi; più 1 KB di margine) è "Immagine non valida". Il decoder li espande tutti in memoria: un file di 4 MB può arrivare a 8 GB.
+     - Larghezza o altezza nulla o negativa (un BMP può dichiararla): "Immagine non valida".
      - Oltre 64 milioni di pixel: "Immagine troppo grande". Qualche telefono che salva foto da 108 o 200 megapixel viene rifiutato; la maggior parte dei telefoni ne salva da 12.
-  2. **Decodifica.** Un file che non si decodifica: "Immagine non valida". Di un'immagine animata (GIF, WebP) vale solo il primo fotogramma.
+  2. **Decodifica.** Un file che non si decodifica: "Immagine non valida". Di una GIF animata vale solo il primo fotogramma.
   3. **Immagine di lavoro:**
      - una tavolozza diventa colori veri (gli indici non si possono mediare);
      - si riduce a 2048 px di lato al massimo, con la media dei pixel: basta per un avatar di 512 px anche a 4×;
      - 8 bit per canale, come il JPEG (16 bit, grigi a pochi bit, HDR);
      - le parti trasparenti prendono il grigio scuro dell'app (`WfColors.surfaceHigh`, `0xFF1B1B1B`). La prima versione diceva nero: il colore va già nell'immagine di lavoro, così l'anteprima del ritaglio è uguale all'immagine caricata;
      - l'orientamento dell'EXIF si applica alla fine, all'immagine già ridotta (più leggero);
-     - si salva in PNG, **senza EXIF**.
+     - si salva in PNG, **senza EXIF**: si toglie prima di salvare, senza contare sull'encoder PNG.
 - **Ritaglio** (`AvatarCropper`): un riquadro quadrato e fisso di 240 px, con un velo fuori dal cerchio che diventerà l'avatar.
   - L'immagine si trascina, e copre sempre tutto il riquadro.
   - Si ingrandisce con la rotella (1,1× a scatto; uno scorrimento solo orizzontale non conta) o con il cursore, da "riempie il riquadro" fino a 4×, tenendo fermo il centro del riquadro. Per lo screen reader il cursore è "Ingrandimento" con il valore ("2,0×").
@@ -705,8 +708,8 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
 ### Immagini
 
 - **Plugin senza `avatars`:** solo iniziali per gli altri, nessuna chiamata e nessun errore; l'utente aperto, i profili e le sessioni dell'admin hanno l'immagine lo stesso (il tag viene da Jellyfin).
-- **Immagine di un altro utente molto grande** (caricata da jellyfin-web): si decodifica alla dimensione mostrata.
-- **File scelto:** oltre 20 MB, o un'intestazione che dichiara oltre 64 milioni di pixel: "Immagine troppo grande"; un file che non è un'immagine, o un JPEG con marcatori strani prima del SOF: "Immagine non valida" (§10.3).
+- **Immagine di un altro utente molto grande** (caricata da jellyfin-web): in memoria resta alla dimensione mostrata, ma il motore la decodifica prima per intero (limite accettato, sotto).
+- **File scelto:** oltre 20 MB, o un'intestazione che dichiara oltre 64 milioni di pixel: "Immagine troppo grande"; un file che non è un'immagine, un formato fuori dal filtro (ICO, TIFF…), un JPEG con marcatori strani prima del SOF o con troppe componenti, un WebP animato, un PNG che si espande oltre le sue misure, misure nulle o negative: "Immagine non valida" (§10.3).
 - **401 durante il caricamento:** la finestra si chiude; il profilo non aperto si segna scaduto, quello aperto passa all'accesso (§10.4).
 - **La sessione che cambia durante il caricamento:** la finestra non toglie la pagina sotto (si chiude solo se è ancora in cima), e la cache degli avatar si aggiorna lo stesso.
 - **Due finestre dell'immagine aperte per lo stesso utente:** vince l'ultimo caricamento.
@@ -715,7 +718,9 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
   - sul touchpad non si ingrandisce con due dita (solo rotella e cursore);
   - Invio su un avatar della galleria lo sceglie, ma non carica: serve "Usa questo";
   - un `refreshUser` della sessione che finisce durante un caricamento può rimettere per un momento il tag vecchio;
-  - se il caricamento riesce ma la rilettura dell'utente no, la finestra dice "Caricamento non riuscito" anche se l'immagine è cambiata (il tag nuovo arriva alla prossima lettura dell'utente).
+  - se il caricamento riesce ma la rilettura dell'utente no, la finestra dice "Caricamento non riuscito" anche se l'immagine è cambiata (il tag nuovo arriva alla prossima lettura dell'utente);
+  - le immagini degli altri utenti le decodifica il motore di Flutter alle loro misure vere, prima di ridurle a quelle mostrate: un utente malintenzionato potrebbe caricare (da jellyfin-web o con l'API) un'immagine con misure enormi e far usare molta memoria all'app di chi la vede. Su un server privato, tra persone che si conoscono, è poco probabile;
+  - Esc durante la preparazione di un'immagine dal PC chiude la finestra, ma non ferma l'isolate: una foto grande continua a usare CPU e memoria per qualche secondo, e il risultato si scarta.
 
 ## 13. Test
 
@@ -820,7 +825,8 @@ Il test dei testi di ogni piano (`test/app/l10n_plan17a_test.dart`, `…17b…`,
 - **Corpo di `POST /UserImage` in base64.** Verificato nel sorgente di Jellyfin 10.11.9 (`ImageController.PostUserImage` legge il corpo con `FromBase64Transform`; un altro `Content-Type` dà 400; risposta 204, §3.2), quindi non serve più una prova sull'account dell'utente prima del piano: la prova vera è quella a mano del 17c. Se Jellyfin volesse i byte grezzi, cambierebbe solo `UserImageApi`.
 - **Collezioni nel plugin.** Fatto nel piano 17a: `ICollectionManager.GetCollectionsFolder(false)` e `GetChildren(user, true, …)` sulla cartella e su ogni collezione, come fa `GET /Items?parentId=…` (§7.1). La prova a mano del 2026-10-07 (piano 17a, Task 12) ha confermato l'output del plugin con il token di un utente vero. Sul server nessun utente ha librerie ristrette o limiti parentali, quindi il caso di un titolo che un utente non può vedere è coperto solo dai test del plugin (che controllano che ogni lettura passi per l'utente).
 - **`IImageProcessor.GetImageCacheTag` per gli utenti** in Jellyfin 10.11: la firma è la stessa in 10.11.0 e 10.11.9 (`null` senza immagine), e Jellyfin lo usa per `UserDto.PrimaryImageTag`. Che sul server dia lo stesso `PrimaryImageTag` di `/Users`, è **da verificare con la build di prova** del plugin 1.5.0 (piano 17c, Task 2), che non è ancora installata: sul server c'era qualcuno che guardava. Si guarda prima della prova a mano.
-- **Limiti accettati delle immagini:** in §12 (immagini non quadrate di jellyfin-web, niente zoom con due dita sul touchpad, Invio nella galleria, `refreshUser` durante un caricamento, rilettura fallita dopo un caricamento riuscito).
+- **Limiti accettati delle immagini:** in §12 (immagini non quadrate di jellyfin-web, niente zoom con due dita sul touchpad, Invio nella galleria, `refreshUser` durante un caricamento, rilettura fallita dopo un caricamento riuscito, immagini degli altri con misure enormi decodificate per intero dal motore, Esc che non ferma la preparazione già partita).
+- **File scelti costruiti apposta.** Il controllo "intestazione prima di decodificare" (§10.3) segue il pacchetto `image` 4.10.1: formati ammessi, parser JPEG con i soli marcatori che il decoder legge per lunghezza e le componenti nei limiti, niente WebP animati, PNG con la decompressione contata. Il file lo sceglie chi lo carica, quindi il danno resta sul suo PC; se si aggiorna il pacchetto `image`, questi controlli si ricontrollano.
 - **Uscita dal party al cambio di profilo:** si verifica che il gruppo SyncPlay perda davvero il membro. Prova a mano del 2026-10-08 (piano 17b, Task 10): l'utente ha confermato che tutto funziona, cambio di profilo compreso.
 - **Due WonderFlix aperti insieme** (non di sviluppo) con lo stesso file dei profili: oggi non è un caso previsto, e resta così.
 

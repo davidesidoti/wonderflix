@@ -11,8 +11,11 @@ e la cassetta delle notifiche (spec G,
 `docs/superpowers/specs/2026-10-04-wonderflix-coda-party-design.md`).
 Dalla 1.4.0 fa da tramite verso Seerr per chiedere film e serie dall'app
 (spec I, `docs/superpowers/specs/2026-10-05-wonderflix-seerr-design.md`).
+Dalla 1.5.0 dà le saghe (le collezioni di Jellyfin) e le immagini degli
+altri utenti (spec K,
+`docs/superpowers/specs/2026-10-07-wonderflix-saghe-profili-design.md`).
 Senza il plugin WonderFlix funziona lo stesso, con gli avvisi
-anonimi.
+anonimi, senza saghe e con le iniziali al posto delle immagini.
 
 - Jellyfin **10.11.x** (net9.0, `targetAbi` 10.11.0.0). Per Jellyfin 12 serve
   una build nuova (net10.0).
@@ -52,6 +55,21 @@ anonimi.
   chiesto il titolo e "Nuova richiesta" a chi può approvare. Indirizzo,
   chiave e segreto stanno nella configurazione del plugin, leggibile solo
   dagli admin.
+- **Saghe (dalla 1.5.0):** `GET Collections` dà le collezioni di Jellyfin che
+  l'utente vede, ognuna con i soli film che vede (le sue librerie e il
+  controllo parentale, come `GET /Items`); una collezione senza film visibili
+  non compare. Non si salva niente: si legge da Jellyfin a ogni chiamata.
+- **Immagini degli utenti (dalla 1.5.0):**
+  `GET Users/Avatars?ids=<id,…>&names=<nome,…>` dà id, nome e tag
+  dell'immagine dei soli utenti chiesti (al massimo 100 voci, gli utenti
+  disattivati no); con id e tag l'app legge l'immagine da `/UserImage`. Un
+  nome si cerca senza badare alle maiuscole. **Rischio accettato:** una
+  ricerca per nome conferma che un account esiste, anche nascosto. È basso:
+  `/Users/Public` elenca già gli utenti non nascosti, e la ricerca degli amici
+  trova i nomi per sottostringa.
+- **Funzioni:** `GET Info` annuncia quello che il plugin sa fare; dalla 1.5.0
+  ci sono sempre anche `collections` e `avatars`. Tutti e due gli endpoint
+  sono aperti a ogni utente che ha fatto l'accesso.
 
 ## Installazione dal repository
 
@@ -62,8 +80,8 @@ anonimi.
 
 ## Installazione a mano (prove)
 
-1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.4.0`.
-   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.4.0.0/`
+1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.5.0`.
+   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.5.0.0/`
    con la dll e `meta.json`.
 2. Copia la cartella dentro `plugins/` della cartella dati di Jellyfin (su
    Ultra.cc via SFTP).
