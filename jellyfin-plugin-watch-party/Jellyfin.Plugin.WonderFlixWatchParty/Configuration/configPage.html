@@ -127,22 +127,25 @@
                         <button is="emby-button" type="submit" class="raised button-submit block emby-button">
                             <span>Save</span>
                         </button>
-                        <h3 class="sectionTitle">Test</h3>
-                        <div class="fieldDescription">
-                            Sends a test message to your own linked contacts, or to the Discord user name and the e-mail below.
-                        </div>
-                        <div class="inputContainer">
-                            <input is="emby-input" type="text" id="WonderFlixTestDiscord" label="Discord user name (optional)" autocomplete="off" />
-                        </div>
-                        <div class="inputContainer">
-                            <input is="emby-input" type="email" id="WonderFlixTestEmail" label="E-mail (optional)" autocomplete="off" />
-                        </div>
-                        <button is="emby-button" id="WonderFlixRecoveryTest" type="button" class="raised block emby-button">
-                            <span>Send a test</span>
-                        </button>
-                        <div id="WonderFlixRecoveryResult" class="fieldDescription"></div>
                     </div>
                 </form>
+                <div class="verticalSection">
+                    <!-- Fuori dal form: Invio in questi campi non deve salvare le impostazioni. -->
+                    <h3 class="sectionTitle">Test</h3>
+                    <div class="fieldDescription">
+                        Sends a test message to your own linked contacts, or to the Discord user name and the e-mail below.
+                    </div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="WonderFlixTestDiscord" label="Discord user name (optional)" autocomplete="off" />
+                    </div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="email" id="WonderFlixTestEmail" label="E-mail (optional)" autocomplete="off" />
+                    </div>
+                    <button is="emby-button" id="WonderFlixRecoveryTest" type="button" class="raised block emby-button">
+                        <span>Send a test</span>
+                    </button>
+                    <div id="WonderFlixRecoveryResult" class="fieldDescription"></div>
+                </div>
             </div>
         </div>
         <script type="text/javascript">

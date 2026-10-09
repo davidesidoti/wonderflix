@@ -43,6 +43,13 @@ public class PluginPagesTests
         Assert.Contains("ContactReminderDays", html);
         Assert.Contains("WonderFlixWatchParty/Account/Admin/Status", html);
         Assert.Contains("WonderFlixWatchParty/Account/Admin/Test", html);
+        // La prova sta fuori dal form delle impostazioni: Invio nei suoi campi non deve salvarle.
+        var formEnd = html.IndexOf("</form>", html.IndexOf("id=\"WonderFlixRecoveryForm\"", StringComparison.Ordinal), StringComparison.Ordinal);
+        Assert.True(formEnd > 0);
+        Assert.True(html.IndexOf("id=\"WonderFlixTestDiscord\"", StringComparison.Ordinal) > formEnd);
+        Assert.True(html.IndexOf("id=\"WonderFlixTestEmail\"", StringComparison.Ordinal) > formEnd);
+        Assert.True(html.IndexOf("id=\"WonderFlixRecoveryTest\"", StringComparison.Ordinal) > formEnd);
+        Assert.True(html.IndexOf("id=\"WonderFlixRecoveryResult\"", StringComparison.Ordinal) > formEnd);
         // L'id con cui la pagina legge e salva la configurazione è quello del plugin.
         Assert.Contains(Plugin.PluginId.ToString(), html);
     }

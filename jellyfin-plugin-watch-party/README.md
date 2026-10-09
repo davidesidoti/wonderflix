@@ -23,8 +23,9 @@ recupero della password.
 
 - Jellyfin **10.11.x** (net9.0, `targetAbi` 10.11.0.0). Per Jellyfin 12 serve
   una build nuova (net10.0).
-- Un'impostazione, **Notify new titles** (accesa di default), nella pagina del
-  plugin nella Dashboard (menu laterale, sotto Plugin): la stessa pagina manda
+- Le impostazioni stanno nella pagina del plugin nella Dashboard (menu
+  laterale, sotto Plugin): **Notify new titles** (accesa di default), Seerr e il
+  recupero della password. La stessa pagina manda
   un **annuncio** a tutti e, con **Send now**, il riepilogo dei nuovi titoli in
   attesa. Endpoint sotto `/WonderFlixWatchParty`; gli eventi arrivano ai client
   come `GeneralCommand` `SendString` con la chiave `WonderFlixWatchParty`.

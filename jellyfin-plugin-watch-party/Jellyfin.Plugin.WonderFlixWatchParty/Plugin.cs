@@ -9,10 +9,10 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty;
 /// <summary>
 /// Plugin "WonderFlix Watch Party" (spec E, F, G): nomi, chat e reazioni nei
 /// watch party SyncPlay di WonderFlix, gli amici e la cassetta delle
-/// notifiche. Ha una sola impostazione, NotifyNewTitles; la sua pagina nella
-/// Dashboard serve per quella, per gli annunci e per mandare subito i nuovi
-/// titoli (spec G §6.8). Dalla 1.6.0 anche il recupero della password (spec L):
-/// la stessa pagina ha le impostazioni di Discord, dell'email e dei promemoria.
+/// notifiche. Le impostazioni sono i nuovi titoli (NotifyNewTitles), Seerr e,
+/// dalla 1.6.0, il recupero della password (spec L: Discord, email e
+/// promemoria). La sua pagina nella Dashboard serve per queste, per gli
+/// annunci e per mandare subito i nuovi titoli (spec G §6.8).
 /// </summary>
 public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 {
