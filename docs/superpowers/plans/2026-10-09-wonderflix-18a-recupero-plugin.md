@@ -63,6 +63,14 @@ I controller stanno in `Api/`. Le classi sono piccole e ognuna fa una cosa:
       - `PasswordChanging` usa `BindingFlags.DoNotWrapExceptions`.
     - **Blocco dopo i login sbagliati di Jellyfin:** un utente bloccato risulta disattivato, quindi niente recupero. Sul server `LoginAttemptsBeforeLockout` è NULL per tutti e 23 gli utenti (verificato il 2026-10-09): con NULL Jellyfin non blocca mai (sorgente `v10.11.9`, `UserManager.IncrementInvalidLoginAttemptCount`). Caso accettato: se un giorno il blocco si attiva, l'utente bloccato passa dall'admin.
     - **`ContactReminders`** non toglie contatti quando Jellyfin dà un elenco utenti vuoto.
+    - **Gruppo B:**
+      - **tempi:** l'app aspetta al massimo 30 s una risposta. `DiscordBotClient` ha un solo limite di 8 s per operazione intera (ricerca, messaggio diretto con i suoi due passi, controllo), non 10 s per richiesta. `AccountSender.SendToAllAsync` e `AccountAdmin.TestAsync` lavorano sui due canali in parallelo. Così i casi peggiori sono circa 16 s per collegare Discord, 15 s per il codice dell'admin e 24 s per la prova;
+      - il token del bot va nell'intestazione con `AuthenticationHeaderValue` (validata), e un token con spazi o a capo vale come "non configurato";
+      - il controllo di Discord prova anche la ricerca dei membri: senza l'intent o senza accesso dà `Invalid` (spec §11);
+      - nel log anche il codice d'errore numerico di Discord; la ricerca legge 100 risultati e salta i bot;
+      - `SmtpMailSender` prende ogni errore tranne l'annullamento di chi chiama, scrive nel log la causa prima (`GetBaseException`) e, con la porta 465, ricorda che serve la 587; `SmtpServer` non stampa la password;
+      - due prove del vero `SmtpClient` su un server finto locale (silenzioso, senza STARTTLS);
+      - nello stato dell'admin un canale spento non mostra il vecchio errore; il recupero scrive un avviso quando nessun canale ha funzionato.
     - **SMTP:** meglio credenziali che possono solo spedire (Brevo, Resend) di una password per app di Gmail.
 
 ## Regole per chi esegue
@@ -4820,6 +4828,8 @@ public sealed class PasswordRecovery(
             if (sent.Count == 0)
             {
                 codes.Discard(user.Id, CodePurpose.Recovery);
+                logger.LogWarning("Codice di recupero di {UserId} non mandato: nessun canale ha funzionato", user.Id);
+                return;
             }
 
             logger.LogInformation("Codice di recupero di {UserId} mandato su {Count} canali", user.Id, sent.Count);
@@ -5252,9 +5262,12 @@ public sealed class AccountAdmin(
     {
         var mine = contacts.Get(adminId);
         var message = AccountMessages.Test(language);
-        var discordResult = await TestDiscordAsync(mine, discordName, message, cancellationToken).ConfigureAwait(false);
-        var emailResult = await TestEmailAsync(mine, email, message, cancellationToken).ConfigureAwait(false);
-        return new AccountTestResponse(discordResult, emailResult);
+
+        // In parallelo: l'attesa è quella del canale più lento, non la somma (l'app aspetta al massimo 30 s).
+        var discordTest = TestDiscordAsync(mine, discordName, message, cancellationToken);
+        var emailTest = TestEmailAsync(mine, email, message, cancellationToken);
+        await Task.WhenAll(discordTest, emailTest).ConfigureAwait(false);
+        return new AccountTestResponse(await discordTest.ConfigureAwait(false), await emailTest.ConfigureAwait(false));
     }
 
     /// <summary>"m•••@example.com": prima lettera, puntini, dominio intero.</summary>
@@ -5343,8 +5356,14 @@ public sealed class AccountAdmin(
         _ => AccountTestCodes.SendFailed,
     };
 
-    private ChannelStatusDto Channel(AccountChannel channel) =>
-        new(settings.IsConfigured(channel), sender.LastError(channel) is { } error ? new SendErrorDto(error.At, error.Code) : null);
+    // Di un canale spento non si mostra l'ultimo errore: è di quando era acceso.
+    private ChannelStatusDto Channel(AccountChannel channel)
+    {
+        var configured = settings.IsConfigured(channel);
+        return new ChannelStatusDto(
+            configured,
+            configured && sender.LastError(channel) is { } error ? new SendErrorDto(error.At, error.Code) : null);
+    }
 }
 ```
 
@@ -6153,7 +6172,8 @@ Nella spec, controllando ogni frase sul codice:
 - **§3:** le firme diverse di `ChangePassword` fra 10.11.0 e 10.11.9, risolte con `Server/PasswordChanging.cs`; `RevokeUserTokens(id, "")` verificato nel sorgente `v10.11.9`.
 - **§6:** lo schema con le classi vere: `ContactRegistry`, `CodeBook`, `AccountSender`, `ContactLinking`, `PasswordRecovery`, `AccountAdmin`, `ContactReminders`, `ContactReminderHostedService`, e gli adattatori `DiscordBotClient`, `SmtpMailSender`, `JellyfinPasswordReset`, `PluginAccountSettings`.
 - **§7.1:** la pagina della Dashboard con i campi di prova facoltativi (nome Discord, email).
-- **§7.3:** l'ultimo errore sparisce con il primo invio riuscito sul canale; nel log niente indirizzi (anche nei messaggi del server SMTP); `User-Agent` di Discord.
+- **§7.3:** l'ultimo errore sparisce con il primo invio riuscito sul canale; nel log niente indirizzi (anche nei messaggi del server SMTP); `User-Agent` di Discord; i tempi (8 s per operazione Discord, 15 s per l'email, canali in parallelo) e il motivo (i 30 s dell'app); il controllo che prova la ricerca dei membri; la ricerca a 100 risultati senza bot.
+- **§14:** la porta 465 non funziona (solo STARTTLS) e lo dice il log.
 - **§7.4:** `AccountService` diventa le sei classi (decisione 8); il codice dell'admin sta in `PasswordRecovery.SendForAdminAsync` e con un utente disattivato risponde `NotAllowed`; `Admin/Test` accetta `Discord` ed `Email` e risponde con gli esiti di `AccountTestCodes`.
 - **§7.5:** i limiti giornalieri (`RecoveryFailDay` 20 al giorno per nome, `RecoveryFailGlobal` 100 al giorno) e il motivo; i tipi veri (`RecoveryStartMinute`, `RecoveryStartHour`, `RecoveryStartGlobal`, `RecoveryFail`, `RecoveryFailDay`, `RecoveryFailGlobal`, `LinkStartMinute`, `LinkStartHour`), `IsLimited` e la pulizia delle chiavi vecchie.
 - **§11:** il blocco dopo i login sbagliati (spento sul server, caso accettato); un elenco utenti vuoto non toglie contatti; un errore di `RevokeUserTokens` dopo il cambio va nel log.
