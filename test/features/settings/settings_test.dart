@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/app/window_setup.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
+import 'package:wonderflix/features/account/account_providers.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/settings/diagnostics.dart';
 import 'package:wonderflix/features/settings/language_preferences.dart';
@@ -47,6 +48,9 @@ void main() {
         surfaceSize: const Size(1440, 1700),
         overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
+      // Niente plugin nei test di Impostazioni: senza, la sezione Account
+      // chiederebbe `Info` per i contatti.
+      accountAvailableProvider.overrideWithValue(false),
       clientInfoProvider.overrideWithValue(testClientInfo),
       sessionControllerProvider.overrideWith(() => session),
       userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
@@ -56,6 +60,10 @@ void main() {
 
     expect(find.text('Accesso come Mario'), findsOneWidget);
     expect(find.byType(UserAvatar), findsOneWidget);
+    expect(find.text('Cambia password'), findsOneWidget);
+    // Account è la prima sezione.
+    expect(tester.getTopLeft(find.text('Account')).dy,
+        lessThan(tester.getTopLeft(find.text('Aspetto')).dy));
     await tester.tap(find.text('Cambia immagine'));
     await tester.pumpAndSettle();
     expect(find.text('Immagine del profilo'), findsOneWidget);
@@ -87,6 +95,7 @@ void main() {
         surfaceSize: const Size(1440, 1600),
         overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
+      accountAvailableProvider.overrideWithValue(false),
       clientInfoProvider.overrideWithValue(testClientInfo),
       sessionControllerProvider.overrideWith(
           () => FakeSessionController(const SessionSignedIn(testUser))),
@@ -128,6 +137,7 @@ void main() {
         surfaceSize: Size(minWindowSize.width, 1600),
         overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
+      accountAvailableProvider.overrideWithValue(false),
       clientInfoProvider.overrideWithValue(testClientInfo),
       sessionControllerProvider.overrideWith(
           () => FakeSessionController(const SessionSignedIn(testUser))),
@@ -146,6 +156,7 @@ void main() {
         surfaceSize: const Size(1440, 1600),
         overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
+      accountAvailableProvider.overrideWithValue(false),
       clientInfoProvider.overrideWithValue(testClientInfo),
       sessionControllerProvider.overrideWith(
           () => FakeSessionController(const SessionSignedIn(testUser))),
@@ -269,6 +280,7 @@ void main() {
         surfaceSize: const Size(1440, 300),
         overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
+      accountAvailableProvider.overrideWithValue(false),
       clientInfoProvider.overrideWithValue(testClientInfo),
       sessionControllerProvider.overrideWith(
           () => FakeSessionController(const SessionSignedIn(testUser))),
@@ -294,6 +306,7 @@ void main() {
         surfaceSize: const Size(1440, 2400),
         overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
+      accountAvailableProvider.overrideWithValue(false),
       clientInfoProvider.overrideWithValue(testClientInfo),
       sessionControllerProvider.overrideWith(
           () => FakeSessionController(const SessionSignedIn(testUser))),
@@ -342,6 +355,7 @@ void main() {
         surfaceSize: const Size(1440, 2400),
         overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
+      accountAvailableProvider.overrideWithValue(false),
       clientInfoProvider.overrideWithValue(testClientInfo),
       sessionControllerProvider.overrideWith(
           () => FakeSessionController(const SessionSignedIn(testUser))),
@@ -377,6 +391,7 @@ void main() {
         surfaceSize: const Size(1440, 2400),
         overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
+      accountAvailableProvider.overrideWithValue(false),
       clientInfoProvider.overrideWithValue(testClientInfo),
       sessionControllerProvider.overrideWith(
           () => FakeSessionController(const SessionSignedIn(testUser))),

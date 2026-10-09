@@ -2,27 +2,19 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/staggered_entrance.dart';
-import '../../ui/user_avatar.dart';
-import '../../ui/wf_buttons.dart';
-import '../auth/session_controller.dart';
-import '../profiles/avatar_dialog.dart';
-import '../profiles/profile_switch.dart';
+import 'account_settings_section.dart';
 import 'appearance_settings_section.dart';
 import 'discord_settings_section.dart';
 import 'language_settings_section.dart';
 import 'locale_controller.dart';
 import 'player_settings_section.dart';
 import 'support_section.dart';
-
-/// Diametro dell'avatar in Impostazioni → Account.
-const _accountAvatarSize = 64.0;
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -47,7 +39,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final locale = ref.watch(localeProvider);
-    final session = ref.watch(sessionControllerProvider);
     final version = ref.watch(clientInfoProvider).version;
 
     Widget section(String title) => Padding(
@@ -82,6 +73,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   style: WfText.display(40)),
             ),
             item(1, [
+              section(l.settingsAccount),
+              const AccountSettingsSection(),
+            ]),
+            item(2, [
               section(l.settingsLanguage),
               Align(
                 alignment: Alignment.centerLeft,
@@ -103,65 +98,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ),
             ]),
-            item(2, [
+            item(3, [
               section(l.settingsAppearance),
               const AppearanceSettingsSection(),
             ]),
-            item(3, [
+            item(4, [
               section(l.settingsPlayer),
               const PlayerSettingsSection(),
             ]),
-            item(4, [
+            item(5, [
               section(l.settingsLanguages),
               const LanguageSettingsSection(),
             ]),
-            item(5, [
+            item(6, [
               section(l.settingsDiscord),
               const DiscordSettingsSection(),
-            ]),
-            item(6, [
-              section(l.settingsAccount),
-              if (session is SessionSignedIn)
-                Row(
-                  children: [
-                    UserAvatar(
-                      userId: session.user.id,
-                      name: session.user.name,
-                      size: _accountAvatarSize,
-                      imageTag: session.user.primaryImageTag,
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                        child: Text(l.settingsSignedInAs(session.user.name))),
-                  ],
-                ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  if (session is SessionSignedIn)
-                    WfButton.secondary(
-                      label: l.settingsChangeImage,
-                      icon: LucideIcons.imagePlus,
-                      onPressed: () => unawaited(showAvatarDialog(context,
-                          userId: session.user.id,
-                          name: session.user.name,
-                          imageTag: session.user.primaryImageTag)),
-                    ),
-                  WfButton.secondary(
-                    label: l.profilesSwitch,
-                    icon: LucideIcons.users,
-                    onPressed: () => unawaited(changeProfile(context, ref)),
-                  ),
-                  WfButton.secondary(
-                    label: l.menuLogout,
-                    icon: LucideIcons.logOut,
-                    onPressed: () => unawaited(
-                        ref.read(sessionControllerProvider.notifier).logout()),
-                  ),
-                ],
-              ),
             ]),
             item(7, [
               section(l.settingsSupport),
