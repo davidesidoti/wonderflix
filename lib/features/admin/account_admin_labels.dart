@@ -1,4 +1,6 @@
 import '../../app/error_text.dart';
+import '../../core/jellyfin/api_exception.dart';
+import '../../core/jellyfin/jellyfin_http.dart';
 import '../../core/social/account_models.dart';
 import '../../core/social/plugin_admin_api.dart';
 import '../../core/social/plugin_admin_models.dart';
@@ -13,17 +15,24 @@ String recoverySentLabel(AppLocalizations l, List<AccountChannel> channels) =>
     )) {
       (true, false) => l.adminUsersRecoverySentDiscord,
       (false, true) => l.adminUsersRecoverySentEmail,
+      (true, true) => l.adminUsersRecoverySentBoth,
+      // Nessun canale non arriva: `sendRecoveryCode` scarta la risposta.
       _ => l.adminUsersRecoverySentBoth,
     };
 
 /// L'errore di un'azione sugli utenti: i `{Code}` del plugin (spec L
-/// §7.6), altrimenti `describeError`. [name] è l'utente della riga.
+/// §7.6); 502, 503 e 504 senza `Code` (nginx mentre Jellyfin si riavvia)
+/// come "non raggiungibile", come nel resto dell'app; altrimenti
+/// `describeError`. [name] è l'utente della riga.
 String accountAdminErrorText(AppLocalizations l, Object error, String name) =>
-    switch (pluginErrorCode(error)) {
-      'NotAllowed' => l.adminUsersNotAllowed,
-      'NoContacts' => l.adminUsersNoContacts(name),
-      'SendFailed' => l.accountErrorSendFailed,
-      'UnknownUser' => l.adminUsersUnknown,
+    switch ((pluginErrorCode(error), error)) {
+      ('NotAllowed', _) => l.adminUsersNotAllowed,
+      ('NoContacts', _) => l.adminUsersNoContacts(name),
+      ('SendFailed', _) => l.accountErrorSendFailed,
+      ('UnknownUser', _) => l.adminUsersUnknown,
+      (null, ServerErrorException(:final statusCode))
+          when restartGatewayStatuses.contains(statusCode) =>
+        l.errorServerUnreachable,
       _ => describeError(l, error),
     };
 

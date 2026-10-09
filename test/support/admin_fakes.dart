@@ -365,11 +365,25 @@ class FakePluginAdminApi implements PluginAdminApi {
     return recoveryChannels;
   }
 
+  /// Come il plugin vero: la lettura dopo mostra l'utente senza Discord né
+  /// email.
   @override
   Future<void> unlinkContacts(String userId) async {
     calls.add('unlink:$userId');
     final error = actionError;
     if (error != null) throw error;
+    accountUsersValue = [
+      for (final user in accountUsersValue)
+        if (user.id == userId)
+          AdminAccountUser(
+              id: user.id,
+              name: user.name,
+              isAdmin: user.isAdmin,
+              enabled: user.enabled,
+              lastReminderAt: user.lastReminderAt)
+        else
+          user,
+    ];
   }
 
   @override

@@ -103,9 +103,13 @@ class PluginAdminApi {
       {required String language}) async {
     final json = asJsonMap(await _http.post('$_account/Users/$userId/Recovery',
         body: {'Language': language}, quietStatuses: _accountQuiet));
-    final channels = json['Channels'];
-    if (channels is! List) throw const ServerErrorException(null);
-    return [for (final raw in channels) ?AccountChannel.fromWire(raw)];
+    final raw = json['Channels'];
+    if (raw is! List) throw const ServerErrorException(null);
+    final channels = [for (final item in raw) ?AccountChannel.fromWire(item)];
+    // Un 200 del plugin ha sempre almeno un canale: zero (o solo canali che
+    // l'app non conosce) è una risposta che non capiamo, non un invio.
+    if (channels.isEmpty) throw const ServerErrorException(null);
+    return channels;
   }
 
   /// Toglie Discord ed email dell'utente; il plugin annulla anche i codici

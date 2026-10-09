@@ -56,11 +56,24 @@ void main() {
 
   test('utenti: senza Id, Name, IsAdmin o Enabled la risposta non vale',
       () async {
-    adapter.handler = (_) => const FakeResponse(200, [
-          {'Id': 'a1', 'Name': 'garg', 'IsAdmin': false},
-        ]);
-    await expectLater(
-        api.accountUsers(), throwsA(isA<ServerErrorException>()));
+    const valid = {
+      'Id': 'a1',
+      'Name': 'garg',
+      'IsAdmin': false,
+      'Enabled': true,
+    };
+    // Con tutti e quattro i campi la risposta vale: la prova qui sotto
+    // fallisce solo per il campo tolto.
+    adapter.handler = (_) => const FakeResponse(200, [valid]);
+    expect((await api.accountUsers()).single.name, 'garg');
+
+    for (final missing in valid.keys) {
+      final user = Map<String, Object?>.of(valid)..remove(missing);
+      adapter.handler = (_) => FakeResponse(200, [user]);
+      await expectLater(
+          api.accountUsers(), throwsA(isA<ServerErrorException>()),
+          reason: 'senza $missing');
+    }
 
     adapter.handler = (_) => const FakeResponse(200, {'Users': []});
     await expectLater(
@@ -80,6 +93,25 @@ void main() {
         '/WonderFlixWatchParty/Account/Admin/Users/a1/Recovery');
     expect(request.data, {'Language': 'it'});
     expect(channels, [AccountChannel.discord, AccountChannel.email]);
+  });
+
+  test('codice di recupero: un 200 senza un canale che conosciamo non vale',
+      () async {
+    // Un 200 del plugin ha sempre almeno un canale: zero (o solo canali che
+    // l'app non conosce) è una risposta che non capiamo.
+    for (final channels in [
+      <String>[],
+      ['Telegram'],
+    ]) {
+      adapter.handler = (_) => FakeResponse(200, {'Channels': channels});
+      await expectLater(api.sendRecoveryCode('a1', language: 'it'),
+          throwsA(isA<ServerErrorException>()),
+          reason: '$channels');
+    }
+
+    adapter.handler = (_) => const FakeResponse(200, {'Other': 1});
+    await expectLater(api.sendRecoveryCode('a1', language: 'it'),
+        throwsA(isA<ServerErrorException>()));
   });
 
   test('scollegamento: DELETE dei contatti', () async {
@@ -117,14 +149,40 @@ void main() {
   });
 
   test('stato: i campi obbligatori ci devono essere', () async {
-    adapter.handler = (_) => const FakeResponse(200, {
-          'Discord': {'Configured': true},
-          'WithContacts': 5,
-          'Users': 23,
-          'ReminderDays': 14,
-        });
-    await expectLater(
-        api.accountStatus(), throwsA(isA<ServerErrorException>()));
+    const valid = {
+      'Discord': {'Configured': true},
+      'Email': {'Configured': false},
+      'WithContacts': 5,
+      'Users': 23,
+      'ReminderDays': 14,
+    };
+    // Con tutti i campi la risposta vale: le prove sotto falliscono solo per
+    // il campo tolto.
+    adapter.handler = (_) => const FakeResponse(200, valid);
+    expect((await api.accountStatus()).users, 23);
+
+    for (final missing in valid.keys) {
+      final status = Map<String, Object?>.of(valid)..remove(missing);
+      adapter.handler = (_) => FakeResponse(200, status);
+      await expectLater(
+          api.accountStatus(), throwsA(isA<ServerErrorException>()),
+          reason: 'senza $missing');
+    }
+
+    // Un ultimo errore senza l'ora (o senza il Code) non vale.
+    for (final lastError in <Map<String, Object?>>[
+      {'Code': 'DmClosed'},
+      {'At': '2026-10-09T08:00:00+00:00'},
+    ]) {
+      final status = {
+        ...valid,
+        'Discord': {'Configured': true, 'LastError': lastError},
+      };
+      adapter.handler = (_) => FakeResponse(200, status);
+      await expectLater(
+          api.accountStatus(), throwsA(isA<ServerErrorException>()),
+          reason: 'LastError $lastError');
+    }
   });
 
   test('prova: solo la lingua nel corpo; un esito per canale', () async {
@@ -164,13 +222,46 @@ void main() {
       } on Object catch (error) {
         caught = error;
       }
-      expect(caught, isA<ApiException>(), reason: '$status');
+      // `AdminTabController.act` dipende dal tipo: il 403 è una
+      // `ForbiddenException`, gli altri errori del server hanno il loro
+      // codice di stato.
+      if (status == 403) {
+        expect(caught, isA<ForbiddenException>(), reason: '$status');
+      } else {
+        expect(caught, isA<ServerErrorException>(), reason: '$status');
+        expect((caught! as ServerErrorException).statusCode, status,
+            reason: '$status');
+      }
       expect(pluginErrorCode(caught!), code, reason: '$status');
     }
     expect([
       for (final record in records)
         if (record.loggerName == 'http') record.level,
     ], List.filled(cases.length, Level.INFO));
+  });
+
+  test('scollegamento: un 400 UnknownUser, il Code si legge e il log è info',
+      () async {
+    final records = <LogRecord>[];
+    Logger.root.level = Level.ALL;
+    final subscription = Logger.root.onRecord.listen(records.add);
+    addTearDown(subscription.cancel);
+    adapter.handler = (_) => const FakeResponse(400, {'Code': 'UnknownUser'});
+
+    Object? caught;
+    try {
+      await api.unlinkContacts('a1');
+    } on Object catch (error) {
+      caught = error;
+    }
+
+    expect(caught, isA<ServerErrorException>());
+    expect((caught! as ServerErrorException).statusCode, 400);
+    expect(pluginErrorCode(caught), 'UnknownUser');
+    expect([
+      for (final record in records)
+        if (record.loggerName == 'http') record.level,
+    ], [Level.INFO]);
   });
 
   test('pluginErrorCode: senza Code, o un errore che non viene dal server',

@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
+import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
 import 'package:wonderflix/core/social/account_models.dart';
 import 'package:wonderflix/core/social/plugin_admin_models.dart';
 import 'package:wonderflix/features/admin/account_admin_labels.dart';
@@ -29,7 +30,7 @@ void main() {
     expect(
         accountAdminErrorText(
             l, const ServerErrorException(409, {'Code': 'NoContacts'}), 'garg'),
-        'garg non ha contatti collegati');
+        'garg non ha contatti su un canale attivo');
     expect(
         accountAdminErrorText(
             l, const ServerErrorException(502, {'Code': 'SendFailed'}), 'garg'),
@@ -41,6 +42,29 @@ void main() {
     expect(
         accountAdminErrorText(l, const ServerUnreachableException(), 'garg'),
         'WonderFlix non è raggiungibile. Controlla la connessione.');
+  });
+
+  test('nginx durante un riavvio (502, 503, 504 senza Code): non raggiungibile',
+      () {
+    for (final status in restartGatewayStatuses) {
+      expect(accountAdminErrorText(l, ServerErrorException(status), 'garg'),
+          'WonderFlix non è raggiungibile. Controlla la connessione.',
+          reason: '$status');
+      // Il corpo di nginx è una pagina HTML, non un oggetto con il `Code`.
+      expect(
+          accountAdminErrorText(
+              l, ServerErrorException(status, '<html></html>'), 'garg'),
+          'WonderFlix non è raggiungibile. Controlla la connessione.',
+          reason: '$status con corpo');
+    }
+    // Un 502 con il suo Code resta "invio non riuscito".
+    expect(
+        accountAdminErrorText(
+            l, const ServerErrorException(502, {'Code': 'SendFailed'}), 'garg'),
+        'Invio non riuscito, riprova più tardi');
+    // Gli altri errori del server restano generici.
+    expect(accountAdminErrorText(l, const ServerErrorException(500), 'garg'),
+        'Qualcosa è andato storto. Riprova.');
   });
 
   test('ultimo errore di un canale', () {

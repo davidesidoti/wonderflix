@@ -5,6 +5,7 @@ import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/auth_api.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
 import 'package:wonderflix/core/social/account_models.dart';
+import 'package:wonderflix/core/social/plugin_admin_models.dart';
 import 'package:wonderflix/features/admin/account_admin_controllers.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
@@ -75,6 +76,48 @@ void main() {
         containsAllInOrder(['recovery:u2:it', 'unlink:u2', 'accountTest:it']));
     expect(plugin.count('accountUsers'), greaterThanOrEqualTo(3));
     expect(plugin.count('accountStatus'), greaterThanOrEqualTo(2));
+  });
+
+  test('scollegare i contatti: la rilettura mostra la riga senza contatti',
+      () async {
+    final container = makeContainer();
+    await pumpEventQueue();
+    AdminAccountUser garg() => container
+        .read(accountUsersControllerProvider)
+        .value!
+        .singleWhere((u) => u.name == 'garg');
+    expect(garg().hasContacts, isTrue);
+
+    await container
+        .read(accountUsersControllerProvider.notifier)
+        .unlinkContacts('u2');
+
+    expect(garg().hasContacts, isFalse);
+    expect(garg().discordName, isNull);
+    expect(garg().maskedEmail, isNull);
+    // Gli altri utenti non cambiano.
+    expect(
+        container
+            .read(accountUsersControllerProvider)
+            .value!
+            .singleWhere((u) => u.name == 'Mario')
+            .discordName,
+        'mario_d');
+  });
+
+  test('un 403 del plugin arriva a chi chiama e fa rileggere l\'utente',
+      () async {
+    final container = makeContainer();
+    await pumpEventQueue();
+    plugin.actionError = const ForbiddenException();
+
+    await expectLater(
+        container
+            .read(accountUsersControllerProvider.notifier)
+            .sendRecoveryCode('u2', language: 'it'),
+        throwsA(isA<ForbiddenException>()));
+
+    expect(session.refreshUserCalls, 1);
   });
 
   test('Imposta password: Jellyfin, senza la password attuale', () async {
