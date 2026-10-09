@@ -45,7 +45,8 @@ Niente release: l'app 0.12.0 esce con il plugin 1.6.0 alla fine del 18c.
       - `errorMaxLines` e `helperMaxLines` (costanti `accountErrorMaxLines`, `accountHelperMaxLines` in `account_texts.dart`) nei campi delle finestre e del recupero: l'errore "Non ti trovo nel server Discord" usciva troncato;
       - `PopScope(canPop: !_busy)` e "Annulla" spento nelle tre finestre durante la richiesta, come `request_seasons.dart`: prima Esc chiudeva la finestra e la password cambiava senza l'avviso;
       - `ResendCodeButton.onResend` può essere `null` (spento mentre un'altra richiesta è in volo) e ha un `try/finally`; il conto riparte dopo un invio riuscito o dopo un 429, non dopo un altro errore;
-      - collegamento: `wrongPassword` al rinvio riporta al primo passo, con l'errore sotto la password; i pulsanti delle righe dicono il canale allo screen reader.
+      - collegamento: `wrongPassword` al rinvio riporta al primo passo, con l'errore sotto la password e il fuoco sulla password (testo selezionato); i pulsanti delle righe dicono il canale allo screen reader;
+      - recupero (Task 8, già aggiornato): "Torna all'accesso" è spento durante una richiesta; se l'accesso fallisce dopo un cambio riuscito, "Cambia password" riprova solo l'accesso (`_changedTo`), perché il codice è già usato.
 
 **Architecture:**
 - **Dati** (`lib/core/social/`): `account_models.dart` (`AccountChannel`, `AccountContacts`, `accountMinPasswordLength`), `account_api.dart` (`AccountApi`, `AccountFailure`, `AccountException`); `AuthApi.changePassword`; `PluginFeatures.account` e `SocialFeatures.account`; `ContactReminderEntry` in `inbox_models.dart`.
@@ -3008,8 +3009,11 @@ git commit -m "feat(app): account section first in settings, with password and r
 Crea `test/features/auth/recovery_panel_test.dart`:
 
 ```dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/social/account_api.dart';
 import 'package:wonderflix/features/auth/auth_providers.dart';
 import 'package:wonderflix/features/auth/login_screen.dart';
@@ -3187,6 +3191,47 @@ void main() {
     expect(session.loginAttempts, [('garg', 'nuova123')]);
   });
 
+  testWidgets("mentre il cambio è in volo, 'Torna all'accesso' è spento",
+      (tester) async {
+    await pumpLogin(tester);
+    await openRecovery(tester);
+    await tapKey(tester, 'recovery-send');
+    await tester.enterText(find.byKey(const Key('recovery-code')), '012345');
+    await tester.enterText(find.byKey(const Key('recovery-new')), 'nuova123');
+    await tester.enterText(find.byKey(const Key('recovery-confirm')), 'nuova123');
+
+    api.gate = Completer<void>();
+    await tapKey(tester, 'recovery-submit');
+    await tapKey(tester, 'recovery-back');
+    expect(find.text('Recupera la password'), findsOneWidget);
+
+    api.gate!.complete();
+    await tester.pump();
+    expect(session.loginAttempts, [('garg', 'nuova123')]);
+  });
+
+  testWidgets("accesso non riuscito dopo il cambio: si riprova solo l'accesso",
+      (tester) async {
+    session = FakeSessionController(const SessionSignedOut(),
+        loginError: const ServerUnreachableException());
+    await pumpLogin(tester);
+    await openRecovery(tester);
+    await tapKey(tester, 'recovery-send');
+    await tester.enterText(find.byKey(const Key('recovery-code')), '012345');
+    await tester.enterText(find.byKey(const Key('recovery-new')), 'nuova123');
+    await tester.enterText(find.byKey(const Key('recovery-confirm')), 'nuova123');
+
+    await tapKey(tester, 'recovery-submit');
+    expect(find.text('WonderFlix non è raggiungibile. Controlla la connessione.'),
+        findsOneWidget);
+
+    // Il codice è già usato: il secondo tentativo non lo rimanda.
+    await tapKey(tester, 'recovery-submit');
+    expect(api.recoveryCompletes, hasLength(1));
+    expect(session.loginAttempts,
+        [('garg', 'nuova123'), ('garg', 'nuova123')]);
+  });
+
   testWidgets('Rimanda dopo 60 s chiede un codice nuovo', (tester) async {
     await pumpLogin(tester);
     await openRecovery(tester);
@@ -3272,6 +3317,11 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
 
   /// Il plugin non ha il recupero (404): assente o vecchio (spec L §9.1).
   bool _unavailable = false;
+
+  /// La password nuova, già cambiata sul server; `null` finché il cambio non
+  /// riesce. Se poi l'accesso non riesce, "Cambia password" riprova solo
+  /// l'accesso con questa: il codice è già usato.
+  String? _changedTo;
   bool _busy = false;
   String? _usernameError;
   String? _codeError;
@@ -3354,6 +3404,17 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
     final l = AppLocalizations.of(context);
     final language = Localizations.localeOf(context).languageCode;
     final username = _sentFor!;
+    final changedTo = _changedTo;
+    if (changedTo != null) {
+      // Il cambio è già riuscito e l'accesso no: si riprova solo l'accesso,
+      // con la password già cambiata (il codice è usato).
+      setState(() {
+        _busy = true;
+        _clearErrors();
+      });
+      await _signIn(l, username, changedTo);
+      return;
+    }
     final code = _code.text.trim();
     final password = _new.text;
     setState(() {
@@ -3375,14 +3436,10 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
           code: code,
           newPassword: password,
           language: language);
-      // La password è cambiata: si entra con quella nuova (spec L §9.3), e
-      // il profilo salvato prende il token nuovo.
-      await ref
-          .read(sessionControllerProvider.notifier)
-          .loginWithPassword(username, password);
     } on AccountException catch (error) {
       if (mounted) {
         setState(() {
+          _busy = false;
           switch (error.failure) {
             case AccountFailure.invalidCode:
               _codeError = l.accountErrorInvalidCode;
@@ -3399,8 +3456,22 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
           }
         });
       }
+      return;
+    }
+    _changedTo = password;
+    await _signIn(l, username, password);
+  }
+
+  /// Entra con la password nuova (spec L §9.3): il profilo salvato prende il
+  /// token nuovo. Se l'accesso non riesce, l'errore resta qui e "Cambia
+  /// password" riprova solo l'accesso ([_changedTo]).
+  Future<void> _signIn(
+      AppLocalizations l, String username, String password) async {
+    try {
+      await ref
+          .read(sessionControllerProvider.notifier)
+          .loginWithPassword(username, password);
     } on Object catch (error) {
-      // Il cambio è riuscito e l'accesso no: l'errore dell'accesso.
       if (mounted) setState(() => _error = describeError(l, error));
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -3420,7 +3491,9 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
             key: const Key('recovery-back'),
-            onPressed: () => widget.onBack(_username.text),
+            // Spento durante una richiesta: tornando indietro a metà cambio
+            // la password cambierebbe senza l'accesso e senza un avviso.
+            onPressed: _busy ? null : () => widget.onBack(_username.text),
             icon: const Icon(LucideIcons.arrowLeft, size: 16),
             label: Text(l.recoveryBack),
           ),
