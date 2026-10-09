@@ -1,3 +1,4 @@
+using Jellyfin.Plugin.WonderFlixWatchParty.Account;
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Seerr;
 using Jellyfin.Plugin.WonderFlixWatchParty.Server;
@@ -44,6 +45,26 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<SeerrTitleCache>();
         serviceCollection.AddSingleton<RequestsService>();
         serviceCollection.AddSingleton<RequestWebhookHandler>();
+        // Recupero della password (spec L).
+        serviceCollection.AddSingleton<IAccountSettings, PluginAccountSettings>();
+        serviceCollection.AddSingleton(provider => new ContactStore(
+            ContactStore.DefaultPath(provider.GetRequiredService<IApplicationPaths>()),
+            provider.GetRequiredService<ILogger<ContactStore>>()));
+        serviceCollection.AddSingleton<ContactRegistry>();
+        serviceCollection.AddSingleton<CodeBook>();
+        // Il token del bot non va nei log del client HTTP e non segue un redirect.
+        serviceCollection.AddHttpClient(DiscordBotClient.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false })
+            .RedactLoggedHeaders(["Authorization"]);
+        serviceCollection.AddSingleton<IDiscordSender, DiscordBotClient>();
+        serviceCollection.AddSingleton<IMailSender, SmtpMailSender>();
+        serviceCollection.AddSingleton<IPasswordReset, JellyfinPasswordReset>();
+        serviceCollection.AddSingleton<IPasswordCheck, JellyfinPasswordCheck>();
+        serviceCollection.AddSingleton<AccountSender>();
+        serviceCollection.AddSingleton<ContactLinking>();
+        serviceCollection.AddSingleton<PasswordRecovery>();
+        serviceCollection.AddSingleton<AccountAdmin>();
+        serviceCollection.AddSingleton<ContactReminders>();
         serviceCollection.AddSingleton<ILibraryTitles, JellyfinLibraryTitles>();
         serviceCollection.AddSingleton<NewTitlesCollector>();
         serviceCollection.AddSingleton<PresenceTracker>();
@@ -56,5 +77,6 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<PartyHub>();
         serviceCollection.AddHostedService<WatchPartyHostedService>();
         serviceCollection.AddHostedService<NewTitlesHostedService>();
+        serviceCollection.AddHostedService<ContactReminderHostedService>();
     }
 }

@@ -83,6 +83,66 @@
                         <div id="WonderFlixSeerrLastEvent" class="fieldDescription"></div>
                     </div>
                 </form>
+                <form id="WonderFlixRecoveryForm">
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Password recovery</h3>
+                        <div class="fieldDescription">
+                            WonderFlix users link their Discord or e-mail, and get a code there when they forget the password.
+                            Administrators can't use it.
+                        </div>
+                        <div id="WonderFlixRecoveryStatus" class="fieldDescription"></div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="password" id="WonderFlixDiscordBotToken" label="Discord bot token" autocomplete="off" />
+                            <div class="fieldDescription">
+                                Discord Developer Portal → your app → Bot: the token, and turn on "Server Members Intent".
+                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="text" id="WonderFlixDiscordGuildId" label="Discord server ID" inputmode="numeric" />
+                            <div class="fieldDescription">
+                                Invite the bot to your server (scope "bot", no permissions), then right click on the server → Copy Server ID
+                                (Discord developer mode).
+                            </div>
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="text" id="WonderFlixSmtpHost" label="SMTP server" placeholder="smtp.gmail.com" />
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="number" id="WonderFlixSmtpPort" label="SMTP port" min="1" max="65535" />
+                            <div class="fieldDescription">STARTTLS, usually 587 (port 465 is not supported).</div>
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="text" id="WonderFlixSmtpUser" label="SMTP user" autocomplete="off" />
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="password" id="WonderFlixSmtpPassword" label="SMTP password" autocomplete="off" />
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="email" id="WonderFlixMailFrom" label="Sender address" />
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="number" id="WonderFlixContactReminderDays" label="Reminder every (days)" min="0" max="365" />
+                            <div class="fieldDescription">Users without a linked contact get a reminder in their notifications. 0: no reminders.</div>
+                        </div>
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span>Save</span>
+                        </button>
+                        <h3 class="sectionTitle">Test</h3>
+                        <div class="fieldDescription">
+                            Sends a test message to your own linked contacts, or to the Discord user name and the e-mail below.
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="text" id="WonderFlixTestDiscord" label="Discord user name (optional)" autocomplete="off" />
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="email" id="WonderFlixTestEmail" label="E-mail (optional)" autocomplete="off" />
+                        </div>
+                        <button is="emby-button" id="WonderFlixRecoveryTest" type="button" class="raised block emby-button">
+                            <span>Send a test</span>
+                        </button>
+                        <div id="WonderFlixRecoveryResult" class="fieldDescription"></div>
+                    </div>
+                </form>
             </div>
         </div>
         <script type="text/javascript">
@@ -301,6 +361,119 @@
                         Dashboard.hideLoadingMsg();
                         newTitlesResult.textContent = 'Not sent: try again.';
                         refreshNewTitles();
+                    });
+                });
+
+                // Recupero della password (spec L §7.1).
+                var recoveryFields = {
+                    DiscordBotToken: page.querySelector('#WonderFlixDiscordBotToken'),
+                    DiscordGuildId: page.querySelector('#WonderFlixDiscordGuildId'),
+                    SmtpHost: page.querySelector('#WonderFlixSmtpHost'),
+                    SmtpPort: page.querySelector('#WonderFlixSmtpPort'),
+                    SmtpUser: page.querySelector('#WonderFlixSmtpUser'),
+                    SmtpPassword: page.querySelector('#WonderFlixSmtpPassword'),
+                    MailFrom: page.querySelector('#WonderFlixMailFrom'),
+                    ContactReminderDays: page.querySelector('#WonderFlixContactReminderDays')
+                };
+                var recoveryStatus = page.querySelector('#WonderFlixRecoveryStatus');
+                var recoveryResult = page.querySelector('#WonderFlixRecoveryResult');
+                var testDiscord = page.querySelector('#WonderFlixTestDiscord');
+                var testEmail = page.querySelector('#WonderFlixTestEmail');
+
+                function refreshRecoveryStatus() {
+                    ApiClient.ajax({
+                        type: 'GET',
+                        url: ApiClient.getUrl('WonderFlixWatchParty/Account/Admin/Status'),
+                        dataType: 'json'
+                    }).then(function (status) {
+                        recoveryStatus.textContent = 'Discord: ' + (status.Discord.Configured ? 'configured' : 'not configured')
+                            + '. E-mail: ' + (status.Email.Configured ? 'configured' : 'not configured')
+                            + '. ' + status.WithContacts + ' of ' + status.Users + ' users have a linked contact.';
+                    }, function () {
+                        recoveryStatus.textContent = '';
+                    });
+                }
+
+                function loadRecovery() {
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        Object.keys(recoveryFields).forEach(function (name) {
+                            var value = config[name];
+                            recoveryFields[name].value = value === undefined || value === null ? '' : value;
+                        });
+                        refreshRecoveryStatus();
+                    });
+                }
+
+                function numberIn(field, fallback) {
+                    var value = parseInt(field.value, 10);
+                    return isNaN(value) ? fallback : value;
+                }
+
+                page.addEventListener('pageshow', loadRecovery);
+                loadRecovery();
+
+                page.querySelector('#WonderFlixRecoveryForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    recoveryResult.textContent = '';
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        config.DiscordBotToken = recoveryFields.DiscordBotToken.value.trim();
+                        config.DiscordGuildId = recoveryFields.DiscordGuildId.value.trim();
+                        config.SmtpHost = recoveryFields.SmtpHost.value.trim();
+                        config.SmtpPort = numberIn(recoveryFields.SmtpPort, 587);
+                        config.SmtpUser = recoveryFields.SmtpUser.value.trim();
+                        config.SmtpPassword = recoveryFields.SmtpPassword.value;
+                        config.MailFrom = recoveryFields.MailFrom.value.trim();
+                        config.ContactReminderDays = Math.max(0, numberIn(recoveryFields.ContactReminderDays, 14));
+                        return ApiClient.updatePluginConfiguration(pluginId, config);
+                    }).then(function (saved) {
+                        Dashboard.processPluginConfigurationUpdateResult(saved);
+                        loadRecovery();
+                    }, function () {
+                        Dashboard.hideLoadingMsg();
+                        recoveryResult.textContent = 'Settings not saved.';
+                    });
+                    return false;
+                });
+
+                var testLabels = {
+                    Ok: 'sent',
+                    NotConfigured: 'not configured',
+                    NoContact: 'link your own contact in WonderFlix first, or fill the field above',
+                    Invalid: 'bot token or server ID refused',
+                    MemberNotFound: 'nobody with that user name in the server',
+                    InvalidTarget: 'not a valid address',
+                    DmClosed: 'the bot can\'t write to that user (direct messages closed)',
+                    SendFailed: 'sending failed: check the settings and the Jellyfin log'
+                };
+
+                var testButton = page.querySelector('#WonderFlixRecoveryTest');
+                testButton.addEventListener('click', function () {
+                    // Una prova alla volta: può durare fino a 24 s.
+                    if (testButton.disabled) {
+                        return;
+                    }
+
+                    testButton.disabled = true;
+                    recoveryResult.textContent = 'Sending…';
+                    ApiClient.ajax({
+                        type: 'POST',
+                        url: ApiClient.getUrl('WonderFlixWatchParty/Account/Admin/Test'),
+                        data: JSON.stringify({
+                            Language: (navigator.language || 'en').slice(0, 2),
+                            Discord: testDiscord.value.trim() || null,
+                            Email: testEmail.value.trim() || null
+                        }),
+                        contentType: 'application/json',
+                        dataType: 'json'
+                    }).then(function (result) {
+                        testButton.disabled = false;
+                        recoveryResult.textContent = 'Discord: ' + (testLabels[result.Discord] || result.Discord)
+                            + '. E-mail: ' + (testLabels[result.Email] || result.Email) + '.';
+                        refreshRecoveryStatus();
+                    }, function () {
+                        testButton.disabled = false;
+                        recoveryResult.textContent = 'Test failed: try again.';
                     });
                 });
             })();

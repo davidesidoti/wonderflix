@@ -14,8 +14,12 @@ Dalla 1.4.0 fa da tramite verso Seerr per chiedere film e serie dall'app
 Dalla 1.5.0 dà le saghe (le collezioni di Jellyfin) e le immagini degli
 altri utenti (spec K,
 `docs/superpowers/specs/2026-10-07-wonderflix-saghe-profili-design.md`).
+Dalla 1.6.0 porta il recupero della password con un codice su Discord o per
+email (spec L,
+`docs/superpowers/specs/2026-10-09-wonderflix-recupero-password-design.md`).
 Senza il plugin WonderFlix funziona lo stesso, con gli avvisi
-anonimi, senza saghe e con le iniziali al posto delle immagini.
+anonimi, senza saghe, con le iniziali al posto delle immagini e senza il
+recupero della password.
 
 - Jellyfin **10.11.x** (net9.0, `targetAbi` 10.11.0.0). Per Jellyfin 12 serve
   una build nuova (net10.0).
@@ -67,9 +71,26 @@ anonimi, senza saghe e con le iniziali al posto delle immagini.
   ricerca per nome conferma che un account esiste, anche nascosto. È basso:
   `/Users/Public` elenca già gli utenti non nascosti, e la ricerca degli amici
   trova i nomi per sottostringa.
+- **Recupero della password (dalla 1.6.0):** ogni utente collega e verifica
+  il suo Discord o la sua email (`Account/Contacts`, con la password attuale e
+  un codice a 6 cifre mandato lì: chi ha solo una sessione aperta non può
+  cambiare i contatti). Chi dimentica la password chiede un codice dal login
+  (`Account/Recovery`, senza accesso: la risposta non dice se l'account
+  esiste) e sceglie la password nuova; tutte le sue sessioni si chiudono.
+  Gli admin non possono usarlo. Nella pagina del plugin: token del bot e id
+  del server Discord, server SMTP (STARTTLS, di solito 587), mittente, ogni
+  quanti giorni il promemoria nella cassetta a chi non ha contatti (0:
+  spento) e **Send a test**. Il bot: Discord Developer Portal → l'app →
+  Bot (il token, "Server Members Intent" acceso), poi l'invito nel server
+  con lo scope `bot`, senza permessi. I contatti stanno in
+  `plugins/configurations/WonderFlixWatchParty/contacts.json` (un file
+  illeggibile diventa `contacts.json.bad`); i codici solo in memoria (10
+  minuti, 5 tentativi). Gli endpoint dell'admin stanno sotto
+  `Account/Admin`.
 - **Funzioni:** `GET Info` annuncia quello che il plugin sa fare; dalla 1.5.0
   ci sono sempre anche `collections` e `avatars`. Tutti e due gli endpoint
-  sono aperti a ogni utente che ha fatto l'accesso.
+  sono aperti a ogni utente che ha fatto l'accesso. Dalla 1.6.0 anche
+  `account`.
 
 ## Installazione dal repository
 
@@ -80,8 +101,8 @@ anonimi, senza saghe e con le iniziali al posto delle immagini.
 
 ## Installazione a mano (prove)
 
-1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.5.0`.
-   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.5.0.0/`
+1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.6.0`.
+   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.6.0.0/`
    con la dll e `meta.json`.
 2. Copia la cartella dentro `plugins/` della cartella dati di Jellyfin (su
    Ultra.cc via SFTP).
@@ -96,7 +117,9 @@ Prima di installare dal Catalogo togli la cartella copiata a mano.
 - Versioni di Jellyfin: il plugin è compilato contro Jellyfin 10.11.0 (il
   minimo), i test girano con quella del server (10.11.9). Jellyfin ha tolto
   `IUserManager.Users` in una patch 10.11.x, quindi i membri che sono cambiati
-  si cercano a runtime (`Server/UserListing.cs`). Quando si aggiorna il
+  si cercano a runtime (`Server/UserListing.cs`). Anche
+  `IUserManager.ChangePassword` ha cambiato firma (`User` nella 10.11.0,
+  `Guid` nella 10.11.9): `Server/PasswordChanging.cs`. Quando si aggiorna il
   server, si alzano i pacchetti `Jellyfin.Controller` e `Jellyfin.Model` del
   progetto di test a quella versione.
 - Release: tag `watch-party-plugin-vX.Y.Z` → il workflow

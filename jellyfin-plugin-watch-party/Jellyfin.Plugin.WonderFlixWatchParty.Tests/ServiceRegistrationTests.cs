@@ -50,6 +50,26 @@ public class ServiceRegistrationTests
         Assert.IsType<Server.PluginSeerrSettings>(provider.GetRequiredService<Seerr.ISeerrSettings>());
         Assert.IsType<Server.JellyfinCollectionDirectory>(provider.GetRequiredService<ICollectionDirectory>());
         Assert.IsType<Server.JellyfinUserAvatars>(provider.GetRequiredService<IUserAvatars>());
-        Assert.Equal(2, provider.GetServices<IHostedService>().Count());
+        Assert.IsType<Server.PluginAccountSettings>(provider.GetRequiredService<Account.IAccountSettings>());
+        Assert.EndsWith(
+            Path.Combine("WonderFlixWatchParty", "contacts.json"),
+            provider.GetRequiredService<Account.ContactStore>().FilePath);
+        Assert.IsType<Server.DiscordBotClient>(provider.GetRequiredService<Account.IDiscordSender>());
+        Assert.IsType<Server.SmtpMailSender>(provider.GetRequiredService<Account.IMailSender>());
+        Assert.IsType<Server.JellyfinPasswordReset>(provider.GetRequiredService<Account.IPasswordReset>());
+        Assert.IsType<Server.JellyfinPasswordCheck>(provider.GetRequiredService<Account.IPasswordCheck>());
+        Assert.NotNull(provider.GetRequiredService<Account.ContactLinking>());
+        Assert.NotNull(provider.GetRequiredService<Account.AccountAdmin>());
+        Assert.NotNull(provider.GetRequiredService<Account.ContactReminders>());
+
+        // Le istanze con stato o lucchetti sono una sola per tutti: due copie dividerebbero i limiti, i codici o i contatti.
+        Assert.Same(provider.GetRequiredService<Account.PasswordRecovery>(), provider.GetRequiredService<Account.PasswordRecovery>());
+        Assert.Same(provider.GetRequiredService<Account.CodeBook>(), provider.GetRequiredService<Account.CodeBook>());
+        Assert.Same(provider.GetRequiredService<Account.ContactRegistry>(), provider.GetRequiredService<Account.ContactRegistry>());
+        Assert.Same(provider.GetRequiredService<Account.AccountSender>(), provider.GetRequiredService<Account.AccountSender>());
+        Assert.Same(provider.GetRequiredService<Hub.RateLimiter>(), provider.GetRequiredService<Hub.RateLimiter>());
+
+        // Il promemoria dei contatti, oltre ai due di prima.
+        Assert.Equal(3, provider.GetServices<IHostedService>().Count());
     }
 }

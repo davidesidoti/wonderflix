@@ -96,7 +96,10 @@ Il plugin del server (cartella `jellyfin-plugin-watch-party/`, spec E) ha versio
    La cassetta delle notifiche sta in
    `plugins/configurations/WonderFlixWatchParty/inbox.json` e l'impostazione
    dei nuovi titoli in
-   `plugins/configurations/Jellyfin.Plugin.WonderFlixWatchParty.xml`: un
+   `plugins/configurations/Jellyfin.Plugin.WonderFlixWatchParty.xml`. I
+   contatti per il recupero della password stanno in
+   `plugins/configurations/WonderFlixWatchParty/contacts.json`, le sue
+   impostazioni (bot Discord, SMTP, promemoria) nello stesso XML: un
    aggiornamento del plugin non le tocca.
 2. Prova a mano sul server (README del plugin: `pack.sh` e copia via SFTP nei `plugins/` di Jellyfin). Finita la prova, la cartella copiata va tolta prima del passo 6.
 3. Crea il tag e fai push:

@@ -32,6 +32,17 @@ public class PluginPagesTests
         Assert.Contains("'{{extra}}': []", html);
         Assert.Contains("requestedBy_jellyfinUserId", html);
         Assert.Contains("crypto.getRandomValues", html);
+        // Recupero della password (spec L §7.1).
+        Assert.Contains("DiscordBotToken", html);
+        Assert.Contains("DiscordGuildId", html);
+        Assert.Contains("SmtpHost", html);
+        Assert.Contains("SmtpPort", html);
+        Assert.Contains("SmtpUser", html);
+        Assert.Contains("SmtpPassword", html);
+        Assert.Contains("MailFrom", html);
+        Assert.Contains("ContactReminderDays", html);
+        Assert.Contains("WonderFlixWatchParty/Account/Admin/Status", html);
+        Assert.Contains("WonderFlixWatchParty/Account/Admin/Test", html);
         // L'id con cui la pagina legge e salva la configurazione è quello del plugin.
         Assert.Contains(Plugin.PluginId.ToString(), html);
     }
