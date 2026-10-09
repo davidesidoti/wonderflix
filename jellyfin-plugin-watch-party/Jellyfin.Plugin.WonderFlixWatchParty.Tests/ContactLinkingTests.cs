@@ -96,8 +96,24 @@ public sealed class ContactLinkingTests : IDisposable
     [InlineData("mario@localhost")]
     [InlineData("Mario <mario@example.com>")]
     [InlineData("mario@example.com.")]
+    [InlineData("mario@[127.0.0.1]")]
+    [InlineData("mario@example..com")]
+    [InlineData("mario@-example.com")]
+    [InlineData("mario@example-.com")]
+    [InlineData("mário@example.com")]
+    [InlineData("mario@exämple.com")]
     public async Task EmailsMustBeJustAnAddress(string? address) =>
         Assert.Equal(AccountError.InvalidTarget, (await _linking.StartAsync(_mario.Id, AccountChannel.Email, address, "it", Ct)).Error);
+
+    [Theory]
+    [InlineData("Mario@Example.com")]
+    [InlineData("mario.rossi+wf@mail.example.it")]
+    public async Task OrdinaryEmailsAreAccepted(string address)
+    {
+        Assert.Null((await _linking.StartAsync(_mario.Id, AccountChannel.Email, address, "it", Ct)).Error);
+
+        Assert.Equal(address, Assert.Single(_rig.Mail.Sent).To);
+    }
 
     [Fact]
     public async Task TooLongEmailsAreInvalid()
@@ -116,6 +132,32 @@ public sealed class ContactLinkingTests : IDisposable
 
         Assert.Equal(AccountError.SendFailed, (await _linking.StartAsync(_mario.Id, AccountChannel.Discord, "mario", "it", Ct)).Error);
         Assert.Equal("SendFailed", _rig.Sender.LastError(AccountChannel.Discord)!.Code);
+    }
+
+    [Fact]
+    public async Task MemberNotFoundLeavesNoCode()
+    {
+        Assert.Equal(AccountError.MemberNotFound, (await _linking.StartAsync(_mario.Id, AccountChannel.Discord, "luigi", "it", Ct)).Error);
+
+        Assert.Equal(0, _rig.Codes.Count);
+        Assert.Empty(_rig.Discord.Sent);
+    }
+
+    // Il server di Discord non è sotto il nostro controllo: un membro senza id valido o senza nome non diventa un contatto.
+    [Theory]
+    [InlineData("abc", "mario")]
+    [InlineData("12345", "mario")]
+    [InlineData("222222222222222222", "")]
+    [InlineData("222222222222222222", "  ")]
+    public async Task AMemberThatIsNotValidIsASendFailure(string id, string username)
+    {
+        _rig.Discord.Members["strano"] = new DiscordMember(id, username);
+
+        Assert.Equal(AccountError.SendFailed, (await _linking.StartAsync(_mario.Id, AccountChannel.Discord, "strano", "it", Ct)).Error);
+
+        Assert.Equal("SendFailed", _rig.Sender.LastError(AccountChannel.Discord)!.Code);
+        Assert.Equal(0, _rig.Codes.Count);
+        Assert.Empty(_rig.Discord.Sent);
     }
 
     [Fact]
@@ -146,6 +188,72 @@ public sealed class ContactLinkingTests : IDisposable
 
         Task<AccountResult<LinkStartResponse>> Start() =>
             _linking.StartAsync(_mario.Id, AccountChannel.Email, "mario@example.com", "it", Ct);
+    }
+
+    [Fact]
+    public async Task ATypoInTheDiscordNameDoesNotUseTheMinute()
+    {
+        Assert.Equal(AccountError.MemberNotFound, (await _linking.StartAsync(_mario.Id, AccountChannel.Discord, "mari0", "it", Ct)).Error);
+
+        Assert.Null((await _linking.StartAsync(_mario.Id, AccountChannel.Discord, "mario", "it", Ct)).Error);
+        // Il minuto lo usa il codice mandato.
+        Assert.Equal(AccountError.RateLimited, (await _linking.StartAsync(_mario.Id, AccountChannel.Discord, "mario", "it", Ct)).Error);
+    }
+
+    [Fact]
+    public async Task DiscordAndEmailHaveTheirOwnMinute()
+    {
+        Assert.Null((await _linking.StartAsync(_mario.Id, AccountChannel.Discord, "mario", "it", Ct)).Error);
+
+        Assert.Null((await _linking.StartAsync(_mario.Id, AccountChannel.Email, "mario@example.com", "it", Ct)).Error);
+        Assert.Equal(AccountError.RateLimited, (await _linking.StartAsync(_mario.Id, AccountChannel.Email, "mario@example.com", "it", Ct)).Error);
+    }
+
+    [Fact]
+    public async Task EveryLookupCountsForTheHour()
+    {
+        for (var i = 0; i < 5; i++)
+        {
+            Assert.Equal(AccountError.MemberNotFound, (await _linking.StartAsync(_mario.Id, AccountChannel.Discord, "luigi", "it", Ct)).Error);
+        }
+
+        Assert.Equal(AccountError.RateLimited, (await _linking.StartAsync(_mario.Id, AccountChannel.Discord, "mario", "it", Ct)).Error);
+        Assert.Equal(5, _rig.Discord.Searches.Count);
+    }
+
+    [Fact]
+    public async Task AnInvalidTargetUsesNoLimit()
+    {
+        for (var i = 0; i < 3; i++)
+        {
+            Assert.Equal(AccountError.InvalidTarget, (await _linking.StartAsync(_mario.Id, AccountChannel.Email, "mario", "it", Ct)).Error);
+            Assert.Equal(AccountError.InvalidTarget, (await _linking.StartAsync(_mario.Id, AccountChannel.Discord, "m", "it", Ct)).Error);
+        }
+
+        Assert.Null((await _linking.StartAsync(_mario.Id, AccountChannel.Email, "mario@example.com", "it", Ct)).Error);
+        Assert.Null((await _linking.StartAsync(_mario.Id, AccountChannel.Discord, "mario", "it", Ct)).Error);
+    }
+
+    [Fact]
+    public async Task ASecondStartReplacesTheFirstCode()
+    {
+        await _linking.StartAsync(_mario.Id, AccountChannel.Email, "primo@example.com", "it", Ct);
+        var first = _rig.Mail.LastCode("primo@example.com");
+        _rig.Time.Advance(TimeSpan.FromMinutes(1));
+        await _linking.StartAsync(_mario.Id, AccountChannel.Email, "secondo@example.com", "it", Ct);
+        var second = _rig.Mail.LastCode("secondo@example.com");
+
+        // Due codici uguali sono possibili (uno su un milione): allora il primo vale ancora.
+        if (first != second)
+        {
+            Assert.Equal(AccountError.InvalidCode, (await _linking.ConfirmAsync(_mario.Id, AccountChannel.Email, first)).Error);
+        }
+
+        var confirm = await _linking.ConfirmAsync(_mario.Id, AccountChannel.Email, second);
+
+        Assert.Null(confirm.Error);
+        Assert.Equal("secondo@example.com", confirm.Value!.Email!.Address);
+        Assert.Equal("secondo@example.com", _rig.Contacts.Get(_mario.Id).Email!.Address);
     }
 
     [Fact]

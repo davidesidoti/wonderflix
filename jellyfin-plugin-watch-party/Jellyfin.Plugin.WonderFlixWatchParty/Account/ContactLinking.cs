@@ -42,6 +42,14 @@ public sealed class ContactLinking(
     /// Manda il codice per collegare un contatto. Nell'ordine: canale spento,
     /// contatto scritto male, limiti, membro Discord che non c'è, invio.
     /// Un invio non riuscito toglie il codice.
+    /// I limiti sono due, con due scopi diversi:
+    /// - un codice al minuto per utente e canale: si guarda prima di cercare
+    ///   il membro, ma si conta solo quando il codice sta per essere emesso
+    ///   (dopo una ricerca riuscita). Così un nome Discord scritto male non
+    ///   fa aspettare un minuto per correggerlo, e Discord ed email non si
+    ///   bloccano a vicenda;
+    /// - cinque all'ora per utente, contati prima della ricerca: ogni ricerca
+    ///   conta, quindi nessuno scorre i membri del server a tentativi.
     /// </summary>
     public async Task<AccountResult<LinkStartResponse>> StartAsync(
         Guid userId, AccountChannel channel, string? target, string? language, CancellationToken cancellationToken)
@@ -63,7 +71,8 @@ public sealed class ContactLinking(
         }
 
         var key = userId.ToString("N");
-        if (!limiter.TryAcquire(key, LimitTypes.LinkStartMinute) || !limiter.TryAcquire(key, LimitTypes.LinkStartHour))
+        var minuteKey = $"{key}:{channel.Name()}";
+        if (limiter.IsLimited(minuteKey, LimitTypes.LinkStartMinute) || !limiter.TryAcquire(key, LimitTypes.LinkStartHour))
         {
             return AccountResult<LinkStartResponse>.Fail(AccountError.RateLimited);
         }
@@ -83,11 +92,27 @@ public sealed class ContactLinking(
                 return AccountResult<LinkStartResponse>.Fail(AccountError.MemberNotFound);
             }
 
+            // ContactRegistry rifiuta un Discord senza id valido o senza nome, ma alla conferma,
+            // con il codice già usato. Un membro così (risposta strana di Discord) si ferma qui,
+            // prima di emettere il codice, come un invio fallito.
+            if (!DiscordIds.IsSnowflake(lookup.Member.Id) || string.IsNullOrWhiteSpace(lookup.Member.Username))
+            {
+                sender.Record(AccountChannel.Discord, SendOutcome.Failed);
+                return AccountResult<LinkStartResponse>.Fail(AccountError.SendFailed);
+            }
+
             pending = new PendingContact(lookup.Member.Id, lookup.Member.Username);
         }
         else
         {
             pending = new PendingContact(cleaned, null);
+        }
+
+        // Il minuto si conta qui, con il codice che sta per partire. Se due richieste
+        // arrivano insieme, la seconda trova il minuto già preso.
+        if (!limiter.TryAcquire(minuteKey, LimitTypes.LinkStartMinute))
+        {
+            return AccountResult<LinkStartResponse>.Fail(AccountError.RateLimited);
         }
 
         var purpose = PurposeFor(channel);
@@ -144,11 +169,19 @@ public sealed class ContactLinking(
         return name is not null && DiscordName.IsMatch(name) ? name : null;
     }
 
-    /// <summary>Solo l'indirizzo, com'è scritto, con un dominio che ha un punto; null altrimenti.</summary>
+    /// <summary>
+    /// Solo l'indirizzo, com'è scritto: ASCII, senza parentesi quadre (niente
+    /// indirizzi IP), con un dominio di almeno due etichette non vuote che non
+    /// iniziano né finiscono con "-"; null altrimenti.
+    /// </summary>
     internal static string? CleanEmail(string? raw)
     {
         var address = raw?.Trim();
-        if (string.IsNullOrEmpty(address) || address.Length > MaxEmailLength)
+        if (string.IsNullOrEmpty(address)
+            || address.Length > MaxEmailLength
+            || !address.All(char.IsAscii)
+            || address.Contains('[', StringComparison.Ordinal)
+            || address.Contains(']', StringComparison.Ordinal))
         {
             return null;
         }
@@ -160,8 +193,8 @@ public sealed class ContactLinking(
             return null;
         }
 
-        var domain = address[(address.LastIndexOf('@') + 1)..];
-        return domain.Contains('.', StringComparison.Ordinal) && !domain.StartsWith('.') && !domain.EndsWith('.')
+        var labels = address[(address.LastIndexOf('@') + 1)..].Split('.');
+        return labels.Length >= 2 && labels.All(label => label.Length > 0 && label[0] != '-' && label[^1] != '-')
             ? address
             : null;
     }

@@ -59,6 +59,8 @@ public sealed class AccountControllerTests : IDisposable
         ActionResults.AssertError(400, "Invalid", (await controller.Start("Discord", null)).Result);
         ActionResults.AssertError(400, "InvalidTarget", (await controller.Start("Email", new LinkStartRequest { Target = "mario" })).Result);
         ActionResults.AssertError(400, "MemberNotFound", (await controller.Start("Discord", new LinkStartRequest { Target = "luigi" })).Result);
+        // Il nome sbagliato non ha usato il minuto: il codice mandato sì.
+        Assert.Equal(202, ActionResults.Status((await controller.Start("Discord", new LinkStartRequest { Target = "mario" })).Result!));
         ActionResults.AssertError(429, "RateLimited", (await controller.Start("Discord", new LinkStartRequest { Target = "mario" })).Result);
         ActionResults.AssertError(400, "InvalidCode", (await controller.Confirm("Discord", new LinkConfirmRequest { Code = "000000" })).Result);
         ActionResults.AssertError(400, "Invalid", (await controller.Confirm("Discord", null)).Result);
