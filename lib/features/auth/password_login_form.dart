@@ -11,11 +11,16 @@ import '../../l10n/gen/app_localizations.dart';
 import 'session_controller.dart';
 
 class PasswordLoginForm extends ConsumerStatefulWidget {
-  const PasswordLoginForm({super.key, this.initialUsername});
+  const PasswordLoginForm(
+      {super.key, this.initialUsername, this.onForgotPassword});
 
   /// Il nome già scritto ("Accedi di nuovo", spec K §9.3): il fuoco va alla
   /// password.
   final String? initialUsername;
+
+  /// "Password dimenticata?" (spec L §9.3), con il nome scritto; senza, il
+  /// link non c'è.
+  final ValueChanged<String>? onForgotPassword;
 
   @override
   ConsumerState<PasswordLoginForm> createState() => _PasswordLoginFormState();
@@ -93,18 +98,22 @@ class _PasswordLoginFormState extends ConsumerState<PasswordLoginForm> {
                 )
               : Text(l.loginSubmit),
         ),
-        if (supportUrl != null) ...[
+        if (widget.onForgotPassword != null || supportUrl != null) ...[
           const SizedBox(height: 12),
           Wrap(
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Text(l.loginForgotPassword,
-                  style: const TextStyle(
-                      color: WfColors.creamMuted, fontSize: 12.5)),
-              TextButton(
-                onPressed: () => unawaited(launchUrl(supportUrl)),
-                child: Text(l.loginContactAdmin),
-              ),
+              if (widget.onForgotPassword case final onForgot?)
+                TextButton(
+                  key: const Key('login-forgot'),
+                  onPressed: () => onForgot(_username.text),
+                  child: Text(l.loginForgotPassword),
+                ),
+              if (supportUrl != null)
+                TextButton(
+                  onPressed: () => unawaited(launchUrl(supportUrl)),
+                  child: Text(l.loginContactAdmin),
+                ),
             ],
           ),
         ],
