@@ -65,5 +65,7 @@ internal sealed class AccountRig : IDisposable
     public PasswordRecovery Recovery() =>
         new(Server, Contacts, Codes, Limiter, Sender, Passwords, NullLogger<PasswordRecovery>.Instance);
 
+    public AccountAdmin Admin() => new(Server, Contacts, Sender, Discord, Settings);
+
     public void Dispose() => Folder.Dispose();
 }
