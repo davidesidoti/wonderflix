@@ -450,4 +450,37 @@ void main() {
     expect(find.text('Rimanda tra 60 s'), findsOneWidget);
     expect(find.byKey(const Key('recovery-code')), findsOneWidget);
   });
+
+  testWidgets('Ho già un codice: il secondo passo senza chiederne un altro',
+      (tester) async {
+    await pumpLogin(tester);
+    await openRecovery(tester);
+
+    await tapKey(tester, 'recovery-have-code');
+
+    expect(api.recoveryStarts, isEmpty);
+    expect(
+        find.text('Scrivi il codice che hai ricevuto su Discord o per email.'),
+        findsOneWidget);
+    await tester.enterText(find.byKey(const Key('recovery-code')), '012345');
+    await tester.enterText(find.byKey(const Key('recovery-new')), 'nuova123');
+    await tester.enterText(
+        find.byKey(const Key('recovery-confirm')), 'nuova123');
+    await tapKey(tester, 'recovery-submit');
+
+    expect(api.recoveryCompletes.single.username, 'garg');
+    expect(api.recoveryCompletes.single.code, '012345');
+    expect(session.loginAttempts, [('garg', 'nuova123')]);
+  });
+
+  testWidgets('Ho già un codice senza il nome: l\'errore, si resta lì',
+      (tester) async {
+    await pumpLogin(tester);
+    await openRecovery(tester, username: '');
+
+    await tapKey(tester, 'recovery-have-code');
+
+    expect(find.text('Scrivi il nome utente'), findsOneWidget);
+    expect(find.byKey(const Key('recovery-code')), findsNothing);
+  });
 }

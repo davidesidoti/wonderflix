@@ -56,6 +56,10 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
   /// password riscritta sarebbe ignorata) né "Rimanda" (il codice è già
   /// usato), solo l'avviso e "ACCEDI", che riprova l'accesso con questa.
   String? _changedTo;
+
+  /// Il codice c'è già (per esempio mandato dall'admin, spec L §9.5): il
+  /// secondo passo dice di scriverlo, senza averne chiesto uno.
+  bool _haveCode = false;
   bool _busy = false;
   String? _usernameError;
   String? _codeError;
@@ -125,6 +129,24 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
     if (await _requestCode(username) == null && mounted) {
       setState(() => _sentFor = username);
     }
+  }
+
+  /// "Ho già un codice" (decisione 8 del piano 18c): il secondo passo con il
+  /// nome scritto, senza `Start`, che manderebbe un codice nuovo al posto di
+  /// quello che l'utente ha già.
+  void _haveCodeAlready() {
+    if (_busy) return;
+    final username = _username.text.trim();
+    if (username.isEmpty) {
+      setState(() =>
+          _usernameError = AppLocalizations.of(context).recoveryNameNeeded);
+      return;
+    }
+    setState(() {
+      _clearErrors();
+      _haveCode = true;
+      _sentFor = username;
+    });
   }
 
   /// "Rimanda il codice": il conto riparte se il codice è partito, e anche
@@ -281,6 +303,15 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
             onPressed: _busy ? null : () => unawaited(_start()),
             child: Text(l.accountSendCode),
           ),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              key: const Key('recovery-have-code'),
+              onPressed: _busy ? null : _haveCodeAlready,
+              child: Text(l.recoveryHaveCode),
+            ),
+          ),
         ] else if (_changedTo != null) ...[
           Text(l.recoveryChanged, style: const TextStyle(fontSize: 13)),
           const SizedBox(height: 16),
@@ -291,7 +322,8 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
             child: Text(l.loginSubmit),
           ),
         ] else ...[
-          Text(l.recoveryCodeSent, style: const TextStyle(fontSize: 13)),
+          Text(_haveCode ? l.recoveryEnterCode : l.recoveryCodeSent,
+              style: const TextStyle(fontSize: 13)),
           const SizedBox(height: 12),
           TextField(
             key: const Key('recovery-code'),
