@@ -16,6 +16,9 @@ public static class InboxEntryTypes
 
     /// <summary>Una richiesta da approvare (spec I §7.6), a chi può approvare.</summary>
     public const string RequestPending = "RequestPending";
+
+    /// <summary>"Proteggi il tuo account" (spec L §7.7), a chi non ha contatti per il recupero.</summary>
+    public const string ContactReminder = "ContactReminder";
 }
 
 /// <summary>
@@ -112,7 +115,12 @@ public sealed class InboxEntry
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? RequesterName { get; set; }
 
-    /// <summary>Copia superficiale: le liste (NewTitles, Seasons) non si cambiano mai dopo la creazione.</summary>
+    /// <summary>ContactReminder: i canali che si possono collegare ("Discord", "Email").</summary>
+    [JsonPropertyName("Channels")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? Channels { get; set; }
+
+    /// <summary>Copia superficiale: le liste (NewTitles, Seasons, Channels) non si cambiano mai dopo la creazione.</summary>
     public InboxEntry Copy() => (InboxEntry)MemberwiseClone();
 }
 

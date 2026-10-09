@@ -7,8 +7,9 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 /// <summary>
 /// La cassetta delle notifiche (spec G §6): voci su disco con
 /// <see cref="InboxStore"/>, letture e cancellazioni, annunci dell'admin,
-/// voci d'invito, voci dei nuovi titoli, pulizia e avviso InboxChanged alle
-/// sessioni WonderFlix dell'utente. Sicuro tra thread.
+/// voci d'invito, voci dei nuovi titoli, i promemoria dei contatti (spec L),
+/// pulizia e avviso InboxChanged alle sessioni WonderFlix dell'utente.
+/// Sicuro tra thread.
 /// </summary>
 public sealed class InboxService(
     InboxStore store,
@@ -197,6 +198,49 @@ public sealed class InboxService(
     /// <summary>"Nuova richiesta" a chi può approvare (spec I §7.5). Non lancia.</summary>
     public Task AddRequestPendingAsync(IReadOnlyList<Guid> userIds, RequestEvent request, string requesterName) =>
         AddRequestAsync(InboxEntryTypes.RequestPending, userIds, request, requesterName);
+
+    /// <summary>
+    /// Il promemoria "Proteggi il tuo account" (spec L §7.7): sostituisce
+    /// quello di prima, quindi ce n'è sempre uno solo. Non lancia: un errore
+    /// finisce nel log.
+    /// </summary>
+    public async Task AddContactReminderAsync(Guid userId, IReadOnlyList<string> channels)
+    {
+        try
+        {
+            var now = time.GetUtcNow();
+            lock (_lock)
+            {
+                Book.RemoveType(userId, InboxEntryTypes.ContactReminder);
+                Book.Add(userId, new InboxEntry
+                {
+                    Type = InboxEntryTypes.ContactReminder,
+                    CreatedAt = now,
+                    Channels = channels.ToList(),
+                });
+                Persist();
+            }
+
+            await NotifyAsync([userId]).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Promemoria dei contatti non creato per {UserId}", userId);
+        }
+    }
+
+    /// <summary>Toglie i promemoria dei contatti (un contatto è stato verificato). Non lancia.</summary>
+    public async Task RemoveContactRemindersAsync(Guid userId)
+    {
+        try
+        {
+            await ChangeAsync(userId, book => book.RemoveType(userId, InboxEntryTypes.ContactReminder)).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Promemoria dei contatti non tolti per {UserId}", userId);
+        }
+    }
 
     private async Task AddRequestAsync(
         string type, IReadOnlyList<Guid> userIds, RequestEvent request, string? requesterName)

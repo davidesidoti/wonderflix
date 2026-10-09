@@ -106,6 +106,11 @@ public sealed class InboxBook
         _users.TryGetValue(userId, out var inbox)
         && inbox.Entries.RemoveAll(e => string.Equals(e.Id, entryId, StringComparison.OrdinalIgnoreCase)) > 0;
 
+    /// <summary>Toglie le voci di questo tipo; true se ce n'erano.</summary>
+    public bool RemoveType(Guid userId, string type) =>
+        _users.TryGetValue(userId, out var inbox)
+        && inbox.Entries.RemoveAll(e => e.Type == type) > 0;
+
     /// <summary>Svuota la cassetta (il Seq continua da dov'era); true se c'era qualcosa.</summary>
     public bool Clear(Guid userId)
     {
