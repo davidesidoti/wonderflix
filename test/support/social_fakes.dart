@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/misc.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/core/social/account_models.dart';
 import 'package:wonderflix/core/social/inbox_models.dart';
 import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/core/social/social_models.dart';
@@ -409,6 +410,25 @@ RequestPendingEntry testRequestPending({
       title: title,
       requesterName: requesterName,
       seasons: seasons,
+    );
+
+/// Il promemoria dei contatti nella cassetta.
+ContactReminderEntry testContactReminder({
+  String id = 'c1',
+  int seq = 1,
+  bool read = false,
+  List<AccountChannel> channels = const [
+    AccountChannel.discord,
+    AccountChannel.email,
+  ],
+  DateTime? createdAt,
+}) =>
+    ContactReminderEntry(
+      id: id,
+      seq: seq,
+      createdAt: createdAt ?? DateTime.utc(2026, 10, 9, 8),
+      read: read,
+      channels: channels,
     );
 
 /// Come arriva dal WebSocket l'avviso che la cassetta è cambiata.

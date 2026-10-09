@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/social/account_models.dart';
 import 'package:wonderflix/core/social/inbox_models.dart';
 
 import '../../support/social_fakes.dart';
@@ -341,5 +342,29 @@ void main() {
     // Le voci malformate non rompono la cassetta, e non contano come non lette.
     expect(snapshot.entries.map((e) => e.id), ['r2']);
     expect(snapshot.unread, 1);
+  });
+
+  test('promemoria dei contatti: i canali, quelli sconosciuti saltati', () {
+    final entry = inboxEntryFromJson({
+      'Id': 'c1',
+      'Seq': 7,
+      'Type': 'ContactReminder',
+      'CreatedAt': '2026-10-09T08:00:00+00:00',
+      'Read': false,
+      'Channels': ['Discord', 'Email', 'Telegram'],
+    }) as ContactReminderEntry;
+    expect(entry.channels, [AccountChannel.discord, AccountChannel.email]);
+    expect(entry.seq, 7);
+    expect(entry.read, isFalse);
+  });
+
+  test('promemoria dei contatti senza canali', () {
+    final entry = inboxEntryFromJson({
+      'Id': 'c1',
+      'Seq': 1,
+      'Type': 'ContactReminder',
+      'CreatedAt': '2026-10-09T08:00:00+00:00',
+    }) as ContactReminderEntry;
+    expect(entry.channels, isEmpty);
   });
 }

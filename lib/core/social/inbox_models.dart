@@ -3,6 +3,8 @@ import 'dart:math' as math;
 
 import 'package:logging/logging.dart';
 
+import 'account_models.dart';
+
 final _log = Logger('social');
 
 /// Una voce della cassetta delle notifiche (spec G §6.2).
@@ -213,6 +215,21 @@ final class RequestPendingEntry extends InboxEntry {
   final List<int> seasons;
 }
 
+/// Il promemoria di collegare un contatto per il recupero (spec L §7.7): ce
+/// n'è al più uno, per chi non ha un contatto raggiungibile.
+final class ContactReminderEntry extends InboxEntry {
+  const ContactReminderEntry({
+    required super.id,
+    required super.seq,
+    required super.createdAt,
+    required super.read,
+    this.channels = const [],
+  });
+
+  /// I canali configurati sul server quando è stato scritto.
+  final List<AccountChannel> channels;
+}
+
 /// Una voce di `GET Inbox`; `null` se il tipo non lo conosciamo (es. le
 /// voci di una versione più nuova del plugin).
 InboxEntry? inboxEntryFromJson(Map<String, dynamic> json) {
@@ -270,6 +287,16 @@ InboxEntry? inboxEntryFromJson(Map<String, dynamic> json) {
         title: json['Title'] as String? ?? '',
         requesterName: json['RequesterName'] as String? ?? '',
         seasons: _seasons(json['Seasons']),
+      ),
+    'ContactReminder' => ContactReminderEntry(
+        id: id,
+        seq: seq,
+        createdAt: createdAt,
+        read: read,
+        channels: [
+          for (final raw in json['Channels'] as List? ?? const [])
+            ?AccountChannel.fromWire(raw),
+        ],
       ),
     _ => null,
   };

@@ -19,6 +19,7 @@ import '../watch_party/watch_party_actions.dart';
 import '../watch_party/watch_party_directory.dart';
 import '../watch_party/watch_party_providers.dart';
 import '../watch_party/watch_party_session.dart';
+import 'inbox_account_row.dart';
 import 'inbox_controller.dart';
 import 'inbox_request_rows.dart';
 import 'inbox_time.dart';
@@ -322,6 +323,8 @@ class _EntryTileState extends ConsumerState<_EntryTile> {
                   icon: LucideIcons.clapperboard, size: InboxPanel.leadingSize),
               RequestPendingEntry() => const InboxRequestIcon(
                   icon: LucideIcons.inbox, size: InboxPanel.leadingSize),
+              ContactReminderEntry() => const InboxRequestIcon(
+                  icon: LucideIcons.shieldCheck, size: InboxPanel.leadingSize),
             },
             const SizedBox(width: 12),
             Expanded(
@@ -355,6 +358,11 @@ class _EntryTileState extends ConsumerState<_EntryTile> {
                         l, entry.requesterName, entry.title, entry.seasons),
                     time: widget.time,
                     onOpen: () => openRequests(context, tab: RequestsTab.pending),
+                  ),
+                ContactReminderEntry() => InboxContactReminderContent(
+                    key: Key('inbox-contact-reminder-${entry.id}'),
+                    channels: entry.channels,
+                    time: widget.time,
                   ),
               },
             ),
