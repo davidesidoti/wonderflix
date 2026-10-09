@@ -67,5 +67,8 @@ internal sealed class AccountRig : IDisposable
 
     public AccountAdmin Admin() => new(Server, Contacts, Sender, Discord, Settings);
 
+    public ContactReminders Reminders() =>
+        new(Server, Contacts, Inbox, Settings, Time, NullLogger<ContactReminders>.Instance);
+
     public void Dispose() => Folder.Dispose();
 }
