@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/jellyfin/auth_api.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
+import 'package:wonderflix/features/account/account_texts.dart';
 import 'package:wonderflix/features/account/change_password_dialog.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 
@@ -120,6 +121,22 @@ void main() {
         find.text(
             'WonderFlix non è raggiungibile. Controlla la connessione.'),
         findsOneWidget);
+  });
+
+  testWidgets('i campi lasciano andare a capo errori e suggerimenti',
+      (tester) async {
+    await open(tester);
+
+    // Senza `errorMaxLines` Flutter taglia l'errore su una riga.
+    InputDecoration decorationOf(String key) =>
+        tester.widget<TextField>(find.byKey(Key(key))).decoration!;
+    final current = decorationOf('change-password-current');
+    expect(current.errorMaxLines, accountErrorMaxLines);
+    expect(current.helperMaxLines, accountHelperMaxLines);
+    expect(decorationOf('change-password-new').errorMaxLines,
+        accountErrorMaxLines);
+    expect(decorationOf('change-password-confirm').errorMaxLines,
+        accountErrorMaxLines);
   });
 
   testWidgets('con la richiesta in volo, Esc e Annulla non chiudono',

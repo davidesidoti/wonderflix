@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/social/account_api.dart';
 import 'package:wonderflix/core/social/account_models.dart';
+import 'package:wonderflix/features/account/account_texts.dart';
 import 'package:wonderflix/features/account/link_contact_dialog.dart';
 import 'package:wonderflix/features/account/resend_code_button.dart';
 
@@ -103,9 +104,10 @@ void main() {
     expect(find.textContaining('Non ti trovo nel server Discord'),
         findsOneWidget);
     // Un errore lungo va a capo sotto il campo, non si tronca con "…" su una
-    // riga. Nei test il font è Ahem (largo il doppio di Inter): questo testo
-    // non starebbe in tre righe, quindi qui si conta che vada a capo, e
-    // sotto, con "Il bot…", che il testo si veda per intero.
+    // riga. Il font dei test (FlutterTest) è più largo di Inter: questo
+    // testo non starebbe in tre righe, quindi qui si conta solo che vada a
+    // capo. Il tetto di righe di ogni campo sta in 'i campi lasciano andare
+    // a capo…'.
     expect(drawnLines(tester, find.textContaining('Non ti trovo')),
         greaterThan(1));
 
@@ -118,12 +120,6 @@ void main() {
     await submit(tester);
     expect(find.textContaining('Il bot non riesce a scriverti'),
         findsOneWidget);
-    expect(
-        tester
-            .renderObject<RenderParagraph>(
-                find.textContaining('Il bot non riesce a scriverti'))
-            .didExceedMaxLines,
-        isFalse);
 
     api.startLinkFailure = AccountFailure.rateLimited;
     await submit(tester);
@@ -195,6 +191,23 @@ void main() {
   VoidCallback? resendAction(WidgetTester tester) =>
       tester.widget<TextButton>(find.byKey(const Key('resend-code'))).onPressed;
 
+  testWidgets('i campi lasciano andare a capo errori e suggerimenti',
+      (tester) async {
+    await open(tester, AccountChannel.discord);
+
+    // Senza `errorMaxLines` Flutter taglia l'errore su una riga.
+    for (final key in ['link-target', 'link-password']) {
+      final decoration =
+          tester.widget<TextField>(find.byKey(Key(key))).decoration!;
+      expect(decoration.errorMaxLines, accountErrorMaxLines, reason: key);
+      expect(decoration.helperMaxLines, accountHelperMaxLines, reason: key);
+    }
+
+    await reachCodeStep(tester);
+    final code = tester.widget<TextField>(find.byKey(const Key('link-code')));
+    expect(code.decoration!.errorMaxLines, accountErrorMaxLines);
+  });
+
   testWidgets('Rimanda dopo un 429: avviso e il conto riparte',
       (tester) async {
     await open(tester, AccountChannel.discord);
@@ -247,6 +260,15 @@ void main() {
             .controller!
             .text,
         'garg');
+
+    // Il fuoco non resta sul nome (autofocus): va alla password, che ha
+    // ancora quella vecchia, selezionata per riscriverla.
+    final password = find.byKey(const Key('link-password'));
+    final editable = tester.widget<EditableText>(
+        find.descendant(of: password, matching: find.byType(EditableText)));
+    expect(editable.focusNode.hasPrimaryFocus, isTrue);
+    expect(editable.controller.selection,
+        const TextSelection(baseOffset: 0, extentOffset: 7));
   });
 
   testWidgets('Rimanda è spento mentre la conferma è in volo',

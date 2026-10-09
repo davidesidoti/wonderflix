@@ -40,6 +40,7 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
   final _target = TextEditingController();
   final _password = TextEditingController();
   final _code = TextEditingController();
+  final _passwordFocus = FocusNode();
 
   /// Il contatto a cui è partito il codice; `null` al primo passo.
   String? _sentTo;
@@ -56,6 +57,7 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
     _target.dispose();
     _password.dispose();
     _code.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
 
@@ -81,6 +83,15 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
           _sentTo = null;
           _code.clear();
           _passwordError = text;
+          // Dopo il frame, quando il campo c'è di nuovo: l'`autofocus` del
+          // nome ruberebbe il fuoco, ma l'errore è sotto la password, che
+          // ha ancora quella vecchia: la si seleziona per riscriverla.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _passwordFocus.requestFocus();
+            _password.selection = TextSelection(
+                baseOffset: 0, extentOffset: _password.text.length);
+          });
         case AccountFailure.invalidCode when !firstStep:
           _codeError = text;
         case _:
@@ -187,6 +198,7 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
           TextField(
             key: const Key('link-password'),
             controller: _password,
+            focusNode: _passwordFocus,
             obscureText: true,
             onSubmitted: (_) => unawaited(_start()),
             decoration: InputDecoration(

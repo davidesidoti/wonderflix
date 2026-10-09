@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/social/account_api.dart';
 import 'package:wonderflix/core/social/account_models.dart';
+import 'package:wonderflix/features/account/account_texts.dart';
 import 'package:wonderflix/features/account/unlink_contact_dialog.dart';
 
 import '../../support/account_fakes.dart';
@@ -65,6 +66,18 @@ void main() {
     await open(tester);
     await submit(tester, 'segreta');
     expect(find.text('Troppe richieste: riprova più tardi'), findsOneWidget);
+  });
+
+  testWidgets('il campo lascia andare a capo errore e suggerimento',
+      (tester) async {
+    await open(tester);
+
+    // Senza `errorMaxLines` Flutter taglia l'errore su una riga.
+    final decoration = tester
+        .widget<TextField>(find.byKey(const Key('unlink-password')))
+        .decoration!;
+    expect(decoration.errorMaxLines, accountErrorMaxLines);
+    expect(decoration.helperMaxLines, accountHelperMaxLines);
   });
 
   testWidgets('con la richiesta in volo, Esc e Annulla non chiudono',
