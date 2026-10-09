@@ -39,6 +39,13 @@ Niente release: l'app 0.12.0 esce con il plugin 1.6.0 alla fine del 18c.
       - `redact.dart`: test che un `"Code"` numerico e la forma a mappa `{code: 4000}` (i frame di Discord IPC) restano com'erano;
       - Jellyfin risponde 403 a `POST /Users/Password` anche a un utente senza `EnableUserPreferenceAccess`: l'app direbbe "Password attuale sbagliata". Raro, accettato;
       - per il 18c: sulla propria riga Jellyfin chiede `CurrentPw` anche a un admin ("Imposta password" senza va escluso lì); `NotAllowed`, `NoContacts` e `UnknownUser` vorranno valori loro in `AccountFailure`.
+    - **Gruppo B** (il Task 8 sotto è già aggiornato):
+      - `pumpAndSettle` in due test del cambio password: dio con l'adapter finto vuole che il tempo avanzi;
+      - `Align(centerLeft)` attorno ad `AccountContactsBlock`: dentro una `Column` `stretch` il `maxWidth` non valeva. Test della larghezza;
+      - `errorMaxLines` e `helperMaxLines` (costanti `accountErrorMaxLines`, `accountHelperMaxLines` in `account_texts.dart`) nei campi delle finestre e del recupero: l'errore "Non ti trovo nel server Discord" usciva troncato;
+      - `PopScope(canPop: !_busy)` e "Annulla" spento nelle tre finestre durante la richiesta, come `request_seasons.dart`: prima Esc chiudeva la finestra e la password cambiava senza l'avviso;
+      - `ResendCodeButton.onResend` può essere `null` (spento mentre un'altra richiesta è in volo) e ha un `try/finally`; il conto riparte dopo un invio riuscito o dopo un 429, non dopo un altro errore;
+      - collegamento: `wrongPassword` al rinvio riporta al primo passo, con l'errore sotto la password; i pulsanti delle righe dicono il canale allo screen reader.
 
 **Architecture:**
 - **Dati** (`lib/core/social/`): `account_models.dart` (`AccountChannel`, `AccountContacts`, `accountMinPasswordLength`), `account_api.dart` (`AccountApi`, `AccountFailure`, `AccountException`); `AuthApi.changePassword`; `PluginFeatures.account` e `SocialFeatures.account`; `ContactReminderEntry` in `inbox_models.dart`.
@@ -3190,6 +3197,21 @@ void main() {
 
     expect(api.recoveryStarts, [('garg', 'it'), ('garg', 'it')]);
   });
+
+  testWidgets('Rimanda con troppe richieste: avviso, e il conto riparte',
+      (tester) async {
+    await pumpLogin(tester);
+    await openRecovery(tester);
+    await tapKey(tester, 'recovery-send');
+
+    await tester.pump(const Duration(seconds: 60));
+    api.startRecoveryFailure = AccountFailure.rateLimited;
+    await tapKey(tester, 'resend-code');
+
+    expect(find.text('Troppe richieste: riprova più tardi'), findsOneWidget);
+    expect(find.text('Rimanda tra 60 s'), findsOneWidget);
+    expect(find.byKey(const Key('recovery-code')), findsOneWidget);
+  });
 }
 ```
 
@@ -3217,6 +3239,7 @@ import '../../core/social/account_api.dart';
 import '../../core/social/account_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../account/account_providers.dart';
+import '../account/account_texts.dart';
 import '../account/resend_code_button.dart';
 import 'password_login_form.dart';
 import 'session_controller.dart';
@@ -3269,9 +3292,10 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
     _usernameError = _codeError = _newError = _confirmError = _error = null;
   }
 
-  /// Chiede il codice per [username]. `true` se la richiesta è passata: la
-  /// risposta è la stessa che l'account esista o no.
-  Future<bool> _requestCode(String username) async {
+  /// Chiede il codice per [username]. `null` se la richiesta è passata (la
+  /// risposta è la stessa che l'account esista o no), altrimenti l'errore,
+  /// già mostrato.
+  Future<AccountFailure?> _requestCode(String username) async {
     final l = AppLocalizations.of(context);
     final language = Localizations.localeOf(context).languageCode;
     setState(() {
@@ -3282,7 +3306,7 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
       await ref
           .read(accountApiProvider)
           .startRecovery(username: username, language: language);
-      return true;
+      return null;
     } on AccountException catch (error) {
       if (mounted) {
         setState(() {
@@ -3298,7 +3322,7 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
           }
         });
       }
-      return false;
+      return error.failure;
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -3312,9 +3336,17 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
           _usernameError = AppLocalizations.of(context).recoveryNameNeeded);
       return;
     }
-    if (await _requestCode(username) && mounted) {
+    if (await _requestCode(username) == null && mounted) {
       setState(() => _sentFor = username);
     }
+  }
+
+  /// "Rimanda il codice": il conto riparte se il codice è partito, e anche
+  /// dopo un 429 (si aspetta comunque); dopo un altro errore si può
+  /// riprovare subito.
+  Future<bool> _resend() async {
+    final failure = await _requestCode(_sentFor!);
+    return failure == null || failure == AccountFailure.rateLimited;
   }
 
   Future<void> _complete() async {
@@ -3410,7 +3442,9 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
             autofocus: true,
             onSubmitted: (_) => unawaited(_start()),
             decoration: InputDecoration(
-                hintText: l.loginUsername, errorText: _usernameError),
+                hintText: l.loginUsername,
+                errorText: _usernameError,
+                errorMaxLines: accountErrorMaxLines),
           ),
           const SizedBox(height: 16),
           FilledButton(
@@ -3427,8 +3461,10 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
             autofocus: true,
             keyboardType: TextInputType.number,
             textInputAction: TextInputAction.next,
-            decoration:
-                InputDecoration(hintText: l.accountCode, errorText: _codeError),
+            decoration: InputDecoration(
+                hintText: l.accountCode,
+                errorText: _codeError,
+                errorMaxLines: accountErrorMaxLines),
           ),
           const SizedBox(height: 10),
           TextField(
@@ -3437,7 +3473,9 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
             obscureText: true,
             textInputAction: TextInputAction.next,
             decoration: InputDecoration(
-                hintText: l.accountNewPassword, errorText: _newError),
+                hintText: l.accountNewPassword,
+                errorText: _newError,
+                errorMaxLines: accountErrorMaxLines),
           ),
           const SizedBox(height: 10),
           TextField(
@@ -3446,7 +3484,9 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
             obscureText: true,
             onSubmitted: (_) => unawaited(_complete()),
             decoration: InputDecoration(
-                hintText: l.accountConfirmPassword, errorText: _confirmError),
+                hintText: l.accountConfirmPassword,
+                errorText: _confirmError,
+                errorMaxLines: accountErrorMaxLines),
           ),
           const SizedBox(height: 16),
           FilledButton(
@@ -3456,7 +3496,9 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
           ),
           Align(
             alignment: Alignment.centerLeft,
-            child: ResendCodeButton(onResend: () => _requestCode(sentFor)),
+            // Spento mentre il cambio è in volo: un codice nuovo
+            // sostituirebbe quello che si sta usando.
+            child: ResendCodeButton(onResend: _busy ? null : _resend),
           ),
         ],
         if (supportUrl != null) ...[
