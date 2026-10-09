@@ -27,5 +27,6 @@ public sealed class JellyfinUserDirectory(IUserManager userManager) : IUserDirec
         user.Id,
         user.Username,
         !user.HasPermission(PermissionKind.IsDisabled),
-        user.SyncPlayAccess != SyncPlayUserAccessType.None);
+        user.SyncPlayAccess != SyncPlayUserAccessType.None,
+        user.HasPermission(PermissionKind.IsAdministrator));
 }

@@ -105,6 +105,23 @@ public class ServerAdapterTests
     }
 
     [Fact]
+    public void AdministratorsAreMarked()
+    {
+        var peach = new User("Peach", "provider", "reset");
+        peach.SetPermission(PermissionKind.IsAdministrator, true);
+        var toad = new User("Toad", "provider", "reset");
+        var (manager, stub) = InterfaceStub<IUserManager>.Create();
+        stub.Handlers["GetUsers"] = _ => new[] { peach, toad };
+        stub.Handlers["GetUserById"] = args => (Guid)args[0]! == peach.Id ? peach : null;
+        var directory = new JellyfinUserDirectory(manager);
+
+        Assert.Equal(
+            new[] { new UserRef(peach.Id, "Peach", true, true, IsAdmin: true), new UserRef(toad.Id, "Toad", true, true) },
+            directory.GetUsers());
+        Assert.True(directory.GetUser(peach.Id)!.IsAdmin);
+    }
+
+    [Fact]
     public void ParticipantsComeFromSyncPlay()
     {
         var group = Guid.NewGuid();
