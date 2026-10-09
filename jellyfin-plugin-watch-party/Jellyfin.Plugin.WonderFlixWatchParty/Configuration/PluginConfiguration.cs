@@ -24,4 +24,27 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>Segreto che Seerr mette nel corpo del webhook (spec I §7.5).</summary>
     public string SeerrWebhookSecret { get; set; } = string.Empty;
+
+    /// <summary>Token del bot Discord dei codici di recupero (spec L §7.1). Il file lo leggono solo gli admin.</summary>
+    public string DiscordBotToken { get; set; } = string.Empty;
+
+    /// <summary>Id del server Discord dove si cercano i membri.</summary>
+    public string DiscordGuildId { get; set; } = string.Empty;
+
+    /// <summary>Server SMTP delle email di recupero.</summary>
+    public string SmtpHost { get; set; } = string.Empty;
+
+    /// <summary>Porta SMTP con STARTTLS (di solito 587).</summary>
+    public int SmtpPort { get; set; } = 587;
+
+    public string SmtpUser { get; set; } = string.Empty;
+
+    /// <summary>Password SMTP. Il file lo leggono solo gli admin.</summary>
+    public string SmtpPassword { get; set; } = string.Empty;
+
+    /// <summary>Indirizzo del mittente; il nome visualizzato è "WonderFlix".</summary>
+    public string MailFrom { get; set; } = string.Empty;
+
+    /// <summary>Ogni quanti giorni il promemoria a chi non ha contatti; 0 lo spegne.</summary>
+    public int ContactReminderDays { get; set; } = 14;
 }
