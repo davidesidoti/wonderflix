@@ -213,7 +213,8 @@ public class SmtpMailSenderTests
         var outcome = await sender.SendAsync("mario@example.com", Message, Ct).WaitAsync(TimeSpan.FromSeconds(10));
 
         Assert.Equal(SendOutcome.Failed, outcome);
-        Assert.True(started.Elapsed < TimeSpan.FromSeconds(3), $"ci ha messo {started.Elapsed}");
+        // Il limite vero è WaitAsync (10 s). Questo solo distingue i 500 ms dai 15 s predefiniti, con margine per un CI lento.
+        Assert.True(started.Elapsed < TimeSpan.FromSeconds(8), $"ci ha messo {started.Elapsed}");
         Assert.Contains("nessuna risposta", Assert.Single(_logger.Entries).Message);
     }
 

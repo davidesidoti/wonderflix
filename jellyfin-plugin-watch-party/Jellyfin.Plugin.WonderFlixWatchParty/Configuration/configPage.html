@@ -135,6 +135,7 @@
                     <h3 class="sectionTitle">Password recovery test</h3>
                     <div class="fieldDescription">
                         Sends a test message to your own linked contacts, or to the Discord user name and the e-mail below.
+                        Save first: the test uses the saved settings.
                     </div>
                     <div class="inputContainer">
                         <input is="emby-input" type="text" id="WonderFlixTestDiscord" label="Discord user name (optional)" autocomplete="off" />
@@ -474,7 +475,7 @@
                     NoContact: 'link your own contact in WonderFlix first, or fill the field above',
                     Invalid: 'bot token or server ID refused',
                     MemberNotFound: 'nobody with that user name in the server',
-                    InvalidTarget: 'not a valid address',
+                    InvalidTarget: 'not a valid user name or address',
                     DmClosed: 'the bot can\'t write to that user (direct messages closed)',
                     SendFailed: 'sending failed: check the settings and the Jellyfin log'
                 };

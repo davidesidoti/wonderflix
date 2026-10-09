@@ -78,6 +78,32 @@ public sealed class InboxContactReminderTests : IDisposable
         Assert.Equal(InboxEntryTypes.Announcement, Assert.Single(book.List(userId)).Type);
     }
 
+    // true quando la voce è nella cassetta, anche se l'avviso alle sessioni non è partito; false se non è stata scritta.
+    [Fact]
+    public async Task ItSaysWhetherTheReminderWasWritten()
+    {
+        Assert.True(await _inbox.AddContactReminderAsync(_mario.Id, ["Discord"]));
+        Assert.Single(_inbox.Get(_mario.Id).Entries);
+
+        var (directory, stub) = InterfaceStub<ISessionDirectory>.Create();
+        stub.Handlers["GetAppSessions"] = _ => throw new InvalidOperationException("sessioni non disponibili");
+        var noisy = new InboxService(
+            new InboxStore(Path.Combine(_folder.Path, "noisy", "inbox.json"), NullLogger<InboxStore>.Instance),
+            _server, directory, _server, _server, _time, NullLogger<InboxService>.Instance);
+        Assert.True(await noisy.AddContactReminderAsync(_mario.Id, ["Discord"]));
+        Assert.Single(noisy.Get(_mario.Id).Entries);
+
+        var broken = new InboxService(
+            new InboxStore(Path.Combine(_folder.Path, "broken", "inbox.json"), NullLogger<InboxStore>.Instance),
+            _server, _server, _server, _server, new ThrowingTime(), NullLogger<InboxService>.Instance);
+        Assert.False(await broken.AddContactReminderAsync(_mario.Id, ["Discord"]));
+    }
+
+    private sealed class ThrowingTime : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => throw new InvalidOperationException("orologio");
+    }
+
     // Un errore dell'avviso non esce, e nel registro l'id dell'utente è senza trattini come in tutto il recupero.
     [Fact]
     public async Task TheWarningsHaveTheUserIdWithoutDashes()

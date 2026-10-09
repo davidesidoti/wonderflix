@@ -141,7 +141,7 @@ public sealed class PasswordRecoveryTests : IDisposable
     public async Task ARequestRefusedByTheNameLimitsDoesNotSpendTheBudgetOfEveryone()
     {
         // Il minuto di "mario" è già preso: le sue richieste sono rifiutate e non devono consumare le trenta di tutti.
-        Assert.True(_rig.Limiter.TryAcquire("mario", LimitTypes.RecoveryStartMinute));
+        Assert.True(_rig.Limiter.TryAcquire("MARIO", LimitTypes.RecoveryStartMinute));
         for (var i = 0; i < 40; i++)
         {
             Assert.Equal(AccountError.RateLimited, _recovery.Start("mario", "it").Error);
@@ -153,6 +153,22 @@ public sealed class PasswordRecoveryTests : IDisposable
         }
 
         Assert.Equal(AccountError.RateLimited, _recovery.Start("altro", "it").Error);
+    }
+
+    // Jellyfin trova l'utente con OrdinalIgnoreCase, che confronta le lettere maiuscole: la chiave dei limiti deve
+    // essere la stessa per tutti i modi di scrivere lo stesso nome. Il sigma finale e quello normale sono la stessa
+    // lettera per quel confronto, ma ToLowerInvariant le tiene diverse: due chiavi, e il limite del nome si aggira.
+    [Fact]
+    public async Task TheNameLimitKeyMatchesTheCaseInsensitiveUserMatch()
+    {
+        Assert.Equal(0, string.Compare("μαριοσ", "μαριος", StringComparison.OrdinalIgnoreCase));
+
+        var first = _recovery.Start("μαριοσ", "it");
+        Assert.Null(first.Error);
+        await first.Sending;
+
+        Assert.Equal(AccountError.RateLimited, _recovery.Start("μαριος", "it").Error);
+        Assert.Equal(AccountError.RateLimited, _recovery.Start("ΜΑΡΙΟΣ", "it").Error);
     }
 
     [Fact]
@@ -169,8 +185,8 @@ public sealed class PasswordRecoveryTests : IDisposable
             Assert.Equal(AccountError.RateLimited, _recovery.Start("mario", "it").Error);
         }
 
-        Assert.False(_rig.Limiter.IsLimited("mario", LimitTypes.RecoveryStartMinute));
-        Assert.False(_rig.Limiter.IsLimited("mario", LimitTypes.RecoveryStartHour));
+        Assert.False(_rig.Limiter.IsLimited("MARIO", LimitTypes.RecoveryStartMinute));
+        Assert.False(_rig.Limiter.IsLimited("MARIO", LimitTypes.RecoveryStartHour));
         _rig.Time.Advance(TimeSpan.FromHours(1));
         for (var i = 0; i < 5; i++)
         {

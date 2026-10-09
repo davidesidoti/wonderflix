@@ -46,7 +46,7 @@ public class AccountAdminController(
         return result.Value!;
     }
 
-    /// <summary>Toglie Discord ed email dell'utente e annulla un codice di recupero già mandato; 204.</summary>
+    /// <summary>Toglie Discord ed email dell'utente e annulla i codici già mandati (di recupero e di collegamento); 204.</summary>
     [HttpDelete("Users/{userId}/Contacts")]
     public async Task<ActionResult> Unlink([FromRoute] string userId)
     {

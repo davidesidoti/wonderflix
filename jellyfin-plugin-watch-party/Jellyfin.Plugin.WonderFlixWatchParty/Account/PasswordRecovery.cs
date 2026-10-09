@@ -276,7 +276,10 @@ public sealed class PasswordRecovery(
         return string.IsNullOrEmpty(name) || name.Length > MaxUsernameLength ? null : name;
     }
 
-    private static string Key(string name) => name.ToLowerInvariant();
+    // Maiuscolo e non minuscolo: Jellyfin trova l'utente con OrdinalIgnoreCase, che confronta le maiuscole, e
+    // ToLowerInvariant tiene diverse lettere che per quel confronto sono uguali (il sigma finale e quello normale).
+    // Con due chiavi per lo stesso utente il limite del nome si aggirerebbe scrivendolo in un altro modo.
+    private static string Key(string name) => name.ToUpperInvariant();
 
     private static RecoveryCompleteResult Done(AccountError error) => new(error, Task.CompletedTask);
 }

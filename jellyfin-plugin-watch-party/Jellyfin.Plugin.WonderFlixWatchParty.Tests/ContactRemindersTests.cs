@@ -1,6 +1,7 @@
 using Jellyfin.Plugin.WonderFlixWatchParty.Account;
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
@@ -77,6 +78,50 @@ public sealed class ContactRemindersTests : IDisposable
         Assert.Equal(new[] { "Discord" }, Assert.Single(RemindersOf(_mario)).Channels);
         // Luigi ha il Discord, e Discord è acceso.
         Assert.Empty(RemindersOf(_rig.Server.Users.Values.Single(u => u.Name == "Luigi")));
+    }
+
+    // Una voce non scritta non conta come promemoria mandato: non si segna, e al giro dopo si riprova.
+    [Fact]
+    public async Task AReminderThatWasNotWrittenIsNotMarked()
+    {
+        var broken = new InboxService(
+            new InboxStore(_rig.Folder.InboxFile, NullLogger<InboxStore>.Instance),
+            _rig.Server, _rig.Server, _rig.Server, _rig.Server, new ThrowingTime(), NullLogger<InboxService>.Instance);
+        var reminders = new ContactReminders(_rig.Server, _rig.Contacts, broken, _rig.Settings, _rig.Time, NullLogger<ContactReminders>.Instance);
+
+        Assert.Equal(0, await reminders.RunAsync());
+
+        Assert.Null(_rig.Contacts.Get(_mario.Id).LastReminderAt);
+        Assert.Equal(1, await _reminders.RunAsync());
+        Assert.Single(RemindersOf(_mario));
+    }
+
+    // Un collegamento arrivato a metà giro: Mario collega il Discord mentre la voce viene scritta, e la sua
+    // conferma ha tolto i promemoria prima che questo giro scrivesse il suo. Il giro lo toglie da sé.
+    [Fact]
+    public async Task ALinkThatArrivesHalfwayRemovesTheReminderJustWritten()
+    {
+        var (sessions, stub) = InterfaceStub<ISessionDirectory>.Create();
+        stub.Handlers["GetAppSessions"] = _ =>
+        {
+            _rig.Contacts.SetDiscord(
+                _mario.Id, new DiscordContact { Id = "555555555555555555", Name = "mario", VerifiedAt = _rig.Time.GetUtcNow() });
+            return new List<CallerSession>();
+        };
+        var inbox = new InboxService(
+            new InboxStore(_rig.Folder.InboxFile, NullLogger<InboxStore>.Instance),
+            _rig.Server, sessions, _rig.Server, _rig.Server, _rig.Time, NullLogger<InboxService>.Instance);
+        var reminders = new ContactReminders(_rig.Server, _rig.Contacts, inbox, _rig.Settings, _rig.Time, NullLogger<ContactReminders>.Instance);
+
+        await reminders.RunAsync();
+
+        Assert.True(_rig.Contacts.Get(_mario.Id).HasContact);
+        Assert.DoesNotContain(inbox.Get(_mario.Id).Entries, e => e.Type == InboxEntryTypes.ContactReminder);
+    }
+
+    private sealed class ThrowingTime : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => throw new InvalidOperationException("orologio");
     }
 
     [Fact]

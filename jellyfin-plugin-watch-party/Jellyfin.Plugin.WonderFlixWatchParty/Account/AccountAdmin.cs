@@ -58,9 +58,9 @@ public sealed class AccountAdmin(
     }
 
     /// <summary>
-    /// Toglie tutti i contatti di un utente e annulla un codice di recupero
-    /// già mandato; UnknownUser se Jellyfin non lo conosce. L'admin che l'ha
-    /// fatto finisce nel registro.
+    /// Toglie tutti i contatti di un utente e annulla i codici già mandati
+    /// (di recupero e di collegamento); UnknownUser se Jellyfin non lo
+    /// conosce. L'admin che l'ha fatto finisce nel registro.
     /// </summary>
     public AccountError? Unlink(Guid userId, Guid adminId)
     {
@@ -72,7 +72,10 @@ public sealed class AccountAdmin(
         contacts.RemoveAll(userId);
 
         // Scollegare è lo strumento per "questo contatto è compromesso": annulla anche un codice già mandato lì.
+        // Un contatto compromesso non si ricollega con un codice già partito: valgono anche i codici di verifica.
         codes.Discard(userId, CodePurpose.Recovery);
+        codes.Discard(userId, CodePurpose.VerifyDiscord);
+        codes.Discard(userId, CodePurpose.VerifyEmail);
         logger.LogInformation(
             "Contatti di {UserId} scollegati dall'admin {AdminId}", userId.ToString("N"), AdminCaller.Describe(adminId));
         return null;
@@ -142,15 +145,18 @@ public sealed class AccountAdmin(
         var target = mine.Discord?.Id;
         if (!string.IsNullOrWhiteSpace(name))
         {
+            // Un nome scritto male non è un nome Discord: come l'email non valida, è un obiettivo non valido.
             var cleaned = ContactLinking.CleanDiscordName(name);
             if (cleaned is null)
             {
-                return AccountTestCodes.MemberNotFound;
+                return AccountTestCodes.InvalidTarget;
             }
 
             var lookup = await discord.FindMemberAsync(cleaned, cancellationToken).ConfigureAwait(false);
             if (lookup.Failed)
             {
+                // Come quando si collega un contatto: una ricerca che fallisce è un errore del canale.
+                sender.Record(AccountChannel.Discord, SendOutcome.Failed);
                 return AccountTestCodes.SendFailed;
             }
 

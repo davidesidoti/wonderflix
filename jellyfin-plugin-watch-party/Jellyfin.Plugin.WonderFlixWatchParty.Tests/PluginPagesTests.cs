@@ -51,6 +51,9 @@ public class PluginPagesTests
         Assert.True(html.IndexOf("id=\"WonderFlixRecoveryTest\"", StringComparison.Ordinal) > formEnd);
         Assert.True(html.IndexOf("id=\"WonderFlixRecoveryResult\"", StringComparison.Ordinal) > formEnd);
         Assert.Contains("Password recovery test", html);
+        // La prova usa le impostazioni salvate; un nome Discord scritto male è un "target non valido" come l'email.
+        Assert.Contains("Save first: the test uses the saved settings.", html);
+        Assert.Contains("InvalidTarget: 'not a valid user name or address'", html);
 
         // Un campo numerico vuoto non si salva con un valore a caso: serve "required", e il ripiego è il valore appena letto.
         Assert.Contains(" required", TagWithId(html, "WonderFlixSmtpPort"));

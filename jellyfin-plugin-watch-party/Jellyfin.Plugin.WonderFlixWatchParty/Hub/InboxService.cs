@@ -202,10 +202,12 @@ public sealed class InboxService(
     /// <summary>
     /// Il promemoria "Proteggi il tuo account" (spec L §7.7): sostituisce
     /// quello di prima, quindi ce n'è sempre uno solo. Non lancia: un errore
-    /// finisce nel log.
+    /// finisce nel log. Restituisce true quando la voce è nella cassetta (anche
+    /// se l'avviso alle sessioni non è partito), false se non è stata scritta.
     /// </summary>
-    public async Task AddContactReminderAsync(Guid userId, IReadOnlyList<string> channels)
+    public async Task<bool> AddContactReminderAsync(Guid userId, IReadOnlyList<string> channels)
     {
+        var written = false;
         try
         {
             var now = time.GetUtcNow();
@@ -221,12 +223,15 @@ public sealed class InboxService(
                 Persist();
             }
 
+            written = true;
             await NotifyAsync([userId]).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(ex, "Promemoria dei contatti non creato per {UserId}", userId.ToString("N"));
         }
+
+        return written;
     }
 
     /// <summary>Toglie i promemoria dei contatti (un contatto è stato verificato). Non lancia.</summary>

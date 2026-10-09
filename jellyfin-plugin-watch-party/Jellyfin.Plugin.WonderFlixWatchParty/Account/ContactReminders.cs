@@ -58,9 +58,21 @@ public sealed class ContactReminders(
                 continue;
             }
 
-            await inbox.AddContactReminderAsync(user.Id, names).ConfigureAwait(false);
+            // Una voce non scritta non si segna: al giro dopo si riprova.
+            if (!await inbox.AddContactReminderAsync(user.Id, names).ConfigureAwait(false))
+            {
+                continue;
+            }
+
             contacts.MarkReminded(user.Id, now);
             sent++;
+
+            // Un collegamento arrivato a metà giro: la sua conferma ha tolto i promemoria prima che questo
+            // giro scrivesse il suo. Se adesso c'è un contatto raggiungibile, la voce appena scritta va tolta.
+            if (settings.HasReachableContact(contacts.Get(user.Id)))
+            {
+                await inbox.RemoveContactRemindersAsync(user.Id).ConfigureAwait(false);
+            }
         }
 
         if (sent > 0)

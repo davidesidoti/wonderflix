@@ -70,6 +70,54 @@ public class AccountSettingsTests
         Assert.Equal(0, read.ContactReminderDays);
     }
 
+    // Il file XML di un server con il plugin 1.5.0: ci sono solo i nuovi titoli e Seerr.
+    private const string Xml150 = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <PluginConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+          <NotifyNewTitles>false</NotifyNewTitles>
+          <SeerrUrl>https://example.com/seerr</SeerrUrl>
+          <SeerrApiKey>chiave-seerr</SeerrApiKey>
+          <SeerrWebhookSecret>segreto-seerr</SeerrWebhookSecret>
+        </PluginConfiguration>
+        """;
+
+    private static PluginConfiguration ReadXml(string xml)
+    {
+        // Come fa Jellyfin: XmlSerializer sul testo del file.
+        using var reader = new StringReader(xml);
+        return (PluginConfiguration)new XmlSerializer(typeof(PluginConfiguration)).Deserialize(reader)!;
+    }
+
+    [Fact]
+    public void AnXmlFromVersion150KeepsItsValuesAndGetsTheNewDefaults()
+    {
+        var read = ReadXml(Xml150);
+
+        Assert.False(read.NotifyNewTitles);
+        Assert.Equal("https://example.com/seerr", read.SeerrUrl);
+        Assert.Equal("chiave-seerr", read.SeerrApiKey);
+        Assert.Equal("segreto-seerr", read.SeerrWebhookSecret);
+        Assert.Equal(587, read.SmtpPort);
+        Assert.Equal(14, read.ContactReminderDays);
+        Assert.Equal(string.Empty, read.DiscordBotToken);
+        Assert.Equal(string.Empty, read.SmtpHost);
+    }
+
+    // È quello che fa la prova sul server: una riga aggiunta con sed prima della chiusura.
+    [Fact]
+    public void TheReminderLineAddedBeforeTheClosingTagIsRead()
+    {
+        var edited = Xml150.Replace(
+            "</PluginConfiguration>", "  <ContactReminderDays>0</ContactReminderDays>\n</PluginConfiguration>", StringComparison.Ordinal);
+
+        var read = ReadXml(edited);
+
+        Assert.Equal(0, read.ContactReminderDays);
+        Assert.Equal("chiave-seerr", read.SeerrApiKey);
+        Assert.Equal(587, read.SmtpPort);
+        Assert.False(read.NotifyNewTitles);
+    }
+
     [Fact]
     public void BothChannelsWhenEverythingIsThere()
     {

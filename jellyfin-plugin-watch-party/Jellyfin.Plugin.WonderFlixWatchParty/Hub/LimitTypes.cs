@@ -3,7 +3,7 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 /// <summary>
 /// Limiti che non sono tipi di evento (spec F §6.9, spec L §7.5). La chiave
 /// passata a <see cref="RateLimiter.TryAcquire"/> è l'id dell'utente
-/// (formato "N"); per il recupero è il nome scritto (in minuscolo), e "*"
+/// (formato "N"); per il recupero è il nome scritto (in maiuscolo), e "*"
 /// per i limiti di tutti.
 /// </summary>
 public static class LimitTypes
@@ -52,7 +52,10 @@ public static class LimitTypes
     /// </summary>
     public const string RecoveryFailGlobal = "RecoveryFailGlobal";
 
-    /// <summary>Codici per collegare un contatto, per utente: uno al minuto.</summary>
+    /// <summary>
+    /// Codici per collegare un contatto, per utente e canale: uno al minuto.
+    /// Si spende solo quando parte un codice, quindi un nome sbagliato si riscrive subito.
+    /// </summary>
     public const string LinkStartMinute = "LinkStartMinute";
 
     /// <summary>Codici per collegare un contatto, per utente: cinque all'ora.</summary>

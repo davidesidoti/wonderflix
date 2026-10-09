@@ -70,6 +70,26 @@ public sealed class AccountAdminTests : IDisposable
         Assert.Empty(_rig.Passwords.Calls);
     }
 
+    // Un contatto compromesso non si ricollega con un codice già partito: lo scollegamento annulla anche quelli di verifica.
+    [Fact]
+    public async Task UnlinkCancelsThePendingLinkCodesToo()
+    {
+        var mario = _rig.UserWithContacts("Mario");
+        var (discordCode, _) = _rig.Codes.Issue(mario.Id, CodePurpose.VerifyDiscord, new PendingContact("333333333333333333", "intruso"));
+        var (emailCode, _) = _rig.Codes.Issue(mario.Id, CodePurpose.VerifyEmail, new PendingContact("intruso@example.com", null));
+        _rig.Codes.Issue(mario.Id, CodePurpose.Recovery);
+        _rig.Codes.Issue(Guid.NewGuid(), CodePurpose.VerifyEmail, new PendingContact("altro@example.com", null));
+
+        Assert.Null(_admin.Unlink(mario.Id, AdminId));
+
+        // Resta solo il codice di un altro utente.
+        Assert.Equal(1, _rig.Codes.Count);
+        var linking = _rig.Linking();
+        Assert.Equal(AccountError.InvalidCode, (await linking.ConfirmAsync(mario.Id, AccountChannel.Discord, discordCode)).Error);
+        Assert.Equal(AccountError.InvalidCode, (await linking.ConfirmAsync(mario.Id, AccountChannel.Email, emailCode)).Error);
+        Assert.False(_rig.Contacts.Get(mario.Id).HasContact);
+    }
+
     [Fact]
     public void AnUnknownUserLeavesTheCodesAlone()
     {
@@ -199,9 +219,14 @@ public sealed class AccountAdminTests : IDisposable
         Assert.Equal(
             new AccountTestResponse("MemberNotFound", "InvalidTarget"),
             await _admin.TestAsync(Guid.Empty, "it", "luigi", "luigi", Ct));
-        Assert.Equal("MemberNotFound", (await _admin.TestAsync(Guid.Empty, "it", "nome con spazi", null, Ct)).Discord);
+        // Un nome scritto male non è un nome Discord (come l'email non valida): niente ricerca, niente errore del canale.
+        Assert.Equal("InvalidTarget", (await _admin.TestAsync(Guid.Empty, "it", "nome con spazi", null, Ct)).Discord);
+        Assert.Null(_rig.Sender.LastError(AccountChannel.Discord));
+
+        // Una ricerca che fallisce è un errore del canale, come quando si collega un contatto.
         _rig.Discord.SearchFails = true;
         Assert.Equal("SendFailed", (await _admin.TestAsync(Guid.Empty, "it", "davide", null, Ct)).Discord);
+        Assert.Equal("SendFailed", _rig.Sender.LastError(AccountChannel.Discord)!.Code);
     }
 
     [Fact]
