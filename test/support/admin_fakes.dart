@@ -4,6 +4,7 @@ import 'package:wonderflix/core/jellyfin/admin_api.dart';
 import 'package:wonderflix/core/jellyfin/admin_models.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/maintenance_models.dart';
+import 'package:wonderflix/core/social/account_models.dart';
 import 'package:wonderflix/core/social/plugin_admin_api.dart';
 import 'package:wonderflix/core/social/plugin_admin_models.dart';
 import 'package:wonderflix/features/admin/admin_providers.dart';
@@ -221,6 +222,46 @@ final testSeerrStatus = SeerrAdminStatus(
   lastEventType: 'MEDIA_PENDING',
 );
 
+/// Gli utenti della scheda Utenti, in ordine di nome: garg (Discord ed
+/// email), lucia (senza contatti), Mario (l'admin del test, con Discord) e
+/// vecchio (disattivato, con l'email).
+List<AdminAccountUser> testAccountUsers() => const [
+      AdminAccountUser(
+          id: 'u2',
+          name: 'garg',
+          isAdmin: false,
+          enabled: true,
+          discordName: 'garg',
+          maskedEmail: 'g•••@example.com'),
+      AdminAccountUser(id: 'u3', name: 'lucia', isAdmin: false, enabled: true),
+      AdminAccountUser(
+          id: 'u1',
+          name: 'Mario',
+          isAdmin: true,
+          enabled: true,
+          discordName: 'mario_d'),
+      AdminAccountUser(
+          id: 'u4',
+          name: 'vecchio',
+          isAdmin: false,
+          enabled: false,
+          maskedEmail: 'v•••@example.com'),
+    ];
+
+/// Lo stato del recupero: Discord configurato con un ultimo errore (DM
+/// chiusi), email non configurata, 5 utenti su 23 con un contatto,
+/// promemoria ogni 14 giorni.
+final testAccountStatus = AccountAdminStatus(
+  discord: AccountChannelStatus(
+      configured: true,
+      lastError:
+          AccountSendError(at: DateTime.utc(2026, 10, 9, 8), code: 'DmClosed')),
+  email: const AccountChannelStatus(configured: false),
+  withContacts: 5,
+  users: 23,
+  reminderDays: 14,
+);
+
 /// Il plugin finto per la scheda WonderFlix.
 class FakePluginAdminApi implements PluginAdminApi {
   NewTitlesStatus newTitlesValue = const NewTitlesStatus(enabled: true, pending: 3);
@@ -230,15 +271,29 @@ class FakePluginAdminApi implements PluginAdminApi {
   SeerrAdminStatus? seerrValue = testSeerrStatus;
   SeerrTestResult testValue = const SeerrTestResult(ok: true, version: '3.4.1');
   int announceRecipients = 12;
+  List<AdminAccountUser> accountUsersValue = testAccountUsers();
+  AccountAdminStatus accountStatusValue = testAccountStatus;
+  AccountTestResult accountTestValue =
+      const AccountTestResult(discord: 'Ok', email: 'NoContact');
+
+  /// I canali dove arriva il codice mandato dall'admin.
+  List<AccountChannel> recoveryChannels = const [
+    AccountChannel.discord,
+    AccountChannel.email,
+  ];
 
   Object? newTitlesError;
   Object? seerrError;
+  Object? accountUsersError;
+  Object? accountStatusError;
 
-  /// Errore delle azioni: annuncio, interruttore, "Invia ora", prova.
+  /// Errore delle azioni: annuncio, interruttore, "Invia ora", prova di
+  /// Seerr, e le azioni del recupero: codice, scollegamento, prova.
   Object? actionError;
 
   /// Chiamate in ordine: `announce:<testo>`, `newTitles`, `send`, `seerr`,
-  /// `test`, `notify:<true|false>`.
+  /// `test`, `notify:<true|false>`, `accountUsers`, `accountStatus`,
+  /// `recovery:<id>:<lingua>`, `unlink:<id>`, `accountTest:<lingua>`.
   final calls = <String>[];
 
   int count(String call) => calls.where((c) => c == call).length;
@@ -291,6 +346,47 @@ class FakePluginAdminApi implements PluginAdminApi {
     if (error != null) throw error;
     newTitlesValue =
         NewTitlesStatus(enabled: enabled, pending: newTitlesValue.pending);
+  }
+
+  @override
+  Future<List<AdminAccountUser>> accountUsers() async {
+    calls.add('accountUsers');
+    final error = accountUsersError;
+    if (error != null) throw error;
+    return accountUsersValue;
+  }
+
+  @override
+  Future<List<AccountChannel>> sendRecoveryCode(String userId,
+      {required String language}) async {
+    calls.add('recovery:$userId:$language');
+    final error = actionError;
+    if (error != null) throw error;
+    return recoveryChannels;
+  }
+
+  @override
+  Future<void> unlinkContacts(String userId) async {
+    calls.add('unlink:$userId');
+    final error = actionError;
+    if (error != null) throw error;
+  }
+
+  @override
+  Future<AccountAdminStatus> accountStatus() async {
+    calls.add('accountStatus');
+    final error = accountStatusError;
+    if (error != null) throw error;
+    return accountStatusValue;
+  }
+
+  @override
+  Future<AccountTestResult> testAccountChannels(
+      {required String language}) async {
+    calls.add('accountTest:$language');
+    final error = actionError;
+    if (error != null) throw error;
+    return accountTestValue;
   }
 }
 
