@@ -26,6 +26,13 @@ public static class LimitTypes
     /// <summary>Richieste di recupero per nome scritto: cinque all'ora.</summary>
     public const string RecoveryStartHour = "RecoveryStartHour";
 
+    /// <summary>
+    /// Richieste di recupero per nome scritto: dieci al giorno. Frena i codici
+    /// a raffica mandati a una persona e il consumo della quota del servizio
+    /// email.
+    /// </summary>
+    public const string RecoveryStartDay = "RecoveryStartDay";
+
     /// <summary>Richieste di recupero di tutti insieme (chiave "*").</summary>
     public const string RecoveryStartGlobal = "RecoveryStartGlobal";
 

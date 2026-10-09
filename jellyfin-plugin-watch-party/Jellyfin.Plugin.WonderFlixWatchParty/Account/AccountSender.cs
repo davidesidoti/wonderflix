@@ -41,22 +41,9 @@ public sealed class AccountSender(IDiscordSender discord, IMailSender mail, IAcc
         return outcome;
     }
 
-    /// <summary>I contatti dell'utente sui canali configurati, nell'ordine Discord, Email.</summary>
-    public IReadOnlyList<(AccountChannel Channel, string Target)> Targets(UserContacts contacts)
-    {
-        var targets = new List<(AccountChannel, string)>();
-        if (contacts.Discord is { } discordContact && settings.IsDiscordConfigured())
-        {
-            targets.Add((AccountChannel.Discord, discordContact.Id));
-        }
-
-        if (contacts.Email is { } emailContact && settings.IsEmailConfigured())
-        {
-            targets.Add((AccountChannel.Email, emailContact.Address));
-        }
-
-        return targets;
-    }
+    /// <summary>I contatti dell'utente sui canali configurati, nell'ordine Discord, Email (la stessa regola di <c>HasReachableContact</c>).</summary>
+    public IReadOnlyList<(AccountChannel Channel, string Target)> Targets(UserContacts contacts) =>
+        settings.ReachableTargets(contacts);
 
     /// <summary>
     /// Un messaggio a tutti i contatti dell'utente; restituisce i canali dove è

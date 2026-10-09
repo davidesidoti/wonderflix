@@ -109,6 +109,7 @@ public class RateLimiterTests
     [Theory]
     [InlineData(LimitTypes.RecoveryStartMinute, 1, 1)]
     [InlineData(LimitTypes.RecoveryStartHour, 5, 60)]
+    [InlineData(LimitTypes.RecoveryStartDay, 10, 1440)]
     [InlineData(LimitTypes.RecoveryStartGlobal, 30, 60)]
     [InlineData(LimitTypes.RecoveryFail, 10, 60)]
     [InlineData(LimitTypes.RecoveryFailDay, 20, 1440)]

@@ -35,7 +35,9 @@ public class AccountAdminController(
             return AccountErrors.Result(AccountError.UnknownUser);
         }
 
-        var result = await recovery.SendForAdminAsync(id, request?.Language, HttpContext.RequestAborted).ConfigureAwait(false);
+        var result = await recovery.SendForAdminAsync(
+                id, await CallerAsync().ConfigureAwait(false), request?.Language, HttpContext.RequestAborted)
+            .ConfigureAwait(false);
         if (result.Error is { } error)
         {
             return AccountErrors.Result(error);
@@ -44,16 +46,18 @@ public class AccountAdminController(
         return result.Value!;
     }
 
-    /// <summary>Toglie Discord ed email dell'utente; 204.</summary>
+    /// <summary>Toglie Discord ed email dell'utente e annulla un codice di recupero già mandato; 204.</summary>
     [HttpDelete("Users/{userId}/Contacts")]
-    public ActionResult Unlink([FromRoute] string userId)
+    public async Task<ActionResult> Unlink([FromRoute] string userId)
     {
         if (!Guid.TryParse(userId, out var id))
         {
             return AccountErrors.Result(AccountError.UnknownUser);
         }
 
-        return admin.Unlink(id) is { } error ? AccountErrors.Result(error) : NoContent();
+        return admin.Unlink(id, await CallerAsync().ConfigureAwait(false)) is { } error
+            ? AccountErrors.Result(error)
+            : NoContent();
     }
 
     [HttpGet("Status")]
@@ -63,8 +67,11 @@ public class AccountAdminController(
     [HttpPost("Test")]
     public async Task<ActionResult<AccountTestResponse>> Test([FromBody] AccountTestRequest? request)
     {
-        var caller = (await authorizationContext.GetAuthorizationInfo(HttpContext).ConfigureAwait(false)).UserId;
-        return await admin.TestAsync(caller, request?.Language, request?.Discord, request?.Email, HttpContext.RequestAborted)
+        return await admin.TestAsync(
+                await CallerAsync().ConfigureAwait(false), request?.Language, request?.Discord, request?.Email, HttpContext.RequestAborted)
             .ConfigureAwait(false);
     }
+
+    private async Task<Guid> CallerAsync() =>
+        (await authorizationContext.GetAuthorizationInfo(HttpContext).ConfigureAwait(false)).UserId;
 }

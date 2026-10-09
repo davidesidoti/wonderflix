@@ -1,5 +1,6 @@
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Account;
 
@@ -29,9 +30,11 @@ public static class AccountTestCodes
 public sealed class AccountAdmin(
     IUserDirectory users,
     ContactRegistry contacts,
+    CodeBook codes,
     AccountSender sender,
     IDiscordSender discord,
-    IAccountSettings settings)
+    IAccountSettings settings,
+    ILogger<AccountAdmin> logger)
 {
     /// <summary>Tutti gli utenti per nome, con i loro contatti.</summary>
     public List<AdminUserDto> Users()
@@ -54,8 +57,12 @@ public sealed class AccountAdmin(
             .ToList();
     }
 
-    /// <summary>Toglie tutti i contatti di un utente; UnknownUser se Jellyfin non lo conosce.</summary>
-    public AccountError? Unlink(Guid userId)
+    /// <summary>
+    /// Toglie tutti i contatti di un utente e annulla un codice di recupero
+    /// già mandato; UnknownUser se Jellyfin non lo conosce. L'admin che l'ha
+    /// fatto finisce nel registro.
+    /// </summary>
+    public AccountError? Unlink(Guid userId, Guid adminId)
     {
         if (users.GetUser(userId) is null)
         {
@@ -63,18 +70,25 @@ public sealed class AccountAdmin(
         }
 
         contacts.RemoveAll(userId);
+
+        // Scollegare è lo strumento per "questo contatto è compromesso": annulla anche un codice già mandato lì.
+        codes.Discard(userId, CodePurpose.Recovery);
+        logger.LogInformation(
+            "Contatti di {UserId} scollegati dall'admin {AdminId}", userId.ToString("N"), adminId.ToString("N"));
         return null;
     }
 
-    /// <summary>I canali e quanti utenti attivi e non admin hanno almeno un contatto.</summary>
+    /// <summary>I canali e quanti utenti attivi e non admin hanno almeno un contatto raggiungibile.</summary>
     public AccountStatusResponse Status()
     {
         var all = contacts.All();
         var eligible = users.GetUsers().Where(u => u.Enabled && !u.IsAdmin).ToList();
+
+        // Un contatto su un canale spento non serve al recupero: non conta.
         return new AccountStatusResponse(
             Channel(AccountChannel.Discord),
             Channel(AccountChannel.Email),
-            eligible.Count(u => all.TryGetValue(u.Id, out var mine) && mine.HasContact),
+            eligible.Count(u => all.TryGetValue(u.Id, out var mine) && settings.HasReachableContact(mine)),
             eligible.Count,
             settings.ContactReminderDays);
     }

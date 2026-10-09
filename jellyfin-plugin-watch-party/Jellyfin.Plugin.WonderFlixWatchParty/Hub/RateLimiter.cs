@@ -22,6 +22,7 @@ public sealed class RateLimiter(TimeProvider time)
             [LimitTypes.Invites] = (20, TimeSpan.FromMinutes(1)),
             [LimitTypes.RecoveryStartMinute] = (1, TimeSpan.FromMinutes(1)),
             [LimitTypes.RecoveryStartHour] = (5, TimeSpan.FromHours(1)),
+            [LimitTypes.RecoveryStartDay] = (10, TimeSpan.FromHours(24)),
             [LimitTypes.RecoveryStartGlobal] = (30, TimeSpan.FromHours(1)),
             [LimitTypes.RecoveryFail] = (10, TimeSpan.FromHours(1)),
             [LimitTypes.RecoveryFailDay] = (20, TimeSpan.FromHours(24)),

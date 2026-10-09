@@ -9,9 +9,17 @@ internal static class FakeCodes
     public static string In(string text) => Regex.Match(text, @"\b\d{6}\b").Value;
 }
 
-/// <summary>Il bot Discord finto: membri, esiti degli invii e messaggi mandati.</summary>
+/// <summary>
+/// Il bot Discord finto: membri, esiti degli invii e messaggi mandati. Gli
+/// invii possono arrivare da un altro thread (l'invio in background del
+/// recupero): le liste si scrivono sotto un lucchetto e i test ne leggono una copia.
+/// </summary>
 internal sealed class FakeDiscordSender : IDiscordSender
 {
+    private readonly Lock _lock = new();
+    private readonly List<(string UserId, string Text)> _sent = [];
+    private readonly List<string> _searches = [];
+
     /// <summary>Membri del server per nome utente (senza maiuscole).</summary>
     public Dictionary<string, DiscordMember> Members { get; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -23,15 +31,37 @@ internal sealed class FakeDiscordSender : IDiscordSender
 
     public DiscordCheck Check { get; set; } = DiscordCheck.Ok;
 
-    /// <summary>I messaggi arrivati, in ordine.</summary>
-    public List<(string UserId, string Text)> Sent { get; } = [];
+    /// <summary>I messaggi arrivati, in ordine (una copia di adesso).</summary>
+    public List<(string UserId, string Text)> Sent
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return [.. _sent];
+            }
+        }
+    }
 
-    /// <summary>I nomi cercati, in ordine.</summary>
-    public List<string> Searches { get; } = [];
+    /// <summary>I nomi cercati, in ordine (una copia di adesso).</summary>
+    public List<string> Searches
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return [.. _searches];
+            }
+        }
+    }
 
     public Task<DiscordLookup> FindMemberAsync(string username, CancellationToken cancellationToken)
     {
-        Searches.Add(username);
+        lock (_lock)
+        {
+            _searches.Add(username);
+        }
+
         return Task.FromResult(
             SearchFails ? DiscordLookup.Error
             : Members.TryGetValue(username, out var member) ? DiscordLookup.Found(member)
@@ -43,7 +73,10 @@ internal sealed class FakeDiscordSender : IDiscordSender
         var outcome = Outcomes.GetValueOrDefault(userId, SendOutcome.Sent);
         if (outcome == SendOutcome.Sent)
         {
-            Sent.Add((userId, text));
+            lock (_lock)
+            {
+                _sent.Add((userId, text));
+            }
         }
 
         return Task.FromResult(outcome);
@@ -71,20 +104,36 @@ internal sealed class FakePasswordCheck : IPasswordCheck
     }
 }
 
-/// <summary>Le email finte: esiti per indirizzo e messaggi mandati.</summary>
+/// <summary>Le email finte: esiti per indirizzo e messaggi mandati (scritti sotto un lucchetto, come per Discord).</summary>
 internal sealed class FakeMailSender : IMailSender
 {
+    private readonly Lock _lock = new();
+    private readonly List<(string To, AccountMessage Message)> _sent = [];
+
     /// <summary>Esito degli invii per indirizzo (senza maiuscole); di default Sent.</summary>
     public Dictionary<string, SendOutcome> Outcomes { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-    public List<(string To, AccountMessage Message)> Sent { get; } = [];
+    /// <summary>I messaggi arrivati, in ordine (una copia di adesso).</summary>
+    public List<(string To, AccountMessage Message)> Sent
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return [.. _sent];
+            }
+        }
+    }
 
     public Task<SendOutcome> SendAsync(string to, AccountMessage message, CancellationToken cancellationToken)
     {
         var outcome = Outcomes.GetValueOrDefault(to, SendOutcome.Sent);
         if (outcome == SendOutcome.Sent)
         {
-            Sent.Add((to, message));
+            lock (_lock)
+            {
+                _sent.Add((to, message));
+            }
         }
 
         return Task.FromResult(outcome);
@@ -95,10 +144,23 @@ internal sealed class FakeMailSender : IMailSender
         FakeCodes.In(Sent.Last(s => string.Equals(s.To, to, StringComparison.OrdinalIgnoreCase)).Message.Text);
 }
 
-/// <summary>Il cambio di password finto: registra le chiamate, o lancia Error.</summary>
+/// <summary>Il cambio di password finto: registra le chiamate (sotto un lucchetto), o lancia Error.</summary>
 internal sealed class FakePasswordReset : IPasswordReset
 {
-    public List<(Guid UserId, string Password)> Calls { get; } = [];
+    private readonly Lock _lock = new();
+    private readonly List<(Guid UserId, string Password)> _calls = [];
+
+    /// <summary>Le chiamate fatte, in ordine (una copia di adesso).</summary>
+    public List<(Guid UserId, string Password)> Calls
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return [.. _calls];
+            }
+        }
+    }
 
     public Exception? Error { get; set; }
 
@@ -109,7 +171,11 @@ internal sealed class FakePasswordReset : IPasswordReset
             throw Error;
         }
 
-        Calls.Add((userId, newPassword));
+        lock (_lock)
+        {
+            _calls.Add((userId, newPassword));
+        }
+
         return Task.CompletedTask;
     }
 }

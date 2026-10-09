@@ -37,13 +37,27 @@ public sealed class RecoveryControllerTests : IDisposable
             typeof(RecoveryController).GetCustomAttribute<RouteAttribute>()!.Template);
     }
 
-    [Fact]
-    public void StartAnswers202ThenTooMany()
+    // Il controller non restituisce il lavoro in background (l'invio del codice, l'avviso): lo si aspetta guardando i canali finti.
+    private static async Task UntilAsync(Func<bool> condition)
     {
-        Assert.Equal(202, ActionResults.Status(_controller.Start(new RecoveryStartRequest { Username = "nessuno", Language = "it" })));
-        ActionResults.AssertError(429, "RateLimited", _controller.Start(new RecoveryStartRequest { Username = "nessuno" }));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        while (!condition())
+        {
+            await Task.Delay(10, timeout.Token);
+        }
+    }
+
+    [Fact]
+    public async Task StartAnswers202ThenTooMany()
+    {
+        Assert.Equal(202, ActionResults.Status(_controller.Start(new RecoveryStartRequest { Username = "mario", Language = "it" })));
+        ActionResults.AssertError(429, "RateLimited", _controller.Start(new RecoveryStartRequest { Username = "mario" }));
         ActionResults.AssertError(400, "Invalid", _controller.Start(null));
         ActionResults.AssertError(400, "Invalid", _controller.Start(new RecoveryStartRequest { Username = " " }));
+
+        // Il codice arriva dopo la risposta, in background.
+        await UntilAsync(() => _rig.Discord.Sent.Count == 1 && _rig.Mail.Sent.Count == 1);
+        Assert.Equal(1, _rig.Codes.Count);
     }
 
     [Fact]
@@ -68,5 +82,9 @@ public sealed class RecoveryControllerTests : IDisposable
 
         Assert.Equal(204, ActionResults.Status(done));
         Assert.Equal(new[] { (_mario.Id, "nuova-password") }, _rig.Passwords.Calls);
+
+        // L'avviso "password cambiata" parte dopo la risposta, in background.
+        await UntilAsync(() => _rig.Discord.Sent.Count == 1 && _rig.Mail.Sent.Count == 1);
+        Assert.Contains("è stata cambiata", _rig.Discord.Sent.Single().Text);
     }
 }

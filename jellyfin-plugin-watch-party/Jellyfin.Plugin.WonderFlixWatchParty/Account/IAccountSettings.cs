@@ -62,4 +62,32 @@ public static class AccountSettingsExtensions
     /// <summary>I canali configurati, nell'ordine Discord, Email.</summary>
     public static IReadOnlyList<AccountChannel> Channels(this IAccountSettings settings) =>
         AccountChannels.All.Where(settings.IsConfigured).ToList();
+
+    /// <summary>
+    /// I contatti dell'utente che si possono raggiungere adesso, nell'ordine
+    /// Discord, Email: un contatto su un canale spento non serve al recupero.
+    /// </summary>
+    public static IReadOnlyList<(AccountChannel Channel, string Target)> ReachableTargets(
+        this IAccountSettings settings, UserContacts contacts)
+    {
+        var targets = new List<(AccountChannel, string)>();
+        if (contacts.Discord is { } discordContact && settings.IsDiscordConfigured())
+        {
+            targets.Add((AccountChannel.Discord, discordContact.Id));
+        }
+
+        if (contacts.Email is { } emailContact && settings.IsEmailConfigured())
+        {
+            targets.Add((AccountChannel.Email, emailContact.Address));
+        }
+
+        return targets;
+    }
+
+    /// <summary>
+    /// L'utente ha almeno un contatto raggiungibile adesso. Un contatto su un
+    /// canale spento non serve al recupero: è come non averlo.
+    /// </summary>
+    public static bool HasReachableContact(this IAccountSettings settings, UserContacts contacts) =>
+        settings.ReachableTargets(contacts).Count > 0;
 }

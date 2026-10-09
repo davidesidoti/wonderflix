@@ -81,6 +81,58 @@ public class AccountSettingsTests
         Assert.Equal(new[] { AccountChannel.Discord, AccountChannel.Email }, settings.Channels());
     }
 
+    // Un contatto su un canale spento non serve al recupero: conta solo quello che si può raggiungere adesso.
+    [Theory]
+    [InlineData(true, true, true, true, true)]
+    [InlineData(true, true, false, true, true)]
+    [InlineData(true, true, true, false, true)]
+    [InlineData(false, true, true, true, true)]
+    [InlineData(true, false, true, true, true)]
+    [InlineData(true, false, false, true, false)]
+    [InlineData(false, true, true, false, false)]
+    [InlineData(false, false, true, true, false)]
+    [InlineData(true, true, false, false, false)]
+    public void AContactCountsOnlyOnAChannelThatIsOn(
+        bool hasDiscord, bool hasEmail, bool discordOn, bool emailOn, bool reachable)
+    {
+        var settings = new FakeAccountSettings();
+        if (!discordOn)
+        {
+            settings.DiscordBotToken = string.Empty;
+        }
+
+        if (!emailOn)
+        {
+            settings.SmtpHost = string.Empty;
+        }
+
+        var contacts = new UserContacts
+        {
+            Discord = hasDiscord ? new DiscordContact { Id = "222222222222222222", Name = "mario" } : null,
+            Email = hasEmail ? new EmailContact { Address = "mario@example.com" } : null,
+        };
+
+        Assert.Equal(reachable, settings.HasReachableContact(contacts));
+        Assert.Equal(reachable, settings.ReachableTargets(contacts).Count > 0);
+    }
+
+    [Fact]
+    public void TheReachableTargetsAreInTheOrderOfTheChannels()
+    {
+        var settings = new FakeAccountSettings();
+        var contacts = new UserContacts
+        {
+            Discord = new DiscordContact { Id = "222222222222222222", Name = "mario" },
+            Email = new EmailContact { Address = "mario@example.com" },
+        };
+
+        Assert.Equal(
+            new[] { (AccountChannel.Discord, "222222222222222222"), (AccountChannel.Email, "mario@example.com") },
+            settings.ReachableTargets(contacts));
+        settings.SmtpHost = string.Empty;
+        Assert.Equal(new[] { (AccountChannel.Discord, "222222222222222222") }, settings.ReachableTargets(contacts));
+    }
+
     [Theory]
     [InlineData("", "123456789012345678")]
     [InlineData(" ", "123456789012345678")]

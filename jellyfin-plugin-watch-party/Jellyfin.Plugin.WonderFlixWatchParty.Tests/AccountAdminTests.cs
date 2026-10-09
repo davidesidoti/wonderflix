@@ -1,5 +1,6 @@
 using Jellyfin.Plugin.WonderFlixWatchParty.Account;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
@@ -7,6 +8,9 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
 public sealed class AccountAdminTests : IDisposable
 {
     private static readonly CancellationToken Ct = CancellationToken.None;
+
+    // Chi chiama le funzioni dell'admin (un admin qualsiasi: conta solo che finisca nel log).
+    private static readonly Guid AdminId = Guid.NewGuid();
     private readonly AccountRig _rig = new();
     private readonly AccountAdmin _admin;
 
@@ -47,9 +51,49 @@ public sealed class AccountAdminTests : IDisposable
     {
         var mario = _rig.UserWithContacts("Mario");
 
-        Assert.Equal(AccountError.UnknownUser, _admin.Unlink(Guid.NewGuid()));
-        Assert.Null(_admin.Unlink(mario.Id));
+        Assert.Equal(AccountError.UnknownUser, _admin.Unlink(Guid.NewGuid(), AdminId));
+        Assert.Null(_admin.Unlink(mario.Id, AdminId));
         Assert.False(_rig.Contacts.Get(mario.Id).HasContact);
+    }
+
+    // Scollegare è lo strumento per "questo contatto è compromesso": un codice di recupero già mandato lì non deve più valere.
+    [Fact]
+    public async Task UnlinkCancelsAPendingRecoveryCode()
+    {
+        var mario = _rig.UserWithContacts("Mario");
+        var (code, _) = _rig.Codes.Issue(mario.Id, CodePurpose.Recovery);
+
+        Assert.Null(_admin.Unlink(mario.Id, AdminId));
+
+        Assert.Equal(0, _rig.Codes.Count);
+        Assert.Equal(AccountError.InvalidCode, (await _rig.Recovery().CompleteAsync("mario", code, "nuova-password", "it")).Error);
+        Assert.Empty(_rig.Passwords.Calls);
+    }
+
+    [Fact]
+    public void AnUnknownUserLeavesTheCodesAlone()
+    {
+        _rig.Codes.Issue(Guid.NewGuid(), CodePurpose.Recovery);
+
+        Assert.Equal(AccountError.UnknownUser, _admin.Unlink(Guid.NewGuid(), AdminId));
+
+        Assert.Equal(1, _rig.Codes.Count);
+    }
+
+    [Fact]
+    public void UnlinkIsInTheLogWithTheAdmin()
+    {
+        var mario = _rig.UserWithContacts("Mario");
+        var logger = new RecordingLogger<AccountAdmin>();
+        var admin = new AccountAdmin(_rig.Server, _rig.Contacts, _rig.Codes, _rig.Sender, _rig.Discord, _rig.Settings, logger);
+
+        Assert.Equal(AccountError.UnknownUser, admin.Unlink(Guid.NewGuid(), AdminId));
+        Assert.Empty(logger.Entries);
+        Assert.Null(admin.Unlink(mario.Id, AdminId));
+
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Information, entry.Level);
+        Assert.Equal($"Contatti di {mario.Id:N} scollegati dall'admin {AdminId:N}", entry.Message);
     }
 
     [Fact]
@@ -71,6 +115,28 @@ public sealed class AccountAdminTests : IDisposable
         Assert.Equal(1, status.WithContacts);
         Assert.Equal(2, status.Users);
         Assert.Equal(7, status.ReminderDays);
+    }
+
+    // Un contatto su un canale spento non serve al recupero: chi ha solo quello non è raggiungibile.
+    [Fact]
+    public void StatusDoesNotCountContactsOnAChannelThatIsOff()
+    {
+        _rig.UserWithContacts("Mario");
+        var luigi = _rig.Server.AddUser("Luigi");
+        _rig.Contacts.SetEmail(luigi.Id, new EmailContact { Address = "luigi@example.com", VerifiedAt = _rig.Time.GetUtcNow() });
+        var peach = _rig.Server.AddUser("Peach");
+        _rig.Contacts.SetDiscord(peach.Id, new DiscordContact { Id = "333333333333333333", Name = "peach", VerifiedAt = _rig.Time.GetUtcNow() });
+        Assert.Equal(3, _admin.Status().WithContacts);
+
+        _rig.Settings.SmtpHost = string.Empty;
+
+        // Mario ha ancora Discord; Luigi aveva solo l'email.
+        var status = _admin.Status();
+        Assert.Equal(2, status.WithContacts);
+        Assert.Equal(3, status.Users);
+
+        _rig.Settings.DiscordBotToken = string.Empty;
+        Assert.Equal(0, _admin.Status().WithContacts);
     }
 
     [Fact]

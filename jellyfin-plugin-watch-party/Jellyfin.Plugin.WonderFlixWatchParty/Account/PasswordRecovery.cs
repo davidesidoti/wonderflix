@@ -37,10 +37,19 @@ public sealed class PasswordRecovery(
     /// <summary>La chiave dei limiti di tutti.</summary>
     internal const string EveryoneKey = "*";
 
+    // I limiti si guardano e si contano sotto un lucchetto: due richieste insieme non devono
+    // passare tutte e due il controllo prima che la prima abbia contato. Uno per Start e uno
+    // per CompleteAsync, che toccano limiti diversi.
+    private readonly Lock _startLock = new();
+    private readonly Lock _completeLock = new();
+
     /// <summary>
     /// Chiede un codice. Risponde subito, uguale per tutti (tranne i limiti,
     /// che contano il nome scritto, esista o no). Dopo, in background: se
     /// l'utente può usare il recupero e ha contatti, il codice va a tutti.
+    /// I limiti si guardano tutti prima: una richiesta rifiutata non ne
+    /// consuma nessuno (altrimenti chi insiste su un nome già fermato
+    /// svuoterebbe il limite di tutti).
     /// </summary>
     public RecoveryStartResult Start(string? username, string? language)
     {
@@ -51,11 +60,21 @@ public sealed class PasswordRecovery(
         }
 
         var key = Key(name);
-        if (!limiter.TryAcquire(EveryoneKey, LimitTypes.RecoveryStartGlobal)
-            || !limiter.TryAcquire(key, LimitTypes.RecoveryStartMinute)
-            || !limiter.TryAcquire(key, LimitTypes.RecoveryStartHour))
+        lock (_startLock)
         {
-            return new RecoveryStartResult(AccountError.RateLimited, Task.CompletedTask);
+            if (limiter.IsLimited(EveryoneKey, LimitTypes.RecoveryStartGlobal)
+                || limiter.IsLimited(key, LimitTypes.RecoveryStartMinute)
+                || limiter.IsLimited(key, LimitTypes.RecoveryStartHour)
+                || limiter.IsLimited(key, LimitTypes.RecoveryStartDay))
+            {
+                return new RecoveryStartResult(AccountError.RateLimited, Task.CompletedTask);
+            }
+
+            // Sotto il lucchetto, dopo il controllo, nessuno di questi può fallire.
+            limiter.TryAcquire(EveryoneKey, LimitTypes.RecoveryStartGlobal);
+            limiter.TryAcquire(key, LimitTypes.RecoveryStartMinute);
+            limiter.TryAcquire(key, LimitTypes.RecoveryStartHour);
+            limiter.TryAcquire(key, LimitTypes.RecoveryStartDay);
         }
 
         // Utente, contatti e invio non si vedono dal tempo di risposta.
@@ -76,48 +95,16 @@ public sealed class PasswordRecovery(
             return Done(AccountError.Invalid);
         }
 
-        var key = Key(name);
-        if (limiter.IsLimited(EveryoneKey, LimitTypes.RecoveryFailGlobal)
-            || limiter.IsLimited(key, LimitTypes.RecoveryFail)
-            || limiter.IsLimited(key, LimitTypes.RecoveryFailDay))
+        // Tutto fino al cambio è sincrono e sta sotto un solo lucchetto (vedi Verify).
+        var verdict = Verify(name, code, newPassword);
+        if (verdict is not { Error: null, User: { } user, Password: { } password })
         {
-            return Done(AccountError.RateLimited);
-        }
-
-        if (newPassword is null || newPassword.Length < MinPasswordLength || newPassword.Length > MaxPasswordLength)
-        {
-            return Done(AccountError.WeakPassword);
-        }
-
-        var user = Eligible(name);
-        var check = user is null ? CodeCheck.Wrong : codes.Check(user.Id, CodePurpose.Recovery, code);
-        if (user is null || !check.Ok)
-        {
-            limiter.TryAcquire(EveryoneKey, LimitTypes.RecoveryFailGlobal);
-            limiter.TryAcquire(key, LimitTypes.RecoveryFail);
-            limiter.TryAcquire(key, LimitTypes.RecoveryFailDay);
-
-            // Nel log si vede quando qualcuno prova a indovinare i codici: una volta
-            // sola, quando il limite scatta (dopo si risponde 429 prima di arrivare qui),
-            // e mai il testo scritto, che potrebbe essere un'email o contenere a capo.
-            if (limiter.IsLimited(key, LimitTypes.RecoveryFail) || limiter.IsLimited(key, LimitTypes.RecoveryFailDay))
-            {
-                logger.LogWarning(
-                    "Recupero della password fermato dai limiti per {Who}",
-                    user is null ? "un nome che non è un utente" : user.Id.ToString("N"));
-            }
-
-            if (limiter.IsLimited(EveryoneKey, LimitTypes.RecoveryFailGlobal))
-            {
-                logger.LogWarning("Recupero della password fermato per tutti: troppi codici sbagliati oggi");
-            }
-
-            return Done(AccountError.InvalidCode);
+            return Done(verdict.Error ?? AccountError.InvalidCode);
         }
 
         try
         {
-            await passwords.ResetAsync(user.Id, newPassword).ConfigureAwait(false);
+            await passwords.ResetAsync(user.Id, password).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -133,10 +120,11 @@ public sealed class PasswordRecovery(
 
     /// <summary>
     /// Il codice mandato dall'admin (spec L §7.4): la risposta dice com'è
-    /// andata, e non ci sono i limiti del recupero.
+    /// andata, e non ci sono i limiti del recupero. L'admin che l'ha chiesto
+    /// finisce nel registro.
     /// </summary>
     public async Task<AccountResult<AdminRecoveryResponse>> SendForAdminAsync(
-        Guid userId, string? language, CancellationToken cancellationToken)
+        Guid userId, Guid adminId, string? language, CancellationToken cancellationToken)
     {
         var user = users.GetUser(userId);
         if (user is null)
@@ -164,8 +152,68 @@ public sealed class PasswordRecovery(
             return AccountResult<AdminRecoveryResponse>.Fail(AccountError.SendFailed);
         }
 
-        logger.LogInformation("Codice di recupero di {UserId} mandato dall'admin su {Count} canali", userId, sent.Count);
+        logger.LogInformation(
+            "Codice di recupero di {UserId} mandato dall'admin {AdminId} su {Count} canali",
+            userId.ToString("N"),
+            adminId.ToString("N"),
+            sent.Count);
         return AccountResult<AdminRecoveryResponse>.Ok(new AdminRecoveryResponse(sent.Select(c => c.Name()).ToList()));
+    }
+
+    // Il risultato di Verify: l'utente e la password da mettergli (già controllata), oppure l'errore.
+    private sealed record Verdict(UserRef? User, string? Password, AccountError? Error);
+
+    // La parte di CompleteAsync prima del cambio: limiti, lunghezza della password, utente, codice,
+    // e il conteggio degli errori. È sincrona e sta sotto un solo lucchetto, così richieste insieme
+    // non possono superare i limiti (guardare e contare in due momenti lasciava passare chi arrivava
+    // nello stesso istante). Il codice giusto vale una volta (CodeBook), quindi il cambio può stare fuori.
+    private Verdict Verify(string name, string? code, string? newPassword)
+    {
+        var key = Key(name);
+        lock (_completeLock)
+        {
+            if (limiter.IsLimited(EveryoneKey, LimitTypes.RecoveryFailGlobal)
+                || limiter.IsLimited(key, LimitTypes.RecoveryFail)
+                || limiter.IsLimited(key, LimitTypes.RecoveryFailDay))
+            {
+                return new Verdict(null, null, AccountError.RateLimited);
+            }
+
+            if (newPassword is null || newPassword.Length < MinPasswordLength || newPassword.Length > MaxPasswordLength)
+            {
+                return new Verdict(null, null, AccountError.WeakPassword);
+            }
+
+            var match = Find(name);
+            var user = match is { Enabled: true, IsAdmin: false } ? match : null;
+            if (user is not null && codes.Check(user.Id, CodePurpose.Recovery, code).Ok)
+            {
+                return new Verdict(user, newPassword, null);
+            }
+
+            limiter.TryAcquire(EveryoneKey, LimitTypes.RecoveryFailGlobal);
+            limiter.TryAcquire(key, LimitTypes.RecoveryFail);
+            limiter.TryAcquire(key, LimitTypes.RecoveryFailDay);
+
+            // Nel log si vede quando qualcuno prova a indovinare i codici: una volta sola,
+            // quando il limite scatta (dopo si risponde 429 prima di arrivare qui). Il registro
+            // è solo del server, quindi dice di chi è il nome anche se è un admin o un utente
+            // disattivato (per loro il recupero non vale, ma il nome è comunque di un utente).
+            // Mai il testo scritto: potrebbe essere un'email o contenere a capo.
+            if (limiter.IsLimited(key, LimitTypes.RecoveryFail) || limiter.IsLimited(key, LimitTypes.RecoveryFailDay))
+            {
+                logger.LogWarning(
+                    "Recupero della password fermato dai limiti per {Who}",
+                    match?.Id.ToString("N") ?? "un nome che non è un utente");
+            }
+
+            if (limiter.IsLimited(EveryoneKey, LimitTypes.RecoveryFailGlobal))
+            {
+                logger.LogWarning("Recupero della password fermato per tutti: troppi codici sbagliati oggi");
+            }
+
+            return new Verdict(null, null, AccountError.InvalidCode);
+        }
     }
 
     private async Task SendCodeAsync(string name, string? language)
@@ -215,12 +263,12 @@ public sealed class PasswordRecovery(
         }
     }
 
-    // L'utente può usare il recupero: esiste, è attivo e non è admin. Il nome senza maiuscole, come Jellyfin.
-    private UserRef? Eligible(string name) =>
-        users.GetUsers().FirstOrDefault(u => string.Equals(u.Name, name, StringComparison.OrdinalIgnoreCase))
-            is { Enabled: true, IsAdmin: false } user
-            ? user
-            : null;
+    // L'utente con questo nome, qualunque sia: il nome senza maiuscole, come Jellyfin.
+    private UserRef? Find(string name) =>
+        users.GetUsers().FirstOrDefault(u => string.Equals(u.Name, name, StringComparison.OrdinalIgnoreCase));
+
+    // L'utente può usare il recupero: esiste, è attivo e non è admin.
+    private UserRef? Eligible(string name) => Find(name) is { Enabled: true, IsAdmin: false } user ? user : null;
 
     private static string? Trimmed(string? raw)
     {

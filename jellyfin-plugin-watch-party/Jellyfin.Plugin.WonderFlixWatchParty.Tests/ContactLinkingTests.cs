@@ -419,6 +419,55 @@ public sealed class ContactLinkingTests : IDisposable
         Assert.Null((await _linking.StartAsync(_mario.Id, AccountChannel.Email, "mario@example.com", "quella-vera", "it", Ct)).Error);
     }
 
+    // Scollegare è lo strumento per "questo contatto è compromesso": un codice di recupero già mandato lì non deve più valere.
+    [Theory]
+    [InlineData(AccountChannel.Discord)]
+    [InlineData(AccountChannel.Email)]
+    public async Task UnlinkingCancelsAPendingRecoveryCode(AccountChannel channel)
+    {
+        var luigi = _rig.UserWithContacts("Luigi");
+        var recovery = _rig.Recovery();
+        var (code, _) = _rig.Codes.Issue(luigi.Id, CodePurpose.Recovery);
+
+        Assert.Null(await _linking.UnlinkAsync(luigi.Id, channel, "giusta"));
+
+        Assert.Equal(0, _rig.Codes.Count);
+        Assert.Equal(AccountError.InvalidCode, (await recovery.CompleteAsync("luigi", code, "nuova-password", "it")).Error);
+        Assert.Empty(_rig.Passwords.Calls);
+    }
+
+    [Fact]
+    public async Task UnlinkingCancelsTheCodeEvenIfTheContactWasNotThere()
+    {
+        _rig.Codes.Issue(_mario.Id, CodePurpose.Recovery);
+
+        Assert.Null(await _linking.UnlinkAsync(_mario.Id, AccountChannel.Email, "giusta"));
+
+        Assert.Equal(0, _rig.Codes.Count);
+    }
+
+    [Fact]
+    public async Task AWrongPasswordLeavesThePendingRecoveryCode()
+    {
+        var luigi = _rig.UserWithContacts("Luigi");
+        _rig.PasswordCheck.Passwords[luigi.Id] = "quella-vera";
+        _rig.Codes.Issue(luigi.Id, CodePurpose.Recovery);
+
+        Assert.Equal(AccountError.WrongPassword, await _linking.UnlinkAsync(luigi.Id, AccountChannel.Discord, "sbagliata"));
+
+        Assert.Equal(1, _rig.Codes.Count);
+    }
+
+    [Fact]
+    public async Task UnlinkingLeavesTheCodesToVerifyAContact()
+    {
+        await _linking.StartAsync(_mario.Id, AccountChannel.Email, "mario@example.com", "giusta", "it", Ct);
+
+        Assert.Null(await _linking.UnlinkAsync(_mario.Id, AccountChannel.Discord, "giusta"));
+
+        Assert.Equal(1, _rig.Codes.Count);
+    }
+
     [Fact]
     public async Task UnlinkLogsOnlyWhenAContactWasRemoved()
     {

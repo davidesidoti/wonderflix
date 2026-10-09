@@ -186,7 +186,8 @@ public sealed class ContactLinking(
 
     /// <summary>
     /// Toglie il contatto di un canale, se la password attuale è giusta;
-    /// niente errore anche se il contatto non c'era.
+    /// niente errore anche se il contatto non c'era. Annulla anche un codice
+    /// di recupero già mandato.
     /// </summary>
     public async Task<AccountError?> UnlinkAsync(Guid userId, AccountChannel channel, string? password)
     {
@@ -199,6 +200,10 @@ public sealed class ContactLinking(
         {
             return passwordError;
         }
+
+        // Scollegare è lo strumento per "questo contatto è compromesso", quindi annulla anche un codice
+        // di recupero già mandato lì (anche se il contatto non c'era: la password è giusta, la richiesta è del proprietario).
+        codes.Discard(userId, CodePurpose.Recovery);
 
         if (contacts.Remove(userId, channel))
         {

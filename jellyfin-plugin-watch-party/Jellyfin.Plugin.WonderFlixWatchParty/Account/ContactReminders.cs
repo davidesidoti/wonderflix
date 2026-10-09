@@ -17,18 +17,20 @@ public sealed class ContactReminders(
     TimeProvider time,
     ILogger<ContactReminders> logger)
 {
+    /// <summary>
+    /// Quanto prima di N giorni si può rimandare un promemoria: il timer gira
+    /// ogni 24 ore e qualche millisecondo di ritardo non deve spostare il
+    /// promemoria di un giorno.
+    /// </summary>
+    public static readonly TimeSpan ReminderTolerance = TimeSpan.FromHours(1);
+
     /// <summary>Manda i promemoria dovuti; restituisce quanti.</summary>
     public async Task<int> RunAsync()
     {
-        var days = settings.ContactReminderDays;
-        var channels = settings.Channels();
-        if (days <= 0 || channels.Count == 0)
-        {
-            return 0;
-        }
-
         var all = users.GetUsers();
 
+        // La pulizia viene prima dello stop dei promemoria: le email degli utenti cancellati non
+        // restano nel file anche con i promemoria spenti o senza canali.
         // Un elenco vuoto (errore momentaneo di Jellyfin) toglierebbe i contatti di tutti.
         if (all.Count > 0)
         {
@@ -36,14 +38,22 @@ public sealed class ContactReminders(
             contacts.Prune(known.Contains);
         }
 
+        var days = settings.ContactReminderDays;
+        var channels = settings.Channels();
+        if (days <= 0 || channels.Count == 0)
+        {
+            return 0;
+        }
+
         var now = time.GetUtcNow();
-        var every = TimeSpan.FromDays(days);
+        var every = TimeSpan.FromDays(days) - ReminderTolerance;
         var names = channels.Select(c => c.Name()).ToList();
         var sent = 0;
         foreach (var user in all.Where(u => u.Enabled && !u.IsAdmin))
         {
+            // Un contatto su un canale spento non serve al recupero: è come non averlo.
             var mine = contacts.Get(user.Id);
-            if (mine.HasContact || (mine.LastReminderAt is { } last && now - last < every))
+            if (settings.HasReachableContact(mine) || (mine.LastReminderAt is { } last && now - last < every))
             {
                 continue;
             }
