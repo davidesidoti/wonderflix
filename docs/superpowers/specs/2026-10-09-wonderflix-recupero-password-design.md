@@ -131,7 +131,7 @@ Le classi di `Account/`, ognuna con un compito solo:
 | `AccountAdmin` | Elenco, scollegamento, stato e prova (§7.4). |
 | `ContactReminders` | I promemoria (§7.7); li fa partire `ContactReminderHostedService`. |
 
-- **Il cambio della propria password e "Imposta password" dell'admin** passano dall'API di Jellyfin, senza il plugin.
+- **Il cambio della propria password e "Imposta password" dell'admin** passano dall'API di Jellyfin, senza il plugin. Ma nell'app "Imposta password" sta nel menu delle righe della scheda Utenti (§9.5), che c'è solo con la funzione `account` del plugin: la chiamata è di Jellyfin, il posto dove sceglierla viene dal plugin 1.6.0. Senza la funzione l'admin imposta la password dalla Dashboard di Jellyfin.
 - **Tutto il resto** (contatti, codici, recupero, invio di codici dall'admin, stato) passa dal plugin.
 - **Nell'app** gli endpoint dell'utente e del recupero li chiama `AccountApi`, quelli dell'admin `PluginAdminApi` (§9.1).
 
@@ -511,6 +511,7 @@ Testo sotto le righe: "Servono per recuperare la password se la dimentichi. Gli 
   - plugin vecchio (404) → "Il recupero automatico non è disponibile su questo server: contatta l'amministratore", al posto dei campi (§9.1);
   - un altro errore → "Qualcosa è andato storto. Riprova."
 - **Passo 2:** codice, nuova password, conferma, "Cambia password" e "Rimanda il codice" (come in §9.2: 60 s, il conto che riparte dopo un invio riuscito o un 429, il campo del codice che si svuota dopo un invio riuscito). "Rimanda" è spento mentre il cambio è in volo: un codice nuovo sostituirebbe quello che si sta usando.
+  - **il nome per cui vale il codice** sta sopra il campo del codice, subito sotto il testo ("Scrivi il codice…" o "Se l'account esiste…"), in grigio: "Account: {name}" (`recoveryForUser`), in tutti e due i casi del passo 2. Con "Ho già un codice" un errore di battitura nel nome darebbe "Codice non valido o scaduto" e consumerebbe i tentativi, senza che il nome si veda più;
   - codice vuoto, password più corta di 6 caratteri o diversa dalla conferma → l'errore sotto il campo, senza richiesta;
   - 204 → accesso con la nuova password (`SessionController.loginWithPassword`): l'app entra e aggiorna il profilo salvato;
   - `InvalidCode` → "Codice non valido o scaduto", sotto il codice, con il fuoco e il testo selezionato (§9.2);
@@ -547,7 +548,8 @@ Testo sotto le righe: "Servono per recuperare la password se la dimentichi. Gli 
   - **"Invia codice di recupero"** solo per chi non è admin, è attivo e ha almeno un contatto;
   - **"Scollega contatti"** solo con almeno un contatto;
   - una riga senza azioni non ha il menu;
-  - mentre un'azione è in corso il menu della riga è spento, e la riga resta viva anche se si scorre fuori vista (`AutomaticKeepAliveClientMixin`): la `ListView` la smonterebbe, l'avviso andrebbe perso, il menu tornerebbe acceso e un secondo codice sostituirebbe il primo.
+  - mentre un'azione è in corso (anche con la finestra di conferma o di "Imposta password" aperta) la riga si vede al lavoro: al posto dell'icona del menu c'è uno spinner piccolo (16 px, nello stesso posto, `CircularProgressIndicator` con `strokeWidth` 2) e il menu è spento. Il menu non sparisce: resta, spento, così il posto e l'altezza della riga non cambiano;
+  - la riga resta viva anche se si scorre fuori vista (`AutomaticKeepAliveClientMixin`): la `ListView` la smonterebbe, l'avviso andrebbe perso, il menu tornerebbe acceso e un secondo codice sostituirebbe il primo.
 - **"Imposta password"** apre `SetPasswordDialog` (`set_password_dialog.dart`): "Imposta la password di {name}", "Le sessioni di {name} verranno chiuse.", nuova password e conferma, "Annulla" e "Imposta password".
   - almeno 6 caratteri e uguale alla conferma, altrimenti l'errore sotto il campo e nessuna richiesta;
   - passa da `AccountUsersController.setPassword`, cioè da `act`: `AuthApi.changePassword` senza `currentPassword` (§9.1), e Jellyfin chiude le sessioni dell'utente;
@@ -560,7 +562,8 @@ Testo sotto le righe: "Servono per recuperare la password se la dimentichi. Gli 
   - `NoContacts` → "{name} non ha contatti su un canale attivo": il menu offre il codice solo a chi ha un contatto, quindi arriva con un contatto su un canale spento (§11);
   - `SendFailed` → "Invio non riuscito, riprova più tardi"; `UnknownUser` → "Questo utente non c'è più";
   - 502, 503 e 504 senza `Code` (nginx mentre Jellyfin si riavvia) → "WonderFlix non è raggiungibile. Controlla la connessione.", come nel resto dell'app;
-  - altrimenti `describeError`. Un 403 fa anche rileggere l'utente (`act`, §9.1).
+  - altrimenti `describeError`. Un 403 fa anche rileggere l'utente (`act`, §9.1);
+  - **"Imposta password" con un 404** → "Questo utente non c'è più" (`adminUsersUnknown`): l'utente è stato cancellato nel frattempo e Jellyfin non lo trova (`NotFoundException`). Lo dice solo `SetPasswordDialog`, non `accountAdminErrorText`: per le chiamate del plugin un 404 vuol dire "funzione assente", non "utente sparito".
 
 ### 9.6 Amministrazione → WonderFlix: "Recupero password"
 
@@ -597,7 +600,7 @@ Amministrazione e recupero (piano 18c):
 - Utenti: "Utenti" (`adminTabUsers`), "Admin" (`adminUsersAdmin`), "Disattivato" (`adminUsersDisabled`), "Nessun utente" (`adminUsersEmpty`), "Azioni per {name}" (`adminUsersActionsFor`), "Discord: {name}" (`adminUsersDiscordLinked`), "Discord non collegato" (`adminUsersDiscordNone`), "Email: {email}" (`adminUsersEmailLinked`), "Email non collegata" (`adminUsersEmailNone`).
 - Azioni sugli utenti: "Imposta password" (`adminUsersSetPassword`), "Imposta la password di {name}" (`adminUsersSetPasswordTitle`), "Le sessioni di {name} verranno chiuse." (`adminUsersSetPasswordHint`), "Password impostata. Le sessioni di {name} sono state chiuse." (`adminUsersPasswordSet`), "Invia codice di recupero" (`adminUsersSendRecovery`), "Mandare a {name} un codice per cambiare la password?" (`adminUsersSendRecoveryConfirm`), "Codice mandato su Discord ed email" (`adminUsersRecoverySentBoth`), "Codice mandato su Discord" (`adminUsersRecoverySentDiscord`), "Codice mandato per email" (`adminUsersRecoverySentEmail`), "{name} non ha contatti su un canale attivo" (`adminUsersNoContacts`), "Gli admin e gli utenti disattivati non possono usare il recupero automatico" (`adminUsersNotAllowed`), "Questo utente non c'è più" (`adminUsersUnknown`), "Scollega contatti" (`adminUsersUnlink`), "Scollegare i contatti di {name}?" (`adminUsersUnlinkConfirm`), "Contatti di {name} scollegati" (`adminUsersUnlinked`). Dal resto dell'app: "Invia" (`adminSend`, c'era), "Annulla" (`adminCancel` nelle conferme, c'era; `accountCancel` nella finestra), "Scollega" (`accountUnlink`), "Nuova password", "Conferma la password", "Almeno 6 caratteri", "Le password non coincidono", "Invio non riuscito, riprova più tardi" (`accountErrorSendFailed`) e "WonderFlix non è raggiungibile. Controlla la connessione." (`errorServerUnreachable`).
 - Card "Recupero password": "Recupero password" (`adminRecovery`), "configurato" (`adminRecoveryConfigured`), "non configurato" (`adminRecoveryNotConfigured`), "{channel}: {state}" (`adminRecoveryChannelLine`, con "Discord" ed "Email" dei contatti), "Ultimo errore: {error}, {when}" (`adminRecoveryLastError`), "DM chiusi" (`adminRecoveryErrorDmClosed`), "token o server non validi" (`adminRecoveryErrorInvalid`), "invio non riuscito" (`adminRecoveryErrorSendFailed`), "{count} utenti su {total} hanno un contatto" / "1 utente su {total} ha un contatto" (`adminRecoveryWithContacts`), "Promemoria ogni {days} giorni" / "Promemoria ogni giorno" (`adminRecoveryReminders`), "Promemoria spenti" (`adminRecoveryRemindersOff`), "Invia prova a me" (`adminRecoveryTest`), "inviato" (`adminRecoveryTestSent`), "collega prima il tuo contatto" (`adminRecoveryTestNoContact`), "il bot non riesce a scriverti" (`adminRecoveryTestDmClosed`), "nome non trovato nel server" (`adminRecoveryTestMemberNotFound`), "contatto non valido" (`adminRecoveryTestInvalidTarget`), "Si configura nella Dashboard di Jellyfin → Plugin → WonderFlix" (`adminRecoveryConfigHint`).
-- Recupero: "Ho già un codice" (`recoveryHaveCode`), "Scrivi il codice che hai ricevuto su Discord o per email." (`recoveryEnterCode`).
+- Recupero: "Ho già un codice" (`recoveryHaveCode`), "Scrivi il codice che hai ricevuto su Discord o per email." (`recoveryEnterCode`), "Account: {name}" (`recoveryForUser`, in inglese uguale: "Account: {name}").
 
 Rispetto alla lista della prima stesura:
 
@@ -606,7 +609,7 @@ Rispetto alla lista della prima stesura:
 - "Gli admin non possono usare il recupero automatico" dice anche "e gli utenti disattivati": il plugin dà `NotAllowed` per tutti e due;
 - "Codice mandato su {canali}" sono tre testi, uno per ogni combinazione di canali;
 - stati ed esiti sono in minuscolo, dentro "{channel}: {state}" ("Discord: configurato", "Email: inviato");
-- testi in più: "Nessun utente", "Azioni per {name}", i tooltip dei contatti, il titolo e l'avviso di "Imposta password", "Questo utente non c'è più", "Contatti di {name} scollegati", gli altri errori dell'ultimo invio e gli altri esiti della prova, "Promemoria ogni giorno", "Ho già un codice" con il suo testo.
+- testi in più: "Nessun utente", "Azioni per {name}", i tooltip dei contatti, il titolo e l'avviso di "Imposta password", "Questo utente non c'è più", "Contatti di {name} scollegati", gli altri errori dell'ultimo invio e gli altri esiti della prova, "Promemoria ogni giorno", "Ho già un codice" con il suo testo, "Account: {name}" sopra il codice.
 
 ## 11. Errori e casi limite
 
@@ -631,6 +634,7 @@ Rispetto alla lista della prima stesura:
 - **Elenco utenti vuoto.** Se Jellyfin dà un elenco vuoto (errore momentaneo) la pulizia dei promemoria non toglie nessun contatto (§7.7).
 - **`RevokeUserTokens` fallisce dopo il cambio.** La password è cambiata e il codice è usato: l'errore va nel log e il recupero riesce lo stesso.
 - **`ChangePassword` fallisce** (Jellyfin in errore, utente sparito proprio allora). L'errore esce come 500 e il codice, già usato, non vale più: se ne chiede un altro (nell'app "Cambio non riuscito: chiedi un nuovo codice", §9.3).
+- **Codice mandato dall'admin sostituito.** Se l'utente preme "Invia codice" invece di "Ho già un codice", il codice nuovo sostituisce quello dell'admin (§7.2) e arriva agli stessi contatti: quello dell'admin non vale più, e se l'utente non guarda i messaggi nuovi scrive un codice che non va (`InvalidCode`, e un tentativo in meno). Accettato: le note della 0.12.0 dicono come si usa ("Password dimenticata?" → "Ho già un codice", entro 10 minuti), e il nome sopra il campo (§9.3) evita almeno l'errore di battitura nel nome.
 - **Scollegare annulla il codice di recupero in sospeso** (dall'utente e dall'admin). **Un cambio di password fuori dal recupero non lo annulla:** dall'app o con "Imposta password" non c'è un evento di Jellyfin da ascoltare. Punto aperto: il codice dura al più 10 minuti e arriva solo ai contatti verificati.
 
 ## 12. Test
@@ -672,14 +676,14 @@ Rispetto alla lista della prima stesura:
 
 **App, piano 18c** (TDD), sotto `test/`:
 
-- `core/social/account_admin_api_test.dart`: rotte e corpi degli endpoint dell'admin, l'email mascherata, i campi obbligatori (uno per volta, anche in `LastError`), un 200 del codice senza un canale che l'app conosce, il `Code` con `pluginErrorCode` e il tipo degli errori (403 `ForbiddenException`, gli altri `ServerErrorException` con il loro stato), gli esiti previsti nel log come info.
+- `core/social/account_admin_api_test.dart`: rotte e corpi degli endpoint dell'admin, l'email mascherata, i campi obbligatori (ogni campo tolto da solo, con la risposta completa come controllo: `Id`, `Name`, `IsAdmin` ed `Enabled` di un utente; `Discord`, `Email`, `WithContacts`, `Users` e `ReminderDays` dello stato; e `LastError` senza `At` o senza `Code`; non si prova invece `Configured` dentro un canale), un 200 del codice senza un canale che l'app conosce, il `Code` con `pluginErrorCode` e il tipo degli errori (403 `ForbiddenException`, gli altri `ServerErrorException` con il loro stato), gli esiti previsti nel log come info.
 - `features/admin/account_admin_controllers_test.dart`: le letture, le azioni che chiamano il plugin e rileggono (lo scollegamento rilegge la riga senza contatti), "Imposta password" senza la password attuale, un 403 che fa rileggere l'utente.
 - `features/admin/account_admin_labels_test.dart`: dove è arrivato il codice, i `Code` del plugin, 502/503/504 senza `Code` "non raggiungibile" (e un 502 `SendFailed` che resta "invio non riuscito"), l'ultimo errore e gli esiti della prova.
-- `features/admin/set_password_dialog_test.dart`: titolo e avviso sulle sessioni, i controlli prima della richiesta, la riuscita senza la password attuale, il 403 sopra i campi con l'utente riletto, Esc spento durante la richiesta.
-- `features/admin/users_tab_test.dart`: `userActions`; le righe con le etichette e i tooltip; il menu (le tre azioni, "Azioni per {name}", la propria riga anche con l'id scritto in un altro modo, la riga senza menu, spento durante un'azione, anche con la riga fuori vista); il nome lungo; le tre azioni con i loro avvisi, l'errore `NoContacts` e "Annulla"; l'elenco vuoto e quello non letto con "Riprova".
+- `features/admin/set_password_dialog_test.dart`: titolo e avviso sulle sessioni, i controlli prima della richiesta, la riuscita senza la password attuale, il 403 sopra i campi con l'utente riletto, il 404 "Questo utente non c'è più", Esc spento durante la richiesta (con `pumpAndSettle`, che senza il `PopScope` diventa rosso).
+- `features/admin/users_tab_test.dart`: `userActions`; le righe con le etichette e i tooltip; il menu (le tre azioni, "Azioni per {name}", la propria riga anche con l'id scritto in un altro modo, la riga senza menu, lo spinner al posto dell'icona e il menu spento durante un'azione, anche con la riga fuori vista); il nome lungo; le tre azioni con i loro avvisi, l'errore `NoContacts` e "Annulla"; l'elenco vuoto e quello non letto con "Riprova".
 - `features/admin/account_recovery_card_test.dart`: senza la funzione niente card e niente letture; canali, ultimo errore, conteggi, promemoria (anche spenti) e dove si configura; la prova con l'esito per canale, non riuscita (l'avviso e nessun esito vecchio) e con la card fuori vista; la lettura fallita con "Riprova"; "Dati non aggiornati".
 - `features/admin/admin_navigation_test.dart`, `admin_screen_test.dart`, `wonderflix_tab_test.dart`: Utenti fra Sessioni e Manutenzione solo con `account`, Sessioni se la funzione manca o sparisce, l'attesa delle funzioni del plugin; la card dopo Seerr, solo con `account`.
-- `features/auth/recovery_panel_test.dart`: "Ho già un codice" (senza `Start`, senza il nome, "Rimanda" riuscito e non riuscito, il 404 a `Complete`).
+- `features/auth/recovery_panel_test.dart`: "Ho già un codice" (senza `Start`, senza il nome, "Rimanda" riuscito e non riuscito, il 404 a `Complete`); "Account: {name}" sopra il codice, dopo "Ho già un codice" e dopo "Invia codice".
 - `app/l10n_plan18c_test.dart`: i testi del 18c, in italiano e in inglese.
 
 **Prova a mano sul server:**

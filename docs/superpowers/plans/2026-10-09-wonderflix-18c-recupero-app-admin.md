@@ -44,6 +44,14 @@
       - Task 2: il finto ha `accountActionGate`, un `Completer` che tiene in corso codice, scollegamento e prova finché il test non lo completa (per i test del gruppo B sul menu spento e sulle righe e la card fuori vista);
       - Task 3: `recoverySentLabel` ha il caso `(true, true)` scritto, con un commento (zero canali non arrivano: `sendRecoveryCode` lancia); due test in più nei controller, lo scollegamento che rilegge la riga senza contatti e un 403 del plugin che fa rileggere l'utente;
       - Task 7: tre test in più per "Ho già un codice": "Rimanda" riuscito e non riuscito, il 404 a `Complete`.
+    - **Revisione finale:**
+      - il secondo passo del recupero mostra "Account: {name}" (`recoveryForUser`, in grigio, sotto il testo del codice) in tutti e due i casi: con "Ho già un codice" un errore di battitura nel nome dava "Codice non valido o scaduto", consumava i tentativi e il nome non si vedeva più;
+      - `SetPasswordDialog`: un 404 di Jellyfin (utente cancellato nel frattempo) dice `adminUsersUnknown` ("Questo utente non c'è più"), solo nella finestra e non in `accountAdminErrorText`, dove un 404 del plugin vuol dire "funzione assente";
+      - una riga al lavoro si vede: uno spinner 16×16 prende il posto dell'icona del menu, che resta ma spento (stesso posto: l'altezza della riga non cambia). Con lo spinner `pumpAndSettle` va in timeout, e i test con un'azione in corso (anche la finestra di conferma aperta) usano `pump()`;
+      - **casi accettati:**
+        - il conteggio della card ("5 utenti su 23 hanno un contatto") conta solo i contatti raggiungibili, mentre le icone della scheda Utenti sono oro anche su un canale spento (§11);
+        - la prova della card dà gli errori con `describeError`, come le altre card, e non con i testi del plugin;
+        - il codice mandato dall'admin si può sostituire: se l'utente preme "Invia codice" invece di "Ho già un codice", il codice nuovo vale al suo posto (§11); lo dicono le note della 0.12.0.
 
 **Architecture:**
 - **Dati:** in `lib/core/social/plugin_admin_models.dart` `AdminAccountUser`, `AccountSendError`, `AccountChannelStatus`, `AccountAdminStatus`, `AccountTestResult`; in `lib/core/social/plugin_admin_api.dart` `accountUsers`, `sendRecoveryCode`, `unlinkContacts`, `accountStatus`, `testAccountChannels` e `pluginErrorCode`.
@@ -2686,20 +2694,23 @@ Ogni passo che pubblica (push dei tag, manifest, pubblicazione della release, co
      - `sourceUrl` della pre-release, `checksum` uguale al contenuto del `.md5`, `timestamp` in UTC;
      - `changelog` in italiano, per esempio: "Recupero e cambio della password per WonderFlix 0.12.0: contatti Discord ed email verificati con un codice, «Password dimenticata?» nell'app, utenti e stato del recupero per l'admin. Bot Discord, SMTP e promemoria si configurano nella pagina del plugin.";
    - aggiorna `description` e `overview` come in `meta.template.json` (hanno già il recupero della password);
-   - commit `chore: publish the watch party plugin 1.6.0`, push.
+   - commit `chore: publish the watch party plugin 1.6.0`, push;
+   - dopo il push il Catalogo può mostrare ancora la 1.5.0 per qualche minuto: il manifest passa dalla cache di `raw.githubusercontent.com`. Si aspetta, senza rifare il push.
 2. **Server:**
    - controlla che nessuno stia guardando;
    - `app-jellyfin stop`;
    - sposta la cartella di prova `~/.apps/jellyfin/data/plugins/WonderFlix Watch Party_1.6.0.0` in `~/wfwp-backup/1.6.0.0-prova` (altrimenti il Catalogo non la sostituirebbe mai: ha la stessa versione);
    - `app-jellyfin start`;
    - l'utente installa 1.6.0 da Dashboard → Plugin → Catalogo;
-   - riavvio, poi nel log `Loaded plugin: "WonderFlix Watch Party" "1.6.0.0"`, l'md5 della dll uguale a quello della dll nello zip, e nella configurazione `ContactReminderDays` ancora 0, bot e SMTP al loro posto.
+   - riavvio, poi nel log `Loaded plugin: "WonderFlix Watch Party" "1.6.0.0"`, l'md5 della dll uguale a quello della dll nello zip, e nella configurazione `ContactReminderDays` ancora 0, bot e SMTP al loro posto;
+   - dopo l'installazione controlla anche che `GET Info` del plugin abbia la funzione `account`: senza, l'app non mostra la scheda Utenti, la card "Recupero password" né i contatti nelle Impostazioni.
 3. **App 0.12.0, non obbligatoria** (vedi `docs/RELEASING.md`, sezione dell'app):
    - versione nel `pubspec.yaml`, commit `chore: release 0.12.0`, tag `v0.12.0`, push;
    - il workflow crea la bozza con `WonderFlix-Setup-0.12.0.exe` e `.sha256`;
    - le note in italiano le scrivo io nella bozza, senza `min-version`. Devono dire:
      - Impostazioni → Account, ora in cima, con "Cambia password" e i contatti per il recupero (Discord ed email, verificati con un codice e con la password attuale);
      - "Password dimenticata?" nell'accesso: un codice su Discord o per email (non per gli admin), e "Ho già un codice";
+     - il codice mandato dall'admin si usa con «Password dimenticata?» → «Ho già un codice», entro 10 minuti (con «Invia codice» se ne manda uno nuovo, che sostituisce il suo);
      - il promemoria "Proteggi il tuo account" nella cassetta;
      - per gli admin la scheda Utenti e la card "Recupero password";
      - che il recupero vuole il plugin 1.6.0 (senza, c'è solo il cambio della password);
