@@ -457,7 +457,7 @@ La sezione Account è la prima di Impostazioni (prima era in fondo, sopra Suppor
 - sotto la password attuale: "Lascia vuoto se l'account non ha una password" (è un campo normale, si lascia vuoto);
 - nuova di almeno 6 caratteri ("Almeno 6 caratteri") e uguale alla conferma ("Le password non coincidono"), altrimenti l'errore sotto il campo e nessuna richiesta;
 - 403 → "Password attuale sbagliata" sotto la password attuale (vale anche per un caso raro, §11), con il fuoco e il testo selezionato (vedi "il fuoco dopo un errore" più sotto);
-- un altro errore va sopra i campi: senza rete e con 502, 503 o 504 (nginx mentre Jellyfin si riavvia) "WonderFlix non è raggiungibile. Controlla la connessione.", come nei contatti; altrimenti "Qualcosa è andato storto. Riprova.";
+- un altro errore va sopra i campi: senza rete e con 502, 503 o 504 (nginx mentre Jellyfin si riavvia) "WonderFlix non è raggiungibile. Controlla la connessione.", come nei contatti; altrimenti il testo di `describeError`, di solito "Qualcosa è andato storto. Riprova." (un 401 di una sessione scaduta dà "Nome utente o password errati.", ma la sessione si chiude comunque e si torna all'accesso);
 - ok → la finestra si chiude e arriva l'avviso "Password cambiata. Gli altri dispositivi dovranno rientrare." Il profilo di questo PC tiene il suo token.
 
 **Contatti per il recupero** (solo con `SocialFeatures.account`), una riga per canale, larghe al più 640 px (su uno schermo largo le azioni restano vicine al contatto):
@@ -571,7 +571,7 @@ Amministrazione (piano 18c, da scrivere):
 - **Plugin vecchio.** Niente righe dei contatti, niente scheda Utenti, niente voce nella cassetta; il cambio password funziona; il recupero dice che non è disponibile, con "Scrivi all'admin" se c'è `supportUrl` (§9.1, §9.3).
 - **Canali spenti dopo il collegamento.** I contatti restano; il recupero usa solo i canali configurati; nessun canale → nessun codice (risposta neutra lo stesso). **Un contatto su un canale spento non conta** (§7.4): né per il recupero, né per `WithContacts` nello stato dell'admin, né per i promemoria (l'utente li riceve come chi non ha contatti). L'admin che manda un codice a un utente così ottiene `NoContacts`. Nell'app la riga è grigia e "Scollega" resta (§9.2).
 - **Cambio password senza il permesso delle preferenze.** Jellyfin risponde 403 a `POST /Users/Password` anche a un utente senza `EnableUserPreferenceAccess`: l'app dice "Password attuale sbagliata". Raro, accettato.
-- **429 al primo passo del recupero con un codice già in arrivo.** Un 429 al primo passo lascia al primo passo, anche se un codice chiesto poco prima è in arrivo: si riprova dopo un minuto, e quel codice si può usare solo se il pannello è ancora al secondo passo. Accettato.
+- **429 al primo passo del recupero con un codice già in arrivo.** Un 429 al primo passo lascia al primo passo, anche se un codice chiesto poco prima è in arrivo: si riprova più tardi (dopo un minuto, o di più se è scattato un limite all'ora o al giorno), e quel codice si può usare solo se il pannello è ancora al secondo passo. Accettato.
 - **Accesso non riuscito dopo il recupero.** La password è cambiata e il codice è usato: il recupero resta sulla vista "password cambiata" e "ACCEDI" riprova solo l'accesso (§9.3).
 - **Profili salvati (Spec K).** Cambio dall'app: questo PC tiene il token. Recupero: login nuovo e profilo aggiornato. Altri PC: token rifiutato, nuovo login.
 - **Utente rinominato.** I contatti sono legati all'ID, non al nome.

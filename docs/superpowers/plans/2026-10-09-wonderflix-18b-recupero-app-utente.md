@@ -63,7 +63,8 @@ Niente release: l'app 0.12.0 esce con il plugin 1.6.0 alla fine del 18c.
       - test di sicurezza: le chiamate del recupero partono senza token (l'header `Authorization` non ha `Token=`) dopo `setCredentials(token: null, …)`, come fa `prepareLogin`. Il test passava già: protegge una proprietà che vale;
       - `recoveryTooMany` è "Troppi tentativi: riprova più tardi o contatta l'amministratore" (en "Too many attempts: try again later or contact the admin"): "riprova tra un'ora" era falso quando scatta un limite giornaliero (decisione 4);
       - accettato: un 429 al primo passo del recupero lascia al primo passo, anche se un codice chiesto poco prima è in arrivo (spec §11);
-      - accettato: gli stili ripetuti (`_mutedStyle` del recupero, il titolo delle finestre) restano com'erano, uno per file.
+      - accettato: gli stili ripetuti (`_mutedStyle` del recupero, il titolo delle finestre) restano com'erano, uno per file;
+      - accettato: nel cambio password e nel recupero gli errori controllati dall'app ("Almeno 6 caratteri", "Le password non coincidono", il codice vuoto) e il `weakPassword` del server non rimettono il fuoco sul campo; nel collegamento sì, perché passano tutti da `_show`.
 
 **Architecture:**
 - **Dati** (`lib/core/social/`): `account_models.dart` (`AccountChannel`, `AccountContacts`, `accountMinPasswordLength`), `account_api.dart` (`AccountApi`, `AccountFailure`, `AccountException`); `AuthApi.changePassword`; `PluginFeatures.account` e `SocialFeatures.account`; `ContactReminderEntry` in `inbox_models.dart`.
