@@ -483,4 +483,69 @@ void main() {
     expect(find.text('Scrivi il nome utente'), findsOneWidget);
     expect(find.byKey(const Key('recovery-code')), findsNothing);
   });
+
+  testWidgets('Ho già un codice, poi Rimanda: un codice nuovo, il testo '
+      'torna quello di "mandato"', (tester) async {
+    await pumpLogin(tester);
+    await openRecovery(tester);
+    await tapKey(tester, 'recovery-have-code');
+    await tester.enterText(find.byKey(const Key('recovery-code')), '012345');
+
+    await tester.pump(const Duration(seconds: 60));
+    await tapKey(tester, 'resend-code');
+
+    // Il codice nuovo sostituisce quello dell'admin: non è più "quello che
+    // hai ricevuto".
+    expect(api.recoveryStarts.single, ('garg', 'it'));
+    expect(
+        find.text("Se l'account esiste e ha un contatto collegato, ti abbiamo "
+            'mandato un codice su Discord o per email.'),
+        findsOneWidget);
+    expect(
+        find.text('Scrivi il codice che hai ricevuto su Discord o per email.'),
+        findsNothing);
+    expect(fieldText(tester, 'recovery-code'), isEmpty);
+  });
+
+  testWidgets('Ho già un codice, Rimanda non riuscito: resta il testo del '
+      'codice che si ha', (tester) async {
+    await pumpLogin(tester);
+    await openRecovery(tester);
+    await tapKey(tester, 'recovery-have-code');
+    await tester.enterText(find.byKey(const Key('recovery-code')), '012345');
+
+    api.startRecoveryFailure = AccountFailure.network;
+    await tester.pump(const Duration(seconds: 60));
+    await tapKey(tester, 'resend-code');
+
+    // Nessun codice è partito: quello dell'admin vale ancora.
+    expect(
+        find.text('Scrivi il codice che hai ricevuto su Discord o per email.'),
+        findsOneWidget);
+    expect(fieldText(tester, 'recovery-code'), '012345');
+  });
+
+  testWidgets('Ho già un codice con un plugin senza recupero: non '
+      'disponibile', (tester) async {
+    await pumpLogin(tester);
+    await openRecovery(tester);
+    await tapKey(tester, 'recovery-have-code');
+    await tester.enterText(find.byKey(const Key('recovery-code')), '012345');
+    await tester.enterText(find.byKey(const Key('recovery-new')), 'nuova123');
+    await tester.enterText(
+        find.byKey(const Key('recovery-confirm')), 'nuova123');
+
+    // Il 404 arriva solo qui: "Ho già un codice" non chiama `Start`.
+    api.completeRecoveryFailure = AccountFailure.unavailable;
+    await tapKey(tester, 'recovery-submit');
+
+    expect(
+        find.text('Il recupero automatico non è disponibile su questo server: '
+            "contatta l'amministratore"),
+        findsOneWidget);
+    expect(find.text('Cambio non riuscito: chiedi un nuovo codice'),
+        findsNothing);
+    expect(find.byKey(const Key('recovery-code')), findsNothing);
+    expect(session.loginAttempts, isEmpty);
+  });
 }

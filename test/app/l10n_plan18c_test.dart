@@ -7,6 +7,7 @@ void main() {
     final it = lookupAppLocalizations(const Locale('it'));
     final en = lookupAppLocalizations(const Locale('en'));
     expect(it.adminTabUsers, 'Utenti');
+    expect(it.adminUsersActionsFor('garg'), 'Azioni per garg');
     expect(it.adminUsersPasswordSet('garg'),
         'Password impostata. Le sessioni di garg sono state chiuse.');
     expect(it.adminUsersSendRecoveryConfirm('garg'),
@@ -27,6 +28,7 @@ void main() {
         'Ultimo errore: DM chiusi, 2 h fa');
     expect(it.recoveryHaveCode, 'Ho già un codice');
     expect(en.adminTabUsers, 'Users');
+    expect(en.adminUsersActionsFor('garg'), 'Actions for garg');
     expect(en.adminRecoveryWithContacts(5, 23),
         '5 users out of 23 have a contact');
     expect(en.adminRecoveryWithContacts(1, 23),

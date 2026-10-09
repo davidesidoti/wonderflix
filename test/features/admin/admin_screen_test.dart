@@ -255,6 +255,24 @@ void main() {
     expect(find.text('viviroby'), findsOneWidget);
   });
 
+  testWidgets('la funzione dei contatti sparisce mentre si guarda Utenti: '
+      'si mostra Sessioni', (tester) async {
+    final availability = FakeSocialAvailability(
+        const SocialFeatures(inbox: true, account: true));
+    await pumpScreen(tester,
+        session: FakeSessionController(const SessionSignedIn(testAdmin)),
+        location: '/admin?tab=users',
+        availability: availability);
+    expect(find.text('garg'), findsOneWidget);
+
+    availability.set(const SocialFeatures(inbox: true));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('admin-tab-users')), findsNothing);
+    expect(find.text('garg'), findsNothing);
+    expect(find.text('viviroby'), findsOneWidget);
+  });
+
   testWidgets('funzioni del plugin non ancora note: Utenti aspetta',
       (tester) async {
     final availability = FakeSocialAvailability(SocialFeatures.unknown);

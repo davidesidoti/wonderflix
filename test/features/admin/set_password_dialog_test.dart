@@ -129,7 +129,9 @@ void main() {
     await tester.tap(find.byKey(const Key('set-password-submit')));
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await tester.pump();
+    // Fino a fine animazione: senza il `PopScope` la finestra sarebbe ancora
+    // lì durante la dissolvenza d'uscita.
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('set-password-submit')), findsOneWidget);
 
     gate.complete();

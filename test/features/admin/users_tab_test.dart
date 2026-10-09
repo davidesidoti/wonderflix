@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/auth_api.dart';
+import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
 import 'package:wonderflix/core/social/plugin_admin_models.dart';
 import 'package:wonderflix/features/admin/users_tab.dart';
@@ -25,17 +28,28 @@ void main() {
     adapter = FakeAdapter((_) => const FakeResponse(204));
   });
 
-  Future<void> pumpTab(WidgetTester tester) async {
-    await pumpApp(tester, const Scaffold(body: UsersTab()), overrides: [
-      ...adminTestOverrides(FakeAdminApi(),
-          plugin: plugin,
-          session: FakeSessionController(const SessionSignedIn(testAdmin)),
-          features: const SocialFeatures(inbox: true, account: true)),
-      authApiProvider.overrideWithValue(AuthApi(JellyfinHttp(
-          baseUrl: testServerUrl,
-          clientInfo: testClientInfo,
-          adapter: adapter))),
-    ]);
+  /// La scheda; [session] è l'admin che guarda (di default `testAdmin`).
+  Future<void> pumpTab(
+    WidgetTester tester, {
+    FakeSessionController? session,
+    Size surfaceSize = const Size(1440, 900),
+  }) async {
+    await pumpApp(
+      tester,
+      const Scaffold(body: UsersTab()),
+      overrides: [
+        ...adminTestOverrides(FakeAdminApi(),
+            plugin: plugin,
+            session: session ??
+                FakeSessionController(const SessionSignedIn(testAdmin)),
+            features: const SocialFeatures(inbox: true, account: true)),
+        authApiProvider.overrideWithValue(AuthApi(JellyfinHttp(
+            baseUrl: testServerUrl,
+            clientInfo: testClientInfo,
+            adapter: adapter))),
+      ],
+      surfaceSize: surfaceSize,
+    );
     await tester.pumpAndSettle();
   }
 
@@ -46,6 +60,28 @@ void main() {
     await tester.tap(find.text(label));
     await tester.pumpAndSettle();
   }
+
+  /// "Invia codice di recupero" a [userId], confermato: con il cancello
+  /// dell'azione chiuso, resta in corso.
+  Future<void> startSending(WidgetTester tester, String userId) async {
+    await choose(tester, userId, 'Invia codice di recupero');
+    await tester.tap(find.text('Invia'));
+    await tester.pumpAndSettle();
+  }
+
+  bool menuEnabled(WidgetTester tester, String userId) => tester
+      .widget<PopupMenuButton<UserAction>>(
+          find.byKey(Key('user-menu-$userId')))
+      .enabled;
+
+  /// Garg e gli altri di [testAccountUsers], poi [count] utenti senza
+  /// contatti: una lista che in una finestra bassa si scorre.
+  List<AdminAccountUser> longList(int count) => [
+        ...testAccountUsers(),
+        for (var i = 0; i < count; i++)
+          AdminAccountUser(
+              id: 'p$i', name: 'utente $i', isAdmin: false, enabled: true),
+      ];
 
   group('userActions', () {
     const garg = AdminAccountUser(
@@ -119,6 +155,113 @@ void main() {
     expect(find.text('Imposta password'), findsOneWidget);
     expect(find.text('Invia codice di recupero'), findsOneWidget);
     expect(find.text('Scollega contatti'), findsOneWidget);
+  });
+
+  testWidgets('il pulsante del menu dice di chi sono le azioni',
+      (tester) async {
+    await pumpTab(tester);
+
+    expect(find.byTooltip('Azioni per garg'), findsOneWidget);
+    expect(find.byTooltip('Azioni per lucia'), findsOneWidget);
+  });
+
+  testWidgets('la propria riga: niente "Imposta password", anche con l\'id '
+      'scritto in un altro modo', (tester) async {
+    // Jellyfin dà l'id dell'admin con i trattini e maiuscole, il plugin in
+    // formato `N`: si confrontano con `jellyfinIdKey`.
+    await pumpTab(tester,
+        session: FakeSessionController(const SessionSignedIn(JellyfinUser(
+            id: 'U-1', name: 'Mario', isAdministrator: true))));
+
+    await tester.tap(find.byKey(const Key('user-menu-u1')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Scollega contatti'), findsOneWidget);
+    expect(find.text('Imposta password'), findsNothing);
+  });
+
+  testWidgets('una riga senza azioni non ha il menu', (tester) async {
+    // La propria riga, senza contatti: niente password (è la propria), niente
+    // codice (è admin), niente scollegamento.
+    plugin.accountUsersValue = const [
+      AdminAccountUser(id: 'u1', name: 'Mario', isAdmin: true, enabled: true),
+      AdminAccountUser(id: 'u3', name: 'lucia', isAdmin: false, enabled: true),
+    ];
+    await pumpTab(tester);
+
+    expect(find.byKey(const Key('user-menu-u1')), findsNothing);
+    expect(find.byKey(const Key('user-menu-u3')), findsOneWidget);
+    expect(find.byTooltip('Azioni per Mario'), findsNothing);
+  });
+
+  testWidgets('elenco vuoto: Nessun utente', (tester) async {
+    plugin.accountUsersValue = const [];
+    await pumpTab(tester);
+
+    expect(find.text('Nessun utente'), findsOneWidget);
+  });
+
+  testWidgets('azione in corso: il menu della riga è spento', (tester) async {
+    final gate = plugin.accountActionGate = Completer<void>();
+    await pumpTab(tester);
+    expect(menuEnabled(tester, 'u2'), isTrue);
+
+    await startSending(tester, 'u2');
+
+    expect(plugin.calls, contains('recovery:u2:it'));
+    expect(menuEnabled(tester, 'u2'), isFalse);
+    expect(menuEnabled(tester, 'u3'), isTrue, reason: 'le altre righe no');
+
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.text('Codice mandato su Discord ed email'), findsOneWidget);
+    expect(menuEnabled(tester, 'u2'), isTrue);
+  });
+
+  testWidgets('riga fuori vista durante l\'azione: l\'avviso arriva e il '
+      'menu resta spento', (tester) async {
+    plugin.accountUsersValue = longList(40);
+    final gate = plugin.accountActionGate = Completer<void>();
+    await pumpTab(tester, surfaceSize: const Size(1440, 400));
+    await startSending(tester, 'u2');
+
+    // Si scorre lontano: la lista smonta le righe fuori vista, ma non
+    // quella con l'azione in corso.
+    await tester.drag(find.byType(ListView), const Offset(0, -3000));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('user-menu-u2')), findsNothing,
+        reason: 'la riga è fuori vista');
+
+    // Tornando su la riga è la stessa: il menu è ancora spento.
+    await tester.drag(find.byType(ListView), const Offset(0, 3000));
+    await tester.pumpAndSettle();
+    expect(menuEnabled(tester, 'u2'), isFalse);
+
+    await tester.drag(find.byType(ListView), const Offset(0, -3000));
+    await tester.pumpAndSettle();
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.text('Codice mandato su Discord ed email'), findsOneWidget);
+
+    await tester.drag(find.byType(ListView), const Offset(0, 3000));
+    await tester.pumpAndSettle();
+    expect(menuEnabled(tester, 'u2'), isTrue);
+  });
+
+  testWidgets('nome lungo: occupa tutto lo spazio fino ai contatti',
+      (tester) async {
+    final name = 'n' * 80;
+    plugin.accountUsersValue = [
+      AdminAccountUser(id: 'u9', name: name, isAdmin: false, enabled: true),
+    ];
+    await pumpTab(tester, surfaceSize: const Size(420, 800));
+
+    final nameRight = tester.getTopRight(find.text(name)).dx;
+    final contactLeft =
+        tester.getTopLeft(find.byTooltip('Discord non collegato')).dx;
+    // Resta solo il respiro fra il nome e l'icona: lo spazio non si divide a
+    // metà con uno spazio vuoto.
+    expect(contactLeft - nameRight, lessThanOrEqualTo(12));
   });
 
   testWidgets('Invia codice di recupero: conferma, poi dove è arrivato',

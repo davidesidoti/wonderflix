@@ -32,16 +32,42 @@ class AccountRecoveryCard extends ConsumerStatefulWidget {
       _AccountRecoveryCardState();
 }
 
-class _AccountRecoveryCardState extends ConsumerState<AccountRecoveryCard> {
+class _AccountRecoveryCardState extends ConsumerState<AccountRecoveryCard>
+    with AutomaticKeepAliveClientMixin {
   /// L'esito dell'ultima prova, accanto al pulsante.
   AccountTestResult? _result;
 
+  /// La prova è in corso (dura fino a 24 s).
+  bool _testing = false;
+
+  /// La card è l'ultima della scheda, in una `ListView` che smonta ciò che
+  /// esce dalla vista: scorrendo durante la prova (o dopo, con l'esito
+  /// accanto al pulsante) si perderebbero l'esito e lo stato del pulsante, e
+  /// se ne potrebbe far partire un'altra. Resta finché la prova dura e finché
+  /// c'è un esito da leggere.
+  @override
+  bool get wantKeepAlive => _testing || _result != null;
+
   Future<void> _test() async {
     final language = Localizations.localeOf(context).languageCode;
-    final result = await ref
-        .read(accountAdminControllerProvider.notifier)
-        .test(language: language);
-    if (mounted) setState(() => _result = result);
+    // Un esito vecchio non resta accanto a una prova nuova, nemmeno se
+    // questa fallisce.
+    setState(() {
+      _testing = true;
+      _result = null;
+    });
+    updateKeepAlive();
+    try {
+      final result = await ref
+          .read(accountAdminControllerProvider.notifier)
+          .test(language: language);
+      if (mounted) setState(() => _result = result);
+    } finally {
+      if (mounted) {
+        setState(() => _testing = false);
+        updateKeepAlive();
+      }
+    }
   }
 
   List<Widget> _channelLines(AppLocalizations l, AccountChannel channel,
@@ -63,6 +89,7 @@ class _AccountRecoveryCardState extends ConsumerState<AccountRecoveryCard> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final l = AppLocalizations.of(context);
     // Senza la funzione la card non c'è, e lo stato non si legge.
     if (!ref.watch(accountAvailableProvider)) return const SizedBox.shrink();

@@ -157,7 +157,14 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
     // Il codice nuovo sostituisce il vecchio sul server: con quello vecchio
     // nel campo, "Cambia password" darebbe "Codice non valido o scaduto".
     // Dopo un errore nessun codice è partito, e quello scritto vale ancora.
-    if (failure == null && mounted) _code.clear();
+    // Lo stesso vale per quello che l'utente aveva già (`_haveCode`, per
+    // esempio dell'admin): non è più "quello che hai ricevuto".
+    if (failure == null && mounted) {
+      setState(() {
+        _code.clear();
+        _haveCode = false;
+      });
+    }
     return failure == null || failure == AccountFailure.rateLimited;
   }
 
@@ -203,6 +210,10 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
         setState(() {
           _busy = false;
           switch (error.failure) {
+            // Il 404 qui arriva solo con "Ho già un codice", che non passa da
+            // `Start`: plugin assente o vecchio, come al primo passo.
+            case AccountFailure.unavailable:
+              _unavailable = true;
             case AccountFailure.invalidCode:
               _codeError = l.accountErrorInvalidCode;
               // Invio nell'ultimo campo ha tolto il fuoco: torna al codice,

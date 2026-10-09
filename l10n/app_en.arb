@@ -632,7 +632,7 @@
   "adminUsersAdmin": "Admin",
   "adminUsersDisabled": "Disabled",
   "adminUsersEmpty": "No users",
-  "adminUsersActions": "Actions",
+  "adminUsersActionsFor": "Actions for {name}",
   "adminUsersDiscordLinked": "Discord: {name}",
   "adminUsersDiscordNone": "Discord not linked",
   "adminUsersEmailLinked": "Email: {email}",

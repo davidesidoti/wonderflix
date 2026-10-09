@@ -107,19 +107,32 @@ class AccountUserRow extends ConsumerStatefulWidget {
   ConsumerState<AccountUserRow> createState() => _AccountUserRowState();
 }
 
-class _AccountUserRowState extends ConsumerState<AccountUserRow> {
+class _AccountUserRowState extends ConsumerState<AccountUserRow>
+    with AutomaticKeepAliveClientMixin {
   /// Un'azione in corso: intanto il menu è spento.
   bool _busy = false;
+
+  /// La `ListView` smonta le righe fuori vista: se l'admin scorre mentre
+  /// un'azione è in corso (il codice è già partito, o la password sta
+  /// cambiando), la riga sparirebbe con il suo avviso, e quella nuova avrebbe
+  /// il menu acceso (si potrebbe rimandare, e il secondo codice sostituisce
+  /// il primo). Finché l'azione dura la riga resta.
+  @override
+  bool get wantKeepAlive => _busy;
 
   AdminAccountUser get _user => widget.user;
 
   Future<void> _run(Future<void> Function() action) async {
     if (_busy) return;
     setState(() => _busy = true);
+    updateKeepAlive();
     try {
       await action();
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+        updateKeepAlive();
+      }
     }
   }
 
@@ -198,6 +211,7 @@ class _AccountUserRowState extends ConsumerState<AccountUserRow> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final l = AppLocalizations.of(context);
     final user = _user;
     final actions = userActions(user, isMe: widget.isMe);
@@ -210,20 +224,28 @@ class _AccountUserRowState extends ConsumerState<AccountUserRow> {
           UserAvatar.lookup(
               userId: user.id, name: user.name, size: _avatarSize),
           const SizedBox(width: 10),
-          Flexible(
-            child: Text(user.name,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w600)),
+          // Nome ed etichette prendono tutto lo spazio che resta: un nome
+          // lungo si tronca solo quando non c'è più posto.
+          Expanded(
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(user.name,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                ),
+                if (user.isAdmin) ...[
+                  const SizedBox(width: 8),
+                  _Badge(text: l.adminUsersAdmin),
+                ],
+                if (!user.enabled) ...[
+                  const SizedBox(width: 8),
+                  _Badge(text: l.adminUsersDisabled),
+                ],
+              ],
+            ),
           ),
-          if (user.isAdmin) ...[
-            const SizedBox(width: 8),
-            _Badge(text: l.adminUsersAdmin),
-          ],
-          if (!user.enabled) ...[
-            const SizedBox(width: 8),
-            _Badge(text: l.adminUsersDisabled),
-          ],
-          const Spacer(),
+          const SizedBox(width: 8),
           _ContactIcon(
             icon: LucideIcons.messageCircle,
             linked: discord != null,
@@ -246,7 +268,7 @@ class _AccountUserRowState extends ConsumerState<AccountUserRow> {
                 ? null
                 : PopupMenuButton<UserAction>(
                     key: Key('user-menu-${user.id}'),
-                    tooltip: l.adminUsersActions,
+                    tooltip: l.adminUsersActionsFor(user.name),
                     enabled: !_busy,
                     icon: const Icon(LucideIcons.ellipsisVertical,
                         size: 18, color: WfColors.creamMuted),

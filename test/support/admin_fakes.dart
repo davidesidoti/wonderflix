@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/misc.dart';
 import 'package:wonderflix/core/jellyfin/activity_models.dart';
 import 'package:wonderflix/core/jellyfin/admin_api.dart';
@@ -291,6 +293,12 @@ class FakePluginAdminApi implements PluginAdminApi {
   /// Seerr, e le azioni del recupero: codice, scollegamento, prova.
   Object? actionError;
 
+  /// Se c'è, le azioni del recupero (`sendRecoveryCode`, `unlinkContacts`,
+  /// `testAccountChannels`) restano in corso finché il test non lo completa:
+  /// la chiamata si registra in [calls] prima di aspettare, l'effetto e
+  /// [actionError] vengono dopo.
+  Completer<void>? accountActionGate;
+
   /// Chiamate in ordine: `announce:<testo>`, `newTitles`, `send`, `seerr`,
   /// `test`, `notify:<true|false>`, `accountUsers`, `accountStatus`,
   /// `recovery:<id>:<lingua>`, `unlink:<id>`, `accountTest:<lingua>`.
@@ -360,6 +368,7 @@ class FakePluginAdminApi implements PluginAdminApi {
   Future<List<AccountChannel>> sendRecoveryCode(String userId,
       {required String language}) async {
     calls.add('recovery:$userId:$language');
+    await accountActionGate?.future;
     final error = actionError;
     if (error != null) throw error;
     return recoveryChannels;
@@ -370,6 +379,7 @@ class FakePluginAdminApi implements PluginAdminApi {
   @override
   Future<void> unlinkContacts(String userId) async {
     calls.add('unlink:$userId');
+    await accountActionGate?.future;
     final error = actionError;
     if (error != null) throw error;
     accountUsersValue = [
@@ -398,6 +408,7 @@ class FakePluginAdminApi implements PluginAdminApi {
   Future<AccountTestResult> testAccountChannels(
       {required String language}) async {
     calls.add('accountTest:$language');
+    await accountActionGate?.future;
     final error = actionError;
     if (error != null) throw error;
     return accountTestValue;
