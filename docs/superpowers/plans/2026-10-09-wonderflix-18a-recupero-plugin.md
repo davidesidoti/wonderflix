@@ -6164,13 +6164,13 @@ Il subagent del Gruppo E si ferma qui. L'orchestratore fa i passi seguenti. Sul 
    - **promemoria spenti** (decisione 9):
      - copia `~/.apps/jellyfin/data/plugins/configurations/Jellyfin.Plugin.WonderFlixWatchParty.xml` in `~/wfwp-backup/config-1.5.0.xml`;
      - aggiungi `<ContactReminderDays>0</ContactReminderDays>` prima di `</PluginConfiguration>` (`sed -i 's#</PluginConfiguration>#  <ContactReminderDays>0</ContactReminderDays>\n</PluginConfiguration>#'`);
-     - controlla con `grep ContactReminderDays`;
+     - controlla con `grep ContactReminderDays` e che l'XML sia ancora valido (`python3 -c 'import sys,xml.etree.ElementTree as E;E.parse(sys.argv[1])' <file>`): con un XML rovinato Jellyfin rimette i predefiniti **e li salva**, e si perderebbero le impostazioni di Seerr;
    - `scp -r` della cartella `WonderFlix Watch Party_1.6.0.0` in `ultra:.apps/jellyfin/data/plugins/`, poi `ls` per controllare il nome;
    - `app-jellyfin start`, poi nel log `Loaded plugin: "WonderFlix Watch Party" "1.6.0.0"` e nessun errore del plugin. L'avvio può durare minuti.
    - **Se qualcosa va storto:** ferma Jellyfin, sposta via la cartella 1.6.0.0, rimetti `~/wfwp-backup/1.5.0.0-catalogo` e la configurazione salvata, riavvia, e segnalalo.
-3. **Controlli senza canali** (base `http://127.0.0.1:17502/jellyfin`, intestazione `Authorization: MediaBrowser Token="<chiave Wonderflix>"`, script in un file come dice la memoria):
-   - `GET /WonderFlixWatchParty/Info` ha `account` e la versione `1.6.0`;
-   - `GET /WonderFlixWatchParty/Account/Admin/Status`: `Configured` false per tutti e due i canali, `ReminderDays` 0, `Users` uguale agli utenti attivi non admin, `WithContacts` 0;
+3. **Controlli senza canali** (base `http://127.0.0.1:17502/jellyfin`, intestazione `Authorization: MediaBrowser Token="<chiave Wonderflix>"`, script in un file come dice la memoria), da fare **entro 5 minuti dall'avvio** (il primo giro dei promemoria):
+   - `GET /WonderFlixWatchParty/Info` ha `account`, la versione `1.6.0` e ancora `requests` (Seerr è sopravvissuto);
+   - `GET /WonderFlixWatchParty/Account/Admin/Status`: `Configured` false per tutti e due i canali, **`ReminderDays` 0** (se non è 0, ferma subito Jellyfin e correggi l'XML), `Users` uguale agli utenti attivi non admin, `WithContacts` 0;
    - `GET /WonderFlixWatchParty/Account/Admin/Users`: tutti gli utenti, nessun contatto;
    - **senza intestazione** `POST /WonderFlixWatchParty/Account/Recovery/Start` con `{"Username":"nessuno-18a","Language":"it"}` → 202; la stessa richiesta subito dopo → 429 `{"Code":"RateLimited"}`;
    - senza intestazione `POST …/Account/Recovery/Complete` con `{"Username":"nessuno-18a","Code":"000000","NewPassword":"abcdef"}` → 400 `{"Code":"InvalidCode"}`;
@@ -6221,7 +6221,9 @@ Nella spec, controllando ogni frase sul codice:
 - **§7.4 e §7.6:** l'ordine dei controlli di Start (canale, contatto, limite al minuto per canale, limite all'ora, password, ricerca, codice); `Password` in Start; `POST Contacts/{canale}/Unlink` con `{Password}` al posto della DELETE; `WrongPassword` 403.
 - **§9.2 (per il 18b):** la finestra "Collega" chiede anche la password attuale (passo 1), e "Scollega" la chiede nella conferma; un account senza password la lascia vuota.
 - **§14:** i punti verificati (firme, `RevokeUserTokens`, `[AllowAnonymous]` già usato dal webhook di Seerr). La ricerca dei membri e l'SMTP sono stati provati nel Task 14, con l'esito.
-- **§15:** 18a realizzato; il plugin 1.6.0 esce con l'app 0.12.0 alla fine del 18c; fino ad allora sul server c'è la build di prova con i promemoria spenti.
+- **§15:** 18a realizzato; il plugin 1.6.0 esce con l'app 0.12.0 alla fine del 18c; fino ad allora sul server c'è la build di prova con i promemoria spenti. Al rilascio, in `manifest.json` vanno aggiornate anche `description` e `overview` (come `meta.template.json`), non solo `versions`; i promemoria si riaccendono (14 giorni) nella Dashboard.
+- **§7.8:** togli il `build.yaml`, che nel repository non c'è (la versione sta nel csproj, il pacchetto lo fa `pack.sh`, il workflow fa lo zip).
+- **§7.1:** la pagina della Dashboard come è davvero: la prova in una sezione a parte ("Password recovery test"), lo stato con l'ultimo errore, il salvataggio rifiutato finché le impostazioni non sono lette, i campi numerici obbligatori.
 - Ogni altra differenza venuta fuori durante i task, con il motivo.
 
 Nel piano, se nei task è cambiato qualcosa rispetto al codice scritto qui, aggiungi alle "Decisioni del piano" una voce "Dalle review dei gruppi" con le differenze (come nei piani 17a–17c).
