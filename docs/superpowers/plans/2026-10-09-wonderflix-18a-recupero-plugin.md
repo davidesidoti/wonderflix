@@ -71,6 +71,16 @@ I controller stanno in `Api/`. Le classi sono piccole e ognuna fa una cosa:
       - `SmtpMailSender` prende ogni errore tranne l'annullamento di chi chiama, scrive nel log la causa prima (`GetBaseException`) e, con la porta 465, ricorda che serve la 587; `SmtpServer` non stampa la password;
       - due prove del vero `SmtpClient` su un server finto locale (silenzioso, senza STARTTLS);
       - nello stato dell'admin un canale spento non mostra il vecchio errore; il recupero scrive un avviso quando nessun canale ha funzionato.
+    - **Gruppo C:**
+      - **password attuale per cambiare i contatti** (decisione dell'utente, 2026-10-09). Senza, chi ha in mano una sessione altrui (per esempio un profilo salvato su un PC condiviso, Spec K) potrebbe collegare la sua email, togliere i contatti del proprietario e cambiare la password con il recupero, chiudendo fuori il proprietario. Oggi una sessione da sola non basta a cambiare la password: Jellyfin chiede quella attuale. Quindi:
+        - collegare, sostituire e scollegare un contatto chiedono la password attuale (vuota per gli account senza password); la conferma con il codice no;
+        - la verifica passa da `IPasswordCheck` / `JellyfinPasswordCheck`, che usa `IUserManager.AuthenticateUser` (firma uguale in 10.11.0 e 10.11.9) con `isUserSession` falso; una password sbagliata conta come un login sbagliato;
+        - limite `PasswordChecks`, 10 verifiche all'ora per utente; errore `WrongPassword` (403);
+        - scollegare diventa `POST Contacts/{canale}/Unlink` con `{Password}` (un corpo in una DELETE non è affidabile);
+        - chi ha già dimenticato la password e non ha contatti passa dall'admin;
+      - **limiti del collegamento:** il limite al minuto vale per utente e canale e scatta solo quando parte un codice, quindi un nome Discord sbagliato si riscrive subito, e Discord ed email si collegano uno dopo l'altro. Il limite all'ora resta per utente e conta ogni ricerca (frena la scoperta dei membri del server);
+      - email più severa: solo ASCII, niente indirizzi IP, etichette del dominio valide;
+      - un membro Discord senza id valido o senza nome è `SendFailed`.
     - **SMTP:** meglio credenziali che possono solo spedire (Brevo, Resend) di una password per app di Gmail.
 
 ## Regole per chi esegue
@@ -5810,6 +5820,7 @@ In `ServiceRegistrationTests.AllServicesResolve`, prima dell'ultima riga, aggiun
         Assert.IsType<Server.DiscordBotClient>(provider.GetRequiredService<Account.IDiscordSender>());
         Assert.IsType<Server.SmtpMailSender>(provider.GetRequiredService<Account.IMailSender>());
         Assert.IsType<Server.JellyfinPasswordReset>(provider.GetRequiredService<Account.IPasswordReset>());
+        Assert.IsType<Server.JellyfinPasswordCheck>(provider.GetRequiredService<Account.IPasswordCheck>());
         Assert.NotNull(provider.GetRequiredService<Account.ContactLinking>());
         Assert.NotNull(provider.GetRequiredService<Account.PasswordRecovery>());
         Assert.NotNull(provider.GetRequiredService<Account.AccountAdmin>());
@@ -5866,6 +5877,7 @@ In `PluginServiceRegistrator.cs` aggiungi `using Jellyfin.Plugin.WonderFlixWatch
         serviceCollection.AddSingleton<IDiscordSender, DiscordBotClient>();
         serviceCollection.AddSingleton<IMailSender, SmtpMailSender>();
         serviceCollection.AddSingleton<IPasswordReset, JellyfinPasswordReset>();
+        serviceCollection.AddSingleton<IPasswordCheck, JellyfinPasswordCheck>();
         serviceCollection.AddSingleton<AccountSender>();
         serviceCollection.AddSingleton<ContactLinking>();
         serviceCollection.AddSingleton<PasswordRecovery>();
@@ -6085,8 +6097,9 @@ In `jellyfin-plugin-watch-party/README.md`:
 
 ```markdown
 - **Recupero della password (dalla 1.6.0):** ogni utente collega e verifica
-  il suo Discord o la sua email (`Account/Contacts`, con un codice a 6 cifre
-  mandato lì). Chi dimentica la password chiede un codice dal login
+  il suo Discord o la sua email (`Account/Contacts`, con la password attuale e
+  un codice a 6 cifre mandato lì: chi ha solo una sessione aperta non può
+  cambiare i contatti). Chi dimentica la password chiede un codice dal login
   (`Account/Recovery`, senza accesso: la risposta non dice se l'account
   esiste) e sceglie la password nuova; tutte le sue sessioni si chiudono.
   Gli admin non possono usarlo. Nella pagina del plugin: token del bot e id
@@ -6183,7 +6196,9 @@ Nella spec, controllando ogni frase sul codice:
   - `Recovery/Complete` ha `Language`;
   - `Admin/Test` ha `Discord` ed `Email`;
   - una chiamata senza utente non collega contatti (`Invalid`).
-- **§8:** password da 6 a 1024 caratteri; i codici accettano spazi e trattini.
+- **§8:** password da 6 a 1024 caratteri; i codici accettano spazi e trattini; **la password attuale per collegare, sostituire e scollegare un contatto** (decisione 11, Gruppo C), con il limite `PasswordChecks` e l'errore `WrongPassword`.
+- **§7.4 e §7.6:** l'ordine dei controlli di Start (canale, contatto, limite al minuto per canale, limite all'ora, password, ricerca, codice); `Password` in Start; `POST Contacts/{canale}/Unlink` con `{Password}` al posto della DELETE; `WrongPassword` 403.
+- **§9.2 (per il 18b):** la finestra "Collega" chiede anche la password attuale (passo 1), e "Scollega" la chiede nella conferma; un account senza password la lascia vuota.
 - **§14:** i punti verificati (firme, `RevokeUserTokens`, `[AllowAnonymous]` già usato dal webhook di Seerr). La ricerca dei membri e l'SMTP sono stati provati nel Task 14, con l'esito.
 - **§15:** 18a realizzato; il plugin 1.6.0 esce con l'app 0.12.0 alla fine del 18c; fino ad allora sul server c'è la build di prova con i promemoria spenti.
 - Ogni altra differenza venuta fuori durante i task, con il motivo.
