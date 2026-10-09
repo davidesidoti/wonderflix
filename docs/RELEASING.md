@@ -12,7 +12,7 @@ Su GitHub: *Settings → Secrets and variables → Actions → New repository se
 |---|---|---|
 | `WONDERFLIX_SERVER_URL` | indirizzo https del server Jellyfin | sì |
 | `WONDERFLIX_DISCORD_APP_ID` | Application ID dell'app Discord | no (senza, niente Rich Presence) |
-| `WONDERFLIX_SUPPORT_URL` | link di "Password dimenticata?" (es. invito Discord) | no |
+| `WONDERFLIX_SUPPORT_URL` | link di "Scrivi all'admin" nell'accesso e nel recupero della password (es. invito Discord) | no |
 | `WONDERFLIX_ACCESS_REQUEST_URL` | link del pulsante "Chiedi l'accesso" su Discord (es. `https://discord.com/users/<id>`) | no |
 
 `githubRepo` non serve: la pipeline usa il repository stesso.
@@ -77,6 +77,10 @@ Prima di ogni release, su un utente di prova:
 - [ ] Dal PC: un file oltre 20 MB dà "Immagine troppo grande", un file che non è un'immagine "Immagine non valida".
 - [ ] Le immagini degli altri (con il plugin 1.5.0): amici e richieste, inviti, party (fila, menu, chat), richiesta d'amicizia, sessioni dell'admin; chi non ha un'immagine resta con l'iniziale.
 - [ ] Con un plugin senza la funzione `avatars` (1.4.0): solo iniziali per gli altri, nessun errore.
+- [ ] Impostazioni → Account (in cima): "Cambia password" con la password attuale sbagliata ("Password attuale sbagliata") e giusta (avviso; questo PC resta dentro, jellyfin-web deve rientrare).
+- [ ] Contatti per il recupero (plugin 1.6.0): collega Discord (password sbagliata, nome sbagliato, codice sbagliato, codice giusto) ed email; "Rimanda il codice" dopo 60 s; "Scollega" con la password.
+- [ ] "Password dimenticata?" nell'accesso con un account di prova non admin con un contatto: il codice arriva, la password nuova fa entrare, arriva l'avviso "password cambiata"; un nome inesistente ha la stessa risposta.
+- [ ] Promemoria "Proteggi il tuo account" nella cassetta per un utente senza contatti; il clic apre Impostazioni.
 - [ ] Aggiornamento da una versione precedente; aggiornamento obbligatorio.
 - [ ] Discord Rich Presence attiva e disattivata.
 - [ ] Pannello media di Windows con il nome "WonderFlix" (app installata).

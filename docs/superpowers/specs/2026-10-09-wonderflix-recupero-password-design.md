@@ -1,7 +1,7 @@
 # WonderFlix — Spec L: recupero e cambio della password
 
 - **Data:** 2026-10-09
-- **Stato:** approvato; piano 18a realizzato (`docs/superpowers/plans/2026-10-09-wonderflix-18a-recupero-plugin.md`); piani 18b e 18c da scrivere
+- **Stato:** approvato; piani 18a e 18b realizzati (`docs/superpowers/plans/2026-10-09-wonderflix-18a-recupero-plugin.md`, `docs/superpowers/plans/2026-10-09-wonderflix-18b-recupero-app-utente.md`); piano 18c da scrivere
 - **Sul server:** dal 2026-10-09 c'è la build di prova del plugin 1.6.0.0 (dll md5 `bc707ef63f1df9dddbc70ce6539ed537`), provata con Discord ed email (§14), con i promemoria spenti (`ContactReminderDays` = 0). Il plugin 1.6.0 esce nel Catalogo con l'app 0.12.0, alla fine del 18c (§15).
 - **Ambito:** Spec L. Realizza l'idea 5 di `docs/IDEE.md` ("Recupero e cambio della password") al livello più ampio: cambio della propria password nell'app, reset da parte dell'admin nell'app e **recupero in autonomia** con un codice mandato su **Discord o per email**. Solo nell'app WonderFlix: il "Password dimenticata" di jellyfin-web resta com'è.
 
@@ -415,64 +415,117 @@ Base `WonderFlixWatchParty/Account`. JSON in PascalCase come il resto del plugin
 - **Password nuove.** Da 6 a 1024 caratteri nel plugin (`Recovery/Complete`, altrimenti `WeakPassword`); nell'app almeno 6.
 - **Contatti condivisi.** Lo stesso Discord o la stessa email possono stare su più account: collegarli richiede comunque il codice (e la password dell'account).
 - **Segreti.** Token del bot e password SMTP solo nel file di configurazione del plugin (letto dagli admin); l'app vede solo `Configured`. Le credenziali SMTP che possono solo spedire, o di un account senza niente di prezioso, sono più sicure (§13). Il client HTTP di Discord non segue i redirect e non scrive l'intestazione `Authorization` nei suoi log.
-- **Log.** Il plugin non scrive codici, password, token, indirizzi email né nomi utente Discord (§7.3). Scrive l'ID Jellyfin dell'utente (formato `N`), gli esiti e, per gli errori di Discord, metodo, percorso senza query e codice d'errore; per l'SMTP il server e la porta (mai l'utente, il mittente o la password). Nell'app `redact.dart` copre i nuovi corpi delle richieste (`Code`, `NewPassword`, `CurrentPw`, `NewPw`, `Target` e il nuovo `Password`, di `Start` e `Unlink`).
+- **Log.** Il plugin non scrive codici, password, token, indirizzi email né nomi utente Discord (§7.3). Scrive l'ID Jellyfin dell'utente (formato `N`), gli esiti e, per gli errori di Discord, metodo, percorso senza query e codice d'errore; per l'SMTP il server e la porta (mai l'utente, il mittente o la password). Nell'app `redact.dart` copre i nuovi corpi delle richieste: `Code`, `NewPassword`, `CurrentPw`, `NewPw` e `Target` entrano nella regola del JSON, dove c'era già `Password` (quello di `Start` e `Unlink`). Solo con un valore stringa: un `"Code"` numerico e la forma a mappa dei frame di Discord IPC (`{code: 4000}`) restano leggibili. `AccountException` nel log dice solo il tipo di errore.
 
 ## 9. App
 
 ### 9.1 Client e disponibilità
 
-- **`AccountApi`** (`lib/core/social/account_api.dart`, sul client del plugin come `SocialApi`): i metodi degli endpoint di §7.6, con errori tipizzati (`AccountError` con i `Code`, compresi `WrongPassword`, `UnknownUser` e `Invalid`; un 400 senza `Code` è un errore generico, §7.6). Le chiamate di `Recovery/*` partono senza token: servono un client senza sessione (lo stesso usato per il login).
-- **`AuthApi`**: `changePassword(userId, currentPw, newPw)` → `POST /Users/Password?userId=` con `{CurrentPw, NewPw}`; lo stesso per l'admin, senza `CurrentPw`.
-- **`SocialFeatures.account`**: dalla funzione `account` di `Info`.
-- **Prima del login** non c'è `Info` (serve un token): l'app prova `POST Recovery/Start` e, con un 404 (plugin vecchio, rotta assente), mostra il messaggio con il link `supportUrl` invece della risposta neutra.
+- **`AccountApi`** (`lib/core/social/account_api.dart`): i metodi degli endpoint dell'utente e del recupero di §7.6 (`contacts`, `startLink`, `confirmLink`, `unlink`, `startRecovery`, `completeRecovery`); quelli dell'admin arrivano nel 18c.
+  - **Sul client principale** (`jellyfinHttpProvider`, tramite `accountApiProvider`), non su uno a parte: nell'accesso `LoginScreen` chiama `prepareLogin`, che toglie il token dal client, quindi le chiamate di `Recovery/*` partono senza. È il client senza sessione del login.
+  - Il `Code` di `Confirm` e `Complete` va come stringa: lo zero iniziale conta.
+  - `startLink` non legge `ExpiresAt` e `AccountContacts` non ha `VerifiedAt`: l'app non li mostra.
+  - Gli esiti previsti (400, 403, 404, 409, 429, 502, 503) vanno nel log come info.
+- **Errori:** `AccountApi` lancia solo `AccountException`, con un `AccountFailure`:
+
+| Risposta | `AccountFailure` |
+|---|---|
+| 404 | `unavailable`: plugin assente o vecchio (il plugin non risponde mai 404) |
+| 400 `InvalidTarget`, `MemberNotFound`, `InvalidCode`, `WeakPassword` | `invalidTarget`, `memberNotFound`, `invalidCode`, `weakPassword` |
+| 403 `WrongPassword` | `wrongPassword` (la sessione resta aperta: la chiude solo un 401) |
+| 409 `DmClosed` · 502 `SendFailed` · 503 `ChannelOff` | `dmClosed` · `sendFailed` · `channelOff` |
+| 429 | `rateLimited` |
+| ogni altro 400, 401, 403 e 409, anche senza `Code` (`Invalid`, `NotAllowed`, il 400 di ASP.NET per un JSON rotto) | `invalid` |
+| 500 | `serverError`: in `Recovery/Complete` il codice è già usato (§11) |
+| 502, 503 e 504 senza il loro `Code` (nginx durante un riavvio), rete, risposta di forma inattesa | `network` |
+
+Le rotte dell'admin (18c) vorranno valori loro per `NotAllowed`, `NoContacts` e `UnknownUser`: oggi sarebbero `invalid`.
+
+- **`AuthApi.changePassword(userId, {currentPassword, newPassword})`** → `POST /Users/Password?userId=` con `{CurrentPw, NewPw}`. Senza `currentPassword` il corpo non ha `CurrentPw`: è "Imposta password" dell'admin (18c); nel 18b si usa solo con. Il 403 della password sbagliata va nel log come info.
+- **`SocialFeatures.account`**: dalla funzione `account` di `Info` (`PluginFeatures.account`), che si chiede anche senza accesso ai watch party. La legge `accountAvailableProvider`: senza, Impostazioni → Account ha solo il cambio della password.
+- **I contatti** (`AccountContactsController`, `accountContactsProvider`, `autoDispose`) si leggono solo con un utente aperto e la funzione `account`: ogni volta che la sezione torna a vedersi e a ogni cambio di profilo.
+  - dopo `Confirm` valgono quelli della risposta (`replace`), senza rileggerli;
+  - dopo uno scollegamento si rileggono (`reload`): intanto restano quelli di prima, senza spinner, e se a metà rilettura cambia l'utente la risposta vecchia si scarta.
+- **Prima del login** non c'è `Info` (serve un token): l'app prova `POST Recovery/Start` e, con un 404 (plugin vecchio, rotta assente), dice che il recupero non è disponibile (§9.3) invece della risposta neutra.
 
 ### 9.2 Impostazioni → Account
 
-Nuova sezione in cima a Impostazioni, `AccountSettingsSection`.
+La sezione Account è la prima di Impostazioni (prima era in fondo, sopra Supporto): `AccountSettingsSection` (`lib/features/settings/account_settings_section.dart`). Tiene quello che c'era (avatar, "Accesso come …", "Cambia immagine", "Cambia profilo", "Esci") e aggiunge "Cambia password" e, con la funzione `account` (§9.1), i contatti per il recupero (`AccountContactsBlock`, `lib/features/account/account_contacts_block.dart`).
 
-**Cambia password** → finestra con password attuale, nuova, conferma:
+**Cambia password** (`ChangePasswordDialog`) → finestra con password attuale, nuova, conferma:
 
-- nuova di almeno 6 caratteri e uguale alla conferma, altrimenti l'errore sotto il campo;
-- per un account senza password la password attuale resta vuota (è un campo normale, si lascia vuoto);
-- 403 → "Password attuale sbagliata";
-- ok → avviso "Password cambiata. Gli altri dispositivi dovranno rientrare." Il profilo di questo PC tiene il suo token.
+- sotto la password attuale: "Lascia vuoto se l'account non ha una password" (è un campo normale, si lascia vuoto);
+- nuova di almeno 6 caratteri ("Almeno 6 caratteri") e uguale alla conferma ("Le password non coincidono"), altrimenti l'errore sotto il campo e nessuna richiesta;
+- 403 → "Password attuale sbagliata" sotto la password attuale (vale anche per un caso raro, §11);
+- un altro errore va sopra i campi (senza rete: "WonderFlix non è raggiungibile. Controlla la connessione.");
+- ok → la finestra si chiude e arriva l'avviso "Password cambiata. Gli altri dispositivi dovranno rientrare." Il profilo di questo PC tiene il suo token.
 
-**Contatti per il recupero** (solo con `SocialFeatures.account`), una riga per canale:
+**Contatti per il recupero** (solo con `SocialFeatures.account`), una riga per canale, larghe al più 640 px (su uno schermo largo le azioni restano vicine al contatto):
 
-- stato: "Non collegato" / "Collegato: garg" / "Collegato: a@example.com"; canale spento → riga grigia "Non disponibile su questo server";
-- azioni: *Collega* (o *Cambia*), *Scollega* (con conferma);
-- *Collega* apre una finestra a due passi:
-  1. campo "Nome utente Discord" oppure "Email", **"Password attuale"** (vuota per un account senza password, come nel cambio) e "Invia codice";
-  2. "Ti abbiamo mandato un codice su Discord / a a@example.com", campo per le 6 cifre, "Conferma" (senza password) e "Rimanda il codice" (attivo dopo 60 s, come il limite di un codice al minuto; rimandare rifà `Start`, che vuole di nuovo la password: come l'app la tiene fra i due passi si decide nel 18b);
-- *Scollega* chiede la **password attuale** nella finestra di conferma (`POST Contacts/{canale}/Unlink`, §7.6);
-- gli errori di §7.6 diventano testi (§10), mostrati nella finestra; `WrongPassword` è "Password attuale sbagliata", e il suo 429 (troppi controlli) "Aspetta un momento prima di riprovare".
+- stato: "Non collegato" / "Collegato: garg" / "Collegato: a@example.com"; canale spento → riga grigia "Non disponibile su questo server", anche con il contatto;
+- azioni:
+  - *Collega* (o *Cambia*) solo con il canale acceso;
+  - *Scollega* se c'è il contatto, **anche su un canale spento**: i contatti restano (§11), e l'utente può toglierlo;
+  - allo screen reader i pulsanti dicono anche il canale ("Collega Discord");
+- mentre i contatti arrivano, uno spinner; se la lettura non riesce, "Non è stato possibile leggere i contatti" e "Riprova";
+- *Collega* apre la finestra "Collega {canale}" (`LinkContactDialog`), a due passi:
+  1. "Nome utente Discord" (sotto: "Il nome utente, non il nome visualizzato") oppure "Email", **"Password attuale"** (vuota per un account senza password, come nel cambio) e "Invia codice". Un nome vuoto dà l'errore senza richiesta;
+  2. "Ti abbiamo mandato un codice su Discord" / "Ti abbiamo mandato un codice a a@example.com", campo "Codice", "Conferma" (senza password) e "Rimanda il codice";
+- **la password resta nella finestra fra i due passi** (nello `State`, fino alla chiusura): rimandare rifà `Start`, che la vuole di nuovo. Ogni rinvio conta un controllo della password (`PasswordChecks`) e un invio dell'ora (`LinkStartHour`);
+- **"Rimanda il codice"** (`ResendCodeButton`):
+  - dice "Rimanda tra {secondi} s" per 60 s da quando il codice è partito, come il limite di un codice al minuto (il conto è dell'app);
+  - è spento mentre un'altra richiesta (la conferma) è in volo;
+  - il conto riparte dopo un invio riuscito e dopo un 429; dopo un altro errore si può riprovare subito;
+  - `WrongPassword` a un rinvio (la password è cambiata altrove dopo il primo passo) riporta al primo passo, con l'errore sotto la password e il fuoco sulla password, con il testo selezionato;
+- conferma riuscita → la finestra si chiude, la riga prende i contatti della risposta e arriva l'avviso "Contatto collegato";
+- *Scollega* apre la finestra "Scollegare {canale}?" (`UnlinkContactDialog`): "Non potrai più usarlo per recuperare la password. Scrivi la password attuale per confermare.", la **password attuale** e "Scollega" (`POST Contacts/{canale}/Unlink`, §7.6). Riuscito → "Contatto scollegato" e i contatti riletti;
+- gli errori di §7.6 diventano testi (§10, `accountFailureText`), sotto il campo che riguardano:
+  - il nome per `InvalidTarget` e `MemberNotFound` al primo passo, la password per `WrongPassword`, il codice per `InvalidCode`;
+  - gli altri sopra i campi;
+  - il 429 (troppi invii o troppi controlli della password) è "Troppe richieste: riprova più tardi": i limiti arrivano a un giorno (§7.5);
+  - `ChannelOff` e il 404: "Non disponibile su questo server"; senza rete: "WonderFlix non è raggiungibile. Controlla la connessione."; `Invalid` e il 500: "Qualcosa è andato storto. Riprova.";
+- **le tre finestre non si chiudono mentre una richiesta è in volo**: Esc, il clic fuori e "Annulla" sono spenti. Altrimenti la password cambierebbe senza l'avviso, o il contatto si collegherebbe (o scollegherebbe) sul server con la riga vecchia;
+- errori e suggerimenti sotto i campi vanno a capo (fino a 3 e 2 righe): "Non ti trovo nel server Discord…" non si tronca.
 
 Testo sotto le righe: "Servono per recuperare la password se la dimentichi. Gli admin non possono usare il recupero automatico." (la seconda frase solo per gli admin).
 
 ### 9.3 Login → "Password dimenticata?"
 
-- Il link compare sempre (non più solo con `supportUrl`) e apre `/login/recover` (rotta fuori dalla shell, come `/login`).
-- **Passo 1:** campo nome utente (precompilato da quello del login), "Invia codice". Risposta: "Se l'account esiste e ha un contatto collegato, ti abbiamo mandato un codice su Discord o per email." 429 → "Aspetta un momento prima di riprovare". Plugin vecchio → il messaggio di §9.1.
-- **Passo 2:** codice, nuova password, conferma, "Cambia password". "Rimanda il codice" dopo 60 s.
-  - 204 → login con la nuova password (`SessionController.loginWithPassword`): l'app entra e aggiorna il profilo salvato;
-  - `InvalidCode` → "Codice non valido o scaduto";
-  - `WeakPassword` → errore sotto il campo;
-  - 429 → "Troppi tentativi: riprova tra un'ora o contatta l'amministratore".
-- Sotto: "Nessun contatto collegato? Contatta l'amministratore" (link `supportUrl`, se c'è).
-- Si torna al login con la freccia indietro.
+- **Il recupero è una seconda vista di `LoginScreen`** (`RecoveryPanel`, `lib/features/auth/recovery_panel.dart`), non la rotta `/login/recover`: `sessionRedirect` manda chi non è dentro a `/login` e basta (una rotta in più andrebbe tolta dal redirect), e con Quick Connect il modulo sta in una scheda alta 300 px. Il recupero prende tutto il pannello, al posto del modulo e delle schede.
+- **"Password dimenticata?"** nel modulo c'è sempre (non più solo con `supportUrl`), accanto a "Scrivi all'admin" (solo con `supportUrl`, come prima). È spento mentre un accesso è in volo: il recupero smonterebbe il modulo, e l'errore o l'ingresso andrebbero persi.
+- **"Torna all'accesso"** (freccia, in alto) riporta al modulo. Il nome scritto passa dall'accesso al recupero e ritorno. È spento durante una richiesta: tornando indietro a metà cambio la password cambierebbe senza l'accesso e senza un avviso.
+- Titolo: "Recupera la password".
+- **Passo 1:** campo nome utente (con il nome scritto nell'accesso), "Invia codice".
+  - nome vuoto → "Scrivi il nome utente", senza richiesta;
+  - 202 → il passo 2, con la risposta neutra "Se l'account esiste e ha un contatto collegato, ti abbiamo mandato un codice su Discord o per email.";
+  - 429 → "Troppe richieste: riprova più tardi";
+  - senza rete → "WonderFlix non è raggiungibile. Controlla la connessione.", e si resta al passo 1;
+  - plugin vecchio (404) → "Il recupero automatico non è disponibile su questo server: contatta l'amministratore", al posto dei campi (§9.1);
+  - un altro errore → "Qualcosa è andato storto. Riprova."
+- **Passo 2:** codice, nuova password, conferma, "Cambia password" e "Rimanda il codice" (come in §9.2: 60 s, il conto che riparte dopo un invio riuscito o un 429). "Rimanda" è spento mentre il cambio è in volo: un codice nuovo sostituirebbe quello che si sta usando.
+  - codice vuoto, password più corta di 6 caratteri o diversa dalla conferma → l'errore sotto il campo, senza richiesta;
+  - 204 → accesso con la nuova password (`SessionController.loginWithPassword`): l'app entra e aggiorna il profilo salvato;
+  - `InvalidCode` → "Codice non valido o scaduto", sotto il codice;
+  - `WeakPassword` → "Almeno 6 caratteri", sotto la nuova password;
+  - 429 → "Troppi tentativi: riprova tra un'ora o contatta l'amministratore";
+  - senza rete → "WonderFlix non è raggiungibile. Controlla la connessione.": il codice può essere ancora buono, e chiederne un altro costa uno dei limiti di `Start`;
+  - 500 (Jellyfin non ha cambiato la password e il codice è già usato, §11) e ogni altro errore → "Cambio non riuscito: chiedi un nuovo codice".
+- **Password cambiata, accesso no.** Se il cambio riesce e l'accesso no, il passo 2 mostra solo "Password cambiata: accedi con quella nuova.", l'errore dell'accesso e "ACCEDI", che riprova l'accesso con la password già cambiata. Niente campi né "Rimanda": il codice è già usato, e una password riscritta lì sarebbe ignorata. A fine accesso "ACCEDI" ha il fuoco.
+- Sotto, solo con `supportUrl`: "Nessun contatto collegato?" e "Scrivi all'admin" (il link `supportUrl`). Con il plugin vecchio resta solo "Scrivi all'admin".
 
 ### 9.4 Cassetta
 
-- `ContactReminderEntry` (`Type: "ContactReminder"`, `channels`).
-- Riga: icona `LucideIcons.shieldCheck`, "Proteggi il tuo account", "Collega Discord o la tua email per recuperare la password se la dimentichi." (solo i canali disponibili).
-- Clic → `/settings?section=account` (scorre alla sezione Account). Si cancella come le altre voci.
+- `ContactReminderEntry` (`Type: "ContactReminder"`, `channels`: i canali che l'app conosce; uno sconosciuto si salta).
+- Riga (`lib/features/inbox/inbox_account_row.dart`): icona `InboxRequestIcon` con `LucideIcons.shieldCheck`, "Proteggi il tuo account", il testo per i canali della voce e l'ora. Il testo è "Collega Discord o la tua email per recuperare la password se la dimentichi.", oppure quello solo per Discord o solo per l'email; senza un canale noto, quello per tutti e due.
+- Clic → chiude il pannello e apre `/settings`, senza `?section=account`: la sezione Account è la prima. Se si è già in Impostazioni, la pagina resta dov'è (accettato). Si cancella come le altre voci.
+- Il promemoria vero si prova al rilascio (18c): sul server i promemoria restano spenti fino ad allora (§15), e nel 18b la voce la coprono i test.
 
 ### 9.5 Amministrazione → Utenti
 
 - `AdminTab.users`, fra Sessioni e Manutenzione, solo con `SocialFeatures.account`.
 - Elenco da `GET Admin/Users`, in ordine di nome: `UserAvatar`, nome, etichetta "Admin" / "Disattivato", icone Discord ed email (piene se collegate, con nome / email mascherata nel tooltip).
 - Menu della riga:
-  - **Imposta password** → finestra con nuova password e conferma; `changePassword` senza `CurrentPw`; avviso "Password impostata. Le sessioni di garg sono state chiuse.";
+  - **Imposta password** → finestra con nuova password e conferma; `changePassword` senza `CurrentPw`; avviso "Password impostata. Le sessioni di garg sono state chiuse.". Non sulla propria riga: per la propria password Jellyfin vuole `CurrentPw` anche da un admin (§3), e lì c'è "Cambia password" (§9.2);
   - **Invia codice di recupero** (non per gli admin né per i disattivati, solo con almeno un contatto) → conferma, poi "Codice mandato su Discord ed email" oppure l'errore. Un contatto su un canale spento non vale: il plugin risponde `NoContacts` (§11);
   - **Scollega contatti** (solo con contatti) → conferma con `AdminConfirmDialog`.
 - Aggiornamento all'apertura della scheda e dopo ogni azione (niente `AdminPoller`).
@@ -488,12 +541,22 @@ Nuova scheda accanto a Seerr:
 
 ## 10. Testi nuovi (ARB, it + en)
 
-Italiano (l'inglese segue):
+Italiano (l'inglese segue, con le stesse chiavi in `app_it.arb` e `app_en.arb`). Fra parentesi la chiave; quelle segnate "c'era" esistevano già.
 
-- Impostazioni: "Account", "Cambia password", "Password attuale", "Nuova password", "Conferma la password", "Almeno 6 caratteri", "Le password non coincidono", "Password attuale sbagliata", "Password cambiata. Gli altri dispositivi dovranno rientrare.", "Contatti per il recupero", "Non collegato", "Collegato: {nome}", "Non disponibile su questo server", "Collega", "Cambia", "Scollega", "Scollegare {canale}?", "Nome utente Discord", "Email", "Invia codice", "Ti abbiamo mandato un codice su Discord", "Ti abbiamo mandato un codice a {email}", "Codice", "Conferma", "Rimanda il codice", "Rimanda tra {secondi} s", "Servono per recuperare la password se la dimentichi.", "Gli admin non possono usare il recupero automatico."
-- Errori: "Non ti trovo nel server Discord: usa il nome utente (non il nome visualizzato) e controlla di essere nel server", "Il bot non riesce a scriverti: in Discord abilita i messaggi diretti dai membri del server", "Email non valida", "Invio non riuscito, riprova più tardi", "Aspetta un momento prima di riprovare", "Codice non valido o scaduto", "Troppi tentativi: riprova tra un'ora o contatta l'amministratore".
-- Recupero: "Recupera la password", "Nome utente", "Se l'account esiste e ha un contatto collegato, ti abbiamo mandato un codice su Discord o per email.", "Cambia password", "Nessun contatto collegato? Contatta l'amministratore", "Il recupero automatico non è disponibile su questo server: contatta l'amministratore".
-- Cassetta: "Proteggi il tuo account", "Collega Discord o la tua email per recuperare la password se la dimentichi.", "Collega Discord per recuperare la password se la dimentichi.", "Collega la tua email per recuperare la password se la dimentichi."
+- Impostazioni: "Account" (`settingsAccount`, c'era), "Cambia password" (`settingsChangePassword`), "Password attuale" (`accountCurrentPassword`), "Lascia vuoto se l'account non ha una password" (`accountNoPasswordHint`), "Nuova password" (`accountNewPassword`), "Conferma la password" (`accountConfirmPassword`), "Almeno 6 caratteri" (`accountPasswordTooShort`), "Le password non coincidono" (`accountPasswordsDiffer`), "Password attuale sbagliata" (`accountWrongPassword`), "Password cambiata. Gli altri dispositivi dovranno rientrare." (`accountPasswordChanged`), "Annulla" (`accountCancel`).
+- Contatti: "Contatti per il recupero" (`accountContactsTitle`), "Servono per recuperare la password se la dimentichi." (`accountContactsHint`), "Gli admin non possono usare il recupero automatico." (`accountContactsAdminHint`), "Non è stato possibile leggere i contatti" (`accountContactsError`), "Discord" (`accountChannelDiscord`), "Email" (`accountChannelEmail`), "Non collegato" (`accountNotLinked`), "Collegato: {name}" (`accountLinked`), "Non disponibile su questo server" (`accountChannelOff`), "Collega" (`accountLink`), "Cambia" (`accountChange`), "Scollega" (`accountUnlink`), "Collega {channel}" (`accountLinkTitle`), "Scollegare {channel}?" (`accountUnlinkTitle`), "Non potrai più usarlo per recuperare la password. Scrivi la password attuale per confermare." (`accountUnlinkBody`), "Nome utente Discord" (`accountDiscordName`), "Il nome utente, non il nome visualizzato" (`accountDiscordNameHint`), "Invia codice" (`accountSendCode`), "Ti abbiamo mandato un codice su Discord" (`accountCodeSentDiscord`), "Ti abbiamo mandato un codice a {email}" (`accountCodeSentEmail`), "Codice" (`accountCode`), "Conferma" (`accountConfirm`), "Rimanda il codice" (`accountResendCode`), "Rimanda tra {seconds} s" (`accountResendIn`), "Contatto collegato" (`accountLinkedDone`), "Contatto scollegato" (`accountUnlinkedDone`).
+- Errori: "Non ti trovo nel server Discord: usa il nome utente (non il nome visualizzato) e controlla di essere nel server" (`accountErrorMemberNotFound`), "Il bot non riesce a scriverti: in Discord abilita i messaggi diretti dai membri del server" (`accountErrorDmClosed`), "Email non valida" (`accountErrorInvalidEmail`), "Nome utente Discord non valido" (`accountErrorInvalidDiscordName`), "Invio non riuscito, riprova più tardi" (`accountErrorSendFailed`), "Troppe richieste: riprova più tardi" (`accountErrorRateLimited`), "Codice non valido o scaduto" (`accountErrorInvalidCode`). Senza rete e per gli errori generici: "WonderFlix non è raggiungibile. Controlla la connessione." (`errorServerUnreachable`, c'era) e "Qualcosa è andato storto. Riprova." (`errorGeneric`, c'era).
+- Recupero: "Password dimenticata?" (`loginForgotPassword`, c'era), "Recupera la password" (`recoveryTitle`), "Torna all'accesso" (`recoveryBack`), "Nome utente" (`loginUsername`, c'era), "Scrivi il nome utente" (`recoveryNameNeeded`), "Se l'account esiste e ha un contatto collegato, ti abbiamo mandato un codice su Discord o per email." (`recoveryCodeSent`), "Nessun contatto collegato?" (`recoveryNoContact`) con "Scrivi all'admin" (`loginContactAdmin`, c'era), "Il recupero automatico non è disponibile su questo server: contatta l'amministratore" (`recoveryUnavailable`), "Troppi tentativi: riprova tra un'ora o contatta l'amministratore" (`recoveryTooMany`), "Cambio non riuscito: chiedi un nuovo codice" (`recoveryFailed`), "Password cambiata: accedi con quella nuova." (`recoveryChanged`), "ACCEDI" (`loginSubmit`, c'era). Gli altri vengono dai contatti: "Invia codice", "Codice", "Nuova password", "Conferma la password", "Cambia password", "Rimanda il codice".
+- Cassetta: "Proteggi il tuo account" (`inboxContactReminderTitle`), "Collega Discord o la tua email per recuperare la password se la dimentichi." (`inboxContactReminderBoth`), "Collega Discord per recuperare la password se la dimentichi." (`inboxContactReminderDiscord`), "Collega la tua email per recuperare la password se la dimentichi." (`inboxContactReminderEmail`).
+
+Rispetto alla prima stesura:
+
+- il 429 dice "più tardi" (i limiti arrivano a un giorno, §7.5): "Troppe richieste: riprova più tardi" per collegamento, scollegamento e primo passo del recupero, al posto di "Aspetta un momento prima di riprovare". Il secondo passo resta "Troppi tentativi: riprova tra un'ora o contatta l'amministratore";
+- "Nessun contatto collegato? Contatta l'amministratore" è diventato "Nessun contatto collegato?" con il pulsante "Scrivi all'admin" che c'era già;
+- testi in più: i suggerimenti sotto la password attuale e sotto il nome Discord, "Nome utente Discord non valido", "Non è stato possibile leggere i contatti", "Contatto collegato" / "Contatto scollegato", "Torna all'accesso", "Scrivi il nome utente", "Cambio non riuscito: chiedi un nuovo codice", "Password cambiata: accedi con quella nuova.", "Annulla", "Collega {channel}" e il testo della finestra di scollegamento.
+
+Amministrazione (piano 18c, da scrivere):
+
 - Admin: "Utenti", "Admin", "Disattivato", "Imposta password", "Password impostata. Le sessioni di {nome} sono state chiuse.", "Invia codice di recupero", "Mandare a {nome} un codice per cambiare la password?", "Codice mandato su {canali}", "{nome} non ha contatti collegati", "Gli admin non possono usare il recupero automatico", "Scollega contatti", "Scollegare Discord ed email di {nome}?", "Recupero password", "Configurato", "Non configurato", "Ultimo errore: {errore}, {quando}", "{n} utenti su {totale} hanno un contatto", "Promemoria ogni {n} giorni", "Promemoria spenti", "Invia prova a me", "Inviato", "Collega prima il tuo contatto", "Token o server non validi", "Si configura nella Dashboard di Jellyfin → Plugin → WonderFlix".
 
 ## 11. Errori e casi limite
@@ -503,8 +566,10 @@ Italiano (l'inglese segue):
 - **DM chiusi** (50007) → `DmClosed` al collegamento. Se l'utente chiude i DM dopo, il recupero fallisce in silenzio per l'utente; l'admin vede l'errore nella scheda.
 - **Discord in 429.** Trattato come `SendFailed`, senza ritentare.
 - **SMTP in errore.** `SendFailed`; la causa precisa va nel log del plugin, senza indirizzi. Con la porta 465 il log dice che serve la 587.
-- **Plugin vecchio.** Niente righe dei contatti, niente scheda Utenti, niente voce nella cassetta; il cambio password funziona; il recupero mostra il link `supportUrl` (§9.1).
-- **Canali spenti dopo il collegamento.** I contatti restano; il recupero usa solo i canali configurati; nessun canale → nessun codice (risposta neutra lo stesso). **Un contatto su un canale spento non conta** (§7.4): né per il recupero, né per `WithContacts` nello stato dell'admin, né per i promemoria (l'utente li riceve come chi non ha contatti). L'admin che manda un codice a un utente così ottiene `NoContacts`.
+- **Plugin vecchio.** Niente righe dei contatti, niente scheda Utenti, niente voce nella cassetta; il cambio password funziona; il recupero dice che non è disponibile, con "Scrivi all'admin" se c'è `supportUrl` (§9.1, §9.3).
+- **Canali spenti dopo il collegamento.** I contatti restano; il recupero usa solo i canali configurati; nessun canale → nessun codice (risposta neutra lo stesso). **Un contatto su un canale spento non conta** (§7.4): né per il recupero, né per `WithContacts` nello stato dell'admin, né per i promemoria (l'utente li riceve come chi non ha contatti). L'admin che manda un codice a un utente così ottiene `NoContacts`. Nell'app la riga è grigia e "Scollega" resta (§9.2).
+- **Cambio password senza il permesso delle preferenze.** Jellyfin risponde 403 a `POST /Users/Password` anche a un utente senza `EnableUserPreferenceAccess`: l'app dice "Password attuale sbagliata". Raro, accettato.
+- **Accesso non riuscito dopo il recupero.** La password è cambiata e il codice è usato: il recupero resta sulla vista "password cambiata" e "ACCEDI" riprova solo l'accesso (§9.3).
 - **Profili salvati (Spec K).** Cambio dall'app: questo PC tiene il token. Recupero: login nuovo e profilo aggiornato. Altri PC: token rifiutato, nuovo login.
 - **Utente rinominato.** I contatti sono legati all'ID, non al nome.
 - **Utente diventato admin.** Il recupero si ferma, anche per un codice già mandato (`InvalidCode`); i contatti restano.
@@ -515,7 +580,7 @@ Italiano (l'inglese segue):
   - Chi ha solo una sessione può far crescere `InvalidLoginAttemptCount` con password sbagliate sui contatti (§8), fino a 10 all'ora. Innocuo con il blocco spento; da ricordare se si accende.
 - **Elenco utenti vuoto.** Se Jellyfin dà un elenco vuoto (errore momentaneo) la pulizia dei promemoria non toglie nessun contatto (§7.7).
 - **`RevokeUserTokens` fallisce dopo il cambio.** La password è cambiata e il codice è usato: l'errore va nel log e il recupero riesce lo stesso.
-- **`ChangePassword` fallisce** (Jellyfin in errore, utente sparito proprio allora). L'errore esce come 500 e il codice, già usato, non vale più: se ne chiede un altro.
+- **`ChangePassword` fallisce** (Jellyfin in errore, utente sparito proprio allora). L'errore esce come 500 e il codice, già usato, non vale più: se ne chiede un altro (nell'app "Cambio non riuscito: chiedi un nuovo codice", §9.3).
 - **Scollegare annulla il codice di recupero in sospeso** (dall'utente e dall'admin). **Un cambio di password fuori dal recupero non lo annulla:** dall'app o con "Imposta password" non c'è un evento di Jellyfin da ascoltare. Punto aperto: il codice dura al più 10 minuti e arriva solo ai contatti verificati.
 
 ## 12. Test
@@ -537,13 +602,25 @@ Italiano (l'inglese segue):
 - Controller: stati HTTP e `{Code}` di §7.6, `[AllowAnonymous]` solo sul recupero, `RequiresElevation` sull'admin, `Invalid` per canale sconosciuto o corpo mancante.
 - Pagina della Dashboard (`PluginPagesTests`) e registrazione dei servizi (`ServiceRegistrationTests`).
 
-**App** (TDD):
+**App, piano 18b** (TDD), sotto `test/`:
 
-- `AccountApi`: corpi, rotte, errori tipizzati; `AuthApi.changePassword`.
-- `redact.dart`: i nuovi campi (compreso `Password`) non finiscono nei log.
-- `ContactReminderEntry` nel parser della cassetta.
-- Widget: sezione Account (stati delle righe, finestra a due passi con la password attuale, "Scollega" che la chiede, errori, "Rimanda" a tempo), cambio password, schermata di recupero (passi, risposta neutra, plugin vecchio, login finale), voce della cassetta (testi per canali, navigazione), scheda Utenti (righe, menu per admin e non admin, azioni), scheda "Recupero password".
-- Testi in `app_it.arb` e `app_en.arb` con le stesse chiavi.
+- `core/social/account_api_test.dart`: corpi e rotte (il `Code` come stringa, lo scollegamento con la password anche vuota), la tabella degli errori di §9.1, rete e risposta di forma inattesa, esiti previsti nel log come info.
+- `core/jellyfin/auth_api_test.dart`: `changePassword` con e senza la password attuale, il 403 nel log come info.
+- `core/logging/redact_test.dart`: i nuovi campi non finiscono nei log; un `"Code"` numerico e la forma a mappa `{code: 4000}` restano com'erano.
+- `core/social/inbox_models_test.dart`: `ContactReminderEntry` nel parser della cassetta, con i canali sconosciuti saltati e senza canali.
+- `features/social/social_providers_test.dart`: la funzione `account` da `Info`, anche senza watch party.
+- `features/account/account_providers_test.dart`: i contatti senza la funzione o senza un utente (nessuna chiamata), la lettura con l'errore, `replace` e `reload` (senza spinner), la funzione che si accende con il provider aperto, il cambio di utente a metà rilettura.
+- `features/account/resend_code_button_test.dart`: attivo dopo 60 s, il conto che riparte solo quando deve, spento senza `onResend`, di nuovo attivo se `onResend` lancia.
+- `features/account/change_password_dialog_test.dart`: i controlli prima della richiesta, la password attuale sbagliata e quella vuota, il server irraggiungibile, errori e suggerimenti a più righe, Esc e "Annulla" spenti durante la richiesta.
+- `features/account/link_contact_dialog_test.dart`: i due passi con gli errori al loro posto, il doppio clic, "Rimanda" con la stessa password (dopo un 429, dopo un invio fallito, con la password cambiata altrove, spento durante la conferma), la finestra che non si chiude durante la richiesta.
+- `features/account/unlink_contact_dialog_test.dart`: la password sbagliata e quella giusta, il 429, la finestra che non si chiude durante la richiesta.
+- `features/settings/account_settings_section_test.dart`: la sezione senza la funzione, le righe (collegato, canale spento con "Scollega", admin), lo spinner, i pulsanti per lo screen reader, la larghezza su uno schermo largo, "Collega" e "Scollega" con i loro avvisi, i contatti non letti con "Riprova", l'avviso del cambio password.
+- `features/settings/settings_test.dart`: "Cambia password", e Account come prima sezione.
+- `features/auth/recovery_panel_test.dart`: andata e ritorno con il nome, Quick Connect, i due passi con i loro errori (nome vuoto, 429, plugin vecchio, rete, `WeakPassword`, codice già usato), l'accesso finale, la vista "password cambiata" con il fuoco su "ACCEDI", "Torna all'accesso" e "Password dimenticata?" spenti durante una richiesta, il link senza `supportUrl`, "Rimanda".
+- `features/inbox/inbox_contact_reminder_test.dart`: i testi per i canali, il clic che chiude il pannello e apre Impostazioni.
+- `app/l10n_plan18b_test.dart`: i testi del 18b, e `app_it.arb` e `app_en.arb` con le stesse chiavi.
+
+**App, piano 18c:** scheda Utenti (righe, menu per admin e non admin, azioni), scheda "Recupero password".
 
 **Prova a mano sul server:**
 
@@ -551,10 +628,10 @@ Italiano (l'inglese segue):
 2. Collegare Discord (password sbagliata, nome sbagliato, nome giusto, codice sbagliato, codice giusto) ed email.
 3. Recupero dal login con un account di prova; la sessione su un secondo dispositivo si chiude; avviso "password cambiata".
 4. Dall'admin: "Invia codice di recupero", "Imposta password", "Scollega contatti".
-5. Promemoria con `ContactReminderDays` basso (1) e un utente senza contatti; sparisce dopo il collegamento. Sul server i promemoria restano spenti (0) fino al rilascio (§15): il giro segna `LastReminderAt` per tutti gli utenti senza contatti, e l'app 0.11 non mostra la voce.
+5. Promemoria con `ContactReminderDays` basso (1) e un utente senza contatti; sparisce dopo il collegamento. Sul server i promemoria restano spenti (0) fino al rilascio (§15): il giro segna `LastReminderAt` per tutti gli utenti senza contatti, e l'app 0.11 non mostra la voce. **Si prova al rilascio, nel 18c**, quando i promemoria si riaccendono: nel 18b la voce della cassetta la coprono i test.
 6. Cambio della propria password; il profilo su questo PC resta dentro.
 
-I punti 2–6 si provano con l'app nuova, nei piani 18b e 18c. Nel 18a, oltre alla prova del punto 1, sul server sono stati provati i controlli anonimi (§14).
+I punti 2, 3 e 6 si provano con l'app nuova alla fine del 18b, con una build locale e un account di prova non admin; il 4 nel 18c; il 5 al rilascio. Nel 18a, oltre alla prova del punto 1, sul server sono stati provati i controlli anonimi (§14).
 
 ## 13. Preparazione (a cura dell'utente)
 
@@ -597,6 +674,9 @@ Credenziali e consensi li gestisce l'utente.
   - Fino al rilascio sul server resta la build di prova 1.6.0.0, con i promemoria spenti (`ContactReminderDays` = 0): l'app 0.11 salta le voci di tipo sconosciuto, ma `LastReminderAt` verrebbe segnato per tutti.
   - **Il plugin 1.6.0 non esce dopo il 18a:** esce nel Catalogo con l'app 0.12.0, alla fine del 18c. Niente tag e niente `manifest.json` prima.
   - **Al rilascio**, nel `manifest.json` si aggiunge la versione in `versions` e si aggiornano anche `description` e `overview` (come in `meta.template.json`), non solo `versions`. Poi si riaccendono i promemoria (14 giorni) dalla pagina del plugin nella Dashboard.
-- **Piano 18b — app, lato utente.** `AccountApi`, `changePassword`, Impostazioni → Account (con la password attuale per collegare e scollegare, §9.2), `/login/recover`, voce della cassetta, `redact.dart` (con `Password`), testi.
+- **Piano 18b — app, lato utente: realizzato.** `AccountApi` e `AccountFailure`, `changePassword`, la funzione `account`, Impostazioni → Account in cima (cambio password e contatti, con la password attuale per collegare e scollegare, §9.2), "Password dimenticata?" come seconda vista dell'accesso (§9.3), voce della cassetta, `redact.dart`, testi.
+  - Niente release dopo il 18b: l'app 0.12.0 esce alla fine del 18c.
+  - La prova a mano (punti 2, 3 e 6 di §12) si fa con una build locale, prima del merge.
 - **Piano 18c — app, lato admin.** Scheda Utenti, scheda "Recupero password", testi; release dell'app **0.12.0** con le note in italiano, insieme al plugin 1.6.0.
+  - Dal 18b: `NotAllowed`, `NoContacts` e `UnknownUser` vorranno valori loro in `AccountFailure` (§9.1); "Imposta password" non va sulla propria riga (§9.5).
 - A lavoro finito l'idea 5 esce da `docs/IDEE.md` e va fra le fatte: "Spec L — recupero e cambio della password (plugin 1.6.0, app 0.12.0)".

@@ -50,9 +50,11 @@ Niente release: l'app 0.12.0 esce con il plugin 1.6.0 alla fine del 18c.
     - **Gruppo C:**
       - `inboxEntryFromJson` usa l'elemento null-aware `?AccountChannel.fromWire(raw)` (lint `use_null_aware_elements`);
       - recupero, stato "password cambiata": se l'accesso fallisce dopo un cambio riuscito, il secondo passo mostra solo "Password cambiata: accedi con quella nuova." (testo nuovo `recoveryChanged`), l'errore dell'accesso e "ACCEDI", che riprova l'accesso con la password già cambiata. Niente campi né "Rimanda": prima una password riscritta lì veniva ignorata in silenzio;
+      - nella vista "password cambiata" "ACCEDI" riceve il fuoco a fine accesso (`_signInFocus` con `addPostFrameCallback`: un `autofocus` non basta, perché il pulsante nasce spento durante l'accesso). Test "accesso lento dopo il cambio" (commit `13fc473`);
       - `mounted` dopo `completeRecovery`;
       - "Password dimenticata?" spento mentre un accesso è in volo;
       - test in più: il link senza `supportUrl`, `weakPassword` dal server, `network` al primo passo;
+      - nei finti dei test: `FakeSessionController.loginGate` tiene l'accesso in volo; `pumpApp` non aggiunge `testAppConfig` se gli `overrides` hanno già un `appConfigProvider` (il test senza `supportUrl`: due override dello stesso provider farebbero lanciare il container);
       - accettato: se si è già in Impostazioni, il clic sul promemoria lascia la pagina dov'è (decisione 2, niente `?section=account`).
 
 **Architecture:**
