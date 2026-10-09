@@ -40,7 +40,7 @@ I controller stanno in `Api/`. Le classi sono piccole e ognuna fa una cosa:
    - `MemberNotFound` è 400, non 404;
    - un utente sconosciuto nelle rotte admin è 400 `UnknownUser`;
    - canali e id nelle rotte sono stringhe, senza vincoli di rotta (un vincolo risponderebbe 404).
-4. **Un limite globale anche sugli errori del recupero** (`RecoveryFailGlobal`, 100 all'ora). Senza, chi inventa nomi a raffica riempirebbe la memoria dei limiti. Costa poco: chi lo esaurisce blocca il completamento per un'ora, come già può fare con l'avvio (30 all'ora), e l'admin resta la via d'uscita.
+4. **Un limite globale anche sugli errori del recupero** (`RecoveryFailGlobal`, 100 al giorno dopo la review del Gruppo A, voce 11). Senza, chi inventa nomi a raffica riempirebbe la memoria dei limiti. Costa poco: chi lo esaurisce blocca il completamento per un'ora, come già può fare con l'avvio (30 all'ora), e l'admin resta la via d'uscita.
 5. **`Recovery/Complete` ha anche `Language`:** serve per l'avviso "password cambiata".
 6. **`Admin/Test` accetta `Discord` (nome utente) ed `Email`, tutti e due facoltativi.** Così la prova funziona prima che l'admin abbia collegato i suoi contatti (serve alla prova del Task 14). Esiti possibili: `Ok`, `NotConfigured`, `NoContact`, `Invalid`, `MemberNotFound`, `InvalidTarget`, `DmClosed`, `SendFailed`. La Dashboard ha i due campi; l'app (18c) li lascia vuoti.
 7. **L'ultimo errore di un canale sparisce con il primo invio riuscito su quel canale:** descrive com'è il canale adesso.
@@ -53,6 +53,17 @@ I controller stanno in `Api/`. Le classi sono piccole e ognuna fa una cosa:
     - un nome utente scritto ha al massimo 256 caratteri;
     - con l'admin, anche un utente disattivato è `NotAllowed`;
     - una chiamata senza utente (chiave API) non può collegare contatti (`Invalid`).
+11. **Dalle review dei gruppi** (il codice dei task sotto è già aggiornato dove serve; la spec si allinea nel Task 15):
+    - **Gruppo A:**
+      - **limiti giornalieri sugli errori del recupero.** Con i soli limiti orari, un attacco lento e continuo avrebbe circa il 7% al mese di indovinare il codice di qualche account. Ci sono quindi `RecoveryFailDay` (20 errori al giorno per nome) e `RecoveryFailGlobal` diventa di 100 errori **al giorno** (era all'ora). `PasswordRecovery` li controlla e li conta, e scrive un avviso nel log quando un nome viene fermato;
+      - `RateLimiter` toglie le chiavi vecchie quando ne ha 1024: i nomi scritti nel recupero non passano mai da `Forget`;
+      - `ContactRegistry` salva copie e rifiuta un contatto non valido (`ArgumentException`): il file si rifiuta tutto intero se una voce non è valida;
+      - in `JellyfinPasswordReset`, se `RevokeUserTokens` non riesce dopo il cambio, l'errore va nel log e il recupero riesce lo stesso (la password è cambiata e il codice è usato);
+      - `ContactReminderDays` è limitato a 0–365;
+      - `PasswordChanging` usa `BindingFlags.DoNotWrapExceptions`.
+    - **Blocco dopo i login sbagliati di Jellyfin:** un utente bloccato risulta disattivato, quindi niente recupero. Sul server `LoginAttemptsBeforeLockout` è NULL per tutti e 23 gli utenti (verificato il 2026-10-09): con NULL Jellyfin non blocca mai (sorgente `v10.11.9`, `UserManager.IncrementInvalidLoginAttemptCount`). Caso accettato: se un giorno il blocco si attiva, l'utente bloccato passa dall'admin.
+    - **`ContactReminders`** non toglie contatti quando Jellyfin dà un elenco utenti vuoto.
+    - **SMTP:** meglio credenziali che possono solo spedire (Brevo, Resend) di una password per app di Gmail.
 
 ## Regole per chi esegue
 
@@ -4447,6 +4458,30 @@ public sealed class PasswordRecoveryTests : IDisposable
     }
 
     [Fact]
+    public async Task TwentyFailuresStopTheNameForADay()
+    {
+        for (var hour = 0; hour < 2; hour++)
+        {
+            for (var i = 0; i < 10; i++)
+            {
+                Assert.Equal(AccountError.InvalidCode, (await _recovery.CompleteAsync("mario", "000000", "nuova-password", "it")).Error);
+            }
+
+            _rig.Time.Advance(TimeSpan.FromHours(1));
+        }
+
+        var (code, _) = _rig.Codes.Issue(_mario.Id, CodePurpose.Recovery);
+        Assert.Equal(AccountError.RateLimited, (await _recovery.CompleteAsync("mario", code, "nuova-password", "it")).Error);
+
+        // Un giorno dopo il primo errore il nome torna libero.
+        _rig.Time.Advance(TimeSpan.FromHours(22));
+        (code, _) = _rig.Codes.Issue(_mario.Id, CodePurpose.Recovery);
+        var complete = await _recovery.CompleteAsync("mario", code, "nuova-password", "it");
+        Assert.Null(complete.Error);
+        await complete.Notifying;
+    }
+
+    [Fact]
     public async Task AHundredFailuresStopEveryone()
     {
         for (var i = 0; i < 100; i++)
@@ -4672,8 +4707,12 @@ public sealed class PasswordRecovery(
         }
 
         var key = Key(name);
-        if (limiter.IsLimited(EveryoneKey, LimitTypes.RecoveryFailGlobal) || limiter.IsLimited(key, LimitTypes.RecoveryFail))
+        if (limiter.IsLimited(EveryoneKey, LimitTypes.RecoveryFailGlobal)
+            || limiter.IsLimited(key, LimitTypes.RecoveryFail)
+            || limiter.IsLimited(key, LimitTypes.RecoveryFailDay))
         {
+            // Si vede nel log se qualcuno prova a indovinare i codici.
+            logger.LogWarning("Recupero della password fermato dai limiti per il nome {Name}", name);
             return Done(AccountError.RateLimited);
         }
 
@@ -4688,6 +4727,7 @@ public sealed class PasswordRecovery(
         {
             limiter.TryAcquire(EveryoneKey, LimitTypes.RecoveryFailGlobal);
             limiter.TryAcquire(key, LimitTypes.RecoveryFail);
+            limiter.TryAcquire(key, LimitTypes.RecoveryFailDay);
             return Done(AccountError.InvalidCode);
         }
 
@@ -5486,6 +5526,17 @@ public sealed class ContactRemindersTests : IDisposable
 
         Assert.DoesNotContain(ghost, _rig.Contacts.All().Keys);
     }
+
+    [Fact]
+    public async Task AnEmptyUserListRemovesNothing()
+    {
+        var luigi = _rig.Server.Users.Values.Single(u => u.Name == "Luigi");
+        _rig.Server.Users.Clear();
+
+        Assert.Equal(0, await _reminders.RunAsync());
+
+        Assert.True(_rig.Contacts.Get(luigi.Id).HasContact);
+    }
 }
 ```
 
@@ -5594,8 +5645,13 @@ public sealed class ContactReminders(
         }
 
         var all = users.GetUsers();
-        var known = all.Select(u => u.Id).ToHashSet();
-        contacts.Prune(known.Contains);
+
+        // Un elenco vuoto (errore momentaneo di Jellyfin) toglierebbe i contatti di tutti.
+        if (all.Count > 0)
+        {
+            var known = all.Select(u => u.Id).ToHashSet();
+            contacts.Prune(known.Contains);
+        }
         var now = time.GetUtcNow();
         var every = TimeSpan.FromDays(days);
         var names = channels.Select(c => c.Name()).ToList();
@@ -6060,7 +6116,7 @@ Il subagent del Gruppo E si ferma qui. L'orchestratore fa i passi seguenti. Sul 
      - nel Developer Portal, nell'app `1397884246692986970`, scheda Bot: creare il bot, copiare il token, attivare "Server Members Intent";
      - in OAuth2 → URL Generator, scope `bot`, nessun permesso: aprire l'URL e invitare il bot nel server di WonderFlix;
      - copiare l'id del server (modalità sviluppatore → clic destro sul server → Copia ID server);
-   - **Email:** scegliere un SMTP sulla porta 587 (per esempio una password per app di Gmail, con l'account Gmail come utente e mittente);
+   - **Email:** scegliere un SMTP sulla porta 587. Meglio credenziali che possono solo spedire (una chiave SMTP di Brevo o di Resend) che una password per app di Gmail: chi la legge dalla configurazione potrebbe anche leggere la posta inviata, codici compresi;
    - **Dashboard:** Plugin → WonderFlix Watch Party → "Password recovery": inserire tutto, con **"Reminder every (days)" a 0**, poi **Save**;
    - **Send a test**, con il suo nome utente Discord e la sua email nei due campi: deve leggere "Discord: sent. E-mail: sent." e ricevere il DM del bot e l'email (controllare anche lo spam).
 5. **Dopo la prova dell'utente:**
@@ -6085,7 +6141,9 @@ Nella spec, controllando ogni frase sul codice:
 - **§7.1:** la pagina della Dashboard con i campi di prova facoltativi (nome Discord, email).
 - **§7.3:** l'ultimo errore sparisce con il primo invio riuscito sul canale; nel log niente indirizzi (anche nei messaggi del server SMTP); `User-Agent` di Discord.
 - **§7.4:** `AccountService` diventa le sei classi (decisione 8); il codice dell'admin sta in `PasswordRecovery.SendForAdminAsync` e con un utente disattivato risponde `NotAllowed`; `Admin/Test` accetta `Discord` ed `Email` e risponde con gli esiti di `AccountTestCodes`.
-- **§7.5:** `RecoveryFailGlobal` (100 all'ora) e il motivo; i tipi veri (`RecoveryStartMinute`, `RecoveryStartHour`, `RecoveryStartGlobal`, `RecoveryFail`, `RecoveryFailGlobal`, `LinkStartMinute`, `LinkStartHour`) e `IsLimited`.
+- **§7.5:** i limiti giornalieri (`RecoveryFailDay` 20 al giorno per nome, `RecoveryFailGlobal` 100 al giorno) e il motivo; i tipi veri (`RecoveryStartMinute`, `RecoveryStartHour`, `RecoveryStartGlobal`, `RecoveryFail`, `RecoveryFailDay`, `RecoveryFailGlobal`, `LinkStartMinute`, `LinkStartHour`), `IsLimited` e la pulizia delle chiavi vecchie.
+- **§11:** il blocco dopo i login sbagliati (spento sul server, caso accettato); un elenco utenti vuoto non toglie contatti; un errore di `RevokeUserTokens` dopo il cambio va nel log.
+- **§13:** il consiglio sulle credenziali SMTP che possono solo spedire.
 - **§7.6:**
   - niente 404: `MemberNotFound` è 400 e un utente sconosciuto è 400 `UnknownUser`;
   - `Recovery/Complete` ha `Language`;
