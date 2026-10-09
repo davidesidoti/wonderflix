@@ -26,7 +26,7 @@ Niente release: l'app 0.12.0 esce con il plugin 1.6.0 alla fine del 18c.
    - 502, 503 e 504 senza il loro `Code` (nginx durante un riavvio), rete, forma inattesa → `network`: "WonderFlix non è raggiungibile. Controlla la connessione." (nei contatti e nei due passi del recupero). Nel secondo passo conta di più, perché il codice può essere ancora buono e chiederne un altro costa uno dei limiti di `Start`.
 7. **`startLink` non restituisce `ExpiresAt`** e `AccountContacts` non ha `VerifiedAt`: l'app non li mostra. Il conto dei 60 s di "Rimanda" è dell'app.
 8. **"Scollega" c'è anche su un canale spento**, se il contatto c'è (i contatti restano, §11): l'utente può toglierlo. "Collega"/"Cambia" solo con il canale acceso.
-9. **Testi in più** rispetto a §10: il suggerimento sotto la password attuale ("Lascia vuoto se l'account non ha una password"), quello sotto il nome Discord, "Nome utente Discord non valido", "Non è stato possibile leggere i contatti", "Contatto collegato" / "Contatto scollegato", "Torna all'accesso", "Scrivi il nome utente", "Cambio non riuscito: chiedi un nuovo codice", "Annulla", "Collega {canale}", il testo della finestra di scollegamento.
+9. **Testi in più** rispetto a §10: il suggerimento sotto la password attuale ("Lascia vuoto se l'account non ha una password"), quello sotto il nome Discord, "Nome utente Discord non valido", "Non è stato possibile leggere i contatti", "Contatto collegato" / "Contatto scollegato", "Torna all'accesso", "Scrivi il nome utente", "Cambio non riuscito: chiedi un nuovo codice", "Password cambiata: accedi con quella nuova." (dalla review del Gruppo C), "Annulla", "Collega {canale}", il testo della finestra di scollegamento.
 10. **`changePassword(userId, {currentPassword, newPassword})`:** senza `currentPassword` è l'"Imposta password" dell'admin del 18c. Qui si usa solo con.
 11. **`redact.dart`:** i nuovi nomi entrano nella regola del JSON (come `Pw`), non nella forma a mappa.
 12. **Il promemoria vero si prova al rilascio (18c).** Sul server i promemoria restano spenti (`ContactReminderDays` = 0, §15): qui la voce della cassetta la coprono i test.
@@ -47,6 +47,13 @@ Niente release: l'app 0.12.0 esce con il plugin 1.6.0 alla fine del 18c.
       - `ResendCodeButton.onResend` può essere `null` (spento mentre un'altra richiesta è in volo) e ha un `try/finally`; il conto riparte dopo un invio riuscito o dopo un 429, non dopo un altro errore;
       - collegamento: `wrongPassword` al rinvio riporta al primo passo, con l'errore sotto la password e il fuoco sulla password (testo selezionato); i pulsanti delle righe dicono il canale allo screen reader;
       - recupero (Task 8, già aggiornato): "Torna all'accesso" è spento durante una richiesta; se l'accesso fallisce dopo un cambio riuscito, "Cambia password" riprova solo l'accesso (`_changedTo`), perché il codice è già usato.
+    - **Gruppo C:**
+      - `inboxEntryFromJson` usa l'elemento null-aware `?AccountChannel.fromWire(raw)` (lint `use_null_aware_elements`);
+      - recupero, stato "password cambiata": se l'accesso fallisce dopo un cambio riuscito, il secondo passo mostra solo "Password cambiata: accedi con quella nuova." (testo nuovo `recoveryChanged`), l'errore dell'accesso e "ACCEDI", che riprova l'accesso con la password già cambiata. Niente campi né "Rimanda": prima una password riscritta lì veniva ignorata in silenzio;
+      - `mounted` dopo `completeRecovery`;
+      - "Password dimenticata?" spento mentre un accesso è in volo;
+      - test in più: il link senza `supportUrl`, `weakPassword` dal server, `network` al primo passo;
+      - accettato: se si è già in Impostazioni, il clic sul promemoria lascia la pagina dov'è (decisione 2, niente `?section=account`).
 
 **Architecture:**
 - **Dati** (`lib/core/social/`): `account_models.dart` (`AccountChannel`, `AccountContacts`, `accountMinPasswordLength`), `account_api.dart` (`AccountApi`, `AccountFailure`, `AccountException`); `AuthApi.changePassword`; `PluginFeatures.account` e `SocialFeatures.account`; `ContactReminderEntry` in `inbox_models.dart`.
