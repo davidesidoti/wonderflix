@@ -23,7 +23,7 @@ Niente release: l'app 0.12.0 esce con il plugin 1.6.0 alla fine del 18c.
    - i `Code` di §7.6 → il loro valore (`channelOff`, `invalidTarget`, `memberNotFound`, `wrongPassword`, `dmClosed`, `sendFailed`, `invalidCode`, `weakPassword`), 429 → `rateLimited`;
    - ogni altro 400, 401, 403 e 409, anche senza `Code` (`Invalid`, `NotAllowed`, il 400 di ASP.NET per un JSON rotto) → `invalid`;
    - 500 → `serverError` (dalla review del Gruppo A): in `Recovery/Complete` vuol dire che il codice è già usato (§11) e diventa "Cambio non riuscito: chiedi un nuovo codice";
-   - 502, 503 e 504 senza il loro `Code` (nginx durante un riavvio), rete, forma inattesa → `network`: nel recupero "WonderFlix non è raggiungibile", perché il codice può essere ancora buono e chiederne un altro costa uno dei limiti di `Start`.
+   - 502, 503 e 504 senza il loro `Code` (nginx durante un riavvio), rete, forma inattesa → `network`: "WonderFlix non è raggiungibile. Controlla la connessione." (nei contatti e nei due passi del recupero). Nel secondo passo conta di più, perché il codice può essere ancora buono e chiederne un altro costa uno dei limiti di `Start`.
 7. **`startLink` non restituisce `ExpiresAt`** e `AccountContacts` non ha `VerifiedAt`: l'app non li mostra. Il conto dei 60 s di "Rimanda" è dell'app.
 8. **"Scollega" c'è anche su un canale spento**, se il contatto c'è (i contatti restano, §11): l'utente può toglierlo. "Collega"/"Cambia" solo con il canale acceso.
 9. **Testi in più** rispetto a §10: il suggerimento sotto la password attuale ("Lascia vuoto se l'account non ha una password"), quello sotto il nome Discord, "Nome utente Discord non valido", "Non è stato possibile leggere i contatti", "Contatto collegato" / "Contatto scollegato", "Torna all'accesso", "Scrivi il nome utente", "Cambio non riuscito: chiedi un nuovo codice", "Annulla", "Collega {canale}", il testo della finestra di scollegamento.
@@ -478,7 +478,7 @@ void main() {
           AccountFailure.invalid),
       (401, null, AccountFailure.invalid),
       // Recovery/Complete dopo un errore di Jellyfin: il codice è già usato.
-      (500, null, AccountFailure.network),
+      (500, null, AccountFailure.serverError),
       // nginx mentre Jellyfin si riavvia: senza il Code non è il plugin.
       (502, null, AccountFailure.network),
       (503, null, AccountFailure.network),
@@ -646,11 +646,15 @@ enum AccountFailure {
   /// 429: troppe richieste o troppi tentativi.
   rateLimited,
 
+  /// 500: errore del server. In `Recovery/Complete` vuol dire che il codice
+  /// è già usato (spec L §11).
+  serverError,
+
   /// Un altro 400, 401, 403 o 409, anche senza `Code` (`Invalid`,
   /// `NotAllowed`, il 400 di ASP.NET per un JSON rotto).
   invalid,
 
-  /// Rete, errore del server (anche il 500 di `Recovery/Complete`) o
+  /// Rete, 502/503/504 senza il loro `Code` (nginx durante un riavvio) o
   /// risposta di forma inattesa.
   network,
 }
@@ -755,6 +759,7 @@ class AccountApi {
         (429, _) => AccountFailure.rateLimited,
         (502, 'SendFailed') => AccountFailure.sendFailed,
         (503, 'ChannelOff') => AccountFailure.channelOff,
+        (500, _) => AccountFailure.serverError,
         _ => AccountFailure.network,
       });
     } on ApiException {
@@ -2026,10 +2031,8 @@ String accountFailureText(
       AccountFailure.invalidCode => l.accountErrorInvalidCode,
       AccountFailure.rateLimited => l.accountErrorRateLimited,
       AccountFailure.weakPassword => l.accountPasswordTooShort,
-      AccountFailure.invalid ||
-      AccountFailure.serverError ||
-      AccountFailure.network =>
-        l.errorGeneric,
+      AccountFailure.network => l.errorServerUnreachable,
+      AccountFailure.invalid || AccountFailure.serverError => l.errorGeneric,
     };
 ```
 
@@ -3288,6 +3291,8 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
               _unavailable = true;
             case AccountFailure.rateLimited:
               _error = l.accountErrorRateLimited;
+            case AccountFailure.network:
+              _error = l.errorServerUnreachable;
             case _:
               _error = l.errorGeneric;
           }
