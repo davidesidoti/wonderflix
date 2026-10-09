@@ -36,6 +36,8 @@ final _rules = <(RegExp, String Function(Match))>[
   // JSON: "AccessToken": "…", "Pw": "…", "Password": "…", "Token": "…", e
   // i corpi del recupero e dei contatti (spec L §8): il codice, le
   // password, il contatto (un nome Discord o un'email).
+  // Solo la forma JSON con un valore stringa: i frame di Discord IPC
+  // (`{code: 4000}`) restano leggibili.
   (
     RegExp(
         r'"(AccessToken|Pw|Password|Token|CurrentPw|NewPw|NewPassword|Code|Target)"\s*:\s*"(?:[^"\\]|\\.)*"',

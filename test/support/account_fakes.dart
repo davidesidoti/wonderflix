@@ -41,18 +41,26 @@ class FakeAccountApi implements AccountApi {
   })>[];
   AccountFailure? completeRecoveryFailure;
 
-  /// Se c'è, ogni chiamata aspetta che si completi (lo stato "in corso").
+  /// Se c'è, le chiamate che cambiano qualcosa ([startLink], [confirmLink],
+  /// [unlink], [startRecovery], [completeRecovery]) aspettano che si
+  /// completi (lo stato "in corso"). Non vale per [contacts]: un `gate` sulla
+  /// lettura lascerebbe lo spinner dei contatti, e `pumpAndSettle` andrebbe
+  /// in timeout.
   Completer<void>? gate;
 
-  Future<void> _answer(AccountFailure? failure) async {
-    await gate?.future;
+  /// Se c'è, [contacts] aspetta che si completi: la lettura resta in
+  /// sospeso. Mentre c'è si usa `pump()`, non `pumpAndSettle`.
+  Completer<void>? contactsGate;
+
+  Future<void> _answer(AccountFailure? failure, Completer<void>? wait) async {
+    await wait?.future;
     if (failure != null) throw AccountException(failure);
   }
 
   @override
   Future<AccountContacts> contacts() async {
     contactsCalls++;
-    await _answer(contactsFailure);
+    await _answer(contactsFailure, contactsGate);
     return contactsResult;
   }
 
@@ -67,14 +75,14 @@ class FakeAccountApi implements AccountApi {
       password: password,
       language: language,
     ));
-    await _answer(startLinkFailure);
+    await _answer(startLinkFailure, gate);
   }
 
   @override
   Future<AccountContacts> confirmLink(
       AccountChannel channel, String code) async {
     confirmCalls.add((channel, code));
-    await _answer(confirmFailure);
+    await _answer(confirmFailure, gate);
     return confirmResult ?? contactsResult;
   }
 
@@ -82,14 +90,14 @@ class FakeAccountApi implements AccountApi {
   Future<void> unlink(AccountChannel channel,
       {required String password}) async {
     unlinkCalls.add((channel, password));
-    await _answer(unlinkFailure);
+    await _answer(unlinkFailure, gate);
   }
 
   @override
   Future<void> startRecovery(
       {required String username, required String language}) async {
     recoveryStarts.add((username, language));
-    await _answer(startRecoveryFailure);
+    await _answer(startRecoveryFailure, gate);
   }
 
   @override
@@ -104,7 +112,7 @@ class FakeAccountApi implements AccountApi {
       newPassword: newPassword,
       language: language,
     ));
-    await _answer(completeRecoveryFailure);
+    await _answer(completeRecoveryFailure, gate);
   }
 }
 

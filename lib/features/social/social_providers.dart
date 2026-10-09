@@ -91,8 +91,8 @@ class SocialFeatures {
 /// comporta come la 0.5.1. Senza accesso ai watch party `Info` si chiede lo
 /// stesso (la cassetta delle notifiche vale per tutti, spec G §7.2, e così le
 /// richieste con Seerr, spec I §8.2, le saghe, spec K §8.1, e i contatti per
-/// il recupero, spec L §9.1), ma amici e party restano spenti. Dal login alla prima risposta certa le funzioni sono
-/// [SocialFeatures.unknown].
+/// il recupero, spec L §9.1), ma amici e party restano spenti. Dal login alla
+/// prima risposta certa le funzioni sono [SocialFeatures.unknown].
 ///
 /// Un errore di rete (anche timeout, errore del server, risposta di forma
 /// inattesa, troppe richieste) non dice nulla del plugin: le funzioni

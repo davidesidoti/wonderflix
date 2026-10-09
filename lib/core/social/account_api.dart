@@ -40,11 +40,15 @@ enum AccountFailure {
   /// 429: troppe richieste o troppi tentativi.
   rateLimited,
 
+  /// 500: errore del server. In `Recovery/Complete` vuol dire che il codice
+  /// è già usato (spec L §11).
+  serverError,
+
   /// Un altro 400, 401, 403 o 409, anche senza `Code` (`Invalid`,
   /// `NotAllowed`, il 400 di ASP.NET per un JSON rotto).
   invalid,
 
-  /// Rete, errore del server (anche il 500 di `Recovery/Complete`) o
+  /// Rete, 502/503/504 senza il loro `Code` (nginx durante un riavvio) o
   /// risposta di forma inattesa.
   network,
 }
@@ -149,6 +153,7 @@ class AccountApi {
         (429, _) => AccountFailure.rateLimited,
         (502, 'SendFailed') => AccountFailure.sendFailed,
         (503, 'ChannelOff') => AccountFailure.channelOff,
+        (500, _) => AccountFailure.serverError,
         _ => AccountFailure.network,
       });
     } on ApiException {

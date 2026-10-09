@@ -25,7 +25,10 @@ void main() {
   test('contatti: canali del server e contatti verificati', () async {
     adapter.handler = (_) => const FakeResponse(200, {
           'Channels': {'Discord': true, 'Email': false},
-          'Discord': {'Name': 'garg', 'VerifiedAt': '2026-10-09T10:00:00+00:00'},
+          'Discord': {
+            'Name': 'garg',
+            'VerifiedAt': '2026-10-09T10:00:00+00:00',
+          },
           'Email': null,
         });
 
@@ -129,7 +132,7 @@ void main() {
           AccountFailure.invalid),
       (401, null, AccountFailure.invalid),
       // Recovery/Complete dopo un errore di Jellyfin: il codice è già usato.
-      (500, null, AccountFailure.network),
+      (500, null, AccountFailure.serverError),
       // nginx mentre Jellyfin si riavvia: senza il Code non è il plugin.
       (502, null, AccountFailure.network),
       (503, null, AccountFailure.network),

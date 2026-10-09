@@ -32,11 +32,13 @@ class AccountContactsController extends AsyncNotifier<AccountContacts?> {
   void replace(AccountContacts contacts) => state = AsyncData(contacts);
 
   /// Di nuovo dal plugin (dopo uno scollegamento). Intanto restano quelli
-  /// di prima, senza spinner.
+  /// di prima, senza spinner. Se nel frattempo il provider si è ricostruito
+  /// (un altro utente) o chiuso, il risultato si scarta.
   Future<void> reload() async {
+    final current = ref;
     final result = await AsyncValue.guard(
         () => ref.read(accountApiProvider).contacts());
-    if (ref.mounted) state = result;
+    if (current.mounted) state = result;
   }
 }
 

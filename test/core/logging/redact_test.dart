@@ -61,4 +61,14 @@ void main() {
         '"CurrentPw":"***","NewPw":"***","Target":"***","Password":"***",'
         '"Language":"it"}');
   });
+
+  test('un "Code" numerico resta com\'era: solo il JSON con valore stringa',
+      () {
+    expect(redactSecrets('{"Code":4000}'), '{"Code":4000}');
+  });
+
+  test('la forma a mappa {code: 4000} (i frame di Discord IPC) resta com\'era',
+      () {
+    expect(redactSecrets('{code: 4000}'), '{code: 4000}');
+  });
 }
