@@ -2,11 +2,19 @@
   {
     "guid": "882eb47e-668a-4935-ba55-c2858eb4ed90",
     "name": "WonderFlix Watch Party",
-    "description": "Names, chat, reactions, friends, public, friends-only or private parties and an in-app notifications inbox (invites, new titles, admin announcements, requests) for SyncPlay watch parties in WonderFlix, plus Seerr requests (search, request and approve movies and series), collections (sagas) and user pictures.",
-    "overview": "WonderFlix watch party: names, chat, reactions, friends, party modes, notifications, Seerr requests, collections, user pictures",
+    "description": "Names, chat, reactions, friends, public, friends-only or private parties and an in-app notifications inbox (invites, new titles, admin announcements, requests) for SyncPlay watch parties in WonderFlix, plus Seerr requests (search, request and approve movies and series), collections (sagas) and user pictures, and password recovery by Discord or e-mail.",
+    "overview": "WonderFlix watch party: names, chat, reactions, friends, party modes, notifications, Seerr requests, collections, user pictures, password recovery",
     "owner": "davidesidoti",
     "category": "General",
     "versions": [
+      {
+        "version": "1.6.0.0",
+        "changelog": "Recupero e cambio della password per WonderFlix 0.12.0: contatti Discord ed email verificati con un codice, «Password dimenticata?» nell'app, utenti e stato del recupero per l'admin. Bot Discord, SMTP e promemoria si configurano nella pagina del plugin.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.6.0/wonderflix-watch-party_1.6.0.zip",
+        "checksum": "3658376096d332bb1915404b5f25d9a8",
+        "timestamp": "2026-10-09T21:59:48Z"
+      },
       {
         "version": "1.5.0.0",
         "changelog": "Saghe per WonderFlix 0.11.0: le collezioni di Jellyfin con i loro film (riga «Fa parte di», pagina della saga, vista Saghe, ricerca). Immagini degli utenti per amici, party e chat.",
