@@ -80,7 +80,17 @@ I controller stanno in `Api/`. Le classi sono piccole e ognuna fa una cosa:
         - chi ha già dimenticato la password e non ha contatti passa dall'admin;
       - **limiti del collegamento:** il limite al minuto vale per utente e canale e scatta solo quando parte un codice, quindi un nome Discord sbagliato si riscrive subito, e Discord ed email si collegano uno dopo l'altro. Il limite all'ora resta per utente e conta ogni ricerca (frena la scoperta dei membri del server);
       - email più severa: solo ASCII, niente indirizzi IP, etichette del dominio valide;
-      - un membro Discord senza id valido o senza nome è `SendFailed`.
+      - un membro Discord senza id valido o senza nome è `SendFailed`;
+      - il limite all'ora del collegamento si guarda prima della password e si spende dopo: una password sbagliata non lo consuma.
+    - **Gruppo D:**
+      - **scollegare annulla il codice di recupero in sospeso** (dall'utente e dall'admin): scollegare è lo strumento per "questo contatto è compromesso". Un cambio password dall'app o "Imposta password" non lo annullano (servirebbe l'evento di Jellyfin): resta come punto aperto;
+      - in `CompleteAsync` controllo dei limiti, verifica del codice e conteggio degli errori stanno sotto un solo lock: richieste insieme non superano i limiti;
+      - `Start` guarda tutti i limiti prima di spenderli, e c'è `RecoveryStartDay` (10 richieste di codice al giorno per nome): frena i codici a raffica a una persona e il consumo della quota del servizio email;
+      - nel log, quando un nome viene fermato, c'è l'id dell'utente anche se è admin o disattivato (il log è solo sul server);
+      - le azioni dell'admin (scollegare, mandare un codice) finiscono nel log con l'id dell'admin;
+      - "ha un contatto" vuol dire un contatto su un canale configurato (`HasReachableContact`), nello stato dell'admin e nei promemoria;
+      - i promemoria tolgono i contatti degli utenti cancellati anche quando sono spenti, e contano gli N giorni con un'ora di tolleranza;
+      - nella Dashboard "Send a test" non parte due volte.
     - **SMTP:** meglio credenziali che possono solo spedire (Brevo, Resend) di una password per app di Gmail.
 
 ## Regole per chi esegue
@@ -6065,7 +6075,14 @@ In `Configuration/configPage.html`:
                     SendFailed: 'sending failed: check the settings and the Jellyfin log'
                 };
 
-                page.querySelector('#WonderFlixRecoveryTest').addEventListener('click', function () {
+                var testButton = page.querySelector('#WonderFlixRecoveryTest');
+                testButton.addEventListener('click', function () {
+                    // Una prova alla volta: può durare fino a 24 s.
+                    if (testButton.disabled) {
+                        return;
+                    }
+
+                    testButton.disabled = true;
                     recoveryResult.textContent = 'Sending…';
                     ApiClient.ajax({
                         type: 'POST',
@@ -6078,10 +6095,12 @@ In `Configuration/configPage.html`:
                         contentType: 'application/json',
                         dataType: 'json'
                     }).then(function (result) {
+                        testButton.disabled = false;
                         recoveryResult.textContent = 'Discord: ' + (testLabels[result.Discord] || result.Discord)
                             + '. E-mail: ' + (testLabels[result.Email] || result.Email) + '.';
                         refreshRecoveryStatus();
                     }, function () {
+                        testButton.disabled = false;
                         recoveryResult.textContent = 'Test failed: try again.';
                     });
                 });
@@ -6189,7 +6208,9 @@ Nella spec, controllando ogni frase sul codice:
 - **§14:** la porta 465 non funziona (solo STARTTLS) e lo dice il log.
 - **§7.4:** `AccountService` diventa le sei classi (decisione 8); il codice dell'admin sta in `PasswordRecovery.SendForAdminAsync` e con un utente disattivato risponde `NotAllowed`; `Admin/Test` accetta `Discord` ed `Email` e risponde con gli esiti di `AccountTestCodes`.
 - **§7.5:** i limiti giornalieri (`RecoveryFailDay` 20 al giorno per nome, `RecoveryFailGlobal` 100 al giorno) e il motivo; i tipi veri (`RecoveryStartMinute`, `RecoveryStartHour`, `RecoveryStartGlobal`, `RecoveryFail`, `RecoveryFailDay`, `RecoveryFailGlobal`, `LinkStartMinute`, `LinkStartHour`), `IsLimited` e la pulizia delle chiavi vecchie.
-- **§11:** il blocco dopo i login sbagliati (spento sul server, caso accettato); un elenco utenti vuoto non toglie contatti; un errore di `RevokeUserTokens` dopo il cambio va nel log.
+- **§11:** il blocco dopo i login sbagliati (spento sul server, caso accettato); un elenco utenti vuoto non toglie contatti; un errore di `RevokeUserTokens` dopo il cambio va nel log; scollegare annulla il codice di recupero in sospeso; un cambio password fuori dal recupero non lo annulla (punto aperto); un contatto su un canale spento non conta.
+- **§7.5 (seguito):** `RecoveryStartDay` (10 al giorno per nome) e i limiti guardati prima di essere spesi; il limite globale delle richieste (30 all'ora) si può usare per bloccare il recupero di tutti ancora più a buon mercato di quello degli errori (compromesso accettato, la via d'uscita è "Imposta password").
+- **§13 (seguito):** il numero massimo di email al giorno che un estraneo può far partire (i limiti per nome e quello globale) accanto al consiglio sul servizio SMTP.
 - **§13:** il consiglio sulle credenziali SMTP che possono solo spedire.
 - **§7.6:**
   - niente 404: `MemberNotFound` è 400 e un utente sconosciuto è 400 `UnknownUser`;
