@@ -4,6 +4,7 @@ import 'package:wonderflix/features/admin/admin_navigation.dart';
 void main() {
   test('scheda dall\'indirizzo: senza o sconosciuta, Sessioni', () {
     expect(AdminTab.parse('sessions'), AdminTab.sessions);
+    expect(AdminTab.parse('users'), AdminTab.users);
     expect(AdminTab.parse('maintenance'), AdminTab.maintenance);
     expect(AdminTab.parse('activity'), AdminTab.activity);
     expect(AdminTab.parse('wonderflix'), AdminTab.wonderflix);
@@ -11,9 +12,16 @@ void main() {
     expect(AdminTab.parse('boh'), AdminTab.sessions);
   });
 
-  test('WonderFlix solo con la cassetta del plugin', () {
-    expect(adminTabs(inbox: true), AdminTab.values);
-    expect(adminTabs(inbox: false),
+  test('Utenti solo con i contatti del plugin, WonderFlix con la cassetta',
+      () {
+    expect(adminTabs(inbox: true, account: true), AdminTab.values);
+    expect(adminTabs(inbox: true, account: false), [
+      AdminTab.sessions,
+      AdminTab.maintenance,
+      AdminTab.activity,
+      AdminTab.wonderflix,
+    ]);
+    expect(adminTabs(inbox: false, account: false),
         [AdminTab.sessions, AdminTab.maintenance, AdminTab.activity]);
   });
 }

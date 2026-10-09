@@ -14,6 +14,7 @@ import 'admin_providers.dart';
 import 'maintenance_tab.dart';
 import 'server_strip.dart';
 import 'sessions_tab.dart';
+import 'users_tab.dart';
 import 'wonderflix_tab.dart';
 
 /// La pagina Amministrazione (spec J §7, §9.1): la striscia del server, le
@@ -64,17 +65,16 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
       return const SizedBox.shrink();
     }
     _wasAdmin = true;
-    // Senza la cassetta del plugin la scheda WonderFlix non c'è; se è
-    // nell'indirizzo (o la funzione sparisce mentre la si guarda), si mostra
-    // Sessioni. Ma finché non si sa se il plugin c'è (subito dopo il login)
-    // non si può dire che manchi: si aspetta, senza passare da Sessioni, che
-    // si rileggerebbe per niente e farebbe un lampo di contenuto sbagliato.
-    final features = ref.watch(socialAvailabilityProvider
-        .select((f) => (inbox: f.inbox, known: f.known)));
-    final tabs = adminTabs(inbox: features.inbox);
-    final waitingForPlugin = widget.tab == AdminTab.wonderflix &&
-        !features.inbox &&
-        !features.known;
+    // Le schede del plugin (Utenti e WonderFlix) ci sono solo con le sue
+    // funzioni; se una manca ed è nell'indirizzo (o la funzione sparisce
+    // mentre la si guarda), si mostra Sessioni. Ma finché non si sa se il
+    // plugin c'è (subito dopo il login) non si può dire che manchi: si
+    // aspetta, senza passare da Sessioni, che si rileggerebbe per niente e
+    // farebbe un lampo di contenuto sbagliato.
+    final features = ref.watch(socialAvailabilityProvider.select(
+        (f) => (inbox: f.inbox, account: f.account, known: f.known)));
+    final tabs = adminTabs(inbox: features.inbox, account: features.account);
+    final waitingForPlugin = !features.known && !tabs.contains(widget.tab);
     final tab = tabs.contains(widget.tab) || waitingForPlugin
         ? widget.tab
         : AdminTab.sessions;
@@ -112,6 +112,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
               ? const LoadingView()
               : switch (tab) {
                   AdminTab.sessions => const SessionsTab(),
+                  AdminTab.users => const UsersTab(),
                   AdminTab.maintenance => const MaintenanceTab(),
                   AdminTab.activity => const ActivityTab(),
                   AdminTab.wonderflix => const WonderflixTab(),

@@ -219,6 +219,61 @@ void main() {
     expect(find.text('viviroby'), findsOneWidget);
   });
 
+  testWidgets('con i contatti del plugin: Utenti dopo Sessioni', (tester) async {
+    final router = await pumpScreen(tester,
+        session: FakeSessionController(const SessionSignedIn(testAdmin)),
+        features: const SocialFeatures(inbox: true, account: true));
+
+    for (final tab in [
+      'sessions',
+      'users',
+      'maintenance',
+      'activity',
+      'wonderflix',
+    ]) {
+      expect(find.byKey(ValueKey('admin-tab-$tab')), findsOneWidget);
+    }
+    double x(String tab) =>
+        tester.getTopLeft(find.byKey(ValueKey('admin-tab-$tab'))).dx;
+    expect(x('users'), greaterThan(x('sessions')));
+    expect(x('users'), lessThan(x('maintenance')));
+
+    await tester.tap(find.text('Utenti'));
+    await tester.pumpAndSettle();
+    expect(router.routerDelegate.currentConfiguration.uri.toString(),
+        '/admin?tab=users');
+    expect(find.text('garg'), findsOneWidget);
+  });
+
+  testWidgets('senza i contatti del plugin: niente Utenti, si mostra Sessioni',
+      (tester) async {
+    await pumpScreen(tester,
+        session: FakeSessionController(const SessionSignedIn(testAdmin)),
+        location: '/admin?tab=users');
+
+    expect(find.byKey(const ValueKey('admin-tab-users')), findsNothing);
+    expect(find.text('viviroby'), findsOneWidget);
+  });
+
+  testWidgets('funzioni del plugin non ancora note: Utenti aspetta',
+      (tester) async {
+    final availability = FakeSocialAvailability(SocialFeatures.unknown);
+    await pumpScreen(tester,
+        session: FakeSessionController(const SessionSignedIn(testAdmin)),
+        location: '/admin?tab=users',
+        availability: availability,
+        settle: false);
+
+    expect(find.byType(LoadingView), findsOneWidget);
+    expect(api.count('sessions'), 0);
+
+    availability.set(const SocialFeatures(inbox: true, account: true));
+    await tester.pumpAndSettle();
+
+    expect(find.text('garg'), findsOneWidget);
+    expect(api.count('sessions'), 0);
+  });
+
   testWidgets('funzioni del plugin non ancora note: WonderFlix aspetta, senza '
       'passare da Sessioni', (tester) async {
     final availability = FakeSocialAvailability(SocialFeatures.unknown);
