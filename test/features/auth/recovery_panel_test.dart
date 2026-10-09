@@ -255,12 +255,57 @@ void main() {
             of: find.byKey(const Key('recovery-submit')),
             matching: find.text('ACCEDI')),
         findsOneWidget);
+    // Il campo che aveva il fuoco è sparito: lo prende "ACCEDI", così Invio
+    // riprova l'accesso e Tab non parte da "Torna all'accesso".
+    expect(Focus.of(tester.element(find.text('ACCEDI'))).hasPrimaryFocus,
+        isTrue);
 
     // Il codice è già usato: il secondo tentativo non lo rimanda.
     await tapKey(tester, 'recovery-submit');
     expect(api.recoveryCompletes, hasLength(1));
     expect(session.loginAttempts,
         [('garg', 'nuova123'), ('garg', 'nuova123')]);
+  });
+
+  testWidgets('accesso lento dopo il cambio: finito l\'errore, "ACCEDI" ha il '
+      'fuoco', (tester) async {
+    session = FakeSessionController(const SessionSignedOut(),
+        loginError: const ServerUnreachableException());
+    await pumpLogin(tester);
+    await openRecovery(tester);
+    await tapKey(tester, 'recovery-send');
+    await tester.enterText(find.byKey(const Key('recovery-code')), '012345');
+    await tester.enterText(find.byKey(const Key('recovery-new')), 'nuova123');
+    await tester.enterText(
+        find.byKey(const Key('recovery-confirm')), 'nuova123');
+
+    // Il cambio passa e l'accesso resta in volo: il pulsante c'è già, ma
+    // spento; il fuoco deve arrivargli quando l'accesso finisce.
+    session.loginGate = Completer<void>();
+    await tapKey(tester, 'recovery-submit');
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('Password cambiata: accedi con quella nuova.'),
+        findsOneWidget);
+
+    session.loginGate!.complete();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(
+        find.text('WonderFlix non è raggiungibile. Controlla la connessione.'),
+        findsOneWidget);
+    bool signInHasFocus() =>
+        Focus.of(tester.element(find.text('ACCEDI'))).hasPrimaryFocus;
+    expect(signInHasFocus(), isTrue);
+
+    // Un altro tentativo lento: il fuoco cade ancora con il pulsante spento
+    // e torna a fine accesso.
+    session.loginGate = Completer<void>();
+    await tapKey(tester, 'recovery-submit');
+    await tester.pump(const Duration(milliseconds: 100));
+    session.loginGate!.complete();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(signInHasFocus(), isTrue);
   });
 
   testWidgets('con un accesso in volo "Password dimenticata?" è spento',

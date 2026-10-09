@@ -40,6 +40,9 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
   final _new = TextEditingController();
   final _confirm = TextEditingController();
 
+  /// Il fuoco di "ACCEDI" nella vista "password cambiata" ([_changedTo]).
+  final _signInFocus = FocusNode();
+
   /// Il nome per cui è partito il codice; `null` al primo passo.
   String? _sentFor;
 
@@ -64,6 +67,7 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
     _code.dispose();
     _new.dispose();
     _confirm.dispose();
+    _signInFocus.dispose();
     super.dispose();
   }
 
@@ -204,8 +208,20 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
     } on Object catch (error) {
       if (mounted) setState(() => _error = describeError(l, error));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+        _focusSignIn();
+      }
     }
+  }
+
+  /// Dà il fuoco a "ACCEDI": i campi sono spariti con il cambio, e durante
+  /// l'accesso il pulsante è spento e il fuoco cade. Si aspetta il frame in
+  /// cui si riaccende (un `autofocus` non basta: il pulsante nasce spento).
+  void _focusSignIn() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _signInFocus.requestFocus();
+    });
   }
 
   @override
@@ -260,6 +276,7 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
           const SizedBox(height: 16),
           FilledButton(
             key: const Key('recovery-submit'),
+            focusNode: _signInFocus,
             onPressed: _busy ? null : () => unawaited(_complete()),
             child: Text(l.loginSubmit),
           ),
