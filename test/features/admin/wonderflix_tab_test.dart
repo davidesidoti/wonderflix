@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/social/plugin_admin_models.dart';
 import 'package:wonderflix/features/admin/wonderflix_tab.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
 import '../../support/admin_fakes.dart';
@@ -373,6 +374,29 @@ void main() {
 
       expect(find.text('Seerr'), findsNothing);
       expect(find.text('Annuncio'), findsOneWidget);
+    });
+  });
+
+  group('recupero password', () {
+    testWidgets('senza la funzione account: la card non c\'è', (tester) async {
+      await pumpTab(tester);
+
+      expect(find.text('Recupero password'), findsNothing);
+      expect(plugin.count('accountStatus'), 0);
+    });
+
+    testWidgets('con la funzione account: la card dopo Seerr', (tester) async {
+      await pumpApp(tester, const Scaffold(body: WonderflixTab()),
+          overrides: adminTestOverrides(FakeAdminApi(),
+              plugin: plugin,
+              features: const SocialFeatures(inbox: true, account: true)),
+          surfaceSize: const Size(1440, 1400));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Recupero password'), findsOneWidget);
+      expect(find.text('Discord: configurato'), findsOneWidget);
+      expect(tester.getTopLeft(find.text('Recupero password')).dy,
+          greaterThan(tester.getTopLeft(find.text('Seerr')).dy));
     });
   });
 }

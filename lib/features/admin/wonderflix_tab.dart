@@ -13,6 +13,7 @@ import '../../core/social/plugin_admin_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
+import 'account_recovery_card.dart';
 import 'admin_action_button.dart';
 import 'admin_confirm_dialog.dart';
 import 'admin_time.dart';
@@ -20,8 +21,9 @@ import 'admin_widgets.dart';
 import 'wonderflix_controllers.dart';
 import 'wonderflix_labels.dart';
 
-/// La scheda WonderFlix (spec J §9.6): annuncio, novità, Seerr. Ogni card
-/// ha il suo stato: se una non carica, le altre funzionano.
+/// La scheda WonderFlix (spec J §9.6, spec L §9.6): annuncio, novità, Seerr,
+/// recupero della password. Ogni card ha il suo stato: se una non carica, le
+/// altre funzionano.
 class WonderflixTab extends StatefulWidget {
   const WonderflixTab({super.key});
 
@@ -42,7 +44,12 @@ class _WonderflixTabState extends State<WonderflixTab> {
   Widget build(BuildContext context) => ListView(
         controller: _scroll,
         padding: const EdgeInsets.fromLTRB(32, 8, 32, 40),
-        children: const [AnnouncementCard(), NewTitlesCard(), SeerrCard()],
+        children: const [
+          AnnouncementCard(),
+          NewTitlesCard(),
+          SeerrCard(),
+          AccountRecoveryCard(),
+        ],
       );
 }
 
