@@ -6222,6 +6222,14 @@ Nella spec, controllando ogni frase sul codice:
 - **§9.2 (per il 18b):** la finestra "Collega" chiede anche la password attuale (passo 1), e "Scollega" la chiede nella conferma; un account senza password la lascia vuota.
 - **§14:** i punti verificati (firme, `RevokeUserTokens`, `[AllowAnonymous]` già usato dal webhook di Seerr). La ricerca dei membri e l'SMTP sono stati provati nel Task 14, con l'esito.
 - **§15:** 18a realizzato; il plugin 1.6.0 esce con l'app 0.12.0 alla fine del 18c; fino ad allora sul server c'è la build di prova con i promemoria spenti. Al rilascio, in `manifest.json` vanno aggiornate anche `description` e `overview` (come `meta.template.json`), non solo `versions`; i promemoria si riaccendono (14 giorni) nella Dashboard.
+- **Dalla review finale del branch:**
+  - §8 (log): nell'app `redact.dart` deve coprire anche il nuovo campo `Password` (Start, Unlink);
+  - §7.2: `contacts.json` ha anche `"Version": 1`;
+  - §7.1: Discord è configurato solo con un token di caratteri base64url e un id del server di 17–20 cifre; l'email vuole anche una porta tra 1 e 65535;
+  - §7.6: i casi di 400 `Invalid` (canale sconosciuto, corpo mancante, chiamata senza utente su Start/Unlink, nome vuoto o oltre 256 caratteri nel recupero); un corpo malformato o un `Code` numerico danno il 400 automatico di ASP.NET senza `{Code}` (l'app lo tratta come errore generico);
+  - §7.7: la pulizia degli utenti cancellati anche a promemoria spenti, saltata con un elenco vuoto; un'ora di tolleranza; "senza contatti" vuol dire senza un contatto raggiungibile; il promemoria si toglie se un collegamento arriva a metà giro;
+  - §7.4: scollegare (utente) annulla il codice di recupero anche se il contatto non c'era; lo scollegamento dell'admin annulla anche i codici di verifica;
+  - §11: chi ha solo una sessione può far crescere `InvalidLoginAttemptCount` con password sbagliate (fino a 10 all'ora): innocuo con il blocco spento, da ricordare se un giorno si accende.
 - **§7.8:** togli il `build.yaml`, che nel repository non c'è (la versione sta nel csproj, il pacchetto lo fa `pack.sh`, il workflow fa lo zip).
 - **§7.1:** la pagina della Dashboard come è davvero: la prova in una sezione a parte ("Password recovery test"), lo stato con l'ultimo errore, il salvataggio rifiutato finché le impostazioni non sono lette, i campi numerici obbligatori.
 - Ogni altra differenza venuta fuori durante i task, con il motivo.
