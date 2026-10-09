@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Runtime.ExceptionServices;
 using Jellyfin.Database.Implementations.Entities;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Server;
@@ -31,17 +30,7 @@ internal static class PasswordChanging
         return null;
     }
 
-    // L'errore di Jellyfin esce com'è, non avvolto in TargetInvocationException.
-    private static Task Call(MethodInfo method, object manager, object?[] args)
-    {
-        try
-        {
-            return (Task)method.Invoke(manager, args)!;
-        }
-        catch (TargetInvocationException ex) when (ex.InnerException is not null)
-        {
-            ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
-            throw;
-        }
-    }
+    // DoNotWrapExceptions: l'errore di Jellyfin esce com'è, non avvolto in TargetInvocationException.
+    private static Task Call(MethodInfo method, object manager, object?[] args) =>
+        (Task)method.Invoke(manager, BindingFlags.DoNotWrapExceptions, binder: null, args, culture: null)!;
 }

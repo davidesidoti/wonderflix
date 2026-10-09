@@ -29,12 +29,19 @@ public static class LimitTypes
     /// <summary>Richieste di recupero di tutti insieme (chiave "*").</summary>
     public const string RecoveryStartGlobal = "RecoveryStartGlobal";
 
-    /// <summary>Codici di recupero sbagliati per nome scritto.</summary>
+    /// <summary>Codici di recupero sbagliati per nome scritto, in un'ora.</summary>
     public const string RecoveryFail = "RecoveryFail";
 
     /// <summary>
-    /// Codici di recupero sbagliati di tutti insieme (chiave "*"): limita
-    /// anche la memoria dei limiti per nomi inventati.
+    /// Codici di recupero sbagliati per nome scritto, in un giorno: con i soli
+    /// limiti orari un tentativo lento e continuo resterebbe possibile
+    /// (spec L §7.5).
+    /// </summary>
+    public const string RecoveryFailDay = "RecoveryFailDay";
+
+    /// <summary>
+    /// Codici di recupero sbagliati di tutti insieme in un giorno (chiave
+    /// "*"): limita anche la memoria dei limiti per nomi inventati.
     /// </summary>
     public const string RecoveryFailGlobal = "RecoveryFailGlobal";
 

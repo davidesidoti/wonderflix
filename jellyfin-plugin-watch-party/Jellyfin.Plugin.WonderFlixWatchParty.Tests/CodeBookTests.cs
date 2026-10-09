@@ -40,14 +40,16 @@ public class CodeBookTests
     public void ACodeLastsTenMinutes()
     {
         var book = new CodeBook(_time);
-        var (code, _) = book.Issue(_mario, CodePurpose.Recovery);
+        var (marioCode, _) = book.Issue(_mario, CodePurpose.Recovery);
+        var (luigiCode, _) = book.Issue(_luigi, CodePurpose.Recovery);
+
         _time.Advance(CodeBook.Lifetime - TimeSpan.FromSeconds(1));
-        var (other, _) = book.Issue(_luigi, CodePurpose.Recovery);
-        Assert.True(book.Check(_luigi, CodePurpose.Recovery, other).Ok);
+
+        Assert.True(book.Check(_mario, CodePurpose.Recovery, marioCode).Ok, "un secondo prima della scadenza vale ancora");
 
         _time.Advance(TimeSpan.FromSeconds(1));
 
-        Assert.False(book.Check(_mario, CodePurpose.Recovery, code).Ok);
+        Assert.False(book.Check(_luigi, CodePurpose.Recovery, luigiCode).Ok, "alla scadenza non vale più");
     }
 
     [Fact]

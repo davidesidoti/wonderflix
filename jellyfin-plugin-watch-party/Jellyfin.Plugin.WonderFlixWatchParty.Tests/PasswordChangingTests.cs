@@ -41,6 +41,31 @@ public class PasswordChangingTests
         }
     }
 
+    // Un manager con tutte e due le forme: deve vincere quella con l'id.
+    public interface IBothPasswords
+    {
+        Task ChangePassword(User user, string newPassword);
+
+        Task ChangePassword(Guid userId, string newPassword);
+    }
+
+    private sealed class BothPasswords : IBothPasswords
+    {
+        public List<string> Calls { get; } = [];
+
+        public Task ChangePassword(User user, string newPassword)
+        {
+            Calls.Add("user");
+            return Task.CompletedTask;
+        }
+
+        public Task ChangePassword(Guid userId, string newPassword)
+        {
+            Calls.Add("id");
+            return Task.CompletedTask;
+        }
+    }
+
     private sealed class FailingPasswords : INewPasswords
     {
         public Task ChangePassword(Guid userId, string newPassword) => throw new InvalidOperationException("database");
@@ -70,6 +95,18 @@ public class PasswordChangingTests
         Assert.NotNull(change);
         await change!(manager, mario, "nuova-password");
         Assert.Equal(new[] { (mario.Id, "nuova-password") }, manager.Calls);
+    }
+
+    [Fact]
+    public async Task WithBothFormsTheOneWithTheIdIsUsed()
+    {
+        var manager = new BothPasswords();
+
+        var change = PasswordChanging.For(typeof(IBothPasswords));
+
+        Assert.NotNull(change);
+        await change!(manager, new User("Mario", "provider", "reset"), "nuova-password");
+        Assert.Equal(new[] { "id" }, manager.Calls);
     }
 
     [Fact]

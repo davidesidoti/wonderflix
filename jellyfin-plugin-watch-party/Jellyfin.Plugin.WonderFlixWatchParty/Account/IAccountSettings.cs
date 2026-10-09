@@ -29,6 +29,15 @@ public static class AccountSettingsExtensions
     /// <summary>Porta TCP più alta.</summary>
     private const int MaxPort = 65535;
 
+    /// <summary>
+    /// Giorni massimi fra due promemoria: come il massimo della pagina. Un
+    /// valore enorme scritto a mano nel file farebbe lanciare TimeSpan.FromDays.
+    /// </summary>
+    public const int MaxContactReminderDays = 365;
+
+    /// <summary>I giorni del promemoria portati fra 0 (spento) e il massimo.</summary>
+    internal static int ClampReminderDays(int days) => Math.Clamp(days, 0, MaxContactReminderDays);
+
     /// <summary>Token e id numerico del server.</summary>
     public static bool IsDiscordConfigured(this IAccountSettings settings) =>
         !string.IsNullOrWhiteSpace(settings.DiscordBotToken) && DiscordIds.IsSnowflake(settings.DiscordGuildId);

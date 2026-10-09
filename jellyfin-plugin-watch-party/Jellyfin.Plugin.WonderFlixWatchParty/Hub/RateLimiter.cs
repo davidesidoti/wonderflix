@@ -24,13 +24,33 @@ public sealed class RateLimiter(TimeProvider time)
             [LimitTypes.RecoveryStartHour] = (5, TimeSpan.FromHours(1)),
             [LimitTypes.RecoveryStartGlobal] = (30, TimeSpan.FromHours(1)),
             [LimitTypes.RecoveryFail] = (10, TimeSpan.FromHours(1)),
-            [LimitTypes.RecoveryFailGlobal] = (100, TimeSpan.FromHours(1)),
+            [LimitTypes.RecoveryFailDay] = (20, TimeSpan.FromHours(24)),
+            [LimitTypes.RecoveryFailGlobal] = (100, TimeSpan.FromHours(24)),
             [LimitTypes.LinkStartMinute] = (1, TimeSpan.FromMinutes(1)),
             [LimitTypes.LinkStartHour] = (5, TimeSpan.FromHours(1)),
         };
 
+    /// <summary>
+    /// Con tante chiavi in memoria, prima di crearne una nuova si tolgono
+    /// quelle ormai fuori finestra. Le chiavi anonime del recupero (i nomi
+    /// scritti) non hanno un Forget: senza questo resterebbero per sempre.
+    /// </summary>
+    internal const int SweepThreshold = 1024;
+
     private readonly Lock _lock = new();
     private readonly Dictionary<(string SessionId, string Type), Queue<DateTimeOffset>> _sent = [];
+
+    /// <summary>Chiavi in memoria (per i test).</summary>
+    internal int Count
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _sent.Count;
+            }
+        }
+    }
 
     /// <summary>true (e si conta) se la chiave può farne un altro di questo tipo adesso.</summary>
     public bool TryAcquire(string key, string type)
@@ -45,6 +65,11 @@ public sealed class RateLimiter(TimeProvider time)
         {
             if (!_sent.TryGetValue((key, type), out var times))
             {
+                if (_sent.Count >= SweepThreshold)
+                {
+                    Sweep(now);
+                }
+
                 times = new Queue<DateTimeOffset>();
                 _sent[(key, type)] = times;
             }
@@ -89,6 +114,21 @@ public sealed class RateLimiter(TimeProvider time)
             {
                 _sent.Remove(key);
             }
+        }
+    }
+
+    // Solo sotto _lock. Toglie le chiavi senza nessun invio dentro la finestra
+    // del loro tipo: contare non cambierebbe niente. I tipi sconosciuti non
+    // entrano mai in _sent (TryAcquire esce prima).
+    private void Sweep(DateTimeOffset now)
+    {
+        var stale = _sent
+            .Where(entry => !entry.Value.Any(t => now - t < Limits[entry.Key.Type].Window))
+            .Select(entry => entry.Key)
+            .ToList();
+        foreach (var key in stale)
+        {
+            _sent.Remove(key);
         }
     }
 }

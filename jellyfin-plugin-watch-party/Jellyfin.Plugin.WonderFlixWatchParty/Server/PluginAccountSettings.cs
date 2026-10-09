@@ -28,5 +28,5 @@ public sealed class PluginAccountSettings : IAccountSettings
 
     public string MailFrom => (Config.MailFrom ?? string.Empty).Trim();
 
-    public int ContactReminderDays => Math.Max(0, Config.ContactReminderDays);
+    public int ContactReminderDays => AccountSettingsExtensions.ClampReminderDays(Config.ContactReminderDays);
 }

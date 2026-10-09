@@ -15,6 +15,8 @@ public sealed class DiscordContact
 
     [JsonPropertyName("VerifiedAt")]
     public DateTimeOffset VerifiedAt { get; set; }
+
+    public DiscordContact Copy() => new() { Id = Id, Name = Name, VerifiedAt = VerifiedAt };
 }
 
 /// <summary>L'email verificata di un utente, come l'ha scritta.</summary>
@@ -25,6 +27,8 @@ public sealed class EmailContact
 
     [JsonPropertyName("VerifiedAt")]
     public DateTimeOffset VerifiedAt { get; set; }
+
+    public EmailContact Copy() => new() { Address = Address, VerifiedAt = VerifiedAt };
 }
 
 /// <summary>
@@ -54,8 +58,8 @@ public sealed class UserContacts
     /// <summary>Copia profonda.</summary>
     public UserContacts Copy() => new()
     {
-        Discord = Discord is null ? null : new DiscordContact { Id = Discord.Id, Name = Discord.Name, VerifiedAt = Discord.VerifiedAt },
-        Email = Email is null ? null : new EmailContact { Address = Email.Address, VerifiedAt = Email.VerifiedAt },
+        Discord = Discord?.Copy(),
+        Email = Email?.Copy(),
         LastReminderAt = LastReminderAt,
     };
 }

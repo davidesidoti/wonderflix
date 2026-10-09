@@ -55,19 +55,44 @@ public sealed class ContactRegistry(ContactStore store, ILogger<ContactRegistry>
         }
     }
 
-    public void SetDiscord(Guid userId, DiscordContact contact) =>
-        Change(userId, contacts =>
+    /// <summary>
+    /// Salva il Discord dell'utente (una copia). ArgumentException se id o
+    /// nome non sono validi: ContactStore rifiuta il file intero se una voce
+    /// non è valida, quindi una voce sbagliata non deve mai entrarci.
+    /// </summary>
+    public void SetDiscord(Guid userId, DiscordContact contact)
+    {
+        if (!DiscordIds.IsSnowflake(contact.Id) || string.IsNullOrWhiteSpace(contact.Name))
         {
-            contacts.Discord = contact;
-            return true;
-        });
+            throw new ArgumentException("Discord non valido", nameof(contact));
+        }
 
-    public void SetEmail(Guid userId, EmailContact contact) =>
+        var copy = contact.Copy();
         Change(userId, contacts =>
         {
-            contacts.Email = contact;
+            contacts.Discord = copy;
             return true;
         });
+    }
+
+    /// <summary>
+    /// Salva l'email dell'utente (una copia). ArgumentException se
+    /// l'indirizzo è vuoto, per lo stesso motivo di <see cref="SetDiscord"/>.
+    /// </summary>
+    public void SetEmail(Guid userId, EmailContact contact)
+    {
+        if (string.IsNullOrWhiteSpace(contact.Address))
+        {
+            throw new ArgumentException("email non valida", nameof(contact));
+        }
+
+        var copy = contact.Copy();
+        Change(userId, contacts =>
+        {
+            contacts.Email = copy;
+            return true;
+        });
+    }
 
     /// <summary>Toglie il contatto di un canale; true se c'era.</summary>
     public bool Remove(Guid userId, AccountChannel channel) =>

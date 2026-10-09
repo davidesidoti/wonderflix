@@ -30,6 +30,15 @@ public class AccountSettingsTests
         Assert.Equal(14, settings.ContactReminderDays);
     }
 
+    [Theory]
+    [InlineData(-5, 0)]
+    [InlineData(0, 0)]
+    [InlineData(14, 14)]
+    [InlineData(365, 365)]
+    [InlineData(100000, 365)]
+    public void ReminderDaysStayBetweenZeroAndTheMaximum(int days, int expected) =>
+        Assert.Equal(expected, AccountSettingsExtensions.ClampReminderDays(days));
+
     [Fact]
     public void TheSettingsSurviveTheXml()
     {

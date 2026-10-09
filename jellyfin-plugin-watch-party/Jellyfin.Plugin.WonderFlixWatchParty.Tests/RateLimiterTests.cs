@@ -111,7 +111,8 @@ public class RateLimiterTests
     [InlineData(LimitTypes.RecoveryStartHour, 5, 60)]
     [InlineData(LimitTypes.RecoveryStartGlobal, 30, 60)]
     [InlineData(LimitTypes.RecoveryFail, 10, 60)]
-    [InlineData(LimitTypes.RecoveryFailGlobal, 100, 60)]
+    [InlineData(LimitTypes.RecoveryFailDay, 20, 1440)]
+    [InlineData(LimitTypes.RecoveryFailGlobal, 100, 1440)]
     [InlineData(LimitTypes.LinkStartMinute, 1, 1)]
     [InlineData(LimitTypes.LinkStartHour, 5, 60)]
     public void AccountLimits(string type, int count, int minutes)
@@ -124,6 +125,57 @@ public class RateLimiterTests
         Assert.False(limiter.TryAcquire("s1", type));
         _time.Advance(TimeSpan.FromSeconds(1));
         Assert.True(limiter.TryAcquire("s1", type));
+    }
+
+    [Fact]
+    public void StaleKeysAreSweptWhenTheTableIsFull()
+    {
+        var limiter = new RateLimiter(_time);
+        for (var i = 0; i < RateLimiter.SweepThreshold; i++)
+        {
+            Assert.True(limiter.TryAcquire($"nome{i}", LimitTypes.RecoveryStartMinute));
+        }
+
+        Assert.Equal(RateLimiter.SweepThreshold, limiter.Count);
+        _time.Advance(TimeSpan.FromMinutes(1));
+
+        Assert.True(limiter.TryAcquire("nuovo", LimitTypes.RecoveryStartMinute));
+
+        Assert.Equal(1, limiter.Count);
+    }
+
+    [Fact]
+    public void KeysStillInsideTheirWindowSurviveTheSweep()
+    {
+        var limiter = new RateLimiter(_time);
+        for (var i = 0; i < RateLimiter.SweepThreshold; i++)
+        {
+            Assert.True(limiter.TryAcquire($"nome{i}", LimitTypes.RecoveryStartMinute));
+        }
+
+        _time.Advance(TimeSpan.FromSeconds(59));
+
+        Assert.True(limiter.TryAcquire("nuovo", LimitTypes.RecoveryStartMinute));
+
+        Assert.Equal(RateLimiter.SweepThreshold + 1, limiter.Count);
+        Assert.False(limiter.TryAcquire("nome0", LimitTypes.RecoveryStartMinute), "la chiave vecchia conta ancora");
+    }
+
+    [Fact]
+    public void TheSweepUsesTheWindowOfEachType()
+    {
+        var limiter = new RateLimiter(_time);
+        for (var i = 0; i < RateLimiter.SweepThreshold - 1; i++)
+        {
+            Assert.True(limiter.TryAcquire($"nome{i}", LimitTypes.RecoveryStartMinute));
+        }
+
+        Assert.True(limiter.TryAcquire("lento", LimitTypes.RecoveryFailDay));
+        _time.Advance(TimeSpan.FromMinutes(1));
+
+        Assert.True(limiter.TryAcquire("nuovo", LimitTypes.RecoveryStartMinute));
+
+        Assert.Equal(2, limiter.Count);
     }
 
     [Fact]
