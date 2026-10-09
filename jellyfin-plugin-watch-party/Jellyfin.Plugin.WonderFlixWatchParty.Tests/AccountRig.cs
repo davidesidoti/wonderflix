@@ -1,6 +1,7 @@
 using System.Globalization;
 using Jellyfin.Plugin.WonderFlixWatchParty.Account;
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
@@ -52,6 +53,9 @@ internal sealed class AccountRig : IDisposable
         Contacts.SetEmail(user.Id, new EmailContact { Address = lower + "@example.com", VerifiedAt = Time.GetUtcNow() });
         return user;
     }
+
+    public ContactLinking Linking() =>
+        new(Contacts, Codes, Limiter, Discord, Sender, Settings, Inbox, Time, NullLogger<ContactLinking>.Instance);
 
     public void Dispose() => Folder.Dispose();
 }
