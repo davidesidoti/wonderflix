@@ -22,14 +22,23 @@ Niente release: l'app 0.12.0 esce con il plugin 1.6.0 alla fine del 18c.
    - 404 → `unavailable` (plugin vecchio);
    - i `Code` di §7.6 → il loro valore (`channelOff`, `invalidTarget`, `memberNotFound`, `wrongPassword`, `dmClosed`, `sendFailed`, `invalidCode`, `weakPassword`), 429 → `rateLimited`;
    - ogni altro 400, 401, 403 e 409, anche senza `Code` (`Invalid`, `NotAllowed`, il 400 di ASP.NET per un JSON rotto) → `invalid`;
-   - 500, 502 e 503 senza il loro `Code` (nginx durante un riavvio), rete, forma inattesa → `network`;
-   - il 500 di `Recovery/Complete` (codice già usato, §11) diventa "Cambio non riuscito: chiedi un nuovo codice".
+   - 500 → `serverError` (dalla review del Gruppo A): in `Recovery/Complete` vuol dire che il codice è già usato (§11) e diventa "Cambio non riuscito: chiedi un nuovo codice";
+   - 502, 503 e 504 senza il loro `Code` (nginx durante un riavvio), rete, forma inattesa → `network`: nel recupero "WonderFlix non è raggiungibile", perché il codice può essere ancora buono e chiederne un altro costa uno dei limiti di `Start`.
 7. **`startLink` non restituisce `ExpiresAt`** e `AccountContacts` non ha `VerifiedAt`: l'app non li mostra. Il conto dei 60 s di "Rimanda" è dell'app.
 8. **"Scollega" c'è anche su un canale spento**, se il contatto c'è (i contatti restano, §11): l'utente può toglierlo. "Collega"/"Cambia" solo con il canale acceso.
 9. **Testi in più** rispetto a §10: il suggerimento sotto la password attuale ("Lascia vuoto se l'account non ha una password"), quello sotto il nome Discord, "Nome utente Discord non valido", "Non è stato possibile leggere i contatti", "Contatto collegato" / "Contatto scollegato", "Torna all'accesso", "Scrivi il nome utente", "Cambio non riuscito: chiedi un nuovo codice", "Annulla", "Collega {canale}", il testo della finestra di scollegamento.
 10. **`changePassword(userId, {currentPassword, newPassword})`:** senza `currentPassword` è l'"Imposta password" dell'admin del 18c. Qui si usa solo con.
 11. **`redact.dart`:** i nuovi nomi entrano nella regola del JSON (come `Pw`), non nella forma a mappa.
 12. **Il promemoria vero si prova al rilascio (18c).** Sul server i promemoria restano spenti (`ContactReminderDays` = 0, §15): qui la voce della cassetta la coprono i test.
+13. **Dalle review dei gruppi** (il codice dei task sotto è quello di partenza: dove differisce, vale questa lista):
+    - **Gruppo A:**
+      - `changePassword` usa l'elemento null-aware `'CurrentPw': ?currentPassword` (lint `use_null_aware_elements`);
+      - `AccountFailure.serverError` per il 500 (decisione 6); i Task 6 e 8 sotto sono già aggiornati;
+      - `AccountContactsController.reload` tiene il `Ref` di partenza: se a metà rilettura cambia l'utente, i contatti vecchi non si scrivono. Test in più: la rilettura senza spinner, la funzione `account` che si accende con il provider aperto, il cambio di utente;
+      - `FakeAccountApi`: `gate` blocca solo le chiamate che cambiano qualcosa, `contactsGate` la lettura dei contatti (un `gate` su `contacts()` lascerebbe lo spinner e `pumpAndSettle` andrebbe in timeout). Il Task 6 ha un test del doppio clic con `gate`;
+      - `redact.dart`: test che un `"Code"` numerico e la forma a mappa `{code: 4000}` (i frame di Discord IPC) restano com'erano;
+      - Jellyfin risponde 403 a `POST /Users/Password` anche a un utente senza `EnableUserPreferenceAccess`: l'app direbbe "Password attuale sbagliata". Raro, accettato;
+      - per il 18c: sulla propria riga Jellyfin chiede `CurrentPw` anche a un admin ("Imposta password" senza va escluso lì); `NotAllowed`, `NoContacts` e `UnknownUser` vorranno valori loro in `AccountFailure`.
 
 **Architecture:**
 - **Dati** (`lib/core/social/`): `account_models.dart` (`AccountChannel`, `AccountContacts`, `accountMinPasswordLength`), `account_api.dart` (`AccountApi`, `AccountFailure`, `AccountException`); `AuthApi.changePassword`; `PluginFeatures.account` e `SocialFeatures.account`; `ContactReminderEntry` in `inbox_models.dart`.
@@ -1727,6 +1736,8 @@ git commit -m "feat(app): change password dialog and timed resend button"
 Crea `test/features/account/link_contact_dialog_test.dart`:
 
 ```dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/social/account_api.dart';
@@ -1862,6 +1873,20 @@ void main() {
     expect(api.startLinkCalls.last.target, 'a@example.com');
     expect(api.startLinkCalls.last.password, 'segreta');
     expect(find.text('Rimanda tra 60 s'), findsOneWidget);
+  });
+
+  testWidgets('mentre il codice parte, un secondo clic non fa niente',
+      (tester) async {
+    api.gate = Completer<void>();
+    await open(tester, AccountChannel.discord);
+    await tester.enterText(find.byKey(const Key('link-target')), 'garg');
+    await submit(tester);
+    await submit(tester);
+    expect(api.startLinkCalls, hasLength(1));
+
+    api.gate!.complete();
+    await tester.pump();
+    expect(find.byKey(const Key('link-code')), findsOneWidget);
   });
 
   testWidgets('email non valida dal plugin: sotto il campo', (tester) async {
@@ -2001,7 +2026,10 @@ String accountFailureText(
       AccountFailure.invalidCode => l.accountErrorInvalidCode,
       AccountFailure.rateLimited => l.accountErrorRateLimited,
       AccountFailure.weakPassword => l.accountPasswordTooShort,
-      AccountFailure.invalid || AccountFailure.network => l.errorGeneric,
+      AccountFailure.invalid ||
+      AccountFailure.serverError ||
+      AccountFailure.network =>
+        l.errorGeneric,
     };
 ```
 
@@ -2372,7 +2400,7 @@ class _UnlinkContactDialogState extends ConsumerState<UnlinkContactDialog> {
 - [ ] **Step 6: i test passano**
 
 Run: `flutter test test/features/account/link_contact_dialog_test.dart test/features/account/unlink_contact_dialog_test.dart`
-Expected: PASS (8 test).
+Expected: PASS (9 test).
 
 - [ ] **Step 7: commit**
 
@@ -3118,11 +3146,19 @@ void main() {
             "Troppi tentativi: riprova tra un'ora o contatta l'amministratore"),
         findsOneWidget);
 
-    // Anche il 500 di un codice già usato.
-    api.completeRecoveryFailure = AccountFailure.network;
+    // Il 500 di un codice già usato.
+    api.completeRecoveryFailure = AccountFailure.serverError;
     await tapKey(tester, 'recovery-submit');
     expect(find.text('Cambio non riuscito: chiedi un nuovo codice'),
         findsOneWidget);
+
+    // Senza rete il codice può essere ancora buono: non se ne chiede un altro.
+    api.completeRecoveryFailure = AccountFailure.network;
+    await tapKey(tester, 'recovery-submit');
+    expect(find.text('WonderFlix non è raggiungibile. Controlla la connessione.'),
+        findsOneWidget);
+    expect(find.text('Cambio non riuscito: chiedi un nuovo codice'),
+        findsNothing);
 
     expect(session.loginAttempts, isEmpty);
   });
@@ -3317,6 +3353,9 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
               _newError = l.accountPasswordTooShort;
             case AccountFailure.rateLimited:
               _error = l.recoveryTooMany;
+            // Senza rete il codice può essere ancora buono.
+            case AccountFailure.network:
+              _error = l.errorServerUnreachable;
             // Anche il 500 di Jellyfin: il codice è già usato (spec L §11).
             case _:
               _error = l.recoveryFailed;
