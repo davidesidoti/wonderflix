@@ -1,4 +1,8 @@
+using System.Diagnostics;
+using System.Net;
 using System.Net.Mail;
+using System.Net.Sockets;
+using System.Text;
 using Jellyfin.Plugin.WonderFlixWatchParty.Account;
 using Jellyfin.Plugin.WonderFlixWatchParty.Server;
 using Microsoft.Extensions.Logging;
@@ -101,5 +105,231 @@ public class SmtpMailSenderTests
         };
 
         Assert.Equal(SendOutcome.Failed, await sender.SendAsync("mario@example.com", Message, Ct));
+    }
+
+    [Fact]
+    public async Task AnyErrorButTheCallersCancellationIsAFailure()
+    {
+        var sender = new SmtpMailSender(_settings, _logger)
+        {
+            Transport = (_, _, _) => throw new InvalidCastException("non previsto"),
+        };
+
+        Assert.Equal(SendOutcome.Failed, await sender.SendAsync("mario@example.com", Message, Ct));
+
+        var cancelling = new SmtpMailSender(_settings, _logger)
+        {
+            Transport = (_, _, ct) => Task.Delay(System.Threading.Timeout.Infinite, ct),
+        };
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => cancelling.SendAsync("mario@example.com", Message, cancelled.Token));
+    }
+
+    [Fact]
+    public async Task TheRootCauseGoesToTheLogWithoutAddresses()
+    {
+        var sender = new SmtpMailSender(_settings, _logger)
+        {
+            Transport = (_, _, _) => throw new SmtpException(
+                "Failure sending mail.",
+                new IOException("Unable to read data", new TimeoutException("root cause for <mario@example.com>"))),
+        };
+
+        Assert.Equal(SendOutcome.Failed, await sender.SendAsync("mario@example.com", Message, Ct));
+
+        var entry = Assert.Single(_logger.Entries);
+        Assert.Contains("SmtpException", entry.Message);
+        Assert.Contains("Failure sending mail.", entry.Message);
+        Assert.Contains("TimeoutException", entry.Message);
+        Assert.Contains("root cause for <[email]>", entry.Message);
+        Assert.DoesNotContain("mario@example.com", entry.Message);
+        Assert.DoesNotContain("smtp-secret", entry.Message);
+    }
+
+    [Fact]
+    public void TheServerDescriptionHidesThePassword()
+    {
+        var server = new SmtpServer("smtp.example.com", 587, "wonderflix", "smtp-secret");
+
+        Assert.Equal("SmtpServer { Host = smtp.example.com, Port = 587, User = wonderflix }", server.ToString());
+        Assert.DoesNotContain("smtp-secret", server.ToString());
+    }
+
+    [Fact]
+    public async Task OnPort465TheFailureSaysImplicitTlsIsNotSupported()
+    {
+        _settings.SmtpPort = 465;
+        var timingOut = new SmtpMailSender(_settings, _logger)
+        {
+            Timeout = TimeSpan.FromMilliseconds(50),
+            Transport = (_, _, ct) => Task.Delay(System.Threading.Timeout.Infinite, ct),
+        };
+        var failing = new SmtpMailSender(_settings, _logger)
+        {
+            Transport = (_, _, _) => throw new SmtpException(SmtpStatusCode.GeneralFailure, "Failure sending mail."),
+        };
+
+        Assert.Equal(SendOutcome.Failed, await timingOut.SendAsync("mario@example.com", Message, Ct));
+        Assert.Equal(SendOutcome.Failed, await failing.SendAsync("mario@example.com", Message, Ct));
+
+        Assert.Equal(2, _logger.Entries.Count);
+        Assert.All(_logger.Entries, e =>
+        {
+            Assert.Contains("la porta 465 (TLS implicito) non è supportata: usa la 587 con STARTTLS", e.Message);
+        });
+    }
+
+    [Fact]
+    public async Task OnOtherPortsThereIsNoPort465Hint()
+    {
+        var timingOut = new SmtpMailSender(_settings, _logger)
+        {
+            Timeout = TimeSpan.FromMilliseconds(50),
+            Transport = (_, _, ct) => Task.Delay(System.Threading.Timeout.Infinite, ct),
+        };
+        var failing = new SmtpMailSender(_settings, _logger)
+        {
+            Transport = (_, _, _) => throw new SmtpException(SmtpStatusCode.GeneralFailure, "Failure sending mail."),
+        };
+
+        await timingOut.SendAsync("mario@example.com", Message, Ct);
+        await failing.SendAsync("mario@example.com", Message, Ct);
+
+        Assert.Equal(2, _logger.Entries.Count);
+        Assert.All(_logger.Entries, e => Assert.DoesNotContain("465", e.Message));
+    }
+
+    // Le prove sul trasporto vero: un server SMTP finto su 127.0.0.1, in una porta scelta dal sistema.
+    [Fact]
+    public async Task ASilentServerIsAFailureWhenTheTimeIsUp()
+    {
+        using var server = new LoopbackSmtpServer(greets: false);
+        server.PointSettingsAt(_settings);
+        var sender = new SmtpMailSender(_settings, _logger) { Timeout = TimeSpan.FromMilliseconds(500) };
+        var started = Stopwatch.StartNew();
+
+        var outcome = await sender.SendAsync("mario@example.com", Message, Ct).WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(SendOutcome.Failed, outcome);
+        Assert.True(started.Elapsed < TimeSpan.FromSeconds(3), $"ci ha messo {started.Elapsed}");
+        Assert.Contains("nessuna risposta", Assert.Single(_logger.Entries).Message);
+    }
+
+    [Fact]
+    public async Task AServerWithoutStartTlsIsAFailureAndGetsNeitherPasswordNorMail()
+    {
+        using var server = new LoopbackSmtpServer(greets: true);
+        server.PointSettingsAt(_settings);
+        var sender = new SmtpMailSender(_settings, _logger);
+
+        var outcome = await sender.SendAsync("mario@example.com", Message, Ct).WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(SendOutcome.Failed, outcome);
+        var received = server.Received;
+        Assert.Contains(received, line => line.StartsWith("EHLO", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(
+            received,
+            line => line.StartsWith("AUTH", StringComparison.OrdinalIgnoreCase)
+                || line.StartsWith("MAIL", StringComparison.OrdinalIgnoreCase)
+                || line.StartsWith("RCPT", StringComparison.OrdinalIgnoreCase)
+                || line.StartsWith("DATA", StringComparison.OrdinalIgnoreCase));
+        var entry = Assert.Single(_logger.Entries);
+        Assert.Contains("SmtpException", entry.Message);
+        Assert.DoesNotContain("smtp-secret", entry.Message);
+    }
+
+    /// <summary>
+    /// Un server SMTP finto su 127.0.0.1: accetta un solo client. Muto, oppure
+    /// saluta con 220 e risponde a EHLO con 250 senza STARTTLS. Registra le righe ricevute.
+    /// </summary>
+    private sealed class LoopbackSmtpServer : IDisposable
+    {
+        private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
+        private readonly CancellationTokenSource _stop = new();
+        private readonly List<string> _received = [];
+        private readonly Task _run;
+
+        public LoopbackSmtpServer(bool greets)
+        {
+            _listener.Start();
+            _run = Task.Run(() => RunAsync(greets));
+        }
+
+        public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
+
+        public IReadOnlyList<string> Received
+        {
+            get
+            {
+                lock (_received)
+                {
+                    return _received.ToList();
+                }
+            }
+        }
+
+        public void PointSettingsAt(FakeAccountSettings settings)
+        {
+            settings.SmtpHost = "127.0.0.1";
+            settings.SmtpPort = Port;
+        }
+
+        public void Dispose()
+        {
+            _stop.Cancel();
+            _listener.Stop();
+            try
+            {
+                _run.Wait(TimeSpan.FromSeconds(5));
+            }
+            catch (AggregateException)
+            {
+                // RunAsync prende già gli errori attesi alla chiusura.
+            }
+
+            _stop.Dispose();
+        }
+
+        private async Task RunAsync(bool greets)
+        {
+            try
+            {
+                using var client = await _listener.AcceptTcpClientAsync(_stop.Token).ConfigureAwait(false);
+                if (!greets)
+                {
+                    // Accetta e tace: il client aspetta il saluto finché non scade il tempo.
+                    await Task.Delay(System.Threading.Timeout.Infinite, _stop.Token).ConfigureAwait(false);
+                    return;
+                }
+
+                await using var stream = client.GetStream();
+                using var reader = new StreamReader(stream, Encoding.ASCII);
+                await WriteAsync(stream, "220 test ESMTP\r\n").ConfigureAwait(false);
+                while (await reader.ReadLineAsync(_stop.Token).ConfigureAwait(false) is { } line)
+                {
+                    lock (_received)
+                    {
+                        _received.Add(line);
+                    }
+
+                    await WriteAsync(
+                        stream,
+                        line.StartsWith("EHLO", StringComparison.OrdinalIgnoreCase) ? "250 test\r\n" : "502 not implemented\r\n")
+                        .ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex) when (ex is OperationCanceledException or IOException or SocketException or ObjectDisposedException)
+            {
+                // Il test ha finito, o il client ha chiuso la connessione.
+            }
+        }
+
+        private async Task WriteAsync(Stream stream, string text)
+        {
+            await stream.WriteAsync(Encoding.ASCII.GetBytes(text), _stop.Token).ConfigureAwait(false);
+            await stream.FlushAsync(_stop.Token).ConfigureAwait(false);
+        }
     }
 }

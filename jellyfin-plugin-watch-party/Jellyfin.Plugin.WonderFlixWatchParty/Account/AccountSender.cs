@@ -58,20 +58,18 @@ public sealed class AccountSender(IDiscordSender discord, IMailSender mail, IAcc
         return targets;
     }
 
-    /// <summary>Un messaggio a tutti i contatti dell'utente; restituisce i canali dove è arrivato.</summary>
+    /// <summary>
+    /// Un messaggio a tutti i contatti dell'utente; restituisce i canali dove è
+    /// arrivato, nell'ordine Discord, Email. I canali partono in parallelo, così
+    /// l'attesa è quella del canale più lento e non la somma.
+    /// </summary>
     public async Task<IReadOnlyList<AccountChannel>> SendToAllAsync(
         UserContacts contacts, AccountMessage message, CancellationToken cancellationToken)
     {
-        var sent = new List<AccountChannel>();
-        foreach (var (channel, target) in Targets(contacts))
-        {
-            if (await SendAsync(channel, target, message, cancellationToken).ConfigureAwait(false) == SendOutcome.Sent)
-            {
-                sent.Add(channel);
-            }
-        }
-
-        return sent;
+        var targets = Targets(contacts);
+        var outcomes = await Task.WhenAll(
+            targets.Select(t => SendAsync(t.Channel, t.Target, message, cancellationToken))).ConfigureAwait(false);
+        return targets.Where((_, i) => outcomes[i] == SendOutcome.Sent).Select(t => t.Channel).ToList();
     }
 
     /// <summary>L'ultimo errore del canale; null se l'ultimo invio è riuscito o non ce ne sono stati.</summary>

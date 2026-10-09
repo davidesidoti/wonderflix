@@ -90,6 +90,24 @@ public class AccountSettingsTests
     public void DiscordNeedsATokenAndANumericServerId(string token, string guild) =>
         Assert.False(new FakeAccountSettings { DiscordBotToken = token, DiscordGuildId = guild }.IsDiscordConfigured());
 
+    // Il token va in un'intestazione HTTP: spazi, a capo o altri simboli non sono un token.
+    [Theory]
+    [InlineData("tok en")]
+    [InlineData("token\nX-Injected: 1")]
+    [InlineData("token\n")]
+    [InlineData("token\r\n")]
+    [InlineData("tok:en")]
+    [InlineData("tökén")]
+    [InlineData("Bot token")]
+    public void ATokenThatIsNotMadeOfTokenCharactersIsNotConfigured(string token) =>
+        Assert.False(new FakeAccountSettings { DiscordBotToken = token }.IsDiscordConfigured());
+
+    [Theory]
+    [InlineData("bot-token")]
+    [InlineData("MTIzNDU2Nzg5MDEyMzQ1Njc4.GabcDE.abc_def-GHI0123456789")]
+    public void ATokenMadeOfBase64UrlSegmentsIsConfigured(string token) =>
+        Assert.True(new FakeAccountSettings { DiscordBotToken = token }.IsDiscordConfigured());
+
     [Theory]
     [InlineData("", 587, "u", "p", "f@example.com")]
     [InlineData("smtp.example.com", 0, "u", "p", "f@example.com")]

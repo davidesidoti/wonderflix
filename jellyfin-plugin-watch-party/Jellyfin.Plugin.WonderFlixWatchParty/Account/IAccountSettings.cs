@@ -38,9 +38,15 @@ public static class AccountSettingsExtensions
     /// <summary>I giorni del promemoria portati fra 0 (spento) e il massimo.</summary>
     internal static int ClampReminderDays(int days) => Math.Clamp(days, 0, MaxContactReminderDays);
 
-    /// <summary>Token e id numerico del server.</summary>
+    /// <summary>Token (nella forma di un token) e id numerico del server.</summary>
     public static bool IsDiscordConfigured(this IAccountSettings settings) =>
-        !string.IsNullOrWhiteSpace(settings.DiscordBotToken) && DiscordIds.IsSnowflake(settings.DiscordGuildId);
+        IsTokenShaped(settings.DiscordBotToken) && DiscordIds.IsSnowflake(settings.DiscordGuildId);
+
+    // Un token di Discord è fatto di segmenti base64url uniti da punti, e va in un'intestazione HTTP:
+    // con spazi o a capo non è un token, e non deve poter aggiungere altre intestazioni.
+    // Il controllo è carattere per carattere (una regex con "$" accetterebbe un "\n" finale).
+    private static bool IsTokenShaped(string? token) =>
+        !string.IsNullOrEmpty(token) && token.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '-');
 
     /// <summary>Server, porta, utente, password e mittente.</summary>
     public static bool IsEmailConfigured(this IAccountSettings settings) =>

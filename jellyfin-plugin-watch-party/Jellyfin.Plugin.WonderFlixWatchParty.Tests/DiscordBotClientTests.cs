@@ -36,7 +36,7 @@ public class DiscordBotClientTests
         Assert.Equal(new DiscordMember("222222222222222222", "Mario"), lookup.Member);
         var request = Assert.Single(_http.Requests);
         Assert.Equal(HttpMethod.Get, request.Method);
-        Assert.Equal("/api/v10/guilds/123456789012345678/members/search?query=mario&limit=10", request.PathAndQuery);
+        Assert.Equal("/api/v10/guilds/123456789012345678/members/search?query=mario&limit=100", request.PathAndQuery);
         Assert.Equal("Bot bot-token", request.Authorization);
         Assert.StartsWith("DiscordBot (https://github.com/davidesidoti/wonderflix, ", request.UserAgent);
         Assert.Equal(DiscordBotClient.HttpClientName, _http.LastClientName);
@@ -47,6 +47,30 @@ public class DiscordBotClientTests
     {
         _http.Respond = (_, _) => Task.FromResult(Json(
             HttpStatusCode.OK, """[{"user":{"id":"111111111111111111","username":"mario64"}}]"""));
+
+        var lookup = await Client().FindMemberAsync("mario", Ct);
+
+        Assert.Null(lookup.Member);
+        Assert.False(lookup.Failed);
+    }
+
+    [Fact]
+    public async Task ABotWithTheSameNameIsSkipped()
+    {
+        _http.Respond = (_, _) => Task.FromResult(Json(
+            HttpStatusCode.OK,
+            """[{"user":{"id":"111111111111111111","username":"mario","bot":true}},{"user":{"id":"222222222222222222","username":"Mario","bot":false}}]"""));
+
+        var lookup = await Client().FindMemberAsync("mario", Ct);
+
+        Assert.Equal(new DiscordMember("222222222222222222", "Mario"), lookup.Member);
+    }
+
+    [Fact]
+    public async Task OnlyABotIsNotFound()
+    {
+        _http.Respond = (_, _) => Task.FromResult(Json(
+            HttpStatusCode.OK, """[{"user":{"id":"111111111111111111","username":"mario","bot":true}}]"""));
 
         var lookup = await Client().FindMemberAsync("mario", Ct);
 
@@ -99,6 +123,30 @@ public class DiscordBotClientTests
         Assert.Equal(SendOutcome.DmClosed, await Client().SendDmAsync("222222222222222222", "Codice 654321", Ct));
     }
 
+    [Fact]
+    public async Task ClosedDirectMessagesWhenOpeningTheChannelAreDmClosed()
+    {
+        _http.Respond = (_, _) => Task.FromResult(Json(
+            HttpStatusCode.Forbidden, """{"code":50007,"message":"Cannot send messages to this user"}"""));
+
+        Assert.Equal(SendOutcome.DmClosed, await Client().SendDmAsync("222222222222222222", "Codice 654321", Ct));
+
+        Assert.Equal(ChannelsPath, Assert.Single(_http.Requests).PathAndQuery);
+    }
+
+    [Theory]
+    [InlineData("""{"id":"non-un-id"}""")]
+    [InlineData("""{"id":123456789012345678}""")]
+    [InlineData("{}")]
+    public async Task AChannelWithoutAValidIdIsAFailure(string body)
+    {
+        _http.Respond = (_, _) => Task.FromResult(Json(HttpStatusCode.OK, body));
+
+        Assert.Equal(SendOutcome.Failed, await Client().SendDmAsync("222222222222222222", "Codice 654321", Ct));
+
+        Assert.Equal(ChannelsPath, Assert.Single(_http.Requests).PathAndQuery);
+    }
+
     [Theory]
     [InlineData(HttpStatusCode.TooManyRequests, """{"retry_after":1.5,"global":false}""")]
     [InlineData(HttpStatusCode.Forbidden, """{"code":50001,"message":"Missing Access"}""")]
@@ -127,21 +175,85 @@ public class DiscordBotClientTests
             await Client(TimeSpan.FromMilliseconds(50)).SendDmAsync("222222222222222222", "Codice 654321", Ct));
     }
 
+    // Il tempo è uno solo per tutta l'operazione: due passi che da soli stanno nel limite, insieme no.
     [Fact]
-    public async Task CheckReadsTheBotThenTheServer()
+    public async Task TheTimeIsOneForTheWholeDirectMessage()
+    {
+        _http.Respond = async (request, ct) =>
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(200), ct);
+            return request.RequestUri!.AbsolutePath == ChannelsPath
+                ? Json(HttpStatusCode.OK, """{"id":"333333333333333333"}""")
+                : Json(HttpStatusCode.OK, "{}");
+        };
+
+        Assert.Equal(
+            SendOutcome.Failed,
+            await Client(TimeSpan.FromMilliseconds(300)).SendDmAsync("222222222222222222", "Codice 654321", Ct));
+
+        // Con un limite largo gli stessi due passi riescono: la prova non fallisce per un altro motivo.
+        Assert.Equal(
+            SendOutcome.Sent,
+            await Client(TimeSpan.FromSeconds(5)).SendDmAsync("222222222222222222", "Codice 654321", Ct));
+    }
+
+    [Fact]
+    public async Task TheTimeIsOneForTheWholeCheck()
+    {
+        _http.Respond = async (_, ct) =>
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(150), ct);
+            return Json(HttpStatusCode.OK, "{}");
+        };
+
+        // Tre passi da 150 ms contro 300 ms.
+        Assert.Equal(DiscordCheck.Failed, await Client(TimeSpan.FromMilliseconds(300)).CheckAsync(Ct));
+    }
+
+    [Fact]
+    public async Task CancellationByTheCallerIsNotAnOutcome()
+    {
+        _http.Respond = async (_, ct) =>
+        {
+            await Task.Delay(System.Threading.Timeout.Infinite, ct);
+            return Json(HttpStatusCode.OK, "{}");
+        };
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => Client().FindMemberAsync("mario", cancelled.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => Client().SendDmAsync("222222222222222222", "Codice 654321", cancelled.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => Client().CheckAsync(cancelled.Token));
+    }
+
+    [Fact]
+    public async Task CheckReadsTheBotTheServerThenTheMemberSearch()
     {
         Assert.Equal(DiscordCheck.Ok, await Client().CheckAsync(Ct));
 
         Assert.Equal(
-            new[] { "/api/v10/users/@me", "/api/v10/guilds/123456789012345678" },
+            new[]
+            {
+                "/api/v10/users/@me",
+                "/api/v10/guilds/123456789012345678",
+                "/api/v10/guilds/123456789012345678/members/search?query=a&limit=1",
+            },
             _http.Requests.Select(r => r.PathAndQuery));
     }
 
     [Theory]
     [InlineData("/api/v10/users/@me", HttpStatusCode.Unauthorized, DiscordCheck.Invalid)]
+    [InlineData("/api/v10/users/@me", HttpStatusCode.Forbidden, DiscordCheck.Invalid)]
     [InlineData("/api/v10/guilds/123456789012345678", HttpStatusCode.NotFound, DiscordCheck.Invalid)]
     [InlineData("/api/v10/guilds/123456789012345678", HttpStatusCode.Forbidden, DiscordCheck.Invalid)]
     [InlineData("/api/v10/users/@me", HttpStatusCode.BadGateway, DiscordCheck.Failed)]
+    [InlineData("/api/v10/guilds/123456789012345678", HttpStatusCode.TooManyRequests, DiscordCheck.Failed)]
+    [InlineData("/api/v10/guilds/123456789012345678/members/search", HttpStatusCode.Forbidden, DiscordCheck.Invalid)]
+    [InlineData("/api/v10/guilds/123456789012345678/members/search", HttpStatusCode.Unauthorized, DiscordCheck.Invalid)]
+    [InlineData("/api/v10/guilds/123456789012345678/members/search", HttpStatusCode.InternalServerError, DiscordCheck.Failed)]
     public async Task CheckErrors(string failing, HttpStatusCode status, DiscordCheck expected)
     {
         _http.Respond = (request, _) => Task.FromResult(request.RequestUri!.AbsolutePath == failing
@@ -178,5 +290,33 @@ public class DiscordBotClientTests
             Assert.DoesNotContain("query=", e.Message);
             Assert.DoesNotContain("654321", e.Message);
         });
+    }
+
+    [Fact]
+    public async Task TheDiscordErrorCodeGoesToTheLogWithTheStatusButNeverTheMessage()
+    {
+        _http.Respond = (_, _) => Task.FromResult(Json(HttpStatusCode.Forbidden, """{"code":50001,"message":"Missing Access"}"""));
+
+        await Client().FindMemberAsync("mario", Ct);
+
+        var entry = Assert.Single(_logger.Entries);
+        Assert.Equal("Discord GET guilds/123456789012345678/members/search: 403 (codice 50001)", entry.Message);
+        Assert.DoesNotContain("Missing Access", entry.Message);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("{}")]
+    [InlineData("non è json")]
+    [InlineData("""{"retry_after":1.5,"global":false}""")]
+    [InlineData("""[{"code":50001}]""")]
+    public async Task WithoutADiscordErrorCodeOnlyTheStatusIsLogged(string body)
+    {
+        _http.Respond = (_, _) => Task.FromResult(Json(HttpStatusCode.InternalServerError, body));
+
+        await Client().CheckAsync(Ct);
+
+        var entry = Assert.Single(_logger.Entries);
+        Assert.Equal("Discord GET users/@me: 500", entry.Message);
     }
 }

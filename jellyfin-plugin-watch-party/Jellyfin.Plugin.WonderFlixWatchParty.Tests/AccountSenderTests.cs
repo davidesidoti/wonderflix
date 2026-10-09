@@ -50,6 +50,65 @@ public sealed class AccountSenderTests : IDisposable
     }
 
     [Fact]
+    public async Task SendToAllReturnsOnlyTheChannelsWhereItArrived()
+    {
+        var mario = _rig.UserWithContacts("Mario");
+        var contacts = _rig.Contacts.Get(mario.Id);
+        _rig.Discord.Outcomes[contacts.Discord!.Id] = SendOutcome.DmClosed;
+
+        Assert.Equal(new[] { AccountChannel.Email }, await _rig.Sender.SendToAllAsync(contacts, Message, Ct));
+
+        Assert.Equal("DmClosed", _rig.Sender.LastError(AccountChannel.Discord)!.Code);
+        Assert.Null(_rig.Sender.LastError(AccountChannel.Email));
+        Assert.Single(_rig.Mail.Sent);
+
+        // Al contrario: Discord arriva, l'email no. L'ordine resta quello dei canali.
+        _rig.Discord.Outcomes.Clear();
+        _rig.Mail.Outcomes[contacts.Email!.Address] = SendOutcome.Failed;
+        Assert.Equal(new[] { AccountChannel.Discord }, await _rig.Sender.SendToAllAsync(contacts, Message, Ct));
+        Assert.Equal("SendFailed", _rig.Sender.LastError(AccountChannel.Email)!.Code);
+        Assert.Null(_rig.Sender.LastError(AccountChannel.Discord));
+    }
+
+    // Non è una prova di tempo: Discord aspetta che l'email sia partita. In sequenza non partirebbe mai.
+    [Fact]
+    public async Task SendToAllSendsToTheChannelsInParallel()
+    {
+        var mario = _rig.UserWithContacts("Mario");
+        var contacts = _rig.Contacts.Get(mario.Id);
+        var mailStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sender = new AccountSender(new WaitingDiscord(mailStarted.Task), new SignallingMail(mailStarted), _rig.Settings, _rig.Time);
+
+        var sent = await sender.SendToAllAsync(contacts, Message, Ct).WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(new[] { AccountChannel.Discord, AccountChannel.Email }, sent);
+    }
+
+    // Manda solo dopo che gli viene detto che l'email è partita.
+    private sealed class WaitingDiscord(Task mailStarted) : IDiscordSender
+    {
+        public async Task<SendOutcome> SendDmAsync(string userId, string text, CancellationToken cancellationToken)
+        {
+            await mailStarted.WaitAsync(TimeSpan.FromSeconds(2), cancellationToken);
+            return SendOutcome.Sent;
+        }
+
+        public Task<DiscordLookup> FindMemberAsync(string username, CancellationToken cancellationToken) =>
+            Task.FromResult(DiscordLookup.NotFound);
+
+        public Task<DiscordCheck> CheckAsync(CancellationToken cancellationToken) => Task.FromResult(DiscordCheck.Ok);
+    }
+
+    private sealed class SignallingMail(TaskCompletionSource started) : IMailSender
+    {
+        public Task<SendOutcome> SendAsync(string to, AccountMessage message, CancellationToken cancellationToken)
+        {
+            started.TrySetResult();
+            return Task.FromResult(SendOutcome.Sent);
+        }
+    }
+
+    [Fact]
     public async Task TheLastErrorStaysUntilASend()
     {
         _rig.Discord.Outcomes["222222222222222222"] = SendOutcome.DmClosed;

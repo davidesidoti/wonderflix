@@ -36,7 +36,10 @@ public enum DiscordCheck
     Failed,
 }
 
-/// <summary>Il bot Discord dei codici (spec L §7.3). Non lancia: gli errori sono esiti.</summary>
+/// <summary>
+/// Il bot Discord dei codici (spec L §7.3). Non lancia: gli errori sono esiti.
+/// Solo l'annullamento di chi chiama esce come OperationCanceledException.
+/// </summary>
 public interface IDiscordSender
 {
     /// <summary>Il membro del server con esattamente questo nome utente (senza badare alle maiuscole).</summary>
