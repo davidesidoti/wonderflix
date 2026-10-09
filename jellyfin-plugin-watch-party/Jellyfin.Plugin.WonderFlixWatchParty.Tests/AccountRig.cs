@@ -30,6 +30,8 @@ internal sealed class AccountRig : IDisposable
 
     public FakeMailSender Mail { get; } = new();
 
+    public FakePasswordCheck PasswordCheck { get; } = new();
+
     public ContactRegistry Contacts { get; }
 
     public CodeBook Codes { get; }
@@ -55,7 +57,7 @@ internal sealed class AccountRig : IDisposable
     }
 
     public ContactLinking Linking() =>
-        new(Contacts, Codes, Limiter, Discord, Sender, Settings, Inbox, Time, NullLogger<ContactLinking>.Instance);
+        new(Contacts, Codes, Limiter, Discord, PasswordCheck, Sender, Settings, Inbox, Time, NullLogger<ContactLinking>.Instance);
 
     public void Dispose() => Folder.Dispose();
 }

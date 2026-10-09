@@ -11,6 +11,9 @@ public enum AccountError
     SendFailed,
     InvalidCode,
     WeakPassword,
+
+    /// <summary>La password attuale scritta per cambiare i contatti non è giusta.</summary>
+    WrongPassword,
     NotAllowed,
     NoContacts,
     UnknownUser,

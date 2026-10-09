@@ -33,6 +33,10 @@ public sealed class LinkStartRequest
     [JsonPropertyName("Target")]
     public string? Target { get; set; }
 
+    /// <summary>La password attuale dell'account (vuota se non ne ha una): senza, nessun contatto si collega.</summary>
+    [JsonPropertyName("Password")]
+    public string? Password { get; set; }
+
     /// <summary>"it" o "en": la lingua del messaggio.</summary>
     [JsonPropertyName("Language")]
     public string? Language { get; set; }
@@ -47,6 +51,14 @@ public sealed class LinkConfirmRequest
 {
     [JsonPropertyName("Code")]
     public string? Code { get; set; }
+}
+
+/// <summary>Corpo di POST Account/Contacts/{canale}/Unlink.</summary>
+public sealed class ContactUnlinkRequest
+{
+    /// <summary>La password attuale dell'account (vuota se non ne ha una).</summary>
+    [JsonPropertyName("Password")]
+    public string? Password { get; set; }
 }
 
 /// <summary>Corpo di POST Account/Recovery/Start.</summary>

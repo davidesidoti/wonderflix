@@ -9,13 +9,18 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Account;
 /// <summary>
 /// Collegare e verificare i contatti di un utente (spec L §7.4): il nome
 /// Discord o l'email, un codice mandato lì, il codice scritto nell'app.
-/// Nel file entrano solo i contatti verificati.
+/// Nel file entrano solo i contatti verificati. Collegare, cambiare e
+/// scollegare un contatto chiede la password attuale dell'account (spec L §8):
+/// chi ha solo una sessione aperta non può metterci i propri contatti per
+/// prendersi l'account. La conferma no: il codice prova che l'avvio era
+/// autorizzato.
 /// </summary>
 public sealed class ContactLinking(
     ContactRegistry contacts,
     CodeBook codes,
     RateLimiter limiter,
     IDiscordSender discord,
+    IPasswordCheck passwords,
     AccountSender sender,
     IAccountSettings settings,
     InboxService inbox,
@@ -40,8 +45,8 @@ public sealed class ContactLinking(
 
     /// <summary>
     /// Manda il codice per collegare un contatto. Nell'ordine: canale spento,
-    /// contatto scritto male, limiti, membro Discord che non c'è, invio.
-    /// Un invio non riuscito toglie il codice.
+    /// contatto scritto male, limiti, password attuale, membro Discord che non
+    /// c'è, invio. Un invio non riuscito toglie il codice.
     /// I limiti sono due, con due scopi diversi:
     /// - un codice al minuto per utente e canale: si guarda prima di cercare
     ///   il membro, ma si conta solo quando il codice sta per essere emesso
@@ -52,7 +57,12 @@ public sealed class ContactLinking(
     ///   conta, quindi nessuno scorre i membri del server a tentativi.
     /// </summary>
     public async Task<AccountResult<LinkStartResponse>> StartAsync(
-        Guid userId, AccountChannel channel, string? target, string? language, CancellationToken cancellationToken)
+        Guid userId,
+        AccountChannel channel,
+        string? target,
+        string? password,
+        string? language,
+        CancellationToken cancellationToken)
     {
         if (userId == Guid.Empty)
         {
@@ -75,6 +85,11 @@ public sealed class ContactLinking(
         if (limiter.IsLimited(minuteKey, LimitTypes.LinkStartMinute) || !limiter.TryAcquire(key, LimitTypes.LinkStartHour))
         {
             return AccountResult<LinkStartResponse>.Fail(AccountError.RateLimited);
+        }
+
+        if (await CheckPasswordAsync(userId, password).ConfigureAwait(false) is { } passwordError)
+        {
+            return AccountResult<LinkStartResponse>.Fail(passwordError);
         }
 
         PendingContact pending;
@@ -159,8 +174,26 @@ public sealed class ContactLinking(
         return AccountResult<ContactsResponse>.Ok(Get(userId));
     }
 
-    /// <summary>Toglie il contatto di un canale.</summary>
-    public void Unlink(Guid userId, AccountChannel channel) => contacts.Remove(userId, channel);
+    /// <summary>
+    /// Toglie il contatto di un canale, se la password attuale è giusta;
+    /// niente errore anche se il contatto non c'era.
+    /// </summary>
+    public async Task<AccountError?> UnlinkAsync(Guid userId, AccountChannel channel, string? password)
+    {
+        if (userId == Guid.Empty)
+        {
+            return AccountError.Invalid;
+        }
+
+        if (await CheckPasswordAsync(userId, password).ConfigureAwait(false) is { } passwordError)
+        {
+            return passwordError;
+        }
+
+        contacts.Remove(userId, channel);
+        logger.LogInformation("{Channel} scollegato dall'utente {UserId}", channel, userId);
+        return null;
+    }
 
     /// <summary>Il nome Discord senza spazi ai lati né "@" iniziale; null se non sembra un nome Discord.</summary>
     internal static string? CleanDiscordName(string? raw)
@@ -197,6 +230,20 @@ public sealed class ContactLinking(
         return labels.Length >= 2 && labels.All(label => label.Length > 0 && label[0] != '-' && label[^1] != '-')
             ? address
             : null;
+    }
+
+    // Dieci controlli all'ora per utente: chi ha la sessione non può provare password all'infinito.
+    // Un account senza password ha la password vuota, quindi niente (null) vale come "".
+    private async Task<AccountError?> CheckPasswordAsync(Guid userId, string? password)
+    {
+        if (!limiter.TryAcquire(userId.ToString("N"), LimitTypes.PasswordChecks))
+        {
+            return AccountError.RateLimited;
+        }
+
+        return await passwords.IsCurrentPasswordAsync(userId, password ?? string.Empty).ConfigureAwait(false)
+            ? null
+            : AccountError.WrongPassword;
     }
 
     private static CodePurpose PurposeFor(AccountChannel channel) =>

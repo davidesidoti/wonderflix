@@ -50,4 +50,10 @@ public static class LimitTypes
 
     /// <summary>Codici per collegare un contatto, per utente: cinque all'ora.</summary>
     public const string LinkStartHour = "LinkStartHour";
+
+    /// <summary>
+    /// Controlli della password attuale per cambiare i contatti, per utente:
+    /// dieci all'ora. Chi ha la sessione non può provare password all'infinito.
+    /// </summary>
+    public const string PasswordChecks = "PasswordChecks";
 }

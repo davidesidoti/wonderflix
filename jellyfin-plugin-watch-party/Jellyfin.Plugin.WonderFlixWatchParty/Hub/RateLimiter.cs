@@ -28,6 +28,7 @@ public sealed class RateLimiter(TimeProvider time)
             [LimitTypes.RecoveryFailGlobal] = (100, TimeSpan.FromHours(24)),
             [LimitTypes.LinkStartMinute] = (1, TimeSpan.FromMinutes(1)),
             [LimitTypes.LinkStartHour] = (5, TimeSpan.FromHours(1)),
+            [LimitTypes.PasswordChecks] = (10, TimeSpan.FromHours(1)),
         };
 
     /// <summary>

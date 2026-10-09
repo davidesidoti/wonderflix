@@ -34,7 +34,12 @@ public class AccountController(IAuthorizationContext authorizationContext, Conta
         }
 
         var result = await linking.StartAsync(
-                await CallerAsync().ConfigureAwait(false), parsed, request.Target, request.Language, HttpContext.RequestAborted)
+                await CallerAsync().ConfigureAwait(false),
+                parsed,
+                request.Target,
+                request.Password,
+                request.Language,
+                HttpContext.RequestAborted)
             .ConfigureAwait(false);
         if (result.Error is { } error)
         {
@@ -63,17 +68,22 @@ public class AccountController(IAuthorizationContext authorizationContext, Conta
         return result.Value!;
     }
 
-    /// <summary>Toglie il contatto del canale; 204 anche se non c'era.</summary>
-    [HttpDelete("Contacts/{channel}")]
-    public async Task<ActionResult> Unlink([FromRoute] string channel)
+    /// <summary>
+    /// Toglie il contatto del canale, con la password attuale nel corpo; 204
+    /// anche se non c'era. È un POST perché un DELETE non ha un corpo su cui
+    /// contare, e la password non deve stare nell'indirizzo.
+    /// </summary>
+    [HttpPost("Contacts/{channel}/Unlink")]
+    public async Task<ActionResult> Unlink([FromRoute] string channel, [FromBody] ContactUnlinkRequest? request)
     {
-        if (!AccountChannels.TryParse(channel, out var parsed))
+        if (!AccountChannels.TryParse(channel, out var parsed) || request is null)
         {
             return AccountErrors.Result(AccountError.Invalid);
         }
 
-        linking.Unlink(await CallerAsync().ConfigureAwait(false), parsed);
-        return NoContent();
+        var error = await linking.UnlinkAsync(await CallerAsync().ConfigureAwait(false), parsed, request.Password)
+            .ConfigureAwait(false);
+        return error is { } failure ? AccountErrors.Result(failure) : NoContent();
     }
 
     private async Task<Guid> CallerAsync() =>

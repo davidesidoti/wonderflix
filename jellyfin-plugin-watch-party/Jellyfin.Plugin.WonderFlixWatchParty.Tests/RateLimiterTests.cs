@@ -115,6 +115,7 @@ public class RateLimiterTests
     [InlineData(LimitTypes.RecoveryFailGlobal, 100, 1440)]
     [InlineData(LimitTypes.LinkStartMinute, 1, 1)]
     [InlineData(LimitTypes.LinkStartHour, 5, 60)]
+    [InlineData(LimitTypes.PasswordChecks, 10, 60)]
     public void AccountLimits(string type, int count, int minutes)
     {
         var limiter = new RateLimiter(_time);

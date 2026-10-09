@@ -55,6 +55,22 @@ internal sealed class FakeDiscordSender : IDiscordSender
     public string LastCode(string userId) => FakeCodes.In(Sent.Last(s => s.UserId == userId).Text);
 }
 
+/// <summary>La password attuale finta: ogni utente ha "giusta", se il test non gli dà un'altra password (anche vuota).</summary>
+internal sealed class FakePasswordCheck : IPasswordCheck
+{
+    /// <summary>Password per utente.</summary>
+    public Dictionary<Guid, string> Passwords { get; } = [];
+
+    /// <summary>I controlli fatti, in ordine.</summary>
+    public List<(Guid UserId, string Password)> Calls { get; } = [];
+
+    public Task<bool> IsCurrentPasswordAsync(Guid userId, string password)
+    {
+        Calls.Add((userId, password));
+        return Task.FromResult(Passwords.GetValueOrDefault(userId, "giusta") == password);
+    }
+}
+
 /// <summary>Le email finte: esiti per indirizzo e messaggi mandati.</summary>
 internal sealed class FakeMailSender : IMailSender
 {

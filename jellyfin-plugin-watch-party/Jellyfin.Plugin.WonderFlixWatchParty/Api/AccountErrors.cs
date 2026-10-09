@@ -19,7 +19,7 @@ internal static class AccountErrors
             AccountError.RateLimited => StatusCodes.Status429TooManyRequests,
             AccountError.DmClosed or AccountError.NoContacts => StatusCodes.Status409Conflict,
             AccountError.SendFailed => StatusCodes.Status502BadGateway,
-            AccountError.NotAllowed => StatusCodes.Status403Forbidden,
+            AccountError.NotAllowed or AccountError.WrongPassword => StatusCodes.Status403Forbidden,
             _ => StatusCodes.Status400BadRequest,
         };
         return new ObjectResult(new AccountErrorDto(error.ToString())) { StatusCode = status };
