@@ -484,6 +484,28 @@ public sealed class ContactLinkingTests : IDisposable
         Assert.Single(logger.Entries, e => e.Message.Contains("scollegato", StringComparison.Ordinal));
     }
 
+    // Tutte le righe del collegamento scrivono l'id dell'utente senza trattini.
+    [Fact]
+    public async Task TheLogLinesHaveTheUserIdWithoutDashes()
+    {
+        var logger = new RecordingLogger<ContactLinking>();
+        var linking = new ContactLinking(
+            _rig.Contacts, _rig.Codes, _rig.Limiter, _rig.Discord, _rig.PasswordCheck, _rig.Sender, _rig.Settings, _rig.Inbox, _rig.Time, logger);
+
+        Assert.Null((await linking.StartAsync(_mario.Id, AccountChannel.Discord, "mario", "giusta", "it", Ct)).Error);
+        Assert.Null((await linking.ConfirmAsync(_mario.Id, AccountChannel.Discord, _rig.Discord.LastCode("222222222222222222"))).Error);
+        Assert.Null(await linking.UnlinkAsync(_mario.Id, AccountChannel.Discord, "giusta"));
+
+        Assert.Equal(
+            new[]
+            {
+                $"Codice per collegare Discord mandato all'utente {_mario.Id:N}",
+                $"Discord collegato all'utente {_mario.Id:N}",
+                $"Discord scollegato dall'utente {_mario.Id:N}",
+            },
+            logger.Entries.Select(e => e.Message).ToArray());
+    }
+
     [Fact]
     public async Task ConfirmingDoesNotNeedThePassword()
     {

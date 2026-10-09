@@ -151,7 +151,7 @@ public sealed class ContactLinking(
                 outcome == SendOutcome.DmClosed ? AccountError.DmClosed : AccountError.SendFailed);
         }
 
-        logger.LogInformation("Codice per collegare {Channel} mandato all'utente {UserId}", channel, userId);
+        logger.LogInformation("Codice per collegare {Channel} mandato all'utente {UserId}", channel, userId.ToString("N"));
         return AccountResult<LinkStartResponse>.Ok(new LinkStartResponse(expiresAt));
     }
 
@@ -180,7 +180,7 @@ public sealed class ContactLinking(
         }
 
         await inbox.RemoveContactRemindersAsync(userId).ConfigureAwait(false);
-        logger.LogInformation("{Channel} collegato all'utente {UserId}", channel, userId);
+        logger.LogInformation("{Channel} collegato all'utente {UserId}", channel, userId.ToString("N"));
         return AccountResult<ContactsResponse>.Ok(Get(userId));
     }
 
@@ -207,7 +207,7 @@ public sealed class ContactLinking(
 
         if (contacts.Remove(userId, channel))
         {
-            logger.LogInformation("{Channel} scollegato dall'utente {UserId}", channel, userId);
+            logger.LogInformation("{Channel} scollegato dall'utente {UserId}", channel, userId.ToString("N"));
         }
 
         return null;

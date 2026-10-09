@@ -377,6 +377,22 @@ public sealed class PasswordRecoveryTests : IDisposable
 
         var warning = Assert.Single(logger.Entries, e => e.Level == LogLevel.Warning);
         Assert.Contains("nessun canale", warning.Message, StringComparison.Ordinal);
+        Assert.StartsWith($"Codice di recupero di {_mario.Id:N} non mandato", warning.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AJellyfinErrorIsInTheLogWithTheUserIdWithoutDashes()
+    {
+        var (recovery, logger) = Logged();
+        var start = recovery.Start("mario", "it");
+        await start.Sending;
+        var code = _rig.Discord.LastCode(DiscordId(_mario));
+        _rig.Passwords.Error = new InvalidOperationException("database");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => recovery.CompleteAsync("mario", code, "nuova-password", "it"));
+
+        var entry = Assert.Single(logger.Entries, e => e.Level == LogLevel.Error);
+        Assert.Equal($"Password di {_mario.Id:N} non cambiata", entry.Message);
     }
 
     [Fact]
@@ -403,6 +419,36 @@ public sealed class PasswordRecoveryTests : IDisposable
 
         var entry = Assert.Single(logger.Entries, e => e.Level == LogLevel.Information);
         Assert.Equal($"Codice di recupero di {_mario.Id:N} mandato dall'admin {AdminId:N} su 2 canali", entry.Message);
+    }
+
+    // Con una chiave API non c'è un utente (id tutto a zero): nel registro si legge "chiave API", non zeri.
+    [Fact]
+    public async Task TheAdminCodeWithAnApiKeyIsInTheLogAsSuch()
+    {
+        var (recovery, logger) = Logged();
+
+        Assert.Null((await recovery.SendForAdminAsync(_mario.Id, Guid.Empty, "it", Ct)).Error);
+
+        var entry = Assert.Single(logger.Entries, e => e.Level == LogLevel.Information);
+        Assert.Equal($"Codice di recupero di {_mario.Id:N} mandato dall'admin chiave API su 2 canali", entry.Message);
+        Assert.DoesNotContain("00000000", entry.Message, StringComparison.Ordinal);
+    }
+
+    // Tutte le righe del recupero scrivono l'id dell'utente senza trattini.
+    [Fact]
+    public async Task TheLogLinesHaveTheUserIdWithoutDashes()
+    {
+        var (recovery, logger) = Logged();
+        var start = recovery.Start("mario", "it");
+        await start.Sending;
+        var code = _rig.Discord.LastCode(DiscordId(_mario));
+
+        var complete = await recovery.CompleteAsync("mario", code, "nuova-password", "it");
+        await complete.Notifying;
+
+        Assert.Contains(logger.Entries, e => e.Message == $"Codice di recupero di {_mario.Id:N} mandato su 2 canali");
+        Assert.Contains(logger.Entries, e => e.Message == $"Password di {_mario.Id:N} cambiata con il codice di recupero");
+        Assert.DoesNotContain(logger.Entries, e => e.Message.Contains(_mario.Id.ToString(), StringComparison.Ordinal));
     }
 
     [Fact]

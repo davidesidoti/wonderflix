@@ -96,6 +96,21 @@ public sealed class AccountAdminTests : IDisposable
         Assert.Equal($"Contatti di {mario.Id:N} scollegati dall'admin {AdminId:N}", entry.Message);
     }
 
+    // Con una chiave API non c'è un utente (id tutto a zero): nel registro si legge "chiave API", non zeri.
+    [Fact]
+    public void UnlinkWithAnApiKeyIsInTheLogAsSuch()
+    {
+        var mario = _rig.UserWithContacts("Mario");
+        var logger = new RecordingLogger<AccountAdmin>();
+        var admin = new AccountAdmin(_rig.Server, _rig.Contacts, _rig.Codes, _rig.Sender, _rig.Discord, _rig.Settings, logger);
+
+        Assert.Null(admin.Unlink(mario.Id, Guid.Empty));
+
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal($"Contatti di {mario.Id:N} scollegati dall'admin chiave API", entry.Message);
+        Assert.DoesNotContain("00000000", entry.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task StatusCountsActiveNonAdminUsersAndShowsTheLastErrors()
     {

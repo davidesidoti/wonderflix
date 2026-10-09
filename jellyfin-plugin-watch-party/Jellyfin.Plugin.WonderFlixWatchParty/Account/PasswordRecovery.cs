@@ -108,11 +108,11 @@ public sealed class PasswordRecovery(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Password di {UserId} non cambiata", user.Id);
+            logger.LogError(ex, "Password di {UserId} non cambiata", user.Id.ToString("N"));
             throw;
         }
 
-        logger.LogInformation("Password di {UserId} cambiata con il codice di recupero", user.Id);
+        logger.LogInformation("Password di {UserId} cambiata con il codice di recupero", user.Id.ToString("N"));
 
         // L'avviso non trattiene la risposta.
         return new RecoveryCompleteResult(null, Task.Run(() => NotifyChangedAsync(user, language)));
@@ -155,7 +155,7 @@ public sealed class PasswordRecovery(
         logger.LogInformation(
             "Codice di recupero di {UserId} mandato dall'admin {AdminId} su {Count} canali",
             userId.ToString("N"),
-            adminId.ToString("N"),
+            Caller(adminId),
             sent.Count);
         return AccountResult<AdminRecoveryResponse>.Ok(new AdminRecoveryResponse(sent.Select(c => c.Name()).ToList()));
     }
@@ -238,11 +238,11 @@ public sealed class PasswordRecovery(
             if (sent.Count == 0)
             {
                 codes.Discard(user.Id, CodePurpose.Recovery);
-                logger.LogWarning("Codice di recupero di {UserId} non mandato: nessun canale ha funzionato", user.Id);
+                logger.LogWarning("Codice di recupero di {UserId} non mandato: nessun canale ha funzionato", user.Id.ToString("N"));
                 return;
             }
 
-            logger.LogInformation("Codice di recupero di {UserId} mandato su {Count} canali", user.Id, sent.Count);
+            logger.LogInformation("Codice di recupero di {UserId} mandato su {Count} canali", user.Id.ToString("N"), sent.Count);
         }
         catch (Exception ex)
         {
@@ -259,7 +259,7 @@ public sealed class PasswordRecovery(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Avviso del cambio password non mandato a {UserId}", user.Id);
+            logger.LogWarning(ex, "Avviso del cambio password non mandato a {UserId}", user.Id.ToString("N"));
         }
     }
 
@@ -277,6 +277,9 @@ public sealed class PasswordRecovery(
     }
 
     private static string Key(string name) => name.ToLowerInvariant();
+
+    // Chi ha chiesto nel registro: con una chiave API non c'è un utente (id tutto a zero), si scrive "chiave API".
+    private static string Caller(Guid adminId) => adminId == Guid.Empty ? "chiave API" : adminId.ToString("N");
 
     private static RecoveryCompleteResult Done(AccountError error) => new(error, Task.CompletedTask);
 }
