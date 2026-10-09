@@ -239,6 +239,33 @@ void main() {
     expect(resendAction(tester), isNotNull);
   });
 
+  testWidgets('Rimanda riuscito: il codice vecchio esce dal campo',
+      (tester) async {
+    await open(tester, AccountChannel.discord);
+    await reachCodeStep(tester);
+    String codeText() => tester
+        .widget<TextField>(find.byKey(const Key('link-code')))
+        .controller!
+        .text;
+    await tester.enterText(find.byKey(const Key('link-code')), '111111');
+    await tester.pump(ResendCodeButton.delay);
+
+    // Un 429 non manda nessun codice: quello scritto vale ancora.
+    api.startLinkFailure = AccountFailure.rateLimited;
+    await tester.tap(find.byKey(const Key('resend-code')));
+    await tester.pump();
+    expect(codeText(), '111111');
+
+    // Un codice nuovo sostituisce il vecchio sul server: con quello vecchio
+    // nel campo, "Conferma" darebbe "Codice non valido o scaduto".
+    await tester.pump(ResendCodeButton.delay);
+    api.startLinkFailure = null;
+    await tester.tap(find.byKey(const Key('resend-code')));
+    await tester.pump();
+    expect(api.startLinkCalls, hasLength(3));
+    expect(codeText(), isEmpty);
+  });
+
   testWidgets('Rimanda con la password cambiata altrove: primo passo',
       (tester) async {
     await open(tester, AccountChannel.discord);

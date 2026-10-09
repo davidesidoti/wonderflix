@@ -24,7 +24,9 @@ void main() {
         "Se l'account esiste e ha un contatto collegato, ti abbiamo mandato "
         'un codice su Discord o per email.');
     expect(it.recoveryTooMany,
-        "Troppi tentativi: riprova tra un'ora o contatta l'amministratore");
+        "Troppi tentativi: riprova più tardi o contatta l'amministratore");
+    expect(en.recoveryTooMany,
+        'Too many attempts: try again later or contact the admin');
     expect(it.recoveryChanged, 'Password cambiata: accedi con quella nuova.');
     expect(it.inboxContactReminderTitle, 'Proteggi il tuo account');
     expect(en.recoveryChanged, 'Password changed: sign in with the new one.');

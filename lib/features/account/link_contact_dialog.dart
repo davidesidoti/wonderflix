@@ -10,6 +10,7 @@ import '../../ui/wf_dialog.dart';
 import '../auth/password_login_form.dart';
 import 'account_providers.dart';
 import 'account_texts.dart';
+import 'field_focus.dart';
 import 'resend_code_button.dart';
 
 /// Collega (o sostituisce) il contatto di [channel] (spec L §9.2): i
@@ -86,12 +87,7 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
           // Dopo il frame, quando il campo c'è di nuovo: l'`autofocus` del
           // nome ruberebbe il fuoco, ma l'errore è sotto la password, che
           // ha ancora quella vecchia: la si seleziona per riscriverla.
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            _passwordFocus.requestFocus();
-            _password.selection = TextSelection(
-                baseOffset: 0, extentOffset: _password.text.length);
-          });
+          focusAndSelectAfterFrame(this, _passwordFocus, _password);
         case AccountFailure.invalidCode when !firstStep:
           _codeError = text;
         case _:
@@ -137,6 +133,10 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
   /// riprovare subito.
   Future<bool> _resend() async {
     final failure = await _send(_sentTo!);
+    // Il codice nuovo sostituisce il vecchio sul server: con quello vecchio
+    // nel campo, "Conferma" darebbe "Codice non valido o scaduto". Dopo un
+    // errore nessun codice è partito, e quello scritto vale ancora.
+    if (failure == null && mounted) _code.clear();
     return failure == null || failure == AccountFailure.rateLimited;
   }
 

@@ -621,7 +621,7 @@
   "recoveryCodeSent": "If the account exists and has a linked contact, we sent you a code on Discord or by email.",
   "recoveryNoContact": "No linked contact?",
   "recoveryUnavailable": "Automatic recovery isn't available on this server: contact the admin",
-  "recoveryTooMany": "Too many attempts: try again in an hour or contact the admin",
+  "recoveryTooMany": "Too many attempts: try again later or contact the admin",
   "recoveryFailed": "Change failed: ask for a new code",
   "recoveryChanged": "Password changed: sign in with the new one.",
   "inboxContactReminderTitle": "Protect your account",

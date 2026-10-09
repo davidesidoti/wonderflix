@@ -13,6 +13,7 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 
 import '../../support/account_fakes.dart';
 import '../../support/fake_session_controller.dart';
+import '../../support/field_focus.dart';
 import '../../support/profile_fakes.dart';
 import '../../support/pump_app.dart';
 
@@ -167,7 +168,7 @@ void main() {
     await tapKey(tester, 'recovery-submit');
     expect(
         find.text(
-            "Troppi tentativi: riprova tra un'ora o contatta l'amministratore"),
+            "Troppi tentativi: riprova più tardi o contatta l'amministratore"),
         findsOneWidget);
 
     // Il 500 di un codice già usato.
@@ -390,6 +391,49 @@ void main() {
     await tapKey(tester, 'resend-code');
 
     expect(api.recoveryStarts, [('garg', 'it'), ('garg', 'it')]);
+  });
+
+  testWidgets('codice non valido: il fuoco torna al codice, selezionato',
+      (tester) async {
+    await pumpLogin(tester);
+    await openRecovery(tester);
+    await tapKey(tester, 'recovery-send');
+
+    await tester.enterText(find.byKey(const Key('recovery-code')), '012345');
+    await tester.enterText(find.byKey(const Key('recovery-new')), 'nuova123');
+    await tester.enterText(
+        find.byKey(const Key('recovery-confirm')), 'nuova123');
+    api.completeRecoveryFailure = AccountFailure.invalidCode;
+    // Invio nell'ultimo campo toglie il fuoco: l'errore deve ridarlo al
+    // codice.
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+
+    expect(find.text('Codice non valido o scaduto'), findsOneWidget);
+    expectFocusedAndSelected(tester, 'recovery-code', '012345'.length);
+  });
+
+  testWidgets('Rimanda riuscito: il codice vecchio esce dal campo',
+      (tester) async {
+    await pumpLogin(tester);
+    await openRecovery(tester);
+    await tapKey(tester, 'recovery-send');
+    String codeText() => fieldText(tester, 'recovery-code');
+    await tester.enterText(find.byKey(const Key('recovery-code')), '111111');
+
+    // Con un 429 nessun codice nuovo è partito: quello scritto vale ancora.
+    await tester.pump(const Duration(seconds: 60));
+    api.startRecoveryFailure = AccountFailure.rateLimited;
+    await tapKey(tester, 'resend-code');
+    expect(codeText(), '111111');
+
+    // Un codice nuovo sostituisce il vecchio sul server: con quello vecchio
+    // nel campo, "Cambia password" darebbe "Codice non valido o scaduto".
+    await tester.pump(const Duration(seconds: 60));
+    api.startRecoveryFailure = null;
+    await tapKey(tester, 'resend-code');
+    expect(api.recoveryStarts, hasLength(3));
+    expect(codeText(), isEmpty);
   });
 
   testWidgets('Rimanda con troppe richieste: avviso, e il conto riparte',

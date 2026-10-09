@@ -10,6 +10,7 @@ import '../../ui/wf_dialog.dart';
 import '../auth/password_login_form.dart';
 import 'account_providers.dart';
 import 'account_texts.dart';
+import 'field_focus.dart';
 
 /// Scollega il contatto di [channel] dopo la password attuale (spec L
 /// §9.2). `true` se scollegato.
@@ -38,6 +39,7 @@ class UnlinkContactDialog extends ConsumerStatefulWidget {
 
 class _UnlinkContactDialogState extends ConsumerState<UnlinkContactDialog> {
   final _password = TextEditingController();
+  final _passwordFocus = FocusNode();
   bool _busy = false;
   String? _passwordError;
   String? _error;
@@ -45,6 +47,7 @@ class _UnlinkContactDialogState extends ConsumerState<UnlinkContactDialog> {
   @override
   void dispose() {
     _password.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
 
@@ -66,6 +69,9 @@ class _UnlinkContactDialogState extends ConsumerState<UnlinkContactDialog> {
       setState(() {
         if (error.failure == AccountFailure.wrongPassword) {
           _passwordError = text;
+          // Invio ha tolto il fuoco al campo: torna lì, con la password
+          // vecchia selezionata per riscriverla.
+          focusAndSelectAfterFrame(this, _passwordFocus, _password);
         } else {
           _error = text;
         }
@@ -94,6 +100,7 @@ class _UnlinkContactDialogState extends ConsumerState<UnlinkContactDialog> {
         TextField(
           key: const Key('unlink-password'),
           controller: _password,
+          focusNode: _passwordFocus,
           autofocus: true,
           obscureText: true,
           onSubmitted: (_) => unawaited(_submit()),

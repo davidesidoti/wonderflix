@@ -13,6 +13,7 @@ import '../../core/social/account_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../account/account_providers.dart';
 import '../account/account_texts.dart';
+import '../account/field_focus.dart';
 import '../account/resend_code_button.dart';
 import 'password_login_form.dart';
 import 'session_controller.dart';
@@ -39,6 +40,7 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
   final _code = TextEditingController();
   final _new = TextEditingController();
   final _confirm = TextEditingController();
+  final _codeFocus = FocusNode();
 
   /// Il fuoco di "ACCEDI" nella vista "password cambiata" ([_changedTo]).
   final _signInFocus = FocusNode();
@@ -67,6 +69,7 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
     _code.dispose();
     _new.dispose();
     _confirm.dispose();
+    _codeFocus.dispose();
     _signInFocus.dispose();
     super.dispose();
   }
@@ -129,6 +132,10 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
   /// riprovare subito.
   Future<bool> _resend() async {
     final failure = await _requestCode(_sentFor!);
+    // Il codice nuovo sostituisce il vecchio sul server: con quello vecchio
+    // nel campo, "Cambia password" darebbe "Codice non valido o scaduto".
+    // Dopo un errore nessun codice è partito, e quello scritto vale ancora.
+    if (failure == null && mounted) _code.clear();
     return failure == null || failure == AccountFailure.rateLimited;
   }
 
@@ -176,6 +183,9 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
           switch (error.failure) {
             case AccountFailure.invalidCode:
               _codeError = l.accountErrorInvalidCode;
+              // Invio nell'ultimo campo ha tolto il fuoco: torna al codice,
+              // selezionato per riscriverlo.
+              focusAndSelectAfterFrame(this, _codeFocus, _code);
             case AccountFailure.weakPassword:
               _newError = l.accountPasswordTooShort;
             case AccountFailure.rateLimited:
@@ -286,6 +296,7 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
           TextField(
             key: const Key('recovery-code'),
             controller: _code,
+            focusNode: _codeFocus,
             autofocus: true,
             keyboardType: TextInputType.number,
             textInputAction: TextInputAction.next,

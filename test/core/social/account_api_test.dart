@@ -112,6 +112,35 @@ void main() {
     });
   });
 
+  test('recupero: le richieste partono senza token, dopo prepareLogin',
+      () async {
+    adapter.handler = (options) =>
+        FakeResponse(options.path.endsWith('/Start') ? 202 : 204);
+    // Un profilo aperto, poi `prepareLogin` (un accesso nuovo o "Accedi di
+    // nuovo"): senza token, con il DeviceId del profilo.
+    final http = JellyfinHttp(
+        baseUrl: testServerUrl, clientInfo: testClientInfo, adapter: adapter)
+      ..setCredentials(token: 'tok-1', deviceId: 'd1');
+    http.setCredentials(token: null, deviceId: 'd2');
+    final recovery = AccountApi(http);
+
+    await recovery.startRecovery(username: 'garg', language: 'it');
+    await recovery.completeRecovery(
+        username: 'garg',
+        code: '000123',
+        newPassword: 'nuova123',
+        language: 'it');
+
+    expect(adapter.requests, hasLength(2));
+    for (final request in adapter.requests) {
+      final header = request.headers['Authorization'] as String;
+      expect(header, startsWith('MediaBrowser '));
+      expect(header, contains('DeviceId="d2"'));
+      expect(header, isNot(contains('Token=')));
+      expect(header, isNot(contains('tok-1')));
+    }
+  });
+
   test('errori: i Code del plugin e gli altri stati', () async {
     final cases = <(int, Object?, AccountFailure)>[
       (404, null, AccountFailure.unavailable),

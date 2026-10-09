@@ -6,12 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/error_text.dart';
 import '../../app/providers.dart';
 import '../../core/jellyfin/api_exception.dart';
+import '../../core/jellyfin/jellyfin_http.dart';
 import '../../core/social/account_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_dialog.dart';
 import '../auth/password_login_form.dart';
 import '../auth/session_controller.dart';
 import 'account_texts.dart';
+import 'field_focus.dart';
 
 /// Cambia la password dell'utente aperto (spec L §9.2). `true` se è
 /// cambiata.
@@ -38,6 +40,7 @@ class _ChangePasswordDialogState extends ConsumerState<ChangePasswordDialog> {
   final _current = TextEditingController();
   final _new = TextEditingController();
   final _confirm = TextEditingController();
+  final _currentFocus = FocusNode();
   bool _busy = false;
   String? _currentError;
   String? _newError;
@@ -49,6 +52,7 @@ class _ChangePasswordDialogState extends ConsumerState<ChangePasswordDialog> {
     _current.dispose();
     _new.dispose();
     _confirm.dispose();
+    _currentFocus.dispose();
     super.dispose();
   }
 
@@ -75,9 +79,22 @@ class _ChangePasswordDialogState extends ConsumerState<ChangePasswordDialog> {
           currentPassword: _current.text, newPassword: password);
       if (mounted) Navigator.of(context).pop(true);
     } on ForbiddenException {
-      if (mounted) setState(() => _currentError = l.accountWrongPassword);
+      if (!mounted) return;
+      setState(() => _currentError = l.accountWrongPassword);
+      // Invio nell'ultimo campo ha tolto il fuoco: torna alla password
+      // attuale, selezionata per riscriverla.
+      focusAndSelectAfterFrame(this, _currentFocus, _current);
     } on Object catch (error) {
-      if (mounted) setState(() => _error = describeError(l, error));
+      if (mounted) {
+        setState(() => _error = switch (error) {
+              // nginx mentre Jellyfin si riavvia (502, 503, 504): come nei
+              // contatti, "non raggiungibile".
+              ServerErrorException(:final statusCode)
+                  when restartGatewayStatuses.contains(statusCode) =>
+                l.errorServerUnreachable,
+              _ => describeError(l, error),
+            });
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -100,6 +117,7 @@ class _ChangePasswordDialogState extends ConsumerState<ChangePasswordDialog> {
         TextField(
           key: const Key('change-password-current'),
           controller: _current,
+          focusNode: _currentFocus,
           autofocus: true,
           obscureText: true,
           textInputAction: TextInputAction.next,

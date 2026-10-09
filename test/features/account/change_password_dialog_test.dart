@@ -13,6 +13,7 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 
 import '../../support/fake_adapter.dart';
 import '../../support/fake_session_controller.dart';
+import '../../support/field_focus.dart';
 import '../../support/pump_app.dart';
 import '../../support/test_data.dart';
 
@@ -85,6 +86,27 @@ void main() {
     expect(find.byKey(const Key('change-password-submit')), findsOneWidget);
   });
 
+  testWidgets('password attuale sbagliata: il fuoco torna lì, selezionato',
+      (tester) async {
+    adapter.handler = (_) => const FakeResponse(403);
+    await open(tester);
+
+    await tester.enterText(
+        find.byKey(const Key('change-password-current')), 'sbagliata');
+    await tester.enterText(
+        find.byKey(const Key('change-password-new')), 'nuova123');
+    await tester.enterText(
+        find.byKey(const Key('change-password-confirm')), 'nuova123');
+    // Invio nell'ultimo campo toglie il fuoco: l'errore deve ridarlo alla
+    // password attuale.
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Password attuale sbagliata'), findsOneWidget);
+    expectFocusedAndSelected(
+        tester, 'change-password-current', 'sbagliata'.length);
+  });
+
   testWidgets('riuscito: manda le password e chiude con true', (tester) async {
     await open(tester);
 
@@ -121,6 +143,33 @@ void main() {
         find.text(
             'WonderFlix non è raggiungibile. Controlla la connessione.'),
         findsOneWidget);
+  });
+
+  testWidgets('nginx mentre Jellyfin riparte: server non raggiungibile',
+      (tester) async {
+    await open(tester);
+
+    // 502, 503 e 504 sono le risposte di nginx durante un riavvio: come nei
+    // contatti, "non raggiungibile" e non un errore generico.
+    for (final status in restartGatewayStatuses) {
+      adapter.handler = (_) => FakeResponse(status);
+      await fill(tester, current: 'vecchia', next: 'nuova123');
+      await tester.pumpAndSettle();
+      expect(
+          find.text(
+              'WonderFlix non è raggiungibile. Controlla la connessione.'),
+          findsOneWidget,
+          reason: '$status');
+    }
+
+    // Un altro errore del server resta generico.
+    adapter.handler = (_) => const FakeResponse(500);
+    await fill(tester, current: 'vecchia', next: 'nuova123');
+    await tester.pumpAndSettle();
+    expect(find.text('Qualcosa è andato storto. Riprova.'), findsOneWidget);
+    expect(
+        find.text('WonderFlix non è raggiungibile. Controlla la connessione.'),
+        findsNothing);
   });
 
   testWidgets('i campi lasciano andare a capo errori e suggerimenti',

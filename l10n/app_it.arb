@@ -737,7 +737,7 @@
   "recoveryCodeSent": "Se l'account esiste e ha un contatto collegato, ti abbiamo mandato un codice su Discord o per email.",
   "recoveryNoContact": "Nessun contatto collegato?",
   "recoveryUnavailable": "Il recupero automatico non è disponibile su questo server: contatta l'amministratore",
-  "recoveryTooMany": "Troppi tentativi: riprova tra un'ora o contatta l'amministratore",
+  "recoveryTooMany": "Troppi tentativi: riprova più tardi o contatta l'amministratore",
   "recoveryFailed": "Cambio non riuscito: chiedi un nuovo codice",
   "recoveryChanged": "Password cambiata: accedi con quella nuova.",
   "inboxContactReminderTitle": "Proteggi il tuo account",

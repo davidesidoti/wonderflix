@@ -9,6 +9,7 @@ import 'package:wonderflix/features/account/account_texts.dart';
 import 'package:wonderflix/features/account/unlink_contact_dialog.dart';
 
 import '../../support/account_fakes.dart';
+import '../../support/field_focus.dart';
 import '../../support/pump_app.dart';
 
 void main() {
@@ -59,6 +60,21 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.unlinkCalls.last, (AccountChannel.email, 'segreta'));
     expect(unlinked, isTrue);
+  });
+
+  testWidgets('password sbagliata: il fuoco torna alla password, selezionata',
+      (tester) async {
+    await open(tester);
+
+    api.unlinkFailure = AccountFailure.wrongPassword;
+    await tester.enterText(
+        find.byKey(const Key('unlink-password')), 'sbagliata');
+    // Invio toglie il fuoco al campo: l'errore deve ridarglielo.
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+
+    expect(find.text('Password attuale sbagliata'), findsOneWidget);
+    expectFocusedAndSelected(tester, 'unlink-password', 'sbagliata'.length);
   });
 
   testWidgets('troppi controlli: avviso sopra il campo', (tester) async {
