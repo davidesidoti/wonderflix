@@ -32,6 +32,13 @@
       - `accountAdminErrorText` dice "non raggiungibile" per 502/503/504 senza `Code`; lo usa anche `SetPasswordDialog`;
       - `sendRecoveryCode` lancia `ServerErrorException` se i canali noti sono zero;
       - il finto `unlinkContacts` toglie i contatti dall'elenco, come il plugin; test più precisi sui tipi degli errori e sui campi obbligatori.
+    - **Gruppo B:**
+      - in `users_tab.dart` `String text;` e non `final String text;` in `_sendRecovery` e `_unlink`: assegnata nel `try` e nel `catch`, con `final` non compila; due test in più in `wonderflix_tab_test.dart` (la card nella scheda, solo con `account`);
+      - la riga in azione e la card durante la prova restano vive anche fuori vista (`AutomaticKeepAliveClientMixin`): la `ListView` le smontava, l'avviso si perdeva e il menu tornava acceso, e un secondo codice avrebbe sostituito il primo;
+      - la card azzera l'esito all'inizio di una prova: dopo una prova fallita non resta quello vecchio;
+      - "Ho già un codice": dopo un "Rimanda" riuscito il testo torna "Se l'account esiste…" (il codice dell'admin non vale più); un 404 a `Complete` dice che il recupero non è disponibile;
+      - la riga: nome ed etichette in un `Expanded`, senza `Spacer` (un nome lungo si troncava a metà riga); il menu dice allo screen reader di chi è ("Azioni per {name}", `adminUsersActionsFor`);
+      - test in più: la propria riga con un id in un altro formato, la riga senza menu, il menu spento durante un'azione, Utenti → Sessioni quando sparisce `account`, la card con i dati non aggiornati e gli errori, l'elenco vuoto, Esc con `pumpAndSettle`.
 
 **Architecture:**
 - **Dati:** in `lib/core/social/plugin_admin_models.dart` `AdminAccountUser`, `AccountSendError`, `AccountChannelStatus`, `AccountAdminStatus`, `AccountTestResult`; in `lib/core/social/plugin_admin_api.dart` `accountUsers`, `sendRecoveryCode`, `unlinkContacts`, `accountStatus`, `testAccountChannels` e `pluginErrorCode`.
