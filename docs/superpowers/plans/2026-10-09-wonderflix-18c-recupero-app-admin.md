@@ -39,6 +39,11 @@
       - "Ho già un codice": dopo un "Rimanda" riuscito il testo torna "Se l'account esiste…" (il codice dell'admin non vale più); un 404 a `Complete` dice che il recupero non è disponibile;
       - la riga: nome ed etichette in un `Expanded`, senza `Spacer` (un nome lungo si troncava a metà riga); il menu dice allo screen reader di chi è ("Azioni per {name}", `adminUsersActionsFor`);
       - test in più: la propria riga con un id in un altro formato, la riga senza menu, il menu spento durante un'azione, Utenti → Sessioni quando sparisce `account`, la card con i dati non aggiornati e gli errori, l'elenco vuoto, Esc con `pumpAndSettle`.
+    - **Altre, viste nel Task 8** confrontando i task con il codice:
+      - Task 1: la chiave `adminUsersActions` ("Azioni") non c'è; al suo posto `adminUsersActionsFor` ("Azioni per {name}", gruppo B), anche nel test dei testi;
+      - Task 2: il finto ha `accountActionGate`, un `Completer` che tiene in corso codice, scollegamento e prova finché il test non lo completa (per i test del gruppo B sul menu spento e sulle righe e la card fuori vista);
+      - Task 3: `recoverySentLabel` ha il caso `(true, true)` scritto, con un commento (zero canali non arrivano: `sendRecoveryCode` lancia); due test in più nei controller, lo scollegamento che rilegge la riga senza contatti e un 403 del plugin che fa rileggere l'utente;
+      - Task 7: tre test in più per "Ho già un codice": "Rimanda" riuscito e non riuscito, il 404 a `Complete`.
 
 **Architecture:**
 - **Dati:** in `lib/core/social/plugin_admin_models.dart` `AdminAccountUser`, `AccountSendError`, `AccountChannelStatus`, `AccountAdminStatus`, `AccountTestResult`; in `lib/core/social/plugin_admin_api.dart` `accountUsers`, `sendRecoveryCode`, `unlinkContacts`, `accountStatus`, `testAccountChannels` e `pluginErrorCode`.
