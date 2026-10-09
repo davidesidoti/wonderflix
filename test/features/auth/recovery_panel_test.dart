@@ -473,6 +473,30 @@ void main() {
     expect(session.loginAttempts, [('garg', 'nuova123')]);
   });
 
+  testWidgets('Ho già un codice: si vede per quale account vale il codice',
+      (tester) async {
+    await pumpLogin(tester);
+    await openRecovery(tester);
+
+    await tapKey(tester, 'recovery-have-code');
+
+    // Un errore di battitura nel nome darebbe "Codice non valido" e
+    // consumerebbe i tentativi: il nome si controlla sopra il campo.
+    expect(find.text('Account: garg'), findsOneWidget);
+  });
+
+  testWidgets('dopo Invia codice si vede per quale account', (tester) async {
+    await pumpLogin(tester);
+    await openRecovery(tester, username: ' garg ');
+    expect(find.textContaining('Account:'), findsNothing,
+        reason: 'al primo passo il nome è nel suo campo');
+
+    await tapKey(tester, 'recovery-send');
+
+    // Il nome senza gli spazi, come parte per il server.
+    expect(find.text('Account: garg'), findsOneWidget);
+  });
+
   testWidgets('Ho già un codice senza il nome: l\'errore, si resta lì',
       (tester) async {
     await pumpLogin(tester);

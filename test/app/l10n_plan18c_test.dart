@@ -29,6 +29,8 @@ void main() {
     expect(it.recoveryHaveCode, 'Ho già un codice');
     expect(en.adminTabUsers, 'Users');
     expect(en.adminUsersActionsFor('garg'), 'Actions for garg');
+    expect(it.recoveryForUser('garg'), 'Account: garg');
+    expect(en.recoveryForUser('garg'), 'Account: garg');
     expect(en.adminRecoveryWithContacts(5, 23),
         '5 users out of 23 have a contact');
     expect(en.adminRecoveryWithContacts(1, 23),

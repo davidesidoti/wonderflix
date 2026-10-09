@@ -25,6 +25,10 @@ const _avatarSize = 28.0;
 /// Larghezza del posto del menu: le righe senza menu restano allineate.
 const _menuWidth = 40.0;
 
+/// Lato dello spinner che prende il posto dell'icona del menu mentre la riga
+/// lavora.
+const _spinnerSize = 16.0;
+
 /// La scheda Utenti (spec L §9.5): ogni utente con i suoi contatti per il
 /// recupero e le azioni dell'admin.
 class UsersTab extends ConsumerStatefulWidget {
@@ -269,9 +273,16 @@ class _AccountUserRowState extends ConsumerState<AccountUserRow>
                 : PopupMenuButton<UserAction>(
                     key: Key('user-menu-${user.id}'),
                     tooltip: l.adminUsersActionsFor(user.name),
+                    // Il menu resta (spento) invece di sparire: il posto, e
+                    // quindi l'altezza della riga, non cambiano; solo lo
+                    // spinner prende quello dell'icona.
                     enabled: !_busy,
-                    icon: const Icon(LucideIcons.ellipsisVertical,
-                        size: 18, color: WfColors.creamMuted),
+                    icon: _busy
+                        ? const SizedBox.square(
+                            dimension: _spinnerSize,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(LucideIcons.ellipsisVertical,
+                            size: 18, color: WfColors.creamMuted),
                     popUpAnimationStyle: wfPopUpAnimation(context),
                     onSelected: _select,
                     itemBuilder: (context) => [

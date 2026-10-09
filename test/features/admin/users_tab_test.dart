@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/auth_api.dart';
@@ -53,12 +54,20 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  /// Apre il menu della riga di [userId] e sceglie [label].
+  /// Poche pump al posto di `pumpAndSettle`, per quando una riga è al lavoro:
+  /// il suo spinner non si ferma mai, e `pumpAndSettle` andrebbe in timeout.
+  Future<void> pumpBusy(WidgetTester tester) async {
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+  }
+
+  /// Apre il menu della riga di [userId] e sceglie [label]. Da lì la riga è
+  /// al lavoro (anche con la finestra di conferma aperta): [pumpBusy].
   Future<void> choose(WidgetTester tester, String userId, String label) async {
     await tester.tap(find.byKey(Key('user-menu-$userId')));
     await tester.pumpAndSettle();
     await tester.tap(find.text(label));
-    await tester.pumpAndSettle();
+    await pumpBusy(tester);
   }
 
   /// "Invia codice di recupero" a [userId], confermato: con il cancello
@@ -66,13 +75,23 @@ void main() {
   Future<void> startSending(WidgetTester tester, String userId) async {
     await choose(tester, userId, 'Invia codice di recupero');
     await tester.tap(find.text('Invia'));
-    await tester.pumpAndSettle();
+    await pumpBusy(tester);
   }
 
   bool menuEnabled(WidgetTester tester, String userId) => tester
       .widget<PopupMenuButton<UserAction>>(
           find.byKey(Key('user-menu-$userId')))
       .enabled;
+
+  /// Lo spinner al posto dell'icona del menu di [userId].
+  Finder spinnerOf(String userId) => find.descendant(
+      of: find.byKey(Key('user-menu-$userId')),
+      matching: find.byType(CircularProgressIndicator));
+
+  /// L'icona del menu di [userId].
+  Finder iconOf(String userId) => find.descendant(
+      of: find.byKey(Key('user-menu-$userId')),
+      matching: find.byIcon(LucideIcons.ellipsisVertical));
 
   /// Garg e gli altri di [testAccountUsers], poi [count] utenti senza
   /// contatti: una lista che in una finestra bassa si scorre.
@@ -201,21 +220,33 @@ void main() {
     expect(find.text('Nessun utente'), findsOneWidget);
   });
 
-  testWidgets('azione in corso: il menu della riga è spento', (tester) async {
+  testWidgets('azione in corso: lo spinner al posto del menu, che è spento',
+      (tester) async {
     final gate = plugin.accountActionGate = Completer<void>();
     await pumpTab(tester);
     expect(menuEnabled(tester, 'u2'), isTrue);
+    expect(spinnerOf('u2'), findsNothing);
+    final menuSize = tester.getSize(find.byKey(const Key('user-menu-u2')));
 
     await startSending(tester, 'u2');
 
     expect(plugin.calls, contains('recovery:u2:it'));
     expect(menuEnabled(tester, 'u2'), isFalse);
+    expect(spinnerOf('u2'), findsOneWidget);
+    expect(tester.getSize(spinnerOf('u2')), const Size(16, 16));
+    expect(iconOf('u2'), findsNothing, reason: 'lo spinner prende il posto');
+    // Lo stesso posto: la riga non cambia altezza.
+    expect(tester.getSize(find.byKey(const Key('user-menu-u2'))), menuSize);
     expect(menuEnabled(tester, 'u3'), isTrue, reason: 'le altre righe no');
+    expect(spinnerOf('u3'), findsNothing);
+    expect(iconOf('u3'), findsOneWidget);
 
     gate.complete();
     await tester.pumpAndSettle();
     expect(find.text('Codice mandato su Discord ed email'), findsOneWidget);
     expect(menuEnabled(tester, 'u2'), isTrue);
+    expect(spinnerOf('u2'), findsNothing);
+    expect(iconOf('u2'), findsOneWidget, reason: 'il menu torna');
   });
 
   testWidgets('riga fuori vista durante l\'azione: l\'avviso arriva e il '
@@ -228,17 +259,19 @@ void main() {
     // Si scorre lontano: la lista smonta le righe fuori vista, ma non
     // quella con l'azione in corso.
     await tester.drag(find.byType(ListView), const Offset(0, -3000));
-    await tester.pumpAndSettle();
+    await pumpBusy(tester);
     expect(find.byKey(const Key('user-menu-u2')), findsNothing,
         reason: 'la riga è fuori vista');
 
-    // Tornando su la riga è la stessa: il menu è ancora spento.
+    // Tornando su la riga è la stessa: il menu è ancora spento, con lo
+    // spinner.
     await tester.drag(find.byType(ListView), const Offset(0, 3000));
-    await tester.pumpAndSettle();
+    await pumpBusy(tester);
     expect(menuEnabled(tester, 'u2'), isFalse);
+    expect(spinnerOf('u2'), findsOneWidget);
 
     await tester.drag(find.byType(ListView), const Offset(0, -3000));
-    await tester.pumpAndSettle();
+    await pumpBusy(tester);
     gate.complete();
     await tester.pumpAndSettle();
     expect(find.text('Codice mandato su Discord ed email'), findsOneWidget);
@@ -246,6 +279,7 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, 3000));
     await tester.pumpAndSettle();
     expect(menuEnabled(tester, 'u2'), isTrue);
+    expect(spinnerOf('u2'), findsNothing);
   });
 
   testWidgets('nome lungo: occupa tutto lo spazio fino ai contatti',

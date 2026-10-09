@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
+import '../../core/jellyfin/api_exception.dart';
 import '../../core/social/account_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_dialog.dart';
@@ -76,9 +77,14 @@ class _SetPasswordDialogState extends ConsumerState<SetPasswordDialog> {
       if (mounted) Navigator.of(context).pop(true);
     } on Object catch (error) {
       // Come le altre azioni della scheda: 502/503/504 "non raggiungibile",
-      // altrimenti `describeError`.
+      // altrimenti `describeError`. In più, qui il 404 è di Jellyfin:
+      // l'utente è stato cancellato nel frattempo (per le chiamate del plugin
+      // vuol dire "funzione assente", ed è `accountAdminErrorText` a non
+      // dirlo).
       if (mounted) {
-        setState(() => _error = accountAdminErrorText(l, error, widget.name));
+        setState(() => _error = error is NotFoundException
+            ? l.adminUsersUnknown
+            : accountAdminErrorText(l, error, widget.name));
       }
     } finally {
       if (mounted) setState(() => _busy = false);

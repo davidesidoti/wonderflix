@@ -115,6 +115,21 @@ void main() {
     expect(find.byKey(const Key('set-password-submit')), findsOneWidget);
   });
 
+  testWidgets('404: l\'utente è stato cancellato, lo dice la finestra',
+      (tester) async {
+    // Jellyfin non trova più l'utente. Lo dice solo la finestra: per le
+    // chiamate del plugin un 404 vuol dire "funzione assente".
+    adapter.handler = (_) => const FakeResponse(404);
+    await open(tester);
+
+    await fill(tester, next: 'nuova123');
+
+    expect(find.text('Questo utente non c\'è più'), findsOneWidget);
+    expect(find.textContaining('Qualcosa è andato storto'), findsNothing);
+    expect(session.refreshUserCalls, 0);
+    expect(find.byKey(const Key('set-password-submit')), findsOneWidget);
+  });
+
   testWidgets('durante la richiesta Esc non chiude', (tester) async {
     final gate = Completer<void>();
     adapter.handler = (_) async {

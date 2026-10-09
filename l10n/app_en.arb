@@ -671,5 +671,6 @@
   "adminRecoveryTestInvalidTarget": "invalid contact",
   "adminRecoveryConfigHint": "Configured in the Jellyfin Dashboard → Plugins → WonderFlix",
   "recoveryHaveCode": "I already have a code",
-  "recoveryEnterCode": "Enter the code you received on Discord or by email."
+  "recoveryEnterCode": "Enter the code you received on Discord or by email.",
+  "recoveryForUser": "Account: {name}"
 }

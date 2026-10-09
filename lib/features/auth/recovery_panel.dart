@@ -335,6 +335,11 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
         ] else ...[
           Text(_haveCode ? l.recoveryEnterCode : l.recoveryCodeSent,
               style: const TextStyle(fontSize: 13)),
+          // Per quale account vale il codice: con "Ho già un codice" un nome
+          // sbagliato darebbe "Codice non valido o scaduto" e consumerebbe i
+          // tentativi, senza che il nome si veda più.
+          const SizedBox(height: 4),
+          Text(l.recoveryForUser(sentFor), style: _mutedStyle),
           const SizedBox(height: 12),
           TextField(
             key: const Key('recovery-code'),
