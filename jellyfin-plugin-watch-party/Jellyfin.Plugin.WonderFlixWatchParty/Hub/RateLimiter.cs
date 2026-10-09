@@ -4,8 +4,9 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 
 /// <summary>
 /// Limiti di frequenza per chiave e tipo, a finestra scorrevole (spec E
-/// §6.6, spec F §6.9). La chiave è la sessione per gli eventi del canale,
-/// l'utente per gli amici. Sicuro tra thread.
+/// §6.6, spec F §6.9, spec L §7.5). La chiave è la sessione per gli eventi
+/// del canale, l'utente per gli amici e i contatti, il nome scritto per il
+/// recupero. Sicuro tra thread.
 /// </summary>
 public sealed class RateLimiter(TimeProvider time)
 {
@@ -19,6 +20,13 @@ public sealed class RateLimiter(TimeProvider time)
             [LimitTypes.Searches] = (30, TimeSpan.FromMinutes(1)),
             [LimitTypes.CodeAttempts] = (5, TimeSpan.FromMinutes(1)),
             [LimitTypes.Invites] = (20, TimeSpan.FromMinutes(1)),
+            [LimitTypes.RecoveryStartMinute] = (1, TimeSpan.FromMinutes(1)),
+            [LimitTypes.RecoveryStartHour] = (5, TimeSpan.FromHours(1)),
+            [LimitTypes.RecoveryStartGlobal] = (30, TimeSpan.FromHours(1)),
+            [LimitTypes.RecoveryFail] = (10, TimeSpan.FromHours(1)),
+            [LimitTypes.RecoveryFailGlobal] = (100, TimeSpan.FromHours(1)),
+            [LimitTypes.LinkStartMinute] = (1, TimeSpan.FromMinutes(1)),
+            [LimitTypes.LinkStartHour] = (5, TimeSpan.FromHours(1)),
         };
 
     private readonly Lock _lock = new();
@@ -53,6 +61,22 @@ public sealed class RateLimiter(TimeProvider time)
 
             times.Enqueue(now);
             return true;
+        }
+    }
+
+    /// <summary>true se la chiave ha già finito quelli di questo tipo adesso; non conta niente.</summary>
+    public bool IsLimited(string key, string type)
+    {
+        if (!Limits.TryGetValue(type, out var limit))
+        {
+            return false;
+        }
+
+        var now = time.GetUtcNow();
+        lock (_lock)
+        {
+            return _sent.TryGetValue((key, type), out var times)
+                && times.Count(t => now - t < limit.Window) >= limit.Count;
         }
     }
 

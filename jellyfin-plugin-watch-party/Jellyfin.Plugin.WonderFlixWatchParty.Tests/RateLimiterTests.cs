@@ -105,4 +105,43 @@ public class RateLimiterTests
         Assert.True(limiter.TryAcquire("u1", LimitTypes.CodeAttempts));
         Assert.True(limiter.TryAcquire("u1", LimitTypes.Invites));
     }
+
+    [Theory]
+    [InlineData(LimitTypes.RecoveryStartMinute, 1, 1)]
+    [InlineData(LimitTypes.RecoveryStartHour, 5, 60)]
+    [InlineData(LimitTypes.RecoveryStartGlobal, 30, 60)]
+    [InlineData(LimitTypes.RecoveryFail, 10, 60)]
+    [InlineData(LimitTypes.RecoveryFailGlobal, 100, 60)]
+    [InlineData(LimitTypes.LinkStartMinute, 1, 1)]
+    [InlineData(LimitTypes.LinkStartHour, 5, 60)]
+    public void AccountLimits(string type, int count, int minutes)
+    {
+        var limiter = new RateLimiter(_time);
+        Allow(limiter, type, count);
+        Assert.False(limiter.TryAcquire("s1", type));
+        Assert.True(limiter.TryAcquire("s2", type), "ogni chiave ha i suoi limiti");
+        _time.Advance(TimeSpan.FromMinutes(minutes) - TimeSpan.FromSeconds(1));
+        Assert.False(limiter.TryAcquire("s1", type));
+        _time.Advance(TimeSpan.FromSeconds(1));
+        Assert.True(limiter.TryAcquire("s1", type));
+    }
+
+    [Fact]
+    public void IsLimitedLooksWithoutCounting()
+    {
+        var limiter = new RateLimiter(_time);
+        for (var i = 0; i < 9; i++)
+        {
+            Assert.True(limiter.TryAcquire("mario", LimitTypes.RecoveryFail));
+        }
+
+        Assert.False(limiter.IsLimited("mario", LimitTypes.RecoveryFail));
+        Assert.False(limiter.IsLimited("mario", LimitTypes.RecoveryFail), "guardare non conta");
+        Assert.True(limiter.TryAcquire("mario", LimitTypes.RecoveryFail));
+        Assert.True(limiter.IsLimited("mario", LimitTypes.RecoveryFail));
+        Assert.False(limiter.IsLimited("luigi", LimitTypes.RecoveryFail));
+        _time.Advance(TimeSpan.FromHours(1));
+        Assert.False(limiter.IsLimited("mario", LimitTypes.RecoveryFail));
+        Assert.False(limiter.IsLimited("mario", "TipoSconosciuto"));
+    }
 }
