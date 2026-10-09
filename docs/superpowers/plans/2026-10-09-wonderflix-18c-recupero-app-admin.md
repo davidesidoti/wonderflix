@@ -24,6 +24,14 @@
 7. **`NotAllowed`** dice "Gli admin e gli utenti disattivati non possono usare il recupero automatico": il plugin lo dà per tutti e due. Arriva solo con un elenco vecchio, perché il menu non offre il codice a loro.
 8. **"Ho già un codice"** (non nella spec): senza, il codice mandato dall'admin non serviva, perché il primo passo del recupero ne chiedeva un altro che lo sostituiva. Porta al secondo passo con il nome scritto, senza chiamare `Start`, e il testo sopra il campo diventa "Scrivi il codice che hai ricevuto su Discord o per email.".
 9. **La prova del promemoria vero** (punto 5 di §12) si fa nella release, dopo aver riacceso i promemoria.
+10. **Dalle review dei gruppi** (il codice dei task sotto è quello di partenza: dove differisce, vale questa lista):
+    - **Gruppo A** (i Task 4 e 5 sotto sono già aggiornati):
+      - `_accountQuiet` è `{400, 403, 404, 409, ...restartGatewayStatuses}`: il 502 c'è già in `restartGatewayStatuses`, e un elemento doppio in un set costante non compila;
+      - `NoContacts` arriva solo con un contatto su un canale spento (il menu offre il codice solo a chi ha un contatto): il testo è "{name} non ha contatti su un canale attivo", non "non ha contatti collegati";
+      - la conferma dello scollegamento è "Scollegare i contatti di {name}?" (vale anche con un solo contatto); in inglese "…change their password?" e "Reminders every {days} days";
+      - `accountAdminErrorText` dice "non raggiungibile" per 502/503/504 senza `Code`; lo usa anche `SetPasswordDialog`;
+      - `sendRecoveryCode` lancia `ServerErrorException` se i canali noti sono zero;
+      - il finto `unlinkContacts` toglie i contatti dall'elenco, come il plugin; test più precisi sui tipi degli errori e sui campi obbligatori.
 
 **Architecture:**
 - **Dati:** in `lib/core/social/plugin_admin_models.dart` `AdminAccountUser`, `AccountSendError`, `AccountChannelStatus`, `AccountAdminStatus`, `AccountTestResult`; in `lib/core/social/plugin_admin_api.dart` `accountUsers`, `sendRecoveryCode`, `unlinkContacts`, `accountStatus`, `testAccountChannels` e `pluginErrorCode`.
@@ -1343,16 +1351,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../app/error_text.dart';
 import '../../app/theme.dart';
-import '../../core/jellyfin/api_exception.dart';
-import '../../core/jellyfin/jellyfin_http.dart';
 import '../../core/social/account_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_dialog.dart';
 import '../account/account_texts.dart';
 import '../auth/password_login_form.dart';
 import 'account_admin_controllers.dart';
+import 'account_admin_labels.dart';
 
 /// "Imposta password" per l'utente [userId] (spec L §9.5). `true` se
 /// impostata.
@@ -1417,15 +1423,10 @@ class _SetPasswordDialogState extends ConsumerState<SetPasswordDialog> {
           .setPassword(widget.userId, password);
       if (mounted) Navigator.of(context).pop(true);
     } on Object catch (error) {
+      // Come le altre azioni della scheda: 502/503/504 "non raggiungibile",
+      // altrimenti `describeError`.
       if (mounted) {
-        setState(() => _error = switch (error) {
-              // nginx mentre Jellyfin si riavvia: come nel cambio della
-              // propria password.
-              ServerErrorException(:final statusCode)
-                  when restartGatewayStatuses.contains(statusCode) =>
-                l.errorServerUnreachable,
-              _ => describeError(l, error),
-            });
+        setState(() => _error = accountAdminErrorText(l, error, widget.name));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -1763,19 +1764,23 @@ void main() {
     await tester.tap(find.text('Invia'));
     await tester.pumpAndSettle();
 
-    expect(find.text('garg non ha contatti collegati'), findsOneWidget);
+    expect(find.text('garg non ha contatti su un canale attivo'),
+        findsOneWidget);
   });
 
   testWidgets('Scollega contatti: conferma e avviso', (tester) async {
     await pumpTab(tester);
 
     await choose(tester, 'u2', 'Scollega contatti');
-    expect(find.text('Scollegare Discord ed email di garg?'), findsOneWidget);
+    expect(find.text('Scollegare i contatti di garg?'), findsOneWidget);
     await tester.tap(find.text('Scollega'));
     await tester.pumpAndSettle();
 
     expect(plugin.calls, contains('unlink:u2'));
     expect(find.text('Contatti di garg scollegati'), findsOneWidget);
+    // La rilettura dopo l'azione: la riga non ha più contatti.
+    expect(find.byTooltip('Discord: garg'), findsNothing);
+    expect(find.byTooltip('Discord non collegato'), findsNWidgets(3));
   });
 
   testWidgets('Annulla: nessuna azione', (tester) async {
