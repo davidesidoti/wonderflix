@@ -1,5 +1,7 @@
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
@@ -74,5 +76,28 @@ public sealed class InboxContactReminderTests : IDisposable
         Assert.False(book.RemoveType(userId, InboxEntryTypes.ContactReminder));
         Assert.False(book.RemoveType(Guid.NewGuid(), InboxEntryTypes.ContactReminder));
         Assert.Equal(InboxEntryTypes.Announcement, Assert.Single(book.List(userId)).Type);
+    }
+
+    // Un errore dell'avviso non esce, e nel registro l'id dell'utente è senza trattini come in tutto il recupero.
+    [Fact]
+    public async Task TheWarningsHaveTheUserIdWithoutDashes()
+    {
+        var (directory, stub) = InterfaceStub<ISessionDirectory>.Create();
+        stub.Handlers["GetAppSessions"] = _ => throw new InvalidOperationException("sessioni non disponibili");
+        var logger = new RecordingLogger<InboxService>();
+        var inbox = new InboxService(
+            new InboxStore(_folder.InboxFile, NullLogger<InboxStore>.Instance), _server, directory, _server, _server, _time, logger);
+
+        await inbox.AddContactReminderAsync(_mario.Id, ["Discord"]);
+        await inbox.RemoveContactRemindersAsync(_mario.Id);
+
+        var warnings = logger.Entries.Where(e => e.Level == LogLevel.Warning).Select(e => e.Message).ToArray();
+        Assert.Equal(
+            new[]
+            {
+                $"Promemoria dei contatti non creato per {_mario.Id:N}",
+                $"Promemoria dei contatti non tolti per {_mario.Id:N}",
+            },
+            warnings);
     }
 }

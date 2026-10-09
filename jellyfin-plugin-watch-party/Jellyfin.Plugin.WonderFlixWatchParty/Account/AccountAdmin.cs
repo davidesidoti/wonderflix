@@ -74,7 +74,7 @@ public sealed class AccountAdmin(
         // Scollegare è lo strumento per "questo contatto è compromesso": annulla anche un codice già mandato lì.
         codes.Discard(userId, CodePurpose.Recovery);
         logger.LogInformation(
-            "Contatti di {UserId} scollegati dall'admin {AdminId}", userId.ToString("N"), Caller(adminId));
+            "Contatti di {UserId} scollegati dall'admin {AdminId}", userId.ToString("N"), AdminCaller.Describe(adminId));
         return null;
     }
 
@@ -189,9 +189,6 @@ public sealed class AccountAdmin(
             ? AccountTestCodes.NoContact
             : Outcome(await sender.SendAsync(AccountChannel.Email, target, message, cancellationToken).ConfigureAwait(false));
     }
-
-    // Chi ha chiesto nel registro: con una chiave API non c'è un utente (id tutto a zero), si scrive "chiave API".
-    private static string Caller(Guid adminId) => adminId == Guid.Empty ? "chiave API" : adminId.ToString("N");
 
     private static string Outcome(SendOutcome outcome) => outcome switch
     {

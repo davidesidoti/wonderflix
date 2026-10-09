@@ -155,7 +155,7 @@ public sealed class PasswordRecovery(
         logger.LogInformation(
             "Codice di recupero di {UserId} mandato dall'admin {AdminId} su {Count} canali",
             userId.ToString("N"),
-            Caller(adminId),
+            AdminCaller.Describe(adminId),
             sent.Count);
         return AccountResult<AdminRecoveryResponse>.Ok(new AdminRecoveryResponse(sent.Select(c => c.Name()).ToList()));
     }
@@ -277,9 +277,6 @@ public sealed class PasswordRecovery(
     }
 
     private static string Key(string name) => name.ToLowerInvariant();
-
-    // Chi ha chiesto nel registro: con una chiave API non c'è un utente (id tutto a zero), si scrive "chiave API".
-    private static string Caller(Guid adminId) => adminId == Guid.Empty ? "chiave API" : adminId.ToString("N");
 
     private static RecoveryCompleteResult Done(AccountError error) => new(error, Task.CompletedTask);
 }

@@ -225,7 +225,7 @@ public sealed class InboxService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning(ex, "Promemoria dei contatti non creato per {UserId}", userId);
+            logger.LogWarning(ex, "Promemoria dei contatti non creato per {UserId}", userId.ToString("N"));
         }
     }
 
@@ -238,7 +238,7 @@ public sealed class InboxService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning(ex, "Promemoria dei contatti non tolti per {UserId}", userId);
+            logger.LogWarning(ex, "Promemoria dei contatti non tolti per {UserId}", userId.ToString("N"));
         }
     }
 

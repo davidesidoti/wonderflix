@@ -3,6 +3,7 @@ using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller.Collections;
 using MediaBrowser.Controller.Drawing;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.Net;
 using MediaBrowser.Controller.Session;
 using MediaBrowser.Controller.SyncPlay;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +25,7 @@ public class ServiceRegistrationTests
         services.AddSingleton(InterfaceStub<ILibraryManager>.Create().Proxy);
         services.AddSingleton(InterfaceStub<ICollectionManager>.Create().Proxy);
         services.AddSingleton(InterfaceStub<IImageProcessor>.Create().Proxy);
+        services.AddSingleton(InterfaceStub<IAuthorizationContext>.Create().Proxy);
         var (paths, stub) = InterfaceStub<IApplicationPaths>.Create();
         stub.Handlers["get_PluginConfigurationsPath"] = _ => Path.GetTempPath();
         services.AddSingleton(paths);
@@ -68,6 +70,11 @@ public class ServiceRegistrationTests
         Assert.Same(provider.GetRequiredService<Account.ContactRegistry>(), provider.GetRequiredService<Account.ContactRegistry>());
         Assert.Same(provider.GetRequiredService<Account.AccountSender>(), provider.GetRequiredService<Account.AccountSender>());
         Assert.Same(provider.GetRequiredService<Hub.RateLimiter>(), provider.GetRequiredService<Hub.RateLimiter>());
+
+        // I controller del recupero si costruiscono dal DI: una registrazione mancante fa fallire il test, non una richiesta con 500.
+        Assert.NotNull(ActivatorUtilities.CreateInstance<Api.AccountController>(provider));
+        Assert.NotNull(ActivatorUtilities.CreateInstance<Api.RecoveryController>(provider));
+        Assert.NotNull(ActivatorUtilities.CreateInstance<Api.AccountAdminController>(provider));
 
         // Il promemoria dei contatti, oltre ai due di prima.
         Assert.Equal(3, provider.GetServices<IHostedService>().Count());

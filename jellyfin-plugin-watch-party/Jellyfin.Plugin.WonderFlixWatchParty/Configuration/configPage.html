@@ -52,7 +52,7 @@
                             <div class="fieldDescription">As seen from the Jellyfin server. Empty: requests are off in WonderFlix.</div>
                         </div>
                         <div class="inputContainer">
-                            <input is="emby-input" type="password" id="WonderFlixSeerrApiKey" label="Seerr API key" autocomplete="off" />
+                            <input is="emby-input" type="password" id="WonderFlixSeerrApiKey" label="Seerr API key" autocomplete="new-password" />
                             <div class="fieldDescription">Seerr → Settings → General → API Key.</div>
                         </div>
                         <button is="emby-button" type="submit" class="raised button-submit block emby-button">
@@ -90,9 +90,9 @@
                             WonderFlix users link their Discord or e-mail, and get a code there when they forget the password.
                             Administrators can't use it.
                         </div>
-                        <div id="WonderFlixRecoveryStatus" class="fieldDescription"></div>
+                        <div id="WonderFlixRecoveryStatus" class="fieldDescription" aria-live="polite"></div>
                         <div class="inputContainer">
-                            <input is="emby-input" type="password" id="WonderFlixDiscordBotToken" label="Discord bot token" autocomplete="off" />
+                            <input is="emby-input" type="password" id="WonderFlixDiscordBotToken" label="Discord bot token" autocomplete="new-password" />
                             <div class="fieldDescription">
                                 Discord Developer Portal → your app → Bot: the token, and turn on "Server Members Intent".
                             </div>
@@ -108,30 +108,31 @@
                             <input is="emby-input" type="text" id="WonderFlixSmtpHost" label="SMTP server" placeholder="smtp.gmail.com" />
                         </div>
                         <div class="inputContainer">
-                            <input is="emby-input" type="number" id="WonderFlixSmtpPort" label="SMTP port" min="1" max="65535" />
+                            <input is="emby-input" type="number" id="WonderFlixSmtpPort" label="SMTP port" min="1" max="65535" required />
                             <div class="fieldDescription">STARTTLS, usually 587 (port 465 is not supported).</div>
                         </div>
                         <div class="inputContainer">
                             <input is="emby-input" type="text" id="WonderFlixSmtpUser" label="SMTP user" autocomplete="off" />
                         </div>
                         <div class="inputContainer">
-                            <input is="emby-input" type="password" id="WonderFlixSmtpPassword" label="SMTP password" autocomplete="off" />
+                            <input is="emby-input" type="password" id="WonderFlixSmtpPassword" label="SMTP password" autocomplete="new-password" />
                         </div>
                         <div class="inputContainer">
                             <input is="emby-input" type="email" id="WonderFlixMailFrom" label="Sender address" />
                         </div>
                         <div class="inputContainer">
-                            <input is="emby-input" type="number" id="WonderFlixContactReminderDays" label="Reminder every (days)" min="0" max="365" />
+                            <input is="emby-input" type="number" id="WonderFlixContactReminderDays" label="Reminder every (days)" min="0" max="365" required />
                             <div class="fieldDescription">Users without a linked contact get a reminder in their notifications. 0: no reminders.</div>
                         </div>
                         <button is="emby-button" type="submit" class="raised button-submit block emby-button">
                             <span>Save</span>
                         </button>
+                        <div id="WonderFlixRecoverySaveResult" class="fieldDescription" aria-live="polite"></div>
                     </div>
                 </form>
                 <div class="verticalSection">
                     <!-- Fuori dal form: Invio in questi campi non deve salvare le impostazioni. -->
-                    <h3 class="sectionTitle">Test</h3>
+                    <h3 class="sectionTitle">Password recovery test</h3>
                     <div class="fieldDescription">
                         Sends a test message to your own linked contacts, or to the Discord user name and the e-mail below.
                     </div>
@@ -144,7 +145,7 @@
                     <button is="emby-button" id="WonderFlixRecoveryTest" type="button" class="raised block emby-button">
                         <span>Send a test</span>
                     </button>
-                    <div id="WonderFlixRecoveryResult" class="fieldDescription"></div>
+                    <div id="WonderFlixRecoveryResult" class="fieldDescription" aria-live="polite"></div>
                 </div>
             </div>
         </div>
@@ -379,9 +380,23 @@
                     ContactReminderDays: page.querySelector('#WonderFlixContactReminderDays')
                 };
                 var recoveryStatus = page.querySelector('#WonderFlixRecoveryStatus');
+                var recoverySaveResult = page.querySelector('#WonderFlixRecoverySaveResult');
                 var recoveryResult = page.querySelector('#WonderFlixRecoveryResult');
                 var testDiscord = page.querySelector('#WonderFlixTestDiscord');
                 var testEmail = page.querySelector('#WonderFlixTestEmail');
+                var notLoadedMessage = 'Settings not loaded: reload the page.';
+                // Vero solo dopo che la configurazione è stata letta: con i campi ancora vuoti, Salva la cancellerebbe.
+                var recoveryLoaded = false;
+
+                // "configured" o "not configured", con l'ultimo errore d'invio del canale se c'è (il codice com'è: DmClosed, SendFailed, Invalid).
+                function channelStatus(channel) {
+                    var text = channel.Configured ? 'configured' : 'not configured';
+                    if (channel.LastError) {
+                        text += ' (last error: ' + channel.LastError.Code + ', ' + new Date(channel.LastError.At).toLocaleString() + ')';
+                    }
+
+                    return text;
+                }
 
                 function refreshRecoveryStatus() {
                     ApiClient.ajax({
@@ -389,8 +404,8 @@
                         url: ApiClient.getUrl('WonderFlixWatchParty/Account/Admin/Status'),
                         dataType: 'json'
                     }).then(function (status) {
-                        recoveryStatus.textContent = 'Discord: ' + (status.Discord.Configured ? 'configured' : 'not configured')
-                            + '. E-mail: ' + (status.Email.Configured ? 'configured' : 'not configured')
+                        recoveryStatus.textContent = 'Discord: ' + channelStatus(status.Discord)
+                            + '. E-mail: ' + channelStatus(status.Email)
                             + '. ' + status.WithContacts + ' of ' + status.Users + ' users have a linked contact.';
                     }, function () {
                         recoveryStatus.textContent = '';
@@ -403,7 +418,15 @@
                             var value = config[name];
                             recoveryFields[name].value = value === undefined || value === null ? '' : value;
                         });
+                        recoveryLoaded = true;
+                        if (recoverySaveResult.textContent === notLoadedMessage) {
+                            recoverySaveResult.textContent = '';
+                        }
+
                         refreshRecoveryStatus();
+                    }, function () {
+                        recoveryLoaded = false;
+                        recoverySaveResult.textContent = notLoadedMessage;
                     });
                 }
 
@@ -417,24 +440,30 @@
 
                 page.querySelector('#WonderFlixRecoveryForm').addEventListener('submit', function (e) {
                     e.preventDefault();
-                    recoveryResult.textContent = '';
+                    recoverySaveResult.textContent = '';
+                    if (!recoveryLoaded) {
+                        recoverySaveResult.textContent = notLoadedMessage;
+                        return false;
+                    }
+
                     Dashboard.showLoadingMsg();
                     ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                         config.DiscordBotToken = recoveryFields.DiscordBotToken.value.trim();
                         config.DiscordGuildId = recoveryFields.DiscordGuildId.value.trim();
                         config.SmtpHost = recoveryFields.SmtpHost.value.trim();
-                        config.SmtpPort = numberIn(recoveryFields.SmtpPort, 587);
+                        // Un campo numerico vuoto o illeggibile lascia il valore di adesso: niente valori inventati.
+                        config.SmtpPort = numberIn(recoveryFields.SmtpPort, config.SmtpPort);
                         config.SmtpUser = recoveryFields.SmtpUser.value.trim();
                         config.SmtpPassword = recoveryFields.SmtpPassword.value;
                         config.MailFrom = recoveryFields.MailFrom.value.trim();
-                        config.ContactReminderDays = Math.max(0, numberIn(recoveryFields.ContactReminderDays, 14));
+                        config.ContactReminderDays = Math.max(0, numberIn(recoveryFields.ContactReminderDays, config.ContactReminderDays));
                         return ApiClient.updatePluginConfiguration(pluginId, config);
                     }).then(function (saved) {
                         Dashboard.processPluginConfigurationUpdateResult(saved);
                         loadRecovery();
                     }, function () {
                         Dashboard.hideLoadingMsg();
-                        recoveryResult.textContent = 'Settings not saved.';
+                        recoverySaveResult.textContent = 'Settings not saved.';
                     });
                     return false;
                 });

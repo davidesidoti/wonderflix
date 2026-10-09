@@ -78,7 +78,8 @@ recupero della password.
   cambiare i contatti). Chi dimentica la password chiede un codice dal login
   (`Account/Recovery`, senza accesso: la risposta non dice se l'account
   esiste) e sceglie la password nuova; tutte le sue sessioni si chiudono.
-  Gli admin non possono usarlo. Nella pagina del plugin: token del bot e id
+  Gli admin non possono usarlo (possono collegare i contatti, per la
+  prova). Nella pagina del plugin: token del bot e id
   del server Discord, server SMTP (STARTTLS, di solito 587), mittente, ogni
   quanti giorni il promemoria nella cassetta a chi non ha contatti (0:
   spento) e **Send a test**. Il bot: Discord Developer Portal → l'app →
@@ -89,9 +90,12 @@ recupero della password.
   minuti, 5 tentativi). Gli endpoint dell'admin stanno sotto
   `Account/Admin`.
 - **Funzioni:** `GET Info` annuncia quello che il plugin sa fare; dalla 1.5.0
-  ci sono sempre anche `collections` e `avatars`. Tutti e due gli endpoint
-  sono aperti a ogni utente che ha fatto l'accesso. Dalla 1.6.0 anche
-  `account`.
+  ci sono sempre anche `collections` e `avatars`, dalla 1.6.0 anche
+  `account`. Gli endpoint delle saghe e delle immagini sono aperti a ogni
+  utente che ha fatto l'accesso. Quelli di `account` dipendono dalla rotta:
+  `Account/Contacts` per ogni utente che ha fatto l'accesso (con la password
+  attuale per cambiare i contatti), `Account/Recovery` senza accesso,
+  `Account/Admin` solo per gli admin.
 
 ## Installazione dal repository
 

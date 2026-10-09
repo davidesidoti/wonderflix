@@ -96,6 +96,13 @@ public sealed class AccountAdminTests : IDisposable
         Assert.Equal($"Contatti di {mario.Id:N} scollegati dall'admin {AdminId:N}", entry.Message);
     }
 
+    [Fact]
+    public void TheCallerIsDescribedForTheLog()
+    {
+        Assert.Equal("chiave API", AdminCaller.Describe(Guid.Empty));
+        Assert.Equal(AdminId.ToString("N"), AdminCaller.Describe(AdminId));
+    }
+
     // Con una chiave API non c'è un utente (id tutto a zero): nel registro si legge "chiave API", non zeri.
     [Fact]
     public void UnlinkWithAnApiKeyIsInTheLogAsSuch()
