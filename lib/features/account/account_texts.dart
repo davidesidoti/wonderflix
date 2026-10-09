@@ -2,6 +2,13 @@ import '../../core/social/account_api.dart';
 import '../../core/social/account_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 
+/// Righe massime di un errore sotto un campo (`errorMaxLines`): senza,
+/// Flutter lo tronca su una riga e un testo lungo finisce in "…".
+const accountErrorMaxLines = 3;
+
+/// Righe massime di un suggerimento sotto un campo (`helperMaxLines`).
+const accountHelperMaxLines = 2;
+
 /// Il nome del canale nei testi: "Discord", "Email".
 String accountChannelName(AppLocalizations l, AccountChannel channel) =>
     switch (channel) {

@@ -13,8 +13,10 @@ class ResendCodeButton extends StatefulWidget {
   /// Come il limite del plugin: un codice al minuto.
   static const delay = Duration(seconds: 60);
 
-  /// Rimanda il codice; `true` se è partito.
-  final Future<bool> Function() onResend;
+  /// Rimanda il codice; `true` se il conto deve ripartire: il codice è
+  /// partito, o il server chiede di aspettare. `null`: spento, perché
+  /// un'altra richiesta è in volo.
+  final Future<bool> Function()? onResend;
 
   @override
   State<ResendCodeButton> createState() => _ResendCodeButtonState();
@@ -50,22 +52,26 @@ class _ResendCodeButtonState extends State<ResendCodeButton> {
   }
 
   Future<void> _resend() async {
+    final resend = widget.onResend;
+    if (resend == null) return;
     setState(() => _busy = true);
-    final sent = await widget.onResend();
-    if (!mounted) return;
-    setState(() {
-      _busy = false;
-      if (sent) _restart();
-    });
+    try {
+      // Il conto riparte solo con `true`. Se [resend] lancia, l'errore va
+      // a chi chiama, ma il pulsante non resta bloccato.
+      if (await resend() && mounted) _restart();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final waiting = _secondsLeft > 0;
+    final enabled = !waiting && !_busy && widget.onResend != null;
     return TextButton(
       key: const Key('resend-code'),
-      onPressed: waiting || _busy ? null : () => unawaited(_resend()),
+      onPressed: enabled ? () => unawaited(_resend()) : null,
       child: Text(
           waiting ? l.accountResendIn(_secondsLeft) : l.accountResendCode),
     );

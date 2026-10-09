@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/jellyfin/auth_api.dart';
@@ -103,7 +105,8 @@ void main() {
     await fill(tester, next: 'nuova123');
     await tester.pumpAndSettle();
 
-    expect(adapter.requests.single.data, {'CurrentPw': '', 'NewPw': 'nuova123'});
+    expect(
+        adapter.requests.single.data, {'CurrentPw': '', 'NewPw': 'nuova123'});
   });
 
   testWidgets('server irraggiungibile: avviso sopra i campi', (tester) async {
@@ -113,8 +116,37 @@ void main() {
     await fill(tester, current: 'vecchia', next: 'nuova123');
     await tester.pumpAndSettle();
 
-    expect(find.text('WonderFlix non è raggiungibile. Controlla la connessione.'),
+    expect(
+        find.text(
+            'WonderFlix non è raggiungibile. Controlla la connessione.'),
         findsOneWidget);
+  });
+
+  testWidgets('con la richiesta in volo, Esc e Annulla non chiudono',
+      (tester) async {
+    final reply = Completer<void>();
+    adapter.handler = (_) async {
+      await reply.future;
+      return const FakeResponse(204);
+    };
+    await open(tester);
+    await fill(tester, current: 'vecchia', next: 'nuova123');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('change-password-submit')), findsOneWidget);
+    expect(
+        tester
+            .widget<TextButton>(find.widgetWithText(TextButton, 'Annulla'))
+            .onPressed,
+        isNull);
+
+    // La password cambia: la finestra si chiude con `true`, e chi l'ha
+    // aperta può dare l'avviso.
+    reply.complete();
+    await tester.pumpAndSettle();
+    expect(await result, isTrue);
+    expect(find.byKey(const Key('change-password-submit')), findsNothing);
   });
 
   testWidgets('Annulla chiude con false', (tester) async {

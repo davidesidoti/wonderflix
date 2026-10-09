@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/social/account_api.dart';
 import 'package:wonderflix/core/social/account_models.dart';
@@ -62,6 +65,29 @@ void main() {
     await open(tester);
     await submit(tester, 'segreta');
     expect(find.text('Troppe richieste: riprova più tardi'), findsOneWidget);
+  });
+
+  testWidgets('con la richiesta in volo, Esc e Annulla non chiudono',
+      (tester) async {
+    api.gate = Completer<void>();
+    await open(tester);
+    await submit(tester, 'segreta');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('unlink-submit')), findsOneWidget);
+    expect(unlinked, isNull);
+    expect(
+        tester
+            .widget<TextButton>(find.widgetWithText(TextButton, 'Annulla'))
+            .onPressed,
+        isNull);
+
+    // Lo scollegamento riesce: la finestra si chiude con `true`, e la riga
+    // si può rileggere.
+    api.gate!.complete();
+    await tester.pumpAndSettle();
+    expect(unlinked, isTrue);
   });
 
   testWidgets('Annulla: false', (tester) async {

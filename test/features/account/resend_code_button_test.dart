@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/features/account/resend_code_button.dart';
@@ -39,5 +41,47 @@ void main() {
     await tester.pump();
     expect(calls, 2);
     expect(find.text('Rimanda il codice'), findsOneWidget);
+  });
+
+  testWidgets('senza onResend (un\'altra richiesta in volo) resta spento',
+      (tester) async {
+    await pumpApp(
+        tester, const Scaffold(body: ResendCodeButton(onResend: null)));
+
+    await tester.pump(ResendCodeButton.delay);
+
+    expect(find.text('Rimanda il codice'), findsOneWidget);
+    expect(
+        tester
+            .widget<TextButton>(find.byKey(const Key('resend-code')))
+            .onPressed,
+        isNull);
+  });
+
+  testWidgets('se onResend lancia, il pulsante torna attivo e il conto no',
+      (tester) async {
+    await pumpApp(
+        tester,
+        Scaffold(
+            body: ResendCodeButton(
+                onResend: () async => throw StateError('boom'))));
+    await tester.pump(ResendCodeButton.delay);
+
+    // Il pulsante non gestisce l'errore: l'`unawaited` lo lascia alla zona
+    // (non a `FlutterError`, quindi `takeException` non lo vede e il test
+    // fallirebbe). Una zona del test lo raccoglie.
+    final errors = <Object>[];
+    await runZonedGuarded(() async {
+      await tester.tap(find.byKey(const Key('resend-code')));
+      await tester.pump();
+    }, (error, stack) => errors.add(error));
+
+    expect(errors.single, isA<StateError>());
+    expect(find.text('Rimanda il codice'), findsOneWidget);
+    expect(
+        tester
+            .widget<TextButton>(find.byKey(const Key('resend-code')))
+            .onPressed,
+        isNotNull);
   });
 }

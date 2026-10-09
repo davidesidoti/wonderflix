@@ -11,6 +11,7 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_dialog.dart';
 import '../auth/password_login_form.dart';
 import '../auth/session_controller.dart';
+import 'account_texts.dart';
 
 /// Cambia la password dell'utente aperto (spec L §9.2). `true` se è
 /// cambiata.
@@ -85,7 +86,7 @@ class _ChangePasswordDialogState extends ConsumerState<ChangePasswordDialog> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    return Column(
+    final content = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -105,7 +106,9 @@ class _ChangePasswordDialogState extends ConsumerState<ChangePasswordDialog> {
           decoration: InputDecoration(
             labelText: l.accountCurrentPassword,
             helperText: l.accountNoPasswordHint,
+            helperMaxLines: accountHelperMaxLines,
             errorText: _currentError,
+            errorMaxLines: accountErrorMaxLines,
           ),
         ),
         const SizedBox(height: 12),
@@ -115,7 +118,10 @@ class _ChangePasswordDialogState extends ConsumerState<ChangePasswordDialog> {
           obscureText: true,
           textInputAction: TextInputAction.next,
           decoration: InputDecoration(
-              labelText: l.accountNewPassword, errorText: _newError),
+            labelText: l.accountNewPassword,
+            errorText: _newError,
+            errorMaxLines: accountErrorMaxLines,
+          ),
         ),
         const SizedBox(height: 12),
         TextField(
@@ -124,14 +130,17 @@ class _ChangePasswordDialogState extends ConsumerState<ChangePasswordDialog> {
           obscureText: true,
           onSubmitted: (_) => unawaited(_submit()),
           decoration: InputDecoration(
-              labelText: l.accountConfirmPassword, errorText: _confirmError),
+            labelText: l.accountConfirmPassword,
+            errorText: _confirmError,
+            errorMaxLines: accountErrorMaxLines,
+          ),
         ),
         const SizedBox(height: 24),
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
+              onPressed: _busy ? null : () => Navigator.of(context).pop(false),
               child: Text(l.accountCancel),
             ),
             const SizedBox(width: 12),
@@ -147,5 +156,8 @@ class _ChangePasswordDialogState extends ConsumerState<ChangePasswordDialog> {
         ),
       ],
     );
+    // Esc e il clic fuori non chiudono la finestra mentre la richiesta è in
+    // volo: la password cambierebbe senza l'avviso.
+    return PopScope(canPop: !_busy, child: content);
   }
 }

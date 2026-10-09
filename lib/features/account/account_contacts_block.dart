@@ -122,6 +122,11 @@ class _ContactRow extends ConsumerWidget {
             ? l.accountNotLinked
             : l.accountLinked(value);
     final linkedAndOn = available && value != null;
+    final channelName = accountChannelName(l, channel);
+    // Le righe hanno gli stessi pulsanti: lo screen reader deve sentire a
+    // quale canale appartiene ("Collega Discord", non solo "Collega").
+    Text action(String text) =>
+        Text(text, semanticsLabel: '$text $channelName');
     return Padding(
       key: Key('account-contact-${channel.wire}'),
       padding: const EdgeInsets.symmetric(vertical: 2),
@@ -137,7 +142,7 @@ class _ContactRow extends ConsumerWidget {
           const SizedBox(width: 12),
           SizedBox(
             width: _channelWidth,
-            child: Text(accountChannelName(l, channel),
+            child: Text(channelName,
                 style: TextStyle(
                     color: available ? WfColors.cream : WfColors.creamMuted,
                     fontWeight: FontWeight.w600)),
@@ -153,13 +158,13 @@ class _ContactRow extends ConsumerWidget {
             TextButton(
               key: Key('account-link-${channel.wire}'),
               onPressed: () => unawaited(_link(context, ref)),
-              child: Text(value == null ? l.accountLink : l.accountChange),
+              child: action(value == null ? l.accountLink : l.accountChange),
             ),
           if (value != null)
             TextButton(
               key: Key('account-unlink-${channel.wire}'),
               onPressed: () => unawaited(_unlink(context, ref)),
-              child: Text(l.accountUnlink),
+              child: action(l.accountUnlink),
             ),
         ],
       ),

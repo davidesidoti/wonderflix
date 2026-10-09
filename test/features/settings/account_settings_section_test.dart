@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -67,6 +69,35 @@ void main() {
     expect(find.byKey(const Key('account-unlink-Email')), findsNothing);
     expect(find.text('Servono per recuperare la password se la dimentichi.'),
         findsOneWidget);
+  });
+
+  testWidgets('contatti in arrivo: lo spinner, poi le righe', (tester) async {
+    api.contactsGate = Completer<void>();
+    await pumpSection(tester);
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byKey(const Key('account-contact-Discord')), findsNothing);
+
+    // Mentre c'è lo spinner `pumpAndSettle` non finirebbe: si usa `pump`.
+    api.contactsGate!.complete();
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byKey(const Key('account-contact-Discord')), findsOneWidget);
+  });
+
+  testWidgets('i pulsanti dicono il canale allo screen reader',
+      (tester) async {
+    final semantics = tester.ensureSemantics();
+    api.contactsResult = const AccountContacts(
+        discordAvailable: true, emailAvailable: true, discordName: 'garg');
+    await pumpSection(tester);
+
+    expect(find.bySemanticsLabel('Cambia Discord'), findsOneWidget);
+    expect(find.bySemanticsLabel('Scollega Discord'), findsOneWidget);
+    expect(find.bySemanticsLabel('Collega Email'), findsOneWidget);
+    // Prima della fine del test: dopo, `flutter_test` la darebbe per persa.
+    semantics.dispose();
   });
 
   testWidgets('righe: su uno schermo largo restano vicine al contatto',

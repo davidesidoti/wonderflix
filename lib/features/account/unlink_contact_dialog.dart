@@ -24,6 +24,8 @@ Future<bool> showUnlinkContactDialog(
       false;
 }
 
+/// La password attuale e "Scollega". Come la finestra di collegamento, non
+/// si chiude finché la richiesta è in volo.
 class UnlinkContactDialog extends ConsumerStatefulWidget {
   const UnlinkContactDialog({super.key, required this.channel});
 
@@ -76,7 +78,7 @@ class _UnlinkContactDialogState extends ConsumerState<UnlinkContactDialog> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    return Column(
+    final content = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -98,7 +100,9 @@ class _UnlinkContactDialogState extends ConsumerState<UnlinkContactDialog> {
           decoration: InputDecoration(
             labelText: l.accountCurrentPassword,
             helperText: l.accountNoPasswordHint,
+            helperMaxLines: accountHelperMaxLines,
             errorText: _passwordError,
+            errorMaxLines: accountErrorMaxLines,
           ),
         ),
         const SizedBox(height: 24),
@@ -106,7 +110,7 @@ class _UnlinkContactDialogState extends ConsumerState<UnlinkContactDialog> {
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
+              onPressed: _busy ? null : () => Navigator.of(context).pop(false),
               child: Text(l.accountCancel),
             ),
             const SizedBox(width: 12),
@@ -122,5 +126,9 @@ class _UnlinkContactDialogState extends ConsumerState<UnlinkContactDialog> {
         ),
       ],
     );
+    // Esc e il clic fuori non chiudono la finestra mentre la richiesta è in
+    // volo: lo scollegamento riuscirebbe sul server e la riga resterebbe
+    // vecchia.
+    return PopScope(canPop: !_busy, child: content);
   }
 }

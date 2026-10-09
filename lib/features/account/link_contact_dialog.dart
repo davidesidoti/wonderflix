@@ -74,7 +74,12 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
         case AccountFailure.invalidTarget || AccountFailure.memberNotFound
             when firstStep:
           _targetError = text;
-        case AccountFailure.wrongPassword when firstStep:
+        case AccountFailure.wrongPassword:
+          // La password può essere cambiata altrove dopo il primo passo
+          // (il rinvio rifà `Start`, che la controlla): si torna al primo
+          // passo, dove c'è il campo, e il codice vecchio non serve più.
+          _sentTo = null;
+          _code.clear();
           _passwordError = text;
         case AccountFailure.invalidCode when !firstStep:
           _codeError = text;
@@ -84,8 +89,9 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
     });
   }
 
-  /// Manda il codice a [target]. `true` se è partito.
-  Future<bool> _send(String target) async {
+  /// Manda il codice a [target]. `null` se è partito, altrimenti perché no
+  /// (già mostrato).
+  Future<AccountFailure?> _send(String target) async {
     final language = Localizations.localeOf(context).languageCode;
     setState(() {
       _busy = true;
@@ -94,10 +100,10 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
     try {
       await ref.read(accountApiProvider).startLink(_channel,
           target: target, password: _password.text, language: language);
-      return true;
+      return null;
     } on AccountException catch (error) {
       if (mounted) _show(error.failure);
-      return false;
+      return error.failure;
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -110,7 +116,17 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
       _show(AccountFailure.invalidTarget);
       return;
     }
-    if (await _send(target) && mounted) setState(() => _sentTo = target);
+    if (await _send(target) == null && mounted) {
+      setState(() => _sentTo = target);
+    }
+  }
+
+  /// "Rimanda il codice". Il conto riparte dopo un 429, perché ogni rinvio
+  /// costa un controllo della password; dopo un altro errore si può
+  /// riprovare subito.
+  Future<bool> _resend() async {
+    final failure = await _send(_sentTo!);
+    return failure == null || failure == AccountFailure.rateLimited;
   }
 
   Future<void> _confirm() async {
@@ -140,7 +156,7 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
     final l = AppLocalizations.of(context);
     final sentTo = _sentTo;
     final discord = _channel == AccountChannel.discord;
-    return Column(
+    final content = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -162,7 +178,9 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
             decoration: InputDecoration(
               labelText: discord ? l.accountDiscordName : l.accountChannelEmail,
               helperText: discord ? l.accountDiscordNameHint : null,
+              helperMaxLines: accountHelperMaxLines,
               errorText: _targetError,
+              errorMaxLines: accountErrorMaxLines,
             ),
           ),
           const SizedBox(height: 12),
@@ -174,7 +192,9 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
             decoration: InputDecoration(
               labelText: l.accountCurrentPassword,
               helperText: l.accountNoPasswordHint,
+              helperMaxLines: accountHelperMaxLines,
               errorText: _passwordError,
+              errorMaxLines: accountErrorMaxLines,
             ),
           ),
         ] else ...[
@@ -188,13 +208,17 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
             autofocus: true,
             keyboardType: TextInputType.number,
             onSubmitted: (_) => unawaited(_confirm()),
-            decoration:
-                InputDecoration(labelText: l.accountCode, errorText: _codeError),
+            decoration: InputDecoration(
+              labelText: l.accountCode,
+              errorText: _codeError,
+              errorMaxLines: accountErrorMaxLines,
+            ),
           ),
           const SizedBox(height: 4),
           Align(
             alignment: Alignment.centerLeft,
-            child: ResendCodeButton(onResend: () => _send(sentTo)),
+            // Spento mentre un'altra richiesta (la conferma) è in volo.
+            child: ResendCodeButton(onResend: _busy ? null : _resend),
           ),
         ],
         const SizedBox(height: 24),
@@ -202,7 +226,7 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: _busy ? null : () => Navigator.of(context).pop(),
               child: Text(l.accountCancel),
             ),
             const SizedBox(width: 12),
@@ -214,11 +238,16 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
               onPressed: _busy
                   ? null
                   : () => unawaited(sentTo == null ? _start() : _confirm()),
-              child: Text(sentTo == null ? l.accountSendCode : l.accountConfirm),
+              child: Text(
+                  sentTo == null ? l.accountSendCode : l.accountConfirm),
             ),
           ],
         ),
       ],
     );
+    // Esc e il clic fuori non chiudono la finestra mentre la richiesta è in
+    // volo: il collegamento riuscirebbe sul server e la riga resterebbe
+    // vecchia.
+    return PopScope(canPop: !_busy, child: content);
   }
 }
