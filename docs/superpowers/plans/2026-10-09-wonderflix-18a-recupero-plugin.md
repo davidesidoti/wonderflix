@@ -40,7 +40,7 @@ I controller stanno in `Api/`. Le classi sono piccole e ognuna fa una cosa:
    - `MemberNotFound` è 400, non 404;
    - un utente sconosciuto nelle rotte admin è 400 `UnknownUser`;
    - canali e id nelle rotte sono stringhe, senza vincoli di rotta (un vincolo risponderebbe 404).
-4. **Un limite globale anche sugli errori del recupero** (`RecoveryFailGlobal`, 100 al giorno dopo la review del Gruppo A, voce 11). Senza, chi inventa nomi a raffica riempirebbe la memoria dei limiti. Costa poco: chi lo esaurisce blocca il completamento per un'ora, come già può fare con l'avvio (30 all'ora), e l'admin resta la via d'uscita.
+4. **Un limite globale anche sugli errori del recupero** (`RecoveryFailGlobal`, 100 al giorno dopo la review del Gruppo A, voce 11). Senza, chi inventa nomi a raffica riempirebbe la memoria dei limiti e potrebbe tentare per sempre. È un compromesso accettato: chi lo esaurisce (bastano circa 100 richieste al giorno) tiene chiuso il recupero di tutti, anche il completamento dei codici mandati dall'admin. La via d'uscita resta "Imposta password" dell'admin, che passa da Jellyfin e non dal plugin.
 5. **`Recovery/Complete` ha anche `Language`:** serve per l'avviso "password cambiata".
 6. **`Admin/Test` accetta `Discord` (nome utente) ed `Email`, tutti e due facoltativi.** Così la prova funziona prima che l'admin abbia collegato i suoi contatti (serve alla prova del Task 14). Esiti possibili: `Ok`, `NotConfigured`, `NoContact`, `Invalid`, `MemberNotFound`, `InvalidTarget`, `DmClosed`, `SendFailed`. La Dashboard ha i due campi; l'app (18c) li lascia vuoti.
 7. **L'ultimo errore di un canale sparisce con il primo invio riuscito su quel canale:** descrive com'è il canale adesso.
@@ -4711,8 +4711,6 @@ public sealed class PasswordRecovery(
             || limiter.IsLimited(key, LimitTypes.RecoveryFail)
             || limiter.IsLimited(key, LimitTypes.RecoveryFailDay))
         {
-            // Si vede nel log se qualcuno prova a indovinare i codici.
-            logger.LogWarning("Recupero della password fermato dai limiti per il nome {Name}", name);
             return Done(AccountError.RateLimited);
         }
 
@@ -4728,6 +4726,22 @@ public sealed class PasswordRecovery(
             limiter.TryAcquire(EveryoneKey, LimitTypes.RecoveryFailGlobal);
             limiter.TryAcquire(key, LimitTypes.RecoveryFail);
             limiter.TryAcquire(key, LimitTypes.RecoveryFailDay);
+
+            // Nel log si vede quando qualcuno prova a indovinare i codici: una volta
+            // sola, quando il limite scatta (dopo si risponde 429 prima di arrivare qui),
+            // e mai il testo scritto, che potrebbe essere un'email o contenere a capo.
+            if (limiter.IsLimited(key, LimitTypes.RecoveryFail) || limiter.IsLimited(key, LimitTypes.RecoveryFailDay))
+            {
+                logger.LogWarning(
+                    "Recupero della password fermato dai limiti per {Who}",
+                    user is null ? "un nome che non è un utente" : user.Id.ToString("N"));
+            }
+
+            if (limiter.IsLimited(EveryoneKey, LimitTypes.RecoveryFailGlobal))
+            {
+                logger.LogWarning("Recupero della password fermato per tutti: troppi codici sbagliati oggi");
+            }
+
             return Done(AccountError.InvalidCode);
         }
 
