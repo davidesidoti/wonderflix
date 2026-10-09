@@ -123,6 +123,18 @@ public sealed class AccountControllerTests : IDisposable
         Assert.Equal(error.ToString(), Assert.IsType<AccountErrorDto>(result.Value).Code);
     }
 
+    // La password sta nel corpo: un corpo in una DELETE non è affidabile (proxy, client), quindi lo scollegamento è un POST.
+    [Fact]
+    public void UnlinkIsAPostAndNothingIsADelete()
+    {
+        var unlink = typeof(AccountController).GetMethod(nameof(AccountController.Unlink))!;
+
+        Assert.Equal("Contacts/{channel}/Unlink", Assert.Single(unlink.GetCustomAttributes<HttpPostAttribute>()).Template);
+        Assert.All(
+            typeof(AccountController).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+            method => Assert.Empty(method.GetCustomAttributes<HttpDeleteAttribute>()));
+    }
+
     [Fact]
     public void ContactsAreForEveryAuthenticatedUser()
     {

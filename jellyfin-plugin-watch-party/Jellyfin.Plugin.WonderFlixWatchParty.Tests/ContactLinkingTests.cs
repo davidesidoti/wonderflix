@@ -356,6 +356,86 @@ public sealed class ContactLinkingTests : IDisposable
     }
 
     [Fact]
+    public async Task AWrongPasswordDoesNotSpendTheHour()
+    {
+        _rig.PasswordCheck.Passwords[_mario.Id] = "quella-vera";
+        for (var i = 0; i < 2; i++)
+        {
+            Assert.Equal(
+                AccountError.WrongPassword,
+                (await _linking.StartAsync(_mario.Id, AccountChannel.Email, "mario@example.com", "sbagliata", "it", Ct)).Error);
+        }
+
+        // Cinque codici all'ora restano possibili (uno al minuto).
+        for (var i = 0; i < 5; i++)
+        {
+            Assert.Null((await _linking.StartAsync(_mario.Id, AccountChannel.Email, "mario@example.com", "quella-vera", "it", Ct)).Error);
+            _rig.Time.Advance(TimeSpan.FromMinutes(1));
+        }
+
+        Assert.Equal(7, _rig.PasswordCheck.Calls.Count);
+        Assert.Equal(
+            AccountError.RateLimited,
+            (await _linking.StartAsync(_mario.Id, AccountChannel.Email, "mario@example.com", "quella-vera", "it", Ct)).Error);
+    }
+
+    [Fact]
+    public async Task TheSixthStartOfTheHourDoesNotReachThePasswordCheck()
+    {
+        for (var i = 0; i < 5; i++)
+        {
+            Assert.Null((await _linking.StartAsync(_mario.Id, AccountChannel.Email, "mario@example.com", "giusta", "it", Ct)).Error);
+            _rig.Time.Advance(TimeSpan.FromMinutes(1));
+        }
+
+        var checks = _rig.PasswordCheck.Calls.Count;
+
+        Assert.Equal(
+            AccountError.RateLimited,
+            (await _linking.StartAsync(_mario.Id, AccountChannel.Email, "mario@example.com", "sbagliata", "it", Ct)).Error);
+        Assert.Equal(checks, _rig.PasswordCheck.Calls.Count);
+    }
+
+    [Fact]
+    public async Task StartAndUnlinkShareTheTenPasswordChecks()
+    {
+        _rig.PasswordCheck.Passwords[_mario.Id] = "quella-vera";
+        for (var i = 0; i < 5; i++)
+        {
+            Assert.Equal(
+                AccountError.WrongPassword,
+                (await _linking.StartAsync(_mario.Id, AccountChannel.Email, "mario@example.com", "sbagliata", "it", Ct)).Error);
+            Assert.Equal(AccountError.WrongPassword, await _linking.UnlinkAsync(_mario.Id, AccountChannel.Email, "sbagliata"));
+        }
+
+        // La giusta, ma troppo tardi: né l'avvio né lo scollegamento arrivano a Jellyfin.
+        Assert.Equal(
+            AccountError.RateLimited,
+            (await _linking.StartAsync(_mario.Id, AccountChannel.Email, "mario@example.com", "quella-vera", "it", Ct)).Error);
+        Assert.Equal(AccountError.RateLimited, await _linking.UnlinkAsync(_mario.Id, AccountChannel.Email, "quella-vera"));
+        Assert.Equal(10, _rig.PasswordCheck.Calls.Count);
+
+        _rig.Time.Advance(TimeSpan.FromHours(1));
+        Assert.Null((await _linking.StartAsync(_mario.Id, AccountChannel.Email, "mario@example.com", "quella-vera", "it", Ct)).Error);
+    }
+
+    [Fact]
+    public async Task UnlinkLogsOnlyWhenAContactWasRemoved()
+    {
+        var luigi = _rig.UserWithContacts("Luigi");
+        var logger = new RecordingLogger<ContactLinking>();
+        var linking = new ContactLinking(
+            _rig.Contacts, _rig.Codes, _rig.Limiter, _rig.Discord, _rig.PasswordCheck, _rig.Sender, _rig.Settings, _rig.Inbox, _rig.Time, logger);
+
+        Assert.Null(await linking.UnlinkAsync(luigi.Id, AccountChannel.Discord, "giusta"));
+        Assert.Single(logger.Entries, e => e.Message.Contains("scollegato", StringComparison.Ordinal));
+
+        // Il contatto non c'è più: nessun'altra riga "scollegato".
+        Assert.Null(await linking.UnlinkAsync(luigi.Id, AccountChannel.Discord, "giusta"));
+        Assert.Single(logger.Entries, e => e.Message.Contains("scollegato", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ConfirmingDoesNotNeedThePassword()
     {
         await _linking.StartAsync(_mario.Id, AccountChannel.Email, "mario@example.com", "giusta", "it", Ct);

@@ -3,7 +3,7 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Account;
 /// <summary>
 /// La password attuale dell'utente (spec L §8): chi ha solo una sessione
 /// aperta non può cambiare i contatti per il recupero. Non lancia: un errore
-/// è false. Solo l'annullamento di chi chiama esce.
+/// è false.
 /// </summary>
 public interface IPasswordCheck
 {

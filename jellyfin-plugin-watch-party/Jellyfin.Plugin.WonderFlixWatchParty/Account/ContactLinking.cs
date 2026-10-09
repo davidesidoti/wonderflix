@@ -45,16 +45,19 @@ public sealed class ContactLinking(
 
     /// <summary>
     /// Manda il codice per collegare un contatto. Nell'ordine: canale spento,
-    /// contatto scritto male, limiti, password attuale, membro Discord che non
-    /// c'è, invio. Un invio non riuscito toglie il codice.
+    /// contatto scritto male, limiti (guardati), password attuale, membro
+    /// Discord che non c'è, invio. Un invio non riuscito toglie il codice.
     /// I limiti sono due, con due scopi diversi:
-    /// - un codice al minuto per utente e canale: si guarda prima di cercare
-    ///   il membro, ma si conta solo quando il codice sta per essere emesso
+    /// - un codice al minuto per utente e canale: si guarda prima della
+    ///   password, ma si conta solo quando il codice sta per essere emesso
     ///   (dopo una ricerca riuscita). Così un nome Discord scritto male non
     ///   fa aspettare un minuto per correggerlo, e Discord ed email non si
     ///   bloccano a vicenda;
-    /// - cinque all'ora per utente, contati prima della ricerca: ogni ricerca
-    ///   conta, quindi nessuno scorre i membri del server a tentativi.
+    /// - cinque all'ora per utente: si guarda prima della password e si conta
+    ///   dopo, quando la password è giusta e sta per partire la ricerca. Ogni
+    ///   ricerca conta, quindi nessuno scorre i membri del server a tentativi,
+    ///   ma una password sbagliata non consuma l'ora (le password a caso le
+    ///   ferma <see cref="LimitTypes.PasswordChecks"/>).
     /// </summary>
     public async Task<AccountResult<LinkStartResponse>> StartAsync(
         Guid userId,
@@ -82,7 +85,7 @@ public sealed class ContactLinking(
 
         var key = userId.ToString("N");
         var minuteKey = $"{key}:{channel.Name()}";
-        if (limiter.IsLimited(minuteKey, LimitTypes.LinkStartMinute) || !limiter.TryAcquire(key, LimitTypes.LinkStartHour))
+        if (limiter.IsLimited(minuteKey, LimitTypes.LinkStartMinute) || limiter.IsLimited(key, LimitTypes.LinkStartHour))
         {
             return AccountResult<LinkStartResponse>.Fail(AccountError.RateLimited);
         }
@@ -90,6 +93,13 @@ public sealed class ContactLinking(
         if (await CheckPasswordAsync(userId, password).ConfigureAwait(false) is { } passwordError)
         {
             return AccountResult<LinkStartResponse>.Fail(passwordError);
+        }
+
+        // L'ora si conta qui, con la password giusta e prima della ricerca. Se due richieste
+        // arrivano insieme, la seconda trova l'ora già presa.
+        if (!limiter.TryAcquire(key, LimitTypes.LinkStartHour))
+        {
+            return AccountResult<LinkStartResponse>.Fail(AccountError.RateLimited);
         }
 
         PendingContact pending;
@@ -190,8 +200,11 @@ public sealed class ContactLinking(
             return passwordError;
         }
 
-        contacts.Remove(userId, channel);
-        logger.LogInformation("{Channel} scollegato dall'utente {UserId}", channel, userId);
+        if (contacts.Remove(userId, channel))
+        {
+            logger.LogInformation("{Channel} scollegato dall'utente {UserId}", channel, userId);
+        }
+
         return null;
     }
 

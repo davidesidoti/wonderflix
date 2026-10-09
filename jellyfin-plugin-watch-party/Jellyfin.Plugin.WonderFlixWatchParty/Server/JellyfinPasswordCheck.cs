@@ -32,8 +32,10 @@ public sealed class JellyfinPasswordCheck(IUserManager userManager, ILogger<Jell
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // Una password sbagliata arriva qui come AuthenticationException, un utente disattivato
-            // o bloccato come SecurityException. Nel registro vanno solo l'utente e il tipo: mai la password.
+            // In Jellyfin 10.11 una password sbagliata di un utente che esiste torna come null (l'eccezione
+            // del provider si ferma dentro UserManager), quindi qui non arriva. Qui arrivano un nome utente
+            // sconosciuto, un utente disattivato, l'accesso remoto o l'orario del controllo parentale.
+            // Nel registro vanno solo l'utente e il tipo dell'errore: mai la password.
             logger.LogWarning("Password attuale non verificata per {UserId}: {ExceptionType}", userId.ToString("N"), ex.GetType().Name);
             return false;
         }
