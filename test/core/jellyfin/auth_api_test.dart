@@ -133,4 +133,38 @@ void main() {
     expect(adapter.requests.single.data, {'Secret': 's1'});
     expect(result.accessToken, 'tok-qc');
   });
+
+  test('changePassword: POST /Users/Password con la password attuale',
+      () async {
+    await api.changePassword('u1',
+        currentPassword: 'vecchia', newPassword: 'nuova123');
+
+    final request = adapter.requests.single;
+    expect(request.method, 'POST');
+    expect(request.path, '/Users/Password');
+    expect(request.queryParameters, {'userId': 'u1'});
+    expect(request.data, {'CurrentPw': 'vecchia', 'NewPw': 'nuova123'});
+  });
+
+  test("changePassword senza la password attuale (l'admin, piano 18c)",
+      () async {
+    await api.changePassword('u2', newPassword: 'nuova123');
+    expect(adapter.requests.single.data, {'NewPw': 'nuova123'});
+  });
+
+  test('changePassword: 403 con la password sbagliata, nel log come info',
+      () async {
+    final records = <LogRecord>[];
+    Logger.root.level = Level.ALL;
+    final subscription = Logger.root.onRecord.listen(records.add);
+    addTearDown(subscription.cancel);
+    adapter.handler = (_) => const FakeResponse(403);
+
+    await expectLater(
+        api.changePassword('u1', currentPassword: 'x', newPassword: 'nuova123'),
+        throwsA(isA<ForbiddenException>()));
+
+    expect(records.where((r) => r.loggerName == 'http').single.level,
+        Level.INFO);
+  });
 }

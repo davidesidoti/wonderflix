@@ -24,6 +24,7 @@ class SocialFeatures {
     this.requests = false,
     this.collections = false,
     this.avatars = false,
+    this.account = false,
     this.known = true,
   });
 
@@ -52,6 +53,10 @@ class SocialFeatures {
   /// party.
   final bool avatars;
 
+  /// I contatti per il recupero della password (spec L §9.1): non dipendono
+  /// dai watch party.
+  final bool account;
+
   /// `false` finché `Info` non dà una risposta certa: le funzioni, oppure
   /// un 400/401/403/404. Un errore di rete non basta (vedi
   /// [SocialAvailability]).
@@ -66,16 +71,17 @@ class SocialFeatures {
       other.requests == requests &&
       other.collections == collections &&
       other.avatars == avatars &&
+      other.account == account &&
       other.known == known;
 
   @override
   int get hashCode => Object.hash(
-      friends, parties, inbox, requests, collections, avatars, known);
+      friends, parties, inbox, requests, collections, avatars, account, known);
 
   @override
   String toString() => 'SocialFeatures(friends: $friends, parties: $parties, '
       'inbox: $inbox, requests: $requests, collections: $collections, '
-      'avatars: $avatars, known: $known)';
+      'avatars: $avatars, account: $account, known: $known)';
 }
 
 /// Chiede `Info` al plugin dopo il login e a ogni connessione del WebSocket,
@@ -84,8 +90,8 @@ class SocialFeatures {
 /// possibilità. Senza utente o senza plugin: nessuna funzione, e l'app si
 /// comporta come la 0.5.1. Senza accesso ai watch party `Info` si chiede lo
 /// stesso (la cassetta delle notifiche vale per tutti, spec G §7.2, e così le
-/// richieste con Seerr, spec I §8.2, e le saghe, spec K §8.1), ma amici e
-/// party restano spenti. Dal login alla prima risposta certa le funzioni sono
+/// richieste con Seerr, spec I §8.2, le saghe, spec K §8.1, e i contatti per
+/// il recupero, spec L §9.1), ma amici e party restano spenti. Dal login alla prima risposta certa le funzioni sono
 /// [SocialFeatures.unknown].
 ///
 /// Un errore di rete (anche timeout, errore del server, risposta di forma
@@ -172,6 +178,7 @@ class SocialAvailability extends Notifier<SocialFeatures> {
         requests: info.features.contains(PluginFeatures.requests),
         collections: info.features.contains(PluginFeatures.collections),
         avatars: info.features.contains(PluginFeatures.avatars),
+        account: info.features.contains(PluginFeatures.account),
       ));
     } on SocialException catch (error) {
       if (!_isCurrent(generation)) return;

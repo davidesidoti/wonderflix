@@ -51,4 +51,14 @@ void main() {
     const text = 'direct play non riuscito: provo la transcodifica';
     expect(redactSecrets(text), text);
   });
+
+  test('corpi del recupero e dei contatti (spec L §8)', () {
+    expect(
+        redactSecrets('{"Username":"garg","Code":"012345",'
+            '"NewPassword":"nuova","CurrentPw":"a","NewPw":"b",'
+            '"Target":"a@example.com","Password":"c","Language":"it"}'),
+        '{"Username":"garg","Code":"***","NewPassword":"***",'
+        '"CurrentPw":"***","NewPw":"***","Target":"***","Password":"***",'
+        '"Language":"it"}');
+  });
 }

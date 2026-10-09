@@ -33,9 +33,12 @@ final _rules = <(RegExp, String Function(Match))>[
       return '${m[1]}${m[2]}${m[1]}${m[3]}$quote***$quote';
     },
   ),
-  // JSON: "AccessToken": "…", "Pw": "…", "Password": "…", "Token": "…"
+  // JSON: "AccessToken": "…", "Pw": "…", "Password": "…", "Token": "…", e
+  // i corpi del recupero e dei contatti (spec L §8): il codice, le
+  // password, il contatto (un nome Discord o un'email).
   (
-    RegExp(r'"(AccessToken|Pw|Password|Token)"\s*:\s*"(?:[^"\\]|\\.)*"',
+    RegExp(
+        r'"(AccessToken|Pw|Password|Token|CurrentPw|NewPw|NewPassword|Code|Target)"\s*:\s*"(?:[^"\\]|\\.)*"',
         caseSensitive: false),
     (m) => '"${m[1]}":"***"',
   ),

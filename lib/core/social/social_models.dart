@@ -23,6 +23,9 @@ abstract final class PluginFeatures {
 
   /// Le immagini degli altri utenti (spec K §7.2).
   static const avatars = 'avatars';
+
+  /// I contatti per il recupero della password (spec L §7.8).
+  static const account = 'account';
 }
 
 /// Risposta di `GET /WonderFlixWatchParty/Info`, con le funzioni.

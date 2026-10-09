@@ -25,6 +25,23 @@ class AuthApi {
     await _http.post('/Sessions/Logout', quietStatuses: quietStatuses);
   }
 
+  /// Cambia la password di [userId] (spec L §9.1). Per la propria Jellyfin
+  /// vuole quella attuale ([currentPassword], vuota per un account senza) e
+  /// risponde 403 se è sbagliata; poi chiude le altre sessioni dell'utente
+  /// e tiene questa. Senza [currentPassword]: l'admin che la imposta a un
+  /// altro utente (piano 18c).
+  Future<void> changePassword(String userId,
+      {String? currentPassword, required String newPassword}) async {
+    await _http.post('/Users/Password',
+        query: {'userId': userId},
+        body: {
+          'CurrentPw': ?currentPassword,
+          'NewPw': newPassword,
+        },
+        // La password sbagliata è un esito atteso.
+        quietStatuses: const {403});
+  }
+
   Future<bool> quickConnectEnabled() async =>
       await _http.get('/QuickConnect/Enabled') == true;
 

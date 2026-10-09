@@ -103,6 +103,17 @@ void main() {
         const SocialFeatures(avatars: true));
   });
 
+  test('Info con i contatti: funzione account, anche senza watch party',
+      () async {
+    api.install(features: const {PluginFeatures.account});
+    final c = container(
+        session: const SessionSignedIn(JellyfinUser(
+            id: 'u1', name: 'Mario', syncPlayAccess: SyncPlayAccess.none)));
+    await pumpEventQueue();
+    expect(c.read(socialAvailabilityProvider),
+        const SocialFeatures(account: true));
+  });
+
   test('Info con gli amici: funzione attiva', () async {
     api.install();
     final c = container();
