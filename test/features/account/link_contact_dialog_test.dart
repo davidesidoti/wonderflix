@@ -11,6 +11,7 @@ import 'package:wonderflix/features/account/link_contact_dialog.dart';
 import 'package:wonderflix/features/account/resend_code_button.dart';
 
 import '../../support/account_fakes.dart';
+import '../../support/field_focus.dart';
 import '../../support/pump_app.dart';
 
 void main() {
@@ -206,6 +207,43 @@ void main() {
     await reachCodeStep(tester);
     final code = tester.widget<TextField>(find.byKey(const Key('link-code')));
     expect(code.decoration!.errorMaxLines, accountErrorMaxLines);
+  });
+
+  testWidgets('errore sul nome: il fuoco torna al nome, selezionato',
+      (tester) async {
+    await open(tester, AccountChannel.discord);
+
+    for (final (failure, text) in [
+      (AccountFailure.memberNotFound, 'Non ti trovo nel server Discord'),
+      (AccountFailure.invalidTarget, 'Nome utente Discord non valido'),
+    ]) {
+      await tester.enterText(find.byKey(const Key('link-target')), 'garg');
+      await tester.enterText(
+          find.byKey(const Key('link-password')), 'segreta');
+      api.startLinkFailure = failure;
+      // Invio nella password toglie il fuoco al campo: l'errore, che sta
+      // sotto il nome, deve portarlo lì.
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+
+      expect(find.textContaining(text), findsOneWidget, reason: '$failure');
+      expectFocusedAndSelected(tester, 'link-target', 'garg'.length);
+    }
+  });
+
+  testWidgets('codice non valido: il fuoco torna al codice, selezionato',
+      (tester) async {
+    await open(tester, AccountChannel.discord);
+    await reachCodeStep(tester);
+
+    await tester.enterText(find.byKey(const Key('link-code')), '000000');
+    api.confirmFailure = AccountFailure.invalidCode;
+    // Invio nel codice toglie il fuoco al campo: l'errore deve ridarglielo.
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+
+    expect(find.text('Codice non valido o scaduto'), findsOneWidget);
+    expectFocusedAndSelected(tester, 'link-code', '000000'.length);
   });
 
   testWidgets('Rimanda dopo un 429: avviso e il conto riparte',

@@ -41,7 +41,9 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
   final _target = TextEditingController();
   final _password = TextEditingController();
   final _code = TextEditingController();
+  final _targetFocus = FocusNode();
   final _passwordFocus = FocusNode();
+  final _codeFocus = FocusNode();
 
   /// Il contatto a cui è partito il codice; `null` al primo passo.
   String? _sentTo;
@@ -58,7 +60,9 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
     _target.dispose();
     _password.dispose();
     _code.dispose();
+    _targetFocus.dispose();
     _passwordFocus.dispose();
+    _codeFocus.dispose();
     super.dispose();
   }
 
@@ -77,6 +81,9 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
         case AccountFailure.invalidTarget || AccountFailure.memberNotFound
             when firstStep:
           _targetError = text;
+          // Invio nella password ha tolto il fuoco: torna al nome o
+          // all'email, selezionato per riscriverlo.
+          focusAndSelectAfterFrame(this, _targetFocus, _target);
         case AccountFailure.wrongPassword:
           // La password può essere cambiata altrove dopo il primo passo
           // (il rinvio rifà `Start`, che la controlla): si torna al primo
@@ -90,6 +97,8 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
           focusAndSelectAfterFrame(this, _passwordFocus, _password);
         case AccountFailure.invalidCode when !firstStep:
           _codeError = text;
+          // Invio nel codice ha tolto il fuoco: torna lì, selezionato.
+          focusAndSelectAfterFrame(this, _codeFocus, _code);
         case _:
           _error = text;
       }
@@ -182,6 +191,7 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
           TextField(
             key: const Key('link-target'),
             controller: _target,
+            focusNode: _targetFocus,
             autofocus: true,
             textInputAction: TextInputAction.next,
             keyboardType:
@@ -217,6 +227,7 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
           TextField(
             key: const Key('link-code'),
             controller: _code,
+            focusNode: _codeFocus,
             autofocus: true,
             keyboardType: TextInputType.number,
             onSubmitted: (_) => unawaited(_confirm()),
