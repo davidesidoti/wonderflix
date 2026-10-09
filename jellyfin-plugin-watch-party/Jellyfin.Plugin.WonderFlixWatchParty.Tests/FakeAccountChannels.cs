@@ -94,3 +94,22 @@ internal sealed class FakeMailSender : IMailSender
     public string LastCode(string to) =>
         FakeCodes.In(Sent.Last(s => string.Equals(s.To, to, StringComparison.OrdinalIgnoreCase)).Message.Text);
 }
+
+/// <summary>Il cambio di password finto: registra le chiamate, o lancia Error.</summary>
+internal sealed class FakePasswordReset : IPasswordReset
+{
+    public List<(Guid UserId, string Password)> Calls { get; } = [];
+
+    public Exception? Error { get; set; }
+
+    public Task ResetAsync(Guid userId, string newPassword)
+    {
+        if (Error is not null)
+        {
+            throw Error;
+        }
+
+        Calls.Add((userId, newPassword));
+        return Task.CompletedTask;
+    }
+}

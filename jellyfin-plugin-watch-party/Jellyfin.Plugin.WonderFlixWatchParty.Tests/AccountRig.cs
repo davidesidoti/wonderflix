@@ -30,6 +30,9 @@ internal sealed class AccountRig : IDisposable
 
     public FakeMailSender Mail { get; } = new();
 
+    /// <summary>Il cambio di password finto del recupero (non il controllo della password attuale: quello è <see cref="PasswordCheck"/>).</summary>
+    public FakePasswordReset Passwords { get; } = new();
+
     public FakePasswordCheck PasswordCheck { get; } = new();
 
     public ContactRegistry Contacts { get; }
@@ -58,6 +61,9 @@ internal sealed class AccountRig : IDisposable
 
     public ContactLinking Linking() =>
         new(Contacts, Codes, Limiter, Discord, PasswordCheck, Sender, Settings, Inbox, Time, NullLogger<ContactLinking>.Instance);
+
+    public PasswordRecovery Recovery() =>
+        new(Server, Contacts, Codes, Limiter, Sender, Passwords, NullLogger<PasswordRecovery>.Instance);
 
     public void Dispose() => Folder.Dispose();
 }
