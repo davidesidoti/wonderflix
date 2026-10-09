@@ -623,6 +623,7 @@
   "recoveryUnavailable": "Automatic recovery isn't available on this server: contact the admin",
   "recoveryTooMany": "Too many attempts: try again in an hour or contact the admin",
   "recoveryFailed": "Change failed: ask for a new code",
+  "recoveryChanged": "Password changed: sign in with the new one.",
   "inboxContactReminderTitle": "Protect your account",
   "inboxContactReminderBoth": "Link Discord or your email to recover your password if you forget it.",
   "inboxContactReminderDiscord": "Link Discord to recover your password if you forget it.",

@@ -739,6 +739,7 @@
   "recoveryUnavailable": "Il recupero automatico non è disponibile su questo server: contatta l'amministratore",
   "recoveryTooMany": "Troppi tentativi: riprova tra un'ora o contatta l'amministratore",
   "recoveryFailed": "Cambio non riuscito: chiedi un nuovo codice",
+  "recoveryChanged": "Password cambiata: accedi con quella nuova.",
   "inboxContactReminderTitle": "Proteggi il tuo account",
   "inboxContactReminderBoth": "Collega Discord o la tua email per recuperare la password se la dimentichi.",
   "inboxContactReminderDiscord": "Collega Discord per recuperare la password se la dimentichi.",

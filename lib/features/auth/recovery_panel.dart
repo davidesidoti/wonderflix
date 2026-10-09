@@ -47,8 +47,9 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
   bool _unavailable = false;
 
   /// La password nuova, già cambiata sul server; `null` finché il cambio non
-  /// riesce. Se poi l'accesso non riesce, "Cambia password" riprova solo
-  /// l'accesso con questa: il codice è già usato.
+  /// riesce. Con questa il secondo passo cambia vista: niente campi (una
+  /// password riscritta sarebbe ignorata) né "Rimanda" (il codice è già
+  /// usato), solo l'avviso e "ACCEDI", che riprova l'accesso con questa.
   String? _changedTo;
   bool _busy = false;
   String? _usernameError;
@@ -134,8 +135,8 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
     final username = _sentFor!;
     final changedTo = _changedTo;
     if (changedTo != null) {
-      // Il cambio è già riuscito e l'accesso no: si riprova solo l'accesso,
-      // con la password già cambiata (il codice è usato).
+      // Il cambio è già riuscito e l'accesso no: "ACCEDI" riprova solo
+      // l'accesso, con la password già cambiata (il codice è usato).
       setState(() {
         _busy = true;
         _clearErrors();
@@ -186,13 +187,14 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
       }
       return;
     }
-    _changedTo = password;
+    if (!mounted) return;
+    setState(() => _changedTo = password);
     await _signIn(l, username, password);
   }
 
   /// Entra con la password nuova (spec L §9.3): il profilo salvato prende il
-  /// token nuovo. Se l'accesso non riesce, l'errore resta qui e "Cambia
-  /// password" riprova solo l'accesso ([_changedTo]).
+  /// token nuovo. Se l'accesso non riesce, l'errore resta qui e "ACCEDI"
+  /// riprova solo l'accesso ([_changedTo]).
   Future<void> _signIn(
       AppLocalizations l, String username, String password) async {
     try {
@@ -252,6 +254,14 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
             key: const Key('recovery-send'),
             onPressed: _busy ? null : () => unawaited(_start()),
             child: Text(l.accountSendCode),
+          ),
+        ] else if (_changedTo != null) ...[
+          Text(l.recoveryChanged, style: const TextStyle(fontSize: 13)),
+          const SizedBox(height: 16),
+          FilledButton(
+            key: const Key('recovery-submit'),
+            onPressed: _busy ? null : () => unawaited(_complete()),
+            child: Text(l.loginSubmit),
           ),
         ] else ...[
           Text(l.recoveryCodeSent, style: const TextStyle(fontSize: 13)),

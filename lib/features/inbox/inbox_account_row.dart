@@ -53,12 +53,12 @@ class InboxContactReminderContent extends ConsumerWidget {
                       color: WfColors.cream, fontWeight: FontWeight.w600)),
               const SizedBox(height: 2),
               Text(inboxContactReminderText(l, channels),
-                  style:
-                      const TextStyle(color: WfColors.creamMuted, fontSize: 13)),
+                  style: const TextStyle(
+                      color: WfColors.creamMuted, fontSize: 13)),
               const SizedBox(height: 4),
               Text(time,
-                  style:
-                      const TextStyle(color: WfColors.creamMuted, fontSize: 12)),
+                  style: const TextStyle(
+                      color: WfColors.creamMuted, fontSize: 12)),
             ],
           ),
         ),

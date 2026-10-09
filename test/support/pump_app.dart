@@ -24,7 +24,11 @@ final testAppConfig = AppConfig(
 List<Override> _baseOverrides(
         {required bool carouselAutoplay, required List<Override> overrides}) =>
     [
-      appConfigProvider.overrideWithValue(testAppConfig),
+      // La configurazione di prova. Un test può sostituirla negli [overrides]
+      // (per esempio senza `supportUrl`): due override dello stesso provider
+      // farebbero lanciare il container.
+      if (!overrides.any((override) => override.origin == appConfigProvider))
+        appConfigProvider.overrideWithValue(testAppConfig),
       // Nessun WebSocket reale nei widget test.
       serverEventsBindingProvider.overrideWithValue(null),
       // Nessuna immagine di rete nei widget test. Un test può sostituire il

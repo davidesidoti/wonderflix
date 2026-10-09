@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/app/providers.dart';
+import 'package:wonderflix/config/app_config.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/social/account_api.dart';
 import 'package:wonderflix/features/auth/auth_providers.dart';
@@ -23,18 +25,34 @@ void main() {
     session = FakeSessionController(const SessionSignedOut());
   });
 
-  Future<void> pumpLogin(WidgetTester tester, {bool quickConnect = false}) async {
+  /// Un `AppConfig` senza `supportUrl`: nessun "Scrivi all'admin".
+  final noSupportConfig = AppConfig(
+    serverUrl: Uri.parse('https://media.example.com'),
+    githubRepo: 'owner/repo',
+    discordAppId: '1',
+    supportUrl: null,
+  );
+
+  Future<void> pumpLogin(
+    WidgetTester tester, {
+    bool quickConnect = false,
+    bool supportUrl = true,
+  }) async {
     await pumpApp(tester, const LoginScreen(), overrides: [
       sessionControllerProvider.overrideWith(() => session),
       quickConnectEnabledProvider.overrideWith((ref) async => quickConnect),
       profilesProvider
           .overrideWith(() => FixedProfiles(const ProfilesState())),
       ...accountTestOverrides(api),
+      if (!supportUrl) appConfigProvider.overrideWithValue(noSupportConfig),
     ]);
     await tester.pump();
   }
 
-  Future<void> openRecovery(WidgetTester tester, {String username = 'garg'}) async {
+  Future<void> openRecovery(
+    WidgetTester tester, {
+    String username = 'garg',
+  }) async {
     await tester.enterText(find.byKey(const Key('login-username')), username);
     await tester.tap(find.byKey(const Key('login-forgot')));
     await tester.pump();
@@ -82,7 +100,8 @@ void main() {
     expect(find.text('Scrivi il nome utente'), findsOneWidget);
     expect(api.recoveryStarts, isEmpty);
 
-    await tester.enterText(find.byKey(const Key('recovery-username')), ' garg ');
+    await tester.enterText(
+        find.byKey(const Key('recovery-username')), ' garg ');
     await tapKey(tester, 'recovery-send');
 
     expect(api.recoveryStarts.single, ('garg', 'it'));
@@ -126,12 +145,14 @@ void main() {
     expect(find.text('Almeno 6 caratteri'), findsOneWidget);
 
     await tester.enterText(find.byKey(const Key('recovery-new')), 'nuova123');
-    await tester.enterText(find.byKey(const Key('recovery-confirm')), 'nuova124');
+    await tester.enterText(
+        find.byKey(const Key('recovery-confirm')), 'nuova124');
     await tapKey(tester, 'recovery-submit');
     expect(find.text('Le password non coincidono'), findsOneWidget);
     expect(api.recoveryCompletes, isEmpty);
 
-    await tester.enterText(find.byKey(const Key('recovery-confirm')), 'nuova123');
+    await tester.enterText(
+        find.byKey(const Key('recovery-confirm')), 'nuova123');
     api.completeRecoveryFailure = AccountFailure.invalidCode;
     await tapKey(tester, 'recovery-submit');
     expect(find.text('Codice non valido o scaduto'), findsOneWidget);
@@ -158,7 +179,8 @@ void main() {
     // Senza rete il codice può essere ancora buono: non se ne chiede un altro.
     api.completeRecoveryFailure = AccountFailure.network;
     await tapKey(tester, 'recovery-submit');
-    expect(find.text('WonderFlix non è raggiungibile. Controlla la connessione.'),
+    expect(
+        find.text('WonderFlix non è raggiungibile. Controlla la connessione.'),
         findsOneWidget);
     expect(find.text('Cambio non riuscito: chiedi un nuovo codice'),
         findsNothing);
@@ -174,7 +196,8 @@ void main() {
 
     await tester.enterText(find.byKey(const Key('recovery-code')), '012345');
     await tester.enterText(find.byKey(const Key('recovery-new')), 'nuova123');
-    await tester.enterText(find.byKey(const Key('recovery-confirm')), 'nuova123');
+    await tester.enterText(
+        find.byKey(const Key('recovery-confirm')), 'nuova123');
     await tapKey(tester, 'recovery-submit');
 
     expect(session.loginAttempts, [('garg', 'nuova123')]);
@@ -187,7 +210,8 @@ void main() {
     await tapKey(tester, 'recovery-send');
     await tester.enterText(find.byKey(const Key('recovery-code')), '012345');
     await tester.enterText(find.byKey(const Key('recovery-new')), 'nuova123');
-    await tester.enterText(find.byKey(const Key('recovery-confirm')), 'nuova123');
+    await tester.enterText(
+        find.byKey(const Key('recovery-confirm')), 'nuova123');
 
     api.gate = Completer<void>();
     await tapKey(tester, 'recovery-submit');
@@ -208,10 +232,28 @@ void main() {
     await tapKey(tester, 'recovery-send');
     await tester.enterText(find.byKey(const Key('recovery-code')), '012345');
     await tester.enterText(find.byKey(const Key('recovery-new')), 'nuova123');
-    await tester.enterText(find.byKey(const Key('recovery-confirm')), 'nuova123');
+    await tester.enterText(
+        find.byKey(const Key('recovery-confirm')), 'nuova123');
 
     await tapKey(tester, 'recovery-submit');
-    expect(find.text('WonderFlix non è raggiungibile. Controlla la connessione.'),
+    expect(
+        find.text('WonderFlix non è raggiungibile. Controlla la connessione.'),
+        findsOneWidget);
+
+    // La password è già cambiata: restano l'avviso e "ACCEDI", senza campi
+    // da riscrivere (una password nuova sarebbe ignorata) né un codice da
+    // rimandare.
+    expect(find.text('Password cambiata: accedi con quella nuova.'),
+        findsOneWidget);
+    expect(find.byKey(const Key('recovery-code')), findsNothing);
+    expect(find.byKey(const Key('recovery-new')), findsNothing);
+    expect(find.byKey(const Key('recovery-confirm')), findsNothing);
+    expect(find.byKey(const Key('resend-code')), findsNothing);
+    expect(find.byKey(const Key('recovery-back')), findsOneWidget);
+    expect(
+        find.descendant(
+            of: find.byKey(const Key('recovery-submit')),
+            matching: find.text('ACCEDI')),
         findsOneWidget);
 
     // Il codice è già usato: il secondo tentativo non lo rimanda.
@@ -219,6 +261,79 @@ void main() {
     expect(api.recoveryCompletes, hasLength(1));
     expect(session.loginAttempts,
         [('garg', 'nuova123'), ('garg', 'nuova123')]);
+  });
+
+  testWidgets('con un accesso in volo "Password dimenticata?" è spento',
+      (tester) async {
+    await pumpLogin(tester);
+    session.loginGate = Completer<void>();
+    await tester.enterText(find.byKey(const Key('login-username')), 'garg');
+    await tester.enterText(find.byKey(const Key('login-password')), 'x');
+    await tapKey(tester, 'login-submit');
+
+    TextButton forgot() =>
+        tester.widget<TextButton>(find.byKey(const Key('login-forgot')));
+    expect(forgot().onPressed, isNull);
+    await tapKey(tester, 'login-forgot');
+    expect(find.text('Recupera la password'), findsNothing);
+
+    session.loginGate!.complete();
+    await tester.pump();
+    expect(forgot().onPressed, isNotNull);
+  });
+
+  testWidgets('senza supportUrl il link c\'è, "Scrivi all\'admin" no',
+      (tester) async {
+    await pumpLogin(tester, supportUrl: false);
+
+    expect(find.byKey(const Key('login-forgot')), findsOneWidget);
+    expect(find.text("Scrivi all'admin"), findsNothing);
+
+    await openRecovery(tester);
+    expect(find.text('Recupera la password'), findsOneWidget);
+    expect(find.text("Scrivi all'admin"), findsNothing);
+    expect(find.text('Nessun contatto collegato?'), findsNothing);
+
+    await tapKey(tester, 'recovery-send');
+    expect(find.byKey(const Key('recovery-code')), findsOneWidget);
+    expect(find.text("Scrivi all'admin"), findsNothing);
+  });
+
+  testWidgets('primo passo senza rete: avviso, e si resta al primo passo',
+      (tester) async {
+    await pumpLogin(tester);
+    await openRecovery(tester);
+
+    api.startRecoveryFailure = AccountFailure.network;
+    await tapKey(tester, 'recovery-send');
+
+    expect(
+        find.text('WonderFlix non è raggiungibile. Controlla la connessione.'),
+        findsOneWidget);
+    expect(find.byKey(const Key('recovery-send')), findsOneWidget);
+    expect(find.byKey(const Key('recovery-code')), findsNothing);
+  });
+
+  testWidgets('password troppo corta per il server: errore sotto il campo',
+      (tester) async {
+    await pumpLogin(tester);
+    await openRecovery(tester);
+    await tapKey(tester, 'recovery-send');
+
+    await tester.enterText(find.byKey(const Key('recovery-code')), '012345');
+    await tester.enterText(find.byKey(const Key('recovery-new')), 'nuova123');
+    await tester.enterText(
+        find.byKey(const Key('recovery-confirm')), 'nuova123');
+    api.completeRecoveryFailure = AccountFailure.weakPassword;
+    await tapKey(tester, 'recovery-submit');
+
+    expect(
+        find.descendant(
+            of: find.byKey(const Key('recovery-new')),
+            matching: find.text('Almeno 6 caratteri')),
+        findsOneWidget);
+    expect(api.recoveryCompletes, hasLength(1));
+    expect(session.loginAttempts, isEmpty);
   });
 
   testWidgets('Rimanda dopo 60 s chiede un codice nuovo', (tester) async {

@@ -49,7 +49,8 @@ void main() {
         serverEventsBindingProvider.overrideWithValue(null),
         imageBuilderProvider
             .overrideWithValue((image, fit) => const SizedBox.shrink()),
-        ...socialTestOverrides(api, features: const SocialFeatures(inbox: true)),
+        ...socialTestOverrides(api,
+            features: const SocialFeatures(inbox: true)),
       ],
       retry: (_, _) => null,
       child: MaterialApp.router(
@@ -76,8 +77,8 @@ void main() {
 
     expect(find.text('Proteggi il tuo account'), findsOneWidget);
     expect(
-        find.text(
-            'Collega la tua email per recuperare la password se la dimentichi.'),
+        find.text('Collega la tua email per recuperare la password se la '
+            'dimentichi.'),
         findsOneWidget);
 
     await tester.tap(find.text('Proteggi il tuo account'));
@@ -93,8 +94,8 @@ void main() {
         'Collega Discord per recuperare la password se la dimentichi.');
     expect(inboxContactReminderText(l, const [AccountChannel.email]),
         'Collega la tua email per recuperare la password se la dimentichi.');
-    const both =
-        'Collega Discord o la tua email per recuperare la password se la dimentichi.';
+    const both = 'Collega Discord o la tua email per recuperare la password '
+        'se la dimentichi.';
     expect(
         inboxContactReminderText(
             l, const [AccountChannel.discord, AccountChannel.email]),

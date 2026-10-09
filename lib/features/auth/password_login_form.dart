@@ -106,7 +106,9 @@ class _PasswordLoginFormState extends ConsumerState<PasswordLoginForm> {
               if (widget.onForgotPassword case final onForgot?)
                 TextButton(
                   key: const Key('login-forgot'),
-                  onPressed: () => onForgot(_username.text),
+                  // Spento durante un accesso: il recupero smonterebbe il
+                  // modulo e un errore o l'ingresso andrebbero persi.
+                  onPressed: _busy ? null : () => onForgot(_username.text),
                   child: Text(l.loginForgotPassword),
                 ),
               if (supportUrl != null)

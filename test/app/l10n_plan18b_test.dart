@@ -25,7 +25,9 @@ void main() {
         'un codice su Discord o per email.');
     expect(it.recoveryTooMany,
         "Troppi tentativi: riprova tra un'ora o contatta l'amministratore");
+    expect(it.recoveryChanged, 'Password cambiata: accedi con quella nuova.');
     expect(it.inboxContactReminderTitle, 'Proteggi il tuo account');
+    expect(en.recoveryChanged, 'Password changed: sign in with the new one.');
     expect(en.settingsChangePassword, 'Change password');
     expect(en.accountResendIn(42), 'Resend in 42 s');
     expect(en.inboxContactReminderTitle, 'Protect your account');

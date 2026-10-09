@@ -13,6 +13,10 @@ class FakeSessionController extends SessionController {
   int restoreCalls = 0;
   int logoutCalls = 0;
   final loginAttempts = <(String, String)>[];
+
+  /// Se c'è, [loginWithPassword] aspetta che si completi, dopo aver
+  /// registrato il tentativo: l'accesso resta in volo.
+  Completer<void>? loginGate;
   JellyfinUser? approvedUser;
   int refreshUserCalls = 0;
 
@@ -45,6 +49,8 @@ class FakeSessionController extends SessionController {
   @override
   Future<void> loginWithPassword(String username, String password) async {
     loginAttempts.add((username, password));
+    // Senza `loginGate` non si aspetta niente: il tempo dei test non cambia.
+    if (loginGate case final gate?) await gate.future;
     final error = loginError;
     if (error != null) throw error;
     state = SessionSignedIn(JellyfinUser(id: 'u1', name: username));
