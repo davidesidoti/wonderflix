@@ -49,6 +49,15 @@ class _RemoteImageCardState extends State<RemoteImageCard> {
   bool _hover = false;
 
   @override
+  void didUpdateWidget(RemoteImageCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Se il clic sparisce con il mouse sopra, il MouseRegion se ne va e
+    // `onExit` non arriva mai: `_hover` resterebbe vero, e la card
+    // tornerebbe cliccabile con il bordo oro anche a mouse lontano.
+    if (widget.onTap == null) _hover = false;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final onTap = widget.onTap;
     final subtitle = widget.subtitle;
@@ -64,11 +73,7 @@ class _RemoteImageCardState extends State<RemoteImageCard> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                  // Se il clic sparisce con il mouse sopra, `onExit` non
-                  // arriva (il MouseRegion se ne va): `_hover` resterebbe vero.
-                  color: _hover && onTap != null
-                      ? WfColors.gold
-                      : Colors.transparent,
+                  color: _hover ? WfColors.gold : Colors.transparent,
                   width: 2),
             ),
             child: ClipRRect(

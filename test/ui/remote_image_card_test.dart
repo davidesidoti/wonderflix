@@ -89,5 +89,13 @@ void main() {
     onTap.value = null;
     await tester.pump();
     expect(borderColor(), Colors.transparent);
+
+    // Il mouse se ne va mentre la card non si clicca; quando torna
+    // cliccabile non c'è niente sopra: il bordo non è più oro.
+    await gesture.moveTo(const Offset(1400, 800));
+    await tester.pump();
+    onTap.value = () {};
+    await tester.pump();
+    expect(borderColor(), Colors.transparent);
   });
 }
