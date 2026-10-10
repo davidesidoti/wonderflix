@@ -40,21 +40,6 @@ La v1.0.0 è la prima release per gli amici. Raccoglierebbe:
 - prima esecuzione e richiesta d'accesso, firma del codice;
 - i punti aperti minori: menu delle modalità con testo ingrandito, attese di 2 s senza indicatore, nome del gruppo che non cambia con il titolo, remux che risulta "Transcode", `WriteFile` sincrono sulla pipe di Discord.
 
-## 5. Recupero e cambio della password
-
-Oggi cambiare o ripristinare la password di un utente è complicato: serve un sistema di recupero che funzioni davvero.
-- **Oggi:**
-  - nell'app "Password dimenticata?" porta solo al link di supporto (`supportUrl`, "Contatta l'amministratore"), e non c'è un modo di cambiare la propria password;
-  - il "Password dimenticata" di jellyfin-web scrive un PIN in un file sul server (`passwordreset*.json` nella cartella dei dati), valido 30 minuti, che solo chi entra nel server può leggere. Al 2026-10-08 ce n'erano 5, da maggio a ottobre, tutti scaduti;
-  - la password la cambia l'utente dal suo profilo in jellyfin-web, oppure l'admin dalla Dashboard, che poi deve farla avere all'utente.
-- **Da cercare:**
-  - il cambio della propria password dall'app (con quella attuale), e il reset di un utente dalla pagina Amministrazione;
-  - un recupero senza passare dall'admin: un codice mandato dal plugin su Discord o per email, un link di reset, oppure il PIN di Jellyfin mostrato all'admin nell'app (cassetta, Amministrazione) invece che in un file;
-  - dove tenere il contatto di ogni utente (email, Discord) e come verificarlo;
-  - sicurezza: limite ai tentativi, scadenza dei codici, non rivelare se un account esiste;
-  - cosa succede dopo il cambio ai token degli altri dispositivi e ai profili salvati di WonderFlix.
-- **Da chiarire:** se bastano il cambio dall'app e un reset fatto dall'admin dall'app, o se serve un recupero in autonomia, e con quale canale.
-
 ## Fatte
 
 - Spec D — rinnovo del player (app 0.4.0).
@@ -65,3 +50,4 @@ Oggi cambiare o ripristinare la password di un utente è complicato: serve un si
 - Spec I — richieste con Seerr (plugin 1.4.0, app 0.9.0).
 - Spec J — dashboard admin (app 0.10.0).
 - Spec K — saghe e profili (plugin 1.5.0, app 0.11.0).
+- Spec L — recupero e cambio della password (plugin 1.6.0, app 0.12.0).
