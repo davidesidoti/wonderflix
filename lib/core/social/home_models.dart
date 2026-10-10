@@ -1,0 +1,144 @@
+import '../jellyfin/json_fields.dart';
+
+/// Perché il plugin non ha dato le uscite (spec M §7.4). I codici arrivano
+/// in PascalCase.
+enum UpcomingError {
+  notConfigured('NotConfigured'),
+  unauthorized('Unauthorized'),
+  unreachable('Unreachable');
+
+  const UpcomingError(this.wire);
+
+  final String wire;
+
+  /// `null` senza errore (Jellyfin può non scrivere il campo); un codice
+  /// sconosciuto vale come irraggiungibile.
+  static UpcomingError? parse(Object? raw) {
+    if (raw is! String || raw.isEmpty) return null;
+    for (final error in values) {
+      if (error.wire == raw) return error;
+    }
+    return unreachable;
+  }
+}
+
+/// Le uscite di Sonarr o Radarr come le dà il plugin (spec M §7.3): con un
+/// errore l'elenco è vuoto.
+class UpcomingPage<T> {
+  const UpcomingPage({this.items = const [], this.error});
+
+  factory UpcomingPage.fromJson(Map<String, dynamic> json,
+          T? Function(Map<String, dynamic> json) parse) =>
+      UpcomingPage(
+        items: json['Items'] is List ? jsonList(json['Items'], parse) : const [],
+        error: UpcomingError.parse(json['Error']),
+      );
+
+  final List<T> items;
+  final UpcomingError? error;
+}
+
+/// Un episodio in arrivo, o un blocco di episodi usciti insieme (spec M
+/// §7.3): [lastEpisodeNumber] c'è solo per un blocco.
+class UpcomingEpisode {
+  const UpcomingEpisode({
+    required this.seriesName,
+    required this.seasonNumber,
+    required this.episodeNumber,
+    required this.airDate,
+    this.lastEpisodeNumber,
+    this.episodeTitle,
+    this.tvdbId,
+    this.tmdbId,
+    this.posterUrl,
+    this.backdropUrl,
+    this.jellyfinSeriesId,
+  });
+
+  /// `null` senza nome della serie, numeri o una data valida: la voce si
+  /// scarta.
+  static UpcomingEpisode? fromJson(Map<String, dynamic> json) {
+    final name = jsonString(json, 'SeriesName');
+    final season = jsonInt(json, 'SeasonNumber');
+    final episode = jsonInt(json, 'EpisodeNumber');
+    final airDate = jsonDate(json, 'AirDateUtc');
+    if (name == null || season == null || episode == null || airDate == null) {
+      return null;
+    }
+    return UpcomingEpisode(
+      seriesName: name,
+      seasonNumber: season,
+      episodeNumber: episode,
+      airDate: airDate,
+      lastEpisodeNumber: jsonInt(json, 'LastEpisodeNumber'),
+      episodeTitle: jsonString(json, 'EpisodeTitle'),
+      tvdbId: jsonInt(json, 'TvdbId'),
+      tmdbId: jsonInt(json, 'TmdbId'),
+      posterUrl: _webAddress(json, 'PosterUrl'),
+      backdropUrl: _webAddress(json, 'BackdropUrl'),
+      jellyfinSeriesId: jsonString(json, 'JellyfinSeriesId'),
+    );
+  }
+
+  final String seriesName;
+  final int seasonNumber;
+  final int episodeNumber;
+  final int? lastEpisodeNumber;
+  final String? episodeTitle;
+
+  /// Uscita, in UTC.
+  final DateTime airDate;
+  final int? tvdbId;
+  final int? tmdbId;
+  final String? posterUrl;
+  final String? backdropUrl;
+
+  /// La serie di Jellyfin, solo se l'utente la vede.
+  final String? jellyfinSeriesId;
+}
+
+/// Un film in arrivo (spec M §7.3).
+class UpcomingMovie {
+  const UpcomingMovie({
+    required this.title,
+    required this.tmdbId,
+    required this.digitalRelease,
+    this.year,
+    this.posterUrl,
+    this.backdropUrl,
+  });
+
+  /// `null` senza titolo, id TMDB o data d'uscita: la voce si scarta.
+  static UpcomingMovie? fromJson(Map<String, dynamic> json) {
+    final title = jsonString(json, 'Title');
+    final tmdbId = jsonInt(json, 'TmdbId');
+    final release = jsonDate(json, 'DigitalRelease');
+    if (title == null || tmdbId == null || release == null) return null;
+    return UpcomingMovie(
+      title: title,
+      tmdbId: tmdbId,
+      digitalRelease: release,
+      year: jsonInt(json, 'Year'),
+      posterUrl: _webAddress(json, 'PosterUrl'),
+      backdropUrl: _webAddress(json, 'BackdropUrl'),
+    );
+  }
+
+  final String title;
+  final int? year;
+  final int tmdbId;
+
+  /// Uscita digitale: una data di calendario, a mezzanotte UTC.
+  final DateTime digitalRelease;
+  final String? posterUrl;
+  final String? backdropUrl;
+}
+
+/// Solo indirizzi http(s) completi: un'immagine non si chiede a un
+/// indirizzo qualunque.
+String? _webAddress(Map<String, dynamic> json, String key) {
+  final value = jsonString(json, key);
+  final uri = value == null ? null : Uri.tryParse(value);
+  if (uri == null || uri.host.isEmpty) return null;
+  return uri.scheme == 'https' || uri.scheme == 'http' ? value : null;
+}
