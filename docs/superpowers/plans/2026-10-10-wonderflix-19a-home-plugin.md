@@ -37,6 +37,20 @@ Gli adattatori stanno in `Server/` (`PluginHomeLayoutStore`, `PluginArrSettings`
 9. **La prova del collegamento** chiama solo `system/status` di ciascun servizio, in parallelo e senza cache.
 10. **Configurazione sul server via API di Jellyfin** (Task 8): si rilegge la configurazione intera, si aggiungono i campi e si riscrive, come fa l'app con `NotifyNewTitles`. Niente modifica dell'XML a mano.
 11. **Rilascio:** il plugin 1.7.0 va nel Catalogo alla fine del 19c, con l'app 0.13.0. Fino ad allora sul server resta la build di prova del Task 8; l'app 0.12 non usa le funzioni nuove.
+12. **Dalle review dei gruppi** (il codice dei task sotto è quello di partenza: dove differisce, vale questa lista, e la spec è già allineata):
+    - **Task 4:** `JellyfinSeriesIndex.GetSeries()` ordina le serie per `Id` (`.OrderBy(series => series.Id)` prima di `.ToList()`). Nel test gli id sono fissi e lo stub le restituisce in ordine inverso, così l'ordinamento si vede davvero; l'atteso è ordinato per id.
+      - Perché (ruling del controller, dalla review del Task 3): `MatchSeries` tiene l'ordine della libreria e per ogni utente decide "la prima che vede" (decisione 4);
+      - senza un ordine stabile, con due serie uguali (per esempio in due librerie) il collegamento di un utente potrebbe passare dall'una all'altra a ogni nuova lettura di Sonarr, cioè al massimo ogni 15 minuti.
+    - **Task 5:** `UpcomingServiceTests.cs` ha bisogno di `using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;`: `ArrTestResult` è lì (le altre risposte si usano con `var`).
+    - **Task 7:** `ServiceRegistrationTests` costruisce con `ActivatorUtilities.CreateInstance` anche `InfoController`, `HomeController` e `UpcomingController` (ruling del controller, dalla review del Task 6; è il modo già usato per i controller dell'account).
+      - Perché: `InfoController` ora vuole `IArrSettings`, e una registrazione mancante romperebbe `GET Info` per ogni app senza che i test unitari se ne accorgano.
+    - **Review finale** (commit `1c1741a`; la suite passa da 806 a 810 test):
+      - **la prova controlla l'app** (`UpcomingService.TestOneAsync`): se `appName` di `system/status` non è quello atteso (senza badare alle maiuscole; un nome mancante vale un'altra app) dà `Unreachable`, e il log dice chi ha risposto. Con gli indirizzi scambiati (Sonarr dove va Radarr) lo stato risponde lo stesso: la prova diceva "collegato" e le due righe restavano vuote in silenzio. La decisione 9 vale con questo controllo in più;
+      - **`Cached` riusa una lettura finita solo se `IsCompletedSuccessfully`**: se anche il registro lanciava nel `catch` della lettura, questa finiva in errore con scadenza `MaxValue` e ogni richiesta con le stesse impostazioni riceveva l'eccezione, per sempre (un caso che la decisione 6 non copriva: l'eccezione veniva dal registro stesso);
+      - **la Dashboard** scrive "unknown version" se lo stato non ha la versione, non "connected (null)" (`arrText` in `configPage.html`; `PluginPagesTests` controlla il testo);
+      - **un test in più**, `AnEpisodeOutLastNightIsStillUpcoming`: un episodio uscito 11 ore fa c'è ancora, uno di 13 ore fa no;
+      - **l'ordine:** la review finale e questi ritocchi sono stati fatti **prima** dell'installazione sul server (Task 8), non dopo come scriveva il Task 8: si installa il codice già rivisto, con un solo riavvio di Jellyfin.
+    - **Task 8:** la copia della configurazione si chiama `~/wfwp-backup/config-1.6.0-prima-19a.xml` (il piano diceva `config-1.6.0.xml`).
 
 ## Global Constraints
 

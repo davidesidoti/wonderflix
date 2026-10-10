@@ -1,7 +1,7 @@
 # WonderFlix — Spec M: Home su misura
 
 - **Data:** 2026-10-10
-- **Stato:** approvata il 2026-10-10; piani da scrivere (19a, 19b, 19c, §15).
+- **Stato:** approvata il 2026-10-10; piano 19a realizzato (`docs/superpowers/plans/2026-10-10-wonderflix-19a-home-plugin.md`), plugin 1.7.0 installato come build di prova sul server il 2026-10-10; piani 19b e 19c da scrivere.
 - **Ambito:** Spec M. Realizza l'idea 15 di `docs/IDEE.md` ("Home su misura"): porta nella Home di WonderFlix le righe che l'utente ha già su jellyfin-web con il plugin Home Screen Sections e va oltre. L'admin sceglie righe e ordine per tutti; ogni utente le sposta e le nasconde per sé; in più "Continua la saga" e "Cosa guardo stasera?".
 
 ## 1. Obiettivo
@@ -154,45 +154,65 @@ Nuova sezione "Sonarr e Radarr" in `configPage.html` e in `PluginConfiguration`:
 
 | Campo | Predefinito | Note |
 |---|---|---|
-| `SonarrUrl` | vuoto | senza "/" finale, con l'UrlBase (`…/sonarr`) |
+| `SonarrUrl` | vuoto | con l'UrlBase (`…/sonarr`); il plugin toglie gli spazi e il "/" finale |
 | `SonarrApiKey` | vuoto | |
 | `RadarrUrl` | vuoto | come Sonarr |
 | `RadarrApiKey` | vuoto | |
-| `UpcomingSeriesDays` | 7 | da 1 a 60 |
-| `UpcomingMoviesDays` | 90 | da 1 a 365 |
+| `UpcomingSeriesDays` | 7 | da 1 a 60; un valore fuori limite vale il limite più vicino |
+| `UpcomingMoviesDays` | 90 | da 1 a 365; un valore fuori limite vale il limite più vicino |
 
-Sonarr è "configurato" con indirizzo e chiave; lo stesso per Radarr. Al salvataggio della configurazione la cache di §7.4 si svuota.
+- Sonarr è "configurato" con indirizzo e chiave (senza spazi ai lati); lo stesso per Radarr.
+- La cache di §7.4 è legata a indirizzo, chiave e giorni: una modifica vale dalla richiesta dopo, senza aspettare i 15 minuti. Salvare la Dashboard senza cambiare questi campi non la svuota: scade dopo 15 minuti.
+- La sezione ha anche "Test connection" (`Upcoming/Test`, §7.5), che usa le impostazioni salvate: prima si salva. Il testo della pagina è in inglese, come il resto della Dashboard.
 
 ### 7.2 Home dell'admin
 
-- In `PluginConfiguration`: `HomeRows`, elenco di id (`null` = mai impostato).
-- `GET WonderFlixWatchParty/Home/Layout` (ogni utente collegato): `{ "Rows": ["resume", …] }` oppure `{ "Rows": null }`.
-- `POST WonderFlixWatchParty/Home/Layout` (solo admin), corpo `{ "Rows": [...] | null }`: scarta gli id sconosciuti e i doppioni, salva e risponde con la Home salvata. `null` torna all'ordine predefinito.
-- Gli id conosciuti sono quelli di §6.1, in una costante del plugin.
+- In `PluginConfiguration`: `HomeRows`, una stringa di id separati da virgole (`null` = mai impostata, vuota = tutte le righe spente).
+  - È una stringa e non un elenco perché con XmlSerializer solo così `null` e vuoto restano diversi.
+  - Non c'è nella pagina della Dashboard: la imposta solo l'app, e la pagina la conserva quando salva.
+- `GET WonderFlixWatchParty/Home/Layout` (ogni utente collegato): `{ "Rows": ["resume", …] }`, oppure `{ "Rows": [] }` con tutte le righe spente.
+  - Mai impostata: `Rows` è `null`, ma Jellyfin non scrive i campi null e la risposta è `{}` (visto sul server il 2026-10-10). Chi legge tratta un `Rows` mancante come `null` (§8.1).
+- `POST WonderFlixWatchParty/Home/Layout` (solo admin), corpo `{ "Rows": [...] | null }`: scarta gli id sconosciuti, i doppioni, i `null` e quelli scritti con le maiuscole diverse (`"Resume"` non vale), salva e risponde con la Home salvata. `null`, o un corpo senza `Rows`, torna all'ordine predefinito.
+  - Senza corpo risponde 400 e non salva niente.
+- Gli id conosciuti sono quelli di §6.1, in una costante del plugin (`HomeRowIds.Known`).
 
 ### 7.3 `Upcoming`
 
-- **`GET WonderFlixWatchParty/Upcoming/Series`** → `{ "Items": [...], "Error": null | "notConfigured" | "unreachable" | "unauthorized" }`.
+- **`GET WonderFlixWatchParty/Upcoming/Series`** → `{ "Items": [...], "Error": null | "NotConfigured" | "Unreachable" | "Unauthorized" }`.
+  - I codici sono in PascalCase, come nel resto del plugin (`SeerrTestResponse`). I campi null possono mancare, come in §7.2 (per esempio `Error` quando va tutto bene).
   - Chiede a Sonarr gli episodi da **ora − 12 ore** a **ora + `UpcomingSeriesDays`**, solo seguiti (`unmonitored=false`), e tiene quelli con `hasFile = false`. Le 12 ore tengono gli episodi usciti stanotte e non ancora scaricati.
+  - Il periodo è `[da, a)`: l'istante finale è escluso.
+  - Si saltano gli elementi `null` e quelli senza serie, senza nome della serie o senza `airDateUtc`: un dato sporco di Sonarr non dà mai un errore.
   - Episodi della stessa serie e stagione, con numeri consecutivi e lo stesso `airDateUtc` (le uscite in blocco), diventano una voce sola.
-  - Ogni voce: `SeriesName`, `SeasonNumber`, `EpisodeNumber`, `LastEpisodeNumber` (solo per un gruppo), `EpisodeTitle` (solo per un episodio singolo), `AirDateUtc`, `TvdbId`, `TmdbId` (`null` se Sonarr non lo sa o è 0), `PosterUrl`, `BackdropUrl` (`remoteUrl` di `poster` e `fanart`), `JellyfinSeriesId`.
-  - `JellyfinSeriesId`: la serie di Jellyfin con lo stesso id TVDB, TMDB o IMDb, **solo se chi chiama la vede**; altrimenti `null`.
-  - In ordine di `AirDateUtc`.
+  - Ogni voce: `SeriesName`, `SeasonNumber`, `EpisodeNumber`, `LastEpisodeNumber` (solo per un gruppo), `EpisodeTitle` (solo per un episodio singolo, se Sonarr lo dà), `AirDateUtc`, `TvdbId`, `TmdbId` (`null` se Sonarr non li sa o sono 0), `PosterUrl`, `BackdropUrl` (`remoteUrl` di `poster` e `fanart`), `JellyfinSeriesId`.
+  - `JellyfinSeriesId` (id di Jellyfin in formato `N`): la serie di Jellyfin con lo stesso id TVDB, TMDB o IMDb (senza badare alle maiuscole), **solo se chi chiama la vede**; altrimenti `null`.
+    - Se la libreria ha più serie per la stessa uscita (per esempio in due librerie), per ogni utente vale la prima che vede, in ordine di id.
+    - L'ordine è sempre lo stesso: il collegamento di un utente non cambia da una lettura all'altra.
+  - In ordine di `AirDateUtc`, poi di nome della serie (senza badare alle maiuscole), stagione ed episodio.
 - **`GET WonderFlixWatchParty/Upcoming/Movies`** → stessa forma.
-  - Chiede a Radarr i film da **oggi** (00:00 UTC) a **oggi + `UpcomingMoviesDays`**, solo seguiti, e tiene quelli con `hasFile = false` e `digitalRelease` nel periodo.
-  - Ogni voce: `Title`, `Year`, `TmdbId`, `DigitalRelease`, `PosterUrl`, `BackdropUrl`.
-  - In ordine di `DigitalRelease`.
-- **Immagini:** solo `remoteUrl` (TMDB, TVDB, Fanart: indirizzi pubblici). Mai l'indirizzo locale di Sonarr (`/MediaCover/…`), che vuole la chiave.
+  - Chiede a Radarr i film da **oggi** (00:00 UTC) a **oggi + `UpcomingMoviesDays` + 1 giorno** (escluso), così "entro 90 giorni" comprende il novantesimo giorno. Solo seguiti; tiene quelli con `hasFile = false` e `digitalRelease` nel periodo.
+  - Si saltano anche i film `null`, senza titolo o senza `tmdbId`.
+  - Ogni voce: `Title`, `Year` (`null` se Radarr dà 0), `TmdbId`, `DigitalRelease`, `PosterUrl`, `BackdropUrl`.
+  - In ordine di `DigitalRelease`, poi di titolo.
+- **Immagini:** solo `remoteUrl` assoluti `http` o `https` (TMDB, TVDB, Fanart: indirizzi pubblici). Mai l'indirizzo locale di Sonarr (`/MediaCover/…`), che vuole la chiave, né altri schemi. Senza un'immagine valida il campo è `null`.
 
 ### 7.4 Cache ed errori
 
-- La risposta di Sonarr e quella di Radarr, già filtrate, restano in memoria **15 minuti**, uguali per tutti; l'`JellyfinSeriesId` si aggiunge per ogni utente dopo la cache. Due richieste insieme a cache vuota fanno una sola chiamata.
+- La risposta di Sonarr e quella di Radarr, già filtrate, restano in memoria **15 minuti**, uguali per tutti; il `JellyfinSeriesId` si sceglie per ogni utente dopo la cache.
+  - La cache è legata alle impostazioni (indirizzo, chiave e giorni di quel servizio): se cambiano, la richiesta dopo rilegge, senza aspettare i 15 minuti. Se l'admin corregge un indirizzo sbagliato, vale subito il nuovo, non l'errore in cache.
+  - Una sola lettura per tutti, anche con molte richieste insieme. La lettura non usa il token di chi chiede: se uno chiude la richiesta, gli altri hanno la risposta lo stesso.
+  - Le serie di Jellyfin si leggono una volta per lettura (tutte, senza guardare l'utente). Se non si leggono, le uscite restano senza `JellyfinSeriesId` per tutta la durata di quella lettura in cache.
 - Un errore resta in cache **1 minuto**, per non insistere su un servizio fermo.
-- Codici: `notConfigured` (manca indirizzo o chiave), `unauthorized` (401/403), `unreachable` (rete, tempo scaduto dopo 10 s, 404, 5xx, risposta non JSON). Con un errore `Items` è vuoto e la risposta è 200, come il resto del plugin. L'errore va nel log del plugin.
+  - Anche un errore inatteso (non di Sonarr o Radarr) vale `Unreachable` per 1 minuto e va nel log: la cache non resta mai su un'eccezione.
+- Codici: `NotConfigured` (manca indirizzo o chiave), `Unauthorized` (401/403), `Unreachable` (rete, tempo scaduto dopo 10 s, 404, 5xx, redirect, risposta non JSON, indirizzo non valido). Con un errore `Items` è vuoto e la risposta è 200, come il resto del plugin. L'errore va nel log del plugin.
 
 ### 7.5 Prova del collegamento
 
-`POST WonderFlixWatchParty/Upcoming/Test` (solo admin): chiama `system/status` di Sonarr e di Radarr, senza cache, e risponde `{ "Sonarr": { "Configured", "Ok", "Version", "Error" }, "Radarr": { … } }`. `Error` usa i codici di §7.4.
+- `POST WonderFlixWatchParty/Upcoming/Test` (solo admin): chiama solo `system/status` di Sonarr e di Radarr, i due servizi in parallelo e senza cache, e risponde `{ "Sonarr": { "Configured", "Ok", "Version", "Error" }, "Radarr": { … } }`. `Error` usa i codici di §7.4.
+- Un servizio non configurato non si chiama: `Configured` è falso e `Error` è `NotConfigured`.
+- La prova controlla anche che risponda l'app giusta (`appName` di `system/status`, senza badare alle maiuscole).
+  - Con gli indirizzi scambiati lo stato risponde lo stesso: senza il controllo la prova direbbe "collegato" e le due righe resterebbero vuote in silenzio.
+  - Un'altra app, o un nome mancante, vale `Unreachable`. Il log dice chi ha risposto, mai l'indirizzo né la chiave.
 
 ### 7.6 `Info` e versione
 
@@ -208,6 +228,8 @@ Sonarr è "configurato" con indirizzo e chiave; lo stesso per Radarr. Al salvata
 - Logica pura per §6.4 (ordine e visibili), testabile da sola.
 - `DisplayPreferencesApi` (Jellyfin): leggere e scrivere `wonderflix-home` / `wonderflix`, cambiando solo `homeRows` e `homeHidden` e lasciando il resto dell'oggetto com'è.
 - Client del plugin: `Home/Layout` (lettura e scrittura), `Upcoming/Series`, `Upcoming/Movies`, `Upcoming/Test`.
+  - I codici d'errore sono in PascalCase (`NotConfigured`, `Unauthorized`, `Unreachable`).
+  - Jellyfin non scrive i campi null: un campo può mancare nella risposta. Per esempio `GET Home/Layout` risponde `{}` se la Home non è mai stata impostata, e `Error` può mancare quando va tutto bene. L'app legge un campo mancante come null.
 - `SocialFeatures`: `home`, `upcomingSeries`, `upcomingMovies`.
 
 ### 8.2 Caricamento della Home
@@ -300,6 +322,8 @@ L'admin ha anche la sua Home personale in Impostazioni → Home, come ogni utent
 ## 9. Sicurezza
 
 - Le chiavi di Sonarr e Radarr restano nel plugin: l'app riceve solo dati filtrati e indirizzi pubblici delle immagini.
+  - Nel registro vanno solo servizio, percorso ed esito: mai la chiave né la query. L'intestazione `X-Api-Key` è oscurata anche nel registro del client HTTP.
+  - Il client HTTP non segue i redirect: la chiave non arriva a un altro indirizzo.
 - `POST Home/Layout` e `POST Upcoming/Test` sono solo per l'admin.
 - `JellyfinSeriesId` rispetta i permessi delle librerie di chi chiama.
 - Le `DisplayPreferences` sono quelle dell'utente collegato.
@@ -362,6 +386,7 @@ L'admin ha anche la sua Home personale in Impostazioni → Home, come ogni utent
 - **Serie senza id TMDB o senza Seerr:** la card non si clicca.
 - **Immagine esterna che non carica:** il segnaposto delle card.
 - **Sonarr o Radarr irraggiungibili:** la riga non c'è; la card admin lo dice alla prova.
+- **Indirizzi scambiati** (quello di Radarr in Sonarr o il contrario): lo stato risponde lo stesso e le righe restano vuote. La prova controlla il nome dell'app e dice `Unreachable` (§7.5), che la card spiega con "controlla l'indirizzo".
 - **Date:** UTC dal plugin, mostrate nel fuso del PC; "Oggi" e "Domani" sul giorno locale.
 - **Profilo cambiato:** la Home si ricompone con le `DisplayPreferences` del nuovo account.
 - **Plugin < 1.7.0 o assente:** ordine predefinito, niente "In arrivo"; senza plugin anche niente richieste e saghe, come oggi.
@@ -370,13 +395,33 @@ L'admin ha anche la sua Home personale in Impostazioni → Home, come ogni utent
 
 ### 12.1 Plugin (xUnit)
 
-- `Home/Layout`: `null`, elenco vuoto, id sconosciuti e doppioni scartati, solo admin per il `POST`.
-- `Upcoming/Series`: filtro `hasFile`, periodo con le 12 ore, raggruppamento "E05–E06" (stesso `airDateUtc`, numeri consecutivi) e non raggruppamento (date diverse, buchi), immagini dai `remoteUrl`, `TmdbId` 0 → `null`, ordine.
-- `JellyfinSeriesId`: trovato per TVDB, TMDB o IMDb; `null` se l'utente non vede la serie.
-- `Upcoming/Movies`: tiene solo uscita digitale nel periodo e non scaricati (es. scaricato con uscita fisica nel periodo → fuori).
-- Cache: due richieste in 15 minuti → una chiamata; errore tenuto 1 minuto; cache svuotata al salvataggio della configurazione.
-- Codici d'errore: mancano dati, 401, 404, tempo scaduto, risposta non JSON.
-- `Upcoming/Test` e funzioni di `Info`.
+Il piano 19a ha portato la suite del plugin da 748 a 810 test, tutti verdi.
+
+- `Home/Layout` (`HomeRowIdsTests`, `HomeControllerTests`, `PluginConfigurationTests`): `null`, elenco vuoto, id sconosciuti, doppioni, `null` e maiuscole diverse scartati, `POST` senza corpo (400), solo admin per il `POST`; `null` e vuoto restano diversi nel file XML.
+- Client di Sonarr e Radarr (`ArrClientTests`, `PluginConfigurationTests`):
+  - la richiesta (periodo, `X-Api-Key`, UrlBase);
+  - i codici d'errore: mancano dati, 401 e 403, 404, redirect, 5xx, tempo scaduto, risposta non JSON o `null`, chiave che non può essere un'intestazione;
+  - nel registro il percorso, mai la chiave né la query;
+  - elementi `null` negli elenchi; indirizzi senza spazi e "/" finale, giorni nei limiti.
+- `Upcoming/Series` (`UpcomingBuilderTests`, `UpcomingServiceTests`):
+  - filtro `hasFile`, periodo `[da, a)` con le 12 ore (un episodio uscito 11 ore fa c'è, uno di 13 ore fa no), serie senza nome ed episodi senza data saltati;
+  - raggruppamento "E05–E06" (stesso `airDateUtc`, numeri consecutivi) e non raggruppamento (date diverse, buchi, un'altra stagione);
+  - immagini solo `http(s)` dai `remoteUrl`, `TmdbId` 0 → `null`, ordine.
+- `Upcoming/Movies` (`UpcomingBuilderTests`, `UpcomingServiceTests`): tiene solo uscita digitale nel periodo e non scaricati (es. scaricato con uscita fisica nel periodo → fuori); senza TMDB o senza titolo → fuori; `Year` 0 → `null`.
+- `JellyfinSeriesId` (`UpcomingBuilderTests`, `UpcomingServiceTests`, `SeriesIndexTests`):
+  - trovato per TVDB, TMDB o IMDb (anche con le maiuscole diverse);
+  - più serie della libreria restano tutte, in ordine di id (`JellyfinSeriesIndex`);
+  - per ogni utente la prima che vede, `null` se non ne vede nessuna;
+  - una libreria che non si legge lascia le uscite senza il collegamento.
+- Cache (`UpcomingServiceTests`):
+  - due richieste in 15 minuti → una chiamata;
+  - impostazioni cambiate → si rilegge;
+  - errore tenuto 1 minuto; errore inatteso → `Unreachable` per 1 minuto;
+  - molte richieste insieme → una lettura, che chi chiude la richiesta non ferma;
+  - una lettura finita in errore non si riusa.
+- `Upcoming/Test` (`UpcomingServiceTests`): senza cache; un'altra app all'indirizzo, o un `appName` mancante, → `Unreachable`.
+- Controller, `Info` e montaggio (`UpcomingControllerTests`, `InfoControllerTests`, `ServiceRegistrationTests`): ogni utente legge, solo l'admin prova il collegamento; le funzioni `home`, `upcomingSeries`, `upcomingMovies` (le ultime due solo se configurati); servizi e controller si costruiscono dal DI.
+- Dashboard (`PluginPagesTests`): la sezione, i campi e le protezioni della pagina.
 
 ### 12.2 App
 
@@ -403,14 +448,27 @@ L'admin ha anche la sua Home personale in Impostazioni → Home, come ogni utent
 
 ## 13. Preparazione
 
-Installando il plugin 1.7.0 sul server (con l'OK dell'utente) si compilano indirizzi (`https://hashvps.proton.usbx.me/sonarr`, `…/radarr`) e chiavi presi dai `config.xml` di Sonarr e Radarr. Nessuna azione dell'utente oltre all'OK.
+Fatta il 2026-10-10 (Task 8 del piano 19a), con l'OK dell'utente e nessuna altra azione sua.
+
+- **Installazione** (verso le 18:03 UTC, con nessuno che guardava): Jellyfin fermato, poi le copie in `~/wfwp-backup/`: il plugin 1.6.0.0 in `1.6.0.0-catalogo` e la configurazione in `config-1.6.0-prima-19a.xml`. Poi la build di prova 1.7.0.0 (dal commit `1c1741a`) e Jellyfin riavviato: "Loaded plugin … 1.7.0.0", nessun errore dei plugin.
+- **Configurazione:** non a mano nell'XML, ma con l'API di configurazione dei plugin di Jellyfin. Si rilegge la configurazione intera, si aggiungono i campi e si riscrive (come fa l'app con `NotifyNewTitles`).
+  - Indirizzi `https://hashvps.proton.usbx.me/sonarr` e `…/radarr`, chiavi prese dai `config.xml` di Sonarr e Radarr, giorni 7 e 90.
+  - Seerr, `ContactReminderDays` e `NotifyNewTitles` come prima; `HomeRows` non impostata.
+- **Controlli dello stesso giorno** (con la chiave API di Jellyfin):
+  - `Info` ha `home`, `upcomingSeries`, `upcomingMovies`;
+  - `Upcoming/Series` dà 8 voci dai 16 episodi (due blocchi), `Upcoming/Movies` 3 film;
+  - `Upcoming/Test` dice collegato per tutti e due (Sonarr 4.0.20.3014, Radarr 6.4.4.10685);
+  - `Home/Layout` risponde `{}`, si scrive, si rilegge e torna a `{}`; senza corpo 400, senza accesso 401;
+  - le chiavi non sono nel registro.
+- **Da vedere ancora:** `JellyfinSeriesId`. Con la chiave API è sempre `null`: serve un utente vero (§14).
 
 ## 14. Rischi e punti da verificare
 
 All'inizio del piano dell'app, sul server vero:
 - un utente **non admin** legge e scrive le sue `DisplayPreferences` con un id e un client nuovi, e il `POST` conserva il resto dell'oggetto;
 - come riconoscere una serie **mai iniziata** dai dati utente (`PlayedPercentage`, `UnplayedItemCount` rispetto al numero di episodi) nella risposta di `Items`;
-- `SortBy=DatePlayed` con film ed episodi insieme, e `SortBy=Random` con i filtri di genere e non visti.
+- `SortBy=DatePlayed` con film ed episodi insieme, e `SortBy=Random` con i filtri di genere e non visti;
+- `JellyfinSeriesId` di `Upcoming/Series` per un utente vero (con la chiave API è sempre `null`, quindi il 2026-10-10 non si è potuto vedere): "American Hostage" e "Brothers" sono in libreria con gli stessi id TVDB e TMDB di due uscite.
 
 Altri rischi:
 - l'indirizzo di Sonarr e Radarr è già cambiato una volta (`vapor` → `proton`): la card admin serve a scoprirlo;
@@ -420,11 +478,11 @@ Altri rischi:
 ## 15. Piani e release
 
 - **Tre piani:**
-  - **19a — plugin 1.7.0:**
+  - **19a — plugin 1.7.0** (realizzato, `docs/superpowers/plans/2026-10-10-wonderflix-19a-home-plugin.md`):
     - Home dell'admin (`Home/Layout`);
     - Sonarr e Radarr: configurazione, client, `Upcoming/Series`, `Upcoming/Movies`, cache, `Upcoming/Test`;
     - funzioni in `Info`, pagina di configurazione, manifest;
-    - installazione sul server come build di prova e configurazione (§13).
+    - installazione sul server come build di prova e configurazione (§13, fatte il 2026-10-10).
   - **19b — app, la Home:**
     - verifiche di §14;
     - `HomeRowKind`, combinazione, `DisplayPreferencesApi`, client del plugin, `SocialFeatures`;
@@ -436,8 +494,9 @@ Altri rischi:
     - "Cosa guardo stasera?";
     - testi it/en rimasti, release.
 - **Release:**
-  - plugin **1.7.0** dal Catalogo (va bene anche con l'app 0.12);
-  - poi app **0.13.0 non obbligatoria**, con le note in italiano nella bozza.
+  - plugin **1.7.0** dal Catalogo alla fine del 19c, insieme all'app 0.13.0: l'app 0.12 non usa le funzioni nuove, quindi non c'è fretta (e il plugin 1.7.0 va bene anche con lei);
+  - fino ad allora sul server resta la build di prova di §13;
+  - app **0.13.0 non obbligatoria**, con le note in italiano nella bozza.
 - **Alla fine**, in `docs/IDEE.md`:
   - l'idea 15 esce dalla lista;
   - tra le fatte entra "Spec M — Home su misura (plugin 1.7.0, app 0.13.0)".
