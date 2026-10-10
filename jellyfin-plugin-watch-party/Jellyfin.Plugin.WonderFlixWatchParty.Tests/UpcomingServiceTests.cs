@@ -290,4 +290,83 @@ public class UpcomingServiceTests
         // Due prove di Sonarr, una sola di Radarr (la seconda volta non è configurato).
         Assert.Equal(3, _client.StatusCalls.Count);
     }
+
+    [Fact]
+    public async Task TheTestFailsWhenAnotherAppAnswersAtTheAddress()
+    {
+        // Indirizzi scambiati: Sonarr risponde al posto di Radarr e viceversa.
+        _client.Status = kind => Task.FromResult(new ArrStatus
+        {
+            AppName = kind == ArrKind.Sonarr ? "Radarr" : "Sonarr",
+            Version = "1.0",
+        });
+
+        var result = await Service().TestAsync(CancellationToken.None);
+
+        Assert.Equal(new ArrTestResult(true, false, null, "Unreachable"), result.Sonarr);
+        Assert.Equal(new ArrTestResult(true, false, null, "Unreachable"), result.Radarr);
+        // Nel registro dice chi ha risposto, mai l'indirizzo o la chiave.
+        Assert.Equal(2, _logger.Entries.Count(e => e.Level == LogLevel.Information));
+        Assert.Contains(_logger.Entries, e => e.Level == LogLevel.Information && e.Message.Contains("Radarr"));
+        Assert.DoesNotContain(
+            _logger.Entries,
+            e => e.Message.Contains(_settings.Sonarr.Url) || e.Message.Contains(_settings.Sonarr.ApiKey));
+    }
+
+    [Fact]
+    public async Task TheTestFailsWhenTheAppNameIsMissingAndIgnoresTheCase()
+    {
+        _client.Status = kind => Task.FromResult(new ArrStatus
+        {
+            AppName = kind == ArrKind.Sonarr ? null : "RADARR",
+            Version = "1.0",
+        });
+
+        var result = await Service().TestAsync(CancellationToken.None);
+
+        Assert.Equal(new ArrTestResult(true, false, null, "Unreachable"), result.Sonarr);
+        Assert.Equal(new ArrTestResult(true, true, "1.0", null), result.Radarr);
+    }
+
+    [Fact]
+    public async Task AFaultedReadIsNotReusedFromTheCache()
+    {
+        // Se anche il registro si rompe, la lettura finisce in errore: la richiesta dopo ci riprova.
+        _client.Episodes = (_, _) => throw new InvalidOperationException("guasto");
+        var service = new UpcomingService(_client, _settings, _index, _server, _time, new ThrowingLogger());
+
+        await Assert.ThrowsAnyAsync<Exception>(() => service.GetSeriesAsync(Guid.Empty, CancellationToken.None));
+        await Assert.ThrowsAnyAsync<Exception>(() => service.GetSeriesAsync(Guid.Empty, CancellationToken.None));
+
+        Assert.Equal(2, _client.EpisodeCalls.Count);
+    }
+
+    [Fact]
+    public async Task AnEpisodeOutLastNightIsStillUpcoming()
+    {
+        var lastNight = Episode(Now.AddHours(-11));
+        lastNight.EpisodeNumber = 5;
+        var tooOld = Episode(Now.AddHours(-13));
+        tooOld.EpisodeNumber = 3;
+        EpisodesAre(tooOld, lastNight);
+
+        var answer = await Service().GetSeriesAsync(Guid.Empty, CancellationToken.None);
+
+        var item = Assert.Single(answer.Items);
+        Assert.Equal(Now.AddHours(-11), item.AirDateUtc);
+        Assert.Equal(5, item.EpisodeNumber);
+    }
+
+    // Un registro che si rompe a ogni voce.
+    private sealed class ThrowingLogger : ILogger<UpcomingService>
+    {
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            throw new InvalidOperationException("registro rotto");
+    }
 }

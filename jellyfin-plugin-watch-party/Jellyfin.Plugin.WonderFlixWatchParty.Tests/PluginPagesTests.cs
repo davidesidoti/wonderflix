@@ -102,6 +102,8 @@ public class PluginPagesTests
         Assert.Contains(" required", TagWithId(html, "WonderFlixUpcomingSeriesDays"));
         Assert.Contains(" required", TagWithId(html, "WonderFlixUpcomingMoviesDays"));
         Assert.Contains("aria-live=\"polite\"", TagWithId(html, "WonderFlixArrResult"));
+        // Uno stato senza versione non diventa "connected (null)".
+        Assert.Contains("result.Version || 'unknown version'", html);
 
         // L'id con cui la pagina legge e salva la configurazione è quello del plugin.
         Assert.Contains(Plugin.PluginId.ToString(), html);

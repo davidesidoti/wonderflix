@@ -615,7 +615,7 @@
                     }
 
                     if (result.Ok) {
-                        return name + ': connected (' + result.Version + ').';
+                        return name + ': connected (' + (result.Version || 'unknown version') + ').';
                     }
 
                     return result.Error === 'Unauthorized'

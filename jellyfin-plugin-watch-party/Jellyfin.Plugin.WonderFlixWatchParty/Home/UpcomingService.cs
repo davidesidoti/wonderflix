@@ -91,6 +91,17 @@ public sealed class UpcomingService(
         try
         {
             var status = await client.GetStatusAsync(kind, cancellationToken).ConfigureAwait(false);
+
+            // Con gli indirizzi scambiati (Sonarr dove va Radarr) lo stato risponde lo stesso:
+            // senza guardare chi risponde la prova direbbe "collegato" e le due righe resterebbero
+            // vuote in silenzio. Un nome mancante vale come un'altra app.
+            if (!string.Equals(status.AppName, kind.ToString(), StringComparison.OrdinalIgnoreCase))
+            {
+                logger.LogInformation(
+                    "Prova di {Kind}: all'indirizzo risponde {AppName}", kind, status.AppName ?? "un'app senza nome");
+                return new ArrTestResult(true, false, null, UpcomingErrors.Unreachable);
+            }
+
             return new ArrTestResult(true, true, status.Version, null);
         }
         catch (ArrException ex)
@@ -180,14 +191,17 @@ public sealed class UpcomingService(
 
     /// <summary>
     /// La lettura in cache se è per le stesse impostazioni e non è scaduta
-    /// (una in corso vale sempre); altrimenti una nuova, una sola anche con
-    /// più richieste insieme. La lettura non usa il token di chi chiede.
+    /// (una in corso vale sempre, una finita in errore mai); altrimenti una
+    /// nuova, una sola anche con più richieste insieme. La lettura non usa il
+    /// token di chi chiede.
     /// </summary>
     private Task<Fetched<T>> Cached<T>(Slot<T> slot, string key, Func<Task<Fetched<T>>> fetch)
     {
         lock (_lock)
         {
-            if (slot.Read is { } read && slot.Key == key && (!read.IsCompleted || time.GetUtcNow() < slot.ExpiresAt))
+            // Una lettura finita in errore (es. il registro che si rompe nel catch) non ha scadenza: non si riusa.
+            if (slot.Read is { } read && slot.Key == key
+                && (!read.IsCompleted || (read.IsCompletedSuccessfully && time.GetUtcNow() < slot.ExpiresAt)))
             {
                 return read;
             }
