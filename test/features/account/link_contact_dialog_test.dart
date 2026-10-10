@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/app/providers.dart';
+import 'package:wonderflix/config/app_config.dart';
 import 'package:wonderflix/core/social/account_api.dart';
 import 'package:wonderflix/core/social/account_models.dart';
 import 'package:wonderflix/features/account/account_texts.dart';
@@ -25,7 +27,8 @@ void main() {
     closed = false;
   });
 
-  Future<void> open(WidgetTester tester, AccountChannel channel) async {
+  Future<void> open(WidgetTester tester, AccountChannel channel,
+      {AppConfig? config}) async {
     await pumpApp(
       tester,
       Scaffold(
@@ -39,7 +42,10 @@ void main() {
           ),
         ),
       ),
-      overrides: accountTestOverrides(api),
+      overrides: [
+        ...accountTestOverrides(api),
+        if (config != null) appConfigProvider.overrideWithValue(config),
+      ],
     );
     await tester.tap(find.text('apri'));
     await tester.pumpAndSettle();
@@ -131,6 +137,77 @@ void main() {
     expect(find.text('Non disponibile su questo server'), findsOneWidget);
 
     expect(find.byKey(const Key('link-code')), findsNothing);
+  });
+
+  group('non sei nel server Discord', () {
+    final join = find.byKey(const Key('link-join-discord'));
+
+    Future<void> notInServer(WidgetTester tester, {AppConfig? config}) async {
+      await open(tester, AccountChannel.discord, config: config);
+      await tester.enterText(find.byKey(const Key('link-target')), 'garg');
+      await tester.enterText(find.byKey(const Key('link-password')), 'segreta');
+      api.startLinkFailure = AccountFailure.memberNotFound;
+      await submit(tester);
+    }
+
+    testWidgets('sotto l\'errore, "Unisciti al server Discord" attivo',
+        (tester) async {
+      await notInServer(tester);
+
+      expect(join, findsOneWidget);
+      expect(find.text('Unisciti al server Discord'), findsOneWidget);
+      expect(tester.widget<TextButton>(join).onPressed, isNotNull);
+      // Sotto il campo del nome, sopra la password.
+      expect(tester.getTopLeft(join).dy,
+          greaterThan(tester.getTopLeft(find.byKey(const Key('link-target'))).dy));
+      expect(tester.getTopLeft(join).dy,
+          lessThan(tester.getTopLeft(find.byKey(const Key('link-password'))).dy));
+    });
+
+    testWidgets('sparisce con l\'errore: un altro errore o il codice partito',
+        (tester) async {
+      await notInServer(tester);
+      expect(join, findsOneWidget);
+
+      api.startLinkFailure = AccountFailure.dmClosed;
+      await submit(tester);
+      expect(find.textContaining('Il bot non riesce a scriverti'),
+          findsOneWidget);
+      expect(join, findsNothing);
+
+      api.startLinkFailure = AccountFailure.memberNotFound;
+      await submit(tester);
+      expect(join, findsOneWidget);
+
+      api.startLinkFailure = null;
+      await submit(tester);
+      expect(find.byKey(const Key('link-code')), findsOneWidget);
+      expect(join, findsNothing);
+    });
+
+    testWidgets('senza supportUrl niente pulsante, l\'errore resta',
+        (tester) async {
+      await notInServer(tester,
+          config: AppConfig(
+            serverUrl: Uri.parse('https://media.example.com'),
+            githubRepo: 'owner/repo',
+            discordAppId: '1',
+            supportUrl: null,
+          ));
+
+      expect(find.textContaining('Non ti trovo nel server Discord'),
+          findsOneWidget);
+      expect(join, findsNothing);
+    });
+
+    testWidgets('nome Discord non valido: niente pulsante', (tester) async {
+      await open(tester, AccountChannel.discord);
+      await tester.enterText(find.byKey(const Key('link-target')), 'g');
+      api.startLinkFailure = AccountFailure.invalidTarget;
+      await submit(tester);
+      expect(find.text('Nome utente Discord non valido'), findsOneWidget);
+      expect(join, findsNothing);
+    });
   });
 
   testWidgets('email: codice sbagliato, Rimanda con la stessa password',

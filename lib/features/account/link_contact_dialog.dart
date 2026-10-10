@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../app/providers.dart';
 import '../../core/social/account_api.dart';
 import '../../core/social/account_models.dart';
 import '../../l10n/gen/app_localizations.dart';
@@ -53,6 +55,10 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
   String? _codeError;
   String? _error;
 
+  /// Discord non trova il nome nel server: sotto l'errore c'è l'invito
+  /// (`supportUrl`), per entrare e riprovare.
+  bool _notInServer = false;
+
   AccountChannel get _channel => widget.channel;
 
   @override
@@ -68,6 +74,7 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
 
   void _clearErrors() {
     _targetError = _passwordError = _codeError = _error = null;
+    _notInServer = false;
   }
 
   /// Mostra [failure] sotto il campo che lo riguarda, se è sullo schermo;
@@ -81,6 +88,7 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
         case AccountFailure.invalidTarget || AccountFailure.memberNotFound
             when firstStep:
           _targetError = text;
+          _notInServer = failure == AccountFailure.memberNotFound;
           // Invio nella password ha tolto il fuoco: torna al nome o
           // all'email, selezionato per riscriverlo.
           focusAndSelectAfterFrame(this, _targetFocus, _target);
@@ -176,6 +184,8 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
     final l = AppLocalizations.of(context);
     final sentTo = _sentTo;
     final discord = _channel == AccountChannel.discord;
+    // L'invito del server Discord, lo stesso di "Scrivi all'admin".
+    final supportUrl = ref.watch(appConfigProvider).supportUrl;
     final content = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -204,6 +214,15 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
               errorMaxLines: accountErrorMaxLines,
             ),
           ),
+          if (_notInServer && supportUrl != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                key: const Key('link-join-discord'),
+                onPressed: () => unawaited(launchUrl(supportUrl)),
+                child: Text(l.accountJoinDiscordServer),
+              ),
+            ),
           const SizedBox(height: 12),
           TextField(
             key: const Key('link-password'),

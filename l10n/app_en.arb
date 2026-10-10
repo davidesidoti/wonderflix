@@ -609,6 +609,7 @@
   "accountLinkedDone": "Contact linked",
   "accountUnlinkedDone": "Contact unlinked",
   "accountErrorMemberNotFound": "You're not in the Discord server: use your username (not your display name) and check that you joined the server",
+  "accountJoinDiscordServer": "Join the Discord server",
   "accountErrorDmClosed": "The bot can't message you: in Discord, allow direct messages from server members",
   "accountErrorInvalidEmail": "Invalid email",
   "accountErrorInvalidDiscordName": "Invalid Discord username",

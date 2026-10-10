@@ -725,6 +725,7 @@
   "accountLinkedDone": "Contatto collegato",
   "accountUnlinkedDone": "Contatto scollegato",
   "accountErrorMemberNotFound": "Non ti trovo nel server Discord: usa il nome utente (non il nome visualizzato) e controlla di essere nel server",
+  "accountJoinDiscordServer": "Unisciti al server Discord",
   "accountErrorDmClosed": "Il bot non riesce a scriverti: in Discord abilita i messaggi diretti dai membri del server",
   "accountErrorInvalidEmail": "Email non valida",
   "accountErrorInvalidDiscordName": "Nome utente Discord non valido",
