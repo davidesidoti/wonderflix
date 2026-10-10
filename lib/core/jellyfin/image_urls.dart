@@ -53,6 +53,11 @@ class ImageUrls {
       ImageRef(
           '$_base/Items/$itemId/Images/Primary?tag=$tag&maxWidth=$maxWidth&quality=90');
 
+  /// Sfondo di un elemento di cui si conosce solo l'id (una serie in
+  /// arrivo, spec M §8.3): senza tag Jellyfin dà quello attuale.
+  ImageRef backdropOf(String itemId, {int maxWidth = 640}) => ImageRef(
+      '$_base/Items/$itemId/Images/Backdrop/0?maxWidth=$maxWidth&quality=90');
+
   /// Immagine di un utente (spec K §10.5). Il server non la ridimensiona (si
   /// decodifica alla dimensione mostrata) e non chiede l'accesso; con il tag
   /// l'indirizzo cambia quando cambia l'immagine.

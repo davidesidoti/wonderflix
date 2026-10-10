@@ -217,6 +217,7 @@ class JellyfinItem {
     this.genres = const [],
     this.sortName,
     this.dateCreated,
+    this.premiereDate,
     this.imageTags = const {},
     this.backdropTags = const [],
     this.blurHashes = const {},
@@ -262,6 +263,7 @@ class JellyfinItem {
       genres: _stringList(json['Genres']),
       sortName: json['SortName'] as String?,
       dateCreated: _date(json['DateCreated']),
+      premiereDate: _date(json['PremiereDate']),
       imageTags: _stringMap(json['ImageTags']),
       backdropTags: _stringList(json['BackdropImageTags']),
       blurHashes: hashes,
@@ -309,6 +311,10 @@ class JellyfinItem {
   /// Aggiunta alla libreria. Arriva solo se chiesta
   /// (`ItemQuery.includeSortFields`).
   final DateTime? dateCreated;
+
+  /// Prima uscita. Jellyfin la manda sempre negli elenchi (spec M §8.3,
+  /// ordine dei film di una saga).
+  final DateTime? premiereDate;
 
   /// Tipo immagine (`Primary`, `Logo`, `Thumb`…) → tag.
   final Map<String, String> imageTags;

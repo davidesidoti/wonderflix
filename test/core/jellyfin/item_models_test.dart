@@ -112,6 +112,20 @@ void main() {
     expect(item.dateCreated, isNull);
   });
 
+  test('la data d\'uscita, se c\'è', () {
+    final item = JellyfinItem.fromJson({
+      'Id': 'm1',
+      'Name': 'Matrix',
+      'Type': 'Movie',
+      'PremiereDate': '1999-03-31T00:00:00.0000000Z',
+    });
+    expect(item.premiereDate, DateTime.utc(1999, 3, 31));
+    expect(
+        JellyfinItem.fromJson({'Id': 'm2', 'Name': 'x', 'Type': 'Movie'})
+            .premiereDate,
+        isNull);
+  });
+
   test('progress è null se già visto', () {
     const data = UserItemData(played: true, playedPercentage: 50);
     expect(data.progress, isNull);

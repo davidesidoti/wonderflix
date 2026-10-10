@@ -217,6 +217,41 @@ void main() {
     await api.nextUp('u1', limit: 20);
     expect(last().query.containsKey('nextUpDateCutoff'), isFalse);
   });
+
+  test('playHistory: film ed episodi visti, dal più recente, solo i dati di base',
+      () async {
+    await api.playHistory('u1', limit: 50);
+    expect(last().path, '/Items');
+    expect(last().query, {
+      'userId': 'u1',
+      'includeItemTypes': 'Movie,Episode',
+      'isPlayed': true,
+      'sortBy': 'DatePlayed',
+      'sortOrder': 'Descending',
+      'recursive': true,
+      'limit': 50,
+      'enableImages': false,
+      'enableUserData': false,
+    });
+  });
+
+  test('playedMovies: solo film visti, dal più recente, senza campi in più',
+      () async {
+    final movies = await api.playedMovies('u1', limit: 500);
+    expect(movies.map((m) => m.id), ['a', 'b']);
+    expect(last().query, {
+      'userId': 'u1',
+      'includeItemTypes': 'Movie',
+      'isPlayed': true,
+      'sortBy': 'DatePlayed',
+      'sortOrder': 'Descending',
+      'recursive': true,
+      'limit': 500,
+      'enableImages': false,
+      'enableUserData': false,
+      'fields': '',
+    });
+  });
 }
 
 /// Accesso comodo a metodo, percorso e query di una richiesta registrata.

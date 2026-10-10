@@ -19,6 +19,24 @@ class FakeLibraryApi implements LibraryApi {
   List<JellyfinItem> people = [];
   LibraryFilters libraryFilters = const LibraryFilters();
 
+  /// Ultime visioni, per [playHistory].
+  List<JellyfinItem> playHistoryItems = [];
+
+  /// Il `limit` di ogni [playHistory].
+  final playHistoryCalls = <int>[];
+
+  /// Film visti, per [playedMovies].
+  List<JellyfinItem> playedMovieItems = [];
+
+  /// Il `limit` di ogni [playedMovies].
+  final playedMoviesCalls = <int>[];
+
+  /// Simili di ogni titolo; un titolo assente usa [similarItems].
+  final Map<String, List<JellyfinItem>> similarById = {};
+
+  /// Titolo e `limit` di ogni [similar].
+  final similarCalls = <(String, int)>[];
+
   /// Se valorizzato, ogni chiamata lancia questo errore.
   Object? error;
 
@@ -192,8 +210,22 @@ class FakeLibraryApi implements LibraryApi {
 
   @override
   Future<List<JellyfinItem>> similar(String userId, String itemId,
-          {int limit = 12}) =>
-      _answer(() => similarItems);
+      {int limit = 12}) {
+    similarCalls.add((itemId, limit));
+    return _answer(() => similarById[itemId] ?? similarItems);
+  }
+
+  @override
+  Future<List<JellyfinItem>> playHistory(String userId, {required int limit}) {
+    playHistoryCalls.add(limit);
+    return _answer(() => playHistoryItems);
+  }
+
+  @override
+  Future<List<JellyfinItem>> playedMovies(String userId, {required int limit}) {
+    playedMoviesCalls.add(limit);
+    return _answer(() => playedMovieItems);
+  }
 
   @override
   Future<LibraryFilters> filters(String userId, ItemKind kind) =>
@@ -244,6 +276,7 @@ JellyfinItem testItem({
   double? rating,
   String? sortName,
   String? dateCreated,
+  String? premiereDate,
   int? tmdbId,
 }) =>
     JellyfinItem.fromJson({
@@ -274,6 +307,7 @@ JellyfinItem testItem({
       'CommunityRating': ?rating,
       'SortName': ?sortName,
       'DateCreated': ?dateCreated,
+      'PremiereDate': ?premiereDate,
       if (tmdbId != null) 'ProviderIds': {'Tmdb': '$tmdbId'},
     });
 

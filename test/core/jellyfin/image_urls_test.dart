@@ -84,6 +84,13 @@ void main() {
     expect(urls.primaryWithTag('c1', 't1', maxWidth: 300).url, contains('maxWidth=300'));
   });
 
+  test('backdropOf: lo sfondo di un elemento di cui si conosce solo l\'id', () {
+    final urls = ImageUrls(Uri.parse('https://media.example.com'));
+    expect(urls.backdropOf('s1').url,
+        'https://media.example.com/Items/s1/Images/Backdrop/0?maxWidth=640&quality=90');
+    expect(urls.backdropOf('s1', maxWidth: 300).url, contains('maxWidth=300'));
+  });
+
   test('immagine di un utente: con il tag, senza ridimensionare', () {
     expect(urls.user('u1', 't1').url,
         'https://media.example.com/jf/UserImage?userId=u1&tag=t1');

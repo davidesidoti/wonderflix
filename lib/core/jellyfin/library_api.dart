@@ -129,6 +129,40 @@ class LibraryApi {
     }));
   }
 
+  /// Le ultime visioni dell'utente (spec M §8.3, "Perché hai visto X"): film
+  /// ed episodi visti, dal più recente. Solo i dati di base: servono tipo,
+  /// nome e serie.
+  Future<List<JellyfinItem>> playHistory(String userId,
+          {required int limit}) async =>
+      _list(await _http.get('/Items', query: {
+        'userId': userId,
+        'includeItemTypes': 'Movie,Episode',
+        'isPlayed': true,
+        'sortBy': 'DatePlayed',
+        'sortOrder': 'Descending',
+        'recursive': true,
+        'limit': limit,
+        'enableImages': false,
+        'enableUserData': false,
+      }));
+
+  /// I film visti dall'utente, dal più recente (spec M §8.3, "Continua la
+  /// saga"): servono solo gli id, quindi niente campi in più.
+  Future<List<JellyfinItem>> playedMovies(String userId,
+          {required int limit}) async =>
+      _list(await _http.get('/Items', query: {
+        'userId': userId,
+        'includeItemTypes': 'Movie',
+        'isPlayed': true,
+        'sortBy': 'DatePlayed',
+        'sortOrder': 'Descending',
+        'recursive': true,
+        'limit': limit,
+        'enableImages': false,
+        'enableUserData': false,
+        'fields': '',
+      }));
+
   /// I titoli della saga [collectionId] che l'utente vede, in ordine di
   /// uscita (spec K §8.1). Senza `recursive`: i titoli sono collegati alla
   /// collezione, non suoi discendenti.
