@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -58,8 +60,17 @@ void main() {
     return c.read(homeLayoutProvider.future);
   }
 
-  Future<HomeRowContent> row(ProviderContainer c, HomeRowKind kind) {
-    final key = (kind: kind, language: 'it');
+  /// La Home dopo che Seerr ha risposto: la composizione non lo aspetta, si
+  /// ricompone quando arriva.
+  Future<HomeLayout> settledLayout(ProviderContainer c) async {
+    c.listen(homeLayoutProvider, (_, _) {});
+    await pumpEventQueue();
+    return c.read(homeLayoutProvider.future);
+  }
+
+  Future<HomeRowContent> row(ProviderContainer c, HomeRowKind kind,
+      {String language = 'it'}) {
+    final key = (kind: kind, language: language);
     c.listen(homeRowProvider(key), (_, _) {});
     return c.read(homeRowProvider(key).future);
   }
@@ -91,7 +102,7 @@ void main() {
         upcomingMovies: true));
     home.layoutRows = ['upcomingSeries', 'requests', 'resume', 'continueSaga'];
     prefs.prefs = const HomeUserPrefs(rows: ['resume'], hidden: ['continueSaga']);
-    final result = await layout(container());
+    final result = await settledLayout(container());
     expect(result.visible,
         [HomeRowKind.upcomingSeries, HomeRowKind.requests, HomeRowKind.resume]);
     expect(home.layoutCalls, 1);
@@ -103,8 +114,58 @@ void main() {
         FakeSocialAvailability(const SocialFeatures(requests: true));
     requests.meValue =
         const RequestsMe(canRequest: true, canManage: false, hasAccount: false);
-    expect((await layout(container())).visible,
-        isNot(contains(HomeRowKind.requests)));
+    final result = await settledLayout(container());
+    expect(requests.calls, contains('me'), reason: 'Seerr ha risposto');
+    expect(result.visible, isNot(contains(HomeRowKind.requests)));
+  });
+
+  test('Seerr che non risponde: la Home si compone lo stesso, senza Le mie richieste',
+      () {
+    fakeAsync((async) {
+      availability =
+          FakeSocialAvailability(const SocialFeatures(requests: true));
+      requests.meGate = Completer<void>();
+      final c = container();
+      HomeLayout? result;
+      c.listen(homeLayoutProvider, (_, next) => result = next.value,
+          fireImmediately: true);
+      async.flushMicrotasks();
+      async.elapse(Duration.zero);
+      expect(requests.calls, ['me'], reason: '/Me è partito e non risponde');
+      expect(result?.visible, [
+        HomeRowKind.resume,
+        HomeRowKind.nextUp,
+        HomeRowKind.latestMovies,
+        HomeRowKind.latestSeries,
+        HomeRowKind.becauseYouWatched,
+        HomeRowKind.myList,
+      ]);
+      c.dispose();
+    });
+  });
+
+  test('Seerr risponde dopo: la Home si ricompone e aggiunge Le mie richieste',
+      () {
+    fakeAsync((async) {
+      availability =
+          FakeSocialAvailability(const SocialFeatures(home: true, requests: true));
+      home.layoutRows = ['requests', 'resume'];
+      final gate = requests.meGate = Completer<void>();
+      final c = container();
+      HomeLayout? result;
+      c.listen(homeLayoutProvider, (_, next) => result = next.value,
+          fireImmediately: true);
+      async.flushMicrotasks();
+      async.elapse(Duration.zero);
+      expect(result?.visible, [HomeRowKind.resume]);
+      gate.complete();
+      async.flushMicrotasks();
+      async.elapse(Duration.zero);
+      expect(result?.visible, [HomeRowKind.requests, HomeRowKind.resume]);
+      expect(home.layoutCalls, 1, reason: 'ricomporre non rilegge la Home');
+      expect(prefs.readUsers, ['u1'], reason: 'né le preferenze');
+      c.dispose();
+    });
   });
 
   test('errori di lettura: ordine predefinito e nessun ritocco', () async {
@@ -151,6 +212,18 @@ void main() {
       expect(result?.visible, contains(HomeRowKind.resume));
       expect(result?.visible, isNot(contains(HomeRowKind.upcomingSeries)));
       c.dispose();
+    });
+  });
+
+  test('funzioni non ancora note, Home chiusa: nessun timer in sospeso', () {
+    fakeAsync((async) {
+      availability = FakeSocialAvailability(SocialFeatures.unknown);
+      final c = container();
+      c.listen(homeLayoutProvider, (_, _) {}, fireImmediately: true);
+      async.elapse(const Duration(milliseconds: 100));
+      c.dispose();
+      async.flushMicrotasks();
+      expect(async.nonPeriodicTimerCount, 0);
     });
   });
 
@@ -208,10 +281,11 @@ void main() {
       testMediaRequest(id: 1, status: RequestStatus.declined),
       testMediaRequest(id: 2, status: RequestStatus.pending),
     ];
-    final content =
-        await row(container(), HomeRowKind.requests) as RequestsRowContent;
+    final content = await row(container(), HomeRowKind.requests,
+        language: 'en') as RequestsRowContent;
     expect(content.requests.map((r) => r.id), [2]);
     expect(requests.calls, contains('list:mine:0:$homeRequestsTake'));
+    expect(requests.listLanguages, ['en']);
   });
 
   test('uscite: elenco limitato, errore del plugin come riga vuota', () async {
@@ -245,7 +319,42 @@ void main() {
     });
   });
 
-  test('carosello: con una lettura fallita restano i titoli dell\'altra',
+  test('riga esterna chiusa mentre legge: il risultato non si tiene', () {
+    fakeAsync((async) {
+      final gate = home.seriesGate = Completer<void>();
+      final c = container();
+      final key = (kind: HomeRowKind.upcomingSeries, language: 'it');
+      final sub = c.listen(homeRowProvider(key), (_, _) {});
+      async.flushMicrotasks();
+      expect(home.seriesCalls, 1);
+      sub.close();
+      async.elapse(Duration.zero);
+      gate.complete();
+      async.flushMicrotasks();
+      async.elapse(Duration.zero);
+      c.listen(homeRowProvider(key), (_, _) {});
+      async.flushMicrotasks();
+      expect(home.seriesCalls, 2, reason: 'la lettura chiusa non è in memoria');
+      c.dispose();
+    });
+  });
+
+  test('keepFor su un provider già eliminato non fa nulla', () {
+    fakeAsync((async) {
+      Ref? kept;
+      final provider = Provider.autoDispose((ref) {
+        kept = ref;
+        return 0;
+      });
+      final c = ProviderContainer();
+      c.read(provider);
+      c.dispose();
+      expect(() => keepFor(kept!, homeExternalRefresh), returnsNormally);
+      expect(async.nonPeriodicTimerCount, 0);
+    });
+  });
+
+  test('carosello: serie non lette, restano i film; con tutte e due, l\'errore',
       () async {
     library.onItems = (query, start, limit) {
       if (query.kinds.contains(ItemKind.series)) {
@@ -262,5 +371,17 @@ void main() {
     c.invalidate(homeLatestSeriesProvider);
     await expectLater(c.read(homeFeaturedProvider.future),
         throwsA(isA<ServerUnreachableException>()));
+  });
+
+  test('carosello: film non letti, restano le serie', () async {
+    library.onItems = (query, start, limit) {
+      if (query.kinds.contains(ItemKind.movie)) {
+        throw const ServerUnreachableException();
+      }
+      return pageOf([testItem(id: 's1', kind: ItemKind.series)]);
+    };
+    final c = container();
+    c.listen(homeFeaturedProvider, (_, _) {});
+    expect((await c.read(homeFeaturedProvider.future)).map((i) => i.id), ['s1']);
   });
 }

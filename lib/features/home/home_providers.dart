@@ -28,17 +28,21 @@ final homeApiProvider =
 final displayPreferencesApiProvider = Provider<DisplayPreferencesApi>(
     (ref) => DisplayPreferencesApi(ref.watch(jellyfinHttpProvider)));
 
-/// Quanto restano in memoria, senza nessuno che le guardi, le righe che non
-/// vengono da Jellyfin e la Home dell'admin (spec M §8.2 punto 5): tornando
-/// alla Home entro questo tempo non si rileggono.
+/// Per quanto si tengono in memoria, anche senza ascoltatori, le righe che
+/// non vengono da Jellyfin e la Home dell'admin (spec M §8.2 punto 5): il
+/// tempo conta dalla fine della lettura, non da quando se ne va l'ultimo
+/// ascoltatore. Tornando alla Home entro questo tempo non si rileggono.
 const homeExternalRefresh = Duration(minutes: 5);
 
 /// Quanto la composizione aspetta le funzioni del plugin, se all'apertura non
 /// sono ancora note (decisione 7 del piano 19b).
 const homeFeaturesWait = Duration(seconds: 2);
 
-/// Tiene il risultato del provider per [duration] anche senza ascoltatori.
+/// Tiene il risultato del provider per [duration] dalla fine della lettura,
+/// anche senza ascoltatori. Se il provider è già stato eliminato (nessuno lo
+/// guardava più mentre leggeva) non fa nulla: quel risultato non si tiene.
 void keepFor(Ref ref, Duration duration) {
+  if (!ref.mounted) return;
   final link = ref.keepAlive();
   final timer = Timer(duration, link.close);
   ref.onDispose(timer.cancel);
@@ -75,22 +79,29 @@ final homeUserPrefsProvider =
 });
 
 /// La Home combinata e le righe da mostrare (spec M §6.4, §6.5, §8.2 punto
-/// 1). Si ricompone quando cambiano le funzioni del plugin.
+/// 1). Si ricompone quando cambiano le funzioni del plugin. Non aspetta
+/// Seerr: finché `/Me` non risponde, o se non risponde, "Le mie richieste"
+/// non c'è e le altre righe si vedono; quando risponde, la Home si
+/// ricompone e la riga si aggiunge.
 final homeLayoutProvider = FutureProvider.autoDispose<HomeLayout>((ref) async {
   final features = ref.watch(socialAvailabilityProvider);
   final adminRows = ref.watch(homeAdminRowsProvider.future);
   final userPrefs = ref.watch(homeUserPrefsProvider.future);
-  // Un gestore subito: un errore di Seerr non resta senza nessuno che lo
-  // raccolga mentre si aspetta il resto.
-  final Future<bool> seerrAccount = features.requests
-      ? ref.watch(requestsMeProvider.future).then((me) => me.hasAccount,
-          onError: (Object error) {
-          _log.info('Seerr non letto: ${error.runtimeType}');
-          return false;
-        })
-      : Future.value(false);
-  if (!features.known) await Future<void>.delayed(homeFeaturesWait);
-  final hasSeerrAccount = await seerrAccount;
+  var hasSeerrAccount = false;
+  if (features.requests) {
+    final me = ref.watch(requestsMeProvider);
+    if (me.hasError && !me.hasValue) {
+      _log.info('Seerr non letto: ${me.error.runtimeType}');
+    }
+    hasSeerrAccount = me.value?.hasAccount ?? false;
+  }
+  if (!features.known) {
+    // Finisce appena le funzioni sono note, o alla chiusura del provider:
+    // nessun timer in sospeso.
+    await ref
+        .read(socialAvailabilityProvider.notifier)
+        .whenKnown(homeFeaturesWait);
+  }
   return composeHomeLayout(
     adminRows: await adminRows,
     user: await userPrefs,
@@ -126,6 +137,7 @@ final homeFeaturedProvider =
   Future<List<JellyfinItem>?> guarded(Future<List<JellyfinItem>> future) =>
       future.then<List<JellyfinItem>?>((items) => items,
           onError: (Object error) {
+        _log.info('Carosello: lettura non riuscita: ${error.runtimeType}');
         failure = error;
         return null;
       });

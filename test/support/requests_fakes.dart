@@ -49,6 +49,9 @@ class FakeRequestsApi implements RequestsApi {
   /// Se impostato, `list` aspetta che si completi.
   Completer<void>? listGate;
 
+  /// La lingua di ogni `list`, in ordine.
+  final listLanguages = <String>[];
+
   /// I server per tipo di titolo.
   final servicesByType = <RequestMediaType, List<ServiceOption>>{};
 
@@ -128,6 +131,7 @@ class FakeRequestsApi implements RequestsApi {
   Future<RequestPage> list(RequestsFilter filter,
       {required int skip, required int take, required String language}) async {
     calls.add('list:${filter.wire}:$skip:$take');
+    listLanguages.add(language);
     final gate = listGate;
     if (gate != null) await gate.future;
     _fail();
