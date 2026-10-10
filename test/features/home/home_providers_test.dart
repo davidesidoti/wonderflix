@@ -339,6 +339,128 @@ void main() {
     });
   });
 
+  group('righe esterne e cambio di utente', () {
+    const luigi = SessionSignedIn(JellyfinUser(id: 'u2', name: 'Luigi'));
+
+    /// Nell'app la sessione c'è sempre; qui nessuno la legge prima del
+    /// cambio, e un notifier mai letto non si può cambiare.
+    ProviderContainer appContainer() {
+      final c = container();
+      c.listen(sessionControllerProvider, (_, _) {});
+      return c;
+    }
+
+    int listCalls() =>
+        requests.calls.where((call) => call.startsWith('list:')).length;
+
+    test('Le mie richieste: tenute in memoria, non passano al nuovo utente',
+        () async {
+      requests.lists[RequestsFilter.mine] = [
+        testMediaRequest(id: 1, status: RequestStatus.pending),
+      ];
+      final c = appContainer();
+      final key = (kind: HomeRowKind.requests, language: 'it');
+      final sub = c.listen(homeRowProvider(key), (_, _) {});
+      final first = await c.read(homeRowProvider(key).future);
+      expect((first as RequestsRowContent).requests.map((r) => r.id), [1]);
+      sub.close();
+
+      session.set(luigi);
+      requests.lists[RequestsFilter.mine] = [
+        testMediaRequest(id: 2, status: RequestStatus.pending),
+      ];
+      final second = await row(c, HomeRowKind.requests);
+      expect(listCalls(), 2, reason: 'le richieste di Mario non sono di Luigi');
+      expect((second as RequestsRowContent).requests.map((r) => r.id), [2]);
+    });
+
+    test('Le mie richieste: con la Home aperta si rilegge al cambio di utente',
+        () async {
+      requests.lists[RequestsFilter.mine] = [
+        testMediaRequest(id: 1, status: RequestStatus.pending),
+      ];
+      final c = appContainer();
+      final key = (kind: HomeRowKind.requests, language: 'it');
+      final seen = <List<int>>[];
+      c.listen(homeRowProvider(key), (_, next) {
+        final content = next.value;
+        if (content is RequestsRowContent) {
+          seen.add([for (final r in content.requests) r.id]);
+        }
+      });
+      await c.read(homeRowProvider(key).future);
+
+      requests.lists[RequestsFilter.mine] = [
+        testMediaRequest(id: 2, status: RequestStatus.pending),
+      ];
+      session.set(luigi);
+      await pumpEventQueue();
+      expect(listCalls(), 2);
+      expect(seen.last, [2]);
+    });
+
+    test('Serie in arrivo: tenute in memoria, non passano al nuovo utente',
+        () async {
+      home.series = UpcomingPage(
+          items: [testEpisode(seriesName: 'The Bear', jellyfinSeriesId: 's-mario')]);
+      final c = appContainer();
+      final key = (kind: HomeRowKind.upcomingSeries, language: 'it');
+      final sub = c.listen(homeRowProvider(key), (_, _) {});
+      final first = await c.read(homeRowProvider(key).future);
+      expect((first as UpcomingSeriesRowContent).episodes.single.jellyfinSeriesId,
+          's-mario');
+      sub.close();
+
+      session.set(luigi);
+      home.series = UpcomingPage(
+          items: [testEpisode(seriesName: 'The Bear', jellyfinSeriesId: 's-luigi')]);
+      final second = await row(c, HomeRowKind.upcomingSeries);
+      expect(home.seriesCalls, 2);
+      expect((second as UpcomingSeriesRowContent).episodes.single.jellyfinSeriesId,
+          's-luigi');
+    });
+
+    test('Serie in arrivo: con la Home aperta si rilegge al cambio di utente',
+        () async {
+      final c = appContainer();
+      final key = (kind: HomeRowKind.upcomingSeries, language: 'it');
+      c.listen(homeRowProvider(key), (_, _) {});
+      await c.read(homeRowProvider(key).future);
+      session.set(luigi);
+      await pumpEventQueue();
+      expect(home.seriesCalls, 2);
+    });
+
+    test('Film in arrivo: tenuti in memoria, non passano al nuovo utente',
+        () async {
+      home.movies =
+          UpcomingPage(items: [testUpcomingMovie(title: 'Hope', tmdbId: 1)]);
+      final c = appContainer();
+      final key = (kind: HomeRowKind.upcomingMovies, language: 'it');
+      final sub = c.listen(homeRowProvider(key), (_, _) {});
+      await c.read(homeRowProvider(key).future);
+      sub.close();
+
+      session.set(luigi);
+      home.movies =
+          UpcomingPage(items: [testUpcomingMovie(title: 'Alien', tmdbId: 2)]);
+      final second = await row(c, HomeRowKind.upcomingMovies);
+      expect(home.moviesCalls, 2);
+      expect((second as UpcomingMoviesRowContent).movies.single.title, 'Alien');
+    });
+
+    test('Film in arrivo: con la Home aperta si rilegge al cambio di utente',
+        () async {
+      final c = appContainer();
+      final key = (kind: HomeRowKind.upcomingMovies, language: 'it');
+      c.listen(homeRowProvider(key), (_, _) {});
+      await c.read(homeRowProvider(key).future);
+      session.set(luigi);
+      await pumpEventQueue();
+      expect(home.moviesCalls, 2);
+    });
+  });
+
   test('keepFor su un provider già eliminato non fa nulla', () {
     fakeAsync((async) {
       Ref? kept;

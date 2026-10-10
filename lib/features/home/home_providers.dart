@@ -163,18 +163,23 @@ final homeRowProvider = FutureProvider.autoDispose
     case HomeRowKind.latestSeries:
       return ItemsRowContent(await ref.watch(homeLatestSeriesProvider.future));
     case HomeRowKind.requests:
+      // L'API non cambia con l'utente (cambia il token sotto): senza questo
+      // la riga tenuta in memoria passerebbe al profilo successivo.
+      ref.watch(currentUserIdProvider);
       final api = ref.watch(requestsApiProvider);
       final page = await api.list(RequestsFilter.mine,
           skip: 0, take: homeRequestsTake, language: key.language);
       keepFor(ref, homeExternalRefresh);
       return RequestsRowContent(homeRequests(page.items, clock.now()));
     case HomeRowKind.upcomingSeries:
+      ref.watch(currentUserIdProvider); // come per le richieste
       final page = await ref.watch(homeApiProvider).upcomingSeries();
       keepFor(ref, homeExternalRefresh);
       _logUpcoming('serie', page.error);
       return UpcomingSeriesRowContent(
           page.items.take(homeRowLimit).toList());
     case HomeRowKind.upcomingMovies:
+      ref.watch(currentUserIdProvider); // come per le richieste
       final page = await ref.watch(homeApiProvider).upcomingMovies();
       keepFor(ref, homeExternalRefresh);
       _logUpcoming('film', page.error);
