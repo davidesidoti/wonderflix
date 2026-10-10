@@ -40,6 +40,84 @@ La v1.0.0 è la prima release per gli amici. Raccoglierebbe:
 - prima esecuzione e richiesta d'accesso, firma del codice;
 - i punti aperti minori: menu delle modalità con testo ingrandito, attese di 2 s senza indicatore, nome del gruppo che non cambia con il titolo, remux che risulta "Transcode", `WriteFile` sincrono sulla pipe di Discord.
 
+## 5. Cosa guardano gli amici
+
+Nel pannello Amici, accanto a "Online", compare "Sta guardando *Dune*" anche fuori dai watch party. Il tasto "Guarda insieme" apre un party su quel titolo e invita l'amico; in Home c'è la riga "Visti dagli amici". Un interruttore nelle impostazioni permette di non mostrare cosa si guarda.
+- **Cosa c'è già:** presenza online e "Nel watch party: …" dal plugin (Spec F), inviti al party.
+- **Da cercare:** un utente normale non vede le sessioni degli altri su Jellyfin, quindi il plugin deve esporre il titolo in riproduzione solo agli amici; cosa mostrare per gli episodi (serie, stagione, episodio); quanto spesso aggiornare; privacy predefinita (visibile o nascosto).
+- Medio.
+
+## 6. Consigli tra amici
+
+Dal dettaglio di un film o di una serie, "Consiglia a…" sceglie uno o più amici e aggiunge un messaggio breve; il consiglio arriva nella loro cassetta delle notifiche. In Home c'è la riga "Consigliati per te".
+- **Cosa c'è già:** amici (Spec F) e cassetta delle notifiche (Spec G) nel plugin.
+- **Da cercare:** quanto durano i consigli e quando escono dalla riga (visto, ignorato); limite contro lo spam; titoli che l'amico non può vedere per i permessi delle librerie.
+- Piccolo/medio.
+
+## 7. Voti degli amici
+
+Dopo la visione si dà un voto e si scrive un commento breve; nel dettaglio compaiono la media degli amici e i loro commenti. Diverso dal voto TMDB/IMDb che Jellyfin mostra già: questo resta tra gli utenti del server.
+- **Da cercare:** scala (1–5, pollice su/giù); se vedere i voti di tutti gli utenti o solo degli amici; quando chiedere il voto (a fine film, a fine serie); modifica e cancellazione; moderazione dei commenti dalla dashboard admin.
+- Medio.
+
+## 8. Serate programmate
+
+Un party con data e ora, per esempio "Venerdì 21:00 — Il Padrino". Gli amici ricevono l'invito e rispondono sì/no/forse; il promemoria arriva nella cassetta (e su Discord) 15 minuti prima, e all'ora fissata il party è già aperto con il titolo pronto.
+- **Cosa c'è già:** party privati, coda, cassetta, collegamento Discord, servizi a orario nel plugin (`NewTitlesHostedService`, `ContactReminderHostedService`).
+- **Da cercare:** dove si vedono le serate in arrivo; fusi orari; cosa succede se l'organizzatore non si presenta; modifica e annullamento con avviso a chi ha detto sì; serate ricorrenti (ogni venerdì) o solo singole.
+- Medio. Si può fare insieme all'idea 5.
+
+## 9. Match del film
+
+Prima di un party ognuno scorre una pila di titoli e dice sì o no, stile Tinder; escono solo i titoli che piacciono a tutti, da mettere in coda.
+- **Da cercare:** da dove prendere la pila (filtri per genere e durata, non visti da nessuno, La mia lista dei partecipanti); quanti titoli; cosa fare se non c'è nessun match; se legarlo a un party aperto o a una serata programmata (idea 8).
+- Medio.
+
+## 10. Stile dei sottotitoli
+
+Oggi si può cambiare solo la dimensione (`subtitleScale`). Si aggiungono carattere, colore, contorno, sfondo e posizione, con l'anteprima dal vivo, salvati per profilo. Parte facoltativa: scaricare i sottotitoli mancanti dal player.
+- **Da cercare:** quali opzioni di libmpv valgono anche per i sottotitoli ASS (che hanno il loro stile) e PGS (immagini); per il download, la ricerca remota di Jellyfin (`/Items/{id}/RemoteSearch/Subtitles/{lingua}`), che richiede un plugin di sottotitoli sul server (OpenSubtitles) e forse un permesso dell'utente.
+- Piccolo, medio con il download.
+
+## 11. Timer e "Stai ancora guardando?"
+
+Il timer di spegnimento ferma la riproduzione dopo N minuti o a fine episodio. Dopo 3 episodi di fila senza toccare nulla, l'app chiede se stai ancora guardando, così una serie non gira tutta la notte segnando episodi come visti.
+- **Da cercare:** comportamento nei watch party (probabilmente spento); se mettere in pausa il PC o solo il player; numero di episodi modificabile nelle impostazioni.
+- Piccolo.
+
+## 12. Telecomando dal telefono
+
+WonderFlix diventa un dispositivo controllabile dall'app Jellyfin ufficiale sul telefono: "Riproduci su WonderFlix", pausa, avanti, volume, cambio dei sottotitoli. Non è Chromecast: il telefono manda solo i comandi, il video lo riproduce il PC.
+- **Cosa c'è già:** la connessione WebSocket agli eventi del server (`server_events.dart`).
+- **Da cercare:** dichiarare le capacità della sessione (`SupportsMediaControl`, comandi supportati); gestire i messaggi `Play`, `Playstate` e `GeneralCommand`; cosa fare se arriva un comando durante un watch party; con quali app funziona davvero (Jellyfin per Android/iOS, Findroid, jellyfin-web).
+- Medio.
+
+## 13. WonderFlix Wrapped
+
+Un riepilogo mensile o annuale: ore guardate, generi preferiti, serie finite, titolo più rivisto, con chi hai fatto più party. A fine anno arriva nella cassetta come notifica.
+- **Da cercare:** il server tiene solo l'ultima visione di ogni titolo, quindi serve che il plugin registri le visioni (o usare il plugin Playback Reporting, se installato); da quando partono i dati; privacy (solo per sé o condivisibile con gli amici).
+- Medio. Lo storico delle visioni serve anche all'idea 14.
+
+## 14. Cronologia
+
+Tutto quello che si è visto, con la data, i filtri (film, serie, mese) e "segna come non visto".
+- **Cosa c'è già:** `LastPlayedDate` e `PlayCount` di Jellyfin per ogni titolo.
+- **Da cercare:** con i soli dati del server ogni titolo compare una volta, all'ultima visione; per lo storico completo serve il registro del plugin dell'idea 13.
+- Piccolo/medio.
+
+## 15. Home su misura
+
+Si possono riordinare e nascondere le righe della Home, e se ne aggiungono di nuove: "Perché hai visto X" (dai titoli simili), righe per genere, "Cosa guardo stasera?" (un titolo a caso tra i non visti, con filtri per durata e genere).
+- **Cosa c'è già:** righe Riprendi, Prossimi episodi, Aggiunti di recente, La mia lista (`home_data.dart`); titoli simili nel dettaglio.
+- **Da cercare:** dove salvare l'ordine (per profilo, in locale o sul server); quante righe in più senza rallentare l'avvio della Home.
+- Piccolo/medio.
+
+## 16. Calendario delle uscite
+
+I prossimi episodi delle serie che si seguono, giorno per giorno, con un avviso nella cassetta quando arrivano sul server.
+- **Da cercare:** da dove prendere le date: `/Shows/Upcoming` di Jellyfin (se il server conosce gli episodi futuri) oppure il calendario di Sonarr, direttamente o attraverso il plugin; quali serie contano come "seguite" (La mia lista, guardate di recente); legame con l'avviso dei nuovi titoli che c'è già (`NewTitlesHostedService`).
+- Medio.
+
 ## Fatte
 
 - Spec D — rinnovo del player (app 0.4.0).
