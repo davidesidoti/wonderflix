@@ -84,6 +84,25 @@ public class PluginPagesTests
 
         // Lo stato mostra l'ultimo errore di ogni canale.
         Assert.Contains("(last error: ", html);
+
+        // Sonarr e Radarr (spec M §7.1), con le protezioni del recupero:
+        // niente Salva prima di aver letto, numeri obbligatori, chiavi non offerte dal browser.
+        Assert.Contains("SonarrUrl", html);
+        Assert.Contains("SonarrApiKey", html);
+        Assert.Contains("RadarrUrl", html);
+        Assert.Contains("RadarrApiKey", html);
+        Assert.Contains("UpcomingSeriesDays", html);
+        Assert.Contains("UpcomingMoviesDays", html);
+        Assert.Contains("WonderFlixWatchParty/Upcoming/Test", html);
+        Assert.Contains("arrLoaded", html);
+        Assert.Contains("numberIn(arrFields.UpcomingSeriesDays, config.UpcomingSeriesDays)", html);
+        Assert.Contains("numberIn(arrFields.UpcomingMoviesDays, config.UpcomingMoviesDays)", html);
+        Assert.Contains("autocomplete=\"new-password\"", TagWithId(html, "WonderFlixSonarrApiKey"));
+        Assert.Contains("autocomplete=\"new-password\"", TagWithId(html, "WonderFlixRadarrApiKey"));
+        Assert.Contains(" required", TagWithId(html, "WonderFlixUpcomingSeriesDays"));
+        Assert.Contains(" required", TagWithId(html, "WonderFlixUpcomingMoviesDays"));
+        Assert.Contains("aria-live=\"polite\"", TagWithId(html, "WonderFlixArrResult"));
+
         // L'id con cui la pagina legge e salva la configurazione è quello del plugin.
         Assert.Contains(Plugin.PluginId.ToString(), html);
     }

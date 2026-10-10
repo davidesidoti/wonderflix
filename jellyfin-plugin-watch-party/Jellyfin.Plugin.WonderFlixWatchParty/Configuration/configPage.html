@@ -83,6 +83,45 @@
                         <div id="WonderFlixSeerrLastEvent" class="fieldDescription"></div>
                     </div>
                 </form>
+                <form id="WonderFlixArrForm">
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Sonarr and Radarr</h3>
+                        <div class="fieldDescription">
+                            WonderFlix shows the upcoming episodes (Sonarr) and movies (Radarr) on its Home. The API keys stay on the server.
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="url" id="WonderFlixSonarrUrl" label="Sonarr address" placeholder="https://example.com/sonarr" />
+                            <div class="fieldDescription">As seen from the Jellyfin server, with the URL base. Empty: no upcoming episodes.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="password" id="WonderFlixSonarrApiKey" label="Sonarr API key" autocomplete="new-password" />
+                            <div class="fieldDescription">Sonarr → Settings → General → API Key.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="url" id="WonderFlixRadarrUrl" label="Radarr address" placeholder="https://example.com/radarr" />
+                            <div class="fieldDescription">Empty: no upcoming movies.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="password" id="WonderFlixRadarrApiKey" label="Radarr API key" autocomplete="new-password" />
+                            <div class="fieldDescription">Radarr → Settings → General → API Key.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="number" id="WonderFlixUpcomingSeriesDays" label="Upcoming episodes for (days)" min="1" max="60" required />
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="number" id="WonderFlixUpcomingMoviesDays" label="Upcoming movies for (days)" min="1" max="365" required />
+                            <div class="fieldDescription">Movies count by their digital release date.</div>
+                        </div>
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span>Save</span>
+                        </button>
+                        <button is="emby-button" id="WonderFlixArrTest" type="button" class="raised block emby-button">
+                            <span>Test connection</span>
+                        </button>
+                        <div class="fieldDescription">Save first: the test uses the saved settings.</div>
+                        <div id="WonderFlixArrResult" class="fieldDescription" aria-live="polite"></div>
+                    </div>
+                </form>
                 <form id="WonderFlixRecoveryForm">
                     <div class="verticalSection">
                         <h3 class="sectionTitle">Password recovery</h3>
@@ -507,6 +546,93 @@
                     }, function () {
                         testButton.disabled = false;
                         recoveryResult.textContent = 'Test failed: try again.';
+                    });
+                });
+
+                // Sonarr e Radarr (spec M §7.1): come il recupero, Salva solo dopo aver letto la configurazione.
+                var arrFields = {
+                    SonarrUrl: page.querySelector('#WonderFlixSonarrUrl'),
+                    SonarrApiKey: page.querySelector('#WonderFlixSonarrApiKey'),
+                    RadarrUrl: page.querySelector('#WonderFlixRadarrUrl'),
+                    RadarrApiKey: page.querySelector('#WonderFlixRadarrApiKey'),
+                    UpcomingSeriesDays: page.querySelector('#WonderFlixUpcomingSeriesDays'),
+                    UpcomingMoviesDays: page.querySelector('#WonderFlixUpcomingMoviesDays')
+                };
+                var arrResult = page.querySelector('#WonderFlixArrResult');
+                var arrNotLoaded = 'Settings not loaded: reload the page.';
+                var arrLoaded = false;
+
+                function loadArr() {
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        Object.keys(arrFields).forEach(function (name) {
+                            var value = config[name];
+                            arrFields[name].value = value === undefined || value === null ? '' : value;
+                        });
+                        arrLoaded = true;
+                        if (arrResult.textContent === arrNotLoaded) {
+                            arrResult.textContent = '';
+                        }
+                    }, function () {
+                        arrLoaded = false;
+                        arrResult.textContent = arrNotLoaded;
+                    });
+                }
+
+                page.addEventListener('pageshow', loadArr);
+                loadArr();
+
+                page.querySelector('#WonderFlixArrForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    arrResult.textContent = '';
+                    if (!arrLoaded) {
+                        arrResult.textContent = arrNotLoaded;
+                        return false;
+                    }
+
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        config.SonarrUrl = arrFields.SonarrUrl.value.trim();
+                        config.SonarrApiKey = arrFields.SonarrApiKey.value.trim();
+                        config.RadarrUrl = arrFields.RadarrUrl.value.trim();
+                        config.RadarrApiKey = arrFields.RadarrApiKey.value.trim();
+                        config.UpcomingSeriesDays = numberIn(arrFields.UpcomingSeriesDays, config.UpcomingSeriesDays);
+                        config.UpcomingMoviesDays = numberIn(arrFields.UpcomingMoviesDays, config.UpcomingMoviesDays);
+                        return ApiClient.updatePluginConfiguration(pluginId, config);
+                    }).then(function (saved) {
+                        Dashboard.processPluginConfigurationUpdateResult(saved);
+                        loadArr();
+                    }, function () {
+                        Dashboard.hideLoadingMsg();
+                        arrResult.textContent = 'Settings not saved.';
+                    });
+                    return false;
+                });
+
+                // L'esito di un servizio: la versione, oppure il motivo (Unauthorized, Unreachable).
+                function arrText(name, result) {
+                    if (!result.Configured) {
+                        return name + ': not set up.';
+                    }
+
+                    if (result.Ok) {
+                        return name + ': connected (' + result.Version + ').';
+                    }
+
+                    return result.Error === 'Unauthorized'
+                        ? name + ': the API key was refused.'
+                        : name + ': can\'t be reached from the Jellyfin server, check the address.';
+                }
+
+                page.querySelector('#WonderFlixArrTest').addEventListener('click', function () {
+                    arrResult.textContent = 'Testing…';
+                    ApiClient.ajax({
+                        type: 'POST',
+                        url: ApiClient.getUrl('WonderFlixWatchParty/Upcoming/Test'),
+                        dataType: 'json'
+                    }).then(function (result) {
+                        arrResult.textContent = arrText('Sonarr', result.Sonarr) + ' ' + arrText('Radarr', result.Radarr);
+                    }, function () {
+                        arrResult.textContent = 'Test failed: try again.';
                     });
                 });
             })();

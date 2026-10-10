@@ -76,6 +76,18 @@ public class ServiceRegistrationTests
         Assert.NotNull(ActivatorUtilities.CreateInstance<Api.RecoveryController>(provider));
         Assert.NotNull(ActivatorUtilities.CreateInstance<Api.AccountAdminController>(provider));
 
+        // Home su misura (spec M).
+        Assert.IsType<Server.PluginHomeLayoutStore>(provider.GetRequiredService<Home.IHomeLayoutStore>());
+        Assert.IsType<Server.PluginArrSettings>(provider.GetRequiredService<Home.IArrSettings>());
+        Assert.IsType<Home.ArrClient>(provider.GetRequiredService<Home.IArrClient>());
+        Assert.IsType<Server.JellyfinSeriesIndex>(provider.GetRequiredService<Home.ISeriesIndex>());
+        Assert.Same(provider.GetRequiredService<Home.UpcomingService>(), provider.GetRequiredService<Home.UpcomingService>());
+
+        // I controller della Home e Info si costruiscono dal DI: InfoController ora vuole anche IArrSettings.
+        Assert.NotNull(ActivatorUtilities.CreateInstance<Api.InfoController>(provider));
+        Assert.NotNull(ActivatorUtilities.CreateInstance<Api.HomeController>(provider));
+        Assert.NotNull(ActivatorUtilities.CreateInstance<Api.UpcomingController>(provider));
+
         // Il promemoria dei contatti, oltre ai due di prima.
         Assert.Equal(3, provider.GetServices<IHostedService>().Count());
     }

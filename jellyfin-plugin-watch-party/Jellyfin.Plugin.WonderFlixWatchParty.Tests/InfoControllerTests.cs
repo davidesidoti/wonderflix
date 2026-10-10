@@ -14,7 +14,7 @@ public class InfoControllerTests
     public void InfoReportsVersionProtocolAndFeatures()
     {
         var info = new InfoController(new FakeSeerrSettings { Url = string.Empty }, NoArr()).GetInfo().Value!;
-        Assert.Equal("1.6.0", info.Version);
+        Assert.Equal("1.7.0", info.Version);
         Assert.Equal(1, info.Protocol);
         Assert.Equal(
             new[] { "friends", "parties", "inbox", "queue", "collections", "avatars", "account", "home" },

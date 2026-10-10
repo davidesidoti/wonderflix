@@ -1,4 +1,5 @@
 using Jellyfin.Plugin.WonderFlixWatchParty.Account;
+using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Seerr;
 using Jellyfin.Plugin.WonderFlixWatchParty.Server;
@@ -65,6 +66,16 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<PasswordRecovery>();
         serviceCollection.AddSingleton<AccountAdmin>();
         serviceCollection.AddSingleton<ContactReminders>();
+        // Home su misura (spec M): la Home dell'admin e le uscite di Sonarr e Radarr.
+        serviceCollection.AddSingleton<IHomeLayoutStore, PluginHomeLayoutStore>();
+        serviceCollection.AddSingleton<IArrSettings, PluginArrSettings>();
+        // La chiave API non va nei log del client HTTP e non segue un redirect.
+        serviceCollection.AddHttpClient(ArrClient.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false })
+            .RedactLoggedHeaders(["X-Api-Key"]);
+        serviceCollection.AddSingleton<IArrClient, ArrClient>();
+        serviceCollection.AddSingleton<ISeriesIndex, JellyfinSeriesIndex>();
+        serviceCollection.AddSingleton<UpcomingService>();
         serviceCollection.AddSingleton<ILibraryTitles, JellyfinLibraryTitles>();
         serviceCollection.AddSingleton<NewTitlesCollector>();
         serviceCollection.AddSingleton<PresenceTracker>();

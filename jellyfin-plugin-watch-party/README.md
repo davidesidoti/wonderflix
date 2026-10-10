@@ -17,15 +17,19 @@ altri utenti (spec K,
 Dalla 1.6.0 porta il recupero della password con un codice su Discord o per
 email (spec L,
 `docs/superpowers/specs/2026-10-09-wonderflix-recupero-password-design.md`).
+Dalla 1.7.0 dà la Home dell'admin (quali righe vede ogni utente nella Home
+dell'app) e le uscite in arrivo da Sonarr e Radarr (spec M,
+`docs/superpowers/specs/2026-10-10-wonderflix-home-su-misura-design.md`).
 Senza il plugin WonderFlix funziona lo stesso, con gli avvisi
-anonimi, senza saghe, con le iniziali al posto delle immagini e senza il
-recupero della password.
+anonimi, senza saghe, con le iniziali al posto delle immagini, senza il
+recupero della password, con la Home nell'ordine predefinito e senza le
+uscite in arrivo.
 
 - Jellyfin **10.11.x** (net9.0, `targetAbi` 10.11.0.0). Per Jellyfin 12 serve
   una build nuova (net10.0).
 - Le impostazioni stanno nella pagina del plugin nella Dashboard (menu
-  laterale, sotto Plugin): **Notify new titles** (accesa di default), Seerr e il
-  recupero della password. La stessa pagina manda
+  laterale, sotto Plugin): **Notify new titles** (accesa di default), Seerr, il
+  recupero della password e Sonarr e Radarr. La stessa pagina manda
   un **annuncio** a tutti e, con **Send now**, il riepilogo dei nuovi titoli in
   attesa. Endpoint sotto `/WonderFlixWatchParty`; gli eventi arrivano ai client
   come `GeneralCommand` `SendString` con la chiave `WonderFlixWatchParty`.
@@ -89,13 +93,29 @@ recupero della password.
   illeggibile diventa `contacts.json.bad`); i codici solo in memoria (10
   minuti, 5 tentativi). Gli endpoint dell'admin stanno sotto
   `Account/Admin`.
+- **Home (dalla 1.7.0):** `GET Home/Layout` dà la Home dell'admin (gli id
+  delle righe accese, in ordine; `null` se mai impostata), `POST Home/Layout`
+  la cambia (solo admin, dall'app; gli id sconosciuti si scartano). Le uscite
+  in arrivo: `GET Upcoming/Series` (episodi entro N giorni dal calendario di
+  Sonarr, non ancora scaricati, con la serie di Jellyfin se l'utente la vede)
+  e `GET Upcoming/Movies` (film con l'uscita digitale entro N giorni, da
+  Radarr); rispondono sempre 200, con `Error` (`NotConfigured`,
+  `Unauthorized`, `Unreachable`) se qualcosa non va. Le risposte restano in
+  memoria 15 minuti (gli errori 1 minuto). Nella pagina del plugin: indirizzo
+  (con l'UrlBase, es. `https://host/sonarr`) e chiave di Sonarr e Radarr, i
+  giorni e **Test connection** (`POST Upcoming/Test`, solo admin). Le chiavi
+  non lasciano il server; le immagini sono gli indirizzi pubblici di TVDB e TMDB.
 - **Funzioni:** `GET Info` annuncia quello che il plugin sa fare; dalla 1.5.0
   ci sono sempre anche `collections` e `avatars`, dalla 1.6.0 anche
-  `account`. Gli endpoint delle saghe e delle immagini sono aperti a ogni
-  utente che ha fatto l'accesso. Quelli di `account` dipendono dalla rotta:
-  `Account/Contacts` per ogni utente che ha fatto l'accesso (con la password
-  attuale per cambiare i contatti), `Account/Recovery` senza accesso,
-  `Account/Admin` solo per gli admin.
+  `account`, dalla 1.7.0 anche `home`; `upcomingSeries` e `upcomingMovies`
+  solo con Sonarr e Radarr configurati. Gli endpoint delle saghe e delle
+  immagini sono aperti a ogni utente che ha fatto l'accesso. Quelli di
+  `account` dipendono dalla rotta: `Account/Contacts` per ogni utente che ha
+  fatto l'accesso (con la password attuale per cambiare i contatti),
+  `Account/Recovery` senza accesso, `Account/Admin` solo per gli admin. Quelli
+  di `Home` e `Upcoming` sono aperti a ogni utente che ha fatto l'accesso,
+  tranne le scritture (`POST Home/Layout`, `POST Upcoming/Test`), solo per gli
+  admin.
 
 ## Installazione dal repository
 
@@ -106,8 +126,8 @@ recupero della password.
 
 ## Installazione a mano (prove)
 
-1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.6.0`.
-   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.6.0.0/`
+1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.7.0`.
+   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.7.0.0/`
    con la dll e `meta.json`.
 2. Copia la cartella dentro `plugins/` della cartella dati di Jellyfin (su
    Ultra.cc via SFTP).
