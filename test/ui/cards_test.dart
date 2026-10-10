@@ -158,6 +158,18 @@ void main() {
     expect(find.text('S1:E4 · Please Hold'), findsOneWidget);
   });
 
+  testWidgets('LandscapeCard: sottotitolo a scelta', (tester) async {
+    await pumpApp(
+      tester,
+      Center(
+        child: LandscapeCard(
+            item: testItem(), subtitle: 'Matrix · 1 di 3 visti', onTap: () {}),
+      ),
+      overrides: [signedIn],
+    );
+    expect(find.text('Matrix · 1 di 3 visti'), findsOneWidget);
+  });
+
   testWidgets('MediaRow: titolo e frecce', (tester) async {
     await pumpApp(
       tester,

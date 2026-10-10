@@ -21,6 +21,7 @@ class LandscapeCard extends ConsumerStatefulWidget {
     required this.item,
     this.onTap,
     this.heroSource,
+    this.subtitle,
     this.width = 300,
   });
 
@@ -31,6 +32,10 @@ class LandscapeCard extends ConsumerStatefulWidget {
   /// dentro la pagina: il tag usa [WfHeroScope.source].
   /// Senza [onTap], il clic apre la scheda con il volo da qui.
   final String? heroSource;
+
+  /// Al posto di quello della libreria (`cardSubtitle`): per esempio il
+  /// punto di una saga (spec M §8.3).
+  final String? subtitle;
   final double width;
 
   @override
@@ -45,7 +50,7 @@ class _LandscapeCardState extends ConsumerState<LandscapeCard> {
     final item = widget.item;
     final userData = watchUserData(ref, item);
     final progress = userData.progress;
-    final subtitle = cardSubtitle(item);
+    final subtitle = widget.subtitle ?? cardSubtitle(item);
     // Unica per l'istanza della pagina (vedi WfHeroScope).
     final source = widget.heroSource;
     final heroSource =
