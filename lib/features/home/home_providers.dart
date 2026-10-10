@@ -96,8 +96,10 @@ final homeLayoutProvider = FutureProvider.autoDispose<HomeLayout>((ref) async {
     hasSeerrAccount = me.value?.hasAccount ?? false;
   }
   if (!features.known) {
-    // Finisce appena le funzioni sono note, o alla chiusura del provider:
-    // nessun timer in sospeso.
+    // Il timer dell'attesa è del notifier delle funzioni, non di questo
+    // provider: finisce appena le funzioni sono note, allo scadere di
+    // [homeFeaturesWait] o quando il notifier si chiude. Se la Home si chiude
+    // prima, può restare in sospeso fino a 2 s e poi finisce da solo.
     await ref
         .read(socialAvailabilityProvider.notifier)
         .whenKnown(homeFeaturesWait);

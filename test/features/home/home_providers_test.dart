@@ -215,7 +215,8 @@ void main() {
     });
   });
 
-  test('funzioni non ancora note, Home chiusa: nessun timer in sospeso', () {
+  test('funzioni non ancora note, container chiuso: nessun timer in sospeso',
+      () {
     fakeAsync((async) {
       availability = FakeSocialAvailability(SocialFeatures.unknown);
       final c = container();
@@ -224,6 +225,25 @@ void main() {
       c.dispose();
       async.flushMicrotasks();
       expect(async.nonPeriodicTimerCount, 0);
+    });
+  });
+
+  test(
+      "funzioni non ancora note, solo la Home chiusa: il timer finisce entro l'attesa",
+      () {
+    fakeAsync((async) {
+      availability = FakeSocialAvailability(SocialFeatures.unknown);
+      final c = container();
+      final sub =
+          c.listen(homeLayoutProvider, (_, _) {}, fireImmediately: true);
+      async.elapse(const Duration(milliseconds: 100));
+      sub.close();
+      async.elapse(Duration.zero);
+      expect(async.nonPeriodicTimerCount, 1,
+          reason: 'il timer è del notifier delle funzioni: resta');
+      async.elapse(homeFeaturesWait);
+      expect(async.nonPeriodicTimerCount, 0, reason: 'poi finisce da solo');
+      c.dispose();
     });
   });
 
