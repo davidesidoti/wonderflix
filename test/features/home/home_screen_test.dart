@@ -96,6 +96,24 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+      'il carosello legge mentre la composizione aspetta le funzioni del plugin',
+      (tester) async {
+    someRows();
+    // Le funzioni non sono note: la composizione aspetta fino a 2 s e la
+    // Home resta sullo scheletro.
+    await pumpHome(tester, features: SocialFeatures.unknown);
+    expect(find.byType(SkeletonBox), findsWidgets, reason: 'si compone ancora');
+    expect(find.text('Continua a guardare'), findsNothing);
+    expect(
+        library.itemQueries.map((query) => query.kinds),
+        unorderedEquals([
+          {ItemKind.movie},
+          {ItemKind.series},
+        ]),
+        reason: 'i film e le serie del carosello partono subito, in parallelo');
+  });
+
   testWidgets('senza carosello la prima riga inizia sotto la barra',
       (tester) async {
     library.resumeItems = [

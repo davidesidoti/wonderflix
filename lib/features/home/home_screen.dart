@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_shell.dart';
 import '../../app/theme.dart';
+import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/shimmer.dart';
 import '../../ui/smooth_scroll.dart';
@@ -128,16 +129,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // `.value` e non `isLoading`: durante una ricomposizione il valore
     // precedente resta e la Home non torna allo scheletro.
     final layout = ref.watch(homeLayoutProvider).value;
-    final (state, content) =
-        layout == null ? ('loading', const _HomeSkeleton()) : _content(l, layout);
+    // Il carosello si guarda anche prima di conoscere la composizione: le
+    // sue letture partono insieme a quelle della composizione, non un giro
+    // dopo.
+    final featured = ref.watch(homeFeaturedProvider);
+    final (state, content) = layout == null
+        ? ('loading', const _HomeSkeleton())
+        : _content(l, layout, featured);
     return WfSwitcher(
       expand: true,
       child: KeyedSubtree(key: ValueKey(state), child: content),
     );
   }
 
-  (String, Widget) _content(AppLocalizations l, HomeLayout layout) {
-    final featured = ref.watch(homeFeaturedProvider);
+  (String, Widget) _content(AppLocalizations l, HomeLayout layout,
+      AsyncValue<List<JellyfinItem>> featured) {
     final rows = <HomeRowKind, AsyncValue<HomeRowContent>>{
       for (final kind in layout.visible)
         kind: ref.watch(homeRowProvider((kind: kind, language: _language))),
