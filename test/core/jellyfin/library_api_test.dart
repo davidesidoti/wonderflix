@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/item_query.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
@@ -165,6 +166,86 @@ void main() {
     // `ids=` vuoto farebbe rispondere a Jellyfin con le viste della libreria.
     expect(await api.itemsByIds('u1', const []), isEmpty);
     expect(adapter.requests, isEmpty);
+  });
+
+  group('itemsByIds a gruppi', () {
+    /// Risponde con gli id chiesti; il primo gruppo arriva per ultimo.
+    void echoIds() {
+      adapter.handler = (options) async {
+        final ids = (options.queryParameters['ids'] as String).split(',');
+        if (ids.first == 'm0') {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
+        return FakeResponse(200, itemsResult(ids));
+      };
+    }
+
+    List<String> askedIds(RequestOptions request) =>
+        (request.queryParameters['ids'] as String).split(',');
+
+    test('250 id: tre richieste da 100, 100 e 50, risultati in ordine',
+        () async {
+      echoIds();
+      final ids = [for (var i = 0; i < 250; i++) 'm$i'];
+      final items = await api.itemsByIds('u1', ids);
+      expect(adapter.requests.map((r) => askedIds(r).length).toList()..sort(),
+          [50, 100, 100]);
+      expect(
+          [for (final r in adapter.requests) askedIds(r).first],
+          unorderedEquals(['m0', 'm100', 'm200']));
+      for (final request in adapter.requests) {
+        expect(request.path, '/Items');
+        expect(request.queryParameters['userId'], 'u1');
+        expect(request.queryParameters['fields'], contains('Overview'));
+      }
+      expect(items.map((item) => item.id), ids,
+          reason: "concatenati nell'ordine dei gruppi, non di arrivo");
+    });
+
+    test('la richiesta più lunga resta sotto gli 8 KB di Kestrel e nginx',
+        () async {
+      echoIds();
+      // Id di Jellyfin: 32 caratteri esadecimali, 35 byte con la virgola
+      // codificata (%2C).
+      final ids = [
+        for (var i = 0; i < 1000; i++) i.toRadixString(16).padLeft(32, 'a'),
+      ];
+      await api.itemsByIds('u1', ids);
+      expect(adapter.requests, hasLength(10));
+      for (final request in adapter.requests) {
+        expect(request.uri.toString().length, lessThan(4500));
+      }
+    });
+
+    test('al massimo 100 id: una sola richiesta, come prima', () async {
+      echoIds();
+      final ids = [for (var i = 0; i < 100; i++) 'm$i'];
+      final items = await api.itemsByIds('u1', ids);
+      expect(adapter.requests, hasLength(1));
+      expect(askedIds(adapter.requests.single), ids);
+      expect(items.map((item) => item.id), ids);
+    });
+
+    test('101 id: due richieste, 100 e 1', () async {
+      echoIds();
+      final ids = [for (var i = 0; i < 101; i++) 'm$i'];
+      final items = await api.itemsByIds('u1', ids);
+      expect(adapter.requests.map((r) => askedIds(r).length).toList()..sort(),
+          [1, 100]);
+      expect(items.map((item) => item.id), ids);
+    });
+
+    test('un gruppo che fallisce fa fallire la lettura', () async {
+      adapter.handler = (options) {
+        final ids = (options.queryParameters['ids'] as String).split(',');
+        return ids.contains('m150')
+            ? const FakeResponse(500)
+            : FakeResponse(200, itemsResult(ids));
+      };
+      await expectLater(
+          api.itemsByIds('u1', [for (var i = 0; i < 250; i++) 'm$i']),
+          throwsA(isA<ApiException>()));
+    });
   });
 
   test('collectionItems: i titoli della saga in ordine di uscita (spec K §8.1)',

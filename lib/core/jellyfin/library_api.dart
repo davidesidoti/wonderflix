@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:dio/dio.dart';
 
 import 'api_exception.dart';
@@ -113,20 +115,37 @@ class LibraryApi {
     return index > 0 ? episodes[index - 1] : null;
   }
 
+  /// Quanti id al massimo per richiesta di [itemsByIds]: ogni id pesa circa
+  /// 35 byte nell'indirizzo (32 caratteri e la virgola codificata), e oltre
+  /// gli 8 KB che Kestrel e nginx accettano di norma la risposta è un errore
+  /// (414 o 400).
+  static const itemsByIdsChunk = 100;
+
   /// Gli elementi [ids] (la coda del watch party, spec H §8.5), in ordine
   /// qualunque: quelli cancellati o che l'utente non vede mancano. Con la
   /// sinossi (`Overview`, che Jellyfin manda solo se richiesta): serve al
   /// post-play del party. Con [ids] vuoto non parte nessuna richiesta: un
   /// `ids=` vuoto farebbe rispondere a Jellyfin con le viste della libreria.
+  /// Le liste lunghe (le saghe grandi di "Continua la saga") si chiedono a
+  /// gruppi di [itemsByIdsChunk], tutti insieme, e si ridanno nell'ordine dei
+  /// gruppi.
   Future<List<JellyfinItem>> itemsByIds(
       String userId, List<String> ids) async {
     if (ids.isEmpty) return const [];
-    return _list(await _http.get('/Items', query: {
-      ...cardImageParams,
-      'fields': '${cardImageParams['fields']},Overview',
-      'userId': userId,
-      'ids': ids.join(','),
-    }));
+    final chunks = [
+      for (var start = 0; start < ids.length; start += itemsByIdsChunk)
+        ids.sublist(start, min(start + itemsByIdsChunk, ids.length)),
+    ];
+    final results = await Future.wait([
+      for (final chunk in chunks)
+        _http.get('/Items', query: {
+          ...cardImageParams,
+          'fields': '${cardImageParams['fields']},Overview',
+          'userId': userId,
+          'ids': chunk.join(','),
+        }),
+    ]);
+    return [for (final data in results) ..._list(data)];
   }
 
   /// Le ultime visioni dell'utente (spec M §8.3, "Perché hai visto X"): film
