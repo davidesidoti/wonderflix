@@ -1,7 +1,8 @@
 # WonderFlix — Spec M: Home su misura
 
 - **Data:** 2026-10-10
-- **Stato:** approvata il 2026-10-10; piano 19a realizzato (`docs/superpowers/plans/2026-10-10-wonderflix-19a-home-plugin.md`), plugin 1.7.0 installato come build di prova sul server il 2026-10-10; piani 19b e 19c da scrivere.
+- **Stato:** approvata il 2026-10-10; piano 19a realizzato (`docs/superpowers/plans/2026-10-10-wonderflix-19a-home-plugin.md`), plugin 1.7.0 installato come build di prova sul server il 2026-10-10; piano 19b (la Home nell'app) realizzato e provato con l'utente il 2026-10-11 (`docs/superpowers/plans/2026-10-10-wonderflix-19b-home-app.md`); piano 19c (impostazioni Home, card dell'admin, "Cosa guardo stasera?", release app 0.13.0 e plugin 1.7.0) da scrivere.
+- **Allineamento al 19b:** dove l'app costruita nel 19b si discosta dal testo scritto prima, il testo segue il codice e dice il motivo. Le parti del 19c (§8.4, §8.5, §8.6 e i testi relativi) sono ancora il progetto.
 - **Ambito:** Spec M. Realizza l'idea 15 di `docs/IDEE.md` ("Home su misura"): porta nella Home di WonderFlix le righe che l'utente ha già su jellyfin-web con il plugin Home Screen Sections e va oltre. L'admin sceglie righe e ordine per tutti; ogni utente le sposta e le nasconde per sé; in più "Continua la saga" e "Cosa guardo stasera?".
 
 ## 1. Obiettivo
@@ -123,10 +124,12 @@ Il carosello resta in cima, fuori dall'elenco, con i titoli aggiunti di recente 
 
 Dati l'elenco dell'admin `A`, l'ordine dell'utente `U` e le righe nascoste `H`:
 
-1. **Ordine.** Si parte dagli id di `U` che sono in `A`, nell'ordine di `U`. Ogni id di `A` che manca si inserisce subito dopo la riga che lo precede in `A` ed è già nell'elenco; se nessuna lo precede, in testa.
+1. **Ordine.** Si parte dagli id di `U` che sono in `A`, nell'ordine di `U`. Poi si scorre `A` nel suo ordine: ogni id che manca va **dopo l'ultima, nell'elenco, delle righe che lo precedono in `A`**; se nessuna lo precede, in testa. Una riga appena inserita conta per le successive.
 2. **Visibili.** Dall'elenco ordinato si tolgono gli id di `H` e le righe non disponibili (§6.5).
 
-Esempio: `A` = `resume, nextUp, requests, upcomingSeries`; `U` = `nextUp, resume`; `H` = `requests`. Ordine: `nextUp, resume, requests, upcomingSeries` (`requests` dopo `nextUp`, che la precede in `A`; `upcomingSeries` dopo `requests`). Visibili: `nextUp, resume, upcomingSeries`.
+Esempio: `A` = `resume, nextUp, requests, upcomingSeries`; `U` = `nextUp, resume`; `H` = `requests`. Ordine: `nextUp, resume, requests, upcomingSeries` (`requests` dopo `resume`, l'ultima in elenco tra quelle che la precedono in `A`, cioè `resume` e `nextUp`; `upcomingSeries` dopo `requests`). Visibili: `nextUp, resume, upcomingSeries`.
+
+Perché questa regola: la frase "subito dopo la riga che lo precede in `A`" metterebbe `requests` subito dopo `nextUp`, cioè prima di `resume`, contro l'esempio. Una riga nuova dell'admin va dopo tutte quelle che la precedono in `A`, anche se l'utente le ha messe in un altro ordine (decisione 2 del piano 19b).
 
 L'elenco delle impostazioni (§8.5) mostra l'ordine del punto 1 con gli interruttori di `H`.
 
@@ -140,7 +143,13 @@ L'elenco delle impostazioni (§8.5) mostra l'ordine del punto 1 con gli interrut
 | `upcomingMovies` | funzione `upcomingMovies` del plugin (Radarr configurato) |
 | le altre | sempre |
 
-Una riga non disponibile non si vede in Home e non fa chiamate; nell'elenco delle impostazioni compare spenta con il motivo (§10).
+Una riga non disponibile non si vede in Home e non fa chiamate; nell'elenco delle impostazioni compare spenta con il motivo (§10). Il motivo lo dà `homeRowGate` (`HomeRowGate`: Seerr assente, utente non collegato, saghe, Sonarr, Radarr).
+
+**Le mie richieste e `/Me`.** Per sapere se l'utente è collegato a Seerr serve `RequestsMe`, cioè `/Me` di Seerr (tramite il plugin). La composizione **non lo aspetta**:
+- finché `/Me` si legge, o se la lettura fallisce, la riga vale non disponibile e le altre righe si vedono;
+- quando `/Me` risponde la Home si ricompone e "Le mie richieste" entra come riga tardiva (§8.2 punto 3);
+- motivo: uno Seerr lento (il plugin gli concede fino a 10 s) non deve tenere fermo lo scheletro di tutta la Home;
+- `/Me` si legge a ogni apertura della Home quando il plugin ha la funzione `requests`, anche se l'utente ha nascosto la riga: serve a sapere se la riga è disponibile.
 
 ### 6.6 Plugin più vecchio
 
@@ -227,59 +236,85 @@ Nuova sezione "Sonarr e Radarr" in `configPage.html` e in `PluginConfiguration`:
 - `HomeRowKind`: i 10 id di §6.1 con l'ordine predefinito.
 - Logica pura per §6.4 (ordine e visibili), testabile da sola.
 - `DisplayPreferencesApi` (Jellyfin): leggere e scrivere `wonderflix-home` / `wonderflix`, cambiando solo `homeRows` e `homeHidden` e lasciando il resto dell'oggetto com'è.
-- Client del plugin: `Home/Layout` (lettura e scrittura), `Upcoming/Series`, `Upcoming/Movies`, `Upcoming/Test`.
+- Client del plugin (`HomeApi`): `Home/Layout` (lettura e scrittura), `Upcoming/Series`, `Upcoming/Movies`. `Upcoming/Test` arriva nel 19c, con la card dell'admin.
+  - `setLayout` si aspetta una risposta con un corpo JSON (il plugin risponde con la Home salvata, §7.2): una risposta 204 darebbe un errore.
   - I codici d'errore sono in PascalCase (`NotConfigured`, `Unauthorized`, `Unreachable`).
   - Jellyfin non scrive i campi null: un campo può mancare nella risposta. Per esempio `GET Home/Layout` risponde `{}` se la Home non è mai stata impostata, e `Error` può mancare quando va tutto bene. L'app legge un campo mancante come null.
 - `SocialFeatures`: `home`, `upcomingSeries`, `upcomingMovies`.
+- Libreria: `LibraryApi.playHistory` (ultime visioni) e `playedMovies` (film visti), `JellyfinItem.premiereDate`, `ImageUrls.backdropOf` (lo sfondo di un titolo dal suo id).
 
 ### 8.2 Caricamento della Home
 
 1. **Composizione.** La Home legge in parallelo la Home dell'admin (se c'è la funzione `home`) e quella dell'utente, poi le combina (§6.4). Se la prima fallisce vale l'ordine predefinito, se fallisce la seconda vale la Home dell'admin; l'errore va nel log. Intanto si vede lo scheletro di oggi.
-2. **Righe.** Ogni riga visibile ha il suo caricamento (un provider per riga). Le righe nascoste o non disponibili non fanno chiamate. Il carosello ha il suo, sui titoli aggiunti di recente (§6.1).
-3. **Entrata.** La Home aspetta carosello e righe al massimo **1,5 s**, poi mostra tutto quello che è arrivato con l'entrata scaglionata di oggi (sempre una volta per sessione). Una riga arrivata dopo entra al suo posto con la stessa animazione (se l'entrata della sessione è già stata fatta, compare con la dissolvenza delle righe ricostruite).
+   - **Funzioni del plugin non ancora note** (`Info` non è ancora arrivato): la composizione le aspetta al massimo **2 s** (`homeFeaturesWait`, con `SocialAvailability.whenKnown`) e si ricompone appena arrivano. Di solito `Info` risponde subito dopo l'accesso. Se non arrivano, si compone senza le righe del plugin.
+   - **Seerr non si aspetta** (§6.5): "Le mie richieste" entra quando `/Me` risponde.
+   - **Ricomposizione.** Quando arrivano le funzioni o `/Me`, la Home non torna allo scheletro: resta com'è e cambia solo l'elenco delle righe.
+   - Oltre ai 2 s per le funzioni, la composizione non ha un suo tempo massimo: se Jellyfin risponde piano, le righe sono lente comunque.
+2. **Righe.** Ogni riga visibile ha il suo caricamento (un provider per riga, `homeRowProvider`). Le righe nascoste o non disponibili non fanno chiamate. Il carosello ha il suo (`homeFeaturedProvider`), sui titoli aggiunti di recente (§6.1).
+   - Il carosello e le righe `latestMovies` e `latestSeries` condividono le stesse due letture.
+   - Le letture del carosello partono insieme a quelle della composizione, non dopo.
+   - Se una delle due letture (film o serie aggiunti di recente) fallisce, restano i titoli dell'altra; il carosello è in errore solo se falliscono tutte e due (decisione 9 del piano 19b).
+3. **Entrata.**
+   - **Apertura.** L'attesa massima di **1,5 s** (`homeRevealWait`) conta dalla fine della composizione, cioè dopo la lettura della Home dell'admin e di quella dell'utente. Se carosello e righe arrivano prima, la Home si apre subito. Scaduto il tempo, mostra tutto quello che è arrivato con l'entrata scaglionata di oggi (una volta per sessione).
+   - **Solo le righe che si vedono.** L'entrata conta le righe con qualcosa da mostrare: una riga vuota o in errore non lascia un buco nella scaletta.
+   - **Righe arrivate dopo.** Una riga che arriva dopo l'apertura entra da sola, al suo posto, con un piccolo gruppo d'entrata suo (la riga sale e le card volano). Succede anche dopo la prima entrata della sessione, e anche per una riga vuota all'apertura che si riempie dopo. Se la Home si apre senza nessuna riga, la prima che arriva dopo segna come fatta l'entrata della sessione.
+   - **Una volta sola.** La lista smonta le righe lontane e le rimonta scorrendo: una riga tardiva che ha già fatto la sua entrata non la rifà (`_LateRow`; vale finché la schermata esiste, "Riprova" riparte da capo).
+   - **Animazioni ridotte:** le righe tardive compaiono e basta.
 4. **Errori.**
    - Una riga in errore non si vede; l'errore va nel log.
-   - Errore con "Riprova" solo se **tutte** le righe di Jellyfin visibili (e il carosello) falliscono.
-   - Tutte vuote (o nessuna riga accesa): "Home vuota" come oggi.
+   - Errore con "Riprova" solo se il carosello **e tutte** le righe di Jellyfin visibili (`HomeRowKind.fromJellyfin`) falliscono. Seerr, Sonarr e Radarr non contano.
+   - Dopo "Riprova" la Home ricomincia: scheletro finché le nuove letture non arrivano, al massimo 1,5 s. Limite noto: se le letture durano di più, scaduto il tempo l'errore compare di nuovo finché arrivano i dati.
+   - **"Home vuota"** solo se il carosello e tutte le righe sono vuoti (o in errore) e nessuna lettura è in corso. Con tutte le righe spente dall'admin (elenco vuoto, §6.2) resta il carosello: niente "Home vuota" e niente errore (Review Focus 3 del piano 19b; il testo precedente diceva "Home vuota" anche senza righe accese).
 5. **Aggiornamenti.**
    - Righe di Jellyfin (`resume`, `nextUp`, `latestMovies`, `latestSeries`, `becauseYouWatched`, `continueSaga`, `myList`): come oggi, con `libraryRevisionProvider` e `userDataRevisionProvider`.
-   - Righe esterne (`requests`, `upcomingSeries`, `upcomingMovies`) e Home dell'admin: si rileggono quando si torna alla Home, al massimo ogni 5 minuti.
-   - Home dell'utente: subito, quando la salva dalle impostazioni.
-6. **Fondo della Home:** il collegamento "Personalizza la Home" (§8.5).
+   - Righe esterne (`requests`, `upcomingSeries`, `upcomingMovies`) e Home dell'admin: restano in memoria **5 minuti** dalla fine della lettura (`homeExternalRefresh`, `keepFor`), anche senza la Home aperta. Tornando alla Home entro 5 minuti non si rileggono, dopo sì.
+   - Le righe esterne sono legate all'utente: cambiando profilo si rileggono. Senza questo il nuovo account vedeva per 5 minuti le richieste di Seerr e i collegamenti `JellyfinSeriesId` del precedente (trovato nella review finale del 19b). La Home dell'admin è per tutti e non dipende dall'utente.
+   - Home dell'utente: non si tiene in memoria, quindi si rilegge a ogni apertura della Home e al cambio di profilo. Quando la salva dalle impostazioni (19c), subito.
+6. **Fondo della Home:** il collegamento "Personalizza la Home" (§8.5), nel 19c.
 
-Con tutte le righe accese le chiamate passano da 5 a circa 12, in parallelo.
+Con tutte le righe accese le chiamate passano da 5 a una quindicina, in parallelo: 3 per la composizione (Home dell'admin, Home dell'utente, `/Me` di Seerr) e una o più per riga. "Perché hai visto X" e "Continua la saga" ne fanno più d'una, una dopo l'altra.
 
 ### 8.3 Le righe nuove
 
 Al massimo 20 titoli per riga (10 per Continua la saga); una riga vuota non c'è.
 
 **Perché hai visto X** (locandine)
-- Le ultime visioni: `Items` con `IsPlayed=true`, film ed episodi, `SortBy=DatePlayed` decrescente, 10 risultati. Un episodio vale come la sua serie; i doppioni si tolgono.
+- Le ultime visioni: `Items` con `IsPlayed=true`, film ed episodi, `SortBy=DatePlayed` decrescente, **50** risultati (`playHistory`, `becauseHistoryLimit`). Un episodio vale come la sua serie; i doppioni si tolgono.
+  - Perché 50 e non 10: sul server le ultime visioni dell'admin erano sei episodi di fila della stessa serie. Con 10 risultati spesso resta un titolo solo e il passaggio al titolo successivo (sotto) non funzionerebbe (decisione 3 del piano 19b).
 - Per il primo titolo: `similar` (30 risultati), tenendo i film non visti e le serie non finite, senza il titolo stesso. Se ne restano meno di 4, si prova col titolo successivo, fino a 3 titoli. Se nessuno basta, la riga non c'è.
 - Titolo della riga: "Perché hai visto *Dune*" (`homeBecauseYouWatched`).
 
 **Le mie richieste** (locandine con `RequestBadge`)
 - `RequestsApi.list(RequestsFilter.mine, skip: 0, take: 50)`, senza le rifiutate e le fallite.
 - Prima quelle in corso (in attesa, approvata, in download, parziale), dalla più recente; poi le disponibili create negli ultimi 30 giorni, dalla più recente.
-- Locandina TMDB come `RequestablePosterCard`. Clic: `openRequest`.
+- Locandina TMDB (`TmdbImages`) in una `RemoteImageCard`, con `RequestBadge` in alto a sinistra e l'anno sotto il titolo. Clic: `openRequest`.
+- La lingua della Home fa parte della chiave della riga: cambiando lingua le richieste si rileggono (decisione 8 del piano 19b).
 
 **Continua la saga** (card orizzontali)
 - Le saghe di `collectionsProvider` e i film visti (`Items`, film, `IsPlayed=true`, `SortBy=DatePlayed` decrescente, solo id e data, al massimo 500).
 - Una saga entra se ha almeno un film visto e almeno uno non visto, contando solo i suoi titoli visibili.
 - Ordine: dalla saga col film visto più di recente. Al massimo 10.
-- Per le saghe scelte, `itemsByIds` dei titoli non visti: il prossimo è il primo non visto in ordine di uscita (la regola della pagina della saga).
-- Card: sfondo del prossimo film, il suo titolo, sotto "Il Signore degli Anelli · 1 di 3 visti" (`homeSagaProgress`). Clic: pagina della saga.
+  - I film visti sono quelli tra i 500 letti: oltre, i più vecchi non si contano, e il "visti" della card può essere più basso del vero.
+- Per le saghe scelte, `itemsByIds` dei titoli non visti: una sola lettura per tutte, invece di una per saga (`collectionItems`).
+  - `itemsByIds` non ordina. Il prossimo è il primo non visto in ordine di uscita, come nella pagina della saga: per `PremiereDate` (`JellyfinItem.premiereDate`, che Jellyfin manda anche senza chiederla), se manca per anno di produzione, a parità per nome (decisione 4 del piano 19b).
+  - `itemsByIds` divide gli id in gruppi di 100 (`LibraryApi.itemsByIdsChunk`), letti insieme. Una saga grande dà centinaia di id: in un'unica richiesta superano il limite della riga di richiesta (circa 8 KB, poco più di 200 id) e tutta la riga sparirebbe in silenzio (trovato nella review finale del 19b).
+- Card: `LandscapeCard` con sfondo del prossimo film e il suo titolo; sotto, "Il Signore degli Anelli · 1 di 3 visti" (`homeSagaProgress`, dal sottotitolo di `LandscapeCard`). Clic: pagina della saga.
 
 **Serie in arrivo** (card orizzontali)
-- `Upcoming/Series`. Sfondo: quello di Jellyfin se c'è `JellyfinSeriesId`, altrimenti `BackdropUrl` (poi `PosterUrl`, poi il segnaposto delle card).
-- Titolo: nome della serie. Sotto: "S02E05 · Oggi", "S01E05–E06 · Domani", "S03E01 · ven 17 ott" (`upcomingEpisode`, `upcomingEpisodes`, `upcomingToday`, `upcomingTomorrow`). La data è nel fuso del PC; una data passata o di oggi è "Oggi".
+- `Upcoming/Series`, in una `RemoteImageCard` orizzontale. Sfondo: quello di Jellyfin (`ImageUrls.backdropOf`) se c'è `JellyfinSeriesId`, altrimenti `BackdropUrl` (poi `PosterUrl`, poi il segnaposto delle card).
+  - Se la serie di Jellyfin non ha uno sfondo, si vede il segnaposto e non quello di Sonarr: la riga non sa se Jellyfin ce l'ha.
+- Titolo: nome della serie. Sotto: "S02E05 · Oggi", "S01E05–E06 · Domani", "S03E01 · ven 17 ott" (`upcomingEpisode`, `upcomingEpisodes`, `upcomingToday`, `upcomingTomorrow`). Il giorno di un episodio è nel fuso del PC; una data passata o di oggi è "Oggi".
 - Clic: dettaglio Jellyfin con `JellyfinSeriesId`; altrimenti pagina Seerr della serie (`tmdbRoute`) se c'è `TmdbId` e la funzione `requests`; altrimenti la card non si clicca.
 
 **Film in arrivo** (locandine)
-- `Upcoming/Movies`. Locandina `PosterUrl`. Sotto: "Digitale · 13 ott" (`upcomingDigital`).
+- `Upcoming/Movies`, in una `RemoteImageCard` a locandina. Locandina `PosterUrl`. Sotto: "Digitale · 13 ott" (`upcomingDigital`).
+  - La data digitale è una data di calendario (Radarr la dà a mezzanotte UTC): si mostra il giorno UTC. Nel fuso del PC, a ovest di Greenwich, sarebbe il giorno prima (decisione 5 del piano 19b).
 - Clic: pagina Seerr del film se c'è la funzione `requests`; altrimenti la card non si clicca.
 
-**Card con immagini esterne.** `PosterCard` e `LandscapeCard` lavorano su `JellyfinItem`. Per "In arrivo" serve una variante con immagine da indirizzo esterno, titolo, sottotitolo e clic facoltativo, nello stile delle card di oggi (come `RequestablePosterCard` con TMDB). Le date sono nella lingua dell'app.
+**Card con immagini esterne.** `PosterCard` e `LandscapeCard` lavorano su `JellyfinItem`. Per "In arrivo" e "Le mie richieste" c'è `RemoteImageCard` (`lib/ui/remote_image_card.dart`): immagine da un indirizzo qualunque (`ImageRef`), titolo, sottotitolo ed etichetta in alto a sinistra facoltativi, clic facoltativo, nello stile delle card di oggi. Le date sono nella lingua dell'app.
+- Due forme (`RemoteCardShape`): locandina 2/3 larga 160, come le `PosterCard` della Home; card orizzontale 16/9 larga 300, come le `LandscapeCard`.
+- Senza clic la card non cambia al passaggio del mouse. Con il clic ha il cursore a mano e il bordo oro al passaggio. Se il clic sparisce mentre il mouse è sopra, il bordo oro si toglie (trovato nella review: il clic di "In arrivo" cambia con `requestsAvailableProvider`, anche con la Home aperta).
+- `LandscapeCard` ha un sottotitolo a scelta (`subtitle`), al posto di quello che ricava dal titolo (`cardSubtitle`): lo usa "Continua la saga".
 
 ### 8.4 Cosa guardo stasera?
 
@@ -308,6 +343,14 @@ Al massimo 20 titoli per riga (10 per Continua la saga); una riga vuota non c'è
 - **"Ripristina la Home predefinita":** toglie `homeRows` e `homeHidden`; disattivato se non ci sono.
 - Sotto: "Vale per questo account su tutti i PC."
 - **`/settings?section=home`** apre le impostazioni e scorre fino alla sezione Home. Il collegamento "Personalizza la Home" in fondo alla Home porta lì.
+
+**Note per il 19c** (dal 19b):
+- **Id sconosciuti.** `DisplayPreferencesApi.writeHome` riscrive `homeRows` e `homeHidden` con gli id che riceve. Chi legge ignora gli id che non conosce (§6.3), ma chi scrive non deve perderli: l'editor li conserva, altrimenti salvare dall'app di un PC toglie le righe nuove di una versione futura.
+- **Salvataggi in coda.** Salvare è leggere, cambiare e riscrivere tutto l'oggetto, e `DisplayPreferences` non ha un blocco: due salvataggi insieme si pestano. L'editor li mette in fila, uno alla volta.
+- **Home subito aggiornata.** Dopo un salvataggio l'editor invalida `homeUserPrefsProvider` (§8.2 punto 5), così la Home si ricompone con i nuovi ritocchi.
+- **`HomeApi.setLayout`** si aspetta un corpo JSON in risposta e restituisce la Home salvata (§7.2, §8.1): una risposta 204 darebbe un errore.
+- **Motivi e disponibilità.** `homeRowGate` dà il motivo per cui una riga non c'è; l'elenco delle impostazioni ha bisogno di `/Me` (`requestsMeProvider`), che la Home già legge a ogni apertura (§6.5).
+- **`Upcoming/Test`** manca ancora nel client `HomeApi` (§8.1).
 
 ### 8.6 Amministrazione → WonderFlix
 
@@ -377,9 +420,13 @@ L'admin ha anche la sua Home personale in Impostazioni → Home, come ogni utent
 
 "Guarda", "Dettagli" e "Riprova" usano i testi che ci sono già (`actionPlay`, `actionDetails`, quello di `ErrorView`).
 
+Nel 19b ci sono le chiavi da `homeMyRequests` a `upcomingDigital` (le prime undici della tabella, con questi testi); le altre arrivano nel 19c.
+
 ## 11. Errori e casi limite
 
-- **L'admin spegne tutte le righe:** carosello, "Cosa guardo stasera?" e "Home vuota".
+- **L'admin spegne tutte le righe:** restano il carosello e "Cosa guardo stasera?" (19c); niente "Home vuota" e niente errore. "Home vuota" solo se anche il carosello è vuoto (§8.2 punto 4).
+- **Seerr lento o giù:** "Le mie richieste" non c'è (o entra dopo, quando `/Me` risponde); le altre righe si vedono e la Home non aspetta (§6.5).
+- **Una sola lettura del carosello riuscita:** restano i titoli dell'altra (§8.2 punto 2).
 - **Due PC cambiano la Home dello stesso account:** vale l'ultimo salvataggio.
 - **`DisplayPreferences`:** id e client nostri, non toccano quelle di jellyfin-web; il resto dell'oggetto si riscrive com'era.
 - **Utenti con limiti sulle librerie:** "In arrivo" mostra le uscite a tutti; il clic verso il dettaglio Jellyfin solo se l'utente vede la serie.
@@ -387,8 +434,8 @@ L'admin ha anche la sua Home personale in Impostazioni → Home, come ogni utent
 - **Immagine esterna che non carica:** il segnaposto delle card.
 - **Sonarr o Radarr irraggiungibili:** la riga non c'è; la card admin lo dice alla prova.
 - **Indirizzi scambiati** (quello di Radarr in Sonarr o il contrario): lo stato risponde lo stesso e le righe restano vuote. La prova controlla il nome dell'app e dice `Unreachable` (§7.5), che la card spiega con "controlla l'indirizzo".
-- **Date:** UTC dal plugin, mostrate nel fuso del PC; "Oggi" e "Domani" sul giorno locale.
-- **Profilo cambiato:** la Home si ricompone con le `DisplayPreferences` del nuovo account.
+- **Date:** UTC dal plugin. Il giorno di un episodio è nel fuso del PC, con "Oggi" e "Domani" sul giorno locale. La data digitale di un film è una data di calendario: si mostra il giorno UTC (§8.3).
+- **Profilo cambiato:** la Home si ricompone con le `DisplayPreferences` del nuovo account, e le righe esterne tenute in memoria (richieste, uscite) si rileggono per lui (§8.2 punto 5).
 - **Plugin < 1.7.0 o assente:** ordine predefinito, niente "In arrivo"; senza plugin anche niente richieste e saghe, come oggi.
 
 ## 12. Test
@@ -425,13 +472,20 @@ Il piano 19a ha portato la suite del plugin da 748 a 810 test, tutti verdi.
 
 ### 12.2 App
 
+Il piano 19b ha portato la suite dell'app da 2630 a 2721 test, tutti verdi, e `flutter analyze` pulito. Le voci su editor, impostazioni, card dell'admin e "Cosa guardo stasera?" sono del 19c.
+
 - Combinazione (§6.4): predefinito, admin con righe spente, utente con ordine parziale, righe nuove dell'admin, id sconosciuti, tutto nascosto, l'esempio di §6.4.
 - `DisplayPreferencesApi`: lettura e scrittura che conservano il resto dell'oggetto; "Ripristina".
 - Perché hai visto X: episodio → serie, filtro dei visti, ritorno al titolo precedente, riga assente.
 - Le mie richieste: filtro e ordine, finestra dei 30 giorni.
-- Continua la saga: scelta delle saghe, ordine, prossimo film, saghe finite o non iniziate escluse, solo titoli visibili.
-- Etichette delle date: oggi, domani, giorno della settimana, passato → oggi, gruppo di episodi, italiano e inglese.
-- Caricamento della Home (con tempo finto): tutte entro 1,5 s; una riga dopo; una riga in errore; tutte le righe di Jellyfin in errore → "Riprova"; tutte vuote; righe nascoste senza chiamate.
+- Continua la saga: scelta delle saghe, ordine, prossimo film, saghe finite o non iniziate escluse, solo titoli visibili; `itemsByIds` a gruppi di 100 (250 id → tre richieste).
+- Etichette delle date: oggi, domani, giorno della settimana, passato → oggi, gruppo di episodi, italiano e inglese; la data digitale come data di calendario.
+- Caricamento della Home (con tempo finto):
+  - tutte le righe entro 1,5 s; una riga dopo; una riga in errore; tutte le righe di Jellyfin in errore → "Riprova"; tutte vuote; righe nascoste senza chiamate;
+  - funzioni del plugin non ancora note (attesa di 2 s e ricomposizione); `/Me` che risponde dopo o non risponde; carosello con una sola lettura riuscita; Home dell'admin senza righe → resta il carosello;
+  - entrata: senza buchi per le righe vuote, una riga tardiva che non rifà l'entrata scorrendo, "Riprova" che aspetta le nuove letture;
+  - righe esterne tenute 5 minuti e legate all'utente (cambio di profilo con la Home chiusa e aperta).
+- `RemoteImageCard`: immagine, titolo, sottotitolo, etichetta e clic; nessun cursore senza clic; il bordo oro si toglie se il clic sparisce.
 - `HomeRowsEditor`: trascinamento, frecce, interruttore, righe non disponibili; utente con salvataggio dopo 500 ms e ritorno indietro se fallisce; admin con "Salva" e "Ripristina" con conferma.
 - "Cosa guardo stasera?": filtri e loro memoria per profilo, durata disattivata con Serie, filtro di durata e "mai iniziate", "Un altro" senza ripetizioni, nuovo gruppo di 50, nessun titolo, errore, Guarda e Dettagli.
 - `/settings?section=home` e link dalla Home.
@@ -445,6 +499,8 @@ Il piano 19a ha portato la suite del plugin da 748 a 810 test, tutti verdi.
 - "In arrivo" con i dati veri; clic su una serie del server e su una che non c'è.
 - Sonarr irraggiungibile (indirizzo sbagliato apposta): la Home si apre lo stesso, la prova lo dice.
 - "Cosa guardo stasera?" con tutti i filtri.
+
+**Fatto nel 19b** (2026-10-10 e 2026-10-11, con l'utente; esito in §14): la Home con l'ordine dell'admin e i ritocchi di un account, scritti con l'API perché card ed editor sono del 19c; poi la Home predefinita con tutte le righe, compresi i clic verso Seerr. Restano per il 19c l'editor, la card dell'admin e "Cosa guardo stasera?". La prova con Sonarr irraggiungibile non si è fatta.
 
 ## 13. Preparazione
 
@@ -460,20 +516,39 @@ Fatta il 2026-10-10 (Task 8 del piano 19a), con l'OK dell'utente e nessuna altra
   - `Upcoming/Test` dice collegato per tutti e due (Sonarr 4.0.20.3014, Radarr 6.4.4.10685);
   - `Home/Layout` risponde `{}`, si scrive, si rilegge e torna a `{}`; senza corpo 400, senza accesso 401;
   - le chiavi non sono nel registro.
-- **Da vedere ancora:** `JellyfinSeriesId`. Con la chiave API è sempre `null`: serve un utente vero (§14).
+- **Da vedere ancora:** `JellyfinSeriesId`. Con la chiave API è sempre `null`: serve un utente vero. Visto nel 19b (§14).
 
 ## 14. Rischi e punti da verificare
 
-All'inizio del piano dell'app, sul server vero:
-- un utente **non admin** legge e scrive le sue `DisplayPreferences` con un id e un client nuovi, e il `POST` conserva il resto dell'oggetto;
-- come riconoscere una serie **mai iniziata** dai dati utente (`PlayedPercentage`, `UnplayedItemCount` rispetto al numero di episodi) nella risposta di `Items`;
-- `SortBy=DatePlayed` con film ed episodi insieme, e `SortBy=Random` con i filtri di genere e non visti;
-- `JellyfinSeriesId` di `Upcoming/Series` per un utente vero (con la chiave API è sempre `null`, quindi il 2026-10-10 non si è potuto vedere): "American Hostage" e "Brothers" sono in libreria con gli stessi id TVDB e TMDB di due uscite.
+Le quattro verifiche previste all'inizio del piano dell'app, sul server vero, con l'esito.
 
-Altri rischi:
-- l'indirizzo di Sonarr e Radarr è già cambiato una volta (`vapor` → `proton`): la card admin serve a scoprirlo;
-- i "simili" di Jellyfin possono essere poco pertinenti per alcuni titoli (anime, documentari): la riga resta com'è, senza correzioni;
-- le immagini da TVDB/Fanart potrebbero non caricare: c'è il segnaposto.
+### 14.1 Il 2026-10-10, in sola lettura
+
+Con la chiave API e l'id di un admin, sul server (Jellyfin 10.11.9 con il plugin 1.7.0 di prova):
+- **`DisplayPreferences`.** `GET /DisplayPreferences/wonderflix-home?userId=…&client=wonderflix`, mai salvate, risponde un oggetto completo. `CustomPrefs` ha già voci di jellyfin-web, alcune **null** (`tvhome`, `dashboardTheme`): scrivendo si conservano anche quelle.
+- **Serie mai iniziata.** `UserData.PlayedPercentage` è 0 (per esempio "Agatha All Along": 0, `UnplayedItemCount` 9 su 9); una serie iniziata ha la percentuale ("1899": 37,5); una finita ha `Played` vero. Serve al 19c ("Cosa guardo stasera?").
+- **`SortBy=DatePlayed`** con film ed episodi insieme ordina per ultima visione; gli episodi hanno `SeriesId` e `SeriesName`. Le prime sei visioni dell'admin erano episodi della stessa serie: da qui le 50 visioni di §8.3. I film visti hanno `PremiereDate` e `ProductionYear` anche senza chiederli (§8.3, Continua la saga).
+- **`SortBy=Random`** con `isPlayed=false` e un genere funziona e cambia a ogni chiamata (19c).
+
+### 14.2 Con l'utente, nel Task 9 del 19b (2026-10-10 e 2026-10-11)
+
+Sul server non c'è più un account non admin. Le prove sono su due account admin: `davide.sidoti` (con ritocchi) e `serveradmin` (senza). Alla fine tutto è tornato com'era: Home dell'admin a `null`, ritocchi di `davide.sidoti` uguali alla copia fatta prima.
+- **`JellyfinSeriesId` con un utente vero.** "American Hostage" e "Brothers" aprono la pagina della serie su Jellyfin. OK.
+- **Home dell'admin da API.** `POST WonderFlixWatchParty/Home/Layout` con un elenco (`upcomingSeries, resume, becauseYouWatched, latestMovies, continueSaga, myList`), poi `{"Rows": null}` per tornare all'ordine predefinito. L'app mostra l'ordine dell'admin. OK.
+- **`DisplayPreferences` in scrittura** (`wonderflix-home`, client `wonderflix`):
+  - il `POST` dell'oggetto intero risponde 204;
+  - le altre chiavi di `CustomPrefs` restano, e i valori null (per esempio `tvhome`) sono accettati;
+  - le chiavi che mancano nel `POST` vengono tolte: è quello che fa "Ripristina" (§6.3).
+- **Ritocchi dell'utente insieme alla Home dell'admin.** `davide.sidoti` con `homeRows` = `latestMovies,upcomingSeries,continueSaga` e `homeHidden` = `becauseYouWatched`: l'ordine è quello atteso (§6.4). `serveradmin`, senza ritocchi, vede l'ordine dell'admin. OK. A `serveradmin` manca "Continua la saga": non ha film visti, com'è giusto.
+- **Home predefinita** con tutte le righe, compresi i clic verso Seerr. OK ("tutto ok", 2026-10-11).
+- **Non verificato:** la lettura dei ritocchi da un account **non admin**. Non c'è un account di prova sul server; è il normale comportamento di Jellyfin per utente (§9). Non provata nemmeno la Home con Sonarr irraggiungibile.
+
+### 14.3 Altri rischi
+
+- L'indirizzo di Sonarr e Radarr è già cambiato una volta (`vapor` → `proton`): la card admin serve a scoprirlo.
+- I "simili" di Jellyfin possono essere poco pertinenti per alcuni titoli (anime, documentari): la riga resta com'è, senza correzioni.
+- Le immagini da TVDB/Fanart potrebbero non caricare: c'è il segnaposto.
+- La Home dell'utente non si tiene in memoria: tornando alla Home si rilegge, con uno scheletro un po' più lungo di prima. Se pesa, si può tenere come le righe esterne (§8.2 punto 5).
 
 ## 15. Piani e release
 
@@ -483,14 +558,15 @@ Altri rischi:
     - Sonarr e Radarr: configurazione, client, `Upcoming/Series`, `Upcoming/Movies`, cache, `Upcoming/Test`;
     - funzioni in `Info`, pagina di configurazione, manifest;
     - installazione sul server come build di prova e configurazione (§13, fatte il 2026-10-10).
-  - **19b — app, la Home:**
-    - verifiche di §14;
-    - `HomeRowKind`, combinazione, `DisplayPreferencesApi`, client del plugin, `SocialFeatures`;
+  - **19b — app, la Home** (realizzato e provato con l'utente il 2026-10-11, `docs/superpowers/plans/2026-10-10-wonderflix-19b-home-app.md`):
+    - verifiche di §14 (14.1 e 14.2);
+    - `HomeRowKind`, combinazione, `DisplayPreferencesApi`, client del plugin (`HomeApi`), `SocialFeatures`;
     - caricamento per riga con il tempo massimo;
-    - le cinque righe nuove e le card con immagini esterne.
-  - **19c — app, configurazione e "Cosa guardo stasera?":**
-    - `HomeRowsEditor`, Impostazioni → Home, `/settings?section=home` e il link "Personalizza la Home";
-    - card admin "Home per tutti" e "Sonarr e Radarr";
+    - le cinque righe nuove e le card con immagini esterne (`RemoteImageCard`);
+    - nessuna release: app 0.13.0 e plugin 1.7.0 escono alla fine del 19c.
+  - **19c — app, configurazione e "Cosa guardo stasera?"** (da scrivere):
+    - `HomeRowsEditor`, Impostazioni → Home, `/settings?section=home` e il link "Personalizza la Home" (con le note di §8.5);
+    - card admin "Home per tutti" e "Sonarr e Radarr", con `Upcoming/Test` nel client `HomeApi`;
     - "Cosa guardo stasera?";
     - testi it/en rimasti, release.
 - **Release:**

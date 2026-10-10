@@ -23,7 +23,7 @@ La configurazione (Impostazioni → Home, card dell'admin) e "Cosa guardo staser
 
 **Spec:** `docs/superpowers/specs/2026-10-10-wonderflix-home-su-misura-design.md` (§6, §8.1, §8.2, §8.3, §10, §11, §12.2, §12.3, §14, §15).
 
-**Decisioni del piano** (rispetto alla spec; si allinea nel Task 10):
+**Decisioni del piano** (rispetto alla spec; allineate nel Task 10):
 1. **Verifiche del §14 fatte il 2026-10-10 sul server, in sola lettura** (vedi *Note tecniche verificate*). Restano da provare nel Task 9, con l'app: il collegamento `JellyfinSeriesId` con un utente vero e la Home dell'utente letta da un account non admin. La scrittura delle `DisplayPreferences` si prova nel 19c, che ha l'editor.
 2. **Regola di inserimento (§6.4 punto 1):** una riga di `A` che manca nell'ordine dell'utente va **dopo l'ultima, nell'elenco, delle righe che la precedono in `A`**; se nessuna la precede, in testa. È la regola che dà l'esempio della spec (`nextUp, resume, requests, upcomingSeries`). La frase "subito dopo la riga che la precede" darebbe `nextUp, requests, resume`, contro l'esempio.
 3. **Perché hai visto X legge 50 visioni, non 10:** sul server le ultime visioni dell'admin sono sei episodi di fila della stessa serie. Con 10 risultati spesso c'è un solo titolo, e il ritorno al titolo precedente non funzionerebbe.
@@ -3899,3 +3899,19 @@ git commit -m "docs: align the Home spec with plan 19b"
 ### Task 11: ok dell'utente e merge
 
 Con l'ok dell'utente sulla prova del Task 9: merge fast-forward su `main` e push (memoria `wonderflix-workflow`). Niente release: app 0.13.0 e plugin 1.7.0 escono alla fine del 19c.
+
+## Dalle review dei gruppi
+
+Dove il codice eseguito si discosta da quello scritto sopra, dopo le review dei task e quella finale (la spec è stata allineata nel Task 10):
+- **Task 4, test dell'ordine:** `id sconosciuti dell'utente si ignorano` aspetta `['resume','myList']` e non `['myList','resume']` (`resume` non ha righe che la precedono in `A`, quindi va in testa: decisione 2); in più un'asserzione con `['rigaFutura','myList','resume']` → `['myList','resume']`. Il refuso era del piano, non del codice.
+- **`homeLayoutProvider` non aspetta `/Me` di Seerr** (il codice del piano sì): guarda `requestsMeProvider`, la riga `requests` non è disponibile finché non risponde, e la Home si ricompone quando risponde (Review Focus 4).
+- **`SocialAvailability.whenKnown(timeout)`** al posto di un `Future.delayed` che non si può annullare, per l'attesa di 2 s delle funzioni del plugin: altrimenti i test della Home finivano con "Timer still pending".
+- **`keepFor`:** esce subito se il provider è già eliminato (`if (!ref.mounted) return;`), con un test.
+- **`_LateRow`:** la riga tardiva decide a ogni montaggio se fare l'entrata (`_lateEntered`), perché la lista smonta e rimonta le righe scorrendo; il codice del piano la rifaceva a ogni scorrimento.
+- **L'entrata conta solo le righe che si vedono:** una riga vuota o in errore non lascia un buco; con zero righe all'apertura, la prima riga tardiva segna come fatta l'entrata della sessione.
+- **"Riprova":** la Home si apre solo con letture finite (`!isLoading`), non con il vecchio errore che resta durante la rilettura.
+- **Scadenza dei 1,5 s:** `_onRevealTimeout` apre con le righe dell'ultima costruzione (`_rows`) e non rilegge i provider.
+- **Righe esterne legate all'utente:** `requests`, `upcomingSeries` e `upcomingMovies` guardano `currentUserIdProvider`; senza, dopo un cambio di profilo il nuovo account vedeva per 5 minuti le richieste e i `JellyfinSeriesId` del precedente (review finale), con i test del cambio di utente.
+- **`LibraryApi.itemsByIds` a gruppi di 100** (`itemsByIdsChunk`), letti con `Future.wait`: una saga grande in una richiesta sola superava la riga di richiesta (circa 8 KB) e la riga spariva; test con 250 id.
+- **Il carosello si guarda prima della composizione:** `HomeScreen.build` guarda `homeFeaturedProvider` prima di controllare `homeLayoutProvider`, così le sue letture partono insieme a quelle della composizione.
+- **`RemoteImageCard`:** `didUpdateWidget` azzera `_hover` quando `onTap` diventa nullo, perché il bordo oro restava a mouse lontano.
