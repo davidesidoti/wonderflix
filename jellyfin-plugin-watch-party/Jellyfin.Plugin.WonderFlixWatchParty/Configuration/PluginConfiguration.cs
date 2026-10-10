@@ -55,4 +55,25 @@ public class PluginConfiguration : BasePluginConfiguration
     /// con XmlSerializer null e vuoto restano diversi.
     /// </summary>
     public string? HomeRows { get; set; }
+
+    /// <summary>
+    /// Indirizzo di Sonarr visto dal server Jellyfin, con l'UrlBase, per
+    /// esempio https://host/sonarr (spec M §7.1). Vuoto: niente "Serie in arrivo".
+    /// </summary>
+    public string SonarrUrl { get; set; } = string.Empty;
+
+    /// <summary>Chiave API di Sonarr (Settings → General). Il file lo leggono solo gli admin.</summary>
+    public string SonarrApiKey { get; set; } = string.Empty;
+
+    /// <summary>Indirizzo di Radarr, come Sonarr. Vuoto: niente "Film in arrivo".</summary>
+    public string RadarrUrl { get; set; } = string.Empty;
+
+    /// <summary>Chiave API di Radarr. Il file lo leggono solo gli admin.</summary>
+    public string RadarrApiKey { get; set; } = string.Empty;
+
+    /// <summary>Giorni di "Serie in arrivo", da 1 a 60.</summary>
+    public int UpcomingSeriesDays { get; set; } = 7;
+
+    /// <summary>Giorni di "Film in arrivo" (uscita digitale), da 1 a 365.</summary>
+    public int UpcomingMoviesDays { get; set; } = 90;
 }
