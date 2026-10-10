@@ -64,7 +64,11 @@ class _RemoteImageCardState extends State<RemoteImageCard> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                  color: _hover ? WfColors.gold : Colors.transparent,
+                  // Se il clic sparisce con il mouse sopra, `onExit` non
+                  // arriva (il MouseRegion se ne va): `_hover` resterebbe vero.
+                  color: _hover && onTap != null
+                      ? WfColors.gold
+                      : Colors.transparent,
                   width: 2),
             ),
             child: ClipRRect(
