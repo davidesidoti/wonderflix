@@ -1,4 +1,6 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -91,6 +93,34 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('seerr'), findsNothing);
     expect(find.text('Hope'), findsOneWidget);
+  });
+
+  testWidgets('film in arrivo con Seerr: la pagina Seerr del film',
+      (tester) async {
+    await pumpRow(tester, HomeRowKind.upcomingMovies,
+        UpcomingMoviesRowContent([testUpcomingMovie()]),
+        features: const SocialFeatures(requests: true));
+    await tester.tap(find.text('Hope'));
+    await tester.pumpAndSettle();
+    expect(find.text('seerr movie 1058424'), findsOneWidget);
+  });
+
+  testWidgets('serie in arrivo senza scheda né Seerr: non si clicca',
+      (tester) async {
+    // Ha l'id TMDB ma non è in libreria e il plugin non ha Seerr.
+    await pumpRow(tester, HomeRowKind.upcomingSeries,
+        UpcomingSeriesRowContent([testEpisode()]));
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: tester.getCenter(find.text('The Bear')));
+    addTearDown(gesture.removePointer);
+    await tester.pump();
+    expect(RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+        isNot(SystemMouseCursors.click));
+    await tester.tap(find.text('The Bear'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('seerr'), findsNothing);
+    expect(find.textContaining('scheda'), findsNothing);
+    expect(find.text('The Bear'), findsOneWidget);
   });
 
   testWidgets('richiesta: la pagina Seerr del titolo', (tester) async {

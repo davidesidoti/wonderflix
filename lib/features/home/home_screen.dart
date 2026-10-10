@@ -58,6 +58,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// nell'entrata scaglionata; `null` finché non si è aperta.
   Map<HomeRowKind, int>? _entrance;
 
+  /// Le righe dell'ultima costruzione: quando scade [homeRevealWait] si apre
+  /// con queste, senza leggere altri provider (la composizione potrebbe
+  /// essere cambiata un attimo prima della prossima costruzione).
+  Map<HomeRowKind, AsyncValue<HomeRowContent>>? _rows;
+
+  /// Le righe arrivate dopo l'apertura che hanno già fatto la loro entrata:
+  /// la lista smonta le righe lontane e le ricostruisce scorrendo, e allora
+  /// non devono rifarla.
+  final _lateEntered = <HomeRowKind>{};
+
   @override
   void dispose() {
     _revealTimer?.cancel();
@@ -73,25 +83,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   static bool _failed(AsyncValue<Object?> value) =>
       value.hasError && !value.hasValue;
 
-  /// Apre la Home: entrano insieme le righe già arrivate, nell'ordine.
+  /// Per aprire la Home una lettura deve essere finita: una rilettura in
+  /// corso (dopo "Riprova", per esempio) conserva il vecchio errore o il
+  /// vecchio valore, ma non è ancora arrivata.
+  static bool _arrived(AsyncValue<Object?> value) =>
+      !value.isLoading && _settled(value);
+
+  /// Apre la Home: entrano insieme le righe già arrivate che si vedono (non
+  /// quelle vuote o in errore), nell'ordine e senza buchi.
   void _open(Map<HomeRowKind, AsyncValue<HomeRowContent>> rows) {
     _revealTimer?.cancel();
     _revealTimer = null;
     var index = 0;
     _entrance = {
       for (final MapEntry(:key, :value) in rows.entries)
-        if (_settled(value)) key: index++,
+        if (value.value case final content? when !content.isEmpty) key: index++,
     };
   }
 
   void _onRevealTimeout() {
-    if (!mounted) return;
-    final layout = ref.read(homeLayoutProvider).value;
-    if (layout == null) return;
-    setState(() => _open({
-          for (final kind in layout.visible)
-            kind: ref.read(homeRowProvider((kind: kind, language: _language))),
-        }));
+    final rows = _rows;
+    if (!mounted || rows == null) return;
+    setState(() => _open(rows));
   }
 
   void _retry() {
@@ -105,6 +118,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       _revealTimer?.cancel();
       _revealTimer = null;
       _entrance = null;
+      _lateEntered.clear();
     });
   }
 
@@ -128,8 +142,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       for (final kind in layout.visible)
         kind: ref.watch(homeRowProvider((kind: kind, language: _language))),
     };
+    _rows = rows;
     if (_entrance == null) {
-      if (_settled(featured) && rows.values.every(_settled)) {
+      if (_arrived(featured) && rows.values.every(_arrived)) {
         _open(rows);
       } else {
         _revealTimer ??= Timer(homeRevealWait, _onRevealTimeout);
@@ -190,13 +205,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// entra da sola, al suo posto (decisione 6 del piano 19b).
   Widget _row(HomeRowKind kind, HomeRowContent content, int? index) {
     if (index == null) {
-      return StaggerGroup(
+      return _LateRow(
         key: ValueKey('home-late-${kind.id}'),
-        count: 1,
-        child: StaggerItem(
-          index: 0,
-          child: HomeRowView(kind: kind, content: content, animateEntrance: true),
-        ),
+        kind: kind,
+        content: content,
+        entered: _lateEntered,
+        onPlayed: () {
+          _lateEntered.add(kind);
+          // Se la Home si è aperta senza righe, questa è l'entrata della
+          // sessione: la prossima visita non la rifà.
+          ref.read(homeEntrancePlayedProvider.notifier).markPlayed();
+        },
       );
     }
     return StaggerItem(
@@ -205,6 +224,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       child: HomeRowView(kind: kind, content: content, animateEntrance: _animate),
     );
   }
+}
+
+/// Una riga arrivata dopo l'apertura, con una sua piccola entrata (decisione
+/// 6 del piano 19b). Entra una volta sola: la lista smonta le righe lontane
+/// e le rimonta scorrendo, con lo stesso widget di prima, quindi se la riga
+/// è già entrata ([entered]) lo si decide qui, a ogni montaggio, e non alla
+/// costruzione della Home.
+class _LateRow extends StatelessWidget {
+  const _LateRow({
+    super.key,
+    required this.kind,
+    required this.content,
+    required this.entered,
+    required this.onPlayed,
+  });
+
+  final HomeRowKind kind;
+  final HomeRowContent content;
+  final Set<HomeRowKind> entered;
+  final VoidCallback onPlayed;
+
+  @override
+  Widget build(BuildContext context) => StaggerGroup(
+        count: 1,
+        play: !entered.contains(kind),
+        onPlayed: onPlayed,
+        child: StaggerItem(
+          index: 0,
+          child: HomeRowView(kind: kind, content: content, animateEntrance: true),
+        ),
+      );
 }
 
 class _HomeSkeleton extends StatelessWidget {

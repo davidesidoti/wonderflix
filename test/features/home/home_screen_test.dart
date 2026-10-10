@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/gestures.dart';
-import 'package:flutter/painting.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -207,6 +206,79 @@ void main() {
     expect(find.text('Film aggiunti di recente'), findsNothing);
     expect(find.text("Qui non c'è ancora niente."), findsNothing);
     expect(find.text('Riprova'), findsNothing);
+  });
+
+  testWidgets('carosello in errore ma una riga di Jellyfin c\'è: niente Riprova',
+      (tester) async {
+    // Film e serie recenti falliscono (carosello e due righe); riprese e
+    // La mia lista rispondono: non falliscono tutte.
+    library
+      ..resumeItems = [testItem(id: 'r1', name: 'Oppenheimer', playedPercentage: 30)]
+      ..onItems = (query, start, limit) {
+        if (query.favoritesOnly) return pageOf([testItem(id: 'f1', name: 'Interstellar')]);
+        throw const ServerUnreachableException();
+      };
+    await pumpHome(tester);
+    expect(find.text('Riprova'), findsNothing);
+    expect(find.byType(HeroCarousel), findsNothing);
+    expect(find.text('Continua a guardare'), findsOneWidget);
+    expect(find.text('La mia lista'), findsOneWidget);
+    expect(find.text('Film aggiunti di recente'), findsNothing);
+  });
+
+  testWidgets('Riprova: lo scheletro finché le righe non rispondono, poi entrano insieme',
+      (tester) async {
+    library.error = const ServerUnreachableException();
+    await pumpHome(tester);
+    expect(find.text('Riprova'), findsOneWidget);
+
+    library
+      ..error = null
+      ..delay = const Duration(milliseconds: 500)
+      ..onItems = (query, start, limit) => pageOf([testItem(id: 'm1', name: 'Dune')]);
+    await tester.tap(find.text('Riprova'));
+    await settle(tester);
+    // Le letture sono in corso: gli errori di prima non contano.
+    expect(find.text('Riprova'), findsNothing);
+    expect(find.byType(SkeletonBox), findsWidgets);
+    expect(find.text('Film aggiunti di recente'), findsNothing);
+
+    await tester.pump(const Duration(milliseconds: 500));
+    await settle(tester);
+    expect(find.text('Film aggiunti di recente'), findsOneWidget);
+    expect(find.text('Serie aggiunte di recente'), findsOneWidget);
+    expect(find.text('La mia lista'), findsOneWidget);
+    expect(
+        find.byWidgetPredicate((widget) {
+          final key = widget.key;
+          return key is ValueKey<String> && key.value.startsWith('home-late-');
+        }),
+        findsNothing,
+        reason: 'entrano tutte insieme, nessuna arriva dopo');
+  });
+
+  testWidgets('una riga che compare mentre scade l\'attesa non si legge due volte',
+      (tester) async {
+    someRows();
+    // Le serie in arrivo fanno aspettare la Home; "Le mie richieste" compare
+    // quando risponde /Me, nello stesso istante in cui scade l'attesa.
+    home
+      ..seriesGate = Completer<void>()
+      ..series = UpcomingPage(items: [testEpisode()]);
+    requests
+      ..meGate = Completer<void>()
+      ..lists[RequestsFilter.mine] = [
+        testMediaRequest(id: 1, title: 'Andor', createdAt: DateTime.now()),
+      ];
+    await pumpHome(tester,
+        features: const SocialFeatures(requests: true, upcomingSeries: true));
+    expect(find.byType(SkeletonBox), findsWidgets, reason: 'si aspetta');
+
+    requests.meGate!.complete();
+    await tester.pump(homeRevealWait);
+    await settle(tester);
+    expect(find.text('Andor'), findsOneWidget);
+    expect(requests.listLanguages, hasLength(1));
   });
 
   testWidgets('le righe nuove', (tester) async {
