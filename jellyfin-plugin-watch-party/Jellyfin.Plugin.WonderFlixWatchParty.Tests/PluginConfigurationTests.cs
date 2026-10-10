@@ -1,5 +1,6 @@
 using System.Xml.Serialization;
 using Jellyfin.Plugin.WonderFlixWatchParty.Configuration;
+using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Jellyfin.Plugin.WonderFlixWatchParty.Seerr;
 using Jellyfin.Plugin.WonderFlixWatchParty.Server;
 using Xunit;
@@ -68,4 +69,31 @@ public class PluginConfigurationTests
     [InlineData("https://host/seerr", " ", false)]
     public void SeerrIsConfiguredWithUrlAndKey(string url, string key, bool configured) =>
         Assert.Equal(configured, new FakeSeerrSettings { Url = url, ApiKey = key }.IsConfigured());
+
+    [Fact]
+    public void TheHomeLayoutKeepsNeverSetApartFromAllOffThroughTheXml()
+    {
+        Assert.Null(new PluginConfiguration().HomeRows);
+        Assert.Null(RoundTrip(new PluginConfiguration()).HomeRows);
+        Assert.Equal(string.Empty, RoundTrip(new PluginConfiguration { HomeRows = string.Empty }).HomeRows);
+        Assert.Equal("nextUp,resume", RoundTrip(new PluginConfiguration { HomeRows = "nextUp,resume" }).HomeRows);
+    }
+
+    [Fact]
+    public void WithoutThePluginInstanceTheHomeLayoutIsTheDefaultAndCannotBeSaved()
+    {
+        var store = new PluginHomeLayoutStore();
+        Assert.Null(store.Rows);
+        Assert.Throws<InvalidOperationException>(() => store.Save(["resume"]));
+    }
+
+    // Come la salva e la rilegge Jellyfin.
+    private static PluginConfiguration RoundTrip(PluginConfiguration config)
+    {
+        var serializer = new XmlSerializer(typeof(PluginConfiguration));
+        using var writer = new StringWriter();
+        serializer.Serialize(writer, config);
+        using var reader = new StringReader(writer.ToString());
+        return (PluginConfiguration)serializer.Deserialize(reader)!;
+    }
 }

@@ -47,4 +47,12 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>Ogni quanti giorni il promemoria a chi non ha contatti; 0 lo spegne.</summary>
     public int ContactReminderDays { get; set; } = 14;
+
+    /// <summary>
+    /// La Home dell'admin (spec M §6.2): gli id delle righe accese, in ordine,
+    /// separati da virgole. Null: mai impostata, vale l'ordine predefinito
+    /// dell'app; vuota: tutte le righe spente. Una stringa e non un elenco:
+    /// con XmlSerializer null e vuoto restano diversi.
+    /// </summary>
+    public string? HomeRows { get; set; }
 }
