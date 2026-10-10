@@ -25,6 +25,9 @@ class SocialFeatures {
     this.collections = false,
     this.avatars = false,
     this.account = false,
+    this.home = false,
+    this.upcomingSeries = false,
+    this.upcomingMovies = false,
     this.known = true,
   });
 
@@ -57,6 +60,15 @@ class SocialFeatures {
   /// dai watch party.
   final bool account;
 
+  /// La Home dell'admin (spec M §8.1): senza, vale l'ordine predefinito.
+  final bool home;
+
+  /// "Serie in arrivo" (spec M §6.5): il plugin ha Sonarr configurato.
+  final bool upcomingSeries;
+
+  /// "Film in arrivo" (spec M §6.5): il plugin ha Radarr configurato.
+  final bool upcomingMovies;
+
   /// `false` finché `Info` non dà una risposta certa: le funzioni, oppure
   /// un 400/401/403/404. Un errore di rete non basta (vedi
   /// [SocialAvailability]).
@@ -72,16 +84,31 @@ class SocialFeatures {
       other.collections == collections &&
       other.avatars == avatars &&
       other.account == account &&
+      other.home == home &&
+      other.upcomingSeries == upcomingSeries &&
+      other.upcomingMovies == upcomingMovies &&
       other.known == known;
 
   @override
   int get hashCode => Object.hash(
-      friends, parties, inbox, requests, collections, avatars, account, known);
+      friends,
+      parties,
+      inbox,
+      requests,
+      collections,
+      avatars,
+      account,
+      home,
+      upcomingSeries,
+      upcomingMovies,
+      known);
 
   @override
   String toString() => 'SocialFeatures(friends: $friends, parties: $parties, '
       'inbox: $inbox, requests: $requests, collections: $collections, '
-      'avatars: $avatars, account: $account, known: $known)';
+      'avatars: $avatars, account: $account, home: $home, '
+      'upcomingSeries: $upcomingSeries, upcomingMovies: $upcomingMovies, '
+      'known: $known)';
 }
 
 /// Chiede `Info` al plugin dopo il login e a ogni connessione del WebSocket,
@@ -90,9 +117,10 @@ class SocialFeatures {
 /// possibilità. Senza utente o senza plugin: nessuna funzione, e l'app si
 /// comporta come la 0.5.1. Senza accesso ai watch party `Info` si chiede lo
 /// stesso (la cassetta delle notifiche vale per tutti, spec G §7.2, e così le
-/// richieste con Seerr, spec I §8.2, le saghe, spec K §8.1, e i contatti per
-/// il recupero, spec L §9.1), ma amici e party restano spenti. Dal login alla
-/// prima risposta certa le funzioni sono [SocialFeatures.unknown].
+/// richieste con Seerr, spec I §8.2, le saghe, spec K §8.1, i contatti per il
+/// recupero, spec L §9.1, e la Home, spec M §8.1), ma amici e party restano
+/// spenti. Dal login alla prima risposta certa le funzioni sono
+/// [SocialFeatures.unknown].
 ///
 /// Un errore di rete (anche timeout, errore del server, risposta di forma
 /// inattesa, troppe richieste) non dice nulla del plugin: le funzioni
@@ -179,6 +207,9 @@ class SocialAvailability extends Notifier<SocialFeatures> {
         collections: info.features.contains(PluginFeatures.collections),
         avatars: info.features.contains(PluginFeatures.avatars),
         account: info.features.contains(PluginFeatures.account),
+        home: info.features.contains(PluginFeatures.home),
+        upcomingSeries: info.features.contains(PluginFeatures.upcomingSeries),
+        upcomingMovies: info.features.contains(PluginFeatures.upcomingMovies),
       ));
     } on SocialException catch (error) {
       if (!_isCurrent(generation)) return;

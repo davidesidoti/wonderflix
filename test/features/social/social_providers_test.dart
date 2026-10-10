@@ -114,6 +114,33 @@ void main() {
         const SocialFeatures(account: true));
   });
 
+  test('Info con la Home: funzioni home e in arrivo, anche senza watch party',
+      () async {
+    api.install(features: const {
+      PluginFeatures.home,
+      PluginFeatures.upcomingSeries,
+      PluginFeatures.upcomingMovies,
+    });
+    final c = container(
+        session: const SessionSignedIn(JellyfinUser(
+            id: 'u1', name: 'Mario', syncPlayAccess: SyncPlayAccess.none)));
+    await pumpEventQueue();
+    expect(
+        c.read(socialAvailabilityProvider),
+        const SocialFeatures(
+            home: true, upcomingSeries: true, upcomingMovies: true));
+  });
+
+  test('le funzioni della Home contano nel confronto e nel testo', () {
+    expect(const SocialFeatures(home: true), isNot(const SocialFeatures()));
+    expect(const SocialFeatures(upcomingSeries: true),
+        isNot(const SocialFeatures(upcomingMovies: true)));
+    expect(const SocialFeatures(home: true).hashCode,
+        const SocialFeatures(home: true).hashCode);
+    expect(const SocialFeatures(upcomingMovies: true).toString(),
+        contains('upcomingMovies: true'));
+  });
+
   test('Info con gli amici: funzione attiva', () async {
     api.install();
     final c = container();

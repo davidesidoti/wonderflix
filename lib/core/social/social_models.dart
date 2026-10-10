@@ -26,6 +26,15 @@ abstract final class PluginFeatures {
 
   /// I contatti per il recupero della password (spec L §7.8).
   static const account = 'account';
+
+  /// La Home dell'admin (spec M §7.2).
+  static const home = 'home';
+
+  /// "Serie in arrivo" da Sonarr (spec M §7.6): solo con Sonarr configurato.
+  static const upcomingSeries = 'upcomingSeries';
+
+  /// "Film in arrivo" da Radarr (spec M §7.6): solo con Radarr configurato.
+  static const upcomingMovies = 'upcomingMovies';
 }
 
 /// Risposta di `GET /WonderFlixWatchParty/Info`, con le funzioni.
