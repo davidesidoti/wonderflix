@@ -2,78 +2,107 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/painting.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:wonderflix/app/app_shell.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
+import 'package:wonderflix/core/jellyfin/display_preferences_api.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
-import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/core/requests/requests_models.dart';
+import 'package:wonderflix/core/social/home_models.dart';
+import 'package:wonderflix/features/home/hero_carousel.dart';
 import 'package:wonderflix/features/home/home_screen.dart';
-import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
+import 'package:wonderflix/l10n/gen/app_localizations.dart';
 import 'package:wonderflix/ui/card_preview.dart';
 import 'package:wonderflix/ui/landscape_card.dart';
 import 'package:wonderflix/ui/poster_card.dart';
 import 'package:wonderflix/ui/states.dart';
 
-import '../../support/fake_session_controller.dart';
+import '../../support/collections_fakes.dart';
+import '../../support/home_fakes.dart';
 import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
-import '../../support/test_data.dart';
+import '../../support/requests_fakes.dart';
 
 void main() {
-  late FakeLibraryApi api;
+  setUpAll(() => initializeDateFormatting());
 
-  setUp(() => api = FakeLibraryApi());
+  late FakeLibraryApi library;
+  late FakeHomeApi home;
+  late FakeDisplayPreferencesApi prefs;
+  late FakeRequestsApi requests;
+  late FakeCollectionsApi collections;
 
-  Future<void> pumpHome(WidgetTester tester, {double height = 900}) async {
-    await pumpApp(tester, const HomeScreen(), overrides: [
-      libraryApiProvider.overrideWithValue(api),
-      sessionControllerProvider
-          .overrideWith(() => FakeSessionController(const SessionSignedIn(testUser))),
-    ]);
-    // La lista è pigra: serve una finestra alta perché tutte le righe
-    // (hero + 4 righe) siano costruite.
-    await tester.binding.setSurfaceSize(Size(1440, height));
-    await tester.pump();
-    await tester.pump();
+  setUp(() {
+    library = FakeLibraryApi();
+    home = FakeHomeApi();
+    prefs = FakeDisplayPreferencesApi();
+    requests = FakeRequestsApi();
+    collections = FakeCollectionsApi();
+  });
+
+  /// Le risposte finte arrivano in pochi fotogrammi: composizione, poi
+  /// righe.
+  Future<void> settle(WidgetTester tester) async {
+    for (var i = 0; i < 6; i++) {
+      await tester.pump();
+    }
   }
 
-  testWidgets('mostra le righe con contenuti', (tester) async {
-    api
-      ..resumeItems = [testItem(id: 'r1', name: 'Oppenheimer', playedPercentage: 30)]
-      ..onItems = (query, start, limit) => query.kinds.contains(ItemKind.series)
+  Future<void> pumpHome(WidgetTester tester,
+      {SocialFeatures features = SocialFeatures.none,
+      double height = 1600}) async {
+    await pumpApp(tester, const HomeScreen(),
+        surfaceSize: Size(1440, height),
+        overrides: homeOverrides(
+            library: library,
+            home: home,
+            prefs: prefs,
+            features: features,
+            requests: requests,
+            collections: collections));
+    await settle(tester);
+  }
+
+  void someRows() => library
+    ..resumeItems = [testItem(id: 'r1', name: 'Oppenheimer', playedPercentage: 30)]
+    ..onItems = (query, start, limit) {
+      if (query.favoritesOnly) return pageOf([testItem(id: 'f1', name: 'Interstellar')]);
+      return query.kinds.contains(ItemKind.series)
           ? pageOf([testItem(id: 's1', name: 'The Bear', kind: ItemKind.series)])
           : pageOf([testItem(id: 'm1', name: 'Dune')]);
-    await pumpHome(tester, height: 1600);
+    };
 
+  testWidgets('mostra le righe con contenuti', (tester) async {
+    someRows();
+    await pumpHome(tester);
     expect(find.text('Continua a guardare'), findsOneWidget);
     expect(find.text('Film aggiunti di recente'), findsOneWidget);
     expect(find.text('Serie aggiunte di recente'), findsOneWidget);
+    expect(find.text('La mia lista'), findsOneWidget);
     expect(find.text('Oppenheimer'), findsWidgets);
     expect(find.text('Prossimi episodi'), findsNothing, reason: 'riga vuota nascosta');
   });
 
   testWidgets('lo scheletro sta in una finestra stretta', (tester) async {
     // I preferiti non rispondono: la Home resta in caricamento.
-    api.favoritesGate = Completer<void>();
+    library.favoritesGate = Completer<void>();
     await pumpApp(tester, const HomeScreen(),
         surfaceSize: const Size(1024, 700),
-        overrides: [
-          libraryApiProvider.overrideWithValue(api),
-          sessionControllerProvider.overrideWith(
-              () => FakeSessionController(const SessionSignedIn(testUser))),
-        ]);
-    await tester.pump();
+        overrides: homeOverrides(library: library, home: home, prefs: prefs));
+    await settle(tester);
     expect(find.byType(SkeletonBox), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 
   testWidgets('senza carosello la prima riga inizia sotto la barra',
       (tester) async {
-    // Nessun titolo con uno sfondo: niente carosello.
-    api.resumeItems = [
+    library.resumeItems = [
       testItem(id: 'r1', name: 'Oppenheimer', playedPercentage: 30)
     ];
-    await pumpHome(tester);
+    await pumpHome(tester, height: 900);
     expect(tester.getTopLeft(find.text('Continua a guardare')).dy,
         greaterThanOrEqualTo(shellBarHeight));
   });
@@ -84,48 +113,151 @@ void main() {
   });
 
   testWidgets('errore con riprova', (tester) async {
-    api.error = const ServerUnreachableException();
+    library.error = const ServerUnreachableException();
     await pumpHome(tester);
     expect(find.text('Riprova'), findsOneWidget);
 
-    api.error = null;
-    api.onItems = (query, start, limit) => pageOf([testItem(id: 'm1', name: 'Dune')]);
+    library.error = null;
+    library.onItems = (query, start, limit) => pageOf([testItem(id: 'm1', name: 'Dune')]);
     await tester.tap(find.text('Riprova'));
-    await tester.pump();
-    await tester.pump();
+    await settle(tester);
     expect(find.text('Film aggiunti di recente'), findsOneWidget);
   });
 
-  // Il pulsante play sulle card è stato sostituito dall'anteprima (spec C
-  // §7.1): con il mouse fermo sulla card si apre, con Riproduci/Riprendi.
   testWidgets('le card delle righe aprono l\'anteprima al passaggio del mouse',
       (tester) async {
-    api
-      ..resumeItems = [testItem(id: 'r1', name: 'Oppenheimer', playedPercentage: 30)]
-      ..onItems = (query, start, limit) => query.kinds.contains(ItemKind.series)
-          ? pageOf([testItem(id: 's1', name: 'The Bear', kind: ItemKind.series)])
-          : pageOf([testItem(id: 'm1', name: 'Dune')]);
-    await pumpHome(tester, height: 1600);
-
+    someRows();
+    await pumpHome(tester);
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await gesture.addPointer(location: Offset.zero);
     addTearDown(gesture.removePointer);
-
     for (final (cardType, play) in [
       (LandscapeCard, 'Riprendi'),
       (PosterCard, 'Riproduci'),
     ]) {
       final card = find.byType(cardType).first;
-      expect(find.byType(CardPreview), findsNothing,
-          reason: '$cardType: niente anteprima senza hover');
+      expect(find.byType(CardPreview), findsNothing);
       await gesture.moveTo(tester.getCenter(card));
       await tester.pump(previewHoverDelay);
       await tester.pumpAndSettle();
-      expect(find.byType(CardPreview), findsOneWidget,
-          reason: '$cardType: anteprima con hover');
+      expect(find.byType(CardPreview), findsOneWidget, reason: '$cardType');
       expect(find.byTooltip(play), findsOneWidget, reason: '$cardType: $play');
       await gesture.moveTo(Offset.zero);
       await tester.pumpAndSettle();
     }
+  });
+
+  testWidgets('ordine dell\'admin e ritocchi dell\'utente', (tester) async {
+    someRows();
+    home.layoutRows = ['myList', 'resume', 'latestMovies'];
+    prefs.prefs = const HomeUserPrefs(
+        rows: ['resume', 'myList'], hidden: ['latestMovies']);
+    await pumpHome(tester, features: const SocialFeatures(home: true));
+    expect(tester.getTopLeft(find.text('Continua a guardare')).dy,
+        lessThan(tester.getTopLeft(find.text('La mia lista')).dy));
+    expect(find.text('Film aggiunti di recente'), findsNothing);
+    expect(find.text('Prossimi episodi'), findsNothing);
+    expect(library.nextUpCalls, isEmpty, reason: 'riga spenta dall\'admin');
+  });
+
+  testWidgets('righe nascoste: nessuna chiamata', (tester) async {
+    someRows();
+    prefs.prefs = const HomeUserPrefs(hidden: ['becauseYouWatched', 'nextUp']);
+    await pumpHome(tester);
+    expect(library.playHistoryCalls, isEmpty);
+    expect(library.nextUpCalls, isEmpty);
+    expect(find.text('Continua a guardare'), findsOneWidget);
+  });
+
+  testWidgets('una riga lenta entra dopo 1,5 s, al suo posto', (tester) async {
+    someRows();
+    home
+      ..seriesGate = Completer<void>()
+      ..series = UpcomingPage(items: [testEpisode()]);
+    await pumpHome(tester, features: const SocialFeatures(upcomingSeries: true));
+    expect(find.byType(SkeletonBox), findsWidgets, reason: 'si aspetta');
+    expect(find.text('Continua a guardare'), findsNothing);
+
+    await tester.pump(homeRevealWait);
+    await tester.pump();
+    expect(find.text('Continua a guardare'), findsOneWidget);
+    expect(find.text('Serie in arrivo'), findsNothing);
+
+    home.seriesGate!.complete();
+    await settle(tester);
+    expect(find.text('Serie in arrivo'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('Serie in arrivo')).dy,
+        greaterThan(tester.getTopLeft(find.text('Serie aggiunte di recente')).dy));
+  });
+
+  testWidgets('una riga in errore non si vede, niente Riprova', (tester) async {
+    someRows();
+    home.moviesError = const ServerUnreachableException();
+    await pumpHome(tester, features: const SocialFeatures(upcomingMovies: true));
+    expect(find.text('Continua a guardare'), findsOneWidget);
+    expect(find.text('Film in arrivo'), findsNothing);
+    expect(find.text('Riprova'), findsNothing);
+  });
+
+  testWidgets('Home dell\'admin senza righe: resta il carosello', (tester) async {
+    someRows();
+    home.layoutRows = [];
+    await pumpHome(tester, features: const SocialFeatures(home: true));
+    expect(find.byType(HeroCarousel), findsOneWidget);
+    expect(find.text('Film aggiunti di recente'), findsNothing);
+    expect(find.text("Qui non c'è ancora niente."), findsNothing);
+    expect(find.text('Riprova'), findsNothing);
+  });
+
+  testWidgets('le righe nuove', (tester) async {
+    final it = lookupAppLocalizations(const Locale('it'));
+    final now = DateTime.now();
+    final tomorrowNoon = DateTime(now.year, now.month, now.day + 1, 12);
+    library
+      ..playHistoryItems = [testItem(id: 'm9', name: 'Dune')]
+      ..similarById['m9'] = [
+        for (final (id, name) in [
+          ('a', 'Arrival'),
+          ('b', 'Sicario'),
+          ('c', 'Prisoners'),
+          ('d', 'Enemy'),
+        ])
+          testItem(id: id, name: name),
+      ]
+      ..playedMovieItems = [testItem(id: 'm1')]
+      ..itemsById['m2'] = testItem(id: 'm2', name: 'Matrix Reloaded');
+    requests.lists[RequestsFilter.mine] = [
+      testMediaRequest(id: 1, title: 'Andor', status: RequestStatus.pending,
+          createdAt: now),
+    ];
+    collections.collectionsList = [
+      testCollection(id: 'c1', name: 'Matrix - Collezione', itemIds: ['m1', 'm2']),
+    ];
+    home
+      ..series = UpcomingPage(items: [
+        testEpisode(seriesName: 'The Bear', airDate: tomorrowNoon, jellyfinSeriesId: 's1'),
+      ])
+      ..movies = UpcomingPage(items: [testUpcomingMovie()]);
+
+    await pumpHome(tester,
+        height: 4000,
+        features: const SocialFeatures(
+            requests: true,
+            collections: true,
+            upcomingSeries: true,
+            upcomingMovies: true));
+
+    expect(find.text('Perché hai visto Dune'), findsOneWidget);
+    expect(find.text('Arrival'), findsOneWidget);
+    expect(find.text('Le mie richieste'), findsOneWidget);
+    expect(find.text('Andor'), findsOneWidget);
+    expect(find.text(it.requestsStatusPending), findsOneWidget);
+    expect(find.text('Continua la saga'), findsOneWidget);
+    expect(find.text('Matrix Reloaded'), findsOneWidget);
+    expect(find.text('Matrix - Collezione · 1 di 2 visti'), findsOneWidget);
+    expect(find.text('Serie in arrivo'), findsOneWidget);
+    expect(find.text('S02E05 · Domani'), findsOneWidget);
+    expect(find.text('Film in arrivo'), findsOneWidget);
+    expect(find.text('Digitale · 13 ott'), findsOneWidget);
   });
 }

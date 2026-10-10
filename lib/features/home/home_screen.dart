@@ -1,20 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_shell.dart';
 import '../../app/theme.dart';
-import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
-import '../../ui/landscape_card.dart';
-import '../../ui/media_row.dart';
-import '../../ui/poster_card.dart';
 import '../../ui/shimmer.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/staggered_entrance.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_switcher.dart';
 import 'hero_carousel.dart';
-import 'home_data.dart';
+import 'home_layout.dart';
+import 'home_providers.dart';
+import 'home_row_content.dart';
+import 'home_row_view.dart';
 
 /// L'entrata delle righe della Home si vede una volta per sessione
 /// (decisione 6b): tornando alla Home dalla barra non si ripete.
@@ -31,6 +32,10 @@ final homeEntrancePlayedProvider =
 /// Ritardo tra una riga e l'altra nell'entrata della Home.
 const homeRowStagger = Duration(milliseconds: 80);
 
+/// Quanto la Home aspetta le righe prima di aprirsi (spec M §8.2 punto 3):
+/// quelle più lente entrano dopo, al loro posto.
+const homeRevealWait = Duration(milliseconds: 1500);
+
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -45,103 +50,161 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// `WfSwitcher`, quindi resta lo stesso da scheletro a contenuto.
   late final bool _animate = !ref.read(homeEntrancePlayedProvider);
 
+  /// Scade [homeRevealWait] dopo la composizione, se le righe non sono
+  /// ancora arrivate tutte.
+  Timer? _revealTimer;
+
+  /// Le righe arrivate quando la Home si è aperta, con il loro posto
+  /// nell'entrata scaglionata; `null` finché non si è aperta.
+  Map<HomeRowKind, int>? _entrance;
+
   @override
   void dispose() {
+    _revealTimer?.cancel();
     _scroll.dispose();
     super.dispose();
+  }
+
+  String get _language => Localizations.localeOf(context).languageCode;
+
+  static bool _settled(AsyncValue<Object?> value) =>
+      value.hasValue || value.hasError;
+
+  static bool _failed(AsyncValue<Object?> value) =>
+      value.hasError && !value.hasValue;
+
+  /// Apre la Home: entrano insieme le righe già arrivate, nell'ordine.
+  void _open(Map<HomeRowKind, AsyncValue<HomeRowContent>> rows) {
+    _revealTimer?.cancel();
+    _revealTimer = null;
+    var index = 0;
+    _entrance = {
+      for (final MapEntry(:key, :value) in rows.entries)
+        if (_settled(value)) key: index++,
+    };
+  }
+
+  void _onRevealTimeout() {
+    if (!mounted) return;
+    final layout = ref.read(homeLayoutProvider).value;
+    if (layout == null) return;
+    setState(() => _open({
+          for (final kind in layout.visible)
+            kind: ref.read(homeRowProvider((kind: kind, language: _language))),
+        }));
+  }
+
+  void _retry() {
+    ref
+      ..invalidate(homeLayoutProvider)
+      ..invalidate(homeLatestMoviesProvider)
+      ..invalidate(homeLatestSeriesProvider)
+      ..invalidate(homeFeaturedProvider)
+      ..invalidate(homeRowProvider);
+    setState(() {
+      _revealTimer?.cancel();
+      _revealTimer = null;
+      _entrance = null;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final home = ref.watch(homeProvider);
-    final (state, content) = home.when(
-      loading: () => ('loading', const _HomeSkeleton()),
-      error: (error, _) => (
-        'error',
-        ErrorView(error: error, onRetry: () => ref.invalidate(homeProvider)),
-      ),
-      data: (data) {
-        if (data.isEmpty) {
-          return (
-            'empty',
-            Center(
-              child: Text(l.homeEmpty,
-                  style: const TextStyle(color: WfColors.creamMuted)),
-            ),
-          );
-        }
-        // Righe presenti, nell'ordine: l'indice guida l'entrata scaglionata.
-        final rows = <Widget>[
-          if (data.resume.isNotEmpty)
-            _landscapeRow(l.homeContinueWatching, data.resume, 'home.resume'),
-          if (data.nextUp.isNotEmpty)
-            _landscapeRow(l.homeNextUp, data.nextUp, 'home.nextUp'),
-          if (data.latestMovies.isNotEmpty)
-            _posterRow(
-                l.homeLatestMovies, data.latestMovies, 'home.latestMovies'),
-          if (data.latestSeries.isNotEmpty)
-            _posterRow(
-                l.homeLatestSeries, data.latestSeries, 'home.latestSeries'),
-          if (data.favorites.isNotEmpty)
-            _posterRow(l.navMyList, data.favorites, 'home.favorites'),
-        ];
-        return ('data', StaggerGroup(
-          key: const Key('home-rows'),
-          count: rows.length,
-          stagger: homeRowStagger,
-          play: _animate,
-          onPlayed: () =>
-              ref.read(homeEntrancePlayedProvider.notifier).markPlayed(),
-          child: ListView(
-            controller: _scroll,
-            // Il carosello parte dal bordo della finestra, sotto la barra;
-            // senza carosello la prima riga inizia sotto la barra.
-            padding: EdgeInsets.only(
-                top: data.featured.isEmpty ? shellBarHeight : 0, bottom: 40),
-            children: [
-              if (data.featured.isNotEmpty) HeroCarousel(items: data.featured),
-              for (final (i, row) in rows.indexed)
-                StaggerItem(index: i, child: row),
-            ],
-          ),
-        ));
-      },
-    );
+    // `.value` e non `isLoading`: durante una ricomposizione il valore
+    // precedente resta e la Home non torna allo scheletro.
+    final layout = ref.watch(homeLayoutProvider).value;
+    final (state, content) =
+        layout == null ? ('loading', const _HomeSkeleton()) : _content(l, layout);
     return WfSwitcher(
       expand: true,
       child: KeyedSubtree(key: ValueKey(state), child: content),
     );
   }
 
-  /// Riga di locandine. Nelle righe le card volano dentro con la riga, solo
-  /// alla prima entrata della sessione: una riga ricostruita più tardi
-  /// (scorrendo, dati aggiornati) è già entrata e le lascia ferme (vedi
-  /// `StaggerGroup.nested`).
-  Widget _posterRow(String title, List<JellyfinItem> items, String source) =>
-      MediaRow(
-        title: title,
-        height: 300,
-        itemCount: items.length,
-        animateEntrance: _animate,
-        itemBuilder: (context, i) => PosterCard(
-          item: items[i],
-          width: 160,
-          heroSource: '$source.$i',
+  (String, Widget) _content(AppLocalizations l, HomeLayout layout) {
+    final featured = ref.watch(homeFeaturedProvider);
+    final rows = <HomeRowKind, AsyncValue<HomeRowContent>>{
+      for (final kind in layout.visible)
+        kind: ref.watch(homeRowProvider((kind: kind, language: _language))),
+    };
+    if (_entrance == null) {
+      if (_settled(featured) && rows.values.every(_settled)) {
+        _open(rows);
+      } else {
+        _revealTimer ??= Timer(homeRevealWait, _onRevealTimeout);
+        return ('loading', const _HomeSkeleton());
+      }
+    }
+    final entrance = _entrance!;
+    // "Riprova" solo se il carosello e tutte le righe di Jellyfin visibili
+    // hanno fallito (spec M §8.2 punto 4).
+    if (_failed(featured) &&
+        rows.entries
+            .where((row) => row.key.fromJellyfin)
+            .every((row) => _failed(row.value))) {
+      return ('error', ErrorView(error: featured.error!, onRetry: _retry));
+    }
+    final featuredItems = featured.value ?? const [];
+    final shown = <Widget>[
+      for (final kind in layout.visible)
+        if (rows[kind]!.value case final content? when !content.isEmpty)
+          _row(kind, content, entrance[kind]),
+    ];
+    if (featuredItems.isEmpty && shown.isEmpty) {
+      final pending = !_settled(featured) || !rows.values.every(_settled);
+      if (pending) return ('loading', const _HomeSkeleton());
+      return (
+        'empty',
+        Center(
+          child: Text(l.homeEmpty,
+              style: const TextStyle(color: WfColors.creamMuted)),
         ),
       );
+    }
+    return (
+      'data',
+      StaggerGroup(
+        key: const Key('home-rows'),
+        count: entrance.length,
+        stagger: homeRowStagger,
+        play: _animate,
+        onPlayed: () =>
+            ref.read(homeEntrancePlayedProvider.notifier).markPlayed(),
+        child: ListView(
+          controller: _scroll,
+          // Il carosello parte dal bordo della finestra, sotto la barra;
+          // senza carosello la prima riga inizia sotto la barra.
+          padding: EdgeInsets.only(
+              top: featuredItems.isEmpty ? shellBarHeight : 0, bottom: 40),
+          children: [
+            if (featuredItems.isNotEmpty) HeroCarousel(items: featuredItems),
+            ...shown,
+          ],
+        ),
+      ),
+    );
+  }
 
-  Widget _landscapeRow(String title, List<JellyfinItem> items, String source) =>
-      MediaRow(
-        title: title,
-        height: 230,
-        itemCount: items.length,
-        animateEntrance: _animate,
-        itemBuilder: (context, i) => LandscapeCard(
-          item: items[i],
-          heroSource: '$source.$i',
+  /// Una riga arrivata all'apertura entra con le altre; una arrivata dopo
+  /// entra da sola, al suo posto (decisione 6 del piano 19b).
+  Widget _row(HomeRowKind kind, HomeRowContent content, int? index) {
+    if (index == null) {
+      return StaggerGroup(
+        key: ValueKey('home-late-${kind.id}'),
+        count: 1,
+        child: StaggerItem(
+          index: 0,
+          child: HomeRowView(kind: kind, content: content, animateEntrance: true),
         ),
       );
+    }
+    return StaggerItem(
+      key: ValueKey('home-row-${kind.id}'),
+      index: index,
+      child: HomeRowView(kind: kind, content: content, animateEntrance: _animate),
+    );
+  }
 }
 
 class _HomeSkeleton extends StatelessWidget {

@@ -1,18 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
-import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/home/home_screen.dart';
-import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/ui/media_row.dart';
 import 'package:wonderflix/ui/staggered_entrance.dart';
 
-import '../../support/fake_session_controller.dart';
+import '../../support/home_fakes.dart';
 import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
-import '../../support/test_data.dart';
 
 void main() {
   late FakeLibraryApi api;
@@ -25,17 +21,18 @@ void main() {
           : pageOf([testItem(id: 'm1', name: 'Dune')]);
   });
 
-  List<Override> overrides() => [
-        libraryApiProvider.overrideWithValue(api),
-        sessionControllerProvider
-            .overrideWith(() => FakeSessionController(const SessionSignedIn(testUser))),
-      ];
+  /// Le risposte finte arrivano in pochi fotogrammi: composizione, poi
+  /// righe.
+  Future<void> settle(WidgetTester tester) async {
+    for (var i = 0; i < 6; i++) {
+      await tester.pump();
+    }
+  }
 
   testWidgets('prima volta: le righe entrano scaglionate', (tester) async {
     await pumpApp(tester, const HomeScreen(),
-        overrides: overrides(), motion: MotionLevel.full);
-    await tester.pump();
-    await tester.pump();
+        overrides: homeOverrides(library: api), motion: MotionLevel.full);
+    await settle(tester);
     expect(find.byType(StaggerGroup), findsWidgets);
     final rows = tester.widget<StaggerGroup>(find.byKey(const Key('home-rows')));
     expect(rows.play, isTrue);
@@ -60,18 +57,16 @@ void main() {
         builder: (context, value, _) =>
             value ? const HomeScreen() : const SizedBox(),
       ),
-      overrides: overrides(),
+      overrides: homeOverrides(library: api),
       motion: MotionLevel.full,
     );
-    await tester.pump();
-    await tester.pump();
+    await settle(tester);
     await tester.pump(const Duration(seconds: 2));
     // Via e di nuovo (come cambiare voce e tornare alla Home).
     shown.value = false;
     await tester.pump();
     shown.value = true;
-    await tester.pump();
-    await tester.pump();
+    await settle(tester);
     final rows = tester.widget<StaggerGroup>(find.byKey(const Key('home-rows')));
     expect(rows.play, isFalse);
     // Nemmeno le card delle righe volano dentro: nessun gruppo nelle righe.
@@ -91,9 +86,8 @@ void main() {
           testItem(id: 'e$i', name: 'Episodio $i', kind: ItemKind.episode),
       ];
     await pumpApp(tester, const HomeScreen(),
-        overrides: overrides(), motion: MotionLevel.full);
-    await tester.pump();
-    await tester.pump();
+        overrides: homeOverrides(library: api), motion: MotionLevel.full);
+    await settle(tester);
     await tester.pump(const Duration(seconds: 2));
     final position =
         tester.state<ScrollableState>(find.byType(Scrollable).first).position;
