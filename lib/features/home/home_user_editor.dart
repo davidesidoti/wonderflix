@@ -86,6 +86,10 @@ class HomeUserEditor extends AsyncNotifier<HomeUserEditorState> {
   /// Cresce a ogni salvataggio fallito: quelli già in coda non partono.
   var _failures = 0;
 
+  /// Cresce a ogni "Ripristina": un salvataggio messo in coda prima non
+  /// rimette più i suoi ritocchi in `stored`, che da quel momento è `none`.
+  var _resets = 0;
+
   /// Cresce a ogni lettura (build): l'esito di un'operazione partita prima
   /// non tocca più l'elenco, che nel frattempo è stato riletto.
   var _generation = 0;
@@ -162,8 +166,9 @@ class HomeUserEditor extends AsyncNotifier<HomeUserEditorState> {
 
   void _edit(HomeUserEditorState Function(HomeUserEditorState) change) {
     final current = state.value;
-    // Senza la Home letta non si modifica né si salva niente.
-    if (current == null) return;
+    // Senza la Home letta, o mentre si rilegge (l'elenco che si vede sta per
+    // essere sostituito), non si modifica né si salva niente.
+    if (current == null || state.isLoading) return;
     final next = change(current).copyWith(saveFailed: false);
     state = AsyncData(next);
     _pending = homeUserPrefsToSave(
@@ -215,12 +220,13 @@ class HomeUserEditor extends AsyncNotifier<HomeUserEditorState> {
     final prefs = _pending;
     _pending = null;
     if (prefs == null) return _saving;
-    return _enqueue(
-        (api, userId, generation) => _save(api, userId, generation, prefs));
+    final resets = _resets;
+    return _enqueue((api, userId, generation) =>
+        _save(api, userId, generation, resets, prefs));
   }
 
   Future<void> _save(DisplayPreferencesApi api, String userId, int generation,
-      HomeUserPrefs prefs) async {
+      int resets, HomeUserPrefs prefs) async {
     try {
       await api.writeHome(userId, prefs);
     } on Object catch (error) {
@@ -231,8 +237,13 @@ class HomeUserEditor extends AsyncNotifier<HomeUserEditorState> {
     if (!ref.mounted) return;
     if (generation == _generation) {
       _serverPrefs = prefs;
+      // Dopo un "Ripristina" l'elenco parte dalla Home predefinita: i ritocchi
+      // di questo salvataggio, che sta per essere tolto, non tornano in
+      // `stored` (e da lì nelle modifiche fatte intanto).
       final current = state.value;
-      if (current != null) state = AsyncData(current.copyWith(stored: prefs));
+      if (current != null && resets == _resets) {
+        state = AsyncData(current.copyWith(stored: prefs));
+      }
     }
     // La Home si ricompone con i ritocchi nuovi (spec M §8.5).
     if (userId == _userId) ref.invalidate(homeUserPrefsProvider);
@@ -243,7 +254,9 @@ class HomeUserEditor extends AsyncNotifier<HomeUserEditorState> {
   /// se non riesce, torna a com'è sul server. Senza la Home letta non fa
   /// niente.
   Future<void> reset() {
-    if (state.value == null) return _saving;
+    // Come per le modifiche: senza la Home letta, o mentre si rilegge, no.
+    if (state.value == null || state.isLoading) return _saving;
+    _resets++;
     _timer?.cancel();
     _timer = null;
     _pending = null;
@@ -262,14 +275,8 @@ class HomeUserEditor extends AsyncNotifier<HomeUserEditorState> {
       return;
     }
     if (!ref.mounted) return;
-    if (generation == _generation) {
-      _serverPrefs = HomeUserPrefs.none;
-      // L'elenco è già quello predefinito, con le modifiche fatte dopo.
-      final current = state.value;
-      if (current != null) {
-        state = AsyncData(current.copyWith(stored: HomeUserPrefs.none));
-      }
-    }
+    // L'elenco è già quello predefinito, con le modifiche fatte dopo.
+    if (generation == _generation) _serverPrefs = HomeUserPrefs.none;
     if (userId == _userId) ref.invalidate(homeUserPrefsProvider);
   }
 

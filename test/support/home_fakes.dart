@@ -128,9 +128,15 @@ class FakeDisplayPreferencesApi implements DisplayPreferencesApi {
     this.prefs = prefs;
   }
 
+  /// Se valorizzato, [resetHome] aspetta che si completi (dopo aver
+  /// registrato la chiamata).
+  Completer<void>? resetGate;
+
   @override
   Future<void> resetHome(String userId) async {
     resets.add(userId);
+    final gate = resetGate;
+    if (gate != null) await gate.future;
     final error = resetError;
     if (error != null) throw error;
     prefs = HomeUserPrefs.none;
