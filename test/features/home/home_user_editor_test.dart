@@ -263,4 +263,253 @@ void main() {
       expect(value(c).canReset, isFalse);
     });
   });
+
+  const luigi = SessionSignedIn(JellyfinUser(id: 'u2', name: 'Luigi'));
+
+  test('il salvataggio di Mario finisce dopo che Luigi è già letto', () {
+    fakeAsync((async) {
+      final gate = prefs.writeGate = Completer<void>();
+      final c = container();
+      async.flushMicrotasks();
+      c.read(homeUserEditorProvider.notifier).move(HomeRowKind.myList, 0);
+      async.elapse(homeEditorSaveDelay);
+      async.flushMicrotasks();
+      expect(prefs.written, hasLength(1), reason: 'quello di Mario è in volo');
+
+      session.set(luigi);
+      async.elapse(Duration.zero);
+      async.flushMicrotasks();
+      expect(prefs.readUsers, ['u1', 'u2'],
+          reason: 'Luigi non aspetta il salvataggio di Mario');
+      expect(value(c).canReset, isFalse);
+
+      prefs.writeGate = null;
+      gate.complete();
+      async.flushMicrotasks();
+      expect(prefs.written.single.$1, 'u1');
+      expect(value(c).stored.isEmpty, isTrue);
+      expect(value(c).canReset, isFalse);
+      expect(value(c).rows.first, isNot(HomeRowKind.myList));
+    });
+  });
+
+  test('il salvataggio fallito di Mario non tocca Luigi né quelli suoi', () {
+    fakeAsync((async) {
+      final gate = prefs.writeGate = Completer<void>();
+      prefs.writeError = const ServerUnreachableException();
+      final c = container();
+      async.flushMicrotasks();
+      c.read(homeUserEditorProvider.notifier).move(HomeRowKind.myList, 0);
+      async.elapse(homeEditorSaveDelay);
+      async.flushMicrotasks();
+
+      session.set(luigi);
+      async.elapse(Duration.zero);
+      async.flushMicrotasks();
+      prefs.writeGate = null;
+      gate.complete();
+      async.flushMicrotasks();
+      expect(value(c).saveFailed, isFalse);
+
+      prefs.writeError = null;
+      c.read(homeUserEditorProvider.notifier).move(HomeRowKind.myList, 0);
+      async.elapse(homeEditorSaveDelay);
+      async.flushMicrotasks();
+      expect(prefs.written, hasLength(2));
+      expect(prefs.written.last.$1, 'u2', reason: 'quello di Luigi parte');
+      expect(value(c).saveFailed, isFalse);
+    });
+  });
+
+  test('chiudendo prima dei 500 ms la Home si ricompone con la modifica', () {
+    fakeAsync((async) {
+      final c = bare();
+      final sub = c.listen(homeUserEditorProvider, (_, _) {});
+      c.listen(homeUserPrefsProvider, (_, _) {});
+      async.flushMicrotasks();
+      final reads = prefs.readUsers.length;
+      final timers = async.nonPeriodicTimerCount;
+      final gate = prefs.writeGate = Completer<void>();
+      c.read(homeUserEditorProvider.notifier).move(HomeRowKind.myList, 0);
+      sub.close();
+      async.elapse(Duration.zero);
+      async.flushMicrotasks();
+      expect(prefs.written, hasLength(1), reason: 'subito, senza i 500 ms');
+      expect(c.exists(homeUserEditorProvider), isTrue,
+          reason: 'resta aperto finché salva');
+
+      prefs.writeGate = null;
+      gate.complete();
+      async.flushMicrotasks();
+      async.elapse(Duration.zero);
+      async.flushMicrotasks();
+      expect(prefs.readUsers.length, greaterThan(reads),
+          reason: 'la Home dell\'utente si rilegge');
+      expect(c.exists(homeUserEditorProvider), isFalse,
+          reason: 'finito di salvare si chiude');
+      expect(async.nonPeriodicTimerCount, timers);
+    });
+  });
+
+  test('riaprendo le Impostazioni durante il salvataggio, è lo stesso', () {
+    fakeAsync((async) {
+      final c = bare();
+      final sub = c.listen(homeUserEditorProvider, (_, _) {});
+      async.flushMicrotasks();
+      final gate = prefs.writeGate = Completer<void>();
+      c.read(homeUserEditorProvider.notifier).move(HomeRowKind.myList, 0);
+      sub.close();
+      async.elapse(Duration.zero);
+      async.flushMicrotasks();
+
+      c.listen(homeUserEditorProvider, (_, _) {});
+      async.flushMicrotasks();
+      expect(prefs.readUsers, ['u1'], reason: 'non si rilegge');
+      expect(value(c).rows.first, HomeRowKind.myList);
+
+      prefs.writeGate = null;
+      gate.complete();
+      async.flushMicrotasks();
+      expect(value(c).stored.rows.first, 'myList');
+    });
+  });
+
+  test('rileggendo con un salvataggio in volo, vale quello salvato', () {
+    fakeAsync((async) {
+      final gate = prefs.writeGate = Completer<void>();
+      final c = container();
+      async.flushMicrotasks();
+      c.read(homeUserEditorProvider.notifier).move(HomeRowKind.myList, 0);
+      async.elapse(homeEditorSaveDelay);
+      async.flushMicrotasks();
+      expect(prefs.written, hasLength(1));
+
+      c.invalidate(homeUserEditorProvider);
+      async.elapse(Duration.zero);
+      async.flushMicrotasks();
+      expect(prefs.readUsers, ['u1'],
+          reason: 'aspetta che il salvataggio finisca');
+
+      prefs.writeGate = null;
+      gate.complete();
+      async.flushMicrotasks();
+      expect(prefs.readUsers, ['u1', 'u1']);
+      expect(value(c).rows.first, HomeRowKind.myList);
+      expect(value(c).stored.rows.first, 'myList');
+    });
+  });
+
+  test('rileggendo con una modifica in attesa, si salva e poi si legge', () {
+    fakeAsync((async) {
+      final c = container();
+      async.flushMicrotasks();
+      c.read(homeUserEditorProvider.notifier).move(HomeRowKind.myList, 0);
+
+      c.invalidate(homeAdminRowsProvider);
+      async.elapse(Duration.zero);
+      async.flushMicrotasks();
+      expect(prefs.written, hasLength(1));
+      expect(value(c).rows.first, HomeRowKind.myList);
+      expect(value(c).stored.rows.first, 'myList');
+
+      // L'elenco che si vede è quello del server: una seconda modifica non
+      // cancella la prima.
+      c
+          .read(homeUserEditorProvider.notifier)
+          .setVisible(HomeRowKind.nextUp, false);
+      async.elapse(homeEditorSaveDelay);
+      async.flushMicrotasks();
+      expect(prefs.written.last.$2.rows.first, 'myList');
+      expect(prefs.written.last.$2.hidden, ['nextUp']);
+    });
+  });
+
+  test('Ripristina cambia subito l\'elenco e aspetta un salvataggio in volo',
+      () {
+    fakeAsync((async) {
+      final gate = prefs.writeGate = Completer<void>();
+      final c = container();
+      async.flushMicrotasks();
+      final editor = c.read(homeUserEditorProvider.notifier);
+      editor.move(HomeRowKind.myList, 0);
+      async.elapse(homeEditorSaveDelay);
+      async.flushMicrotasks();
+      expect(prefs.written, hasLength(1), reason: 'il salvataggio è in volo');
+
+      unawaited(editor.reset());
+      expect(value(c).rows, HomeRowKind.values, reason: 'subito');
+      expect(value(c).canReset, isFalse);
+      async.flushMicrotasks();
+      expect(prefs.resets, isEmpty, reason: 'dopo il salvataggio');
+
+      prefs.writeGate = null;
+      gate.complete();
+      async.flushMicrotasks();
+      expect(prefs.resets, ['u1']);
+      expect(prefs.prefs.isEmpty, isTrue, reason: 'prima salva, poi toglie');
+      expect(value(c).rows, HomeRowKind.values);
+      expect(value(c).stored.isEmpty, isTrue);
+      expect(value(c).canReset, isFalse);
+    });
+  });
+
+  test('Ripristina fallito: si torna all\'ultimo salvato', () {
+    fakeAsync((async) {
+      prefs.prefs = const HomeUserPrefs(rows: ['myList'], hidden: ['resume']);
+      prefs.resetError = const ServerUnreachableException();
+      final c = container();
+      async.flushMicrotasks();
+      final before = value(c).rows;
+      final editor = c.read(homeUserEditorProvider.notifier);
+      unawaited(editor.reset());
+      expect(value(c).hidden, isEmpty, reason: 'subito');
+      editor.setVisible(HomeRowKind.nextUp, false);
+      async.flushMicrotasks();
+
+      expect(prefs.resets, ['u1']);
+      expect(value(c).rows, before);
+      expect(value(c).hidden, {HomeRowKind.resume});
+      expect(value(c).stored.rows, ['myList']);
+      expect(value(c).saveFailed, isTrue);
+      async.elapse(homeEditorSaveDelay);
+      async.flushMicrotasks();
+      expect(prefs.written, isEmpty,
+          reason: 'la modifica fatta dopo Ripristina non parte');
+      expect(prefs.prefs.hidden, ['resume']);
+    });
+  });
+
+  test('una modifica dopo Ripristina parte dalla Home predefinita', () {
+    fakeAsync((async) {
+      prefs.prefs = const HomeUserPrefs(
+          rows: ['future', 'myList'], hidden: ['resume', 'future']);
+      final c = container();
+      async.flushMicrotasks();
+      final editor = c.read(homeUserEditorProvider.notifier);
+      unawaited(editor.reset());
+      editor.setVisible(HomeRowKind.nextUp, false);
+      async.elapse(homeEditorSaveDelay);
+      async.flushMicrotasks();
+
+      expect(prefs.resets, ['u1']);
+      final saved = prefs.written.single.$2;
+      expect(saved.hidden, ['nextUp'], reason: 'senza i vecchi id');
+      expect(saved.rows, [for (final row in HomeRowKind.values) row.id]);
+      expect(prefs.prefs.hidden, ['nextUp'], reason: 'dopo il ripristino');
+      expect(value(c).saveFailed, isFalse);
+    });
+  });
+
+  test('Ripristina senza la Home letta non fa niente', () {
+    fakeAsync((async) {
+      prefs.error = const ServerUnreachableException();
+      final c = container();
+      async.flushMicrotasks();
+      unawaited(c.read(homeUserEditorProvider.notifier).reset());
+      async.elapse(const Duration(seconds: 2));
+      async.flushMicrotasks();
+      expect(prefs.resets, isEmpty);
+      expect(c.read(homeUserEditorProvider).hasError, isTrue);
+    });
+  });
 }

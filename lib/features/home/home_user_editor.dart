@@ -67,7 +67,9 @@ class HomeUserEditorState {
 /// riscrivono intere, e due salvataggi insieme si pesterebbero.
 class HomeUserEditor extends AsyncNotifier<HomeUserEditorState> {
   late DisplayPreferencesApi _api;
-  late String _userId;
+
+  /// Mai un id vero: il primo build non è "lo stesso utente" di nessuno.
+  String _userId = '';
   List<String>? _adminRows;
   Timer? _timer;
 
@@ -78,25 +80,60 @@ class HomeUserEditor extends AsyncNotifier<HomeUserEditorState> {
   /// finisce mai con un errore.
   Future<void> _saving = Future.value();
 
+  /// Quanti salvataggi o ripristini sono in coda o in corso.
+  var _jobs = 0;
+
   /// Cresce a ogni salvataggio fallito: quelli già in coda non partono.
   var _failures = 0;
 
+  /// Cresce a ogni lettura (build): l'esito di un'operazione partita prima
+  /// non tocca più l'elenco, che nel frattempo è stato riletto.
+  var _generation = 0;
+
+  /// La Home dell'utente com'è sul server adesso: dove si torna se
+  /// un'operazione fallisce.
+  var _serverPrefs = HomeUserPrefs.none;
+
+  /// Lascia andare il controller: finché ci sono modifiche da salvare resta
+  /// aperto anche se nessuno lo guarda più (si esce dalle Impostazioni).
+  void Function()? _release;
+
   @override
   Future<HomeUserEditorState> build() async {
-    _userId = ref.watch(currentUserIdProvider);
-    _api = ref.watch(displayPreferencesApiProvider);
+    final userId = ref.watch(currentUserIdProvider);
+    final api = ref.watch(displayPreferencesApiProvider);
     final adminRows = ref.watch(homeAdminRowsProvider.future);
+    final generation = ++_generation;
+    final sameUser = userId == _userId;
+    _userId = userId;
+    _api = api;
+    ref.onCancel(() {
+      // Nessuno guarda più l'elenco: la modifica che aspettava si salva
+      // subito, senza i 500 ms.
+      if (_pending != null) unawaited(_flush());
+    });
     ref.onDispose(() {
-      // Una modifica che aspettava si salva lo stesso, senza più toccare
+      // Se il controller si chiude lo stesso (si ricompone, o si chiude il
+      // contenitore) la modifica che aspettava si salva senza più toccare
       // lo stato.
       if (_pending != null) unawaited(_flush());
       _timer?.cancel();
     });
+    // Riverpod toglie i blocchi a ogni ricomposizione.
+    _release = null;
+    if (_jobs > 0) _hold();
+    // Rileggendo lo stesso utente si aspetta quello che si sta salvando:
+    // senza, si leggerebbe la Home di prima e l'elenco tornerebbe indietro.
+    if (sameUser) await _saving;
     // Letta qui e non da `homeUserPrefsProvider`, che una lettura fallita
     // la fa diventare "nessun ritocco": salvando si perderebbero (decisione
     // 9 del piano 19c).
-    final stored = await _api.readHome(_userId);
-    _adminRows = await adminRows;
+    final stored = await api.readHome(userId);
+    final admin = await adminRows;
+    if (generation == _generation) {
+      _adminRows = admin;
+      _serverPrefs = stored;
+    }
     return _fromStored(stored);
   }
 
@@ -131,79 +168,122 @@ class HomeUserEditor extends AsyncNotifier<HomeUserEditorState> {
     state = AsyncData(next);
     _pending = homeUserPrefsToSave(
         rows: next.rows, hidden: next.hidden, stored: next.stored);
+    _hold();
     _timer?.cancel();
     _timer = Timer(homeEditorSaveDelay, () => unawaited(_flush()));
   }
 
-  /// Mette in coda quello che aspetta. L'utente e l'API si prendono ora: se
-  /// il profilo cambia (il controller si ricompone) prima che il salvataggio
-  /// parta, la Home è comunque di chi l'ha modificata.
+  /// Tiene aperto il controller. Non si può chiamare mentre Riverpod lo
+  /// chiude o lo ricompone: lì lo si ritiene da [build].
+  void _hold() => _release ??= ref.keepAlive().close;
+
+  /// Se non c'è più niente da salvare, il controller può chiudersi.
+  void _releaseIfIdle() {
+    if (_jobs > 0 || _pending != null) return;
+    final release = _release;
+    _release = null;
+    if (release != null && ref.mounted) release();
+  }
+
+  /// Mette in coda [job], dopo quelli di prima. L'API, l'utente e la lettura
+  /// si prendono ora: se il profilo cambia (il controller si ricompone)
+  /// prima che parta, la Home è comunque di chi l'ha modificata. Se nel
+  /// frattempo uno di quelli di prima è fallito, non parte.
+  Future<void> _enqueue(
+      Future<void> Function(
+              DisplayPreferencesApi api, String userId, int generation)
+          job) {
+    final api = _api;
+    final userId = _userId;
+    final generation = _generation;
+    final failures = _failures;
+    _jobs++;
+    return _saving = _saving.then((_) async {
+      try {
+        if (failures == _failures) await job(api, userId, generation);
+      } finally {
+        _jobs--;
+        _releaseIfIdle();
+      }
+    });
+  }
+
+  /// Mette in coda quello che aspetta.
   Future<void> _flush() {
     _timer?.cancel();
     _timer = null;
     final prefs = _pending;
     _pending = null;
     if (prefs == null) return _saving;
-    final api = _api;
-    final userId = _userId;
-    final failures = _failures;
-    return _saving = _saving.then((_) async {
-      if (failures == _failures) await _save(api, userId, prefs);
-    });
+    return _enqueue(
+        (api, userId, generation) => _save(api, userId, generation, prefs));
   }
 
-  Future<void> _save(
-      DisplayPreferencesApi api, String userId, HomeUserPrefs prefs) async {
+  Future<void> _save(DisplayPreferencesApi api, String userId, int generation,
+      HomeUserPrefs prefs) async {
     try {
       await api.writeHome(userId, prefs);
     } on Object catch (error) {
       _log.info('Home dell\'utente non salvata: ${error.runtimeType}');
-      // Dopo un cambio di profilo l'esito non riguarda più l'elenco.
-      if (userId != _userId) return;
-      _failures++;
-      if (!ref.mounted) return;
-      _timer?.cancel();
-      _timer = null;
-      _pending = null;
-      final current = state.value;
-      if (current != null) {
-        state = AsyncData(_fromStored(current.stored, saveFailed: true));
-      }
+      _failed(userId, generation);
       return;
     }
-    if (!ref.mounted || userId != _userId) return;
-    final current = state.value;
-    if (current != null) state = AsyncData(current.copyWith(stored: prefs));
+    if (!ref.mounted) return;
+    if (generation == _generation) {
+      _serverPrefs = prefs;
+      final current = state.value;
+      if (current != null) state = AsyncData(current.copyWith(stored: prefs));
+    }
     // La Home si ricompone con i ritocchi nuovi (spec M §8.5).
-    ref.invalidate(homeUserPrefsProvider);
+    if (userId == _userId) ref.invalidate(homeUserPrefsProvider);
   }
 
   /// "Ripristina la Home predefinita": toglie le due voci (spec M §6.3),
-  /// dopo i salvataggi in coda.
+  /// dopo i salvataggi in coda. L'elenco diventa subito quello predefinito;
+  /// se non riesce, torna a com'è sul server. Senza la Home letta non fa
+  /// niente.
   Future<void> reset() {
+    if (state.value == null) return _saving;
     _timer?.cancel();
     _timer = null;
     _pending = null;
-    final api = _api;
-    final userId = _userId;
-    return _saving = _saving.then((_) => _reset(api, userId));
+    state = AsyncData(_fromStored(HomeUserPrefs.none));
+    _hold();
+    return _enqueue(_reset);
   }
 
-  Future<void> _reset(DisplayPreferencesApi api, String userId) async {
+  Future<void> _reset(
+      DisplayPreferencesApi api, String userId, int generation) async {
     try {
       await api.resetHome(userId);
     } on Object catch (error) {
       _log.info('Home dell\'utente non ripristinata: ${error.runtimeType}');
-      if (!ref.mounted || userId != _userId) return;
-      final current = state.value;
-      if (current != null) {
-        state = AsyncData(current.copyWith(saveFailed: true));
-      }
+      _failed(userId, generation);
       return;
     }
-    if (!ref.mounted || userId != _userId) return;
-    state = AsyncData(_fromStored(HomeUserPrefs.none));
-    ref.invalidate(homeUserPrefsProvider);
+    if (!ref.mounted) return;
+    if (generation == _generation) {
+      _serverPrefs = HomeUserPrefs.none;
+      // L'elenco è già quello predefinito, con le modifiche fatte dopo.
+      final current = state.value;
+      if (current != null) {
+        state = AsyncData(current.copyWith(stored: HomeUserPrefs.none));
+      }
+    }
+    if (userId == _userId) ref.invalidate(homeUserPrefsProvider);
+  }
+
+  /// Un salvataggio o un ripristino non è riuscito: quelli in coda non
+  /// partono e l'elenco torna a com'è sul server.
+  void _failed(String userId, int generation) {
+    // Dopo un cambio di profilo l'esito non riguarda più l'elenco.
+    if (userId != _userId) return;
+    _failures++;
+    if (!ref.mounted || generation != _generation) return;
+    _timer?.cancel();
+    _timer = null;
+    _pending = null;
+    state = AsyncData(_fromStored(_serverPrefs, saveFailed: true));
   }
 }
 
