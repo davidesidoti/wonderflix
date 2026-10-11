@@ -195,6 +195,42 @@ void main() {
     });
   });
 
+  test('rilettura fallita: con il vecchio elenco in mano non si modifica né '
+      'si ripristina', () {
+    fakeAsync((async) {
+      prefs.prefs = const HomeUserPrefs(rows: ['myList'], hidden: ['resume']);
+      final c = container();
+      async.flushMicrotasks();
+      expect(value(c).hidden, {HomeRowKind.resume});
+
+      // La rilettura fallisce: lo stato è un errore che tiene il valore di
+      // prima, e non sta più caricando.
+      prefs.error = const ServerUnreachableException();
+      c.invalidate(homeUserEditorProvider);
+      async.elapse(Duration.zero);
+      async.flushMicrotasks();
+      final failed = c.read(homeUserEditorProvider);
+      expect(failed.hasError, isTrue);
+      expect(failed.hasValue, isTrue, reason: 'tiene il vecchio elenco');
+      expect(failed.isLoading, isFalse);
+
+      final editor = c.read(homeUserEditorProvider.notifier);
+      editor.move(HomeRowKind.latestSeries, 0);
+      editor.setVisible(HomeRowKind.nextUp, false);
+      async.elapse(homeEditorSaveDelay * 2);
+      async.flushMicrotasks();
+      expect(prefs.written, isEmpty,
+          reason: 'salvando si perderebbero i ritocchi che non si sono letti');
+
+      unawaited(editor.reset());
+      async.flushMicrotasks();
+      expect(prefs.resets, isEmpty);
+      expect(prefs.prefs.hidden, ['resume']);
+      expect(c.read(homeUserEditorProvider).hasError, isTrue,
+          reason: 'lo stato resta l\'errore');
+    });
+  });
+
   test('Ripristina toglie le due voci e la Home si rilegge', () {
     fakeAsync((async) {
       prefs.prefs = const HomeUserPrefs(rows: ['myList'], hidden: ['resume']);

@@ -164,11 +164,21 @@ class HomeUserEditor extends AsyncNotifier<HomeUserEditorState> {
               ? ({...state.hidden}..remove(row))
               : {...state.hidden, row}));
 
+  /// L'elenco si può modificare solo se la Home è stata letta e lo stato è
+  /// dato puro, fermo: senza la Home letta, mentre si rilegge (l'elenco che
+  /// si vede sta per essere sostituito) o dopo una rilettura fallita (lo
+  /// stato è un errore che tiene ancora il vecchio elenco) non si modifica né
+  /// si salva niente, o si perderebbero i ritocchi che non si sono letti.
+  HomeUserEditorState? get _editable {
+    final current = state;
+    return current is AsyncData<HomeUserEditorState> && !current.isLoading
+        ? current.value
+        : null;
+  }
+
   void _edit(HomeUserEditorState Function(HomeUserEditorState) change) {
-    final current = state.value;
-    // Senza la Home letta, o mentre si rilegge (l'elenco che si vede sta per
-    // essere sostituito), non si modifica né si salva niente.
-    if (current == null || state.isLoading) return;
+    final current = _editable;
+    if (current == null) return;
     final next = change(current).copyWith(saveFailed: false);
     state = AsyncData(next);
     _pending = homeUserPrefsToSave(
@@ -255,7 +265,7 @@ class HomeUserEditor extends AsyncNotifier<HomeUserEditorState> {
   /// niente.
   Future<void> reset() {
     // Come per le modifiche: senza la Home letta, o mentre si rilegge, no.
-    if (state.value == null || state.isLoading) return _saving;
+    if (_editable == null) return _saving;
     _resets++;
     _timer?.cancel();
     _timer = null;
