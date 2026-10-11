@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/motion.dart';
 import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
@@ -11,28 +12,63 @@ import '../../ui/staggered_entrance.dart';
 import 'account_settings_section.dart';
 import 'appearance_settings_section.dart';
 import 'discord_settings_section.dart';
+import 'home_settings_section.dart';
 import 'language_settings_section.dart';
 import 'locale_controller.dart';
 import 'player_settings_section.dart';
 import 'support_section.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({super.key, this.section});
+
+  /// La sezione da mostrare all'apertura (`/settings?section=…`): per ora
+  /// solo [homeSettingsSection]. Le altre si ignorano.
+  final String? section;
 
   @override
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  /// Elementi dell'entrata: il titolo e le sette sezioni.
-  static const _sectionCount = 8;
+  /// Elementi dell'entrata: il titolo e le otto sezioni.
+  static const _sectionCount = 9;
 
   final _scroll = SmoothScrollController();
+
+  /// Il titolo della sezione Home, dove scorrere con `section=home`.
+  final _homeKey = GlobalKey(debugLabel: 'settings-home');
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollToSection();
+  }
+
+  @override
+  void didUpdateWidget(SettingsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.section != oldWidget.section) _scrollToSection();
+  }
 
   @override
   void dispose() {
     _scroll.dispose();
     super.dispose();
+  }
+
+  /// Dopo il fotogramma, quando la sezione ha la sua posizione (decisione
+  /// 16 del piano 19c).
+  void _scrollToSection() {
+    if (widget.section != homeSettingsSection) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final target = _homeKey.currentContext;
+      if (!mounted || target == null) return;
+      unawaited(Scrollable.ensureVisible(
+        target,
+        duration: WfMotion.of(context).duration(WfMotion.medium),
+        curve: WfMotion.emphasized,
+      ));
+    });
   }
 
   @override
@@ -41,7 +77,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final locale = ref.watch(localeProvider);
     final version = ref.watch(clientInfoProvider).version;
 
-    Widget section(String title) => Padding(
+    Widget section(String title, {Key? key}) => Padding(
+          key: key,
           padding: const EdgeInsets.only(top: 32, bottom: 12),
           child: Text(title, style: WfText.display(24)),
         );
@@ -103,18 +140,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               const AppearanceSettingsSection(),
             ]),
             item(4, [
+              section(l.settingsHome, key: _homeKey),
+              const HomeSettingsSection(),
+            ]),
+            item(5, [
               section(l.settingsPlayer),
               const PlayerSettingsSection(),
             ]),
-            item(5, [
+            item(6, [
               section(l.settingsLanguages),
               const LanguageSettingsSection(),
             ]),
-            item(6, [
+            item(7, [
               section(l.settingsDiscord),
               const DiscordSettingsSection(),
             ]),
-            item(7, [
+            item(8, [
               section(l.settingsSupport),
               const SupportSection(),
               const SizedBox(height: 40),

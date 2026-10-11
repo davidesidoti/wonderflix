@@ -11,6 +11,7 @@ import 'package:wonderflix/app/window_setup.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/features/account/account_providers.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/home/home_rows_editor.dart';
 import 'package:wonderflix/features/settings/diagnostics.dart';
 import 'package:wonderflix/features/settings/language_preferences.dart';
 import 'package:wonderflix/features/settings/locale_controller.dart';
@@ -19,6 +20,7 @@ import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/ui/user_avatar.dart';
 
 import '../../support/fake_session_controller.dart';
+import '../../support/home_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/settings_fakes.dart';
 import '../../support/test_data.dart';
@@ -54,6 +56,7 @@ void main() {
       clientInfoProvider.overrideWithValue(testClientInfo),
       sessionControllerProvider.overrideWith(() => session),
       userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
+      ...homeSettingsOverrides(),
       // "Cambia profilo" legge il watch party: niente eventi del server.
       watchPartyEventsProvider.overrideWithValue(const Stream.empty()),
     ]);
@@ -92,7 +95,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     await pumpApp(tester, const Scaffold(body: SettingsScreen()),
-        surfaceSize: const Size(1440, 1600),
+        surfaceSize: const Size(1440, 2400),
         overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
       accountAvailableProvider.overrideWithValue(false),
@@ -100,6 +103,7 @@ void main() {
       sessionControllerProvider.overrideWith(
           () => FakeSessionController(const SessionSignedIn(testUser))),
       userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
+      ...homeSettingsOverrides(),
     ]);
 
     expect(find.text('Player'), findsOneWidget);
@@ -142,6 +146,7 @@ void main() {
       sessionControllerProvider.overrideWith(
           () => FakeSessionController(const SessionSignedIn(testUser))),
       userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
+      ...homeSettingsOverrides(),
     ]);
 
     expect(tester.takeException(), isNull);
@@ -153,7 +158,7 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     final configApi = FakeUserConfigApi();
     await pumpApp(tester, const Scaffold(body: SettingsScreen()),
-        surfaceSize: const Size(1440, 1600),
+        surfaceSize: const Size(1440, 2400),
         overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
       accountAvailableProvider.overrideWithValue(false),
@@ -161,6 +166,7 @@ void main() {
       sessionControllerProvider.overrideWith(
           () => FakeSessionController(const SessionSignedIn(testUser))),
       userConfigApiProvider.overrideWithValue(configApi),
+      ...homeSettingsOverrides(),
     ]);
     await tester.pump();
     return configApi;
@@ -285,6 +291,7 @@ void main() {
       sessionControllerProvider.overrideWith(
           () => FakeSessionController(const SessionSignedIn(testUser))),
       userConfigApiProvider.overrideWithValue(configApi),
+      ...homeSettingsOverrides(),
     ]);
     final scrollable = find.byType(Scrollable).first;
     for (var i = 0; i < 2; i++) {
@@ -311,6 +318,7 @@ void main() {
       sessionControllerProvider.overrideWith(
           () => FakeSessionController(const SessionSignedIn(testUser))),
       userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
+      ...homeSettingsOverrides(),
     ]);
 
     final enabled = find.byKey(const Key('discord-enabled'));
@@ -360,6 +368,7 @@ void main() {
       sessionControllerProvider.overrideWith(
           () => FakeSessionController(const SessionSignedIn(testUser))),
       userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
+      ...homeSettingsOverrides(),
       collectDiagnosticsProvider.overrideWithValue(() async => 'DIAGNOSTICA'),
       openLogsFolderProvider.overrideWithValue(() async => opened++),
     ]);
@@ -396,6 +405,7 @@ void main() {
       sessionControllerProvider.overrideWith(
           () => FakeSessionController(const SessionSignedIn(testUser))),
       userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
+      ...homeSettingsOverrides(),
       collectDiagnosticsProvider
           .overrideWithValue(() async => throw StateError('boom')),
     ]);
@@ -408,5 +418,39 @@ void main() {
     expect(find.text('Impossibile copiare la diagnostica.'), findsOneWidget);
     expect(find.text('Diagnostica copiata negli appunti'), findsNothing);
     expect(warnings, hasLength(1));
+  });
+
+  testWidgets('sezione Home dopo Aspetto, con l\'elenco delle righe',
+      (tester) async {
+    await pumpSettings(tester);
+    await tester.pump();
+    final appearance = tester.getTopLeft(find.text('Aspetto')).dy;
+    final home = tester.getTopLeft(find.text('Home')).dy;
+    expect(appearance, lessThan(home));
+    expect(home, lessThan(tester.getTopLeft(find.text('Player')).dy));
+    expect(find.byType(HomeRowsEditor), findsOneWidget);
+  });
+
+  testWidgets('section=home scorre fino alla sezione Home', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await pumpApp(tester, const Scaffold(body: SettingsScreen(section: 'home')),
+        surfaceSize: const Size(1440, 600),
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          accountAvailableProvider.overrideWithValue(false),
+          clientInfoProvider.overrideWithValue(testClientInfo),
+          sessionControllerProvider.overrideWith(
+              () => FakeSessionController(const SessionSignedIn(testUser))),
+          userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
+          ...homeSettingsOverrides(),
+        ]);
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    final scroll =
+        tester.state<ScrollableState>(find.byType(Scrollable).first);
+    expect(scroll.position.pixels, greaterThan(0));
+    expect(tester.getTopLeft(find.text('Home')).dy, inInclusiveRange(0, 600));
   });
 }

@@ -1,8 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/gestures.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:wonderflix/app/app_shell.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
@@ -349,5 +350,38 @@ void main() {
     expect(find.text('S02E05 · Domani'), findsOneWidget);
     expect(find.text('Film in arrivo'), findsOneWidget);
     expect(find.text('Digitale · 13 ott'), findsOneWidget);
+  });
+
+  testWidgets('"Personalizza la Home" in fondo apre le impostazioni sulla '
+      'sezione Home', (tester) async {
+    someRows();
+    final router = GoRouter(initialLocation: '/home', routes: [
+      GoRoute(
+          path: '/home',
+          builder: (context, state) => const Scaffold(body: HomeScreen())),
+      GoRoute(
+          path: '/settings',
+          builder: (context, state) => Text(
+              'sezione ${state.uri.queryParameters['section']}')),
+    ]);
+    await pumpAppRouter(tester, router,
+        // Alta abbastanza da avere in costruzione anche il link in fondo: la
+        // lista costruisce solo quello che si vede.
+        surfaceSize: const Size(1440, 3000),
+        overrides: homeOverrides(library: library, home: home, prefs: prefs));
+    await settle(tester);
+    final link = find.byKey(const Key('home-customize'));
+    await tester.ensureVisible(link);
+    await tester.pump();
+    await tester.tap(link);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('sezione home'), findsOneWidget);
+  });
+
+  testWidgets('"Personalizza la Home" anche nella Home vuota', (tester) async {
+    await pumpHome(tester);
+    expect(find.text("Qui non c'è ancora niente."), findsOneWidget);
+    expect(find.byKey(const Key('home-customize')), findsOneWidget);
   });
 }

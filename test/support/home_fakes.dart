@@ -103,9 +103,15 @@ class FakeDisplayPreferencesApi implements DisplayPreferencesApi {
   final written = <(String, HomeUserPrefs)>[];
   final resets = <String>[];
 
+  /// Se valorizzato, [readHome] aspetta che si completi (dopo aver
+  /// registrato la chiamata).
+  Completer<void>? readGate;
+
   @override
   Future<HomeUserPrefs> readHome(String userId) async {
     readUsers.add(userId);
+    final gate = readGate;
+    if (gate != null) await gate.future;
     final failure = error;
     if (failure != null) throw failure;
     return prefs;
@@ -202,4 +208,19 @@ List<Override> homeOverrides({
           .overrideWithValue(collections ?? FakeCollectionsApi()),
       sessionControllerProvider.overrideWith(() =>
           session ?? FakeSessionController(const SessionSignedIn(testUser))),
+    ];
+
+/// Quello che serve alla sezione Home delle Impostazioni: va aggiunto ai test
+/// che montano `SettingsScreen`, che hanno già l'utente collegato.
+List<Override> homeSettingsOverrides({
+  FakeDisplayPreferencesApi? prefs,
+  FakeHomeApi? home,
+  SocialFeatures features = SocialFeatures.none,
+}) =>
+    [
+      displayPreferencesApiProvider
+          .overrideWithValue(prefs ?? FakeDisplayPreferencesApi()),
+      homeApiProvider.overrideWithValue(home ?? FakeHomeApi()),
+      socialAvailabilityProvider
+          .overrideWith(() => FakeSocialAvailability(features)),
     ];

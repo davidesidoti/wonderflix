@@ -183,9 +183,12 @@ final routerProvider = Provider<GoRouter>((ref) {
                       underBar: true)),
           GoRoute(
               path: '/settings',
-              pageBuilder: (context, state) =>
-                  shellPage(context, state, const SettingsScreen(),
-                      underBar: true)),
+              pageBuilder: (context, state) => shellPage(
+                  context,
+                  state,
+                  SettingsScreen(
+                      section: state.uri.queryParameters['section']),
+                  underBar: true)),
           GoRoute(
               path: '/admin',
               // Senza chiave: cambiando scheda la pagina resta la stessa

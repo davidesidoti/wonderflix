@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/app_shell.dart';
 import '../../app/theme.dart';
@@ -12,6 +13,7 @@ import '../../ui/smooth_scroll.dart';
 import '../../ui/staggered_entrance.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_switcher.dart';
+import '../settings/home_settings_section.dart';
 import 'hero_carousel.dart';
 import 'home_layout.dart';
 import 'home_providers.dart';
@@ -178,8 +180,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       return (
         'empty',
         Center(
-          child: Text(l.homeEmpty,
-              style: const TextStyle(color: WfColors.creamMuted)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(l.homeEmpty,
+                  style: const TextStyle(color: WfColors.creamMuted)),
+              const _CustomizeLink(),
+            ],
+          ),
         ),
       );
     }
@@ -201,6 +209,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           children: [
             if (featuredItems.isNotEmpty) HeroCarousel(items: featuredItems),
             ...shown,
+            const Align(
+                alignment: Alignment.centerLeft, child: _CustomizeLink()),
           ],
         ),
       ),
@@ -302,4 +312,21 @@ class _HomeSkeleton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// "Personalizza la Home", in fondo alle righe e nella Home vuota (spec M
+/// §8.5).
+class _CustomizeLink extends StatelessWidget {
+  const _CustomizeLink();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+        child: TextButton.icon(
+          key: const Key('home-customize'),
+          onPressed: () => openHomeSettings(context),
+          icon: const Icon(LucideIcons.slidersHorizontal, size: 16),
+          label: Text(AppLocalizations.of(context).homeCustomize),
+        ),
+      );
 }
