@@ -20,11 +20,13 @@ List<String> keepForeignIds(
     {required List<String> stored, required List<String> edited}) {
   final shown = edited.toSet();
   final result = [...edited];
-  // Dove va il prossimo id estraneo: dopo l'ultimo id mostrato incontrato.
+  // Dove va il prossimo id estraneo: dopo l'ultimo id mostrato incontrato
+  // la prima volta; un id ripetuto in [stored] non sposta più il cursore.
   var cursor = 0;
+  final seen = <String>{};
   for (final id in stored) {
     if (shown.contains(id)) {
-      cursor = result.indexOf(id) + 1;
+      if (seen.add(id)) cursor = result.indexOf(id) + 1;
     } else if (!result.contains(id)) {
       result.insert(cursor, id);
       cursor++;
@@ -57,7 +59,7 @@ HomeUserPrefs homeUserPrefsToSave({
 /// nell'ordine dell'admin, poi le spente nell'ordine predefinito. `null`:
 /// mai impostata, tutte accese.
 List<HomeRowKind> adminEditorRows(List<String>? saved) {
-  if (saved == null) return HomeRowKind.values;
+  if (saved == null) return [...HomeRowKind.values];
   final on = parseHomeRows(saved);
   return [
     ...on,

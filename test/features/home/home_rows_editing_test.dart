@@ -53,6 +53,20 @@ void main() {
           keepForeignIds(stored: ['x', 'x', 'resume'], edited: ['resume']),
           ['x', 'resume']);
     });
+
+    test('un estraneo in mezzo resta in mezzo, tra i suoi vicini', () {
+      expect(
+          keepForeignIds(
+              stored: ['resume', 'F', 'nextUp'], edited: ['resume', 'nextUp']),
+          ['resume', 'F', 'nextUp']);
+    });
+
+    test('un id mostrato ripetuto in stored non sposta gli estranei', () {
+      expect(
+          keepForeignIds(
+              stored: ['resume', 'x', 'resume', 'y'], edited: ['resume']),
+          ['resume', 'x', 'y']);
+    });
   });
 
   test('homeUserPrefsToSave: conserva righe e nascoste che l\'elenco non mostra',
@@ -75,12 +89,29 @@ void main() {
     expect(prefs.hidden, isEmpty);
   });
 
+  test('homeUserPrefsToSave: una riga mostrata e non più nascosta esce da '
+      'hidden; un estraneo doppio resta una volta', () {
+    final prefs = homeUserPrefsToSave(
+        rows: [resume, nextUp],
+        hidden: {},
+        stored: const HomeUserPrefs(
+            rows: ['resume', 'nextUp'], hidden: ['resume', 'X', 'X']));
+    expect(prefs.hidden, ['X']);
+  });
+
   group('Home per tutti', () {
     test('mai impostata: tutte accese, nell\'ordine predefinito', () {
       expect(adminEditorRows(null), HomeRowKind.values);
       expect(adminEditorOn(null), HomeRowKind.values.toSet());
       expect(adminRowsEffective(null),
           [for (final row in HomeRowKind.values) row.id]);
+    });
+
+    test('mai impostata: la lista è una copia, il chiamante può cambiarla', () {
+      final rows = adminEditorRows(null);
+      rows.removeAt(0);
+      expect(rows, hasLength(HomeRowKind.values.length - 1));
+      expect(HomeRowKind.values, hasLength(HomeRowKind.values.length));
     });
 
     test('accese nell\'ordine dell\'admin, spente in fondo nell\'ordine '
