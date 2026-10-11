@@ -31,12 +31,20 @@ const heroTextStagger = Duration(milliseconds: 90);
 /// Testi della diapositiva che esce: sfumano in questo tempo (spec C §8.1).
 const heroTextExit = Duration(milliseconds: 250);
 
+/// Distanza dal basso del pulsante nell'angolo del carosello: sopra i
+/// pallini (spec M §8.4).
+const heroCornerBottom = 56.0;
+
 /// Titoli in evidenza a tutta larghezza; cambia ogni 8 secondi con una
 /// dissolvenza incrociata (spec C §8.1).
 class HeroCarousel extends ConsumerStatefulWidget {
-  const HeroCarousel({super.key, required this.items});
+  const HeroCarousel({super.key, required this.items, this.corner});
 
   final List<JellyfinItem> items;
+
+  /// In basso a destra, sopra i pallini: il pulsante "Cosa guardo
+  /// stasera?" (spec M §8.4).
+  final Widget? corner;
 
   static const interval = Duration(seconds: 8);
 
@@ -219,6 +227,8 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
                 ),
               ),
               Positioned(right: 32, bottom: 20, child: _dots(motion)),
+              if (widget.corner case final corner?)
+                Positioned(right: 32, bottom: heroCornerBottom, child: corner),
             ],
           ),
         ),

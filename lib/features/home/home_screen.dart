@@ -14,6 +14,7 @@ import '../../ui/staggered_entrance.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_switcher.dart';
 import '../settings/home_settings_section.dart';
+import '../tonight/tonight_dialog.dart';
 import 'hero_carousel.dart';
 import 'home_layout.dart';
 import 'home_providers.dart';
@@ -185,6 +186,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             children: [
               Text(l.homeEmpty,
                   style: const TextStyle(color: WfColors.creamMuted)),
+              const Padding(
+                  padding: EdgeInsets.only(top: 16), child: TonightButton()),
               const _CustomizeLink(),
             ],
           ),
@@ -207,7 +210,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           padding: EdgeInsets.only(
               top: featuredItems.isEmpty ? shellBarHeight : 0, bottom: 40),
           children: [
-            if (featuredItems.isNotEmpty) HeroCarousel(items: featuredItems),
+            if (featuredItems.isNotEmpty)
+              HeroCarousel(items: featuredItems, corner: const TonightButton()),
+            if (featuredItems.isEmpty) const _TonightCorner(),
             ...shown,
             const Align(
                 alignment: Alignment.centerLeft, child: _CustomizeLink()),
@@ -328,5 +333,16 @@ class _CustomizeLink extends StatelessWidget {
           icon: const Icon(LucideIcons.slidersHorizontal, size: 16),
           label: Text(AppLocalizations.of(context).homeCustomize),
         ),
+      );
+}
+
+/// Senza carosello il dado sta in cima alle righe, a destra (spec M §8.4).
+class _TonightCorner extends StatelessWidget {
+  const _TonightCorner();
+
+  @override
+  Widget build(BuildContext context) => const Padding(
+        padding: EdgeInsets.fromLTRB(32, 16, 32, 0),
+        child: Align(alignment: Alignment.centerRight, child: TonightButton()),
       );
 }

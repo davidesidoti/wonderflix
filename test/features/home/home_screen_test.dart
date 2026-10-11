@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wonderflix/app/app_shell.dart';
+import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/display_preferences_api.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
@@ -383,5 +385,64 @@ void main() {
     await pumpHome(tester);
     expect(find.text("Qui non c'è ancora niente."), findsOneWidget);
     expect(find.byKey(const Key('home-customize')), findsOneWidget);
+  });
+
+  testWidgets('il dado sul carosello', (tester) async {
+    someRows();
+    await pumpHome(tester);
+    expect(
+        find.descendant(
+            of: find.byType(HeroCarousel),
+            matching: find.byKey(const Key('tonight-button'))),
+        findsOneWidget);
+  });
+
+  testWidgets('senza carosello il dado è in cima alle righe, a destra',
+      (tester) async {
+    library.resumeItems = [
+      testItem(id: 'r1', name: 'Oppenheimer', playedPercentage: 30)
+    ];
+    await pumpHome(tester);
+    final button = find.byKey(const Key('tonight-button'));
+    expect(button, findsOneWidget);
+    expect(tester.getTopRight(button).dx, greaterThan(1440 - 100));
+    expect(tester.getTopLeft(button).dy,
+        lessThan(tester.getTopLeft(find.text('Continua a guardare')).dy));
+  });
+
+  testWidgets('il dado anche nella Home vuota', (tester) async {
+    await pumpHome(tester);
+    expect(find.text("Qui non c'è ancora niente."), findsOneWidget);
+    expect(find.byKey(const Key('tonight-button')), findsOneWidget);
+  });
+
+  testWidgets('dal dado, Dettagli apre la scheda del titolo', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final shared = await SharedPreferences.getInstance();
+    library.randomPages.add(pageOf([testItem(id: 'm9', name: 'Heat')]));
+    final router = GoRouter(initialLocation: '/home', routes: [
+      GoRoute(
+          path: '/home',
+          builder: (context, state) => const Scaffold(body: HomeScreen())),
+      GoRoute(
+          path: '/item/:id',
+          builder: (context, state) =>
+              Text('scheda ${state.pathParameters['id']}')),
+    ]);
+    await pumpAppRouter(tester, router,
+        surfaceSize: const Size(1440, 1600),
+        overrides: [
+          ...homeOverrides(library: library, home: home, prefs: prefs),
+          sharedPreferencesProvider.overrideWithValue(shared),
+        ]);
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('tonight-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('tonight-details')));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('scheda m9'), findsOneWidget);
   });
 }

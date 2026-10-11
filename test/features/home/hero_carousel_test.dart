@@ -22,7 +22,9 @@ void main() {
   ];
 
   Future<ValueNotifier<List<JellyfinItem>>> pumpHero(WidgetTester tester,
-      {bool autoplay = false, MotionLevel motion = MotionLevel.reduced}) async {
+      {bool autoplay = false,
+      MotionLevel motion = MotionLevel.reduced,
+      Widget? corner}) async {
     final items = ValueNotifier(three);
     addTearDown(items.dispose);
     await pumpApp(
@@ -30,7 +32,8 @@ void main() {
       Scaffold(
         body: ValueListenableBuilder(
           valueListenable: items,
-          builder: (context, value, _) => HeroCarousel(items: value),
+          builder: (context, value, _) =>
+              HeroCarousel(items: value, corner: corner),
         ),
       ),
       overrides: [
@@ -212,6 +215,18 @@ void main() {
     expect(textFade(), inExclusiveRange(0, 1));
     await tester.pumpAndSettle();
     expect(find.text('DUNE'), findsNothing);
+  });
+
+  testWidgets('l\'angolo sta in basso a destra, sopra i pallini', (tester) async {
+    await pumpHero(tester,
+        corner: const SizedBox(key: Key('corner'), width: 200, height: 40));
+    final carousel = tester.getRect(find.byType(HeroCarousel));
+    final corner = tester.getRect(find.byKey(const Key('corner')));
+    final dots = tester.getRect(find.byKey(const ValueKey('hero-dot-0')));
+    expect(corner.right, carousel.right - 32);
+    expect(corner.bottom, carousel.bottom - heroCornerBottom);
+    expect(corner.bottom, lessThanOrEqualTo(dots.top),
+        reason: 'il pulsante non copre i pallini');
   });
 
   testWidgets('completa: lo sfondo ingrandito non esce dal carosello',
