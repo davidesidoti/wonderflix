@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/display_preferences_api.dart';
+import 'package:wonderflix/core/requests/requests_api.dart';
 import 'package:wonderflix/core/requests/requests_models.dart';
 import 'package:wonderflix/features/home/home_rows_editor.dart';
 import 'package:wonderflix/features/home/home_user_editor.dart';
@@ -15,6 +16,7 @@ import '../../support/home_fakes.dart';
 import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/requests_fakes.dart';
+import '../../support/social_fakes.dart';
 
 void main() {
   late FakeDisplayPreferencesApi prefs;
@@ -28,7 +30,8 @@ void main() {
   });
 
   Future<void> pumpSection(WidgetTester tester,
-      {SocialFeatures features = const SocialFeatures(home: true)}) async {
+      {SocialFeatures features = const SocialFeatures(home: true),
+      FakeSocialAvailability? availability}) async {
     await pumpApp(
       tester,
       const Scaffold(
@@ -39,6 +42,7 @@ void main() {
           home: home,
           prefs: prefs,
           features: features,
+          availability: availability,
           requests: requests),
     );
     await tester.pump();
@@ -74,6 +78,41 @@ void main() {
     expect(find.text('Collega il tuo account a Seerr'), findsNothing);
     expect(find.text('Seerr non è configurato'), findsNothing);
     requests.meGate!.complete();
+  });
+
+  testWidgets('se /Me non si legge, Le mie richieste non ha un motivo',
+      (tester) async {
+    requests.meFailure = RequestsFailure.seerrUnavailable;
+    await pumpSection(tester,
+        features: const SocialFeatures(home: true, requests: true));
+    expect(find.byType(HomeRowsEditor), findsOneWidget);
+    expect(find.text('Collega il tuo account a Seerr'), findsNothing,
+        reason: 'non si sa se l\'account c\'è');
+    expect(find.text('Seerr non è configurato'), findsNothing);
+    // Le altre righe dicono il loro motivo.
+    expect(find.text('Sonarr non è configurato'), findsOneWidget);
+  });
+
+  testWidgets('finché le funzioni del plugin non sono note nessuna riga ha un '
+      'motivo', (tester) async {
+    final availability = FakeSocialAvailability(SocialFeatures.unknown);
+    await pumpSection(tester, availability: availability);
+    expect(find.byType(HomeRowsEditor), findsOneWidget);
+    for (final reason in [
+      'Seerr non è configurato',
+      'Collega il tuo account a Seerr',
+      'Serve il plugin 1.5.0',
+      'Sonarr non è configurato',
+      'Radarr non è configurato',
+    ]) {
+      expect(find.text(reason), findsNothing, reason: reason);
+    }
+
+    // Note le funzioni, i motivi compaiono.
+    availability.set(const SocialFeatures(home: true));
+    await tester.pump();
+    expect(find.text('Sonarr non è configurato'), findsOneWidget);
+    expect(find.text('Serve il plugin 1.5.0'), findsOneWidget);
   });
 
   testWidgets('un interruttore si salva da solo dopo 500 ms', (tester) async {
@@ -129,6 +168,35 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.byType(HomeRowsEditor), findsOneWidget);
+  });
+
+  testWidgets('rilettura fallita: errore e Riprova, non l\'elenco di prima',
+      (tester) async {
+    prefs.prefs = const HomeUserPrefs(rows: ['myList'], hidden: ['resume']);
+    await pumpSection(tester);
+    expect(find.byType(HomeRowsEditor), findsOneWidget);
+
+    // La rilettura fallisce: l'editor ha l'errore e, sotto, il vecchio
+    // elenco, ma l'elenco non è più modificabile.
+    prefs.error = const ServerUnreachableException();
+    final container = ProviderScope.containerOf(
+        tester.element(find.byType(HomeSettingsSection)));
+    container.invalidate(homeUserEditorProvider);
+    await tester.pump();
+    await tester.pump();
+    final state = container.read(homeUserEditorProvider);
+    expect(state.hasError, isTrue);
+    expect(state.hasValue, isTrue);
+    expect(find.byType(HomeRowsEditor), findsNothing);
+    expect(find.text('Riprova'), findsOneWidget);
+    expect(find.byKey(const Key('home-rows-reset')), findsNothing);
+
+    prefs.error = null;
+    await tester.tap(find.text('Riprova'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(HomeRowsEditor), findsOneWidget);
+    expect(resetEnabled(tester), isTrue);
   });
 
   testWidgets(

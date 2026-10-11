@@ -44,24 +44,26 @@ class HomeSettingsSection extends ConsumerWidget {
     // quello che si può modificare (il controller non salverebbe niente).
     final busy = editor.isLoading;
     final Widget body;
-    if (value == null) {
-      body = editor.hasError
-          ? Row(
-              children: [
-                Flexible(
-                    child: Text(describeError(l, editor.error!),
-                        style: muted)),
-                TextButton(
-                  onPressed: () => ref.invalidate(homeUserEditorProvider),
-                  child: Text(l.retry),
-                ),
-              ],
-            )
-          : const SkeletonBox(width: 320, height: 20);
+    if (editor.hasError) {
+      // Anche una rilettura fallita: lo stato tiene il vecchio elenco, ma il
+      // controller non lo modifica più, quindi non lo si mostra come attivo.
+      body = Row(
+        children: [
+          Flexible(child: Text(describeError(l, editor.error!), style: muted)),
+          TextButton(
+            onPressed: () => ref.invalidate(homeUserEditorProvider),
+            child: Text(l.retry),
+          ),
+        ],
+      );
+    } else if (value == null) {
+      body = const SkeletonBox(width: 320, height: 20);
     } else {
-      // Finché `/Me` non risponde, "Le mie richieste" non ha un motivo
-      // (decisione 14 del piano 19c).
-      final seerrAccount = me.isLoading || (me.value?.hasAccount ?? false);
+      // Finché `/Me` non risponde, o se non si legge, non si sa se l'account
+      // Seerr c'è: "Le mie richieste" non ha un motivo (decisione 14 del
+      // piano 19c).
+      final seerrAccount =
+          me.isLoading || me.hasError || (me.value?.hasAccount ?? false);
       final notifier = ref.read(homeUserEditorProvider.notifier);
       body = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -77,10 +79,14 @@ class HomeSettingsSection extends ConsumerWidget {
                     HomeRowsEditorEntry(
                       kind: row,
                       on: !value.hidden.contains(row),
-                      unavailable: homeRowGateReason(
-                          l,
-                          homeRowGate(row, features,
-                              seerrAccount: seerrAccount)),
+                      // Finché le funzioni del plugin non sono note nessuna
+                      // riga ha un motivo: sarebbero tutti sbagliati.
+                      unavailable: features.known
+                          ? homeRowGateReason(
+                              l,
+                              homeRowGate(row, features,
+                                  seerrAccount: seerrAccount))
+                          : null,
                     ),
                 ],
                 onMove: notifier.move,
