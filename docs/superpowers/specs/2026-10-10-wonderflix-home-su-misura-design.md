@@ -1,8 +1,8 @@
 # WonderFlix — Spec M: Home su misura
 
 - **Data:** 2026-10-10
-- **Stato:** approvata il 2026-10-10; piano 19a realizzato (`docs/superpowers/plans/2026-10-10-wonderflix-19a-home-plugin.md`), plugin 1.7.0 installato come build di prova sul server il 2026-10-10; piano 19b (la Home nell'app) realizzato e provato con l'utente il 2026-10-11 (`docs/superpowers/plans/2026-10-10-wonderflix-19b-home-app.md`); piano 19c (impostazioni Home, card dell'admin, "Cosa guardo stasera?", release app 0.13.0 e plugin 1.7.0) da scrivere.
-- **Allineamento al 19b:** dove l'app costruita nel 19b si discosta dal testo scritto prima, il testo segue il codice e dice il motivo. Le parti del 19c (§8.4, §8.5, §8.6 e i testi relativi) sono ancora il progetto.
+- **Stato:** approvata il 2026-10-10; piano 19a realizzato (`docs/superpowers/plans/2026-10-10-wonderflix-19a-home-plugin.md`), plugin 1.7.0 installato come build di prova sul server il 2026-10-10; piano 19b (la Home nell'app) realizzato e provato con l'utente il 2026-10-11 (`docs/superpowers/plans/2026-10-10-wonderflix-19b-home-app.md`); piano 19c (impostazioni Home, card dell'admin, "Cosa guardo stasera?") realizzato e provato con l'utente il 2026-10-11 (`docs/superpowers/plans/2026-10-11-wonderflix-19c-home-config-tonight.md`); la release (plugin 1.7.0 dal Catalogo, app 0.13.0) è ancora da fare.
+- **Allineamento al 19b e al 19c:** dove l'app costruita si discosta dal testo scritto prima, il testo segue il codice e dice il motivo. Le scelte del piano 19c e quelle venute fuori dalle sue review sono in §8.4, §8.5, §8.6 e §10.
 - **Ambito:** Spec M. Realizza l'idea 15 di `docs/IDEE.md` ("Home su misura"): porta nella Home di WonderFlix le righe che l'utente ha già su jellyfin-web con il plugin Home Screen Sections e va oltre. L'admin sceglie righe e ordine per tutti; ogni utente le sposta e le nasconde per sé; in più "Continua la saga" e "Cosa guardo stasera?".
 
 ## 1. Obiettivo
@@ -143,7 +143,7 @@ L'elenco delle impostazioni (§8.5) mostra l'ordine del punto 1 con gli interrut
 | `upcomingMovies` | funzione `upcomingMovies` del plugin (Radarr configurato) |
 | le altre | sempre |
 
-Una riga non disponibile non si vede in Home e non fa chiamate; nell'elenco delle impostazioni compare spenta con il motivo (§10). Il motivo lo dà `homeRowGate` (`HomeRowGate`: Seerr assente, utente non collegato, saghe, Sonarr, Radarr).
+Una riga non disponibile non si vede in Home e non fa chiamate; nell'elenco delle impostazioni compare spenta con il motivo (§10). Il motivo lo dà `homeRowGate` (`HomeRowGate`: Seerr assente, utente non collegato, saghe, Sonarr, Radarr). L'elenco non dà motivi che non conosce: finché le funzioni del plugin non sono note nessuna riga ha un motivo, e finché `/Me` si legge (o se la lettura fallisce) "Le mie richieste" non dice "Collega il tuo account a Seerr" (§8.5).
 
 **Le mie richieste e `/Me`.** Per sapere se l'utente è collegato a Seerr serve `RequestsMe`, cioè `/Me` di Seerr (tramite il plugin). La composizione **non lo aspetta**:
 - finché `/Me` si legge, o se la lettura fallisce, la riga vale non disponibile e le altre righe si vedono;
@@ -236,12 +236,14 @@ Nuova sezione "Sonarr e Radarr" in `configPage.html` e in `PluginConfiguration`:
 - `HomeRowKind`: i 10 id di §6.1 con l'ordine predefinito.
 - Logica pura per §6.4 (ordine e visibili), testabile da sola.
 - `DisplayPreferencesApi` (Jellyfin): leggere e scrivere `wonderflix-home` / `wonderflix`, cambiando solo `homeRows` e `homeHidden` e lasciando il resto dell'oggetto com'è.
-- Client del plugin (`HomeApi`): `Home/Layout` (lettura e scrittura), `Upcoming/Series`, `Upcoming/Movies`. `Upcoming/Test` arriva nel 19c, con la card dell'admin.
+- Client del plugin (`HomeApi`): `Home/Layout` (lettura e scrittura), `Upcoming/Series`, `Upcoming/Movies`, `Upcoming/Test`.
+  - `Upcoming/Test` (`testArr`, solo per l'admin; gli altri ricevono 403) risponde con `ArrTestResults`: per Sonarr e per Radarr `Configured`, `Ok`, `Version`, `Error`. I campi null possono mancare e un servizio assente vale non configurato (card dell'admin, §8.6).
   - `setLayout` si aspetta una risposta con un corpo JSON (il plugin risponde con la Home salvata, §7.2): una risposta 204 darebbe un errore.
   - I codici d'errore sono in PascalCase (`NotConfigured`, `Unauthorized`, `Unreachable`).
   - Jellyfin non scrive i campi null: un campo può mancare nella risposta. Per esempio `GET Home/Layout` risponde `{}` se la Home non è mai stata impostata, e `Error` può mancare quando va tutto bene. L'app legge un campo mancante come null.
 - `SocialFeatures`: `home`, `upcomingSeries`, `upcomingMovies`.
 - Libreria: `LibraryApi.playHistory` (ultime visioni) e `playedMovies` (film visti), `JellyfinItem.premiereDate`, `ImageUrls.backdropOf` (lo sfondo di un titolo dal suo id).
+  - Nel 19c: `LibraryApi.randomUnplayed` (titoli non visti a caso, §8.4) e `JellyfinItem.recursiveItemCount` (gli episodi di una serie, se chiesti).
 
 ### 8.2 Caricamento della Home
 
@@ -269,8 +271,8 @@ Nuova sezione "Sonarr e Radarr" in `configPage.html` e in `PluginConfiguration`:
    - Righe di Jellyfin (`resume`, `nextUp`, `latestMovies`, `latestSeries`, `becauseYouWatched`, `continueSaga`, `myList`): come oggi, con `libraryRevisionProvider` e `userDataRevisionProvider`.
    - Righe esterne (`requests`, `upcomingSeries`, `upcomingMovies`) e Home dell'admin: restano in memoria **5 minuti** dalla fine della lettura (`homeExternalRefresh`, `keepFor`), anche senza la Home aperta. Tornando alla Home entro 5 minuti non si rileggono, dopo sì.
    - Le righe esterne sono legate all'utente: cambiando profilo si rileggono. Senza questo il nuovo account vedeva per 5 minuti le richieste di Seerr e i collegamenti `JellyfinSeriesId` del precedente (trovato nella review finale del 19b). La Home dell'admin è per tutti e non dipende dall'utente.
-   - Home dell'utente: non si tiene in memoria, quindi si rilegge a ogni apertura della Home e al cambio di profilo. Quando la salva dalle impostazioni (19c), subito.
-6. **Fondo della Home:** il collegamento "Personalizza la Home" (§8.5), nel 19c.
+   - Home dell'utente: non si tiene in memoria, quindi si rilegge a ogni apertura della Home e al cambio di profilo. Quando la salva dalle impostazioni, subito: l'editor invalida `homeUserPrefsProvider` a salvataggio finito, anche se si è usciti dalle Impostazioni prima (§8.5).
+6. **Fondo della Home:** il collegamento "Personalizza la Home" (§8.5), in fondo alle righe e nella "Home vuota".
 
 Con tutte le righe accese le chiamate passano da 5 a una quindicina, in parallelo: 3 per la composizione (Home dell'admin, Home dell'utente, `/Me` di Seerr) e una o più per riga. "Perché hai visto X" e "Continua la saga" ne fanno più d'una, una dopo l'altra.
 
@@ -318,47 +320,84 @@ Al massimo 20 titoli per riga (10 per Continua la saga); una riga vuota non c'è
 
 ### 8.4 Cosa guardo stasera?
 
-- **Pulsante** "Cosa guardo stasera?" con l'icona del dado, nell'angolo in basso a destra del carosello, sopra i pallini; senza carosello, in cima alle righe, a destra. Sempre presente.
+- **Pulsante** "Cosa guardo stasera?" con l'icona del dado (`TonightButton`):
+  - nell'angolo in basso a destra del carosello, sopra i pallini (`HeroCarousel.corner`);
+  - senza carosello, in cima alle righe, a destra;
+  - nella "Home vuota", sotto il testo;
+  - non c'è nello scheletro né nell'errore con "Riprova".
+- **Chi apre la finestra.** Il pulsante non la apre da solo: lo fa la Home, con il suo contesto (`openTonight`). Un carosello che arriva dopo l'apertura della Home può prendere il posto del pulsante e smontarlo: se la finestra fosse del pulsante, Riproduci e Dettagli non avrebbero più dove navigare e la scelta si perderebbe in silenzio (trovato nella review finale).
 - **Finestra** (`showWfDialog`):
   - Filtri:
     - Tipo: Film / Serie / Entrambi (predefinito Entrambi).
-    - Durata: Qualsiasi / meno di 90 min / meno di 2 h; solo per i film, disattivato con "Serie".
-    - Genere: "Tutti" o un genere della libreria (`filters` per i tipi scelti; con Entrambi, l'unione).
-    - I filtri si ricordano per profilo (`ProfilePreferences`: `tonight.type`, `tonight.duration`, `tonight.genre`).
-  - Il titolo: sfondo grande, titolo, anno · durata o numero di stagioni · generi · voto della community, trama su 4 righe.
-  - Tasti: **Guarda** (`playItem`; per una serie parte dal primo episodio), **Dettagli** (chiude e apre la pagina), **Un altro** (con un'animazione del dado che rispetta le animazioni ridotte).
-- **Titoli:**
-  - Film non visti e serie **mai iniziate** (nessun episodio visto).
-  - Una chiamata `Items` con `SortBy=Random`, non visti, tipi e genere, 50 risultati, con i campi per durata, generi, trama e dati utente. Durata e "mai iniziate" si filtrano nell'app.
-  - "Un altro" passa al successivo; finiti, si pescano altri 50. Nella stessa sessione un titolo già proposto non torna, finché ce ne sono altri.
-  - Cambiare un filtro riparte da capo.
-- **Casi:** nessun titolo → "Nessun titolo con questi filtri" e "Togli i filtri"; errore → messaggio e "Riprova" nella finestra.
+    - Durata: Qualsiasi / meno di 90 min / meno di 2 h; solo per i film, disattivata con "Serie". Con Entrambi il filtro vale per i film e le serie passano; un film senza durata nota non passa un filtro di durata (decisione 5 del piano 19c).
+    - Genere: "Tutti i generi" (`catalogAllGenres`) o un genere della libreria (`catalogFiltersProvider` per i tipi scelti; con Entrambi, l'unione dei due elenchi, in ordine alfabetico). Un genere salvato che non c'è più nell'elenco torna a "Tutti i generi" (decisione 8).
+    - I filtri si ricordano per profilo (`ProfilePreferences`: `tonight.type`, `tonight.duration`, `tonight.genre`); un valore sconosciuto vale il predefinito.
+  - Il titolo: sfondo grande, titolo, "anno · durata o numero di stagioni · fino a 3 generi" e voto della community; trama su 4 righe. Le stagioni sono `detailSeasons` (`ChildCount`).
+  - Tasti: **Riproduci** (`actionPlay`; per una serie `playItem` cerca il prossimo episodio, quindi una serie mai iniziata parte dal primo), **Dettagli** e **Un altro** (con un'animazione del dado che rispetta le animazioni ridotte; disattivato mentre si pesca).
+  - **Riproduci e Dettagli** chiudono la finestra e restituiscono la scelta (`TonightChoice`, `TonightPlay` o `TonightDetails`): la Home chiama `playItem` o `openItem` con il suo contesto, perché quello di una finestra chiusa non può più navigare (decisione 7).
+  - **Finestre basse.** Lo spazio del titolo proposto ha un'altezza di 360 px, ma si accorcia se la finestra è bassa e il titolo scorre; filtri e tasti restano in vista. Con la finestra minima dell'app (1024x640) la prima versione sbordava di 109 px.
+- **Titoli** (decisioni 3 e 6):
+  - Film non visti e non iniziati, e serie **mai iniziate**.
+    - Un film con una posizione salvata (iniziato) non si propone: è già in "Continua a guardare", e per le serie vale lo stesso criterio (nessun episodio visto). La spec diceva solo "film non visti".
+    - Una serie è mai iniziata se `UnplayedItemCount` è uguale a `RecursiveItemCount` (il numero di episodi) ed è più di 0. Verificato il 2026-10-11: senza `RecursiveItemCount` nella lista Jellyfin non conta gli episodi visti e non c'è modo di distinguerle, e `isPlayed=false` dà anche le serie a metà.
+  - Una chiamata `Items` (`LibraryApi.randomUnplayed`) con `SortBy=Random`, non visti, tipi e genere, 50 risultati, con trama, `ChildCount` (stagioni) e `RecursiveItemCount` (episodi), per l'utente collegato (`userId`), così ci sono i suoi dati di visione. Durata e "mai iniziata" si filtrano nell'app (`tonightEligible`).
+  - Pescate da 50 (`tonightBatch`):
+    - "Un altro" passa al successivo della pescata, senza chiamare; finiti, se ne pesca un'altra.
+    - Se una pescata non dà un titolo nuovo se ne prova un'altra, fino a 3 (`tonightMaxBatches`), salvo che il totale stia tutto in una pescata.
+    - Se ci sono solo titoli già proposti si ricomincia con quelli ("finché ce ne sono altri"); se non c'è niente, "Nessun titolo con questi filtri", senza girare all'infinito.
+    - Ricominciando, il titolo che è in vista va in fondo: "Un altro" non lo ripropone subito (nel piano poteva tornare, con una probabilità su n; trovato nella review del Task 8).
+  - I titoli già proposti valgono per la sessione dell'app e per l'account (`tonightSeenProvider`), anche cambiando i filtri o riaprendo la finestra; cambiando account si riparte da zero.
+  - Cambiare un filtro riparte da capo **subito**: la finestra non mostra mai i filtri nuovi con il titolo vecchio, e la risposta di una pescata superata si ignora.
+- **Casi:** nessun titolo → "Nessun titolo con questi filtri" e, se i filtri non sono quelli predefiniti, "Togli i filtri"; errore → messaggio e "Riprova" nella finestra.
 
 ### 8.5 Impostazioni → Home
 
-- Nuova sezione **Home**, dopo Aspetto.
-- **Elenco** (`HomeRowsEditor` in modo utente): le righe accese dall'admin nell'ordine di §6.4. Ogni voce: maniglia per trascinare, nome, fonte in piccolo ("da Seerr", "da Sonarr", "da Radarr"), interruttore mostra/nascondi. Con una voce selezionata, due frecce la spostano su e giù (anche da tastiera).
-- **Non disponibili:** spente, con il motivo (§10). Si possono spostare.
-- **Salvataggio automatico** sul server 500 ms dopo l'ultima modifica. Se fallisce, l'elenco torna all'ultimo stato salvato e compare "Non salvato, riprova".
-- **"Ripristina la Home predefinita":** toglie `homeRows` e `homeHidden`; disattivato se non ci sono.
+- Nuova sezione **Home** (`HomeSettingsSection`), dopo Aspetto.
+- **Elenco** (`HomeRowsEditor` in modo utente): le righe accese dall'admin nell'ordine di §6.4. Ogni voce: maniglia per trascinare, nome, fonte in piccolo ("da Seerr", "da Sonarr", "da Radarr"), motivo se la riga non c'è, interruttore mostra/nascondi.
+  - Il nome di "Perché hai visto X" nell'elenco è "Perché hai visto…" (`homeRowsBecauseYouWatched`): il titolo della riga vuole il nome di un film, che nell'elenco non c'è (decisione 2 del piano 19c).
+  - Con una voce selezionata, due frecce la spostano su e giù.
+  - **Tastiera.** Tab passa da una voce al suo interruttore e alla voce dopo, senza tappe invisibili. Invio su una voce la seleziona e il fuoco resta su quella voce; Alt+↑ e Alt+↓ la spostano. Nel piano il contenitore dell'elenco era una tappa del Tab che non si vedeva, e selezionando una voce il fuoco passava al contenitore (trovato nella review finale).
+  - Limiti noti: dopo aver scelto una voce con il mouse, il Tab successivo riparte dalla prima voce; trascinando, la pagina non scorre da sola (l'elenco è dentro la pagina): le frecce e Alt+↑/↓ arrivano dappertutto.
+- **Non disponibili:** spente e ferme, con il motivo (§10); si possono spostare. Il motivo non si dà quando non lo si conosce (decisione 14, estesa dalla review finale):
+  - finché le funzioni del plugin non sono note nessuna riga ha un motivo;
+  - finché `/Me` si legge, o se la lettura fallisce, "Le mie richieste" non dice "Collega il tuo account a Seerr". `/Me` lo legge già la Home a ogni apertura (§6.5).
+- **Lettura.** L'elenco legge le `DisplayPreferences` da solo (`HomeUserEditor`), non da `homeUserPrefsProvider`, che una lettura fallita la trasforma in "nessun ritocco": salvando, i ritocchi si perderebbero (decisione 9).
+  - Se la lettura fallisce l'elenco non si vede: errore e "Riprova", e non si salva niente.
+  - Niente modifiche mentre si rilegge: l'elenco che si vede è quello di prima, e sta per essere sostituito. Resta in vista, attenuato e fermo, e "Ripristina" è disattivato.
+  - Niente modifiche dopo una rilettura fallita: lo stato tiene ancora il vecchio elenco, ma la sezione mostra l'errore e "Riprova", non l'elenco come se fosse attivo. Nella prima versione l'elenco accettava le modifiche anche allora, col rischio di perdere i ritocchi che non si erano riletti (trovato nella review finale).
+- **Id che l'elenco non mostra.** `DisplayPreferencesApi.writeHome` riscrive `homeRows` e `homeHidden` con gli id che riceve. Chi legge ignora gli id che non conosce (§6.3), ma chi scrive non deve perderli: salvando, quelli che l'elenco non mostra (sconosciuti a questa versione, o di righe spente dall'admin) restano al loro posto, dopo l'id che li precedeva (`keepForeignIds`, `homeUserPrefsToSave`; decisione 10). Così salvare da un PC non toglie le righe nuove di una versione futura, e se l'admin riaccende una riga l'utente ritrova il suo ordine.
+- **Salvataggio automatico** sul server 500 ms dopo l'ultima modifica (`homeEditorSaveDelay`); più modifiche di fila si salvano una volta sola.
+  - **Uno alla volta.** Salvare è leggere, cambiare e riscrivere tutto l'oggetto, e `DisplayPreferences` non ha un blocco: due salvataggi insieme si pestano. I salvataggi si mettono in coda e vale l'ultimo stato.
+  - **Se fallisce**, quelli già in coda non partono, l'elenco torna all'ultimo stato salvato e compare "Non salvato, riprova".
+  - **Uscendo dalle Impostazioni entro i 500 ms** la modifica si salva subito, senza aspettare. Il controller resta aperto finché i salvataggi non finiscono; a salvataggio riuscito invalida `homeUserPrefsProvider` e la Home si ricompone con il nuovo ordine. Nel piano la modifica si salvava, ma la Home, già letta, restava com'era (trovato nella review del Task 5).
+  - **Cambio di profilo.** Un salvataggio in coda va all'account per cui è stato fatto, mai al nuovo: l'API e l'utente si prendono quando il salvataggio si mette in coda, non quando parte (nel piano scriveva la Home del vecchio utente nell'account del nuovo). L'esito di un salvataggio del vecchio account non tocca l'elenco del nuovo.
+  - **Rileggendo lo stesso utente** con un salvataggio in corso, la lettura aspetta che finisca: senza, leggerebbe la Home di prima e l'elenco tornerebbe indietro.
+- **"Ripristina la Home predefinita":** toglie `homeRows` e `homeHidden`, senza conferma; disattivato se non ci sono ritocchi.
+  - Mostra **subito** la Home predefinita (l'ordine dell'admin, senza nascoste); se non riesce, l'elenco torna a com'è sul server con "Non salvato, riprova". I salvataggi in coda partono prima.
+  - Una modifica fatta dopo "Ripristina" parte dalla Home predefinita.
+  - Un salvataggio messo in coda prima di "Ripristina" non rimette i suoi ritocchi tra quelli salvati: le modifiche fatte dopo non si porterebbero dietro gli id estranei di prima.
+  - Senza la Home letta, o mentre si rilegge, non fa niente.
 - Sotto: "Vale per questo account su tutti i PC."
-- **`/settings?section=home`** apre le impostazioni e scorre fino alla sezione Home. Il collegamento "Personalizza la Home" in fondo alla Home porta lì.
-
-**Note per il 19c** (dal 19b):
-- **Id sconosciuti.** `DisplayPreferencesApi.writeHome` riscrive `homeRows` e `homeHidden` con gli id che riceve. Chi legge ignora gli id che non conosce (§6.3), ma chi scrive non deve perderli: l'editor li conserva, altrimenti salvare dall'app di un PC toglie le righe nuove di una versione futura.
-- **Salvataggi in coda.** Salvare è leggere, cambiare e riscrivere tutto l'oggetto, e `DisplayPreferences` non ha un blocco: due salvataggi insieme si pestano. L'editor li mette in fila, uno alla volta.
-- **Home subito aggiornata.** Dopo un salvataggio l'editor invalida `homeUserPrefsProvider` (§8.2 punto 5), così la Home si ricompone con i nuovi ritocchi.
-- **`HomeApi.setLayout`** si aspetta un corpo JSON in risposta e restituisce la Home salvata (§7.2, §8.1): una risposta 204 darebbe un errore.
-- **Motivi e disponibilità.** `homeRowGate` dà il motivo per cui una riga non c'è; l'elenco delle impostazioni ha bisogno di `/Me` (`requestsMeProvider`), che la Home già legge a ogni apertura (§6.5).
-- **`Upcoming/Test`** manca ancora nel client `HomeApi` (§8.1).
+- **Larghezza.** L'elenco è largo al massimo 640 px e sta a sinistra, anche in una finestra larga. La colonna delle sezioni dà ai figli tutta la larghezza: serve un `Align` perché il tetto valga: senza, in una finestra larga i 640 px non contavano. Lo stesso difetto c'era in Aspetto, Player, Lingue di riproduzione e Discord, e lo stesso `Align` ora c'è anche lì.
+- **`/settings?section=home`** apre le impostazioni (`SettingsScreen(section:)`) e dopo il primo fotogramma scorre fino al titolo della sezione Home (`Scrollable.ensureVisible`); se il parametro cambia con la pagina aperta, scorre di nuovo. Gli altri valori di `section` si ignorano. Il collegamento "Personalizza la Home", in fondo alle righe e nella "Home vuota", porta lì.
 
 ### 8.6 Amministrazione → WonderFlix
 
-Due card nuove, dopo Titoli nuovi:
+Due card nuove, dopo Titoli nuovi e prima di Seerr:
 
-- **"Home per tutti"** (`HomeRowsEditor` in modo admin): tutte e 10 le righe, nell'ordine dell'admin con quelle spente in fondo nell'ordine predefinito. L'interruttore accende o spegne la riga per tutti. Le modifiche si salvano con **"Salva"** (disattivato senza modifiche); "Ripristina la Home predefinita" salva `null` dopo una conferma. Le righe non disponibili hanno il motivo, ma si possono accendere (diventano visibili quando la fonte c'è).
-- **"Sonarr e Radarr":** per ciascuno configurato o no, e "Prova collegamento" (`Upcoming/Test`) con l'esito: versione, oppure il codice d'errore spiegato.
-- Senza la funzione `home` le due card dicono "Serve il plugin 1.7.0".
+- **"Home per tutti"** (`HomeForEveryoneCard`, con `HomeRowsEditor` in modo admin): tutte e 10 le righe, nell'ordine dell'admin con quelle spente in fondo nell'ordine predefinito. L'interruttore accende o spegne la riga per tutti.
+  - Le modifiche si salvano con **"Salva"**, disattivato se la bozza è uguale alla Home dell'admin com'è davvero (`null` vale tutte le righe nell'ordine predefinito). **"Ripristina la Home predefinita"** salva `null` dopo una conferma; è disattivato se la Home non è impostata e la bozza non è cambiata.
+  - Le righe non disponibili hanno il motivo, ma si possono accendere (diventano visibili quando la fonte c'è). I motivi sono solo quelli del plugin: il collegamento a Seerr di chi guarda non conta per tutti (decisione 12 del piano 19c).
+  - La card legge `HomeApi.layout()` da sola, così un errore si vede, con "Riprova"; `homeAdminRowsProvider` lo nasconderebbe. Non si rilegge da sola ogni 30 s come le altre card, perché cancellerebbe le modifiche non salvate; resta montata scorrendo la scheda.
+  - **Una modifica fatta mentre "Salva" o "Ripristina" è in corso si tiene.** Se l'elenco o le righe accese cambiano mentre la richiesta è in volo, la bozza di adesso resta, con la Home appena salvata come riferimento: "Salva" si accende per la modifica che non è partita. Nel piano la risposta del server la cancellava (trovato nella review del Task 7).
+  - **Il salvataggio vale anche se l'admin lascia la pagina durante la richiesta.** Il controller resta aperto finché il server non risponde, quindi la Home dell'admin si rilegge lo stesso (`homeAdminRowsProvider` invalidato) e la Home cambia subito. Senza, la risposta arrivava a un controller già chiuso e la Home dell'admin non si rileggeva (trovato nella review finale).
+  - Un errore lo mostra il pulsante, con un avviso; la bozza resta.
+- **"Sonarr e Radarr"** (`ArrCard`): una riga per servizio e "Prova collegamento" (`Upcoming/Test`).
+  - Prima della prova si sa solo se è configurato, dalle funzioni del plugin (`upcomingSeries`, `upcomingMovies`): **"Configurato"** o "Non configurato". La chiave `adminArrConfigured` è nuova: nel piano un servizio configurato e non provato non diceva niente (trovato nella review finale).
+  - Dopo la prova, l'esito: "Collegato (versione X)", "Non configurato", "Chiave API rifiutata" o "Non raggiungibile: controlla l'indirizzo". Un codice sconosciuto vale "Non raggiungibile"; una versione mancante si scrive "?".
+  - L'esito resta anche scorrendo la scheda.
+- Senza la funzione `home` le due card dicono "Serve il plugin 1.7.0"; finché le funzioni del plugin non sono note si vede uno scheletro.
+- **La conferma** di "Ripristina" usa `showWfConfirmDialog`, condiviso da tutte le conferme dell'app: il pulsante di conferma va a capo se l'etichetta è lunga. "Ripristina la Home predefinita" sbordava di 186 px; con un'etichetta corta il pulsante resta largo quanto il testo.
 
 L'admin ha anche la sua Home personale in Impostazioni → Home, come ogni utente.
 
@@ -395,6 +434,7 @@ L'admin ha anche la sua Home personale in Impostazioni → Home, come ogni utent
 | `homeRowsReset` | Ripristina la Home predefinita | Restore the default Home |
 | `homeRowsSaveFailed` | Non salvato, riprova | Not saved, try again |
 | `homeRowsAllPcs` | Vale per questo account su tutti i PC. | Applies to this account on every PC. |
+| `homeRowsBecauseYouWatched` | Perché hai visto… | Because you watched… |
 | `homeRowUnavailableSeerr` | Collega il tuo account a Seerr | Link your account to Seerr |
 | `homeRowUnavailableRequests` | Seerr non è configurato | Seerr is not set up |
 | `homeRowUnavailableSagas` | Serve il plugin 1.5.0 | Needs plugin 1.5.0 |
@@ -405,6 +445,7 @@ L'admin ha anche la sua Home personale in Impostazioni → Home, come ogni utent
 | `adminHomeResetConfirm` | Tornare alla Home predefinita per tutti? | Restore the default Home for everyone? |
 | `adminNeedsPlugin170` | Serve il plugin 1.7.0 | Needs plugin 1.7.0 |
 | `adminArrTitle` | Sonarr e Radarr | Sonarr and Radarr |
+| `adminArrConfigured` | Configurato | Set up |
 | `adminArrNotConfigured` | Non configurato | Not set up |
 | `adminArrOk` | Collegato (versione {version}) | Connected (version {version}) |
 | `adminArrUnauthorized` | Chiave API rifiutata | API key rejected |
@@ -412,22 +453,28 @@ L'admin ha anche la sua Home personale in Impostazioni → Home, come ogni utent
 | `tonightButton` | Cosa guardo stasera? | What should I watch tonight? |
 | `tonightTypeMovies` / `tonightTypeSeries` / `tonightTypeBoth` | Film / Serie / Entrambi | Movies / Series / Both |
 | `tonightDurationAny` / `tonightDuration90` / `tonightDuration120` | Qualsiasi / Meno di 90 min / Meno di 2 h | Any / Under 90 min / Under 2 h |
-| `tonightGenreAll` | Tutti i generi | All genres |
 | `tonightAnother` | Un altro | Another one |
 | `tonightEmpty` | Nessun titolo con questi filtri | No titles with these filters |
 | `tonightClearFilters` | Togli i filtri | Clear filters |
-| `tonightSeasons` | {count, plural, =1{1 stagione} other{{count} stagioni}} | {count, plural, =1{1 season} other{{count} seasons}} |
 
-"Guarda", "Dettagli" e "Riprova" usano i testi che ci sono già (`actionPlay`, `actionDetails`, quello di `ErrorView`).
+Testi che ci sono già e si usano al posto di quelli nuovi con lo stesso significato (decisione 1 del piano 19c):
+- "Tutti i generi" è `catalogAllGenres`, non `tonightGenreAll`;
+- "{count} stagioni" è `detailSeasons`, non `tonightSeasons`;
+- "Riproduci" (`actionPlay`) è il tasto che la spec chiamava "Guarda";
+- "Dettagli" è `actionDetails`, "Riprova" è `retry`, "Prova collegamento" è `adminSeerrTest`.
 
-Nel 19b ci sono le chiavi da `homeMyRequests` a `upcomingDigital` (le prime undici della tabella, con questi testi); le altre arrivano nel 19c.
+Nel 19b ci sono le chiavi da `homeMyRequests` a `upcomingDigital` (le prime undici della tabella, con questi testi); le altre sono del 19c. `homeRowsBecauseYouWatched` e `adminArrConfigured` non erano nella spec: la prima è il nome della riga nell'elenco (decisione 2), la seconda arriva dalla review finale (§8.6).
 
 ## 11. Errori e casi limite
 
-- **L'admin spegne tutte le righe:** restano il carosello e "Cosa guardo stasera?" (19c); niente "Home vuota" e niente errore. "Home vuota" solo se anche il carosello è vuoto (§8.2 punto 4).
+- **L'admin spegne tutte le righe:** restano il carosello e "Cosa guardo stasera?"; niente "Home vuota" e niente errore. "Home vuota" solo se anche il carosello è vuoto (§8.2 punto 4).
 - **Seerr lento o giù:** "Le mie richieste" non c'è (o entra dopo, quando `/Me` risponde); le altre righe si vedono e la Home non aspetta (§6.5).
 - **Una sola lettura del carosello riuscita:** restano i titoli dell'altra (§8.2 punto 2).
 - **Due PC cambiano la Home dello stesso account:** vale l'ultimo salvataggio.
+- **Impostazioni → Home, lettura fallita:** errore e "Riprova", nessuna modifica e nessun salvataggio, così i ritocchi non si perdono (§8.5).
+- **Salvataggio che fallisce:** l'elenco torna all'ultimo stato salvato e compare "Non salvato, riprova"; vale anche per "Ripristina" (§8.5).
+- **Si esce dalle Impostazioni subito dopo una modifica:** si salva lo stesso e la Home si ricompone (§8.5). Per l'admin vale lo stesso uscendo dalla pagina durante "Salva" o "Ripristina" (§8.6).
+- **Cambio di profilo con un salvataggio in coda:** il salvataggio va all'account che l'ha fatto (§8.5).
 - **`DisplayPreferences`:** id e client nostri, non toccano quelle di jellyfin-web; il resto dell'oggetto si riscrive com'era.
 - **Utenti con limiti sulle librerie:** "In arrivo" mostra le uscite a tutti; il clic verso il dettaglio Jellyfin solo se l'utente vede la serie.
 - **Serie senza id TMDB o senza Seerr:** la card non si clicca.
@@ -472,7 +519,7 @@ Il piano 19a ha portato la suite del plugin da 748 a 810 test, tutti verdi.
 
 ### 12.2 App
 
-Il piano 19b ha portato la suite dell'app da 2630 a 2721 test, tutti verdi, e `flutter analyze` pulito. Le voci su editor, impostazioni, card dell'admin e "Cosa guardo stasera?" sono del 19c.
+Il piano 19b ha portato la suite dell'app da 2630 a 2721 test, il piano 19c da 2721 a 2869: tutti verdi, e `flutter analyze` pulito. Sotto, prima i test del 19b, poi quelli del 19c.
 
 - Combinazione (§6.4): predefinito, admin con righe spente, utente con ordine parziale, righe nuove dell'admin, id sconosciuti, tutto nascosto, l'esempio di §6.4.
 - `DisplayPreferencesApi`: lettura e scrittura che conservano il resto dell'oggetto; "Ripristina".
@@ -486,10 +533,30 @@ Il piano 19b ha portato la suite dell'app da 2630 a 2721 test, tutti verdi, e `f
   - entrata: senza buchi per le righe vuote, una riga tardiva che non rifà l'entrata scorrendo, "Riprova" che aspetta le nuove letture;
   - righe esterne tenute 5 minuti e legate all'utente (cambio di profilo con la Home chiusa e aperta).
 - `RemoteImageCard`: immagine, titolo, sottotitolo, etichetta e clic; nessun cursore senza clic; il bordo oro si toglie se il clic sparisce.
-- `HomeRowsEditor`: trascinamento, frecce, interruttore, righe non disponibili; utente con salvataggio dopo 500 ms e ritorno indietro se fallisce; admin con "Salva" e "Ripristina" con conferma.
-- "Cosa guardo stasera?": filtri e loro memoria per profilo, durata disattivata con Serie, filtro di durata e "mai iniziate", "Un altro" senza ripetizioni, nuovo gruppo di 50, nessun titolo, errore, Guarda e Dettagli.
-- `/settings?section=home` e link dalla Home.
-- Card admin: "Serve il plugin 1.7.0", esiti della prova.
+
+Test del 19c (la suite arriva a 2869):
+- Client e modelli: `HomeApi.testArr` (i due esiti, campi mancanti, servizio non configurato, codice sconosciuto, 403 per chi non è admin), `LibraryApi.randomUnplayed` (a caso, non visti, tipi, genere, campi in più), `JellyfinItem.recursiveItemCount`.
+- Testi (§10): le chiavi it/en del 19c.
+- Logica dell'elenco (`home_rows_editing_test`): spostare una riga, `keepForeignIds` (estranei dopo il loro vicino, in mezzo all'elenco, id mostrato ripetuto), `homeUserPrefsToSave`, `adminEditorRows` (anche la copia), nomi, fonti e motivi.
+- `HomeRowsEditor`: frecce, trascinamento, Alt+↑/↓, Tab senza tappe invisibili, Invio che seleziona e lascia il fuoco sulla voce, interruttore; righe non disponibili ferme in modo utente, da accendere in modo admin.
+- `HomeUserEditor` (`home_user_editor_test`):
+  - lettura, id estranei che restano, lettura e rilettura fallite (errore e nessun salvataggio);
+  - salvataggio dopo 500 ms, più modifiche una volta sola, due salvataggi che non si sovrappongono, un fallimento che ferma la coda e riporta all'ultimo stato salvato;
+  - uscita dalle Impostazioni entro i 500 ms: si salva e la Home si ricompone;
+  - cambio di profilo: la modifica in attesa va al vecchio account, un salvataggio che finisce dopo non tocca il nuovo;
+  - "Ripristina": subito, ritorno indietro se fallisce, attesa dei salvataggi in corso, una modifica dopo parte dalla Home predefinita, senza la Home letta non fa niente.
+- Impostazioni → Home (`home_settings_section_test`, `settings_test`): sezione dopo Aspetto; motivi (nessuno mentre `/Me` si legge o se fallisce, nessuno finché le funzioni del plugin non sono note); salvataggio da solo; "Non salvato, riprova"; "Ripristina"; lettura e rilettura fallite con "Riprova"; `section=home` che scorre; sezioni larghe al massimo 640 px e a sinistra in una finestra larga.
+- Card dell'admin (`home_admin_cards_test`, `admin_confirm_dialog_test`):
+  - "Serve il plugin 1.7.0" e nessuna chiamata, ordine delle card;
+  - "Salva" solo con modifiche e Home dell'admin che si rilegge, "Ripristina" con la conferma, motivi delle righe, bozza che resta scorrendo, lettura e salvataggio falliti;
+  - modifiche e riordini fatti mentre si salva o si ripristina, che non si perdono; salvataggio che si applica anche lasciando la pagina;
+  - "Sonarr e Radarr": configurati o no, esiti della prova (anche codici e combinazioni inattese);
+  - la conferma con un'etichetta lunga non sborda, con una corta il pulsante resta largo quanto il testo.
+- "Cosa guardo stasera?":
+  - logica (`tonight_logic_test`): valori salvati e sconosciuti, serie mai iniziata, film non visti e della durata scelta, film già iniziato escluso, durata solo per i film, riga dei dati, generi;
+  - controller (`tonight_controller_test`): filtri dal profilo, "Un altro" senza chiamare, nuova pescata, già proposti tutti → si ricomincia senza riproporre il titolo in vista, nessun titolo → al massimo tre pescate, errore e riprova, cambio di filtri che riparte da capo senza mostrare il titolo vecchio, risposta di una pescata superata ignorata, già proposti che restano a finestra riaperta e ripartono cambiando account, finestra chiusa durante la pescata;
+  - finestra (`tonight_dialog_test`): il titolo con i suoi dati, "Un altro" con il dado (fermo con le animazioni ridotte), durata ferma con Serie, generi con Entrambi, genere sparito, "Togli i filtri", errore con "Riprova", finestra minima senza sbordare, Riproduci e Dettagli che chiudono con la scelta.
+- Home (`home_screen_test`, `hero_carousel_test`): il dado sul carosello, in cima alle righe senza carosello e nella Home vuota; "Dettagli" apre la scheda anche se il carosello arriva a finestra aperta; "Personalizza la Home" apre le Impostazioni sulla sezione Home, anche dalla Home vuota.
 
 ### 12.3 Prova a mano sul server
 
@@ -500,7 +567,11 @@ Il piano 19b ha portato la suite dell'app da 2630 a 2721 test, tutti verdi, e `f
 - Sonarr irraggiungibile (indirizzo sbagliato apposta): la Home si apre lo stesso, la prova lo dice.
 - "Cosa guardo stasera?" con tutti i filtri.
 
-**Fatto nel 19b** (2026-10-10 e 2026-10-11, con l'utente; esito in §14): la Home con l'ordine dell'admin e i ritocchi di un account, scritti con l'API perché card ed editor sono del 19c; poi la Home predefinita con tutte le righe, compresi i clic verso Seerr. Restano per il 19c l'editor, la card dell'admin e "Cosa guardo stasera?". La prova con Sonarr irraggiungibile non si è fatta.
+**Fatto nel 19b** (2026-10-10 e 2026-10-11, con l'utente; esito in §14): la Home con l'ordine dell'admin e i ritocchi di un account, scritti con l'API perché card ed editor sono del 19c; poi la Home predefinita con tutte le righe, compresi i clic verso Seerr. L'editor, la card dell'admin e "Cosa guardo stasera?" erano rimasti al 19c.
+
+**Fatto nel 19c** (2026-10-11, con l'utente, su una build locale; esito in §14.3): Impostazioni → Home, "Home per tutti", "Sonarr e Radarr", "Cosa guardo stasera?", la finestra piccola e la tastiera. Tutto ok. **Non fatto:**
+- Sonarr irraggiungibile (indirizzo sbagliato apposta): l'utente non ha voluto provarlo, quindi non si è provato né nel 19b né nel 19c;
+- la lettura dei ritocchi da un account non admin: sul server non c'è un account di prova.
 
 ## 13. Preparazione
 
@@ -527,6 +598,7 @@ Le quattro verifiche previste all'inizio del piano dell'app, sul server vero, co
 Con la chiave API e l'id di un admin, sul server (Jellyfin 10.11.9 con il plugin 1.7.0 di prova):
 - **`DisplayPreferences`.** `GET /DisplayPreferences/wonderflix-home?userId=…&client=wonderflix`, mai salvate, risponde un oggetto completo. `CustomPrefs` ha già voci di jellyfin-web, alcune **null** (`tvhome`, `dashboardTheme`): scrivendo si conservano anche quelle.
 - **Serie mai iniziata.** `UserData.PlayedPercentage` è 0 (per esempio "Agatha All Along": 0, `UnplayedItemCount` 9 su 9); una serie iniziata ha la percentuale ("1899": 37,5); una finita ha `Played` vero. Serve al 19c ("Cosa guardo stasera?").
+  - **Correzione del 2026-10-11 (19c).** Nella lista di `Items` Jellyfin conta gli episodi visti, e quindi calcola `PlayedPercentage`, solo se si chiede anche `RecursiveItemCount`. Senza, le serie mai iniziate e quelle a metà non si distinguono. L'app chiede il campo e confronta `UnplayedItemCount` con `RecursiveItemCount` (§8.4).
 - **`SortBy=DatePlayed`** con film ed episodi insieme ordina per ultima visione; gli episodi hanno `SeriesId` e `SeriesName`. Le prime sei visioni dell'admin erano episodi della stessa serie: da qui le 50 visioni di §8.3. I film visti hanno `PremiereDate` e `ProductionYear` anche senza chiederli (§8.3, Continua la saga).
 - **`SortBy=Random`** con `isPlayed=false` e un genere funziona e cambia a ogni chiamata (19c).
 
@@ -543,7 +615,22 @@ Sul server non c'è più un account non admin. Le prove sono su due account admi
 - **Home predefinita** con tutte le righe, compresi i clic verso Seerr. OK ("tutto ok", 2026-10-11).
 - **Non verificato:** la lettura dei ritocchi da un account **non admin**. Non c'è un account di prova sul server; è il normale comportamento di Jellyfin per utente (§9). Non provata nemmeno la Home con Sonarr irraggiungibile.
 
-### 14.3 Altri rischi
+### 14.3 Con l'utente, nel Task 10 del 19c (2026-10-11)
+
+Su una build locale dell'app contro il server vero, dopo la review finale e le sue correzioni. L'utente ha provato e ha detto "tutto ok":
+- Impostazioni → Home;
+- la card "Home per tutti";
+- la card "Sonarr e Radarr";
+- "Cosa guardo stasera?";
+- la finestra piccola e la tastiera.
+
+La review finale, fatta prima della prova, aveva trovato i difetti che sono in §8.4, §8.5 e §8.6 con la dicitura "trovato nella review finale".
+
+**Non verificato:**
+- Sonarr irraggiungibile (indirizzo sbagliato apposta): l'utente non ha voluto provarlo;
+- la lettura dei ritocchi da un account non admin: sul server non c'è un account di prova (come in §14.2).
+
+### 14.4 Altri rischi
 
 - L'indirizzo di Sonarr e Radarr è già cambiato una volta (`vapor` → `proton`): la card admin serve a scoprirlo.
 - I "simili" di Jellyfin possono essere poco pertinenti per alcuni titoli (anime, documentari): la riga resta com'è, senza correzioni.
@@ -564,13 +651,15 @@ Sul server non c'è più un account non admin. Le prove sono su due account admi
     - caricamento per riga con il tempo massimo;
     - le cinque righe nuove e le card con immagini esterne (`RemoteImageCard`);
     - nessuna release: app 0.13.0 e plugin 1.7.0 escono alla fine del 19c.
-  - **19c — app, configurazione e "Cosa guardo stasera?"** (da scrivere):
-    - `HomeRowsEditor`, Impostazioni → Home, `/settings?section=home` e il link "Personalizza la Home" (con le note di §8.5);
-    - card admin "Home per tutti" e "Sonarr e Radarr", con `Upcoming/Test` nel client `HomeApi`;
-    - "Cosa guardo stasera?";
-    - testi it/en rimasti, release.
+  - **19c — app, configurazione e "Cosa guardo stasera?"** (realizzato e provato con l'utente il 2026-10-11, `docs/superpowers/plans/2026-10-11-wonderflix-19c-home-config-tonight.md`):
+    - `HomeRowsEditor`, `HomeUserEditor`, Impostazioni → Home, `/settings?section=home` e il link "Personalizza la Home" (§8.5);
+    - card admin "Home per tutti" e "Sonarr e Radarr", con `Upcoming/Test` nel client `HomeApi` (§8.6);
+    - "Cosa guardo stasera?" (§8.4);
+    - testi it/en rimasti (§10);
+    - prova con l'utente (§14.3).
+    - **La release non è fatta**: plugin 1.7.0 dal Catalogo e app 0.13.0 sono ancora da fare, con l'OK dell'utente a ogni passo che pubblica.
 - **Release:**
-  - plugin **1.7.0** dal Catalogo alla fine del 19c, insieme all'app 0.13.0: l'app 0.12 non usa le funzioni nuove, quindi non c'è fretta (e il plugin 1.7.0 va bene anche con lei);
+  - plugin **1.7.0** dal Catalogo, insieme all'app 0.13.0 (da fare, dopo il 19c): l'app 0.12 non usa le funzioni nuove, quindi non c'è fretta (e il plugin 1.7.0 va bene anche con lei);
   - fino ad allora sul server resta la build di prova di §13;
   - app **0.13.0 non obbligatoria**, con le note in italiano nella bozza.
 - **Alla fine**, in `docs/IDEE.md`:

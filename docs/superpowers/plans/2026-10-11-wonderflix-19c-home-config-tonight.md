@@ -4633,3 +4633,60 @@ Ogni passo che pubblica (push dei tag, manifest, pubblicazione della release, in
    - spec: "Stato: realizzata; plugin 1.7.0 e app 0.13.0 pubblicati il …", e in §13/§15 la build di prova sostituita dal Catalogo;
    - commit `docs: Spec M done in the ideas list`, push.
 5. **Fuori dal piano, da proporre all'utente:** Home Screen Sections su jellyfin-web ha ancora gli indirizzi vecchi di Sonarr e Radarr (`vapor`): si possono correggere a parte.
+
+## Dalle review dei gruppi
+
+Le differenze tra il codice scritto qui sopra e quello che è finito nel ramo, venute fuori da implementazione e review. La spec (`docs/superpowers/specs/2026-10-10-wonderflix-home-su-misura-design.md`) segue il codice.
+
+**Task 2**
+- `ArrTestResult.fromJson` legge la versione con la firma vera di `jsonString(json, 'Version')`, non con quella scritta nel piano.
+
+**Task 3**
+- Il test di `homeUserPrefsToSave` aspetta `['resume','myList','continueSaga','future']`, non `['resume','continueSaga','future','myList']`: gli id estranei vanno dopo l'id che li precedeva in `stored`, e quello era `myList` (decisione 10). Era un errore del piano nell'attesa; il codice non cambia.
+- `keepForeignIds` sposta il cursore solo la prima volta che incontra un id mostrato: un id ripetuto in `stored` non sposta più gli estranei.
+- `adminEditorRows(null)` restituisce una copia della lista, non l'elenco condiviso.
+- Test in più: un estraneo in mezzo all'elenco, una riga non più nascosta, un estraneo doppio.
+
+**Task 4**
+- Il `Focus` dell'elenco ha `skipTraversal: true`: nel piano era una tappa del Tab che non si vedeva.
+- Selezionare una voce non sposta il fuoco sul contenitore se è già dentro l'elenco: il Tab dopo riparte da lì, e Alt+↑/↓ spostano la voce. Test di tastiera in più.
+- Il test del trascinamento controlla anche l'ultima mossa (`resume` in posizione 2).
+
+**Task 5**
+- Il salvataggio messo in coda prende API e utente quando si accoda, non quando parte: nel piano, cambiando profilo, scriveva la Home del vecchio utente nell'account del nuovo. L'esito di un salvataggio del vecchio account non tocca l'elenco del nuovo. Test in più, rosso con l'utente sbagliato.
+- Uscendo dalle Impostazioni entro i 500 ms, la modifica si salva subito (`onCancel`) e un `keepAlive` tiene il controller finché la coda non finisce: a salvataggio riuscito invalida `homeUserPrefsProvider` e la Home si ricompone. Nel piano la modifica si salvava, ma la Home restava com'era. `onDispose` resta come ripiego.
+- Il `keepAlive` si prende in `_edit`, `reset` e `build`: Riverpod non lo vuole dentro `onCancel` e `onDispose`.
+- Rileggendo lo stesso utente, `build` aspetta il salvataggio in corso; un contatore di letture, oltre all'utente, scarta l'esito delle operazioni partite prima di una rilettura.
+- "Ripristina" mostra subito la Home predefinita e, se fallisce, riporta all'ultimo stato del server con "Non salvato, riprova"; le modifiche fatte dopo si accodano dopo; senza la Home letta non fa niente.
+- `_edit` e `reset` non fanno niente mentre lo stato si rilegge (`isLoading`).
+- Un salvataggio che riesce mentre un "Ripristina" aspetta non riscrive `stored`: altrimenti gli id estranei si risalverebbero dopo il ripristino.
+- Test in più per le guardie sul profilo cambiato (con `writeGate` e `writeError`), il "Ripristina" che aspetta un salvataggio in corso e il "Ripristina" fallito.
+
+**Task 6**
+- `HomeSettingsSection` ferma l'elenco (`IgnorePointer`, attenuato) e disattiva "Ripristina" finché l'editor rilegge: il controller non salva niente in quel momento, quindi l'elenco non deve sembrare attivo.
+- Nei test: la sezione si rimonta con un `SizedBox`, le superfici sono di 3000 e 2400 px, l'elenco ha la chiave `home-rows-list` e il finto ha un `readGate`.
+
+**Task 7**
+- `lib/ui/wf_confirm_dialog.dart` (fuori dall'elenco dei file del task): il `FilledButton` della conferma sta in un `Flexible` e il testo va a capo. "Ripristina la Home predefinita" sbordava di 186 px. Test con l'etichetta lunga e con la corta.
+- Una modifica fatta mentre "Salva" o "Ripristina" è in corso resta: `_saved` confronta la bozza inviata con quella di adesso e, se è cambiata, la tiene (nel piano la risposta del server la cancellava).
+- Il test "una riga non disponibile" usa `requests: true`, altrimenti non avrebbe visto un errore su `seerrAccount`.
+- Test in più su `arrTestLabel` (versione e `error` null, codice sconosciuto) e su un salvataggio con `saved == []`.
+
+**Task 8**
+- Dopo un nuovo inizio il titolo che è in vista va in fondo: nel piano "Un altro" poteva riproporlo subito.
+- `_pick(filters)` è separato da `another()`, così `setFilters` pesca subito con i filtri nuovi; `build` svuota la coda.
+- Il test della risposta superata ora fallisce senza la guardia di generazione; nel piano passava lo stesso.
+- I film già iniziati (`playbackPositionTicks > 0`) non si propongono: stessa logica delle serie "mai iniziate", e sono già in "Continua a guardare". Il piano e la spec dicevano solo "non visti".
+- Test in più: un nuovo inizio con due titoli, `AsyncData(null)` per nessun titolo, un genere vuoto nel profilo, i già proposti che sopravvivono al controller ricreato, la finestra chiusa prima della prima pescata, un test in più sui generi.
+
+**Task 9**
+- La zona del titolo proposto è un `Flexible` alto al massimo 360 px e scorre: con il layout del piano la finestra sbordava di 109 px a 1024x640.
+
+**Correzioni della review finale** (sette commit, `c095efd`..`a97033a`)
+- `TonightButton` non apre più la finestra da solo: prende `onPressed`, e la Home chiama `openTonight(context, ref)` con il suo contesto. Nel piano un carosello arrivato dopo poteva smontare il pulsante e la scelta (Riproduci, Dettagli) andava persa.
+- Nuova chiave `adminArrConfigured` ("Configurato" / "Set up"): un servizio configurato e non provato diceva niente.
+- `_edit` e `reset` dell'editor dell'utente lavorano solo con uno stato dato e fermo: dopo una rilettura fallita (errore con il vecchio elenco in mano) non modificano né salvano.
+- `HomeSettingsSection` con un errore di lettura o di rilettura mostra il messaggio e "Riprova", non l'elenco.
+- Nessun motivo di riga non disponibile finché le funzioni del plugin non sono note, e nessun "Collega il tuo account a Seerr" finché `/Me` si legge o se la lettura fallisce (decisione 14 estesa).
+- Il controller della card "Home per tutti" resta aperto (`keepAlive`) durante la richiesta: il salvataggio vale e la Home dell'admin si rilegge anche se l'admin lascia la pagina.
+- Il tetto di 640 px usa un `Align(centerLeft)`, nella sezione Home e in Aspetto, Player, Lingue di riproduzione e Discord: dentro la colonna con `stretch` il `ConstrainedBox` da solo non contava.
