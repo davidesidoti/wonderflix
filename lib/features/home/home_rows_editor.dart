@@ -52,8 +52,10 @@ class HomeRowsEditor extends StatefulWidget {
 }
 
 class _HomeRowsEditorState extends State<HomeRowsEditor> {
-  /// Tiene la tastiera sull'elenco dopo aver scelto una voce.
-  final _focus = FocusNode(debugLabel: 'home-rows-editor');
+  /// Tiene la tastiera sull'elenco dopo aver scelto una voce con il mouse.
+  /// `skipTraversal`: non è una tappa del Tab, altrimenti sarebbe una voce
+  /// invisibile tra le altre.
+  final _focus = FocusNode(debugLabel: 'home-rows-editor', skipTraversal: true);
 
   HomeRowKind? _selected;
 
@@ -65,7 +67,10 @@ class _HomeRowsEditorState extends State<HomeRowsEditor> {
 
   void _select(HomeRowKind row) {
     setState(() => _selected = row);
-    _focus.requestFocus();
+    // Il fuoco già dentro l'elenco (da tastiera è sulla voce) ci resta: sul
+    // contenitore il Tab successivo ripartirebbe dalla prima voce. Un
+    // discendente col fuoco conta come `hasFocus`.
+    if (!_focus.hasFocus) _focus.requestFocus();
   }
 
   /// Sposta la voce selezionata di una posizione, su (-1) o giù (+1).
