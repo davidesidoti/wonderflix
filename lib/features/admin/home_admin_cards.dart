@@ -69,9 +69,9 @@ class AdminHomeEditor extends AsyncNotifier<AdminHomeState> {
   Future<void> save() async {
     final sent = state.value;
     if (sent == null) return;
-    _saved(
+    await _post(
         sent,
-        await ref
+        () => ref
             .read(homeApiProvider)
             .setLayout(adminRowsToSave(sent.rows, sent.on)));
   }
@@ -79,7 +79,21 @@ class AdminHomeEditor extends AsyncNotifier<AdminHomeState> {
   /// "Ripristina la Home predefinita" per tutti: si salva `null`.
   Future<void> reset() async {
     final sent = state.value;
-    _saved(sent, await ref.read(homeApiProvider).setLayout(null));
+    await _post(sent, () => ref.read(homeApiProvider).setLayout(null));
+  }
+
+  /// Manda [send] al server e poi chiama [_saved]. Il controller resta aperto
+  /// finché il server non risponde, anche se l'admin lascia la scheda e la
+  /// card (l'unica che lo guarda) si smonta: senza, [_saved] troverebbe il
+  /// controller già chiuso e la Home dell'admin non si rileggerebbe.
+  Future<void> _post(
+      AdminHomeState? sent, Future<List<String>?> Function() send) async {
+    final link = ref.keepAlive();
+    try {
+      _saved(sent, await send());
+    } finally {
+      link.close();
+    }
   }
 
   /// Il server ha risposto con [saved]. [sent] è la bozza che si è salvata:

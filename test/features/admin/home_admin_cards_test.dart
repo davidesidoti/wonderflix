@@ -14,6 +14,7 @@ import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
 import '../../support/admin_fakes.dart';
 import '../../support/home_fakes.dart';
+import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
 
 void main() {
@@ -280,6 +281,99 @@ void main() {
       expect(find.byType(SnackBar), findsOneWidget);
       expect(enabled(tester, const Key('admin-home-save')), isTrue);
       expect(toggle(tester, HomeRowKind.nextUp).value, isFalse);
+    });
+  });
+
+  group('uscendo dalla scheda durante il salvataggio', () {
+    // Il salvataggio che parte dalla card continua anche se l'admin lascia la
+    // scheda (la card si smonta e il controller non ha più ascoltatori):
+    // quando il server risponde la Home dell'admin si rilegge lo stesso.
+    ProviderContainer open() {
+      final container = ProviderContainer.test(
+        overrides: homeOverrides(
+            library: FakeLibraryApi(), home: home, features: all),
+        retry: (_, _) => null,
+      );
+      // Chi guarda la Home dell'admin (la Home, per esempio): si rilegge
+      // quando viene invalidata.
+      container.listen(homeAdminRowsProvider, (_, _) {});
+      return container;
+    }
+
+    Future<void> idle() => Future<void>.delayed(Duration.zero);
+
+    test("Salva: la Home dell'admin si rilegge", () async {
+      final container = open();
+      final card = container.listen(adminHomeEditorProvider, (_, _) {});
+      await container.read(adminHomeEditorProvider.future);
+      await container.read(homeAdminRowsProvider.future);
+      final editor = container.read(adminHomeEditorProvider.notifier);
+      editor.setOn(HomeRowKind.nextUp, false);
+
+      final gate = home.setLayoutGate = Completer<void>();
+      final saving = editor.save();
+      await idle();
+      expect(home.setLayoutCalls, hasLength(1));
+      card.close(); // l'admin lascia la scheda
+      await idle();
+      await idle();
+      expect(container.exists(adminHomeEditorProvider), isTrue,
+          reason: 'resta aperto finché il server non risponde');
+
+      final calls = home.layoutCalls;
+      gate.complete();
+      await saving;
+      await idle();
+      await idle();
+      expect(home.layoutCalls, greaterThan(calls),
+          reason: 'homeAdminRowsProvider invalidato dopo il salvataggio');
+      expect(container.exists(adminHomeEditorProvider), isFalse,
+          reason: 'finito, si chiude');
+    });
+
+    test("Ripristina: la Home dell'admin si rilegge", () async {
+      home.layoutRows = ['myList'];
+      final container = open();
+      final card = container.listen(adminHomeEditorProvider, (_, _) {});
+      await container.read(adminHomeEditorProvider.future);
+      await container.read(homeAdminRowsProvider.future);
+      final editor = container.read(adminHomeEditorProvider.notifier);
+
+      final gate = home.setLayoutGate = Completer<void>();
+      final resetting = editor.reset();
+      await idle();
+      expect(home.setLayoutCalls, [null]);
+      card.close();
+      await idle();
+      await idle();
+
+      final calls = home.layoutCalls;
+      gate.complete();
+      await resetting;
+      await idle();
+      await idle();
+      expect(home.layoutCalls, greaterThan(calls));
+      expect(container.exists(adminHomeEditorProvider), isFalse);
+    });
+
+    test('un salvataggio fallito chiude lo stesso il controller', () async {
+      final container = open();
+      final card = container.listen(adminHomeEditorProvider, (_, _) {});
+      await container.read(adminHomeEditorProvider.future);
+      final editor = container.read(adminHomeEditorProvider.notifier);
+      editor.setOn(HomeRowKind.nextUp, false);
+
+      home.setLayoutError = const ServerUnreachableException();
+      final gate = home.setLayoutGate = Completer<void>();
+      final saving = editor.save();
+      await idle();
+      card.close();
+      gate.complete();
+      await expectLater(saving, throwsA(isA<ServerUnreachableException>()));
+      await idle();
+      await idle();
+      expect(container.exists(adminHomeEditorProvider), isFalse,
+          reason: 'il blocco si toglie anche se il server ha dato errore');
     });
   });
 
