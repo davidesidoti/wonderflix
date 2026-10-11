@@ -67,6 +67,8 @@ class TonightController extends Notifier<TonightState> {
 
   @override
   TonightState build() {
+    // Se il controller si rilegge, la coda è dei filtri di prima.
+    _queue.clear();
     final prefs = ref.read(profilePreferencesProvider);
     final genre = prefs.getString(tonightGenreKey);
     // La prima pescata parte appena la finestra c'è.
@@ -86,8 +88,8 @@ class TonightController extends Notifier<TonightState> {
   Future<void> setFilters(TonightFilters next) async {
     if (next == state.filters) return;
     _queue.clear();
-    state = TonightState(filters: next, pick: state.pick);
-    unawaited(another());
+    // Subito, senza passare dai filtri nuovi con il titolo vecchio.
+    unawaited(_pick(next));
     final prefs = ref.read(profilePreferencesProvider);
     final genre = next.genre;
     await Future.wait([
@@ -101,12 +103,20 @@ class TonightController extends Notifier<TonightState> {
 
   /// "Un altro", e la prima pescata: il prossimo titolo non ancora proposto.
   Future<void> another() async {
+    // La prima pescata parte da un microtask: la finestra può essere chiusa.
     if (!ref.mounted) return;
+    await _pick(state.filters);
+  }
+
+  /// Pesca il titolo da proporre con [filters], che sono quelli dello stato o
+  /// quelli che [setFilters] sta mettendo.
+  Future<void> _pick(TonightFilters filters) async {
     final generation = ++_generation;
-    final filters = state.filters;
+    // Il titolo in vista: ricominciando non deve tornare subito.
+    final current = state.pick.value?.id;
     state = TonightState(filters: filters, pick: const AsyncLoading());
     try {
-      final item = await _next(filters, generation);
+      final item = await _next(filters, generation, current);
       if (!ref.mounted || generation != _generation) return;
       if (item != null) ref.read(tonightSeenProvider.notifier).add(item.id);
       state = TonightState(filters: filters, pick: AsyncData(item));
@@ -116,7 +126,8 @@ class TonightController extends Notifier<TonightState> {
     }
   }
 
-  Future<JellyfinItem?> _next(TonightFilters filters, int generation) async {
+  Future<JellyfinItem?> _next(
+      TonightFilters filters, int generation, String? current) async {
     final seen = ref.read(tonightSeenProvider);
     while (_queue.isNotEmpty) {
       final item = _queue.removeAt(0);
@@ -151,6 +162,11 @@ class TonightController extends Notifier<TonightState> {
     // ne sono altri").
     ref.read(tonightSeenProvider.notifier).clear();
     final again = repeats.values.toList();
+    // Il titolo in vista va in fondo: "Un altro" non lo rimostra subito.
+    if (again.length > 1) {
+      final index = again.indexWhere((item) => item.id == current);
+      if (index >= 0) again.add(again.removeAt(index));
+    }
     _queue.addAll(again.skip(1));
     return again.first;
   }

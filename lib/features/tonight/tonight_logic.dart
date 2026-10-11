@@ -103,13 +103,15 @@ bool neverStarted(JellyfinItem series) {
       series.userData.unplayedItemCount == episodes;
 }
 
-/// Un titolo da proporre con [filters]: un film non visto della durata
-/// scelta, o una serie mai iniziata. La durata vale solo per i film; un
-/// film senza durata nota non passa un filtro di durata (decisione 5).
+/// Un titolo da proporre con [filters]: un film non visto e non iniziato (con
+/// una posizione salvata sarebbe in "Continua a guardare") della durata
+/// scelta, o una serie mai iniziata. La durata vale solo per i film; un film
+/// senza durata nota non passa un filtro di durata (decisione 5).
 bool tonightEligible(JellyfinItem item, TonightFilters filters) =>
     switch (item.kind) {
       ItemKind.movie => filters.type != TonightType.series &&
           !item.userData.played &&
+          item.userData.playbackPositionTicks == 0 &&
           _fits(item.runtime, filters.duration.limit),
       ItemKind.series =>
         filters.type != TonightType.movies && neverStarted(item),

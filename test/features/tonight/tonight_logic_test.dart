@@ -27,6 +27,21 @@ void main() {
     expect(TonightType.both.kinds, {ItemKind.movie, ItemKind.series});
   });
 
+  test('ogni valore si salva e si rilegge uguale', () {
+    for (final type in TonightType.values) {
+      expect(TonightType.parse(type.wire), type);
+    }
+    for (final duration in TonightDuration.values) {
+      expect(TonightDuration.parse(duration.wire), duration);
+    }
+    expect(TonightType.parse('movies'), TonightType.movies);
+    expect(TonightType.parse('both'), TonightType.both);
+    expect(TonightType.parse(''), TonightType.both);
+    expect(TonightDuration.parse('any'), TonightDuration.any);
+    expect(TonightDuration.parse('boh'), TonightDuration.any);
+    expect(TonightDuration.parse(''), TonightDuration.any);
+  });
+
   test('i filtri: predefiniti e copia', () {
     expect(TonightFilters.defaults.isDefault, isTrue);
     const drama = TonightFilters(genre: 'Dramma');
@@ -59,6 +74,22 @@ void main() {
         tonightEligible(testItem(runtimeMinutes: 110),
             const TonightFilters(duration: TonightDuration.under120)),
         isTrue);
+  });
+
+  test('un film già iniziato non si propone: è in "Continua a guardare"', () {
+    const any = TonightFilters();
+    expect(
+        tonightEligible(testItem(runtimeMinutes: 100, positionTicks: 0), any),
+        isTrue);
+    expect(
+        tonightEligible(
+            testItem(runtimeMinutes: 100, positionTicks: 600000000), any),
+        isFalse);
+    expect(
+        tonightEligible(
+            testItem(runtimeMinutes: 100, positionTicks: 600000000),
+            const TonightFilters(duration: TonightDuration.under120)),
+        isFalse);
   });
 
   test('il tipo, e la durata che vale solo per i film', () {
