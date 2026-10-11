@@ -67,20 +67,36 @@ class AdminHomeEditor extends AsyncNotifier<AdminHomeState> {
   /// "Salva": le righe accese, nell'ordine dell'elenco. Un errore lo mostra
   /// il pulsante, e la bozza resta.
   Future<void> save() async {
-    final current = state.value;
-    if (current == null) return;
-    _saved(await ref
-        .read(homeApiProvider)
-        .setLayout(adminRowsToSave(current.rows, current.on)));
+    final sent = state.value;
+    if (sent == null) return;
+    _saved(
+        sent,
+        await ref
+            .read(homeApiProvider)
+            .setLayout(adminRowsToSave(sent.rows, sent.on)));
   }
 
   /// "Ripristina la Home predefinita" per tutti: si salva `null`.
-  Future<void> reset() async =>
-      _saved(await ref.read(homeApiProvider).setLayout(null));
+  Future<void> reset() async {
+    final sent = state.value;
+    _saved(sent, await ref.read(homeApiProvider).setLayout(null));
+  }
 
-  void _saved(List<String>? saved) {
+  /// Il server ha risposto con [saved]. [sent] è la bozza che si è salvata:
+  /// se intanto l'elenco è stato cambiato (ogni modifica crea un elenco o un
+  /// insieme nuovo, `_edit`), la bozza di adesso resta, col nuovo [saved]:
+  /// "Salva" si accende per la modifica che non è partita. Altrimenti la
+  /// bozza è quanto salvato (decisione 12 del piano 19c: le modifiche non
+  /// salvate non si perdono).
+  void _saved(AdminHomeState? sent, List<String>? saved) {
     if (!ref.mounted) return;
-    state = AsyncData(AdminHomeState.fromSaved(saved));
+    final now = state.value;
+    final editedMeanwhile = sent != null &&
+        now != null &&
+        (!identical(now.rows, sent.rows) || !identical(now.on, sent.on));
+    state = AsyncData(editedMeanwhile
+        ? AdminHomeState(saved: saved, rows: now.rows, on: now.on)
+        : AdminHomeState.fromSaved(saved));
     // Anche la Home dell'admin, tenuta 5 minuti, cambia subito.
     ref.invalidate(homeAdminRowsProvider);
   }

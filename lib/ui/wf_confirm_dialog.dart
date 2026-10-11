@@ -31,10 +31,10 @@ Future<bool> showWfConfirmDialog(
               child: Text(cancelLabel),
             ),
             const SizedBox(width: 12),
-            // `Flexible`: un'etichetta lunga ("Ripristina la Home
-            // predefinita") va a capo nel pulsante invece di sbordare dalla
-            // finestra; con un'etichetta corta il pulsante resta largo quanto
-            // il testo.
+            // `Flexible`: per le etichette lunghe, il testo ingrandito o le
+            // altre lingue; il testo va a capo nel pulsante invece di
+            // sbordare dalla finestra. Con un'etichetta corta il pulsante
+            // resta largo quanto il testo.
             Flexible(
               child: FilledButton(
                 // Il tema fa i FilledButton larghi all'infinito: in una Row

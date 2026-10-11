@@ -1,12 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/social/home_models.dart';
+import 'package:wonderflix/features/admin/home_admin_cards.dart';
 import 'package:wonderflix/features/admin/wonderflix_tab.dart';
 import 'package:wonderflix/features/home/home_layout.dart';
 import 'package:wonderflix/features/home/home_providers.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
+import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
 import '../../support/admin_fakes.dart';
 import '../../support/home_fakes.dart';
@@ -126,12 +130,120 @@ void main() {
     testWidgets('una riga non disponibile ha il motivo ma si accende',
         (tester) async {
       home.layoutRows = ['resume'];
+      // Con `requests` il plugin ha Seerr: se contasse l'account di chi
+      // guarda (che qui non c'è), "Le mie richieste" direbbe "Collega il tuo
+      // account a Seerr".
       await pumpTab(tester,
-          features: const SocialFeatures(inbox: true, home: true));
+          features: const SocialFeatures(
+              inbox: true, home: true, requests: true));
       expect(find.text('Sonarr non è configurato'), findsOneWidget);
       expect(find.text('Collega il tuo account a Seerr'), findsNothing,
           reason: 'per tutti conta solo il plugin');
+      expect(find.text('Seerr non è configurato'), findsNothing,
+          reason: 'il plugin ha Seerr');
       expect(toggle(tester, HomeRowKind.upcomingSeries).onChanged, isNotNull);
+    });
+
+    testWidgets('senza Seerr nel plugin "Le mie richieste" lo dice',
+        (tester) async {
+      home.layoutRows = ['resume'];
+      await pumpTab(tester,
+          features: const SocialFeatures(inbox: true, home: true));
+      expect(find.text('Seerr non è configurato'), findsOneWidget);
+      expect(toggle(tester, HomeRowKind.requests).onChanged, isNotNull);
+    });
+
+    testWidgets('Home salvata senza righe: tutto spento, Ripristina serve',
+        (tester) async {
+      home.layoutRows = [];
+      await pumpTab(tester);
+      for (final row in HomeRowKind.values) {
+        expect(toggle(tester, row).value, isFalse, reason: row.id);
+      }
+      expect(enabled(tester, const Key('admin-home-save')), isFalse);
+      expect(enabled(tester, const Key('admin-home-reset')), isTrue);
+    });
+
+    testWidgets('una modifica mentre si salva non si perde', (tester) async {
+      await pumpTab(tester);
+      await tester.tap(find.byKey(const Key('home-rows-switch-nextUp')));
+      await tester.pump();
+
+      final gate = home.setLayoutGate = Completer<void>();
+      await tester.tap(find.byKey(const Key('admin-home-save')));
+      await tester.pump();
+      expect(home.setLayoutCalls, hasLength(1));
+
+      // Il salvataggio è in corso e l'elenco si può ancora cambiare.
+      await tester.tap(find.byKey(const Key('home-rows-switch-latestMovies')));
+      await tester.pump();
+      gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(toggle(tester, HomeRowKind.nextUp).value, isFalse);
+      expect(toggle(tester, HomeRowKind.latestMovies).value, isFalse,
+          reason: 'la modifica fatta durante il salvataggio resta');
+      expect(enabled(tester, const Key('admin-home-save')), isTrue);
+      expect(home.setLayoutCalls.single, [
+        for (final row in HomeRowKind.values)
+          if (row != HomeRowKind.nextUp) row.id,
+      ], reason: 'il primo salvataggio non conteneva la seconda modifica');
+
+      await tester.tap(find.byKey(const Key('admin-home-save')));
+      await tester.pumpAndSettle();
+      expect(home.setLayoutCalls.last, [
+        for (final row in HomeRowKind.values)
+          if (row != HomeRowKind.nextUp && row != HomeRowKind.latestMovies)
+            row.id,
+      ]);
+      expect(enabled(tester, const Key('admin-home-save')), isFalse);
+    });
+
+    testWidgets('un riordino mentre si salva non si perde', (tester) async {
+      await pumpTab(tester);
+      await tester.tap(find.byKey(const Key('home-rows-switch-nextUp')));
+      await tester.pump();
+
+      final gate = home.setLayoutGate = Completer<void>();
+      await tester.tap(find.byKey(const Key('admin-home-save')));
+      await tester.pump();
+
+      await tester.tap(find.text('La mia lista'));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('home-rows-up')));
+      await tester.pump();
+      gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(enabled(tester, const Key('admin-home-save')), isTrue);
+      await tester.tap(find.byKey(const Key('admin-home-save')));
+      await tester.pumpAndSettle();
+      final sent = home.setLayoutCalls.last!;
+      expect(sent.sublist(sent.length - 2), ['myList', 'upcomingMovies']);
+    });
+
+    testWidgets('una modifica mentre si ripristina non si perde',
+        (tester) async {
+      home.layoutRows = ['myList', 'resume'];
+      await pumpTab(tester);
+
+      final gate = home.setLayoutGate = Completer<void>();
+      await tester.tap(find.byKey(const Key('admin-home-reset')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(
+          FilledButton, 'Ripristina la Home predefinita'));
+      await tester.pump();
+      expect(home.setLayoutCalls, [null]);
+
+      await tester.tap(find.byKey(const Key('home-rows-switch-resume')));
+      await tester.pump();
+      gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(toggle(tester, HomeRowKind.resume).value, isFalse,
+          reason: 'la modifica fatta durante il ripristino resta');
+      expect(enabled(tester, const Key('admin-home-save')), isTrue);
+      expect(enabled(tester, const Key('admin-home-reset')), isTrue);
     });
 
     testWidgets('la bozza resta scorrendo', (tester) async {
@@ -212,6 +324,70 @@ void main() {
       await tester.tap(find.byKey(const Key('arr-test')));
       await tester.pumpAndSettle();
       expect(find.byType(SnackBar), findsOneWidget);
+    });
+  });
+
+  group('arrTestLabel', () {
+    final it = lookupAppLocalizations(const Locale('it'));
+
+    test('non configurato', () {
+      expect(arrTestLabel(it, const ArrTestResult(configured: false, ok: false)),
+          'Non configurato');
+    });
+
+    test('riuscita, con la versione o senza', () {
+      expect(
+          arrTestLabel(it,
+              const ArrTestResult(configured: true, ok: true, version: '4.0.20')),
+          'Collegato (versione 4.0.20)');
+      expect(arrTestLabel(it, const ArrTestResult(configured: true, ok: true)),
+          'Collegato (versione ?)');
+    });
+
+    test('chiave rifiutata', () {
+      expect(
+          arrTestLabel(
+              it,
+              const ArrTestResult(
+                  configured: true,
+                  ok: false,
+                  error: UpcomingError.unauthorized)),
+          'Chiave API rifiutata');
+    });
+
+    test('non raggiungibile', () {
+      expect(
+          arrTestLabel(
+              it,
+              const ArrTestResult(
+                  configured: true,
+                  ok: false,
+                  error: UpcomingError.unreachable)),
+          "Non raggiungibile: controlla l'indirizzo");
+    });
+
+    test('NotConfigured anche se il servizio risulta configurato', () {
+      expect(
+          arrTestLabel(
+              it,
+              const ArrTestResult(
+                  configured: true,
+                  ok: false,
+                  error: UpcomingError.notConfigured)),
+          'Non configurato');
+    });
+
+    test('un codice sconosciuto vale come irraggiungibile', () {
+      final result = ArrTestResult.fromJson(
+          {'Configured': true, 'Ok': false, 'Error': 'Mistero'});
+      expect(result.error, UpcomingError.unreachable);
+      expect(arrTestLabel(it, result),
+          "Non raggiungibile: controlla l'indirizzo");
+    });
+
+    test('configurato e non riuscito, senza errore: non raggiungibile', () {
+      expect(arrTestLabel(it, const ArrTestResult(configured: true, ok: false)),
+          "Non raggiungibile: controlla l'indirizzo");
     });
   });
 }
