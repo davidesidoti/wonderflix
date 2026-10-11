@@ -707,6 +707,7 @@
   "adminNeedsPlugin170": "Needs plugin 1.7.0",
   "adminArrTitle": "Sonarr and Radarr",
   "adminArrNotConfigured": "Not set up",
+  "adminArrConfigured": "Set up",
   "adminArrOk": "Connected (version {version})",
   "adminArrUnauthorized": "API key rejected",
   "adminArrUnreachable": "Unreachable: check the address",

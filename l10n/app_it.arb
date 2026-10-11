@@ -843,6 +843,7 @@
   "adminNeedsPlugin170": "Serve il plugin 1.7.0",
   "adminArrTitle": "Sonarr e Radarr",
   "adminArrNotConfigured": "Non configurato",
+  "adminArrConfigured": "Configurato",
   "adminArrOk": "Collegato (versione {version})",
   "@adminArrOk": {"placeholders": {"version": {"type": "String"}}},
   "adminArrUnauthorized": "Chiave API rifiutata",

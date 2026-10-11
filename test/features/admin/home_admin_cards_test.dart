@@ -298,12 +298,26 @@ void main() {
               of: find.byKey(const Key('arr-sonarr')),
               matching: find.text('Non configurato')),
           findsNothing);
+      // Configurato ma non ancora provato: una riga con la sua scritta, non
+      // vuota.
+      expect(
+          find.descendant(
+              of: find.byKey(const Key('arr-sonarr')),
+              matching: find.text('Configurato')),
+          findsOneWidget);
+      expect(
+          find.descendant(
+              of: find.byKey(const Key('arr-radarr')),
+              matching: find.text('Configurato')),
+          findsNothing);
 
       await tester.tap(find.byKey(const Key('arr-test')));
       await tester.pumpAndSettle();
       expect(home.arrTestCalls, 1);
       expect(find.text('Collegato (versione 4.0.20)'), findsOneWidget);
       expect(find.text('Collegato (versione 6.4.4)'), findsOneWidget);
+      expect(find.text('Configurato'), findsNothing,
+          reason: 'dopo la prova conta l\'esito');
 
       home.arrTest = const ArrTestResults(
         sonarr: ArrTestResult(

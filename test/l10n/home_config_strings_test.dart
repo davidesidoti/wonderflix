@@ -26,6 +26,8 @@ void main() {
     expect(it.adminHomeResetConfirm, 'Tornare alla Home predefinita per tutti?');
     expect(it.adminNeedsPlugin170, 'Serve il plugin 1.7.0');
     expect(it.adminArrTitle, 'Sonarr e Radarr');
+    expect(it.adminArrConfigured, 'Configurato');
+    expect(en.adminArrConfigured, 'Set up');
     expect(it.adminArrOk('4.0.20'), 'Collegato (versione 4.0.20)');
     expect(en.adminArrOk('4.0.20'), 'Connected (version 4.0.20)');
     expect(it.adminArrUnreachable, "Non raggiungibile: controlla l'indirizzo");

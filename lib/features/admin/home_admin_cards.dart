@@ -281,12 +281,12 @@ class _ArrCardState extends ConsumerState<ArrCard>
   }
 
   /// Prima della prova si sa solo se è configurato (decisione 13 del piano
-  /// 19c); dopo, l'esito.
+  /// 19c), e lo dice la riga; dopo, l'esito.
   Widget _service(AppLocalizations l, String name,
       {required Key key, required bool configured, ArrTestResult? result}) {
     final (text, color) = switch (result) {
       null => configured
-          ? ('', WfColors.cream)
+          ? (l.adminArrConfigured, WfColors.cream)
           : (l.adminArrNotConfigured, WfColors.creamMuted),
       final tested when tested.ok => (arrTestLabel(l, tested), WfColors.cream),
       final tested when !tested.configured =>
