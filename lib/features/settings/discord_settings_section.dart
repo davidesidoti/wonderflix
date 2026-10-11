@@ -17,38 +17,43 @@ class DiscordSettingsSection extends ConsumerWidget {
     void save(DiscordSettings next) =>
         unawaited(ref.read(discordSettingsProvider.notifier).update(next));
 
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 640),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SwitchListTile(
-            key: const Key('discord-enabled'),
-            contentPadding: EdgeInsets.zero,
-            title: Text(l.settingsDiscordEnabled),
-            value: settings.enabled,
-            onChanged: (value) => save(settings.copyWith(enabled: value)),
-          ),
-          SwitchListTile(
-            key: const Key('discord-show-title'),
-            contentPadding: EdgeInsets.zero,
-            title: Text(l.settingsDiscordShowTitle),
-            value: settings.showTitle,
-            onChanged: settings.enabled
-                ? (value) => save(settings.copyWith(showTitle: value))
-                : null,
-          ),
-          SwitchListTile(
-            key: const Key('discord-show-poster'),
-            contentPadding: EdgeInsets.zero,
-            title: Text(l.settingsDiscordShowPoster),
-            subtitle: Text(l.settingsDiscordPosterHint),
-            value: settings.showPoster,
-            onChanged: settings.enabled && settings.showTitle
-                ? (value) => save(settings.copyWith(showPoster: value))
-                : null,
-          ),
-        ],
+    // L'`Align` toglie la larghezza fissa che la `Column` delle sezioni (con
+    // `stretch`) darebbe a questo blocco: senza, il suo tetto non varrebbe.
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 640),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SwitchListTile(
+              key: const Key('discord-enabled'),
+              contentPadding: EdgeInsets.zero,
+              title: Text(l.settingsDiscordEnabled),
+              value: settings.enabled,
+              onChanged: (value) => save(settings.copyWith(enabled: value)),
+            ),
+            SwitchListTile(
+              key: const Key('discord-show-title'),
+              contentPadding: EdgeInsets.zero,
+              title: Text(l.settingsDiscordShowTitle),
+              value: settings.showTitle,
+              onChanged: settings.enabled
+                  ? (value) => save(settings.copyWith(showTitle: value))
+                  : null,
+            ),
+            SwitchListTile(
+              key: const Key('discord-show-poster'),
+              contentPadding: EdgeInsets.zero,
+              title: Text(l.settingsDiscordShowPoster),
+              subtitle: Text(l.settingsDiscordPosterHint),
+              value: settings.showPoster,
+              onChanged: settings.enabled && settings.showTitle
+                  ? (value) => save(settings.copyWith(showPoster: value))
+                  : null,
+            ),
+          ],
+        ),
       ),
     );
   }

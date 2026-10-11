@@ -431,6 +431,20 @@ void main() {
     expect(find.byType(HomeRowsEditor), findsOneWidget);
   });
 
+  testWidgets('in una finestra larga le sezioni non vanno oltre i 640 px, a '
+      'sinistra', (tester) async {
+    await pumpSettings(tester);
+    await tester.pump();
+    // Le sezioni stanno in una colonna che le allarga a tutta la pagina
+    // (1440 - 2 * 32): il tetto vale solo se la sezione non è allargata.
+    final list = find.byType(HomeRowsEditor);
+    expect(tester.getSize(list).width, lessThanOrEqualTo(640));
+    expect(tester.getTopLeft(list).dx, 32, reason: 'a sinistra, come il resto');
+    // Lo stesso per le sezioni accanto.
+    expect(tester.getSize(find.byKey(const Key('discord-enabled'))).width,
+        lessThanOrEqualTo(640));
+  });
+
   testWidgets('section=home scorre fino alla sezione Home', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();

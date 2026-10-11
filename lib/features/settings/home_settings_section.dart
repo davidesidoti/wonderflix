@@ -115,9 +115,14 @@ class HomeSettingsSection extends ConsumerWidget {
         ],
       );
     }
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 640),
-      child: body,
+    // L'`Align` toglie la larghezza fissa che la `Column` delle sezioni (con
+    // `stretch`) darebbe a questo blocco: senza, il suo tetto non varrebbe.
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 640),
+        child: body,
+      ),
     );
   }
 }

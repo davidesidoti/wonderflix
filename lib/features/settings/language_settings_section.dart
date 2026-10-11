@@ -84,48 +84,53 @@ class _LanguageForm extends ConsumerWidget {
           ),
         );
 
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 640),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(l.settingsLanguagesHint,
-              style: const TextStyle(color: WfColors.creamMuted)),
-          const SizedBox(height: 16),
-          labeled(
-            l.settingsAudioLanguage,
-            DropdownButton<String>(
-              key: const Key('audio-language'),
-              value: preferences.audioLanguage,
-              items: languages(preferences.audioLanguage),
-              onChanged: (value) => unawaited(_save(context, ref,
-                  preferences.copyWith(audioLanguage: value ?? ''))),
+    // L'`Align` toglie la larghezza fissa che la `Column` delle sezioni (con
+    // `stretch`) darebbe a questo blocco: senza, il suo tetto non varrebbe.
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 640),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l.settingsLanguagesHint,
+                style: const TextStyle(color: WfColors.creamMuted)),
+            const SizedBox(height: 16),
+            labeled(
+              l.settingsAudioLanguage,
+              DropdownButton<String>(
+                key: const Key('audio-language'),
+                value: preferences.audioLanguage,
+                items: languages(preferences.audioLanguage),
+                onChanged: (value) => unawaited(_save(context, ref,
+                    preferences.copyWith(audioLanguage: value ?? ''))),
+              ),
             ),
-          ),
-          labeled(
-            l.settingsSubtitleLanguage,
-            DropdownButton<String>(
-              key: const Key('subtitle-language'),
-              value: preferences.subtitleLanguage,
-              items: languages(preferences.subtitleLanguage),
-              onChanged: (value) => unawaited(_save(context, ref,
-                  preferences.copyWith(subtitleLanguage: value ?? ''))),
+            labeled(
+              l.settingsSubtitleLanguage,
+              DropdownButton<String>(
+                key: const Key('subtitle-language'),
+                value: preferences.subtitleLanguage,
+                items: languages(preferences.subtitleLanguage),
+                onChanged: (value) => unawaited(_save(context, ref,
+                    preferences.copyWith(subtitleLanguage: value ?? ''))),
+              ),
             ),
-          ),
-          labeled(
-            l.settingsSubtitleMode,
-            DropdownButton<String>(
-              key: const Key('subtitle-mode'),
-              value: mode,
-              items: [
-                for (final entry in modes.entries)
-                  DropdownMenuItem(value: entry.key, child: Text(entry.value)),
-              ],
-              onChanged: (value) => unawaited(_save(
-                  context, ref, preferences.copyWith(subtitleMode: value))),
+            labeled(
+              l.settingsSubtitleMode,
+              DropdownButton<String>(
+                key: const Key('subtitle-mode'),
+                value: mode,
+                items: [
+                  for (final entry in modes.entries)
+                    DropdownMenuItem(value: entry.key, child: Text(entry.value)),
+                ],
+                onChanged: (value) => unawaited(_save(
+                    context, ref, preferences.copyWith(subtitleMode: value))),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

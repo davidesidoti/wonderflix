@@ -15,34 +15,39 @@ class AppearanceSettingsSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final setting = ref.watch(motionSettingProvider);
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 640),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(l.settingsAnimations),
-          const SizedBox(height: 6),
-          SegmentedButton<MotionSetting>(
-            key: const Key('appearance-motion'),
-            showSelectedIcon: false,
-            segments: [
-              ButtonSegment(
-                  value: MotionSetting.system,
-                  label: Text(l.settingsAnimationsSystem)),
-              ButtonSegment(
-                  value: MotionSetting.full, label: Text(l.settingsAnimationsFull)),
-              ButtonSegment(
-                  value: MotionSetting.reduced,
-                  label: Text(l.settingsAnimationsReduced)),
-            ],
-            selected: {setting},
-            onSelectionChanged: (selection) => unawaited(
-                ref.read(motionSettingProvider.notifier).set(selection.first)),
-          ),
-          const SizedBox(height: 8),
-          Text(l.settingsAnimationsHint,
-              style: const TextStyle(color: WfColors.creamMuted, fontSize: 12.5)),
-        ],
+    // L'`Align` toglie la larghezza fissa che la `Column` delle sezioni (con
+    // `stretch`) darebbe a questo blocco: senza, il suo tetto non varrebbe.
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 640),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l.settingsAnimations),
+            const SizedBox(height: 6),
+            SegmentedButton<MotionSetting>(
+              key: const Key('appearance-motion'),
+              showSelectedIcon: false,
+              segments: [
+                ButtonSegment(
+                    value: MotionSetting.system,
+                    label: Text(l.settingsAnimationsSystem)),
+                ButtonSegment(
+                    value: MotionSetting.full, label: Text(l.settingsAnimationsFull)),
+                ButtonSegment(
+                    value: MotionSetting.reduced,
+                    label: Text(l.settingsAnimationsReduced)),
+              ],
+              selected: {setting},
+              onSelectionChanged: (selection) => unawaited(
+                  ref.read(motionSettingProvider.notifier).set(selection.first)),
+            ),
+            const SizedBox(height: 8),
+            Text(l.settingsAnimationsHint,
+                style: const TextStyle(color: WfColors.creamMuted, fontSize: 12.5)),
+          ],
+        ),
       ),
     );
   }
