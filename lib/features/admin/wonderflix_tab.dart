@@ -18,12 +18,13 @@ import 'admin_action_button.dart';
 import 'admin_confirm_dialog.dart';
 import 'admin_time.dart';
 import 'admin_widgets.dart';
+import 'home_admin_cards.dart';
 import 'wonderflix_controllers.dart';
 import 'wonderflix_labels.dart';
 
-/// La scheda WonderFlix (spec J §9.6, spec L §9.6): annuncio, novità, Seerr,
-/// recupero della password. Ogni card ha il suo stato: se una non carica, le
-/// altre funzionano.
+/// La scheda WonderFlix (spec J §9.6, spec L §9.6, spec M §8.6): annuncio,
+/// novità, Home per tutti, Sonarr e Radarr, Seerr, recupero della password.
+/// Ogni card ha il suo stato: se una non carica, le altre funzionano.
 class WonderflixTab extends StatefulWidget {
   const WonderflixTab({super.key});
 
@@ -47,6 +48,8 @@ class _WonderflixTabState extends State<WonderflixTab> {
         children: const [
           AnnouncementCard(),
           NewTitlesCard(),
+          HomeForEveryoneCard(),
+          ArrCard(),
           SeerrCard(),
           AccountRecoveryCard(),
         ],

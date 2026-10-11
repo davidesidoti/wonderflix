@@ -11,10 +11,12 @@ import 'package:wonderflix/core/social/plugin_admin_api.dart';
 import 'package:wonderflix/core/social/plugin_admin_models.dart';
 import 'package:wonderflix/features/admin/admin_providers.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/home/home_providers.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 
 import 'admin_json.dart';
 import 'fake_session_controller.dart';
+import 'home_fakes.dart';
 import 'social_fakes.dart';
 
 const testAdmin = JellyfinUser(id: 'u1', name: 'Mario', isAdministrator: true);
@@ -418,18 +420,21 @@ class FakePluginAdminApi implements PluginAdminApi {
 /// Jellyfin e plugin finti, sessione di un admin, finestra in vista, plugin
 /// con la cassetta delle notifiche (scheda WonderFlix). [availability]
 /// serve a cambiare le funzioni del plugin durante il test (con
-/// `availability.set`): vale al posto di [features].
+/// `availability.set`): vale al posto di [features]. [home] è la Home e
+/// Sonarr/Radarr del plugin (card "Home per tutti" e "Sonarr e Radarr").
 List<Override> adminTestOverrides(
   FakeAdminApi api, {
   FakeSessionController? session,
   FakeAdminForeground? foreground,
   FakePluginAdminApi? plugin,
+  FakeHomeApi? home,
   SocialFeatures features = const SocialFeatures(inbox: true),
   FakeSocialAvailability? availability,
 }) =>
     [
       adminApiProvider.overrideWithValue(api),
       pluginAdminApiProvider.overrideWithValue(plugin ?? FakePluginAdminApi()),
+      homeApiProvider.overrideWithValue(home ?? FakeHomeApi()),
       sessionControllerProvider.overrideWith(() =>
           session ?? FakeSessionController(const SessionSignedIn(testAdmin))),
       adminForegroundProvider

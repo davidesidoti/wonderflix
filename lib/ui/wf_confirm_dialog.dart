@@ -31,12 +31,18 @@ Future<bool> showWfConfirmDialog(
               child: Text(cancelLabel),
             ),
             const SizedBox(width: 12),
-            FilledButton(
-              // Il tema fa i FilledButton larghi all'infinito: in una Row
-              // servono larghi quanto il testo.
-              style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
-              onPressed: () => Navigator.of(context).pop(true),
-              child: Text(confirmLabel),
+            // `Flexible`: un'etichetta lunga ("Ripristina la Home
+            // predefinita") va a capo nel pulsante invece di sbordare dalla
+            // finestra; con un'etichetta corta il pulsante resta largo quanto
+            // il testo.
+            Flexible(
+              child: FilledButton(
+                // Il tema fa i FilledButton larghi all'infinito: in una Row
+                // servono larghi quanto il testo.
+                style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+                onPressed: () => Navigator.of(context).pop(true),
+                child: Text(confirmLabel),
+              ),
             ),
           ],
         ),
