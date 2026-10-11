@@ -38,6 +38,12 @@ class HomeApi {
               quietStatuses: _quiet)),
           UpcomingMovie.fromJson);
 
+  /// La prova di Sonarr e Radarr (spec M §7.5), solo per l'admin: il plugin
+  /// chiama i due servizi, senza cache. Chi non è admin riceve 403.
+  Future<ArrTestResults> testArr() async => parseJson(
+      await _http.post('$_base/Upcoming/Test', quietStatuses: _quiet),
+      ArrTestResults.fromJson);
+
   static List<String>? _rows(Map<String, dynamic> json) =>
       json['Rows'] is List ? jsonStrings(json['Rows']) : null;
 }

@@ -44,9 +44,34 @@ class FakeHomeApi implements HomeApi {
     return layoutRows;
   }
 
+  /// La risposta di [testArr].
+  ArrTestResults arrTest = const ArrTestResults(
+    sonarr: ArrTestResult(configured: true, ok: true, version: '4.0.20'),
+    radarr: ArrTestResult(configured: true, ok: true, version: '6.4.4'),
+  );
+  Object? arrTestError;
+  int arrTestCalls = 0;
+
+  Object? setLayoutError;
+
+  /// Se valorizzato, [setLayout] aspetta che si completi.
+  Completer<void>? setLayoutGate;
+
+  @override
+  Future<ArrTestResults> testArr() async {
+    arrTestCalls++;
+    final error = arrTestError;
+    if (error != null) throw error;
+    return arrTest;
+  }
+
   @override
   Future<List<String>?> setLayout(List<String>? rows) async {
     setLayoutCalls.add(rows);
+    final gate = setLayoutGate;
+    if (gate != null) await gate.future;
+    final error = setLayoutError;
+    if (error != null) throw error;
     layoutRows = rows;
     return rows;
   }
@@ -86,15 +111,28 @@ class FakeDisplayPreferencesApi implements DisplayPreferencesApi {
     return prefs;
   }
 
+  Object? writeError;
+  Object? resetError;
+
+  /// Se valorizzato, [writeHome] aspetta che si completi (dopo aver
+  /// registrato la chiamata).
+  Completer<void>? writeGate;
+
   @override
   Future<void> writeHome(String userId, HomeUserPrefs prefs) async {
     written.add((userId, prefs));
+    final gate = writeGate;
+    if (gate != null) await gate.future;
+    final error = writeError;
+    if (error != null) throw error;
     this.prefs = prefs;
   }
 
   @override
   Future<void> resetHome(String userId) async {
     resets.add(userId);
+    final error = resetError;
+    if (error != null) throw error;
     prefs = HomeUserPrefs.none;
   }
 }

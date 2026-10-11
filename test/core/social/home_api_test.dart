@@ -143,4 +143,43 @@ void main() {
     adapter.handler = (_) => const FakeResponse(404);
     await expectLater(api.layout(), throwsA(isA<NotFoundException>()));
   });
+
+  test('prova di Sonarr e Radarr: POST Upcoming/Test e i due esiti',
+      () async {
+    adapter.handler = (_) => const FakeResponse(200, {
+          'Sonarr': {'Configured': true, 'Ok': true, 'Version': '4.0.20.3014'},
+          'Radarr': {'Configured': true, 'Ok': false, 'Error': 'Unauthorized'},
+        });
+    final result = await api.testArr();
+    expect(adapter.requests.last.method, 'POST');
+    expect(adapter.requests.last.path, '/WonderFlixWatchParty/Upcoming/Test');
+    expect(result.sonarr.configured, isTrue);
+    expect(result.sonarr.ok, isTrue);
+    expect(result.sonarr.version, '4.0.20.3014');
+    expect(result.sonarr.error, isNull);
+    expect(result.radarr.ok, isFalse);
+    expect(result.radarr.error, UpcomingError.unauthorized);
+  });
+
+  test('prova: campi mancanti, servizio non configurato, codice sconosciuto',
+      () async {
+    adapter.handler = (_) => const FakeResponse(200, {
+          'Sonarr': {'Configured': false, 'Ok': false, 'Error': 'NotConfigured'},
+          'Radarr': {'Configured': true, 'Ok': false, 'Error': 'Boh'},
+        });
+    final result = await api.testArr();
+    expect(result.sonarr.configured, isFalse);
+    expect(result.sonarr.error, UpcomingError.notConfigured);
+    expect(result.radarr.error, UpcomingError.unreachable);
+
+    adapter.handler = (_) => const FakeResponse(200, <String, dynamic>{});
+    final empty = await api.testArr();
+    expect(empty.sonarr.configured, isFalse);
+    expect(empty.radarr.ok, isFalse);
+  });
+
+  test('prova: 403 per chi non è admin', () async {
+    adapter.handler = (_) => const FakeResponse(403, <String, dynamic>{});
+    await expectLater(api.testArr(), throwsA(isA<ForbiddenException>()));
+  });
 }

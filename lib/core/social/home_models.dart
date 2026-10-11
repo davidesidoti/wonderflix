@@ -142,3 +142,41 @@ String? _webAddress(Map<String, dynamic> json, String key) {
   if (uri == null || uri.host.isEmpty) return null;
   return uri.scheme == 'https' || uri.scheme == 'http' ? value : null;
 }
+
+/// L'esito della prova di un servizio, Sonarr o Radarr (spec M §7.5). I
+/// campi null possono mancare: un servizio assente vale non configurato.
+class ArrTestResult {
+  const ArrTestResult({
+    required this.configured,
+    required this.ok,
+    this.version,
+    this.error,
+  });
+
+  factory ArrTestResult.fromJson(Map<String, dynamic> json) => ArrTestResult(
+        configured: json['Configured'] == true,
+        ok: json['Ok'] == true,
+        version: jsonString(json, 'Version'),
+        error: UpcomingError.parse(json['Error']),
+      );
+
+  final bool configured;
+  final bool ok;
+  final String? version;
+
+  /// `null` se la prova è riuscita.
+  final UpcomingError? error;
+}
+
+/// `POST Upcoming/Test`: Sonarr e Radarr insieme.
+class ArrTestResults {
+  const ArrTestResults({required this.sonarr, required this.radarr});
+
+  factory ArrTestResults.fromJson(Map<String, dynamic> json) => ArrTestResults(
+        sonarr: ArrTestResult.fromJson(jsonMap(json['Sonarr']) ?? const {}),
+        radarr: ArrTestResult.fromJson(jsonMap(json['Radarr']) ?? const {}),
+      );
+
+  final ArrTestResult sonarr;
+  final ArrTestResult radarr;
+}

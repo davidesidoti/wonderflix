@@ -238,6 +238,7 @@ class JellyfinItem {
     this.remoteTrailers = const [],
     this.localTrailerCount = 0,
     this.childCount,
+    this.recursiveItemCount,
     this.chapters = const [],
     this.trickplay = const {},
     this.tmdbId,
@@ -288,6 +289,7 @@ class JellyfinItem {
           .toList(),
       localTrailerCount: _int(json['LocalTrailerCount']) ?? 0,
       childCount: _int(json['ChildCount']),
+      recursiveItemCount: _int(json['RecursiveItemCount']),
       chapters: _objectList(json['Chapters']).map(ChapterMark.fromJson).toList(),
       trickplay: _trickplay(json['Trickplay']),
       tmdbId: _providerId(json['ProviderIds'], 'Tmdb'),
@@ -341,6 +343,10 @@ class JellyfinItem {
 
   /// Per le serie: numero di stagioni.
   final int? childCount;
+
+  /// Per le serie: numero di episodi. Jellyfin lo manda solo se chiesto
+  /// (`RecursiveItemCount`), e solo allora conta gli episodi visti.
+  final int? recursiveItemCount;
 
   /// Capitoli del video, in ordine.
   final List<ChapterMark> chapters;

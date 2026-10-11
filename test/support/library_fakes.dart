@@ -89,6 +89,16 @@ class FakeLibraryApi implements LibraryApi {
   /// Se valorizzato, [collectionItems] aspetta che si completi prima di
   /// rispondere (i titoli di una saga arrivano dopo la saga).
   Completer<void>? collectionItemsGate;
+
+  /// Le risposte di [randomUnplayed], una per chiamata; l'ultima si ripete.
+  final randomPages = <ItemPage>[];
+  final randomCalls = <({Set<ItemKind> kinds, String? genre, int limit})>[];
+
+  /// Se valorizzato, [randomUnplayed] aspetta che si completi.
+  Completer<void>? randomGate;
+
+  /// I generi per tipo; senza voce vale [libraryFilters].
+  final filtersByKind = <ItemKind, LibraryFilters>{};
   final nextUpCutoffs = <DateTime?>[];
   final nextUpCalls = <String?>[];
   final favoriteCalls = <(String, bool)>[];
@@ -111,6 +121,21 @@ class FakeLibraryApi implements LibraryApi {
     final gate = query.favoritesOnly ? favoritesGate : null;
     if (gate != null) await gate.future;
     return _answer(() => onItems(query, startIndex, limit));
+  }
+
+  @override
+  Future<ItemPage> randomUnplayed(String userId,
+      {required Set<ItemKind> kinds,
+      String? genre,
+      required int limit}) async {
+    randomCalls.add((kinds: kinds, genre: genre, limit: limit));
+    final gate = randomGate;
+    if (gate != null) await gate.future;
+    return _answer(() => randomPages.isEmpty
+        ? const ItemPage([], 0)
+        : randomPages.length > 1
+            ? randomPages.removeAt(0)
+            : randomPages.first);
   }
 
   @override
@@ -229,7 +254,7 @@ class FakeLibraryApi implements LibraryApi {
 
   @override
   Future<LibraryFilters> filters(String userId, ItemKind kind) =>
-      _answer(() => libraryFilters);
+      _answer(() => filtersByKind[kind] ?? libraryFilters);
 
   @override
   Future<List<JellyfinItem>> searchPeople(String userId, String term,
@@ -269,6 +294,8 @@ JellyfinItem testItem({
   int? index,
   int? seasonIndex,
   int? childCount,
+  int? recursiveCount,
+  int? unplayedCount,
   List<Map<String, dynamic>> people = const [],
   List<Map<String, dynamic>> trailers = const [],
   int localTrailers = 0,
@@ -293,6 +320,7 @@ JellyfinItem testItem({
         'IsFavorite': favorite,
         'PlaybackPositionTicks': positionTicks,
         'PlayedPercentage': ?playedPercentage,
+        'UnplayedItemCount': ?unplayedCount,
       },
       'SeriesId': ?seriesId,
       'SeriesName': ?seriesName,
@@ -300,6 +328,7 @@ JellyfinItem testItem({
       'IndexNumber': ?index,
       'ParentIndexNumber': ?seasonIndex,
       'ChildCount': ?childCount,
+      'RecursiveItemCount': ?recursiveCount,
       'People': people,
       'RemoteTrailers': trailers,
       'LocalTrailerCount': localTrailers,

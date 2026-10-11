@@ -30,6 +30,35 @@ class LibraryApi {
             _items(json), (json['TotalRecordCount'] as num?)?.toInt() ?? 0));
   }
 
+  /// Titoli non visti presi a caso (spec M §8.4, "Cosa guardo stasera?"):
+  /// [limit] titoli dei tipi [kinds] e del genere [genre], se c'è. Con la
+  /// trama, il numero di stagioni (`ChildCount`) e quello degli episodi
+  /// (`RecursiveItemCount`): senza, Jellyfin non conta gli episodi visti di
+  /// una serie e non si saprebbe se è mai iniziata.
+  Future<ItemPage> randomUnplayed(String userId,
+      {required Set<ItemKind> kinds,
+      String? genre,
+      required int limit}) async {
+    final data = await _http.get('/Items', query: {
+      ...cardImageParams,
+      'fields':
+          '${cardImageParams['fields']},Overview,ChildCount,RecursiveItemCount',
+      'userId': userId,
+      'recursive': true,
+      'includeItemTypes':
+          (kinds.map((kind) => kind.apiName).toList()..sort()).join(','),
+      'isPlayed': false,
+      'sortBy': 'Random',
+      'limit': limit,
+      'enableTotalRecordCount': true,
+      'genres': ?genre,
+    });
+    return parseJson(
+        data,
+        (json) => ItemPage(
+            _items(json), (json['TotalRecordCount'] as num?)?.toInt() ?? 0));
+  }
+
   Future<List<JellyfinItem>> resume(String userId, {int limit = 20}) async =>
       _list(await _http.get('/UserItems/Resume', query: {
         ...cardImageParams,

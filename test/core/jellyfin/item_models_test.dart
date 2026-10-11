@@ -126,6 +126,22 @@ void main() {
         isNull);
   });
 
+  test('recursiveItemCount: gli episodi di una serie, se chiesti', () {
+    final series = JellyfinItem.fromJson({
+      'Id': 's1',
+      'Name': 'From',
+      'Type': 'Series',
+      'RecursiveItemCount': 40,
+      'UserData': {'UnplayedItemCount': 40},
+    });
+    expect(series.recursiveItemCount, 40);
+    expect(series.userData.unplayedItemCount, 40);
+    expect(
+        JellyfinItem.fromJson({'Id': 's2', 'Name': 'x', 'Type': 'Series'})
+            .recursiveItemCount,
+        isNull);
+  });
+
   test('progress è null se già visto', () {
     const data = UserItemData(played: true, playedPercentage: 50);
     expect(data.progress, isNull);
