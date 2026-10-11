@@ -111,6 +111,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     setState(() => _open(rows));
   }
 
+  /// "Cosa guardo stasera?": con il contesto e il `ref` della Home, che
+  /// restano montati anche se il carosello prende il posto del pulsante a
+  /// finestra aperta (la scelta si fa quando la finestra si chiude).
+  void _openTonight() => unawaited(openTonight(context, ref));
+
   void _retry() {
     ref
       ..invalidate(homeLayoutProvider)
@@ -186,8 +191,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             children: [
               Text(l.homeEmpty,
                   style: const TextStyle(color: WfColors.creamMuted)),
-              const Padding(
-                  padding: EdgeInsets.only(top: 16), child: TonightButton()),
+              Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: TonightButton(onPressed: _openTonight)),
               const _CustomizeLink(),
             ],
           ),
@@ -211,8 +217,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               top: featuredItems.isEmpty ? shellBarHeight : 0, bottom: 40),
           children: [
             if (featuredItems.isNotEmpty)
-              HeroCarousel(items: featuredItems, corner: const TonightButton()),
-            if (featuredItems.isEmpty) const _TonightCorner(),
+              HeroCarousel(
+                  items: featuredItems,
+                  corner: TonightButton(onPressed: _openTonight)),
+            if (featuredItems.isEmpty) _TonightCorner(onPressed: _openTonight),
             ...shown,
             const Align(
                 alignment: Alignment.centerLeft, child: _CustomizeLink()),
@@ -338,11 +346,15 @@ class _CustomizeLink extends StatelessWidget {
 
 /// Senza carosello il dado sta in cima alle righe, a destra (spec M §8.4).
 class _TonightCorner extends StatelessWidget {
-  const _TonightCorner();
+  const _TonightCorner({required this.onPressed});
+
+  final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context) => const Padding(
-        padding: EdgeInsets.fromLTRB(32, 16, 32, 0),
-        child: Align(alignment: Alignment.centerRight, child: TonightButton()),
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(32, 16, 32, 0),
+        child: Align(
+            alignment: Alignment.centerRight,
+            child: TonightButton(onPressed: onPressed)),
       );
 }

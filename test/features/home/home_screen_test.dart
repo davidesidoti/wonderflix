@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +12,7 @@ import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/display_preferences_api.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
+import 'package:wonderflix/core/jellyfin/item_query.dart';
 import 'package:wonderflix/core/requests/requests_models.dart';
 import 'package:wonderflix/core/social/home_models.dart';
 import 'package:wonderflix/features/home/hero_carousel.dart';
@@ -27,6 +29,28 @@ import '../../support/home_fakes.dart';
 import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/requests_fakes.dart';
+
+/// Una libreria i cui "aggiunti di recente" (il carosello e le righe dei film
+/// e delle serie) aspettano un cancello: il carosello arriva dopo che la Home
+/// si è aperta.
+class _GatedLatestLibrary extends FakeLibraryApi {
+  Completer<void>? latestGate;
+
+  @override
+  Future<ItemPage> items(ItemQuery query,
+      {required String userId,
+      required int startIndex,
+      required int limit,
+      CancelToken? cancelToken}) async {
+    final gate = latestGate;
+    if (gate != null && !query.favoritesOnly) await gate.future;
+    return super.items(query,
+        userId: userId,
+        startIndex: startIndex,
+        limit: limit,
+        cancelToken: cancelToken);
+  }
+}
 
 void main() {
   setUpAll(() => initializeDateFormatting());
@@ -440,6 +464,58 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pump();
+    await tester.tap(find.byKey(const Key('tonight-details')));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('scheda m9'), findsOneWidget);
+  });
+
+  testWidgets('dal dado, Dettagli apre la scheda anche se il carosello arriva '
+      'a finestra aperta e prende il posto del pulsante', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final shared = await SharedPreferences.getInstance();
+    final gated = _GatedLatestLibrary()
+      ..resumeItems = [
+        testItem(id: 'r1', name: 'Oppenheimer', playedPercentage: 30)
+      ]
+      ..onItems = ((query, start, limit) =>
+          pageOf([testItem(id: 'm1', name: 'Dune')]))
+      ..latestGate = Completer<void>()
+      ..randomPages.add(pageOf([testItem(id: 'm9', name: 'Heat')]));
+    final router = GoRouter(initialLocation: '/home', routes: [
+      GoRoute(
+          path: '/home',
+          builder: (context, state) => const Scaffold(body: HomeScreen())),
+      GoRoute(
+          path: '/item/:id',
+          builder: (context, state) =>
+              Text('scheda ${state.pathParameters['id']}')),
+    ]);
+    await pumpAppRouter(tester, router,
+        surfaceSize: const Size(1440, 1600),
+        overrides: [
+          ...homeOverrides(library: gated, home: home, prefs: prefs),
+          sharedPreferencesProvider.overrideWithValue(shared),
+        ]);
+    await settle(tester);
+    // I recenti non sono arrivati: la Home si apre allo scadere dell'attesa,
+    // con le righe che ci sono e il dado in cima, senza carosello.
+    await tester.pump(homeRevealWait);
+    await settle(tester);
+    expect(find.byType(HeroCarousel), findsNothing);
+    expect(find.text('Continua a guardare'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('tonight-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+    expect(find.byKey(const Key('tonight-details')), findsOneWidget);
+
+    // Con la finestra aperta il carosello arriva: il pulsante di prima viene
+    // smontato, ma la scelta non si perde.
+    gated.latestGate!.complete();
+    await settle(tester);
+    expect(find.byType(HeroCarousel), findsOneWidget);
     await tester.tap(find.byKey(const Key('tonight-details')));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));

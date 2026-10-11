@@ -55,7 +55,9 @@ Future<TonightChoice?> showTonightDialog(BuildContext context) =>
 
 /// Apre la finestra e fa quello che si è scelto con il [context] di chi l'ha
 /// aperta: quello della finestra chiusa non può più navigare (decisione 7
-/// del piano 19c).
+/// del piano 19c). Dev'essere un contesto che resta montato a finestra aperta
+/// (quello della Home, non quello del pulsante: il carosello che arriva dopo
+/// può sostituire il pulsante), altrimenti la scelta si perde.
 Future<void> openTonight(BuildContext context, WidgetRef ref) async {
   final choice = await showTonightDialog(context);
   if (!context.mounted) return;
@@ -69,16 +71,20 @@ Future<void> openTonight(BuildContext context, WidgetRef ref) async {
   }
 }
 
-/// "Cosa guardo stasera?" con il dado (spec M §8.4).
-class TonightButton extends ConsumerWidget {
-  const TonightButton({super.key});
+/// "Cosa guardo stasera?" con il dado (spec M §8.4). Il pulsante non apre la
+/// finestra da solo: lo fa [onPressed], di chi lo mette (la Home, con il suo
+/// contesto), perché il pulsante può essere smontato a finestra aperta.
+class TonightButton extends StatelessWidget {
+  const TonightButton({super.key, required this.onPressed});
+
+  final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => WfButton.secondary(
+  Widget build(BuildContext context) => WfButton.secondary(
         key: const Key('tonight-button'),
         label: AppLocalizations.of(context).tonightButton,
         icon: LucideIcons.dices,
-        onPressed: () => unawaited(openTonight(context, ref)),
+        onPressed: onPressed,
       );
 }
 

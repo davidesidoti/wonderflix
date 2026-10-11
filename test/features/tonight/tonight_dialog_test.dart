@@ -78,6 +78,20 @@ void main() {
     await tester.pump();
   }
 
+  testWidgets('il pulsante chiama quello che gli si dà, e non apre da solo '
+      'la finestra', (tester) async {
+    var pressed = 0;
+    await pumpApp(
+        tester,
+        Scaffold(
+            body: Center(child: TonightButton(onPressed: () => pressed++))));
+    expect(find.text('Cosa guardo stasera?'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('tonight-button')));
+    await tester.pump();
+    expect(pressed, 1);
+    expect(find.byKey(const Key('tonight-play')), findsNothing);
+  });
+
   testWidgets('propone un titolo con i suoi dati', (tester) async {
     library.randomPages.add(pageOf([dune]));
     await openDialog(tester);
