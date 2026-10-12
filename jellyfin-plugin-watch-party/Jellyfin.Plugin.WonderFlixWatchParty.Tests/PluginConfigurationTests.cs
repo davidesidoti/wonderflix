@@ -88,6 +88,14 @@ public class PluginConfigurationTests
     }
 
     [Fact]
+    public void TheSeenHomeRowsSurviveTheXmlAndWithoutThePluginNothingIsAdded()
+    {
+        Assert.Null(new PluginConfiguration().HomeRowsSeen);
+        Assert.Equal("recommended", RoundTrip(new PluginConfiguration { HomeRowsSeen = "recommended" }).HomeRowsSeen);
+        Assert.False(new PluginHomeLayoutStore().AddLaterRows());
+    }
+
+    [Fact]
     public void SonarrAndRadarrAreEmptyByDefaultAndSurviveTheXml()
     {
         var empty = new PluginConfiguration();

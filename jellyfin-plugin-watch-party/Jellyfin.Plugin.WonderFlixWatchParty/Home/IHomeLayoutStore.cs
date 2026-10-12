@@ -8,4 +8,10 @@ public interface IHomeLayoutStore
 
     /// <summary>Salva la Home dell'admin; null torna all'ordine predefinito.</summary>
     void Save(IReadOnlyList<string>? rows);
+
+    /// <summary>
+    /// Accende una volta sola le righe nate dopo che l'admin ha salvato la
+    /// sua Home (<see cref="HomeRowIds.WithLaterRows"/>); true se ha salvato.
+    /// </summary>
+    bool AddLaterRows();
 }

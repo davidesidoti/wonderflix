@@ -74,5 +74,7 @@ public class HomeControllerTests
             Rows = rows;
             Saves++;
         }
+
+        public bool AddLaterRows() => false;
     }
 }

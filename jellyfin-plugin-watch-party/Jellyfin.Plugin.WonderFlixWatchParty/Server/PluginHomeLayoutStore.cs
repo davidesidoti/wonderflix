@@ -22,4 +22,30 @@ public sealed class PluginHomeLayoutStore : IHomeLayoutStore
             plugin.SaveConfiguration();
         }
     }
+
+    public bool AddLaterRows()
+    {
+        // Senza plugin (nei test) non c'è niente da salvare.
+        var plugin = Plugin.Instance;
+        if (plugin is null)
+        {
+            return false;
+        }
+
+        lock (_lock)
+        {
+            var config = plugin.Configuration;
+            var change = HomeRowIds.WithLaterRows(HomeRowIds.Parse(config.HomeRows), HomeRowIds.ParseSeen(config.HomeRowsSeen));
+            if (change is null)
+            {
+                return false;
+            }
+
+            var (rows, seen) = change.Value;
+            config.HomeRows = rows is null ? null : HomeRowIds.Serialize(rows);
+            config.HomeRowsSeen = HomeRowIds.Serialize(seen);
+            plugin.SaveConfiguration();
+            return true;
+        }
+    }
 }

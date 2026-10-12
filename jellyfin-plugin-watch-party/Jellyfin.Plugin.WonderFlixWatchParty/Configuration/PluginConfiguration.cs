@@ -57,6 +57,13 @@ public class PluginConfiguration : BasePluginConfiguration
     public string? HomeRows { get; set; }
 
     /// <summary>
+    /// Le righe nate dopo la 1.7.0 già accese una volta nella Home
+    /// dell'admin (spec N §6.7), separate da virgole: una riga spenta dopo
+    /// dall'admin non si riaccende. Null: nessuna.
+    /// </summary>
+    public string? HomeRowsSeen { get; set; }
+
+    /// <summary>
     /// Indirizzo di Sonarr visto dal server Jellyfin, con l'UrlBase, per
     /// esempio https://host/sonarr (spec M §7.1). Vuoto: niente "Serie in arrivo".
     /// </summary>
