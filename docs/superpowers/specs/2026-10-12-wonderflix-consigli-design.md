@@ -1,7 +1,7 @@
 # WonderFlix — Spec N: consigli tra amici
 
 - **Data:** 2026-10-12
-- **Stato:** approvata il 2026-10-12; piano 20a realizzato (`docs/superpowers/plans/2026-10-12-wonderflix-20a-consigli-plugin.md`), build di prova da installare sul server (Task 7); piano 20b da scrivere.
+- **Stato:** approvata il 2026-10-12; piano 20a realizzato (`docs/superpowers/plans/2026-10-12-wonderflix-20a-consigli-plugin.md`), build di prova installata sul server il 2026-10-12 alle 21:06 UTC; piano 20b da scrivere.
 - **Ambito:** Spec N. Realizza l'idea 6 di `docs/IDEE.md` ("Consigli tra amici"): dal dettaglio di un film o di una serie si consiglia il titolo a uno o più amici, con un messaggio breve; il consiglio arriva nella loro cassetta delle notifiche e nella riga "Consigliati per te" della Home.
 
 ## 1. Obiettivo
@@ -255,7 +255,7 @@ Due istanze (`WONDERFLIX_PROFILE=b`) con due utenti amici; un terzo utente con u
 
 ## 13. Piani e release
 
-- **20a — plugin 1.8.0 (realizzato):** verifiche di §12, archivio, filtro, endpoint, voce della cassetta, limite, `Info`, riga `recommended` e inserimento nella Home dell'admin; build di prova da installare a mano sul server (`ssh ultra`: stop → copia → start, quando nessuno guarda) e da tenere fino alla fine del 20b. Nessuna release.
+- **20a — plugin 1.8.0 (realizzato):** verifiche di §12, archivio, filtro, endpoint, voce della cassetta, limite, `Info`, riga `recommended` e inserimento nella Home dell'admin; build di prova installata a mano sul server il 2026-10-12 (stop → copia → start quando nessuno guardava; la 1.7.0 del Catalogo in `~/wfwp-backup/1.7.0.0-catalogo`, la configurazione in `~/wfwp-backup/config-1.7.0-prima-20a.xml`): `Info` 1.8.0 con `recommendations`, `HomeRowsSeen` = `recommended` con `HomeRows` non impostata. Resta fino alla fine del 20b. Nessuna release.
 - **20b — app 0.14.0:** nucleo, pannello, riga, anteprima, cassetta, testi; prova con l'utente.
 - **Release** (con l'OK dell'utente a ogni passo): plugin **1.8.0** dal Catalogo (tag `watch-party-plugin-v1.8.0`, voce nel manifest, la build di prova spostata in `~/wfwp-backup/`), poi app **0.14.0 non obbligatoria** con le note in italiano nella bozza.
 - **Alla fine**, in `docs/IDEE.md`: l'idea 6 esce dalla lista e tra le fatte c'è "Spec N — consigli tra amici (plugin 1.8.0, app 0.14.0)".
