@@ -1,7 +1,7 @@
 # WonderFlix — Spec N: consigli tra amici
 
 - **Data:** 2026-10-12
-- **Stato:** scritta il 2026-10-12, in attesa della revisione dell'utente.
+- **Stato:** approvata il 2026-10-12; piano 20a realizzato (`docs/superpowers/plans/2026-10-12-wonderflix-20a-consigli-plugin.md`), build di prova da installare sul server (Task 7); piano 20b da scrivere.
 - **Ambito:** Spec N. Realizza l'idea 6 di `docs/IDEE.md` ("Consigli tra amici"): dal dettaglio di un film o di una serie si consiglia il titolo a uno o più amici, con un messaggio breve; il consiglio arriva nella loro cassetta delle notifiche e nella riga "Consigliati per te" della Home.
 
 ## 1. Obiettivo
@@ -78,16 +78,19 @@ App (card) ──DELETE Recommendations/{itemId}──▶ Plugin
 
 | Metodo e percorso | Corpo / risposta |
 |---|---|
-| `GET Recommendations/Targets?itemId=` | `{Friends: [{UserId, Name, Online, CanSee}]}`: tutti gli amici di chi chiama; 400 se l'elemento non c'è, non è un film o una serie, o chi chiama non lo vede |
+| `GET Recommendations/Targets?itemId=` | `{Friends: [{UserId, Name, Online, CanSee}]}`: gli amici attivi (non disabilitati) di chi chiama, per nome; l'app li riordina (online prima); 400 se l'elemento non c'è, non è un film o una serie, o chi chiama non lo vede |
 | `POST Recommendations` `{ItemId, To: [...], Message}` | `{Sent}`; vedi sotto |
 | `GET Recommendations` | `{Items: [{ItemId, From: [{UserId, Name, Message, CreatedAt}]}]}`: i consigli validi di chi chiama (§6.3), titolo più recente prima, mittenti più recente prima |
 | `DELETE Recommendations/{itemId}` | 204, anche se il titolo non c'è ("Non mi interessa") |
 
 **`POST Recommendations`:**
-- 400 se: l'elemento non esiste, non è un film o una serie, chi chiama non lo vede; il messaggio, senza spazi ai bordi, supera 200 caratteri; `To` è vuoto o ha più di 50 id.
-- Il messaggio vuoto (dopo il taglio degli spazi) vale come nessun messaggio. Testo semplice, a capo tolti (diventano spazi).
+- 400 se: l'elemento non esiste, non è un film o una serie, chi chiama non lo vede; il messaggio, senza spazi ai bordi, supera 200 punti di codice; `To` è vuoto o ha più di 50 id.
+- Il messaggio è testo semplice: gli a capo, ogni altro carattere di controllo (tab, ...) e U+2028/U+2029 diventano spazi, le righe vuote spariscono, gli spazi ai bordi si tolgono. Vuoto dopo la pulizia vale come nessun messaggio.
+- La lunghezza si conta in punti di codice, come gli annunci: 200 emoji passano.
 - Si saltano **in silenzio** gli id che non sono amici di chi chiama, gli utenti disabilitati o inesistenti, chi non può vedere l'elemento (`CanSee`), chi chiama stesso, i doppioni. `Sent` è il numero dei destinatari a cui il consiglio è arrivato.
-- **Limite:** `LimitTypes.Recommendations`, 30 destinatari all'ora per mittente (come `Invites`, ogni destinatario valido conta). Se i destinatari validi superano quanto resta, 429 e niente viene salvato.
+- **Limite:** `LimitTypes.Recommendations`, 30 destinatari all'ora per mittente (come `Invites`, ogni destinatario valido conta). Tutto o niente: se i destinatari validi superano quanto resta, 429 e niente viene salvato.
+- **`To` e limite:** `To` accetta fino a 50 id, ma i destinatari sono al massimo 30 all'ora: più di 30 destinatari validi in una richiesta danno sempre 429. L'app (piano 20b) limita la scelta nel pannello a quanto resta della quota, al massimo 30.
+- **Errori della libreria:** se Jellyfin lancia in `Targets` o in `POST` la risposta è 500; solo `GET` tiene i titoli (§6.3).
 - Per ogni destinatario: archivio (§6.1), voce nella cassetta (§6.4), `InboxChanged` alle sue sessioni. Un errore nella cassetta o nell'avviso va nel log (`Warning`) e non cambia la risposta.
 
 ### 6.3 Cosa è valido (filtro a lettura)
@@ -102,7 +105,12 @@ A ogni `GET Recommendations` e alla pulizia periodica, per il destinatario:
    - **serie:** almeno un episodio con `LastPlayedDate` successiva alla data (nuovo metodo su `ILibraryTitles`, una domanda per serie: episodi della serie ordinati per data di visione, il primo).
    Così un titolo già visto prima del consiglio resta nella riga finché non lo si riguarda, e un nuovo consiglio dopo una visione rimette il titolo nella riga.
 
-Quello che esce si toglie dall'archivio (salvataggio solo se qualcosa è cambiato). La pulizia periodica gira in `WatchPartyHostedService` ogni 5 minuti con il suo `try/catch`, e toglie anche i destinatari che non esistono più; il controllo "visto" lo fa solo `GET` (la pulizia non legge i dati utente di tutti).
+Quello che esce si toglie dall'archivio (salvataggio solo se qualcosa è cambiato). Come si toglie:
+- **Fuori dal lock:** `GET` legge i titoli sotto lock, fa le domande alla libreria fuori dal lock e poi toglie un titolo solo se il suo consiglio più recente è ancora quello controllato. Un amico che riconsiglia nel frattempo non perde il consiglio.
+- **Mittenti persi:** si tolgono solo se il loro `CreatedAt` è ancora quello controllato (un mittente che torna amico e riconsiglia nel frattempo resta).
+- **Errore della libreria in `GET`:** se `CanSee` o la domanda sulle visioni lanciano per un titolo, il titolo resta (`Warning`) e la risposta arriva lo stesso.
+- **Pulizia periodica:** sta in `RecommendationsHostedService` (non in `WatchPartyHostedService`), ogni 5 minuti con il suo `try/catch`. Controlla solo mittenti (non esistono più o non sono più amici), i 60 giorni e i destinatari che non esistono più. Permessi (`CanSee`) e "visto" li controlla solo `GET`: sono domande alla libreria per ogni titolo di ogni utente, e conta solo quello che l'utente vede.
+- **"Visto":** `LastPlayedDate` come sopra. Verificato sul sorgente di Jellyfin 10.11.9: `ItemSortBy.DatePlayed` ordina per `LastPlayedDate` dell'utente della query; `MarkPlayed` senza data tiene la data che c'era, altrimenti mette adesso. Quindi "segna come visto" di un titolo mai visto lo toglie dalla riga; di un titolo già visto prima del consiglio no (accettato).
 
 ### 6.4 Voce nella cassetta
 
@@ -114,7 +122,7 @@ Nuovo tipo `InboxEntryTypes.Recommendation`, campi propri: `ItemId` (film o seri
 ### 6.5 Limiti e log
 
 - `LimitTypes.Recommendations`: 30 destinatari all'ora per mittente (§6.2).
-- Log come il resto del plugin: **mai titoli, messaggi o nomi**, solo id e numeri. `Debug` per consiglio salvato (n destinatari) e titoli tolti dal filtro (n per motivo); `Warning` per file illeggibile, errori di scrittura, errori della cassetta.
+- Log come il resto del plugin: **mai titoli, messaggi o nomi**, solo id e numeri. `Debug` per consiglio salvato (n destinatari) e per ogni lettura che toglie qualcosa: mittenti e titoli tolti, più quanti titoli erano da togliere per ogni motivo (oltre 60 giorni, non visibili, visti); `Warning` per file illeggibile, errori di scrittura, errori della cassetta.
 
 ### 6.6 `Info`
 
@@ -122,11 +130,11 @@ Nuovo tipo `InboxEntryTypes.Recommendation`, campi propri: `ItemId` (film o seri
 
 ### 6.7 Riga della Home
 
-- `HomeRowIds.Known` aggiunge `"recommended"`, subito dopo `"nextUp"` (ordine predefinito, §7.3).
-- **Home dell'admin già salvata:** `HomeRows` contiene solo le righe accese, quindi una riga nuova risulterebbe spenta per tutti. Al primo caricamento della configurazione con il plugin 1.8.0, se `HomeRows` non è `null` e `HomeRowsSeen` non contiene `recommended`, il plugin accende `recommended` e scrive `HomeRowsSeen = "recommended"`:
+- `HomeRowIds.Known` aggiunge `"recommended"`, subito dopo `"nextUp"` (ordine predefinito, §7.3). `HomeRowIds.AddedLater` elenca le righe nate dopo la 1.7.0 (per ora solo `recommended`).
+- **Home dell'admin già salvata:** `HomeRows` contiene solo le righe accese, quindi una riga nuova risulterebbe spenta per tutti. All'avvio (`RecommendationsHostedService`) con il plugin 1.8.0, se `HomeRowsSeen` non contiene `recommended`, il plugin accende `recommended` (se `HomeRows` non è `null`) e la scrive in `HomeRowsSeen`:
   - posizione: subito dopo l'ultima riga accesa che la precede nell'ordine predefinito (`resume`, `nextUp`); se nessuna delle due è accesa, in testa (la stessa regola di Spec M §6.4);
   - una volta sola: se poi l'admin la spegne, resta spenta;
-  - con `HomeRows` `null` non serve: vale l'ordine predefinito, che la contiene già.
+  - con `HomeRows` `null` non serve accenderla (vale l'ordine predefinito, che la contiene già): si segna solo vista. Se poi l'admin salva la sua Home con l'app 0.14.0 e la spegne, al riavvio dopo non torna accesa.
   - `HomeRowsSeen` è una stringa di id separati da virgole: le righe nuove delle versioni future useranno lo stesso meccanismo.
 
 ## 7. App 0.14.0
@@ -179,7 +187,9 @@ Solo per le card di questa riga, nell'anteprima che si apre al passaggio del mou
 - **`GET Recommendations` fallisce:** la riga non si vede, riga di log `warning` (solo il tipo dell'errore); le altre righe non ne risentono.
 - **Permessi cambiati fra apertura del pannello e invio:** il plugin salta il destinatario (§6.2); se chi consiglia non vede più l'elemento, 400 → "Consiglio non inviato".
 - **Amico rimosso:** sparisce dalla card e dai messaggi alla lettura successiva; se era l'unico mittente la card esce.
-- **App 0.13.0 con plugin 1.8.0:** le voci `Recommendation` sono scartate e non contano tra le non lette; la riga `recommended` è un id sconosciuto e si ignora (Spec M §6.3). Nessun effetto: l'app 0.14.0 può essere **non obbligatoria**.
+- **App 0.13.0 con plugin 1.8.0:** le voci `Recommendation` sono scartate e non contano tra le non lette; la riga `recommended` è un id sconosciuto e si ignora (Spec M §6.3). Quasi nessun effetto, quindi l'app 0.14.0 può essere **non obbligatoria**. Due differenze:
+  - le voci `Recommendation` nascoste contano comunque nel tetto di 100 voci della cassetta;
+  - se l'admin modifica la Home con l'app 0.13.0, l'id `recommended` sconosciuto cade; poiché `HomeRowsSeen` c'è già, la riga resta spenta finché non si riaccende con la 0.14.0.
 
 ## 9. Testi nuovi (ARB, it + en)
 
@@ -212,6 +222,7 @@ Solo per le card di questa riga, nell'anteprima che si apre al passaggio del mou
 - Un consiglio non svela a chi lo riceve niente che non possa già vedere (`CanSee` all'invio e a ogni lettura).
 - A chi consiglia, "Non può vederlo" rivela solo che quel titolo non è accessibile a quell'amico (scelta dell'utente, §3.4). Nessun dato sulle visioni dell'amico arriva al mittente.
 - I messaggi sono testo semplice, mai interpretati come markdown o link; non vanno nei log.
+- Il `Title` della voce nella cassetta è fissato all'invio: dopo un cambio di permessi può restare fino a 30 giorni (come le voci `RequestAvailable`).
 
 ## 11. Test
 
@@ -238,13 +249,13 @@ Due istanze (`WONDERFLIX_PROFILE=b`) con due utenti amici; un terzo utente con u
 
 ## 12. Rischi e punti da verificare
 
-- **"Visto dopo il consiglio" per le serie:** che la domanda "episodi della serie ordinati per data di visione dell'utente" sia possibile con `InternalItemsQuery` di Jellyfin 10.11.9 senza leggere tutti gli episodi. Da verificare all'inizio del piano 20a; se no, si leggono i dati utente degli episodi della serie (tetto: le serie nella riga sono al massimo 50).
-- **`LastPlayedDate` con "segna come visto":** Jellyfin la imposta anche segnando visto a mano? Da verificare nel 20a; se no, il film segnato visto a mano dopo il consiglio resta nella riga finché non si sceglie "Non mi interessa" (accettabile).
-- **App 0.13.0 e voce nuova:** verificato nel codice (`inboxEntryFromJson` restituisce `null`), da riprovare sul server nel 20a.
+- **"Visto dopo il consiglio" per le serie:** verificato sul sorgente di Jellyfin 10.11.9 (piano 20a): `InternalItemsQuery` con `AncestorIds` = la serie, `OrderBy` `DatePlayed` decrescente e `Limit` 1 dà l'episodio visto più di recente, senza leggerli tutti.
+- **`LastPlayedDate` con "segna come visto":** verificato sul sorgente (piano 20a): `MarkPlayed` senza data tiene la data che c'era, altrimenti mette adesso. Un titolo già visto prima del consiglio e segnato visto a mano dopo resta nella riga finché non si sceglie "Non mi interessa" (accettato).
+- **App 0.13.0 e voce nuova:** verificato nel codice (`inboxEntryFromJson` restituisce `null`); da riprovare sul server con la build di prova.
 
 ## 13. Piani e release
 
-- **20a — plugin 1.8.0:** verifiche di §12, archivio, filtro, endpoint, voce della cassetta, limite, `Info`, riga `recommended` e inserimento nella Home dell'admin; installazione manuale sul server come build di prova (`ssh ultra`: stop → copia → start, quando nessuno guarda). Nessuna release.
+- **20a — plugin 1.8.0 (realizzato):** verifiche di §12, archivio, filtro, endpoint, voce della cassetta, limite, `Info`, riga `recommended` e inserimento nella Home dell'admin; build di prova da installare a mano sul server (`ssh ultra`: stop → copia → start, quando nessuno guarda) e da tenere fino alla fine del 20b. Nessuna release.
 - **20b — app 0.14.0:** nucleo, pannello, riga, anteprima, cassetta, testi; prova con l'utente.
 - **Release** (con l'OK dell'utente a ogni passo): plugin **1.8.0** dal Catalogo (tag `watch-party-plugin-v1.8.0`, voce nel manifest, la build di prova spostata in `~/wfwp-backup/`), poi app **0.14.0 non obbligatoria** con le note in italiano nella bozza.
 - **Alla fine**, in `docs/IDEE.md`: l'idea 6 esce dalla lista e tra le fatte c'è "Spec N — consigli tra amici (plugin 1.8.0, app 0.14.0)".

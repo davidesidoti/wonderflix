@@ -29,6 +29,12 @@ L'app arriva nel piano 20b.
 8. **Riga della Home:** `HomeRowIds.AddedLater = ["recommended"]` e `PluginConfiguration.HomeRowsSeen` (stringa di id separati da virgole). Con `HomeRows` `null` la riga si segna vista e basta: se poi l'admin salva la sua Home con l'app 0.14.0 e la spegne, al riavvio dopo non torna accesa.
 9. **`Targets`** dà gli amici **attivi** (non disabilitati), per nome; l'app li riordina (online prima).
 
+**Dalle review dei gruppi** (il codice differisce dal codice dei task):
+- Due test sono async (xUnit1031, che con `TreatWarningsAsErrors` è un errore).
+- `RemoveSender` toglie il mittente solo se il suo `CreatedAt` è ancora quello controllato: chi riconsiglia nel frattempo resta.
+- `CleanMessage` tratta come separatori ogni carattere di controllo e U+2028/U+2029, non solo gli a capo.
+- Il log `Debug` di `GET` dà anche i titoli da togliere per motivo (oltre 60 giorni, non visibili, visti).
+
 ## Global Constraints
 
 - Plugin **1.8.0**; Jellyfin 10.11.x (`targetAbi` 10.11.0.0); compilato contro 10.11.0, test con 10.11.9.
