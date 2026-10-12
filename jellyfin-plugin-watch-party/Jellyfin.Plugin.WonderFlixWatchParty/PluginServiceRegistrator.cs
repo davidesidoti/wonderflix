@@ -77,6 +77,12 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ISeriesIndex, JellyfinSeriesIndex>();
         serviceCollection.AddSingleton<UpcomingService>();
         serviceCollection.AddSingleton<ILibraryTitles, JellyfinLibraryTitles>();
+        // Consigli tra amici (spec N).
+        serviceCollection.AddSingleton(provider => new RecommendationStore(
+            RecommendationStore.DefaultPath(provider.GetRequiredService<IApplicationPaths>()),
+            provider.GetRequiredService<ILogger<RecommendationStore>>()));
+        serviceCollection.AddSingleton<IRecommendationLibrary, JellyfinRecommendationLibrary>();
+        serviceCollection.AddSingleton<RecommendationService>();
         serviceCollection.AddSingleton<NewTitlesCollector>();
         serviceCollection.AddSingleton<PresenceTracker>();
         serviceCollection.AddSingleton<PartyDirectory>();
@@ -89,5 +95,6 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddHostedService<WatchPartyHostedService>();
         serviceCollection.AddHostedService<NewTitlesHostedService>();
         serviceCollection.AddHostedService<ContactReminderHostedService>();
+        serviceCollection.AddHostedService<RecommendationsHostedService>();
     }
 }

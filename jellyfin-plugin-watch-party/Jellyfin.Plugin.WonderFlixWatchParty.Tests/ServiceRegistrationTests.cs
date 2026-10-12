@@ -23,6 +23,7 @@ public class ServiceRegistrationTests
         services.AddSingleton(InterfaceStub<ISyncPlayManager>.Create().Proxy);
         services.AddSingleton(InterfaceStub<IUserManager>.Create().Proxy);
         services.AddSingleton(InterfaceStub<ILibraryManager>.Create().Proxy);
+        services.AddSingleton(InterfaceStub<IUserDataManager>.Create().Proxy);
         services.AddSingleton(InterfaceStub<ICollectionManager>.Create().Proxy);
         services.AddSingleton(InterfaceStub<IImageProcessor>.Create().Proxy);
         services.AddSingleton(InterfaceStub<IAuthorizationContext>.Create().Proxy);
@@ -88,7 +89,16 @@ public class ServiceRegistrationTests
         Assert.NotNull(ActivatorUtilities.CreateInstance<Api.HomeController>(provider));
         Assert.NotNull(ActivatorUtilities.CreateInstance<Api.UpcomingController>(provider));
 
+        // Consigli tra amici (spec N).
+        Assert.Same(provider.GetRequiredService<RecommendationService>(), provider.GetRequiredService<RecommendationService>());
+        Assert.EndsWith(
+            Path.Combine("WonderFlixWatchParty", "recommendations.json"),
+            provider.GetRequiredService<RecommendationStore>().FilePath);
+        Assert.IsType<Server.JellyfinRecommendationLibrary>(provider.GetRequiredService<IRecommendationLibrary>());
+        Assert.NotNull(ActivatorUtilities.CreateInstance<Api.RecommendationsController>(provider));
+
         // Il promemoria dei contatti, oltre ai due di prima.
-        Assert.Equal(3, provider.GetServices<IHostedService>().Count());
+        // I consigli (spec N), oltre ai tre di prima.
+        Assert.Equal(4, provider.GetServices<IHostedService>().Count());
     }
 }

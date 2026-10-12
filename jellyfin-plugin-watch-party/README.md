@@ -20,6 +20,7 @@ email (spec L,
 Dalla 1.7.0 dà la Home dell'admin (quali righe vede ogni utente nella Home
 dell'app) e le uscite in arrivo da Sonarr e Radarr (spec M,
 `docs/superpowers/specs/2026-10-10-wonderflix-home-su-misura-design.md`).
+Dalla 1.8.0 tiene i consigli tra amici: un utente consiglia un film o una serie ai suoi amici, che lo trovano nella cassetta e nella riga "Consigliati per te" della Home (spec N, `docs/superpowers/specs/2026-10-12-wonderflix-consigli-design.md`).
 Senza il plugin WonderFlix funziona lo stesso, con gli avvisi
 anonimi, senza saghe, con le iniziali al posto delle immagini, senza il
 recupero della password, con la Home nell'ordine predefinito e senza le
@@ -105,9 +106,21 @@ uscite in arrivo.
   (con l'UrlBase, es. `https://host/sonarr`) e chiave di Sonarr e Radarr, i
   giorni e **Test connection** (`POST Upcoming/Test`, solo admin). Le chiavi
   non lasciano il server; le immagini sono gli indirizzi pubblici di TVDB e TMDB.
+- **Consigli (dalla 1.8.0):** `GET Recommendations/Targets?itemId=` dà gli
+  amici attivi con online e accesso al titolo; `POST Recommendations`
+  `{ItemId, To, Message}` consiglia un film o una serie (messaggio fino a 200
+  caratteri, fino a 50 amici, 30 destinatari all'ora; chi non è amico o non
+  vede il titolo si salta) e crea la voce `Recommendation` nella cassetta;
+  `GET Recommendations` dà i consigli ricevuti ancora validi (escono quelli
+  visti dopo il consiglio, quelli che l'utente non vede più, quelli di chi
+  non è più amico e quelli di più di 60 giorni); `DELETE
+  Recommendations/{itemId}` è "Non mi interessa". I dati stanno in
+  `recommendations.json`, accanto a `inbox.json`. All'avvio la riga
+  `recommended` si accende una volta sola nella Home dell'admin già salvata
+  (`HomeRowsSeen`).
 - **Funzioni:** `GET Info` annuncia quello che il plugin sa fare; dalla 1.5.0
   ci sono sempre anche `collections` e `avatars`, dalla 1.6.0 anche
-  `account`, dalla 1.7.0 anche `home`; `upcomingSeries` e `upcomingMovies`
+  `account`, dalla 1.7.0 anche `home`, dalla 1.8.0 anche `recommendations`; `upcomingSeries` e `upcomingMovies`
   solo con Sonarr e Radarr configurati. Gli endpoint delle saghe e delle
   immagini sono aperti a ogni utente che ha fatto l'accesso. Quelli di
   `account` dipendono dalla rotta: `Account/Contacts` per ogni utente che ha
@@ -115,7 +128,7 @@ uscite in arrivo.
   `Account/Recovery` senza accesso, `Account/Admin` solo per gli admin. Quelli
   di `Home` e `Upcoming` sono aperti a ogni utente che ha fatto l'accesso,
   tranne le scritture (`POST Home/Layout`, `POST Upcoming/Test`), solo per gli
-  admin.
+  admin. Quelli di `Recommendations` hanno la stessa policy degli amici.
 
 ## Installazione dal repository
 
@@ -126,8 +139,8 @@ uscite in arrivo.
 
 ## Installazione a mano (prove)
 
-1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.7.0`.
-   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.7.0.0/`
+1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.8.0`.
+   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.8.0.0/`
    con la dll e `meta.json`.
 2. Copia la cartella dentro `plugins/` della cartella dati di Jellyfin (su
    Ultra.cc via SFTP).

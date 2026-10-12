@@ -12,7 +12,8 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty;
 /// notifiche. Le impostazioni sono i nuovi titoli (NotifyNewTitles), Seerr e,
 /// dalla 1.6.0, il recupero della password (spec L: Discord, email e
 /// promemoria) e, dalla 1.7.0, la Home su misura (spec M: la Home dell'admin
-/// e le uscite di Sonarr e Radarr). La sua pagina nella Dashboard serve per
+/// e le uscite di Sonarr e Radarr) e, dalla 1.8.0, i consigli tra amici
+/// (spec N). La sua pagina nella Dashboard serve per
 /// queste, per gli annunci e per mandare subito i nuovi titoli (spec G §6.8).
 /// </summary>
 public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
@@ -52,7 +53,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     public override Guid Id => PluginId;
 
     public override string Description =>
-        "Names, chat, reactions, friends, notifications, password recovery and the Home rows (upcoming from Sonarr and Radarr) for WonderFlix.";
+        "Names, chat, reactions, friends, notifications, recommendations between friends, password recovery and the Home rows (upcoming from Sonarr and Radarr) for WonderFlix.";
 
     public IEnumerable<PluginPageInfo> GetPages() => Pages;
 }
