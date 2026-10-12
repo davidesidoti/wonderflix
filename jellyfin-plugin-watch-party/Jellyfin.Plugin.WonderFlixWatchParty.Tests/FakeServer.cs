@@ -3,7 +3,7 @@ using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
 
 /// <summary>Server finto: sessioni, gruppi SyncPlay e invii, in memoria.</summary>
-internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSender, IUserDirectory, ILibraryAccess, ILibraryTitles, INewTitlesSettings
+internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSender, IUserDirectory, ILibraryAccess, ILibraryTitles, INewTitlesSettings, IRecommendationLibrary
 {
     public List<CallerSession> Sessions { get; } = [];
 
@@ -173,6 +173,25 @@ internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSen
         FollowChecks.Add((userId, seriesId, hasOtherEpisodes));
         return Following.Contains((userId, seriesId));
     }
+
+    /// <summary>Film e serie che si possono consigliare (spec N), per id.</summary>
+    public Dictionary<Guid, RecommendableItem> Recommendables { get; } = [];
+
+    /// <summary>Ultima visione per (utente, film o serie).</summary>
+    public Dictionary<(Guid UserId, Guid ItemId), DateTimeOffset> Watched { get; } = [];
+
+    public RecommendableItem AddRecommendable(string name, int? year = null)
+    {
+        var item = new RecommendableItem(Guid.NewGuid(), name, year);
+        Recommendables[item.Id] = item;
+        return item;
+    }
+
+    public RecommendableItem? GetTitle(Guid itemId) => Recommendables.GetValueOrDefault(itemId);
+
+    public DateTimeOffset? LastWatched(Guid userId, Guid itemId) =>
+        LibraryFails ? throw new InvalidOperationException("libreria non disponibile")
+        : Watched.TryGetValue((userId, itemId), out var at) ? at : null;
 
     public Task<bool> TrySendAsync(string sessionId, string payload, CancellationToken cancellationToken)
     {

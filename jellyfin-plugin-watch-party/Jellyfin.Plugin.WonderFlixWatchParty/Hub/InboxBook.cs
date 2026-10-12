@@ -83,6 +83,33 @@ public sealed class InboxBook
         return Add(userId, entry);
     }
 
+    /// <summary>
+    /// Il consiglio di un amico (spec N §6.4): se l'utente ha già la voce
+    /// dello stesso amico per lo stesso titolo, la aggiorna (nome, titolo,
+    /// messaggio, ora, di nuovo non letta, Seq nuovo: torna in cima),
+    /// altrimenti la aggiunge. Restituisce una copia.
+    /// </summary>
+    public InboxEntry UpsertRecommendation(Guid userId, InboxEntry entry)
+    {
+        var inbox = Inbox(userId);
+        var existing = inbox.Entries.FirstOrDefault(e =>
+            e.Type == InboxEntryTypes.Recommendation
+            && string.Equals(e.FromUserId, entry.FromUserId, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(e.ItemId, entry.ItemId, StringComparison.OrdinalIgnoreCase));
+        if (existing is null)
+        {
+            return Add(userId, entry);
+        }
+
+        existing.FromName = entry.FromName;
+        existing.Title = entry.Title;
+        existing.Text = entry.Text;
+        existing.CreatedAt = entry.CreatedAt;
+        existing.Read = false;
+        existing.Seq = inbox.NextSeq++;
+        return existing.Copy();
+    }
+
     /// <summary>Segna lette le voci con Seq fino a upTo; true se qualcosa è cambiato.</summary>
     public bool MarkRead(Guid userId, long upTo)
     {

@@ -19,6 +19,9 @@ public static class InboxEntryTypes
 
     /// <summary>"Proteggi il tuo account" (spec L §7.7), a chi non ha contatti per il recupero.</summary>
     public const string ContactReminder = "ContactReminder";
+
+    /// <summary>Un amico consiglia un film o una serie (spec N §6.4).</summary>
+    public const string Recommendation = "Recommendation";
 }
 
 /// <summary>
@@ -50,12 +53,17 @@ public sealed class InboxEntry
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? GroupId { get; set; }
 
-    /// <summary>Invite: chi ha invitato.</summary>
+    /// <summary>Invite: chi ha invitato. Recommendation: chi consiglia.</summary>
     [JsonPropertyName("FromName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? FromName { get; set; }
 
-    /// <summary>Invite: il titolo, dal nome del gruppo ("Host · Titolo"). RequestAvailable e RequestPending: il titolo da Seerr ("Dune (2021)").</summary>
+    /// <summary>Recommendation: chi consiglia, in formato "N" (la sua voce si aggiorna se riconsiglia).</summary>
+    [JsonPropertyName("FromUserId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? FromUserId { get; set; }
+
+    /// <summary>Invite: il titolo, dal nome del gruppo ("Host · Titolo"). RequestAvailable e RequestPending: il titolo da Seerr ("Dune (2021)"). Recommendation: nome e anno ("Dune (2021)").</summary>
     [JsonPropertyName("Title")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Title { get; set; }
@@ -65,7 +73,7 @@ public sealed class InboxEntry
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ImageItemId { get; set; }
 
-    /// <summary>Announcement: il testo dell'admin.</summary>
+    /// <summary>Announcement: il testo dell'admin. Recommendation: il messaggio; manca senza messaggio.</summary>
     [JsonPropertyName("Text")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Text { get; set; }
@@ -105,7 +113,7 @@ public sealed class InboxEntry
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<int>? Seasons { get; set; }
 
-    /// <summary>RequestAvailable: il titolo nella libreria, in formato "N", se Seerr lo conosce.</summary>
+    /// <summary>RequestAvailable: il titolo nella libreria, in formato "N", se Seerr lo conosce. Recommendation: il film o la serie consigliati.</summary>
     [JsonPropertyName("ItemId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ItemId { get; set; }

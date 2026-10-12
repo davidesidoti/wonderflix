@@ -8,7 +8,7 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 /// La cassetta delle notifiche (spec G §6): voci su disco con
 /// <see cref="InboxStore"/>, letture e cancellazioni, annunci dell'admin,
 /// voci d'invito, voci dei nuovi titoli, i promemoria dei contatti (spec L),
-/// pulizia e avviso InboxChanged alle sessioni WonderFlix dell'utente.
+/// i consigli degli amici (spec N), pulizia e avviso InboxChanged alle sessioni WonderFlix dell'utente.
 /// Sicuro tra thread.
 /// </summary>
 public sealed class InboxService(
@@ -244,6 +244,50 @@ public sealed class InboxService(
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(ex, "Promemoria dei contatti non tolti per {UserId}", userId.ToString("N"));
+        }
+    }
+
+    /// <summary>
+    /// Le voci di un consiglio (spec N §6.4), una per destinatario, e
+    /// l'avviso alle loro sessioni. I destinatari sono già controllati da
+    /// RecommendationService. Non lancia: un errore finisce nel log.
+    /// </summary>
+    public async Task AddRecommendationsAsync(
+        Guid fromUserId, string fromName, RecommendableItem item, string? message, IReadOnlyList<Guid> recipients)
+    {
+        if (recipients.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var now = time.GetUtcNow();
+            lock (_lock)
+            {
+                foreach (var userId in recipients)
+                {
+                    Book.UpsertRecommendation(userId, new InboxEntry
+                    {
+                        Type = InboxEntryTypes.Recommendation,
+                        CreatedAt = now,
+                        ItemId = item.Id.ToString("N"),
+                        FromUserId = fromUserId.ToString("N"),
+                        FromName = fromName,
+                        Title = item.DisplayTitle,
+                        Text = message,
+                    });
+                }
+
+                Persist();
+            }
+
+            logger.LogDebug("Voci del consiglio di {ItemId} a {Count} utenti", item.Id.ToString("N"), recipients.Count);
+            await NotifyAsync(recipients).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Voci del consiglio di {ItemId} non create o non notificate", item.Id.ToString("N"));
         }
     }
 
