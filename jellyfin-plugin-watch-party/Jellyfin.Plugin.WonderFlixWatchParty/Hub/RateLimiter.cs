@@ -30,6 +30,7 @@ public sealed class RateLimiter(TimeProvider time)
             [LimitTypes.LinkStartMinute] = (1, TimeSpan.FromMinutes(1)),
             [LimitTypes.LinkStartHour] = (5, TimeSpan.FromHours(1)),
             [LimitTypes.PasswordChecks] = (10, TimeSpan.FromHours(1)),
+            [LimitTypes.Recommendations] = (30, TimeSpan.FromHours(1)),
         };
 
     /// <summary>
@@ -55,7 +56,14 @@ public sealed class RateLimiter(TimeProvider time)
     }
 
     /// <summary>true (e si conta) se la chiave può farne un altro di questo tipo adesso.</summary>
-    public bool TryAcquire(string key, string type)
+    public bool TryAcquire(string key, string type) => TryAcquire(key, type, 1);
+
+    /// <summary>
+    /// true (e si contano tutti) se la chiave può farne count di questo tipo
+    /// adesso; altrimenti false e non si conta niente (spec N §6.2: tutti i
+    /// destinatari o nessuno).
+    /// </summary>
+    public bool TryAcquire(string key, string type, int count)
     {
         if (!Limits.TryGetValue(type, out var limit))
         {
@@ -81,12 +89,16 @@ public sealed class RateLimiter(TimeProvider time)
                 times.Dequeue();
             }
 
-            if (times.Count >= limit.Count)
+            if (times.Count + count > limit.Count)
             {
                 return false;
             }
 
-            times.Enqueue(now);
+            for (var i = 0; i < count; i++)
+            {
+                times.Enqueue(now);
+            }
+
             return true;
         }
     }

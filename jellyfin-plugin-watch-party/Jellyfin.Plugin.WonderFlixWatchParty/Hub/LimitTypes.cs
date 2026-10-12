@@ -66,4 +66,7 @@ public static class LimitTypes
     /// dieci all'ora. Chi ha la sessione non può provare password all'infinito.
     /// </summary>
     public const string PasswordChecks = "PasswordChecks";
+
+    /// <summary>Destinatari dei consigli, per utente: trenta all'ora (spec N §6.5).</summary>
+    public const string Recommendations = "Recommendations";
 }

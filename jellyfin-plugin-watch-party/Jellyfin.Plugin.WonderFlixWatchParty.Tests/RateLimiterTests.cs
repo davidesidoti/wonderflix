@@ -198,4 +198,17 @@ public class RateLimiterTests
         Assert.False(limiter.IsLimited("mario", LimitTypes.RecoveryFail));
         Assert.False(limiter.IsLimited("mario", "TipoSconosciuto"));
     }
+
+    [Fact]
+    public void RecommendationsThirtyRecipientsPerHourAllOrNothing()
+    {
+        var limiter = new RateLimiter(_time);
+        Assert.True(limiter.TryAcquire("u1", LimitTypes.Recommendations, 25));
+        Assert.False(limiter.TryAcquire("u1", LimitTypes.Recommendations, 6), "non ci stanno: nessun posto preso");
+        Assert.True(limiter.TryAcquire("u1", LimitTypes.Recommendations, 5));
+        Assert.False(limiter.TryAcquire("u1", LimitTypes.Recommendations));
+        Assert.True(limiter.TryAcquire("u2", LimitTypes.Recommendations, 30));
+        _time.Advance(TimeSpan.FromHours(1));
+        Assert.True(limiter.TryAcquire("u1", LimitTypes.Recommendations, 30));
+    }
 }
