@@ -105,16 +105,10 @@ Tutto quello che si è visto, con la data, i filtri (film, serie, mese) e "segna
 - **Da cercare:** con i soli dati del server ogni titolo compare una volta, all'ultima visione; per lo storico completo serve il registro del plugin dell'idea 13.
 - Piccolo/medio.
 
-## 15. Home su misura
-
-Si possono riordinare e nascondere le righe della Home, e se ne aggiungono di nuove: "Perché hai visto X" (dai titoli simili), righe per genere, "Cosa guardo stasera?" (un titolo a caso tra i non visti, con filtri per durata e genere).
-- **Cosa c'è già:** righe Riprendi, Prossimi episodi, Aggiunti di recente, La mia lista (`home_data.dart`); titoli simili nel dettaglio.
-- **Da cercare:** dove salvare l'ordine (per profilo, in locale o sul server); quante righe in più senza rallentare l'avvio della Home.
-- Piccolo/medio.
-
 ## 16. Calendario delle uscite
 
 I prossimi episodi delle serie che si seguono, giorno per giorno, con un avviso nella cassetta quando arrivano sul server.
+- **Cosa c'è già (Spec M):** il plugin legge il calendario di Sonarr e di Radarr (`Upcoming/Series`, `Upcoming/Movies`, con il collegamento alle serie della libreria); la Home ha le righe "Serie in arrivo" (7 giorni) e "Film in arrivo".
 - **Da cercare:** da dove prendere le date: `/Shows/Upcoming` di Jellyfin (se il server conosce gli episodi futuri) oppure il calendario di Sonarr, direttamente o attraverso il plugin; quali serie contano come "seguite" (La mia lista, guardate di recente); legame con l'avviso dei nuovi titoli che c'è già (`NewTitlesHostedService`).
 - Medio.
 
@@ -129,3 +123,4 @@ I prossimi episodi delle serie che si seguono, giorno per giorno, con un avviso 
 - Spec J — dashboard admin (app 0.10.0).
 - Spec K — saghe e profili (plugin 1.5.0, app 0.11.0).
 - Spec L — recupero e cambio della password (plugin 1.6.0, app 0.12.0).
+- Spec M — Home su misura (plugin 1.7.0, app 0.13.0).

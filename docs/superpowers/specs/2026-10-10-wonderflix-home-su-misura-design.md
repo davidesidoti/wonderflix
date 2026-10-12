@@ -1,7 +1,7 @@
 # WonderFlix — Spec M: Home su misura
 
 - **Data:** 2026-10-10
-- **Stato:** approvata il 2026-10-10; piano 19a realizzato (`docs/superpowers/plans/2026-10-10-wonderflix-19a-home-plugin.md`), plugin 1.7.0 installato come build di prova sul server il 2026-10-10; piano 19b (la Home nell'app) realizzato e provato con l'utente il 2026-10-11 (`docs/superpowers/plans/2026-10-10-wonderflix-19b-home-app.md`); piano 19c (impostazioni Home, card dell'admin, "Cosa guardo stasera?") realizzato e provato con l'utente il 2026-10-11 (`docs/superpowers/plans/2026-10-11-wonderflix-19c-home-config-tonight.md`); la release (plugin 1.7.0 dal Catalogo, app 0.13.0) è ancora da fare.
+- **Stato:** approvata il 2026-10-10; piano 19a realizzato (`docs/superpowers/plans/2026-10-10-wonderflix-19a-home-plugin.md`), plugin 1.7.0 installato come build di prova sul server il 2026-10-10; piano 19b (la Home nell'app) realizzato e provato con l'utente il 2026-10-11 (`docs/superpowers/plans/2026-10-10-wonderflix-19b-home-app.md`); piano 19c (impostazioni Home, card dell'admin, "Cosa guardo stasera?") realizzato e provato con l'utente il 2026-10-11 (`docs/superpowers/plans/2026-10-11-wonderflix-19c-home-config-tonight.md`). **Realizzata:** plugin 1.7.0 dal Catalogo (installato sul server il 2026-10-11) e app 0.13.0 pubblicata il 2026-10-12.
 - **Allineamento al 19b e al 19c:** dove l'app costruita si discosta dal testo scritto prima, il testo segue il codice e dice il motivo. Le scelte del piano 19c e quelle venute fuori dalle sue review sono in §8.4, §8.5, §8.6 e §10.
 - **Ambito:** Spec M. Realizza l'idea 15 di `docs/IDEE.md` ("Home su misura"): porta nella Home di WonderFlix le righe che l'utente ha già su jellyfin-web con il plugin Home Screen Sections e va oltre. L'admin sceglie righe e ordine per tutti; ogni utente le sposta e le nasconde per sé; in più "Continua la saga" e "Cosa guardo stasera?".
 
@@ -657,11 +657,8 @@ La review finale, fatta prima della prova, aveva trovato i difetti che sono in �
     - "Cosa guardo stasera?" (§8.4);
     - testi it/en rimasti (§10);
     - prova con l'utente (§14.3).
-    - **La release non è fatta**: plugin 1.7.0 dal Catalogo e app 0.13.0 sono ancora da fare, con l'OK dell'utente a ogni passo che pubblica.
-- **Release:**
-  - plugin **1.7.0** dal Catalogo, insieme all'app 0.13.0 (da fare, dopo il 19c): l'app 0.12 non usa le funzioni nuove, quindi non c'è fretta (e il plugin 1.7.0 va bene anche con lei);
-  - fino ad allora sul server resta la build di prova di §13;
-  - app **0.13.0 non obbligatoria**, con le note in italiano nella bozza.
-- **Alla fine**, in `docs/IDEE.md`:
-  - l'idea 15 esce dalla lista;
-  - tra le fatte entra "Spec M — Home su misura (plugin 1.7.0, app 0.13.0)".
+- **Release (fatta, con l'OK dell'utente a ogni passo):**
+  - plugin **1.7.0**: tag `watch-party-plugin-v1.7.0`, pre-release con lo zip (md5 `5c1651296c873e44d15d7e02fde308ef`); controllo dei riferimenti della dll contro Jellyfin 10.11.9 senza non risolti; voce 1.7.0.0 nel manifest, con descrizione e overview aggiornate;
+  - server, il 2026-10-11 (dopo le 22:45 UTC, con nessuno che guardava): la build di prova di §13 spostata in `~/wfwp-backup/1.7.0.0-prova` e la configurazione salvata in `~/wfwp-backup/config-1.7.0-prima-del-catalogo.xml`; poi la 1.7.0 installata dal Catalogo con l'API e Jellyfin riavviato. Nel log "Loaded plugin … 1.7.0.0", l'md5 della dll uguale a quello della release, in `Info` le funzioni `home`, `upcomingSeries` e `upcomingMovies`, la configurazione (Sonarr, Radarr, Seerr, bot, SMTP, promemoria) com'era;
+  - app **0.13.0 non obbligatoria**, con le note in italiano nella bozza, pubblicata dall'utente il 2026-10-12.
+- **Alla fine**, in `docs/IDEE.md`: l'idea 15 è uscita dalla lista e tra le fatte c'è "Spec M — Home su misura (plugin 1.7.0, app 0.13.0)".
