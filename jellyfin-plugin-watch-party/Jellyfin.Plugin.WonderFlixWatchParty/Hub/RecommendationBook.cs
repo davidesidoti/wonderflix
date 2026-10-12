@@ -63,12 +63,15 @@ public sealed class RecommendationBook
         _users.TryGetValue(userId, out var titles)
         && titles.RemoveAll(t => t.ItemId == itemId && t.LatestAt == latestAt) > 0;
 
-    /// <summary>Toglie un mittente dal titolo; il titolo senza mittenti esce. True se c'era.</summary>
-    public bool RemoveSender(Guid userId, Guid itemId, Guid fromUserId)
+    /// <summary>
+    /// Toglie il mittente dal titolo solo se la sua data è ancora <paramref name="createdAt"/>
+    /// (uno che ha riconsigliato nel frattempo resta); il titolo senza mittenti esce. True se l'ha tolto.
+    /// </summary>
+    public bool RemoveSender(Guid userId, Guid itemId, Guid fromUserId, DateTimeOffset createdAt)
     {
         if (!_users.TryGetValue(userId, out var titles)
             || titles.Find(t => t.ItemId == itemId) is not { } title
-            || title.From.RemoveAll(f => f.UserId == fromUserId) == 0)
+            || title.From.RemoveAll(f => f.UserId == fromUserId && f.CreatedAt == createdAt) == 0)
         {
             return false;
         }

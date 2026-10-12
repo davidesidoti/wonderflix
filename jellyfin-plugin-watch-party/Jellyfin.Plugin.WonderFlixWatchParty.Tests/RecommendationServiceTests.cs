@@ -140,6 +140,12 @@ public sealed class RecommendationServiceTests : IDisposable
         await Recommend(_mario, _dune, " da vedere\r\n\r\nstasera ", _luigi);
         Assert.Equal("da vedere stasera", Assert.Single(Assert.Single(_service.List(_luigi.Id).Items).From).Message);
 
+        await Recommend(_mario, _dune, "a\tb", _luigi);
+        Assert.Equal("a b", Assert.Single(Assert.Single(_service.List(_luigi.Id).Items).From).Message);
+
+        await Recommend(_mario, _dune, "a\x2028" + "b", _luigi);
+        Assert.Equal("a b", Assert.Single(Assert.Single(_service.List(_luigi.Id).Items).From).Message);
+
         Assert.Equal(HubStatus.Ok, (await Recommend(_mario, _dune, string.Concat(Enumerable.Repeat("😂", 200)), _luigi)).Status);
         Assert.Equal(HubStatus.Invalid, (await Recommend(_mario, _dune, new string('a', 201), _luigi)).Status);
     }

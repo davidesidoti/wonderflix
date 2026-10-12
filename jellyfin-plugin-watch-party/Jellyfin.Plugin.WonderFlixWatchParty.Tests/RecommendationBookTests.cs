@@ -65,12 +65,23 @@ public class RecommendationBookTests
         book.Add(_luigi, _dune, _mario, null, Now);
         book.Add(_luigi, _dune, _peach, null, Now);
 
-        Assert.True(book.RemoveSender(_luigi, _dune, _mario));
+        Assert.True(book.RemoveSender(_luigi, _dune, _mario, Now));
         Assert.Equal(_peach, Assert.Single(Assert.Single(book.List(_luigi)).From).UserId);
-        Assert.False(book.RemoveSender(_luigi, _dune, _mario));
-        Assert.True(book.RemoveSender(_luigi, _dune, _peach));
+        Assert.False(book.RemoveSender(_luigi, _dune, _mario, Now));
+        Assert.True(book.RemoveSender(_luigi, _dune, _peach, Now));
         Assert.Empty(book.List(_luigi));
-        Assert.False(book.RemoveSender(_mario, _dune, _peach));
+        Assert.False(book.RemoveSender(_mario, _dune, _peach, Now));
+    }
+
+    [Fact]
+    public void RemoveSenderKeepsASenderAddedAgainMeanwhile()
+    {
+        var book = new RecommendationBook();
+        book.Add(_luigi, _dune, _mario, null, Now);
+        book.Add(_luigi, _dune, _mario, "di nuovo", Now.AddMinutes(1));
+
+        Assert.False(book.RemoveSender(_luigi, _dune, _mario, Now));
+        Assert.Single(Assert.Single(book.List(_luigi)).From);
     }
 
     [Fact]

@@ -30,10 +30,10 @@ public static class WatchPartyProtocol
     /// <summary>Le richieste con Seerr (spec I §7.1): in GET Info solo con Seerr configurato.</summary>
     public const string RequestsFeature = "requests";
 
-    /// <summary>"Serie in arrivo" (spec M §7.6, spec N §6.6): solo con Sonarr configurato.</summary>
+    /// <summary>"Serie in arrivo" (spec M §7.6): solo con Sonarr configurato.</summary>
     public const string UpcomingSeriesFeature = "upcomingSeries";
 
-    /// <summary>"Film in arrivo" (spec M §7.6, spec N §6.6): solo con Radarr configurato.</summary>
+    /// <summary>"Film in arrivo" (spec M §7.6): solo con Radarr configurato.</summary>
     public const string UpcomingMoviesFeature = "upcomingMovies";
 
     /// <summary>Le funzioni di GET Info, con quelle che dipendono dalla configurazione.</summary>

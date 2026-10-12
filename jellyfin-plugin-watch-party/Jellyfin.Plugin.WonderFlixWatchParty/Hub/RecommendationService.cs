@@ -151,12 +151,13 @@ public sealed class RecommendationService(
 
         var cutoff = time.GetUtcNow() - MaxAge;
         var keep = new List<RecommendedTitle>();
-        var lostSenders = new List<(Guid ItemId, Guid FromUserId)>();
+        var lostSenders = new List<(Guid ItemId, Guid FromUserId, DateTimeOffset CreatedAt)>();
         var lostTitles = new List<RecommendedTitle>();
+        int old = 0, notVisible = 0, watched = 0;
         foreach (var title in titles)
         {
             var from = title.From.Where(f => users.GetUser(f.UserId) is not null && friends.AreFriends(userId, f.UserId)).ToList();
-            lostSenders.AddRange(title.From.Where(f => !from.Contains(f)).Select(f => (title.ItemId, f.UserId)));
+            lostSenders.AddRange(title.From.Where(f => !from.Contains(f)).Select(f => (title.ItemId, f.UserId, f.CreatedAt)));
             if (from.Count == 0)
             {
                 continue;
@@ -166,14 +167,23 @@ public sealed class RecommendationService(
             if (current.LatestAt < cutoff)
             {
                 lostTitles.Add(current);
+                old++;
                 continue;
             }
 
             try
             {
-                if (!access.CanSee(userId, title.ItemId) || library.LastWatched(userId, title.ItemId) > current.LatestAt)
+                if (!access.CanSee(userId, title.ItemId))
                 {
                     lostTitles.Add(current);
+                    notVisible++;
+                    continue;
+                }
+
+                if (library.LastWatched(userId, title.ItemId) > current.LatestAt)
+                {
+                    lostTitles.Add(current);
+                    watched++;
                     continue;
                 }
             }
@@ -189,25 +199,33 @@ public sealed class RecommendationService(
         {
             lock (_lock)
             {
-                var changed = false;
-                foreach (var (itemId, fromUserId) in lostSenders)
+                var removedSenders = 0;
+                foreach (var (itemId, fromUserId, createdAt) in lostSenders)
                 {
-                    changed |= Book.RemoveSender(userId, itemId, fromUserId);
+                    if (Book.RemoveSender(userId, itemId, fromUserId, createdAt))
+                    {
+                        removedSenders++;
+                    }
                 }
 
+                var removedTitles = 0;
                 foreach (var title in lostTitles)
                 {
-                    changed |= Book.RemoveIfLatest(userId, title.ItemId, title.LatestAt);
+                    if (Book.RemoveIfLatest(userId, title.ItemId, title.LatestAt))
+                    {
+                        removedTitles++;
+                    }
                 }
 
-                if (changed)
+                if (removedSenders + removedTitles > 0)
                 {
                     Persist();
                 }
-            }
 
-            logger.LogDebug(
-                "Consigli di {UserId}: tolti {Titles} titoli e {Senders} mittenti", Id(userId), lostTitles.Count, lostSenders.Count);
+                logger.LogDebug(
+                    "Consigli di {UserId}: mittenti persi {Senders}, titoli tolti {Titles} (oltre 60 giorni {Old}, non visibili {NotVisible}, visti {Watched})",
+                    Id(userId), removedSenders, removedTitles, old, notVisible, watched);
+            }
         }
 
         var items = keep
@@ -261,8 +279,8 @@ public sealed class RecommendationService(
     }
 
     /// <summary>
-    /// Gli a capo diventano spazi, le righe vuote spariscono, spazi ai bordi
-    /// tolti (piano 20a, decisione 6); null se non resta niente.
+    /// Gli a capo e ogni carattere di controllo diventano spazi, le righe vuote
+    /// spariscono, spazi ai bordi tolti (piano 20a, decisione 6); null se non resta niente.
     /// </summary>
     internal static string? CleanMessage(string? text)
     {
@@ -271,7 +289,15 @@ public sealed class RecommendationService(
             return null;
         }
 
-        var joined = string.Join(' ', text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        // Ogni carattere di controllo (a capo, tab, ...) e U+2028/U+2029 fanno da separatore.
+        var spaced = string.Create(text.Length, text, static (span, source) =>
+        {
+            for (var i = 0; i < span.Length; i++)
+            {
+                span[i] = char.IsControl(source[i]) || source[i] is '\x2028' or '\x2029' ? '\n' : source[i];
+            }
+        });
+        var joined = string.Join(' ', spaced.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
         return joined.Length == 0 ? null : joined;
     }
 
