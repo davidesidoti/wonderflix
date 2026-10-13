@@ -6,13 +6,13 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
 /// <summary>L'attività dei test: server finto, amici e presenza veri, file in una cartella temporanea.</summary>
 internal static class TestActivity
 {
-    // friends e registry servono dal Task 3 (il costruttore del Task 2 non li prende ancora).
     public static ActivityService Create(
         FakeServer server, TempFolder folder, TimeProvider time, FriendService friends, PresenceTracker presence,
         PartyRegistry? registry = null) =>
         new(
             new ActivityStore(folder.ActivityFile, NullLogger<ActivityStore>.Instance),
-            server, server, presence, time, NullLogger<ActivityService>.Instance);
+            friends, server, server, server, registry ?? new PartyRegistry(), server, server, presence, time,
+            NullLogger<ActivityService>.Instance);
 
     /// <summary>Le visioni salvate di un utente, rilette dal file.</summary>
     public static IReadOnlyList<WatchedTitle> Saved(TempFolder folder, Guid userId) =>

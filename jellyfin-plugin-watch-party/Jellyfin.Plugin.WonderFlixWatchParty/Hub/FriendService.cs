@@ -69,9 +69,11 @@ public sealed class FriendService(
 
     /// <summary>
     /// Amici e richieste. partyOf dice il party visibile in cui sta un amico
-    /// online (spec F §6.3); si chiama fuori dal lock.
+    /// online (spec F §6.3); nowPlayingOf cosa guarda un amico online fuori
+    /// da un party visibile (spec O §6.2). Si chiamano fuori dal lock.
     /// </summary>
-    public FriendsResponse GetFriends(Guid userId, Func<Guid, FriendParty?>? partyOf = null)
+    public FriendsResponse GetFriends(
+        Guid userId, Func<Guid, FriendParty?>? partyOf = null, Func<Guid, FriendNowPlaying?>? nowPlayingOf = null)
     {
         var online = OnlineUsers();
         List<UserRef> friendUsers;
@@ -93,7 +95,9 @@ public sealed class FriendService(
             .Select(u =>
             {
                 var isOnline = online.Contains(u.Id);
-                return new FriendEntry(Id(u.Id), u.Name, isOnline, isOnline ? partyOf?.Invoke(u.Id) : null);
+                var party = isOnline ? partyOf?.Invoke(u.Id) : null;
+                var nowPlaying = isOnline && party is null ? nowPlayingOf?.Invoke(u.Id) : null;
+                return new FriendEntry(Id(u.Id), u.Name, isOnline, party, nowPlaying);
             })
             .ToList();
         return new FriendsResponse(friends, incoming, outgoing);

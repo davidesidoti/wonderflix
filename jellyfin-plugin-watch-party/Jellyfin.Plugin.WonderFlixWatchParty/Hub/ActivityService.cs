@@ -1,3 +1,4 @@
+using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Hub;
@@ -10,8 +11,13 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 /// </summary>
 public sealed class ActivityService(
     ActivityStore store,
+    FriendService friends,
     IUserDirectory users,
     ISessionDirectory sessions,
+    IPlaybackDirectory playback,
+    PartyRegistry registry,
+    ILibraryAccess access,
+    IRecommendationLibrary library,
     PresenceTracker presence,
     TimeProvider time,
     ILogger<ActivityService> logger)
@@ -21,6 +27,12 @@ public sealed class ActivityService(
 
     /// <summary>Quanto resta una visione nel registro e nella riga (spec O §6.4, §6.6).</summary>
     public static readonly TimeSpan MaxAge = TimeSpan.FromDays(30);
+
+    /// <summary>Titoli al massimo nella riga "Visti dagli amici" (spec O §6.6).</summary>
+    public const int MaxFriendsWatched = 30;
+
+    /// <summary>Titoli al massimo controllati con la libreria per riempire la riga (spec O §6.6).</summary>
+    public const int MaxChecked = 60;
 
     private readonly Lock _lock = new();
 
@@ -166,5 +178,125 @@ public sealed class ActivityService(
         }
     }
 
+    /// <summary>
+    /// Cosa guarda friendId, se viewerId può saperlo (spec O §6.2); null
+    /// altrimenti. Non controlla l'amicizia: la chiama GET Friends solo per
+    /// gli amici online fuori da un party visibile.
+    /// </summary>
+    public FriendNowPlaying? NowPlayingFor(Guid viewerId, Guid friendId)
+    {
+        if (Playing(viewerId, friendId) is not { } current)
+        {
+            return null;
+        }
+
+        var item = current.Item;
+        return new FriendNowPlaying(
+            Id(item.ItemId), item.Name, item.SeriesId is { } series ? Id(series) : null, item.SeriesName, item.Season, item.Episode);
+    }
+
+    /// <summary>
+    /// Dove è arrivato l'amico, per "Guarda insieme" (spec O §6.5). Conflict
+    /// se non è amico, non guarda, non lo mostra o chi chiama non vede il titolo.
+    /// </summary>
+    public HubResult<FriendPosition> Position(Guid callerId, string? friendId)
+    {
+        if (!Guid.TryParse(friendId, out var id)
+            || !friends.AreFriends(callerId, id)
+            || Playing(callerId, id) is not { } current)
+        {
+            return HubResult<FriendPosition>.Fail(HubStatus.Conflict);
+        }
+
+        return HubResult<FriendPosition>.Ok(new FriendPosition(Id(current.Item.ItemId), current.PositionTicks));
+    }
+
+    /// <summary>
+    /// La riga "Visti dagli amici" (spec O §6.6): le visioni degli ultimi
+    /// <see cref="MaxAge"/> degli amici attivi che mostrano cosa guardano,
+    /// per titolo dal più recente, senza i titoli che chi chiama non vede o
+    /// ha già visto o iniziato. Un errore della libreria salta il titolo.
+    /// </summary>
+    public FriendsWatchedResponse FriendsWatched(Guid callerId)
+    {
+        var cutoff = time.GetUtcNow() - MaxAge;
+        var friendUsers = friends.FriendsOf(callerId)
+            .Select(users.GetUser)
+            .OfType<UserRef>()
+            .Where(u => u.Enabled)
+            .ToList();
+        List<Candidate> candidates;
+        lock (_lock)
+        {
+            candidates = friendUsers
+                .Where(u => Book.Shares(u.Id))
+                .SelectMany(u => Book.Views(u.Id).Where(v => v.WatchedAt >= cutoff).Select(v => (User: u, View: v)))
+                .GroupBy(x => x.View.ItemId)
+                .Select(g => new Candidate(
+                    g.Key,
+                    g.OrderByDescending(x => x.View.WatchedAt)
+                        .Select(x => new FriendWatcher(Id(x.User.Id), x.User.Name, x.View.WatchedAt))
+                        .ToList()))
+                .OrderByDescending(c => c.By[0].WatchedAt)
+                .Take(MaxChecked)
+                .ToList();
+        }
+
+        // Fuori dal lock: domande alla libreria.
+        var items = new List<FriendsWatchedItem>();
+        foreach (var candidate in candidates)
+        {
+            if (items.Count == MaxFriendsWatched)
+            {
+                break;
+            }
+
+            try
+            {
+                if (!access.CanSee(callerId, candidate.ItemId) || library.LastWatched(callerId, candidate.ItemId) is not null)
+                {
+                    continue;
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "Titolo {ItemId} saltato in Visti dagli amici", Id(candidate.ItemId));
+                continue;
+            }
+
+            items.Add(new FriendsWatchedItem(Id(candidate.ItemId), candidate.By));
+        }
+
+        return new FriendsWatchedResponse(items);
+    }
+
+    // La riproduzione di friendId che viewerId può conoscere (spec O §6.2 e §6.5), o null.
+    private AppPlayback? Playing(Guid viewerId, Guid friendId)
+    {
+        if (!Shares(friendId))
+        {
+            return null;
+        }
+
+        try
+        {
+            // Un party, anche nascosto a chi guarda, non si rivela con "Sta guardando" (piano 21a, decisione 6).
+            if (sessions.GetAppSessions().Any(s => s.UserId == friendId && registry.GroupOf(s.SessionId) is not null))
+            {
+                return null;
+            }
+
+            var current = playback.GetAppPlayback().Where(p => p.UserId == friendId).MaxBy(p => p.LastCheckIn);
+            return current is not null && access.CanSee(viewerId, current.Item.ItemId) ? current : null;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Riproduzione di {UserId} non letta", friendId);
+            return null;
+        }
+    }
+
     private static string Id(Guid id) => id.ToString("N");
+
+    private sealed record Candidate(Guid ItemId, List<FriendWatcher> By);
 }

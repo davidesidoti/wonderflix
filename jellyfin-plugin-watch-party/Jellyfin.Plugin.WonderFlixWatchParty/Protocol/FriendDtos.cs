@@ -21,7 +21,8 @@ public sealed record FriendEntry(
     [property: JsonPropertyName("UserId")] string UserId,
     [property: JsonPropertyName("Name")] string Name,
     [property: JsonPropertyName("Online")] bool Online,
-    [property: JsonPropertyName("Party")] FriendParty? Party);
+    [property: JsonPropertyName("Party")] FriendParty? Party,
+    [property: JsonPropertyName("NowPlaying")][property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] FriendNowPlaying? NowPlaying = null);
 
 /// <summary>Chi ha mandato o ricevuto una richiesta in sospeso.</summary>
 public sealed record PersonEntry(
