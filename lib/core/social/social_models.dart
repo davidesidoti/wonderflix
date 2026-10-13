@@ -35,6 +35,9 @@ abstract final class PluginFeatures {
 
   /// "Film in arrivo" da Radarr (spec M §7.6): solo con Radarr configurato.
   static const upcomingMovies = 'upcomingMovies';
+
+  /// I consigli tra amici (spec N §6.6).
+  static const recommendations = 'recommendations';
 }
 
 /// Risposta di `GET /WonderFlixWatchParty/Info`, con le funzioni.

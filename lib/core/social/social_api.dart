@@ -2,8 +2,10 @@ import 'package:logging/logging.dart';
 
 import '../jellyfin/api_exception.dart';
 import '../jellyfin/jellyfin_http.dart';
+import '../jellyfin/json_fields.dart';
 import '../syncplay/syncplay_models.dart';
 import 'inbox_models.dart';
+import 'recommendation_models.dart';
 import 'social_models.dart';
 
 final _log = Logger('social');
@@ -135,6 +137,31 @@ class SocialApi {
   /// Svuota la cassetta.
   Future<void> clearInbox() =>
       _call(() => _http.delete('$_base/Inbox', quietStatuses: _quiet));
+
+  /// Gli amici a cui si può consigliare [itemId], con online e accesso al
+  /// titolo (spec N §6.2).
+  Future<List<RecommendationTarget>> recommendationTargets(String itemId) =>
+      _call(() async => jsonList(
+          asJsonMap(await _http.get('$_base/Recommendations/Targets',
+              query: {'itemId': itemId}, quietStatuses: _quiet))['Friends'],
+          RecommendationTarget.fromJson));
+
+  /// Consiglia [itemId] agli amici [userIds]; risponde a quanti è arrivato.
+  Future<int> recommend(String itemId, List<String> userIds, String? message) =>
+      _call(() async => (asJsonMap(await _http.post('$_base/Recommendations',
+              body: {'ItemId': itemId, 'To': userIds, 'Message': message},
+              quietStatuses: _quiet))['Sent'] as num)
+          .toInt());
+
+  /// I consigli ricevuti ancora validi, dal più recente.
+  Future<List<Recommendation>> recommendations() => _call(() async => jsonList(
+      asJsonMap(await _http.get('$_base/Recommendations', quietStatuses: _quiet))[
+          'Items'],
+      Recommendation.fromJson));
+
+  /// "Non mi interessa": il plugin risponde 204 anche se il titolo non c'è.
+  Future<void> dismissRecommendation(String itemId) => _call(() =>
+      _http.delete('$_base/Recommendations/$itemId', quietStatuses: _quiet));
 
   Future<T> _call<T>(Future<T> Function() request) async {
     try {

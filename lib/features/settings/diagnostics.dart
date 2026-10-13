@@ -53,6 +53,7 @@ String describePluginFeatures(Set<String> features) {
     if (features.contains(PluginFeatures.friends)) 'amici',
     if (features.contains(PluginFeatures.parties)) 'party',
     if (features.contains(PluginFeatures.inbox)) 'notifiche',
+    if (features.contains(PluginFeatures.recommendations)) 'consigli',
   ];
   return names.isEmpty ? 'nessuna' : names.join(', ');
 }

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/social/account_models.dart';
 import 'package:wonderflix/core/social/inbox_models.dart';
+import 'package:wonderflix/core/social/recommendation_models.dart';
 import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
@@ -235,6 +236,46 @@ class FakeSocialApi implements SocialApi {
     calls.add('clear-inbox');
     _fail();
   }
+
+  /// Risposte di [recommendationTargets], per id del titolo.
+  final recommendationTargetsById = <String, List<RecommendationTarget>>{};
+
+  /// Risposta di [recommendations].
+  List<Recommendation> recommendationsList = [];
+
+  /// Destinatari raggiunti da [recommend]; `null` = tutti quelli scelti.
+  int? recommendSent;
+
+  /// Se valorizzato, [recommend] aspetta che si completi.
+  Completer<void>? recommendGate;
+
+  @override
+  Future<List<RecommendationTarget>> recommendationTargets(String itemId) async {
+    calls.add('targets $itemId');
+    _fail();
+    return recommendationTargetsById[itemId] ?? const [];
+  }
+
+  @override
+  Future<int> recommend(String itemId, List<String> userIds, String? message) async {
+    calls.add('recommend $itemId ${userIds.join(',')} ${message ?? '-'}');
+    await recommendGate?.future;
+    _fail();
+    return recommendSent ?? userIds.length;
+  }
+
+  @override
+  Future<List<Recommendation>> recommendations() async {
+    calls.add('recommendations');
+    _fail();
+    return recommendationsList;
+  }
+
+  @override
+  Future<void> dismissRecommendation(String itemId) async {
+    calls.add('dismiss $itemId');
+    _fail();
+  }
 }
 
 /// Funzioni del plugin fisse, senza chiamate.
@@ -434,3 +475,21 @@ ContactReminderEntry testContactReminder({
 /// Come arriva dal WebSocket l'avviso che la cassetta è cambiata.
 PartyChannelReceived inboxChangedReceived() => PartyChannelReceived(
     jsonEncode({'Protocol': 1, 'Type': 'InboxChanged'}));
+
+/// Un amico nel pannello dei consigli.
+RecommendationTarget testTarget(String userId, String name,
+        {bool online = false, bool canSee = true}) =>
+    RecommendationTarget(userId: userId, name: name, online: online, canSee: canSee);
+
+/// Un consiglio ricevuto: [itemId] da questi mittenti (nome e messaggio).
+Recommendation testRecommendation(String itemId,
+        List<(String name, String? message)> from) =>
+    Recommendation(itemId: itemId, from: [
+      for (final (i, (name, message)) in from.indexed)
+        RecommendationSender(
+          userId: 'u${i + 10}',
+          name: name,
+          message: message,
+          createdAt: DateTime.utc(2026, 10, 12, 20 - i),
+        ),
+    ]);

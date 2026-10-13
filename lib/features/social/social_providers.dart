@@ -28,6 +28,7 @@ class SocialFeatures {
     this.home = false,
     this.upcomingSeries = false,
     this.upcomingMovies = false,
+    this.recommendations = false,
     this.known = true,
   });
 
@@ -69,6 +70,10 @@ class SocialFeatures {
   /// "Film in arrivo" (spec M §6.5): il plugin ha Radarr configurato.
   final bool upcomingMovies;
 
+  /// I consigli tra amici (spec N §7.1): come gli amici, solo con l'accesso
+  /// ai watch party (piano 20b, decisione 7).
+  final bool recommendations;
+
   /// `false` finché `Info` non dà una risposta certa: le funzioni, oppure
   /// un 400/401/403/404. Un errore di rete non basta (vedi
   /// [SocialAvailability]).
@@ -87,6 +92,7 @@ class SocialFeatures {
       other.home == home &&
       other.upcomingSeries == upcomingSeries &&
       other.upcomingMovies == upcomingMovies &&
+      other.recommendations == recommendations &&
       other.known == known;
 
   @override
@@ -101,6 +107,7 @@ class SocialFeatures {
       home,
       upcomingSeries,
       upcomingMovies,
+      recommendations,
       known);
 
   @override
@@ -108,7 +115,7 @@ class SocialFeatures {
       'inbox: $inbox, requests: $requests, collections: $collections, '
       'avatars: $avatars, account: $account, home: $home, '
       'upcomingSeries: $upcomingSeries, upcomingMovies: $upcomingMovies, '
-      'known: $known)';
+      'recommendations: $recommendations, known: $known)';
 }
 
 /// Chiede `Info` al plugin dopo il login e a ogni connessione del WebSocket,
@@ -210,6 +217,8 @@ class SocialAvailability extends Notifier<SocialFeatures> {
         home: info.features.contains(PluginFeatures.home),
         upcomingSeries: info.features.contains(PluginFeatures.upcomingSeries),
         upcomingMovies: info.features.contains(PluginFeatures.upcomingMovies),
+        recommendations:
+            _canJoin && info.features.contains(PluginFeatures.recommendations),
       ));
     } on SocialException catch (error) {
       if (!_isCurrent(generation)) return;
