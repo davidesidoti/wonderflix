@@ -501,7 +501,7 @@ class _RecommendationContent extends ConsumerWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(color: WfColors.cream)),
               if (text != null)
-                Text('«$text»',
+                Text(l.inboxRecommendationMessage(text),
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     style: _mutedStyle),

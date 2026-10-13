@@ -883,5 +883,8 @@
   "recommendDismissFailed": "Non riuscito: riprova",
   "inboxRecommendation": "{name} ti consiglia {title}",
   "@inboxRecommendation": {"placeholders": {"name": {"type": "String"}, "title": {"type": "String"}}},
-  "homeRowUnavailableRecommendations": "Serve il plugin 1.8.0"
+  "inboxRecommendationMessage": "«{message}»",
+  "@inboxRecommendationMessage": {"placeholders": {"message": {"type": "String"}}},
+  "recommendNoFriends": "Nessun amico a cui consigliarlo",
+  "homeRowUnavailableRecommendations": "Serve il plugin 1.8.0 e l'accesso ai watch party"
 }

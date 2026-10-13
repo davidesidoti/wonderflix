@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -25,6 +26,16 @@ const recommendMaxRecipients = 30;
 
 /// Lunghezza massima del messaggio (spec N §6.2).
 const recommendMessageMax = 200;
+
+/// Il plugin conta i punti di codice, `maxLength` i caratteri: taglia a
+/// [recommendMessageMax] punti di codice (un'emoji ne può avere più d'uno).
+final _capRunes = TextInputFormatter.withFunction((old, value) {
+  if (value.text.runes.length <= recommendMessageMax) return value;
+  final text =
+      String.fromCharCodes(value.text.runes.take(recommendMessageMax));
+  return TextEditingValue(
+      text: text, selection: TextSelection.collapsed(offset: text.length));
+});
 
 /// Il titolo da consigliare (spec N §7.2).
 class RecommendSubject {
@@ -118,7 +129,7 @@ class _RecommendPanelState extends ConsumerState<RecommendPanel> {
     final messenger = ScaffoldMessenger.maybeOf(context);
     final text = _message.text.trim();
     setState(() => _sending = true);
-    String notice;
+    var notice = l.recommendNotSent;
     var close = false;
     try {
       final sent = await ref.read(socialApiProvider).recommend(
@@ -130,8 +141,11 @@ class _RecommendPanelState extends ConsumerState<RecommendPanel> {
       notice = error.failure == SocialFailure.rateLimited
           ? l.recommendRateLimited
           : l.recommendNotSent;
+    } catch (error) {
+      _log.info('consiglio non inviato: ${error.runtimeType}');
+    } finally {
+      if (mounted) setState(() => _sending = false);
     }
-    if (mounted) setState(() => _sending = false);
     if (close && mounted) ref.read(shellPanelProvider.notifier).close();
     messenger?.showSnackBar(SnackBar(content: Text(notice)));
   }
@@ -221,6 +235,7 @@ class _RecommendPanelState extends ConsumerState<RecommendPanel> {
                 TextField(
                   controller: _message,
                   maxLength: recommendMessageMax,
+                  inputFormatters: [_capRunes],
                   minLines: 1,
                   maxLines: 3,
                   // Invio non va a capo: il plugin toglie comunque gli a capo.
@@ -250,6 +265,12 @@ class _RecommendPanelState extends ConsumerState<RecommendPanel> {
 
   Widget _targets(AppLocalizations l, List<RecommendationTarget> targets) {
     final full = _selected.length >= recommendMaxRecipients;
+    if (targets.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+        child: Text(l.recommendNoFriends, style: _mutedStyle),
+      );
+    }
     return ListView(
       padding: EdgeInsets.zero,
       children: [

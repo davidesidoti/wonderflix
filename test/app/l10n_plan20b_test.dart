@@ -17,7 +17,14 @@ void main() {
     expect(it.recommendedFromMany('Luca', 2), 'Da Luca e altri 2');
     expect(it.recommendationQuote('Luca', 'da vedere'), 'Luca: «da vedere»');
     expect(it.inboxRecommendation('Luca', 'Dune (2021)'), 'Luca ti consiglia Dune (2021)');
-    expect(it.homeRowUnavailableRecommendations, 'Serve il plugin 1.8.0');
+    expect(it.homeRowUnavailableRecommendations,
+        "Serve il plugin 1.8.0 e l'accesso ai watch party");
+    expect(it.inboxRecommendationMessage('ciao'), '«ciao»');
+    expect(it.recommendNoFriends, 'Nessun amico a cui consigliarlo');
+    expect(en.inboxRecommendationMessage('hi'), '“hi”');
+    expect(en.recommendNoFriends, 'No friends to recommend it to');
+    expect(en.homeRowUnavailableRecommendations,
+        'Needs plugin 1.8.0 and watch party access');
     expect(en.recommendButton, 'Recommend to…');
     expect(en.recommendSent(1), 'Recommendation sent');
     expect(en.recommendSent(3), 'Recommendation sent to 3 friends');

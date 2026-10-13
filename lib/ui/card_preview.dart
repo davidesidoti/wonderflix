@@ -59,7 +59,6 @@ const previewLogoBottom = 8.0;
 const previewBodyPadding =
     EdgeInsets.fromLTRB(previewContentInset, 8, previewContentInset, 10);
 
-
 /// Altezza di una riga di nota sotto i dati (i messaggi di un consiglio,
 /// spec N §7.4): l'anteprima si allunga di tanto per ogni nota.
 const previewNoteHeight = 18.0;

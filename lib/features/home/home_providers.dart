@@ -11,6 +11,8 @@ import '../../core/jellyfin/item_query.dart';
 import '../../core/requests/requests_models.dart';
 import '../../core/social/home_api.dart';
 import '../../core/social/home_models.dart';
+import '../../core/social/recommendation_models.dart';
+import '../../core/social/social_api.dart';
 import '../collections/collections_providers.dart';
 import '../library/library_providers.dart';
 import '../requests/requests_providers.dart';
@@ -189,10 +191,20 @@ final homeRowProvider = FutureProvider.autoDispose
     case HomeRowKind.recommended:
       // Niente `keepFor`: si rilegge a ogni apertura della Home (piano 20b,
       // decisione 3). Tutti i watch prima dell'attesa.
+      // La Home resta montata sotto /item/:id: si rilegge se cambiano i dati.
+      ref.watch(libraryRevisionProvider);
+      ref.watch(userDataRevisionProvider);
       final userId = ref.watch(currentUserIdProvider);
       final api = ref.watch(libraryApiProvider);
-      final recommendations =
-          await ref.watch(socialApiProvider).recommendations();
+      final social = ref.watch(socialApiProvider);
+      final List<Recommendation> recommendations;
+      try {
+        recommendations = await social.recommendations();
+      } catch (error) {
+        _log.info('consigli non disponibili: '
+            '${error is SocialException ? error.failure.name : error.runtimeType}');
+        rethrow; // la riga resta in errore, quindi nascosta
+      }
       return RecommendedRowContent(
           await loadRecommended(api, userId, recommendations));
     case HomeRowKind.resume ||

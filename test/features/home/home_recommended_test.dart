@@ -7,6 +7,7 @@ import 'package:wonderflix/features/home/home_layout.dart';
 import 'package:wonderflix/features/home/home_providers.dart';
 import 'package:wonderflix/features/home/home_row_content.dart';
 import 'package:wonderflix/features/home/home_row_view.dart';
+import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/recommendations/recommendation_dismissals.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 
@@ -91,6 +92,16 @@ void main() {
     final key = (kind: HomeRowKind.recommended, language: 'it');
     c.listen(homeRowProvider(key), (_, _) {});
     await expectLater(c.read(homeRowProvider(key).future), throwsA(isA<SocialException>()));
+  });
+
+  test('si rilegge quando cambiano i dati dell\'utente', () async {
+    availability = FakeSocialAvailability(
+        const SocialFeatures(friends: true, recommendations: true));
+    final c = container();
+    await row(c, HomeRowKind.recommended);
+    c.read(userDataRevisionProvider.notifier).bump();
+    await row(c, HomeRowKind.recommended);
+    expect(social.calls.where((call) => call == 'recommendations'), hasLength(2));
   });
 
   /// Monta la riga con i titoli [ids] (m1 "Dune: Parte Due", gli altri "Arrival").

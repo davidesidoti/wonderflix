@@ -746,5 +746,8 @@
   "recommendDismissFailed": "Didn't work: try again",
   "inboxRecommendation": "{name} recommends {title}",
   "@inboxRecommendation": {"placeholders": {"name": {"type": "String"}, "title": {"type": "String"}}},
-  "homeRowUnavailableRecommendations": "Needs plugin 1.8.0"
+  "inboxRecommendationMessage": "“{message}”",
+  "@inboxRecommendationMessage": {"placeholders": {"message": {"type": "String"}}},
+  "recommendNoFriends": "No friends to recommend it to",
+  "homeRowUnavailableRecommendations": "Needs plugin 1.8.0 and watch party access"
 }

@@ -63,6 +63,23 @@ void main() {
     expect(tester.widget<ButtonStyleButton>(sendButton()).onPressed, isNull);
   });
 
+  testWidgets('il messaggio non supera 200 caratteri (punti di codice)',
+      (tester) async {
+    await pump(tester);
+    String current() =>
+        tester.widget<TextField>(find.byType(TextField)).controller!.text;
+    await tester.enterText(find.byType(TextField), 'a' * 201);
+    expect(current(), 'a' * 200);
+    await tester.enterText(find.byType(TextField), '\u{1F1EE}\u{1F1F9}' * 101);
+    expect(current().runes.length, lessThanOrEqualTo(recommendMessageMax));
+  });
+
+  testWidgets('nessun amico: lo dice', (tester) async {
+    api.recommendationTargetsById['m1'] = [];
+    await pump(tester);
+    expect(find.text('Nessun amico a cui consigliarlo'), findsOneWidget);
+  });
+
   testWidgets('invio con messaggio: il pannello si chiude e lo dice', (tester) async {
     await pump(tester);
     await tester.tap(target('u2'));
