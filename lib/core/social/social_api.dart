@@ -4,6 +4,7 @@ import '../jellyfin/api_exception.dart';
 import '../jellyfin/jellyfin_http.dart';
 import '../jellyfin/json_fields.dart';
 import '../syncplay/syncplay_models.dart';
+import 'activity_models.dart';
 import 'inbox_models.dart';
 import 'recommendation_models.dart';
 import 'social_models.dart';
@@ -162,6 +163,30 @@ class SocialApi {
   /// "Non mi interessa": il plugin risponde 204 anche se il titolo non c'è.
   Future<void> dismissRecommendation(String itemId) => _call(() =>
       _http.delete('$_base/Recommendations/$itemId', quietStatuses: _quiet));
+
+  /// Dove è arrivato l'amico, per "Guarda insieme" (spec O §6.5);
+  /// `SocialFailure.conflict` se non sta più guardando.
+  Future<FriendPosition> friendNowPlaying(String userId) => _call(() async =>
+      FriendPosition.fromJson(asJsonMap(await _http.get(
+          '$_base/Friends/$userId/NowPlaying',
+          quietStatuses: _quiet))));
+
+  /// "Mostra agli amici cosa guardo" dell'account aperto (spec O §6.1).
+  Future<bool> activitySettings() => _call(() async =>
+      asJsonMap(await _http.get('$_base/Activity/Settings',
+          quietStatuses: _quiet))['ShareActivity'] as bool? ??
+      true);
+
+  Future<void> setActivitySettings(bool share) => _call(() => _http.put(
+      '$_base/Activity/Settings',
+      body: {'ShareActivity': share},
+      quietStatuses: _quiet));
+
+  /// La riga "Visti dagli amici" (spec O §6.6), già filtrata e ordinata.
+  Future<List<FriendsWatched>> friendsWatched() => _call(() async => jsonList(
+      asJsonMap(await _http.get('$_base/Activity/FriendsWatched',
+          quietStatuses: _quiet))['Items'],
+      FriendsWatched.fromJson));
 
   Future<T> _call<T>(Future<T> Function() request) async {
     try {

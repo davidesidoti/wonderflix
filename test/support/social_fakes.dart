@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/social/account_models.dart';
+import 'package:wonderflix/core/social/activity_models.dart';
 import 'package:wonderflix/core/social/inbox_models.dart';
 import 'package:wonderflix/core/social/recommendation_models.dart';
 import 'package:wonderflix/core/social/social_api.dart';
@@ -200,6 +201,8 @@ class FakeSocialApi implements SocialApi {
   @override
   Future<void> invite(String groupId, List<String> userIds) async {
     calls.add('invite $groupId ${userIds.join(',')}');
+    final inviteError = inviteFailure;
+    if (inviteError != null) throw SocialException(inviteError);
     _fail();
   }
 
@@ -276,6 +279,55 @@ class FakeSocialApi implements SocialApi {
     calls.add('dismiss $itemId');
     _fail();
   }
+
+  /// Errore di ogni [invite], se valorizzato.
+  SocialFailure? inviteFailure;
+
+  /// Posizione per [friendNowPlaying], per amico; manca = 409 (`conflict`).
+  final nowPlayingById = <String, FriendPosition>{};
+
+  /// Se valorizzato, [friendNowPlaying] aspetta che si completi.
+  Completer<void>? nowPlayingGate;
+
+  @override
+  Future<FriendPosition> friendNowPlaying(String userId) async {
+    calls.add('nowPlaying $userId');
+    await nowPlayingGate?.future;
+    _fail();
+    return nowPlayingById[userId] ??
+        (throw const SocialException(SocialFailure.conflict));
+  }
+
+  /// "Mostra agli amici cosa guardo" del plugin finto.
+  bool shareActivity = true;
+
+  /// Errore di [setActivitySettings], se valorizzato.
+  SocialFailure? shareActivityFailure;
+
+  @override
+  Future<bool> activitySettings() async {
+    calls.add('activitySettings');
+    _fail();
+    return shareActivity;
+  }
+
+  @override
+  Future<void> setActivitySettings(bool share) async {
+    calls.add('setActivity $share');
+    final failure = shareActivityFailure;
+    if (failure != null) throw SocialException(failure);
+    shareActivity = share;
+  }
+
+  /// Risposta di [friendsWatched].
+  List<FriendsWatched> friendsWatchedList = const [];
+
+  @override
+  Future<List<FriendsWatched>> friendsWatched() async {
+    calls.add('friendsWatched');
+    _fail();
+    return friendsWatchedList;
+  }
 }
 
 /// Funzioni del plugin fisse, senza chiamate.
@@ -293,8 +345,10 @@ class FakeSocialAvailability extends SocialAvailability {
   void set(SocialFeatures features) => state = features;
 }
 
-FriendEntry testFriend(String userId, String name, {bool online = false}) =>
-    FriendEntry(userId: userId, name: name, online: online);
+FriendEntry testFriend(String userId, String name,
+        {bool online = false, FriendNowPlaying? nowPlaying}) =>
+    FriendEntry(
+        userId: userId, name: name, online: online, nowPlaying: nowPlaying);
 
 PersonEntry testPerson(String userId, String name) =>
     PersonEntry(userId: userId, name: name);
@@ -503,6 +557,16 @@ RecommendationTarget testTarget(String userId, String name,
     RecommendationTarget(userId: userId, name: name, online: online, canSee: canSee);
 
 /// Un consiglio ricevuto: [itemId] da questi mittenti (nome e messaggio).
+/// Un titolo di "Visti dagli amici": [names] dal più recente.
+FriendsWatched testFriendsWatched(String itemId, List<String> names) =>
+    FriendsWatched(itemId: itemId, by: [
+      for (final (i, name) in names.indexed)
+        FriendWatcher(
+            userId: 'u-$name',
+            name: name,
+            watchedAt: DateTime.utc(2026, 10, 13, 20).subtract(Duration(hours: i))),
+    ]);
+
 Recommendation testRecommendation(String itemId,
         List<(String name, String? message)> from) =>
     Recommendation(itemId: itemId, from: [

@@ -38,6 +38,9 @@ abstract final class PluginFeatures {
 
   /// I consigli tra amici (spec N §6.6).
   static const recommendations = 'recommendations';
+
+  /// Cosa guardano gli amici (spec O §6.7).
+  static const friendsActivity = 'friendsActivity';
 }
 
 /// Risposta di `GET /WonderFlixWatchParty/Info`, con le funzioni.
@@ -80,17 +83,51 @@ class FriendParty {
   final String title;
 }
 
+/// Cosa sta guardando un amico (spec O §6.2): il film o l'episodio; per un
+/// episodio anche serie, stagione e numero, ognuno `null` se il plugin non
+/// lo manda.
+class FriendNowPlaying {
+  const FriendNowPlaying({
+    required this.itemId,
+    required this.title,
+    this.seriesId,
+    this.seriesName,
+    this.season,
+    this.episode,
+  });
+
+  factory FriendNowPlaying.fromJson(Map<String, dynamic> json) =>
+      FriendNowPlaying(
+        itemId: json['ItemId'] as String,
+        title: json['Title'] as String? ?? '',
+        seriesId: json['SeriesId'] as String?,
+        seriesName: json['SeriesName'] as String?,
+        season: (json['Season'] as num?)?.toInt(),
+        episode: (json['Episode'] as num?)?.toInt(),
+      );
+
+  final String itemId;
+  final String title;
+  final String? seriesId;
+  final String? seriesName;
+  final int? season;
+  final int? episode;
+}
+
 class FriendEntry {
   const FriendEntry({
     required this.userId,
     required this.name,
     required this.online,
     this.party,
+    this.nowPlaying,
   });
 
   factory FriendEntry.fromJson(Map<String, dynamic> json) {
     // `Party` può mancare del tutto (il plugin la omette) oppure essere null.
     final party = json['Party'];
+    // `NowPlaying` manca se l'amico non guarda o non lo mostra (spec O §6.2).
+    final nowPlaying = json['NowPlaying'];
     return FriendEntry(
       userId: json['UserId'] as String,
       name: json['Name'] as String,
@@ -100,6 +137,9 @@ class FriendEntry {
               groupId: party['GroupId'] as String,
               title: party['Title'] as String)
           : null,
+      nowPlaying: nowPlaying is Map<String, dynamic>
+          ? FriendNowPlaying.fromJson(nowPlaying)
+          : null,
     );
   }
 
@@ -107,6 +147,9 @@ class FriendEntry {
   final String name;
   final bool online;
   final FriendParty? party;
+
+  /// Cosa guarda, fuori da un party (spec O §6.2); `null` se non si sa.
+  final FriendNowPlaying? nowPlaying;
 }
 
 /// Chi ha mandato o ricevuto una richiesta in sospeso.

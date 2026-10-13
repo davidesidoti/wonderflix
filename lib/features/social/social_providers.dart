@@ -29,6 +29,7 @@ class SocialFeatures {
     this.upcomingSeries = false,
     this.upcomingMovies = false,
     this.recommendations = false,
+    this.friendsActivity = false,
     this.known = true,
   });
 
@@ -74,6 +75,10 @@ class SocialFeatures {
   /// ai watch party (piano 20b, decisione 7).
   final bool recommendations;
 
+  /// Cosa guardano gli amici (spec O §7.1): come gli amici, solo con
+  /// l'accesso ai watch party (piano 21b, decisione 7).
+  final bool friendsActivity;
+
   /// `false` finché `Info` non dà una risposta certa: le funzioni, oppure
   /// un 400/401/403/404. Un errore di rete non basta (vedi
   /// [SocialAvailability]).
@@ -93,6 +98,7 @@ class SocialFeatures {
       other.upcomingSeries == upcomingSeries &&
       other.upcomingMovies == upcomingMovies &&
       other.recommendations == recommendations &&
+      other.friendsActivity == friendsActivity &&
       other.known == known;
 
   @override
@@ -108,6 +114,7 @@ class SocialFeatures {
       upcomingSeries,
       upcomingMovies,
       recommendations,
+      friendsActivity,
       known);
 
   @override
@@ -115,7 +122,7 @@ class SocialFeatures {
       'inbox: $inbox, requests: $requests, collections: $collections, '
       'avatars: $avatars, account: $account, home: $home, '
       'upcomingSeries: $upcomingSeries, upcomingMovies: $upcomingMovies, '
-      'recommendations: $recommendations, known: $known)';
+      'recommendations: $recommendations, friendsActivity: $friendsActivity, known: $known)';
 }
 
 /// Chiede `Info` al plugin dopo il login e a ogni connessione del WebSocket,
@@ -219,6 +226,8 @@ class SocialAvailability extends Notifier<SocialFeatures> {
         upcomingMovies: info.features.contains(PluginFeatures.upcomingMovies),
         recommendations:
             _canJoin && info.features.contains(PluginFeatures.recommendations),
+        friendsActivity:
+            _canJoin && info.features.contains(PluginFeatures.friendsActivity),
       ));
     } on SocialException catch (error) {
       if (!_isCurrent(generation)) return;
