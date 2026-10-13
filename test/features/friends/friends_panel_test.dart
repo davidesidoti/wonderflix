@@ -379,7 +379,7 @@ void main() {
       expect(find.byKey(const Key('friend-watch-u2')), findsNothing);
     });
 
-    testWidgets('invito lento: il partyè già registrato, poi segue l invito',
+    testWidgets('invito lento: il party è già registrato, poi segue l invito',
         (tester) async {
       api.snapshot = FriendsSnapshot(friends: [
         testFriend('u2', 'Luigi', online: true, nowPlaying: dune),

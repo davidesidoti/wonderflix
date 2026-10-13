@@ -27,6 +27,11 @@
 5. **L'interruttore sta in fondo alla sezione Account**, sotto i pulsanti e prima dei contatti per il recupero; vale per l'account aperto e si rilegge al cambio di profilo.
 6. **"Visto da …"** usa una funzione sua (`friendsWatchedBy`) con gli stessi casi di `recommendedFrom` (uno, due, "e altri N"); `recommendedFrom` resta com'è.
 7. **La funzione `friendsActivity` vale solo con l'accesso ai watch party** (`_canJoin`), come gli amici: il plugin usa la stessa policy.
+8. **Dalle review dei gruppi** (cambia la decisione 1 e aggiunge tre regole):
+   - l'invito **non** sta dentro la registrazione: parte senza essere atteso subito dopo la registrazione del party, fuori dal tempo massimo di 5 s; qualunque errore dà "Invito non inviato" e il party resta. Può arrivare all'amico prima che la coda sia impostata (raro, accettato);
+   - "Guarda insieme" compare solo se l'account può creare gruppi SyncPlay (`syncPlayAccess` con `canCreate`), come gli altri pulsanti che aprono un party;
+   - `startWatchParty` con un invito, già in un gruppo o durante l'ingresso, non fa niente e restituisce `false`;
+   - l'interruttore è disattivato mentre l'impostazione si legge o si rilegge.
 
 ## Global Constraints
 

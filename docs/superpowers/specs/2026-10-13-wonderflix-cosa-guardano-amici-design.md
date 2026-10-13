@@ -1,7 +1,7 @@
 # WonderFlix — Spec O: cosa guardano gli amici
 
 - **Data:** 2026-10-13
-- **Stato:** approvata il 2026-10-13; piano 21a realizzato (`docs/superpowers/plans/2026-10-13-wonderflix-21a-attivita-amici-plugin.md`), build di prova sul server; piano 21b scritto (`docs/superpowers/plans/2026-10-13-wonderflix-21b-attivita-amici-app.md`).
+- **Stato:** approvata il 2026-10-13; piano 21a realizzato (`docs/superpowers/plans/2026-10-13-wonderflix-21a-attivita-amici-plugin.md`), build di prova sul server; piano 21b realizzato (`docs/superpowers/plans/2026-10-13-wonderflix-21b-attivita-amici-app.md`), da provare con l'utente.
 - **Ambito:** Spec O. Realizza l'idea 5 di `docs/IDEE.md` ("Cosa guardano gli amici"): nel pannello Amici compare cosa sta guardando un amico anche fuori dai watch party, con "Guarda insieme" per aprire un party su quel titolo e invitarlo; in Home la riga "Visti dagli amici"; un interruttore per non mostrare cosa si guarda.
 
 ## 1. Obiettivo
@@ -158,23 +158,25 @@ NowPlaying {ItemId, Title, SeriesId?, SeriesName?, Season?, Episode?}
   - film: "Sta guardando *Dune*" (`friendsWatching`);
   - episodio: "Sta guardando *Breaking Bad* · S2 E3" (`friendsWatchingEpisode`), senza "S… E…" se mancano stagione o numero, con il nome dell'episodio se manca la serie.
   - "Nel watch party: …" resta com'è e ha la precedenza (il plugin non manda `NowPlaying` in quel caso).
-- **Guarda insieme** (pulsante sulla riga, dove sta "Unisciti" per i party): solo con `nowPlaying` e se non sono già in un gruppo SyncPlay. Al clic:
+- **Guarda insieme** (pulsante sulla riga, dove sta "Unisciti" per i party): solo con `nowPlaying`, se non sono già in un gruppo SyncPlay e se l'account può creare gruppi SyncPlay (`syncPlayAccess` con `canCreate`), come gli altri pulsanti che aprono un party; non compare nemmeno durante "Conferma rimozione". Al clic:
   1. `friendNowPlaying(userId)` per la posizione aggiornata;
   2. l'elemento da Jellyfin;
-  3. `startWatchParty(item, start: posizione, mode: PartyMode.private)` **senza il menu delle modalità**;
-  4. appena il party è registrato, `invite(groupId, [userId])` e `currentPartyProvider.invited`.
+  3. `startWatchParty(item, start: posizione, mode: PartyMode.private, invite: userId)` **senza il menu delle modalità**; la posizione, in ticks, diventa una `Duration` (`ticks ~/ 10` microsecondi) in `start:`; il player parte da lì e l'amico entra quando accetta;
+  4. appena il party è registrato, l'invito parte **senza essere atteso**, fuori dal tempo massimo della registrazione (5 s): un invito lento non butta giù un party già registrato. Se riesce, `currentPartyProvider.invited`. Può arrivare all'amico prima che la coda sia impostata: se poi il party non parte, l'amico ha un invito a un party che non esiste più (raro, accettato).
+  - Con un invito, `startWatchParty` non fa niente (restituisce `false`) se sono già in un gruppo o sto entrando in uno: un secondo clic non cambia la coda del primo party.
   - Il pulsante è spento mentre parte.
 - **Esiti:**
   - 409 → "Non sta più guardando" e l'elenco si rilegge;
-  - errore dell'invito dopo che il party è partito → il party resta e un avviso dice "Invito non inviato" (si può reinvitare dal menu del party);
+  - qualunque errore dell'invito, dopo che il party è stato registrato → il party resta e un avviso dice "Invito non inviato" (si può reinvitare dal menu del party);
   - altri errori → l'avviso che si usa già quando il watch party non parte.
 - Aggiornamento con `FriendsChanged`, come oggi.
 
 ### 7.3 Interruttore nelle impostazioni
 
-- Sezione **Account**: interruttore "Mostra agli amici cosa guardo" con sotto "Gli amici vedono il titolo che stai guardando e quelli che hai visto negli ultimi 30 giorni in WonderFlix".
+- Sezione **Account**, in fondo, sotto i pulsanti e prima dei contatti per il recupero: interruttore "Mostra agli amici cosa guardo" con sotto "Gli amici vedono il titolo che stai guardando e quelli che hai visto negli ultimi 30 giorni in WonderFlix".
 - Vale per l'account Jellyfin (si legge e si scrive nel plugin), non per il dispositivo: con un altro profilo cambia.
 - Compare solo con la funzione `friendsActivity`. Mentre si legge è spento; se la lettura non riesce, la riga dice "Impossibile caricare l'impostazione" con "Riprova".
+- L'interruttore è disattivato mentre l'impostazione si legge o si rilegge (per esempio dopo il cambio di profilo), così non mostra né modifica il valore dell'account precedente.
 - Salvataggio subito al cambio; se non riesce l'interruttore torna com'era e un avviso dice "Impostazione non salvata".
 
 ### 7.4 Riga "Visti dagli amici"
@@ -182,7 +184,7 @@ NowPlaying {ItemId, Title, SeriesId?, SeriesName?, Season?, Episode?}
 - `HomeRowKind.friendsWatched('friendsWatched')`, dopo `recommended`; `fromJellyfin` falso.
 - `homeRowGate`: senza la funzione → nuovo motivo `HomeRowGate.friendsActivityOff` ("Serve il plugin 1.9.0 e l'accesso ai watch party").
 - Caricamento come "Consigliati per te" (Spec N §7.3): `GET Activity/FriendsWatched`, poi gli elementi da Jellyfin per id nell'ordine del plugin, id mancanti saltati, riga vuota nascosta, riletta a ogni apertura della Home e quando cambiano libreria o dati di visione.
-- **Card:** locandina; sotto il titolo "Visto da Luca", "Visto da Luca e Marta", "Visto da Luca e altri 2" (nomi dal più recente).
+- **Card:** locandina; sotto il titolo "Visto da Luca", "Visto da Luca e Marta", "Visto da Luca e altri 2" (nomi dal più recente). Il testo ha una funzione sua (`friendsWatchedBy`), con gli stessi casi di `recommendedFrom` (uno, due, "e altri N"); `recommendedFrom` resta com'è.
 - Anteprima delle card come le altre righe di locandine, senza aggiunte.
 
 ## 8. Senza plugin ed errori
@@ -260,6 +262,6 @@ Fatte il 2026-10-13 all'inizio del piano 21a:
 ## 13. Piani e release
 
 - **21a — plugin 1.9.0 (realizzato):** verifiche di §12, `Hidden` in `activity.json`, `NowPlaying`, posizione, presenza, registro, `FriendsWatched`, `Info`, riga `friendsWatched`. Build di prova installata a mano sul server il 2026-10-13 (backup della 1.8.0 del Catalogo in `~/wfwp-backup/1.8.0.0-catalogo` e della configurazione in `~/wfwp-backup/config-1.8.0-prima-21a.xml`); `Info` risponde 1.9.0 con `friendsActivity`, `HomeRowsSeen` vale `recommended,friendsWatched`. Il plugin 1.9.0 resta build di prova fino alla fine del 21b: nessuna release.
-- **21b — app 0.15.0:** nucleo, pannello Amici, interruttore, riga, testi; prova con l'utente.
+- **21b — app 0.15.0 (realizzato):** nucleo, pannello Amici, interruttore, riga, testi; da provare con l'utente.
 - **Release** (con l'OK dell'utente a ogni passo): plugin **1.9.0** dal Catalogo, poi app **0.15.0 obbligatoria** con le note in italiano nella bozza; poi l'annuncio dell'admin nella cassetta che spiega la novità e dove si spegne l'interruttore.
 - **Alla fine**, in `docs/IDEE.md`: l'idea 5 esce dalla lista e tra le fatte c'è "Spec O — cosa guardano gli amici (plugin 1.9.0, app 0.15.0)".
