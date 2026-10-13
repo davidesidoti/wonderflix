@@ -9,6 +9,7 @@ import '../app/theme.dart';
 import '../core/jellyfin/item_models.dart';
 import '../features/library/library_providers.dart';
 import '../features/library/user_data.dart';
+import 'card_preview.dart';
 import 'card_preview_host.dart';
 import 'wf_image.dart';
 
@@ -24,9 +25,17 @@ class PosterCard extends ConsumerStatefulWidget {
     this.width,
     this.markLabel,
     this.openable = true,
+    this.subtitle,
+    this.previewExtra,
   });
 
   final JellyfinItem item;
+
+  /// Al posto dell'anno, per esempio chi ha consigliato il titolo (spec N §7.3).
+  final String? subtitle;
+
+  /// Note e × dell'anteprima (la riga "Consigliati per te").
+  final CardPreviewExtra? previewExtra;
   final VoidCallback? onTap;
 
   /// Card da cui parte il volo Hero (per esempio `home.latestMovies.3`),
@@ -57,7 +66,7 @@ class _PosterCardState extends ConsumerState<PosterCard> {
     final userData = watchUserData(ref, item);
     final progress = userData.progress;
     final unplayed = userData.unplayedItemCount ?? 0;
-    final year = item.productionYear;
+    final line = widget.subtitle ?? item.productionYear?.toString();
     // Unica per l'istanza della pagina (vedi WfHeroScope).
     final source = widget.heroSource;
     final heroSource =
@@ -123,8 +132,10 @@ class _PosterCardState extends ConsumerState<PosterCard> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
-              if (year != null)
-                Text('$year',
+              if (line != null)
+                Text(line,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style:
                         const TextStyle(color: WfColors.creamMuted, fontSize: 12)),
             ],
@@ -134,7 +145,11 @@ class _PosterCardState extends ConsumerState<PosterCard> {
     );
     // Una card che non si apre non ha neanche l'anteprima.
     return openable
-        ? CardPreviewHost(item: item, heroSource: heroSource, child: card)
+        ? CardPreviewHost(
+            item: item,
+            heroSource: heroSource,
+            extra: widget.previewExtra,
+            child: card)
         : card;
   }
 }

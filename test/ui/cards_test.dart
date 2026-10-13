@@ -40,6 +40,20 @@ void main() {
     expect(taps, 1);
   });
 
+  testWidgets('PosterCard: il sottotitolo prende il posto dell\'anno',
+      (tester) async {
+    await pumpApp(
+      tester,
+      Center(
+        child: PosterCard(
+            item: testItem(), width: 160, onTap: () {}, subtitle: 'Da Luca'),
+      ),
+      overrides: [signedIn],
+    );
+    expect(find.text('Da Luca'), findsOneWidget);
+    expect(find.text('2024'), findsNothing);
+  });
+
   testWidgets('PosterCard con sorgente: Hero sulla locandina', (tester) async {
     await pumpApp(
       tester,

@@ -59,16 +59,40 @@ const previewLogoBottom = 8.0;
 const previewBodyPadding =
     EdgeInsets.fromLTRB(previewContentInset, 8, previewContentInset, 10);
 
+
+/// Altezza di una riga di nota sotto i dati (i messaggi di un consiglio,
+/// spec N §7.4): l'anteprima si allunga di tanto per ogni nota.
+const previewNoteHeight = 18.0;
+
+/// Aggiunte all'anteprima di una card, solo per chi le passa (la riga
+/// "Consigliati per te"): righe di nota e un pulsante × con [onDismiss].
+class CardPreviewExtra {
+  const CardPreviewExtra({
+    this.notes = const [],
+    this.onDismiss,
+    this.dismissTooltip = '',
+  });
+
+  final List<String> notes;
+  final VoidCallback? onDismiss;
+  final String dismissTooltip;
+
+  /// Quanto si allunga l'anteprima.
+  double get height => notes.length * previewNoteHeight;
+}
+
 /// Rettangolo dell'anteprima di una card: centrata sulla card, larga
 /// [previewWidthFactor] volte (almeno [previewMinWidth]), dentro l'overlay
-/// con [previewMargin] di margine.
-Rect previewRect({required Rect card, required Size overlay}) {
+/// con [previewMargin] di margine; alta quanto serve, più [extraHeight] per
+/// le note.
+Rect previewRect(
+    {required Rect card, required Size overlay, double extraHeight = 0}) {
   final maxWidth = math.max(0.0, overlay.width - 2 * previewMargin);
   final width = math
       .max(previewMinWidth, card.width * previewWidthFactor)
       .clamp(0.0, maxWidth)
       .toDouble();
-  final height = width * 9 / 16 + previewBodyHeight;
+  final height = width * 9 / 16 + previewBodyHeight + extraHeight;
   final left = (card.center.dx - width / 2).clamp(
       previewMargin, math.max(previewMargin, overlay.width - previewMargin - width));
   final top = (card.center.dy - height / 2).clamp(
@@ -122,9 +146,13 @@ class CardPreview extends ConsumerWidget {
     required this.onPlay,
     required this.onDetails,
     this.body = kAlwaysCompleteAnimation,
+    this.extra,
   });
 
   final JellyfinItem item;
+
+  /// Note e × di chi la passa; `null` = l'anteprima di sempre.
+  final CardPreviewExtra? extra;
 
   /// Tag del volo verso la scheda (sorgente della card + `.preview`).
   final WfHeroTag? heroTag;
@@ -306,6 +334,14 @@ class CardPreview extends ConsumerWidget {
                           onPressed: () => unawaited(_toggle(
                               context, () => overrides.togglePlayed(item))),
                         ),
+                        if (extra?.onDismiss case final dismiss?) ...[
+                          const SizedBox(width: 8),
+                          _RoundButton(
+                            icon: LucideIcons.x,
+                            tooltip: extra!.dismissTooltip,
+                            onPressed: dismiss,
+                          ),
+                        ],
                         const Spacer(),
                         _RoundButton(
                           icon: LucideIcons.chevronDown,
@@ -330,6 +366,14 @@ class CardPreview extends ConsumerWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: muted),
+                  for (final note in extra?.notes ?? const <String>[])
+                    SizedBox(
+                      height: previewNoteHeight,
+                      child: Text(note,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: muted),
+                    ),
                   const Spacer(),
                   if (progress != null)
                     SizedBox(

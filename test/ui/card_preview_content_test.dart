@@ -16,15 +16,16 @@ void main() {
       .overrideWith(() => FakeSessionController(const SessionSignedIn(testUser)));
 
   Future<List<String>> pumpPreview(WidgetTester tester, JellyfinItem item,
-      {FakeLibraryApi? api}) async {
+      {FakeLibraryApi? api, CardPreviewExtra? extra}) async {
     final calls = <String>[];
     await pumpApp(
       tester,
       Center(
         child: SizedBox(
           width: 360,
-          height: 360 * 9 / 16 + previewBodyHeight,
+          height: 360 * 9 / 16 + previewBodyHeight + (extra?.height ?? 0),
           child: CardPreview(
+            extra: extra,
             item: item,
             heroTag: null,
             onPlay: () => calls.add('play'),
@@ -50,6 +51,26 @@ void main() {
     await tester.tap(find.byTooltip('Riproduci'));
     await tester.tap(find.byTooltip('Dettagli'));
     expect(calls, ['play', 'details']);
+  });
+
+  testWidgets('note e Non mi interessa', (tester) async {
+    var dismissed = 0;
+    await pumpPreview(tester, testItem(id: 'm1'),
+        extra: CardPreviewExtra(
+          notes: const ['Luca: «da vedere»', 'Marta: «bellissimo»'],
+          dismissTooltip: 'Non mi interessa',
+          onDismiss: () => dismissed++,
+        ));
+    expect(find.text('Luca: «da vedere»'), findsOneWidget);
+    expect(find.text('Marta: «bellissimo»'), findsOneWidget);
+    await tester.tap(find.byTooltip('Non mi interessa'));
+    expect(dismissed, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('senza extra niente ×', (tester) async {
+    await pumpPreview(tester, testItem(id: 'm1'));
+    expect(find.byIcon(LucideIcons.x), findsNothing);
   });
 
   testWidgets('iniziato: "Riprendi" e barra dell\'avanzamento', (tester) async {

@@ -16,6 +16,15 @@ void main() {
     expect(r.center.dy, card.center.dy);
   });
 
+  test('le note allungano l\'anteprima', () {
+    const card = Rect.fromLTWH(600, 300, 160, 240);
+    final plain = previewRect(card: card, overlay: overlay);
+    final tall = previewRect(
+        card: card, overlay: overlay, extraHeight: 2 * previewNoteHeight);
+    expect(tall.height, plain.height + 2 * previewNoteHeight);
+    expect(tall.width, plain.width);
+  });
+
   test('previewRect: minimo 300 di larghezza', () {
     final r = previewRect(card: const Rect.fromLTWH(600, 300, 100, 150), overlay: overlay);
     expect(r.width, previewMinWidth);

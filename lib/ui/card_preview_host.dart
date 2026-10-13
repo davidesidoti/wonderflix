@@ -26,9 +26,13 @@ class CardPreviewHost extends ConsumerStatefulWidget {
     required this.item,
     required this.heroSource,
     required this.child,
+    this.extra,
   });
 
   final JellyfinItem item;
+
+  /// Note e × dell'anteprima, se la card ne ha.
+  final CardPreviewExtra? extra;
 
   /// Sorgente del volo della card (già resa unica per la pagina), o `null`.
   final String? heroSource;
@@ -251,6 +255,21 @@ class _CardPreviewHostState extends ConsumerState<CardPreviewHost>
     }
   }
 
+  /// Le aggiunte della card; la × chiude l'anteprima prima di agire.
+  CardPreviewExtra? get _extra {
+    final extra = widget.extra;
+    final dismiss = extra?.onDismiss;
+    if (extra == null || dismiss == null) return extra;
+    return CardPreviewExtra(
+      notes: extra.notes,
+      dismissTooltip: extra.dismissTooltip,
+      onDismiss: () {
+        _hide(immediately: true);
+        dismiss();
+      },
+    );
+  }
+
   void _play() {
     _hide(immediately: true);
     unawaited(playItem(context, ref, widget.item));
@@ -316,7 +335,10 @@ class _CardPreviewHostState extends ConsumerState<CardPreviewHost>
       overlayChildBuilder: (context, info) {
         final card = MatrixUtils.transformRect(
             info.childPaintTransform, Offset.zero & info.childSize);
-        final rect = previewRect(card: card, overlay: info.overlaySize);
+        final rect = previewRect(
+            card: card,
+            overlay: info.overlaySize,
+            extraHeight: widget.extra?.height ?? 0);
         final preview = Stack(
           children: [
             Positioned.fromRect(
@@ -352,6 +374,7 @@ class _CardPreviewHostState extends ConsumerState<CardPreviewHost>
                       child: RepaintBoundary(
                         child: CardPreview(
                           item: widget.item,
+                          extra: _extra,
                           heroTag: source == null
                               ? null
                               : WfHeroTag(widget.item.id,
