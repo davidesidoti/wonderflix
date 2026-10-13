@@ -1,7 +1,7 @@
 # WonderFlix — Spec O: cosa guardano gli amici
 
 - **Data:** 2026-10-13
-- **Stato:** approvata il 2026-10-13; piano 21a realizzato (`docs/superpowers/plans/2026-10-13-wonderflix-21a-attivita-amici-plugin.md`), build di prova sul server; piano 21b realizzato (`docs/superpowers/plans/2026-10-13-wonderflix-21b-attivita-amici-app.md`), da provare con l'utente.
+- **Stato:** approvata il 2026-10-13; piano 21a realizzato (`docs/superpowers/plans/2026-10-13-wonderflix-21a-attivita-amici-plugin.md`), build di prova sul server; piano 21b realizzato (`docs/superpowers/plans/2026-10-13-wonderflix-21b-attivita-amici-app.md`), provato con l'utente il 2026-10-13. **Realizzata:** plugin 1.9.0 dal Catalogo (installato sul server il 2026-10-13 alle 14:14 UTC) e app 0.15.0 obbligatoria pubblicata il 2026-10-13; annuncio dell'admin mandato a 21 utenti.
 - **Ambito:** Spec O. Realizza l'idea 5 di `docs/IDEE.md` ("Cosa guardano gli amici"): nel pannello Amici compare cosa sta guardando un amico anche fuori dai watch party, con "Guarda insieme" per aprire un party su quel titolo e invitarlo; in Home la riga "Visti dagli amici"; un interruttore per non mostrare cosa si guarda.
 
 ## 1. Obiettivo

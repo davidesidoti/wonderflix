@@ -40,13 +40,6 @@ La v1.0.0 è la prima release per gli amici. Raccoglierebbe:
 - prima esecuzione e richiesta d'accesso, firma del codice;
 - i punti aperti minori: menu delle modalità con testo ingrandito, attese di 2 s senza indicatore, nome del gruppo che non cambia con il titolo, remux che risulta "Transcode", `WriteFile` sincrono sulla pipe di Discord.
 
-## 5. Cosa guardano gli amici
-
-Nel pannello Amici, accanto a "Online", compare "Sta guardando *Dune*" anche fuori dai watch party. Il tasto "Guarda insieme" apre un party su quel titolo e invita l'amico; in Home c'è la riga "Visti dagli amici". Un interruttore nelle impostazioni permette di non mostrare cosa si guarda.
-- **Cosa c'è già:** presenza online e "Nel watch party: …" dal plugin (Spec F), inviti al party.
-- **Da cercare:** un utente normale non vede le sessioni degli altri su Jellyfin, quindi il plugin deve esporre il titolo in riproduzione solo agli amici; cosa mostrare per gli episodi (serie, stagione, episodio); quanto spesso aggiornare; privacy predefinita (visibile o nascosto).
-- Medio.
-
 ## 7. Voti degli amici
 
 Dopo la visione si dà un voto e si scrive un commento breve; nel dettaglio compaiono la media degli amici e i loro commenti. Diverso dal voto TMDB/IMDb che Jellyfin mostra già: questo resta tra gli utenti del server.
@@ -58,7 +51,7 @@ Dopo la visione si dà un voto e si scrive un commento breve; nel dettaglio comp
 Un party con data e ora, per esempio "Venerdì 21:00 — Il Padrino". Gli amici ricevono l'invito e rispondono sì/no/forse; il promemoria arriva nella cassetta (e su Discord) 15 minuti prima, e all'ora fissata il party è già aperto con il titolo pronto.
 - **Cosa c'è già:** party privati, coda, cassetta, collegamento Discord, servizi a orario nel plugin (`NewTitlesHostedService`, `ContactReminderHostedService`).
 - **Da cercare:** dove si vedono le serate in arrivo; fusi orari; cosa succede se l'organizzatore non si presenta; modifica e annullamento con avviso a chi ha detto sì; serate ricorrenti (ogni venerdì) o solo singole.
-- Medio. Si può fare insieme all'idea 5.
+- Medio.
 
 ## 9. Match del film
 
@@ -118,3 +111,4 @@ I prossimi episodi delle serie che si seguono, giorno per giorno, con un avviso 
 - Spec L — recupero e cambio della password (plugin 1.6.0, app 0.12.0).
 - Spec M — Home su misura (plugin 1.7.0, app 0.13.0).
 - Spec N — consigli tra amici (plugin 1.8.0, app 0.14.0).
+- Spec O — cosa guardano gli amici (plugin 1.9.0, app 0.15.0).
