@@ -2,11 +2,19 @@
   {
     "guid": "882eb47e-668a-4935-ba55-c2858eb4ed90",
     "name": "WonderFlix Watch Party",
-    "description": "Names, chat, reactions, friends, public, friends-only or private parties and an in-app notifications inbox (invites, new titles, admin announcements, requests) for SyncPlay watch parties in WonderFlix, recommendations between friends, plus Seerr requests (search, request and approve movies and series), collections (sagas) and user pictures, and password recovery by Discord or e-mail, plus the WonderFlix Home rows chosen by the admin and the upcoming episodes and movies from Sonarr and Radarr.",
-    "overview": "WonderFlix watch party: names, chat, reactions, friends, party modes, notifications, recommendations, Seerr requests, collections, user pictures, password recovery, Home rows, upcoming from Sonarr and Radarr",
+    "description": "Names, chat, reactions, friends, public, friends-only or private parties and an in-app notifications inbox (invites, new titles, admin announcements, requests) for SyncPlay watch parties in WonderFlix, recommendations between friends, what friends are watching, plus Seerr requests (search, request and approve movies and series), collections (sagas) and user pictures, and password recovery by Discord or e-mail, plus the WonderFlix Home rows chosen by the admin and the upcoming episodes and movies from Sonarr and Radarr.",
+    "overview": "WonderFlix watch party: names, chat, reactions, friends, party modes, notifications, recommendations, friends activity, Seerr requests, collections, user pictures, password recovery, Home rows, upcoming from Sonarr and Radarr",
     "owner": "davidesidoti",
     "category": "General",
     "versions": [
+      {
+        "version": "1.9.0.0",
+        "changelog": "Cosa guardano gli amici per WonderFlix 0.15.0: «Sta guardando…» nel pannello Amici con «Guarda insieme», la riga «Visti dagli amici» nella Home e l'interruttore «Mostra agli amici cosa guardo».",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.9.0/wonderflix-watch-party_1.9.0.zip",
+        "checksum": "1395166c3ae7b3d7afbf4dc833e2de02",
+        "timestamp": "2026-10-13T14:02:28Z"
+      },
       {
         "version": "1.8.0.0",
         "changelog": "Consigli tra amici per WonderFlix 0.14.0: «Consiglia a…» dal dettaglio di film e serie, la voce nella cassetta delle notifiche e la riga «Consigliati per te» nella Home, con i messaggi e «Non mi interessa».",
