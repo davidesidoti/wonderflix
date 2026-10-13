@@ -47,13 +47,6 @@ Nel pannello Amici, accanto a "Online", compare "Sta guardando *Dune*" anche fuo
 - **Da cercare:** un utente normale non vede le sessioni degli altri su Jellyfin, quindi il plugin deve esporre il titolo in riproduzione solo agli amici; cosa mostrare per gli episodi (serie, stagione, episodio); quanto spesso aggiornare; privacy predefinita (visibile o nascosto).
 - Medio.
 
-## 6. Consigli tra amici
-
-Dal dettaglio di un film o di una serie, "Consiglia a…" sceglie uno o più amici e aggiunge un messaggio breve; il consiglio arriva nella loro cassetta delle notifiche. In Home c'è la riga "Consigliati per te".
-- **Cosa c'è già:** amici (Spec F) e cassetta delle notifiche (Spec G) nel plugin.
-- **Da cercare:** quanto durano i consigli e quando escono dalla riga (visto, ignorato); limite contro lo spam; titoli che l'amico non può vedere per i permessi delle librerie.
-- Piccolo/medio.
-
 ## 7. Voti degli amici
 
 Dopo la visione si dà un voto e si scrive un commento breve; nel dettaglio compaiono la media degli amici e i loro commenti. Diverso dal voto TMDB/IMDb che Jellyfin mostra già: questo resta tra gli utenti del server.
@@ -124,3 +117,4 @@ I prossimi episodi delle serie che si seguono, giorno per giorno, con un avviso 
 - Spec K — saghe e profili (plugin 1.5.0, app 0.11.0).
 - Spec L — recupero e cambio della password (plugin 1.6.0, app 0.12.0).
 - Spec M — Home su misura (plugin 1.7.0, app 0.13.0).
+- Spec N — consigli tra amici (plugin 1.8.0, app 0.14.0).

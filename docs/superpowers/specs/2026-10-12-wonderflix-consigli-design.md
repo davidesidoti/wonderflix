@@ -1,7 +1,7 @@
 # WonderFlix — Spec N: consigli tra amici
 
 - **Data:** 2026-10-12
-- **Stato:** approvata il 2026-10-12; piano 20a realizzato (`docs/superpowers/plans/2026-10-12-wonderflix-20a-consigli-plugin.md`), build di prova installata sul server il 2026-10-12 alle 21:06 UTC; piano 20b realizzato (`docs/superpowers/plans/2026-10-13-wonderflix-20b-consigli-app.md`), da provare con l'utente.
+- **Stato:** approvata il 2026-10-12; piano 20a realizzato (`docs/superpowers/plans/2026-10-12-wonderflix-20a-consigli-plugin.md`), build di prova installata sul server il 2026-10-12 alle 21:06 UTC; piano 20b realizzato (`docs/superpowers/plans/2026-10-13-wonderflix-20b-consigli-app.md`), provato con l'utente il 2026-10-13. **Realizzata:** plugin 1.8.0 dal Catalogo (installato sul server il 2026-10-13 alle 09:00 UTC) e app 0.14.0 pubblicata il 2026-10-13.
 - **Ambito:** Spec N. Realizza l'idea 6 di `docs/IDEE.md` ("Consigli tra amici"): dal dettaglio di un film o di una serie si consiglia il titolo a uno o più amici, con un messaggio breve; il consiglio arriva nella loro cassetta delle notifiche e nella riga "Consigliati per te" della Home.
 
 ## 1. Obiettivo
