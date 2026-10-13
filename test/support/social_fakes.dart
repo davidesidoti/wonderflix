@@ -201,6 +201,7 @@ class FakeSocialApi implements SocialApi {
   @override
   Future<void> invite(String groupId, List<String> userIds) async {
     calls.add('invite $groupId ${userIds.join(',')}');
+    await inviteGate?.future;
     final inviteError = inviteFailure;
     if (inviteError != null) throw SocialException(inviteError);
     _fail();
@@ -282,6 +283,9 @@ class FakeSocialApi implements SocialApi {
 
   /// Errore di ogni [invite], se valorizzato.
   SocialFailure? inviteFailure;
+
+  /// Se valorizzato, [invite] attende questo completer.
+  Completer<void>? inviteGate;
 
   /// Posizione per [friendNowPlaying], per amico; manca = 409 (`conflict`).
   final nowPlayingById = <String, FriendPosition>{};

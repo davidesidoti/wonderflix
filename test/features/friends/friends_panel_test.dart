@@ -350,6 +350,29 @@ void main() {
           reason: 'l\'elenco si rilegge');
     });
 
+    testWidgets('invito lento: il party è già registrato, poi segue l invito',
+        (tester) async {
+      api.snapshot = FriendsSnapshot(friends: [
+        testFriend('u2', 'Luigi', online: true, nowPlaying: dune),
+      ]);
+      api.nowPlayingById['u2'] =
+          const FriendPosition(itemId: 'm1', position: Duration.zero);
+      final gate = api.inviteGate = Completer<void>();
+      await pumpWatchPanel(tester);
+      await tester.tap(find.byKey(const Key('friend-watch-u2')));
+      await tester.pumpAndSettle();
+      final container =
+          ProviderScope.containerOf(tester.element(find.byType(FriendsPanel)));
+      expect(container.read(watchPartySessionProvider).inGroup, isTrue);
+      expect(container.read(currentPartyProvider)?.mode, PartyMode.private);
+      expect(api.calls, contains('invite g1 u2'));
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(find.text('Invito non inviato'), findsNothing);
+      expect(container.read(watchPartySessionProvider).inGroup, isTrue);
+      await leaveParty(tester);
+    });
+
     testWidgets('invito non riuscito: il party resta e lo dice', (tester) async {
       api.snapshot = FriendsSnapshot(friends: [
         testFriend('u2', 'Luigi', online: true, nowPlaying: dune),

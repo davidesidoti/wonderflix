@@ -1,9 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/jellyfin/item_models.dart';
 import '../../core/party_channel/party_channel_models.dart';
-import '../../core/social/social_api.dart';
 import '../../core/syncplay/syncplay_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../library/library_providers.dart';
@@ -61,17 +62,21 @@ Future<bool> startWatchParty(
                     container
                         .read(currentPartyProvider.notifier)
                         .registered(groupId, mode, code);
+                    // Fuori dal timeout della registrazione, che non deve
+                    // buttare giù un party già registrato: non si attende.
                     if (invite != null) {
-                      try {
-                        await social.invite(groupId, [invite]);
-                        container
-                            .read(currentPartyProvider.notifier)
-                            .invited(groupId, invite);
-                      } on SocialException {
-                        // Piano 21b, decisione 1: il party resta.
-                        messenger?.showSnackBar(
-                            SnackBar(content: Text(inviteNotSent)));
-                      }
+                      unawaited(() async {
+                        try {
+                          await social.invite(groupId, [invite]);
+                          container
+                              .read(currentPartyProvider.notifier)
+                              .invited(groupId, invite);
+                        } on Object {
+                          // Piano 21b, decisione 1: il party resta.
+                          messenger?.showSnackBar(
+                              SnackBar(content: Text(inviteNotSent)));
+                        }
+                      }());
                     }
                   },
           );
