@@ -49,9 +49,10 @@ class ShareActivitySetting extends ConsumerWidget {
         contentPadding: EdgeInsets.zero,
         title: Text(l.settingsShareActivity),
         subtitle: Text(l.settingsShareActivityHint),
-        // Mentre si legge resta spento e fermo.
+        // Mentre si legge (anche dopo un cambio di profilo) resta spento e
+        // fermo: non mostra né cambia il valore dell'account precedente.
         value: share ?? false,
-        onChanged: share == null
+        onChanged: value.isLoading || share == null
             ? null
             : (next) => unawaited(_set(context, ref, next)),
       );

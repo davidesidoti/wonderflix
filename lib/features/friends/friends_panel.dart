@@ -14,6 +14,7 @@ import '../../ui/wf_menus.dart';
 import '../social/social_providers.dart';
 import '../watch_party/party_badge.dart';
 import '../watch_party/watch_party_actions.dart';
+import '../watch_party/watch_party_providers.dart';
 import '../watch_party/watch_party_session.dart';
 import 'activity_labels.dart';
 import 'friend_search.dart';
@@ -550,7 +551,11 @@ class _FriendRowState extends ConsumerState<_FriendRow> {
     // Già in un gruppo si invita dal menu del party (piano 21b, decisione 3).
     final inGroup = nowPlaying != null &&
         ref.watch(watchPartySessionProvider.select((s) => s.inGroup));
-    final showWatch = nowPlaying != null && _confirm == null && !inGroup;
+    // Come nella scheda e nel player: creare un party serve il permesso.
+    final canCreate = nowPlaying != null &&
+        ref.watch(syncPlayAccessProvider.select((a) => a.canCreate));
+    final showWatch =
+        nowPlaying != null && _confirm == null && !inGroup && canCreate;
     return _PersonRow(
       userId: friend.userId,
       name: friend.name,

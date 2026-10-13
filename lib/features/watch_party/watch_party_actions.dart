@@ -28,8 +28,14 @@ Future<bool> startWatchParty(
   Duration start = Duration.zero,
   PartyMode? mode,
   String? invite,
-}) =>
-    _run(
+}) {
+  // Un invito vale solo per un party nuovo: in un gruppo (o entrando) un
+  // secondo "Guarda insieme" cambierebbe la coda del primo senza invitare.
+  if (invite != null &&
+      ref.read(watchPartySessionProvider).phase != WatchPartyPhase.none) {
+    return Future.value(false);
+  }
+  return _run(
       context,
       () async {
         // Il widget di [ref] può chiudersi durante le richieste (es. il
@@ -84,6 +90,7 @@ Future<bool> startWatchParty(
       },
       creating: true,
     );
+}
 
 /// "Unisciti" dall'elenco dei gruppi.
 Future<bool> joinWatchParty(

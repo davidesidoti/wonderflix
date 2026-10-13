@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/shell_panels.dart';
+import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/social/avatars_api.dart';
 import 'package:wonderflix/core/social/activity_models.dart';
@@ -274,7 +275,8 @@ void main() {
     late FakeLibraryApi library;
 
     /// Il pannello con la libreria finta: "Guarda insieme" apre il titolo.
-    Future<void> pumpWatchPanel(WidgetTester tester) async {
+    Future<void> pumpWatchPanel(WidgetTester tester,
+        {SyncPlayAccess? access}) async {
       library = FakeLibraryApi()
         ..itemsById['m1'] = testItem(id: 'm1', name: 'Dune');
       syncPlay.onCall = (call) {
@@ -299,6 +301,7 @@ void main() {
           partyChannelApiProvider
               .overrideWithValue(FakePartyChannelApi()..install()),
           libraryApiProvider.overrideWithValue(library),
+          if (access != null) syncPlayAccessProvider.overrideWithValue(access),
         ],
       );
       await tester.pump();
@@ -328,6 +331,8 @@ void main() {
       await tester.tap(find.byKey(const Key('friend-watch-u2')));
       await tester.pumpAndSettle();
       expect(api.calls, containsAllInOrder(['nowPlaying u2', 'register g1 Private', 'invite g1 u2']));
+      expect(syncPlay.queues.single.start, const Duration(minutes: 42),
+          reason: 'la posizione dell\'amico arriva a SyncPlay');
       expect(find.text('Pubblico'), findsNothing, reason: 'niente menu delle modalità');
       final container =
           ProviderScope.containerOf(tester.element(find.byType(FriendsPanel)));
@@ -350,7 +355,31 @@ void main() {
           reason: 'l\'elenco si rilegge');
     });
 
-    testWidgets('invito lento: il party è già registrato, poi segue l invito',
+    testWidgets('errore di rete su friendNowPlaying: avviso generico, niente party',
+        (tester) async {
+      api.snapshot = FriendsSnapshot(friends: [
+        testFriend('u2', 'Luigi', online: true, nowPlaying: dune),
+      ]);
+      await pumpWatchPanel(tester);
+      api.nextFailure = SocialFailure.network;
+      await tester.tap(find.byKey(const Key('friend-watch-u2')));
+      await tester.pumpAndSettle();
+      expect(find.text('Non è stato possibile avviare il watch party.'),
+          findsOneWidget);
+      expect(syncPlay.calls.where((c) => c.startsWith('create')), isEmpty);
+    });
+
+    testWidgets('senza permesso di creare: il testo c\'è, il tasto no',
+        (tester) async {
+      api.snapshot = FriendsSnapshot(friends: [
+        testFriend('u2', 'Luigi', online: true, nowPlaying: dune),
+      ]);
+      await pumpWatchPanel(tester, access: SyncPlayAccess.joinOnly);
+      expect(find.text('Sta guardando Dune'), findsOneWidget);
+      expect(find.byKey(const Key('friend-watch-u2')), findsNothing);
+    });
+
+    testWidgets('invito lento: il partyè già registrato, poi segue l invito',
         (tester) async {
       api.snapshot = FriendsSnapshot(friends: [
         testFriend('u2', 'Luigi', online: true, nowPlaying: dune),

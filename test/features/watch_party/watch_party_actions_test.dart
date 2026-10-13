@@ -56,13 +56,13 @@ void main() {
 
   tearDown(() => events.close());
 
-  Future<void> pumpButton(WidgetTester tester) => pumpApp(
+  Future<void> pumpButton(WidgetTester tester, {String? invite}) => pumpApp(
         tester,
         Scaffold(
           body: Consumer(
             builder: (context, ref, _) => TextButton(
               onPressed: () => unawaited(startWatchParty(context, ref, pilot,
-                  start: const Duration(minutes: 3))),
+                  start: const Duration(minutes: 3), invite: invite)),
               child: const Text('via'),
             ),
           ),
@@ -117,6 +117,18 @@ void main() {
     await container(tester).read(watchPartySessionProvider.notifier).leave();
     await tester.pump();
   }
+
+  testWidgets('con un invito, già in un gruppo: niente cambio di coda',
+      (tester) async {
+    await pumpButton(tester, invite: 'u2');
+    await container(tester).read(watchPartySessionProvider.notifier).join('g1');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('via'));
+    await tester.pumpAndSettle();
+    expect(api.queues, isEmpty);
+    expect(find.byType(SnackBar), findsNothing);
+    await leave(tester);
+  });
 
   testWidgets('fuori da un gruppo: crea il gruppo con la coda della serie',
       (tester) async {
