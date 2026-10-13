@@ -1,7 +1,7 @@
 # WonderFlix — Spec N: consigli tra amici
 
 - **Data:** 2026-10-12
-- **Stato:** approvata il 2026-10-12; piano 20a realizzato (`docs/superpowers/plans/2026-10-12-wonderflix-20a-consigli-plugin.md`), build di prova installata sul server il 2026-10-12 alle 21:06 UTC; piano 20b da scrivere.
+- **Stato:** approvata il 2026-10-12; piano 20a realizzato (`docs/superpowers/plans/2026-10-12-wonderflix-20a-consigli-plugin.md`), build di prova installata sul server il 2026-10-12 alle 21:06 UTC; piano 20b realizzato (`docs/superpowers/plans/2026-10-13-wonderflix-20b-consigli-app.md`), da provare con l'utente.
 - **Ambito:** Spec N. Realizza l'idea 6 di `docs/IDEE.md` ("Consigli tra amici"): dal dettaglio di un film o di una serie si consiglia il titolo a uno o più amici, con un messaggio breve; il consiglio arriva nella loro cassetta delle notifiche e nella riga "Consigliati per te" della Home.
 
 ## 1. Obiettivo
@@ -143,48 +143,48 @@ Nuovo tipo `InboxEntryTypes.Recommendation`, campi propri: `ItemId` (film o seri
 
 - `lib/core/social/`: modelli `Recommendation` (`itemId`, `from: [RecommendationSender{userId, name, message?, createdAt}]`), `RecommendationTarget` (`userId`, `name`, `online`, `canSee`); voce `RecommendationEntry` in `inbox_models.dart`.
 - `SocialApi`: `recommendationTargets(itemId)`, `recommend(itemId, to, message)`, `recommendations()`, `dismissRecommendation(itemId)`; stessi in `FakeSocialApi`.
-- `SocialFeatures.recommendations` (funzione `recommendations` del plugin).
+- `SocialFeatures.recommendations` (funzione `recommendations` del plugin). Vale solo con l'accesso ai watch party, come gli amici: il plugin usa la stessa policy.
 
 ### 7.2 Pulsante e pannello "Consiglia a…"
 
-- **Pulsante** "Consiglia a…" (icona Lucide `send`) nella fila dei pulsanti del dettaglio di film e serie, dopo La mia lista. Compare solo con la funzione `recommendations` e almeno un amico. Non c'è nel dettaglio degli episodi.
+- **Pulsante** "Consiglia a…" (icona Lucide `send`) nella fila dei pulsanti del dettaglio di film e serie, dopo i due tondi (La mia lista e Visto), che restano vicini. Compare solo con la funzione `recommendations` e almeno un amico. Non c'è nel dettaglio degli episodi.
 - Apre un **pannello laterale** a destra, 360 px, nello stesso `ShellSidePanel` di Amici e Cassetta (uno alla volta; Esc e clic fuori chiudono, come gli altri):
   - in alto locandina piccola e titolo dell'elemento;
-  - elenco degli amici (`GET Recommendations/Targets`) con una casella ciascuno, online prima, poi per nome; quelli con `CanSee` falso sono spenti con "Non può vederlo";
-  - campo del messaggio, facoltativo, al massimo 200 caratteri con contatore; Invio non va a capo (il plugin toglie comunque gli a capo), il testo lungo va a capo da solo nel campo;
+  - elenco degli amici (`GET Recommendations/Targets`) con una casella ciascuno, online prima, poi per nome; quelli con `CanSee` falso sono spenti con "Non può vederlo" e stanno in fondo all'elenco (poi online prima, poi per nome). Al massimo 30 amici per invio: raggiunti i 30 gli altri si spengono e compare "Al massimo 30 amici alla volta". Senza amici: "Nessun amico a cui consigliarlo";
+  - campo del messaggio, facoltativo, al massimo 200 con contatore (il contatore conta i caratteri, il campo taglia a 200 punti di codice: un testo incollato più lungo viene tagliato); Invio non va a capo (il plugin toglie comunque gli a capo), il testo lungo va a capo da solo nel campo;
   - **Invia** (spento finché nessun amico è scelto e durante l'invio).
-- **Esito:** il pannello si chiude e un avviso dice "Consiglio inviato" (o "Consiglio inviato a N amici"). Con 429 l'avviso è "Troppi consigli: riprova più tardi" e il pannello resta aperto; con un altro errore "Consiglio non inviato" e il pannello resta aperto. Se `Sent` è 0 (tutti saltati dal plugin) l'avviso è "Consiglio non inviato".
+- **Esito:** il pannello si chiude e un solo testo con il plurale dice "Consiglio inviato" (1) o "Consiglio inviato a N amici". Con 429 l'avviso è "Troppi consigli: riprova più tardi" e il pannello resta aperto; con qualunque altro errore (non del plugin) "Consiglio non inviato" e il pannello resta aperto. Se `Sent` è 0 (tutti saltati dal plugin) l'avviso è "Consiglio non inviato".
 - Elenco che non si carica: messaggio d'errore e "Riprova" nel pannello.
 
 ### 7.3 Riga "Consigliati per te"
 
 - `HomeRowKind.recommended('recommended')`, dopo `nextUp`; non viene da Jellyfin (`fromJellyfin` falso, come `requests`).
-- `homeRowGate`: senza la funzione `recommendations` → nuovo motivo `HomeRowGate.recommendationsOff` ("Serve il plugin WonderFlix 1.8.0 o più recente").
-- Caricamento: `GET Recommendations`, poi gli elementi da Jellyfin per id (con dati utente e immagini, come le altre righe di locandine), nell'ordine del plugin. Gli id che Jellyfin non restituisce si saltano. Riga vuota → non si vede.
+- `homeRowGate`: senza la funzione `recommendations` → nuovo motivo `HomeRowGate.recommendationsOff` ("Serve il plugin 1.8.0 e l'accesso ai watch party", chiave `homeRowUnavailableRecommendations`; vale anche senza accesso ai watch party).
+- Caricamento: `GET Recommendations`, poi gli elementi da Jellyfin per id (con dati utente e immagini, come le altre righe di locandine), nell'ordine del plugin. Gli id che Jellyfin non restituisce si saltano. Riga vuota → non si vede. La riga si rilegge a ogni apertura della Home (nessun `keepFor`) e quando cambiano la libreria o i dati di visione dell'utente (per esempio tornando dal dettaglio dopo aver guardato).
 - **Card:** locandina come "La mia lista"; sotto il titolo la riga "Da Luca", "Da Luca e Marta", "Da Luca e altri 2" (nomi in ordine di consiglio più recente).
 
 ### 7.4 Anteprima delle card della riga
 
 Solo per le card di questa riga, nell'anteprima che si apre al passaggio del mouse (Spec C §7):
 
-- sotto la trama, fino a 3 messaggi "Luca: «da vedere stasera»" (un mittente senza messaggio non compare qui); testo su una riga con ellissi;
-- pulsante **"Non mi interessa"** (icona `x`): `DELETE Recommendations/{itemId}`, l'anteprima si chiude e la card esce dalla riga con l'animazione delle righe. Se la chiamata fallisce la card resta e un avviso dice "Non riuscito: riprova".
+- sotto la trama, fino a 3 messaggi "Luca: «da vedere stasera»" (`recommendationQuote`) (un mittente senza messaggio non compare qui); testo su una riga con ellissi;
+- pulsante tondo **×** (icona `x`, tooltip "Non mi interessa") accanto agli altri tondi dell'anteprima: l'anteprima si chiude e la card sparisce subito, senza animazione (le righe sono `ListView` semplici): il titolo entra in un insieme di "tolti" prima della chiamata `DELETE Recommendations/{itemId}`. Se la chiamata fallisce la card torna e un avviso dice "Non riuscito: riprova". I titoli tolti restano nascosti per la sessione (fino al cambio profilo o al riavvio), anche se vengono consigliati di nuovo nel frattempo (accettato).
 
 ### 7.5 Voce nella cassetta
 
-- Locandina dell'elemento, "**Luca** ti consiglia *Dune (2021)*", sotto il messaggio se c'è, la data relativa come le altre voci.
+- Locandina dell'elemento, "**Luca** ti consiglia *Dune (2021)*", sotto il messaggio fra virgolette se c'è («…» in italiano, “…” in inglese: `inboxRecommendationMessage`), la data relativa come le altre voci.
 - Clic → dettaglio dell'elemento (il pannello si chiude).
-- Elemento che Jellyfin non restituisce più all'utente: voce grigia con "Non disponibile", senza clic.
+- Nessun controllo "Non disponibile" sulla voce: il clic apre sempre il dettaglio e, se l'utente non vede più il titolo, è la pagina del dettaglio a mostrare il suo errore (controllare ogni voce vorrebbe una chiamata a Jellyfin per voce a ogni apertura della cassetta).
 
 ### 7.6 Dal vivo
 
 - La cassetta si rilegge con `InboxChanged`, come oggi.
-- La riga si rilegge a ogni apertura della Home e dopo "Non mi interessa"; nessun avviso dedicato.
+- La riga si rilegge a ogni apertura della Home, quando cambiano libreria o dati di visione e dopo "Non mi interessa"; nessun avviso dedicato.
 
 ## 8. Senza plugin ed errori
 
 - **Plugin senza `recommendations`** (< 1.8.0): niente pulsante, riga non disponibile con il motivo, nessuna chiamata.
-- **`GET Recommendations` fallisce:** la riga non si vede, riga di log `warning` (solo il tipo dell'errore); le altre righe non ne risentono.
+- **`GET Recommendations` fallisce:** la riga non si vede, riga di log (solo il tipo dell'errore); le altre righe non ne risentono.
 - **Permessi cambiati fra apertura del pannello e invio:** il plugin salta il destinatario (§6.2); se chi consiglia non vede più l'elemento, 400 → "Consiglio non inviato".
 - **Amico rimosso:** sparisce dalla card e dai messaggi alla lettura successiva; se era l'unico mittente la card esce.
 - **App 0.13.0 con plugin 1.8.0:** le voci `Recommendation` sono scartate e non contano tra le non lette; la riga `recommended` è un id sconosciuto e si ignora (Spec M §6.3). Quasi nessun effetto, quindi l'app 0.14.0 può essere **non obbligatoria**. Due differenze:
@@ -200,8 +200,9 @@ Solo per le card di questa riga, nell'anteprima che si apre al passaggio del mou
 | `recommendCannotSee` | Non può vederlo | Can't watch it |
 | `recommendMessageHint` | Aggiungi un messaggio (facoltativo) | Add a message (optional) |
 | `recommendSend` | Invia | Send |
-| `recommendSent` | Consiglio inviato | Recommendation sent |
-| `recommendSentMany` | Consiglio inviato a {count} amici | Recommendation sent to {count} friends |
+| `recommendSent` (plurale su `count`) | Consiglio inviato / Consiglio inviato a {count} amici | Recommendation sent / Recommendation sent to {count} friends |
+| `recommendMaxReached` | Al massimo {count} amici alla volta | At most {count} friends at a time |
+| `recommendNoFriends` | Nessun amico a cui consigliarlo | No friends to recommend it to |
 | `recommendNotSent` | Consiglio non inviato | Recommendation not sent |
 | `recommendRateLimited` | Troppi consigli: riprova più tardi | Too many recommendations: try again later |
 | `recommendTargetsError` | Impossibile caricare gli amici | Couldn't load your friends |
@@ -211,8 +212,10 @@ Solo per le card di questa riga, nell'anteprima che si apre al passaggio del mou
 | `recommendedFromMany` | Da {name} e altri {count} | From {name} and {count} others |
 | `recommendDismiss` | Non mi interessa | Not interested |
 | `recommendDismissFailed` | Non riuscito: riprova | Didn't work: try again |
+| `recommendationQuote` | {name}: «{message}» | {name}: “{message}” |
 | `inboxRecommendation` | {name} ti consiglia {title} | {name} recommends {title} |
-| `homeGateRecommendationsOff` | Serve il plugin WonderFlix 1.8.0 o più recente | Needs WonderFlix plugin 1.8.0 or newer |
+| `inboxRecommendationMessage` | «{message}» | “{message}” |
+| `homeRowUnavailableRecommendations` | Serve il plugin 1.8.0 e l'accesso ai watch party | Needs plugin 1.8.0 and watch party access |
 
 "Riprova" e "Non disponibile" ci sono già. I testi non danno per scontato il genere di nessuno.
 
@@ -256,6 +259,6 @@ Due istanze (`WONDERFLIX_PROFILE=b`) con due utenti amici; un terzo utente con u
 ## 13. Piani e release
 
 - **20a — plugin 1.8.0 (realizzato):** verifiche di §12, archivio, filtro, endpoint, voce della cassetta, limite, `Info`, riga `recommended` e inserimento nella Home dell'admin; build di prova installata a mano sul server il 2026-10-12 (stop → copia → start quando nessuno guardava; la 1.7.0 del Catalogo in `~/wfwp-backup/1.7.0.0-catalogo`, la configurazione in `~/wfwp-backup/config-1.7.0-prima-20a.xml`): `Info` 1.8.0 con `recommendations`, `HomeRowsSeen` = `recommended` con `HomeRows` non impostata. Resta fino alla fine del 20b. Nessuna release.
-- **20b — app 0.14.0:** nucleo, pannello, riga, anteprima, cassetta, testi; prova con l'utente.
+- **20b — app 0.14.0 (realizzato):** nucleo, pannello, riga, anteprima, cassetta, testi; da provare con l'utente.
 - **Release** (con l'OK dell'utente a ogni passo): plugin **1.8.0** dal Catalogo (tag `watch-party-plugin-v1.8.0`, voce nel manifest, la build di prova spostata in `~/wfwp-backup/`), poi app **0.14.0 non obbligatoria** con le note in italiano nella bozza.
 - **Alla fine**, in `docs/IDEE.md`: l'idea 6 esce dalla lista e tra le fatte c'è "Spec N — consigli tra amici (plugin 1.8.0, app 0.14.0)".

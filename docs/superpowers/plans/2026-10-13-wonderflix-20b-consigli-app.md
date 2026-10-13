@@ -23,6 +23,7 @@
 5. **Il pulsante "Consiglia a…" va dopo i due tondi** (La mia lista e Visto), non tra loro: i tondi restano vicini.
 6. **Un solo testo con il plurale** per l'esito: `recommendSent` = "Consiglio inviato" (1) / "Consiglio inviato a N amici".
 7. **La funzione `recommendations` vale solo con l'accesso ai watch party** (`_canJoin`), come gli amici: il plugin usa la stessa policy.
+8. **Dalle review dei gruppi** (allineate nella spec): gli amici che non possono vedere il titolo stanno in fondo all'elenco (poi online, poi per nome); il contatore conta i caratteri ma il campo taglia a 200 punti di codice; elenco vuoto → "Nessun amico a cui consigliarlo"; ogni errore non del plugin all'invio → "Consiglio non inviato"; la riga si rilegge anche quando cambiano libreria o dati di visione, e una riga che fallisce si nasconde con il solo tipo dell'errore nel log; il messaggio nella cassetta è fra «…» in italiano e “…” in inglese; i titoli tolti restano nascosti per la sessione anche se consigliati di nuovo; `homeRowUnavailableRecommendations` vale anche senza accesso ai watch party; nomi dei testi veri al posto di `homeGateRecommendationsOff` e `recommendSentMany`; il test dei 30 amici è stato riordinato.
 
 ## Global Constraints
 
