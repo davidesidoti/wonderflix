@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Api;
 
 /// <summary>
-/// Endpoint degli amici (spec F §6.7). Chi chiama è l'utente
+/// Endpoint degli amici e di cosa guardano (spec F §6.7, spec O §6.2, §6.5). Chi chiama è l'utente
 /// dell'autenticazione. Come il resto del plugin, mai 404.
 /// </summary>
 [ApiController]
@@ -21,7 +21,8 @@ public class FriendsController(
     IAuthorizationContext authorizationContext,
     ISessionDirectory sessions,
     FriendService friends,
-    PartyService parties) : ControllerBase
+    PartyService parties,
+    ActivityService activity) : ControllerBase
 {
     /// <summary>Amici con il loro stato (e il party visibile in cui stanno), richieste in arrivo e inviate.</summary>
     [HttpGet("Friends")]
@@ -31,7 +32,22 @@ public class FriendsController(
         // I gruppi SyncPlay si vedono da una sessione: senza quella di chi
         // chiama, nessun party (come gli endpoint Parties).
         var viewer = sessions.FindCaller(auth.DeviceId, auth.Client, auth.UserId);
-        return friends.GetFriends(auth.UserId, viewer is null ? null : friendId => parties.PartyOf(viewer, friendId));
+        return friends.GetFriends(
+            auth.UserId,
+            viewer is null ? null : friendId => parties.PartyOf(viewer, friendId),
+            friendId => activity.NowPlayingFor(auth.UserId, friendId));
+    }
+
+    /// <summary>
+    /// Dove è arrivato l'amico, per "Guarda insieme" (spec O §6.5); 409 se
+    /// non sta guardando o chi chiama non può saperlo. userId senza vincoli
+    /// di rotta: mai 404.
+    /// </summary>
+    [HttpGet("Friends/{userId}/NowPlaying")]
+    public async Task<ActionResult<FriendPosition>> GetNowPlaying([FromRoute] string userId)
+    {
+        var result = activity.Position(await CallerAsync().ConfigureAwait(false), userId);
+        return result.Status == HubStatus.Ok ? result.Value! : Conflict();
     }
 
     /// <summary>Utenti il cui nome contiene q (almeno 2 lettere), al massimo 10.</summary>

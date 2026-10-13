@@ -22,6 +22,8 @@ public sealed class FriendsControllerTests : IDisposable
     private readonly PartyRegistry _registry = new();
     private readonly PartyAnnouncer _announcer;
     private readonly PartyService _parties;
+    private readonly PresenceTracker _presence;
+    private readonly ActivityService _activity;
 
     public FriendsControllerTests()
     {
@@ -36,18 +38,21 @@ public sealed class FriendsControllerTests : IDisposable
         _parties = new PartyService(
             directory, _server, _server, _server, _friends, _registry, _announcer, _server,
             new RateLimiter(_time), TestInbox.Create(_server, _folder, _time), NullLogger<PartyService>.Instance);
+        _presence = new PresenceTracker(_friends, _time, NullLogger<PresenceTracker>.Instance);
+        _activity = TestActivity.Create(_server, _folder, _time, _friends, _presence, _registry);
     }
 
     public void Dispose()
     {
         _announcer.Dispose();
+        _presence.Dispose();
         _folder.Dispose();
     }
 
     private FriendsController Controller(User user, string deviceId = "d")
     {
         var auth = new AuthorizationInfo { DeviceId = deviceId, Client = "WonderFlix", User = user, IsAuthenticated = true };
-        return new FriendsController(new FakeAuthorizationContext(auth), _server, _friends, _parties)
+        return new FriendsController(new FakeAuthorizationContext(auth), _server, _friends, _parties, _activity)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
         };
@@ -119,5 +124,37 @@ public sealed class FriendsControllerTests : IDisposable
         }
 
         Assert.Equal(StatusCodes.Status429TooManyRequests, Status((await Controller(_mario).Search("lui")).Result!));
+    }
+
+    [Fact]
+    public async Task FriendsShowWhatTheyAreWatching()
+    {
+        await _friends.RequestAsync(_mario.Id, _luigi.Id);
+        await _friends.AcceptAsync(_luigi.Id, _mario.Id);
+        var luigiSession = _server.AddSession("d-luigi", _server.Users[_luigi.Id]);
+        var dune = Guid.NewGuid();
+        _server.Playback.Add(TestActivity.Movie(luigiSession, dune));
+
+        var response = (await Controller(_mario).GetFriends()).Value!;
+
+        Assert.Equal("Dune", Assert.Single(response.Friends).NowPlaying!.Title);
+    }
+
+    [Fact]
+    public async Task ThePositionIs409UnlessTheFriendIsWatching()
+    {
+        await _friends.RequestAsync(_mario.Id, _luigi.Id);
+        await _friends.AcceptAsync(_luigi.Id, _mario.Id);
+        var luigiId = _luigi.Id.ToString("N");
+
+        Assert.IsType<ConflictResult>((await Controller(_mario).GetNowPlaying(luigiId)).Result);
+        Assert.IsType<ConflictResult>((await Controller(_mario).GetNowPlaying("non-un-id")).Result);
+
+        var luigiSession = _server.AddSession("d-luigi", _server.Users[_luigi.Id]);
+        var dune = Guid.NewGuid();
+        _server.Playback.Add(TestActivity.Movie(luigiSession, dune, position: TimeSpan.FromMinutes(3)));
+
+        var position = (await Controller(_mario).GetNowPlaying(luigiId)).Value!;
+        Assert.Equal(new FriendPosition(dune.ToString("N"), TimeSpan.FromMinutes(3).Ticks), position);
     }
 }
