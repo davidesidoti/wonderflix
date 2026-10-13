@@ -34,6 +34,10 @@ Gli adattatori Jellyfin sono in `Server/`: `JellyfinPlaybackDirectory` legge `IS
 7. **Un episodio senza serie** (`SeriesId` vuoto) compare in "Sta guardando" con il suo nome, ma non si registra: la riga mostra solo film e serie.
 8. **Una registrazione per titolo e sessione:** in memoria si ricorda la coppia (sessione, film o serie). A `PlaybackStopped` la sessione si dimentica; alla pulizia si dimenticano le sessioni che non ci sono più. Uno stop dopo una registrazione già fatta non riscrive il file.
 9. **Errori di Jellyfin in "Sta guardando":** se la lettura delle sessioni o `CanSee` lanciano, `NowPlaying` manca (`Warning`) e `GET Friends` risponde lo stesso.
+10. **Dalle review dei gruppi:**
+    - **Stop dal controllo di inattività:** `CheckForIdlePlayback` manda `PlaybackStopped` (non automatico) 5–10 minuti dopo con la posizione fatta avanzare da Jellyfin, che supererebbe i 5 minuti anche per un'app chiusa al minuto 1. `PlaybackReport` ha quindi `LastCheckIn` (`LastPlaybackCheckIn` della sessione, in UTC) e uno stop conta per la posizione solo se `now - LastCheckIn <= ActivityService.MaxReportAge` (1 minuto); con un resoconto più vecchio conta solo `PlayedToCompletion`.
+    - **`activity.json` illeggibile:** il controllo `Shares(friendId)` di "Sta guardando" è dentro il `try` di `Playing`: un errore di lettura dà `NowPlaying` assente (`Warning`), mai un 500 su `GET Friends`. Non si ripiega su un registro vuoto.
+    - **Test in più:** la posizione di un amico in un party dà 409.
 
 ## Global Constraints
 

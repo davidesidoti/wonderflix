@@ -1,7 +1,7 @@
 # WonderFlix — Spec O: cosa guardano gli amici
 
 - **Data:** 2026-10-13
-- **Stato:** approvata il 2026-10-13; piano 21a scritto (`docs/superpowers/plans/2026-10-13-wonderflix-21a-attivita-amici-plugin.md`).
+- **Stato:** approvata il 2026-10-13; piano 21a realizzato (`docs/superpowers/plans/2026-10-13-wonderflix-21a-attivita-amici-plugin.md`), build di prova sul server; piano 21b da scrivere.
 - **Ambito:** Spec O. Realizza l'idea 5 di `docs/IDEE.md` ("Cosa guardano gli amici"): nel pannello Amici compare cosa sta guardando un amico anche fuori dai watch party, con "Guarda insieme" per aprire un party su quel titolo e invitarlo; in Home la riga "Visti dagli amici"; un interruttore per non mostrare cosa si guarda.
 
 ## 1. Obiettivo
@@ -60,10 +60,10 @@ Prese con l'utente nel brainstorming del 2026-10-13:
 ```
 Jellyfin (sessioni WonderFlix) ──PlaybackStart/Progress/Stopped──▶ Plugin
     ├──▶ PresenceTracker.Changed ──FriendsChanged──▶ app degli amici ──GET Friends──▶ NowPlaying (dal vivo)
-    └──▶ activity.json (visioni ≥ 5 min)
+    └──▶ activity.json (visioni ≥ 5 min; scelte di condivisione)
 App (Guarda insieme) ──GET Friends/{id}/NowPlaying──▶ posizione ──▶ startWatchParty(Private) ──▶ Invites
 App (Home) ──GET Activity/FriendsWatched──▶ Plugin (amici, interruttore, CanSee, non visti da me)
-App (Impostazioni) ──GET/PUT Activity/Settings──▶ privacy.json
+App (Impostazioni) ──GET/PUT Activity/Settings──▶ activity.json
 ```
 
 - "Sta guardando" non si salva: si legge dalle sessioni a ogni `GET Friends`.
@@ -73,13 +73,12 @@ App (Impostazioni) ──GET/PUT Activity/Settings──▶ privacy.json
 
 ### 6.1 Impostazione `ShareActivity`
 
-- File `privacy.json`: `{"Version": 1, "Users": {"<userId>": {"ShareActivity": false}}}`. Un utente assente vale `ShareActivity = true` (si scrivono solo le scelte fatte). Stesse regole di file degli altri archivi (caricamento all'avvio con il suo `try/catch`, scrittura atomica sotto lock, `.bad`).
+- Un file solo, `activity.json` (§6.4), tiene sia le scelte sia le visioni: `{"Version": 1, "Hidden": ["<userId>"], "Users": {…}}`. `Hidden` elenca chi ha spento la condivisione; un utente assente vale `ShareActivity = true` (si scrivono solo le scelte fatte). Un archivio, un libro, un lock: spegnere e cancellare le visioni è un cambio solo, scritto una volta. Stesse regole di file degli altri archivi (caricamento all'avvio con il suo `try/catch`, scrittura atomica sotto lock, `.bad`).
 - `GET Activity/Settings` → `{ShareActivity}`; `PUT Activity/Settings` `{ShareActivity}` → 204. Corpo mancante o senza il campo → 400.
 - **Spegnere:**
-  1. salva;
-  2. cancella dal registro (§6.4) tutte le visioni di quell'utente;
-  3. `PresenceTracker.Changed(userId)`, così gli amici vedono subito solo "Online".
-- **Accendere:** salva e `PresenceTracker.Changed(userId)`. Le visioni cancellate non tornano; si registrano quelle nuove.
+  1. mette l'utente in `Hidden` e cancella dal registro (§6.4) tutte le sue visioni, con un solo salvataggio;
+  2. `PresenceTracker.Changed(userId)`, così gli amici vedono subito solo "Online".
+- **Accendere:** toglie l'utente da `Hidden`, salva e `PresenceTracker.Changed(userId)`. Le visioni cancellate non tornano; si registrano quelle nuove.
 
 ### 6.2 "Sta guardando" in `GET Friends`
 
@@ -91,35 +90,40 @@ NowPlaying {ItemId, Title, SeriesId?, SeriesName?, Season?, Episode?}
 
 - `ItemId` e `Title`: il film o l'episodio. Per un episodio anche `SeriesId`, `SeriesName`, `Season` (`ParentIndexNumber`) ed `Episode` (`IndexNumber`), ciascuno assente se Jellyfin non lo conosce.
 - Si calcola solo per gli amici online e solo se valgono **tutte**:
-  1. l'amico non è in un party che chi chiama vede (`Party` assente). Se l'amico è in un party che chi chiama non vede, `NowPlaying` resta assente: non si rivela cosa guarda un party nascosto;
+  1. l'amico non è in un party: nessuna sua sessione WonderFlix è nel registro dei party (`PartyRegistry.GroupOf`). Vale anche se chi chiama non vede quel party: `NowPlaying` resta assente, non si rivela cosa guarda un party nascosto;
   2. l'amico ha `ShareActivity` acceso;
   3. una sua sessione WonderFlix riproduce un film o un episodio (non trailer, video, musica);
   4. chi chiama può vedere quell'elemento (`CanSee`). Altrimenti l'amico risulta solo "Online", senza indizi.
 - Più sessioni WonderFlix dello stesso amico che riproducono: vale quella con l'ultimo resoconto più recente (`LastPlaybackCheckIn`).
-- Errore della libreria per un amico: `NowPlaying` assente (`Warning`), il resto della risposta arriva.
+- Qualunque errore per un amico (lettura delle sessioni, `CanSee`, e anche la lettura di `activity.json` per sapere se condivide): `NowPlaying` assente (`Warning`), il resto della risposta arriva. Un `activity.json` illeggibile non rompe mai `GET Friends`: si vede solo "Online".
 
 ### 6.3 Aggiornamento della presenza
 
-- Il servizio a orario nuovo `ActivityHostedService` ascolta `ISessionManager.PlaybackStart` e `PlaybackStopped` delle sessioni WonderFlix e chiama `PresenceTracker.Changed(userId)`: gli amici ricevono `FriendsChanged` (2 s di attesa come oggi). Cambiare episodio dà `Stopped` + `Start`, uniti dall'attesa.
+- Il servizio a orario nuovo `ActivityHostedService` ascolta `ISessionManager.PlaybackStart` e `PlaybackStopped` delle sessioni WonderFlix (film ed episodi) e chiama `PresenceTracker.Changed(userId)`: gli amici ricevono `FriendsChanged` (2 s di attesa come oggi). Cambiare episodio dà `Stopped` + `Start`, uniti dall'attesa.
 - Con `ShareActivity` spento non si chiama (non c'è niente da cambiare per gli amici).
 - Nessun controllo periodico.
 
 ### 6.4 Registro delle visioni (`activity.json`)
 
-- Contenuto: `{"Version": 1, "Users": {"<userId>": [{"ItemId": "…", "WatchedAt": "…"}]}}`. `ItemId` è il film o la **serie** (per un episodio si registra la serie). Id in formato `N`, date ISO-8601 UTC.
-- **Quando si registra:** per una sessione WonderFlix con un film o un episodio, la prima volta che `PlaybackProgress` riporta una posizione ≥ 5 minuti, oppure a `PlaybackStopped` con `PlayedToCompletion` o posizione ≥ 5 minuti. Per non riscrivere il file a ogni resoconto, in memoria si ricorda la coppia (sessione, elemento) già registrata; si dimentica a `PlaybackStopped`.
+- Contenuto: `{"Version": 1, "Hidden": ["<userId>"], "Users": {"<userId>": [{"ItemId": "…", "WatchedAt": "…"}]}}`. `ItemId` è il film o la **serie** (per un episodio si registra la serie; un episodio senza serie non si registra). Id in formato `N`, date ISO-8601 UTC.
+- **Solo i resoconti veri:** dopo ogni resoconto Jellyfin manda da sé un `PlaybackProgress` al secondo (`IsAutomated` vero): il plugin li scarta. Per la soglia bastano i resoconti dell'app (ogni 10 s).
+- **Quando si registra:** per una sessione WonderFlix con un film o un episodio, la prima volta che `PlaybackProgress` riporta una posizione ≥ 5 minuti, oppure a `PlaybackStopped` con `PlayedToCompletion` o posizione ≥ 5 minuti.
+- **Stop dal controllo di inattività di Jellyfin:** se un player si chiude male, Jellyfin continua a far avanzare la posizione da sé e, 5–10 minuti dopo, manda uno `PlaybackStopped` con quella posizione. Per non registrare visioni mai fatte, uno stop conta per la posizione solo se l'ultimo resoconto vero (`LastPlaybackCheckIn`) ha al massimo 1 minuto (`ActivityService.MaxReportAge`; l'app riporta ogni 10 s). Con un resoconto più vecchio conta solo `PlayedToCompletion`.
+- **Una registrazione per sessione e titolo:** per non riscrivere il file a ogni resoconto, in memoria si ricorda la coppia (sessione, film o serie) già registrata. Si dimentica a `PlaybackStopped` e, nella pulizia, per le sessioni che non esistono più. Uno stop dopo una registrazione già fatta non riscrive il file.
+- **Il gestore di `PlaybackProgress` non deve mai lanciare:** Jellyfin lo chiama dentro la richiesta dell'app, senza `try/catch`; un errore farebbe fallire il resoconto. Per questo ha il suo `try/catch` (`Warning`) e fa poco: un insieme in memoria e, una volta per titolo, un salvataggio. `PlaybackStart` e `PlaybackStopped` girano in `Task.Run`, con le eccezioni già prese da Jellyfin.
 - Contano anche le visioni nei watch party.
 - Solo con `ShareActivity` acceso (letto al momento della registrazione).
 - **Un titolo una volta per utente:** se c'è già, si aggiorna `WatchedAt`.
 - **Tetto:** 100 titoli per utente; oltre si toglie il `WatchedAt` più vecchio.
-- **Pulizia** in `ActivityHostedService`, ogni 5 minuti con il suo `try/catch`: via le visioni con più di 30 giorni e gli utenti che non esistono più. Salvataggio solo se qualcosa è cambiato.
+- **Pulizia** in `ActivityHostedService`, ogni 5 minuti con il suo `try/catch`: via le visioni con più di 30 giorni, gli utenti che non esistono più (scelte comprese) e le sessioni dimenticate. Salvataggio solo se qualcosa è cambiato.
 
 ### 6.5 Posizione per "Guarda insieme"
 
 `GET Friends/{userId}/NowPlaying` → `{ItemId, PositionTicks}`:
 
 - Stessi controlli di §6.2 (amico di chi chiama, online, non in un party, `ShareActivity`, sessione WonderFlix che riproduce un film o un episodio, `CanSee` di chi chiama). Se uno non vale → **409** (mai 404); `userId` senza vincoli di rotta.
-- `PositionTicks`: la posizione dell'ultimo resoconto; se la riproduzione non è in pausa, più il tempo passato da `LastPlaybackCheckIn`, senza superare la durata dell'elemento.
+- `PositionTicks`: `PlayState.PositionTicks` della sessione così com'è. Jellyfin la fa avanzare di un secondo alla volta mentre si guarda, quindi non si aggiunge il tempo dall'ultimo resoconto (lo si conterebbe due volte) e non serve tagliarla alla durata. `LastPlaybackCheckIn` serve solo a scegliere la sessione più recente (§6.2).
+- Un amico in un party (anche nascosto) dà 409, come in §6.2.
 
 ### 6.6 Riga "Visti dagli amici"
 
@@ -223,10 +227,10 @@ NowPlaying {ItemId, Title, SeriesId?, SeriesName?, Season?, Episode?}
 
 ### 11.1 Plugin (xUnit)
 
-- `privacy.json`: predefinito acceso, spegnere cancella le visioni e chiama `Changed`, file illeggibile → `.bad`.
-- `NowPlaying` in `GET Friends`: ogni condizione di §6.2 (offline, in un party visibile e nascosto, condivisione spenta, sessione non WonderFlix, tipo non valido, `CanSee` falso), episodio con e senza stagione/numero, più sessioni, errore della libreria.
-- `Friends/{id}/NowPlaying`: 409 per ogni condizione, non amico, posizione con e senza pausa, tetto alla durata.
-- Registro: soglia dei 5 minuti, `PlayedToCompletion`, una registrazione per (sessione, elemento), serie al posto dell'episodio, aggiornamento di `WatchedAt`, tetto 100, pulizia dei 30 giorni e degli utenti spariti, nessuna registrazione con la condivisione spenta.
+- Scelte (`Hidden` in `activity.json`): predefinito acceso, spegnere cancella le visioni e chiama `Changed`, file illeggibile → `.bad`.
+- `NowPlaying` in `GET Friends`: ogni condizione di §6.2 (offline, in un party visibile e nascosto, condivisione spenta, sessione non WonderFlix, tipo non valido, `CanSee` falso), episodio con e senza stagione/numero, più sessioni, errore della libreria, `activity.json` illeggibile (solo "Online").
+- `Friends/{id}/NowPlaying`: 409 per ogni condizione, non amico, posizione con e senza pausa, amico in un party → 409.
+- Registro: soglia dei 5 minuti, resoconti automatici scartati, stop del controllo di inattività (resoconto vecchio) non registrato salvo `PlayedToCompletion`, `PlayedToCompletion`, una registrazione per (sessione, elemento), serie al posto dell'episodio, aggiornamento di `WatchedAt`, tetto 100, pulizia dei 30 giorni e degli utenti spariti, nessuna registrazione con la condivisione spenta.
 - `FriendsWatched`: raggruppamento e ordine, amici non più amici o disabilitati o con la condivisione spenta, `CanSee`, già visto da chi chiama, tetto 30, errore della libreria.
 - Presenza: `PlaybackStart`/`Stopped` WonderFlix chiamano `Changed`, le altre sessioni no.
 - `HomeRowIds` con `friendsWatched` e inserimento una volta sola; controllo dei riferimenti della dll contro Jellyfin 10.11.9.
@@ -242,18 +246,20 @@ NowPlaying {ItemId, Title, SeriesId?, SeriesName?, Season?, Episode?}
 
 Due istanze (`WONDERFLIX_PROFILE=b`) con due utenti amici: "Sta guardando" film ed episodio, cambio episodio, stop; "Guarda insieme" con l'amico a metà; visione oltre 5 minuti e riga "Visti dagli amici" dall'altra parte; interruttore spento (sparisce lo stato e la riga si svuota); un utente con limite d'età per `CanSee`.
 
-## 12. Rischi e punti da verificare
+## 12. Verifiche sul sorgente di Jellyfin 10.11.9
 
-Da verificare sul sorgente di Jellyfin 10.11.9 all'inizio del piano 21a:
+Fatte il 2026-10-13 all'inizio del piano 21a:
 
-- `ISessionManager.PlaybackStart`/`PlaybackProgress`/`PlaybackStopped` e i loro argomenti (`Session`, `Item`, `PlaybackPositionTicks`, `PlayedToCompletion`) per le sessioni che riportano con `/Sessions/Playing*`.
-- `SessionInfo.PlayState` (`PositionTicks`, `IsPaused`) e `LastPlaybackCheckIn`: quanto è aggiornato tra un resoconto e l'altro (l'app riporta ogni 10 s).
-- Un player WonderFlix chiuso male: Jellyfin toglie `NowPlayingItem` quando la sessione non riporta più? Se resta, "Sta guardando" può durare fino alla fine della sessione (accettabile, da annotare).
-- Nei watch party ogni partecipante riporta la riproduzione dalla propria sessione: le visioni nei party si registrano senza codice dedicato.
+- **Eventi:** `ISessionManager.PlaybackStart`/`PlaybackProgress`/`PlaybackStopped` e i loro argomenti (`Session`, `Item`, `PlaybackPositionTicks`, `PlayedToCompletion`) ci sono per le sessioni che riportano con `/Sessions/Playing*`.
+- **Resoconti automatici:** dopo ogni resoconto Jellyfin manda da sé un `PlaybackProgress` al secondo (`SessionInfo.StartAutomaticProgress`, `IsAutomated` vero). Il plugin li scarta (§6.4).
+- **`PlaybackProgress` senza rete:** Jellyfin lo chiama dentro la richiesta dell'app senza `try/catch` (`SessionManager.cs:928`): il gestore del plugin non deve lanciare (§6.4).
+- **Posizione:** `PlayState.PositionTicks` avanza di un secondo alla volta mentre si guarda; `LastPlaybackCheckIn` si aggiorna solo con i resoconti veri (§6.5).
+- **Player chiuso male:** Jellyfin (`CheckForIdlePlayback`, ogni 5 minuti) chiama `OnPlaybackStopped` per le sessioni senza resoconti da più di 5 minuti. Quindi "Sta guardando" non resta bloccato: sparisce da 5 a 10 minuti dopo. Quello stop però arriva con la posizione fatta avanzare da Jellyfin: per questo conta solo con un resoconto recente (§6.4).
+- **Watch party:** SyncPlay non cambia i resoconti di riproduzione, quindi le visioni nei party si registrano come le altre, senza codice dedicato.
 
 ## 13. Piani e release
 
-- **21a — plugin 1.9.0:** verifiche di §12, `privacy.json`, `NowPlaying`, posizione, presenza, registro, `FriendsWatched`, `Info`, riga `friendsWatched`; build di prova installata a mano sul server (backup della 1.8.0 del Catalogo e della configurazione in `~/wfwp-backup/`). Nessuna release.
+- **21a — plugin 1.9.0 (realizzato):** verifiche di §12, `Hidden` in `activity.json`, `NowPlaying`, posizione, presenza, registro, `FriendsWatched`, `Info`, riga `friendsWatched`. Build di prova installata a mano sul server il 2026-10-13 (backup della 1.8.0 del Catalogo in `~/wfwp-backup/1.8.0.0-catalogo` e della configurazione in `~/wfwp-backup/config-1.8.0-prima-21a.xml`); `Info` risponde 1.9.0 con `friendsActivity`, `HomeRowsSeen` vale `recommended,friendsWatched`. Il plugin 1.9.0 resta build di prova fino alla fine del 21b: nessuna release.
 - **21b — app 0.15.0:** nucleo, pannello Amici, interruttore, riga, testi; prova con l'utente.
 - **Release** (con l'OK dell'utente a ogni passo): plugin **1.9.0** dal Catalogo, poi app **0.15.0 obbligatoria** con le note in italiano nella bozza; poi l'annuncio dell'admin nella cassetta che spiega la novità e dove si spegne l'interruttore.
 - **Alla fine**, in `docs/IDEE.md`: l'idea 5 esce dalla lista e tra le fatte c'è "Spec O — cosa guardano gli amici (plugin 1.9.0, app 0.15.0)".
