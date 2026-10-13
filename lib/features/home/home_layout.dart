@@ -6,6 +6,7 @@ import '../social/social_providers.dart';
 enum HomeRowKind {
   resume('resume'),
   nextUp('nextUp'),
+  recommended('recommended'),
   requests('requests'),
   latestMovies('latestMovies'),
   latestSeries('latestSeries'),
@@ -30,7 +31,7 @@ enum HomeRowKind {
   /// Le righe che vengono da Jellyfin: se falliscono tutte, insieme al
   /// carosello, la Home mostra l'errore (spec M §8.2 punto 4).
   bool get fromJellyfin => switch (this) {
-        requests || upcomingSeries || upcomingMovies => false,
+        requests || recommended || upcomingSeries || upcomingMovies => false,
         _ => true,
       };
 }
@@ -85,6 +86,10 @@ enum HomeRowGate {
 
   /// Il plugin non ha Radarr configurato.
   radarrOff,
+
+  /// Il plugin non ha i consigli (prima della 1.8.0, o senza accesso ai watch
+  /// party).
+  recommendationsOff,
 }
 
 HomeRowGate homeRowGate(HomeRowKind row, SocialFeatures features,
@@ -98,6 +103,8 @@ HomeRowGate homeRowGate(HomeRowKind row, SocialFeatures features,
         HomeRowGate.sonarrOff,
       HomeRowKind.upcomingMovies when !features.upcomingMovies =>
         HomeRowGate.radarrOff,
+      HomeRowKind.recommended when !features.recommendations =>
+        HomeRowGate.recommendationsOff,
       _ => HomeRowGate.available,
     };
 

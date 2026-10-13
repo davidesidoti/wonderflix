@@ -195,8 +195,10 @@ List<Override> homeOverrides({
   FakeRequestsApi? requests,
   FakeCollectionsApi? collections,
   FakeSessionController? session,
+  FakeSocialApi? social,
 }) =>
     [
+      socialApiProvider.overrideWithValue(social ?? FakeSocialApi()),
       libraryApiProvider.overrideWithValue(library),
       homeApiProvider.overrideWithValue(home ?? FakeHomeApi()),
       displayPreferencesApiProvider
@@ -216,8 +218,10 @@ List<Override> homeSettingsOverrides({
   FakeDisplayPreferencesApi? prefs,
   FakeHomeApi? home,
   SocialFeatures features = SocialFeatures.none,
+  FakeSocialApi? social,
 }) =>
     [
+      socialApiProvider.overrideWithValue(social ?? FakeSocialApi()),
       displayPreferencesApiProvider
           .overrideWithValue(prefs ?? FakeDisplayPreferencesApi()),
       homeApiProvider.overrideWithValue(home ?? FakeHomeApi()),

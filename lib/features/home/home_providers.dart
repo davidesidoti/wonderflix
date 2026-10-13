@@ -186,6 +186,15 @@ final homeRowProvider = FutureProvider.autoDispose
       keepFor(ref, homeExternalRefresh);
       _logUpcoming('film', page.error);
       return UpcomingMoviesRowContent(page.items.take(homeRowLimit).toList());
+    case HomeRowKind.recommended:
+      // Niente `keepFor`: si rilegge a ogni apertura della Home (piano 20b,
+      // decisione 3). Tutti i watch prima dell'attesa.
+      final userId = ref.watch(currentUserIdProvider);
+      final api = ref.watch(libraryApiProvider);
+      final recommendations =
+          await ref.watch(socialApiProvider).recommendations();
+      return RecommendedRowContent(
+          await loadRecommended(api, userId, recommendations));
     case HomeRowKind.resume ||
           HomeRowKind.nextUp ||
           HomeRowKind.myList ||
@@ -226,6 +235,7 @@ Future<HomeRowContent> _libraryRow(Ref ref, HomeRowKind kind) async {
       return SagasRowContent(await loadContinueSaga(api, userId, await sagas));
     case HomeRowKind.latestMovies ||
           HomeRowKind.latestSeries ||
+          HomeRowKind.recommended ||
           HomeRowKind.requests ||
           HomeRowKind.upcomingSeries ||
           HomeRowKind.upcomingMovies:

@@ -2,6 +2,7 @@ import '../../core/jellyfin/item_models.dart';
 import '../../core/requests/requests_models.dart';
 import '../../core/social/collections_models.dart';
 import '../../core/social/home_models.dart';
+import '../../core/social/recommendation_models.dart';
 
 /// Cosa mostra una riga della Home (spec M §8.3). Una riga vuota non si
 /// vede.
@@ -71,6 +72,24 @@ final class UpcomingMoviesRowContent extends HomeRowContent {
 
   @override
   bool get isEmpty => movies.isEmpty;
+}
+
+/// "Consigliati per te" (spec N §7.3).
+final class RecommendedRowContent extends HomeRowContent {
+  const RecommendedRowContent(this.titles);
+
+  final List<RecommendedItem> titles;
+
+  @override
+  bool get isEmpty => titles.isEmpty;
+}
+
+/// Un titolo consigliato, con chi l'ha consigliato.
+class RecommendedItem {
+  const RecommendedItem({required this.item, required this.from});
+
+  final JellyfinItem item;
+  final List<RecommendationSender> from;
 }
 
 /// Una saga da continuare: il prossimo film da vedere e quanti sono visti.

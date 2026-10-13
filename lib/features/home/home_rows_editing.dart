@@ -91,6 +91,7 @@ List<String> adminRowsEffective(List<String>? saved) => [
 String homeRowName(AppLocalizations l, HomeRowKind row) => switch (row) {
       HomeRowKind.resume => l.homeContinueWatching,
       HomeRowKind.nextUp => l.homeNextUp,
+      HomeRowKind.recommended => l.homeRowRecommended,
       HomeRowKind.requests => l.homeMyRequests,
       HomeRowKind.latestMovies => l.homeLatestMovies,
       HomeRowKind.latestSeries => l.homeLatestSeries,
@@ -119,4 +120,5 @@ String? homeRowGateReason(AppLocalizations l, HomeRowGate gate) =>
       HomeRowGate.sagasOff => l.homeRowUnavailableSagas,
       HomeRowGate.sonarrOff => l.homeRowUnavailableSonarr,
       HomeRowGate.radarrOff => l.homeRowUnavailableRadarr,
+      HomeRowGate.recommendationsOff => l.homeRowUnavailableRecommendations,
     };

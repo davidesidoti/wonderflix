@@ -8,6 +8,7 @@ import '../../core/jellyfin/library_api.dart';
 import '../../core/requests/requests_models.dart';
 import '../../core/social/collections_models.dart';
 import '../../core/social/home_models.dart';
+import '../../core/social/recommendation_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import 'home_row_content.dart';
 
@@ -199,6 +200,26 @@ Future<List<SagaProgress>> loadContinueSaga(
       if (nextInSaga([for (final id in c.unwatched) ?byId[id]])
           case final next?)
         SagaProgress(saga: c.saga, next: next, watched: c.watched),
+  ];
+}
+
+/// "Consigliati per te" (spec N §7.3): i titoli del plugin, al più
+/// [homeRowLimit], letti da Jellyfin in una volta. Restano nell'ordine del
+/// plugin; quelli che Jellyfin non dà (cancellati, non più visibili) si
+/// saltano.
+Future<List<RecommendedItem>> loadRecommended(
+    LibraryApi api, String userId, List<Recommendation> recommendations) async {
+  final wanted = recommendations.take(homeRowLimit).toList();
+  if (wanted.isEmpty) return const [];
+  final byId = {
+    for (final item
+        in await api.itemsByIds(userId, [for (final r in wanted) r.itemId]))
+      jellyfinIdKey(item.id): item,
+  };
+  return [
+    for (final r in wanted)
+      if (byId[jellyfinIdKey(r.itemId)] case final item?)
+        RecommendedItem(item: item, from: r.from),
   ];
 }
 

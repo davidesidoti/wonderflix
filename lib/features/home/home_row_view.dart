@@ -8,15 +8,19 @@ import 'package:go_router/go_router.dart';
 import '../../app/navigation.dart';
 import '../../core/jellyfin/image_urls.dart';
 import '../../core/jellyfin/item_models.dart';
+import '../../core/jellyfin/json_fields.dart';
 import '../../core/requests/requests_models.dart';
 import '../../core/requests/tmdb_images.dart';
 import '../../core/social/home_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/card_preview.dart';
 import '../../ui/landscape_card.dart';
 import '../../ui/media_row.dart';
 import '../../ui/poster_card.dart';
 import '../../ui/remote_image_card.dart';
 import '../library/library_providers.dart';
+import '../recommendations/recommendation_dismissals.dart';
+import '../recommendations/recommendation_labels.dart';
 import '../requests/request_labels.dart';
 import '../requests/requestable_poster_card.dart';
 import '../requests/requests_navigation.dart';
@@ -86,12 +90,15 @@ class HomeRowView extends ConsumerWidget {
         _upcomingSeries(context, ref, l, episodes),
       UpcomingMoviesRowContent(:final movies) =>
         _upcomingMovies(ref, l, movies),
+      RecommendedRowContent(:final titles) =>
+        _recommended(context, ref, l, titles),
     };
   }
 
   String _title(AppLocalizations l) => switch (kind) {
         HomeRowKind.resume => l.homeContinueWatching,
         HomeRowKind.nextUp => l.homeNextUp,
+        HomeRowKind.recommended => l.homeRowRecommended,
         HomeRowKind.requests => l.homeMyRequests,
         HomeRowKind.latestMovies => l.homeLatestMovies,
         HomeRowKind.latestSeries => l.homeLatestSeries,
@@ -102,6 +109,44 @@ class HomeRowView extends ConsumerWidget {
         HomeRowKind.upcomingMovies => l.homeUpcomingMovies,
         HomeRowKind.myList => l.navMyList,
       };
+
+  /// "Consigliati per te": chi l'ha consigliato sotto la locandina, i
+  /// messaggi e "Non mi interessa" nell'anteprima (spec N §7.3, §7.4). I
+  /// titoli tolti spariscono subito.
+  Widget _recommended(BuildContext context, WidgetRef ref, AppLocalizations l,
+      List<RecommendedItem> titles) {
+    final dismissed = ref.watch(recommendationDismissalsProvider);
+    final shown = [
+      for (final title in titles)
+        if (!dismissed.contains(jellyfinIdKey(title.item.id))) title,
+    ];
+    if (shown.isEmpty) return const SizedBox.shrink();
+    return _row(l.homeRowRecommended, posterRowHeight, shown.length, (context, i) {
+      final title = shown[i];
+      return PosterCard(
+        key: ValueKey('recommended-${title.item.id}'),
+        item: title.item,
+        width: posterWidth,
+        heroSource: 'home.${kind.id}.$i',
+        subtitle: recommendedFrom(l, title.from),
+        previewExtra: CardPreviewExtra(
+          notes: recommendationNotes(l, title.from),
+          dismissTooltip: l.recommendDismiss,
+          onDismiss: () => unawaited(_dismiss(context, ref, title.item.id)),
+        ),
+      );
+    });
+  }
+
+  Future<void> _dismiss(BuildContext context, WidgetRef ref, String itemId) async {
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final ok =
+        await ref.read(recommendationDismissalsProvider.notifier).dismiss(itemId);
+    if (!ok) {
+      messenger?.showSnackBar(SnackBar(content: Text(l.recommendDismissFailed)));
+    }
+  }
 
   Widget _row(String title, double height, int count,
           IndexedWidgetBuilder itemBuilder) =>

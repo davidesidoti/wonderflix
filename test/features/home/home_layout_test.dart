@@ -9,13 +9,14 @@ void main() {
 
   test('gli id delle righe e l\'ordine predefinito', () {
     expect(ids(HomeRowKind.values), [
-      'resume', 'nextUp', 'requests', 'latestMovies', 'latestSeries',
+      'resume', 'nextUp', 'recommended', 'requests', 'latestMovies', 'latestSeries',
       'becauseYouWatched', 'continueSaga', 'upcomingSeries', 'upcomingMovies',
       'myList',
     ]);
     expect(HomeRowKind.parse('myList'), HomeRowKind.myList);
     expect(HomeRowKind.parse('MyList'), isNull);
     expect([for (final r in HomeRowKind.values) if (!r.fromJellyfin) r], [
+      HomeRowKind.recommended,
       HomeRowKind.requests,
       HomeRowKind.upcomingSeries,
       HomeRowKind.upcomingMovies,
