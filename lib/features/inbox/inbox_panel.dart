@@ -325,6 +325,7 @@ class _EntryTileState extends ConsumerState<_EntryTile> {
                   icon: LucideIcons.inbox, size: InboxPanel.leadingSize),
               ContactReminderEntry() => const InboxRequestIcon(
                   icon: LucideIcons.shieldCheck, size: InboxPanel.leadingSize),
+              RecommendationEntry() => _ItemPoster(itemId: entry.itemId),
             },
             const SizedBox(width: 12),
             Expanded(
@@ -364,6 +365,10 @@ class _EntryTileState extends ConsumerState<_EntryTile> {
                     channels: entry.channels,
                     time: widget.time,
                   ),
+                RecommendationEntry() => _RecommendationContent(
+                    key: Key('inbox-recommendation-${entry.id}'),
+                    entry: entry,
+                    time: widget.time),
               },
             ),
             Focus(
@@ -417,6 +422,23 @@ class _InvitePoster extends ConsumerWidget {
   }
 }
 
+/// La locandina di un titolo noto solo per id (un consiglio, spec N §7.5).
+class _ItemPoster extends ConsumerWidget {
+  const _ItemPoster({required this.itemId});
+
+  final String itemId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: SizedBox(
+          width: InboxPanel.leadingSize,
+          height: InboxPanel.posterHeight,
+          child: WfImage(image: ref.watch(imageUrlsProvider).primaryOf(itemId)),
+        ),
+      );
+}
+
 class _AnnouncementIcon extends StatelessWidget {
   const _AnnouncementIcon();
 
@@ -443,6 +465,54 @@ class _NewTitlesIcon extends StatelessWidget {
         child: const Icon(LucideIcons.sparkles,
             size: 18, color: WfColors.gold),
       );
+}
+
+/// Consiglio: "Luigi ti consiglia Dune (2021)", il messaggio, l'ora. Il clic
+/// chiude il pannello e apre il titolo (spec N §7.5; piano 20b, decisione 1).
+class _RecommendationContent extends ConsumerWidget {
+  const _RecommendationContent(
+      {super.key, required this.entry, required this.time});
+
+  final RecommendationEntry entry;
+  final String time;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final text = entry.text;
+    return SizedBox(
+      width: double.infinity,
+      child: InkWell(
+        onTap: () {
+          ref.read(shellPanelProvider.notifier).close();
+          openItemById(context, entry.itemId);
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text.rich(
+                  _inviteFromSpan(
+                      l.inboxRecommendation(entry.fromName, entry.title),
+                      entry.fromName),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: WfColors.cream)),
+              if (text != null)
+                Text('«$text»',
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: _mutedStyle),
+              const SizedBox(height: 4),
+              Text(time, style: _timeStyle),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Invito: chi, cosa e Unisciti finché il party c'è (spec G §7.6).

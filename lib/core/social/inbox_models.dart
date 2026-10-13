@@ -230,6 +230,30 @@ final class ContactReminderEntry extends InboxEntry {
   final List<AccountChannel> channels;
 }
 
+/// Un amico consiglia un film o una serie (spec N §7.5).
+final class RecommendationEntry extends InboxEntry {
+  const RecommendationEntry({
+    required super.id,
+    required super.seq,
+    required super.createdAt,
+    required super.read,
+    required this.itemId,
+    required this.fromName,
+    required this.title,
+    this.text,
+  });
+
+  /// Il film o la serie: anche la locandina.
+  final String itemId;
+  final String fromName;
+
+  /// "Dune (2021)".
+  final String title;
+
+  /// Il messaggio; `null` senza.
+  final String? text;
+}
+
 /// Una voce di `GET Inbox`; `null` se il tipo non lo conosciamo (es. le
 /// voci di una versione più nuova del plugin).
 InboxEntry? inboxEntryFromJson(Map<String, dynamic> json) {
@@ -297,6 +321,19 @@ InboxEntry? inboxEntryFromJson(Map<String, dynamic> json) {
           for (final raw in json['Channels'] as List? ?? const [])
             ?AccountChannel.fromWire(raw),
         ],
+      ),
+    'Recommendation' => RecommendationEntry(
+        id: id,
+        seq: seq,
+        createdAt: createdAt,
+        read: read,
+        itemId: json['ItemId'] as String,
+        fromName: json['FromName'] as String? ?? '',
+        title: json['Title'] as String? ?? '',
+        text: switch (json['Text']) {
+          final String text when text.isNotEmpty => text,
+          _ => null,
+        },
       ),
     _ => null,
   };

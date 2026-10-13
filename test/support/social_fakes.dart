@@ -377,6 +377,27 @@ InviteEntry testInvite({
       imageItemId: 'm1',
     );
 
+/// Un consiglio nella cassetta: Luigi consiglia "Dune (2021)", titolo `m1`.
+RecommendationEntry testRecommendationEntry({
+  String id = 'r1',
+  int seq = 1,
+  bool read = false,
+  String itemId = 'm1',
+  String fromName = 'Luigi',
+  String title = 'Dune (2021)',
+  String? text = 'da vedere',
+}) =>
+    RecommendationEntry(
+      id: id,
+      seq: seq,
+      createdAt: DateTime.utc(2026, 10, 12, 20),
+      read: read,
+      itemId: itemId,
+      fromName: fromName,
+      title: title,
+      text: text,
+    );
+
 /// Un annuncio dell'admin nella cassetta.
 AnnouncementEntry testAnnouncement({
   String id = 'a1',

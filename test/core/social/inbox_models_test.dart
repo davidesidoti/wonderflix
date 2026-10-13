@@ -367,4 +367,34 @@ void main() {
     }) as ContactReminderEntry;
     expect(entry.channels, isEmpty);
   });
+
+  test('voce Recommendation, con e senza messaggio', () {
+    final entry = inboxEntryFromJson({
+      'Id': 'r1',
+      'Seq': 4,
+      'Type': 'Recommendation',
+      'CreatedAt': '2026-10-12T20:00:00Z',
+      'Read': false,
+      'ItemId': 'm1',
+      'FromUserId': 'u2',
+      'FromName': 'Luigi',
+      'Title': 'Dune (2021)',
+      'Text': 'da vedere',
+    })! as RecommendationEntry;
+    expect(entry.itemId, 'm1');
+    expect(entry.fromName, 'Luigi');
+    expect(entry.title, 'Dune (2021)');
+    expect(entry.text, 'da vedere');
+
+    final bare = inboxEntryFromJson({
+      'Id': 'r2',
+      'Seq': 5,
+      'Type': 'Recommendation',
+      'CreatedAt': '2026-10-12T20:00:00Z',
+      'ItemId': 'm1',
+      'FromName': 'Luigi',
+      'Title': 'Dune',
+    })! as RecommendationEntry;
+    expect(bare.text, isNull);
+  });
 }
