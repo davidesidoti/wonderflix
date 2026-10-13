@@ -21,6 +21,7 @@ Dalla 1.7.0 dà la Home dell'admin (quali righe vede ogni utente nella Home
 dell'app) e le uscite in arrivo da Sonarr e Radarr (spec M,
 `docs/superpowers/specs/2026-10-10-wonderflix-home-su-misura-design.md`).
 Dalla 1.8.0 tiene i consigli tra amici: un utente consiglia un film o una serie ai suoi amici, che lo trovano nella cassetta e nella riga "Consigliati per te" della Home (spec N, `docs/superpowers/specs/2026-10-12-wonderflix-consigli-design.md`).
+Dalla 1.9.0 mostra agli amici cosa si sta guardando in WonderFlix e i titoli visti negli ultimi 30 giorni, con un interruttore per non mostrarlo (spec O, `docs/superpowers/specs/2026-10-13-wonderflix-cosa-guardano-amici-design.md`).
 Senza il plugin WonderFlix funziona lo stesso, con gli avvisi
 anonimi, senza saghe, con le iniziali al posto delle immagini, senza il
 recupero della password, con la Home nell'ordine predefinito e senza le
@@ -118,9 +119,22 @@ uscite in arrivo.
   `recommendations.json`, accanto a `inbox.json`. All'avvio la riga
   `recommended` si accende una volta sola nella Home dell'admin già salvata
   (`HomeRowsSeen`).
+- **Cosa guardano gli amici (dalla 1.9.0):** in `GET Friends` ogni amico
+  online fuori da un party può avere `NowPlaying` (film o episodio di una
+  sessione WonderFlix; mai se chi guarda non può vedere il titolo o l'amico
+  è in un party). `GET Friends/{userId}/NowPlaying` dà la posizione per
+  "Guarda insieme" (409 se non vale). Il plugin registra le visioni
+  WonderFlix oltre 5 minuti (film o serie, 30 giorni, 100 per utente) in
+  `activity.json`; `GET Activity/FriendsWatched` dà la riga "Visti dagli
+  amici" (titoli degli amici che chi chiama vede e non ha mai visto, al
+  massimo 30). `GET`/`PUT Activity/Settings` `{ShareActivity}` è
+  "Mostra agli amici cosa guardo" (acceso di default; spento cancella le
+  visioni). Gli amici rileggono a inizio e fine di ogni riproduzione. All'avvio
+  la riga `friendsWatched` si accende una volta sola nella Home dell'admin già
+  salvata (`HomeRowsSeen`).
 - **Funzioni:** `GET Info` annuncia quello che il plugin sa fare; dalla 1.5.0
   ci sono sempre anche `collections` e `avatars`, dalla 1.6.0 anche
-  `account`, dalla 1.7.0 anche `home`, dalla 1.8.0 anche `recommendations`; `upcomingSeries` e `upcomingMovies`
+  `account`, dalla 1.7.0 anche `home`, dalla 1.8.0 anche `recommendations`, dalla 1.9.0 anche `friendsActivity`; `upcomingSeries` e `upcomingMovies`
   solo con Sonarr e Radarr configurati. Gli endpoint delle saghe e delle
   immagini sono aperti a ogni utente che ha fatto l'accesso. Quelli di
   `account` dipendono dalla rotta: `Account/Contacts` per ogni utente che ha
@@ -128,7 +142,7 @@ uscite in arrivo.
   `Account/Recovery` senza accesso, `Account/Admin` solo per gli admin. Quelli
   di `Home` e `Upcoming` sono aperti a ogni utente che ha fatto l'accesso,
   tranne le scritture (`POST Home/Layout`, `POST Upcoming/Test`), solo per gli
-  admin. Quelli di `Recommendations` hanno la stessa policy degli amici.
+  admin. Quelli di `Recommendations` hanno la stessa policy degli amici. Quelli di `Activity` hanno la stessa policy degli amici.
 
 ## Installazione dal repository
 
@@ -139,8 +153,8 @@ uscite in arrivo.
 
 ## Installazione a mano (prove)
 
-1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.8.0`.
-   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.8.0.0/`
+1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.9.0`.
+   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.9.0.0/`
    con la dll e `meta.json`.
 2. Copia la cartella dentro `plugins/` della cartella dati di Jellyfin (su
    Ultra.cc via SFTP).

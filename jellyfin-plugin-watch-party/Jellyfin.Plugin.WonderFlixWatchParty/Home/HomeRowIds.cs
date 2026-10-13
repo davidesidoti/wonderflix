@@ -1,7 +1,7 @@
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Home;
 
 /// <summary>
-/// Le righe della Home di WonderFlix (spec M §6.1, spec N §6.7): id stabili,
+/// Le righe della Home di WonderFlix (spec M §6.1, spec N §6.7, spec O §6.7): id stabili,
 /// nell'ordine predefinito. Il plugin li conosce solo per scartare quelli
 /// sbagliati nella Home dell'admin; cosa mostrano lo decide l'app.
 /// </summary>
@@ -12,6 +12,7 @@ public static class HomeRowIds
         "resume",
         "nextUp",
         "recommended",
+        "friendsWatched",
         "requests",
         "latestMovies",
         "latestSeries",
@@ -23,10 +24,10 @@ public static class HomeRowIds
     ];
 
     /// <summary>
-    /// Le righe nate dopo la 1.7.0 (spec N §6.7): una Home dell'admin salvata
+    /// Le righe nate dopo la 1.7.0 (spec N §6.7, spec O §6.7): una Home dell'admin salvata
     /// prima non le ha e, senza aggiungerle, sarebbero spente per tutti.
     /// </summary>
-    public static readonly IReadOnlyList<string> AddedLater = ["recommended"];
+    public static readonly IReadOnlyList<string> AddedLater = ["recommended", "friendsWatched"];
 
     /// <summary>Solo gli id conosciuti, scritti esatti (maiuscole comprese), senza doppioni, nell'ordine dato.</summary>
     public static IReadOnlyList<string> Normalize(IEnumerable<string?> rows) =>

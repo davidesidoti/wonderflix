@@ -97,8 +97,18 @@ public class ServiceRegistrationTests
         Assert.IsType<Server.JellyfinRecommendationLibrary>(provider.GetRequiredService<IRecommendationLibrary>());
         Assert.NotNull(ActivatorUtilities.CreateInstance<Api.RecommendationsController>(provider));
 
+        // Cosa guardano gli amici (spec O).
+        Assert.Same(provider.GetRequiredService<ActivityService>(), provider.GetRequiredService<ActivityService>());
+        Assert.EndsWith(
+            Path.Combine("WonderFlixWatchParty", "activity.json"),
+            provider.GetRequiredService<ActivityStore>().FilePath);
+        Assert.IsType<Server.JellyfinPlaybackDirectory>(provider.GetRequiredService<IPlaybackDirectory>());
+        Assert.NotNull(ActivatorUtilities.CreateInstance<Api.ActivityController>(provider));
+        Assert.NotNull(ActivatorUtilities.CreateInstance<Api.FriendsController>(provider));
+
         // Il promemoria dei contatti, oltre ai due di prima.
         // I consigli (spec N), oltre ai tre di prima.
-        Assert.Equal(4, provider.GetServices<IHostedService>().Count());
+        // L'attività degli amici (spec O), oltre ai quattro di prima.
+        Assert.Equal(5,provider.GetServices<IHostedService>().Count());
     }
 }
