@@ -15,6 +15,7 @@ import '../features/friends/friend_request_card.dart';
 import '../features/friends/friends_button.dart';
 import '../features/friends/friends_panel.dart';
 import '../features/inbox/inbox_button.dart';
+import '../features/recommendations/recommend_panel.dart';
 import '../features/library/server_events_binding.dart';
 import '../features/profiles/profile_switch.dart';
 import '../features/requests/requests_providers.dart';
@@ -153,6 +154,8 @@ class _AppShellState extends ConsumerState<AppShell> {
             const Positioned.fill(child: FriendsPanelHost()),
             // Pannello Notifiche, sopra la barra e le schede (spec G §7.5).
             const Positioned.fill(child: InboxPanelHost()),
+            // Pannello "Consiglia a…", sopra la barra e le schede (spec N §7.2).
+            const Positioned.fill(child: RecommendPanelHost()),
           ],
         ),
       ),

@@ -7,7 +7,7 @@ import '../features/inbox/inbox_controller.dart';
 import '../features/player/player_active.dart';
 
 /// I pannelli laterali della shell (spec F §8.3, spec G §7.5).
-enum ShellPanel { none, friends, inbox }
+enum ShellPanel { none, friends, inbox, recommend }
 
 /// Il pannello laterale aperto: uno alla volta, aprirne uno chiude l'altro.
 /// Aprire Amici rilegge gli amici; aprire e chiudere Notifiche lo dice alla
@@ -40,7 +40,9 @@ class ShellPanelController extends Notifier<ShellPanel> {
         unawaited(ref.read(friendsControllerProvider.notifier).reload());
       case ShellPanel.inbox:
         ref.read(inboxControllerProvider.notifier).panelOpened();
+      case ShellPanel.recommend:
       case ShellPanel.none:
+        // Il soggetto lo imposta chi apre, con `openRecommendPanel`.
         break;
     }
   }

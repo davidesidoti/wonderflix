@@ -13,11 +13,14 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/staggered_entrance.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_image.dart';
+import '../friends/friends_controller.dart';
 import '../library/item_labels.dart';
 import '../library/library_providers.dart';
 import '../library/user_data.dart';
 import '../playback/play_launcher.dart';
+import '../recommendations/recommend_panel.dart';
 import '../requests/request_seasons.dart';
+import '../social/social_providers.dart';
 import '../watch_party/party_mode_menu.dart';
 import '../watch_party/watch_party_providers.dart';
 import 'header_parallax.dart';
@@ -81,6 +84,13 @@ class DetailHeader extends ConsumerWidget {
           );
     final canRequestSeasons =
         seasonsKey != null && ref.watch(seasonsToRequestProvider(seasonsKey));
+    // "Consiglia a…" (spec N §7.2): film e serie, con la funzione del plugin
+    // e almeno un amico.
+    final canRecommend =
+        const {ItemKind.movie, ItemKind.series}.contains(item.kind) &&
+            ref.watch(socialAvailabilityProvider.select((f) => f.recommendations)) &&
+            ref.watch(friendsControllerProvider
+                .select((s) => s.snapshot.friends.isNotEmpty));
 
     return DetailHeaderFrame(
       controller: controller,
@@ -179,6 +189,13 @@ class DetailHeader extends ConsumerWidget {
                 onPressed: () => unawaited(
                     _toggle(context, () => overrides.togglePlayed(item))),
               ),
+              if (canRecommend)
+                WfButton.secondary(
+                  label: l.recommendButton,
+                  icon: LucideIcons.send,
+                  onPressed: () => openRecommendPanel(
+                      ref, RecommendSubject(itemId: item.id, name: item.name)),
+                ),
               // Dopo i toggle: la scheda di Seerr arriva dopo due
               // richieste, e prima dei toggle li farebbe saltare.
               if (seasonsKey != null && canRequestSeasons)
