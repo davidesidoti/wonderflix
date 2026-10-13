@@ -7,6 +7,7 @@ enum HomeRowKind {
   resume('resume'),
   nextUp('nextUp'),
   recommended('recommended'),
+  friendsWatched('friendsWatched'),
   requests('requests'),
   latestMovies('latestMovies'),
   latestSeries('latestSeries'),
@@ -31,7 +32,7 @@ enum HomeRowKind {
   /// Le righe che vengono da Jellyfin: se falliscono tutte, insieme al
   /// carosello, la Home mostra l'errore (spec M §8.2 punto 4).
   bool get fromJellyfin => switch (this) {
-        requests || recommended || upcomingSeries || upcomingMovies => false,
+        requests || recommended || friendsWatched || upcomingSeries || upcomingMovies => false,
         _ => true,
       };
 }
@@ -90,6 +91,10 @@ enum HomeRowGate {
   /// Il plugin non ha i consigli (prima della 1.8.0, o senza accesso ai watch
   /// party).
   recommendationsOff,
+
+  /// Il plugin non ha l'attività degli amici (prima della 1.9.0, o senza
+  /// accesso ai watch party).
+  friendsActivityOff,
 }
 
 HomeRowGate homeRowGate(HomeRowKind row, SocialFeatures features,
@@ -105,6 +110,8 @@ HomeRowGate homeRowGate(HomeRowKind row, SocialFeatures features,
         HomeRowGate.radarrOff,
       HomeRowKind.recommended when !features.recommendations =>
         HomeRowGate.recommendationsOff,
+      HomeRowKind.friendsWatched when !features.friendsActivity =>
+        HomeRowGate.friendsActivityOff,
       _ => HomeRowGate.available,
     };
 

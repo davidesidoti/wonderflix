@@ -6,6 +6,7 @@ import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/json_fields.dart';
 import '../../core/jellyfin/library_api.dart';
 import '../../core/requests/requests_models.dart';
+import '../../core/social/activity_models.dart';
 import '../../core/social/collections_models.dart';
 import '../../core/social/home_models.dart';
 import '../../core/social/recommendation_models.dart';
@@ -220,6 +221,24 @@ Future<List<RecommendedItem>> loadRecommended(
     for (final r in wanted)
       if (byId[jellyfinIdKey(r.itemId)] case final item?)
         RecommendedItem(item: item, from: r.from),
+  ];
+}
+
+/// "Visti dagli amici" (spec O §7.4): gli elementi da Jellyfin nell'ordine
+/// del plugin; quelli che Jellyfin non dà si saltano.
+Future<List<FriendsWatchedItem>> loadFriendsWatched(
+    LibraryApi api, String userId, List<FriendsWatched> watched) async {
+  final wanted = watched.take(homeRowLimit).toList();
+  if (wanted.isEmpty) return const [];
+  final byId = {
+    for (final item
+        in await api.itemsByIds(userId, [for (final w in wanted) w.itemId]))
+      jellyfinIdKey(item.id): item,
+  };
+  return [
+    for (final w in wanted)
+      if (byId[jellyfinIdKey(w.itemId)] case final item?)
+        FriendsWatchedItem(item: item, by: w.by),
   ];
 }
 

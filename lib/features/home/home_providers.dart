@@ -9,6 +9,7 @@ import '../../core/jellyfin/display_preferences_api.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/item_query.dart';
 import '../../core/requests/requests_models.dart';
+import '../../core/social/activity_models.dart';
 import '../../core/social/home_api.dart';
 import '../../core/social/home_models.dart';
 import '../../core/social/recommendation_models.dart';
@@ -207,6 +208,25 @@ final homeRowProvider = FutureProvider.autoDispose
       }
       return RecommendedRowContent(
           await loadRecommended(api, userId, recommendations));
+    case HomeRowKind.friendsWatched:
+      // Come "Consigliati per te": si rilegge a ogni apertura della Home e
+      // quando cambiano libreria o dati di visione. Tutti i watch prima
+      // dell'attesa.
+      ref.watch(libraryRevisionProvider);
+      ref.watch(userDataRevisionProvider);
+      final userId = ref.watch(currentUserIdProvider);
+      final api = ref.watch(libraryApiProvider);
+      final social = ref.watch(socialApiProvider);
+      final List<FriendsWatched> watched;
+      try {
+        watched = await social.friendsWatched();
+      } catch (error) {
+        _log.info('visti dagli amici non disponibili: '
+            '${error is SocialException ? error.failure.name : error.runtimeType}');
+        rethrow; // la riga resta in errore, quindi nascosta
+      }
+      return FriendsWatchedRowContent(
+          await loadFriendsWatched(api, userId, watched));
     case HomeRowKind.resume ||
           HomeRowKind.nextUp ||
           HomeRowKind.myList ||
@@ -248,6 +268,7 @@ Future<HomeRowContent> _libraryRow(Ref ref, HomeRowKind kind) async {
     case HomeRowKind.latestMovies ||
           HomeRowKind.latestSeries ||
           HomeRowKind.recommended ||
+          HomeRowKind.friendsWatched ||
           HomeRowKind.requests ||
           HomeRowKind.upcomingSeries ||
           HomeRowKind.upcomingMovies:

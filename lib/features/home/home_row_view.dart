@@ -18,6 +18,7 @@ import '../../ui/landscape_card.dart';
 import '../../ui/media_row.dart';
 import '../../ui/poster_card.dart';
 import '../../ui/remote_image_card.dart';
+import '../friends/activity_labels.dart';
 import '../library/library_providers.dart';
 import '../recommendations/recommendation_dismissals.dart';
 import '../recommendations/recommendation_labels.dart';
@@ -92,6 +93,7 @@ class HomeRowView extends ConsumerWidget {
         _upcomingMovies(ref, l, movies),
       RecommendedRowContent(:final titles) =>
         _recommended(context, ref, l, titles),
+      FriendsWatchedRowContent(:final titles) => _friendsWatched(l, titles),
     };
   }
 
@@ -99,6 +101,7 @@ class HomeRowView extends ConsumerWidget {
         HomeRowKind.resume => l.homeContinueWatching,
         HomeRowKind.nextUp => l.homeNextUp,
         HomeRowKind.recommended => l.homeRowRecommended,
+        HomeRowKind.friendsWatched => l.homeRowFriendsWatched,
         HomeRowKind.requests => l.homeMyRequests,
         HomeRowKind.latestMovies => l.homeLatestMovies,
         HomeRowKind.latestSeries => l.homeLatestSeries,
@@ -109,6 +112,20 @@ class HomeRowView extends ConsumerWidget {
         HomeRowKind.upcomingMovies => l.homeUpcomingMovies,
         HomeRowKind.myList => l.navMyList,
       };
+
+  /// "Visti dagli amici": chi l'ha visto sotto la locandina (spec O §7.4).
+  Widget _friendsWatched(AppLocalizations l, List<FriendsWatchedItem> titles) =>
+      _row(l.homeRowFriendsWatched, posterRowHeight, titles.length,
+          (context, i) {
+        final title = titles[i];
+        return PosterCard(
+          key: ValueKey('friends-watched-${title.item.id}'),
+          item: title.item,
+          width: posterWidth,
+          heroSource: 'home.${kind.id}.$i',
+          subtitle: friendsWatchedBy(l, title.by),
+        );
+      });
 
   /// "Consigliati per te": chi l'ha consigliato sotto la locandina, i
   /// messaggi e "Non mi interessa" nell'anteprima (spec N §7.3, §7.4). I

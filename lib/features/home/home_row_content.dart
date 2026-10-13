@@ -1,5 +1,6 @@
 import '../../core/jellyfin/item_models.dart';
 import '../../core/requests/requests_models.dart';
+import '../../core/social/activity_models.dart';
 import '../../core/social/collections_models.dart';
 import '../../core/social/home_models.dart';
 import '../../core/social/recommendation_models.dart';
@@ -90,6 +91,23 @@ class RecommendedItem {
 
   final JellyfinItem item;
   final List<RecommendationSender> from;
+}
+
+/// "Visti dagli amici" (spec O §7.4).
+final class FriendsWatchedRowContent extends HomeRowContent {
+  const FriendsWatchedRowContent(this.titles);
+
+  final List<FriendsWatchedItem> titles;
+
+  @override
+  bool get isEmpty => titles.isEmpty;
+}
+
+class FriendsWatchedItem {
+  const FriendsWatchedItem({required this.item, required this.by});
+
+  final JellyfinItem item;
+  final List<FriendWatcher> by;
 }
 
 /// Una saga da continuare: il prossimo film da vedere e quanti sono visti.

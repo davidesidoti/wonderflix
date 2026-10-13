@@ -92,6 +92,7 @@ String homeRowName(AppLocalizations l, HomeRowKind row) => switch (row) {
       HomeRowKind.resume => l.homeContinueWatching,
       HomeRowKind.nextUp => l.homeNextUp,
       HomeRowKind.recommended => l.homeRowRecommended,
+      HomeRowKind.friendsWatched => l.homeRowFriendsWatched,
       HomeRowKind.requests => l.homeMyRequests,
       HomeRowKind.latestMovies => l.homeLatestMovies,
       HomeRowKind.latestSeries => l.homeLatestSeries,
@@ -121,4 +122,5 @@ String? homeRowGateReason(AppLocalizations l, HomeRowGate gate) =>
       HomeRowGate.sonarrOff => l.homeRowUnavailableSonarr,
       HomeRowGate.radarrOff => l.homeRowUnavailableRadarr,
       HomeRowGate.recommendationsOff => l.homeRowUnavailableRecommendations,
+      HomeRowGate.friendsActivityOff => l.homeRowUnavailableFriendsActivity,
     };
