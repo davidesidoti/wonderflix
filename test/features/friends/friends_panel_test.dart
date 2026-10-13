@@ -366,10 +366,17 @@ void main() {
       expect(container.read(watchPartySessionProvider).inGroup, isTrue);
       expect(container.read(currentPartyProvider)?.mode, PartyMode.private);
       expect(api.calls, contains('invite g1 u2'));
+      // Oltre il timeout della registrazione il party regge ancora.
+      await tester.pump(
+          WatchPartySession.registrationTimeout + const Duration(seconds: 1));
+      expect(container.read(watchPartySessionProvider).inGroup, isTrue);
+      expect(container.read(currentPartyProvider), isNotNull);
+      expect(container.read(currentPartyProvider)!.invited, isEmpty);
       gate.complete();
       await tester.pumpAndSettle();
       expect(find.text('Invito non inviato'), findsNothing);
       expect(container.read(watchPartySessionProvider).inGroup, isTrue);
+      expect(container.read(currentPartyProvider)!.invited, {'u2'});
       await leaveParty(tester);
     });
 
