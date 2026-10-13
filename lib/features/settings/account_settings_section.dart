@@ -13,6 +13,8 @@ import '../account/change_password_dialog.dart';
 import '../auth/session_controller.dart';
 import '../profiles/avatar_dialog.dart';
 import '../profiles/profile_switch.dart';
+import '../social/social_providers.dart';
+import 'share_activity_setting.dart';
 
 /// Diametro dell'avatar in Impostazioni → Account.
 const _accountAvatarSize = 64.0;
@@ -88,6 +90,13 @@ class AccountSettingsSection extends ConsumerWidget {
             ),
           ],
         ),
+        // Piano 21b, decisione 5: vale per l'account aperto.
+        if (user != null &&
+            ref.watch(socialAvailabilityProvider
+                .select((f) => f.friendsActivity))) ...[
+          const SizedBox(height: 24),
+          const ShareActivitySetting(),
+        ],
         if (user != null && ref.watch(accountAvailableProvider)) ...[
           const SizedBox(height: 24),
           // L'`Align` toglie la larghezza fissa che questa `Column` (con
