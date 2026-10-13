@@ -3,7 +3,7 @@ using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
 
 /// <summary>Server finto: sessioni, gruppi SyncPlay e invii, in memoria.</summary>
-internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSender, IUserDirectory, ILibraryAccess, ILibraryTitles, INewTitlesSettings, IRecommendationLibrary
+internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSender, IUserDirectory, ILibraryAccess, ILibraryTitles, INewTitlesSettings, IRecommendationLibrary, IPlaybackDirectory
 {
     public List<CallerSession> Sessions { get; } = [];
 
@@ -192,6 +192,15 @@ internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSen
     public DateTimeOffset? LastWatched(Guid userId, Guid itemId) =>
         LibraryFails ? throw new InvalidOperationException("libreria non disponibile")
         : Watched.TryGetValue((userId, itemId), out var at) ? at : null;
+
+    /// <summary>Le riproduzioni nelle sessioni WonderFlix (spec O).</summary>
+    public List<AppPlayback> Playback { get; } = [];
+
+    /// <summary>Se true, leggere le riproduzioni lancia, come un errore di Jellyfin.</summary>
+    public bool PlaybackFails { get; set; }
+
+    public IReadOnlyList<AppPlayback> GetAppPlayback() =>
+        PlaybackFails ? throw new InvalidOperationException("sessioni non disponibili") : Playback;
 
     public Task<bool> TrySendAsync(string sessionId, string payload, CancellationToken cancellationToken)
     {

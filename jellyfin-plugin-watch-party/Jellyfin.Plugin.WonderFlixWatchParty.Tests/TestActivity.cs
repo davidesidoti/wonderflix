@@ -1,0 +1,27 @@
+using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
+using Microsoft.Extensions.Logging.Abstractions;
+
+namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
+
+/// <summary>L'attività dei test: server finto, amici e presenza veri, file in una cartella temporanea.</summary>
+internal static class TestActivity
+{
+    // friends e registry servono dal Task 3 (il costruttore del Task 2 non li prende ancora).
+    public static ActivityService Create(
+        FakeServer server, TempFolder folder, TimeProvider time, FriendService friends, PresenceTracker presence,
+        PartyRegistry? registry = null) =>
+        new(
+            new ActivityStore(folder.ActivityFile, NullLogger<ActivityStore>.Instance),
+            server, server, presence, time, NullLogger<ActivityService>.Instance);
+
+    /// <summary>Le visioni salvate di un utente, rilette dal file.</summary>
+    public static IReadOnlyList<WatchedTitle> Saved(TempFolder folder, Guid userId) =>
+        new ActivityStore(folder.ActivityFile, NullLogger<ActivityStore>.Instance).Load().Views(userId);
+
+    public static PlaybackReport Report(CallerSession session, Guid? titleId, TimeSpan position, bool completed = false) =>
+        new(session.SessionId, session.UserId, titleId, position.Ticks, completed);
+
+    public static AppPlayback Movie(
+        CallerSession session, Guid movieId, string name = "Dune", TimeSpan position = default, DateTimeOffset checkIn = default) =>
+        new(session.SessionId, session.UserId, new PlayingTitle(movieId, name, movieId, null, null, null, null), position.Ticks, checkIn);
+}
