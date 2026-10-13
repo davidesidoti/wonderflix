@@ -7,6 +7,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/shell_panels.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/social/avatars_api.dart';
+import 'package:wonderflix/core/social/activity_models.dart';
+import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/features/watch_party/current_party.dart';
 import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
@@ -18,6 +21,7 @@ import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 
 import '../../support/avatar_fakes.dart';
+import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/social_fakes.dart';
 import '../../support/watch_party_fakes.dart';
@@ -267,6 +271,131 @@ void main() {
       await tester.pump();
     }
 
+    late FakeLibraryApi library;
+
+    /// Il pannello con la libreria finta: "Guarda insieme" apre il titolo.
+    Future<void> pumpWatchPanel(WidgetTester tester) async {
+      library = FakeLibraryApi()
+        ..itemsById['m1'] = testItem(id: 'm1', name: 'Dune');
+      syncPlay.onCall = (call) {
+        if (call.startsWith('create') || call.startsWith('join')) {
+          events.add(SyncPlayGroupUpdated(GroupJoined('g1', testGroup())));
+        }
+      };
+      await pumpApp(
+        tester,
+        const Scaffold(
+          body: Align(
+            alignment: Alignment.centerRight,
+            child: SizedBox(width: FriendsPanel.width, child: FriendsPanel()),
+          ),
+        ),
+        overrides: [
+          ...socialTestOverrides(api,
+              events: events.stream,
+              features: const SocialFeatures(
+                  friends: true, parties: true, friendsActivity: true)),
+          syncPlayApiProvider.overrideWithValue(syncPlay),
+          partyChannelApiProvider
+              .overrideWithValue(FakePartyChannelApi()..install()),
+          libraryApiProvider.overrideWithValue(library),
+        ],
+      );
+      await tester.pump();
+    }
+
+    const dune = FriendNowPlaying(itemId: 'm1', title: 'Dune');
+
+    testWidgets('Sta guardando: il testo e Guarda insieme', (tester) async {
+      api.snapshot = FriendsSnapshot(friends: [
+        testFriend('u2', 'Luigi', online: true, nowPlaying: dune),
+        testFriend('u3', 'Peach', online: true),
+      ]);
+      await pumpWatchPanel(tester);
+      expect(find.text('Sta guardando Dune'), findsOneWidget);
+      expect(find.byKey(const Key('friend-watch-u2')), findsOneWidget);
+      expect(find.byKey(const Key('friend-watch-u3')), findsNothing);
+    });
+
+    testWidgets('Guarda insieme: posizione, party privato senza menu e invito',
+        (tester) async {
+      api.snapshot = FriendsSnapshot(friends: [
+        testFriend('u2', 'Luigi', online: true, nowPlaying: dune),
+      ]);
+      api.nowPlayingById['u2'] =
+          const FriendPosition(itemId: 'm1', position: Duration(minutes: 42));
+      await pumpWatchPanel(tester);
+      await tester.tap(find.byKey(const Key('friend-watch-u2')));
+      await tester.pumpAndSettle();
+      expect(api.calls, containsAllInOrder(['nowPlaying u2', 'register g1 Private', 'invite g1 u2']));
+      expect(find.text('Pubblico'), findsNothing, reason: 'niente menu delle modalità');
+      final container =
+          ProviderScope.containerOf(tester.element(find.byType(FriendsPanel)));
+      expect(container.read(currentPartyProvider)?.mode, PartyMode.private);
+      await leaveParty(tester);
+    });
+
+    testWidgets('Guarda insieme quando l\'amico ha smesso: avviso e niente party',
+        (tester) async {
+      api.snapshot = FriendsSnapshot(friends: [
+        testFriend('u2', 'Luigi', online: true, nowPlaying: dune),
+      ]);
+      await pumpWatchPanel(tester);
+      final friendsBefore = api.calls.where((c) => c == 'friends').length;
+      await tester.tap(find.byKey(const Key('friend-watch-u2')));
+      await tester.pumpAndSettle();
+      expect(find.text('Non sta più guardando'), findsOneWidget);
+      expect(syncPlay.calls.where((c) => c.startsWith('create')), isEmpty);
+      expect(api.calls.where((c) => c == 'friends').length, friendsBefore + 1,
+          reason: 'l\'elenco si rilegge');
+    });
+
+    testWidgets('invito non riuscito: il party resta e lo dice', (tester) async {
+      api.snapshot = FriendsSnapshot(friends: [
+        testFriend('u2', 'Luigi', online: true, nowPlaying: dune),
+      ]);
+      api.nowPlayingById['u2'] =
+          const FriendPosition(itemId: 'm1', position: Duration.zero);
+      api.inviteFailure = SocialFailure.rateLimited;
+      await pumpWatchPanel(tester);
+      await tester.tap(find.byKey(const Key('friend-watch-u2')));
+      await tester.pumpAndSettle();
+      expect(find.text('Invito non inviato'), findsOneWidget);
+      final container =
+          ProviderScope.containerOf(tester.element(find.byType(FriendsPanel)));
+      expect(container.read(watchPartySessionProvider).inGroup, isTrue);
+      await leaveParty(tester);
+    });
+
+    testWidgets('Guarda insieme spento mentre parte', (tester) async {
+      api.snapshot = FriendsSnapshot(friends: [
+        testFriend('u2', 'Luigi', online: true, nowPlaying: dune),
+      ]);
+      final gate = api.nowPlayingGate = Completer<void>();
+      await pumpWatchPanel(tester);
+      await tester.tap(find.byKey(const Key('friend-watch-u2')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('friend-watch-u2')), warnIfMissed: false);
+      await tester.pump();
+      expect(api.calls.where((c) => c == 'nowPlaying u2'), hasLength(1));
+      gate.complete();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('già in un gruppo: niente Guarda insieme', (tester) async {
+      api.snapshot = FriendsSnapshot(friends: [
+        testFriend('u2', 'Luigi', online: true, nowPlaying: dune),
+      ]);
+      await pumpWatchPanel(tester);
+      final container =
+          ProviderScope.containerOf(tester.element(find.byType(FriendsPanel)));
+      await container.read(watchPartySessionProvider.notifier).join('g1');
+      await tester.pumpAndSettle();
+      expect(container.read(watchPartySessionProvider).inGroup, isTrue);
+      expect(find.byKey(const Key('friend-watch-u2')), findsNothing);
+      expect(find.text('Sta guardando Dune'), findsOneWidget);
+      await leaveParty(tester);
+    });
     testWidgets('"Ho un codice": il trattino da sé, poi entra e il pannello '
         'si chiude', (tester) async {
       api.codes['K7PQ2X'] = 'g1';

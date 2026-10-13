@@ -15,9 +15,11 @@ import '../social/social_providers.dart';
 import '../watch_party/party_badge.dart';
 import '../watch_party/watch_party_actions.dart';
 import '../watch_party/watch_party_session.dart';
+import 'activity_labels.dart';
 import 'friend_search.dart';
 import 'friends_controller.dart';
 import 'party_code_field.dart';
+import 'watch_with_friend.dart';
 
 /// Il pannello si vede: aperto e con la funzione amici del plugin.
 final friendsPanelVisibleProvider = Provider.autoDispose<bool>((ref) =>
@@ -457,6 +459,7 @@ class _FriendRow extends ConsumerStatefulWidget {
 class _FriendRowState extends ConsumerState<_FriendRow> {
   Timer? _confirm;
   bool _joining = false;
+  bool _watching = false;
 
   @override
   void dispose() {
@@ -497,6 +500,18 @@ class _FriendRowState extends ConsumerState<_FriendRow> {
     }
   }
 
+  /// "Guarda insieme" (spec O §7.2); partito, il pannello si chiude. Spento
+  /// finché parte: un secondo clic farebbe un secondo party.
+  Future<void> _watch() async {
+    setState(() => _watching = true);
+    try {
+      final started = await watchWithFriend(context, ref, widget.friend);
+      if (started && mounted) ref.read(shellPanelProvider.notifier).close();
+    } finally {
+      if (mounted) setState(() => _watching = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -531,22 +546,38 @@ class _FriendRowState extends ConsumerState<_FriendRow> {
     final showJoin = party != null &&
         _confirm == null &&
         !_sameGroup(party.groupId, inGroupId);
+    final nowPlaying = party == null ? friend.nowPlaying : null;
+    // Già in un gruppo si invita dal menu del party (piano 21b, decisione 3).
+    final inGroup = nowPlaying != null &&
+        ref.watch(watchPartySessionProvider.select((s) => s.inGroup));
+    final showWatch = nowPlaying != null && _confirm == null && !inGroup;
     return _PersonRow(
       userId: friend.userId,
       name: friend.name,
       online: friend.online,
-      subtitle: party == null ? null : l.friendsInParty(party.title),
-      trailing: showJoin
+      subtitle: party != null
+          ? l.friendsInParty(party.title)
+          : nowPlaying != null
+              ? friendNowPlayingText(l, nowPlaying)
+              : null,
+      trailing: showJoin || showWatch
           ? Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _ActionButton(
-                  key: Key('friend-join-${friend.userId}'),
-                  label: l.watchPartyJoin,
-                  onPressed: _joining
-                      ? null
-                      : () => unawaited(_join(party.groupId)),
-                ),
+                if (showJoin)
+                  _ActionButton(
+                    key: Key('friend-join-${friend.userId}'),
+                    label: l.watchPartyJoin,
+                    onPressed: _joining
+                        ? null
+                        : () => unawaited(_join(party.groupId)),
+                  )
+                else
+                  _ActionButton(
+                    key: Key('friend-watch-${friend.userId}'),
+                    label: l.friendsWatchTogether,
+                    onPressed: _watching ? null : () => unawaited(_watch()),
+                  ),
                 menu,
               ],
             )

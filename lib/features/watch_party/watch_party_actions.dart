@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/jellyfin/item_models.dart';
 import '../../core/party_channel/party_channel_models.dart';
+import '../../core/social/social_api.dart';
 import '../../core/syncplay/syncplay_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../library/library_providers.dart';
@@ -17,12 +18,15 @@ import 'watch_party_session.dart';
 /// Il player si apre quando il server conferma la coda
 /// (`watchPartyRoutingProvider`). Con [mode] il party si registra nel plugin
 /// con quella modalità (spec F §9.1–9.2); `null` = come la 0.5.1.
+/// Con [invite] il party, appena registrato, invita quell'amico (spec O §7.2):
+/// un invito che non riesce non ferma il party, lo dice un avviso.
 Future<bool> startWatchParty(
   BuildContext context,
   WidgetRef ref,
   JellyfinItem item, {
   Duration start = Duration.zero,
   PartyMode? mode,
+  String? invite,
 }) =>
     _run(
       context,
@@ -31,6 +35,8 @@ Future<bool> startWatchParty(
         // player da solo sostituito da quello del gruppo): tutto quel che
         // serve si prende prima della prima attesa; dopo, il container.
         final container = ProviderScope.containerOf(context, listen: false);
+        final messenger = ScaffoldMessenger.maybeOf(context);
+        final inviteNotSent = AppLocalizations.of(context).friendsInviteNotSent;
         final session = ref.read(watchPartySessionProvider.notifier);
         final queue = await buildPartyQueue(ref.read(libraryApiProvider),
             ref.read(currentUserIdProvider), item);
@@ -55,6 +61,18 @@ Future<bool> startWatchParty(
                     container
                         .read(currentPartyProvider.notifier)
                         .registered(groupId, mode, code);
+                    if (invite != null) {
+                      try {
+                        await social.invite(groupId, [invite]);
+                        container
+                            .read(currentPartyProvider.notifier)
+                            .invited(groupId, invite);
+                      } on SocialException {
+                        // Piano 21b, decisione 1: il party resta.
+                        messenger?.showSnackBar(
+                            SnackBar(content: Text(inviteNotSent)));
+                      }
+                    }
                   },
           );
         }
