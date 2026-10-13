@@ -2,11 +2,19 @@
   {
     "guid": "882eb47e-668a-4935-ba55-c2858eb4ed90",
     "name": "WonderFlix Watch Party",
-    "description": "Names, chat, reactions, friends, public, friends-only or private parties and an in-app notifications inbox (invites, new titles, admin announcements, requests) for SyncPlay watch parties in WonderFlix, plus Seerr requests (search, request and approve movies and series), collections (sagas) and user pictures, and password recovery by Discord or e-mail, plus the WonderFlix Home rows chosen by the admin and the upcoming episodes and movies from Sonarr and Radarr.",
-    "overview": "WonderFlix watch party: names, chat, reactions, friends, party modes, notifications, Seerr requests, collections, user pictures, password recovery, Home rows, upcoming from Sonarr and Radarr",
+    "description": "Names, chat, reactions, friends, public, friends-only or private parties and an in-app notifications inbox (invites, new titles, admin announcements, requests) for SyncPlay watch parties in WonderFlix, recommendations between friends, plus Seerr requests (search, request and approve movies and series), collections (sagas) and user pictures, and password recovery by Discord or e-mail, plus the WonderFlix Home rows chosen by the admin and the upcoming episodes and movies from Sonarr and Radarr.",
+    "overview": "WonderFlix watch party: names, chat, reactions, friends, party modes, notifications, recommendations, Seerr requests, collections, user pictures, password recovery, Home rows, upcoming from Sonarr and Radarr",
     "owner": "davidesidoti",
     "category": "General",
     "versions": [
+      {
+        "version": "1.8.0.0",
+        "changelog": "Consigli tra amici per WonderFlix 0.14.0: «Consiglia a…» dal dettaglio di film e serie, la voce nella cassetta delle notifiche e la riga «Consigliati per te» nella Home, con i messaggi e «Non mi interessa».",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.8.0/wonderflix-watch-party_1.8.0.zip",
+        "checksum": "686f6f59fa18d321ece7602e54a5bb18",
+        "timestamp": "2026-10-13T08:56:30Z"
+      },
       {
         "version": "1.7.0.0",
         "changelog": "Home su misura per WonderFlix 0.13.0: righe e ordine della Home scelti dall'admin, le uscite di Sonarr e Radarr (Serie in arrivo, Film in arrivo) e la prova del collegamento. Sonarr e Radarr si configurano nella pagina del plugin.",
