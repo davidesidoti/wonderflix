@@ -42,8 +42,14 @@ public static class PlayingTitles
             return null;
         }
 
+        // LastPlaybackCheckIn è in UTC, a volte senza dirlo.
         return new PlaybackReport(
-            session.Id, session.UserId, title.TitleId, e.PlaybackPositionTicks ?? 0, e is PlaybackStopEventArgs { PlayedToCompletion: true });
+            session.Id,
+            session.UserId,
+            title.TitleId,
+            e.PlaybackPositionTicks ?? 0,
+            e is PlaybackStopEventArgs { PlayedToCompletion: true },
+            new DateTimeOffset(DateTime.SpecifyKind(session.LastPlaybackCheckIn, DateTimeKind.Utc)));
     }
 
     private static Guid? SeriesOf(Episode episode) => episode.SeriesId == Guid.Empty ? null : episode.SeriesId;

@@ -25,6 +25,14 @@ public sealed class ActivityService(
     /// <summary>Posizione da cui una riproduzione conta come visione (spec O §6.4).</summary>
     public static readonly TimeSpan MinWatch = TimeSpan.FromMinutes(5);
 
+    /// <summary>
+    /// Età massima dell'ultimo resoconto perché uno stop conti per posizione:
+    /// l'app riporta ogni 10 secondi, quindi un resoconto più vecchio vuol dire
+    /// che lo stop viene dal controllo di inattività di Jellyfin, che ha fatto
+    /// avanzare la posizione da sé (non guardata davvero).
+    /// </summary>
+    public static readonly TimeSpan MaxReportAge = TimeSpan.FromMinutes(1);
+
     /// <summary>Quanto resta una visione nel registro e nella riga (spec O §6.4, §6.6).</summary>
     public static readonly TimeSpan MaxAge = TimeSpan.FromDays(30);
 
@@ -117,7 +125,8 @@ public sealed class ActivityService(
     /// </summary>
     public void Report(PlaybackReport report, bool stopped)
     {
-        var watched = report.Completed || report.PositionTicks >= MinWatch.Ticks;
+        var fresh = !stopped || time.GetUtcNow() - report.LastCheckIn <= MaxReportAge;
+        var watched = report.Completed || (fresh && report.PositionTicks >= MinWatch.Ticks);
         lock (_lock)
         {
             var already = report.TitleId is { } id && _recorded.Contains((report.SessionId, id));
@@ -273,13 +282,14 @@ public sealed class ActivityService(
     // La riproduzione di friendId che viewerId può conoscere (spec O §6.2 e §6.5), o null.
     private AppPlayback? Playing(Guid viewerId, Guid friendId)
     {
-        if (!Shares(friendId))
-        {
-            return null;
-        }
-
         try
         {
+            // Dentro il try: un file illeggibile non deve rompere GET Friends (fallisce sicuro).
+            if (!Shares(friendId))
+            {
+                return null;
+            }
+
             // Un party, anche nascosto a chi guarda, non si rivela con "Sta guardando" (piano 21a, decisione 6).
             if (sessions.GetAppSessions().Any(s => s.UserId == friendId && registry.GroupOf(s.SessionId) is not null))
             {

@@ -71,7 +71,7 @@ public sealed class ActivityControllerTests : IDisposable
     {
         await TestRecommendations.MakeFriendsAsync(_friends, _mario.Id, _luigi.Id);
         var dune = Guid.NewGuid();
-        _activity.Report(new PlaybackReport("s-luigi", _luigi.Id, dune, TimeSpan.FromMinutes(6).Ticks, false), stopped: false);
+        _activity.Report(new PlaybackReport("s-luigi", _luigi.Id, dune, TimeSpan.FromMinutes(6).Ticks, false, DateTimeOffset.MaxValue), stopped: false);
 
         var items = (await Controller(_mario).GetFriendsWatched()).Value!.Items;
 

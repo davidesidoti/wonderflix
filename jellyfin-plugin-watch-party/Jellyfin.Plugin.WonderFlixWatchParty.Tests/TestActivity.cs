@@ -18,8 +18,10 @@ internal static class TestActivity
     public static IReadOnlyList<WatchedTitle> Saved(TempFolder folder, Guid userId) =>
         new ActivityStore(folder.ActivityFile, NullLogger<ActivityStore>.Instance).Load().Views(userId);
 
-    public static PlaybackReport Report(CallerSession session, Guid? titleId, TimeSpan position, bool completed = false) =>
-        new(session.SessionId, session.UserId, titleId, position.Ticks, completed);
+    // Senza checkIn il resoconto è "appena arrivato" (un'ora nel futuro del tempo finto, sempre recente).
+    public static PlaybackReport Report(
+        CallerSession session, Guid? titleId, TimeSpan position, bool completed = false, DateTimeOffset? checkIn = null) =>
+        new(session.SessionId, session.UserId, titleId, position.Ticks, completed, checkIn ?? DateTimeOffset.MaxValue);
 
     public static AppPlayback Movie(
         CallerSession session, Guid movieId, string name = "Dune", TimeSpan position = default, DateTimeOffset checkIn = default) =>

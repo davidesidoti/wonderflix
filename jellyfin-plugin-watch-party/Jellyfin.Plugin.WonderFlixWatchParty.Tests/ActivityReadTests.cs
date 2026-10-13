@@ -166,6 +166,33 @@ public sealed class ActivityReadTests : IDisposable
     }
 
     [Fact]
+    public async Task APartyHidesThePosition()
+    {
+        await FriendsAsync(_mario, _luigi);
+        _server.Playback.Add(TestActivity.Movie(_luigiSession, Guid.NewGuid()));
+        _registry.Register(Guid.NewGuid(), "s-luigi", "Luigi");
+
+        Assert.Equal(HubStatus.Conflict, _service.Position(_mario.Id, _luigi.Id.ToString("N")).Status);
+    }
+
+    [Fact]
+    public async Task AnUnreadableActivityFileDoesNotBreakTheFriendsList()
+    {
+        await FriendsAsync(_mario, _luigi);
+        _server.Playback.Add(TestActivity.Movie(_luigiSession, Guid.NewGuid()));
+        Directory.CreateDirectory(Path.GetDirectoryName(_folder.ActivityFile)!);
+
+        // Il file esiste ma non si può leggere: Load lancia IOException, non un errore di formato.
+        using (new FileStream(_folder.ActivityFile, FileMode.Create, FileAccess.ReadWrite, FileShare.None))
+        {
+            var entry = Luigi();
+
+            Assert.True(entry.Online);
+            Assert.Null(entry.NowPlaying);
+        }
+    }
+
+    [Fact]
     public async Task FriendsWatchedGroupsTitlesNewestFirst()
     {
         var peach = _server.AddUser("Peach");

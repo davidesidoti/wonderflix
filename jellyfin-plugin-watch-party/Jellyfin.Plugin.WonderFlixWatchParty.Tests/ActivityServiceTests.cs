@@ -61,6 +61,26 @@ public sealed class ActivityServiceTests : IDisposable
     }
 
     [Fact]
+    public void AStopFromTheIdleCheckIsNotAWatch()
+    {
+        var dune = Guid.NewGuid();
+        var staleCheckIn = _time.GetUtcNow() - ActivityService.MaxReportAge - TimeSpan.FromMinutes(5);
+
+        // Jellyfin ha fatto avanzare la posizione da sé: l'app non riportava più da minuti.
+        _service.Report(TestActivity.Report(_session, dune, TimeSpan.FromMinutes(7), checkIn: staleCheckIn), stopped: true);
+        Assert.Empty(TestActivity.Saved(_folder, _mario.Id));
+
+        // Arrivato alla fine, invece, conta lo stesso.
+        _service.Report(TestActivity.Report(_session, dune, TimeSpan.FromMinutes(7), completed: true, checkIn: staleCheckIn), stopped: true);
+        Assert.Single(TestActivity.Saved(_folder, _mario.Id));
+
+        // Stesso stop con un resoconto recente: conta.
+        var bear = Guid.NewGuid();
+        _service.Report(TestActivity.Report(_session, bear, TimeSpan.FromMinutes(7), checkIn: _time.GetUtcNow() - TimeSpan.FromSeconds(10)), stopped: true);
+        Assert.Contains(bear, TestActivity.Saved(_folder, _mario.Id).Select(v => v.ItemId));
+    }
+
+    [Fact]
     public void AFinishedOrLongStopIsRecorded()
     {
         var short1 = Guid.NewGuid();

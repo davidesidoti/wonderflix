@@ -19,9 +19,11 @@ public sealed record AppPlayback(
 /// <summary>
 /// Un resoconto vero di una sessione WonderFlix (spec O §6.3–6.4), da un
 /// evento di riproduzione: il film o la serie (null per un episodio senza
-/// serie), la posizione e se è arrivato alla fine.
+/// serie), la posizione, se è arrivato alla fine e l'ultimo resoconto vero
+/// dell'app della sessione.
 /// </summary>
-public sealed record PlaybackReport(string SessionId, Guid UserId, Guid? TitleId, long PositionTicks, bool Completed);
+public sealed record PlaybackReport(
+    string SessionId, Guid UserId, Guid? TitleId, long PositionTicks, bool Completed, DateTimeOffset LastCheckIn);
 
 /// <summary>Le riproduzioni del server (adattatore di ISessionManager).</summary>
 public interface IPlaybackDirectory

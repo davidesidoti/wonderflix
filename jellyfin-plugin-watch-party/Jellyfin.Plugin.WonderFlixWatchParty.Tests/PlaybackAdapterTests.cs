@@ -42,15 +42,23 @@ public class PlaybackAdapterTests
         var (manager, _) = InterfaceStub<ISessionManager>.Create();
         var userId = Guid.NewGuid();
         var movie = new Movie { Id = Guid.NewGuid() };
+        var checkIn = new DateTime(2026, 10, 13, 20, 0, 0, DateTimeKind.Utc);
+        SessionInfo WithCheckIn(string client)
+        {
+            var session = Session(manager, "s-1", client, userId);
+            session.LastPlaybackCheckIn = checkIn;
+            return session;
+        }
+
         PlaybackProgressEventArgs Progress(string client, bool automated = false) => new()
         {
-            Session = Session(manager, "s-1", client, userId),
+            Session = WithCheckIn(client),
             Item = movie,
             PlaybackPositionTicks = 42,
             IsAutomated = automated,
         };
 
-        Assert.Equal(new PlaybackReport("s-1", userId, movie.Id, 42, false), PlayingTitles.Report(Progress("WonderFlix")));
+        Assert.Equal(new PlaybackReport("s-1", userId, movie.Id, 42, false, checkIn), PlayingTitles.Report(Progress("WonderFlix")));
         Assert.Null(PlayingTitles.Report(Progress("Jellyfin Web")));
         Assert.Null(PlayingTitles.Report(Progress("WonderFlix", automated: true)));
         Assert.Null(PlayingTitles.Report(new PlaybackProgressEventArgs { Session = Session(manager, "s-1", "WonderFlix", Guid.Empty), Item = movie }));
@@ -58,9 +66,9 @@ public class PlaybackAdapterTests
 
         var stopped = new PlaybackStopEventArgs
         {
-            Session = Session(manager, "s-1", "WonderFlix", userId), Item = movie, PlaybackPositionTicks = null, PlayedToCompletion = true,
+            Session = WithCheckIn("WonderFlix"), Item = movie, PlaybackPositionTicks = null, PlayedToCompletion = true,
         };
-        Assert.Equal(new PlaybackReport("s-1", userId, movie.Id, 0, true), PlayingTitles.Report(stopped));
+        Assert.Equal(new PlaybackReport("s-1", userId, movie.Id, 0, true, checkIn), PlayingTitles.Report(stopped));
     }
 
     [Fact]
