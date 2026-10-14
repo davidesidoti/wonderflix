@@ -363,8 +363,10 @@ class PlayerController extends Notifier<PlayerViewState> {
     final audioIndex = plan.audioIndex;
     if (!plan.isTranscode && audioIndex != null) {
       final stream = plan.mediaSource.stream(audioIndex);
-      final track =
-          stream == null ? null : engineTrackFor(stream, await _engine.tracks());
+      final track = stream == null
+          ? null
+          : engineTrackFor(
+              stream, plan.mediaSource.streams, await _engine.tracks());
       if (track != null) await _engine.selectAudio(track.id);
     }
     final index = plan.subtitleIndex;
@@ -430,7 +432,8 @@ class PlayerController extends Notifier<PlayerViewState> {
       return true;
     }
     if (plan.isTranscode) return true;
-    final track = engineTrackFor(stream, await _engine.tracks());
+    final track = engineTrackFor(
+        stream, plan.mediaSource.streams, await _engine.tracks());
     await _engine.selectSubtitle(track?.id);
     return true;
   }
@@ -525,7 +528,8 @@ class PlayerController extends Notifier<PlayerViewState> {
         final stream = plan.mediaSource.stream(index);
         final track = stream == null
             ? null
-            : engineTrackFor(stream, await _engine.tracks());
+            : engineTrackFor(
+                stream, plan.mediaSource.streams, await _engine.tracks());
         if (track == null || !_current(plan)) return;
         await _engine.selectAudio(track.id);
         if (!_current(plan)) return;

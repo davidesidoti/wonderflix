@@ -16,12 +16,13 @@ void main() {
   test('Index di Jellyfin = ff-index di mpv', () {
     expect(
         engineTrackFor(
-                const MediaStreamInfo(index: 2, kind: StreamKind.audio), tracks)
+                const MediaStreamInfo(index: 2, kind: StreamKind.audio), const [], tracks)
             ?.id,
         '2');
     expect(
         engineTrackFor(
                 const MediaStreamInfo(index: 3, kind: StreamKind.subtitle),
+                const [],
                 tracks)
             ?.id,
         '1');
@@ -30,7 +31,7 @@ void main() {
   test('il tipo deve coincidere', () {
     expect(
         engineTrackFor(
-            const MediaStreamInfo(index: 1, kind: StreamKind.subtitle), tracks),
+            const MediaStreamInfo(index: 1, kind: StreamKind.subtitle), const [], tracks),
         isNull);
   });
 
@@ -38,18 +39,33 @@ void main() {
       () {
     expect(
         engineTrackFor(
-            const MediaStreamInfo(index: 5, kind: StreamKind.subtitle), tracks),
+            const MediaStreamInfo(index: 5, kind: StreamKind.subtitle), const [], tracks),
         isNull);
   });
 
   test('stream senza traccia corrispondente', () {
     expect(
         engineTrackFor(
-            const MediaStreamInfo(index: 9, kind: StreamKind.audio), tracks),
+            const MediaStreamInfo(index: 9, kind: StreamKind.audio), const [], tracks),
         isNull);
     expect(
         engineTrackFor(
-            const MediaStreamInfo(index: 0, kind: StreamKind.other), tracks),
+            const MediaStreamInfo(index: 0, kind: StreamKind.other), const [], tracks),
         isNull);
+  });
+
+  test('gli stream esterni di Jellyfin spostano gli indici del file', () {
+    // Mushoku Tensei S03E05: il .en.srt accanto al file è Index 0, il resto
+    // scala di uno rispetto all'ff-index.
+    const streams = [
+      MediaStreamInfo(index: 0, kind: StreamKind.subtitle, isExternal: true),
+      MediaStreamInfo(index: 1, kind: StreamKind.video),
+      MediaStreamInfo(index: 2, kind: StreamKind.audio),
+      MediaStreamInfo(index: 3, kind: StreamKind.audio),
+      MediaStreamInfo(index: 4, kind: StreamKind.subtitle),
+    ];
+    expect(engineTrackFor(streams[2], streams, tracks)?.id, '1');
+    expect(engineTrackFor(streams[3], streams, tracks)?.id, '2');
+    expect(engineTrackFor(streams[4], streams, tracks)?.id, '1');
   });
 }
