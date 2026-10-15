@@ -37,6 +37,14 @@ L'adattatore Jellyfin `Server/JellyfinMatchLibrary` fa solo la query a caso sull
 9. **Avvisi:** lo stato si calcola sotto il lock e si manda fuori. Al più un `MatchUpdated` ogni 250 ms per sala; il primo dopo una pausa parte subito, gli altri aspettano e partono con l'ultimo stato. `Party` manda subito.
 10. **Limite dei voti** per utente (`LimitTypes.MatchVotes`, 4 al secondo), controllato prima del lock.
 11. **Verifiche su Jellyfin 10.11.9** (§12 della spec): vedi "Note tecniche verificate"; le differenze dalla spec si allineano nel Task 10.
+12. **Dalle review dei gruppi** (differenze dal codice scritto nei task qui sotto; la spec è allineata):
+    - `MatchService` aveva un `#pragma` per l'avviso CS9113 (parametro `parties` non usato) aggiunto nel Task 4 e tolto nel Task 5, quando `Party` lo usa.
+    - `Start` e `More` pescano con `DrawOrRelease`: se la pescata lancia, `Drawing` si spegne (prima restava acceso per sempre).
+    - Il 409 `InAnotherRoom` di `Open` e `Join` porta `RoomId`, la sala aperta di chi chiama (`MatchErrorDto.RoomId`, `MatchOutcome.RoomId`): senza, dopo un `Leave` perso l'utente non poteva scoprire la sua sala. Il 22b la usa per rientrare o uscire.
+    - `MatchService.MaxInvitesPerRequest = 50`: `Invites` guarda al massimo 50 id per richiesta, per non tenere il lock a lungo.
+    - `FakeServer.OnMatchCandidates`: un gancio dei test, per chiudere la sala nel mezzo di una pescata (`StartingARoomThatClosesWhileDrawingAnswersClosed`).
+    - Un `cref` ai commenti di `MatchRoom` (`MatchService`) è stato ripristinato.
+    - Un membro che esce durante la pescata può lasciare una votazione con un solo membro: va bene (spec §6.3).
 
 ## Global Constraints
 

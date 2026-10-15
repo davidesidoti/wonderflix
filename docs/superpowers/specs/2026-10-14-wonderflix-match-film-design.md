@@ -1,7 +1,7 @@
 # WonderFlix — Spec P: match del film
 
 - **Data:** 2026-10-14
-- **Stato:** in revisione
+- **Stato:** approvata il 2026-10-14; piano 22a realizzato (`docs/superpowers/plans/2026-10-14-wonderflix-22a-match-plugin.md`), build di prova sul server; piani 22b e 22c da scrivere
 - **Ambito:** Spec P. Realizza l'idea 9 di `docs/IDEE.md` ("Match del film"): prima di un watch party, gli amici in una sala votano sì o no su una pila di titoli; i titoli che piacciono a tutti finiscono nella coda di un party privato. Si appoggia alla Spec F (amici, party privati, `PartyDirectory`), alla Spec G (cassetta), alla Spec H (coda del party), alla Spec M ("Cosa guardo stasera?") e alla Spec O (`LastWatched`, `CanSee`).
 
 ## 1. Obiettivo
@@ -71,7 +71,7 @@ Valori scelti: 30 titoli per pila, 8 membri al massimo, quasi match a fine pila,
 App (chi apre) ──POST Match──▶ Plugin: MatchRooms (RAM)
 App (chi apre) ──POST Match/{id}/Invites──▶ MatchInvite (push) + voce MatchInvite (cassetta)
 App (invitati) ──POST Match/{id}/Join──▶
-App (chi apre) ──POST Match/{id}/Start {filtri}──▶ IMatchLibrary ──▶ pila (30 id)
+App (chi apre) ──POST Match/{id}/Start {filtri}──▶ MatchStackBuilder (IMatchLibrary, CanSee, LastWatched) ──▶ pila (30 id)
 App (tutti) ──POST Match/{id}/Votes──▶ match / quasi match
 Plugin ──MatchUpdated {stato}──▶ tutte le sessioni WonderFlix dei membri
 App (chi apre) ──startWatchParty(queue, Private)──▶ gruppo SyncPlay registrato
@@ -86,58 +86,59 @@ App (altri membri) ──MatchUpdated chiusa──▶ joinWatchParty(GroupId)
 
 ### 6.1 Sala (`MatchRooms`, in memoria)
 
-- **Stato:** `RoomId` (Guid), `CreatorId`, `Phase` (`Waiting`, `Voting`, `Closed`), `Rev` (cresce a ogni cambio), membri (`UserId`, `Name`, `Voted`, cioè quanti voti ha dato), `Invited` (insieme di utenti), `Stack` (id in ordine), `Shown` (tutti gli id mai messi nella pila), voti (`UserId → ItemId → bool`), `LastVoteAt`, `ClosedReason`, `PartyGroupId`.
-- **Una sala per utente:** chi è membro di una sala non può aprirne o raggiungerne un'altra.
+- **Stato:** `RoomId` (Guid), `CreatorId`, `Phase` (`Waiting`, `Voting`, `Closed`), `Rev` (cresce a ogni cambio), membri (`UserId`, `Name`, `Voted`, cioè quanti voti ha dato), `Invited` (insieme di utenti), `Drawing` (il plugin sta pescando; non esce nello stato), `Stack` (id in ordine), `Shown` (tutti gli id mai messi nella pila), voti (`UserId → ItemId → bool`), `LastVoteAt`, `ClosedReason`, `PartyGroupId`.
+- **Una sala per utente:** chi è membro di una sala aperta non può aprirne o raggiungerne un'altra. Una sala chiusa non conta.
 - **Membri al massimo:** 8, compreso chi ha aperto.
 - **Membri per utente, non per sessione.** Un membro esce:
   - con `Leave`;
-  - quando non ha nessuna sessione WonderFlix da 60 s (pulizia). Una caduta del WebSocket chiude la sessione Jellyfin: l'app riconnessa rilegge lo stato e resta dentro.
+  - quando non ha nessuna sessione WonderFlix da 60 s (la pulizia gira ogni 30 s: esce tra 60 e 90 s). Una caduta del WebSocket chiude la sessione Jellyfin: l'app riconnessa rilegge lo stato e resta dentro.
 - **Chiusura:**
   - esce chi ha aperto (`Leave` o 60 s senza sessione) → `ClosedReason = CreatorLeft`;
-  - nessun voto né ingresso da 1 h (in attesa: da quando è stata aperta o dall'ultimo ingresso) → `Inactive`;
+  - nessun voto, ingresso, "Inizia" o "Altri 30" da 1 h (in attesa: da quando è stata aperta o dall'ultimo ingresso) → `Inactive`;
   - party avviato (§6.6) → `PartyStarted`, con `PartyGroupId`.
 - **Sala chiusa tenuta 5 minuti** per rispondere a `GET` (un membro che si riconnette vede `PartyGroupId` ed entra nel party), poi dimenticata.
 - **Pulizia** in `MatchHostedService`, ogni 30 s con il suo `try/catch`: membri senza sessione, inattività, sale chiuse scadute.
 
-### 6.2 Pila (`IMatchLibrary`)
+### 6.2 Pila (`MatchStackBuilder`, `IMatchLibrary`)
 
-`IMatchLibrary.Draw(creatorId, memberIds, filters, exclude, count)`, implementata in `JellyfinMatchLibrary`:
+`MatchStackBuilder.Draw(creatorId, memberIds, filters, exclude)` costruisce la pila; `IMatchLibrary.Candidates(userId, filters, exclude, limit)`, implementata in `JellyfinMatchLibrary`, fa solo la query:
 
-1. una query sulla libreria di chi ha aperto (`InternalItemsQuery` con `User`, `Recursive`, `IncludeItemTypes` per tipo, `Genres` se c'è un genere, `IsPlayed = false`, `OrderBy` `Random`, `Limit` 300), senza gli id di `exclude`;
-2. per i film con un limite di durata: solo quelli con `RunTimeTicks` noto e minore del limite (come `tonightEligible`);
-3. in quell'ordine, si tiene un candidato solo se **ogni** membro, compreso chi ha aperto, lo può vedere (`CanSee`) e non l'ha né visto né iniziato (`LastWatched == null`);
-4. ci si ferma a `count` (30) titoli o alla fine dei candidati.
+1. **una query per tipo** (film e serie separati: con i due tipi insieme Jellyfin guarda "visto" sulla riga della serie, che non vale) sulla libreria di chi ha aperto: `new InternalItemsQuery(user)` (porta i limiti d'età e i tag bloccati dell'utente), `Recursive`, `IncludeItemTypes`, `IsVirtualItem = false`, `Genres` se c'è un genere, `IsPlayed = false`, `OrderBy` `Random`, `ExcludeItemIds` = `exclude`. `Limit` totale 300 (`CandidateLimit`): 150 per tipo con film e serie, 300 con un tipo solo. Le liste dei tipi si mescolano. Jellyfin ricontrolla la visibilità dopo la query, quindi i candidati possono essere meno del limite;
+2. dopo la query, in `MatchStackBuilder` (Jellyfin non ha un filtro sulla durata): si ricontrollano tipo, doppioni ed esclusi, e per i film con un limite di durata restano solo quelli con `RunTimeTicks` noto e minore del limite (come `tonightEligible`). La durata non vale per le serie;
+3. in quell'ordine, si tiene un candidato solo se **ogni** membro, compreso chi ha aperto, lo può vedere (`CanSee`) e non l'ha né visto né iniziato (`LastWatched == null`). `IsPlayed = false` non basta: per un film iniziato ma non finito la query dice sì, e lo toglie `LastWatched`;
+4. ci si ferma a `StackSize` (30) titoli o alla fine dei candidati.
 
 - I controlli si fanno uno alla volta e si fermano al primo che non passa: in pratica poche decine di candidati per pila.
-- Un errore della libreria su un candidato lo scarta (`Warning`). Un errore della query dà una pila vuota (`Warning`): `Start` e `More` rispondono normalmente e l'app mostra "Nessun titolo con questi filtri".
-- **Filtri** (`Type`: `movies`/`series`/`both`; `Duration`: `any`/`90`/`120`; `Genre`: nome o assente) con gli stessi valori `wire` dell'app (`TonightType`, `TonightDuration`). Un valore sconosciuto → 400.
+- **La pescata è fuori dal lock** (la libreria fa query al database). `Start` e `More` mettono la sala in `Drawing`; finché pesca, `Join` e un secondo `Start` rispondono `Started`, `More` risponde `NotFinished`, `Invites` risponde `Started`, e non parte nessun avviso. Se intanto la sala si chiude (per esempio esce chi l'ha aperta), la pescata si butta e la risposta è `Closed`. Se la pescata lanciasse un errore, la sala non resta bloccata in `Drawing`.
+- Un errore della libreria su un candidato lo scarta (`Warning`). Un errore della query, o un utente che la libreria non conosce, dà una pila vuota (`Warning`): `Start` e `More` rispondono normalmente e l'app mostra "Nessun titolo con questi filtri".
+- **Filtri** (`Type`: `movies`/`series`/`both`; `Duration`: `any`/`90`/`120`; `Genre`: nome o assente) con gli stessi valori `wire` dell'app (`TonightType`, `TonightDuration`). `Type` e `Duration` mancanti valgono `both` e `any`; un genere vuoto vale "tutti". Un valore sconosciuto, o un genere oltre 100 caratteri → 400.
 
 ### 6.3 Voti, match, quasi match
 
 - **In ordine:** il voto di un membro vale solo per `Stack[Voted]`; un altro `ItemId` → **409** (l'app si riallinea dallo stato).
 - **Match:** un titolo della pila a cui hanno detto sì **tutti i membri attuali**. In ordine di uscita: quando un titolo diventa match la prima volta gli si dà un numero progressivo; l'elenco dei match segue quel numero.
-- **Uscita di un membro:** i suoi voti si tolgono e i match si ricalcolano su chi resta. Un titolo può diventare match in quel momento. Se resta solo chi ha aperto, la sala continua: ogni suo sì è un match.
+- **Uscita di un membro:** i suoi voti si tolgono e i match si ricalcolano su chi resta. Un titolo può diventare match in quel momento. Se resta solo chi ha aperto, la sala continua: ogni suo sì è un match. Succede anche se un membro esce mentre il plugin sta pescando la pila: la votazione parte con chi resta, anche da solo.
 - **Quasi match:** solo quando tutti i membri hanno votato tutta la pila. I titoli non match con almeno `ceil(membri / 2)` sì, dal più votato, a parità nell'ordine della pila; al massimo 5. Ciascuno porta `Yes` e `Of` (membri).
-- **Altri 30** (`More`): solo chi ha aperto, solo quando tutti hanno finito. Pesca con `exclude = Shown` e aggiunge in fondo alla pila. Il risultato può essere vuoto.
+- **Altri 30** (`More`): solo chi ha aperto, solo quando tutti hanno finito. Pesca con `exclude = Shown` e aggiunge in fondo alla pila. Con la pila vuota si può chiedere subito. Il risultato può essere vuoto: allora lo stato non cambia (`Rev` resta) e non parte nessun avviso.
 - **Limite:** voti 4 al secondo per utente (`LimitTypes.MatchVotes`) → 429.
 
 ### 6.4 Endpoint
 
-`MatchController`, rotta `WonderFlixWatchParty`, stessa policy degli amici (accesso a SyncPlay). Chi chiama si ricava dal token. **Mai 404** (404 vuol dire plugin mancante). Le risposte 409 hanno il corpo `{Reason}`.
+`MatchController`, rotta `WonderFlixWatchParty`, stessa policy degli amici (accesso a SyncPlay). Chi chiama si ricava dal token. **Mai 404** (404 vuol dire plugin mancante). Le risposte 409 hanno il corpo `{Reason}`; solo `InAnotherRoom` ha anche `RoomId`, la sala aperta di chi chiama (§8). Una sala sconosciuta dà `Closed` a tutti gli endpoint tranne `GET` (`NotMember`) e `Leave` (204).
 
 | Endpoint | Chi | Risposta |
 |---|---|---|
-| `POST Match` | chiunque | stato della sala nuova (chi chiama è membro e creatore); 409 `InAnotherRoom` |
+| `POST Match` | chiunque | stato della sala nuova (chi chiama è membro e creatore); 409 `InAnotherRoom` con `RoomId` |
 | `GET Match/{roomId}` | membro (anche di una sala chiusa, entro 5 minuti) | stato; 409 `NotMember` |
-| `POST Match/{roomId}/Invites` `{UserIds}` | chi ha aperto, `Waiting` | 204; solo amici di chi chiama (gli altri si ignorano); 409 `NotCreator`, `Started`, `Closed`; 429 con il limite `Invites` |
-| `POST Match/{roomId}/Join` | invitato | stato; 409 `Started`, `Closed`, `Full`, `NotInvited`, `InAnotherRoom` |
-| `POST Match/{roomId}/Leave` | membro | 204 (anche se non è più membro) |
-| `POST Match/{roomId}/Start` `{Type, Duration, Genre}` | chi ha aperto, `Waiting`, almeno 2 membri | stato; 409 `NotCreator`, `Started`, `Closed`, `NotEnoughMembers`; 400 filtri non validi |
-| `POST Match/{roomId}/Votes` `{ItemId, Yes}` | membro, `Voting` | 204; 409 `NotNext`, `NotStarted`, `Closed`, `NotMember`; 429 |
-| `POST Match/{roomId}/More` | chi ha aperto, `Voting`, tutti hanno finito | stato; 409 `NotCreator`, `NotFinished`, `Closed` |
-| `POST Match/{roomId}/Party` `{GroupId}` | chi ha aperto, `Voting` | 204; il party deve essere registrato da chi chiama (`PartyDirectory.Get(groupId).CreatorId`); altrimenti 409 `NotYourParty` |
+| `POST Match/{roomId}/Invites` `{UserIds}` | chi ha aperto, `Waiting` | 204; solo amici attivi di chi chiama, non già membri (gli altri si ignorano), al massimo 50 id per richiesta (i successivi si ignorano); 409 `NotCreator`, `Started`, `Closed`; 429 con il limite `Invites`: si invitano quelli che ci stanno e si risponde 429 |
+| `POST Match/{roomId}/Join` | invitato | stato (anche per chi è già membro, senza cambi); 409 `Started`, `Closed`, `Full`, `NotInvited`, `InAnotherRoom` con `RoomId` |
+| `POST Match/{roomId}/Leave` | membro | 204 sempre (anche se non è più membro o la sala non c'è) |
+| `POST Match/{roomId}/Start` `{Type, Duration, Genre}` | chi ha aperto, `Waiting`, almeno 2 membri | stato (la pila può essere vuota); 409 `NotCreator`, `Started`, `Closed`, `NotEnoughMembers`; 400 filtri non validi |
+| `POST Match/{roomId}/Votes` `{ItemId, Yes}` | membro, `Voting` | 204 (senza stato); 409 `NotNext`, `NotStarted`, `Closed`, `NotMember`; 400 senza `ItemId` valido o senza `Yes`; 429 |
+| `POST Match/{roomId}/More` | chi ha aperto, `Voting`, tutti hanno finito | stato; 409 `NotCreator`, `NotStarted` (in attesa), `NotFinished` (anche durante una pescata), `Closed` |
+| `POST Match/{roomId}/Party` `{GroupId}` | chi ha aperto, `Voting` | 204; il party deve essere registrato da chi chiama (`PartyDirectory.Get(groupId).CreatorId`); altrimenti 409 `NotYourParty`; 409 anche `NotCreator`, `NotStarted` (in attesa), `Closed` |
 
-- `{roomId}` e `{GroupId}` in formato `N`; un id non valido → 400.
+- `{roomId}`, `{GroupId}` e `ItemId` in formato `N`; un id non valido → 400.
 - **Stato** (risposte e `MatchUpdated`):
 
 ```
@@ -149,11 +150,12 @@ App (altri membri) ──MatchUpdated chiusa──▶ joinWatchParty(GroupId)
  ClosedReason?, PartyGroupId?}
 ```
 
-  `Stack` è vuoto in attesa. Non ci sono mai i voti dei singoli.
+  `Stack` è vuoto in attesa. Non ci sono mai i voti dei singoli. `Rev` cresce solo con un cambio visibile nello stato.
 
 ### 6.5 Inviti e avvisi
 
-- **Invito:** per ogni amico invitato si aggiunge a `Invited`, si manda `MatchInvite{RoomId, FromName}` alle sue sessioni WonderFlix e si crea nella sua cassetta una voce `MatchInvite{RoomId, FromName}`. Reinvitare la stessa persona rimanda l'avviso, non duplica la voce (stesso `RoomId`).
+- **Invito:** per ogni amico invitato si aggiunge a `Invited`, si manda `MatchInvite{RoomId, FromName}` alle sue sessioni WonderFlix e si crea nella sua cassetta una voce `MatchInvite{RoomId, FromName}`. Reinvitare la stessa persona rimanda l'avviso e non duplica la voce (stesso `RoomId`): la voce torna in cima e non letta.
+- **Limite:** gli inviti usano il limite `Invites` dei party, con la stessa chiave per chi invita: ogni destinatario conta uno e gli inviti al match e ai party si sommano.
 - **`MatchUpdated{…stato…}`** a tutte le sessioni WonderFlix dei membri attuali. Chi esce non riceve più niente: l'app che esce lo sa già, e quella riconnessa rilegge con `GET` (409 `NotMember`).
 - **Raggruppamento:** al massimo un `MatchUpdated` ogni 250 ms per sala, sempre con l'ultimo stato. Il primo cambio dopo una pausa parte subito.
 - **App vecchie:** ignorano `MatchInvite`, `MatchUpdated` e la voce di cassetta (§2). `parsePartyEvent` delle app vecchie può scrivere una riga di log per il tipo sconosciuto.
@@ -163,13 +165,13 @@ App (altri membri) ──MatchUpdated chiusa──▶ joinWatchParty(GroupId)
 `POST Match/{roomId}/Party {GroupId}`:
 
 1. controlla chi chiama, fase e proprietà del party (§6.4);
-2. `PartyDirectory.Grant(groupId, membri)`: tutti i membri vedono il party privato e ci possono entrare;
+2. `PartyDirectory.Grant(groupId, membri)`: gli altri membri (chi ha aperto lo vede già) vedono il party privato e ci possono entrare;
 3. chiude la sala con `ClosedReason = PartyStarted` e `PartyGroupId`, e manda subito `MatchUpdated` (senza aspettare i 250 ms).
 
 ### 6.7 `Info`, limiti, log
 
 - `Info.Features` aggiunge `"match"`; `Protocol` resta 1; `Version` "1.10.0".
-- `LimitTypes.MatchVotes` (4 al secondo per utente); gli inviti usano `Invites` (20 al minuto) come i party.
+- `LimitTypes.MatchVotes` (4 al secondo per utente); gli inviti usano `Invites` (20 al minuto) come i party (§6.5).
 - Log: **mai titoli o nomi**, solo id e numeri. `Debug` per sala aperta, chiusa (con il motivo), pila pescata (quanti titoli); `Warning` per errori della libreria.
 - Controllo dei riferimenti della dll contro Jellyfin 10.11.9 (`refprobe`), come per ogni release.
 
@@ -187,16 +189,16 @@ App (altri membri) ──MatchUpdated chiusa──▶ joinWatchParty(GroupId)
 
 - **Home:** un pulsante "Match" accanto a `TonightButton`, nelle tre posizioni in cui c'è oggi.
 - **Pannello Amici:** "Match del film" in cima.
-- Al clic: `openMatch()` e poi la pagina `/match/:roomId`. Un 409 `InAnotherRoom` dà l'avviso "Sei già in un'altra sala" (succede solo con due istanze dello stesso utente).
+- Al clic: `openMatch()` e poi la pagina `/match/:roomId`. Un 409 `InAnotherRoom` porta `RoomId`, la sala aperta di chi chiama (succede con due istanze dello stesso utente, o dopo un `Leave` perso, §8): l'app (22b) la usa per tornare in quella sala o lasciarla, e non resta bloccata con il solo avviso "Sei già in un'altra sala".
 - **Invito:** l'avviso `MatchInvite` mostra una carta nello stesso posto e con lo stesso aspetto dell'invito al party ("{name} ti invita a un match", "Unisciti"). `WatchPartyInviteCard` diventa una carta comune con due varianti; resta un invito alla volta, l'ultimo arrivato. La voce `MatchInviteEntry` nella cassetta ha "Unisciti".
-- **Unisciti:** `joinMatch(roomId)` e la pagina della sala. Il 409 dà un avviso: `Started` → "Il match è già iniziato", `Closed` → "Sala chiusa", `Full` → "Sala piena", `InAnotherRoom` → "Sei già in un'altra sala", `NotInvited` → "Sala chiusa".
+- **Unisciti:** `joinMatch(roomId)` e la pagina della sala. Il 409 dà un avviso: `Started` → "Il match è già iniziato", `Closed` → "Sala chiusa", `Full` → "Sala piena", `InAnotherRoom` → "Sei già in un'altra sala" (con `RoomId`, come sopra), `NotInvited` → "Sala chiusa". `Join` di chi è già membro risponde con lo stato.
 - Dentro un watch party non c'è nessun ingresso (si è nel player).
 
 ### 7.3 Pagina della sala
 
 Route `/match/:id` nella shell, sotto la barra come la scheda di un titolo, titolo nella barra "Match del film".
 
-- **Stato:** `MatchController` (provider per `roomId`): legge con `match(roomId)` all'apertura e a ogni riconnessione al server; si aggiorna con `MatchUpdatedEvent` dello stesso `roomId`, scartando quelli con `Rev` minore o uguale a quella che ha.
+- **Stato:** `MatchController` (provider per `roomId`): legge con `match(roomId)` all'apertura e a ogni riconnessione al server; si aggiorna con `MatchUpdatedEvent` dello stesso `roomId`, scartando quelli con `Rev` minore o uguale a quella che ha, anche le risposte degli endpoint: gli avvisi partono fuori dal lock e possono arrivare fuori ordine.
 - **Uscire:** lasciare la pagina (←, Esc, un'altra voce della barra, cambio di profilo) chiama `leaveMatch` senza aspettare. Chiudere l'app lo prova senza aspettare; altrimenti ci pensa la pulizia del plugin (60 s).
 - **In alto, sempre:** i membri con l'avatar e il nome; in votazione anche "12/30" e ✓ quando hanno finito.
 
@@ -251,7 +253,8 @@ Stato `Closed` senza `PartyGroupId` (`CreatorLeft`, `Inactive`) o 409 `NotMember
 - **Errori di rete sulle azioni** (invita, inizia, altri 30): avviso "Non riuscito, riprova"; nei log solo il tipo dell'errore.
 - **Riconnessione** al server durante la sala: `match(roomId)`; un 409 `NotMember` chiude la pagina con "Sala chiusa".
 - **Un membro non può entrare nel party** (per esempio un episodio successivo con un limite d'età diverso, che Jellyfin controlla all'ingresso nel gruppo): l'errore che `joinWatchParty` mostra già.
-- **Due istanze dello stesso utente:** la seconda non apre né raggiunge altre sale (`InAnotherRoom`); se apre la pagina della stessa sala, ci sono due app sullo stesso membro: accettato, i voti di una portano avanti anche l'altra dallo stato.
+- **`Leave` perso** (app chiusa di colpo, rete caduta): la sala resta aperta finché la pulizia non toglie il membro (60 s senza sessioni WonderFlix; se è chi ha aperto, la sala si chiude per tutti) o per 1 h senza attività. Intanto `POST Match` e `Join` rispondono `InAnotherRoom` con `RoomId`, e l'app (22b) può tornare in quella sala o lasciarla.
+- **Due istanze dello stesso utente:** la seconda non apre né raggiunge altre sale (`InAnotherRoom`, con `RoomId`); se apre la pagina della stessa sala, ci sono due app sullo stesso membro: accettato, i voti di una portano avanti anche l'altra dallo stato.
 - **App 0.15.x con plugin 1.10.0:** non vede gli inviti. Per questo la 0.16.0 è obbligatoria.
 
 ## 9. Testi nuovi (ARB, it + en)
@@ -300,13 +303,14 @@ Stato `Closed` senza `PartyGroupId` (`CreatorLeft`, `Inactive`) o 409 `NotMember
 
 ### 11.1 Plugin (xUnit)
 
-- Fasi e permessi di ogni endpoint, con ogni 409 della tabella di §6.4; id non validi → 400; mai 404.
+- Fasi e permessi di ogni endpoint, con ogni 409 della tabella di §6.4 (`InAnotherRoom` con il `RoomId` giusto); id non validi → 400; mai 404.
 - Pila: tipo, genere, durata (film senza durata scartati con un limite), `CanSee` falso per un membro, visto o iniziato da un membro (anche chi ha aperto), "Altri 30" senza ripetizioni, pila vuota, errore della query e di un candidato.
 - Voti in ordine e `NotNext`; match; ricalcolo all'uscita di un membro (anche un match nuovo); quasi match (soglia, ordine, tetto 5, solo a fine pila); `More` solo a fine pila.
 - Uscita per 60 s senza sessione; uscita di chi ha aperto; inattività di 1 h; sala chiusa tenuta 5 minuti.
 - `Party`: proprietà del party, `Grant` ai membri, chiusura con `PartyGroupId`, invio subito.
 - Stato senza voti dei singoli; raggruppamento dei `MatchUpdated` (250 ms, ultimo stato).
-- Inviti: solo amici, voce in cassetta senza doppioni, limite.
+- Inviti: solo amici, voce in cassetta senza doppioni, limite, al massimo 50 id per richiesta.
+- Sala che si chiude durante la pescata: risposta `Closed`.
 - Limite dei voti; `Info` con `match`; riferimenti della dll contro 10.11.9.
 
 ### 11.2 App
@@ -323,16 +327,19 @@ Due istanze (`WONDERFLIX_PROFILE=b`) con due utenti amici: apertura e invito (ca
 
 ## 12. Verifiche sul sorgente di Jellyfin 10.11.9
 
-Da fare all'inizio del piano 22a:
+Fatte il 2026-10-14 (piano 22a, Task 7) sul sorgente ai tag `v10.11.9` e `v10.11.0`:
 
-- `InternalItemsQuery` con `User`, `Recursive`, `IncludeItemTypes`, `Genres` per nome, `IsPlayed`, `OrderBy` `ItemSortBy.Random`, `Limit`: che rispetti le librerie e i limiti d'età dell'utente.
-- `LastPlayedDate` impostata all'inizio della riproduzione (così `LastWatched` vale anche per i titoli solo iniziati, come assume la Spec O).
-- L'ingresso in un gruppo SyncPlay controlla l'accesso agli elementi della coda (§8).
-- `/Shows/{id}/Episodes` senza stagione: ordine e posizione degli speciali (stagione 0), per "primo episodio" (§7.3).
+- `InternalItemsQuery` ha in entrambe le versioni `User`, `Recursive`, `IncludeItemTypes`, `Genres` (per nome), `IsPlayed`, `IsVirtualItem`, `ExcludeItemIds`, `OrderBy` e `Limit`. **Non** ha un filtro sulla durata: la controlla il plugin dopo la query (§6.2).
+- Il costruttore `new InternalItemsQuery(user)` porta i limiti d'età e i tag bloccati dell'utente; `GetItemList` aggiunge le sue librerie e ricontrolla la visibilità, quindi i risultati possono essere meno di `Limit`. `ItemSortBy.Random` è un campione a caso vero prima del `Limit`.
+- `IsPlayed = false`: con le sole serie vuol dire "nessun episodio visto"; con film e serie insieme guarda la riga della serie, che non vale. Per questo una query per tipo. Per un film vale solo "visto": quello iniziato passa, e lo toglie `LastWatched`.
+- `LastPlayedDate` e `PlayCount` cambiano all'inizio della riproduzione: `LastWatched` vale anche per i titoli solo iniziati, come assume la Spec O.
+- L'ingresso in un gruppo SyncPlay rifiuta chi non vede tutta la coda (avviso `LibraryAccessDenied`) con lo stesso controllo di `CanSee`; un episodio eredita la classificazione della serie (§8).
+- `/Shows/{id}/Episodes` senza stagione: gli speciali (stagione 0) vengono prima, o in mezzo se la libreria li mostra dentro le stagioni; `isMissing=false` toglie gli episodi virtuali. Il "primo episodio" si sceglie con stagione ≥ 1 (§7.3).
+- Il controllo dei riferimenti della dll (`refprobe`) contro 10.11.9: 0 non risolti.
 
 ## 13. Piani e release
 
-- **22a — plugin 1.10.0:** verifiche di §12, sala, pila, voti, endpoint, avvisi, cassetta, `Info`. Build di prova installata a mano sul server (STOP per l'OK dell'utente al riavvio di Jellyfin, con il backup della 1.9.0 del Catalogo in `~/wfwp-backup/`). Nessuna release.
+- **22a — plugin 1.10.0 (realizzato):** verifiche di §12, sala, pila, voti, endpoint, avvisi, cassetta, `Info`. Il plugin 1.10.0 è una build di prova installata a mano sul server (con l'OK dell'utente al riavvio di Jellyfin e il backup della 1.9.0 del Catalogo in `~/wfwp-backup/`) e lo resta fino alla fine del 22c. Nessuna release: il Catalogo resta alla 1.9.0.
 - **22b — app, sala:** nucleo (§7.1), ingressi, carta d'invito e cassetta, pagina in attesa, uscita.
 - **22c — app, votazione:** carta e gesto, match e quasi match, fine pila, avvio del party, versione 0.16.0; poi la prova a mano con l'utente.
 - **Release** (con l'OK dell'utente a ogni passo): plugin **1.10.0** dal Catalogo, poi app **0.16.0 obbligatoria** con le note in italiano nella bozza.
