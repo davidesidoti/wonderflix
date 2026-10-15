@@ -253,4 +253,209 @@ public sealed class MatchServiceTests : IDisposable
         // Una sala chiusa non conta più: si può aprirne un'altra.
         Assert.Equal(HubStatus.Ok, _match.Open(_luigi.Id).Status);
     }
+
+    private async Task<(Guid Room, Guid Dune, Guid Alien)> VotingRoomAsync()
+    {
+        var room = await RoomWithLuigiAsync();
+        var dune = new MatchCandidate(Guid.NewGuid(), true, null);
+        var alien = new MatchCandidate(Guid.NewGuid(), true, null);
+        _server.MatchCandidates.AddRange([dune, alien]);
+        Assert.Equal(HubStatus.Ok, _match.Start(_mario.Id, room, AnyTitle).Status);
+        return (room, dune.Id, alien.Id);
+    }
+
+    [Fact]
+    public async Task VotesMakeMatchesForEveryone()
+    {
+        var (room, dune, _) = await VotingRoomAsync();
+
+        Assert.Equal(HubStatus.Ok, _match.Vote(_mario.Id, room, dune, true).Status);
+        Assert.Equal(HubStatus.Ok, _match.Vote(_luigi.Id, room, dune, true).Status);
+        _time.Advance(MatchService.PushInterval);
+
+        Assert.Equal(new[] { Id(dune) }, _match.Get(_luigi.Id, room).State!.Matches);
+        Assert.Equal(new[] { Id(dune) }, Updates("s-luigi")[^1].Matches);
+    }
+
+    [Fact]
+    public async Task VotesTellWhyNot()
+    {
+        var (room, dune, alien) = await VotingRoomAsync();
+
+        AssertConflict(MatchReasons.NotNext, _match.Vote(_mario.Id, room, alien, true));
+        AssertConflict(MatchReasons.NotMember, _match.Vote(_peach.Id, room, dune, true));
+        AssertConflict(MatchReasons.Closed, _match.Vote(_mario.Id, Guid.NewGuid(), dune, true));
+
+        var waiting = Guid.Parse(_match.Open(_peach.Id).State!.RoomId);
+        AssertConflict(MatchReasons.NotStarted, _match.Vote(_peach.Id, waiting, dune, true));
+    }
+
+    [Fact]
+    public async Task VotesBeyondFourASecondAre429()
+    {
+        var room = await RoomWithLuigiAsync();
+        for (var i = 0; i < 6; i++)
+        {
+            _server.MatchCandidates.Add(new MatchCandidate(Guid.NewGuid(), true, null));
+        }
+
+        var stack = _match.Start(_mario.Id, room, AnyTitle).State!.Stack.Select(Guid.Parse).ToList();
+        for (var i = 0; i < 4; i++)
+        {
+            Assert.Equal(HubStatus.Ok, _match.Vote(_mario.Id, room, stack[i], false).Status);
+        }
+
+        Assert.Equal(HubStatus.RateLimited, _match.Vote(_mario.Id, room, stack[4], false).Status);
+        _time.Advance(TimeSpan.FromSeconds(1));
+        Assert.Equal(HubStatus.Ok, _match.Vote(_mario.Id, room, stack[4], false).Status);
+    }
+
+    [Fact]
+    public async Task UpdatesCarryCountsNotVotes()
+    {
+        var (room, dune, alien) = await VotingRoomAsync();
+        _match.Vote(_mario.Id, room, dune, true);
+        _match.Vote(_mario.Id, room, alien, false);
+        _match.Vote(_luigi.Id, room, dune, false);
+        _match.Vote(_luigi.Id, room, alien, false);
+        _time.Advance(MatchService.PushInterval);
+
+        var update = Updates("s-luigi")[^1];
+        Assert.All(update.Members, member => Assert.Equal(2, member.Voted));
+        Assert.Empty(update.Matches);
+        // Su due membri basta un sì per un quasi match; non si dice di chi.
+        Assert.Equal(new MatchNearMatchDto(Id(dune), 1, 2), Assert.Single(update.NearMatches));
+        Assert.All(_server.SentTo("s-luigi"), payload => Assert.DoesNotContain("\"Votes\"", payload, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task MoreNeedsEveryoneToHaveFinished()
+    {
+        var (room, dune, alien) = await VotingRoomAsync();
+        AssertConflict(MatchReasons.NotFinished, _match.More(_mario.Id, room));
+
+        foreach (var user in new[] { _mario.Id, _luigi.Id })
+        {
+            _match.Vote(user, room, dune, false);
+            _match.Vote(user, room, alien, false);
+        }
+
+        AssertConflict(MatchReasons.NotCreator, _match.More(_luigi.Id, room));
+
+        // Niente di nuovo: pila e Rev restano.
+        var rev = _match.Get(_mario.Id, room).State!.Rev;
+        var same = _match.More(_mario.Id, room);
+        Assert.Equal(HubStatus.Ok, same.Status);
+        Assert.Equal(rev, same.State!.Rev);
+        Assert.Equal(2, same.State.Stack.Count);
+        // La query non ripesca i titoli già mostrati.
+        Assert.True(_server.MatchQueries[^1].Exclude.ToHashSet().SetEquals([dune, alien]));
+
+        var heat = new MatchCandidate(Guid.NewGuid(), true, null);
+        _server.MatchCandidates.Add(heat);
+        var more = _match.More(_mario.Id, room);
+        Assert.Equal(new[] { Id(dune), Id(alien), Id(heat.Id) }, more.State!.Stack);
+    }
+
+    [Fact]
+    public async Task MoreIsOnlyWhileVoting()
+    {
+        var room = await RoomWithLuigiAsync();
+        AssertConflict(MatchReasons.NotStarted, _match.More(_mario.Id, room));
+        AssertConflict(MatchReasons.Closed, _match.More(_mario.Id, Guid.NewGuid()));
+    }
+
+    [Fact]
+    public async Task ThePartyLetsTheMembersInAndClosesTheRoom()
+    {
+        var (room, dune, _) = await VotingRoomAsync();
+        // Un avviso in attesa: il party lo scavalca e manda subito.
+        _match.Vote(_mario.Id, room, dune, true);
+        var group = Guid.NewGuid();
+        _parties.Register(group, _mario.Id, PartyModes.Private);
+
+        Assert.Equal(HubStatus.Ok, _match.Party(_mario.Id, room, group).Status);
+
+        Assert.True(_parties.IsVisible(group, _luigi.Id, _ => false));
+        var update = Updates("s-luigi")[^1];
+        Assert.Equal(MatchPhases.Closed, update.Phase);
+        Assert.Equal(MatchClosedReasons.PartyStarted, update.ClosedReason);
+        Assert.Equal(Id(group), update.PartyGroupId);
+        Assert.Equal(Id(group), _match.Get(_luigi.Id, room).State!.PartyGroupId);
+    }
+
+    [Fact]
+    public async Task OnlyTheCreatorStartsTheirOwnParty()
+    {
+        var (room, _, _) = await VotingRoomAsync();
+        var mine = Guid.NewGuid();
+        var luigis = Guid.NewGuid();
+        _parties.Register(mine, _mario.Id, PartyModes.Private);
+        _parties.Register(luigis, _luigi.Id, PartyModes.Private);
+
+        AssertConflict(MatchReasons.NotCreator, _match.Party(_luigi.Id, room, luigis));
+        AssertConflict(MatchReasons.NotYourParty, _match.Party(_mario.Id, room, luigis));
+        AssertConflict(MatchReasons.NotYourParty, _match.Party(_mario.Id, room, Guid.NewGuid()));
+        AssertConflict(MatchReasons.Closed, _match.Party(_mario.Id, Guid.NewGuid(), mine));
+
+        var waiting = Guid.Parse(_match.Open(_peach.Id).State!.RoomId);
+        AssertConflict(MatchReasons.NotStarted, _match.Party(_peach.Id, waiting, mine));
+    }
+
+    [Fact]
+    public async Task AMemberWithoutSessionsLeavesAfterTheGrace()
+    {
+        var room = await RoomWithLuigiAsync();
+        var luigiSession = _server.Sessions.Single(s => s.UserId == _luigi.Id);
+        _server.Sessions.Remove(luigiSession);
+
+        _match.Cleanup();
+        _time.Advance(MatchService.MemberGrace - TimeSpan.FromSeconds(1));
+        _match.Cleanup();
+        Assert.Equal(2, _match.Get(_mario.Id, room).State!.Members.Count);
+
+        // Riconnesso in tempo: si riparte da capo.
+        _server.Sessions.Add(luigiSession);
+        _match.Cleanup();
+        _server.Sessions.Remove(luigiSession);
+        _match.Cleanup();
+        _time.Advance(MatchService.MemberGrace - TimeSpan.FromSeconds(1));
+        _match.Cleanup();
+        Assert.Equal(2, _match.Get(_mario.Id, room).State!.Members.Count);
+
+        _time.Advance(TimeSpan.FromSeconds(1));
+        Assert.Equal(1, _match.Cleanup());
+        Assert.Single(_match.Get(_mario.Id, room).State!.Members);
+    }
+
+    [Fact]
+    public async Task TheCreatorWithoutSessionsClosesTheRoom()
+    {
+        var room = await RoomWithLuigiAsync();
+        _server.Sessions.RemoveAll(s => s.UserId == _mario.Id);
+
+        _match.Cleanup();
+        _time.Advance(MatchService.MemberGrace);
+        _match.Cleanup();
+
+        Assert.Equal(MatchClosedReasons.CreatorLeft, _match.Get(_luigi.Id, room).State!.ClosedReason);
+    }
+
+    [Fact]
+    public async Task AnIdleRoomClosesAfterAnHourAndIsForgottenFiveMinutesLater()
+    {
+        var room = await RoomWithLuigiAsync();
+
+        _time.Advance(MatchService.InactiveAfter - TimeSpan.FromSeconds(1));
+        _match.Cleanup();
+        Assert.Equal(MatchPhases.Waiting, _match.Get(_mario.Id, room).State!.Phase);
+
+        _time.Advance(TimeSpan.FromSeconds(1));
+        _match.Cleanup();
+        Assert.Equal(MatchClosedReasons.Inactive, _match.Get(_mario.Id, room).State!.ClosedReason);
+
+        _time.Advance(MatchService.ClosedKept);
+        _match.Cleanup();
+        AssertConflict(MatchReasons.NotMember, _match.Get(_mario.Id, room));
+    }
 }

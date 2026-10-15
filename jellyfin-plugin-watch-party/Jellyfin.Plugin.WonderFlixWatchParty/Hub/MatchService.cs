@@ -20,7 +20,6 @@ public sealed record MatchOutcome(HubStatus Status, string? Reason, MatchStateDt
 /// raggruppati e pulizia. Non conosce Jellyfin: parla con le interfacce di
 /// Hub. Sicuro tra thread.
 /// </summary>
-#pragma warning disable CS9113 // parties serve a Party (Task 5)
 public sealed class MatchService(
     MatchStackBuilder stacks,
     FriendService friends,
@@ -32,7 +31,6 @@ public sealed class MatchService(
     RateLimiter limiter,
     TimeProvider time,
     ILogger<MatchService> logger) : IDisposable
-#pragma warning restore CS9113
 {
     /// <summary>Quanto un membro può restare senza sessioni WonderFlix (spec P §6.1).</summary>
     public static readonly TimeSpan MemberGrace = TimeSpan.FromSeconds(60);
@@ -232,7 +230,7 @@ public sealed class MatchService(
             members = room.MemberIds;
         }
 
-        var stack = stacks.Draw(userId, members, filters, []);
+        var stack = DrawOrRelease(roomId, userId, members, filters, []);
 
         Delivery? delivery;
         MatchStateDto state;
@@ -253,6 +251,213 @@ public sealed class MatchService(
         return MatchOutcome.Ok(state);
     }
 
+    /// <summary>
+    /// Il voto di un membro per il suo prossimo titolo (spec P §6.3). Il
+    /// limite (4 al secondo per utente) si controlla prima del lock.
+    /// </summary>
+    public MatchOutcome Vote(Guid userId, Guid roomId, Guid itemId, bool yes)
+    {
+        if (!limiter.TryAcquire(N(userId), LimitTypes.MatchVotes))
+        {
+            return MatchOutcome.RateLimited;
+        }
+
+        Delivery? delivery;
+        lock (_lock)
+        {
+            if (!_rooms.TryGetValue(roomId, out var room))
+            {
+                return MatchOutcome.Conflict(MatchReasons.Closed);
+            }
+
+            if (room.Vote(userId, itemId, yes, time.GetUtcNow()) is { } reason)
+            {
+                return MatchOutcome.Conflict(reason);
+            }
+
+            delivery = Push(room, immediate: false);
+        }
+
+        Deliver(delivery);
+        return MatchOutcome.Ok();
+    }
+
+    /// <summary>
+    /// "Altri 30" (spec P §6.3): solo chi ha aperto, quando tutti hanno
+    /// finito; stessi filtri, senza i titoli già mostrati. Pesca fuori dal
+    /// lock come Start.
+    /// </summary>
+    public MatchOutcome More(Guid userId, Guid roomId)
+    {
+        IReadOnlyList<Guid> members;
+        MatchFilters filters;
+        IReadOnlyCollection<Guid> shown;
+        lock (_lock)
+        {
+            if (!_rooms.TryGetValue(roomId, out var room) || !room.IsOpen)
+            {
+                return MatchOutcome.Conflict(MatchReasons.Closed);
+            }
+
+            if (room.CreatorId != userId)
+            {
+                return MatchOutcome.Conflict(MatchReasons.NotCreator);
+            }
+
+            if (room.Phase != MatchPhases.Voting || room.Filters is null)
+            {
+                return MatchOutcome.Conflict(MatchReasons.NotStarted);
+            }
+
+            if (room.Drawing || !room.AllFinished)
+            {
+                return MatchOutcome.Conflict(MatchReasons.NotFinished);
+            }
+
+            room.Drawing = true;
+            members = room.MemberIds;
+            filters = room.Filters;
+            shown = room.Shown.ToHashSet();
+        }
+
+        var more = DrawOrRelease(roomId, userId, members, filters, shown);
+
+        Delivery? delivery = null;
+        MatchStateDto state;
+        lock (_lock)
+        {
+            if (!_rooms.TryGetValue(roomId, out var room) || !room.IsOpen)
+            {
+                return MatchOutcome.Conflict(MatchReasons.Closed);
+            }
+
+            room.Drawing = false;
+            if (room.AddToStack(more, time.GetUtcNow()))
+            {
+                delivery = Push(room, immediate: false);
+            }
+
+            state = room.Snapshot();
+        }
+
+        Deliver(delivery);
+        return MatchOutcome.Ok(state);
+    }
+
+    /// <summary>
+    /// Avvio del party (spec P §6.6): solo chi ha aperto, in votazione, con
+    /// un party registrato da lui. I membri vedono il party privato (Grant),
+    /// la sala si chiude con PartyGroupId e l'avviso parte subito.
+    /// </summary>
+    public MatchOutcome Party(Guid userId, Guid roomId, Guid groupId)
+    {
+        Delivery? delivery;
+        lock (_lock)
+        {
+            if (!_rooms.TryGetValue(roomId, out var room) || !room.IsOpen)
+            {
+                return MatchOutcome.Conflict(MatchReasons.Closed);
+            }
+
+            if (room.CreatorId != userId)
+            {
+                return MatchOutcome.Conflict(MatchReasons.NotCreator);
+            }
+
+            if (room.Phase != MatchPhases.Voting)
+            {
+                return MatchOutcome.Conflict(MatchReasons.NotStarted);
+            }
+
+            if (parties.Get(groupId) is not { } party || party.CreatorId != userId)
+            {
+                return MatchOutcome.Conflict(MatchReasons.NotYourParty);
+            }
+
+            parties.Grant(groupId, room.MemberIds.Where(id => id != userId));
+            room.Close(MatchClosedReasons.PartyStarted, groupId, time.GetUtcNow());
+            delivery = Push(room, immediate: true);
+        }
+
+        logger.LogDebug("Sala del match {RoomId} chiusa: party {GroupId}", N(roomId), N(groupId));
+        Deliver(delivery);
+        return MatchOutcome.Ok();
+    }
+
+    /// <summary>
+    /// La pulizia (spec P §6.1): membri senza sessioni WonderFlix da
+    /// MemberGrace (per chi ha aperto si chiude la sala), sale senza attività
+    /// da InactiveAfter, sale chiuse da ClosedKept. Restituisce quanti cambi.
+    /// </summary>
+    public int Cleanup()
+    {
+        var online = sessions.GetAppSessions().Select(s => s.UserId).ToHashSet();
+        var now = time.GetUtcNow();
+        var deliveries = new List<Delivery>();
+        var changes = 0;
+        lock (_lock)
+        {
+            foreach (var room in _rooms.Values.ToList())
+            {
+                if (!room.IsOpen)
+                {
+                    if (now - room.ClosedAt!.Value >= ClosedKept)
+                    {
+                        _rooms.Remove(room.Id);
+                        if (_pushes.Remove(room.Id, out var push))
+                        {
+                            push.Timer?.Dispose();
+                        }
+
+                        changes++;
+                    }
+
+                    continue;
+                }
+
+                var rev = room.Rev;
+                var absent = room.Absent(online, now, MemberGrace);
+                if (absent.Contains(room.CreatorId))
+                {
+                    room.Close(MatchClosedReasons.CreatorLeft, null, now);
+                }
+                else
+                {
+                    foreach (var userId in absent)
+                    {
+                        room.Remove(userId);
+                    }
+                }
+
+                if (room.IsOpen && now - room.LastActivityAt >= InactiveAfter)
+                {
+                    room.Close(MatchClosedReasons.Inactive, null, now);
+                }
+
+                if (room.Rev != rev)
+                {
+                    changes++;
+                    if (!room.IsOpen)
+                    {
+                        logger.LogDebug("Sala del match {RoomId} chiusa: {Reason}", N(room.Id), room.ClosedReason);
+                    }
+
+                    if (Push(room, immediate: false) is { } delivery)
+                    {
+                        deliveries.Add(delivery);
+                    }
+                }
+            }
+        }
+
+        foreach (var delivery in deliveries)
+        {
+            Deliver(delivery);
+        }
+
+        return changes;
+    }
+
     public void Dispose()
     {
         lock (_lock)
@@ -263,6 +468,28 @@ public sealed class MatchService(
             }
 
             _pushes.Clear();
+        }
+    }
+
+    // Pesca fuori dal lock; se lancia, la sala non resta con Drawing acceso.
+    private IReadOnlyList<Guid> DrawOrRelease(
+        Guid roomId, Guid creatorId, IReadOnlyList<Guid> members, MatchFilters filters, IReadOnlyCollection<Guid> exclude)
+    {
+        try
+        {
+            return stacks.Draw(creatorId, members, filters, exclude);
+        }
+        catch
+        {
+            lock (_lock)
+            {
+                if (_rooms.TryGetValue(roomId, out var room))
+                {
+                    room.Drawing = false;
+                }
+            }
+
+            throw;
         }
     }
 
