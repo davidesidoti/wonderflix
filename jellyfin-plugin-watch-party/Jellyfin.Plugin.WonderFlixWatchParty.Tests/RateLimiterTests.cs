@@ -211,4 +211,19 @@ public class RateLimiterTests
         _time.Advance(TimeSpan.FromHours(1));
         Assert.True(limiter.TryAcquire("u1", LimitTypes.Recommendations, 30));
     }
+
+    [Fact]
+    public void MatchVotesAreFourASecond()
+    {
+        var time = new Microsoft.Extensions.Time.Testing.FakeTimeProvider();
+        var limiter = new RateLimiter(time);
+        for (var i = 0; i < 4; i++)
+        {
+            Assert.True(limiter.TryAcquire("u1", LimitTypes.MatchVotes));
+        }
+
+        Assert.False(limiter.TryAcquire("u1", LimitTypes.MatchVotes));
+        time.Advance(TimeSpan.FromSeconds(1));
+        Assert.True(limiter.TryAcquire("u1", LimitTypes.MatchVotes));
+    }
 }

@@ -12,6 +12,12 @@ public static class SocialEventTypes
 
     /// <summary>La cassetta delle notifiche dell'utente è cambiata (spec G §6.4).</summary>
     public const string InboxChanged = "InboxChanged";
+
+    /// <summary>Un amico invita a una sala del match (spec P §6.5).</summary>
+    public const string MatchInvite = "MatchInvite";
+
+    /// <summary>Lo stato di una sala del match di cui si è membri (spec P §6.5).</summary>
+    public const string MatchUpdated = "MatchUpdated";
 }
 
 /// <summary>
@@ -48,6 +54,16 @@ public sealed class SocialEvent
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Mode { get; init; }
 
+    /// <summary>MatchInvite: la sala, in formato "N".</summary>
+    [JsonPropertyName("RoomId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RoomId { get; init; }
+
+    /// <summary>MatchUpdated: lo stato della sala.</summary>
+    [JsonPropertyName("State")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public MatchStateDto? State { get; init; }
+
     public static SocialEvent FriendRequest(string fromUserId, string fromName) =>
         new() { Type = SocialEventTypes.FriendRequest, FromUserId = fromUserId, FromName = fromName };
 
@@ -60,4 +76,10 @@ public sealed class SocialEvent
         new() { Type = SocialEventTypes.PartyInvite, GroupId = groupId, Name = name, FromName = fromName };
 
     public static SocialEvent InboxChanged() => new() { Type = SocialEventTypes.InboxChanged };
+
+    public static SocialEvent MatchInvite(string roomId, string fromName) =>
+        new() { Type = SocialEventTypes.MatchInvite, RoomId = roomId, FromName = fromName };
+
+    public static SocialEvent MatchUpdated(MatchStateDto state) =>
+        new() { Type = SocialEventTypes.MatchUpdated, State = state };
 }

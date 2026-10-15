@@ -31,6 +31,7 @@ public sealed class RateLimiter(TimeProvider time)
             [LimitTypes.LinkStartHour] = (5, TimeSpan.FromHours(1)),
             [LimitTypes.PasswordChecks] = (10, TimeSpan.FromHours(1)),
             [LimitTypes.Recommendations] = (30, TimeSpan.FromHours(1)),
+            [LimitTypes.MatchVotes] = (4, TimeSpan.FromSeconds(1)),
         };
 
     /// <summary>

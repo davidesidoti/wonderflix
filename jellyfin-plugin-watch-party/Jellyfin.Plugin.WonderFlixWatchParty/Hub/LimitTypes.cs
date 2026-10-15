@@ -69,4 +69,7 @@ public static class LimitTypes
 
     /// <summary>Destinatari dei consigli, per utente: trenta all'ora (spec N §6.5).</summary>
     public const string Recommendations = "Recommendations";
+
+    /// <summary>Voti del match, per utente: quattro al secondo (spec P §6.3).</summary>
+    public const string MatchVotes = "MatchVotes";
 }

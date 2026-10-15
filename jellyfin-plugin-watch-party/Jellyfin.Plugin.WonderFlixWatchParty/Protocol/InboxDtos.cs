@@ -22,6 +22,9 @@ public static class InboxEntryTypes
 
     /// <summary>Un amico consiglia un film o una serie (spec N §6.4).</summary>
     public const string Recommendation = "Recommendation";
+
+    /// <summary>Un amico invita a una sala del match (spec P §6.5).</summary>
+    public const string MatchInvite = "MatchInvite";
 }
 
 /// <summary>
@@ -53,7 +56,7 @@ public sealed class InboxEntry
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? GroupId { get; set; }
 
-    /// <summary>Invite: chi ha invitato. Recommendation: chi consiglia.</summary>
+    /// <summary>Invite e MatchInvite: chi ha invitato. Recommendation: chi consiglia.</summary>
     [JsonPropertyName("FromName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? FromName { get; set; }
@@ -127,6 +130,11 @@ public sealed class InboxEntry
     [JsonPropertyName("Channels")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? Channels { get; set; }
+
+    /// <summary>MatchInvite: la sala del match, in formato "N".</summary>
+    [JsonPropertyName("RoomId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RoomId { get; set; }
 
     /// <summary>Copia superficiale: le liste (NewTitles, Seasons, Channels) non si cambiano mai dopo la creazione.</summary>
     public InboxEntry Copy() => (InboxEntry)MemberwiseClone();

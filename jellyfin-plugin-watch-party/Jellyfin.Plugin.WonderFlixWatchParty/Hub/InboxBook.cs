@@ -73,6 +73,33 @@ public sealed class InboxBook
     }
 
     /// <summary>
+    /// L'invito a una sala del match (spec P §6.5): una voce per sala; un
+    /// nuovo invito la rimette in cima e non letta.
+    /// </summary>
+    public InboxEntry UpsertMatchInvite(Guid userId, string roomId, string fromName, DateTimeOffset now)
+    {
+        var inbox = Inbox(userId);
+        var existing = inbox.Entries.FirstOrDefault(e =>
+            e.Type == InboxEntryTypes.MatchInvite && string.Equals(e.RoomId, roomId, StringComparison.OrdinalIgnoreCase));
+        if (existing is null)
+        {
+            return Add(userId, new InboxEntry
+            {
+                Type = InboxEntryTypes.MatchInvite,
+                CreatedAt = now,
+                RoomId = roomId,
+                FromName = fromName,
+            });
+        }
+
+        existing.FromName = fromName;
+        existing.CreatedAt = now;
+        existing.Read = false;
+        existing.Seq = inbox.NextSeq++;
+        return existing.Copy();
+    }
+
+    /// <summary>
     /// La voce di una richiesta (spec I §7.6): sostituisce quella dello
     /// stesso tipo e della stessa richiesta, quindi torna non letta e in cima.
     /// Restituisce una copia.

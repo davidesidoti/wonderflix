@@ -8,7 +8,7 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 /// La cassetta delle notifiche (spec G §6): voci su disco con
 /// <see cref="InboxStore"/>, letture e cancellazioni, annunci dell'admin,
 /// voci d'invito, voci dei nuovi titoli, i promemoria dei contatti (spec L),
-/// i consigli degli amici (spec N), pulizia e avviso InboxChanged alle sessioni WonderFlix dell'utente.
+/// i consigli degli amici (spec N), gli inviti al match (spec P), pulizia e avviso InboxChanged alle sessioni WonderFlix dell'utente.
 /// Sicuro tra thread.
 /// </summary>
 public sealed class InboxService(
@@ -157,6 +157,42 @@ public sealed class InboxService(
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(ex, "Voci d'invito al watch party {GroupId} non create o non notificate", group.Id);
+        }
+    }
+
+    /// <summary>
+    /// Le voci d'invito a una sala del match (spec P §6.5), una per sala e
+    /// invitato, e l'avviso InboxChanged alle loro sessioni. Gli invitati
+    /// sono già controllati da MatchService. Non lancia: un errore finisce
+    /// nel log.
+    /// </summary>
+    public async Task AddMatchInvitesAsync(Guid roomId, string fromName, IReadOnlyList<Guid> invitees)
+    {
+        if (invitees.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var room = roomId.ToString("N");
+            var now = time.GetUtcNow();
+            lock (_lock)
+            {
+                foreach (var userId in invitees)
+                {
+                    Book.UpsertMatchInvite(userId, room, fromName, now);
+                }
+
+                Persist();
+            }
+
+            logger.LogDebug("Voci d'invito alla sala del match {RoomId}: {Count}", room, invitees.Count);
+            await NotifyAsync(invitees).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Voci d'invito alla sala del match {RoomId} non create o non notificate", roomId.ToString("N"));
         }
     }
 

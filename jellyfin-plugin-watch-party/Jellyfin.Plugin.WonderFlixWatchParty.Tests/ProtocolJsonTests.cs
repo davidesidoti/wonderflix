@@ -202,4 +202,19 @@ public class ProtocolJsonTests
             "{\"Users\":[{\"UserId\":\"u1\",\"Name\":\"mario\",\"ImageTag\":null}]}",
             JsonSerializer.Serialize(new AvatarsResponse([new AvatarEntry("u1", "mario", null)])));
     }
+
+    [Fact]
+    public void MatchEventsCarryTheRoomOrTheState()
+    {
+        Assert.Equal(
+            "{\"Protocol\":1,\"Type\":\"MatchInvite\",\"FromName\":\"Mario\",\"RoomId\":\"r1\"}",
+            JsonSerializer.Serialize(SocialEvent.MatchInvite("r1", "Mario")));
+
+        var state = new MatchStateDto("r1", 3, MatchPhases.Waiting, "u1", "Mario", [new MatchMemberDto("u1", "Mario", 0)], [], [], [], null, null);
+        Assert.Equal(
+            "{\"Protocol\":1,\"Type\":\"MatchUpdated\",\"State\":{\"RoomId\":\"r1\",\"Rev\":3,\"Phase\":\"Waiting\","
+            + "\"CreatorId\":\"u1\",\"CreatorName\":\"Mario\",\"Members\":[{\"UserId\":\"u1\",\"Name\":\"Mario\",\"Voted\":0}],"
+            + "\"Stack\":[],\"Matches\":[],\"NearMatches\":[]}}",
+            JsonSerializer.Serialize(SocialEvent.MatchUpdated(state)));
+    }
 }

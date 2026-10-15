@@ -292,4 +292,22 @@ public sealed class InboxServiceTests : IDisposable
         Assert.Equal("ciao", Assert.Single(inbox.Get(_mario.Id).Entries).Text);
         Assert.Contains(logger.Entries, e => e.Level == LogLevel.Warning && e.Exception is IOException);
     }
+
+    [Fact]
+    public async Task MatchInvitesGoToTheInboxAndPingTheSessions()
+    {
+        _server.AddSession("s-luigi-match", _luigi);
+        var room = Guid.NewGuid();
+
+        await _inbox.AddMatchInvitesAsync(room, "Mario", [_luigi.Id]);
+
+        var entry = Assert.Single(_inbox.Get(_luigi.Id).Entries, e => e.Type == InboxEntryTypes.MatchInvite);
+        Assert.Equal(room.ToString("N"), entry.RoomId);
+        Assert.Equal("Mario", entry.FromName);
+        Assert.Contains(_server.SentTo("s-luigi-match"), payload => payload.Contains("InboxChanged", StringComparison.Ordinal));
+
+        // Nessun invitato: niente da fare.
+        await _inbox.AddMatchInvitesAsync(room, "Mario", []);
+        Assert.Single(_inbox.Get(_luigi.Id).Entries, e => e.Type == InboxEntryTypes.MatchInvite);
+    }
 }

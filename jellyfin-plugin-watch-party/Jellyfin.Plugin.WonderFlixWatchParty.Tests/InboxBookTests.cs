@@ -167,4 +167,26 @@ public class InboxBookTests
         Assert.Equal(1, Assert.Single(Assert.Single(entry.Series!).Episodes).Episode);
         Assert.Equal(3, entry.More);
     }
+
+    [Fact]
+    public void AMatchInviteIsOneEntryPerRoom()
+    {
+        var book = new InboxBook();
+        var user = Guid.NewGuid();
+        var at = new DateTimeOffset(2026, 10, 14, 20, 0, 0, TimeSpan.Zero);
+
+        var first = book.UpsertMatchInvite(user, "r1", "Mario", at);
+        book.MarkRead(user, first.Seq);
+        var again = book.UpsertMatchInvite(user, "r1", "Mario", at.AddMinutes(1));
+        book.UpsertMatchInvite(user, "r2", "Luigi", at.AddMinutes(2));
+
+        var entries = book.List(user);
+        Assert.Equal(2, entries.Count);
+        var r1 = Assert.Single(entries, e => e.RoomId == "r1");
+        Assert.Equal(InboxEntryTypes.MatchInvite, r1.Type);
+        Assert.Equal("Mario", r1.FromName);
+        Assert.False(r1.Read);
+        Assert.True(again.Seq > first.Seq);
+        Assert.Equal(at.AddMinutes(1), r1.CreatedAt);
+    }
 }
