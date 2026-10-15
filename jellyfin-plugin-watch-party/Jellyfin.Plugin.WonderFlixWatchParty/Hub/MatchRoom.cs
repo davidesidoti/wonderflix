@@ -5,7 +5,7 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 /// <summary>
 /// Una sala del match (spec P §6.1, §6.3): membri, inviti, pila, voti, match
 /// e quasi match. Solo dati e regole, senza lock: la usa
-/// <c>MatchService</c> sotto il suo. I voti dei singoli non escono
+/// <see cref="MatchService"/> sotto il suo. I voti dei singoli non escono
 /// mai: <see cref="Snapshot"/> ha solo i conteggi.
 /// </summary>
 public sealed class MatchRoom
