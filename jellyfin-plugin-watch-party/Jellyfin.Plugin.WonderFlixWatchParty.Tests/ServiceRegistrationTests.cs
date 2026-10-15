@@ -106,9 +106,16 @@ public class ServiceRegistrationTests
         Assert.NotNull(ActivatorUtilities.CreateInstance<Api.ActivityController>(provider));
         Assert.NotNull(ActivatorUtilities.CreateInstance<Api.FriendsController>(provider));
 
+        // Match del film (spec P).
+        Assert.Same(provider.GetRequiredService<MatchService>(), provider.GetRequiredService<MatchService>());
+        Assert.NotNull(provider.GetRequiredService<MatchStackBuilder>());
+        Assert.IsType<Server.JellyfinMatchLibrary>(provider.GetRequiredService<IMatchLibrary>());
+        Assert.NotNull(ActivatorUtilities.CreateInstance<Api.MatchController>(provider));
+
         // Il promemoria dei contatti, oltre ai due di prima.
         // I consigli (spec N), oltre ai tre di prima.
         // L'attività degli amici (spec O), oltre ai quattro di prima.
-        Assert.Equal(5,provider.GetServices<IHostedService>().Count());
+        // Le sale del match (spec P), oltre ai cinque di prima.
+        Assert.Equal(6, provider.GetServices<IHostedService>().Count());
     }
 }

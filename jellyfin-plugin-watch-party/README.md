@@ -22,6 +22,7 @@ dell'app) e le uscite in arrivo da Sonarr e Radarr (spec M,
 `docs/superpowers/specs/2026-10-10-wonderflix-home-su-misura-design.md`).
 Dalla 1.8.0 tiene i consigli tra amici: un utente consiglia un film o una serie ai suoi amici, che lo trovano nella cassetta e nella riga "Consigliati per te" della Home (spec N, `docs/superpowers/specs/2026-10-12-wonderflix-consigli-design.md`).
 Dalla 1.9.0 mostra agli amici cosa si sta guardando in WonderFlix e i titoli visti negli ultimi 30 giorni, con un interruttore per non mostrarlo (spec O, `docs/superpowers/specs/2026-10-13-wonderflix-cosa-guardano-amici-design.md`).
+Dalla 1.10.0 c'è il match del film: gli amici in una sala votano sì o no su una pila di titoli e partono in un party privato con quelli che piacciono a tutti (spec P, `docs/superpowers/specs/2026-10-14-wonderflix-match-film-design.md`).
 Senza il plugin WonderFlix funziona lo stesso, con gli avvisi
 anonimi, senza saghe, con le iniziali al posto delle immagini, senza il
 recupero della password, con la Home nell'ordine predefinito e senza le
@@ -132,9 +133,24 @@ uscite in arrivo.
   visioni). Gli amici rileggono a inizio e fine di ogni riproduzione. All'avvio
   la riga `friendsWatched` si accende una volta sola nella Home dell'admin già
   salvata (`HomeRowsSeen`).
+- **Match del film (dalla 1.10.0):** le sale stanno in memoria, una per
+  utente, al massimo 8 membri. `POST Match` apre una sala; chi l'ha aperta
+  invita amici (`POST Match/{roomId}/Invites`, avviso `MatchInvite` e voce
+  nella cassetta), gli invitati entrano con `POST Match/{roomId}/Join`
+  finché è in attesa. `POST Match/{roomId}/Start` `{Type, Duration, Genre}`
+  pesca 30 titoli a caso che nessun membro ha visto o iniziato e che tutti
+  possono vedere; `POST Match/{roomId}/Votes` `{ItemId, Yes}` vota in ordine;
+  un match è un titolo a cui tutti hanno detto sì, i quasi match arrivano a
+  fine pila; `POST Match/{roomId}/More` pesca altri 30 titoli.
+  `POST Match/{roomId}/Party` `{GroupId}` dà ai membri l'accesso al party
+  privato di chi ha aperto e chiude la sala. Lo stato (`GET Match/{roomId}`
+  e l'avviso `MatchUpdated`, al più ogni 250 ms) ha i conteggi, mai i voti
+  dei singoli. Un membro senza sessioni WonderFlix per 60 s esce; se esce
+  chi ha aperto, o dopo un'ora senza voti, la sala si chiude. I 409 hanno
+  `{Reason}`.
 - **Funzioni:** `GET Info` annuncia quello che il plugin sa fare; dalla 1.5.0
   ci sono sempre anche `collections` e `avatars`, dalla 1.6.0 anche
-  `account`, dalla 1.7.0 anche `home`, dalla 1.8.0 anche `recommendations`, dalla 1.9.0 anche `friendsActivity`; `upcomingSeries` e `upcomingMovies`
+  `account`, dalla 1.7.0 anche `home`, dalla 1.8.0 anche `recommendations`, dalla 1.9.0 anche `friendsActivity`, dalla 1.10.0 anche `match`; `upcomingSeries` e `upcomingMovies`
   solo con Sonarr e Radarr configurati. Gli endpoint delle saghe e delle
   immagini sono aperti a ogni utente che ha fatto l'accesso. Quelli di
   `account` dipendono dalla rotta: `Account/Contacts` per ogni utente che ha
@@ -142,7 +158,7 @@ uscite in arrivo.
   `Account/Recovery` senza accesso, `Account/Admin` solo per gli admin. Quelli
   di `Home` e `Upcoming` sono aperti a ogni utente che ha fatto l'accesso,
   tranne le scritture (`POST Home/Layout`, `POST Upcoming/Test`), solo per gli
-  admin. Quelli di `Recommendations` hanno la stessa policy degli amici. Quelli di `Activity` hanno la stessa policy degli amici.
+  admin. Quelli di `Recommendations` hanno la stessa policy degli amici. Quelli di `Activity` hanno la stessa policy degli amici. Quelli di `Match` hanno la stessa policy degli amici.
 
 ## Installazione dal repository
 
@@ -153,8 +169,8 @@ uscite in arrivo.
 
 ## Installazione a mano (prove)
 
-1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.9.0`.
-   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.9.0.0/`
+1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.10.0`.
+   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.10.0.0/`
    con la dll e `meta.json`.
 2. Copia la cartella dentro `plugins/` della cartella dati di Jellyfin (su
    Ultra.cc via SFTP).

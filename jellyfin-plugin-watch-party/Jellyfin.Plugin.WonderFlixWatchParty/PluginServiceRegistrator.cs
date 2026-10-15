@@ -89,6 +89,10 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             provider.GetRequiredService<ILogger<ActivityStore>>()));
         serviceCollection.AddSingleton<IPlaybackDirectory, JellyfinPlaybackDirectory>();
         serviceCollection.AddSingleton<ActivityService>();
+        // Match del film (spec P).
+        serviceCollection.AddSingleton<IMatchLibrary, JellyfinMatchLibrary>();
+        serviceCollection.AddSingleton<MatchStackBuilder>();
+        serviceCollection.AddSingleton<MatchService>();
         serviceCollection.AddSingleton<NewTitlesCollector>();
         serviceCollection.AddSingleton<PresenceTracker>();
         serviceCollection.AddSingleton<PartyDirectory>();
@@ -103,5 +107,6 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddHostedService<ContactReminderHostedService>();
         serviceCollection.AddHostedService<RecommendationsHostedService>();
         serviceCollection.AddHostedService<ActivityHostedService>();
+        serviceCollection.AddHostedService<MatchHostedService>();
     }
 }
