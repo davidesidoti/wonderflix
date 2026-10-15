@@ -5,13 +5,14 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 
 /// <summary>Esito di un'azione del match: lo stato se riuscita, il motivo di un 409.</summary>
-public sealed record MatchOutcome(HubStatus Status, string? Reason, MatchStateDto? State)
+public sealed record MatchOutcome(HubStatus Status, string? Reason, MatchStateDto? State, string? RoomId = null)
 {
     public static readonly MatchOutcome RateLimited = new(HubStatus.RateLimited, null, null);
 
     public static MatchOutcome Ok(MatchStateDto? state = null) => new(HubStatus.Ok, null, state);
 
-    public static MatchOutcome Conflict(string reason) => new(HubStatus.Conflict, reason, null);
+    /// <summary>Un 409; roomId è la sala aperta del chiamante, solo per InAnotherRoom.</summary>
+    public static MatchOutcome Conflict(string reason, string? roomId = null) => new(HubStatus.Conflict, reason, null, roomId);
 }
 
 /// <summary>
@@ -44,6 +45,9 @@ public sealed class MatchService(
     /// <summary>Al più un MatchUpdated per sala ogni tanto (spec P §6.5).</summary>
     public static readonly TimeSpan PushInterval = TimeSpan.FromMilliseconds(250);
 
+    /// <summary>Quanti inviti di una richiesta si guardano al massimo: tiene breve il lock.</summary>
+    public const int MaxInvitesPerRequest = 50;
+
     private readonly Lock _lock = new();
     private readonly Dictionary<Guid, MatchRoom> _rooms = [];
     private readonly Dictionary<Guid, PushState> _pushes = [];
@@ -54,9 +58,9 @@ public sealed class MatchService(
         var name = users.GetUser(userId)?.Name ?? string.Empty;
         lock (_lock)
         {
-            if (OpenRoomOf(userId) is not null)
+            if (OpenRoomOf(userId) is { } mine)
             {
-                return MatchOutcome.Conflict(MatchReasons.InAnotherRoom);
+                return MatchOutcome.Conflict(MatchReasons.InAnotherRoom, N(mine.Id));
             }
 
             var room = new MatchRoom(Guid.NewGuid(), userId, name, time.GetUtcNow());
@@ -104,7 +108,7 @@ public sealed class MatchService(
                 return MatchOutcome.Conflict(MatchReasons.Started);
             }
 
-            foreach (var raw in userIds ?? [])
+            foreach (var raw in (userIds ?? []).Take(MaxInvitesPerRequest))
             {
                 if (!Guid.TryParse(raw, out var id) || targets.Contains(id) || room.IsMember(id))
                 {
@@ -149,9 +153,9 @@ public sealed class MatchService(
                 return MatchOutcome.Conflict(MatchReasons.Closed);
             }
 
-            if (room.IsOpen && !room.IsMember(userId) && OpenRoomOf(userId) is not null)
+            if (room.IsOpen && !room.IsMember(userId) && OpenRoomOf(userId) is { } mine)
             {
-                return MatchOutcome.Conflict(MatchReasons.InAnotherRoom);
+                return MatchOutcome.Conflict(MatchReasons.InAnotherRoom, N(mine.Id));
             }
 
             var rev = room.Rev;

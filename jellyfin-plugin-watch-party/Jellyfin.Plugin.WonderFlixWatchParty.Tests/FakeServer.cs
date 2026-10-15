@@ -211,9 +211,13 @@ internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSen
     /// <summary>Se true, la query del match lancia, come un errore del database.</summary>
     public bool MatchLibraryFails { get; set; }
 
+    /// <summary>Eseguito all'inizio di Candidates: simula qualcosa che accade durante la pescata fuori dal lock.</summary>
+    public Action? OnMatchCandidates { get; set; }
+
     // Come Jellyfin: niente esclusi; tipo e genere li ricontrolla chi chiama.
     public IReadOnlyList<MatchCandidate> Candidates(Guid userId, MatchFilters filters, IReadOnlyCollection<Guid> exclude, int limit)
     {
+        OnMatchCandidates?.Invoke();
         MatchQueries.Add((userId, filters, exclude.ToList(), limit));
         return MatchLibraryFails
             ? throw new InvalidOperationException("database non disponibile")

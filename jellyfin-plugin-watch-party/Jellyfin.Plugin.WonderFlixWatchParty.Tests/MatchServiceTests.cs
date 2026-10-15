@@ -57,10 +57,11 @@ public sealed class MatchServiceTests : IDisposable
             .Select(json => json.GetProperty("State").Deserialize<MatchStateDto>()!)
             .ToList();
 
-    private static void AssertConflict(string reason, MatchOutcome outcome)
+    private static void AssertConflict(string reason, MatchOutcome outcome, string? roomId = null)
     {
         Assert.Equal(HubStatus.Conflict, outcome.Status);
         Assert.Equal(reason, outcome.Reason);
+        Assert.Equal(roomId, outcome.RoomId);
     }
 
     [Fact]
@@ -77,8 +78,8 @@ public sealed class MatchServiceTests : IDisposable
     [Fact]
     public void OneOpenRoomPerUser()
     {
-        _match.Open(_mario.Id);
-        AssertConflict(MatchReasons.InAnotherRoom, _match.Open(_mario.Id));
+        var first = _match.Open(_mario.Id).State!.RoomId;
+        AssertConflict(MatchReasons.InAnotherRoom, _match.Open(_mario.Id), first);
     }
 
     [Fact]
@@ -151,8 +152,42 @@ public sealed class MatchServiceTests : IDisposable
         // Peach invitata ma già in un'altra sala aperta.
         await TestRecommendations.MakeFriendsAsync(_friends, _mario.Id, _peach.Id);
         await _match.InviteAsync(_mario.Id, room, [Id(_peach.Id)]);
-        _match.Open(_peach.Id);
-        AssertConflict(MatchReasons.InAnotherRoom, _match.Join(_peach.Id, room));
+        var peachRoom = _match.Open(_peach.Id).State!.RoomId;
+        AssertConflict(MatchReasons.InAnotherRoom, _match.Join(_peach.Id, room), peachRoom);
+    }
+
+    [Fact]
+    public async Task OnlyTheFirstInvitesOfARequestAreConsidered()
+    {
+        var room = Guid.Parse(_match.Open(_mario.Id).State!.RoomId);
+        var ids = new List<string>();
+        // I primi 50 non sono amici: vengono ignorati senza toccare il limite degli inviti.
+        for (var i = 0; i < MatchService.MaxInvitesPerRequest; i++)
+        {
+            ids.Add(Id(_server.AddUser("Estraneo" + i).Id));
+        }
+
+        var beyondTheCap = _server.AddUser("Amico");
+        await TestRecommendations.MakeFriendsAsync(_friends, beyondTheCap.Id, _mario.Id);
+        ids.Add(Id(beyondTheCap.Id));
+
+        Assert.Equal(HubStatus.Ok, (await _match.InviteAsync(_mario.Id, room, ids)).Status);
+        AssertConflict(MatchReasons.NotInvited, _match.Join(beyondTheCap.Id, room));
+    }
+
+    [Fact]
+    public async Task StartingARoomThatClosesWhileDrawingAnswersClosed()
+    {
+        var room = await RoomWithLuigiAsync();
+        _server.MatchCandidates.Add(new MatchCandidate(Guid.NewGuid(), true, null));
+        _server.OnMatchCandidates = () => _match.Leave(_mario.Id, room);
+
+        AssertConflict(MatchReasons.Closed, _match.Start(_mario.Id, room, AnyTitle));
+
+        var state = _match.Get(_luigi.Id, room).State!;
+        Assert.Equal(MatchPhases.Closed, state.Phase);
+        Assert.Equal(MatchClosedReasons.CreatorLeft, state.ClosedReason);
+        Assert.Empty(state.Stack);
     }
 
     [Fact]

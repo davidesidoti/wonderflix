@@ -50,11 +50,11 @@ public sealed class MatchControllerTests : IDisposable
     private static MatchStateDto State(ActionResult<MatchStateDto> result) =>
         Assert.IsType<MatchStateDto>(Assert.IsType<OkObjectResult>(result.Result).Value);
 
-    private static void AssertReason(string reason, IActionResult? result)
+    private static void AssertReason(string reason, IActionResult? result, string? roomId = null)
     {
         var conflict = Assert.IsType<ObjectResult>(result);
         Assert.Equal(StatusCodes.Status409Conflict, conflict.StatusCode);
-        Assert.Equal(new MatchErrorDto(reason), conflict.Value);
+        Assert.Equal(new MatchErrorDto(reason, roomId), conflict.Value);
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public sealed class MatchControllerTests : IDisposable
         var room = State(await Controller(_mario).Open()).RoomId;
         var someone = Guid.NewGuid().ToString("N");
 
-        AssertReason(MatchReasons.InAnotherRoom, (await Controller(_mario).Open()).Result);
+        AssertReason(MatchReasons.InAnotherRoom, (await Controller(_mario).Open()).Result, room);
         AssertReason(MatchReasons.NotMember, (await Controller(_luigi).Get(room)).Result);
         AssertReason(MatchReasons.NotInvited, (await Controller(_luigi).Join(room)).Result);
         AssertReason(MatchReasons.NotEnoughMembers, (await Controller(_mario).Start(room, new MatchStartRequest())).Result);

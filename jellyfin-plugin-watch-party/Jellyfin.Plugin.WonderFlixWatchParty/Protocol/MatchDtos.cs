@@ -71,7 +71,8 @@ public sealed record MatchStateDto(
 
 /// <summary>Il corpo di un 409 del match.</summary>
 public sealed record MatchErrorDto(
-    [property: JsonPropertyName("Reason")] string Reason);
+    [property: JsonPropertyName("Reason")] string Reason,
+    [property: JsonPropertyName("RoomId")][property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? RoomId = null);
 
 /// <summary>Corpo di POST Match/{roomId}/Start: i filtri, con i valori dell'app.</summary>
 public sealed class MatchStartRequest

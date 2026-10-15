@@ -117,7 +117,7 @@ public class MatchController(
     {
         HubStatus.Ok when outcome.State is { } state => new OkObjectResult(state),
         HubStatus.Ok => new NoContentResult(),
-        HubStatus.Conflict => new ObjectResult(new MatchErrorDto(outcome.Reason ?? MatchReasons.Closed))
+        HubStatus.Conflict => new ObjectResult(new MatchErrorDto(outcome.Reason ?? MatchReasons.Closed, outcome.RoomId))
         {
             StatusCode = StatusCodes.Status409Conflict,
         },
