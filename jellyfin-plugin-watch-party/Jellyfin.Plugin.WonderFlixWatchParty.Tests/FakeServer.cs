@@ -3,7 +3,7 @@ using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
 
 /// <summary>Server finto: sessioni, gruppi SyncPlay e invii, in memoria.</summary>
-internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSender, IUserDirectory, ILibraryAccess, ILibraryTitles, INewTitlesSettings, IRecommendationLibrary, IPlaybackDirectory
+internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSender, IUserDirectory, ILibraryAccess, ILibraryTitles, INewTitlesSettings, IRecommendationLibrary, IPlaybackDirectory, IMatchLibrary
 {
     public List<CallerSession> Sessions { get; } = [];
 
@@ -201,6 +201,24 @@ internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSen
 
     public IReadOnlyList<AppPlayback> GetAppPlayback() =>
         PlaybackFails ? throw new InvalidOperationException("sessioni non disponibili") : Playback;
+
+    /// <summary>I candidati della query a caso del match, già "a caso" nell'ordine della lista.</summary>
+    public List<MatchCandidate> MatchCandidates { get; } = [];
+
+    /// <summary>Ogni query del match: utente, filtri, esclusi, limite.</summary>
+    public List<(Guid UserId, MatchFilters Filters, IReadOnlyCollection<Guid> Exclude, int Limit)> MatchQueries { get; } = [];
+
+    /// <summary>Se true, la query del match lancia, come un errore del database.</summary>
+    public bool MatchLibraryFails { get; set; }
+
+    // Come Jellyfin: niente esclusi; tipo e genere li ricontrolla chi chiama.
+    public IReadOnlyList<MatchCandidate> Candidates(Guid userId, MatchFilters filters, IReadOnlyCollection<Guid> exclude, int limit)
+    {
+        MatchQueries.Add((userId, filters, exclude.ToList(), limit));
+        return MatchLibraryFails
+            ? throw new InvalidOperationException("database non disponibile")
+            : MatchCandidates.Where(c => !exclude.Contains(c.Id)).Take(limit).ToList();
+    }
 
     public Task<bool> TrySendAsync(string sessionId, string payload, CancellationToken cancellationToken)
     {
