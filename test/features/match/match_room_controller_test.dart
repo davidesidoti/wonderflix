@@ -217,4 +217,33 @@ void main() {
 
     expect(room(), isNull);
   });
+
+  test('una seconda apertura mentre si entra è un conflitto', () async {
+    api.enterGate = Completer<void>();
+    final first = controller().open();
+    await pumpEventQueue();
+
+    expect(await controller().open(), MatchFailure.conflict);
+    expect(api.calls, ['open']);
+
+    api.enterGate!.complete();
+    expect(await first, isNull);
+  });
+
+  test('una sala che arriva dopo un cambio di funzione non si tiene', () async {
+    api.enterGate = Completer<void>();
+    final opening = controller().open();
+    await pumpEventQueue();
+
+    final availability = container.read(socialAvailabilityProvider.notifier)
+        as FakeSocialAvailability;
+    availability.set(SocialFeatures.none);
+    await pumpEventQueue();
+    availability.set(const SocialFeatures(friends: true, match: true));
+    await pumpEventQueue();
+    api.enterGate!.complete();
+    await opening;
+
+    expect(room(), isNull);
+  });
 }

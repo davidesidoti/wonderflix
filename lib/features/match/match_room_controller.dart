@@ -83,7 +83,10 @@ class MatchRoomController extends Notifier<MatchRoomView?> {
   /// sala rimasta da un crash o da un'uscita persa: se ne esce e si riprova
   /// una volta (piano 22b, decisione 4).
   Future<MatchFailure?> _enter(Future<MatchState> Function() request) async {
-    if (_entering) return null;
+    if (_entering) return MatchFailure.conflict;
+    // Il Ref di questa build: dopo un rebuild (altro profilo, funzione spenta)
+    // quello vecchio non è più montato e la risposta in volo si scarta.
+    final ref = this.ref;
     _entering = true;
     try {
       for (var attempt = 0;; attempt++) {
@@ -138,6 +141,7 @@ class MatchRoomController extends Notifier<MatchRoomView?> {
   Future<void> reload() async {
     final current = state;
     if (current == null || current.closed) return;
+    final ref = this.ref;
     try {
       final next = await _api.state(current.roomId);
       if (!ref.mounted) return;
@@ -190,6 +194,7 @@ class MatchRoomController extends Notifier<MatchRoomView?> {
   Future<MatchFailure?> start(TonightFilters filters) async {
     final current = state;
     if (current == null || current.closed) return MatchFailure.closed;
+    final ref = this.ref;
     try {
       final next = await _api.start(current.roomId,
           type: filters.type.wire,
