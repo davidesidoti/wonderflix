@@ -21,6 +21,8 @@ import '../tonight/tonight_controller.dart';
 import '../tonight/tonight_filters_bar.dart';
 import '../tonight/tonight_logic.dart';
 import 'match_actions.dart';
+import 'match_celebration.dart';
+import 'match_column.dart';
 import 'match_members_bar.dart';
 import 'match_room_controller.dart';
 import 'match_swipe_deck.dart';
@@ -61,6 +63,11 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
   final _autoVoted = <String>{};
   Timer? _autoRetry;
 
+  /// Match già visti: `null` finché la votazione non si vede la prima volta
+  /// (quelli di allora non si festeggiano). I nuovi vanno in [_celebrate].
+  Set<String>? _seenMatches;
+  final _celebrate = <String>[];
+
   @override
   void initState() {
     super.initState();
@@ -71,6 +78,7 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _onRoom(ref.read(matchRoomProvider));
+      _trackMatches(ref.read(matchRoomProvider));
       _autoVote();
     });
   }
@@ -160,6 +168,7 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     final l = AppLocalizations.of(context);
     ref.listen(matchRoomProvider, (_, view) {
       _onRoom(view);
+      _trackMatches(view);
       _autoVote();
     });
     ref.listen(matchTitlesProvider, (_, _) => _autoVote());
@@ -187,6 +196,22 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
         ),
       ],
     );
+  }
+
+  /// I match comparsi dopo la prima vista della votazione vanno in coda alla festa.
+  void _trackMatches(MatchRoomView? view) {
+    final state = _isThisRoom(view) ? view!.state : null;
+    if (state == null || state.phase != MatchPhase.voting) return;
+    final seen = _seenMatches;
+    if (seen == null) {
+      _seenMatches = {...state.matches};
+      return;
+    }
+    final fresh = [
+      for (final id in state.matches)
+        if (seen.add(id)) id,
+    ];
+    if (fresh.isNotEmpty) setState(() => _celebrate.addAll(fresh));
   }
 
   /// Il voto della carta in cima; se non parte, la carta torna da sola e si
@@ -239,7 +264,8 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
             for (final id in ids) ?titles[id],
           ]
         : const <JellyfinItem>[];
-    return Row(
+    final celebrating = _celebrate.firstOrNull;
+    final row = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
@@ -257,7 +283,20 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
           ),
         ),
         const SizedBox(width: 32),
-        const Expanded(flex: 2, child: SizedBox.shrink()),
+        Expanded(flex: 2, child: MatchColumn(state: state, titles: titles)),
+      ],
+    );
+    if (celebrating == null) return row;
+    return Stack(
+      children: [
+        row,
+        Positioned.fill(
+          child: MatchCelebration(
+            key: ValueKey(celebrating),
+            item: titles[celebrating],
+            onDone: () => setState(() => _celebrate.remove(celebrating)),
+          ),
+        ),
       ],
     );
   }

@@ -11,6 +11,7 @@ import 'package:wonderflix/core/social/match_models.dart';
 import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/match/match_actions.dart';
+import 'package:wonderflix/features/match/match_celebration.dart';
 import 'package:wonderflix/features/match/match_providers.dart';
 import 'package:wonderflix/features/match/match_room_controller.dart';
 import 'package:wonderflix/features/match/match_screen.dart';
@@ -290,6 +291,60 @@ void main() {
 
       expect(match.calls.where((c) => c == 'vote r1 m1 no'), hasLength(2));
       expect(find.text('Alien'), findsOneWidget);
+    });
+
+    Future<void> newState(WidgetTester tester, ProviderContainer container,
+        {required List<String> matches, int rev = 2}) async {
+      match.rooms['r1'] = testMatchState(
+          rev: rev,
+          phase: MatchPhase.voting,
+          members: const [mario, luigi],
+          stack: const ['m1', 'm2'],
+          matches: matches);
+      await container.read(matchRoomProvider.notifier).reload();
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testWidgets('aNewMatchIsCelebratedOnce', (tester) async {
+      final container = await pumpRoom(tester, state: votingState);
+      expect(find.text('È un match!'), findsNothing);
+
+      await newState(tester, container, matches: const ['m1']);
+      expect(find.text('È un match!'), findsOneWidget);
+
+      await tester.pump(matchCelebrationDuration);
+      await tester.pump();
+      expect(find.text('È un match!'), findsNothing);
+
+      await newState(tester, container, matches: const ['m1'], rev: 3);
+      expect(find.text('È un match!'), findsNothing);
+    });
+
+    testWidgets('twoNewMatchesOneAfterTheOther', (tester) async {
+      final container = await pumpRoom(tester, state: votingState);
+
+      await newState(tester, container, matches: const ['m1', 'm2']);
+      expect(find.byKey(const Key('match-celebration-m1')), findsOneWidget);
+
+      await tester.pump(matchCelebrationDuration);
+      await tester.pump();
+      expect(find.byKey(const Key('match-celebration-m2')), findsOneWidget);
+
+      await tester.pump(matchCelebrationDuration);
+      await tester.pump();
+      expect(find.text('È un match!'), findsNothing);
+    });
+
+    testWidgets('oldMatchesAreNotCelebratedWhenOpeningThePage', (tester) async {
+      await pumpRoom(tester,
+          state: testMatchState(
+              phase: MatchPhase.voting,
+              members: const [mario, luigi],
+              stack: const ['m1', 'm2'],
+              matches: const ['m1']));
+
+      expect(find.text('È un match!'), findsNothing);
     });
 
     testWidgets('aMissingTitleIsVotedNo', (tester) async {
