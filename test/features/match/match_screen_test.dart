@@ -265,8 +265,29 @@ void main() {
       await tester.tap(find.byKey(const Key('match-yes')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Dune'), findsOneWidget);
       expect(find.text('Voto non inviato'), findsOneWidget);
+      expect(find.text('Dune').hitTestable(), findsOneWidget);
+
+      // La carta è tornata davvero: un secondo voto parte.
+      await tester.tap(find.byKey(const Key('match-yes')));
+      await tester.pumpAndSettle();
+      expect(match.calls.where((c) => c == 'vote r1 m1 yes'), hasLength(2));
+      expect(find.text('Alien'), findsOneWidget);
+    });
+
+    testWidgets('aFailedMissingTitleVoteIsRetried', (tester) async {
+      library.itemsById.remove('m1');
+      match.failures['vote r1 m1 no'] =
+          const MatchException(MatchFailure.network);
+      await pumpRoom(tester, state: votingState);
+      await tester.pumpAndSettle();
+      expect(match.calls.where((c) => c == 'vote r1 m1 no'), hasLength(1));
+
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
+
+      expect(match.calls.where((c) => c == 'vote r1 m1 no'), hasLength(2));
+      expect(find.text('Alien'), findsOneWidget);
     });
 
     testWidgets('aMissingTitleIsVotedNo', (tester) async {

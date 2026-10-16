@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -46,8 +47,9 @@ class MatchSwipeDeck extends StatefulWidget {
 
   final List<JellyfinItem> cards;
 
-  /// `true` = sì, `false` = no.
-  final ValueChanged<bool> onVote;
+  /// `true` = sì, `false` = no. Risponde `false` se il voto non è partito: la
+  /// carta torna al centro e si può votare di nuovo.
+  final Future<bool> Function(bool yes) onVote;
   final bool enabled;
 
   @override
@@ -103,7 +105,18 @@ class _MatchSwipeDeckState extends State<MatchSwipeDeck>
           _busy = false;
         });
       } else {
-        widget.onVote(_dir > 0);
+        unawaited(widget.onVote(_dir > 0).then((sent) {
+          // Un voto riuscito cambia la carta in cima (didUpdateWidget); uno
+          // fallito, anche subito, lascia la stessa carta: va rimessa in gioco.
+          if (!sent && mounted) {
+            setState(() {
+              _anim.value = 0;
+              _dx = 0;
+              _dir = 0;
+              _busy = false;
+            });
+          }
+        }));
       }
     });
   }
@@ -116,10 +129,11 @@ class _MatchSwipeDeckState extends State<MatchSwipeDeck>
     if (!_canVote) return;
     final velocity = details.primaryVelocity ?? 0;
     final farEnough = _dx.abs() > _width * matchSwipeThreshold;
-    if (farEnough) {
-      _vote(_dx > 0);
-    } else if (velocity.abs() > matchSwipeVelocity) {
+    // Lo scatto decide il lato; altrimenti la distanza.
+    if (velocity.abs() > matchSwipeVelocity) {
       _vote(velocity > 0);
+    } else if (farEnough) {
+      _vote(_dx > 0);
     } else {
       _run(0);
     }

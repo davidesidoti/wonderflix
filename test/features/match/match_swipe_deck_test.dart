@@ -29,9 +29,10 @@ class _PageState extends State<_Page> {
         width: 500,
         child: MatchSwipeDeck(
           cards: List.of(cards),
-          onVote: (yes) {
+          onVote: (yes) async {
             votes.add(yes);
             setState(() => cards.removeAt(0));
+            return true;
           },
         ),
       );

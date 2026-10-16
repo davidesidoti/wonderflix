@@ -28,6 +28,9 @@ import 'match_titles.dart';
 
 const _muted = TextStyle(color: WfColors.creamMuted);
 
+/// Pausa prima di riprovare un "no" automatico che non è partito.
+const _autoRetryDelay = Duration(seconds: 2);
+
 /// Larghezza massima del mazzo.
 const _deckMaxWidth = 560.0;
 
@@ -56,6 +59,7 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
 
   /// Titoli già votati "no" da soli perché la libreria non li ha più.
   final _autoVoted = <String>{};
+  Timer? _autoRetry;
 
   @override
   void initState() {
@@ -65,7 +69,9 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     // ref.listen non scatta per il valore già presente: una sala già chiusa
     // all'apertura della pagina si controlla qui.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _onRoom(ref.read(matchRoomProvider));
+      if (!mounted) return;
+      _onRoom(ref.read(matchRoomProvider));
+      _autoVote();
     });
   }
 
@@ -79,6 +85,7 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
 
   @override
   void dispose() {
+    _autoRetry?.cancel();
     // Lasciare la pagina fa uscire dalla sala (spec P §7.3). In un microtask:
     // dentro lo smontaggio dell'albero i provider non si cambiano.
     final controller = _controller;
@@ -151,7 +158,11 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    ref.listen(matchRoomProvider, (_, view) => _onRoom(view));
+    ref.listen(matchRoomProvider, (_, view) {
+      _onRoom(view);
+      _autoVote();
+    });
+    ref.listen(matchTitlesProvider, (_, _) => _autoVote());
     final view = ref.watch(matchRoomProvider);
     final state = _isThisRoom(view) ? view!.state : null;
     return Column(
@@ -179,15 +190,40 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
   }
 
   /// Il voto della carta in cima; se non parte, la carta torna da sola e si
-  /// avvisa (un `notNext` si riallinea in silenzio).
-  Future<void> _vote(String itemId, bool yes) async {
+  /// avvisa (un `notNext` si riallinea in silenzio). `true` se è partito.
+  Future<bool> _vote(String itemId, bool yes) async {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.maybeOf(context);
     final failure = await _controller.vote(itemId, yes: yes);
     if (failure != null && failure != MatchFailure.notNext) {
-      messenger?.showSnackBar(
-          SnackBar(content: Text(l.matchVoteNotSent)));
+      messenger?.showSnackBar(SnackBar(content: Text(l.matchVoteNotSent)));
     }
+    return failure == null;
+  }
+
+  /// Titolo sparito dalla libreria in cima alla pila: "no" e si va avanti.
+  /// Se il voto non parte, si riprova dopo [_autoRetryDelay].
+  void _autoVote() {
+    final view = ref.read(matchRoomProvider);
+    final state = _isThisRoom(view) ? view!.state : null;
+    if (state == null || state.phase != MatchPhase.voting) return;
+    final mine = view!.position(ref.read(currentUserIdProvider));
+    final topId = state.stack.skip(mine).firstOrNull;
+    final titles = ref.read(matchTitlesProvider);
+    if (topId == null ||
+        !titles.containsKey(topId) ||
+        titles[topId] != null ||
+        !_autoVoted.add(topId)) {
+      return;
+    }
+    unawaited(_vote(topId, false).then((sent) {
+      if (sent || !mounted) return;
+      _autoRetry?.cancel();
+      _autoRetry = Timer(_autoRetryDelay, () {
+        _autoVoted.remove(topId);
+        if (mounted) _autoVote();
+      });
+    }));
   }
 
   /// Il mazzo a sinistra; a destra la colonna dei match (piano 22c, Task 4).
@@ -197,12 +233,6 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     final ids = state.stack.skip(mine).toList();
     final topId = ids.firstOrNull;
     final loaded = topId != null && titles.containsKey(topId);
-    if (loaded && titles[topId] == null && _autoVoted.add(topId)) {
-      // Titolo sparito dalla libreria: "no" e si va avanti.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) unawaited(_vote(topId, false));
-      });
-    }
     // Se in cima non c'è un titolo vero la votazione resta ferma sul "no".
     final cards = loaded && titles[topId] != null
         ? <JellyfinItem>[
@@ -221,7 +251,7 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
                   ? const Center(child: CircularProgressIndicator())
                   : MatchSwipeDeck(
                       cards: cards,
-                      onVote: (yes) => unawaited(_vote(cards.first.id, yes)),
+                      onVote: (yes) => _vote(cards.first.id, yes),
                     ),
             ),
           ),
