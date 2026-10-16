@@ -246,4 +246,94 @@ void main() {
 
     expect(room(), isNull);
   });
+
+  Future<void> openVoting({List<MatchMember> members = const [mario]}) async {
+    api.rooms['r1'] = testMatchState(
+        rev: 2,
+        phase: MatchPhase.voting,
+        members: members,
+        stack: ['m1', 'm2']);
+    await controller().open();
+  }
+
+  test('votingMovesThePositionAtOnce', () async {
+    await openVoting();
+
+    expect(await controller().vote('m1', yes: true), isNull);
+
+    expect(api.calls.last, 'vote r1 m1 yes');
+    expect(room()!.position('u1'), 1);
+  });
+
+  test('aVoteForAnotherTitleIsRefused', () async {
+    await openVoting();
+
+    expect(await controller().vote('m2', yes: true), MatchFailure.notNext);
+
+    expect(api.calls.where((c) => c.startsWith('vote')), isEmpty);
+  });
+
+  test('aFailedVoteGoesBack', () async {
+    await openVoting();
+    api.failures['vote r1 m1 yes'] = const MatchException(MatchFailure.network);
+
+    expect(await controller().vote('m1', yes: true), MatchFailure.network);
+    expect(room()!.position('u1'), 0);
+
+    expect(await controller().vote('m1', yes: true), isNull);
+    expect(room()!.position('u1'), 1);
+  });
+
+  test('notNextRealignsFromThePlugin', () async {
+    await openVoting();
+    api.failures['vote r1 m1 yes'] = const MatchException(MatchFailure.notNext);
+    api.rooms['r1'] = testMatchState(
+        rev: 3,
+        phase: MatchPhase.voting,
+        members: [const MatchMember(userId: 'u1', name: 'Mario', voted: 1)],
+        stack: ['m1', 'm2']);
+
+    expect(await controller().vote('m1', yes: true), MatchFailure.notNext);
+
+    expect(api.calls, contains('state r1'));
+    expect(room()!.position('u1'), 1);
+    expect(room()!.sent, 0);
+  });
+
+  test('moreAppliesTheNewStack', () async {
+    await openVoting();
+    api.rooms['r1'] = testMatchState(
+        rev: 4,
+        phase: MatchPhase.voting,
+        members: [const MatchMember(userId: 'u1', name: 'Mario', voted: 2)],
+        stack: ['m1', 'm2', 'm3']);
+
+    expect(await controller().more(), isNull);
+
+    expect(api.calls.last, 'more r1');
+    expect(room()!.state!.stack, hasLength(3));
+  });
+
+  test('partyCallsThePlugin', () async {
+    expect(await controller().party('g1'), MatchFailure.closed);
+    expect(api.calls, isEmpty);
+
+    await openVoting();
+    expect(await controller().party('g1'), isNull);
+    expect(api.calls.last, 'party r1 g1');
+  });
+
+  test('aStateArrivingWhileEnteringIsKept', () async {
+    api.enterGate = Completer<void>();
+    final opening = controller().open();
+    await pumpEventQueue();
+
+    await push(testMatchState(roomId: 'r2', rev: 9));
+    await push(testMatchState(rev: 5, members: [mario, luigi]));
+    api.enterGate!.complete();
+    await opening;
+
+    expect(room()!.roomId, 'r1');
+    expect(room()!.state!.rev, 5);
+  });
 }

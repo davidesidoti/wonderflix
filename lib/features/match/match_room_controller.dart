@@ -9,6 +9,7 @@ import '../../core/social/match_api.dart';
 import '../../core/social/match_models.dart';
 import '../../core/social/social_models.dart';
 import '../auth/session_controller.dart';
+import '../library/library_providers.dart';
 import '../social/social_providers.dart';
 import '../tonight/tonight_logic.dart';
 import '../watch_party/watch_party_providers.dart';
@@ -19,7 +20,8 @@ final _log = Logger('match');
 /// La sala del match dell'app (spec P §7.3).
 @immutable
 class MatchRoomView {
-  const MatchRoomView({required this.roomId, this.state, this.gone = false});
+  const MatchRoomView(
+      {required this.roomId, this.state, this.gone = false, this.sent = 0});
 
   final String roomId;
 
@@ -30,12 +32,29 @@ class MatchRoomView {
   /// chiude con "Sala chiusa".
   final bool gone;
 
+  /// Voti mandati da questo client e non ancora confermati da uno stato: la
+  /// carta passa subito, senza aspettare il plugin.
+  final int sent;
+
   bool get closed => gone || state?.phase == MatchPhase.closed;
 
-  MatchRoomView copyWith({MatchState? state, bool? gone}) => MatchRoomView(
+  /// A che punto della pila è [userId]: il più avanti tra il voto in volo e
+  /// quello confermato (0 se non è un membro).
+  int position(String userId) {
+    final voted = state?.members
+            .where((m) => m.userId == userId)
+            .map((m) => m.voted)
+            .firstOrNull ??
+        0;
+    return voted > sent ? voted : sent;
+  }
+
+  MatchRoomView copyWith({MatchState? state, bool? gone, int? sent}) =>
+      MatchRoomView(
         roomId: roomId,
         state: state ?? this.state,
         gone: gone ?? this.gone,
+        sent: sent ?? this.sent,
       );
 }
 
@@ -45,6 +64,10 @@ class MatchRoomView {
 /// la pagina si chiude o si cambia profilo.
 class MatchRoomController extends Notifier<MatchRoomView?> {
   bool _entering = false;
+
+  /// Stati arrivati mentre si entra, quando la sala non c'è ancora: si
+  /// applicano appena c'è (quelli di altre sale cadono in [_apply]).
+  final _pendingUpdates = <MatchState>[];
 
   /// Un'apertura o un ingresso è in corso: un secondo clic non ne fa un altro.
   bool get entering => _entering;
@@ -60,7 +83,12 @@ class MatchRoomController extends Notifier<MatchRoomView?> {
       return null;
     }
     final notices = ref.watch(socialEventsProvider).listen((event) {
-      if (event is MatchUpdatedEvent) _apply(event.state);
+      if (event is! MatchUpdatedEvent) return;
+      if (_entering && state == null) {
+        _pendingUpdates.add(event.state);
+      } else {
+        _apply(event.state);
+      }
     });
     final connections = ref.watch(watchPartyEventsProvider).listen((event) {
       // Gli stati persi mentre il WebSocket era giù.
@@ -94,6 +122,7 @@ class MatchRoomController extends Notifier<MatchRoomView?> {
           final next = await request();
           if (!ref.mounted) return null;
           state = MatchRoomView(roomId: next.roomId, state: next);
+          _pendingUpdates.forEach(_apply);
           return null;
         } on MatchException catch (error) {
           final other = error.roomId;
@@ -115,6 +144,7 @@ class MatchRoomController extends Notifier<MatchRoomView?> {
       }
     } finally {
       _entering = false;
+      _pendingUpdates.clear();
     }
   }
 
@@ -203,6 +233,69 @@ class MatchRoomController extends Notifier<MatchRoomView?> {
           duration: filters.duration.wire,
           genre: filters.genre);
       if (ref.mounted) _apply(next);
+      return null;
+    } on MatchException catch (error) {
+      return error.failure;
+    }
+  }
+
+  /// Un voto: la carta passa subito (`sent`) e torna se il voto non parte.
+  Future<MatchFailure?> vote(String itemId, {required bool yes}) async {
+    final current = state;
+    final room = current?.state;
+    if (current == null || room == null || current.closed) {
+      return MatchFailure.closed;
+    }
+    if (room.phase != MatchPhase.voting) return MatchFailure.notStarted;
+    final ref = this.ref;
+    final pos = current.position(ref.read(currentUserIdProvider));
+    if (pos >= room.stack.length || room.stack[pos] != itemId) {
+      return MatchFailure.notNext;
+    }
+    state = current.copyWith(sent: pos + 1);
+    try {
+      await _api.vote(current.roomId, itemId, yes: yes);
+      return null;
+    } on MatchException catch (error) {
+      if (!ref.mounted) return error.failure;
+      if (error.failure == MatchFailure.notNext) {
+        _resetSent(current.roomId, 0);
+        await reload();
+      } else {
+        _resetSent(current.roomId, pos);
+      }
+      return error.failure;
+    }
+  }
+
+  /// Rimette `sent` a [value] se la vista è ancora della sala [roomId].
+  void _resetSent(String roomId, int value) {
+    final now = state;
+    if (now != null && now.roomId == roomId) {
+      state = now.copyWith(sent: value);
+    }
+  }
+
+  /// "Altri 30": nuovi titoli, come [start].
+  Future<MatchFailure?> more() async {
+    final current = state;
+    if (current == null || current.closed) return MatchFailure.closed;
+    final ref = this.ref;
+    try {
+      final next = await _api.more(current.roomId);
+      if (ref.mounted) _apply(next);
+      return null;
+    } on MatchException catch (error) {
+      return error.failure;
+    }
+  }
+
+  /// Dice al plugin il gruppo del party partito dalla sala; niente stato.
+  Future<MatchFailure?> party(String groupId) async {
+    final current = state;
+    if (current == null || current.closed) return MatchFailure.closed;
+    try {
+      await _api.party(current.roomId, groupId);
       return null;
     } on MatchException catch (error) {
       return error.failure;
