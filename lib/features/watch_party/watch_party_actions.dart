@@ -21,6 +21,8 @@ import 'watch_party_session.dart';
 /// con quella modalità (spec F §9.1–9.2); `null` = come la 0.5.1.
 /// Con [invite] il party, appena registrato, invita quell'amico (spec O §7.2):
 /// un invito che non riesce non ferma il party, lo dice un avviso.
+/// Con [queue] la coda è quella data (spec P: i match di una sala) e non
+/// quella di [item]; [onRegistered] riceve il gruppo appena registrato.
 Future<bool> startWatchParty(
   BuildContext context,
   WidgetRef ref,
@@ -28,6 +30,8 @@ Future<bool> startWatchParty(
   Duration start = Duration.zero,
   PartyMode? mode,
   String? invite,
+  List<String>? queue,
+  void Function(String groupId)? onRegistered,
 }) {
   // Un invito vale solo per un party nuovo: in un gruppo (o entrando) un
   // secondo "Guarda insieme" cambierebbe la coda del primo senza invitare.
@@ -45,10 +49,11 @@ Future<bool> startWatchParty(
         final messenger = ScaffoldMessenger.maybeOf(context);
         final inviteNotSent = AppLocalizations.of(context).friendsInviteNotSent;
         final session = ref.read(watchPartySessionProvider.notifier);
-        final queue = await buildPartyQueue(ref.read(libraryApiProvider),
-            ref.read(currentUserIdProvider), item);
+        final ids = queue ??
+            await buildPartyQueue(ref.read(libraryApiProvider),
+                ref.read(currentUserIdProvider), item);
         if (container.read(watchPartySessionProvider).inGroup) {
-          await session.setQueue(queue, start: start);
+          await session.setQueue(ids, start: start);
           // Spec E §7.4: gli altri vedono chi ha scelto il titolo.
           container
               .read(partyChannelProvider.notifier)
@@ -56,7 +61,7 @@ Future<bool> startWatchParty(
         } else {
           await session.create(
             item,
-            queue: queue,
+            queue: ids,
             start: start,
             // Spec F §9.2: la modalità si registra prima della coda. Il
             // plugin e il party corrente si leggono solo con una modalità.
@@ -68,6 +73,7 @@ Future<bool> startWatchParty(
                     container
                         .read(currentPartyProvider.notifier)
                         .registered(groupId, mode, code);
+                    onRegistered?.call(groupId);
                     // Fuori dal timeout della registrazione, che non deve
                     // buttare giù un party già registrato: non si attende.
                     if (invite != null) {

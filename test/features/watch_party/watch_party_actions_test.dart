@@ -237,4 +237,43 @@ void main() {
         findsOneWidget);
     expect(container(tester).read(watchPartySessionProvider).inGroup, isFalse);
   });
+
+  testWidgets('con una coda data e onRegistered: la coda arriva a SyncPlay',
+      (tester) async {
+    social = FakeSocialApi();
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    String? registered;
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: Consumer(
+          builder: (context, ref, _) => TextButton(
+            onPressed: () => unawaited(startWatchParty(context, ref, pilot,
+                mode: PartyMode.private,
+                queue: const ['x1', 'x2'],
+                onRegistered: (g) => registered = g)),
+            child: const Text('via'),
+          ),
+        ),
+      ),
+      overrides: [
+        libraryApiProvider.overrideWithValue(library),
+        syncPlayApiProvider.overrideWithValue(api),
+        watchPartyEventsProvider.overrideWithValue(events.stream),
+        partyChannelApiProvider.overrideWithValue(channelApi),
+        sessionControllerProvider.overrideWith(
+            () => FakeSessionController(const SessionSignedIn(testUser))),
+        socialApiProvider.overrideWithValue(social),
+        socialAvailabilityProvider.overrideWith(() => FakeSocialAvailability(
+            const SocialFeatures(friends: true, parties: true))),
+        sharedPreferencesProvider.overrideWithValue(prefs),
+      ],
+    );
+    await tester.tap(find.text('via'));
+    await tester.pumpAndSettle();
+    expect(api.calls.last, 'queue x1,x2');
+    expect(registered, 'g1');
+    await leave(tester);
+  });
 }

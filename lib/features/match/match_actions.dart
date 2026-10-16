@@ -3,11 +3,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:logging/logging.dart';
 
 import '../../app/navigation.dart';
+import '../../core/jellyfin/item_models.dart';
 import '../../core/social/match_api.dart';
 import '../../core/social/match_models.dart';
+import '../../core/syncplay/party_mode.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../library/library_providers.dart';
+import '../watch_party/watch_party_actions.dart';
+import 'match_queue.dart';
 import 'match_room_controller.dart';
 
 /// Il testo dell'avviso per un no del plugin (spec P §7.2).
@@ -61,4 +67,41 @@ Future<bool> _enter(BuildContext context, WidgetRef ref,
   if (room == null) return false;
   unawaited(router.push(matchRoute(room.roomId)));
   return true;
+}
+
+final _log = Logger('MatchParty');
+
+/// "Guarda insieme" dai match della sala (spec P §7.4): un party privato con
+/// i match (prima [first], se dato) e poi il plugin sa del gruppo. `false`
+/// con l'avviso se non c'è niente da guardare; la sala resta aperta.
+Future<bool> startMatchParty(BuildContext context, WidgetRef ref,
+    {String? first}) async {
+  final l = AppLocalizations.of(context);
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  final controller = ref.read(matchRoomProvider.notifier);
+  final library = ref.read(libraryApiProvider);
+  final userId = ref.read(currentUserIdProvider);
+  final state = ref.read(matchRoomProvider)?.state;
+  final ids = state == null ? const <String>[] : matchPartyOrder(state, first: first);
+  List<String> queue = const [];
+  JellyfinItem? head;
+  try {
+    final found = {
+      for (final item in await library.itemsByIds(userId, ids)) item.id: item,
+    };
+    final titles = [for (final id in ids) ?found[id]];
+    queue = await buildMatchQueue(library, userId, titles);
+    head = titles.firstOrNull;
+  } on Object catch (error) {
+    _log.warning('queue failed: ${error.runtimeType}');
+  }
+  if (queue.isEmpty || head == null) {
+    messenger?.showSnackBar(SnackBar(content: Text(l.matchFailed)));
+    return false;
+  }
+  if (!context.mounted) return false;
+  return startWatchParty(context, ref, head,
+      mode: PartyMode.private,
+      queue: queue,
+      onRegistered: (groupId) => unawaited(controller.party(groupId)));
 }
