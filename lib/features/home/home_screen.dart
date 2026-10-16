@@ -13,6 +13,8 @@ import '../../ui/smooth_scroll.dart';
 import '../../ui/staggered_entrance.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_switcher.dart';
+import '../match/match_actions.dart';
+import '../match/match_entry.dart';
 import '../settings/home_settings_section.dart';
 import '../tonight/tonight_dialog.dart';
 import 'hero_carousel.dart';
@@ -116,6 +118,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// finestra aperta (la scelta si fa quando la finestra si chiude).
   void _openTonight() => unawaited(openTonight(context, ref));
 
+  /// "Match": con il contesto della Home, come "Cosa guardo stasera?".
+  void _openMatch() => unawaited(openMatchRoom(context, ref));
+
   void _retry() {
     ref
       ..invalidate(homeLayoutProvider)
@@ -193,7 +198,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   style: const TextStyle(color: WfColors.creamMuted)),
               Padding(
                   padding: const EdgeInsets.only(top: 16),
-                  child: TonightButton(onPressed: _openTonight)),
+                  child: _EntryButtons(
+                      onTonight: _openTonight, onMatch: _openMatch)),
               const _CustomizeLink(),
             ],
           ),
@@ -219,8 +225,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             if (featuredItems.isNotEmpty)
               HeroCarousel(
                   items: featuredItems,
-                  corner: TonightButton(onPressed: _openTonight)),
-            if (featuredItems.isEmpty) _TonightCorner(onPressed: _openTonight),
+                  corner: _EntryButtons(
+                      onTonight: _openTonight, onMatch: _openMatch)),
+            if (featuredItems.isEmpty) _TonightCorner(onTonight: _openTonight, onMatch: _openMatch),
             ...shown,
             const Align(
                 alignment: Alignment.centerLeft, child: _CustomizeLink()),
@@ -346,15 +353,34 @@ class _CustomizeLink extends StatelessWidget {
 
 /// Senza carosello il dado sta in cima alle righe, a destra (spec M §8.4).
 class _TonightCorner extends StatelessWidget {
-  const _TonightCorner({required this.onPressed});
+  const _TonightCorner({required this.onTonight, required this.onMatch});
 
-  final VoidCallback onPressed;
+  final VoidCallback onTonight;
+  final VoidCallback onMatch;
 
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(32, 16, 32, 0),
         child: Align(
             alignment: Alignment.centerRight,
-            child: TonightButton(onPressed: onPressed)),
+            child: _EntryButtons(onTonight: onTonight, onMatch: onMatch)),
+      );
+}
+
+/// "Match" e "Cosa guardo stasera?" uno accanto all'altro (spec P §7.2).
+class _EntryButtons extends StatelessWidget {
+  const _EntryButtons({required this.onTonight, required this.onMatch});
+
+  final VoidCallback onTonight;
+  final VoidCallback onMatch;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 12,
+        children: [
+          MatchButton(onPressed: onMatch),
+          TonightButton(onPressed: onTonight),
+        ],
       );
 }

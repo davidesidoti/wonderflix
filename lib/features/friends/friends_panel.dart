@@ -11,6 +11,8 @@ import '../../core/social/social_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/shell_side_panel.dart';
 import '../../ui/wf_menus.dart';
+import '../match/match_actions.dart';
+import '../match/match_entry.dart';
 import '../social/social_providers.dart';
 import '../watch_party/party_badge.dart';
 import '../watch_party/watch_party_actions.dart';
@@ -131,6 +133,23 @@ class _FriendsPanelState extends ConsumerState<FriendsPanel> {
                   ref.read(friendSearchProvider.notifier).setQuery(text),
             ),
           ),
+          if (ref.watch(matchEntryProvider))
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 20, 0),
+                child: TextButton.icon(
+                  key: const Key('friends-match'),
+                  onPressed: () {
+                    ref.read(shellPanelProvider.notifier).close();
+                    unawaited(openMatchRoom(context, ref));
+                  },
+                  icon: const Icon(LucideIcons.heartHandshake, size: 16),
+                  label: Text(l.matchTitle),
+                  style: TextButton.styleFrom(foregroundColor: WfColors.gold),
+                ),
+              ),
+            ),
           if (ref.watch(socialAvailabilityProvider.select((f) => f.parties)))
             // Durante una ricerca i risultati prendono il suo posto (spec F
             // §8.3); un codice scritto a metà resta.
