@@ -922,5 +922,19 @@
   "matchInviteFrom": "{name} ti invita a un match",
   "@matchInviteFrom": {"placeholders": {"name": {"type": "String"}}},
   "matchFriendsOnline": "Amici online",
-  "matchNoFriendsOnline": "Nessun amico online"
+  "matchNoFriendsOnline": "Nessun amico online",
+  "matchYes": "Sì",
+  "matchNo": "No",
+  "matchItsAMatch": "È un match!",
+  "matchMatches": "Match",
+  "matchNoMatches": "Ancora nessun match",
+  "matchNearMatches": "Piaciuti a quasi tutti",
+  "matchYesOf": "{yes} su {of}",
+  "@matchYesOf": {"placeholders": {"yes": {"type": "int"}, "of": {"type": "int"}}},
+  "matchAllVoted": "Hai votato tutto, aspetta gli altri",
+  "matchMore": "Altri 30 titoli",
+  "matchEmpty": "Nessun titolo con questi filtri",
+  "matchPlaysFirst": "Parte per primo",
+  "matchStartParty": "Avvia il party",
+  "matchVoteNotSent": "Voto non inviato"
 }

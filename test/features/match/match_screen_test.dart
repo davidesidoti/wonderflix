@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wonderflix/app/providers.dart';
+import 'package:wonderflix/core/social/match_api.dart';
 import 'package:wonderflix/core/social/match_models.dart';
 import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
@@ -25,6 +26,7 @@ import '../../support/social_fakes.dart';
 void main() {
   late FakeMatchApi match;
   late FakeSocialApi social;
+  late FakeLibraryApi library;
   late SharedPreferences prefs;
 
   const mario = MatchMember(userId: 'u1', name: 'Mario', voted: 0);
@@ -32,6 +34,7 @@ void main() {
 
   setUp(() async {
     match = FakeMatchApi();
+    library = FakeLibraryApi();
     social = FakeSocialApi()
       ..snapshot = FriendsSnapshot(friends: [
         testFriend('u2', 'Luigi', online: true),
@@ -76,7 +79,7 @@ void main() {
           features: const SocialFeatures(friends: true, match: true)),
       matchApiProvider.overrideWithValue(match),
       sharedPreferencesProvider.overrideWithValue(prefs),
-      libraryApiProvider.overrideWithValue(FakeLibraryApi()),
+      libraryApiProvider.overrideWithValue(library),
     ]);
     await tester.tap(find.text('apri'));
     await tester.pumpAndSettle();
@@ -228,5 +231,51 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(prefs.getString(tonightGenreKey), isNull);
+  });
+
+  group('votazione', () {
+    final votingState = testMatchState(
+        phase: MatchPhase.voting,
+        members: const [mario, luigi],
+        stack: const ['m1', 'm2']);
+
+    setUp(() {
+      library.itemsById['m1'] = testItem(id: 'm1', name: 'Dune');
+      library.itemsById['m2'] = testItem(id: 'm2', name: 'Alien');
+    });
+
+    testWidgets('theVotingPageShowsTheTopCard', (tester) async {
+      await pumpRoom(tester, state: votingState);
+
+      expect(find.text('Dune'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('match-yes')));
+      await tester.pumpAndSettle();
+
+      expect(match.calls, contains('vote r1 m1 yes'));
+      expect(find.text('Alien'), findsOneWidget);
+      expect(find.text('Dune'), findsNothing);
+    });
+
+    testWidgets('aFailedVoteBringsTheCardBack', (tester) async {
+      match.failures['vote r1 m1 yes'] =
+          const MatchException(MatchFailure.network);
+      await pumpRoom(tester, state: votingState);
+
+      await tester.tap(find.byKey(const Key('match-yes')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Dune'), findsOneWidget);
+      expect(find.text('Voto non inviato'), findsOneWidget);
+    });
+
+    testWidgets('aMissingTitleIsVotedNo', (tester) async {
+      library.itemsById.remove('m1');
+      await pumpRoom(tester, state: votingState);
+      await tester.pumpAndSettle();
+
+      expect(match.calls, contains('vote r1 m1 no'));
+      expect(find.text('Alien'), findsOneWidget);
+    });
   });
 }

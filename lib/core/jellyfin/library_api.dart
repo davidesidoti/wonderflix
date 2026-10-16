@@ -169,7 +169,7 @@ class LibraryApi {
       for (final chunk in chunks)
         _http.get('/Items', query: {
           ...cardImageParams,
-          'fields': '${cardImageParams['fields']},Overview',
+          'fields': '${cardImageParams['fields']},Overview,ChildCount',
           'userId': userId,
           'ids': chunk.join(','),
         }),

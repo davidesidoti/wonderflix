@@ -785,5 +785,19 @@
   "matchInviteFrom": "{name} invited you to a movie match",
   "@matchInviteFrom": {"placeholders": {"name": {"type": "String"}}},
   "matchFriendsOnline": "Friends online",
-  "matchNoFriendsOnline": "No friends online"
+  "matchNoFriendsOnline": "No friends online",
+  "matchYes": "Yes",
+  "matchNo": "No",
+  "matchItsAMatch": "It's a match!",
+  "matchMatches": "Matches",
+  "matchNoMatches": "No matches yet",
+  "matchNearMatches": "Almost everyone liked",
+  "matchYesOf": "{yes} of {of}",
+  "@matchYesOf": {"placeholders": {"yes": {"type": "int"}, "of": {"type": "int"}}},
+  "matchAllVoted": "You've voted on everything, wait for the others",
+  "matchMore": "30 more titles",
+  "matchEmpty": "No titles match these filters",
+  "matchPlaysFirst": "Plays first",
+  "matchStartParty": "Start the party",
+  "matchVoteNotSent": "Vote not sent"
 }

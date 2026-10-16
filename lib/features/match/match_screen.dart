@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/theme.dart';
+import '../../core/jellyfin/item_models.dart';
+import '../../core/social/match_api.dart';
 import '../../core/social/match_models.dart';
 import '../../core/social/social_models.dart';
 import '../../l10n/gen/app_localizations.dart';
@@ -21,11 +23,15 @@ import '../tonight/tonight_logic.dart';
 import 'match_actions.dart';
 import 'match_members_bar.dart';
 import 'match_room_controller.dart';
+import 'match_swipe_deck.dart';
+import 'match_titles.dart';
 
 const _muted = TextStyle(color: WfColors.creamMuted);
 
-/// La sala del match (spec P §7.3). In questo piano l'attesa; la votazione
-/// arriva nel piano 22c. Lasciare la pagina fa uscire dalla sala.
+/// Larghezza massima del mazzo.
+const _deckMaxWidth = 560.0;
+
+/// La sala del match (spec P §7.3): attesa e votazione. Lasciare la pagina fa uscire dalla sala.
 class MatchScreen extends ConsumerStatefulWidget {
   const MatchScreen({super.key, required this.roomId});
 
@@ -47,6 +53,9 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
   /// Il testo "Sala chiusa" è ancora da mostrare (la chiusura può attendere).
   bool _closeNotice = false;
   bool _closeDone = false;
+
+  /// Titoli già votati "no" da soli perché la libreria non li ha più.
+  final _autoVoted = <String>{};
 
   @override
   void initState() {
@@ -161,9 +170,64 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
                     MatchMembersBar(state: state),
                     const SizedBox(height: 32),
                     if (state.phase == MatchPhase.waiting) _waiting(l, state),
+                    if (state.phase == MatchPhase.voting) _voting(l, view!, state),
                   ],
                 ),
         ),
+      ],
+    );
+  }
+
+  /// Il voto della carta in cima; se non parte, la carta torna da sola e si
+  /// avvisa (un `notNext` si riallinea in silenzio).
+  Future<void> _vote(String itemId, bool yes) async {
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final failure = await _controller.vote(itemId, yes: yes);
+    if (failure != null && failure != MatchFailure.notNext) {
+      messenger?.showSnackBar(
+          SnackBar(content: Text(l.matchVoteNotSent)));
+    }
+  }
+
+  /// Il mazzo a sinistra; a destra la colonna dei match (piano 22c, Task 4).
+  Widget _voting(AppLocalizations l, MatchRoomView view, MatchState state) {
+    final titles = ref.watch(matchTitlesProvider);
+    final mine = view.position(ref.watch(currentUserIdProvider));
+    final ids = state.stack.skip(mine).toList();
+    final topId = ids.firstOrNull;
+    final loaded = topId != null && titles.containsKey(topId);
+    if (loaded && titles[topId] == null && _autoVoted.add(topId)) {
+      // Titolo sparito dalla libreria: "no" e si va avanti.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_vote(topId, false));
+      });
+    }
+    // Se in cima non c'è un titolo vero la votazione resta ferma sul "no".
+    final cards = loaded && titles[topId] != null
+        ? <JellyfinItem>[
+            for (final id in ids) ?titles[id],
+          ]
+        : const <JellyfinItem>[];
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 3,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: _deckMaxWidth),
+              child: topId != null && !loaded
+                  ? const Center(child: CircularProgressIndicator())
+                  : MatchSwipeDeck(
+                      cards: cards,
+                      onVote: (yes) => unawaited(_vote(cards.first.id, yes)),
+                    ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 32),
+        const Expanded(flex: 2, child: SizedBox.shrink()),
       ],
     );
   }

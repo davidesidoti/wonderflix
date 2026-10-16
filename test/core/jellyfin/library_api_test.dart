@@ -158,6 +158,8 @@ void main() {
     // richiesta.
     expect(last().query['fields'], contains('Overview'));
     expect(last().query['fields'], contains('PrimaryImageAspectRatio'));
+    // Le serie del match mostrano le stagioni.
+    expect(last().query['fields'], contains('ChildCount'));
     expect(items.map((item) => item.id), ['m2', 'm1']);
   });
 
