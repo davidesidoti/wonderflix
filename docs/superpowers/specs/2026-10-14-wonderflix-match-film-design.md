@@ -1,7 +1,7 @@
 # WonderFlix — Spec P: match del film
 
 - **Data:** 2026-10-14
-- **Stato:** approvata il 2026-10-14; piano 22a realizzato (`docs/superpowers/plans/2026-10-14-wonderflix-22a-match-plugin.md`), build di prova sul server; piani 22b e 22c da scrivere
+- **Stato:** approvata il 2026-10-14; piano 22a realizzato (`docs/superpowers/plans/2026-10-14-wonderflix-22a-match-plugin.md`), build di prova sul server; piano 22b realizzato (`docs/superpowers/plans/2026-10-16-wonderflix-22b-match-sala-app.md`); piano 22c da scrivere
 - **Ambito:** Spec P. Realizza l'idea 9 di `docs/IDEE.md` ("Match del film"): prima di un watch party, gli amici in una sala votano sì o no su una pila di titoli; i titoli che piacciono a tutti finiscono nella coda di un party privato. Si appoggia alla Spec F (amici, party privati, `PartyDirectory`), alla Spec G (cassetta), alla Spec H (coda del party), alla Spec M ("Cosa guardo stasera?") e alla Spec O (`LastWatched`, `CanSee`).
 
 ## 1. Obiettivo
@@ -179,8 +179,8 @@ App (altri membri) ──MatchUpdated chiusa──▶ joinWatchParty(GroupId)
 
 ### 7.1 Nucleo
 
-- `lib/core/social/match_models.dart`: `MatchState`, `MatchMember`, `MatchNearMatch`, `MatchPhase`, `MatchClosedReason`, `MatchJoinError` (motivi del 409 di `Join`), da JSON.
-- `SocialApi`: `openMatch()`, `match(roomId)`, `inviteToMatch(roomId, userIds)`, `joinMatch(roomId)`, `leaveMatch(roomId)`, `startMatch(roomId, TonightFilters)`, `voteMatch(roomId, itemId, yes)`, `moreMatch(roomId)`, `matchParty(roomId, groupId)`; stessi in `FakeSocialApi`. Il 409 diventa un'eccezione con il motivo.
+- `lib/core/social/match_models.dart`: `MatchState`, `MatchMember`, `MatchNearMatch`, `MatchPhase`, `MatchClosedReason`, da JSON; `lib/core/social/match_api.dart`: `MatchApi`, `MatchFailure` (i motivi del 409) e `MatchException` (motivo e `RoomId`).
+- `MatchApi` (non `SocialApi`, che di un 409 perde il corpo): `open()`, `state(roomId)`, `invite(roomId, userIds)`, `join(roomId)`, `leave(roomId)`, `start(roomId, type:, duration:, genre:)` con i valori `wire` dei filtri, `vote(roomId, itemId, yes:)`, `more(roomId)`, `party(roomId, groupId)`; `FakeMatchApi` nei test. Il 409 diventa una `MatchException` con il motivo (e `RoomId` per `InAnotherRoom`). Un 404 vuol dire plugin senza il match. Il 22b usa le chiamate fino a `start`; voto, "Altri 30" e party sono pronti per il 22c.
 - `parseSocialEvent`: `MatchInviteEvent{roomId, fromName}`, `MatchUpdatedEvent{state}`.
 - `inboxEntryFromJson`: `MatchInviteEntry{roomId, fromName}`.
 - `SocialFeatures.match`: la funzione `match` del plugin. Gli ingressi compaiono solo con questa funzione **e** se l'account può creare gruppi SyncPlay (`syncPlayAccess` con `canCreate`), come "Guarda insieme".
@@ -188,25 +188,25 @@ App (altri membri) ──MatchUpdated chiusa──▶ joinWatchParty(GroupId)
 ### 7.2 Ingressi
 
 - **Home:** un pulsante "Match" accanto a `TonightButton`, nelle tre posizioni in cui c'è oggi.
-- **Pannello Amici:** "Match del film" in cima.
-- Al clic: `openMatch()` e poi la pagina `/match/:roomId`. Un 409 `InAnotherRoom` porta `RoomId`, la sala aperta di chi chiama (succede con due istanze dello stesso utente, o dopo un `Leave` perso, §8): l'app (22b) la usa per tornare in quella sala o lasciarla, e non resta bloccata con il solo avviso "Sei già in un'altra sala".
-- **Invito:** l'avviso `MatchInvite` mostra una carta nello stesso posto e con lo stesso aspetto dell'invito al party ("{name} ti invita a un match", "Unisciti"). `WatchPartyInviteCard` diventa una carta comune con due varianti; resta un invito alla volta, l'ultimo arrivato. La voce `MatchInviteEntry` nella cassetta ha "Unisciti".
-- **Unisciti:** `joinMatch(roomId)` e la pagina della sala. Il 409 dà un avviso: `Started` → "Il match è già iniziato", `Closed` → "Sala chiusa", `Full` → "Sala piena", `InAnotherRoom` → "Sei già in un'altra sala" (con `RoomId`, come sopra), `NotInvited` → "Sala chiusa". `Join` di chi è già membro risponde con lo stato.
-- Dentro un watch party non c'è nessun ingresso (si è nel player).
+- **Pannello Amici:** "Match del film", sotto il campo di ricerca.
+- Al clic: `openMatch()` e poi la pagina `/match/:roomId`. Un 409 `InAnotherRoom` porta `RoomId`, la sala aperta di chi chiama (succede con due istanze dello stesso utente, o dopo un `Leave` perso, §8): l'app esce da quella sala (`Leave`) e riprova una volta, così "Match" apre comunque una sala nuova. Se è la sala che l'app sta già mostrando, o se l'uscita fallisce, resta l'avviso "Sei già in un'altra sala".
+- **Invito:** l'avviso `MatchInvite` mostra una carta nello stesso posto e con lo stesso aspetto dell'invito al party ("{name} ti invita a un match", "Unisciti"). Le carte sono due (`WatchPartyInviteCard` e `MatchInviteCard`), con due notifier e la stessa cornice e animazione (`InviteCardFrame`); si vede un invito alla volta, l'ultimo arrivato: un invito al match chiude quello al party e viceversa. La carta sparisce dopo 10 s. La voce `MatchInviteEntry` nella cassetta ha "Unisciti"; con una sala già chiusa o già iniziata, "Unisciti" dà l'avviso con il motivo e non apre nessuna pagina.
+- **Unisciti:** `join(roomId)` e la pagina della sala. Sulla sala che l'app già mostra non fa niente: non c'è una seconda pagina (uscire da quella farebbe uscire dalla sala). Ci si può stare in una sala sola alla volta. Il 409 dà un avviso: `Started` → "Il match è già iniziato", `Closed` → "Sala chiusa", `Full` → "Sala piena", `InAnotherRoom` → "Sei già in un'altra sala" (con `RoomId`, come sopra), `NotInvited` → "Sala chiusa". `Join` di chi è già membro risponde con lo stato.
+- Nessun ingresso dentro un watch party (si è nel player), né mentre si è già in una sala (un secondo "Match" darebbe solo `InAnotherRoom`).
 
 ### 7.3 Pagina della sala
 
-Route `/match/:id` nella shell, sotto la barra come la scheda di un titolo, titolo nella barra "Match del film".
+Route `/match/:id` nella shell, sotto la barra come la scheda di un titolo. Il titolo "Match del film" sta nel corpo della pagina, come in La mia lista, non nella barra.
 
-- **Stato:** `MatchController` (provider per `roomId`): legge con `match(roomId)` all'apertura e a ogni riconnessione al server; si aggiorna con `MatchUpdatedEvent` dello stesso `roomId`, scartando quelli con `Rev` minore o uguale a quella che ha, anche le risposte degli endpoint: gli avvisi partono fuori dal lock e possono arrivare fuori ordine.
-- **Uscire:** lasciare la pagina (←, Esc, un'altra voce della barra, cambio di profilo) chiama `leaveMatch` senza aspettare. Chiudere l'app lo prova senza aspettare; altrimenti ci pensa la pulizia del plugin (60 s).
+- **Stato:** `MatchRoomController` (`matchRoomProvider`, una sola sala nell'app: il plugin ne tiene una per utente). Apre o entra con le risposte degli endpoint, rilegge con `state(roomId)` a ogni riconnessione al server; si aggiorna con `MatchUpdatedEvent` della sua sala, scartando quelli con `Rev` minore o uguale a quella che ha, anche le risposte degli endpoint: gli avvisi partono fuori dal lock e possono arrivare fuori ordine. Una risposta che arriva dopo un cambio di profilo o di funzioni si scarta. Un'apertura o un ingresso alla volta.
+- **Uscire:** lasciare la pagina (←, Esc, un'altra voce della barra) chiama `leave` senza aspettare, una volta sola e solo per quella sala. Il cambio di profilo esce prima di cambiare, con un tempo massimo di 3 s. Chiudendo la finestra non si esce: fuori dal player l'app non intercetta la chiusura, e ci pensa la pulizia del plugin (60–90 s). Una sala già chiusa non si lascia.
 - **In alto, sempre:** i membri con l'avatar e il nome; in votazione anche "12/30" e ✓ quando hanno finito.
 
 #### Attesa
 
 - **Chi ha aperto:**
-  - i filtri di "Cosa guardo stasera?" (stessi controlli e stessi `TonightFilters` salvati nel profilo);
-  - gli amici online e non in un watch party, ciascuno con "Invita" (poi "Invitato"; un nuovo clic rimanda l'invito);
+  - i filtri di "Cosa guardo stasera?" (stessi controlli, `TonightFiltersBar`, e stesse preferenze salvate nel profilo). Se il genere scelto non c'è per il tipo, si azzera: lo fa la barra dei filtri, quindi vale sia nella finestra sia nella sala;
+  - sotto "Amici online" (o "Nessun amico online"), gli amici online e non in un watch party, e non ancora nella sala, ciascuno con "Invita" (poi "Invitato"; un nuovo clic rimanda l'invito);
   - "Inizia", attivo con almeno 2 membri; sotto, se manca: "Serve almeno un amico nella sala".
 - **Gli altri:** "In attesa che {name} inizi…".
 
@@ -237,11 +237,17 @@ Route `/match/:id` nella shell, sotto la barra come la scheda di un titolo, tito
 - Appena il party è registrato: `matchParty(roomId, groupId)`, senza bloccare l'avvio. Se fallisce, il party resta: si può invitare dal menu del party.
 - Il pulsante è spento mentre parte. Se il party non parte, l'avviso che si usa già e la sala resta aperta.
 - **Gli altri membri:** quando arriva lo stato `Closed` con `PartyGroupId`, la pagina si chiude da sola e l'app chiama `joinWatchParty(groupId)`; il player si apre quando il gruppo ha l'elemento in corso.
-- **Chi ha aperto:** il player si apre sopra la pagina; allo stato `Closed` la pagina si chiude sotto il player, senza avvisi.
+- **Chi ha aperto:** il player si apre sopra la pagina. Una sala chiusa chiude la pagina solo se è la rotta in cima; con il player (o un'altra pagina) sopra, la pagina si chiude quando torna in cima, cioè all'uscita dal player. Il 22c può rivederlo.
 
 #### Chiusura senza party
 
-Stato `Closed` senza `PartyGroupId` (`CreatorLeft`, `Inactive`) o 409 `NotMember` alla rilettura: si torna alla pagina precedente con l'avviso "Sala chiusa".
+Stato `Closed` senza `PartyGroupId` (`CreatorLeft`, `Inactive`) o 409 `NotMember` alla rilettura: si torna alla pagina precedente con l'avviso "Sala chiusa". La pagina si chiude da sé (non c'è bisogno di uscire dalla sala), anche se la sala era già chiusa quando si è aperta. Nel 22b una sala chiusa con `PartyGroupId` chiude la pagina senza avviso; l'ingresso nel party è del 22c.
+
+#### Rimandato al 22c
+
+- Un avviso `MatchUpdated` che arriva mentre l'ingresso è ancora in corso si perde: la rilettura alla riconnessione lo recupera.
+- Un invito riuscito solo in parte (alcuni amici sì, altri no) si mostra come non riuscito.
+- L'avviso d'invito mentre si è in un watch party con il player chiuso.
 
 ### 7.4 Versione
 
@@ -287,6 +293,8 @@ Stato `Closed` senza `PartyGroupId` (`CreatorLeft`, `Inactive`) o 409 `NotMember
 | `matchFull` | Sala piena | Room full |
 | `matchInAnotherRoom` | Sei già in un'altra sala | You're already in another room |
 | `matchInviteFrom` | {name} ti invita a un match | {name} invited you to a movie match |
+| `matchFriendsOnline` | Amici online | Friends online |
+| `matchNoFriendsOnline` | Nessun amico online | No friends online |
 
 "Unisciti" c'è già. "Parte per primo" si riferisce al titolo; nessun testo dà per scontato il genere di qualcuno.
 
@@ -340,7 +348,7 @@ Fatte il 2026-10-14 (piano 22a, Task 7) sul sorgente ai tag `v10.11.9` e `v10.11
 ## 13. Piani e release
 
 - **22a — plugin 1.10.0 (realizzato):** verifiche di §12, sala, pila, voti, endpoint, avvisi, cassetta, `Info`. Il plugin 1.10.0 è una build di prova installata a mano sul server (con l'OK dell'utente al riavvio di Jellyfin e il backup della 1.9.0 del Catalogo in `~/wfwp-backup/`) e lo resta fino alla fine del 22c. Nessuna release: il Catalogo resta alla 1.9.0.
-- **22b — app, sala:** nucleo (§7.1), ingressi, carta d'invito e cassetta, pagina in attesa, uscita.
+- **22b — app, sala (realizzato):** nucleo (§7.1), ingressi, carta d'invito e cassetta, pagina in attesa, uscita. App ancora 0.15.1; le differenze dal testo originale sono nel piano ("Decisioni del piano").
 - **22c — app, votazione:** carta e gesto, match e quasi match, fine pila, avvio del party, versione 0.16.0; poi la prova a mano con l'utente.
 - **Release** (con l'OK dell'utente a ogni passo): plugin **1.10.0** dal Catalogo, poi app **0.16.0 obbligatoria** con le note in italiano nella bozza.
 - **Alla fine**, in `docs/IDEE.md`: l'idea 9 esce dalla lista e tra le fatte c'è "Spec P — match del film (plugin 1.10.0, app 0.16.0)".

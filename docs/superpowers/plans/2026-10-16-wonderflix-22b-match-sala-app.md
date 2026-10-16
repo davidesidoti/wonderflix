@@ -40,6 +40,15 @@ La votazione (carta da trascinare, match, avvio del party, versione 0.16.0) arri
 10. **Ingressi nascosti** anche mentre si è già in una sala (`matchEntryProvider`): un secondo "Match" darebbe solo `InAnotherRoom`.
 11. **Testi in più** rispetto alla spec §9: `matchFriendsOnline` ("Amici online") e `matchNoFriendsOnline` ("Nessun amico online"), per l'elenco degli amici da invitare.
 
+**Dalle review dei gruppi** (differenze dal codice del piano, già nella spec):
+- Il controller prende il `ref` prima delle attese (`final ref = this.ref`) e scarta la risposta in volo se dopo un rebuild non è più montato (cambio di profilo, funzione spenta).
+- Un'apertura o un ingresso mentre un altro è in corso restituisce `MatchFailure.conflict`.
+- `leave()` comincia con la guardia `ref.mounted`: la pagina la chiama in un microtask, anche dopo la chiusura dell'app o del container dei test.
+- `TonightFiltersBar` possiede l'azzeramento del genere: lo stesso codice vale per la finestra e per la sala.
+- `MatchScreen` chiude la propria rotta, e solo quando è in cima (`isCurrent`); con una pagina o il player sopra aspetta. Controlla anche una sala già chiusa all'apertura della pagina.
+- `joinMatchRoom` non fa nulla sulla sala già mostrata (una sola pagina per sala).
+- Al 22c: avviso perso durante l'ingresso, invito riuscito in parte mostrato come fallito, avviso d'invito in un party con il player chiuso.
+
 ## Global Constraints
 
 - App **0.15.1**: la versione 0.16.0 si mette nel piano 22c. Nessuna dipendenza nuova.
