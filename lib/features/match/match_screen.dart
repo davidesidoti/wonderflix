@@ -293,6 +293,7 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
         Positioned.fill(
           child: MatchCelebration(
             key: ValueKey(celebrating),
+            id: celebrating,
             item: titles[celebrating],
             onDone: () => setState(() => _celebrate.remove(celebrating)),
           ),

@@ -15,6 +15,7 @@ void main() {
       tester,
       Scaffold(
           body: MatchCelebration(
+              id: 'm1',
               item: testItem(id: 'm1', name: 'Dune'), onDone: () => done++)));
 
   testWidgets('itGoesAwayAfterTwoSeconds', (tester) async {

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -319,6 +320,23 @@ void main() {
 
       await newState(tester, container, matches: const ['m1'], rev: 3);
       expect(find.text('È un match!'), findsNothing);
+    });
+
+    testWidgets('aKeyClosesTheCelebrationWithoutVoting', (tester) async {
+      final container = await pumpRoom(tester, state: votingState);
+      await newState(tester, container, matches: const ['m1']);
+      expect(find.byKey(const Key('match-celebration-m1')), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+
+      expect(find.byKey(const Key('match-celebration-m1')), findsNothing);
+      expect(match.calls.where((c) => c.startsWith('vote')), isEmpty);
+
+      // Chiusa la festa, la freccia torna a votare sul mazzo.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(match.calls, contains('vote r1 m1 yes'));
     });
 
     testWidgets('twoNewMatchesOneAfterTheOther', (tester) async {

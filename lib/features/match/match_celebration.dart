@@ -21,7 +21,11 @@ const _posterWidth = 220.0;
 /// Dopo [matchCelebrationDuration], o a un tasto o un clic, chiama [onDone]
 /// una volta sola.
 class MatchCelebration extends ConsumerStatefulWidget {
-  const MatchCelebration({super.key, required this.item, required this.onDone});
+  const MatchCelebration(
+      {super.key, required this.id, required this.item, required this.onDone});
+
+  /// L'id del match: dà la chiave anche se il titolo non è ancora arrivato.
+  final String id;
 
   /// `null` = titolo non più disponibile: resta il solo testo.
   final JellyfinItem? item;
@@ -33,17 +37,33 @@ class MatchCelebration extends ConsumerStatefulWidget {
 
 class _MatchCelebrationState extends ConsumerState<MatchCelebration> {
   late final Timer _timer;
+  final _focus = FocusNode(debugLabel: 'match-celebration');
+
+  /// Chi aveva il focus (il mazzo): lo riprende alla chiusura.
+  FocusNode? _previous;
   bool _done = false;
 
   @override
   void initState() {
     super.initState();
     _timer = Timer(matchCelebrationDuration, _finish);
+    _previous = FocusManager.instance.primaryFocus;
+    // Il mazzo ha già il focus e l'autofocus non lo toglie: va chiesto.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.requestFocus();
+    });
   }
 
   @override
   void dispose() {
     _timer.cancel();
+    _focus.dispose();
+    final previous = _previous;
+    if (previous != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (previous.context?.mounted ?? false) previous.requestFocus();
+      });
+    }
     super.dispose();
   }
 
@@ -59,7 +79,7 @@ class _MatchCelebrationState extends ConsumerState<MatchCelebration> {
     final l = AppLocalizations.of(context);
     final item = widget.item;
     return Focus(
-      autofocus: true,
+      focusNode: _focus,
       onKeyEvent: (_, event) {
         if (event is! KeyDownEvent) return KeyEventResult.handled;
         _finish();
@@ -75,7 +95,7 @@ class _MatchCelebrationState extends ConsumerState<MatchCelebration> {
           child: ColoredBox(
             color: WfColors.bg.withValues(alpha: 0.9),
             child: Center(
-              key: Key('match-celebration-${item?.id}'),
+              key: Key('match-celebration-${widget.id}'),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [

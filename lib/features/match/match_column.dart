@@ -38,7 +38,11 @@ class MatchColumn extends StatelessWidget {
         if (state.matches.isEmpty)
           Text(l.matchNoMatches,
               style: const TextStyle(color: WfColors.creamMuted)),
-        for (final id in state.matches) _Entry(id: id, item: titles[id], column: this),
+        for (final id in state.matches) _Entry(
+            id: id,
+            item: titles[id],
+            chosen: chosen == id,
+            onChoose: onChoose),
         if (state.nearMatches.isNotEmpty) ...[
           const SizedBox(height: 24),
           _heading(l.matchNearMatches),
@@ -46,7 +50,8 @@ class MatchColumn extends StatelessWidget {
             _Entry(
                 id: near.itemId,
                 item: titles[near.itemId],
-                column: this,
+                chosen: chosen == near.itemId,
+                onChoose: onChoose,
                 subtitle: l.matchYesOf(near.yes, near.of)),
         ],
       ],
@@ -62,19 +67,22 @@ class MatchColumn extends StatelessWidget {
 
 class _Entry extends ConsumerWidget {
   const _Entry(
-      {required this.id, required this.item, required this.column, this.subtitle});
+      {required this.id,
+      required this.item,
+      required this.chosen,
+      required this.onChoose,
+      this.subtitle});
 
   final String id;
   final JellyfinItem? item;
-  final MatchColumn column;
+  final bool chosen;
+  final ValueChanged<String>? onChoose;
   final String? subtitle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final item = this.item;
-    final isChosen = column.chosen == id;
-    final onChoose = column.onChoose;
     final body = Padding(
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
       child: Row(
@@ -102,7 +110,7 @@ class _Entry extends ConsumerWidget {
                 if (subtitle != null)
                   Text(subtitle!,
                       style: const TextStyle(color: WfColors.creamMuted)),
-                if (isChosen)
+                if (chosen)
                   Text(l.matchPlaysFirst,
                       style: const TextStyle(color: WfColors.gold)),
               ],
@@ -115,7 +123,7 @@ class _Entry extends ConsumerWidget {
       key: Key('match-column-$id'),
       child: onChoose == null
           ? body
-          : InkWell(onTap: () => onChoose(id), child: body),
+          : InkWell(onTap: () => onChoose?.call(id), child: body),
     );
   }
 }

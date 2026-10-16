@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../core/social/match_models.dart';
 import '../../app/theme.dart';
+import '../../core/social/match_models.dart';
 import '../../ui/user_avatar.dart';
 
 /// Diametro degli avatar dei membri.
