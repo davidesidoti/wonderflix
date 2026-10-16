@@ -90,18 +90,11 @@ Future<bool> startMatchParty(BuildContext context, WidgetRef ref,
       for (final item in await library.itemsByIds(userId, ids)) item.id: item,
     };
     final titles = [for (final id in ids) ?found[id]];
-    queue = await buildMatchQueue(library, userId, titles);
-    // Il titolo da cui parte davvero la coda: un titolo saltato (serie senza
-    // episodi) non può dare il nome al party.
-    for (final title in titles) {
-      if (title.id == queue.firstOrNull ||
-          (title.kind == ItemKind.series &&
-              (await library.allEpisodes(userId, title.id))
-                  .any((e) => e.id == queue.firstOrNull))) {
-        head = title;
-        break;
-      }
-    }
+    // La testa è il titolo da cui parte davvero la coda: una serie saltata
+    // (senza episodi) non dà il nome al party.
+    final built = await buildMatchQueue(library, userId, titles);
+    queue = built.queue;
+    head = built.head;
   } on Object catch (error) {
     _log.warning('queue failed: ${error.runtimeType}');
   }

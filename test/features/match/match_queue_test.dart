@@ -36,6 +36,9 @@ void main() {
 
     setUp(() => library = FakeLibraryApi());
 
+    Future<List<String>> queueOf(List<JellyfinItem> titles) async =>
+        (await buildMatchQueue(library, 'u1', titles)).queue;
+
     test('aSeriesFirstStartsFromItsFirstEpisodeWithTheFollowing', () async {
       library.seriesEpisodes['s1'] = [
         episode('e0', 's1', 0),
@@ -43,15 +46,12 @@ void main() {
         episode('e2', 's1', 1),
         episode('e3', 's1', 1),
       ];
-      expect(
-          await buildMatchQueue(
-              library, 'u1', [series('s1'), testItem(id: 'f1')]),
+      expect(await queueOf([series('s1'), testItem(id: 'f1')]),
           ['e1', 'e2', 'e3', 'f1']);
       library.seriesEpisodes['s2'] = [
         for (var i = 0; i < 60; i++) episode('x$i', 's2', 1),
       ];
-      expect((await buildMatchQueue(library, 'u1', [series('s2')])).length,
-          maxPartyQueue);
+      expect((await queueOf([series('s2')])).length, maxPartyQueue);
     });
 
     test('laterTitlesAddOneItemEach', () async {
@@ -59,18 +59,19 @@ void main() {
         episode('e1', 's2', 1),
         episode('e2', 's2', 1),
       ];
-      expect(
-          await buildMatchQueue(library, 'u1',
-              [testItem(id: 'f0'), testItem(id: 'f1'), series('s2')]),
+      expect(await queueOf([testItem(id: 'f0'), testItem(id: 'f1'), series('s2')]),
           ['f0', 'f1', 'e1']);
     });
 
     test('aSeriesWithoutEpisodesIsSkipped', () async {
-      expect(
-          await buildMatchQueue(
-              library, 'u1', [series('s1'), testItem(id: 'f1')]),
-          ['f1']);
-      expect(await buildMatchQueue(library, 'u1', [series('s1')]), isEmpty);
+      final built = await buildMatchQueue(
+          library, 'u1', [series('s1'), testItem(id: 'f1')]);
+      expect(built.queue, ['f1']);
+      // Il titolo da cui parte la coda, non la serie saltata.
+      expect(built.head?.id, 'f1');
+      final none = await buildMatchQueue(library, 'u1', [series('s1')]);
+      expect(none.queue, isEmpty);
+      expect(none.head, isNull);
     });
 
     test('theQueueStopsAtTheLimit', () async {
@@ -81,8 +82,7 @@ void main() {
         series('s1'),
         for (var i = 0; i < 60; i++) testItem(id: 'f$i'),
       ];
-      expect((await buildMatchQueue(library, 'u1', titles)).length,
-          partyQueueLimit);
+      expect((await queueOf(titles)).length, partyQueueLimit);
     });
   });
 }

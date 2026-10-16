@@ -36,7 +36,7 @@ class MatchCelebration extends ConsumerStatefulWidget {
 }
 
 class _MatchCelebrationState extends ConsumerState<MatchCelebration> {
-  late final Timer _timer;
+  late Timer _timer;
   final _focus = FocusNode(debugLabel: 'match-celebration');
 
   /// Chi aveva il focus (il mazzo): lo riprende alla chiusura.
@@ -52,6 +52,17 @@ class _MatchCelebrationState extends ConsumerState<MatchCelebration> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _focus.requestFocus();
     });
+  }
+
+  @override
+  void didUpdateWidget(MatchCelebration old) {
+    super.didUpdateWidget(old);
+    // Un altro match in coda: stesso strato, il focus resta qui e si
+    // restituisce al mazzo solo quando l'ultimo si chiude.
+    if (old.id == widget.id) return;
+    _done = false;
+    _timer.cancel();
+    _timer = Timer(matchCelebrationDuration, _finish);
   }
 
   @override

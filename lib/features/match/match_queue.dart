@@ -22,12 +22,15 @@ List<String> matchPartyOrder(MatchState state, {String? first}) {
 /// primo titolo come "Guarda insieme" (una serie dal primo episodio con
 /// stagione >= 1, con i successivi), gli altri con un solo elemento. Una
 /// serie senza episodi veri si salta; al massimo [partyQueueLimit] elementi.
-Future<List<String>> buildMatchQueue(
+/// Con la coda torna il titolo da cui parte (`null` se la coda è vuota).
+Future<({List<String> queue, JellyfinItem? head})> buildMatchQueue(
     LibraryApi library, String userId, List<JellyfinItem> titles) async {
   final queue = <String>[];
+  JellyfinItem? head;
   for (final title in titles) {
     if (queue.length >= partyQueueLimit) break;
     if (title.kind != ItemKind.series) {
+      head ??= title;
       queue.add(title.id);
       continue;
     }
@@ -35,9 +38,10 @@ Future<List<String>> buildMatchQueue(
     if (episodes.isEmpty) continue;
     final start = episodes.indexWhere((e) => (e.parentIndexNumber ?? 0) >= 1);
     final from = episodes.sublist(start < 0 ? 0 : start);
+    head ??= title;
     // Solo il primo titolo mette gli episodi successivi.
     final take = queue.isEmpty ? maxPartyQueue : 1;
     queue.addAll(from.take(take).map((e) => e.id));
   }
-  return queue.take(partyQueueLimit).toList();
+  return (queue: queue.take(partyQueueLimit).toList(), head: head);
 }

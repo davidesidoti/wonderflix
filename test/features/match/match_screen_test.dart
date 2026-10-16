@@ -376,6 +376,25 @@ void main() {
       expect(find.text('È un match!'), findsNothing);
     });
 
+    testWidgets('aKeyClosesTheSecondCelebrationWithoutVoting', (tester) async {
+      final container = await pumpRoom(tester, state: votingState);
+      await newState(tester, container, matches: const ['m1', 'm2']);
+      await tester.pump(matchCelebrationDuration);
+      await tester.pump();
+      await tester.pump();
+      expect(find.byKey(const Key('match-celebration-m2')), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+
+      expect(find.byKey(const Key('match-celebration-m2')), findsNothing);
+      expect(match.calls.where((c) => c.startsWith('vote')), isEmpty);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(match.calls, contains('vote r1 m1 yes'));
+    });
+
     testWidgets('oldMatchesAreNotCelebratedWhenOpeningThePage', (tester) async {
       await pumpRoom(tester,
           state: testMatchState(

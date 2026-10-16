@@ -80,6 +80,20 @@ void main() {
     ]);
   });
 
+  test('aFailedLoadIsRetriedWithoutANewState', () async {
+    library.itemsById['m1'] = testItem(id: 'm1');
+    library.error = Exception('rete');
+    match.rooms['r1'] = voting(1, ['m1']);
+    await container.read(matchRoomProvider.notifier).open();
+    await pumpEventQueue();
+    expect(container.read(matchTitlesProvider), isEmpty);
+
+    library.error = null;
+    await Future<void>.delayed(matchTitlesRetryDelay * 1.5);
+
+    expect(container.read(matchTitlesProvider)['m1']?.id, 'm1');
+  });
+
   test('aNewRoomStartsEmpty', () async {
     library.itemsById['m1'] = testItem(id: 'm1');
     match.rooms['r1'] = voting(1, ['m1']);
