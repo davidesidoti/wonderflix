@@ -4,6 +4,7 @@ import 'package:logging/logging.dart';
 
 import '../party_channel/party_channel_models.dart';
 import '../syncplay/syncplay_models.dart';
+import 'match_models.dart';
 
 final _log = Logger('social');
 
@@ -41,6 +42,9 @@ abstract final class PluginFeatures {
 
   /// Cosa guardano gli amici (spec O §6.7).
   static const friendsActivity = 'friendsActivity';
+
+  /// Il match del film (spec P §6.7).
+  static const match = 'match';
 }
 
 /// Risposta di `GET /WonderFlixWatchParty/Info`, con le funzioni.
@@ -301,6 +305,21 @@ final class InboxChangedEvent extends SocialEvent {
   const InboxChangedEvent();
 }
 
+/// Un amico ci invita nella sua sala del match (spec P §6.5).
+final class MatchInviteEvent extends SocialEvent {
+  const MatchInviteEvent({required this.roomId, required this.fromName});
+
+  final String roomId;
+  final String fromName;
+}
+
+/// Lo stato di una sala del match di cui siamo membri (spec P §6.5).
+final class MatchUpdatedEvent extends SocialEvent {
+  const MatchUpdatedEvent(this.state);
+
+  final MatchState state;
+}
+
 /// Legge un avviso del plugin (stringa JSON dal WebSocket). `null` se non è
 /// un avviso sociale; una riga nel log se è malformato.
 SocialEvent? parseSocialEvent(Object? raw) {
@@ -332,6 +351,14 @@ SocialEvent? parseSocialEvent(Object? raw) {
         );
       case 'InboxChanged':
         return const InboxChangedEvent();
+      case 'MatchInvite':
+        return MatchInviteEvent(
+          roomId: json['RoomId'] as String,
+          fromName: json['FromName'] as String? ?? '',
+        );
+      case 'MatchUpdated':
+        return MatchUpdatedEvent(
+            MatchState.fromJson(json['State'] as Map<String, dynamic>));
     }
     return null;
   } on Object catch (error) {

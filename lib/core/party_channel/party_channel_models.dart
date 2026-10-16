@@ -176,7 +176,7 @@ final class PartyReactionEvent extends PartyEvent {
 }
 
 /// Tipi degli avvisi del plugin che non riguardano il canale del gruppo
-/// (spec F §6.8, spec G §6.4): li legge `parseSocialEvent`, qui si scartano
+/// (spec F §6.8, spec G §6.4, spec P §6.5): li legge `parseSocialEvent`, qui si scartano
 /// in silenzio.
 const socialEventTypes = {
   'FriendRequest',
@@ -184,6 +184,8 @@ const socialEventTypes = {
   'PartyStarted',
   'PartyInvite',
   'InboxChanged',
+  'MatchInvite',
+  'MatchUpdated',
 };
 
 /// Legge un evento timbrato, da stringa JSON (WebSocket) o già decodificato

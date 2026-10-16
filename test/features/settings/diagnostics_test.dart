@@ -213,6 +213,7 @@ void main() {
   test('describePluginFeatures', () {
     expect(describePluginFeatures(const {}), 'nessuna');
     expect(describePluginFeatures(const {PluginFeatures.friends}), 'amici');
+    expect(describePluginFeatures(const {PluginFeatures.match}), 'match');
     expect(
         describePluginFeatures(
             const {PluginFeatures.friends, PluginFeatures.parties}),

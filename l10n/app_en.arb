@@ -768,5 +768,22 @@
   "@friendsWatchedByTwo": {"placeholders": {"first": {"type": "String"}, "second": {"type": "String"}}},
   "friendsWatchedByMany": "Watched by {name} and {count} others",
   "@friendsWatchedByMany": {"placeholders": {"name": {"type": "String"}, "count": {"type": "int"}}},
-  "homeRowUnavailableFriendsActivity": "Needs plugin 1.9.0 and watch party access"
+  "homeRowUnavailableFriendsActivity": "Needs plugin 1.9.0 and watch party access",
+  "matchButton": "Match",
+  "matchTitle": "Movie match",
+  "matchInviteFriend": "Invite",
+  "matchInvited": "Invited",
+  "matchStart": "Start",
+  "matchNeedFriend": "At least one friend has to join",
+  "matchWaitingFor": "Waiting for {name} to start…",
+  "@matchWaitingFor": {"placeholders": {"name": {"type": "String"}}},
+  "matchFailed": "Didn't work, try again",
+  "matchClosed": "Room closed",
+  "matchAlreadyStarted": "The match has already started",
+  "matchFull": "Room full",
+  "matchInAnotherRoom": "You're already in another room",
+  "matchInviteFrom": "{name} invited you to a movie match",
+  "@matchInviteFrom": {"placeholders": {"name": {"type": "String"}}},
+  "matchFriendsOnline": "Friends online",
+  "matchNoFriendsOnline": "No friends online"
 }

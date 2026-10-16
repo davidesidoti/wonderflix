@@ -905,5 +905,22 @@
   "@friendsWatchedByTwo": {"placeholders": {"first": {"type": "String"}, "second": {"type": "String"}}},
   "friendsWatchedByMany": "Visto da {name} e altri {count}",
   "@friendsWatchedByMany": {"placeholders": {"name": {"type": "String"}, "count": {"type": "int"}}},
-  "homeRowUnavailableFriendsActivity": "Serve il plugin 1.9.0 e l'accesso ai watch party"
+  "homeRowUnavailableFriendsActivity": "Serve il plugin 1.9.0 e l'accesso ai watch party",
+  "matchButton": "Match",
+  "matchTitle": "Match del film",
+  "matchInviteFriend": "Invita",
+  "matchInvited": "Invitato",
+  "matchStart": "Inizia",
+  "matchNeedFriend": "Serve almeno un amico nella sala",
+  "matchWaitingFor": "In attesa che {name} inizi…",
+  "@matchWaitingFor": {"placeholders": {"name": {"type": "String"}}},
+  "matchFailed": "Non riuscito, riprova",
+  "matchClosed": "Sala chiusa",
+  "matchAlreadyStarted": "Il match è già iniziato",
+  "matchFull": "Sala piena",
+  "matchInAnotherRoom": "Sei già in un'altra sala",
+  "matchInviteFrom": "{name} ti invita a un match",
+  "@matchInviteFrom": {"placeholders": {"name": {"type": "String"}}},
+  "matchFriendsOnline": "Amici online",
+  "matchNoFriendsOnline": "Nessun amico online"
 }

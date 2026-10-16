@@ -1,6 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/social/match_models.dart';
 import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
+
+import '../../support/match_fakes.dart';
 
 void main() {
   test('Info: versione e funzioni; senza Features nessuna', () {
@@ -115,6 +120,26 @@ void main() {
     final invite = parseSocialEvent('{"Protocol":1,"Type":"PartyInvite",'
         '"FromName":"Mario","GroupId":"g1","Name":"Mario · Dune"}');
     expect((invite! as PartyInviteEvent).fromName, 'Mario');
+  });
+
+  test('avvisi del match: invito e stato della sala', () {
+    final invite = parseSocialEvent(jsonEncode(
+        {'Protocol': 1, 'Type': 'MatchInvite', 'FromName': 'Luigi', 'RoomId': 'r1'}));
+    expect(invite, isA<MatchInviteEvent>());
+    expect((invite! as MatchInviteEvent).roomId, 'r1');
+    expect((invite as MatchInviteEvent).fromName, 'Luigi');
+
+    final updated = parseSocialEvent(matchUpdatedReceived(
+            testMatchState(rev: 7, phase: MatchPhase.voting, stack: ['m1']))
+        .payload);
+    expect(updated, isA<MatchUpdatedEvent>());
+    final state = (updated! as MatchUpdatedEvent).state;
+    expect((state.roomId, state.rev, state.phase), ('r1', 7, MatchPhase.voting));
+    expect(state.stack, ['m1']);
+
+    // Senza stato: avviso malformato, ignorato.
+    expect(parseSocialEvent(jsonEncode({'Protocol': 1, 'Type': 'MatchUpdated'})),
+        isNull);
   });
 
   test('codici: forma canonica e forma da mostrare', () {

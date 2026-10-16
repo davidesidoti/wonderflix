@@ -106,6 +106,23 @@ void main() {
     expect(noParty.read(socialAvailabilityProvider).friendsActivity, isFalse);
   });
 
+  test('Info con il match: funzione match, solo con i watch party', () async {
+    api.install(features: const {
+      PluginFeatures.friends,
+      PluginFeatures.match,
+    });
+    final c = container();
+    await pumpEventQueue();
+    expect(c.read(socialAvailabilityProvider),
+        const SocialFeatures(friends: true, match: true));
+
+    final noParty = container(
+        session: const SessionSignedIn(JellyfinUser(
+            id: 'u1', name: 'Mario', syncPlayAccess: SyncPlayAccess.none)));
+    await pumpEventQueue();
+    expect(noParty.read(socialAvailabilityProvider).match, isFalse);
+  });
+
   test('Info con le richieste: funzione requests, anche senza watch party',
       () async {
     api.install(features: const {PluginFeatures.inbox, PluginFeatures.requests});

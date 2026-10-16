@@ -30,6 +30,7 @@ class SocialFeatures {
     this.upcomingMovies = false,
     this.recommendations = false,
     this.friendsActivity = false,
+    this.match = false,
     this.known = true,
   });
 
@@ -79,6 +80,10 @@ class SocialFeatures {
   /// l'accesso ai watch party (piano 21b, decisione 7).
   final bool friendsActivity;
 
+  /// Il match del film (spec P §7.1): come gli amici, solo con l'accesso ai
+  /// watch party.
+  final bool match;
+
   /// `false` finché `Info` non dà una risposta certa: le funzioni, oppure
   /// un 400/401/403/404. Un errore di rete non basta (vedi
   /// [SocialAvailability]).
@@ -99,6 +104,7 @@ class SocialFeatures {
       other.upcomingMovies == upcomingMovies &&
       other.recommendations == recommendations &&
       other.friendsActivity == friendsActivity &&
+      other.match == match &&
       other.known == known;
 
   @override
@@ -115,6 +121,7 @@ class SocialFeatures {
       upcomingMovies,
       recommendations,
       friendsActivity,
+      match,
       known);
 
   @override
@@ -122,7 +129,7 @@ class SocialFeatures {
       'inbox: $inbox, requests: $requests, collections: $collections, '
       'avatars: $avatars, account: $account, home: $home, '
       'upcomingSeries: $upcomingSeries, upcomingMovies: $upcomingMovies, '
-      'recommendations: $recommendations, friendsActivity: $friendsActivity, known: $known)';
+      'recommendations: $recommendations, friendsActivity: $friendsActivity, match: $match, known: $known)';
 }
 
 /// Chiede `Info` al plugin dopo il login e a ogni connessione del WebSocket,
@@ -228,6 +235,7 @@ class SocialAvailability extends Notifier<SocialFeatures> {
             _canJoin && info.features.contains(PluginFeatures.recommendations),
         friendsActivity:
             _canJoin && info.features.contains(PluginFeatures.friendsActivity),
+        match: _canJoin && info.features.contains(PluginFeatures.match),
       ));
     } on SocialException catch (error) {
       if (!_isCurrent(generation)) return;
