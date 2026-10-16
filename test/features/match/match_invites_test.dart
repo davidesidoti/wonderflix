@@ -14,6 +14,7 @@ import 'package:wonderflix/features/player/player_active.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_invites.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
+import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 
 import '../../support/match_fakes.dart';
 import '../../support/pump_app.dart';
@@ -62,6 +63,26 @@ void main() {
 
       unawaited(container.read(matchRoomProvider.notifier).open());
       async.flushMicrotasks();
+      events.add(matchInviteReceived('r2', 'Luigi'));
+      async.flushMicrotasks();
+      expect(container.read(matchInvitesProvider), isNull);
+    });
+  });
+
+  test('noMatchInviteInsideAWatchParty', () {
+    fakeAsync((async) {
+      final container =
+          ProviderContainer(overrides: overrides(), retry: (_, _) => null);
+      addTearDown(container.dispose);
+      container.listen(matchInvitesProvider, (_, _) {});
+      container.listen(watchPartySessionProvider, (_, _) {});
+      async.flushMicrotasks();
+
+      unawaited(container.read(watchPartySessionProvider.notifier).join('g1'));
+      async.flushMicrotasks();
+      expect(container.read(watchPartySessionProvider).phase,
+          isNot(WatchPartyPhase.none));
+
       events.add(matchInviteReceived('r2', 'Luigi'));
       async.flushMicrotasks();
       expect(container.read(matchInvitesProvider), isNull);

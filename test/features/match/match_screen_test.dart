@@ -7,9 +7,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wonderflix/app/providers.dart';
+import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/social/match_api.dart';
 import 'package:wonderflix/core/social/match_models.dart';
 import 'package:wonderflix/core/social/social_models.dart';
+import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/match/match_actions.dart';
 import 'package:wonderflix/features/match/match_celebration.dart';
@@ -18,18 +20,24 @@ import 'package:wonderflix/features/match/match_room_controller.dart';
 import 'package:wonderflix/features/match/match_screen.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/tonight/tonight_controller.dart';
+import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
+import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 import 'package:wonderflix/ui/wf_buttons.dart';
 
 import '../../support/library_fakes.dart';
 import '../../support/match_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/social_fakes.dart';
+import '../../support/watch_party_fakes.dart';
 
 void main() {
   late FakeMatchApi match;
   late FakeSocialApi social;
   late FakeLibraryApi library;
   late SharedPreferences prefs;
+  late FakeSyncPlayApi syncPlay;
+  late FakePartyChannelApi channelApi;
+  late StreamController<ServerEvent> events;
 
   const mario = MatchMember(userId: 'u1', name: 'Mario', voted: 0);
   const luigi = MatchMember(userId: 'u2', name: 'Luigi', voted: 0);
@@ -45,7 +53,17 @@ void main() {
       ]);
     SharedPreferences.setMockInitialValues({});
     prefs = await SharedPreferences.getInstance();
+    syncPlay = FakeSyncPlayApi();
+    channelApi = FakePartyChannelApi()..install();
+    events = StreamController<ServerEvent>.broadcast();
+    syncPlay.onCall = (call) {
+      if (call.startsWith('create') || call.startsWith('join')) {
+        events.add(SyncPlayGroupUpdated(GroupJoined('g1', testGroup())));
+      }
+    };
   });
+
+  tearDown(() => events.close());
 
   /// La Home finta con "apri" e la pagina della sala `r1` già aperta.
   Future<ProviderContainer> pumpRoom(WidgetTester tester,
@@ -78,7 +96,11 @@ void main() {
     );
     await pumpAppRouter(tester, router, overrides: [
       ...socialTestOverrides(social,
-          features: const SocialFeatures(friends: true, match: true)),
+          events: events.stream,
+          features: const SocialFeatures(
+              friends: true, parties: true, match: true)),
+      syncPlayApiProvider.overrideWithValue(syncPlay),
+      partyChannelApiProvider.overrideWithValue(channelApi),
       matchApiProvider.overrideWithValue(match),
       sharedPreferencesProvider.overrideWithValue(prefs),
       libraryApiProvider.overrideWithValue(library),
@@ -372,6 +394,139 @@ void main() {
 
       expect(match.calls, contains('vote r1 m1 no'));
       expect(find.text('Alien'), findsOneWidget);
+    });
+
+    testWidgets('allVotedWaitsForTheOthers', (tester) async {
+      await pumpRoom(tester,
+          state: testMatchState(
+              phase: MatchPhase.voting,
+              members: const [
+                MatchMember(userId: 'u1', name: 'Mario', voted: 2),
+                luigi,
+              ],
+              stack: const ['m1', 'm2']));
+
+      expect(find.text('Hai votato tutto, aspetta gli altri'), findsOneWidget);
+      expect(find.text('Altri 30 titoli'), findsNothing);
+    });
+
+    testWidgets('whenEveryoneHasFinishedTheCreatorGetsMore', (tester) async {
+      await pumpRoom(tester,
+          state: testMatchState(
+              phase: MatchPhase.voting,
+              members: const [
+                MatchMember(userId: 'u1', name: 'Mario', voted: 2),
+                MatchMember(userId: 'u2', name: 'Luigi', voted: 2),
+              ],
+              stack: const ['m1', 'm2']));
+
+      await tester.tap(find.text('Altri 30 titoli'));
+      await tester.pumpAndSettle();
+
+      expect(match.calls, contains('more r1'));
+    });
+
+    testWidgets('aMemberDoesNotGetMore', (tester) async {
+      await pumpRoom(tester,
+          state: testMatchState(
+              phase: MatchPhase.voting,
+              creatorId: 'u2',
+              creatorName: 'Luigi',
+              members: const [
+                MatchMember(userId: 'u1', name: 'Mario', voted: 2),
+                MatchMember(userId: 'u2', name: 'Luigi', voted: 2),
+              ],
+              stack: const ['m1', 'm2']));
+
+      expect(find.text('Altri 30 titoli'), findsNothing);
+    });
+
+    testWidgets('anEmptyStackSaysNoTitles', (tester) async {
+      await pumpRoom(tester,
+          state: testMatchState(
+              phase: MatchPhase.voting, members: const [mario, luigi]));
+
+      expect(find.text('Nessun titolo con questi filtri'), findsOneWidget);
+      expect(find.text('Altri 30 titoli'), findsOneWidget);
+    });
+
+    testWidgets('startPartyNeedsAMatchAndUsesTheChosenFirst', (tester) async {
+      final container = await pumpRoom(tester, state: votingState);
+      expect(find.byKey(const Key('match-start-party')), findsNothing);
+
+      match.rooms['r1'] = testMatchState(
+          rev: 2,
+          phase: MatchPhase.voting,
+          members: const [mario, luigi],
+          stack: const ['m1', 'm2'],
+          matches: const ['m1', 'm2']);
+      await container.read(matchRoomProvider.notifier).reload();
+      await tester.pump();
+      await tester.pump(matchCelebrationDuration);
+      await tester.pump(matchCelebrationDuration);
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('match-column-m2')));
+      await tester.pump();
+      expect(find.text('Parte per primo'), findsOneWidget);
+
+      await tester.ensureVisible(find.byKey(const Key('match-start-party')));
+      final gate = library.itemsByIdsGate = Completer<void>();
+      await tester.tap(find.byKey(const Key('match-start-party')));
+      await tester.pump();
+      expect(
+          tester
+              .widget<WfButton>(find.byKey(const Key('match-start-party')))
+              .onPressed,
+          isNull,
+          reason: 'spento mentre parte');
+      gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(syncPlay.queues.single.itemIds, ['m2', 'm1']);
+      expect(match.calls, contains('party r1 g1'));
+      await container.read(watchPartySessionProvider.notifier).leave();
+      await tester.pump();
+    });
+
+    Future<ProviderContainer> closeWithParty(WidgetTester tester) async {
+      final container = await pumpRoom(tester,
+          state: testMatchState(
+              phase: MatchPhase.voting,
+              creatorId: 'u2',
+              creatorName: 'Luigi',
+              members: const [luigi, mario],
+              stack: const ['m1', 'm2']));
+      match.rooms['r1'] = testMatchState(
+          rev: 2,
+          phase: MatchPhase.closed,
+          creatorId: 'u2',
+          creatorName: 'Luigi',
+          closedReason: MatchClosedReason.partyStarted,
+          partyGroupId: 'g1');
+      await container.read(matchRoomProvider.notifier).reload();
+      await tester.pumpAndSettle();
+      return container;
+    }
+
+    testWidgets('membersJoinThePartyByThemselves', (tester) async {
+      final container = await closeWithParty(tester);
+
+      expect(syncPlay.calls, contains('join g1'));
+      expect(find.byType(MatchScreen), findsNothing);
+      expect(find.text('Sala chiusa'), findsNothing);
+      await container.read(watchPartySessionProvider.notifier).leave();
+      await tester.pump();
+    });
+
+    testWidgets('aMemberWhoCannotJoinStillLeavesThePage', (tester) async {
+      syncPlay.error = Exception('no');
+      await closeWithParty(tester);
+
+      expect(syncPlay.calls, contains('join g1'));
+      expect(find.byType(MatchScreen), findsNothing);
+      expect(find.text('Sala chiusa'), findsNothing);
+      expect(find.byType(SnackBar), findsOneWidget);
     });
   });
 }

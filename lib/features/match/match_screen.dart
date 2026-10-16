@@ -20,6 +20,7 @@ import '../profiles/profile_preferences.dart';
 import '../tonight/tonight_controller.dart';
 import '../tonight/tonight_filters_bar.dart';
 import '../tonight/tonight_logic.dart';
+import '../watch_party/watch_party_actions.dart';
 import 'match_actions.dart';
 import 'match_celebration.dart';
 import 'match_column.dart';
@@ -68,6 +69,11 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
   Set<String>? _seenMatches;
   final _celebrate = <String>[];
 
+  /// Il match scelto per partire per primo nel party; `null` = il primo in ordine.
+  String? _firstChoice;
+  bool _partyStarting = false;
+  bool _moreLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -113,6 +119,13 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     final ours = _isThisRoom(view);
     if (ours && !view!.closed) return;
     _closing = true;
+    // Il party è partito dalla sala: chi non l'ha aperta ci entra da sé. Se
+    // non riesce, joinWatchParty avvisa e la pagina si chiude lo stesso.
+    final groupId = ours ? view!.state?.partyGroupId : null;
+    if (groupId != null &&
+        !view!.state!.isCreator(ref.read(currentUserIdProvider))) {
+      unawaited(joinWatchParty(context, ref, groupId));
+    }
     _closeNotice =
         ours && view!.state?.closedReason != MatchClosedReason.partyStarted;
     WidgetsBinding.instance.addPostFrameCallback((_) => _close());
@@ -251,6 +264,50 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     }));
   }
 
+  Future<void> _more() async {
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    setState(() => _moreLoading = true);
+    final failure = await _controller.more();
+    if (!mounted) return;
+    setState(() => _moreLoading = false);
+    if (failure != null) {
+      messenger?.showSnackBar(
+          SnackBar(content: Text(matchFailureText(l, failure))));
+    }
+  }
+
+  Future<void> _startParty() async {
+    if (_partyStarting) return;
+    setState(() => _partyStarting = true);
+    await startMatchParty(context, ref, first: _firstChoice);
+    if (mounted) setState(() => _partyStarting = false);
+  }
+
+  /// Fine della pila: attesa degli altri, o "Altri 30 titoli" per chi ha aperto
+  /// quando hanno finito tutti.
+  Widget _endOfStack(AppLocalizations l, MatchRoomView view, MatchState state) {
+    final me = ref.watch(currentUserIdProvider);
+    final everyone = state.members.every((m) =>
+        (m.userId == me ? view.position(me) : m.voted) >= state.stack.length);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(state.stack.isEmpty ? l.matchEmpty : l.matchAllVoted,
+            textAlign: TextAlign.center, style: _muted.copyWith(fontSize: 16)),
+        if (everyone && state.isCreator(me)) ...[
+          const SizedBox(height: 16),
+          WfButton.secondary(
+            key: const Key('match-more'),
+            label: l.matchMore,
+            icon: LucideIcons.refreshCw,
+            onPressed: _moreLoading ? null : () => unawaited(_more()),
+          ),
+        ],
+      ],
+    );
+  }
+
   /// Il mazzo a sinistra; a destra la colonna dei match (piano 22c, Task 4).
   Widget _voting(AppLocalizations l, MatchRoomView view, MatchState state) {
     final titles = ref.watch(matchTitlesProvider);
@@ -273,7 +330,9 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: _deckMaxWidth),
-              child: topId != null && !loaded
+              child: topId == null
+                  ? _endOfStack(l, view, state)
+                  : !loaded
                   ? const Center(child: CircularProgressIndicator())
                   : MatchSwipeDeck(
                       cards: cards,
@@ -283,7 +342,33 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
           ),
         ),
         const SizedBox(width: 32),
-        Expanded(flex: 2, child: MatchColumn(state: state, titles: titles)),
+        Expanded(
+          flex: 2,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              MatchColumn(
+                state: state,
+                titles: titles,
+                chosen: _firstChoice,
+                onChoose: state.isCreator(ref.watch(currentUserIdProvider))
+                    ? (id) => setState(() => _firstChoice = id)
+                    : null,
+              ),
+              if (state.isCreator(ref.watch(currentUserIdProvider)) &&
+                  (state.matches.isNotEmpty || state.nearMatches.isNotEmpty)) ...[
+                const SizedBox(height: 24),
+                WfButton.primary(
+                  key: const Key('match-start-party'),
+                  label: l.matchStartParty,
+                  icon: LucideIcons.play,
+                  onPressed:
+                      _partyStarting ? null : () => unawaited(_startParty()),
+                ),
+              ],
+            ],
+          ),
+        ),
       ],
     );
     if (celebrating == null) return row;

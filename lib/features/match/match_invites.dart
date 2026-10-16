@@ -11,6 +11,7 @@ import '../player/player_active.dart';
 import '../social/social_providers.dart';
 import '../watch_party/invite_card_frame.dart';
 import '../watch_party/watch_party_invites.dart';
+import '../watch_party/watch_party_session.dart';
 import 'match_actions.dart';
 import 'match_room_controller.dart';
 
@@ -56,6 +57,8 @@ class MatchInvites extends Notifier<MatchInviteEvent?> {
     if (ref.read(playerActiveProvider)) return;
     final room = ref.read(matchRoomProvider);
     if (room != null && !room.closed) return;
+    // Dentro un watch party (o mentre ci si entra) l'invito non si mostra.
+    if (ref.read(watchPartySessionProvider).phase != WatchPartyPhase.none) return;
     ref.read(watchPartyInvitesProvider.notifier).dismiss();
     _timer?.cancel();
     state = event;
