@@ -91,7 +91,17 @@ Future<bool> startMatchParty(BuildContext context, WidgetRef ref,
     };
     final titles = [for (final id in ids) ?found[id]];
     queue = await buildMatchQueue(library, userId, titles);
-    head = titles.firstOrNull;
+    // Il titolo da cui parte davvero la coda: un titolo saltato (serie senza
+    // episodi) non può dare il nome al party.
+    for (final title in titles) {
+      if (title.id == queue.firstOrNull ||
+          (title.kind == ItemKind.series &&
+              (await library.allEpisodes(userId, title.id))
+                  .any((e) => e.id == queue.firstOrNull))) {
+        head = title;
+        break;
+      }
+    }
   } on Object catch (error) {
     _log.warning('queue failed: ${error.runtimeType}');
   }

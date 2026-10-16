@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/social/match_api.dart';
+import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/core/social/match_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
@@ -105,6 +107,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(result, isTrue);
     expect(container.read(watchPartySessionProvider).inGroup, isTrue);
+    expect(match.calls, contains('party r1 g1'));
     await leave(tester, container);
   });
 
@@ -116,5 +119,28 @@ void main() {
     expect(result, isFalse);
     expect(find.text('Non riuscito, riprova'), findsOneWidget);
     expect(syncPlay.calls.where((c) => c.startsWith('create')), isEmpty);
+  });
+
+  testWidgets('aSkippedSeriesDoesNotNameTheParty', (tester) async {
+    match.rooms['r1'] = testMatchState(
+        phase: MatchPhase.voting, rev: 2, matches: ['s1', 'm2']);
+    library.itemsById['s1'] = testItem(id: 's1', name: 'Serie', kind: ItemKind.series);
+    final container = await pumpButton(tester);
+    await tester.tap(find.text('via'));
+    await tester.pumpAndSettle();
+    expect(result, isTrue);
+    expect(syncPlay.queues.single.itemIds, ['m2']);
+    expect(syncPlay.calls.first, contains('Heat'));
+    await leave(tester, container);
+  });
+
+  testWidgets('onRegistered is not called when the registration fails',
+      (tester) async {
+    social.registerFailure = SocialFailure.network;
+    await pumpButton(tester);
+    await tester.tap(find.text('via'));
+    await tester.pumpAndSettle();
+    expect(result, isFalse);
+    expect(match.calls.where((c) => c.startsWith('party')), isEmpty);
   });
 }
