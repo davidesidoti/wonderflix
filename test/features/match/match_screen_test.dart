@@ -282,6 +282,8 @@ void main() {
       await pumpRoom(tester, state: votingState);
       await tester.pumpAndSettle();
       expect(match.calls.where((c) => c == 'vote r1 m1 no'), hasLength(1));
+      // Il voto non è dell'utente: niente avviso.
+      expect(find.text('Voto non inviato'), findsNothing);
 
       await tester.pump(const Duration(seconds: 3));
       await tester.pumpAndSettle();

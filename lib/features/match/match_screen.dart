@@ -191,11 +191,11 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
 
   /// Il voto della carta in cima; se non parte, la carta torna da sola e si
   /// avvisa (un `notNext` si riallinea in silenzio). `true` se è partito.
-  Future<bool> _vote(String itemId, bool yes) async {
+  Future<bool> _vote(String itemId, bool yes, {bool silent = false}) async {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.maybeOf(context);
     final failure = await _controller.vote(itemId, yes: yes);
-    if (failure != null && failure != MatchFailure.notNext) {
+    if (!silent && failure != null && failure != MatchFailure.notNext) {
       messenger?.showSnackBar(SnackBar(content: Text(l.matchVoteNotSent)));
     }
     return failure == null;
@@ -216,7 +216,7 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
         !_autoVoted.add(topId)) {
       return;
     }
-    unawaited(_vote(topId, false).then((sent) {
+    unawaited(_vote(topId, false, silent: true).then((sent) {
       if (sent || !mounted) return;
       _autoRetry?.cancel();
       _autoRetry = Timer(_autoRetryDelay, () {
