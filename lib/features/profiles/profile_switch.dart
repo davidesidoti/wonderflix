@@ -7,6 +7,7 @@ import 'package:logging/logging.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_confirm_dialog.dart';
 import '../auth/session_controller.dart';
+import '../match/match_room_controller.dart';
 import '../watch_party/watch_party_session.dart';
 
 final _log = Logger('profiles');
@@ -21,7 +22,8 @@ const partyLeaveTimeout = Duration(seconds: 3);
 ///
 /// Un cambio confermato si fa anche se chi l'ha chiesto (il menu, le
 /// Impostazioni) sparisce mentre si esce dal party; non si fa se nel
-/// frattempo la sessione è cambiata (un'uscita, un 401).
+/// frattempo la sessione è cambiata (un'uscita, un 401). Esce anche dalla sala
+/// del match (spec P §7.3).
 Future<void> changeProfile(BuildContext context, WidgetRef ref,
     {bool addProfile = false}) async {
   // Tutto quello che serve dopo le attese si legge prima: dopo, `ref` e
@@ -30,6 +32,7 @@ Future<void> changeProfile(BuildContext context, WidgetRef ref,
   final session = ref.read(sessionControllerProvider.notifier);
   final before = ref.read(sessionControllerProvider);
   final userId = before is SessionSignedIn ? before.user.id : null;
+  final match = ref.read(matchRoomProvider.notifier);
   if (ref.read(watchPartySessionProvider).phase != WatchPartyPhase.none) {
     final party = ref.read(watchPartySessionProvider.notifier);
     final l = AppLocalizations.of(context);
@@ -46,6 +49,18 @@ Future<void> changeProfile(BuildContext context, WidgetRef ref,
       await party.leave().timeout(partyLeaveTimeout);
     } on TimeoutException {
       _log.info('uscita dal watch party lenta: si cambia profilo lo stesso');
+    }
+    final now = container.read(sessionControllerProvider);
+    if (userId == null || now is! SessionSignedIn || now.user.id != userId) {
+      return;
+    }
+  }
+  // Spec P §7.3: una sala lasciata aperta resterebbe al profilo di prima.
+  if (container.read(matchRoomProvider) != null) {
+    try {
+      await match.leave().timeout(partyLeaveTimeout);
+    } on TimeoutException {
+      _log.info('uscita dalla sala del match lenta: si cambia profilo lo stesso');
     }
     final now = container.read(sessionControllerProvider);
     if (userId == null || now is! SessionSignedIn || now.user.id != userId) {

@@ -4,11 +4,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/match/match_providers.dart';
+import 'package:wonderflix/features/match/match_room_controller.dart';
 import 'package:wonderflix/features/profiles/profile_switch.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
+import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 
 import '../../support/fake_session_controller.dart';
+import '../../support/match_fakes.dart';
 import '../../support/pump_app.dart';
+import '../../support/social_fakes.dart';
 import '../../support/test_data.dart';
 
 /// Un watch party fisso: [leave] aspetta [gate], se c'è.
@@ -34,6 +40,7 @@ class _Party extends WatchPartySession {
 void main() {
   late FakeSessionController session;
   late _Party party;
+  late FakeMatchApi match;
 
   /// Il pulsante che cambia profilo; [visible] lo toglie (come il menu che
   /// si chiude o la pagina che cambia).
@@ -43,6 +50,7 @@ void main() {
       {bool inGroup = false, Completer<void>? gate, bool add = false}) async {
     session = FakeSessionController(const SessionSignedIn(testUser));
     party = _Party(inGroup: inGroup, gate: gate);
+    match = FakeMatchApi();
     visible = ValueNotifier(true);
     addTearDown(visible.dispose);
     await pumpApp(
@@ -64,6 +72,10 @@ void main() {
       overrides: [
         sessionControllerProvider.overrideWith(() => session),
         watchPartySessionProvider.overrideWith(() => party),
+        socialAvailabilityProvider.overrideWith(
+            () => FakeSocialAvailability(const SocialFeatures(match: true))),
+        matchApiProvider.overrideWithValue(match),
+        watchPartyEventsProvider.overrideWithValue(const Stream.empty()),
       ],
     );
   }
@@ -74,6 +86,20 @@ void main() {
     await tester.pump();
     expect(session.switchCalls, 1);
     expect(party.leaveCalls, 0);
+  });
+
+  testWidgets('cambiando profilo si esce dalla sala del match', (tester) async {
+    await pumpButton(tester);
+    final container =
+        ProviderScope.containerOf(tester.element(find.text('vai')));
+    await container.read(matchRoomProvider.notifier).open();
+
+    await tester.tap(find.text('vai'));
+    await tester.pumpAndSettle();
+
+    expect(match.calls, ['open', 'leave r1']);
+    expect(container.read(matchRoomProvider), isNull);
+    expect(session.switchCalls, 1);
   });
 
   testWidgets('"Aggiungi profilo": lo stesso cambio, poi l\'accesso',
