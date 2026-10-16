@@ -12,6 +12,7 @@ import '../features/catalog/catalog_screen.dart';
 import '../features/collections/collection_screen.dart';
 import '../features/detail/item_detail_screen.dart';
 import '../features/home/home_screen.dart';
+import '../features/match/match_screen.dart';
 import '../features/mylist/my_list_screen.dart';
 import '../features/person/person_screen.dart';
 import '../features/player/player_screen.dart';
@@ -236,6 +237,18 @@ final routerProvider = Provider<GoRouter>((ref) {
                 collectionId: state.pathParameters['id']!,
               ),
               underBar: false,
+            ),
+          ),
+          GoRoute(
+            path: '/match/:id',
+            pageBuilder: (context, state) => detailPage(
+              context,
+              state,
+              MatchScreen(
+                key: ValueKey(state.pathParameters['id']),
+                roomId: state.pathParameters['id']!,
+              ),
+              underBar: true,
             ),
           ),
           GoRoute(

@@ -11,6 +11,9 @@ import 'hero_launch.dart';
 /// Percorso della pagina della saga [collectionId] (spec K §8.2).
 String collectionRoute(String collectionId) => '/collection/$collectionId';
 
+/// Percorso della pagina della sala del match [roomId] (spec P §7.3).
+String matchRoute(String roomId) => '/match/$roomId';
+
 /// Percorso da aprire per [item]: episodi e stagioni aprono la serie.
 String itemRoute(JellyfinItem item) {
   final seriesId = item.seriesId;

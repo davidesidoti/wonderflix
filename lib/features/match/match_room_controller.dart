@@ -162,6 +162,8 @@ class MatchRoomController extends Notifier<MatchRoomView?> {
   /// Esce dalla sala (spec P §7.3): con [roomId], solo se è quella. La sala
   /// sparisce subito dall'app; una sala chiusa non va lasciata.
   Future<void> leave([String? roomId]) async {
+    // La pagina chiama dopo lo smontaggio: l'app può già essere chiusa.
+    if (!ref.mounted) return;
     final current = state;
     if (current == null) return;
     if (roomId != null &&

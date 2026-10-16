@@ -14,10 +14,10 @@ import '../../ui/backdrop_image.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_dialog.dart';
-import '../catalog/catalog_filters_bar.dart';
 import '../library/library_providers.dart';
 import '../playback/play_launcher.dart';
 import 'tonight_controller.dart';
+import 'tonight_filters_bar.dart';
 import 'tonight_logic.dart';
 
 /// Larghezza della finestra.
@@ -118,8 +118,6 @@ class _TonightDialogState extends ConsumerState<TonightDialog> {
     final motion = WfMotion.of(context);
     final state = ref.watch(tonightControllerProvider);
     final filters = state.filters;
-    final genres = ref.watch(tonightGenresProvider(filters.type)).value ??
-        const <String>[];
     // Un genere che non c'è più torna a "Tutti i generi" (decisione 8 del
     // piano 19c).
     ref.listen(tonightGenresProvider(filters.type), (_, next) {
@@ -152,59 +150,7 @@ class _TonightDialogState extends ConsumerState<TonightDialog> {
           ],
         ),
         const SizedBox(height: 16),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            SegmentedButton<TonightType>(
-              key: const Key('tonight-type'),
-              showSelectedIcon: false,
-              segments: [
-                ButtonSegment(
-                    value: TonightType.movies,
-                    label: Text(l.tonightTypeMovies)),
-                ButtonSegment(
-                    value: TonightType.series,
-                    label: Text(l.tonightTypeSeries)),
-                ButtonSegment(
-                    value: TonightType.both, label: Text(l.tonightTypeBoth)),
-              ],
-              selected: {filters.type},
-              onSelectionChanged: (selection) =>
-                  _filters(filters.copyWith(type: selection.first)),
-            ),
-            SegmentedButton<TonightDuration>(
-              key: const Key('tonight-duration'),
-              showSelectedIcon: false,
-              segments: [
-                ButtonSegment(
-                    value: TonightDuration.any,
-                    label: Text(l.tonightDurationAny)),
-                ButtonSegment(
-                    value: TonightDuration.under90,
-                    label: Text(l.tonightDuration90)),
-                ButtonSegment(
-                    value: TonightDuration.under120,
-                    label: Text(l.tonightDuration120)),
-              ],
-              selected: {filters.duration},
-              // La durata vale solo per i film (spec M §8.4).
-              onSelectionChanged: filters.type == TonightType.series
-                  ? null
-                  : (selection) =>
-                      _filters(filters.copyWith(duration: selection.first)),
-            ),
-            FilterPicker<String?>(
-              value: filters.genre,
-              items: {
-                null: l.catalogAllGenres,
-                for (final genre in genres) genre: genre,
-              },
-              onChanged: (genre) => _filters(filters.copyWith(genre: genre)),
-            ),
-          ],
-        ),
+        TonightFiltersBar(filters: filters, onChanged: _filters),
         const SizedBox(height: 20),
         // Nelle finestre basse lo spazio si accorcia e il titolo scorre: i
         // filtri e i pulsanti restano sempre in vista.

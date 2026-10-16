@@ -15,6 +15,31 @@ const tonightTypeKey = 'tonight.type';
 const tonightDurationKey = 'tonight.duration';
 const tonightGenreKey = 'tonight.genre';
 
+/// I filtri salvati nel profilo (spec M §8.4); li usa anche la sala del match
+/// (piano 22b, decisione 5).
+TonightFilters readTonightFilters(ProfilePreferences prefs) {
+  final genre = prefs.getString(tonightGenreKey);
+  return TonightFilters(
+    type: TonightType.parse(prefs.getString(tonightTypeKey)),
+    duration: TonightDuration.parse(prefs.getString(tonightDurationKey)),
+    // In un profilo "nessun valore" è una stringa vuota (`clearString`).
+    genre: genre == null || genre.isEmpty ? null : genre,
+  );
+}
+
+/// Salva [filters] nel profilo.
+Future<void> writeTonightFilters(
+    ProfilePreferences prefs, TonightFilters filters) async {
+  final genre = filters.genre;
+  await Future.wait([
+    prefs.setString(tonightTypeKey, filters.type.wire),
+    prefs.setString(tonightDurationKey, filters.duration.wire),
+    genre == null
+        ? prefs.clearString(tonightGenreKey)
+        : prefs.setString(tonightGenreKey, genre),
+  ]);
+}
+
 /// I titoli già proposti in questa sessione per l'account collegato: non
 /// tornano finché ce ne sono altri (decisione 6 del piano 19c).
 class TonightSeen extends Notifier<Set<String>> {
@@ -69,17 +94,10 @@ class TonightController extends Notifier<TonightState> {
   TonightState build() {
     // Se il controller si rilegge, la coda è dei filtri di prima.
     _queue.clear();
-    final prefs = ref.read(profilePreferencesProvider);
-    final genre = prefs.getString(tonightGenreKey);
     // La prima pescata parte appena la finestra c'è.
     unawaited(Future.microtask(another));
     return TonightState(
-      filters: TonightFilters(
-        type: TonightType.parse(prefs.getString(tonightTypeKey)),
-        duration: TonightDuration.parse(prefs.getString(tonightDurationKey)),
-        // In un profilo "nessun valore" è una stringa vuota (`clearString`).
-        genre: genre == null || genre.isEmpty ? null : genre,
-      ),
+      filters: readTonightFilters(ref.read(profilePreferencesProvider)),
       pick: const AsyncLoading(),
     );
   }
@@ -90,15 +108,7 @@ class TonightController extends Notifier<TonightState> {
     _queue.clear();
     // Subito, senza passare dai filtri nuovi con il titolo vecchio.
     unawaited(_pick(next));
-    final prefs = ref.read(profilePreferencesProvider);
-    final genre = next.genre;
-    await Future.wait([
-      prefs.setString(tonightTypeKey, next.type.wire),
-      prefs.setString(tonightDurationKey, next.duration.wire),
-      genre == null
-          ? prefs.clearString(tonightGenreKey)
-          : prefs.setString(tonightGenreKey, genre),
-    ]);
+    await writeTonightFilters(ref.read(profilePreferencesProvider), next);
   }
 
   /// "Un altro", e la prima pescata: il prossimo titolo non ancora proposto.
