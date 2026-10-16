@@ -87,6 +87,7 @@ Prima di ogni release, su un utente di prova:
 - [ ] Impostazioni → Home: sposta (trascinando, con le frecce, con Alt+↑/↓) e nascondi righe, la Home cambia; "Ripristina la Home predefinita"; il link "Personalizza la Home" in fondo alla Home.
 - [ ] Amministrazione → WonderFlix → "Home per tutti": spegni e riaccendi una riga, cambia l'ordine, "Salva"; "Ripristina" con la conferma. "Sonarr e Radarr": "Prova collegamento".
 - [ ] "Cosa guardo stasera?" (il dado sul carosello): filtri, "Un altro", "Riproduci" e "Dettagli"; i filtri restano riaprendo.
+- [ ] "Match del film" (con due istanze): sala, inviti, voti (gesto, ✗/✓, ←/→), "È un match!", fine pila e "Altri 30 titoli", avvio del party e ingresso dell'altro membro.
 - [ ] Aggiornamento da una versione precedente; aggiornamento obbligatorio.
 - [ ] Discord Rich Presence attiva e disattivata.
 - [ ] Pannello media di Windows con il nome "WonderFlix" (app installata).

@@ -1,7 +1,7 @@
 # WonderFlix — Spec P: match del film
 
 - **Data:** 2026-10-14
-- **Stato:** approvata il 2026-10-14; piano 22a realizzato (`docs/superpowers/plans/2026-10-14-wonderflix-22a-match-plugin.md`), build di prova sul server; piano 22b realizzato (`docs/superpowers/plans/2026-10-16-wonderflix-22b-match-sala-app.md`); piano 22c da scrivere
+- **Stato:** approvata il 2026-10-14; piano 22a realizzato (`docs/superpowers/plans/2026-10-14-wonderflix-22a-match-plugin.md`), build di prova sul server; piano 22b realizzato (`docs/superpowers/plans/2026-10-16-wonderflix-22b-match-sala-app.md`); piano 22c realizzato (`docs/superpowers/plans/2026-10-16-wonderflix-22c-match-votazione.md`), app 0.16.0
 - **Ambito:** Spec P. Realizza l'idea 9 di `docs/IDEE.md` ("Match del film"): prima di un watch party, gli amici in una sala votano sì o no su una pila di titoli; i titoli che piacciono a tutti finiscono nella coda di un party privato. Si appoggia alla Spec F (amici, party privati, `PartyDirectory`), alla Spec G (cassetta), alla Spec H (coda del party), alla Spec M ("Cosa guardo stasera?") e alla Spec O (`LastWatched`, `CanSee`).
 
 ## 1. Obiettivo
@@ -198,7 +198,7 @@ App (altri membri) ──MatchUpdated chiusa──▶ joinWatchParty(GroupId)
 
 Route `/match/:id` nella shell, sotto la barra come la scheda di un titolo. Il titolo "Match del film" sta nel corpo della pagina, come in La mia lista, non nella barra.
 
-- **Stato:** `MatchRoomController` (`matchRoomProvider`, una sola sala nell'app: il plugin ne tiene una per utente). Apre o entra con le risposte degli endpoint, rilegge con `state(roomId)` a ogni riconnessione al server; si aggiorna con `MatchUpdatedEvent` della sua sala, scartando quelli con `Rev` minore o uguale a quella che ha, anche le risposte degli endpoint: gli avvisi partono fuori dal lock e possono arrivare fuori ordine. Una risposta che arriva dopo un cambio di profilo o di funzioni si scarta. Un'apertura o un ingresso alla volta.
+- **Stato:** `MatchRoomController` (`matchRoomProvider`, una sola sala nell'app: il plugin ne tiene una per utente). Apre o entra con le risposte degli endpoint, rilegge con `state(roomId)` a ogni riconnessione al server; si aggiorna con `MatchUpdatedEvent` della sua sala, scartando quelli con `Rev` minore o uguale a quella che ha, anche le risposte degli endpoint: gli avvisi partono fuori dal lock e possono arrivare fuori ordine. Una risposta che arriva dopo un cambio di profilo o di funzioni si scarta. Un'apertura o un ingresso alla volta. Mentre l'ingresso è in corso, l'ultimo `MatchUpdatedEvent` si tiene da parte e si applica appena la sala c'è, se è della stessa sala e più recente.
 - **Uscire:** lasciare la pagina (←, Esc, un'altra voce della barra) chiama `leave` senza aspettare, una volta sola e solo per quella sala. Il cambio di profilo esce prima di cambiare, con un tempo massimo di 3 s. Chiudendo la finestra non si esce: fuori dal player l'app non intercetta la chiusura, e ci pensa la pulizia del plugin (60–90 s). Una sala già chiusa non si lascia.
 - **In alto, sempre:** i membri con l'avatar e il nome; in votazione anche "12/30" e ✓ quando hanno finito.
 
@@ -212,12 +212,12 @@ Route `/match/:id` nella shell, sotto la barra come la scheda di un titolo. Il t
 
 #### Votazione
 
-- **Carta** al centro, grande: sfondo del titolo, titolo, riga dei dati come `tonightMeta` (anno, durata o stagioni, generi), trama su tre righe. I dettagli della pila si chiedono con `itemsByIds` (100 alla volta); gli id che il server non restituisce si votano "no" da soli e si saltano. Si caricano in anticipo le immagini delle 2 carte successive.
+- **Carta** al centro, grande: sfondo del titolo, titolo, riga dei dati come `tonightMeta` (anno, durata o stagioni, generi), trama su tre righe. I dettagli della pila si chiedono con `itemsByIds` (100 alla volta); gli id che il server non restituisce si votano "no" da soli e si saltano. Le 2 carte successive si disegnano sotto quella in cima (un mazzo di 3, le due sotto un po' più piccole), così le immagini sono già pronte. `itemsByIds` chiede anche `ChildCount`, per le stagioni di una serie. Il caricamento dei titoli, se fallisce, si ritenta ogni 2 s. Un titolo che il server non restituisce si vota "no" da solo; se il voto non parte, si ritenta in silenzio ogni 2 s.
 - **Gesto:** trascinamento orizzontale. Oltre il 30% della larghezza della carta, o con una velocità oltre 800 px/s, la carta vola via dal lato del gesto ruotando fino a ±12°; durante il trascinamento compare "SÌ" (verde) o "NO" (rosso) in proporzione alla distanza. Sotto la soglia torna al centro. Con le animazioni ridotte: niente volo né rotazione, dissolvenza breve.
 - **Pulsanti e tasti:** ✗ e ✓ sotto la carta; ← e → con il focus sulla pagina. Fanno volare la carta come il gesto.
-- **Voto ottimista:** la carta successiva compare subito e il voto parte. Un 409 `NotNext` riallinea la posizione da `Voted` nello stato; un errore di rete o un 429 riporta indietro la carta e mostra "Voto non inviato".
+- **Voto ottimista:** `MatchRoomView.sent` conta i miei voti mandati e la mia posizione è il massimo tra `sent` e il mio `Voted` nello stato; la carta successiva compare subito e il voto parte, uno solo per titolo (un tasto tenuto premuto o un doppio clic non ne mandano due). Un 409 `NotNext` riallinea la posizione da `Voted` nello stato; un errore di rete o un 429 riporta indietro la carta e mostra "Voto non inviato"; il voto successivo riparte dallo stesso titolo.
 - **Colonna a destra:** "Match" con locandina e titolo, nell'ordine di uscita; a fine pila, sotto, "Piaciuti a quasi tutti" con "{yes} su {of}". Vuota: "Ancora nessun match".
-- **"È un match!"** Per ogni id che entra in `Matches` per la prima volta (anche per un ricalcolo dopo un'uscita): uno strato sopra la carta per 2 s con la locandina e il testo oro. Un tasto o un clic lo chiudono prima. Più match insieme: uno dopo l'altro.
+- **"È un match!"** Per ogni id che entra in `Matches` per la prima volta (anche per un ricalcolo dopo un'uscita): uno strato sopra la carta per 2 s con la locandina e il testo oro. Un tasto o un clic lo chiudono prima. Più match insieme: uno dopo l'altro. Si festeggiano solo i match nuovi: alla prima vista della votazione quelli già usciti contano come visti. Mentre la festa è sullo schermo, i tasti la chiudono e non votano.
 
 #### Fine della pila
 
@@ -234,20 +234,21 @@ Route `/match/:id` nella shell, sotto la barra come la scheda di un titolo. Il t
   3. i quasi match non entrano, salvo quello scelto come primo;
   4. tagliata a `partyQueueLimit` (100).
 - `startWatchParty` riceve un parametro `queue` (la coda già pronta, che sostituisce `buildPartyQueue`), con `mode: PartyMode.private` e senza menu delle modalità.
-- Appena il party è registrato: `matchParty(roomId, groupId)`, senza bloccare l'avvio. Se fallisce, il party resta: si può invitare dal menu del party.
+- Il primo titolo è quello con cui la coda comincia davvero: una serie senza episodi veri si salta. Se non resta nessun titolo disponibile, niente party: l'avviso e la sala resta aperta.
+- `startWatchParty` riceve anche `onRegistered(groupId)`, chiamato appena il party è registrato, senza attendere: da lì parte `matchParty(roomId, groupId)`, senza bloccare l'avvio. Se fallisce, il party resta: si può invitare dal menu del party.
 - Il pulsante è spento mentre parte. Se il party non parte, l'avviso che si usa già e la sala resta aperta.
-- **Gli altri membri:** quando arriva lo stato `Closed` con `PartyGroupId`, la pagina si chiude da sola e l'app chiama `joinWatchParty(groupId)`; il player si apre quando il gruppo ha l'elemento in corso.
-- **Chi ha aperto:** il player si apre sopra la pagina. Una sala chiusa chiude la pagina solo se è la rotta in cima; con il player (o un'altra pagina) sopra, la pagina si chiude quando torna in cima, cioè all'uscita dal player. Il 22c può rivederlo.
+- **Gli altri membri:** quando arriva lo stato `Closed` con `PartyGroupId`, la pagina si chiude da sola e l'app chiama `joinWatchParty(groupId)` dalla pagina (che ha il contesto per l'avviso d'errore) e la pagina si chiude comunque, anche se l'ingresso non riesce; il player si apre quando il gruppo ha l'elemento in corso.
+- **Chi ha aperto:** il player si apre sopra la pagina. Una sala chiusa chiude la pagina solo se è la rotta in cima; con il player (o un'altra pagina) sopra, la pagina si chiude quando torna in cima, cioè all'uscita dal player.
 
 #### Chiusura senza party
 
-Stato `Closed` senza `PartyGroupId` (`CreatorLeft`, `Inactive`) o 409 `NotMember` alla rilettura: si torna alla pagina precedente con l'avviso "Sala chiusa". La pagina si chiude da sé (non c'è bisogno di uscire dalla sala), anche se la sala era già chiusa quando si è aperta. Nel 22b una sala chiusa con `PartyGroupId` chiude la pagina senza avviso; l'ingresso nel party è del 22c.
+Stato `Closed` senza `PartyGroupId` (`CreatorLeft`, `Inactive`) o 409 `NotMember` alla rilettura: si torna alla pagina precedente con l'avviso "Sala chiusa". La pagina si chiude da sé (non c'è bisogno di uscire dalla sala), anche se la sala era già chiusa quando si è aperta.
 
-#### Rimandato al 22c
+#### Rimandato dal 22b (risolto nel 22c)
 
-- Un avviso `MatchUpdated` che arriva mentre l'ingresso è ancora in corso si perde: la rilettura alla riconnessione lo recupera.
-- Un invito riuscito solo in parte (alcuni amici sì, altri no) si mostra come non riuscito.
-- L'avviso d'invito mentre si è in un watch party con il player chiuso.
+- Un avviso che arriva durante l'ingresso: si tiene da parte (vedi Stato).
+- Un invito riuscito solo in parte: la pagina invita un amico per clic, quindi un 429 vuol dire che quell'amico non è stato invitato e "Non riuscito" è giusto; nessun cambio.
+- L'avviso d'invito dentro un watch party: `MatchInvites` non mostra la carta se la fase del party non è `none`.
 
 ### 7.4 Versione
 
@@ -349,6 +350,6 @@ Fatte il 2026-10-14 (piano 22a, Task 7) sul sorgente ai tag `v10.11.9` e `v10.11
 
 - **22a — plugin 1.10.0 (realizzato):** verifiche di §12, sala, pila, voti, endpoint, avvisi, cassetta, `Info`. Il plugin 1.10.0 è una build di prova installata a mano sul server (con l'OK dell'utente al riavvio di Jellyfin e il backup della 1.9.0 del Catalogo in `~/wfwp-backup/`) e lo resta fino alla fine del 22c. Nessuna release: il Catalogo resta alla 1.9.0.
 - **22b — app, sala (realizzato):** nucleo (§7.1), ingressi, carta d'invito e cassetta, pagina in attesa, uscita. App ancora 0.15.1; le differenze dal testo originale sono nel piano ("Decisioni del piano").
-- **22c — app, votazione:** carta e gesto, match e quasi match, fine pila, avvio del party, versione 0.16.0; poi la prova a mano con l'utente.
+- **22c — app, votazione (realizzato):** carta e gesto, match e quasi match, fine pila, avvio del party, versione 0.16.0; poi la prova a mano con l'utente (da fare).
 - **Release** (con l'OK dell'utente a ogni passo): plugin **1.10.0** dal Catalogo, poi app **0.16.0 obbligatoria** con le note in italiano nella bozza.
 - **Alla fine**, in `docs/IDEE.md`: l'idea 9 esce dalla lista e tra le fatte c'è "Spec P — match del film (plugin 1.10.0, app 0.16.0)".
