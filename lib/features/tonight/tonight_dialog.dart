@@ -118,16 +118,6 @@ class _TonightDialogState extends ConsumerState<TonightDialog> {
     final motion = WfMotion.of(context);
     final state = ref.watch(tonightControllerProvider);
     final filters = state.filters;
-    // Un genere che non c'è più torna a "Tutti i generi" (decisione 8 del
-    // piano 19c).
-    ref.listen(tonightGenresProvider(filters.type), (_, next) {
-      final current = ref.read(tonightControllerProvider).filters;
-      final list = next.value;
-      final genre = current.genre;
-      if (genre != null && list != null && !list.contains(genre)) {
-        _filters(current.copyWith(genre: null));
-      }
-    });
     final pick = state.pick.value;
     return Column(
       mainAxisSize: MainAxisSize.min,

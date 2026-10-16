@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/navigation.dart';
 import '../../core/social/match_api.dart';
+import '../../core/social/match_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import 'match_room_controller.dart';
 
@@ -29,8 +30,17 @@ Future<bool> openMatchRoom(BuildContext context, WidgetRef ref) =>
 
 /// "Unisciti" a un invito: entra nella sala e apre la sua pagina.
 Future<bool> joinMatchRoom(
-        BuildContext context, WidgetRef ref, String roomId) =>
-    _enter(context, ref, (controller) => controller.join(roomId));
+    BuildContext context, WidgetRef ref, String roomId) {
+  // La sala già mostrata: niente seconda pagina (uscirne farebbe uscire
+  // dalla sala).
+  final room = ref.read(matchRoomProvider);
+  if (room != null &&
+      !room.closed &&
+      normalizeMatchId(room.roomId) == normalizeMatchId(roomId)) {
+    return Future.value(true);
+  }
+  return _enter(context, ref, (controller) => controller.join(roomId));
+}
 
 Future<bool> _enter(BuildContext context, WidgetRef ref,
     Future<MatchFailure?> Function(MatchRoomController) action) async {

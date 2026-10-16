@@ -65,6 +65,10 @@ void main() {
           builder: (context, state) => Scaffold(
               body: MatchScreen(roomId: state.pathParameters['id']!)),
         ),
+        GoRoute(
+          path: '/item/:id',
+          builder: (context, state) => const Scaffold(body: Text('scheda')),
+        ),
       ],
     );
     await pumpAppRouter(tester, router, overrides: [
@@ -158,5 +162,71 @@ void main() {
     expect(find.text('Sala chiusa'), findsOneWidget);
     expect(match.calls.where((call) => call.startsWith('leave')), isEmpty,
         reason: 'una sala chiusa non si lascia');
+  });
+
+  testWidgets('chiudere la sala con una scheda sopra non toglie la scheda',
+      (tester) async {
+    final container = await pumpRoom(tester);
+    final router = GoRouter.of(tester.element(find.byType(MatchScreen)));
+    unawaited(router.push('/item/x'));
+    await tester.pumpAndSettle();
+
+    match.rooms['r1'] = testMatchState(
+        rev: 2,
+        phase: MatchPhase.closed,
+        closedReason: MatchClosedReason.creatorLeft);
+    await container.read(matchRoomProvider.notifier).reload();
+    await tester.pumpAndSettle();
+
+    expect(find.text('scheda'), findsOneWidget);
+    expect(find.byType(MatchScreen, skipOffstage: false), findsOneWidget);
+
+    router.pop();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(MatchScreen, skipOffstage: false), findsNothing);
+    expect(find.text('apri'), findsOneWidget);
+    expect(find.text('Sala chiusa'), findsOneWidget);
+  });
+
+  testWidgets('una pagina aperta su una sala già chiusa si chiude',
+      (tester) async {
+    final container = await pumpRoom(tester);
+    match.rooms['r1'] = testMatchState(
+        rev: 2,
+        phase: MatchPhase.closed,
+        closedReason: MatchClosedReason.inactive);
+    await container.read(matchRoomProvider.notifier).reload();
+    await tester.pumpAndSettle();
+    expect(find.byType(MatchScreen), findsNothing);
+
+    unawaited(GoRouter.of(tester.element(find.text('apri'))).push('/match/r1'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(MatchScreen), findsNothing);
+    expect(find.text('apri'), findsOneWidget);
+  });
+
+  testWidgets('Unisciti alla sala già mostrata non apre una seconda pagina',
+      (tester) async {
+    await pumpRoom(tester);
+    final element = tester.element(find.byType(MatchScreen));
+    final ref = tester.state<ConsumerState<MatchScreen>>(find.byType(MatchScreen)).ref;
+
+    final joined = await joinMatchRoom(element, ref, 'r1');
+    await tester.pumpAndSettle();
+
+    expect(joined, isTrue);
+    expect(match.calls, isNot(contains('join r1')));
+    expect(find.byType(MatchScreen), findsOneWidget);
+  });
+
+  testWidgets("un genere salvato che non c'è più torna a tutti i generi",
+      (tester) async {
+    await prefs.setString(tonightGenreKey, 'Western');
+    await pumpRoom(tester);
+    await tester.pumpAndSettle();
+
+    expect(prefs.getString(tonightGenreKey), isNull);
   });
 }

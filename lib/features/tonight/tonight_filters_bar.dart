@@ -18,6 +18,15 @@ class TonightFiltersBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
+    // Un genere che non c'è più torna a "Tutti i generi" (decisione 8 del
+    // piano 19c); vale anche per la sala del match.
+    ref.listen(tonightGenresProvider(filters.type), (_, next) {
+      final list = next.value;
+      final genre = filters.genre;
+      if (genre != null && list != null && !list.contains(genre)) {
+        onChanged(filters.copyWith(genre: null));
+      }
+    });
     final genres = ref.watch(tonightGenresProvider(filters.type)).value ??
         const <String>[];
     return Wrap(

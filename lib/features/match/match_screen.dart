@@ -44,11 +44,28 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
   bool _starting = false;
   bool _closing = false;
 
+  /// Il testo "Sala chiusa" è ancora da mostrare (la chiusura può attendere).
+  bool _closeNotice = false;
+  bool _closeDone = false;
+
   @override
   void initState() {
     super.initState();
     _controller = ref.read(matchRoomProvider.notifier);
     _filters = readTonightFilters(ref.read(profilePreferencesProvider));
+    // ref.listen non scatta per il valore già presente: una sala già chiusa
+    // all'apertura della pagina si controlla qui.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _onRoom(ref.read(matchRoomProvider));
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Cambia quando la rotta torna in cima (isCurrent): la chiusura rimasta
+    // in attesa può partire.
+    if (_closing) WidgetsBinding.instance.addPostFrameCallback((_) => _close());
   }
 
   @override
@@ -72,18 +89,23 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     final ours = _isThisRoom(view);
     if (ours && !view!.closed) return;
     _closing = true;
-    final notice = ours &&
-        view!.state?.closedReason != MatchClosedReason.partyStarted;
-    final l = AppLocalizations.of(context);
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (notice) {
-        messenger?.showSnackBar(SnackBar(content: Text(l.matchClosed)));
-      }
-      final router = GoRouter.of(context);
-      if (router.canPop()) router.pop();
-    });
+    _closeNotice =
+        ours && view!.state?.closedReason != MatchClosedReason.partyStarted;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _close());
+  }
+
+  /// Chiude la pagina solo se la sua rotta è in cima: con un'altra pagina
+  /// sopra (scheda, player) un pop toglierebbe quella; si attende.
+  void _close() {
+    if (!mounted || !_closing || _closeDone) return;
+    if (ModalRoute.of(context)?.isCurrent == false) return;
+    _closeDone = true;
+    if (_closeNotice) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text(AppLocalizations.of(context).matchClosed)));
+    }
+    final router = GoRouter.of(context);
+    if (router.canPop()) router.pop();
   }
 
   void _setFilters(TonightFilters next) {
