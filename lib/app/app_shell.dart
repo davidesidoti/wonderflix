@@ -16,6 +16,7 @@ import '../features/friends/friends_button.dart';
 import '../features/friends/friends_panel.dart';
 import '../features/inbox/inbox_button.dart';
 import '../features/library/server_events_binding.dart';
+import '../features/match/match_invites.dart';
 import '../features/profiles/profile_switch.dart';
 import '../features/recommendations/recommend_panel.dart';
 import '../features/requests/requests_providers.dart';
@@ -138,8 +139,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                 ],
               ),
             ),
-            // Invito a un watch party appena nato (spec B §5.8) e richiesta
-            // di amicizia appena arrivata (spec F §8.4), una sotto l'altra.
+            // Invito a un watch party appena nato (spec B §5.8), invito a una sala
+            // del match (spec P §7.2) e richiesta di amicizia appena arrivata
+            // (spec F §8.4), una sotto l'altra.
             const Positioned(
               top: 72,
               right: 24,
@@ -147,7 +149,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 spacing: 8,
-                children: [WatchPartyInviteCard(), FriendRequestCard()],
+                children: [
+                  WatchPartyInviteCard(),
+                  MatchInviteCard(),
+                  FriendRequestCard(),
+                ],
               ),
             ),
             // Pannello Amici, sopra la barra e le schede (spec F §8.3).

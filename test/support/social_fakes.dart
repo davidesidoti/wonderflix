@@ -456,6 +456,23 @@ RecommendationEntry testRecommendationEntry({
       text: text,
     );
 
+/// Un invito al match nella cassetta: Luigi, sala `r2`.
+MatchInviteEntry testMatchInviteEntry({
+  String id = 'mi1',
+  int seq = 1,
+  bool read = false,
+  String roomId = 'r2',
+  String fromName = 'Luigi',
+}) =>
+    MatchInviteEntry(
+      id: id,
+      seq: seq,
+      createdAt: DateTime.utc(2026, 10, 14, 20),
+      read: read,
+      roomId: roomId,
+      fromName: fromName,
+    );
+
 /// Un annuncio dell'admin nella cassetta.
 AnnouncementEntry testAnnouncement({
   String id = 'a1',

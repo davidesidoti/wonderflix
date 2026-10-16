@@ -397,4 +397,19 @@ void main() {
     })! as RecommendationEntry;
     expect(bare.text, isNull);
   });
+
+  test('voce di invito al match', () {
+    final entry = inboxEntryFromJson({
+      'Id': 'mi1',
+      'Seq': 3,
+      'CreatedAt': '2026-10-14T20:00:00Z',
+      'Read': false,
+      'Type': 'MatchInvite',
+      'RoomId': 'r2',
+      'FromName': 'Luigi',
+    });
+    expect(entry, isA<MatchInviteEntry>());
+    expect((entry! as MatchInviteEntry).roomId, 'r2');
+    expect((entry as MatchInviteEntry).fromName, 'Luigi');
+  });
 }

@@ -14,6 +14,7 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/shell_side_panel.dart';
 import '../../ui/wf_image.dart';
 import '../library/library_providers.dart';
+import '../match/match_actions.dart';
 import '../requests/requests_navigation.dart';
 import '../watch_party/watch_party_actions.dart';
 import '../watch_party/watch_party_directory.dart';
@@ -326,6 +327,9 @@ class _EntryTileState extends ConsumerState<_EntryTile> {
               ContactReminderEntry() => const InboxRequestIcon(
                   icon: LucideIcons.shieldCheck, size: InboxPanel.leadingSize),
               RecommendationEntry() => _ItemPoster(itemId: entry.itemId),
+              MatchInviteEntry() => const InboxRequestIcon(
+                  icon: LucideIcons.heartHandshake,
+                  size: InboxPanel.leadingSize),
             },
             const SizedBox(width: 12),
             Expanded(
@@ -369,6 +373,8 @@ class _EntryTileState extends ConsumerState<_EntryTile> {
                     key: Key('inbox-recommendation-${entry.id}'),
                     entry: entry,
                     time: widget.time),
+                MatchInviteEntry() =>
+                  _MatchInviteContent(entry: entry, time: widget.time),
               },
             ),
             Focus(
@@ -607,6 +613,72 @@ class _InviteContentState extends ConsumerState<_InviteContent> {
                   style: _timeStyle),
             ),
             Flexible(flex: 2, child: action),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Invito al match: chi invita e "Unisciti" (spec P §7.2). Il plugin dice
+/// se la sala c'è ancora: un no diventa un avviso con il motivo.
+class _MatchInviteContent extends ConsumerStatefulWidget {
+  const _MatchInviteContent({required this.entry, required this.time});
+
+  final MatchInviteEntry entry;
+  final String time;
+
+  @override
+  ConsumerState<_MatchInviteContent> createState() =>
+      _MatchInviteContentState();
+}
+
+class _MatchInviteContentState extends ConsumerState<_MatchInviteContent> {
+  /// Un ingresso partito da questa voce è in corso (come per i party).
+  bool _joining = false;
+
+  Future<void> _join() async {
+    if (_joining) return;
+    setState(() => _joining = true);
+    final panel = ref.read(shellPanelProvider.notifier);
+    try {
+      final joined = await joinMatchRoom(context, ref, widget.entry.roomId);
+      if (joined) panel.close();
+    } finally {
+      if (mounted) setState(() => _joining = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final entry = widget.entry;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text.rich(
+            _inviteFromSpan(l.matchInviteFrom(entry.fromName), entry.fromName),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: _mutedStyle),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Flexible(
+              child: Text(widget.time,
+                  maxLines: 1, overflow: TextOverflow.ellipsis, style: _timeStyle),
+            ),
+            TextButton(
+              key: Key('inbox-match-join-${entry.id}'),
+              onPressed: _joining ? null : () => unawaited(_join()),
+              style: TextButton.styleFrom(
+                foregroundColor: WfColors.gold,
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+              child: Text(l.watchPartyJoin),
+            ),
           ],
         ),
       ],

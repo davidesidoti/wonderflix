@@ -254,6 +254,21 @@ final class RecommendationEntry extends InboxEntry {
   final String? text;
 }
 
+/// Un amico ci invita nella sua sala del match (spec P §6.5).
+final class MatchInviteEntry extends InboxEntry {
+  const MatchInviteEntry({
+    required super.id,
+    required super.seq,
+    required super.createdAt,
+    required super.read,
+    required this.roomId,
+    required this.fromName,
+  });
+
+  final String roomId;
+  final String fromName;
+}
+
 /// Una voce di `GET Inbox`; `null` se il tipo non lo conosciamo (es. le
 /// voci di una versione più nuova del plugin).
 InboxEntry? inboxEntryFromJson(Map<String, dynamic> json) {
@@ -334,6 +349,14 @@ InboxEntry? inboxEntryFromJson(Map<String, dynamic> json) {
           final String text when text.isNotEmpty => text,
           _ => null,
         },
+      ),
+    'MatchInvite' => MatchInviteEntry(
+        id: id,
+        seq: seq,
+        createdAt: createdAt,
+        read: read,
+        roomId: json['RoomId'] as String,
+        fromName: json['FromName'] as String? ?? '',
       ),
     _ => null,
   };

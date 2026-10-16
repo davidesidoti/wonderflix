@@ -4,15 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../app/motion.dart';
-import '../../app/theme.dart';
 import '../../core/social/social_models.dart';
 import '../../core/syncplay/syncplay_models.dart';
 import '../../l10n/gen/app_localizations.dart';
-import '../../ui/wf_buttons.dart';
 import '../auth/session_controller.dart';
 import '../player/player_active.dart';
 import '../social/social_providers.dart';
+import 'invite_card_frame.dart';
 import 'watch_party_actions.dart';
 import 'watch_party_directory.dart';
 import 'watch_party_providers.dart';
@@ -157,96 +155,33 @@ final watchPartyInvitesProvider =
     NotifierProvider<WatchPartyInvites, WatchPartyInvite?>(
         WatchPartyInvites.new);
 
-/// Scheda dell'invito, in alto a destra nella shell: entra da destra e se
-/// ne va in dissolvenza (spec C §11.4).
+/// Scheda dell'invito, in alto a destra nella shell (spec C §11.4).
 class WatchPartyInviteCard extends ConsumerWidget {
   const WatchPartyInviteCard({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final invite = ref.watch(watchPartyInvitesProvider);
-    final current = invite == null
-        ? const SizedBox.shrink(key: ValueKey('no-invite'))
-        : KeyedSubtree(
-            key: ValueKey(invite.group.id),
-            child: _card(context, ref, invite));
-    return AnimatedSwitcher(
-      duration: WfMotion.of(context).duration(WfMotion.medium),
-      transitionBuilder: (child, animation) => IgnorePointer(
-        // L'invito che se ne va non accetta più "Unisciti".
-        ignoring: child.key != current.key,
-        child: FadeTransition(
-          opacity: animation,
-          child: SlideTransition(
-            position: Tween(begin: const Offset(0.3, 0), end: Offset.zero)
-                .animate(CurvedAnimation(
-                    parent: animation, curve: WfMotion.emphasized)),
-            child: child,
-          ),
-        ),
-      ),
-      child: current,
-    );
-  }
-
-  Widget _card(BuildContext context, WidgetRef ref, WatchPartyInvite invite) {
     final l = AppLocalizations.of(context);
-    final names = partyNameParts(invite.group);
+    final invite = ref.watch(watchPartyInvitesProvider);
     final invites = ref.read(watchPartyInvitesProvider.notifier);
-    return Material(
-      key: const Key('watch-party-invite'),
-      color: WfColors.surface,
-      elevation: 8,
-      borderRadius: BorderRadius.circular(10),
-      child: SizedBox(
-        width: 340,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 8, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  const Icon(LucideIcons.users, size: 18, color: WfColors.gold),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                        invite.invitedBy != null
-                            ? l.partyInviteTitle(invite.invitedBy!)
-                            : l.watchPartyInviteTitle(names.host),
-                        style: const TextStyle(fontWeight: FontWeight.w600)),
-                  ),
-                  IconButton(
-                    tooltip: l.watchPartyDismiss,
-                    icon: const Icon(LucideIcons.x, size: 18),
-                    onPressed: invites.dismiss,
-                  ),
-                ],
-              ),
-              Padding(
-                padding: const EdgeInsets.only(left: 26, right: 8),
-                child: Text(names.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: WfColors.creamMuted)),
-              ),
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.only(left: 26),
-                child: WfButton.primary(
-                  label: l.watchPartyJoin,
-                  icon: LucideIcons.play,
-                  onPressed: () {
-                    invites.dismiss();
-                    unawaited(joinWatchParty(context, ref, invite.group.id));
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    final names = invite == null ? null : partyNameParts(invite.group);
+    return InviteCardSlot(
+      id: invite?.group.id,
+      card: invite == null
+          ? null
+          : InviteCardFrame(
+              key: const Key('watch-party-invite'),
+              icon: LucideIcons.users,
+              title: invite.invitedBy != null
+                  ? l.partyInviteTitle(invite.invitedBy!)
+                  : l.watchPartyInviteTitle(names!.host),
+              subtitle: names!.title,
+              onDismiss: invites.dismiss,
+              onJoin: () {
+                invites.dismiss();
+                unawaited(joinWatchParty(context, ref, invite.group.id));
+              },
+            ),
     );
   }
 }
