@@ -25,6 +25,26 @@ void main() {
     expect(TonightDuration.parse('120'), TonightDuration.under120);
     expect(TonightDuration.parse(null), TonightDuration.any);
     expect(TonightType.both.kinds, {ItemKind.movie, ItemKind.series});
+    expect(TonightRating.parse('good'), TonightRating.good);
+    expect(TonightRating.parse('bad'), TonightRating.bad);
+    expect(TonightRating.parse(null), TonightRating.any);
+    expect(TonightRating.parse('boh'), TonightRating.any);
+  });
+
+  test('il voto: belli 7 o più, brutti 5 o meno, senza voto solo qualsiasi',
+      () {
+    const good = TonightFilters(rating: TonightRating.good);
+    const bad = TonightFilters(rating: TonightRating.bad);
+    expect(tonightEligible(testItem(rating: 7), good), isTrue);
+    expect(tonightEligible(testItem(rating: 6.9), good), isFalse);
+    expect(tonightEligible(testItem(rating: 5), bad), isTrue);
+    expect(tonightEligible(testItem(rating: 5.1), bad), isFalse);
+    expect(tonightEligible(testItem(), good), isFalse);
+    expect(tonightEligible(testItem(), bad), isFalse);
+    expect(tonightEligible(testItem(), const TonightFilters()), isTrue);
+    expect(
+        tonightEligible(series(episodes: 3, unplayed: 3), bad), isFalse,
+        reason: 'anche una serie senza voto');
   });
 
   test('ogni valore si salva e si rilegge uguale', () {
@@ -33,6 +53,9 @@ void main() {
     }
     for (final duration in TonightDuration.values) {
       expect(TonightDuration.parse(duration.wire), duration);
+    }
+    for (final rating in TonightRating.values) {
+      expect(TonightRating.parse(rating.wire), rating);
     }
     expect(TonightType.parse('movies'), TonightType.movies);
     expect(TonightType.parse('both'), TonightType.both);
@@ -48,6 +71,8 @@ void main() {
     expect(drama.isDefault, isFalse);
     expect(drama.copyWith(genre: null), TonightFilters.defaults);
     expect(drama.copyWith(type: TonightType.movies).genre, 'Dramma');
+    expect(drama.copyWith(rating: TonightRating.bad).genre, 'Dramma');
+    expect(const TonightFilters(rating: TonightRating.bad).isDefault, isFalse);
   });
 
   test('serie mai iniziata: tanti episodi da vedere quanti ne ha', () {

@@ -138,8 +138,11 @@ class FakeMatchApi implements MatchApi {
 
   @override
   Future<MatchState> start(String roomId,
-      {required String type, required String duration, String? genre}) async {
-    final call = 'start $roomId $type $duration ${genre ?? '-'}';
+      {required String type,
+      required String duration,
+      String? genre,
+      required String rating}) async {
+    final call = 'start $roomId $type $duration ${genre ?? '-'} $rating';
     calls.add(call);
     _throwIfFailing(call);
     final room = rooms[roomId] ?? testMatchState(roomId: roomId);

@@ -7,7 +7,7 @@ import 'tonight_controller.dart';
 import 'tonight_logic.dart';
 
 /// I filtri di "Cosa guardo stasera?" (spec M §8.4): tipo, durata (solo per
-/// i film) e genere. Li usa anche la sala del match (spec P §7.3).
+/// i film), genere e voto (0.16.1). Li usa anche la sala del match (spec P §7.3).
 class TonightFiltersBar extends ConsumerWidget {
   const TonightFiltersBar(
       {super.key, required this.filters, required this.onChanged});
@@ -76,6 +76,21 @@ class TonightFiltersBar extends ConsumerWidget {
             for (final genre in genres) genre: genre,
           },
           onChanged: (genre) => onChanged(filters.copyWith(genre: genre)),
+        ),
+        SegmentedButton<TonightRating>(
+          key: const Key('tonight-rating'),
+          showSelectedIcon: false,
+          segments: [
+            ButtonSegment(
+                value: TonightRating.any, label: Text(l.tonightRatingAny)),
+            ButtonSegment(
+                value: TonightRating.good, label: Text(l.tonightRatingGood)),
+            ButtonSegment(
+                value: TonightRating.bad, label: Text(l.tonightRatingBad)),
+          ],
+          selected: {filters.rating},
+          onSelectionChanged: (selection) =>
+              onChanged(filters.copyWith(rating: selection.first)),
         ),
       ],
     );

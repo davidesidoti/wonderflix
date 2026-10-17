@@ -88,6 +88,10 @@ public sealed class MatchStartRequest
     /// <summary>Il nome di un genere; vuoto o assente per tutti.</summary>
     [JsonPropertyName("Genre")]
     public string? Genre { get; set; }
+
+    /// <summary>"any", "good" (7 o più) o "bad" (5 o meno); assente vale "any".</summary>
+    [JsonPropertyName("Rating")]
+    public string? Rating { get; set; }
 }
 
 /// <summary>Corpo di POST Match/{roomId}/Votes.</summary>

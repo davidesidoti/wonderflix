@@ -231,7 +231,8 @@ class MatchRoomController extends Notifier<MatchRoomView?> {
       final next = await _api.start(current.roomId,
           type: filters.type.wire,
           duration: filters.duration.wire,
-          genre: filters.genre);
+          genre: filters.genre,
+          rating: filters.rating.wire);
       if (ref.mounted) _apply(next);
       return null;
     } on MatchException catch (error) {

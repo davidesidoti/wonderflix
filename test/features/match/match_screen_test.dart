@@ -151,7 +151,7 @@ void main() {
     await tester.tap(find.byKey(const Key('match-start')));
     await tester.pumpAndSettle();
 
-    expect(match.calls.last, 'start r1 movies any -');
+    expect(match.calls.last, 'start r1 movies any - any');
   });
 
   testWidgets('chi è entrato su invito aspetta chi ha aperto', (tester) async {

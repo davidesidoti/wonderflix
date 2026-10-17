@@ -72,7 +72,7 @@ public class MatchController(
     public async Task<ActionResult<MatchStateDto>> Start([FromRoute] string roomId, [FromBody] MatchStartRequest? request)
     {
         if (!Guid.TryParse(roomId, out var id)
-            || MatchFilters.Parse(request?.Type, request?.Duration, request?.Genre) is not { } filters)
+            || MatchFilters.Parse(request?.Type, request?.Duration, request?.Genre, request?.Rating) is not { } filters)
         {
             return BadRequest();
         }

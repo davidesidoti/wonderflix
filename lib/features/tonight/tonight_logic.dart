@@ -47,6 +47,25 @@ enum TonightDuration {
       .firstWhere((duration) => duration.wire == raw, orElse: () => any);
 }
 
+/// Il filtro del voto della community di Jellyfin (0.16.1): i "belli" per
+/// una serata sicura, i "brutti" per le serate trash.
+enum TonightRating {
+  any('any', null, null),
+  good('good', 7, null),
+  bad('bad', null, 5);
+
+  const TonightRating(this.wire, this.min, this.max);
+
+  final String wire;
+
+  /// Voto minimo e massimo compresi; `null`: nessun limite.
+  final double? min;
+  final double? max;
+
+  static TonightRating parse(String? raw) =>
+      values.firstWhere((rating) => rating.wire == raw, orElse: () => any);
+}
+
 /// I filtri della finestra.
 @immutable
 class TonightFilters {
@@ -54,6 +73,7 @@ class TonightFilters {
     this.type = TonightType.both,
     this.duration = TonightDuration.any,
     this.genre,
+    this.rating = TonightRating.any,
   });
 
   static const defaults = TonightFilters();
@@ -64,6 +84,8 @@ class TonightFilters {
   /// `null`: tutti i generi.
   final String? genre;
 
+  final TonightRating rating;
+
   bool get isDefault => this == defaults;
 
   static const _keep = Object();
@@ -72,11 +94,13 @@ class TonightFilters {
     TonightType? type,
     TonightDuration? duration,
     Object? genre = _keep,
+    TonightRating? rating,
   }) =>
       TonightFilters(
         type: type ?? this.type,
         duration: duration ?? this.duration,
         genre: identical(genre, _keep) ? this.genre : genre as String?,
+        rating: rating ?? this.rating,
       );
 
   @override
@@ -84,13 +108,14 @@ class TonightFilters {
       other is TonightFilters &&
       other.type == type &&
       other.duration == duration &&
-      other.genre == genre;
+      other.genre == genre &&
+      other.rating == rating;
 
   @override
-  int get hashCode => Object.hash(type, duration, genre);
+  int get hashCode => Object.hash(type, duration, genre, rating);
 
   @override
-  String toString() => 'TonightFilters($type, $duration, $genre)';
+  String toString() => 'TonightFilters($type, $duration, $genre, $rating)';
 }
 
 /// Una serie mai iniziata: nessun episodio visto (decisione 3 del piano
@@ -106,8 +131,10 @@ bool neverStarted(JellyfinItem series) {
 /// Un titolo da proporre con [filters]: un film non visto e non iniziato (con
 /// una posizione salvata sarebbe in "Continua a guardare") della durata
 /// scelta, o una serie mai iniziata. La durata vale solo per i film; un film
-/// senza durata nota non passa un filtro di durata (decisione 5).
+/// senza durata nota non passa un filtro di durata (decisione 5), un titolo
+/// senza voto non passa un filtro di voto.
 bool tonightEligible(JellyfinItem item, TonightFilters filters) =>
+    _rated(item.communityRating, filters.rating) &&
     switch (item.kind) {
       ItemKind.movie => filters.type != TonightType.series &&
           !item.userData.played &&
@@ -120,6 +147,15 @@ bool tonightEligible(JellyfinItem item, TonightFilters filters) =>
 
 bool _fits(Duration? runtime, Duration? limit) =>
     limit == null || (runtime != null && runtime < limit);
+
+bool _rated(double? score, TonightRating rating) {
+  final min = rating.min;
+  final max = rating.max;
+  if (min == null && max == null) return true;
+  return score != null &&
+      (min == null || score >= min) &&
+      (max == null || score <= max);
+}
 
 /// "2024 · 2h 46m · Fantascienza · Avventura · Dramma"; per una serie le
 /// stagioni al posto della durata.

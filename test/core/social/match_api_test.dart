@@ -45,12 +45,19 @@ void main() {
     await api.join('r1');
     expect(last().path, '/WonderFlixWatchParty/Match/r1/Join');
 
-    await api.start('r1', type: 'movies', duration: '90', genre: 'Horror');
+    await api.start('r1',
+        type: 'movies', duration: '90', genre: 'Horror', rating: 'good');
     expect(last().path, '/WonderFlixWatchParty/Match/r1/Start');
-    expect(last().data, {'Type': 'movies', 'Duration': '90', 'Genre': 'Horror'});
+    expect(last().data, {
+      'Type': 'movies',
+      'Duration': '90',
+      'Genre': 'Horror',
+      'Rating': 'good'
+    });
 
-    await api.start('r1', type: 'both', duration: 'any');
-    expect(last().data, {'Type': 'both', 'Duration': 'any', 'Genre': null});
+    await api.start('r1', type: 'both', duration: 'any', rating: 'any');
+    expect(last().data,
+        {'Type': 'both', 'Duration': 'any', 'Genre': null, 'Rating': 'any'});
 
     await api.more('r1');
     expect(last().path, '/WonderFlixWatchParty/Match/r1/More');

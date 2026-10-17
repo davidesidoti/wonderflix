@@ -92,7 +92,8 @@ class FakeLibraryApi implements LibraryApi {
 
   /// Le risposte di [randomUnplayed], una per chiamata; l'ultima si ripete.
   final randomPages = <ItemPage>[];
-  final randomCalls = <({Set<ItemKind> kinds, String? genre, int limit})>[];
+  final randomCalls =
+      <({Set<ItemKind> kinds, String? genre, double? minRating, int limit})>[];
 
   /// Se valorizzato, [randomUnplayed] aspetta che si completi.
   Completer<void>? randomGate;
@@ -127,8 +128,10 @@ class FakeLibraryApi implements LibraryApi {
   Future<ItemPage> randomUnplayed(String userId,
       {required Set<ItemKind> kinds,
       String? genre,
+      double? minRating,
       required int limit}) async {
-    randomCalls.add((kinds: kinds, genre: genre, limit: limit));
+    randomCalls.add(
+        (kinds: kinds, genre: genre, minRating: minRating, limit: limit));
     final gate = randomGate;
     if (gate != null) await gate.future;
     return _answer(() => randomPages.isEmpty

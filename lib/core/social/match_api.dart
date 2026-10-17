@@ -86,9 +86,17 @@ class MatchApi {
 
   /// "Inizia" con i filtri, nei valori di "Cosa guardo stasera?".
   Future<MatchState> start(String roomId,
-          {required String type, required String duration, String? genre}) =>
+          {required String type,
+          required String duration,
+          String? genre,
+          required String rating}) =>
       _call(() async => _state(await _http.post('$_base/$roomId/Start',
-          body: {'Type': type, 'Duration': duration, 'Genre': genre},
+          body: {
+            'Type': type,
+            'Duration': duration,
+            'Genre': genre,
+            'Rating': rating
+          },
           quietStatuses: _quiet)));
 
   /// Il voto per il prossimo titolo della pila.

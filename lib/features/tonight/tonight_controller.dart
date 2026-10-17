@@ -14,6 +14,7 @@ import 'tonight_logic.dart';
 const tonightTypeKey = 'tonight.type';
 const tonightDurationKey = 'tonight.duration';
 const tonightGenreKey = 'tonight.genre';
+const tonightRatingKey = 'tonight.rating';
 
 /// I filtri salvati nel profilo (spec M §8.4); li usa anche la sala del match
 /// (piano 22b, decisione 5).
@@ -24,6 +25,7 @@ TonightFilters readTonightFilters(ProfilePreferences prefs) {
     duration: TonightDuration.parse(prefs.getString(tonightDurationKey)),
     // In un profilo "nessun valore" è una stringa vuota (`clearString`).
     genre: genre == null || genre.isEmpty ? null : genre,
+    rating: TonightRating.parse(prefs.getString(tonightRatingKey)),
   );
 }
 
@@ -34,6 +36,7 @@ Future<void> writeTonightFilters(
   await Future.wait([
     prefs.setString(tonightTypeKey, filters.type.wire),
     prefs.setString(tonightDurationKey, filters.duration.wire),
+    prefs.setString(tonightRatingKey, filters.rating.wire),
     genre == null
         ? prefs.clearString(tonightGenreKey)
         : prefs.setString(tonightGenreKey, genre),
@@ -148,7 +151,10 @@ class TonightController extends Notifier<TonightState> {
     final repeats = <String, JellyfinItem>{};
     for (var batch = 0; batch < tonightMaxBatches; batch++) {
       final page = await api.randomUnplayed(userId,
-          kinds: filters.type.kinds, genre: filters.genre, limit: tonightBatch);
+          kinds: filters.type.kinds,
+          genre: filters.genre,
+          minRating: filters.rating.min,
+          limit: tonightBatch);
       if (!ref.mounted || generation != _generation) return null;
       final fresh = <String, JellyfinItem>{};
       for (final item in page.items) {

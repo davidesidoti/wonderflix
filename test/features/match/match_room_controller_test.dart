@@ -197,12 +197,13 @@ void main() {
         await controller().start(const TonightFilters(
             type: TonightType.movies,
             duration: TonightDuration.under90,
-            genre: 'Horror')),
+            genre: 'Horror',
+            rating: TonightRating.bad)),
         isNull);
-    expect(api.calls.last, 'start r1 movies 90 Horror');
+    expect(api.calls.last, 'start r1 movies 90 Horror bad');
     expect(room()!.state!.phase, MatchPhase.voting);
 
-    api.failures['start r1 both any -'] =
+    api.failures['start r1 both any - any'] =
         const MatchException(MatchFailure.notEnoughMembers);
     expect(await controller().start(const TonightFilters()),
         MatchFailure.notEnoughMembers);

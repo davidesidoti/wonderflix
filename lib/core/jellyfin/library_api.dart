@@ -31,13 +31,15 @@ class LibraryApi {
   }
 
   /// Titoli non visti presi a caso (spec M §8.4, "Cosa guardo stasera?"):
-  /// [limit] titoli dei tipi [kinds] e del genere [genre], se c'è. Con la
+  /// [limit] titoli dei tipi [kinds], del genere [genre] e con voto almeno
+  /// [minRating], se ci sono (Jellyfin non ha un voto massimo). Con la
   /// trama, il numero di stagioni (`ChildCount`) e quello degli episodi
   /// (`RecursiveItemCount`): senza, Jellyfin non conta gli episodi visti di
   /// una serie e non si saprebbe se è mai iniziata.
   Future<ItemPage> randomUnplayed(String userId,
       {required Set<ItemKind> kinds,
       String? genre,
+      double? minRating,
       required int limit}) async {
     final data = await _http.get('/Items', query: {
       ...cardImageParams,
@@ -52,6 +54,7 @@ class LibraryApi {
       'limit': limit,
       'enableTotalRecordCount': true,
       'genres': ?genre,
+      'minCommunityRating': ?minRating,
     });
     return parseJson(
         data,

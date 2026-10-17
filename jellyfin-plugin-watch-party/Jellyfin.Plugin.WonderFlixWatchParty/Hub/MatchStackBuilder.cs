@@ -4,7 +4,7 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 
 /// <summary>
 /// La pila del match (spec P §6.2): candidati a caso dalla libreria di chi
-/// ha aperto la sala, poi tipo, durata, esclusi e, per ogni membro (anche
+/// ha aperto la sala, poi tipo, durata, voto, esclusi e, per ogni membro (anche
 /// chi ha aperto), "lo può vedere" e "non l'ha mai visto né iniziato". I
 /// controlli di un candidato si fermano al primo che non passa. Non lancia:
 /// gli errori della libreria danno una pila più corta o vuota.
@@ -65,9 +65,12 @@ public sealed class MatchStackBuilder(
         return stack;
     }
 
-    // Come "Cosa guardo stasera?" nell'app: con un limite, un film senza durata non passa.
+    // Come "Cosa guardo stasera?" nell'app: con un limite, un film senza durata
+    // non passa, e un titolo senza voto non passa un filtro di voto.
     private static bool Fits(MatchCandidate candidate, MatchFilters filters) =>
-        candidate.IsMovie
+        (candidate.IsMovie
             ? filters.Movies && (filters.MaxRuntime is not { } limit || candidate.RunTimeTicks < limit.Ticks)
-            : filters.Series;
+            : filters.Series)
+        && (filters.MinRating is not { } min || candidate.Rating >= min)
+        && (filters.MaxRating is not { } max || candidate.Rating <= max);
 }

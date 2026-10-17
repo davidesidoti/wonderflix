@@ -15,7 +15,7 @@ public class JellyfinMatchLibraryTests
 {
     private readonly User _luigi = new("luigi", "provider", "reset");
     private readonly List<InternalItemsQuery> _queries = [];
-    private readonly Movie _dune = new() { Id = Guid.NewGuid(), Name = "Dune", RunTimeTicks = TimeSpan.FromMinutes(155).Ticks };
+    private readonly Movie _dune = new() { Id = Guid.NewGuid(), Name = "Dune", RunTimeTicks = TimeSpan.FromMinutes(155).Ticks, CommunityRating = 8.1f };
     private readonly Series _bear = new() { Id = Guid.NewGuid(), Name = "The Bear" };
 
     private JellyfinMatchLibrary Library()
@@ -54,9 +54,10 @@ public class JellyfinMatchLibraryTests
             Assert.Equal(exclude, query.ExcludeItemIds);
             Assert.Equal(new[] { (ItemSortBy.Random, SortOrder.Ascending) }, query.OrderBy);
             Assert.Equal(150, query.Limit);
+            Assert.Null(query.MinCommunityRating);
         });
         Assert.Equal(2, candidates.Count);
-        Assert.Contains(new MatchCandidate(_dune.Id, true, TimeSpan.FromMinutes(155).Ticks), candidates);
+        Assert.Contains(new MatchCandidate(_dune.Id, true, TimeSpan.FromMinutes(155).Ticks, 8.1f), candidates);
         Assert.Contains(new MatchCandidate(_bear.Id, false, null), candidates);
     }
 
@@ -69,6 +70,17 @@ public class JellyfinMatchLibraryTests
         Assert.Equal(new[] { BaseItemKind.Movie }, query.IncludeItemTypes);
         Assert.Equal(300, query.Limit);
         Assert.Empty(query.Genres);
+    }
+
+    [Fact]
+    public void AMinimumRatingIsAskedToJellyfin()
+    {
+        // Jellyfin non ha un voto massimo: per i "brutti" scarta la pila.
+        Library().Candidates(_luigi.Id, new MatchFilters(true, false, null, null, MinRating: 7), [], 300);
+        Library().Candidates(_luigi.Id, new MatchFilters(true, false, null, null, MaxRating: 5), [], 300);
+
+        Assert.Equal(7, _queries[0].MinCommunityRating);
+        Assert.Null(_queries[1].MinCommunityRating);
     }
 
     [Fact]

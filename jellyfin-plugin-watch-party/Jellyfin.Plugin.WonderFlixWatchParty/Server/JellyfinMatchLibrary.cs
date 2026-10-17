@@ -47,6 +47,8 @@ public sealed class JellyfinMatchLibrary(ILibraryManager libraryManager, IUserMa
                 ExcludeItemIds = [.. exclude],
                 OrderBy = [(ItemSortBy.Random, SortOrder.Ascending)],
                 Limit = limit / kinds.Length,
+                // Il massimo dei "brutti" lo controlla la pila: Jellyfin non ce l'ha.
+                MinCommunityRating = filters.MinRating,
             };
             if (filters.Genre is { } genre)
             {
@@ -54,7 +56,7 @@ public sealed class JellyfinMatchLibrary(ILibraryManager libraryManager, IUserMa
             }
 
             candidates.AddRange(libraryManager.GetItemList(query)
-                .Select(item => new MatchCandidate(item.Id, item is Movie, item.RunTimeTicks)));
+                .Select(item => new MatchCandidate(item.Id, item is Movie, item.RunTimeTicks, item.CommunityRating)));
         }
 
         // Ognuna delle due liste è già a caso: si mescolano tra loro.

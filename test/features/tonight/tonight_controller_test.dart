@@ -72,16 +72,19 @@ void main() {
     await prefs.setString(tonightTypeKey, 'series');
     await prefs.setString(tonightDurationKey, '90');
     await prefs.setString(tonightGenreKey, 'Dramma');
+    await prefs.setString(tonightRatingKey, 'good');
     final c = container();
     await settle();
     expect(state(c).filters,
         const TonightFilters(
             type: TonightType.series,
             duration: TonightDuration.under90,
-            genre: 'Dramma'));
+            genre: 'Dramma',
+            rating: TonightRating.good));
     final call = library.randomCalls.single;
     expect(call.kinds, {ItemKind.series});
     expect(call.genre, 'Dramma');
+    expect(call.minRating, 7);
     expect(call.limit, tonightBatch);
   });
 
@@ -193,8 +196,12 @@ void main() {
         const TonightFilters(
             type: TonightType.movies,
             duration: TonightDuration.under90,
-            genre: 'Azione'));
+            genre: 'Azione',
+            rating: TonightRating.bad));
     await settle();
+    expect(prefs.getString(tonightRatingKey), 'bad');
+    expect(library.randomCalls.last.minRating, isNull,
+        reason: 'Jellyfin non ha un voto massimo');
     expect(prefs.getString(tonightTypeKey), 'movies');
     expect(prefs.getString(tonightDurationKey), '90');
     expect(prefs.getString(tonightGenreKey), 'Azione');

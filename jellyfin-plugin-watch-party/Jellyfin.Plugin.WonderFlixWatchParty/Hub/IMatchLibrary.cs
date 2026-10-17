@@ -1,7 +1,7 @@
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 
 /// <summary>Un titolo candidato alla pila: un film (con la durata, se nota) o una serie.</summary>
-public sealed record MatchCandidate(Guid Id, bool IsMovie, long? RunTimeTicks);
+public sealed record MatchCandidate(Guid Id, bool IsMovie, long? RunTimeTicks, float? Rating = null);
 
 /// <summary>La libreria come serve al match (adattatore di ILibraryManager e IUserManager).</summary>
 public interface IMatchLibrary

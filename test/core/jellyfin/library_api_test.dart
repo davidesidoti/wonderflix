@@ -340,7 +340,10 @@ void main() {
       () async {
     adapter.handler = (_) => FakeResponse(200, itemsResult(['a'], total: 632));
     final page = await api.randomUnplayed('u1',
-        kinds: {ItemKind.series, ItemKind.movie}, genre: 'Commedia', limit: 50);
+        kinds: {ItemKind.series, ItemKind.movie},
+        genre: 'Commedia',
+        minRating: 7,
+        limit: 50);
     expect(last().path, '/Items');
     expect(last().query['includeItemTypes'], 'Movie,Series');
     expect(last().query['sortBy'], 'Random');
@@ -348,6 +351,7 @@ void main() {
     expect(last().query['recursive'], true);
     expect(last().query['limit'], 50);
     expect(last().query['genres'], 'Commedia');
+    expect(last().query['minCommunityRating'], 7);
     expect(last().query['userId'], 'u1');
     expect(
         last().query['fields'],
@@ -358,6 +362,7 @@ void main() {
 
     await api.randomUnplayed('u1', kinds: {ItemKind.movie}, limit: 50);
     expect(last().query.containsKey('genres'), isFalse);
+    expect(last().query.containsKey('minCommunityRating'), isFalse);
   });
 }
 

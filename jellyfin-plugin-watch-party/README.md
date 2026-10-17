@@ -137,8 +137,9 @@ uscite in arrivo.
   utente, al massimo 8 membri. `POST Match` apre una sala; chi l'ha aperta
   invita amici (`POST Match/{roomId}/Invites`, avviso `MatchInvite` e voce
   nella cassetta), gli invitati entrano con `POST Match/{roomId}/Join`
-  finché è in attesa. `POST Match/{roomId}/Start` `{Type, Duration, Genre}`
-  pesca 30 titoli a caso che nessun membro ha visto o iniziato e che tutti
+  finché è in attesa. `POST Match/{roomId}/Start` `{Type, Duration, Genre,
+  Rating}` (`Rating` dalla 1.10.1: `any`, `good` voto 7 o più, `bad` voto 5
+  o meno; assente vale `any`) pesca 30 titoli a caso che nessun membro ha visto o iniziato e che tutti
   possono vedere; `POST Match/{roomId}/Votes` `{ItemId, Yes}` vota in ordine;
   un match è un titolo a cui tutti hanno detto sì, i quasi match arrivano a
   fine pila; `POST Match/{roomId}/More` pesca altri 30 titoli.

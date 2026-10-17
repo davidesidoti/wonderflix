@@ -27,4 +27,14 @@ public class MatchFiltersTests
         Assert.Null(MatchFilters.Parse("both", "any", new string('a', MatchFilters.MaxGenreLength + 1)));
         Assert.NotNull(MatchFilters.Parse("both", "any", new string('a', MatchFilters.MaxGenreLength)));
     }
+
+    [Fact]
+    public void TheRatingIsAnyGoodOrBad()
+    {
+        Assert.Equal(new MatchFilters(true, true, null, null, MinRating: 7), MatchFilters.Parse("both", "any", null, "good"));
+        Assert.Equal(new MatchFilters(true, true, null, null, MaxRating: 5), MatchFilters.Parse("both", "any", null, "bad"));
+        Assert.Equal(new MatchFilters(true, true, null, null), MatchFilters.Parse("both", "any", null, "any"));
+        Assert.Equal(new MatchFilters(true, true, null, null), MatchFilters.Parse("both", "any", null, null));
+        Assert.Null(MatchFilters.Parse("both", "any", null, "great"));
+    }
 }

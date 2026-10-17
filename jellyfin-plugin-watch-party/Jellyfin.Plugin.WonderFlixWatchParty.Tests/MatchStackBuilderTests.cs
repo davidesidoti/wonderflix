@@ -28,6 +28,13 @@ public class MatchStackBuilderTests
         return candidate.Id;
     }
 
+    private Guid Rated(float? rating)
+    {
+        var candidate = new MatchCandidate(Guid.NewGuid(), true, null, rating);
+        _server.MatchCandidates.Add(candidate);
+        return candidate.Id;
+    }
+
     private Guid Series()
     {
         var candidate = new MatchCandidate(Guid.NewGuid(), false, null);
@@ -86,6 +93,19 @@ public class MatchStackBuilderTests
         var series = Series();
 
         Assert.Equal(new[] { short1, series }, Draw(new MatchFilters(true, true, TimeSpan.FromMinutes(90), null)));
+    }
+
+    [Fact]
+    public void TheRatingNeedsAKnownScoreInTheRange()
+    {
+        var good = Rated(7f);
+        Rated(6.9f);
+        var bad = Rated(5f);
+        Rated(null);
+
+        Assert.Equal(new[] { good }, Draw(new MatchFilters(true, true, null, null, MinRating: 7)));
+        Assert.Equal(new[] { bad }, Draw(new MatchFilters(true, true, null, null, MaxRating: 5)));
+        Assert.Equal(4, Draw().Count);
     }
 
     [Fact]
