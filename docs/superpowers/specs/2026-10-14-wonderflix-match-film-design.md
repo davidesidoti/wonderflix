@@ -1,7 +1,7 @@
 # WonderFlix — Spec P: match del film
 
 - **Data:** 2026-10-14
-- **Stato:** approvata il 2026-10-14; piano 22a realizzato (`docs/superpowers/plans/2026-10-14-wonderflix-22a-match-plugin.md`), build di prova sul server; piano 22b realizzato (`docs/superpowers/plans/2026-10-16-wonderflix-22b-match-sala-app.md`); piano 22c realizzato (`docs/superpowers/plans/2026-10-16-wonderflix-22c-match-votazione.md`), app 0.16.0
+- **Stato:** realizzata (plugin 1.10.0, app 0.16.0); approvata il 2026-10-14; piano 22a realizzato (`docs/superpowers/plans/2026-10-14-wonderflix-22a-match-plugin.md`); piano 22b realizzato (`docs/superpowers/plans/2026-10-16-wonderflix-22b-match-sala-app.md`); piano 22c realizzato (`docs/superpowers/plans/2026-10-16-wonderflix-22c-match-votazione.md`), app 0.16.0
 - **Ambito:** Spec P. Realizza l'idea 9 di `docs/IDEE.md` ("Match del film"): prima di un watch party, gli amici in una sala votano sì o no su una pila di titoli; i titoli che piacciono a tutti finiscono nella coda di un party privato. Si appoggia alla Spec F (amici, party privati, `PartyDirectory`), alla Spec G (cassetta), alla Spec H (coda del party), alla Spec M ("Cosa guardo stasera?") e alla Spec O (`LastWatched`, `CanSee`).
 
 ## 1. Obiettivo

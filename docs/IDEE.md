@@ -53,11 +53,6 @@ Un party con data e ora, per esempio "Venerdì 21:00 — Il Padrino". Gli amici 
 - **Da cercare:** dove si vedono le serate in arrivo; fusi orari; cosa succede se l'organizzatore non si presenta; modifica e annullamento con avviso a chi ha detto sì; serate ricorrenti (ogni venerdì) o solo singole.
 - Medio.
 
-## 9. Match del film
-
-Prima di un party ognuno scorre una pila di titoli e dice sì o no, stile Tinder; escono solo i titoli che piacciono a tutti, da mettere in coda.
-- **Da cercare:** da dove prendere la pila (filtri per genere e durata, non visti da nessuno, La mia lista dei partecipanti); quanti titoli; cosa fare se non c'è nessun match; se legarlo a un party aperto o a una serata programmata (idea 8).
-- Medio.
 
 ## 10. Stile dei sottotitoli
 
@@ -112,3 +107,4 @@ I prossimi episodi delle serie che si seguono, giorno per giorno, con un avviso 
 - Spec M — Home su misura (plugin 1.7.0, app 0.13.0).
 - Spec N — consigli tra amici (plugin 1.8.0, app 0.14.0).
 - Spec O — cosa guardano gli amici (plugin 1.9.0, app 0.15.0).
+- Spec P — match del film (plugin 1.10.0, app 0.16.0).
