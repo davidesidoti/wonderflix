@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.10.1.0",
+        "changelog": "Filtro per voto per WonderFlix 0.16.1: nel match si possono scegliere solo i titoli belli (voto 7 o più) o solo quelli brutti (voto 5 o meno).",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.10.1/wonderflix-watch-party_1.10.1.zip",
+        "checksum": "635bb0e8a5becc26bf9114ec336f8fd8",
+        "timestamp": "2026-10-17T23:54:57Z"
+      },
+      {
         "version": "1.10.0.0",
         "changelog": "Match del film per WonderFlix 0.16.0: sale su invito con i filtri di «Cosa guardo stasera?», voti segreti titolo per titolo, match e quasi match, «Altri 30 titoli» e avvio del watch party privato con i match in coda.",
         "targetAbi": "10.11.0.0",
