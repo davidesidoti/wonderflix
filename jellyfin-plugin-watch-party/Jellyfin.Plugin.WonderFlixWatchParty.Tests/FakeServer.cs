@@ -3,8 +3,37 @@ using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
 
 /// <summary>Server finto: sessioni, gruppi SyncPlay e invii, in memoria.</summary>
-internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSender, IUserDirectory, ILibraryAccess, ILibraryTitles, INewTitlesSettings, IRecommendationLibrary, IPlaybackDirectory, IMatchLibrary
+internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSender, IUserDirectory, ILibraryAccess, ILibraryTitles, INewTitlesSettings, IRecommendationLibrary, IPlaybackDirectory, IMatchLibrary, IRatingLibrary
 {
+    /// <summary>Film e stagioni che si possono votare (spec Q), per id.</summary>
+    public Dictionary<Guid, RatedTitle> RatedTitles { get; } = [];
+
+    /// <summary>Cosa si vota a fine party, per elemento in riproduzione.</summary>
+    public Dictionary<Guid, Guid> RoundTargets { get; } = [];
+
+    /// <summary>Coppie (utente, titolo) che l'utente ha visto.</summary>
+    public HashSet<(Guid UserId, Guid ItemId)> WatchedTitles { get; } = [];
+
+    /// <summary>Se true, i metodi di IRatingLibrary lanciano, come un errore di Jellyfin.</summary>
+    public bool RatingLibraryFails { get; set; }
+
+    public RatedTitle AddRated(string displayTitle, bool isSeason = false)
+    {
+        var title = new RatedTitle(Guid.NewGuid(), isSeason, displayTitle);
+        RatedTitles[title.Id] = title;
+        return title;
+    }
+
+    public RatedTitle? FindRated(Guid itemId) =>
+        RatingLibraryFails ? throw new InvalidOperationException("libreria non disponibile") : RatedTitles.GetValueOrDefault(itemId);
+
+    public Guid? RoundTarget(Guid itemId) =>
+        RatingLibraryFails ? throw new InvalidOperationException("libreria non disponibile")
+        : RoundTargets.TryGetValue(itemId, out var target) ? target : null;
+
+    public bool HasWatched(Guid userId, RatedTitle title) =>
+        RatingLibraryFails ? throw new InvalidOperationException("libreria non disponibile") : WatchedTitles.Contains((userId, title.Id));
+
     public List<CallerSession> Sessions { get; } = [];
 
     /// <summary>Gruppo → nomi utente dei partecipanti.</summary>

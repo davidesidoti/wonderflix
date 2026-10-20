@@ -72,4 +72,7 @@ public static class LimitTypes
 
     /// <summary>Voti del match, per utente: quattro al secondo (spec P §6.3).</summary>
     public const string MatchVotes = "MatchVotes";
+
+    /// <summary>Scritture dei voti (Vote, PUT, DELETE), per utente: sessanta all'ora (spec Q §6.3).</summary>
+    public const string Ratings = "Ratings";
 }
