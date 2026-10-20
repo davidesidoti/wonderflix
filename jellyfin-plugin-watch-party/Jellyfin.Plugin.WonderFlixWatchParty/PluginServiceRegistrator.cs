@@ -93,6 +93,13 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IMatchLibrary, JellyfinMatchLibrary>();
         serviceCollection.AddSingleton<MatchStackBuilder>();
         serviceCollection.AddSingleton<MatchService>();
+        // Voti degli amici (spec Q).
+        serviceCollection.AddSingleton(provider => new RatingStore(
+            RatingStore.DefaultPath(provider.GetRequiredService<IApplicationPaths>()),
+            provider.GetRequiredService<ILogger<RatingStore>>()));
+        serviceCollection.AddSingleton<IRatingLibrary, JellyfinRatingLibrary>();
+        serviceCollection.AddSingleton<RatingService>();
+        serviceCollection.AddSingleton<RatingRoundService>();
         serviceCollection.AddSingleton<NewTitlesCollector>();
         serviceCollection.AddSingleton<PresenceTracker>();
         serviceCollection.AddSingleton<PartyDirectory>();
@@ -108,5 +115,6 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddHostedService<RecommendationsHostedService>();
         serviceCollection.AddHostedService<ActivityHostedService>();
         serviceCollection.AddHostedService<MatchHostedService>();
+        serviceCollection.AddHostedService<RatingsHostedService>();
     }
 }

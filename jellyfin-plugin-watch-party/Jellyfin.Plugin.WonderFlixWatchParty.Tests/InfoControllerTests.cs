@@ -14,10 +14,10 @@ public class InfoControllerTests
     public void InfoReportsVersionProtocolAndFeatures()
     {
         var info = new InfoController(new FakeSeerrSettings { Url = string.Empty }, NoArr()).GetInfo().Value!;
-        Assert.Equal("1.10.1", info.Version);
+        Assert.Equal("1.11.0", info.Version);
         Assert.Equal(1, info.Protocol);
         Assert.Equal(
-            new[] { "friends", "parties", "inbox", "queue", "collections", "avatars", "account", "home", "recommendations", "friendsActivity", "match" },
+            new[] { "friends", "parties", "inbox", "queue", "collections", "avatars", "account", "home", "recommendations", "friendsActivity", "match", "ratings" },
             info.Features);
     }
 
@@ -27,7 +27,7 @@ public class InfoControllerTests
         Assert.Equal(
             new[]
             {
-                "friends", "parties", "inbox", "queue", "collections", "avatars", "account", "home", "recommendations", "friendsActivity", "match",
+                "friends", "parties", "inbox", "queue", "collections", "avatars", "account", "home", "recommendations", "friendsActivity", "match", "ratings",
                 "requests", "upcomingSeries", "upcomingMovies",
             },
             new InfoController(new FakeSeerrSettings(), new FakeArrSettings()).GetInfo().Value!.Features);
