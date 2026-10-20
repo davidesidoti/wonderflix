@@ -88,6 +88,7 @@ Prima di ogni release, su un utente di prova:
 - [ ] Amministrazione → WonderFlix → "Home per tutti": spegni e riaccendi una riga, cambia l'ordine, "Salva"; "Ripristina" con la conferma. "Sonarr e Radarr": "Prova collegamento".
 - [ ] "Cosa guardo stasera?" (il dado sul carosello): filtri, "Un altro", "Riproduci" e "Dettagli"; i filtri restano riaprendo.
 - [ ] "Match del film" (con due istanze): sala, inviti, voti (gesto, ✗/✓, ←/→), "È un match!", fine pila e "Altri 30 titoli", avvio del party e ingresso dell'altro membro.
+- [ ] "Voti degli amici" (plugin 1.11.0, con due istanze): nel post-play del party il voto e "Salta"; la scoperta per tutti votato, per tempo scaduto (2 min) e con il pulsante; il conto di 15 s e la pillola "Voti del party" (apre il pannello a lato); l'uscita dal party durante la votazione; il voto dalla scheda di film e serie (per stagione) con la riga degli amici; la cancellazione di un commento da Amministrazione → WonderFlix → "Commenti degli utenti".
 - [ ] Aggiornamento da una versione precedente; aggiornamento obbligatorio.
 - [ ] Discord Rich Presence attiva e disattivata.
 - [ ] Pannello media di Windows con il nome "WonderFlix" (app installata).

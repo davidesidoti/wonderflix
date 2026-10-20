@@ -1,7 +1,7 @@
 # WonderFlix — Spec Q: voti degli amici
 
 - **Data:** 2026-10-20
-- **Stato:** approvata il 2026-10-20; piano 23a realizzato (`docs/superpowers/plans/2026-10-20-wonderflix-23a-voti-plugin.md`), build di prova installata sul server il 2026-10-20 alle 15:24 UTC; piano 23b da realizzare.
+- **Stato:** approvata il 2026-10-20; piano 23a realizzato (`docs/superpowers/plans/2026-10-20-wonderflix-23a-voti-plugin.md`), build di prova installata sul server il 2026-10-20 alle 15:24 UTC; piano 23b realizzato (`docs/superpowers/plans/2026-10-20-wonderflix-23b-voti-app.md`), da provare con l'utente.
 - **Ambito:** Spec Q. Realizza l'idea 7 di `docs/IDEE.md` ("Voti degli amici"). A fine film nel watch party ognuno dà un voto da 1 a 10 con un commento facoltativo; i voti si scoprono tutti insieme. Nella scheda del film (o della stagione) restano la media e i commenti degli amici.
 
 ## 1. Obiettivo
@@ -228,6 +228,8 @@ Endpoint in un controller a parte, `RatingsAdminController`, con `[Authorize]` s
   - `AdminComment`.
 - **`SocialApi`:** `openRatingRound`, `ratingRound`, `voteInRound`, `skipRound`, `revealRound`, `itemRatings`, `rate`, `deleteRating`, con gli stessi metodi in `FakeSocialApi`. `PluginAdminApi` aggiunge `ratingComments(before)` e `deleteRatingComment(userId, itemId)`.
 - **`SocialFeatures.ratings`** viene dalla funzione `ratings` del plugin e vale solo con l'accesso ai watch party, come gli amici.
+- **Errori:** l'app non distingue i motivi dei 409 (`SocialApi` li mappa tutti su `conflict`): `NotMember` all'apertura vuol dire niente pannello, `Closed` al voto vuol dire rileggere lo stato, `NotCreator` va solo nel log. Il 400 è tra gli esiti attesi delle chiamate dei voti (non finisce negli "Ultimi errori" della diagnostica): un episodio intermedio lo dà a ogni fine episodio.
+- `Mine` è `{Score, Comment?}` (modello `MyRating`).
 - **`RatingRoundUpdated`** si legge in `parseSocialEvent`; uno stato con `rev` non più nuovo di quello che l'app ha già viene scartato, come nel match.
 
 ### 7.2 Pannello del voto nel post-play del party
@@ -244,8 +246,8 @@ L'app chiama `POST Ratings/Rounds`. Se risponde 400 (per esempio un episodio non
 - a destra, al posto delle informazioni del prossimo titolo, il pannello del voto.
 
 **Pannello in `Voting`:**
-- titolo "Il tuo voto · *Il Padrino*", oppure "*Breaking Bad* · Stagione 2";
-- i numeri da 1 a 10 in fila, selezionabili anche con le frecce e con i tasti 1–9 e 0 (= 10). La selezione parte da `Mine`, se c'è;
+- titolo "Il tuo voto · *Il Padrino*", oppure "*Breaking Bad* · Stagione 2". L'episodio non ha il nome della stagione, quindi il numero viene da `parentIndexNumber` (testo `ratingSeason`) e la stagione 0 è "Speciali", come i titoli del plugin;
+- i numeri da 1 a 10 in fila, selezionabili anche con le frecce e con i tasti 1–9 e 0 (= 10). La selezione parte da `Mine`, se c'è. I tasti (cifre e ← →) li riceve il player e valgono finché i numeri sono visibili (fase `Voting`, non ancora votato o dopo "Cambia"); non mandano reazioni e non fanno salti. Con il fuoco nel campo del commento vanno al campo, quindi un "8" scritto nel commento resta testo. La scelta e "Cambia" stanno nel controller (`draft`, `editing`), il commento in scrittura nel campo del pannello;
 - il campo del commento, facoltativo, fino a 200 caratteri, con lo stesso comportamento del messaggio dei consigli (Invio non va a capo);
 - i pulsanti **Vota** (spento finché non c'è un numero) e **Salta**. Dopo il voto il pannello mostra "Hai votato *8*" con "Cambia", che riapre il voto finché la fase resta `Voting`;
 - "Hanno votato 2 su 4" e l'elenco dei presenti con la spunta per chi ha votato o "ha saltato". Mai il voto degli altri;
@@ -255,27 +257,29 @@ L'app chiama `POST Ratings/Rounds`. Se risponde 400 (per esempio un episodio non
 **Pannello in `Revealed`:** in alto la media del party, grande, e il numero dei voti; poi una riga per ogni risultato con avatar, nome ("Tu" per sé), voto e commento. Le righe entrano tutte insieme con la stessa animazione, che rispetta le animazioni ridotte. Sotto c'è "Puoi cambiare il tuo voto dalla scheda del film".
 
 **Coda ferma durante `Voting`:**
-- l'app non chiama `nextItem` a video finito;
+- l'app non chiama `nextItem` a video finito. La coda è ferma solo nel player dell'elemento della coda (`playlistItemId`) che ha aperto la votazione;
 - al posto di "Riproduci ora" il pulsante dice "In attesa dei voti" ed è spento;
-- se il video finisce mentre si vota, il player resta sull'ultimo fotogramma con il post-play aperto.
+- se il video finisce mentre si vota, il player resta sull'ultimo fotogramma con il post-play aperto;
+- **rete di sicurezza:** se 5 s dopo `EndsAt` lo stato è ancora `Voting` (avviso perso), l'app rilegge `GET Rounds/{groupId}`; rilegge anche a ogni riconnessione del WebSocket. Così la coda non resta ferma per sempre.
 
 **Dopo `Revealed`:**
-- se il video è già finito, parte un conto alla rovescia di **15 s** sul pulsante "Riproduci ora" (lo stesso `PlayNowButton`), poi `nextItem` come oggi;
-- se il video sta ancora andando, si torna al comportamento di oggi: "Riproduci ora" disponibile e `nextItem` a fine video;
+- se il video è già finito, parte un conto alla rovescia di **15 s** sul pulsante "Riproduci ora" (lo stesso `PlayNowButton`, con i secondi che restano e la barra che parte dal totale di quel conto), poi `nextItem` come oggi;
+- se il video sta ancora andando, si torna al comportamento di oggi: "Riproduci ora" disponibile e `nextItem` a fine video. Se `Revealed` arriva durante i titoli di coda e il video finisce dopo, `nextItem` parte subito, senza i 15 s (il conto è per chi scopre i voti a video già finito);
 - a coda vuota non parte niente, e il pannello resta finché qualcuno chiude il post-play.
 
 **Errori:**
 - se `POST Ratings/Rounds` fallisce (rete, plugin riavviato), il post-play resta quello di oggi, la coda non si ferma e c'è una riga di log;
-- se la votazione sparisce a metà (`GET` → `{}`), il pannello dice "Votazione non disponibile: puoi votare dalla scheda" e la coda torna libera.
+- se la votazione sparisce a metà (`GET` → `{}`, gruppo lasciato, funzione spenta), il pannello dice "Votazione non disponibile: puoi votare dalla scheda" e la coda torna libera: a video finito l'app chiama subito `nextItem` (a `Revealed`, invece, parte il conto di 15 s). Il conto è un timer del player;
+- un avviso arrivato prima dell'apertura (un altro client è più avanti, o chi entra durante la votazione) si adotta: l'elemento della coda è quello in riproduzione. Due stati sono della stessa votazione se hanno uguali `ItemId` ed `EndsAt`; il `Rev` si confronta solo dentro la stessa votazione, e uno stato di un'altra la sostituisce. L'apertura è idempotente sul titolo risolto anche in `Revealed`. L'apertura ha un tempo massimo di 5 s.
 
-**Chiudere il post-play** (Esc, "Guarda i titoli") chiude il pannello solo per sé, senza saltare la votazione. Chi non ha votato resta in `Waiting` fino ai 2 minuti. *(Mie scelte:)*
-- **cambio di titolo durante `Voting`** (coda, "successivo", azione di un altro membro): è permesso (decisione dell'utente nella revisione dello spec). La votazione continua sopra il nuovo titolo con la pillola "Voti del party" fino a quando i voti si scoprono; il pannello si riapre da lì e in `Revealed` la pillola diventa "Voti scoperti" finché la votazione non viene scartata (10 minuti) o la si chiude. Il plugin non chiude la votazione per il cambio di titolo: solo l'apertura di una votazione per un altro titolo la sostituisce (§6.2);
+**Chiudere il post-play** (Esc, "Guarda i titoli") chiude il pannello solo per sé, senza saltare la votazione. Chi non ha votato resta in `Waiting` fino ai 2 minuti. Nel party Esc a video finito chiude il post-play e basta (prima usciva dal player, quindi dal party); un secondo Esc esce dal player e dal party, come oggi. *(Mie scelte:)*
+- **cambio di titolo durante `Voting`** (coda, "successivo", azione di un altro membro): è permesso (decisione dell'utente nella revisione dello spec). La votazione continua sopra il nuovo titolo con la pillola "Voti del party" fino a quando i voti si scoprono; il pannello si riapre da lì e in `Revealed` la pillola diventa "Voti scoperti" finché la votazione non viene scartata o la si chiude. Chiudere il pannello in `Revealed` (Esc o "Guarda i titoli" nel post-play, ✕ o Esc nel pannello a lato) toglie la votazione dall'app (`dismiss`) e la pillola sparisce; in `Voting` chiudere non toglie niente. Senza chiusura l'app la toglie da sé 10 minuti dopo aver visto `Revealed`. Il `dismiss` vale anche per una votazione non disponibile. Il plugin non chiude la votazione per il cambio di titolo: solo l'apertura di una votazione per un altro titolo la sostituisce (§6.2);
 - la coda ferma e il conto di 15 s dopo `Revealed` dipendono dallo stato della votazione nel player, non dal post-play aperto: anche se tutti lo hanno chiuso, dopo `Revealed` a video finito la coda riparte;
-- finché la votazione esiste, con il post-play chiuso, in basso a destra resta una pillola "Voti del party" (stile `PartyNoticePill`) che lo riapre, per votare o vedere i risultati.
+- finché la votazione esiste, con il post-play chiuso, a destra (`right: 32, bottom: 210`, sopra "Salta intro" e la scheda piccola, che stanno a 150) resta una pillola "Voti del party" (disegno di `PlayerPill`, cliccabile) che apre lo stesso pannello del voto in un pannello laterale del player (`PlayerPopup.rating`, 360 px), non il post-play: nel player nuovo, dopo il cambio di titolo, non c'è un post-play da riaprire a metà film. Nei 30 s finali di un titolo nuovo senza Outro la scheda piccola può coprirla (accettato).
 
 ### 7.3 Riga "Voti degli amici" nella scheda
 
-- **Dove:** nel dettaglio dei film, subito dopo `DetailHeader` e prima del Cast. Nel dettaglio delle serie, dopo `DetailHeader` e prima delle schede delle stagioni, con i voti della **stagione scelta** nelle schede: il titolo dice "Voti degli amici · Stagione 2" e cambia con la scheda. Non c'è nel dettaglio degli episodi.
+- **Dove:** nel dettaglio dei film, subito dopo `DetailHeader` e prima del Cast. Nel dettaglio delle serie, dopo `DetailHeader` e prima delle schede delle stagioni, con i voti della **stagione scelta** nelle schede: il titolo dice "Voti degli amici · Stagione 2" e cambia con la scheda. Non c'è nel dettaglio degli episodi: `MovieDetailView` serve anche gli episodi aperti da soli, quindi la riga si mostra solo per `ItemKind.movie`. Le righe sotto la testata scalano di un posto e `detailEntranceCount` passa da 8 a 9.
 - **Quando si vede:** con la funzione `ratings`, e solo se c'è almeno un voto degli amici oppure se chi guarda può votare (`CanRate`). Altrimenti la riga non c'è. Mentre carica non occupa spazio, e un errore la nasconde (una riga di log).
 - **Contenuto** (bozza "Riga sotto il titolo"):
   - a sinistra un riquadro con la media ("7,7", con la virgola in italiano) e "3 amici";
@@ -294,9 +298,9 @@ L'app chiama `POST Ratings/Rounds`. Se risponde 400 (per esempio un episodio non
 
 ### 7.4 Dashboard admin: commenti
 
-- **Card "Commenti degli utenti"** nella scheda WonderFlix (`wonderflix_tab.dart`), con l'elenco di `GET Ratings/Admin/Comments`. Per ogni commento ci sono nome, titolo, voto, commento intero, data relativa e un pulsante **Cancella commento**. In fondo c'è "Altri" finché arriva `Next`.
+- **Card "Commenti degli utenti"** nella scheda WonderFlix (`wonderflix_tab.dart`), con l'elenco di `GET Ratings/Admin/Comments`. Per ogni commento ci sono nome, titolo, voto, commento intero, data relativa e un pulsante **Cancella commento**. In fondo c'è "Altri" finché arriva `Next`. L'elenco è alto al massimo 480 px e scorre dentro la card, così 50 commenti non seppelliscono le altre card.
 - **Conferma** con `AdminConfirmDialog`, come le altre azioni distruttive della dashboard. Dopo la cancellazione la voce sparisce dall'elenco.
-- **Senza la funzione `ratings`** la card dice "Serve il plugin 1.11.0".
+- **Senza la funzione `ratings`** la card dice "Serve il plugin 1.11.0". Poiché `SocialFeatures.ratings` vale solo con l'accesso ai watch party, un admin senza quell'accesso vede lo stesso avviso (limite accettato; `shortcut:` nel codice della card).
 
 ### 7.5 Versione
 
@@ -341,7 +345,7 @@ L'app 0.17.0 è **obbligatoria** (min-version 0.17.0) perché un'app 0.16.x in u
 | `adminCommentDelete` | Cancella commento | Delete comment |
 | `adminCommentsNeedPlugin` | Serve il plugin 1.11.0 | Requires plugin 1.11.0 |
 
-I testi della conferma admin e gli altri minori li sceglie il piano.
+Testi in più, scelti dal piano: `ratingSeason` ("Stagione {season}"), `ratingSpecials` ("Speciali"), `ratingYouSkipped` ("Hai saltato"), `ratingPartyPill` ("Voti del party"), `ratingRevealedPill` ("Voti scoperti"), `ratingTimeLeft` ("Ancora {time}"), `adminCommentsMore` ("Altri"), `adminCommentsEmpty` ("Nessun commento"), `adminCommentDeleteTitle`, `adminCommentDeleteMessage`. `ratingPartyAverage` ha il plurale ("media del party · 1 voto" / "· {count} voti"); il numero della media usa la virgola in italiano ("7,7").
 
 ## 10. Sicurezza e privacy
 
