@@ -9,6 +9,7 @@ import 'package:wonderflix/core/jellyfin/maintenance_models.dart';
 import 'package:wonderflix/core/social/account_models.dart';
 import 'package:wonderflix/core/social/plugin_admin_api.dart';
 import 'package:wonderflix/core/social/plugin_admin_models.dart';
+import 'package:wonderflix/core/social/rating_models.dart';
 import 'package:wonderflix/features/admin/admin_providers.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/home/home_providers.dart';
@@ -303,7 +304,8 @@ class FakePluginAdminApi implements PluginAdminApi {
 
   /// Chiamate in ordine: `announce:<testo>`, `newTitles`, `send`, `seerr`,
   /// `test`, `notify:<true|false>`, `accountUsers`, `accountStatus`,
-  /// `recovery:<id>:<lingua>`, `unlink:<id>`, `accountTest:<lingua>`.
+  /// `recovery:<id>:<lingua>`, `unlink:<id>`, `accountTest:<lingua>`,
+  /// `comments:<before|->`, `deleteComment:<userId>:<itemId>`.
   final calls = <String>[];
 
   int count(String call) => calls.where((c) => c == call).length;
@@ -396,6 +398,26 @@ class FakePluginAdminApi implements PluginAdminApi {
         else
           user,
     ];
+  }
+
+  /// Una pagina per chiamata di `ratingComments`, nell'ordine; finite, vuota.
+  List<AdminCommentsPage> commentPages = const [];
+  int _commentCalls = 0;
+
+  @override
+  Future<AdminCommentsPage> ratingComments({String? before}) async {
+    calls.add('comments:${before ?? '-'}');
+    final index = _commentCalls++;
+    return index < commentPages.length
+        ? commentPages[index]
+        : const AdminCommentsPage(items: []);
+  }
+
+  @override
+  Future<void> deleteRatingComment(String userId, String itemId) async {
+    calls.add('deleteComment:$userId:$itemId');
+    final error = actionError;
+    if (error != null) throw error;
   }
 
   @override

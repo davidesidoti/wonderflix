@@ -2,6 +2,7 @@ import '../jellyfin/api_exception.dart';
 import '../jellyfin/jellyfin_http.dart';
 import 'account_models.dart';
 import 'plugin_admin_models.dart';
+import 'rating_models.dart';
 
 /// Gli endpoint da admin del plugin WonderFlix Watch Party (spec J §8.3).
 /// Gli errori sono [ApiException]: 400 per un annuncio non valido, 403 per
@@ -88,6 +89,20 @@ class PluginAdminApi {
     }
     config['NotifyNewTitles'] = enabled;
     await _http.post(_configPath, body: config, quietStatuses: _configQuiet);
+  }
+
+  /// I commenti ai voti, dal più recente; [before] è il `Next` della pagina
+  /// prima.
+  Future<AdminCommentsPage> ratingComments({String? before}) async => parseJson(
+      await _http.get('$_base/Ratings/Admin/Comments',
+          query: before == null ? null : {'before': before},
+          quietStatuses: _quiet),
+      AdminCommentsPage.fromJson);
+
+  /// Toglie il commento di un utente a un titolo; il voto resta.
+  Future<void> deleteRatingComment(String userId, String itemId) async {
+    await _http.delete('$_base/Ratings/Admin/Comments/$userId/$itemId',
+        quietStatuses: _quiet);
   }
 
   /// Gli utenti con i loro contatti per il recupero, in ordine di nome.

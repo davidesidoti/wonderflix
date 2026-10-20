@@ -248,7 +248,8 @@ void main() {
     });
 
     testWidgets('la bozza resta scorrendo', (tester) async {
-      await pumpTab(tester, size: const Size(1440, 700));
+      // 800: con la card dei commenti sopra, a 700 l'interruttore sta fuori vista.
+      await pumpTab(tester, size: const Size(1440, 800));
       await tester.tap(find.byKey(const Key('home-rows-switch-nextUp')));
       await tester.pump();
       final list = find.byType(ListView).first;

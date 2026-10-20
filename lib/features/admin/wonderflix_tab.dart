@@ -19,6 +19,7 @@ import 'admin_confirm_dialog.dart';
 import 'admin_time.dart';
 import 'admin_widgets.dart';
 import 'home_admin_cards.dart';
+import 'rating_comments_card.dart';
 import 'wonderflix_controllers.dart';
 import 'wonderflix_labels.dart';
 
@@ -47,6 +48,7 @@ class _WonderflixTabState extends State<WonderflixTab> {
         padding: const EdgeInsets.fromLTRB(32, 8, 32, 40),
         children: const [
           AnnouncementCard(),
+          RatingCommentsCard(),
           NewTitlesCard(),
           HomeForEveryoneCard(),
           ArrCard(),

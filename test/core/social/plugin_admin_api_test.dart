@@ -46,6 +46,50 @@ void main() {
         baseUrl: testServerUrl, clientInfo: testClientInfo, adapter: adapter));
   });
 
+  group('commenti dei voti', () {
+    const path = '/WonderFlixWatchParty/Ratings/Admin/Comments';
+
+    test('prima pagina senza before, con Next', () async {
+      adapter.handler = (_) => const FakeResponse(200, {
+            'Items': [
+              {
+                'UserId': 'u2',
+                'UserName': 'Luigi',
+                'ItemId': 'm1',
+                'Title': 'Il Padrino (1972)',
+                'Score': 9,
+                'Comment': 'Grande',
+                'UpdatedAt': '2026-10-19T10:00:00Z',
+              },
+            ],
+            'Next': '2026-10-19T10:00:00Z',
+          });
+      final page = await api.ratingComments();
+      final request = adapter.requests.single;
+      expect(request.method, 'GET');
+      expect(request.path, path);
+      expect(request.queryParameters, isEmpty);
+      expect(page.items.single.userName, 'Luigi');
+      expect(page.next, '2026-10-19T10:00:00Z');
+    });
+
+    test('before nella query', () async {
+      adapter.handler = (_) => const FakeResponse(200, {'Items': []});
+      final page = await api.ratingComments(before: '2026-10-19T10:00:00Z');
+      expect(adapter.requests.single.queryParameters,
+          {'before': '2026-10-19T10:00:00Z'});
+      expect(page.next, isNull);
+    });
+
+    test('cancellare un commento', () async {
+      adapter.handler = (_) => const FakeResponse(204);
+      await api.deleteRatingComment('u2', 'm1');
+      final request = adapter.requests.single;
+      expect(request.method, 'DELETE');
+      expect(request.path, '$path/u2/m1');
+    });
+  });
+
   test('annuncio', () async {
     expect(await api.announce('Ciao a tutti'), 12);
     final request = adapter.requests.single;
