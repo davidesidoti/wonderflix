@@ -13,4 +13,9 @@ internal static class TestRatings
             new RatingStore(folder.RatingsFile, NullLogger<RatingStore>.Instance),
             friends, server, server, server, server,
             new RateLimiter(time), time, logger ?? NullLogger<RatingService>.Instance);
+
+    public static RatingRoundService Rounds(FakeServer server, RatingService ratings, TimeProvider time, PartyDirectory? parties = null) =>
+        new(
+            ratings, server, server, server, server, server,
+            parties ?? new PartyDirectory(time), server, time, NullLogger<RatingRoundService>.Instance);
 }

@@ -217,4 +217,15 @@ public class ProtocolJsonTests
             + "\"Stack\":[],\"Matches\":[],\"NearMatches\":[]}}",
             JsonSerializer.Serialize(SocialEvent.MatchUpdated(state)));
     }
+
+    [Fact]
+    public void RatingRoundUpdatedCarriesTheStateLikeMatchUpdated()
+    {
+        var state = new RatingRoundDto("g1", "i1", RatingPhases.Voting, 2, new DateTimeOffset(2026, 10, 20, 21, 2, 0, TimeSpan.Zero),
+            false, null, [new RatingVoterDto("u1", "Mario", RatingVoterStatuses.Waiting)], null, null);
+        Assert.Equal(
+            "{\"Protocol\":1,\"Type\":\"RatingRoundUpdated\",\"State\":{\"GroupId\":\"g1\",\"ItemId\":\"i1\",\"Phase\":\"Voting\",\"Rev\":2,"
+            + "\"EndsAt\":\"2026-10-20T21:02:00+00:00\",\"CanReveal\":false,\"Voters\":[{\"UserId\":\"u1\",\"Name\":\"Mario\",\"Status\":\"Waiting\"}]}}",
+            JsonSerializer.Serialize(SocialEvent.RatingRoundUpdated(state)));
+    }
 }

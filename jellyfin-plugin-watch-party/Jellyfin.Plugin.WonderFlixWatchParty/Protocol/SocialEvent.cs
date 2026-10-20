@@ -18,6 +18,9 @@ public static class SocialEventTypes
 
     /// <summary>Lo stato di una sala del match di cui si è membri (spec P §6.5).</summary>
     public const string MatchUpdated = "MatchUpdated";
+
+    /// <summary>Lo stato della votazione di fine party, visto dal destinatario (spec Q §6.2).</summary>
+    public const string RatingRoundUpdated = "RatingRoundUpdated";
 }
 
 /// <summary>
@@ -59,10 +62,10 @@ public sealed class SocialEvent
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? RoomId { get; init; }
 
-    /// <summary>MatchUpdated: lo stato della sala.</summary>
+    /// <summary>MatchUpdated: lo stato della sala; RatingRoundUpdated: quello della votazione.</summary>
     [JsonPropertyName("State")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public MatchStateDto? State { get; init; }
+    public object? State { get; init; }
 
     public static SocialEvent FriendRequest(string fromUserId, string fromName) =>
         new() { Type = SocialEventTypes.FriendRequest, FromUserId = fromUserId, FromName = fromName };
@@ -82,4 +85,7 @@ public sealed class SocialEvent
 
     public static SocialEvent MatchUpdated(MatchStateDto state) =>
         new() { Type = SocialEventTypes.MatchUpdated, State = state };
+
+    public static SocialEvent RatingRoundUpdated(RatingRoundDto state) =>
+        new() { Type = SocialEventTypes.RatingRoundUpdated, State = state };
 }
