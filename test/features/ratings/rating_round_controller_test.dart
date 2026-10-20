@@ -286,9 +286,48 @@ void main() {
       async.elapse(const Duration(minutes: 2, seconds: 4));
       expect(api.calls, isNot(contains('round g1')));
       async.elapse(const Duration(seconds: 2));
-      expect(api.calls, contains('round g1'));
+      expect(api.calls.where((c) => c == 'round g1'), hasLength(1));
+
+      // Ancora Voting con lo stesso Rev: si riprova.
+      async.elapse(const Duration(seconds: 6));
+      expect(api.calls.where((c) => c == 'round g1'), hasLength(2));
       container.dispose();
     });
+  });
+
+  test('rilettura fallita: si riprova', () {
+    fakeAsync((async) {
+      container.dispose();
+      container = make();
+      final endsAt =
+          clock.now().add(const Duration(minutes: 2)).toUtc().toIso8601String();
+      api.openRoundResult = testRatingRound(endsAt: endsAt);
+      api.rounds['g1'] = api.openRoundResult;
+      unawaited(controller()
+          .open(groupId: 'g1', item: e4, playlistItemId: 'p1'));
+      async.flushMicrotasks();
+
+      async.elapse(const Duration(minutes: 2, seconds: 4));
+      api.nextFailure = SocialFailure.network;
+      async.elapse(const Duration(seconds: 2));
+      expect(api.calls.where((c) => c == 'round g1'), hasLength(1));
+
+      api.rounds['g1'] = testRatingRound(
+          phase: 'Revealed', rev: 2, endsAt: endsAt);
+      async.elapse(const Duration(seconds: 6));
+      expect(api.calls.where((c) => c == 'round g1'), hasLength(2));
+      expect(view()!.holdsQueue('p1'), isFalse);
+      container.dispose();
+    });
+  });
+
+  test('lo stesso stato con un voto già dato riempie il numero', () async {
+    await open();
+    expect(view()!.draft, isNull);
+
+    await push(ratingRoundJson(rev: 2, mine: {'Score': 6}));
+
+    expect(view()!.draft, 6);
   });
 
   test('Revealed arrivato prima del tempo: nessuna rilettura', () {

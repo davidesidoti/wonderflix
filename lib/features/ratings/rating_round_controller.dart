@@ -171,6 +171,8 @@ class RatingRoundController extends Notifier<RatingRoundView?> {
     required JellyfinItem item,
     required String playlistItemId,
   }) async {
+    // Un'apertura per un altro elemento mentre una è in volo si scarta: una
+    // sola votazione per gruppo.
     if (_groupKey == null || _opening != null) return;
     final current = state;
     if (current != null &&
@@ -205,7 +207,10 @@ class RatingRoundController extends Notifier<RatingRoundView?> {
       final stale = acceptSame ? next.rev < current.round.rev
           : next.rev <= current.round.rev;
       if (stale && !current.unavailable) return;
-      state = current.copyWith(round: next, unavailable: false);
+      state = current.copyWith(
+          round: next,
+          unavailable: false,
+          draft: current.draft ?? next.mine?.score);
     } else {
       final dismissed = _dismissed;
       if (dismissed != null &&
@@ -270,6 +275,17 @@ class RatingRoundController extends Notifier<RatingRoundView?> {
       _log.info('votazione non riletta: ${error.failure.name}');
     } on Object catch (error) {
       _log.info('votazione non riletta: ${error.runtimeType}');
+    } finally {
+      // Una rilettura fallita o rimasta uguale non deve spegnere la rete di
+      // sicurezza: finché è in `Voting` si riprova.
+      final now = state;
+      if (ref.mounted &&
+          now != null &&
+          !now.unavailable &&
+          now.round.phase == RatingPhase.voting &&
+          _recheck == null) {
+        _schedule(now.round);
+      }
     }
   }
 
