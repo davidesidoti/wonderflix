@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:wonderflix/app/shell_panels.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
+import 'package:wonderflix/features/ratings/rate_panel.dart';
 import 'package:wonderflix/core/social/rating_models.dart';
 import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/features/detail/detail_header.dart';
@@ -221,6 +223,37 @@ void main() {
       }
       expect(find.text('Voti degli amici · Stagione 2'), findsOneWidget);
       expect(api.calls, contains('ratings season2'));
+    });
+
+    testWidgets('film: Vota apre il pannello sul film', (tester) async {
+      library.itemsById['m1'] = testItem(id: 'm1', name: 'Dune');
+      api.itemRatingsById['m1'] = withFriend;
+      await pumpDetail(tester, 'm1');
+      final container = ProviderScope.containerOf(
+          tester.element(find.byType(ItemDetailScreen)));
+      container.listen(shellPanelProvider, (_, _) {});
+      await tester.tap(find.byKey(const Key('friend-ratings-action')));
+      expect(container.read(shellPanelProvider), ShellPanel.rate);
+      final subject = container.read(rateSubjectProvider)!;
+      expect(subject.item.id, 'm1');
+      expect(subject.title, 'Dune');
+    });
+
+    testWidgets('serie: il pannello è sulla stagione scelta', (tester) async {
+      library.itemsById['s1'] =
+          testItem(id: 's1', name: 'Breaking Bad', kind: ItemKind.series);
+      library.seasonsBySeries['s1'] = [
+        testItem(id: 'season1', name: 'Stagione 1', kind: ItemKind.season, index: 1),
+      ];
+      api.itemRatingsById['season1'] = withFriend;
+      await pumpDetail(tester, 's1');
+      final container = ProviderScope.containerOf(
+          tester.element(find.byType(ItemDetailScreen)));
+      container.listen(shellPanelProvider, (_, _) {});
+      await tester.tap(find.byKey(const Key('friend-ratings-action')));
+      final subject = container.read(rateSubjectProvider)!;
+      expect(subject.item.id, 'season1');
+      expect(subject.title, 'Breaking Bad · Stagione 1');
     });
   });
 

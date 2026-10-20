@@ -11,6 +11,7 @@ import '../../ui/staggered_entrance.dart';
 import '../collections/collection_rows.dart';
 import '../library/user_data.dart';
 import '../ratings/friend_ratings_row.dart';
+import '../ratings/rate_panel.dart';
 import '../playback/play_launcher.dart';
 import 'detail_header.dart';
 import 'detail_rows.dart';
@@ -48,7 +49,14 @@ class MovieDetailView extends ConsumerWidget {
           DetailHeader(item: item, primary: action, controller: controller),
           // Un episodio aperto da solo non ha la riga (si vota la stagione).
           if (item.kind == ItemKind.movie)
-            StaggerItem(index: 5, child: FriendRatingsRow(item: item)),
+            StaggerItem(
+              index: 5,
+              child: FriendRatingsRow(
+                item: item,
+                onRate: (r) => openRatePanel(
+                    ref, RateSubject(item: item, title: item.name, mine: r.mine)),
+              ),
+            ),
           if (item.people.isNotEmpty)
             StaggerItem(index: 6, child: CastRow(people: item.people)),
           StaggerItem(index: 7, child: CollectionRows(itemId: item.id)),

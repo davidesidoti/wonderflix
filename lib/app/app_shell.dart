@@ -18,6 +18,7 @@ import '../features/inbox/inbox_button.dart';
 import '../features/library/server_events_binding.dart';
 import '../features/match/match_invites.dart';
 import '../features/profiles/profile_switch.dart';
+import '../features/ratings/rate_panel.dart';
 import '../features/recommendations/recommend_panel.dart';
 import '../features/requests/requests_providers.dart';
 import '../features/watch_party/watch_party_button.dart';
@@ -162,6 +163,8 @@ class _AppShellState extends ConsumerState<AppShell> {
             const Positioned.fill(child: InboxPanelHost()),
             // Pannello "Consiglia a…", sopra la barra e le schede (spec N §7.2).
             const Positioned.fill(child: RecommendPanelHost()),
+            // Pannello del voto dalla scheda (spec Q §7.1).
+            const Positioned.fill(child: RatePanelHost()),
           ],
         ),
       ),

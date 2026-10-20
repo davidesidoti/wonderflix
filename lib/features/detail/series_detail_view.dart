@@ -21,6 +21,7 @@ import '../library/library_providers.dart';
 import '../library/user_data.dart';
 import '../playback/play_launcher.dart';
 import '../ratings/friend_ratings_row.dart';
+import '../ratings/rate_panel.dart';
 import 'detail_header.dart';
 import 'detail_providers.dart';
 import 'detail_rows.dart';
@@ -90,6 +91,12 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
                 key: ValueKey(shownSeason.id),
                 item: shownSeason,
                 title: l.ratingFriendsRowSeason(shownSeason.name),
+                onRate: (r) => openRatePanel(
+                    ref,
+                    RateSubject(
+                        item: shownSeason,
+                        title: '${series.name} · ${shownSeason.name}',
+                        mine: r.mine)),
               ),
             ),
           StaggerItem(
