@@ -56,6 +56,7 @@ String describePluginFeatures(Set<String> features) {
     if (features.contains(PluginFeatures.recommendations)) 'consigli',
     if (features.contains(PluginFeatures.friendsActivity)) 'attività degli amici',
     if (features.contains(PluginFeatures.match)) 'match',
+    if (features.contains(PluginFeatures.ratings)) 'voti',
   ];
   return names.isEmpty ? 'nessuna' : names.join(', ');
 }

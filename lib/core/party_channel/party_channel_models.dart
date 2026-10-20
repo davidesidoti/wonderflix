@@ -186,6 +186,7 @@ const socialEventTypes = {
   'InboxChanged',
   'MatchInvite',
   'MatchUpdated',
+  'RatingRoundUpdated',
 };
 
 /// Legge un evento timbrato, da stringa JSON (WebSocket) o già decodificato

@@ -6,6 +6,7 @@ import '../jellyfin/json_fields.dart';
 import '../syncplay/syncplay_models.dart';
 import 'activity_models.dart';
 import 'inbox_models.dart';
+import 'rating_models.dart';
 import 'recommendation_models.dart';
 import 'social_models.dart';
 
@@ -51,6 +52,10 @@ class SocialApi {
   /// corsa normale, 403): nel log come info, non tra gli "Ultimi errori"
   /// della diagnostica.
   static const _quiet = {403, 404, 409, 429};
+
+  /// Esiti previsti dei voti: anche il 400, perché un episodio intermedio lo
+  /// dà a ogni fine episodio (piano 23b, decisione 4).
+  static const _ratingQuiet = {400, ..._quiet};
 
   final JellyfinHttp _http;
 
@@ -187,6 +192,49 @@ class SocialApi {
       asJsonMap(await _http.get('$_base/Activity/FriendsWatched',
           quietStatuses: _quiet))['Items'],
       FriendsWatched.fromJson));
+
+  /// Apre la votazione di fine party per [itemId] (spec Q §6.2).
+  Future<RatingRound> openRatingRound(String groupId, String itemId) =>
+      _call(() async => RatingRound.fromJson(asJsonMap(await _http.post(
+          '$_base/Ratings/Rounds',
+          body: {'GroupId': groupId, 'ItemId': itemId},
+          quietStatuses: _ratingQuiet))));
+
+  /// La votazione del gruppo; `null` se non ce n'è una aperta (`{}`).
+  Future<RatingRound?> ratingRound(String groupId) => _call(() async {
+        final json = asJsonMap(await _http.get('$_base/Ratings/Rounds/$groupId',
+            quietStatuses: _ratingQuiet));
+        return json.containsKey('GroupId') ? RatingRound.fromJson(json) : null;
+      });
+
+  /// Il commento va così com'è: lo ripulisce il plugin.
+  Future<RatingRound> voteInRound(String groupId, int score, String? comment) =>
+      _roundCall('$groupId/Vote', {'Score': score, 'Comment': comment});
+
+  Future<RatingRound> skipRound(String groupId) => _roundCall('$groupId/Skip');
+
+  Future<RatingRound> revealRound(String groupId) =>
+      _roundCall('$groupId/Reveal');
+
+  Future<RatingRound> _roundCall(String path, [Map<String, dynamic>? body]) =>
+      _call(() async => RatingRound.fromJson(asJsonMap(await _http.post(
+          '$_base/Ratings/Rounds/$path',
+          body: body,
+          quietStatuses: _ratingQuiet))));
+
+  /// Media, voti degli amici e voto proprio di un film o di una stagione.
+  Future<ItemRatings> itemRatings(String itemId) => _call(() async =>
+      ItemRatings.fromJson(asJsonMap(await _http.get('$_base/Ratings',
+          query: {'itemId': itemId}, quietStatuses: _ratingQuiet))));
+
+  Future<void> rate(String itemId, int score, String? comment) =>
+      _call(() => _http.put('$_base/Ratings/$itemId',
+          body: {'Score': score, 'Comment': comment},
+          quietStatuses: _ratingQuiet));
+
+  /// Il plugin risponde 204 anche se il voto non c'era.
+  Future<void> deleteRating(String itemId) => _call(() =>
+      _http.delete('$_base/Ratings/$itemId', quietStatuses: _ratingQuiet));
 
   Future<T> _call<T>(Future<T> Function() request) async {
     try {

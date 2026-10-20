@@ -6,6 +6,7 @@ import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/social/account_models.dart';
 import 'package:wonderflix/core/social/activity_models.dart';
 import 'package:wonderflix/core/social/inbox_models.dart';
+import 'package:wonderflix/core/social/rating_models.dart';
 import 'package:wonderflix/core/social/recommendation_models.dart';
 import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/core/social/social_models.dart';
@@ -331,6 +332,81 @@ class FakeSocialApi implements SocialApi {
     calls.add('friendsWatched');
     _fail();
     return friendsWatchedList;
+  }
+
+  /// Votazioni di fine party per gruppo; `null` o assente = nessuna (`{}`).
+  final rounds = <String, RatingRound?>{};
+
+  /// Risposta di [openRatingRound]; `null` = come `rounds[groupId]`.
+  RatingRound? openRoundResult;
+
+  /// Risposte di [itemRatings], per titolo.
+  final itemRatingsById = <String, ItemRatings>{};
+
+  /// Se valorizzato, il voto nella votazione, [rate] e [deleteRating]
+  /// aspettano che si completi.
+  Completer<void>? ratingGate;
+
+  RatingRound _round(String groupId) =>
+      rounds[groupId] ?? (throw const SocialException(SocialFailure.conflict));
+
+  @override
+  Future<RatingRound> openRatingRound(String groupId, String itemId) async {
+    calls.add('round-open $groupId $itemId');
+    _fail();
+    return openRoundResult ?? _round(groupId);
+  }
+
+  @override
+  Future<RatingRound?> ratingRound(String groupId) async {
+    calls.add('round $groupId');
+    _fail();
+    return rounds[groupId];
+  }
+
+  @override
+  Future<RatingRound> voteInRound(
+      String groupId, int score, String? comment) async {
+    calls.add('round-vote $groupId $score ${comment ?? '-'}');
+    await ratingGate?.future;
+    _fail();
+    return _round(groupId);
+  }
+
+  @override
+  Future<RatingRound> skipRound(String groupId) async {
+    calls.add('round-skip $groupId');
+    _fail();
+    return _round(groupId);
+  }
+
+  @override
+  Future<RatingRound> revealRound(String groupId) async {
+    calls.add('round-reveal $groupId');
+    _fail();
+    return _round(groupId);
+  }
+
+  @override
+  Future<ItemRatings> itemRatings(String itemId) async {
+    calls.add('ratings $itemId');
+    _fail();
+    return itemRatingsById[itemId] ??
+        const ItemRatings(canRate: false, count: 0, friends: []);
+  }
+
+  @override
+  Future<void> rate(String itemId, int score, String? comment) async {
+    calls.add('rate $itemId $score ${comment ?? '-'}');
+    await ratingGate?.future;
+    _fail();
+  }
+
+  @override
+  Future<void> deleteRating(String itemId) async {
+    calls.add('unrate $itemId');
+    await ratingGate?.future;
+    _fail();
   }
 }
 

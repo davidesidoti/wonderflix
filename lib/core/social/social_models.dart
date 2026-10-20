@@ -5,6 +5,7 @@ import 'package:logging/logging.dart';
 import '../party_channel/party_channel_models.dart';
 import '../syncplay/syncplay_models.dart';
 import 'match_models.dart';
+import 'rating_models.dart';
 
 final _log = Logger('social');
 
@@ -45,6 +46,9 @@ abstract final class PluginFeatures {
 
   /// Il match del film (spec P §6.7).
   static const match = 'match';
+
+  /// I voti degli amici (spec Q §6.6).
+  static const ratings = 'ratings';
 }
 
 /// Risposta di `GET /WonderFlixWatchParty/Info`, con le funzioni.
@@ -320,6 +324,13 @@ final class MatchUpdatedEvent extends SocialEvent {
   final MatchState state;
 }
 
+/// Lo stato della votazione di fine party in cui siamo (spec Q §6.2).
+final class RatingRoundUpdatedEvent extends SocialEvent {
+  const RatingRoundUpdatedEvent(this.state);
+
+  final RatingRound state;
+}
+
 /// Legge un avviso del plugin (stringa JSON dal WebSocket). `null` se non è
 /// un avviso sociale; una riga nel log se è malformato.
 SocialEvent? parseSocialEvent(Object? raw) {
@@ -359,6 +370,9 @@ SocialEvent? parseSocialEvent(Object? raw) {
       case 'MatchUpdated':
         return MatchUpdatedEvent(
             MatchState.fromJson(json['State'] as Map<String, dynamic>));
+      case 'RatingRoundUpdated':
+        return RatingRoundUpdatedEvent(
+            RatingRound.fromJson(json['State'] as Map<String, dynamic>));
     }
     return null;
   } on Object catch (error) {

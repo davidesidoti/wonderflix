@@ -31,6 +31,7 @@ class SocialFeatures {
     this.recommendations = false,
     this.friendsActivity = false,
     this.match = false,
+    this.ratings = false,
     this.known = true,
   });
 
@@ -84,6 +85,10 @@ class SocialFeatures {
   /// watch party.
   final bool match;
 
+  /// I voti degli amici (spec Q §7.1): come gli amici, solo con l'accesso ai
+  /// watch party.
+  final bool ratings;
+
   /// `false` finché `Info` non dà una risposta certa: le funzioni, oppure
   /// un 400/401/403/404. Un errore di rete non basta (vedi
   /// [SocialAvailability]).
@@ -105,6 +110,7 @@ class SocialFeatures {
       other.recommendations == recommendations &&
       other.friendsActivity == friendsActivity &&
       other.match == match &&
+      other.ratings == ratings &&
       other.known == known;
 
   @override
@@ -122,6 +128,7 @@ class SocialFeatures {
       recommendations,
       friendsActivity,
       match,
+      ratings,
       known);
 
   @override
@@ -129,7 +136,7 @@ class SocialFeatures {
       'inbox: $inbox, requests: $requests, collections: $collections, '
       'avatars: $avatars, account: $account, home: $home, '
       'upcomingSeries: $upcomingSeries, upcomingMovies: $upcomingMovies, '
-      'recommendations: $recommendations, friendsActivity: $friendsActivity, match: $match, known: $known)';
+      'recommendations: $recommendations, friendsActivity: $friendsActivity, match: $match, ratings: $ratings, known: $known)';
 }
 
 /// Chiede `Info` al plugin dopo il login e a ogni connessione del WebSocket,
@@ -236,6 +243,7 @@ class SocialAvailability extends Notifier<SocialFeatures> {
         friendsActivity:
             _canJoin && info.features.contains(PluginFeatures.friendsActivity),
         match: _canJoin && info.features.contains(PluginFeatures.match),
+        ratings: _canJoin && info.features.contains(PluginFeatures.ratings),
       ));
     } on SocialException catch (error) {
       if (!_isCurrent(generation)) return;

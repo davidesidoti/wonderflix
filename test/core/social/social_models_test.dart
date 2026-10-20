@@ -1,11 +1,13 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/party_channel/party_channel_models.dart';
 import 'package:wonderflix/core/social/match_models.dart';
 import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 
 import '../../support/match_fakes.dart';
+import '../../support/rating_fakes.dart';
 
 void main() {
   test('Info: versione e funzioni; senza Features nessuna', () {
@@ -139,6 +141,29 @@ void main() {
 
     // Senza stato: avviso malformato, ignorato.
     expect(parseSocialEvent(jsonEncode({'Protocol': 1, 'Type': 'MatchUpdated'})),
+        isNull);
+  });
+
+  test('avviso della votazione di fine party', () {
+    final event = parseSocialEvent(ratingRoundUpdatedReceived(
+            ratingRoundJson(rev: 4, itemId: 'e9'))
+        .payload);
+    expect(event, isA<RatingRoundUpdatedEvent>());
+    final state = (event! as RatingRoundUpdatedEvent).state;
+    expect((state.rev, state.itemId), (4, 'e9'));
+    expect(socialEventTypes, contains('RatingRoundUpdated'));
+
+    // Stato malformato: avviso ignorato.
+    expect(
+        parseSocialEvent(jsonEncode({
+          'Protocol': 1,
+          'Type': 'RatingRoundUpdated',
+          'State': {'GroupId': 'g1'},
+        })),
+        isNull);
+    expect(
+        parseSocialEvent(
+            jsonEncode({'Protocol': 1, 'Type': 'RatingRoundUpdated'})),
         isNull);
   });
 
