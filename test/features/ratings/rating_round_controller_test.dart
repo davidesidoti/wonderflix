@@ -138,18 +138,45 @@ void main() {
     expect(view()!.round.rev, 3);
 
     // Un'altra votazione sostituisce la prima, anche con un Rev più basso.
-    await push(ratingRoundJson(itemId: 'm2', rev: 1));
-    expect(view()!.round.itemId, 'm2');
+    await push(ratingRoundJson(itemId: 'e4', rev: 1));
+    expect(view()!.round.itemId, 'e4');
 
-    await push(ratingRoundJson(itemId: 'm2', rev: 1, endsAt: '2026-10-20T22:00:00Z'));
+    await push(ratingRoundJson(itemId: 'e4', rev: 1, endsAt: '2026-10-20T22:00:00Z'));
     expect(view()!.round.endsAt, DateTime.utc(2026, 10, 20, 22));
   });
 
   test('un avviso arrivato prima dell\'apertura si adotta', () async {
-    await push(ratingRoundJson());
+    await push(ratingRoundJson(itemId: 'e4'));
 
     expect(view()!.playlistItemId, 'p1');
     expect(view()!.holdsQueue('p1'), isTrue);
+  });
+
+  test('un avviso in ritardo di un altro titolo non si adotta', () async {
+    await push(ratingRoundJson(itemId: 'old'));
+    expect(view(), isNull);
+    // Il titolo in riproduzione (e4) si adotta.
+    await push(ratingRoundJson(itemId: 'e4'));
+    expect(view()!.playlistItemId, 'p1');
+  });
+
+  test('non disponibile: la vista si toglie dopo la grazia', () {
+    fakeAsync((async) {
+      container.dispose();
+      container = make();
+      api.openRoundResult = testRatingRound();
+      api.rounds['g1'] = api.openRoundResult;
+      unawaited(controller()
+          .open(groupId: 'g1', item: e4, playlistItemId: 'p1'));
+      async.flushMicrotasks();
+      api.rounds['g1'] = null;
+      unawaited(controller().reload());
+      async.flushMicrotasks();
+      expect(view()!.unavailable, isTrue);
+      async.elapse(ratingRevealGrace);
+      expect(view(), isNull);
+      container.dispose();
+    });
   });
 
   test('voto: numero e commento, poi lo stato del plugin', () async {

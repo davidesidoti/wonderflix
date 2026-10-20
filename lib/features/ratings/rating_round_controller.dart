@@ -222,6 +222,15 @@ class RatingRoundController extends Notifier<RatingRoundView?> {
       final opening = _opening;
       final playlistItemId = opening?.playlistItemId ?? playing?.playlistItemId;
       if (playlistItemId == null) return;
+      // Un avviso in ritardo di un titolo già lasciato non si lega al nuovo.
+      if (opening == null && playing != null) {
+        final key = jellyfinIdKey(next.itemId);
+        final season = ref.read(partyQueueItemsProvider)[playing.itemId]?.seasonId;
+        if (key != jellyfinIdKey(playing.itemId) &&
+            (season == null || key != jellyfinIdKey(season))) {
+          return;
+        }
+      }
       _keep?.cancel();
       _keep = null;
       state = RatingRoundView(
@@ -270,6 +279,11 @@ class RatingRoundController extends Notifier<RatingRoundView?> {
         _recheck?.cancel();
         _recheck = null;
         state = now.copyWith(unavailable: true);
+        // Non disponibile non resta per sempre: la vista si toglie da sé.
+        _keep ??= Timer(ratingRevealGrace, () {
+          _keep = null;
+          state = null;
+        });
       }
     } on SocialException catch (error) {
       _log.info('votazione non riletta: ${error.failure.name}');

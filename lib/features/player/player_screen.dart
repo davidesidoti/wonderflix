@@ -557,11 +557,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   /// Chiede al gruppo l'elemento dopo, una volta sola per player.
-  void _releaseQueue() {
+  void _releaseQueue({bool announce = false}) {
     _releaseTimer?.cancel();
     _releaseTimer = null;
     if (_released || _leaving || !_inParty) return;
     _released = true;
+    // Su un tocco di "Riproduci ora" si annuncia come ogni altro "prossimo".
+    if (announce) {
+      unawaited(_requestNextInParty(widget.args.party!));
+      return;
+    }
     unawaited(ref
         .read(watchPartySessionProvider.notifier)
         .nextItem(widget.args.party!));
@@ -1803,7 +1808,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 // A destra c'è il pannello del voto.
                                 showImage: !ratingHere,
                                 waiting: holding,
-                                onPlay: releasing ? _releaseQueue : _playOffered,
+                                onPlay: releasing
+                                    ? () => _releaseQueue(announce: true)
+                                    : _playOffered,
                                 onWatchCredits: _dismissNext,
                               ),
                             )

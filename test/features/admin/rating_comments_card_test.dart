@@ -45,6 +45,14 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('un nome molto lungo non sfora la riga', (tester) async {
+    plugin.commentPages = [
+      AdminCommentsPage(items: [comment('u9', 'N' * 300, 'm9', 'Dune', 7, 'ok')])
+    ];
+    await pumpCard(tester);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('elenco: nome, titolo, voto, commento, data', (tester) async {
     plugin.commentPages = [
       AdminCommentsPage(items: [luigi, anna])

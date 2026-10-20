@@ -148,26 +148,24 @@ class RatingCommentsCard extends ConsumerWidget {
         // spinge in basso le altre.
         ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: _commentsMaxHeight),
-          child: Scrollbar(
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                for (final comment in value.items)
-                  _CommentTile(
-                    comment: comment,
-                    onDelete: () async {
-                      final confirmed = await showAdminConfirmDialog(
-                        context,
-                        title: l.adminCommentDeleteTitle,
-                        message: l.adminCommentDeleteMessage(
-                            comment.userName, comment.title),
-                        confirmLabel: l.adminCommentDelete,
-                      );
-                      if (confirmed) await controller.delete(comment);
-                    },
-                  ),
-              ],
-            ),
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (final comment in value.items)
+                _CommentTile(
+                  comment: comment,
+                  onDelete: () async {
+                    final confirmed = await showAdminConfirmDialog(
+                      context,
+                      title: l.adminCommentDeleteTitle,
+                      message: l.adminCommentDeleteMessage(
+                          comment.userName, comment.title),
+                      confirmLabel: l.adminCommentDelete,
+                    );
+                    if (confirmed) await controller.delete(comment);
+                  },
+                ),
+            ],
           ),
         ),
         if (value.next != null) ...[
@@ -207,8 +205,12 @@ class _CommentTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Text(comment.userName,
-                style: const TextStyle(fontWeight: FontWeight.w600)),
+            Flexible(
+              child: Text(comment.userName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+            ),
             const SizedBox(width: 10),
             const Icon(LucideIcons.star, size: 14, color: WfColors.gold),
             const SizedBox(width: 4),

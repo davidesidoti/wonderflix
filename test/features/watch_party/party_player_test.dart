@@ -2971,6 +2971,36 @@ void main() {
       await finish(tester);
     });
 
+    testWidgets('la rotella sul pannello del voto non cambia il volume',
+        (tester) async {
+      await pumpRating(tester);
+      await toCredits(tester);
+      final count = engine.volumes.length;
+      final wheel = TestPointer(1, PointerDeviceKind.mouse);
+      await tester.sendEventToBinding(wheel.hover(tester.getCenter(panel)));
+      await tester.sendEventToBinding(wheel.scroll(const Offset(0, -60)));
+      await tester.sendEventToBinding(wheel.scroll(const Offset(0, 60)));
+      await tester.pump();
+      expect(engine.volumes, hasLength(count));
+      await finish(tester);
+    });
+
+    testWidgets('Riproduci ora durante il conto si annuncia al gruppo',
+        (tester) async {
+      await pumpRating(tester);
+      await toCredits(tester);
+      await finishVideo(tester);
+      await receive(tester, revealed());
+      await tester.tap(find.byType(PlayNowButton));
+      await tester.pump();
+      await tester.pump();
+      expect(nextCalls('p1'), 1);
+      expect(announced(), [
+        {'Type': 'Action', 'Action': 'NextItem'},
+      ]);
+      await finish(tester);
+    });
+
     testWidgets('cambio di titolo durante Voting: il player nuovo non ferma la '
         'coda', (tester) async {
       await pumpRating(tester);

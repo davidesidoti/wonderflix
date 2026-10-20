@@ -290,6 +290,11 @@ void main() {
           features: const SocialFeatures(
               inbox: true, home: true, ratings: true),
           size: const Size(1440, 700));
+      final commentsList = find
+          .ancestor(of: find.text('Utente 0'), matching: find.byType(ListView))
+          .first;
+      expect(tester.getSize(commentsList).height, lessThanOrEqualTo(480));
+      expect(tester.takeException(), isNull);
       // La lista dei commenti ha un'altezza massima: "Home per tutti" si
       // raggiunge con poche scorse (senza il limite, con 50 voci, molte di più).
       // Si trascina dal margine: al centro il gesto andrebbe alla lista interna.

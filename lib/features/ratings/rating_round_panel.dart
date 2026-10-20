@@ -12,6 +12,7 @@ import '../../core/social/rating_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/user_avatar.dart';
 import '../../ui/wf_buttons.dart';
+import '../player/player_side_panel_host.dart';
 import '../player/post_play.dart';
 import 'rating_round_controller.dart';
 import 'rating_widgets.dart';
@@ -65,46 +66,49 @@ class _RatingRoundPanelState extends ConsumerState<RatingRoundPanel> {
     final header = revealed
         ? (title ?? l.ratingPartyPill)
         : [l.ratingYourVote, ?title].join(' · ');
-    return Material(
-      key: const Key('rating-panel'),
-      color: WfColors.surface.withValues(alpha: 0.92),
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(postPlayRadius)),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 8, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(header,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.w700)),
-                ),
-                IconButton(
-                  tooltip: l.friendsClose,
-                  icon: const Icon(LucideIcons.x, size: 20),
-                  onPressed: widget.onClose,
-                ),
-              ],
+    // La rotella sul pannello non arriva al volume del player.
+    return PanelWheelBarrier(
+      child: Material(
+        key: const Key('rating-panel'),
+        color: WfColors.surface.withValues(alpha: 0.92),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(postPlayRadius)),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 8, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(header,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.w700)),
+                  ),
+                  IconButton(
+                    tooltip: l.friendsClose,
+                    icon: const Icon(LucideIcons.x, size: 20),
+                    onPressed: widget.onClose,
+                  ),
+                ],
+              ),
             ),
-          ),
-          Flexible(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-              child: view.unavailable
-                  ? Text(l.ratingRoundUnavailable, style: _mutedStyle)
-                  : revealed
-                      ? _revealed(context, l, view)
-                      : _voting(l, view),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                child: view.unavailable
+                    ? Text(l.ratingRoundUnavailable, style: _mutedStyle)
+                    : revealed
+                        ? _revealed(context, l, view)
+                        : _voting(l, view),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
