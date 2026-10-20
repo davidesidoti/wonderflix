@@ -1,7 +1,7 @@
 # WonderFlix — Spec Q: voti degli amici
 
 - **Data:** 2026-10-20
-- **Stato:** approvata il 2026-10-20; piani 23a (plugin) e 23b (app) da scrivere.
+- **Stato:** approvata il 2026-10-20; piano 23a realizzato (`docs/superpowers/plans/2026-10-20-wonderflix-23a-voti-plugin.md`), build di prova installata sul server il 2026-10-20 alle 15:24 UTC; piano 23b da realizzare.
 - **Ambito:** Spec Q. Realizza l'idea 7 di `docs/IDEE.md` ("Voti degli amici"). A fine film nel watch party ognuno dà un voto da 1 a 10 con un commento facoltativo; i voti si scoprono tutti insieme. Nella scheda del film (o della stagione) restano la media e i commenti degli amici.
 
 ## 1. Obiettivo
@@ -119,42 +119,50 @@ Dashboard admin
   - le date sono ISO-8601 UTC.
 - **Un voto per utente e titolo:** votare di nuovo sostituisce `Score` e `Comment` (anche togliendo il commento) e aggiorna `UpdatedAt`; `CreatedAt` resta quello del primo voto.
 - **Commento:** stesse regole dei messaggi dei consigli (Spec N §6.2). È testo semplice; gli a capo e gli altri caratteri di controllo diventano spazi, e gli spazi ai bordi si tolgono. Il massimo è 200 punti di codice; oltre si risponde 400.
-- **Pulizia periodica** (`RatingsHostedService`, ogni 5 minuti, con il suo `try/catch`): toglie i voti degli utenti che non esistono più e quelli dei titoli che non esistono più. Una stagione cancellata e poi riaggiunta da Jellyfin con un id nuovo perde i voti (accettato).
+- **Pulizia periodica** (`RatingsHostedService`, un solo servizio con due timer: ogni 5 minuti l'archivio, ogni 30 s le votazioni; ognuno con il suo `try/catch`, quindi un errore dell'uno non ferma l'altro): toglie i voti degli utenti che non esistono più e quelli dei titoli che non esistono più. Una stagione cancellata e poi riaggiunta da Jellyfin con un id nuovo perde i voti (accettato).
+  - **Non tocca i titoli** durante una scansione della libreria (`ILibraryTitles.IsScanRunning`) né se la libreria lancia un errore (`Warning`): un voto si perde solo per un titolo che Jellyfin non ha davvero più.
 
 ### 6.2 Votazione di fine party (`RatingRound`, in memoria)
 
 Una votazione per gruppo SyncPlay alla volta, con la chiave `GroupId`.
 
 - **Apertura:** `POST Ratings/Rounds {GroupId, ItemId}`.
-  - Chi chiama deve essere fra i presenti del gruppo, altrimenti 409 `NotMember`.
+  - Chi chiama deve essere fra i presenti del gruppo, altrimenti 409 `NotMember` (anche se il gruppo non c'è).
   - `ItemId` è quello che il party sta guardando:
     - un **film**: si vota il film;
-    - un **episodio che è l'ultimo della sua stagione** fra quelli presenti nella libreria (nessun episodio con numero più alto nella stessa stagione): si vota la stagione;
-    - qualunque altro caso (episodio intermedio, altro tipo, chi chiama non vede il titolo): 400.
-  - Se il gruppo ha già una votazione aperta per lo stesso titolo, la risposta è quella, senza aprirne un'altra: aprono tutti i client, e vale la prima richiesta. Una votazione per un titolo diverso viene chiusa e sostituita.
+    - un **episodio che è l'ultimo della sua stagione** fra quelli presenti nella libreria (nessun episodio reale con numero più alto nella stessa stagione, contando un episodio doppio fino a `IndexNumberEnd`): si vota la stagione. Gli episodi della stagione sono quelli della serie con lo stesso `ParentIndexNumber`, anche fuori dalla cartella della stagione, e gli speciali restano nella stagione 0 anche con `DisplaySpecialsWithinSeasons`. "Ultimo" si chiede alla libreria senza un utente;
+    - qualunque altro caso: 400. Sono tali un episodio intermedio, un altro tipo, chi chiama non vede il titolo, un episodio senza `IndexNumber`, `ParentIndexNumber` o `SeasonId`, e un titolo che `GET Ratings` rifiuterebbe (per esempio una stagione senza numero, o senza id o nome della serie): non si apre una votazione i cui voti la scheda non potrebbe mostrare. Un errore della libreria dà 400 con un `Warning`, mai 500.
+  - Se il gruppo ha già una votazione per lo stesso titolo (la stagione, non l'episodio), in qualunque fase, anche `Revealed` nei suoi 10 minuti, la risposta è quella così com'è, senza aprirne un'altra: aprono tutti i client, e vale la prima richiesta. Una votazione per un titolo diverso viene chiusa e sostituita.
 - **Presenti:** i partecipanti attuali del gruppo SyncPlay, ricalcolati a ogni cambio, a ogni voto e alla pulizia ogni 30 s.
+  - **Come si leggono:** i gruppi SyncPlay si vedono da una sessione, quindi il plugin chiede `IGroupDirectory.GetParticipants` alle sessioni WonderFlix (`ISessionDirectory.GetAppSessions()`): prima a quelle di chi chiama, poi a quelle degli utenti già nella votazione; vale la prima risposta non null. I nomi diventano utenti con `IUserDirectory.GetUsers()`, senza badare alle maiuscole (come `PartyHub`).
+  - **Gruppo finito:** se nessuna sessione WonderFlix vede più il gruppo, per il plugin il gruppo è finito e la votazione si scarta.
   - Chi esce viene tolto dall'attesa e il suo voto non conta nella media del party: è la decisione 5. Se ha già votato, il voto resta salvato nell'archivio.
   - Chi entra durante la votazione si aggiunge in attesa.
 - **Stato di ogni presente:** `Waiting`, `Voted` o `Skipped`.
 - **Fasi:** `Voting`, poi `Revealed`. Si passa a `Revealed` quando succede la prima di queste cose:
   - non c'è più nessuno in `Waiting`;
-  - sono passati 2 minuti dall'apertura (timer su `TimeProvider`);
+  - sono passati 2 minuti dall'apertura (timer su `TimeProvider`): il timer scopre i voti direttamente, con la ragione "timeout", senza ricontrollare l'orologio;
   - chi ha creato il party chiama `Reveal`.
   Se il creatore non è noto (riavvio del plugin, gruppo nato fuori da WonderFlix), restano solo le prime due.
+- **`Rev`** cresce a ogni voto (anche un voto cambiato), a ogni cambio di stato di un presente, a ogni cambio dei presenti e al cambio di fase. Riparte da 1 se una votazione ne sostituisce un'altra.
+- **Timer:** i callback dei timer (scadenza dei 2 minuti e avvisi raggruppati) non lanciano mai: un errore, per esempio un `ratings.json` illeggibile, finisce in un `Warning` con il solo id del gruppo, perché su un thread del pool farebbe cadere Jellyfin.
 - **Voto nella votazione** (`…/Vote {Score, Comment}`): salva subito nell'archivio (§6.1), senza chiedere che il titolo risulti visto (a fine film Jellyfin potrebbe non averlo ancora segnato), e passa chi vota a `Voted`. È ammesso anche in `Revealed`: è la decisione 15, e il voto compare anche nei risultati della votazione. `Skip` passa a `Skipped`, ed è ammesso solo in `Voting`.
-- **Fine:** la votazione si scarta 10 minuti dopo `Revealed`, quando il gruppo non esiste più, oppure quando se ne apre una per un altro titolo.
+  - L'archivio è la sola fonte dei voti: `RatingRound` tiene presenti, stati e fase, e `Mine` e `Results` si leggono dall'archivio a ogni stato. Un voto tolto dalla scheda durante la votazione sparisce anche dai risultati.
+- **Fine:** la votazione si scarta 10 minuti dopo `Revealed`, quando il gruppo non esiste più (nessuna sessione WonderFlix lo vede), oppure quando se ne apre una per un altro titolo. **Nessun avviso** quando una votazione si scarta: l'app lo scopre con `GET Rounds/{groupId}` → `{}` (§7.2, "Errori").
 - **Stato visto da un presente** (`RatingRoundDto`):
   - `GroupId`, `ItemId` (film o stagione), `Phase`, `Rev`, `EndsAt` (apertura + 2 min);
   - `CanReveal`: chi guarda è il creatore e la fase è `Voting`;
-  - `Mine`: il voto di chi guarda nell'archivio, se c'è, per partire dal voto di prima (decisione 12);
+  - `Mine`: il voto di chi guarda nell'archivio, se c'è, per partire dal voto di prima (decisione 12). Forma `{"Score": 8, "Comment": "…"}`, con `Comment` assente se non c'è; è la stessa di `GET Ratings`;
   - `Voters`: `{UserId, Name, Status}` per ogni presente, in ordine di nome;
   - solo in `Revealed`, `Results`: `{UserId, Name, Score, Comment}` di chi ha votato fra i presenti, dal voto più alto, più `Average`, la media con un decimale arrotondata a metà in su.
   - In `Voting` voti e commenti degli altri non escono mai.
-- **Avviso:** `SocialEventTypes.RatingRoundUpdated` con lo stato di quel destinatario va alle sessioni dell'app di ogni presente, raggruppato come `MatchUpdated` (al più uno ogni 250 ms).
+- **Avviso:** `SocialEventTypes.RatingRoundUpdated` con lo stato di quel destinatario va alle sessioni dell'app di ogni presente, raggruppato come `MatchUpdated` (al più uno ogni 250 ms). Lo stato sta nella proprietà `"State"`, come in `MatchUpdated`: `{"Protocol":1,"Type":"RatingRoundUpdated","State":{…}}` (`SocialEvent.State` è `object?`, e il JSON di `MatchUpdated` non cambia).
 
 ### 6.3 Endpoint (sotto `/WonderFlixWatchParty`)
 
-`RatingsController`, con la policy `SyncPlayHasAccess` come amici e consigli. Chi chiama si ricava dal token. Il plugin **non risponde mai 404**, e gli id sono stringhe senza vincoli di rotta.
+`RatingsController`, con la policy `SyncPlayHasAccess` come amici e consigli. Chi chiama si ricava dal token (`AuthorizationInfo.UserId`, come `MatchController`). Il plugin **non risponde mai 404**, e gli id sono stringhe senza vincoli di rotta; un `groupId` non valido nella rotta dà 400.
+
+La chiave API non ha un utente, quindi questi endpoint la respingono: Jellyfin la ferma nella policy SyncPlay (risposta 400, mai 404). Vale solo per i token degli utenti.
 
 | Metodo e percorso | Corpo / risposta |
 |---|---|
@@ -167,13 +175,19 @@ Una votazione per gruppo SyncPlay alla volta, con la chiave `GroupId`.
 | `PUT Ratings/{itemId}` `{Score, Comment}` | 204; 400 se il titolo non è un film o una stagione, chi chiama non lo vede, non lo ha visto e non ha già un voto (stessa regola di `CanRate`), o il voto non è valido |
 | `DELETE Ratings/{itemId}` | 204, anche se il voto non c'era |
 
-Per le votazioni gli errori 409 usano un valore di `RatingReasons` (`NotMember`, `NotCreator`, `Closed`), come `MatchReasons`.
+Per le votazioni gli errori 409 hanno il corpo `{"Reason": "…"}` con un valore di `RatingReasons` (`NotMember`, `NotCreator`, `Closed`), come `MatchReasons`:
+- chi non è fra i presenti: `NotMember`;
+- `Vote`, `Skip` e `Reveal` senza una votazione: `Closed`; `Skip` in `Revealed`: `Closed`;
+- `Reveal` di chi non è il creatore, o con il creatore non noto: `NotCreator`. `Reveal` del creatore in `Revealed` risponde con lo stato, senza cambi (doppio clic);
+- `GET Rounds/{groupId}` non dà mai 409: `{}`.
+
+Un errore della libreria in `GET`/`PUT Ratings` e in `POST Rounds` dà 400 con un `Warning`, mai 500.
 
 **`GET Ratings`:**
 - 400 se il titolo non è un film o una stagione, o chi chiama non lo vede (`CanSee`).
 - `Friends` contiene i voti degli **amici attuali** di chi chiama (`FriendService.AreFriends`), senza gli utenti disabilitati, dal più recente (`UpdatedAt`).
-- `Average` è la media dei voti in `Friends`, con un decimale arrotondato a metà in su; manca se `Friends` è vuoto. `Count` è il numero dei voti in `Friends`.
-- `Mine` è il voto di chi chiama, a parte (decisione 13).
+- `Average` è la media dei voti in `Friends`, con un decimale arrotondato a metà in su (calcolata in `decimal`, `AwayFromZero`: 7,25 diventa 7,3; restituita come numero); manca se `Friends` è vuoto. `Count` è il numero dei voti in `Friends`.
+- `Mine` è il voto di chi chiama, a parte (decisione 13), nella forma `{"Score", "Comment"?}`.
 - `CanRate` vale vero se chi chiama ha visto il titolo:
   - **film:** `Played` nei suoi dati utente;
   - **stagione:** tutti gli episodi della stagione presenti nella libreria risultano visti. È una sola domanda alla libreria, cioè episodi della stagione con `IsPlayed = false`, limite 1.
@@ -181,26 +195,27 @@ Per le votazioni gli errori 409 usano un valore di `RatingReasons` (`NotMember`,
   Se `Mine` c'è, `CanRate` vale vero comunque, così chi ha votato nel party può sempre cambiare il voto.
 - La visibilità per amicizia vale solo per la scheda. Le votazioni di fine party mostrano tutti i presenti, che è la decisione 7.
 
-**Limite:** `LimitTypes.Ratings`, 60 scritture all'ora per utente (`Vote`, `PUT`, `DELETE`), con 429 oltre. `Rounds`, `Skip` e `Reveal` non contano.
+**Limite:** `LimitTypes.Ratings`, 60 scritture all'ora per utente (`Vote`, `PUT`, `DELETE`), con 429 oltre. `Rounds`, `Skip` e `Reveal` non contano. Il limite si controlla dopo la validazione del corpo e conta anche un `DELETE` di un voto che non c'era; un `DELETE` con un id non valido risponde 204 senza contare, come "Non mi interessa" dei consigli.
 
 ### 6.4 Admin: commenti
 
-Endpoint con `Policies.RequiresElevation` sul metodo, come gli annunci della cassetta:
+Endpoint in un controller a parte, `RatingsAdminController`, con `[Authorize]` sulla classe e `Policies.RequiresElevation` sui metodi, come gli annunci della cassetta. Non stanno in `RatingsController` perché la policy `SyncPlayHasAccess` della classe si sommerebbe a quella del metodo, e un admin senza SyncPlay, o la chiave API, resterebbero fuori.
 
 | Metodo e percorso | Corpo / risposta |
 |---|---|
-| `GET Ratings/Admin/Comments?before=` | `{Items: [{UserId, UserName, ItemId, Title, Score, Comment, UpdatedAt}], Next?}`: i voti con un commento, dal più recente, 50 per pagina; `before` è l'`UpdatedAt` più vecchio della pagina precedente, `Next` manca all'ultima pagina |
-| `DELETE Ratings/Admin/Comments/{userId}/{itemId}` | 204: toglie `Comment` e lascia `Score` (decisione 14); 204 anche se non c'era |
+| `GET Ratings/Admin/Comments?before=` | `{Items: [{UserId, UserName, ItemId, Title, Score, Comment, UpdatedAt}], Next?}`: i voti con un commento, dal più recente, 50 per pagina; `before` è l'`UpdatedAt` più vecchio della pagina precedente ed è esclusivo, `Next` è l'`UpdatedAt` dell'ultima voce della pagina e manca all'ultima |
+| `DELETE Ratings/Admin/Comments/{userId}/{itemId}` | 204: toglie `Comment` e lascia `Score` e `UpdatedAt` com'erano (decisione 14), quindi l'ordine degli amici nella scheda non cambia; 204 anche se non c'era |
 
-- `Title` è il nome leggibile del titolo, cioè "Il Padrino (1972)" oppure "Breaking Bad · Stagione 2". Se il titolo non c'è più, è vuoto.
-- Ogni cancellazione va nel log di controllo con `AdminCaller.Describe`, come le altre azioni admin: solo gli id, mai il testo.
+- `Title` è il nome leggibile del titolo: un film è "Il Padrino (1972)" (solo il nome senza anno), una stagione "Breaking Bad · Stagione 2", e la stagione 0 "Breaking Bad · Speciali". Una stagione senza numero non si può votare. Se il titolo non c'è più, è vuoto.
+- **Paginazione:** due commenti con lo stesso `UpdatedAt` a cavallo di due pagine perderebbero il secondo. Si accetta: le date hanno la precisione dei tick.
+- Ogni cancellazione va nel log (`Information`) con `AdminCaller.Describe`, come le altre azioni admin: solo gli id, mai il testo.
 
 ### 6.5 `Info`, log, privacy
 
 - `Features` aggiunge `"ratings"`, `Version` diventa "1.11.0" (e va aggiornato anche `InfoControllerTests`), `Protocol` resta 1.
 - **Log:** mai titoli, commenti o nomi, solo id e numeri.
-  - `Debug` per apertura, cambio di fase e chiusura di una votazione, con la ragione: tutti votato, tempo scaduto o creatore;
-  - `Warning` per file illeggibile, errori di scrittura ed errori della libreria.
+  - `Debug` per apertura, cambio di fase e chiusura di una votazione, con la ragione: tutti votato, tempo scaduto (`timeout`) o creatore;
+  - `Warning` per file illeggibile, errori di scrittura, errori della libreria ed errori dei timer.
 
 ## 7. App 0.17.0
 
@@ -389,13 +404,25 @@ Si fa sul server con due istanze dell'app in un party, su un film breve con Outr
 
 ## 12. Da verificare sul sorgente di Jellyfin 10.11.9
 
-- **"Ultimo episodio della stagione":** cioè il numero di episodio più alto fra gli episodi della stagione presenti nella libreria. Va verificato come si comportano gli episodi doppi (`IndexNumberEnd`) e gli speciali (stagione 0, che si vota come le altre).
-- **`IsPlayed = false` sugli episodi di una stagione:** controllare che consideri i dati dell'utente della query e ignori gli episodi mancanti (`IsMissing`, `LocationType.Virtual`).
-- **Momento in cui Jellyfin segna `Played`** a fine film in SyncPlay: serve a sapere se basta `Played` o se va considerata anche la percentuale vista. Non cambia il voto nel party, che non lo richiede.
+Verificato il 2026-10-20 sul sorgente (tag `v10.11.9`, firme al `v10.11.0`) durante il piano 23a:
+
+- **"Ultimo episodio della stagione":**
+  - Jellyfin sceglie gli episodi di una stagione per numero (`ParentIndexNumber`, o `AiredSeasonNumber` con `DisplaySpecialsWithinSeasons`), non per cartella: un episodio fuori dalla cartella della stagione ha come genitore la serie. Per questo la query usa `AncestorIds = [SeriesId]` e `ParentIndexNumber` uguale al numero della stagione;
+  - un episodio doppio (`IndexNumberEnd`: S01E05-E06 ha `IndexNumber` 5 e `IndexNumberEnd` 6) è l'ultimo se non c'è nulla da `(IndexNumberEnd ?? IndexNumber) + 1` in poi (`MinIndexNumber`);
+  - gli speciali sono la stagione 0 e si votano come le altre stagioni, "Serie · Speciali".
+- **`IsPlayed = false` sugli episodi di una stagione:** con `IncludeItemTypes = [Episode]` guarda la riga dei dati dell'utente della query (`new InternalItemsQuery(user)`), e senza riga vale "non visto". `IsVirtualItem = false` toglie gli episodi mancanti (`LocationType.Virtual`). `CanRate` si chiede con l'utente, quindi gli episodi che lui non vede non contano. Una stagione senza id o nome della serie non risulta mai vista né votabile.
+- **Momento in cui Jellyfin segna `Played`:** a `OnPlaybackStopped`, anche in SyncPlay (`UserDataManager.UpdatePlayState`). `Played` diventa vero se la posizione supera `MaxResumePct` o è entro 1 s dalla fine, e senza posizione lo segna comunque. All'inizio dei titoli di coda può quindi mancare ancora: per questo il voto nella votazione non lo chiede, e dalla scheda basta `Played`. `MaxResumePct` sul server è 90 (letto in sola lettura il 2026-10-20).
+- **`InternalItemsQuery`:** `AncestorIds`, `IncludeItemTypes`, `ParentIndexNumber`, `MinIndexNumber`, `IsVirtualItem`, `IsPlayed` e `Limit` esistono nella 10.11.0 e nella 10.11.9; il plugin è compilato contro la 10.11.0.
+
+**Build di prova sul server (2026-10-20, 15:24 UTC):**
+- plugin 1.11.0.0 installato a mano; la 1.10.1.0 è in `~/wfwp-backup/1.10.1.0-catalogo` e la configurazione prima del 23a in `~/wfwp-backup/config-1.10.1-prima-23a.xml`;
+- `Info` risponde 1.11.0 con `"ratings"`, `ratings.json` viene creato e `GET Ratings/Admin/Comments` con la chiave API risponde 200 `{"Items":[]}`;
+- gli endpoint dei voti con la chiave API sono respinti dalla policy SyncPlay di Jellyfin (la chiave non ha un utente: `ArgumentException` in `SyncPlayAccessHandler` nel log, risposta 400), mai 404;
+- il giro completo (votazione nel party, scheda, dashboard) si prova con l'app nel 23b (§11.3). La suite del plugin conta 1042 test verdi.
 
 ## 13. Piani e release
 
-- **Piano 23a — plugin 1.11.0:** archivio, votazione, endpoint, admin, `Info`, test, build di prova sul server.
+- **Piano 23a — plugin 1.11.0:** archivio, votazione, endpoint, admin, `Info`, test, build di prova sul server. **Realizzato.** Il plugin 1.11.0 resta build di prova sul server fino alla fine del 23b; le app 0.16.x non chiamano gli endpoint dei voti.
 - **Piano 23b — app 0.17.0:** nucleo, pannello del post-play con la coda ferma, riga della scheda, card admin, testi, test, prova a mano.
 - **Release:**
   - tag del plugin, poi manifest e Catalogo;

@@ -42,6 +42,12 @@ Le domande nuove alla libreria stanno dietro `IRatingLibrary`, con l'adattatore 
 16. **Media** con `decimal` e `MidpointRounding.AwayFromZero` (7,25 → 7,3), restituita come `double`.
 17. **Un solo servizio in background** (`RatingsHostedService`) con due timer, per le votazioni (30 s) e per l'archivio (5 min). Il conteggio dei servizi in background passa da 6 a 7.
 18. **Errori della libreria** in `GET`/`PUT Ratings` e in `POST Rounds` → 400, con un `Warning`; mai un 500.
+19. **Dalle review dei gruppi** (differenze dalla spec, allineate nel Task 9):
+    - i callback dei timer (`Expire`, `FirePush`) non lanciano mai, ma scrivono un `Warning` con il solo id del gruppo: un `ratings.json` illeggibile su un thread del pool farebbe cadere Jellyfin. `Load` non restituisce un libro vuoto, perché il salvataggio successivo sovrascriverebbe il file vero;
+    - il timer dei 2 minuti scopre i voti direttamente, con la ragione `timeout`, senza ricontrollare l'orologio;
+    - una stagione senza id o nome della serie non è mai vista né votabile;
+    - `Open` rifiuta (400) un bersaglio che `FindRated` rifiuta, così non restano voti su un titolo che `GET Ratings` non mostra;
+    - la chiave API non ha un utente: gli endpoint dei voti sono respinti dalla policy SyncPlay di Jellyfin (400), mai 404 (build di prova, Task 8).
 
 ## Global Constraints
 
