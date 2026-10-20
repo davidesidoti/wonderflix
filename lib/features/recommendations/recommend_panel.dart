@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -11,6 +10,7 @@ import '../../app/theme.dart';
 import '../../core/social/recommendation_models.dart';
 import '../../core/social/social_api.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/rune_limit.dart';
 import '../../ui/shell_side_panel.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_image.dart';
@@ -26,16 +26,6 @@ const recommendMaxRecipients = 30;
 
 /// Lunghezza massima del messaggio (spec N §6.2).
 const recommendMessageMax = 200;
-
-/// Il plugin conta i punti di codice, `maxLength` i caratteri: taglia a
-/// [recommendMessageMax] punti di codice (un'emoji ne può avere più d'uno).
-final _capRunes = TextInputFormatter.withFunction((old, value) {
-  if (value.text.runes.length <= recommendMessageMax) return value;
-  final text =
-      String.fromCharCodes(value.text.runes.take(recommendMessageMax));
-  return TextEditingValue(
-      text: text, selection: TextSelection.collapsed(offset: text.length));
-});
 
 /// Il titolo da consigliare (spec N §7.2).
 class RecommendSubject {
@@ -235,7 +225,7 @@ class _RecommendPanelState extends ConsumerState<RecommendPanel> {
                 TextField(
                   controller: _message,
                   maxLength: recommendMessageMax,
-                  inputFormatters: [_capRunes],
+                  inputFormatters: [capRunes(recommendMessageMax)],
                   minLines: 1,
                   maxLines: 3,
                   // Invio non va a capo: il plugin toglie comunque gli a capo.
