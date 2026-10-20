@@ -451,6 +451,32 @@ void main() {
     expect(played, 1);
   });
 
+  testWidgets('il conto non torna indietro se i secondi cambiano a conto '
+      'avviato', (tester) async {
+    final seconds = ValueNotifier(15);
+    addTearDown(seconds.dispose);
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: Center(
+          child: ValueListenableBuilder<int>(
+            valueListenable: seconds,
+            builder: (context, value, _) => PlayNowButton(
+                countdown: true, seconds: value, onPressed: () {}),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(seconds: 5));
+    expect(fillOf(tester), closeTo(5 / 15, 0.001));
+    // Chi lo mostra ricostruisce con i secondi che restano.
+    seconds.value = 10;
+    await tester.pump();
+    expect(fillOf(tester), closeTo(5 / 15, 0.001));
+    expect(find.text('Riproduci ora · 10'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 10));
+  });
+
   testWidgets('pulsante senza conto alla rovescia', (tester) async {
     var played = 0;
     await pumpApp(

@@ -2920,11 +2920,15 @@ void main() {
           find.descendant(of: panel, matching: find.byType(TextField));
       await tester.tap(field);
       await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
+      // Nei test un tasto non scrive nel campo (il testo arriva dal canale
+      // dell'input): la prova è che il player non lo prende, e il testo si
+      // scrive come farebbe il sistema.
+      final handled = await tester.sendKeyEvent(LogicalKeyboardKey.digit8);
       await tester.pump();
-      await tester.enterText(field, '3');
+      expect(handled, isFalse, reason: 'il player lascia la cifra al campo');
+      await tester.enterText(field, '8');
       await tester.pump();
-      expect(tester.widget<TextField>(field).controller!.text, '3');
+      expect(tester.widget<TextField>(field).controller!.text, '8');
       expect(draft(), 9, reason: 'la cifra va al campo');
       expect(sentReactions(), isEmpty);
 

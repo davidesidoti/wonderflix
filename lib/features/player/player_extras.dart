@@ -77,6 +77,11 @@ class _PlayNowButtonState extends State<PlayNowButton> {
       fontFeatures: [FontFeature.tabularFigures()]);
 
   late int _left = widget.seconds;
+
+  /// Da quanti secondi è partito il conto: [PlayNowButton.seconds] può
+  /// cambiare a conto avviato (chi lo mostra passa quelli che restano), e il
+  /// fondo non deve tornare indietro.
+  late int _from = widget.seconds;
   Timer? _timer;
 
   @override
@@ -94,7 +99,7 @@ class _PlayNowButtonState extends State<PlayNowButton> {
       // Il conto può arrivare dopo (es. il server toglie dal gruppo durante
       // il post-play): riparte da capo.
       if (widget.countdown) {
-        _left = widget.seconds;
+        _left = _from = widget.seconds;
         _start();
       }
     } else if (widget.countdown &&
@@ -136,7 +141,7 @@ class _PlayNowButtonState extends State<PlayNowButton> {
     final painter = TextPainter(
       text: TextSpan(
         text: AppLocalizations.of(context)
-            .playerPlayNowIn(widget.seconds),
+            .playerPlayNowIn(_from),
         // Lo stile che `Text` userà davvero.
         style: DefaultTextStyle.of(context).style.merge(_labelStyle),
       ),
@@ -156,12 +161,12 @@ class _PlayNowButtonState extends State<PlayNowButton> {
     final reduced = WfMotion.of(context).isReduced;
     final countdown = widget.countdown;
     final counting = countdown && _left > 0;
-    final done = widget.seconds - _left;
+    final done = _from - _left;
     // Con le animazioni complete ogni passo punta al secondo che sta per
     // scattare e finisce con lui: allo scatto il fondo è pieno. In pausa
     // resta sull'ultimo secondo compiuto; con quelle ridotte scatta lì.
     final step = counting && !widget.paused && !reduced ? done + 1 : done;
-    final progress = step / widget.seconds;
+    final progress = step / _from;
     final height = Theme.of(context)
         .visualDensity
         .effectiveConstraints(
