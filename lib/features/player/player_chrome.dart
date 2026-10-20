@@ -52,8 +52,9 @@ final class SkipFeedback extends PlayerFeedback {
 
 /// Riquadri del player che si aprono uno alla volta (spec E §11): il
 /// pannello "Audio e sottotitoli", la chat e la barretta delle reazioni del
-/// watch party, il pannello "Coda" del gruppo (spec H §9.1).
-enum PlayerPopup { tracks, chat, reactions, queue }
+/// watch party, il pannello "Coda" del gruppo (spec H §9.1), il pannello del
+/// voto del party (spec Q §7, aperto dalla pillola).
+enum PlayerPopup { tracks, chat, reactions, queue, rating }
 
 /// Stato dell'interfaccia del player (spec D §5.1): controlli, pannello e
 /// riscontro dei tasti. Lo stato della riproduzione resta nel
@@ -280,7 +281,8 @@ class PlayerChromeController extends ChangeNotifier {
     _pauseTimer = null;
     if (_popup == PlayerPopup.tracks ||
         _popup == PlayerPopup.reactions ||
-        _popup == PlayerPopup.queue) {
+        _popup == PlayerPopup.queue ||
+        _popup == PlayerPopup.rating) {
       return;
     }
     if (_playing) {

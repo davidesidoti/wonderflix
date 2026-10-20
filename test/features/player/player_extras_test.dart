@@ -428,6 +428,29 @@ void main() {
     expect(played, 1);
   });
 
+  testWidgets('il conto può partire da 15', (tester) async {
+    var played = 0;
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: Center(
+          child: PlayNowButton(
+              countdown: true, seconds: 15, onPressed: () => played++),
+        ),
+      ),
+    );
+    expect(find.text('Riproduci ora · 15'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Riproduci ora · 14'), findsOneWidget);
+    expect(fillOf(tester), closeTo(1 / 15, 0.001));
+    await tester.pump(const Duration(seconds: 13));
+    expect(played, 0);
+    await tester.pump(const Duration(seconds: 1));
+    expect(played, 1);
+    await tester.pump(const Duration(seconds: 5));
+    expect(played, 1);
+  });
+
   testWidgets('pulsante senza conto alla rovescia', (tester) async {
     var played = 0;
     await pumpApp(

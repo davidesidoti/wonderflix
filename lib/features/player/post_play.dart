@@ -27,6 +27,15 @@ const postPlayRadius = 12.0;
 /// Spazio tra il film piccolo, le informazioni e l'immagine.
 const postPlayGap = 24.0;
 
+/// Il riquadro a destra del film piccolo, in una schermata di [size]: lì
+/// stanno l'immagine del prossimo titolo o il pannello del voto.
+Rect postPlaySideRect(Size size) => Rect.fromLTRB(
+      postPlayInset + size.width * postPlayScale + postPlayGap,
+      postPlayInset,
+      size.width - postPlayInset,
+      size.height - postPlayInset,
+    );
+
 /// Il film: nel post-play si rimpicciolisce in alto a sinistra con angoli
 /// arrotondati e un bordo crema, poi torna a tutto schermo. La struttura
 /// non cambia mai (il video non si rimonta); il `Transform` sposta anche i
@@ -78,6 +87,8 @@ class PostPlayFrame extends StatelessWidget {
 /// Informazioni del post-play (spec D §12.1): sotto il film piccolo
 /// "PROSSIMO EPISODIO", serie, episodio, trama e pulsanti; a destra
 /// l'immagine dell'episodio. Entra sfumando a metà del rimpicciolimento.
+/// Senza [episode] (coda finita, resta solo il voto del party) non c'è la
+/// colonna sotto il film.
 class PostPlayLayer extends ConsumerWidget {
   const PostPlayLayer({
     super.key,
@@ -87,9 +98,21 @@ class PostPlayLayer extends ConsumerWidget {
     required this.onPlay,
     required this.onWatchCredits,
     this.label,
+    this.showImage = true,
+    this.waiting = false,
+    this.countdownSeconds = PlayNowButton.countdownFrom,
   });
 
-  final JellyfinItem episode;
+  final JellyfinItem? episode;
+
+  /// L'immagine a destra; senza, il riquadro resta al pannello del voto.
+  final bool showImage;
+
+  /// Il party aspetta i voti: al posto di "Riproduci ora" un pulsante spento.
+  final bool waiting;
+
+  /// Da quanti secondi parte il conto di "Riproduci ora".
+  final int countdownSeconds;
 
   /// Occhiello; di default "Prossimo episodio" (nel watch party può essere
   /// "Prossimo nella coda", spec H §9.1).
@@ -111,7 +134,7 @@ class PostPlayLayer extends ConsumerWidget {
     final fade = motion.duration(WfMotion.medium);
     final total = shrink ~/ 2 + fade;
     final start = (shrink ~/ 2).inMicroseconds / total.inMicroseconds;
-    final overview = episode.overview;
+    final episode = this.episode;
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
       duration: total,
@@ -123,6 +146,8 @@ class PostPlayLayer extends ConsumerWidget {
         final height = constraints.maxHeight;
         final filmWidth = width * postPlayScale;
         final filmHeight = height * postPlayScale;
+        if (episode == null) return const SizedBox.expand();
+        final overview = episode.overview;
         return Stack(
           children: [
             Positioned(
@@ -171,10 +196,19 @@ class PostPlayLayer extends ConsumerWidget {
                       spacing: 10,
                       runSpacing: 10,
                       children: [
-                        PlayNowButton(
-                            countdown: countdown,
-                            paused: paused,
-                            onPressed: onPlay),
+                        if (waiting)
+                          WfButton.primary(
+                            key: const Key('post-play-waiting'),
+                            label: l.ratingWaiting,
+                            icon: LucideIcons.hourglass,
+                            onPressed: null,
+                          )
+                        else
+                          PlayNowButton(
+                              countdown: countdown,
+                              seconds: countdownSeconds,
+                              paused: paused,
+                              onPressed: onPlay),
                         WfButton.secondary(
                           label: l.playerWatchCredits,
                           icon: LucideIcons.film,
@@ -186,36 +220,34 @@ class PostPlayLayer extends ConsumerWidget {
                 ),
               ),
             ),
-            Positioned(
-              top: postPlayInset,
-              left: postPlayInset + filmWidth + postPlayGap,
-              right: postPlayInset,
-              bottom: postPlayInset,
-              // Limitata nei due sensi: in una finestra molto larga il 16:9
-              // largo quanto lo spazio rimasto uscirebbe dal fondo.
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: AspectRatio(
-                  key: const Key('post-play-image'),
-                  aspectRatio: 16 / 9,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(postPlayRadius),
-                      boxShadow: [
-                        BoxShadow(
-                            color: WfColors.bg.withValues(alpha: 0.8),
-                            blurRadius: 32,
-                            offset: const Offset(0, 12)),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(postPlayRadius),
-                      child: WfImage(image: urls.landscape(episode)),
+            if (showImage)
+              Positioned.fromRect(
+                rect: postPlaySideRect(constraints.biggest),
+                // Limitata nei due sensi: in una finestra molto larga il 16:9
+                // largo quanto lo spazio rimasto uscirebbe dal fondo.
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: AspectRatio(
+                    key: const Key('post-play-image'),
+                    aspectRatio: 16 / 9,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(postPlayRadius),
+                        boxShadow: [
+                          BoxShadow(
+                              color: WfColors.bg.withValues(alpha: 0.8),
+                              blurRadius: 32,
+                              offset: const Offset(0, 12)),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(postPlayRadius),
+                        child: WfImage(image: urls.landscape(episode)),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
           ],
         );
       }),

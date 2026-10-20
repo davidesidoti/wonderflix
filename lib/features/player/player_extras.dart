@@ -14,7 +14,7 @@ import '../library/item_labels.dart';
 import '../library/library_providers.dart';
 
 /// "Riproduci ora" del post-play e della scheda (spec D §12): con
-/// [countdown] il fondo si riempie d'oro in [countdownFrom] secondi e
+/// [countdown] il fondo si riempie d'oro in [seconds] secondi e
 /// l'etichetta conta; con [paused] il conto si ferma; a zero chiama
 /// [onPressed]. Un timer al secondo, e a ogni secondo un passo del fondo
 /// fino allo scatto successivo: fermo non chiede fotogrammi.
@@ -24,9 +24,13 @@ class PlayNowButton extends StatefulWidget {
     required this.countdown,
     required this.onPressed,
     this.paused = false,
+    this.seconds = countdownFrom,
   });
 
   final bool countdown;
+
+  /// Da quanti secondi parte il conto.
+  final int seconds;
 
   /// Video in pausa o in caricamento: il conto alla rovescia è fermo.
   final bool paused;
@@ -72,7 +76,7 @@ class _PlayNowButtonState extends State<PlayNowButton> {
       // Cifre della stessa larghezza: il pulsante non balla a ogni secondo.
       fontFeatures: [FontFeature.tabularFigures()]);
 
-  int _left = PlayNowButton.countdownFrom;
+  late int _left = widget.seconds;
   Timer? _timer;
 
   @override
@@ -90,7 +94,7 @@ class _PlayNowButtonState extends State<PlayNowButton> {
       // Il conto può arrivare dopo (es. il server toglie dal gruppo durante
       // il post-play): riparte da capo.
       if (widget.countdown) {
-        _left = PlayNowButton.countdownFrom;
+        _left = widget.seconds;
         _start();
       }
     } else if (widget.countdown &&
@@ -125,13 +129,14 @@ class _PlayNowButtonState extends State<PlayNowButton> {
     super.dispose();
   }
 
-  /// Larghezza dell'etichetta più lunga ("· 10"), riservata durante il
-  /// conto: il pulsante non si stringe quando resta una cifra sola.
+  /// Larghezza dell'etichetta più lunga (i secondi di partenza, "· 10"),
+  /// riservata durante il conto: il pulsante non si stringe quando resta una
+  /// cifra sola.
   double _widestLabel(BuildContext context) {
     final painter = TextPainter(
       text: TextSpan(
         text: AppLocalizations.of(context)
-            .playerPlayNowIn(PlayNowButton.countdownFrom),
+            .playerPlayNowIn(widget.seconds),
         // Lo stile che `Text` userà davvero.
         style: DefaultTextStyle.of(context).style.merge(_labelStyle),
       ),
@@ -151,12 +156,12 @@ class _PlayNowButtonState extends State<PlayNowButton> {
     final reduced = WfMotion.of(context).isReduced;
     final countdown = widget.countdown;
     final counting = countdown && _left > 0;
-    final done = PlayNowButton.countdownFrom - _left;
+    final done = widget.seconds - _left;
     // Con le animazioni complete ogni passo punta al secondo che sta per
     // scattare e finisce con lui: allo scatto il fondo è pieno. In pausa
     // resta sull'ultimo secondo compiuto; con quelle ridotte scatta lì.
     final step = counting && !widget.paused && !reduced ? done + 1 : done;
-    final progress = step / PlayNowButton.countdownFrom;
+    final progress = step / widget.seconds;
     final height = Theme.of(context)
         .visualDensity
         .effectiveConstraints(

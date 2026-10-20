@@ -196,6 +196,60 @@ void main() {
       expect(image.width / image.height, closeTo(16 / 9, 0.01));
     });
 
+    testWidgets('senza il prossimo titolo e senza immagine', (tester) async {
+      await pumpApp(
+        tester,
+        Scaffold(
+          body: PostPlayLayer(
+            episode: null,
+            showImage: false,
+            countdown: false,
+            paused: false,
+            onPlay: () {},
+            onWatchCredits: () {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('post-play-image')), findsNothing);
+      expect(find.byType(PlayNowButton), findsNothing);
+      expect(find.text('Guarda i titoli'), findsNothing);
+    });
+
+    testWidgets('in attesa dei voti: pulsante spento al posto di "Riproduci '
+        'ora"', (tester) async {
+      await pumpApp(
+        tester,
+        Scaffold(
+          body: PostPlayLayer(
+            episode: episode,
+            showImage: false,
+            waiting: true,
+            countdown: false,
+            paused: false,
+            onPlay: () {},
+            onWatchCredits: () {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('post-play-image')), findsNothing);
+      expect(find.byType(PlayNowButton), findsNothing);
+      final waiting =
+          tester.widget<WfButton>(find.byKey(const Key('post-play-waiting')));
+      expect(waiting.onPressed, isNull);
+      expect(find.text('In attesa dei voti'), findsOneWidget);
+      expect(find.text('Guarda i titoli'), findsOneWidget);
+    });
+
+    test('il riquadro a destra del film piccolo', () {
+      final rect = postPlaySideRect(const Size(1440, 900));
+      expect(rect.left, postPlayInset + 1440 * postPlayScale + postPlayGap);
+      expect(rect.top, postPlayInset);
+      expect(rect.right, 1440 - postPlayInset);
+      expect(rect.bottom, 900 - postPlayInset);
+    });
+
     testWidgets('senza conto alla rovescia: "Riproduci ora"', (tester) async {
       var played = 0;
       await pumpApp(

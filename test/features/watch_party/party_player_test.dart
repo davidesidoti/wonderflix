@@ -15,6 +15,8 @@ import 'package:wonderflix/core/jellyfin/playback_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/party_channel/party_channel_api.dart';
 import 'package:wonderflix/core/party_channel/party_channel_models.dart';
+import 'package:wonderflix/core/social/rating_models.dart';
+import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
@@ -34,6 +36,9 @@ import 'package:wonderflix/features/player/queue_panel/queue_add_view.dart';
 import 'package:wonderflix/features/player/queue_panel/queue_panel.dart';
 import 'package:wonderflix/features/player/queue_panel/queue_series_views.dart';
 import 'package:wonderflix/features/player/tracks_panel.dart';
+import 'package:wonderflix/features/ratings/rating_round_controller.dart';
+import 'package:wonderflix/features/ratings/rating_round_panel.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/party_channel.dart';
 import 'package:wonderflix/features/watch_party/party_chat_bubble.dart';
 import 'package:wonderflix/features/watch_party/party_chat_layer.dart';
@@ -43,12 +48,15 @@ import 'package:wonderflix/features/watch_party/party_reactions_tray.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
+import 'package:wonderflix/ui/wf_buttons.dart';
 import 'package:wonderflix/ui/wf_image.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
 import '../../support/playback_fakes.dart';
 import '../../support/pump_app.dart';
+import '../../support/rating_fakes.dart';
+import '../../support/social_fakes.dart';
 import '../../support/test_data.dart';
 import '../../support/watch_party_fakes.dart';
 
@@ -75,7 +83,8 @@ void main() {
       List<MediaSegment> segments = const [],
       bool plugin = true,
       bool queueFeature = true,
-      bool previousInLibrary = false}) async {
+      bool previousInLibrary = false,
+      FakeSocialApi? social}) async {
     engine = FakeVideoEngine()..engineTracks = testEngineTracks;
     engine.failOpens = failOpens;
     engines = [];
@@ -173,6 +182,12 @@ void main() {
         syncPlayApiProvider.overrideWithValue(api),
         watchPartyEventsProvider.overrideWithValue(events.stream),
         partyChannelApiProvider.overrideWithValue(channelApi),
+        if (social != null) ...[
+          socialApiProvider.overrideWithValue(social),
+          socialAvailabilityProvider.overrideWith(() => FakeSocialAvailability(
+              const SocialFeatures(
+                  friends: true, parties: true, ratings: true))),
+        ],
       ],
       retry: (_, _) => null,
     );
@@ -2663,6 +2678,348 @@ void main() {
           matching: find.byTooltip(l.navBack)));
       await tester.pumpAndSettle();
       expect(find.byType(QueueAddView), findsOneWidget);
+      await finish(tester);
+    });
+  });
+
+  group('voti del party', () {
+    late FakeSocialApi social;
+
+    /// La votazione che il plugin dà all'apertura e alle riletture.
+    void setRound(RatingRound? round) {
+      social
+        ..openRoundResult = round
+        ..rounds['g1'] = round;
+    }
+
+    /// Il player del party con i voti; per default con i titoli noti e la
+    /// coda della serie.
+    Future<void> pumpRating(WidgetTester tester,
+        {List<MediaSegment> segments = credits,
+        bool queue = true,
+        RatingRound? round}) async {
+      social = FakeSocialApi();
+      setRound(round ?? testRatingRound());
+      await pumpPartyPlayer(tester, segments: segments, social: social);
+      if (queue) await queueSeries(tester);
+    }
+
+    /// Arriva un avviso della votazione (e il plugin lo ha anche alle
+    /// riletture).
+    Future<void> receive(WidgetTester tester, Map<String, dynamic> json) async {
+      social.rounds['g1'] = RatingRound.fromJson(json);
+      events.add(ratingRoundUpdatedReceived(json));
+      await tester.pump();
+      await tester.pump();
+    }
+
+    Map<String, dynamic> revealed() => ratingRoundJson(
+          phase: 'Revealed',
+          rev: 2,
+          voters: [
+            {'UserId': 'u1', 'Name': 'Mario', 'Status': 'Voted'},
+            {'UserId': 'u2', 'Name': 'Luigi', 'Status': 'Voted'},
+          ],
+          results: [
+            {'UserId': 'u1', 'Name': 'Mario', 'Score': 8},
+            {'UserId': 'u2', 'Name': 'Luigi', 'Score': 8},
+          ],
+          average: 8,
+        );
+
+    Future<void> finishVideo(WidgetTester tester) async {
+      engine.emitCompleted();
+      await tester.pump();
+      await tester.pump();
+      await tester.pumpAndSettle();
+    }
+
+    int nextCalls(String playlistItemId) =>
+        api.calls.where((call) => call == 'next $playlistItemId').length;
+
+    final panel = find.byKey(const Key('rating-panel'));
+    final pill = find.byKey(const Key('rating-pill'));
+
+    int? draft() => container.read(ratingRoundProvider)?.draft;
+
+    testWidgets('ai titoli di coda si apre la votazione nel post-play',
+        (tester) async {
+      await pumpRating(tester);
+      await toCredits(tester);
+      expect(social.calls, contains('round-open g1 e4'));
+      expect(find.text('Il tuo voto · Breaking Bad · Stagione 1'),
+          findsOneWidget);
+      expect(find.text(l.playerNextEpisodeTitle.toUpperCase()), findsOneWidget);
+      expect(find.text('BREAKING BAD'), findsOneWidget,
+          reason: 'il prossimo titolo resta sotto il film');
+      expect(find.byKey(const Key('post-play-image')), findsNothing);
+      expect(find.byType(PlayNowButton), findsNothing);
+      expect(
+          tester
+              .widget<WfButton>(find.byKey(const Key('post-play-waiting')))
+              .onPressed,
+          isNull);
+      expect(pill, findsNothing, reason: 'il pannello è nel post-play');
+      await finish(tester);
+    });
+
+    testWidgets('senza Outro si apre a video finito, non prima',
+        (tester) async {
+      await pumpRating(tester, segments: const []);
+      engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text(l.playerNextEpisodeTitle.toUpperCase()), findsOneWidget,
+          reason: 'la scheda piccola come oggi');
+      expect(social.calls.where((call) => call.startsWith('round-open')),
+          isEmpty);
+      await finishVideo(tester);
+      expect(social.calls, contains('round-open g1 e4'));
+      expect(find.byType(PostPlayLayer), findsOneWidget);
+      expect(panel, findsOneWidget);
+      expect(nextCalls('p1'), 0, reason: 'la coda è ferma in Voting');
+      await finish(tester);
+    });
+
+    for (final failure in [SocialFailure.forbidden, SocialFailure.network]) {
+      testWidgets('con ${failure.name} niente pannello e la coda va avanti',
+          (tester) async {
+        await pumpRating(tester, segments: const []);
+        social.nextFailure = failure;
+        await finishVideo(tester);
+        expect(social.calls, contains('round-open g1 e4'));
+        expect(nextCalls('p1'), 1);
+        expect(find.textContaining(l.ratingYourVote), findsNothing);
+        expect(panel, findsNothing);
+        await finish(tester);
+      });
+    }
+
+    testWidgets('in Voting il video finito non chiama nextItem; a Revealed 15 s '
+        'e poi nextItem', (tester) async {
+      await pumpRating(tester);
+      await toCredits(tester);
+      await finishVideo(tester);
+      expect(nextCalls('p1'), 0);
+      await receive(tester, revealed());
+      expect(find.text('Riproduci ora · 15'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 14));
+      expect(nextCalls('p1'), 0);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+      expect(nextCalls('p1'), 1);
+      await tester.pump(const Duration(seconds: 3));
+      expect(nextCalls('p1'), 1, reason: 'una volta sola');
+      await finish(tester);
+    });
+
+    testWidgets('Revealed con il post-play chiuso: la coda riparte lo stesso',
+        (tester) async {
+      await pumpRating(tester);
+      await toCredits(tester);
+      await tester.tap(find.text(l.playerWatchCredits));
+      await tester.pumpAndSettle();
+      expect(pill, findsOneWidget);
+      await finishVideo(tester);
+      expect(nextCalls('p1'), 0);
+      await receive(tester, revealed());
+      await tester.pump(const Duration(seconds: 15));
+      await tester.pump();
+      expect(nextCalls('p1'), 1);
+      await finish(tester);
+    });
+
+    testWidgets('Revealed col video ancora in corso: come oggi',
+        (tester) async {
+      await pumpRating(tester);
+      await toCredits(tester);
+      await receive(tester, revealed());
+      await tester.pumpAndSettle();
+      expect(find.byType(PlayNowButton), findsOneWidget);
+      expect(find.textContaining('Riproduci ora ·'), findsNothing);
+      await tester.tap(find.byType(PlayNowButton));
+      await tester.pump();
+      expect(nextCalls('p1'), 1);
+      await finish(tester);
+    });
+
+    testWidgets('coda vuota: il post-play solo per il voto', (tester) async {
+      await pumpRating(tester, queue: false);
+      engine.emitPosition(const Duration(hours: 1, minutes: 55, seconds: 10));
+      await tester.pump();
+      await tester.pump();
+      await tester.pumpAndSettle();
+      expect(panel, findsOneWidget);
+      expect(find.text(l.playerWatchCredits), findsNothing,
+          reason: 'nessun prossimo titolo');
+      await finishVideo(tester);
+      await receive(tester, revealed());
+      await tester.pump(const Duration(seconds: 16));
+      expect(api.calls.where((call) => call.startsWith('next')), isEmpty);
+      expect(panel, findsOneWidget, reason: 'il pannello resta');
+      await finish(tester);
+    });
+
+    testWidgets('votazione sparita a metà: avviso e coda libera',
+        (tester) async {
+      await pumpRating(tester);
+      await toCredits(tester);
+      await finishVideo(tester);
+      expect(nextCalls('p1'), 0);
+      social.rounds['g1'] = null;
+      events.add(const ServerConnected(true));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(find.text(l.ratingRoundUnavailable), findsOneWidget);
+      expect(nextCalls('p1'), 1);
+      await finish(tester);
+    });
+
+    testWidgets('Esc a video finito chiude il post-play e resta nel party',
+        (tester) async {
+      await pumpRating(tester);
+      await toCredits(tester);
+      await finishVideo(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(PostPlayLayer), findsNothing);
+      expect(pill, findsOneWidget);
+      expect(find.byType(PlayerScreen), findsOneWidget);
+      expect(api.calls, isNot(contains('leave')));
+      await finish(tester);
+    });
+
+    testWidgets('tasti: cifre e frecce scelgono il voto, nel commento si '
+        'scrivono', (tester) async {
+      await pumpRating(tester);
+      await toCredits(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit8);
+      await tester.pump();
+      expect(draft(), 8);
+      expect(
+          tester.widget<Material>(find.byKey(const Key('rating-score-8'))).color,
+          WfColors.gold,
+          reason: 'il numero scelto è oro');
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
+      await tester.pump();
+      expect(draft(), 3);
+      await tester.sendKeyEvent(LogicalKeyboardKey.numpad0);
+      await tester.pump();
+      expect(draft(), 10);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      expect(draft(), 9);
+      // Il salto del gruppo parte dopo una breve attesa.
+      await tester.pump(const Duration(seconds: 1));
+      expect(api.calls.where((call) => call.startsWith('seek')), isEmpty,
+          reason: '← sceglie il voto, non salta');
+      expect(sentReactions(), isEmpty, reason: 'il 3 non è una reazione');
+
+      final field =
+          find.descendant(of: panel, matching: find.byType(TextField));
+      await tester.tap(field);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
+      await tester.pump();
+      await tester.enterText(field, '3');
+      await tester.pump();
+      expect(tester.widget<TextField>(field).controller!.text, '3');
+      expect(draft(), 9, reason: 'la cifra va al campo');
+      expect(sentReactions(), isEmpty);
+
+      // Esc nel campo riporta i tasti al player, il post-play resta.
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(find.byType(PostPlayLayer), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit7);
+      await tester.pump();
+      expect(draft(), 7);
+      await finish(tester);
+    });
+
+    testWidgets('la pillola apre il pannello a lato', (tester) async {
+      await pumpRating(tester);
+      await toCredits(tester);
+      await tester.tap(find.text(l.playerWatchCredits));
+      await tester.pumpAndSettle();
+      await tester.tap(pill);
+      await tester.pumpAndSettle();
+      final side = find.descendant(
+          of: find.byType(PlayerSidePanelHost),
+          matching: find.byType(RatingRoundPanel));
+      expect(side, findsOneWidget);
+      expect(pill, findsNothing);
+      await tester.tap(
+          find.descendant(of: side, matching: find.byTooltip(l.friendsClose)));
+      await tester.pumpAndSettle();
+      expect(side, findsNothing);
+      expect(pill, findsOneWidget, reason: 'in Voting la votazione resta');
+
+      await receive(tester, revealed());
+      await tester.tap(pill);
+      await tester.pumpAndSettle();
+      await tester.tap(
+          find.descendant(of: side, matching: find.byTooltip(l.friendsClose)));
+      await tester.pumpAndSettle();
+      expect(pill, findsNothing, reason: 'in Revealed la si chiude');
+      expect(container.read(ratingRoundProvider), isNull);
+      await finish(tester);
+    });
+
+    testWidgets('cambio di titolo durante Voting: il player nuovo non ferma la '
+        'coda', (tester) async {
+      await pumpRating(tester);
+      await toCredits(tester);
+      emit(PlayQueueUpdate(
+          'g1',
+          testSeriesQueue(
+              playingIndex: 1,
+              reason: 'NextItem',
+              lastUpdate: DateTime.utc(2026, 9, 30, 10, 5))));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.toString(), '/play/e5?party=p2');
+      expect(pill, findsOneWidget);
+      expect(find.text(l.ratingPartyPill), findsOneWidget);
+      engines.last.emitCompleted();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(nextCalls('p2'), 1);
+      await receive(tester, revealed());
+      expect(find.text(l.ratingRevealedPill), findsOneWidget);
+      await finish(tester);
+    });
+
+    testWidgets('tolti dal gruppo durante la votazione: niente pillola',
+        (tester) async {
+      await pumpRating(tester);
+      await toCredits(tester);
+      await tester.tap(find.text(l.playerWatchCredits));
+      await tester.pumpAndSettle();
+      expect(pill, findsOneWidget);
+      emit(const GroupLeft('g1'));
+      await tester.pump();
+      await tester.pump();
+      expect(pill, findsNothing);
+      expect(container.read(ratingRoundProvider), isNull);
+      expect(find.byType(PlayerScreen), findsOneWidget,
+          reason: 'il player continua da solo');
+      await finish(tester);
+    });
+
+    testWidgets('Scopri i voti nel post-play solo con CanReveal',
+        (tester) async {
+      await pumpRating(tester);
+      await toCredits(tester);
+      expect(find.text(l.ratingReveal), findsNothing);
+      await finish(tester);
+
+      await pumpRating(tester, round: testRatingRound(canReveal: true));
+      await toCredits(tester);
+      await tester.tap(find.text(l.ratingReveal));
+      await tester.pump();
+      expect(social.calls, contains('round-reveal g1'));
       await finish(tester);
     });
   });

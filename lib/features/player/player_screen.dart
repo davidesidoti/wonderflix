@@ -12,14 +12,19 @@ import '../../app/motion.dart';
 import '../../app/navigation.dart';
 import '../../app/providers.dart';
 import '../../core/jellyfin/item_models.dart';
+import '../../core/jellyfin/json_fields.dart';
 import '../../core/media_session/media_session.dart';
 import '../../core/party_channel/party_channel_models.dart';
+import '../../core/social/rating_models.dart';
 import '../../core/syncplay/syncplay_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../detail/primary_action.dart';
 import '../library/item_labels.dart';
 import '../library/library_providers.dart';
 import '../library/user_data.dart';
+import '../ratings/rating_round_controller.dart';
+import '../ratings/rating_round_panel.dart';
+import '../social/social_providers.dart';
 import '../watch_party/group_authority.dart';
 import '../watch_party/group_playback_driver.dart';
 import '../watch_party/party_badge.dart';
@@ -58,6 +63,14 @@ import 'trickplay.dart';
 import 'trickplay_preview.dart';
 
 final _log = Logger('player');
+
+/// Dopo `Revealed`, a video finito, la coda del party riparte dopo questo
+/// tempo (spec Q §7.2): il tempo di vedere i voti.
+const ratingReleaseDelay = Duration(seconds: 15);
+
+/// Distanza dal fondo della pillola "Voti del party": sopra "Salta intro" e
+/// la scheda piccola, che stanno a 150.
+const ratingPillBottom = 210.0;
 
 /// Schermata del player: video a tutta finestra, controlli in
 /// sovrimpressione, tastiera, schermo intero, salta intro, prossimo
@@ -116,6 +129,37 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// Il campo di ricerca del pannello "Coda" ha il focus.
   bool get _queueSearchFocused => _queuePanelFocusNode.hasFocus;
 
+  /// Il pannello del voto del party nel post-play e quello a lato (spec Q
+  /// §7): come per la coda, nodi che non prendono il focus ma ce l'hanno
+  /// quando ce l'ha il campo del commento. Due, perché un nodo sta in un solo
+  /// punto dell'albero e i due strati ci sono sempre.
+  final _ratingPanelFocusNode = FocusNode(
+    debugLabel: 'rating-post-play',
+    canRequestFocus: false,
+    skipTraversal: true,
+  );
+  final _ratingSideFocusNode = FocusNode(
+    debugLabel: 'rating-side-panel',
+    canRequestFocus: false,
+    skipTraversal: true,
+  );
+
+  /// Il campo del commento del voto ha il focus.
+  bool get _ratingCommentFocused =>
+      _ratingPanelFocusNode.hasFocus || _ratingSideFocusNode.hasFocus;
+
+  /// L'apertura della votazione: una per player.
+  Future<void>? _ratingOpen;
+
+  /// Dopo `Revealed` a video finito: quando la coda riparte (il conto di
+  /// [ratingReleaseDelay]), e il timer che la fa ripartire anche con il
+  /// post-play chiuso.
+  DateTime? _releaseAt;
+  Timer? _releaseTimer;
+
+  /// L'elemento dopo è già stato chiesto a fine video: una volta sola.
+  bool _released = false;
+
   /// Invio apre la chat. Non `const`: le chiavi ridefiniscono `==`.
   static final _openChatKeys = {
     LogicalKeyboardKey.enter,
@@ -148,6 +192,36 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _digitKeys[reaction.key - 1]: reaction,
       _numpadKeys[reaction.key - 1]: reaction,
     },
+  };
+
+  /// Cifre e tastierino del voto del party: da 1 a 9, e 0 vale 10.
+  static final _scoreKeys = {
+    for (final (index, key) in const [
+      LogicalKeyboardKey.digit1,
+      LogicalKeyboardKey.digit2,
+      LogicalKeyboardKey.digit3,
+      LogicalKeyboardKey.digit4,
+      LogicalKeyboardKey.digit5,
+      LogicalKeyboardKey.digit6,
+      LogicalKeyboardKey.digit7,
+      LogicalKeyboardKey.digit8,
+      LogicalKeyboardKey.digit9,
+      LogicalKeyboardKey.digit0,
+    ].indexed)
+      key: index + 1,
+    for (final (index, key) in const [
+      LogicalKeyboardKey.numpad1,
+      LogicalKeyboardKey.numpad2,
+      LogicalKeyboardKey.numpad3,
+      LogicalKeyboardKey.numpad4,
+      LogicalKeyboardKey.numpad5,
+      LogicalKeyboardKey.numpad6,
+      LogicalKeyboardKey.numpad7,
+      LogicalKeyboardKey.numpad8,
+      LogicalKeyboardKey.numpad9,
+      LogicalKeyboardKey.numpad0,
+    ].indexed)
+      key: index + 1,
   };
 
   /// Aggancio della barretta delle reazioni al suo pulsante.
@@ -250,7 +324,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _chrome.openPopup(PlayerPopup.queue);
     }
     _chrome.addListener(_onChromeChanged);
-    _queuePanelFocusNode.addListener(_onQueueSearchFocus);
+    _queuePanelFocusNode.addListener(_onPanelFieldFocus);
+    _ratingPanelFocusNode.addListener(_onPanelFieldFocus);
+    _ratingSideFocusNode.addListener(_onPanelFieldFocus);
     // Un menu aperto dai controlli (modalità di "Guarda insieme", distintivo
     // del party) è una rotta sopra il player: finché c'è, i controlli non si
     // nascondono (il mouse sul menu non arriva al player).
@@ -282,6 +358,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _focusNode.dispose();
     _chatFocusNode.dispose();
     _queuePanelFocusNode.dispose();
+    _ratingPanelFocusNode.dispose();
+    _ratingSideFocusNode.dispose();
+    _releaseTimer?.cancel();
     _window.removeCloseListener(_onWindowClose);
     unawaited(_window.setPreventClose(false));
     if (_fullscreen && !handingOver) unawaited(_window.setFullScreen(false));
@@ -355,6 +434,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         (ModalRoute.isCurrentOf(context) ?? true)) {
       _focusNode.requestFocus();
     }
+    // Lo stesso per il pannello del voto a lato.
+    if (_chrome.popup != PlayerPopup.rating &&
+        _ratingSideFocusNode.hasFocus &&
+        (ModalRoute.isCurrentOf(context) ?? true)) {
+      _focusNode.requestFocus();
+    }
     setState(() {});
   }
 
@@ -421,7 +506,95 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final engine = _controller.engine;
     final zone = endZoneAt(
         view.segments, engine.duration, position ?? engine.position);
-    if (zone != _endZone) setState(() => _endZone = zone);
+    if (zone == _endZone) return;
+    setState(() => _endZone = zone);
+    if (zone == EndZone.credits) unawaited(_maybeOpenRating());
+  }
+
+  /// Apre la votazione del party sul titolo guardato (spec Q §7.1), una volta
+  /// per player: ai titoli di coda o a video finito. `null` se non si vota
+  /// (fuori dal gruppo, funzione spenta, titolo che non è un film né un
+  /// episodio).
+  Future<void>? _maybeOpenRating() {
+    if (_ratingOpen != null || !_inParty || _leaving) return _ratingOpen;
+    final party = ref.read(watchPartySessionProvider);
+    final item = ref.read(playerControllerProvider(widget.args)).item;
+    if (!party.inGroup ||
+        !ref.read(socialAvailabilityProvider).ratings ||
+        item == null ||
+        (item.kind != ItemKind.movie && item.kind != ItemKind.episode)) {
+      return null;
+    }
+    return _ratingOpen = ref.read(ratingRoundProvider.notifier).open(
+        groupId: party.group!.id,
+        item: item,
+        playlistItemId: widget.args.party!);
+  }
+
+  /// La votazione del party è di questo player (l'ha aperta il suo elemento
+  /// della coda): il suo pannello sta nel post-play.
+  bool get _ratingHere {
+    if (!_inParty) return false;
+    final rating = ref.read(ratingRoundProvider);
+    return rating != null &&
+        jellyfinIdKey(rating.playlistItemId) ==
+            jellyfinIdKey(widget.args.party!);
+  }
+
+  /// La votazione tiene ferma la coda del party (fase `Voting`).
+  bool get _holding =>
+      _inParty &&
+      (ref.read(ratingRoundProvider)?.holdsQueue(widget.args.party!) ??
+          false);
+
+  /// Fine del video nel gruppo: si passa all'elemento dopo, salvo che la
+  /// votazione appena aperta tenga ferma la coda; allora riparte quando la
+  /// votazione finisce (vedi il `ref.listen` in [build]).
+  Future<void> _finishInParty() async {
+    await _maybeOpenRating();
+    if (!mounted || _leaving || _holding) return;
+    _releaseQueue();
+  }
+
+  /// Chiede al gruppo l'elemento dopo, una volta sola per player.
+  void _releaseQueue() {
+    _releaseTimer?.cancel();
+    _releaseTimer = null;
+    if (_released || _leaving || !_inParty) return;
+    _released = true;
+    unawaited(ref
+        .read(watchPartySessionProvider.notifier)
+        .nextItem(widget.args.party!));
+  }
+
+  /// `Revealed` a video finito: la coda riparte dopo [ratingReleaseDelay]
+  /// (decisione 8), anche con il post-play chiuso.
+  void _startRelease() {
+    if (_releaseAt != null || _released) return;
+    setState(() => _releaseAt = clock.now().add(ratingReleaseDelay));
+    _releaseTimer = Timer(ratingReleaseDelay, _releaseQueue);
+  }
+
+  /// I secondi che restano al conto, arrotondati in su (almeno 1).
+  int get _releaseLeft {
+    final left = _releaseAt!.difference(clock.now()).inMilliseconds;
+    return ((left + 999) ~/ 1000).clamp(1, ratingReleaseDelay.inSeconds);
+  }
+
+  /// Chiudendo il pannello del voto dopo `Revealed` (o con la votazione
+  /// sparita) la votazione esce dall'app; in `Voting` resta (decisione 6).
+  void _dismissFinishedRating() {
+    final rating = ref.read(ratingRoundProvider);
+    if (rating != null &&
+        (rating.unavailable || rating.round.phase == RatingPhase.revealed)) {
+      ref.read(ratingRoundProvider.notifier).dismiss();
+    }
+  }
+
+  /// ✕ o Esc nel pannello del voto a lato.
+  void _closeRatingPanel() {
+    _dismissFinishedRating();
+    _chrome.closePopup(PlayerPopup.rating);
   }
 
   /// Il titolo proposto come prossimo (spec H §9.1): da soli l'episodio
@@ -452,13 +625,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _firstFrame &&
       !_chrome.postPlayDismissed;
 
-  /// Post-play: titoli di coda noti (spec D §12.1).
-  bool _postPlayShown(PlayerViewState view) =>
-      _endZone == EndZone.credits && _canOfferNext(view);
+  /// Post-play: titoli di coda noti (spec D §12.1). Nel party c'è anche per
+  /// il solo voto (coda finita), e a video finito con il voto aperto qui.
+  bool _postPlayShown(PlayerViewState view) {
+    final rating = _ratingHere;
+    return !_chrome.postPlayDismissed &&
+        view.status == PlayerStatus.ready &&
+        _firstFrame &&
+        (_endZone == EndZone.credits || (view.finished && rating)) &&
+        (_nextOffer(view) != null || rating);
+  }
 
-  /// Scheda piccola: ultimi 30 s senza titoli noti (spec D §12.2).
+  /// Scheda piccola: ultimi 30 s senza titoli noti (spec D §12.2), se non
+  /// c'è già il post-play.
   bool _cardShown(PlayerViewState view) =>
-      _endZone == EndZone.lastSeconds && _canOfferNext(view);
+      _endZone == EndZone.lastSeconds &&
+      _canOfferNext(view) &&
+      !_postPlayShown(view);
 
   /// "Guarda i titoli", "Annulla", Esc, clic sul film piccolo. A video
   /// finito (post-play rimasto aperto senza conto alla rovescia) da soli si
@@ -468,6 +651,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (!_inParty && ref.read(playerControllerProvider(widget.args)).finished) {
       _exit();
       return;
+    }
+    // "Guarda i titoli" o Esc chiudono anche il pannello del voto.
+    if (_ratingHere &&
+        _postPlayShown(ref.read(playerControllerProvider(widget.args)))) {
+      _dismissFinishedRating();
     }
     _chrome.dismissPostPlay();
     _syncPlayback();
@@ -613,9 +801,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // richieste doppie degli altri). A fine coda si resta sul video.
     if (_leaving) return;
     if (_inParty) {
-      unawaited(ref
-          .read(watchPartySessionProvider.notifier)
-          .nextItem(widget.args.party!));
+      unawaited(_finishInParty());
       return;
     }
     final view = ref.read(playerControllerProvider(widget.args));
@@ -700,6 +886,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // Driver e autorità si fermano subito, non alla chiusura della pagina:
     // un `Seek` in sospeso (senza elemento) salterebbe nell'episodio nuovo.
     _detachParty();
+    _releaseTimer?.cancel();
+    _releaseTimer = null;
     final view = ref.read(playerControllerProvider(widget.args));
     final engine = _controller.engine;
     final from = nextEpisodeCardFrom(view.segments, engine.duration);
@@ -792,13 +980,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   /// Esc: pannello o chat → post-play o scheda → schermo intero → uscita
-  /// (spec D §9.1, spec E §11). A video finito il post-play non si chiude:
-  /// si esce.
+  /// (spec D §9.1, spec E §11). A video finito da soli il post-play non si
+  /// chiude: si esce. Nel party si chiude e basta (decisione 7): uscire vuol
+  /// dire lasciare il gruppo.
   void _escape() {
     final view = ref.read(playerControllerProvider(widget.args));
-    if (_chrome.popup != null) {
+    if (_chrome.popup == PlayerPopup.rating) {
+      _closeRatingPanel();
+    } else if (_chrome.popup != null) {
       _chrome.closePopup();
-    } else if ((_postPlayShown(view) && !view.finished) || _cardShown(view)) {
+    } else if ((_postPlayShown(view) && (!view.finished || _inParty)) ||
+        _cardShown(view)) {
       _dismissNext();
     } else if (_fullscreen) {
       unawaited(_toggleFullscreen());
@@ -858,12 +1050,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return KeyEventResult.ignored;
   }
 
-  /// Il campo di ricerca ha perso il focus (vista cambiata, pannello chiuso):
-  /// se non l'ha preso nessun altro, torna al player. Il passaggio da un
-  /// campo all'altro (due viste Aggiungi nella dissolvenza) resta dentro il
-  /// pannello e non arriva qui.
-  void _onQueueSearchFocus() {
-    if (_queueSearchFocused) return;
+  /// Il campo di ricerca della coda o del commento del voto ha perso il focus
+  /// (vista cambiata, pannello chiuso): se non l'ha preso nessun altro, torna
+  /// al player. Il passaggio da un campo all'altro (due viste Aggiungi nella
+  /// dissolvenza) resta dentro il pannello e non arriva qui.
+  void _onPanelFieldFocus() {
+    if (_queueSearchFocused || _ratingCommentFocused) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !(ModalRoute.isCurrentOf(context) ?? true)) return;
       // App inattiva (Alt+Tab): Flutter mette il focus sulla radice e si
@@ -902,9 +1094,57 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         keyboard.isMetaPressed;
   }
 
+  /// Il commento del voto ha il focus: i tasti vanno al campo, come per la
+  /// ricerca della coda (una cifra resta testo); Esc riporta i tasti al
+  /// player.
+  KeyEventResult _onRatingCommentKey(KeyEvent event) {
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.escape) {
+      _chrome.keyActivity();
+      _focusNode.requestFocus();
+      return KeyEventResult.handled;
+    }
+    return _onQueueSearchKey(event);
+  }
+
+  /// Con i numeri del voto visibili (decisione 11) le cifre scelgono il voto
+  /// (0 = 10) e ←/→ lo spostano, senza reazioni né salti. `false` se il
+  /// tasto non è del voto.
+  bool _onRatingKey(KeyEvent event) {
+    if (!_inParty) return false;
+    final key = event.logicalKey;
+    final score = _scoreKeys[key];
+    final step = key == LogicalKeyboardKey.arrowLeft
+        ? -1
+        : key == LogicalKeyboardKey.arrowRight
+            ? 1
+            : null;
+    if ((score == null && step == null) || _shortcutModifierPressed) {
+      return false;
+    }
+    final visible = _chrome.popup == PlayerPopup.rating ||
+        (_ratingHere &&
+            _postPlayShown(ref.read(playerControllerProvider(widget.args))));
+    if (!visible || !(ref.read(ratingRoundProvider)?.showsPicker ?? false)) {
+      return false;
+    }
+    if (event is KeyDownEvent) {
+      final rating = ref.read(ratingRoundProvider.notifier);
+      if (score != null) {
+        rating.select(score);
+      } else {
+        rating.step(step!);
+      }
+    }
+    if (event is! KeyUpEvent) _chrome.keyActivity();
+    return true;
+  }
+
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (_chrome.chatOpen) return _onChatKey(event);
     if (_queueSearchFocused) return _onQueueSearchKey(event);
+    if (_ratingCommentFocused) return _onRatingCommentKey(event);
+    if (_onRatingKey(event)) return KeyEventResult.handled;
     // Invio apre la chat del watch party, solo con il focus al player: su
     // un pulsante (per esempio "Riprova") lo preme.
     if (event is KeyDownEvent &&
@@ -1075,6 +1315,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             .select((s) => (active: s.active, unread: s.unread)))
         : null;
     final chatActive = _inParty && (chat?.active ?? false);
+    // La votazione del party (spec Q §7): il player la segue solo nel gruppo.
+    final rating = _inParty
+        ? ref.watch(ratingRoundProvider.select((v) => v == null
+            ? null
+            : (
+                phase: v.round.phase,
+                unavailable: v.unavailable,
+                here: jellyfinIdKey(v.playlistItemId) ==
+                    jellyfinIdKey(widget.args.party!),
+              )))
+        : null;
+    final ratingHere = rating?.here ?? false;
+    final holding = rating != null &&
+        rating.here &&
+        !rating.unavailable &&
+        rating.phase == RatingPhase.voting;
+    // Il conto dopo `Revealed` a video finito (vedi [_startRelease]).
+    final releasing = _releaseAt != null;
 
     ref.listen(provider.select((s) => s.finished), (_, finished) {
       if (finished) _onFinished();
@@ -1185,7 +1443,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _chrome
           ..closePopup(PlayerPopup.chat)
           ..closePopup(PlayerPopup.reactions)
-          ..closePopup(PlayerPopup.queue);
+          ..closePopup(PlayerPopup.queue)
+          ..closePopup(PlayerPopup.rating);
         _detachParty();
         _controller.leaveParty();
         unawaited(_mediaSession
@@ -1205,6 +1464,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       });
       ref.listen(watchPartySessionProvider.select((s) => s.rejoins),
           (_, _) => unawaited(_driver?.onRejoined()));
+      // La votazione smette di tenere ferma la coda a video finito: dopo
+      // `Revealed` si contano 15 s; se è sparita (`{}`, gruppo lasciato,
+      // funzione spenta) si va avanti subito (decisione 8).
+      ref.listen(
+          ratingRoundProvider
+              .select((v) => v?.holdsQueue(widget.args.party!) ?? false),
+          (wasHolding, holds) {
+        if (wasHolding != true || holds || !ref.read(provider).finished) {
+          return;
+        }
+        final round = ref.read(ratingRoundProvider);
+        if (round != null &&
+            !round.unavailable &&
+            round.round.phase == RatingPhase.revealed) {
+          _startRelease();
+        } else {
+          _releaseQueue();
+        }
+      });
+      // Votazione sparita: il pannello a lato si chiude.
+      ref.listen(ratingRoundProvider.select((v) => v != null), (_, exists) {
+        if (!exists) _chrome.closePopup(PlayerPopup.rating);
+      });
     }
 
     // Caricamento: finché il file non è pronto e il motore non ha disegnato
@@ -1227,7 +1509,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final queuePanelOpen = party != null &&
         _chrome.popup == PlayerPopup.queue &&
         party.inGroup;
-    final sidePanelOpen = tracksPanelOpen || queuePanelOpen;
+    final ratingPanelOpen =
+        rating != null && _chrome.popup == PlayerPopup.rating;
+    final sidePanelOpen = tracksPanelOpen || queuePanelOpen || ratingPanelOpen;
     final motion = WfMotion.of(context);
     // Il post-play compare o sparisce anche senza un cambio di zona (la coda
     // del gruppo, l'uscita dal gruppo, l'episodio successivo arrivato tardi,
@@ -1244,7 +1528,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         if (postPlay) {
           _chrome
             ..closePanel()
-            ..closePopup(PlayerPopup.reactions);
+            ..closePopup(PlayerPopup.reactions)
+            ..closePopup(PlayerPopup.rating);
           _closeQueueUnlessTyping();
         }
         _syncPlayback();
@@ -1498,15 +1783,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       duration: WfMotion.fast,
                       switchInCurve: _offerSwitchInCurve,
                       switchOutCurve: WfMotion.accelerateReverse,
-                      child: postPlay && offer != null
+                      child: postPlay
                           ? SizedBox.expand(
-                              key: ValueKey(offer.id),
+                              key: ValueKey(offer?.id ?? 'rating'),
                               child: PostPlayLayer(
                                 episode: offer,
-                                label: _nextOfferLabel(l, view, offer),
-                                countdown: !_inParty && settings.autoplayNext,
-                                paused: !view.playing || view.buffering,
-                                onPlay: _playOffered,
+                                label: offer == null
+                                    ? null
+                                    : _nextOfferLabel(l, view, offer),
+                                // Dopo `Revealed` a video finito il conto dei
+                                // 15 s, che non si ferma (il video è finito).
+                                countdown: releasing ||
+                                    (!_inParty && settings.autoplayNext),
+                                countdownSeconds: releasing
+                                    ? _releaseLeft
+                                    : PlayNowButton.countdownFrom,
+                                paused: !releasing &&
+                                    (!view.playing || view.buffering),
+                                // A destra c'è il pannello del voto.
+                                showImage: !ratingHere,
+                                waiting: holding,
+                                onPlay: releasing ? _releaseQueue : _playOffered,
                                 onWatchCredits: _dismissNext,
                               ),
                             )
@@ -1514,6 +1811,40 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
                   ),
                 ),
+                // Il voto del party nel post-play (spec Q §7), a destra del
+                // film piccolo, al posto dell'immagine. Non è dentro
+                // `ExcludeFocus`: il campo del commento prende il focus; il
+                // nodo intorno dice al player se ce l'ha.
+                if (party != null)
+                  Positioned.fill(
+                    key: const ValueKey('player-rating-post-play'),
+                    child: Focus(
+                      focusNode: _ratingPanelFocusNode,
+                      includeSemantics: false,
+                      child: AnimatedSwitcher(
+                        duration: motion.duration(WfMotion.medium),
+                        switchOutCurve: WfMotion.accelerateReverse,
+                        child: postPlay && ratingHere
+                            ? LayoutBuilder(
+                                key: const ValueKey('rating'),
+                                builder: (context, constraints) => Stack(
+                                  children: [
+                                    Positioned.fromRect(
+                                      rect: postPlaySideRect(
+                                          constraints.biggest),
+                                      child: Align(
+                                        alignment: Alignment.topLeft,
+                                        child: RatingRoundPanel(
+                                            onClose: _dismissNext),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    ),
+                  ),
                 // Attesa del gruppo durante il post-play: sopra di lui, come
                 // sopra "Stai guardando" (spec D §15.3, §19: i due momenti
                 // non si sovrappongono). Sempre presente: sparita, non è
@@ -1529,6 +1860,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
                   ),
                 ),
+                // "Voti del party": apre il pannello del voto a lato, quando
+                // non è già nel post-play. shortcut: negli ultimi 30 s di un
+                // titolo nuovo senza Outro la scheda piccola può coprirla; da
+                // spostare se dà fastidio.
+                if (rating != null &&
+                    view.status == PlayerStatus.ready &&
+                    !(postPlay && ratingHere) &&
+                    !ratingPanelOpen)
+                  Positioned(
+                    key: const ValueKey('player-rating-pill'),
+                    right: 32,
+                    bottom: ratingPillBottom,
+                    child: ExcludeFocus(
+                      child: RatingRoundPill(
+                        phase: rating.phase,
+                        onTap: () => _chrome.openPopup(PlayerPopup.rating),
+                      ),
+                    ),
+                  ),
                 // Reazioni in volo (spec E §10.4): in basso a destra, sotto
                 // la chat; non prendono i clic.
                 if (chatActive)
@@ -1672,6 +2022,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           // arrivare dopo il salto di riga.
                           onBeforeJump: () => _authority?.cancelPendingSeek(),
                         ),
+                      ),
+                    ),
+                  ),
+                // Pannello del voto del party (decisione 5): lo apre la
+                // pillola; come la coda, il campo del commento prende il
+                // focus.
+                if (party != null)
+                  Positioned.fill(
+                    key: const ValueKey('player-rating-panel'),
+                    child: Focus(
+                      focusNode: _ratingSideFocusNode,
+                      includeSemantics: false,
+                      child: PlayerSidePanelHost(
+                        open: ratingPanelOpen,
+                        panel: RatingRoundPanel(onClose: _closeRatingPanel),
                       ),
                     ),
                   ),
