@@ -35,7 +35,7 @@ const detailHeaderTextBottom = 28.0;
 
 /// Elementi della scheda che entrano scaglionati: 5 della testata (logo,
 /// dati, generi, trama, pulsanti) e le righe sotto.
-const detailEntranceCount = 8;
+const detailEntranceCount = 9;
 
 /// Parte alta di una scheda: logo o titolo, dati, trama, azioni. Lo sfondo
 /// è un livello a parte dietro alla pagina (`DetailBackdrop`). I testi sono

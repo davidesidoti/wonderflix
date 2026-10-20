@@ -20,6 +20,7 @@ import '../library/item_labels.dart';
 import '../library/library_providers.dart';
 import '../library/user_data.dart';
 import '../playback/play_launcher.dart';
+import '../ratings/friend_ratings_row.dart';
 import 'detail_header.dart';
 import 'detail_providers.dart';
 import 'detail_rows.dart';
@@ -66,6 +67,12 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
     final next = ref.watch(seriesNextEpisodeProvider(series.id)).value;
     final primary = next == null ? null : primaryActionFor(next, watchUserData(ref, next));
     final seasons = ref.watch(seasonsProvider(series.id));
+    final seasonList = seasons.value;
+    final shownSeasonId =
+        seasonList == null ? null : _seasonToShow(seasonList, next);
+    final shownSeason =
+        seasonList?.where((s) => s.id == shownSeasonId).firstOrNull;
+    final l = AppLocalizations.of(context);
 
     final page = StaggerGroup(
       count: detailEntranceCount,
@@ -76,8 +83,17 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
         children: [
           DetailHeader(
               item: series, primary: primary, controller: widget.controller),
+          if (shownSeason != null)
+            StaggerItem(
+              index: 5,
+              child: FriendRatingsRow(
+                key: ValueKey(shownSeason.id),
+                item: shownSeason,
+                title: l.ratingFriendsRowSeason(shownSeason.name),
+              ),
+            ),
           StaggerItem(
-            index: 5,
+            index: 6,
             child: WfSwitcher(
               child: seasons.when(
                 loading: () => const EpisodeListSkeleton(
@@ -116,8 +132,8 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
             ),
           ),
           if (series.people.isNotEmpty)
-            StaggerItem(index: 6, child: CastRow(people: series.people)),
-          StaggerItem(index: 7, child: SimilarRow(itemId: series.id)),
+            StaggerItem(index: 7, child: CastRow(people: series.people)),
+          StaggerItem(index: 8, child: SimilarRow(itemId: series.id)),
         ],
       ),
     );
@@ -125,7 +141,6 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
     // Senza controller (vista montata da sola nei test) niente titolo nella
     // barra.
     if (scroll == null) return page;
-    final l = AppLocalizations.of(context);
     final action = primary;
     final reduced = WfMotion.of(context).isReduced;
     return ShellHeaderPublisher(

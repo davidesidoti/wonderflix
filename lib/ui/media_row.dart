@@ -22,6 +22,7 @@ class MediaRow extends StatefulWidget {
     required this.itemBuilder,
     this.animateEntrance = false,
     this.onTitleTap,
+    this.trailing,
   });
 
   final String title;
@@ -37,6 +38,9 @@ class MediaRow extends StatefulWidget {
 
   /// Con [onTitleTap] il titolo è un link, con una freccia (spec K §8.3).
   final VoidCallback? onTitleTap;
+
+  /// A destra nell'intestazione, prima delle frecce.
+  final Widget? trailing;
 
   @override
   State<MediaRow> createState() => _MediaRowState();
@@ -122,6 +126,7 @@ class _MediaRowState extends State<MediaRow> {
               children: [
                 Flexible(child: _title()),
                 const Spacer(),
+                ?widget.trailing,
                 IconButton(
                   key: const Key('row-previous'),
                   onPressed: () => _scroll(-1),

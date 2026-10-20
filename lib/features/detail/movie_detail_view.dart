@@ -10,6 +10,7 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/staggered_entrance.dart';
 import '../collections/collection_rows.dart';
 import '../library/user_data.dart';
+import '../ratings/friend_ratings_row.dart';
 import '../playback/play_launcher.dart';
 import 'detail_header.dart';
 import 'detail_rows.dart';
@@ -45,10 +46,13 @@ class MovieDetailView extends ConsumerWidget {
         padding: const EdgeInsets.only(bottom: 40),
         children: [
           DetailHeader(item: item, primary: action, controller: controller),
+          // Un episodio aperto da solo non ha la riga (si vota la stagione).
+          if (item.kind == ItemKind.movie)
+            StaggerItem(index: 5, child: FriendRatingsRow(item: item)),
           if (item.people.isNotEmpty)
-            StaggerItem(index: 5, child: CastRow(people: item.people)),
-          StaggerItem(index: 6, child: CollectionRows(itemId: item.id)),
-          StaggerItem(index: 7, child: SimilarRow(itemId: item.id)),
+            StaggerItem(index: 6, child: CastRow(people: item.people)),
+          StaggerItem(index: 7, child: CollectionRows(itemId: item.id)),
+          StaggerItem(index: 8, child: SimilarRow(itemId: item.id)),
         ],
       ),
     );
