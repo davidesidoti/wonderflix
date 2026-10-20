@@ -53,7 +53,7 @@ public class RatingRoundTests
         Assert.Equal("allVoted", round.RevealIfDue(T0));
         var seen = round.Snapshot(_luigi.Id, viewerIsCreator: false, Ratings((_mario.Id, 7, null), (_luigi.Id, 9, "Bello")));
         Assert.Equal(new[] { "Luigi", "Mario" }, seen.Results!.Select(r => r.Name));
-        Assert.Equal(new RatingResultDto(N(_luigi.Id), "Luigi", 9, "Bello"), seen.Results[0]);
+        Assert.Equal(new RatingResultDto(N(_luigi.Id), "Luigi", 9, "Bello"), seen.Results![0]);
         Assert.Equal(8.0, seen.Average);
         Assert.False(seen.CanReveal);
     }

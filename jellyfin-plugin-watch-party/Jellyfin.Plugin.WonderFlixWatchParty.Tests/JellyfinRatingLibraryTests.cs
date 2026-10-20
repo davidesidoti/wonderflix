@@ -100,6 +100,8 @@ public class JellyfinRatingLibraryTests
         Assert.Equal(new RatedTitle(second.Id, true, "Breaking Bad · Stagione 2"), library.FindRated(second.Id));
         Assert.Equal("Breaking Bad · Speciali", library.FindRated(specials.Id)!.DisplayTitle);
         Assert.Null(library.FindRated(Add(new Season { SeriesName = "Breaking Bad" }).Id));
+        Assert.Null(library.FindRated(Add(new Season { IndexNumber = 1 }).Id));
+        Assert.Null(library.FindRated(Add(new Season { SeriesName = string.Empty, IndexNumber = 1 }).Id));
         Assert.Null(library.FindRated(Add(new Episode()).Id));
         Assert.Null(library.FindRated(Add(new Series()).Id));
         Assert.Null(library.FindRated(Guid.NewGuid()));
@@ -142,6 +144,15 @@ public class JellyfinRatingLibraryTests
 
         _found = [Add(new Episode())];
         Assert.False(Library().HasWatched(_luigi.Id, title));
+    }
+
+    [Fact]
+    public void ASeasonWithoutASeriesIsNeverWatched()
+    {
+        var season = Add(new Season { IndexNumber = 1 });
+
+        Assert.False(Library().HasWatched(_luigi.Id, new RatedTitle(season.Id, true, "x")));
+        Assert.Empty(_queries);
     }
 
     [Fact]

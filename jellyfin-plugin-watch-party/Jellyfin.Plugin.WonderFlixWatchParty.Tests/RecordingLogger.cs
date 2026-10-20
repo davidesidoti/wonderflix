@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
 
 /// <summary>Logger che ricorda livello, eccezione e testo di ogni voce.</summary>
-internal sealed class RecordingLogger<T> : ILogger<T>
+internal sealed class RecordingLogger<T>(bool throwOnReveal = false) : ILogger<T>
 {
     public List<(LogLevel Level, Exception? Exception, string Message)> Entries { get; } = [];
 
@@ -14,5 +14,16 @@ internal sealed class RecordingLogger<T> : ILogger<T>
 
     public void Log<TState>(
         LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-        Entries.Add((logLevel, exception, formatter(state, exception)));
+        Record(logLevel, exception, formatter(state, exception));
+
+    private void Record(LogLevel level, Exception? exception, string message)
+    {
+        Entries.Add((level, exception, message));
+
+        // Per simulare un errore dentro un timer: il Debug dei voti scoperti lancia.
+        if (throwOnReveal && level == LogLevel.Debug && message.Contains("voti scoperti", StringComparison.Ordinal))
+        {
+            throw new IOException("errore simulato");
+        }
+    }
 }

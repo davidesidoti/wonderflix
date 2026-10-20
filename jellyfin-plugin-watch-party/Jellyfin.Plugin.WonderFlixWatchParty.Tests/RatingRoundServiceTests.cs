@@ -117,8 +117,28 @@ public sealed class RatingRoundServiceTests : IDisposable
         Assert.Equal(HubStatus.Invalid, _rounds.Open(_mario.Id, Request(_group, _film.Id)).Status);
         _server.Unseen.Clear();
 
+        // Un bersaglio che la scheda rifiuterebbe (non votabile) non apre nulla.
+        var unrated = Guid.NewGuid();
+        _server.RoundTargets[unrated] = unrated;
+        Assert.Equal(HubStatus.Invalid, _rounds.Open(_mario.Id, Request(_group, unrated)).Status);
+
         _server.RatingLibraryFails = true;
         Assert.Equal(HubStatus.Invalid, _rounds.Open(_mario.Id, Request(_group, _film.Id)).Status);
+    }
+
+    [Fact]
+    public void ATimerFailureIsLoggedAndDoesNotEscape()
+    {
+        var logger = new RecordingLogger<RatingRoundService>(throwOnReveal: true);
+        using var rounds = new RatingRoundService(
+            _ratings, _server, _server, _server, _server, _server, _parties, _server, _time, logger);
+        rounds.Open(_mario.Id, Request(_group, _film.Id));
+
+        _time.Advance(RatingRoundService.VotingTime);
+
+        var warning = Assert.Single(logger.Entries, e => e.Level == Microsoft.Extensions.Logging.LogLevel.Warning);
+        Assert.NotNull(warning.Exception);
+        Assert.DoesNotContain("Mario", warning.Message);
     }
 
     [Fact]

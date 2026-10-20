@@ -66,7 +66,8 @@ public sealed class RatingRoundService(
         Guid target;
         try
         {
-            if (!access.CanSee(userId, itemId) || library.RoundTarget(itemId) is not { } resolved)
+            if (!access.CanSee(userId, itemId) || library.RoundTarget(itemId) is not { } resolved
+                || library.FindRated(resolved) is null)
             {
                 return RatingOutcome.Invalid;
             }
@@ -273,21 +274,29 @@ public sealed class RatingRoundService(
         return result;
     }
 
-    // Il timer dei 2 minuti: scopre i voti senza altre chiamate.
+    // Il timer dei 2 minuti: scopre i voti senza altre chiamate. Gira su un thread del
+    // pool: un errore (es. l'archivio illeggibile) non deve uscire e fermare Jellyfin.
     private void Expire(Guid groupId, RatingRound round)
     {
         Delivery? delivery = null;
-        lock (_lock)
+        try
         {
-            if (_rounds.TryGetValue(groupId, out var current) && current == round)
+            lock (_lock)
             {
-                var rev = round.Rev;
-                RevealIfDue(round);
-                delivery = round.Rev == rev ? null : Push(round);
+                // Reveal diretto: un tick appena prima di EndsAt non deve lasciare la votazione in Voting.
+                if (_rounds.TryGetValue(groupId, out var current) && current == round && round.Reveal(time.GetUtcNow()))
+                {
+                    logger.LogDebug("Votazione {GroupId}: voti scoperti (timeout)", N(groupId));
+                    delivery = Push(round);
+                }
             }
-        }
 
-        Deliver(delivery);
+            Deliver(delivery);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Timer della votazione {GroupId} fallito", N(groupId));
+        }
     }
 
     // I presenti noti della votazione, o null se non c'è.
@@ -395,22 +404,29 @@ public sealed class RatingRoundService(
 
     private void FirePush(Guid groupId)
     {
-        Delivery? delivery = null;
-        lock (_lock)
+        try
         {
-            if (_pushes.TryGetValue(groupId, out var push))
+            Delivery? delivery = null;
+            lock (_lock)
             {
-                push.Timer?.Dispose();
-                push.Timer = null;
-                push.LastAt = time.GetUtcNow();
-                if (_rounds.TryGetValue(groupId, out var round))
+                if (_pushes.TryGetValue(groupId, out var push))
                 {
-                    delivery = Build(round);
+                    push.Timer?.Dispose();
+                    push.Timer = null;
+                    push.LastAt = time.GetUtcNow();
+                    if (_rounds.TryGetValue(groupId, out var round))
+                    {
+                        delivery = Build(round);
+                    }
                 }
             }
-        }
 
-        Deliver(delivery);
+            Deliver(delivery);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Avviso della votazione {GroupId} fallito", N(groupId));
+        }
     }
 
     // Fuori dal lock: le sessioni e gli invii passano da Jellyfin.

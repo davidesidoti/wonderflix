@@ -36,8 +36,7 @@ public sealed class JellyfinRatingLibrary(
                 return new RatedTitle(movie.Id, false, movie.ProductionYear is { } year
                     ? string.Create(CultureInfo.InvariantCulture, $"{name} ({year})")
                     : name);
-            case Season { IndexNumber: { } number } season:
-                var series = season.SeriesName ?? string.Empty;
+            case Season { IndexNumber: { } number, SeriesName: { Length: > 0 } series } season:
                 return new RatedTitle(season.Id, true, number == 0
                     ? $"{series} · Speciali"
                     : string.Create(CultureInfo.InvariantCulture, $"{series} · Stagione {number}"));
@@ -86,7 +85,7 @@ public sealed class JellyfinRatingLibrary(
         {
             case Movie movie:
                 return userDataManager.GetUserData(user, movie)?.Played == true;
-            case Season { IndexNumber: { } number, SeriesId: var seriesId }:
+            case Season { IndexNumber: { } number, SeriesId: var seriesId } when seriesId != Guid.Empty:
                 // Il costruttore con l'utente porta i suoi limiti d'età e la sua riga "visto".
                 return libraryManager.GetItemList(new InternalItemsQuery(user)
                 {
