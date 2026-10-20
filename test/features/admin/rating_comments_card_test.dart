@@ -126,6 +126,20 @@ void main() {
     expect(plugin.calls, isEmpty);
   });
 
+  testWidgets('tutte cancellate con altre pagine: niente "Nessun commento", '
+      'resta "Altri"', (tester) async {
+    plugin.commentPages = [
+      AdminCommentsPage(items: [luigi], next: 'cursore')
+    ];
+    await pumpCard(tester);
+    await tester.tap(find.text(it.adminCommentDelete));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, it.adminCommentDelete));
+    await tester.pumpAndSettle();
+    expect(find.text(it.adminCommentsEmpty), findsNothing);
+    expect(find.text(it.adminCommentsMore), findsOneWidget);
+  });
+
   testWidgets('nessun commento', (tester) async {
     await pumpCard(tester);
     expect(find.text(it.adminCommentsEmpty), findsOneWidget);

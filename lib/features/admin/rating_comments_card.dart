@@ -16,6 +16,9 @@ import 'admin_providers.dart';
 import 'admin_time.dart';
 import 'admin_widgets.dart';
 
+/// Altezza massima dell'elenco dentro la card.
+const _commentsMaxHeight = 480.0;
+
 /// L'elenco dei commenti, le pagine lette finora.
 @immutable
 class RatingCommentsState {
@@ -132,26 +135,41 @@ class RatingCommentsCard extends ConsumerWidget {
               onRetry: () => ref.invalidate(ratingCommentsProvider))
           : const SkeletonBox(width: 240, height: 20);
     }
-    if (value.items.isEmpty) return AdminEmptyText(text: l.adminCommentsEmpty);
+    // Con tutte le voci cancellate ma altre pagine da leggere, resta "Altri".
+    if (value.items.isEmpty && value.next == null) {
+      return AdminEmptyText(text: l.adminCommentsEmpty);
+    }
     final controller = ref.read(ratingCommentsProvider.notifier);
     final error = value.error;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final comment in value.items)
-          _CommentTile(
-            comment: comment,
-            onDelete: () async {
-              final confirmed = await showAdminConfirmDialog(
-                context,
-                title: l.adminCommentDeleteTitle,
-                message:
-                    l.adminCommentDeleteMessage(comment.userName, comment.title),
-                confirmLabel: l.adminCommentDelete,
-              );
-              if (confirmed) await controller.delete(comment);
-            },
+        // Una pagina può avere 50 voci: la lista scorre dentro la card e non
+        // spinge in basso le altre.
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: _commentsMaxHeight),
+          child: Scrollbar(
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                for (final comment in value.items)
+                  _CommentTile(
+                    comment: comment,
+                    onDelete: () async {
+                      final confirmed = await showAdminConfirmDialog(
+                        context,
+                        title: l.adminCommentDeleteTitle,
+                        message: l.adminCommentDeleteMessage(
+                            comment.userName, comment.title),
+                        confirmLabel: l.adminCommentDelete,
+                      );
+                      if (confirmed) await controller.delete(comment);
+                    },
+                  ),
+              ],
+            ),
           ),
+        ),
         if (value.next != null) ...[
           const SizedBox(height: 4),
           Row(children: [

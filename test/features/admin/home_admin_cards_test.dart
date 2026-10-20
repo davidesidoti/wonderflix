@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/social/home_models.dart';
+import 'package:wonderflix/core/social/rating_models.dart';
 import 'package:wonderflix/features/admin/home_admin_cards.dart';
 import 'package:wonderflix/features/admin/wonderflix_tab.dart';
 import 'package:wonderflix/features/home/home_layout.dart';
@@ -19,8 +20,12 @@ import '../../support/pump_app.dart';
 
 void main() {
   late FakeHomeApi home;
+  late FakePluginAdminApi plugin;
 
-  setUp(() => home = FakeHomeApi());
+  setUp(() {
+    home = FakeHomeApi();
+    plugin = FakePluginAdminApi();
+  });
 
   const all = SocialFeatures(
       inbox: true,
@@ -35,7 +40,7 @@ void main() {
       Size size = const Size(1440, 2600)}) async {
     await pumpApp(tester, const Scaffold(body: WonderflixTab()),
         overrides: adminTestOverrides(FakeAdminApi(),
-            home: home, features: features),
+            home: home, plugin: plugin, features: features),
         surfaceSize: size);
     await tester.pumpAndSettle();
   }
@@ -248,8 +253,13 @@ void main() {
     });
 
     testWidgets('la bozza resta scorrendo', (tester) async {
-      // 800: con la card dei commenti sopra, a 700 l'interruttore sta fuori vista.
-      await pumpTab(tester, size: const Size(1440, 800));
+      await pumpTab(tester, size: const Size(1440, 700));
+      // La card dei commenti sopra spinge l'interruttore fuori vista.
+      await tester.scrollUntilVisible(
+          find.byKey(const Key('home-rows-switch-nextUp')), 200,
+          scrollable: find.byType(Scrollable).first);
+      await tester.ensureVisible(find.byKey(const Key('home-rows-switch-nextUp')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('home-rows-switch-nextUp')));
       await tester.pump();
       final list = find.byType(ListView).first;
@@ -259,6 +269,39 @@ void main() {
       await tester.pumpAndSettle();
       expect(toggle(tester, HomeRowKind.nextUp).value, isFalse);
       expect(enabled(tester, const Key('admin-home-save')), isTrue);
+    });
+
+    testWidgets('50 commenti non nascondono la card: l\'interruttore si tocca',
+        (tester) async {
+      plugin.commentPages = [
+        AdminCommentsPage(items: [
+          for (var i = 0; i < 50; i++)
+            AdminComment(
+                userId: 'u$i',
+                userName: 'Utente $i',
+                itemId: 'm$i',
+                title: 'Titolo $i',
+                score: 8,
+                comment: 'Commento $i',
+                updatedAt: DateTime.utc(2026, 10, 19)),
+        ])
+      ];
+      await pumpTab(tester,
+          features: const SocialFeatures(
+              inbox: true, home: true, ratings: true),
+          size: const Size(1440, 700));
+      // La lista dei commenti ha un'altezza massima: "Home per tutti" si
+      // raggiunge con poche scorse (senza il limite, con 50 voci, molte di più).
+      // Si trascina dal margine: al centro il gesto andrebbe alla lista interna.
+      for (var i = 0; i < 6; i++) {
+        await tester.dragFrom(const Offset(10, 400), const Offset(0, -300));
+        await tester.pumpAndSettle();
+      }
+      await tester.ensureVisible(find.byKey(const Key('home-rows-switch-nextUp')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('home-rows-switch-nextUp')));
+      await tester.pump();
+      expect(toggle(tester, HomeRowKind.nextUp).value, isFalse);
     });
 
     testWidgets('lettura fallita: Riprova', (tester) async {
