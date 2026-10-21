@@ -12,6 +12,7 @@ import 'package:wonderflix/app/navigation.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
+import 'package:wonderflix/core/jellyfin/media_info_models.dart';
 import 'package:wonderflix/core/jellyfin/playback_models.dart';
 import 'package:wonderflix/core/media_session/media_session.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
@@ -34,6 +35,8 @@ import 'package:wonderflix/features/player/seek_bar.dart';
 import 'package:wonderflix/features/player/tracks_panel.dart';
 import 'package:wonderflix/features/reports/reports_providers.dart';
 import 'package:wonderflix/features/settings/language_preferences.dart';
+import 'package:wonderflix/features/subtitles/subtitle_file_picker.dart';
+import 'package:wonderflix/features/subtitles/subtitles_controller.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 import 'package:wonderflix/ui/wf_image.dart';
 
@@ -655,6 +658,71 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.space);
     await tester.pump();
     expect(engine.playing, isFalse);
+    await unmount(tester);
+  });
+
+  testWidgets(
+      'sottotitolo non consegnato a parte: il messaggio "prossima '
+      'riproduzione" compare dopo la chiusura della finestra', (tester) async {
+    library.mediaInfoById['e4'] = testMediaInfo();
+    await pumpPlayer(tester, overrides: [
+      canManageSubtitlesProvider.overrideWithValue(true),
+      ...reportTestOverrides(),
+      userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
+      subtitleFilePickerProvider.overrideWithValue((_) async =>
+          PickedSubtitleFile(
+              name: 'a.srt',
+              length: 1,
+              read: () async => Uint8List.fromList([1]))),
+    ]);
+    await tester.tap(find.byTooltip('Audio e sottotitoli'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cerca sottotitoli'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Carica file…'));
+    await tester.pump();
+    await tester.pump();
+
+    // Un sottotitolo nuovo che il server incide nel video: niente aggiunta
+    // senza ripartire.
+    final streams = testStreams();
+    playback.onPlaybackInfo = (_) => PlaybackInfoResult.fromJson({
+          'PlaySessionId': 'ps1',
+          'MediaSources': [
+            {
+              'Id': 'ms1',
+              'SupportsDirectPlay': true,
+              'SupportsDirectStream': true,
+              'DefaultAudioStreamIndex': 1,
+              'DefaultSubtitleStreamIndex': 3,
+              'MediaStreams': [
+                ...streams,
+                {
+                  'Index': 20,
+                  'Type': 'Subtitle',
+                  'Codec': 'PGSSUB',
+                  'IsExternal': true,
+                  'DeliveryMethod': 'Encode',
+                },
+              ],
+            },
+          ],
+        });
+    library.mediaInfoById['e4'] = testMediaInfo(
+        subtitles: const [SubtitleTrack(index: 20, isExternal: true)]);
+    await tester.pump(subtitlePollInterval);
+    await tester.pump();
+    await tester.pump();
+    const nextPlayback =
+        'Il sottotitolo sarà disponibile dalla prossima riproduzione';
+    expect(find.text('Sottotitolo aggiunto'), findsOneWidget);
+    expect(find.text(nextPlayback), findsNothing,
+        reason: 'sotto la finestra non si vedrebbe');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsNothing);
+    expect(find.text(nextPlayback), findsOneWidget);
     await unmount(tester);
   });
 

@@ -110,4 +110,15 @@ void main() {
     await openDialog(tester);
     expect(find.text('Informazioni non disponibili'), findsOneWidget);
   });
+
+  testWidgets('Chiudi chiude la finestra', (tester) async {
+    api.mediaInfoById['e1'] = testMediaInfo();
+    await openDialog(tester);
+    expect(find.text('Info tecniche'), findsOneWidget);
+
+    await tester.tap(find.text('Chiudi'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Info tecniche'), findsNothing);
+  });
 }

@@ -18,8 +18,8 @@ import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/report_fakes.dart';
-import '../../support/social_fakes.dart';
 import '../../support/settings_fakes.dart';
+import '../../support/social_fakes.dart';
 import '../../support/test_data.dart';
 
 void main() {
@@ -234,7 +234,7 @@ void main() {
       await tester.tap(button(it.reportResolveConfirm));
       await tester.pumpAndSettle();
 
-      // Il provider è rimasto vivo: la finestra l'"'"'ha tenuto vivo, nessun notifier nuovo.
+      // Il provider è rimasto vivo: la finestra l'ha tenuto vivo, nessun notifier nuovo.
       expect(api.calls, ['all', 'all', 'resolve r1 Fixed -', 'all']);
       expect(find.text(it.reportResolveFixedTitle), findsNothing);
       expect(find.text(it.reportAlreadyClosed), findsNothing);

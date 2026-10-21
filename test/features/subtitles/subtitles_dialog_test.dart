@@ -305,4 +305,58 @@ void main() {
     expect(added, 1);
     expect(find.text('Sottotitolo aggiunto'), findsOneWidget);
   });
+
+  testWidgets('la rotella compare durante la ricerca', (tester) async {
+    final gate = api.gate = Completer<void>();
+    await open(tester);
+    const progress = ValueKey('subtitles-progress');
+
+    await tester.tap(find.text('Cerca'));
+    await tester.pump();
+    expect(find.byKey(progress), findsOneWidget);
+
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.byKey(progress), findsNothing);
+  });
+
+  testWidgets('la rotella compare durante il caricamento', (tester) async {
+    final gate = api.gate = Completer<void>();
+    await open(
+      tester,
+      picked: PickedSubtitleFile(
+        name: 'Dark.srt',
+        length: 1,
+        read: () async => Uint8List.fromList([1]),
+      ),
+    );
+    const progress = ValueKey('subtitles-progress');
+
+    await tester.tap(find.text('Carica file…'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byKey(progress), findsOneWidget);
+    expect(find.text('Aspetto che Jellyfin aggiunga la traccia…'),
+        findsNothing);
+
+    gate.complete();
+    await tester.pump();
+    await tester.pump();
+    // Ora c'è l'avviso con la sua rotella: quella dei risultati non serve.
+    expect(find.byKey(progress), findsNothing);
+    expect(find.text('Aspetto che Jellyfin aggiunga la traccia…'),
+        findsOneWidget);
+  });
+
+  testWidgets('il menu della lingua ha la sua etichetta e Chiudi chiude', (
+    tester,
+  ) async {
+    await open(tester);
+    expect(find.text('Lingua'), findsOneWidget);
+
+    await tester.tap(find.text('Chiudi'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Lingua'), findsNothing);
+  });
 }

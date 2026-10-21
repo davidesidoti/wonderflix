@@ -133,6 +133,8 @@ class SubtitlesController extends Notifier<SubtitlesState> {
 
   Future<void> search() async {
     if (_busy) return;
+    // La lingua dei risultati non cambia più per una preferenza in ritardo.
+    _languageChosen = true;
     final ref = this.ref;
     state = state.copyWith(
       searching: true,

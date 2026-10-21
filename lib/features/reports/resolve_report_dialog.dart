@@ -24,8 +24,6 @@ const _counterFrom = 450;
 /// snackbar; gli altri errori restano nella finestra.
 Future<void> showResolveReportDialog(
   BuildContext context,
-  // Non serve più: la finestra legge i provider con il suo ref.
-  WidgetRef ref,
   ItemReport report,
   ReportOutcome outcome,
 ) async {

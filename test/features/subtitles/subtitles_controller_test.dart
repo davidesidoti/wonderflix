@@ -95,6 +95,18 @@ void main() {
     }
   });
 
+  test('una preferenza arrivata dopo la ricerca non cambia la lingua', () async {
+    config.config['SubtitleLanguagePreference'] = 'eng';
+    mount();
+
+    final searching = controller().search();
+    await container.read(languagePreferencesProvider.future);
+    await searching;
+
+    expect(state().language, 'ita', reason: 'i risultati sono in italiano');
+    expect(api.calls, ['search e1 ita -']);
+  });
+
   test('search ordina i risultati', () async {
     mount();
     api.results.addAll([

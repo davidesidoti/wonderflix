@@ -126,6 +126,9 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
   /// Distingue le letture: una risposta di un bersaglio lasciato si scarta.
   int _mineRequest = 0;
 
+  /// La nota precompilata dal doppione, se l'utente non l'ha modificata.
+  String? _prefilled;
+
   @override
   void initState() {
     super.initState();
@@ -178,12 +181,19 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
     final note = _duplicate?.note;
     if (note != null && note.isNotEmpty && _note.text.isEmpty) {
       _note.text = note;
+      _prefilled = note;
     }
   }
 
   void _selectTarget(int index) {
     if (index == _target) return;
-    setState(() => _target = index);
+    setState(() {
+      _target = index;
+      // Né l'avviso né la nota precompilata valgono per il nuovo bersaglio.
+      _mine = const [];
+      if (_note.text == _prefilled) _note.clear();
+      _prefilled = null;
+    });
     unawaited(_loadMine());
   }
 

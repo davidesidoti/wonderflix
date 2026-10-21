@@ -124,8 +124,15 @@ class _SubtitlesDialogState extends ConsumerState<_SubtitlesDialog> {
             style: const TextStyle(color: WfColors.creamMuted),
           ),
           const SizedBox(height: 16),
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
+              Text(
+                l.subtitlesLanguage,
+                style: const TextStyle(color: WfColors.creamMuted),
+              ),
               DropdownButton<String>(
                 value: state.language,
                 dropdownColor: WfColors.surfaceHigh,
@@ -141,13 +148,11 @@ class _SubtitlesDialogState extends ConsumerState<_SubtitlesDialog> {
                     ),
                 ],
               ),
-              const SizedBox(width: 12),
               WfButton.secondary(
                 label: l.subtitlesSearch,
                 icon: LucideIcons.search,
                 onPressed: busy ? null : () => unawaited(_controller.search()),
               ),
-              const Spacer(),
               WfButton.secondary(
                 label: l.subtitlesUpload,
                 icon: LucideIcons.upload,
@@ -177,6 +182,13 @@ class _SubtitlesDialogState extends ConsumerState<_SubtitlesDialog> {
             ),
           ),
           const SizedBox(height: 12),
+          // Con l'avviso "waiting" la rotella è già nell'avviso.
+          if (state.searching ||
+              (state.uploading && state.notice != SubtitlesNotice.waiting))
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Center(child: _Spinner(key: ValueKey('subtitles-progress'))),
+            ),
           if (results != null && results.isEmpty)
             Text(
               l.subtitlesNoResults,
@@ -318,7 +330,7 @@ class _ResultRow extends StatelessWidget {
 }
 
 class _Spinner extends StatelessWidget {
-  const _Spinner();
+  const _Spinner({super.key});
 
   @override
   Widget build(BuildContext context) => const SizedBox.square(

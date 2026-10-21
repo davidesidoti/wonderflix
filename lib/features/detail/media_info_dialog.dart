@@ -71,6 +71,14 @@ class _MediaInfoContent extends ConsumerWidget {
                       ),
                     ),
         ),
+        const SizedBox(height: 16),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(MaterialLocalizations.of(context).closeButtonLabel),
+          ),
+        ),
       ],
     );
   }

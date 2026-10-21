@@ -1150,22 +1150,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// "Cerca sottotitoli" del pannello tracce: la finestra è una rotta sopra
   /// il player, quindi finché è aperta i tasti non arrivano a [_onKey]. Una
   /// traccia nuova entra nella lista senza fermare il video, se si può.
-  void _searchSubtitles(PlayerController controller, PlayerViewState view) {
+  Future<void> _searchSubtitles(
+      PlayerController controller, PlayerViewState view) async {
     _chrome.closePanel();
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
-    unawaited(showSubtitlesDialog(
+    Future<SubtitleRefresh>? refresh;
+    await showSubtitlesDialog(
       context,
       itemId: widget.args.itemId,
       title: view.item?.name ?? '',
-      onTrackAdded: () async {
-        final refresh = await controller.refreshSubtitleStreams();
-        if (refresh == SubtitleRefresh.nextPlayback && mounted) {
-          messenger.showSnackBar(
-              SnackBar(content: Text(l.subtitlesNextPlayback)));
-        }
-      },
-    ));
+      onTrackAdded: () => refresh = controller.refreshSubtitleStreams(),
+    );
+    // Sotto la finestra lo snackbar scadrebbe prima che si veda: compare
+    // solo a finestra chiusa (la rilettura può non essere ancora finita).
+    final nextPlayback = await refresh == SubtitleRefresh.nextPlayback;
+    if (nextPlayback && mounted) {
+      messenger.showSnackBar(SnackBar(content: Text(l.subtitlesNextPlayback)));
+    }
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
@@ -2030,7 +2032,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         onClose: _chrome.closePanel,
                         onSearchSubtitles:
                             ref.watch(canManageSubtitlesProvider)
-                                ? () => _searchSubtitles(controller, view)
+                                ? () => unawaited(_searchSubtitles(controller, view))
                                 : null,
                       ),
                     ),

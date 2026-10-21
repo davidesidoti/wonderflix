@@ -992,7 +992,6 @@
   "reportDialogTitle": "Segnala un problema",
   "reportLevelThisEpisode": "Questo episodio",
   "reportLevelThisSeason": "Questa stagione",
-  "reportLevelWholeSeries": "Tutta la serie",
   "reportLevelSeries": "Tutta la serie",
   "reportLevelSeason": "Stagione {number}",
   "@reportLevelSeason": {"placeholders": {"number": {"type": "int"}}},

@@ -14,7 +14,6 @@ const _keys = [
   'reportDialogTitle',
   'reportLevelThisEpisode',
   'reportLevelThisSeason',
-  'reportLevelWholeSeries',
   'reportLevelSeries',
   'reportLevelSeason',
   'reportLevelSpecials',

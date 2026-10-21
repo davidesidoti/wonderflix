@@ -201,6 +201,26 @@ void main() {
       expect(api.calls, ['mine e1', 'mine s1']);
     });
 
+    testWidgets('cambio di bersaglio: via avviso e nota del precedente',
+        (tester) async {
+      api.mineById['e1'] = [testReport(type: ReportType.subtitles, note: 'vecchia')];
+      await open(tester, episode());
+      await tester.tap(find.text('Sottotitoli'));
+      await tester.pump();
+      expect(find.textContaining('Hai già segnalato'), findsOneWidget);
+      expect(find.text('vecchia'), findsOneWidget);
+
+      // La lettura del nuovo bersaglio è ancora in corso.
+      final gate = api.gate = Completer<void>();
+      await tester.tap(find.text('Tutta la serie'));
+      await tester.pump();
+
+      expect(find.textContaining('Hai già segnalato'), findsNothing);
+      expect(find.text('vecchia'), findsNothing);
+      gate.complete();
+      await tester.pumpAndSettle();
+    });
+
     testWidgets('un errore nella lettura delle proprie non si mostra',
         (tester) async {
       api.nextFailure = ReportsFailure.network;

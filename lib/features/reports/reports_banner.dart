@@ -105,13 +105,13 @@ class _ReportRow extends ConsumerWidget {
                       label: l.reportFixed,
                       icon: LucideIcons.check,
                       onPressed: () => unawaited(showResolveReportDialog(
-                          context, ref, report, ReportOutcome.fixed)),
+                          context, report, ReportOutcome.fixed)),
                     ),
                     WfButton.secondary(
                       label: l.reportCannotFix,
                       icon: LucideIcons.x,
                       onPressed: () => unawaited(showResolveReportDialog(
-                          context, ref, report, ReportOutcome.cannotFix)),
+                          context, report, ReportOutcome.cannotFix)),
                     ),
                     if (shortcut == ReportShortcut.subtitles)
                       WfButton.secondary(
