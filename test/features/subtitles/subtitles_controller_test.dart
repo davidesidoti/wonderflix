@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/media_info_models.dart';
 import 'package:wonderflix/core/subtitles/subtitle_models.dart';
@@ -49,6 +50,7 @@ void main() {
   late FakeSessionController session;
   late FakeUserConfigApi config;
   late ProviderContainer container;
+  late ProviderSubscription<SubtitlesState> subscription;
 
   setUp(() {
     api = _RecordingSubtitlesApi();
@@ -69,7 +71,10 @@ void main() {
       ],
     );
     addTearDown(container.dispose);
-    container.listen(subtitlesControllerProvider('e1'), (_, _) {});
+    subscription = container.listen(
+      subtitlesControllerProvider('e1'),
+      (_, _) {},
+    );
   }
 
   SubtitlesController controller() =>
@@ -331,6 +336,58 @@ void main() {
 
       expect(library.mediaInfoCalls, hasLength(2));
       expect(async.nonPeriodicTimerCount, 0);
+    });
+  });
+
+  test('un 403 dopo la chiusura rilegge l\'utente senza errori', () {
+    fakeAsync((async) {
+      mount();
+      api.gate = Completer<void>();
+      Object? thrown;
+      unawaited(
+        controller().search().then((_) {}, onError: (Object e) => thrown = e),
+      );
+      async.flushMicrotasks();
+      expect(api.calls, ['search e1 ita -']);
+
+      // Si chiude solo il controller: la sessione resta, come nell'app.
+      subscription.close();
+      async.elapse(Duration.zero);
+      expect(container.exists(subtitlesControllerProvider('e1')), isFalse);
+
+      api.nextFailure = SubtitlesFailure.forbidden;
+      api.gate!.complete();
+      async.flushMicrotasks();
+
+      expect(thrown, isNull);
+      expect(session.refreshUserCalls, 1);
+    });
+  });
+
+  test('chiudere durante la foto non arriva alla chiamata', () {
+    final logged = <String>[];
+    final logs = Logger.root.onRecord.listen((r) => logged.add(r.message));
+    addTearDown(logs.cancel);
+    fakeAsync((async) {
+      mount();
+      library.delay = const Duration(seconds: 1);
+      Object? thrown;
+      unawaited(
+        controller()
+            .download(testSubtitle())
+            .then((_) {}, onError: (Object e) => thrown = e),
+      );
+      async.flushMicrotasks();
+      expect(library.mediaInfoCalls, hasLength(1));
+
+      subscription.close();
+      async.elapse(Duration.zero);
+      async.elapse(const Duration(seconds: 1));
+
+      expect(thrown, isNull);
+      expect(api.calls, isEmpty);
+      expect(session.refreshUserCalls, 0);
+      expect(logged, isEmpty, reason: 'non è un fallimento');
     });
   });
 

@@ -98,10 +98,12 @@ class SubtitlesController extends Notifier<SubtitlesState> {
   bool _languageChosen = false;
   bool _deleting = false;
   Timer? _timer;
+  late SessionController _session;
 
   @override
   SubtitlesState build() {
     ref.onDispose(() => _timer?.cancel());
+    _session = ref.read(sessionControllerProvider.notifier);
     // La preferenza può arrivare dopo l'apertura: vale finché non si sceglie.
     ref.listen(languagePreferencesProvider, (_, next) {
       if (!_languageChosen) {
@@ -223,6 +225,7 @@ class SubtitlesController extends Notifier<SubtitlesState> {
     try {
       // Prima della chiamata: per riconoscere la traccia nuova.
       final before = await _externalIndexes(ref);
+      if (!ref.mounted) return false;
       await call(ref.read(subtitlesApiProvider));
       if (!ref.mounted) return false;
       state = state.copyWith(notice: SubtitlesNotice.waiting);
@@ -285,9 +288,9 @@ class SubtitlesController extends Notifier<SubtitlesState> {
     final forbidden =
         error is SubtitlesException &&
         error.failure == SubtitlesFailure.forbidden;
-    if (forbidden) {
-      unawaited(ref.read(sessionControllerProvider.notifier).refreshUser());
-    }
+    // Il notifier della sessione è preso in build: dopo la chiusura della
+    // finestra `ref` non si può più usare, ma l'utente va riletto lo stesso.
+    if (forbidden) unawaited(_session.refreshUser());
     if (!ref.mounted) return;
     // Un'operazione alla volta: finita male, nessuna resta in corso.
     state = state.copyWith(
