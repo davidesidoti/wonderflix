@@ -112,7 +112,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Segnala un problema'), findsOneWidget);
     expect(find.text('Info tecniche'), findsOneWidget);
-    expect(find.text('Sottotitoli'), findsOneWidget);
+    expect(find.text('Sottotitoli…'), findsOneWidget);
     expect(find.byType(PopupMenuDivider), findsOneWidget);
   });
 

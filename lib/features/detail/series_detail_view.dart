@@ -370,7 +370,8 @@ class EpisodeTile extends ConsumerWidget {
                 ],
               ),
             ),
-            // Il tocco sul bottone non arriva all'InkWell dell'episodio.
+            // Il bottone sta dentro l'InkWell, ma il tocco non ne attiva
+            // l'onTap: vince il riconoscitore del bottone nell'arena.
             ItemActionsButton(item: episode),
             if (userData.played)
               const Padding(

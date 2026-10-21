@@ -47,9 +47,9 @@ List<List<ItemAction>> itemActionGroups({
 }
 
 String _label(AppLocalizations l, ItemAction action) => switch (action) {
-      ItemAction.report => l.reportDialogTitle,
-      ItemAction.mediaInfo => l.mediaInfoTitle,
-      ItemAction.subtitles => l.subtitlesDialogTitle,
+      ItemAction.report => l.itemActionReport,
+      ItemAction.mediaInfo => l.itemActionMediaInfo,
+      ItemAction.subtitles => l.itemActionSubtitles,
     };
 
 /// Il bottone "⋯" di un titolo: film, serie, stagione o episodio. Senza voci
