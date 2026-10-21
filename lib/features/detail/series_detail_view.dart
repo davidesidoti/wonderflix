@@ -26,6 +26,7 @@ import 'detail_header.dart';
 import 'detail_providers.dart';
 import 'detail_rows.dart';
 import 'header_parallax.dart';
+import 'item_actions_menu.dart';
 import 'primary_action.dart';
 
 class SeriesDetailView extends ConsumerStatefulWidget {
@@ -118,11 +119,24 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
                     key: const ValueKey('data'),
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _SeasonTabs(
-                        seasons: list,
-                        selectedId: seasonId,
-                        onSelect: (id) =>
-                            setState(() => _selectedSeasonId = id),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _SeasonTabs(
+                              seasons: list,
+                              selectedId: seasonId,
+                              onSelect: (id) =>
+                                  setState(() => _selectedSeasonId = id),
+                            ),
+                          ),
+                          // Il menu della stagione scelta (segnalazioni).
+                          if (list.where((s) => s.id == seasonId).firstOrNull
+                              case final season?)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 24),
+                              child: ItemActionsButton(item: season),
+                            ),
+                        ],
                       ),
                       // Alla prima apertura gli episodi entrano con la
                       // scheda (elemento 5): scaglionati solo cambiando
@@ -356,6 +370,8 @@ class EpisodeTile extends ConsumerWidget {
                 ],
               ),
             ),
+            // Il tocco sul bottone non arriva all'InkWell dell'episodio.
+            ItemActionsButton(item: episode),
             if (userData.played)
               const Padding(
                 padding: EdgeInsets.only(left: 12),

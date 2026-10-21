@@ -24,6 +24,7 @@ import '../social/social_providers.dart';
 import '../watch_party/party_mode_menu.dart';
 import '../watch_party/watch_party_providers.dart';
 import 'header_parallax.dart';
+import 'item_actions_menu.dart';
 import 'primary_action.dart';
 
 /// Altezza della testata della scheda (sfondo, logo, dati, azioni).
@@ -189,6 +190,7 @@ class DetailHeader extends ConsumerWidget {
                 onPressed: () => unawaited(
                     _toggle(context, () => overrides.togglePlayed(item))),
               ),
+              ItemActionsButton(item: item),
               if (canRecommend)
                 WfButton.secondary(
                   label: l.recommendButton,
