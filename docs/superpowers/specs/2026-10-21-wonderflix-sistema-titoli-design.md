@@ -1,7 +1,7 @@
 # WonderFlix — Spec R: segnalazioni e strumenti per sistemare i titoli
 
 - **Data:** 2026-10-21
-- **Stato:** approvata il 2026-10-21.
+- **Stato:** approvata il 2026-10-21; piano 24a realizzato (`docs/superpowers/plans/2026-10-21-wonderflix-24a-segnalazioni-plugin.md`), build di prova sul server; piani 24b e 24c da realizzare.
 - **Ambito:** Spec R. Porta nell'app quello che oggi si fa solo dal menu "⋯" di jellyfin-web su un titolo: cercare e scaricare sottotitoli, modificare i metadati, identificare il titolo giusto, aggiornare i metadati, cambiare locandina e sfondo. Aggiunge le **segnalazioni**: chi trova un problema lo segnala e gli admin lo sistemano. Assorbe la parte "scaricare i sottotitoli mancanti" dell'idea 10 di `docs/IDEE.md`. Lo stile dei sottotitoli resta fuori.
 
 ## 1. Obiettivo
@@ -181,11 +181,12 @@ Info tecniche (tutti)
 
 - File in `<PluginConfigurationsPath>/WonderFlixWatchParty/`, con le stesse regole di `RecommendationStore`: caricamento pigro sotto lock, scrittura atomica, `.bad` se illeggibile, un errore del disco non annulla la modifica in memoria.
 - **Contenuto:** `{"Version": 1, "Reports": [{"Id", "UserId", "ItemId", "Type", "Note", "CreatedAt", "UpdatedAt"}]}`.
-  - `Id`: guid in formato `N`;
-  - `ItemId`: il film, la serie, la stagione o l'episodio segnalato, in formato `N`;
+  - `Id`, `UserId`, `ItemId`: guid in formato `N`. `ItemId` è il film, la serie, la stagione o l'episodio segnalato;
   - `Type`: `Subtitles` | `Metadata` | `AudioVideo` | `Other`;
-  - `Note`: manca se vuota. Testo semplice con le regole dei commenti dello spec N §6.2 (caratteri di controllo e a capo diventati spazi, spazi ai bordi tolti), al massimo **500** punti di codice; oltre si risponde 400;
-  - date ISO-8601 UTC.
+  - `Note`: manca se vuota. Testo semplice con le regole dei commenti dello spec N §6.2 (caratteri di controllo e a capo diventati spazi, spazi ai bordi tolti), al massimo **500** punti di codice (non unità UTF-16: 500 emoji valgono 500); oltre si risponde 400;
+  - date ISO-8601 UTC;
+  - le segnalazioni sono scritte dalla più recente.
+- **File illeggibile:** finisce in `.bad` anche se un id non è in formato `N`, se un tipo è sconosciuto o se una voce o l'elenco sono `null`.
 - **Ci sono solo le segnalazioni aperte.** Una chiusa si cancella (decisione 5).
 - **Pulizia periodica** (ogni 5 minuti, un `HostedService` col suo `try/catch`): toglie le segnalazioni di utenti che non esistono più e di titoli che non esistono più, senza avvisare nessuno, e toglie anche le loro `ReportPending`. Come per i voti, non tocca i titoli durante una scansione (`ILibraryTitles.IsScanRunning`) né se la libreria lancia un errore.
 
@@ -193,42 +194,84 @@ Info tecniche (tutti)
 
 | Metodo e percorso | Chi | Cosa |
 |---|---|---|
-| `POST Reports {ItemId, Type, Note?}` | ogni utente | Crea la segnalazione. 400 se il tipo non è valido, se il titolo non è un `Movie`, `Series`, `Season` o `Episode`, o se chi chiama non vede il titolo. 409 `LimitReached` oltre 20 aperte. Doppione (stesso utente, titolo e tipo): aggiorna `Note` e `UpdatedAt`, nessun nuovo avviso. Risponde con la segnalazione. |
-| `GET Reports/Mine?itemId=` | ogni utente | Le proprie segnalazioni aperte su quel titolo, così il pannello mostra "Hai già segnalato questo problema" e precompila la nota. |
-| `GET Reports` | admin | Tutte le aperte, dalla più recente, ciascuna con: `Id`, `Type`, `Note`, `CreatedAt`, `UserId`, `UserName`, `ItemId`, `ItemType`, `ItemName`, `SeriesName`, `SeasonNumber`, `EpisodeNumber`, `TitleId` (film o serie da aprire), `TitleType`. |
-| `POST Reports/{id}/Resolve {Outcome, Note?}` | admin | `Outcome`: `Fixed` \| `CannotFix`. `Note` con le stesse regole. Toglie la segnalazione e le sue `ReportPending`, e aggiunge `ReportResolved` a chi l'ha fatta, ma **non** se chi chiude è anche chi ha segnalato. 404 se non c'è più, per esempio se un altro admin l'ha appena chiusa. |
+| `POST Reports {ItemId, Type, Note?}` | ogni utente | Crea la segnalazione. 400 se il tipo non è valido, se la nota supera 500 punti di codice, se il titolo non è un `Movie`, `Series`, `Season` o `Episode` (una stagione o un episodio senza serie non vale), se chi chiama non vede il titolo o se la libreria non risponde. 409 `LimitReached` oltre 20 aperte. Doppione (stesso utente, titolo e tipo): la `Note` nuova sostituisce la vecchia (una nota vuota la toglie), `UpdatedAt` si aggiorna, nessun nuovo avviso. Risponde **200** con la segnalazione (`ReportDto`), sia nuova sia doppione. |
+| `GET Reports/Mine?itemId=` | ogni utente | Le proprie segnalazioni aperte su quel titolo, così il pannello mostra "Hai già segnalato questo problema" e precompila la nota. Risponde `{"Items":[ReportDto…]}`, dalla più recente. 400 se `itemId` non è valido. |
+| `GET Reports` | admin | Tutte le aperte, dalla più recente: `{"Items":[ReportDto…]}`. |
+| `POST Reports/{id}/Resolve {Outcome, Note?}` | admin | `Outcome`: `Fixed` \| `CannotFix`. `Note` con le stesse regole (500 punti di codice). Toglie la segnalazione e le sue `ReportPending`, e aggiunge `ReportResolved` a chi l'ha fatta, ma **non** se chi chiude è anche chi ha segnalato. Risponde 204. 400 per un id, un esito o una nota non validi. **409** `{"Reason":"Closed"}` se non c'è più, per esempio se un altro admin l'ha appena chiusa: di due admin insieme, solo il primo la chiude e chi ha segnalato riceve **una** sola `ReportResolved`. |
 
-- `GET Reports` legge i nomi dalla libreria senza utente. Un titolo che non si trova più resta in lista con `ItemName` vuoto, finché la pulizia non lo toglie.
-- Gli admin sono gli utenti con `UserRef.IsAdmin`, non quelli di Seerr.
+- **`ReportDto`** (stessa forma per `GET Reports`, `GET Reports/Mine` e la risposta di `POST Reports`; `?` = assente se vuoto):
+  - `Id`, `Type`, `Note`?, `CreatedAt`, `UpdatedAt`;
+  - `UserId`, `UserName`: chi ha segnalato;
+  - `ItemId`, `ItemType` (`Movie` | `Series` | `Season` | `Episode`), `ItemName`: il titolo segnalato;
+  - `TitleId`, `TitleName`: il film o la serie da aprire (per un film o una serie sono quelli dell'item), `SeasonNumber`? ed `EpisodeNumber`? per stagioni ed episodi.
+  - `TitleType` e `SeriesName` della prima stesura non ci sono: `TitleType` è `Movie` se `ItemType` è `Movie`, altrimenti `Series`; `SeriesName` è `TitleName`, che vale anche per i film.
+- I nomi si leggono dalla libreria senza utente **a ogni risposta**: dopo un'identifica si vede il nome nuovo. Un titolo che non si trova più (o se la libreria lancia un errore) resta in lista con `ItemName`, `TitleName` e `ItemType` vuoti e `TitleId` uguale a `ItemId`, finché la pulizia non lo toglie. `UserName` è vuoto per un utente che non c'è più.
+- **Mai 404.** Gli id sono stringhe senza vincoli di rotta, quindi un id non valido è 400. I 409 hanno il corpo `{"Reason": "…"}` (`LimitReached`, `Closed`).
+- Gli admin che ricevono `ReportPending` sono gli utenti di `IUserDirectory.GetUsers()` con `UserRef.IsAdmin` **e** abilitati, tranne chi segnala; non quelli di Seerr.
+- **Chiave API** (non ha un utente): `POST Reports` e `GET Reports/Mine` rispondono 400; `GET Reports` e Resolve funzionano, e chi chiude risulta "chiave API" nel log.
 
 ### 6.3 Cassetta
 
 Due nuovi tipi in `InboxEntryTypes`.
 
-- **`ReportPending`**, a ogni admin tranne chi ha segnalato.
-  - Campi: `ReportId`, `ReportType`, `FromName`, `ItemId`, `ItemName`, `SeriesName`, `SeasonNumber`, `EpisodeNumber`, `TitleId`, `TitleType`.
-  - Si toglie da tutti gli admin quando la segnalazione viene chiusa o pulita.
+Le voci **riusano i campi che `InboxEntry` ha già** e ne aggiungono sei, tutti assenti se vuoti: `ReportId`, `ReportType`, `Outcome`, `ItemType`, `SeasonNumber`, `EpisodeNumber`.
+
+| Campo | Cosa contiene |
+|---|---|
+| `ReportId` | la segnalazione (formato `N`) |
+| `ReportType` | `Subtitles` \| `Metadata` \| `AudioVideo` \| `Other` |
+| `FromName` | chi ha segnalato (solo `ReportPending`) |
+| `Title` | il nome del film o della serie (`TitleName`) |
+| `ImageItemId` | il film o la serie da aprire (`TitleId`); fa anche da locandina |
+| `ItemId` | il titolo segnalato (film, serie, stagione o episodio) |
+| `ItemType` | `Movie` \| `Series` \| `Season` \| `Episode` |
+| `SeasonNumber`, `EpisodeNumber` | per stagioni ed episodi |
+| `Text` | `ReportPending`: la nota di chi ha segnalato. `ReportResolved`: la nota dell'admin, già ripulita |
+| `Outcome` | `Fixed` \| `CannotFix` (solo `ReportResolved`) |
+
+- Il livello ("S2 E3", "Stagione 2", "Tutta la serie") lo compone l'app nella sua lingua: il plugin non scrive testi in italiano. Per questo `SeriesName`, `TitleType`, `ItemName` e `ResolutionNote` della prima stesura non ci sono.
+- Se il titolo non c'è più (o la libreria non risponde), la voce ha `Title` vuoto, `ItemId` della segnalazione e niente `ImageItemId`, `ItemType`, `SeasonNumber`, `EpisodeNumber`.
+- **`ReportPending`**, a ogni admin abilitato tranne chi ha segnalato.
+  - Contiene anche la nota (`Text`): l'admin la vede comunque nel riquadro.
+  - Si toglie da tutti gli admin quando la segnalazione viene chiusa o pulita. Un admin che segnala e poi chiude da solo non riceve né la propria `ReportPending` né una `ReportResolved`.
   - Un admin nuovo **non** riceve le segnalazioni già aperte: le trova nella card.
-- **`ReportResolved`**, a chi ha segnalato.
-  - Campi: `Outcome`, `ResolutionNote`, `ReportType`, `ItemId`, `ItemName`, `SeriesName`, `SeasonNumber`, `EpisodeNumber`, `TitleId`, `TitleType`.
-- Entrambe passano da `InboxService`: lock, `InboxChanged`, i limiti di lunghezza della cassetta, come i tipi esistenti.
+  - **Un doppione con una nota nuova non aggiorna la `Text` della `ReportPending` già nella cassetta** (nessun nuovo avviso, decisione 12). La nota in tempo reale la mostrano il riquadro e la card, che leggono `GET Reports`.
+- **`ReportResolved`**, a chi ha segnalato. La pulizia non ne crea né ne toglie. Segue la regola di tutte le voci della cassetta (30 giorni).
+- Entrambe passano da `InboxService`: lock, `InboxChanged`, i limiti di lunghezza della cassetta, come i tipi esistenti. Un errore nella cassetta non fa fallire la segnalazione né la chiusura: finisce in un `Warning`.
+- Casi limite noti: se chi ha segnalato viene eliminato prima della chiusura, la `ReportResolved` resta nella sua cassetta finché la pulizia della cassetta non la toglie; una `ReportPending` può restare orfana se la segnalazione si chiude proprio fra la creazione e l'invio degli avvisi (resta fino ai 30 giorni della cassetta; l'app deve gestire una segnalazione che non trova più).
 
 ### 6.4 Sottotitoli lato server
 
-Endpoint ammessi a chi è **admin oppure** ha `EnableSubtitleManagement` (`user.HasPermission(PermissionKind.EnableSubtitleManagement)`). Altrimenti 403.
+Endpoint ammessi a chi è **admin oppure** ha `EnableSubtitleManagement` (`user.HasPermission(PermissionKind.EnableSubtitleManagement)`), ed è abilitato. Altrimenti 403.
+
+- **Il permesso si legge a ogni chiamata** da `IUserDirectory`: `UserRef` ha un campo nuovo, facoltativo e in fondo, `bool CanManageSubtitles = false`, che `JellyfinUserDirectory` legge da `PermissionKind.EnableSubtitleManagement` (= 22). Un permesso tolto vale subito.
+- Il 403 viene prima del 400. Con la **chiave API** (nessun utente) tutti e tre gli endpoint rispondono 403.
+- Un `itemId` non valido, di un titolo che chi chiama non vede o che non è un `Movie` o un `Episode`: 400. Mai 404.
+- Il risultato dei servizi è un enum a parte, `SubtitleStatus { Ok, Forbidden, Invalid, Failed }`; `HubStatus` resta com'è, perché altri `switch` lo usano.
 
 | Metodo e percorso | Cosa |
 |---|---|
-| `GET Subtitles/{itemId}/Search?language={lang3}&perfectMatch=` | `ISubtitleManager.SearchSubtitles` per un `Movie` o un `Episode` che chi chiama vede. Risponde con `RemoteSubtitleInfo[]` così com'è (Id, ProviderName, Name, Format, CommunityRating, DownloadCount, IsHashMatch, HearingImpaired, Forced, AiTranslated, MachineTranslated). Lista vuota se non ci sono provider. |
-| `POST Subtitles/{itemId}/Download {SubtitleId}` | `ISubtitleManager.DownloadSubtitles`, poi refresh dell'item in coda (come fa `SubtitleController`). Se il download lancia un errore: **502** `DownloadFailed`, con un `Warning` nel log. |
-| `POST Subtitles/{itemId}/Upload {Language, Format, IsForced, IsHearingImpaired, Data}` | `ISubtitleManager.UploadSubtitle`, poi refresh in coda. `Data` in base64, al massimo 2 MB decodificati; `Format` fra `srt`, `ass`, `ssa`, `vtt`, `sub`. Altrimenti 400. |
+| `GET Subtitles/{itemId}/Search?language={lang3}&perfectMatch=` | `ISubtitleManager.SearchSubtitles` per un `Movie` o un `Episode` che chi chiama vede. Risponde 200 con un array di `RemoteSubtitleDto`, **appiattito** (sotto). Lista vuota se non ci sono provider. Se la ricerca lancia un errore: **502 senza corpo**, con un `Warning`. |
+| `POST Subtitles/{itemId}/Download {SubtitleId}` | `ISubtitleManager.DownloadSubtitles`, poi refresh dell'item in coda (come fa `SubtitleController`, solo dopo un download riuscito). Risponde 204. Se il download lancia un errore: **502** `{"Reason":"DownloadFailed"}`, con un `Warning` nel log. |
+| `POST Subtitles/{itemId}/Upload {Language, Format, IsForced, IsHearingImpaired, Data}` | `ISubtitleManager.UploadSubtitle`, poi refresh in coda (solo dopo un salvataggio riuscito). Risponde 204. Un errore di Jellyfin durante il salvataggio: **502** `{"Reason":"UploadFailed"}`. 400 per i casi sotto. |
 
+- **`RemoteSubtitleDto`** (la risposta di Search): `Id`, `ProviderName`, `Name`, `Language` (le tre lettere di Jellyfin), `Format`, `CommunityRating`?, `DownloadCount`?, `IsHashMatch`, `HearingImpaired`, `Forced`, `MachineTranslated`.
+  - I booleani di Jellyfin, che possono essere `null`, diventano `false`; le stringhe `null` diventano vuote.
+  - `AiTranslated || MachineTranslated` diventa `MachineTranslated`: non c'è più `AiTranslated`.
+- **Lingue:** tre lettere ASCII (controllate **prima** di passare al minuscolo, perché il segno Kelvin diventerebbe una "k"); il plugin le porta in minuscolo (`ita`), sia per cercare sia per caricare. Altrimenti 400.
+- **Download:** `SubtitleId` non vuoto né fatto di soli spazi e al massimo `SubtitleService.MaxSubtitleIdLength` (1024) caratteri, altrimenti 400 **prima** di chiamare Jellyfin.
+- **Upload:**
+  - `Data` in base64 standard, al massimo `SubtitleService.MaxUploadBytes` = 2 MiB (2 097 152 byte) **decodificati**, non vuoti; altrimenti 400;
+  - `Format` fra `srt`, `ass`, `ssa`, `vtt`, `sub`, senza badare alle maiuscole (spazi ai bordi tolti); altrimenti 400.
 - Si elimina direttamente da Jellyfin (`DELETE /Videos/{id}/Subtitles/{index}`, solo admin): non serve il plugin.
-- **Log:** id dell'item e provider, mai il contenuto del file.
+- **Log:** `Debug` per ricerche e download riusciti; `Warning` (con l'eccezione) per ricerche, download e upload falliti. Dentro ci sono l'id dell'item e, per il download, il provider; mai il contenuto del file.
+  - L'id del sottotitolo è del client: del download fallito si scrive solo il provider (la parte prima di `_`), e solo se sono da 1 a 32 lettere o cifre ASCII; altrimenti "unknown". Così testo del client non arriva al log.
+  - Limite noto: il testo dell'eccezione di Jellyfin o del provider può contenere un URL o un percorso.
+- Il token di annullamento della richiesta arriva a ricerca e download. `ISubtitleManager.UploadSubtitle` di Jellyfin non ne ha uno, quindi un upload già partito non si interrompe.
 
 ### 6.5 `Info`
 
-- Nuova funzione `reports` in `WatchPartyProtocol.FeaturesWith`. Copre sia le segnalazioni sia gli endpoint sottotitoli.
+- Nuova funzione `reports`, in fondo a `WatchPartyProtocol.Features` (dopo `ratings`): `FeaturesWith` la include sempre, come le altre. Copre sia le segnalazioni sia gli endpoint sottotitoli. `Version` è "1.12.0", `Protocol` resta 1.
 - Con un plugin senza `reports`, l'app nasconde "Segnala", il riquadro, la card e la finestra Sottotitoli. Gli strumenti admin che parlano solo con Jellyfin (§7.6–7.9) restano.
 
 ## 7. App 0.18.0
@@ -297,13 +340,13 @@ Finestra (bozza 5), da "⋯ → Sottotitoli…", dalla scorciatoia del riquadro 
 
 - **Lingua:** menu con le lingue più comuni. All'inizio vale la lingua preferita dei sottotitoli dell'utente (`SubtitleLanguagePreference` della configurazione Jellyfin), altrimenti italiano. I codici sono ISO 639-2 a tre lettere (`ita`, `eng`…).
 - **Cerca:** lista dei risultati.
-  - Ognuno ha nome, provider, formato, voto, numero di download e le etichette "Sincronizzato col file" (`IsHashMatch`), "Per non udenti", "Forzati", "Tradotto automaticamente" (`AiTranslated` o `MachineTranslated`).
+  - Ognuno ha nome, provider, formato, voto, numero di download e le etichette "Sincronizzato col file" (`IsHashMatch`), "Per non udenti", "Forzati", "Tradotto automaticamente" (`MachineTranslated`, che il plugin ricava da `AiTranslated` o `MachineTranslated` di Jellyfin).
   - L'ordine: prima i sincronizzati, poi per download.
   - Lista vuota: "Nessun sottotitolo trovato", e se non c'è nessun provider lo dice il plugin con una lista vuota (accettato: stesso messaggio).
 - **Scarica:**
   - mentre scarica la riga mostra una rotella; 502 dà "Download non riuscito";
   - poi l'app rilegge l'item ogni 2 s, per al massimo 20 s, finché compare una traccia esterna nuova. Se non compare: "Scaricato: la traccia comparirà tra poco".
-- **Carica file…:** `file_selector` con `.srt .ass .ssa .vtt .sub`, al massimo 2 MB. Lingua presa dal menu; "Forzati" e "Per non udenti" come caselle. Poi la stessa attesa di "Scarica".
+- **Carica file…:** `file_selector` con `.srt .ass .ssa .vtt .sub`, al massimo 2 MiB (2 097 152 byte; il plugin controlla i byte decodificati). Lingua presa dal menu; "Forzati" e "Per non udenti" come caselle. Poi la stessa attesa di "Scarica".
 - **Tracce presenti:** lingua, formato, esterna o nel file. Solo per l'admin e solo sulle esterne c'è "Elimina", con conferma (`wf_confirm_dialog`).
 - **Dal player:**
   - in `tracks_panel.dart`, sotto i sottotitoli, "Cerca sottotitoli" apre la stessa finestra sul titolo in riproduzione;
@@ -374,7 +417,7 @@ App `0.18.0`, plugin `1.12.0`.
 - **Plugin senza `reports`**, o plugin assente: niente "Segnala", riquadro, card e Sottotitoli. Restano Info tecniche e gli strumenti admin diretti.
 - **403 da Jellyfin o dal plugin**, per esempio un permesso tolto mentre l'app era aperta: "Non hai il permesso per farlo". L'app rilegge `/Users/Me`, così le voci spariscono.
 - **Errore di rete:** il messaggio generico dell'app, e la finestra resta aperta con i dati inseriti.
-- **Segnalazione già chiusa da un altro admin** (404 su Resolve): "Questa segnalazione è già stata chiusa", e il riquadro si ricarica.
+- **Segnalazione già chiusa da un altro admin** (409 `Closed` su Resolve): "Questa segnalazione è già stata chiusa", e il riquadro si ricarica.
 
 ## 9. Testi nuovi (ARB, it + en)
 
@@ -405,7 +448,8 @@ Tutte le etichette, i messaggi e le notifiche di §7 e §8, in italiano e in ing
 - **Notifiche:**
   - `ReportPending` solo agli admin `UserRef.IsAdmin` tranne chi segnala;
   - Resolve toglie la segnalazione e le `ReportPending` di tutti gli admin, e manda `ReportResolved`, ma non se chi chiude ha segnalato;
-  - 404 su una già chiusa;
+  - 409 `Closed` su una già chiusa, e una sola `ReportResolved` se due admin chiudono insieme;
+  - nessun 404; la chiave API: 400 su `POST Reports` e `GET Reports/Mine`, 403 sui sottotitoli;
   - un non admin su `GET Reports` o Resolve riceve 403.
 - **Sottotitoli:**
   - 403 senza permesso; ammesso con la sola spunta e con il solo admin;
@@ -418,7 +462,7 @@ Tutte le etichette, i messaggi e le notifiche di §7 e §8, in italiano e in ing
 
 - **Menu "⋯":** le voci giuste per ruolo × livello (tabella §7.2); bottone assente senza voci.
 - **Segnala:** livelli da episodio e stagione, tipo obbligatorio, nota precompilata dal doppione, errore che lascia la finestra aperta.
-- **Riquadro e card:** filtro per `TitleId`, chiusura con nota, 404 gestito, ricarica su `InboxChanged`.
+- **Riquadro e card:** filtro per `TitleId`, chiusura con nota, 409 `Closed` gestito, ricarica su `InboxChanged`.
 - **Notifiche:** testo e navigazione delle due voci nuove.
 - **Sottotitoli:** ordinamento dei risultati, attesa della traccia nuova (compare / non compare entro 20 s), 502, Elimina solo per l'admin e solo sulle esterne.
 - **Editor metadati:** solo i campi cambiati finiscono in `LockedFields`; il DTO mandato è quello completo.
@@ -437,16 +481,24 @@ Sul server vero, con l'admin e due utenti di prova, uno con la spunta sottotitol
 
 ## 12. Da verificare sul sorgente di Jellyfin 10.11.9
 
-- Firme di `ISubtitleManager.SearchSubtitles`, `DownloadSubtitles` e `UploadSubtitle`, e se `DownloadSubtitles` lancia davvero un errore quando il provider fallisce (altrimenti il 502 va ricavato in altro modo, per esempio contando le tracce prima e dopo).
-- Come `SubtitleController` mette in coda il refresh dopo download e upload (`IProviderManager.QueueRefresh` e le opzioni usate), per copiarlo.
-- Che `PermissionKind.EnableSubtitleManagement` esista con questo nome in 10.11.9.
+**Verificato per il piano 24a** (sorgente al tag `v10.11.9`; il plugin si compila contro la 10.11.0 e le firme sono le stesse):
+
+- **Firme:** `SearchSubtitles(Video, string language, bool? isPerfectMatch, bool isAutomated, CancellationToken)`, `DownloadSubtitles(Video, string subtitleId, CancellationToken)` e `UploadSubtitle(Video, SubtitleResponse)`. L'ultima **non ha un `CancellationToken`**. `SearchSubtitles` risponde con un array vuoto per tipi diversi da `Movie` e `Episode`.
+- **`DownloadSubtitles` rilancia l'errore** quando il provider fallisce (anche `RateLimitExceededException`). Il 204 sempre di Jellyfin viene da `SubtitleController`, che inghiotte l'eccezione. Quindi il 502 `DownloadFailed` si ricava dall'eccezione, senza contare le tracce.
+- **`UploadSubtitle`** lancia `ArgumentException` per un formato che Jellyfin non ammette (non in `NamingOptions.SubtitleFileExtensions`): diventa 502 `UploadFailed`.
+- **Refresh:** `SubtitleController` dopo download e upload fa `IProviderManager.QueueRefresh(item.Id, new MetadataRefreshOptions(new DirectoryService(fileSystem)), RefreshPriority.High)`. Il plugin lo copia identico.
+- **`RemoteSubtitleInfo`:** `CommunityRating` (`float?`), `DownloadCount` (`int?`) e `IsHashMatch`, `AiTranslated`, `MachineTranslated`, `Forced`, `HearingImpaired` (`bool?`).
+- **`PermissionKind.EnableSubtitleManagement`** esiste con questo nome, valore 22.
+
+**Ancora aperto** (piani 24b e 24c):
+
 - Che `RemoteImages/Download` di un `Backdrop` aggiunga lo sfondo in fondo, e che `Images/Backdrop/{index}/Index` sposti come previsto.
 - Che `POST /Items/{id}` con il DTO letto da `GET /Items/{id}?userId=` non sporchi i dati utente, e quali campi servono perché `LockedFields` venga salvato.
 - Che i dati di `MediaSources.Path` arrivino ai non admin: se sì, l'app non li mostra (decisione 17); se no, l'admin vede il nome del file.
 
 ## 13. Piani e release
 
-- **24a, plugin 1.12.0:** archivio, endpoint, cassetta, sottotitoli, `Info`.
+- **24a, plugin 1.12.0 (realizzato):** archivio, endpoint, cassetta, sottotitoli, `Info`. Il plugin 1.12.0 resta **build di prova** sul server fino alla fine del 24b: la release arriva con l'app.
 - **24b, app (segnalazioni e sottotitoli):** nucleo, menu "⋯", Segnala, riquadro e card, notifiche, Sottotitoli (anche dal player), Info tecniche.
 - **24c, app (strumenti admin):** Modifica metadati, Identifica, Aggiorna, Locandina e sfondo.
 - **Release:** plugin 1.12.0, poi app 0.18.0 dopo la prova a mano. Obbligatoria o no si decide al rilascio: l'app funziona anche con il plugin 1.11.0, solo senza segnalazioni e sottotitoli.
