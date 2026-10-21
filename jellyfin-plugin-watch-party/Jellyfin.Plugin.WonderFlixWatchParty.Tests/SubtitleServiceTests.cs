@@ -97,6 +97,27 @@ public sealed class SubtitleServiceTests
     }
 
     [Fact]
+    public async Task AHostileSubtitleIdNeverReachesTheLog()
+    {
+        _tools.Failure = new HttpRequestException("provider giù");
+        var hostile = new string('x', 100) + "\nFORGED line_1";
+        Assert.Equal(SubtitleStatus.Failed, await _service.DownloadAsync(_toad.Id, N(_episode), new DownloadSubtitleRequest { SubtitleId = hostile }, default));
+        var warning = Assert.Single(_logger.Entries, e => e.Level == LogLevel.Warning);
+        Assert.DoesNotContain("xxxxx", warning.Message);
+        Assert.DoesNotContain("FORGED", warning.Message);
+        Assert.DoesNotContain("\n", warning.Message);
+        Assert.Contains("unknown", warning.Message);
+    }
+
+    [Fact]
+    public async Task AnOversizedSubtitleIdIsInvalid()
+    {
+        var id = "open_" + new string('a', SubtitleService.MaxSubtitleIdLength);
+        Assert.Equal(SubtitleStatus.Invalid, await _service.DownloadAsync(_toad.Id, N(_episode), new DownloadSubtitleRequest { SubtitleId = id }, default));
+        Assert.Empty(_tools.Downloads);
+    }
+
+    [Fact]
     public async Task ADownloadIsPassedOn()
     {
         var status = await _service.DownloadAsync(_peach.Id, N(_episode), new DownloadSubtitleRequest { SubtitleId = "open_123" }, default);

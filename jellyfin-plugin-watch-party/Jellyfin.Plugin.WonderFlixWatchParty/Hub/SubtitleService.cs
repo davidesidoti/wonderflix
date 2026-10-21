@@ -25,6 +25,12 @@ public sealed class SubtitleService(ISubtitleTools tools, IUserDirectory users, 
     /// <summary>Dimensione massima di un sottotitolo caricato, decodificato (2 MiB).</summary>
     public const int MaxUploadBytes = 2 * 1024 * 1024;
 
+    /// <summary>Lunghezza massima di un id di sottotitolo accettato (un id di provider reale è molto più corto).</summary>
+    public const int MaxSubtitleIdLength = 1024;
+
+    // Il provider si scrive nel log solo se è un nome breve e innocuo (l'id arriva dal client).
+    private const int MaxProviderLogLength = 32;
+
     /// <summary>I formati ammessi in upload, in minuscolo.</summary>
     public static readonly IReadOnlyList<string> UploadFormats = ["srt", "ass", "ssa", "vtt", "sub"];
 
@@ -62,7 +68,7 @@ public sealed class SubtitleService(ISubtitleTools tools, IUserDirectory users, 
             return rejected;
         }
 
-        if (string.IsNullOrWhiteSpace(request?.SubtitleId))
+        if (string.IsNullOrWhiteSpace(request?.SubtitleId) || request.SubtitleId.Length > MaxSubtitleIdLength)
         {
             return SubtitleStatus.Invalid;
         }
@@ -76,8 +82,13 @@ public sealed class SubtitleService(ISubtitleTools tools, IUserDirectory users, 
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // L'id di un sottotitolo è "<provider>_<codice>": nel log solo il provider.
+            // L'id di un sottotitolo è "<provider>_<codice>": nel log solo il provider, e solo se è innocuo.
             var provider = subtitleId[..Math.Max(subtitleId.IndexOf('_', StringComparison.Ordinal), 0)];
+            if (provider.Length is 0 or > MaxProviderLogLength || !provider.All(char.IsAsciiLetterOrDigit))
+            {
+                provider = "unknown";
+            }
+
             logger.LogWarning(ex, "Sottotitoli: download fallito per {ItemId}, provider {Provider}", Id(id), provider);
             return SubtitleStatus.Failed;
         }
