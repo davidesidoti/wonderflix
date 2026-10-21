@@ -126,6 +126,17 @@ void main() {
     expect(find.text('Aggiungi dettagli (facoltativo)'), findsOneWidget);
   });
 
+  testWidgets('"Sottotitoli…" apre la finestra', (tester) async {
+    api.mediaInfoById['m1'] = testMediaInfo();
+    await pumpDetail(tester, 'm1');
+    await tester.tap(find.byTooltip('Altre azioni'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sottotitoli…'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tracce presenti'), findsOneWidget);
+    expect(find.text('Dune'), findsWidgets);
+  });
+
   testWidgets('"Info tecniche" apre la finestra', (tester) async {
     api.mediaInfoById['m1'] = testMediaInfo();
     await pumpDetail(tester, 'm1');

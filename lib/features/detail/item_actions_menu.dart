@@ -12,6 +12,7 @@ import '../admin/admin_providers.dart';
 import '../reports/report_dialog.dart';
 import '../reports/reports_providers.dart';
 import '../social/social_providers.dart';
+import '../subtitles/subtitles_dialog.dart';
 import 'media_info_dialog.dart';
 
 /// Le voci del menu "⋯" di un titolo (spec R §7.2). Il piano 24c ne aggiunge
@@ -100,7 +101,8 @@ class ItemActionsButton extends ConsumerWidget {
       case ItemAction.mediaInfo:
         showMediaInfoDialog(context, item);
       case ItemAction.subtitles:
-        break; // Task 5: showSubtitlesDialog(context, itemId: item.id, title: item.name).
+        unawaited(
+            showSubtitlesDialog(context, itemId: item.id, title: item.name));
     }
   }
 }
