@@ -9,15 +9,24 @@ import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_menus.dart';
 import '../admin/admin_providers.dart';
+import '../item_edit/edit_metadata_dialog.dart';
 import '../reports/report_dialog.dart';
 import '../reports/reports_providers.dart';
 import '../social/social_providers.dart';
 import '../subtitles/subtitles_dialog.dart';
 import 'media_info_dialog.dart';
 
-/// Le voci del menu "⋯" di un titolo (spec R §7.2). Il piano 24c ne aggiunge
-/// altre.
-enum ItemAction { report, mediaInfo, subtitles }
+/// Le voci del menu "⋯" di un titolo (spec R §7.2). Le ultime quattro sono
+/// solo per gli admin.
+enum ItemAction {
+  report,
+  mediaInfo,
+  subtitles,
+  editMetadata,
+  identify,
+  refresh,
+  images,
+}
 
 /// Lato del bottone: lo stesso di `WfIconToggle`.
 const _buttonSize = 44.0;
@@ -25,8 +34,8 @@ const _iconSize = 20.0;
 
 /// Le voci per un [kind] e per i permessi, a gruppi (tutti, sottotitoli,
 /// admin) e senza i gruppi vuoti; fra un gruppo e l'altro il menu mette un
-/// separatore. Il gruppo admin è vuoto finché non arrivano gli strumenti dei
-/// metadati (piano 24c).
+/// separatore. Il gruppo admin sono gli strumenti dei metadati (spec R
+/// §7.8–7.11).
 List<List<ItemAction>> itemActionGroups({
   required ItemKind kind,
   required bool reports,
@@ -34,6 +43,7 @@ List<List<ItemAction>> itemActionGroups({
   required bool isAdmin,
 }) {
   final isFile = kind == ItemKind.movie || kind == ItemKind.episode;
+  final isTitle = kind == ItemKind.movie || kind == ItemKind.series;
   final groups = <List<ItemAction>>[
     [
       if (reports &&
@@ -42,7 +52,15 @@ List<List<ItemAction>> itemActionGroups({
       if (isFile) ItemAction.mediaInfo,
     ],
     [if (canManageSubtitles && isFile) ItemAction.subtitles],
-    const [],
+    [
+      if (isAdmin &&
+          (isTitle || kind == ItemKind.season || kind == ItemKind.episode)) ...[
+        ItemAction.editMetadata,
+        if (isTitle) ItemAction.identify,
+        ItemAction.refresh,
+        ItemAction.images,
+      ],
+    ],
   ];
   return [
     for (final group in groups)
@@ -54,6 +72,10 @@ String _label(AppLocalizations l, ItemAction action) => switch (action) {
       ItemAction.report => l.itemActionReport,
       ItemAction.mediaInfo => l.itemActionMediaInfo,
       ItemAction.subtitles => l.itemActionSubtitles,
+      ItemAction.editMetadata => l.itemActionEditMetadata,
+      ItemAction.identify => l.itemActionIdentify,
+      ItemAction.refresh => l.itemActionRefresh,
+      ItemAction.images => l.itemActionImages,
     };
 
 /// Il bottone "⋯" di un titolo: film, serie, stagione o episodio. Senza voci
@@ -103,6 +125,14 @@ class ItemActionsButton extends ConsumerWidget {
       case ItemAction.subtitles:
         unawaited(
             showSubtitlesDialog(context, itemId: item.id, title: item.name));
+      case ItemAction.editMetadata:
+        unawaited(
+            showEditMetadataDialog(context, itemId: item.id, kind: item.kind));
+      // Task 3–5 del piano 24c: finestre ancora da collegare.
+      case ItemAction.identify:
+      case ItemAction.refresh:
+      case ItemAction.images:
+        break;
     }
   }
 }

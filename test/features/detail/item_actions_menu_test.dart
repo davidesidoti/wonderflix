@@ -6,10 +6,12 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/detail/detail_header.dart';
 import 'package:wonderflix/features/detail/item_actions_menu.dart';
 import 'package:wonderflix/features/detail/item_detail_screen.dart';
+import 'package:wonderflix/features/item_edit/item_edit_providers.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 
 import '../../support/fake_session_controller.dart';
+import '../../support/item_edit_fakes.dart';
 import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/report_fakes.dart';
@@ -34,7 +36,8 @@ void main() {
             canManageSubtitles: true,
             isAdmin: true),
         [
-          [ItemAction.report]
+          [ItemAction.report],
+          [ItemAction.editMetadata, ItemAction.refresh, ItemAction.images]
         ]);
     expect(
         itemActionGroups(
@@ -52,6 +55,35 @@ void main() {
         [
           [ItemAction.mediaInfo]
         ]);
+  });
+
+  test('voci admin per livello, e nessuna per chi non è admin', () {
+    List<ItemAction> admin(ItemKind kind, {bool isAdmin = true}) => [
+          for (final group in itemActionGroups(
+              kind: kind,
+              reports: false,
+              canManageSubtitles: false,
+              isAdmin: isAdmin))
+            ...group
+        ];
+    const adminActions = [
+      ItemAction.editMetadata,
+      ItemAction.identify,
+      ItemAction.refresh,
+      ItemAction.images
+    ];
+    expect(admin(ItemKind.movie), [ItemAction.mediaInfo, ...adminActions]);
+    expect(admin(ItemKind.series), adminActions);
+    expect(admin(ItemKind.season),
+        [ItemAction.editMetadata, ItemAction.refresh, ItemAction.images]);
+    expect(admin(ItemKind.episode), [
+      ItemAction.mediaInfo,
+      ItemAction.editMetadata,
+      ItemAction.refresh,
+      ItemAction.images
+    ]);
+    expect(admin(ItemKind.movie, isAdmin: false), [ItemAction.mediaInfo]);
+    expect(admin(ItemKind.series, isAdmin: false), isEmpty);
   });
 
   late FakeLibraryApi api;
@@ -78,11 +110,13 @@ void main() {
 
   Future<void> pumpDetail(WidgetTester tester, String id,
       {bool reports = true,
+      FakeItemEditApi? editApi,
       JellyfinUser user = const JellyfinUser(
           id: 'u1', name: 'Mario', enableSubtitleManagement: true)}) async {
     await pumpApp(tester, Scaffold(body: ItemDetailScreen(itemId: id)),
         overrides: [
           libraryApiProvider.overrideWithValue(api),
+          if (editApi != null) itemEditApiProvider.overrideWithValue(editApi),
           ...reportTestOverrides(),
           ...socialTestOverrides(FakeSocialApi(),
               features: SocialFeatures(reports: reports), session: false),
@@ -115,6 +149,34 @@ void main() {
     expect(find.text('Info tecniche'), findsOneWidget);
     expect(find.text('Sottotitoli…'), findsOneWidget);
     expect(find.byType(PopupMenuDivider), findsOneWidget);
+  });
+
+  testWidgets('un admin vede le voci dei metadati e "Modifica metadati" apre '
+      'la finestra', (tester) async {
+    final editApi = FakeItemEditApi()
+      ..items['m1'] = testRawItem(id: 'm1', name: 'Dune', type: 'Movie');
+    await pumpDetail(tester, 'm1',
+        editApi: editApi,
+        user: const JellyfinUser(
+            id: 'u1', name: 'Mario', isAdministrator: true));
+    await tester.tap(find.byTooltip('Altre azioni'));
+    await tester.pumpAndSettle();
+    expect(find.text('Identifica'), findsOneWidget);
+    expect(find.text('Aggiorna metadati…'), findsOneWidget);
+    expect(find.text('Locandina e sfondo'), findsOneWidget);
+    await tester.tap(find.text('Modifica metadati'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(TextField, 'Titolo'), findsOneWidget);
+    expect(editApi.calls, ['rawItem m1', 'parentalRatings m1']);
+  });
+
+  testWidgets('un utente senza permessi admin non vede le voci dei metadati',
+      (tester) async {
+    await pumpDetail(tester, 'm1');
+    await tester.tap(find.byTooltip('Altre azioni'));
+    await tester.pumpAndSettle();
+    expect(find.text('Modifica metadati'), findsNothing);
+    expect(find.text('Identifica'), findsNothing);
   });
 
   testWidgets('"Segnala un problema" apre la finestra', (tester) async {

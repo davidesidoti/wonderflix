@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:wonderflix/core/jellyfin/item_edit_api.dart';
@@ -45,6 +46,11 @@ Map<String, dynamic> testRawItem({
       'UserData': {'Played': true, 'IsFavorite': true},
     };
 
+/// Copia profonda: una lista annidata condivisa nasconderebbe un salvataggio
+/// che modifica l'originale.
+Map<String, dynamic> _deepCopy(Map<String, dynamic> m) =>
+    jsonDecode(jsonEncode(m)) as Map<String, dynamic>;
+
 /// `ItemEditApi` in memoria.
 class FakeItemEditApi implements ItemEditApi {
   /// Gli item per id: risposta di [rawItem], aggiornati da [updateItem].
@@ -89,14 +95,14 @@ class FakeItemEditApi implements ItemEditApi {
     await _enter('rawItem $itemId');
     final item = items[itemId];
     if (item == null) throw StateError('item $itemId non preparato');
-    return Map<String, dynamic>.of(item);
+    return _deepCopy(item);
   }
 
   @override
   Future<void> updateItem(String itemId, Map<String, dynamic> item) async {
     await _enter('updateItem $itemId');
-    lastUpdate = Map<String, dynamic>.of(item);
-    items[itemId] = Map<String, dynamic>.of(item);
+    lastUpdate = _deepCopy(item);
+    items[itemId] = _deepCopy(item);
   }
 
   @override
