@@ -1,7 +1,7 @@
 # WonderFlix — Spec Q: voti degli amici
 
 - **Data:** 2026-10-20
-- **Stato:** approvata il 2026-10-20; piano 23a realizzato (`docs/superpowers/plans/2026-10-20-wonderflix-23a-voti-plugin.md`), build di prova installata sul server il 2026-10-20 alle 15:24 UTC; piano 23b realizzato (`docs/superpowers/plans/2026-10-20-wonderflix-23b-voti-app.md`), da provare con l'utente.
+- **Stato:** approvata il 2026-10-20; piano 23a realizzato (`docs/superpowers/plans/2026-10-20-wonderflix-23a-voti-plugin.md`), build di prova installata sul server il 2026-10-20 alle 15:24 UTC; piano 23b realizzato (`docs/superpowers/plans/2026-10-20-wonderflix-23b-voti-app.md`), provato con l'utente il 2026-10-21. **Realizzata:** plugin 1.11.0 (tag `watch-party-plugin-v1.11.0`) e app 0.17.0 obbligatoria (tag `v0.17.0`).
 - **Ambito:** Spec Q. Realizza l'idea 7 di `docs/IDEE.md` ("Voti degli amici"). A fine film nel watch party ognuno dà un voto da 1 a 10 con un commento facoltativo; i voti si scoprono tutti insieme. Nella scheda del film (o della stagione) restano la media e i commenti degli amici.
 
 ## 1. Obiettivo

@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.11.0.0",
+        "changelog": "Voti degli amici per WonderFlix 0.17.0: a fine film (o a fine stagione) nel watch party ognuno vota da 1 a 10 con un commento, i voti si scoprono tutti insieme (tutti hanno votato, 2 minuti o il pulsante di chi ha creato il party); nella scheda la media e i commenti degli amici; l'admin può cancellare i commenti.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.11.0/wonderflix-watch-party_1.11.0.zip",
+        "checksum": "f17285863e672bdb2674d1de0facd0c3",
+        "timestamp": "2026-10-21T08:03:26Z"
+      },
+      {
         "version": "1.10.1.0",
         "changelog": "Filtro per voto per WonderFlix 0.16.1: nel match si possono scegliere solo i titoli belli (voto 7 o più) o solo quelli brutti (voto 5 o meno).",
         "targetAbi": "10.11.0.0",

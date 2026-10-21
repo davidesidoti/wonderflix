@@ -40,12 +40,6 @@ La v1.0.0 è la prima release per gli amici. Raccoglierebbe:
 - prima esecuzione e richiesta d'accesso, firma del codice;
 - i punti aperti minori: menu delle modalità con testo ingrandito, attese di 2 s senza indicatore, nome del gruppo che non cambia con il titolo, remux che risulta "Transcode", `WriteFile` sincrono sulla pipe di Discord.
 
-## 7. Voti degli amici
-
-Dopo la visione si dà un voto e si scrive un commento breve; nel dettaglio compaiono la media degli amici e i loro commenti. Diverso dal voto TMDB/IMDb che Jellyfin mostra già: questo resta tra gli utenti del server.
-- **Da cercare:** scala (1–5, pollice su/giù); se vedere i voti di tutti gli utenti o solo degli amici; quando chiedere il voto (a fine film, a fine serie); modifica e cancellazione; moderazione dei commenti dalla dashboard admin.
-- Medio.
-
 ## 8. Serate programmate
 
 Un party con data e ora, per esempio "Venerdì 21:00 — Il Padrino". Gli amici ricevono l'invito e rispondono sì/no/forse; il promemoria arriva nella cassetta (e su Discord) 15 minuti prima, e all'ora fissata il party è già aperto con il titolo pronto.
@@ -108,3 +102,4 @@ I prossimi episodi delle serie che si seguono, giorno per giorno, con un avviso 
 - Spec N — consigli tra amici (plugin 1.8.0, app 0.14.0).
 - Spec O — cosa guardano gli amici (plugin 1.9.0, app 0.15.0).
 - Spec P — match del film (plugin 1.10.0, app 0.16.0).
+- Spec Q — voti degli amici (plugin 1.11.0, app 0.17.0).
