@@ -120,6 +120,16 @@ class MediaSourceInfo {
   final int? defaultSubtitleStreamIndex;
   final List<MediaStreamInfo> streams;
 
+  /// La stessa sorgente con altre tracce (es. un sottotitolo esterno nuovo).
+  MediaSourceInfo copyWith({List<MediaStreamInfo>? streams}) => MediaSourceInfo(
+        id: id,
+        supportsDirectPlay: supportsDirectPlay,
+        transcodingUrl: transcodingUrl,
+        defaultAudioStreamIndex: defaultAudioStreamIndex,
+        defaultSubtitleStreamIndex: defaultSubtitleStreamIndex,
+        streams: streams ?? this.streams,
+      );
+
   List<MediaStreamInfo> get audioStreams =>
       [for (final s in streams) if (s.kind == StreamKind.audio) s];
 

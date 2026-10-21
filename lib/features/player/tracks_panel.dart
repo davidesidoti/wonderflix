@@ -8,6 +8,7 @@ import '../../app/theme.dart';
 import '../../core/jellyfin/playback_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/staggered_entrance.dart';
+import '../../ui/wf_buttons.dart';
 import 'player_commands.dart';
 import 'player_settings.dart';
 import 'player_side_panel_host.dart';
@@ -43,6 +44,7 @@ class TracksPanel extends StatelessWidget {
     required this.onDelayStep,
     required this.onSubtitleScale,
     required this.onClose,
+    this.onSearchSubtitles,
   });
 
   final List<MediaStreamInfo> audio;
@@ -60,6 +62,10 @@ class TracksPanel extends StatelessWidget {
   final ValueChanged<Duration> onDelayStep;
   final ValueChanged<double> onSubtitleScale;
   final VoidCallback onClose;
+
+  /// "Cerca sottotitoli" sotto le tracce; `null` = niente bottone (chi non
+  /// gestisce i sottotitoli).
+  final VoidCallback? onSearchSubtitles;
 
   /// Larghezza del pannello, e la parte della finestra che può occupare al
   /// massimo.
@@ -111,6 +117,18 @@ class TracksPanel extends StatelessWidget {
           label: trackLabel(l, stream),
           selected: stream.index == subtitleIndex,
           onTap: () => onSubtitle(stream.index),
+        ),
+      if (onSearchSubtitles case final onSearch?)
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: WfButton.secondary(
+              label: l.playerSearchSubtitles,
+              icon: LucideIcons.search,
+              onPressed: onSearch,
+            ),
+          ),
         ),
       Padding(
         padding: const EdgeInsets.only(top: 12),

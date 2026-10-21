@@ -24,7 +24,9 @@ import '../library/library_providers.dart';
 import '../library/user_data.dart';
 import '../ratings/rating_round_controller.dart';
 import '../ratings/rating_round_panel.dart';
+import '../reports/reports_providers.dart';
 import '../social/social_providers.dart';
+import '../subtitles/subtitles_dialog.dart';
 import '../watch_party/group_authority.dart';
 import '../watch_party/group_playback_driver.dart';
 import '../watch_party/party_badge.dart';
@@ -1145,6 +1147,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return true;
   }
 
+  /// "Cerca sottotitoli" del pannello tracce: la finestra è una rotta sopra
+  /// il player, quindi finché è aperta i tasti non arrivano a [_onKey]. Una
+  /// traccia nuova entra nella lista senza fermare il video, se si può.
+  void _searchSubtitles(PlayerController controller, PlayerViewState view) {
+    _chrome.closePanel();
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    unawaited(showSubtitlesDialog(
+      context,
+      itemId: widget.args.itemId,
+      title: view.item?.name ?? '',
+      onTrackAdded: () async {
+        final refresh = await controller.refreshSubtitleStreams();
+        if (refresh == SubtitleRefresh.nextPlayback && mounted) {
+          messenger.showSnackBar(
+              SnackBar(content: Text(l.subtitlesNextPlayback)));
+        }
+      },
+    ));
+  }
+
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (_chrome.chatOpen) return _onChatKey(event);
     if (_queueSearchFocused) return _onQueueSearchKey(event);
@@ -2005,6 +2028,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         onSubtitleScale: (scale) =>
                             unawaited(controller.setSubtitleScale(scale)),
                         onClose: _chrome.closePanel,
+                        onSearchSubtitles:
+                            ref.watch(canManageSubtitlesProvider)
+                                ? () => _searchSubtitles(controller, view)
+                                : null,
                       ),
                     ),
                   ),

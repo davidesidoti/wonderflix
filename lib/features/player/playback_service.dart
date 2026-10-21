@@ -136,6 +136,29 @@ class PlaybackService {
     );
   }
 
+  /// Rilegge PlaybackInfo per la versione e le tracce di [plan], senza
+  /// cambiare la riproduzione: la versione con lo stesso id, o `null`.
+  Future<MediaSourceInfo?> reloadSource(
+    PlaybackPlan plan, {
+    required String userId,
+    required Duration position,
+    required int maxBitrate,
+  }) async {
+    final info = await _api.playbackInfo(
+      plan.itemId,
+      userId: userId,
+      start: position,
+      maxBitrate: maxBitrate,
+      allowDirect: !plan.isTranscode,
+      mediaSourceId: plan.mediaSource.id,
+      audioStreamIndex: plan.audioIndex,
+      subtitleStreamIndex: plan.subtitleIndex ?? -1,
+    );
+    return info.mediaSources
+        .where((source) => source.id == plan.mediaSource.id)
+        .firstOrNull;
+  }
+
   /// URL assoluto di un sottotitolo da caricare a parte
   /// (`MediaStreamInfo.deliveredExternally`).
   String subtitleUrl(MediaStreamInfo stream) =>

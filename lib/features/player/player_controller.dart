@@ -27,6 +27,12 @@ typedef PlayerArgs = ({String itemId, Duration start, String? party});
 
 enum PlayerStatus { loading, ready, error }
 
+/// Esito di [PlayerController.refreshSubtitleStreams]:
+/// - `added`: tracce nuove nella lista, senza ripartire;
+/// - `nextPlayback`: le tracce nuove serviranno dalla prossima riproduzione;
+/// - `unchanged`: nessuna traccia nuova (o PlaybackInfo non riletto).
+enum SubtitleRefresh { added, nextPlayback, unchanged }
+
 class PlayerViewState {
   const PlayerViewState({
     this.status = PlayerStatus.loading,
@@ -560,6 +566,78 @@ class PlayerController extends Notifier<PlayerViewState> {
         _emit(_view.copyWith(subtitleIndex: index));
         _reporter?.onEvent();
       });
+
+  /// Rilegge PlaybackInfo dopo un sottotitolo scaricato o caricato
+  /// (decisione 8). Le tracce nuove entrano nella lista senza ripartire solo
+  /// se quelle di prima ci sono ancora tutte con lo stesso indice e ogni
+  /// sottotitolo nuovo è consegnato a parte; altrimenti serviranno dalla
+  /// prossima riproduzione. La traccia scelta non cambia: una nuova si
+  /// carica nel motore solo quando l'utente la sceglie ([selectSubtitle]).
+  Future<SubtitleRefresh> refreshSubtitleStreams() async {
+    final plan = _view.plan;
+    if (plan == null || !_ready) return SubtitleRefresh.unchanged;
+    final MediaSourceInfo? reloaded;
+    try {
+      reloaded = await _service.reloadSource(plan,
+          userId: _userId,
+          position: _engine.position,
+          maxBitrate: _settings.quality.bitrate);
+    } on Object catch (error) {
+      _log.warning('tracce non rilette: ${error.runtimeType}');
+      return SubtitleRefresh.unchanged;
+    }
+    if (reloaded == null) return SubtitleRefresh.unchanged;
+    final fresh = reloaded;
+    var result = SubtitleRefresh.unchanged;
+    // Nella coda delle tracce: un cambio di traccia in corso non vede il
+    // piano cambiare a metà.
+    await _serialized(() async {
+      final current = _view.plan;
+      // Riaperta nel frattempo: il piano nuovo ha già le tracce del server.
+      if (current == null ||
+          !_ready ||
+          !identical(current.source, plan.source)) {
+        return;
+      }
+      final old = current.mediaSource;
+      final newSubtitles = [
+        for (final s in fresh.streams)
+          if (s.kind == StreamKind.subtitle && old.stream(s.index) == null) s,
+      ];
+      if (newSubtitles.isEmpty) return;
+      final kept = old.streams.every((s) {
+        final now = fresh.stream(s.index);
+        return now != null && _sameTrack(s, now);
+      });
+      if (!kept || !newSubtitles.every((s) => s.deliveredExternally)) {
+        result = SubtitleRefresh.nextPlayback;
+        return;
+      }
+      _emit(_view.copyWith(
+        plan: PlaybackPlan(
+          itemId: current.itemId,
+          method: current.method,
+          mediaSource:
+              old.copyWith(streams: [...old.streams, ...newSubtitles]),
+          playSessionId: current.playSessionId,
+          source: current.source,
+          audioIndex: current.audioIndex,
+          subtitleIndex: current.subtitleIndex,
+        ),
+      ));
+      result = SubtitleRefresh.added;
+    });
+    return result;
+  }
+
+  /// Stessa traccia allo stesso indice: oltre al tipo si confrontano codec,
+  /// lingua ed esterno, perché uno spostamento fra sottotitoli cambierebbe
+  /// la traccia del file mostrata per quell'indice.
+  static bool _sameTrack(MediaStreamInfo a, MediaStreamInfo b) =>
+      a.kind == b.kind &&
+      a.codec == b.codec &&
+      a.language == b.language &&
+      a.isExternal == b.isExternal;
 
   /// Positivo = sottotitoli più tardi.
   Future<void> shiftSubtitleDelay(Duration step) async {

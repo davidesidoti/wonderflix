@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wonderflix/app/motion.dart';
@@ -31,6 +32,8 @@ import 'package:wonderflix/features/player/player_volume.dart';
 import 'package:wonderflix/features/player/post_play.dart';
 import 'package:wonderflix/features/player/seek_bar.dart';
 import 'package:wonderflix/features/player/tracks_panel.dart';
+import 'package:wonderflix/features/reports/reports_providers.dart';
+import 'package:wonderflix/features/settings/language_preferences.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 import 'package:wonderflix/ui/wf_image.dart';
 
@@ -38,6 +41,8 @@ import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
 import '../../support/playback_fakes.dart';
 import '../../support/pump_app.dart';
+import '../../support/report_fakes.dart';
+import '../../support/settings_fakes.dart';
 import '../../support/test_data.dart';
 
 void main() {
@@ -79,7 +84,8 @@ void main() {
   });
 
   /// Home ('/') con il player aperto sopra, come nell'app.
-  Future<void> pumpPlayer(WidgetTester tester, {bool settle = true}) async {
+  Future<void> pumpPlayer(WidgetTester tester,
+      {bool settle = true, List<Override> overrides = const []}) async {
     router = GoRouter(routes: [
       GoRoute(
           path: '/',
@@ -129,6 +135,7 @@ void main() {
           authImageUrls.add(url);
           return MemoryImage(Uint8List.fromList(transparentPng));
         }),
+        ...overrides,
       ],
       retry: (_, _) => null,
       child: MaterialApp.router(
@@ -616,6 +623,47 @@ void main() {
     await tester.tap(find.byTooltip('Chiudi'));
     await tester.pumpAndSettle();
     expect(find.text('Grandi'), findsNothing);
+    await unmount(tester);
+  });
+
+  testWidgets(
+      'dal pannello tracce si apre la finestra dei sottotitoli e i tasti del '
+      'player non agiscono', (tester) async {
+    library.mediaInfoById['e4'] = testMediaInfo();
+    await pumpPlayer(tester, overrides: [
+      canManageSubtitlesProvider.overrideWithValue(true),
+      ...reportTestOverrides(),
+      userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
+    ]);
+    await tester.tap(find.byTooltip('Audio e sottotitoli'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cerca sottotitoli'));
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsOneWidget);
+    expect(find.text('Dimensione'), findsNothing, reason: 'pannello chiuso');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    expect(engine.playing, isTrue);
+    expect(engine.calls, isNot(contains('pause')));
+
+    // Esc chiude la finestra e resta nel player; poi i tasti tornano a lui.
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsNothing);
+    expect(find.text('home'), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    expect(engine.playing, isFalse);
+    await unmount(tester);
+  });
+
+  testWidgets('senza il permesso niente "Cerca sottotitoli"', (tester) async {
+    await pumpPlayer(tester);
+    await tester.tap(find.byTooltip('Audio e sottotitoli'));
+    await tester.pumpAndSettle();
+    expect(find.text('Dimensione'), findsOneWidget);
+    expect(find.text('Cerca sottotitoli'), findsNothing);
     await unmount(tester);
   });
 

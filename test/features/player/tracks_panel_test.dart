@@ -26,8 +26,10 @@ void main() {
     ValueChanged<Duration>? onDelayStep,
     ValueChanged<double>? onSubtitleScale,
     VoidCallback? onClose,
+    VoidCallback? onSearchSubtitles,
   }) =>
       TracksPanel(
+        onSearchSubtitles: onSearchSubtitles,
         audio: const [
           MediaStreamInfo(
               index: 1,
@@ -115,6 +117,37 @@ void main() {
     expect(scale, 0.45);
     await tester.tap(find.byTooltip('Chiudi'));
     expect(closed, 1);
+  });
+
+  testWidgets('Cerca sottotitoli solo con il callback', (tester) async {
+    Future<void> pumpPanel(VoidCallback? onSearch) => pumpApp(
+          tester,
+          Scaffold(
+            body: Align(
+              alignment: Alignment.centerRight,
+              child: SizedBox(
+                width: TracksPanel.width,
+                child: panel(onSearchSubtitles: onSearch),
+              ),
+            ),
+          ),
+        );
+
+    await pumpPanel(null);
+    expect(find.text('Cerca sottotitoli'), findsNothing);
+
+    var searched = 0;
+    await pumpPanel(() => searched++);
+    final button = find.text('Cerca sottotitoli');
+    expect(button, findsOneWidget);
+    expect(find.byIcon(LucideIcons.search), findsOneWidget);
+    // Sotto le tracce dei sottotitoli, sopra il ritardo.
+    expect(tester.getTopLeft(button).dy,
+        greaterThan(tester.getTopLeft(find.text('Traccia 7')).dy));
+    expect(tester.getTopLeft(button).dy,
+        lessThan(tester.getTopLeft(find.text('Ritardo sottotitoli')).dy));
+    await tester.tap(button);
+    expect(searched, 1);
   });
 
   testWidgets('scaglionamento: solo voci vere e con un tetto', (tester) async {
