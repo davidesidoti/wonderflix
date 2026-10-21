@@ -81,8 +81,35 @@ public sealed class SubtitleServiceTests
     [Fact]
     public async Task ASearchErrorIsFailed()
     {
-        var service = new SubtitleService(new ThrowingSearch(), _server, _server, _logger);
+        var service = new SubtitleService(new ThrowingSearch(new HttpRequestException("provider giù")), _server, _server, _logger);
         Assert.Equal(SubtitleStatus.Failed, (await service.SearchAsync(_toad.Id, N(_episode), "ita", null, default)).Status);
+    }
+
+    [Fact]
+    public async Task AProviderTimeoutIsFailedNotAnError()
+    {
+        // Il timeout dell'HttpClient lancia TaskCanceledException anche se la richiesta non è annullata.
+        _tools.Failure = new TaskCanceledException("timeout");
+        Assert.Equal(SubtitleStatus.Failed, await _service.DownloadAsync(_toad.Id, N(_episode), new DownloadSubtitleRequest { SubtitleId = "open_1" }, default));
+        Assert.Equal(SubtitleStatus.Failed, await Upload("srt", Convert.ToBase64String([1])));
+        var search = new SubtitleService(new ThrowingSearch(new TaskCanceledException("timeout")), _server, _server, _logger);
+        Assert.Equal(SubtitleStatus.Failed, (await search.SearchAsync(_toad.Id, N(_episode), "ita", null, default)).Status);
+        Assert.Equal(3, _logger.Entries.Count(e => e.Level == LogLevel.Warning));
+    }
+
+    [Fact]
+    public async Task ACancelledRequestPropagates()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+        _tools.Failure = new OperationCanceledException(cts.Token);
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => _service.DownloadAsync(_toad.Id, N(_episode), new DownloadSubtitleRequest { SubtitleId = "open_1" }, cts.Token));
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => _service.UploadAsync(_toad.Id, N(_episode), new UploadSubtitleRequest { Language = "ita", Format = "srt", Data = Convert.ToBase64String([1]) }, cts.Token));
+        var search = new SubtitleService(new ThrowingSearch(new OperationCanceledException(cts.Token)), _server, _server, _logger);
+        await Assert.ThrowsAsync<OperationCanceledException>(() => search.SearchAsync(_toad.Id, N(_episode), "ita", null, cts.Token));
+        Assert.DoesNotContain(_logger.Entries, e => e.Level == LogLevel.Warning);
     }
 
     [Fact]
@@ -167,12 +194,12 @@ public sealed class SubtitleServiceTests
         Assert.Equal(SubtitleStatus.Invalid, await _service.UploadAsync(_toad.Id, N(_episode), null, default));
     }
 
-    private sealed class ThrowingSearch : ISubtitleTools
+    private sealed class ThrowingSearch(Exception failure) : ISubtitleTools
     {
         public bool IsVideo(Guid itemId) => true;
 
         public Task<IReadOnlyList<RemoteSubtitleDto>> SearchAsync(Guid itemId, string language, bool? perfectMatch, CancellationToken cancellationToken) =>
-            throw new HttpRequestException("provider giù");
+            throw failure;
 
         public Task DownloadAsync(Guid itemId, string subtitleId, CancellationToken cancellationToken) => Task.CompletedTask;
 

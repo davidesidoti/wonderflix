@@ -8,6 +8,7 @@ using MediaBrowser.Controller.Providers;
 using MediaBrowser.Controller.Subtitles;
 using MediaBrowser.Model.IO;
 using MediaBrowser.Model.Providers;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Server;
 
@@ -23,7 +24,8 @@ public sealed class JellyfinSubtitleTools(
     ILibraryManager libraryManager,
     ISubtitleManager subtitleManager,
     IProviderManager providerManager,
-    IFileSystem fileSystem) : ISubtitleTools
+    IFileSystem fileSystem,
+    ILogger<JellyfinSubtitleTools> logger) : ISubtitleTools
 {
     public bool IsVideo(Guid itemId) => FindVideo(itemId) is not null;
 
@@ -79,6 +81,16 @@ public sealed class JellyfinSubtitleTools(
     private Video RequireVideo(Guid itemId) =>
         FindVideo(itemId) ?? throw new InvalidOperationException("L'elemento non è un film né un episodio");
 
-    private void QueueRefresh(Video video) =>
-        providerManager.QueueRefresh(video.Id, new MetadataRefreshOptions(new DirectoryService(fileSystem)), RefreshPriority.High);
+    // Il refresh è un di più: se il sottotitolo è già salvato, un suo errore non deve far fallire la chiamata.
+    private void QueueRefresh(Video video)
+    {
+        try
+        {
+            providerManager.QueueRefresh(video.Id, new MetadataRefreshOptions(new DirectoryService(fileSystem)), RefreshPriority.High);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Sottotitoli: refresh non accodato per {ItemId}", video.Id.ToString("N"));
+        }
+    }
 }

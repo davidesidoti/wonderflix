@@ -21,6 +21,9 @@ public class SubtitlesController(
     IAuthorizationContext authorizationContext,
     SubtitleService subtitles) : ControllerBase
 {
+    /// <summary>Corpo massimo di un upload: 2 MiB di base64 sono circa 2,8 MB, più l'involucro JSON. Vale prima del controllo del permesso.</summary>
+    public const long MaxUploadRequestBytes = 4 * 1024 * 1024;
+
     /// <summary>Cerca sottotitoli nei provider; 502 senza corpo se la ricerca fallisce.</summary>
     [HttpGet("Subtitles/{itemId}/Search")]
     public async Task<ActionResult<IReadOnlyList<RemoteSubtitleDto>>> Search(
@@ -40,6 +43,7 @@ public class SubtitlesController(
 
     /// <summary>Carica un file di sottotitoli.</summary>
     [HttpPost("Subtitles/{itemId}/Upload")]
+    [RequestSizeLimit(MaxUploadRequestBytes)]
     public async Task<ActionResult> Upload([FromRoute] string itemId, [FromBody] UploadSubtitleRequest? request) =>
         Error(
             await subtitles.UploadAsync(await CallerAsync().ConfigureAwait(false), itemId, request, HttpContext.RequestAborted).ConfigureAwait(false),

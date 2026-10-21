@@ -19,6 +19,7 @@ public class JellyfinSubtitleToolsTests
     private readonly InterfaceStub<ISubtitleManager> _subtitles;
     private readonly InterfaceStub<IProviderManager> _providers;
     private readonly JellyfinSubtitleTools _tools;
+    private readonly RecordingLogger<JellyfinSubtitleTools> _logger = new();
 
     public JellyfinSubtitleToolsTests()
     {
@@ -29,7 +30,7 @@ public class JellyfinSubtitleToolsTests
         var (fileSystem, _) = InterfaceStub<IFileSystem>.Create();
         _subtitles = subtitles;
         _providers = providers;
-        _tools = new JellyfinSubtitleTools(libraryManager, subtitleManager, providerManager, fileSystem);
+        _tools = new JellyfinSubtitleTools(libraryManager, subtitleManager, providerManager, fileSystem, _logger);
     }
 
     private T Add<T>(T item) where T : BaseItem
@@ -96,6 +97,19 @@ public class JellyfinSubtitleToolsTests
         _subtitles.Handlers["DownloadSubtitles"] = _ => Task.FromException(new InvalidOperationException("provider down"));
         await Assert.ThrowsAsync<InvalidOperationException>(() => _tools.DownloadAsync(episode.Id, "sub-2", CancellationToken.None));
         Assert.DoesNotContain(_providers.Calls, c => c.Name == "QueueRefresh");
+    }
+
+    [Fact]
+    public async Task ARefreshErrorAfterASavedSubtitleDoesNotFailTheCall()
+    {
+        var episode = Add(new Episode());
+        _providers.Handlers["QueueRefresh"] = _ => throw new InvalidOperationException("coda piena");
+
+        await _tools.DownloadAsync(episode.Id, "sub-1", CancellationToken.None);
+        await _tools.UploadAsync(episode.Id, new SubtitleUpload("ita", "srt", false, false, [1]), CancellationToken.None);
+
+        Assert.Equal(2, _logger.Entries.Count(e => e.Level == Microsoft.Extensions.Logging.LogLevel.Warning));
+        Assert.All(_logger.Entries, e => Assert.Contains(episode.Id.ToString("N"), e.Message));
     }
 
     [Fact]

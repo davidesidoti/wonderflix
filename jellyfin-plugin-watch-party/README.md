@@ -163,7 +163,8 @@ uscite in arrivo.
   tutti; `GET Reports` e `POST Reports/{id}/Resolve` solo admin; voci
   `ReportPending`/`ReportResolved`; `Subtitles/{itemId}/Search|Download|Upload`
   per admin e spunta sottotitoli, con 502 `{Reason}` se il download o
-  l'upload falliscono; i 409 hanno `{Reason}`.
+  l'upload falliscono (la ricerca risponde 502 senza corpo se Jellyfin o il
+  provider falliscono); i 409 hanno `{Reason}`.
 - **Funzioni:** `GET Info` annuncia quello che il plugin sa fare; dalla 1.5.0
   ci sono sempre anche `collections` e `avatars`, dalla 1.6.0 anche
   `account`, dalla 1.7.0 anche `home`, dalla 1.8.0 anche `recommendations`, dalla 1.9.0 anche `friendsActivity`, dalla 1.10.0 anche `match`, dalla 1.11.0 anche `ratings`, dalla 1.12.0 anche `reports`; `upcomingSeries` e `upcomingMovies`

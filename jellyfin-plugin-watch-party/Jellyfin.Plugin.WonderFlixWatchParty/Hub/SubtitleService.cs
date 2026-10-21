@@ -53,7 +53,7 @@ public sealed class SubtitleService(ISubtitleTools tools, IUserDirectory users, 
             logger.LogDebug("Sottotitoli: ricerca per {ItemId}, {Count} risultati", Id(id), found.Count);
             return new(SubtitleStatus.Ok, found);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             logger.LogWarning(ex, "Sottotitoli: ricerca fallita per {ItemId}", Id(id));
             return new(SubtitleStatus.Failed, null);
@@ -80,7 +80,7 @@ public sealed class SubtitleService(ISubtitleTools tools, IUserDirectory users, 
             logger.LogDebug("Sottotitoli: scaricato per {ItemId}", Id(id));
             return SubtitleStatus.Ok;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             // L'id di un sottotitolo è "<provider>_<codice>": nel log solo il provider, e solo se è innocuo.
             var provider = subtitleId[..Math.Max(subtitleId.IndexOf('_', StringComparison.Ordinal), 0)];
@@ -122,7 +122,7 @@ public sealed class SubtitleService(ISubtitleTools tools, IUserDirectory users, 
             logger.LogDebug("Sottotitoli: caricato per {ItemId}, {Length} byte", Id(id), length);
             return SubtitleStatus.Ok;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             logger.LogWarning(ex, "Sottotitoli: upload fallito per {ItemId}", Id(id));
             return SubtitleStatus.Failed;

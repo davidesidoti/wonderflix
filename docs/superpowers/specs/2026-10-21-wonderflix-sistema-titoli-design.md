@@ -267,6 +267,9 @@ Endpoint ammessi a chi è **admin oppure** ha `EnableSubtitleManagement` (`user.
 - **Log:** `Debug` per ricerche e download riusciti; `Warning` (con l'eccezione) per ricerche, download e upload falliti. Dentro ci sono l'id dell'item e, per il download, il provider; mai il contenuto del file.
   - L'id del sottotitolo è del client: del download fallito si scrive solo il provider (la parte prima di `_`), e solo se sono da 1 a 32 lettere o cifre ASCII; altrimenti "unknown". Così testo del client non arriva al log.
   - Limite noto: il testo dell'eccezione di Jellyfin o del provider può contenere un URL o un percorso.
+- **Provider lenti:** un timeout del provider lancia un'eccezione di annullamento anche se la richiesta non è stata annullata: ricerca, download e upload lo trattano come un errore (502 con `Warning`) e lasciano passare l'annullamento solo quando il token della richiesta è davvero annullato.
+- **Upload:** il corpo della richiesta è limitato a 4 MiB (`SubtitlesController.MaxUploadRequestBytes`: 2 MiB di base64 sono circa 2,8 MB, più l'involucro JSON), così Kestrel rifiuta i corpi enormi prima del controllo del permesso.
+- **Refresh in coda:** se il salvataggio riesce ma `QueueRefresh` lancia un errore, la chiamata resta riuscita (204): l'errore finisce in un `Warning` con il solo id dell'item.
 - Il token di annullamento della richiesta arriva a ricerca e download. `ISubtitleManager.UploadSubtitle` di Jellyfin non ne ha uno, quindi un upload già partito non si interrompe.
 
 ### 6.5 `Info`

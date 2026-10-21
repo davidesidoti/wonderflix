@@ -1,3 +1,4 @@
+using System.Reflection;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.WonderFlixWatchParty.Api;
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
@@ -73,5 +74,17 @@ public sealed class SubtitlesControllerTests
         var failedUpload = Assert.IsType<ObjectResult>(await controller.Upload(Id, upload));
         Assert.Equal(StatusCodes.Status502BadGateway, failedUpload.StatusCode);
         Assert.Equal(new SubtitleErrorDto("UploadFailed"), failedUpload.Value);
+    }
+
+    [Fact]
+    public void UploadBodyIsCappedBeforeThePermissionCheck()
+    {
+        var limit = Assert.Single(typeof(SubtitlesController).GetMethod(nameof(SubtitlesController.Upload))!
+            .GetCustomAttributes<RequestSizeLimitAttribute>());
+        // L'attributo non espone il valore: si legge il campo privato.
+        var bytes = (long)typeof(RequestSizeLimitAttribute)
+            .GetField("_bytes", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(limit)!;
+        Assert.Equal(4L * 1024 * 1024, bytes);
+        Assert.Equal(SubtitlesController.MaxUploadRequestBytes, bytes);
     }
 }

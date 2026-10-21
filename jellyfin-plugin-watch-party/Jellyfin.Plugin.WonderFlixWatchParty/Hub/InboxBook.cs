@@ -166,11 +166,20 @@ public sealed class InboxBook
         && inbox.Entries.RemoveAll(e => e.Type == type) > 0;
 
     /// <summary>Toglie le ReportPending di quella segnalazione da tutte le cassette; restituisce gli utenti toccati.</summary>
-    public IReadOnlyList<Guid> RemoveReport(string reportId) =>
-        [.. _users
-            .Where(pair => pair.Value.Entries.RemoveAll(e =>
+    public IReadOnlyList<Guid> RemoveReport(string reportId)
+    {
+        var touched = new List<Guid>();
+        foreach (var (userId, inbox) in _users)
+        {
+            if (inbox.Entries.RemoveAll(e =>
                 e.Type == InboxEntryTypes.ReportPending && string.Equals(e.ReportId, reportId, StringComparison.OrdinalIgnoreCase)) > 0)
-            .Select(pair => pair.Key)];
+            {
+                touched.Add(userId);
+            }
+        }
+
+        return touched;
+    }
 
     /// <summary>Svuota la cassetta (il Seq continua da dov'era); true se c'era qualcosa.</summary>
     public bool Clear(Guid userId)
