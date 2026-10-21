@@ -122,6 +122,25 @@ public class ServerAdapterTests
     }
 
     [Fact]
+    public void SubtitleManagersAreMarked()
+    {
+        var peach = new User("Peach", "provider", "reset");
+        peach.SetPermission(PermissionKind.EnableSubtitleManagement, true);
+        var toad = new User("Toad", "provider", "reset");
+        var (manager, stub) = InterfaceStub<IUserManager>.Create();
+        stub.Handlers["GetUsers"] = _ => new[] { peach, toad };
+        var directory = new JellyfinUserDirectory(manager);
+
+        Assert.Equal(
+            new[]
+            {
+                new UserRef(peach.Id, "Peach", true, true, CanManageSubtitles: true),
+                new UserRef(toad.Id, "Toad", true, true),
+            },
+            directory.GetUsers());
+    }
+
+    [Fact]
     public void ParticipantsComeFromSyncPlay()
     {
         var group = Guid.NewGuid();
