@@ -100,6 +100,14 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IRatingLibrary, JellyfinRatingLibrary>();
         serviceCollection.AddSingleton<RatingService>();
         serviceCollection.AddSingleton<RatingRoundService>();
+        // Segnalazioni e sottotitoli (spec R).
+        serviceCollection.AddSingleton(provider => new ReportStore(
+            ReportStore.DefaultPath(provider.GetRequiredService<IApplicationPaths>()),
+            provider.GetRequiredService<ILogger<ReportStore>>()));
+        serviceCollection.AddSingleton<IReportLibrary, JellyfinReportLibrary>();
+        serviceCollection.AddSingleton<ReportService>();
+        serviceCollection.AddSingleton<ISubtitleTools, JellyfinSubtitleTools>();
+        serviceCollection.AddSingleton<SubtitleService>();
         serviceCollection.AddSingleton<NewTitlesCollector>();
         serviceCollection.AddSingleton<PresenceTracker>();
         serviceCollection.AddSingleton<PartyDirectory>();
@@ -116,5 +124,6 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddHostedService<ActivityHostedService>();
         serviceCollection.AddHostedService<MatchHostedService>();
         serviceCollection.AddHostedService<RatingsHostedService>();
+        serviceCollection.AddHostedService<ReportsHostedService>();
     }
 }

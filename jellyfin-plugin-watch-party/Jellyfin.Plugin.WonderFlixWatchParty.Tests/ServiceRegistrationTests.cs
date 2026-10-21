@@ -4,8 +4,11 @@ using MediaBrowser.Controller.Collections;
 using MediaBrowser.Controller.Drawing;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Net;
+using MediaBrowser.Controller.Providers;
 using MediaBrowser.Controller.Session;
+using MediaBrowser.Controller.Subtitles;
 using MediaBrowser.Controller.SyncPlay;
+using MediaBrowser.Model.IO;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Xunit;
@@ -27,6 +30,9 @@ public class ServiceRegistrationTests
         services.AddSingleton(InterfaceStub<ICollectionManager>.Create().Proxy);
         services.AddSingleton(InterfaceStub<IImageProcessor>.Create().Proxy);
         services.AddSingleton(InterfaceStub<IAuthorizationContext>.Create().Proxy);
+        services.AddSingleton(InterfaceStub<ISubtitleManager>.Create().Proxy);
+        services.AddSingleton(InterfaceStub<IProviderManager>.Create().Proxy);
+        services.AddSingleton(InterfaceStub<IFileSystem>.Create().Proxy);
         var (paths, stub) = InterfaceStub<IApplicationPaths>.Create();
         stub.Handlers["get_PluginConfigurationsPath"] = _ => Path.GetTempPath();
         services.AddSingleton(paths);
@@ -118,11 +124,21 @@ public class ServiceRegistrationTests
         Assert.IsType<Server.JellyfinRatingLibrary>(provider.GetRequiredService<IRatingLibrary>());
         Assert.NotNull(ActivatorUtilities.CreateInstance<Api.RatingsController>(provider));
         Assert.NotNull(ActivatorUtilities.CreateInstance<Api.RatingsAdminController>(provider));
+
+        // Segnalazioni e sottotitoli (spec R).
+        Assert.Same(provider.GetRequiredService<ReportService>(), provider.GetRequiredService<ReportService>());
+        Assert.Same(provider.GetRequiredService<SubtitleService>(), provider.GetRequiredService<SubtitleService>());
+        Assert.IsType<Server.JellyfinReportLibrary>(provider.GetRequiredService<IReportLibrary>());
+        Assert.IsType<Server.JellyfinSubtitleTools>(provider.GetRequiredService<ISubtitleTools>());
+        Assert.NotNull(ActivatorUtilities.CreateInstance<Api.ReportsController>(provider));
+        Assert.NotNull(ActivatorUtilities.CreateInstance<Api.SubtitlesController>(provider));
+
         // Il promemoria dei contatti, oltre ai due di prima.
         // I consigli (spec N), oltre ai tre di prima.
         // L'attività degli amici (spec O), oltre ai quattro di prima.
         // Le sale del match (spec P), oltre ai cinque di prima.
         // I voti degli amici (spec Q), oltre ai sei di prima.
-        Assert.Equal(7, provider.GetServices<IHostedService>().Count());
+        // Le segnalazioni (spec R), oltre ai sette di prima.
+        Assert.Equal(8, provider.GetServices<IHostedService>().Count());
     }
 }

@@ -24,6 +24,7 @@ Dalla 1.8.0 tiene i consigli tra amici: un utente consiglia un film o una serie 
 Dalla 1.9.0 mostra agli amici cosa si sta guardando in WonderFlix e i titoli visti negli ultimi 30 giorni, con un interruttore per non mostrarlo (spec O, `docs/superpowers/specs/2026-10-13-wonderflix-cosa-guardano-amici-design.md`).
 Dalla 1.10.0 c'è il match del film: gli amici in una sala votano sì o no su una pila di titoli e partono in un party privato con quelli che piacciono a tutti (spec P, `docs/superpowers/specs/2026-10-14-wonderflix-match-film-design.md`).
 Dalla 1.11.0 ci sono i voti degli amici: a fine film nel watch party ognuno vota da 1 a 10, i voti si scoprono tutti insieme, e nella scheda restano la media e i commenti degli amici (spec Q, `docs/superpowers/specs/2026-10-20-wonderflix-voti-amici-design.md`).
+Dalla 1.12.0 ci sono le segnalazioni: chi trova un problema su un titolo lo segnala, gli admin ricevono una notifica e la chiudono, e chi ha segnalato riceve l'esito; in più admin e utenti con la spunta sottotitoli di Jellyfin cercano, scaricano e caricano sottotitoli (spec R, `docs/superpowers/specs/2026-10-21-wonderflix-sistema-titoli-design.md`).
 Senza il plugin WonderFlix funziona lo stesso, con gli avvisi
 anonimi, senza saghe, con le iniziali al posto delle immagini, senza il
 recupero della password, con la Home nell'ordine predefinito e senza le
@@ -157,9 +158,15 @@ uscite in arrivo.
   prima); `GET Ratings?itemId=` solo con i voti degli amici, `PUT`/`DELETE`
   `Ratings/{itemId}`; 60 scritture all'ora; `GET`/`DELETE Ratings/Admin/Comments`
   per l'admin; i 409 hanno `{Reason}`.
+- **Segnalazioni e sottotitoli (dalla 1.12.0):** `reports.json`, solo le
+  aperte, al massimo 20 per utente; `POST Reports`, `GET Reports/Mine` per
+  tutti; `GET Reports` e `POST Reports/{id}/Resolve` solo admin; voci
+  `ReportPending`/`ReportResolved`; `Subtitles/{itemId}/Search|Download|Upload`
+  per admin e spunta sottotitoli, con 502 `{Reason}` se il download o
+  l'upload falliscono; i 409 hanno `{Reason}`.
 - **Funzioni:** `GET Info` annuncia quello che il plugin sa fare; dalla 1.5.0
   ci sono sempre anche `collections` e `avatars`, dalla 1.6.0 anche
-  `account`, dalla 1.7.0 anche `home`, dalla 1.8.0 anche `recommendations`, dalla 1.9.0 anche `friendsActivity`, dalla 1.10.0 anche `match`, dalla 1.11.0 anche `ratings`; `upcomingSeries` e `upcomingMovies`
+  `account`, dalla 1.7.0 anche `home`, dalla 1.8.0 anche `recommendations`, dalla 1.9.0 anche `friendsActivity`, dalla 1.10.0 anche `match`, dalla 1.11.0 anche `ratings`, dalla 1.12.0 anche `reports`; `upcomingSeries` e `upcomingMovies`
   solo con Sonarr e Radarr configurati. Gli endpoint delle saghe e delle
   immagini sono aperti a ogni utente che ha fatto l'accesso. Quelli di
   `account` dipendono dalla rotta: `Account/Contacts` per ogni utente che ha
@@ -178,8 +185,8 @@ uscite in arrivo.
 
 ## Installazione a mano (prove)
 
-1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.11.0`.
-   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.11.0.0/`
+1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.12.0`.
+   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.12.0.0/`
    con la dll e `meta.json`.
 2. Copia la cartella dentro `plugins/` della cartella dati di Jellyfin (su
    Ultra.cc via SFTP).
