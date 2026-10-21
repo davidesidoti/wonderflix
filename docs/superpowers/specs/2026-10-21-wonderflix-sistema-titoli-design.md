@@ -62,7 +62,7 @@ App 0.17.0, plugin 1.11.0, Jellyfin 10.11.9 su Ultra.cc. Plugin **Open Subtitles
 | Elimina sottotitolo esterno | `DELETE /Videos/{id}/Subtitles/{index}` | solo admin |
 | Identifica: cerca | `POST /Items/RemoteSearch/{Movie\|Series}` | qualunque utente |
 | Identifica: applica | `POST /Items/RemoteSearch/Apply/{id}?replaceAllImages=` | solo admin. **Sincrono e lento** |
-| Editor metadati | `GET /Items/{id}/MetadataEditor`, `POST /Items/{id}` (DTO intero) | solo admin |
+| Editor metadati | `GET /Items/{id}/MetadataEditor`, `POST /Items/{id}` (`Map` intera) | solo admin |
 | Aggiorna metadati | `POST /Items/{id}/Refresh?metadataRefreshMode=&imageRefreshMode=&replaceAllMetadata=&replaceAllImages=` | solo admin. In coda |
 | Immagini remote | `GET /Items/{id}/RemoteImages`, `POST …/RemoteImages/Download?type=&imageUrl=` | lista: tutti; download: admin |
 | Carica immagine | `POST /Items/{id}/Images/{type}` (base64) | admin |
@@ -95,7 +95,7 @@ Prese con l'utente nel brainstorming del 2026-10-21:
 12. **Doppioni:** se lo stesso utente segnala di nuovo lo stesso titolo con lo stesso tipo mentre la prima è aperta, la nota nuova sostituisce la vecchia e gli admin non vengono riavvisati. Utenti diversi fanno segnalazioni diverse, e ognuno riceve la sua risposta.
 13. **Massimo 20 segnalazioni aperte per utente.**
 14. **Chiudendo una segnalazione, la sua notifica sparisce dalla cassetta di tutti gli admin.**
-15. **I campi cambiati nell'editor metadati vengono bloccati** (`LockedFields`), così un aggiornamento successivo non li riscrive. Nell'editor ogni campo bloccato ha un lucchetto per sbloccarlo.
+15. **I campi bloccabili cambiati nell'editor metadati vengono bloccati** (`LockedFields`), così un aggiornamento successivo non li riscrive. Nell'editor ogni campo bloccabile ha un lucchetto per sbloccarlo (quali sono i campi bloccabili: la correzione qui sotto).
     - **Correzione (24c):** Jellyfin blocca singolarmente solo i campi di `MetadataField`, e fra quelli dell'editor sono titolo (`Name`), trama (`Overview`), generi (`Genres`) e classificazione per età (`OfficialRating`). Solo questi quattro hanno il lucchetto e si aggiungono da soli a `LockedFields` quando cambiano.
     - Titolo originale, titolo per l'ordinamento, tagline, anno e data di uscita non si possono bloccare da soli: per loro c'è l'interruttore **"Blocca tutti i metadati"** (`LockData`).
 16. **"Usa come sfondo"** scarica l'immagine e la mette **prima** fra gli sfondi, perché il dettaglio mostra il primo. Gli sfondi vecchi restano.
@@ -427,8 +427,8 @@ Il nome del file lo vede solo l'admin (decisione 17).
 - **Blocchi (decisione 15 corretta):**
   - `LockedFields` = i blocchi che l'item aveva già + quelli scelti a mano + i campi bloccabili cambiati − quelli sbloccati a mano (`MetadataEdits.unlockedFields`). I blocchi già presenti su campi fuori dall'editor, per esempio `Cast`, restano;
   - solo titolo, trama, generi e classificazione hanno il lucchetto, che si chiude da solo quando il campo cambia, a meno che l'utente l'abbia girato a mano;
-  - l'interruttore "Blocca tutti i metadati" scrive `LockData`.
-- **Cosa non si può fare dalla finestra:** un anno o una data svuotati valgono "non toccati" (non si possono cancellare); un anno o una data non validi disattivano "Salva".
+  - l'interruttore "Blocca tutti i metadati" scrive `LockData`; su una serie o una stagione il suggerimento avverte che il blocco vale anche per stagioni ed episodi (vedi la propagazione in §12).
+- **Cosa non si può fare dalla finestra:** un anno o una data svuotati valgono "non toccati" (non si possono cancellare); un anno o una data non validi (compresa una data impossibile come `2020-02-30`) e un titolo vuoto disattivano "Salva".
 - **Errori:** nella finestra, che resta aperta con i dati scritti; 403 in §8. Un doppio clic su "Salva" fa una sola chiamata.
 
 ### 7.9 Identifica (admin, film e serie, piano 24c)
@@ -438,10 +438,10 @@ Il nome del file lo vede solo l'admin (decisione 17).
 - **Ricerca:** campi precompilati dall'item (nome, anno, id TMDb e IMDb; per le serie anche TVDB) e "Cerca", con `POST /Items/RemoteSearch/Movie|Series`, `ItemId` e `IncludeDisabledProviders: false`. Gli id vuoti non si mandano; un anno non valido si ignora.
 - **Risultati:** locandina (`ImageUrl`), nome, anno, provider, trama accorciata (testo semplice). Lista vuota: "Nessun risultato".
 - **Scelta:**
-  - una conferma nella stessa finestra: "Sostituire metadati e immagini con quelli di *Nome (anno)*?", con la casella "Sostituisci anche le immagini" (attiva di base) e, se l'item ha campi bloccati, la casella "Sblocca i campi modificati a mano" (decisione 19). "Annulla" nella conferma torna ai risultati;
+  - una conferma nella stessa finestra: "Sostituire metadati e immagini con quelli di *Nome (anno)*?", con la casella "Sostituisci anche le immagini" (attiva di base; se la si toglie il testo diventa "Sostituire i metadati con quelli di *Nome (anno)*?") e, se l'item ha campi bloccati, la casella "Sblocca i campi modificati a mano" (decisione 19). "Annulla" nella conferma torna ai risultati;
   - poi, se la casella è attiva, lo sblocco (`POST /Items/{id}`, §3 decisione 19) e `Apply` col risultato scelto **rimandato così com'è**, con una rotella e il testo "Può volerci qualche minuto". Una sola chiamata alla volta, e la finestra non si chiude finché lavora;
   - alla fine l'app ricarica il dettaglio, mostra "Titolo identificato" e chiude.
-- **Timeout (24c, differenza dalla prima stesura):** `Apply` ha 3 minuti (§7.1). Un `ServerUnreachableException` **durante `Apply`** (con dio vale anche per il timeout) non è un errore: l'app ricarica comunque il dettaglio, mostra "Jellyfin sta ancora lavorando: ricarica tra poco" e chiude, perché Jellyfin continua anche a connessione caduta. Lo stesso errore **nello sblocco, prima di `Apply`**, è un errore normale: nulla è partito, quindi resta nella finestra.
+- **Timeout (24c, differenza dalla prima stesura):** `Apply` ha 3 minuti (§7.1). Un `ServerUnreachableException` **durante `Apply`** (con dio vale anche per il timeout) non è un errore: l'app ricarica comunque il dettaglio, mostra "Jellyfin sta ancora lavorando: ricarica tra poco" e chiude, perché Jellyfin continua anche a connessione caduta. Vale come "sta ancora lavorando" anche un 502, 503 o 504 del gateway (nginx) **durante `Apply`**: il proxy ha chiuso prima che Jellyfin finisse (`restartGatewayStatuses`). Lo stesso errore **nello sblocco, prima di `Apply`**, è un errore normale: nulla è partito, quindi resta nella finestra.
 - **403:** come in §8, anche durante la ricerca (qualunque utente può cercare, ma un admin tolto nel frattempo vede il messaggio).
 
 ### 7.10 Aggiorna metadati (admin, piano 24c)
@@ -534,7 +534,7 @@ Tutte le etichette, i messaggi e le notifiche di §7 e §8, in italiano e in ing
 - **Riquadro e card:** filtro per `TitleId`, chiusura con nota, 409 `Closed` gestito, ricarica su `InboxChanged`.
 - **Notifiche:** testo e navigazione delle due voci nuove.
 - **Sottotitoli:** ordinamento dei risultati, attesa della traccia nuova (compare / non compare entro 20 s), 502, Elimina solo per l'admin e solo sulle esterne.
-- **Editor metadati:** solo i campi cambiati finiscono in `LockedFields`; il DTO mandato è quello completo.
+- **Editor metadati:** solo i campi bloccabili cambiati si aggiungono a `LockedFields`; la `Map` mandata è quella letta con le sole chiavi cambiate.
 - **Sfondo:** dopo il download, lo spostamento all'indice 0 usa l'indice giusto.
 - **Senza `reports`:** le voci sono nascoste.
 
@@ -563,6 +563,7 @@ Sul server vero, con l'admin e due utenti di prova, uno con la spunta sottotitol
 
 - **Sfondi:** `ImageSaver` mette uno sfondo scaricato o caricato senza indice in fondo (indice = numero degli sfondi di prima). `SwapImagesAsync`, usata da `Images/Backdrop/{index}/Index`, scambia due file e non fa niente se uno dei due non è un file locale.
 - **Salvataggio:** `UpdateItem` riscrive dal DTO `Name`, `ForcedSortName`, `OriginalTitle`, `CriticRating`, `CommunityRating`, `IndexNumber`, `ParentIndexNumber`, `Overview`, `Genres`, `Taglines` (solo il primo), `Studios`, `PremiereDate`, `ProductionYear`, `OfficialRating`, `CustomRating`, `Tags` (non null), `ProductionLocations`, `LockData`, `LockedFields`, `ProviderIds` (non null) e `People` (se non null). I dati dell'utente (visto, preferito) non si toccano. `LockedFields` e `LockData` si salvano con il resto: non servono campi in più, basta rimandare la `Map` letta (§7.8).
+  - **Propagazioni lato server che l'app non può evitare** (le fa anche jellyfin-web): salvando una serie o una stagione Jellyfin copia `OfficialRating` sui figli non bloccati e `CustomRating` su tutti, propaga le differenze dei `Tags`, propaga `LockData` a tutti i figli; un cambio di `DisplayOrder` su una serie mette in coda un aggiornamento che sostituisce tutto; `People` viene ricostruito da `Name`, `Role` e `Type`.
 - **Blocchi:** `MetadataField` = `Cast`, `Genres`, `ProductionLocations`, `Studios`, `Tags`, `Name`, `Overview`, `Runtime`, `OfficialRating` (decisione 15 corretta).
 - **Identifica:** `Apply` imposta `ProviderIds` e fa un `RefreshFullItem` sincrono (`FullRefresh`, `ReplaceAllMetadata`, `RemoveOldMetadata`): per questo è lento (§7.9).
 - **Immagini remote:** `GetRemoteImages` con `includeAllLanguages` falso mostra la lingua dell'item più le immagini senza lingua.

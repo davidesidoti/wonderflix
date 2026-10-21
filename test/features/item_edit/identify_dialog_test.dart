@@ -207,6 +207,32 @@ void main() {
     expect(session.refreshUserCalls, 0);
   });
 
+  testWidgets('Apply che scade con un 504 del gateway: "sta lavorando"',
+      (tester) async {
+    await open(tester);
+    await searchAndChoose(tester);
+    final before = revision(tester);
+    api.nextFailure = const ServerErrorException(504);
+
+    await tester.tap(find.text(it.identifyApply));
+    await tester.pumpAndSettle();
+
+    expect(revision(tester), before + 1);
+    expect(find.text(it.identifyStillWorking), findsOneWidget);
+    expect(find.text(it.identifyApply), findsNothing);
+  });
+
+  testWidgets('senza immagini la conferma non le nomina', (tester) async {
+    await open(tester);
+    await searchAndChoose(tester);
+    await tester.tap(find.text(it.identifyReplaceImages));
+    await tester.pump();
+
+    expect(find.text(it.identifyConfirmNoImages('Dark Serie (2017)')),
+        findsOneWidget);
+    expect(find.text(it.identifyConfirm('Dark Serie (2017)')), findsNothing);
+  });
+
   testWidgets('rete giù durante lo sblocco: errore, non "sta lavorando"',
       (tester) async {
     await open(tester, id: 'l1');

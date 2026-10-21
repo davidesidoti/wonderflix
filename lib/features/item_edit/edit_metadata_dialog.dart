@@ -243,9 +243,23 @@ class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog> {
 
   /// L'anno e la data vuoti o non validi non si salvano (si lasciano com'erano).
   int? get _yearValue => int.tryParse(_year.text.trim());
-  DateTime? get _dateValue => DateTime.tryParse(_date.text.trim());
+  DateTime? get _dateValue {
+    final text = _date.text.trim();
+    final date = DateTime.tryParse(text);
+    // tryParse sposta le date impossibili (30 febbraio -> 1 marzo): si rifiutano.
+    if (date == null ||
+        text.length < 10 ||
+        text.substring(0, 10) !=
+            '${date.year.toString().padLeft(4, '0')}-'
+                '${date.month.toString().padLeft(2, '0')}-'
+                '${date.day.toString().padLeft(2, '0')}') {
+      return null;
+    }
+    return date;
+  }
 
   bool get _inputValid =>
+      _name.text.trim().isNotEmpty &&
       (_year.text.trim().isEmpty || _yearValue != null) &&
       (_date.text.trim().isEmpty || _dateValue != null);
 
@@ -439,6 +453,13 @@ class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog> {
             Expanded(child: _textField(_date, l.editFieldPremiereDate)),
           ],
         ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Text(
+            l.editFieldGenres,
+            style: const TextStyle(color: WfColors.creamMuted, fontSize: 12),
+          ),
+        ),
         _row(
           Wrap(
             spacing: 8,
@@ -497,7 +518,12 @@ class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog> {
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: Text(l.editLockAll),
-          subtitle: Text(l.editLockAllHint),
+          // Su serie e stagioni Jellyfin propaga il blocco a tutti i figli.
+          subtitle: Text(
+            widget.kind == ItemKind.series || widget.kind == ItemKind.season
+                ? l.editLockAllHintFolder
+                : l.editLockAllHint,
+          ),
           value: _lockAll,
           onChanged: _busy ? null : (value) => setState(() => _lockAll = value),
         ),

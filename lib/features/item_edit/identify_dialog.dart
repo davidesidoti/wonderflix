@@ -10,6 +10,7 @@ import '../../core/jellyfin/api_exception.dart';
 import '../../core/jellyfin/image_urls.dart';
 import '../../core/jellyfin/item_edit_models.dart';
 import '../../core/jellyfin/item_models.dart';
+import '../../core/jellyfin/jellyfin_http.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_dialog.dart';
@@ -217,7 +218,17 @@ class _IdentifyDialogState extends ConsumerState<_IdentifyDialog> {
         if (mounted) navigator.pop();
       }
     } on Object catch (error) {
-      if (mounted) {
+      // Anche un 502/503/504 del gateway (nginx) dopo un Apply lungo vale
+      // "Jellyfin sta ancora lavorando".
+      if (applying &&
+          error is ServerErrorException &&
+          restartGatewayStatuses.contains(error.statusCode)) {
+        revision.bump();
+        messenger?.showSnackBar(
+          SnackBar(content: Text(l.identifyStillWorking)),
+        );
+        if (mounted) navigator.pop();
+      } else if (mounted) {
         setState(() => _error = _failure(l, session.refreshUser, error));
       }
     } finally {
@@ -411,7 +422,11 @@ class _IdentifyDialogState extends ConsumerState<_IdentifyDialog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(l.identifyConfirm(label)),
+        Text(
+          _replaceImages
+              ? l.identifyConfirm(label)
+              : l.identifyConfirmNoImages(label),
+        ),
         CheckboxListTile(
           contentPadding: EdgeInsets.zero,
           controlAffinity: ListTileControlAffinity.leading,

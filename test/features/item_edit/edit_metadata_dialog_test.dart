@@ -10,6 +10,8 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/item_edit/edit_metadata_dialog.dart';
 import 'package:wonderflix/features/item_edit/item_edit_providers.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/l10n/gen/app_localizations.dart';
+import 'package:wonderflix/ui/wf_buttons.dart';
 
 import '../../support/admin_fakes.dart';
 import '../../support/fake_session_controller.dart';
@@ -119,13 +121,15 @@ void main() {
   });
 
   group('finestra', () {
+    final it = lookupAppLocalizations(const Locale('it'));
     late FakeItemEditApi api;
     late FakeSessionController session;
 
     setUp(() {
       api = FakeItemEditApi()
         ..items['i1'] = testRawItem()
-        ..items['e1'] = testRawItem(id: 'e1', name: 'Pilot', type: 'Episode');
+        ..items['e1'] = testRawItem(id: 'e1', name: 'Pilot', type: 'Episode')
+        ..items['m1'] = testRawItem(id: 'm1', name: 'Film', type: 'Movie');
       session = FakeSessionController(const SessionSignedIn(testAdmin));
     });
 
@@ -264,6 +268,43 @@ void main() {
       expect(api.lastUpdate!['Overview'], 'Un\'altra trama');
       expect(api.lastUpdate!['LockedFields'], isEmpty);
       expect(api.lastUpdate!['LockData'], isTrue);
+    });
+
+    testWidgets('titolo vuoto o data impossibile: Salva spento',
+        (tester) async {
+      await open(tester);
+      bool enabled() =>
+          tester.widget<WfButton>(find.byType(WfButton)).onPressed != null;
+      expect(enabled(), isTrue);
+
+      await tester.enterText(field('Titolo'), '   ');
+      await tester.pump();
+      expect(enabled(), isFalse);
+      await tester.enterText(field('Titolo'), 'Dark');
+      await tester.pump();
+      expect(enabled(), isTrue);
+
+      // 30 febbraio: DateTime.tryParse lo sposterebbe al 1 marzo.
+      await tester.enterText(field('Data di uscita'), '2020-02-30');
+      await tester.pump();
+      expect(enabled(), isFalse);
+      await tester.enterText(field('Data di uscita'), '2020-02-29');
+      await tester.pump();
+      expect(enabled(), isTrue);
+    });
+
+    testWidgets('etichetta dei generi e suggerimento delle cartelle',
+        (tester) async {
+      await open(tester);
+      expect(find.text('Generi'), findsOneWidget);
+      expect(find.text(it.editLockAllHintFolder), findsOneWidget);
+      expect(find.text(it.editLockAllHint), findsNothing);
+    });
+
+    testWidgets('un film mostra il suggerimento semplice', (tester) async {
+      await open(tester, id: 'm1', kind: ItemKind.movie);
+      expect(find.text(it.editLockAllHint), findsOneWidget);
+      expect(find.text(it.editLockAllHintFolder), findsNothing);
     });
 
     testWidgets('doppio clic: una sola chiamata', (tester) async {

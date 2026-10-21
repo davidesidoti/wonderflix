@@ -184,12 +184,9 @@ class _ImagesDialogState extends ConsumerState<_ImagesDialog> {
 
   /// Dopo uno sfondo nuovo: rilegge gli sfondi e porta l'ultimo in prima
   /// posizione.
-  Future<void> _moveNewBackdropFirst(ItemEditApi api) async {
+  Future<void> _moveNewBackdropFirst(ItemEditApi api, String userId) async {
     if (_type != EditImageType.backdrop) return;
-    final raw = await api.rawItem(
-      ref.read(currentUserIdProvider),
-      widget.itemId,
-    );
+    final raw = await api.rawItem(userId, widget.itemId);
     final tags = raw['BackdropImageTags'];
     final last = backdropToMoveFirst(tags is List ? tags.length : 0);
     if (last != null) await api.moveBackdropFirst(widget.itemId, last);
@@ -197,10 +194,12 @@ class _ImagesDialogState extends ConsumerState<_ImagesDialog> {
 
   void _use(RemoteImage image) {
     final type = _type;
+    // Letto prima delle attese: la finestra può chiudersi nel frattempo.
+    final userId = ref.read(currentUserIdProvider);
     unawaited(_guarded(image.url, (api, changed) async {
       await api.downloadImage(widget.itemId, type, image.url);
       changed();
-      await _moveNewBackdropFirst(api);
+      await _moveNewBackdropFirst(api, userId);
       return true;
     }));
   }
@@ -209,6 +208,8 @@ class _ImagesDialogState extends ConsumerState<_ImagesDialog> {
     final type = _type;
     final picker = ref.read(imageFilePickerProvider);
     final l = AppLocalizations.of(context);
+    // Letto prima delle attese: la finestra può chiudersi nel frattempo.
+    final userId = ref.read(currentUserIdProvider);
     unawaited(_guarded(_uploadKey, (api, changed) async {
       final file = await picker(l.imagesFileTypes);
       if (file == null) return false;
@@ -220,7 +221,7 @@ class _ImagesDialogState extends ConsumerState<_ImagesDialog> {
           : 'image/jpeg';
       await api.uploadImage(widget.itemId, type, bytes, mimeType: mimeType);
       changed();
-      await _moveNewBackdropFirst(api);
+      await _moveNewBackdropFirst(api, userId);
       return true;
     }));
   }

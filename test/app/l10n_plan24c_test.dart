@@ -27,6 +27,7 @@ const _keys = [
   'editUnlockField',
   'editLockAll',
   'editLockAllHint',
+  'editLockAllHintFolder',
   'editSave',
   'editSaved',
   'editNoPermission',
@@ -39,6 +40,7 @@ const _keys = [
   'identifySearch',
   'identifyNoResults',
   'identifyConfirm',
+  'identifyConfirmNoImages',
   'identifyReplaceImages',
   'identifyUnlock',
   'identifyApply',
@@ -96,6 +98,10 @@ void main() {
     expect(it.identifyStillWorking,
         'Jellyfin sta ancora lavorando: ricarica tra poco');
     expect(it.imagesFileTooLarge, 'Il file supera 10 MB');
+    expect(it.identifyConfirmNoImages('Dark'),
+        'Sostituire i metadati con quelli di Dark?');
+    expect(it.editLockAllHintFolder, contains('stagioni ed episodi'));
     expect(en.identifyConfirm('Dark'), contains('Dark'));
+    expect(en.identifyConfirmNoImages('Dark'), contains('Dark'));
   });
 }
