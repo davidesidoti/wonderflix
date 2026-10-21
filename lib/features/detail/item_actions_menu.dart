@@ -11,6 +11,7 @@ import '../../ui/wf_menus.dart';
 import '../admin/admin_providers.dart';
 import '../item_edit/edit_metadata_dialog.dart';
 import '../item_edit/identify_dialog.dart';
+import '../item_edit/images_dialog.dart';
 import '../item_edit/refresh_metadata_dialog.dart';
 import '../reports/report_dialog.dart';
 import '../reports/reports_providers.dart';
@@ -135,9 +136,8 @@ class ItemActionsButton extends ConsumerWidget {
             showIdentifyDialog(context, itemId: item.id, kind: item.kind));
       case ItemAction.refresh:
         unawaited(showRefreshMetadataDialog(context, itemId: item.id));
-      // Task 5 del piano 24c: finestra ancora da collegare.
       case ItemAction.images:
-        break;
+        unawaited(showImagesDialog(context, itemId: item.id, kind: item.kind));
     }
   }
 }

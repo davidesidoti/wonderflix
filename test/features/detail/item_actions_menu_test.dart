@@ -186,6 +186,21 @@ void main() {
     expect(editApi.calls, ['rawItem m1']);
   });
 
+  testWidgets('"Locandina e sfondo" apre la finestra', (tester) async {
+    final editApi = FakeItemEditApi()
+      ..items['m1'] = testRawItem(id: 'm1', name: 'Dune', type: 'Movie');
+    await pumpDetail(tester, 'm1',
+        editApi: editApi,
+        user: const JellyfinUser(
+            id: 'u1', name: 'Mario', isAdministrator: true));
+    await tester.tap(find.byTooltip('Altre azioni'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Locandina e sfondo'));
+    await tester.pumpAndSettle();
+    expect(find.text('Carica dal PC…'), findsOneWidget);
+    expect(editApi.calls, ['remoteImages m1 Primary 0 false']);
+  });
+
   testWidgets('"Aggiorna metadati…" apre la finestra e avvia il lavoro',
       (tester) async {
     final editApi = FakeItemEditApi()
