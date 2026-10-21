@@ -1,7 +1,7 @@
 # WonderFlix — Spec R: segnalazioni e strumenti per sistemare i titoli
 
 - **Data:** 2026-10-21
-- **Stato:** approvata il 2026-10-21; piano 24a realizzato (`docs/superpowers/plans/2026-10-21-wonderflix-24a-segnalazioni-plugin.md`), piano 24b realizzato (`docs/superpowers/plans/2026-10-21-wonderflix-24b-segnalazioni-app.md`), provato con l'utente il 2026-10-21. **Realizzati:** plugin 1.12.0 (tag `watch-party-plugin-v1.12.0`) e app 0.18.0 (tag `v0.18.0`). Piano 24c (strumenti admin, app 0.19.0) da realizzare. Dove il testo dice "(24b)" descrive quello che il 24b ha realizzato, con le differenze dalla prima stesura e il loro motivo.
+- **Stato:** approvata il 2026-10-21; piano 24a realizzato (`docs/superpowers/plans/2026-10-21-wonderflix-24a-segnalazioni-plugin.md`), piano 24b realizzato (`docs/superpowers/plans/2026-10-21-wonderflix-24b-segnalazioni-app.md`), provato con l'utente il 2026-10-21. **Realizzati:** plugin 1.12.0 (tag `watch-party-plugin-v1.12.0`) e app 0.18.0 (tag `v0.18.0`). Piano 24c realizzato (`docs/superpowers/plans/2026-10-21-wonderflix-24c-strumenti-admin-app.md`): app 0.19.0, build di prova per la prova a mano (§11.3, passo 4). Dove il testo dice "(24b)" o "(24c)" descrive quello che il piano ha realizzato, con le differenze dalla prima stesura e il loro motivo.
 - **Ambito:** Spec R. Porta nell'app quello che oggi si fa solo dal menu "⋯" di jellyfin-web su un titolo: cercare e scaricare sottotitoli, modificare i metadati, identificare il titolo giusto, aggiornare i metadati, cambiare locandina e sfondo. Aggiunge le **segnalazioni**: chi trova un problema lo segnala e gli admin lo sistemano. Assorbe la parte "scaricare i sottotitoli mancanti" dell'idea 10 di `docs/IDEE.md`. Lo stile dei sottotitoli resta fuori.
 
 ## 1. Obiettivo
@@ -96,19 +96,25 @@ Prese con l'utente nel brainstorming del 2026-10-21:
 13. **Massimo 20 segnalazioni aperte per utente.**
 14. **Chiudendo una segnalazione, la sua notifica sparisce dalla cassetta di tutti gli admin.**
 15. **I campi cambiati nell'editor metadati vengono bloccati** (`LockedFields`), così un aggiornamento successivo non li riscrive. Nell'editor ogni campo bloccato ha un lucchetto per sbloccarlo.
+    - **Correzione (24c):** Jellyfin blocca singolarmente solo i campi di `MetadataField`, e fra quelli dell'editor sono titolo (`Name`), trama (`Overview`), generi (`Genres`) e classificazione per età (`OfficialRating`). Solo questi quattro hanno il lucchetto e si aggiungono da soli a `LockedFields` quando cambiano.
+    - Titolo originale, titolo per l'ordinamento, tagline, anno e data di uscita non si possono bloccare da soli: per loro c'è l'interruttore **"Blocca tutti i metadati"** (`LockData`).
 16. **"Usa come sfondo"** scarica l'immagine e la mette **prima** fra gli sfondi, perché il dettaglio mostra il primo. Gli sfondi vecchi restano.
+    - **Come (24c, verificato sul sorgente 10.11.9):** Jellyfin mette uno sfondo scaricato o caricato senza indice **in fondo**. L'app rilegge gli sfondi e, se sono più di uno, sposta l'ultimo all'indice 0.
+    - **Limite di Jellyfin:** lo spostamento scambia due file e non fa niente se uno dei due non è un file locale. In quel caso lo sfondo nuovo resta in fondo, senza errore.
 17. **Il nome del file** nelle info tecniche lo vede solo l'admin. Il percorso sul server non lo vede nessuno.
 18. **Nel player**, chi può gestire i sottotitoli trova "Cerca sottotitoli" nel pannello tracce. Segnalare dal player resta fuori.
 
 Decise dopo la revisione del documento:
 
 19. **Identifica e i campi bloccati.** Jellyfin non sovrascrive i campi bloccati, neanche con Identifica. Se l'item ha campi bloccati, la conferma di Identifica mostra la casella "Sblocca i campi modificati a mano", attiva di base. Con la casella attiva, l'app svuota `LockedFields` e `LockData` con `POST /Items/{id}` prima di `Apply`. Così il caso del titolo in arabo, prima corretto a mano e poi identificato, funziona.
+    - **Come (24c):** la casella c'è se l'item ha `LockData` o `LockedFields` non vuoti. Lo sblocco rimanda la `Map` letta di Jellyfin intera, con solo `LockData: false` e `LockedFields: []` (come il salvataggio dell'editor, §7.8).
 20. **Scorciatoie del riquadro per livello:**
     - Sottotitoli su un film o un episodio: "Cerca sottotitoli";
     - Sottotitoli su una stagione o una serie: niente scorciatoia, l'admin sceglie l'episodio dalla lista;
     - Titolo o informazioni su un film o una serie: "Identifica";
     - Titolo o informazioni su una stagione o un episodio: "Modifica metadati";
     - Audio o video, Altro: nessuna scorciatoia.
+    - Nel 24c `ReportShortcut` ha `subtitles`, `identify` ed `editMetadata`; le scorciatoie ci sono come qui sopra (§7.4).
 21. **Sottotitolo nuovo nel player:**
     - l'app richiede `PlaybackInfo` (l'unica fonte di `DeliveryUrl`). Se la traccia nuova arriva con consegna esterna, il player la aggiunge senza fermarsi;
     - altrimenti, per esempio con una transcodifica che la incide nel video, compare "Il sottotitolo sarà disponibile dalla prossima riproduzione".
@@ -136,7 +142,7 @@ Decise dopo la revisione del documento:
   - finestra Sottotitoli, anche dal player;
   - Info tecniche;
   - testi it/en.
-- **App 0.19.0 (piano 24c):**
+- **App 0.19.0 (piano 24c, realizzato):**
   - Modifica metadati, Identifica, Aggiorna metadati, Locandina e sfondo;
   - le loro voci nel menu "⋯" e le loro scorciatoie nel riquadro delle segnalazioni;
   - testi it/en.
@@ -280,7 +286,7 @@ Endpoint ammessi a chi è **admin oppure** ha `EnableSubtitleManagement` (`user.
 - Nuova funzione `reports`, in fondo a `WatchPartyProtocol.Features` (dopo `ratings`): `FeaturesWith` la include sempre, come le altre. Copre sia le segnalazioni sia gli endpoint sottotitoli. `Version` è "1.12.0", `Protocol` resta 1.
 - Con un plugin senza `reports`, l'app nasconde "Segnala", il riquadro, la card e la finestra Sottotitoli. Restano Info tecniche (§7.7) e gli strumenti admin che parlano solo con Jellyfin (§7.8–7.11).
 
-## 7. App 0.18.0
+## 7. App 0.18.0 e 0.19.0
 
 ### 7.1 Nucleo
 
@@ -294,8 +300,11 @@ Endpoint ammessi a chi è **admin oppure** ha `EnableSubtitleManagement` (`user.
   - `lib/core/jellyfin/media_info_models.dart` (`ItemMediaInfo`) con la lettura in `LibraryApi.mediaInfo` (§7.7);
   - provider in `lib/features/reports/reports_providers.dart`: `reportsApiProvider`, `subtitlesApiProvider`, `itemMediaInfoProvider`, `canManageSubtitlesProvider`.
   - Un 404 dal plugin vale "plugin vecchio" (`unavailable`): il plugin 1.12.0 non risponde mai 404.
-- **API (24c):** `item_edit_api.dart` per MetadataEditor, `POST /Items/{id}`, RemoteSearch, Apply, Refresh, RemoteImages, upload e ordine delle immagini.
-- **Timeout (24c):** Identifica: applica ha un timeout lungo, 3 minuti, perché Jellyfin risponde solo a fine refresh. Il resto usa quello normale.
+- **API (24c):**
+  - `lib/core/jellyfin/item_edit_models.dart` e `item_edit_api.dart`: `ItemEditApi` con `rawItem`, `updateItem`, `parentalRatings` (MetadataEditor), `searchRemote`, `applyIdentify`, `refresh`, `remoteImages`, `downloadImage`, `uploadImage` e `moveBackdropFirst`; i modelli `ParentalRatingOption`, `RemoteSearchResult`, `RemoteImage` e `RemoteImagesPage`;
+  - provider in `lib/features/item_edit/item_edit_providers.dart`: `itemEditApiProvider` e `imageFilePickerProvider` (selettore di file iniettabile, come quello dei sottotitoli);
+  - gli errori sono quelli di `JellyfinHttp` così come arrivano (`ForbiddenException` per chi non è admin); 400, 403 e 404 sono esiti attesi e nel log stanno come info.
+- **Timeout (24c):** `JellyfinHttp.post` prende un `receiveTimeout` facoltativo (di base resta quello di 30 s). Solo `applyIdentify` lo usa, con 3 minuti (`identifyApplyTimeout`), perché Jellyfin risponde solo a fine refresh. Il resto usa quello normale.
 
 ### 7.2 Menu "⋯"
 
@@ -314,6 +323,8 @@ Un bottone "⋯" in `detail_header.dart`, dopo Preferito e Visto. Uno uguale su 
 Le voci che non si possono usare non compaiono; se non ne resta nessuna, il bottone non c'è. Le voci sono separate in tre gruppi (tutti / sottotitoli / admin), come nella bozza.
 
 **Come è fatto (24b):** `lib/features/detail/item_actions_menu.dart`. L'elenco delle voci è una funzione pura, `itemActionGroups(kind, reports, canManageSubtitles, isAdmin)`, che restituisce i gruppi senza quelli vuoti; il gruppo admin c'è già ma resta vuoto fino al 24c, che aggiunge le sue voci lì (differenza dalla prima stesura: così i ruoli × i livelli si provano senza costruire widget e il 24c non rifà il menu). `ItemActionsButton` mostra il `PopupMenuButton` con il separatore fra i gruppi. Conseguenza: senza `reports` una serie o una stagione non hanno il bottone, mentre film ed episodi lo hanno comunque per "Info tecniche".
+
+**Voci admin (24c):** il gruppo admin ora ha, in quest'ordine, Modifica metadati, Identifica (solo film e serie), Aggiorna metadati, Locandina e sfondo. Non dipendono da `reports` (parlano solo con Jellyfin), quindi un admin ha il bottone anche su una serie o una stagione con un plugin vecchio. Ogni voce apre una finestra che prende l'**id** dell'item e rilegge da sola (come la finestra Sottotitoli), così le apre anche il riquadro delle segnalazioni.
 
 ### 7.3 Segnala un problema
 
@@ -341,7 +352,7 @@ Come è fatta (24b, `lib/features/reports/report_dialog.dart`):
   - "Sistemato" e "Non sistemabile" aprono una piccola finestra con la nota facoltativa e il bottone di conferma.
   - Se non ci sono segnalazioni, il riquadro non c'è.
   - **Posizione (24b):** nella `ListView` del dettaglio, subito dopo `DetailHeader` e **fuori dalle `StaggerItem`**, così `detailEntranceCount` resta 9 e l'animazione d'ingresso non cambia (differenza dalla prima stesura, che non diceva dove). Nel dettaglio di un film (`movie_detail_view.dart`) compare solo se l'item è un film; in quello di una serie (`series_detail_view.dart`) sempre.
-  - **Scorciatoie (24b):** solo "Cerca sottotitoli", per le segnalazioni `Subtitles` di un film o di un episodio (`reportShortcut`); apre la finestra Sottotitoli sull'`ItemId` della segnalazione. "Identifica" e "Modifica metadati" della decisione 20 arrivano con il 24c, che le aggiunge nello stesso punto (differenza dalla prima stesura: gli strumenti non esistono ancora nell'app 0.18.0).
+  - **Scorciatoie (24b, 24c):** `reportShortcut` sceglie per tipo e livello della segnalazione. "Cerca sottotitoli" per le `Subtitles` di un film o di un episodio apre la finestra Sottotitoli; "Identifica" per le `Metadata` di un film o di una serie apre Identifica; "Modifica metadati" per le `Metadata` di una stagione o di un episodio apre Modifica metadati. In tutti i casi sull'`ItemId` della segnalazione, non sul titolo da aprire. "Identifica" e "Modifica metadati" sono del 24c (differenza dalla prima stesura: nell'app 0.18.0 gli strumenti non c'erano ancora); per Audio o video e Altro non c'è scorciatoia.
   - **Finestra di chiusura (24b):** la nota ha le stesse regole di quella della segnalazione (500 punti di codice, contatore da 450); una nota vuota non si manda. La finestra tiene viva la lista delle segnalazioni finché è aperta: se nel frattempo l'ultima voce del titolo sparisce (la chiude un altro admin) il riquadro si smonta, ma "Conferma" funziona lo stesso. Durante la chiamata la finestra non si chiude e c'è una sola chiamata in volo. Gli errori sono in §8.
 - **Card "Segnalazioni"** in `wonderflix_tab.dart` (dopo "Commenti degli utenti"): tutte le aperte, con titolo, livello, tipo, chi e quando. "Apri" porta al dettaglio **della serie o del film** (`/item/{TitleId}`), anche per una segnalazione di stagione o di episodio, come per la notifica (§7.5). Se è vuota: "Nessuna segnalazione aperta". Senza la funzione `reports`: "Serve il plugin 1.12.0" (un messaggio, non la lista vuota); finché `Info` non ha risposto: scheletro.
 - **Aggiornamento:** riquadro e card si ricaricano quando arriva `InboxChanged` (una `ReportPending` arriva o sparisce), dopo una chiusura e all'apertura. Si ricaricano anche a ogni riconnessione del WebSocket (`ServerConnected`), per non perdere gli avvisi arrivati a connessione caduta (differenza dalla prima stesura). Il provider è `autoDispose`: vive solo con un riquadro, la card o una finestra di chiusura montati. Senza admin o senza `reports` non chiama il plugin.
@@ -402,52 +413,67 @@ Il nome del file lo vede solo l'admin (decisione 17).
 
 ### 7.8 Modifica metadati (admin, piano 24c)
 
+`lib/features/item_edit/edit_metadata_dialog.dart`.
+
 - **Campi:**
-  - titolo, titolo originale, titolo per l'ordinamento, tagline (non per gli episodi), trama;
-  - anno e data di uscita;
+  - titolo, titolo originale, titolo per l'ordinamento, tagline (non per episodi e stagioni), trama;
+  - anno (numero) e data di uscita (testo `aaaa-mm-gg`, non un selettore; si scrive a mezzanotte UTC);
   - generi (chip con aggiunta e rimozione);
-  - classificazione per età (menu da `ParentalRatingOptions` di `MetadataEditor`).
-- **Salvataggio:**
-  - l'app parte dall'item completo di `GET /Items/{id}` (con l'utente admin), cambia solo quei campi e manda indietro il DTO intero con `POST /Items/{id}`, come jellyfin-web;
-  - ogni campo cambiato si aggiunge a `LockedFields`;
-  - il lucchetto accanto a un campo lo sblocca o lo blocca;
-  - poi l'app ricarica il dettaglio.
-- **Errori:** nella finestra, che resta aperta.
+  - classificazione per età (menu da `ParentalRatingOptions` di `MetadataEditor`, più "Nessuna", che scrive `null`; una classificazione dell'item che non è nel menu resta fra le voci).
+- **Salvataggio (andata e ritorno della `Map`):**
+  - l'app parte dalla `Map` grezza di `GET /Items/{id}?userId=` (con l'utente admin), cambia **solo le chiavi dei campi modificati** e manda indietro la `Map` intera con `POST /Items/{id}`, come jellyfin-web (`applyMetadataEdits`, una funzione pura che non tocca l'originale). Differenza dalla prima stesura, che parlava di "DTO": non c'è un modello tipato che possa perdere campi;
+  - motivo, verificato sul sorgente 10.11.9: `UpdateItem` riscrive dal DTO anche `Tags`, `ProviderIds`, `Studios`, `People`, `Genres` e altri campi, quindi una `Map` parziale li cancellerebbe. I dati dell'utente (visto, preferito) non si toccano;
+  - poi l'app ricarica il dettaglio, mostra "Metadati salvati" e chiude.
+- **Blocchi (decisione 15 corretta):**
+  - `LockedFields` = i blocchi che l'item aveva già + quelli scelti a mano + i campi bloccabili cambiati − quelli sbloccati a mano (`MetadataEdits.unlockedFields`). I blocchi già presenti su campi fuori dall'editor, per esempio `Cast`, restano;
+  - solo titolo, trama, generi e classificazione hanno il lucchetto, che si chiude da solo quando il campo cambia, a meno che l'utente l'abbia girato a mano;
+  - l'interruttore "Blocca tutti i metadati" scrive `LockData`.
+- **Cosa non si può fare dalla finestra:** un anno o una data svuotati valgono "non toccati" (non si possono cancellare); un anno o una data non validi disattivano "Salva".
+- **Errori:** nella finestra, che resta aperta con i dati scritti; 403 in §8. Un doppio clic su "Salva" fa una sola chiamata.
 
 ### 7.9 Identifica (admin, film e serie, piano 24c)
 
-- **Ricerca:** campi precompilati dall'item (nome, anno, id TMDb e IMDb; per le serie anche TVDB) e "Cerca", con `POST /Items/RemoteSearch/Movie|Series` e `ItemId`.
-- **Risultati:** locandina (`ImageUrl`), nome, anno, provider, trama accorciata.
+`lib/features/item_edit/identify_dialog.dart`.
+
+- **Ricerca:** campi precompilati dall'item (nome, anno, id TMDb e IMDb; per le serie anche TVDB) e "Cerca", con `POST /Items/RemoteSearch/Movie|Series`, `ItemId` e `IncludeDisabledProviders: false`. Gli id vuoti non si mandano; un anno non valido si ignora.
+- **Risultati:** locandina (`ImageUrl`), nome, anno, provider, trama accorciata (testo semplice). Lista vuota: "Nessun risultato".
 - **Scelta:**
-  - una conferma: "Sostituire metadati e immagini con quelli di *Nome (anno)*?", con la casella "Sostituisci anche le immagini" (attiva di base) e, se l'item ha campi bloccati, la casella "Sblocca i campi modificati a mano" (decisione 19);
-  - poi `Apply`, con una rotella e il testo "Può volerci qualche minuto";
-  - alla fine l'app ricarica il dettaglio. Se scade il timeout: "Jellyfin sta ancora lavorando: ricarica tra poco".
+  - una conferma nella stessa finestra: "Sostituire metadati e immagini con quelli di *Nome (anno)*?", con la casella "Sostituisci anche le immagini" (attiva di base) e, se l'item ha campi bloccati, la casella "Sblocca i campi modificati a mano" (decisione 19). "Annulla" nella conferma torna ai risultati;
+  - poi, se la casella è attiva, lo sblocco (`POST /Items/{id}`, §3 decisione 19) e `Apply` col risultato scelto **rimandato così com'è**, con una rotella e il testo "Può volerci qualche minuto". Una sola chiamata alla volta, e la finestra non si chiude finché lavora;
+  - alla fine l'app ricarica il dettaglio, mostra "Titolo identificato" e chiude.
+- **Timeout (24c, differenza dalla prima stesura):** `Apply` ha 3 minuti (§7.1). Un `ServerUnreachableException` **durante `Apply`** (con dio vale anche per il timeout) non è un errore: l'app ricarica comunque il dettaglio, mostra "Jellyfin sta ancora lavorando: ricarica tra poco" e chiude, perché Jellyfin continua anche a connessione caduta. Lo stesso errore **nello sblocco, prima di `Apply`**, è un errore normale: nulla è partito, quindi resta nella finestra.
+- **403:** come in §8, anche durante la ricerca (qualunque utente può cercare, ma un admin tolto nel frattempo vede il messaggio).
 
 ### 7.10 Aggiorna metadati (admin, piano 24c)
 
-Sottomenu con due voci:
+`lib/features/item_edit/refresh_metadata_dialog.dart`. **Una piccola finestra, non un sottomenu** (differenza dalla prima stesura: il `PopupMenuButton` del 24b non prevede un sottomenu dentro il menu), con due scelte e una casella:
 
-- **"Cerca dati mancanti"**: `FullRefresh`, senza sostituire;
-- **"Sostituisci tutti i metadati"**: `FullRefresh` + `replaceAllMetadata`, con la conferma e la casella "anche le immagini" (`replaceAllImages`).
+- **"Cerca dati mancanti"** (di base): `FullRefresh`, senza sostituire;
+- **"Sostituisci tutti i metadati"**: `FullRefresh` + `replaceAllMetadata`;
+- **"Anche le immagini"** (`replaceAllImages`): attiva solo con "Sostituisci tutti i metadati"; con "Cerca dati mancanti" è spenta e non si manda mai.
 
-Jellyfin le mette in coda. L'app mostra "Aggiornamento avviato" e ricarica il dettaglio dopo 10 s.
+Non c'è una seconda conferma: il bottone "Aggiorna" della finestra è la conferma. Jellyfin mette il lavoro in coda: l'app mostra "Aggiornamento avviato", chiude la finestra e ricarica il dettaglio dopo 10 s (`refreshReloadDelay`), anche a finestra già chiusa. Se la chiamata fallisce non si ricarica niente.
 
 ### 7.11 Locandina e sfondo (admin, piano 24c)
 
-- **Due schede, Locandina e Sfondo**, con l'immagine attuale in alto. Stagioni ed episodi hanno una scheda sola (decisione 22).
+`lib/features/item_edit/images_dialog.dart`.
+
+- **Schede per livello (decisione 22):** film e serie hanno Locandina e Sfondo; stagioni solo Locandina; episodi solo "Immagine" (`Primary`, 16:9), senza riga di schede. Sopra la griglia c'è l'immagine attuale (o "Nessuna immagine").
 - **Griglia** da `GET /Items/{id}/RemoteImages?type=Primary|Backdrop`:
-  - ogni immagine ha anteprima (`ThumbnailUrl`), provider, risoluzione, lingua, voto;
-  - si vedono la lingua dell'item e quelle senza lingua; la casella "Tutte le lingue" mostra le altre;
-  - si caricano 30 immagini alla volta.
-- **Scelta:**
-  - "Usa come locandina" → `RemoteImages/Download?type=Primary`;
-  - "Usa come sfondo" → download con `type=Backdrop`, poi l'app rilegge l'item e sposta lo sfondo nuovo (l'ultimo) all'indice 0 (decisione 16).
-- **"Carica dal PC…":** `file_selector` con jpg e png, al massimo 10 MB, poi `POST /Items/{id}/Images/{type}` in base64. Per lo sfondo poi si sposta all'indice 0, come sopra.
-- **Dopo ogni cambio:** l'app ricarica il dettaglio. Le immagini cambiano tag, quindi la cache delle immagini non serve quella vecchia.
+  - ogni immagine ha anteprima (`ThumbnailUrl`, altrimenti l'immagine stessa), provider, risoluzione, lingua, voto;
+  - si vedono la lingua dell'item e quelle senza lingua; la casella "Tutte le lingue" rilegge da capo e mostra le altre;
+  - si caricano 30 immagini alla volta ("Altre immagini"); una risposta arrivata in ritardo per una scheda o un filtro lasciati si scarta.
+- **Scelta (differenza dalla prima stesura: un solo bottone "Usa questa", che vale per la scheda aperta):**
+  - nella scheda Locandina (o Immagine) → `RemoteImages/Download?type=Primary`;
+  - nella scheda Sfondo → download con `type=Backdrop`, poi l'app rilegge l'item e, se gli sfondi sono più di uno, sposta lo sfondo nuovo (l'ultimo) all'indice 0 con `Images/Backdrop/{ultimo}/Index?newIndex=0` (decisione 16, con il suo limite sui file non locali).
+- **"Carica dal PC…":** `file_selector` con jpg e png, al massimo 10 MB; un file più grande si ferma nell'app, senza leggerlo e senza chiamare Jellyfin ("Il file supera 10 MB"). Poi `POST /Items/{id}/Images/{type}` con il corpo in base64 e `Content-Type` `image/png` o `image/jpeg` (dal nome del file). Per lo sfondo poi si sposta all'indice 0, come sopra.
+- **Una operazione alla volta:** scelta, caricamento e cambio di scheda sono disattivati finché una è in corso, e la finestra non si chiude.
+- **Se il download o il caricamento riesce ma lo spostamento dello sfondo no:** l'errore si mostra e il dettaglio si rilegge lo stesso, perché Jellyfin ha cambiato davvero.
+- **Dopo ogni cambio:** l'app ricarica il dettaglio, mostra "Immagine aggiornata" e la finestra resta aperta con l'immagine attuale nuova. Le immagini cambiano tag, quindi la cache delle immagini non serve quella vecchia.
 
 ### 7.12 Versione
 
-Il piano 24b chiude con l'app **`0.18.0`**, da rilasciare insieme al plugin **`1.12.0`** (§13). Il piano 24c sarà la **`0.19.0`**. Differenza dalla prima stesura, che metteva tutto nella 0.18.0: l'app si può provare e rilasciare a pezzi senza aspettare gli strumenti dei metadati.
+Il piano 24b chiude con l'app **`0.18.0`**, da rilasciare insieme al plugin **`1.12.0`** (§13). Il piano 24c è la **`0.19.0`**. Differenza dalla prima stesura, che metteva tutto nella 0.18.0: l'app si può provare e rilasciare a pezzi senza aspettare gli strumenti dei metadati.
 
 **Release non obbligatoria:** l'app 0.17 continua a funzionare con il plugin 1.12.0 (senza segnalazioni e sottotitoli). La riga `min-version` delle note resta quella di prima, salvo diversa indicazione al rilascio.
 
@@ -456,6 +482,7 @@ Il piano 24b chiude con l'app **`0.18.0`**, da rilasciare insieme al plugin **`1
 - **Plugin senza `reports`**, o plugin assente: niente "Segnala", riquadro, card e Sottotitoli. Restano Info tecniche e gli strumenti admin diretti.
 - **403 da Jellyfin o dal plugin**, per esempio un permesso tolto mentre l'app era aperta: "Non hai il permesso per farlo". L'app rilegge `/Users/Me`, così le voci spariscono.
   - **Dove (24b):** nella finestra Segnala, nella finestra Sottotitoli (ricerca, download, caricamento ed eliminazione) e nella finestra di chiusura di una segnalazione. In tutte la finestra resta aperta con il messaggio.
+  - **Strumenti admin (24c):** in Modifica metadati, Identifica (ricerca e applica), Aggiorna metadati e Locandina e sfondo (anche all'apertura della griglia). In tutte la finestra resta aperta con il messaggio e i dati scritti; un 403 non ricarica il dettaglio. Gli altri errori usano il messaggio generico, senza titoli, trame, URL o nomi di file nel log. Fa eccezione solo il timeout di `Apply` (§7.9).
   - **Dopo la chiusura della finestra (24b):** il controller dei sottotitoli prende il notifier della sessione quando nasce, così un 403 che arriva a finestra già chiusa rilegge lo stesso l'utente; le operazioni in corso quando la finestra si chiude si fermano senza errori e senza nulla nel log.
 - **Errore di rete:** il messaggio generico dell'app, e la finestra resta aperta con i dati inseriti.
 - **Segnalazione già chiusa da un altro admin** (409 `Closed` su Resolve): "Questa segnalazione è già stata chiusa", e il riquadro si ricarica. La finestra di chiusura si chiude e il messaggio compare come snackbar (la finestra non c'è più per mostrarlo).
@@ -513,7 +540,7 @@ Tutte le etichette, i messaggi e le notifiche di §7 e §8, in italiano e in ing
 
 ### 11.3 Prova a mano
 
-Sul server vero, con l'admin e due utenti di prova, uno con la spunta sottotitoli. I passi 1, 2, 3 e 5 sono quelli del 24b (app 0.18.0; sono anche nella checklist di `docs/RELEASING.md`); il passo 4 aspetta il 24c. Nel passo 3 si guarda anche che la transcodifica in corso non si disturbi (§7.6).
+Sul server vero, con l'admin e due utenti di prova, uno con la spunta sottotitoli. I passi 1, 2, 3 e 5 sono quelli del 24b (app 0.18.0; sono anche nella checklist di `docs/RELEASING.md`); il passo 4 è del 24c (app 0.19.0; è anche nella checklist di `docs/RELEASING.md`). Nel passo 3 si guarda anche che la transcodifica in corso non si disturbi (§7.6).
 
 1. Un utente segnala un episodio. Gli admin ricevono la notifica, l'utente con la spunta no.
 2. L'admin apre la notifica, usa "Cerca sottotitoli", scarica un sottotitolo italiano e la traccia compare. "Sistemato" con nota: la notifica arriva all'utente.
@@ -532,10 +559,17 @@ Sul server vero, con l'admin e due utenti di prova, uno con la spunta sottotitol
 - **`RemoteSubtitleInfo`:** `CommunityRating` (`float?`), `DownloadCount` (`int?`) e `IsHashMatch`, `AiTranslated`, `MachineTranslated`, `Forced`, `HearingImpaired` (`bool?`).
 - **`PermissionKind.EnableSubtitleManagement`** esiste con questo nome, valore 22.
 
+**Verificato per il piano 24c** (sorgente al tag `v10.11.9`), chiude i due punti che erano aperti:
+
+- **Sfondi:** `ImageSaver` mette uno sfondo scaricato o caricato senza indice in fondo (indice = numero degli sfondi di prima). `SwapImagesAsync`, usata da `Images/Backdrop/{index}/Index`, scambia due file e non fa niente se uno dei due non è un file locale.
+- **Salvataggio:** `UpdateItem` riscrive dal DTO `Name`, `ForcedSortName`, `OriginalTitle`, `CriticRating`, `CommunityRating`, `IndexNumber`, `ParentIndexNumber`, `Overview`, `Genres`, `Taglines` (solo il primo), `Studios`, `PremiereDate`, `ProductionYear`, `OfficialRating`, `CustomRating`, `Tags` (non null), `ProductionLocations`, `LockData`, `LockedFields`, `ProviderIds` (non null) e `People` (se non null). I dati dell'utente (visto, preferito) non si toccano. `LockedFields` e `LockData` si salvano con il resto: non servono campi in più, basta rimandare la `Map` letta (§7.8).
+- **Blocchi:** `MetadataField` = `Cast`, `Genres`, `ProductionLocations`, `Studios`, `Tags`, `Name`, `Overview`, `Runtime`, `OfficialRating` (decisione 15 corretta).
+- **Identifica:** `Apply` imposta `ProviderIds` e fa un `RefreshFullItem` sincrono (`FullRefresh`, `ReplaceAllMetadata`, `RemoveOldMetadata`): per questo è lento (§7.9).
+- **Immagini remote:** `GetRemoteImages` con `includeAllLanguages` falso mostra la lingua dell'item più le immagini senza lingua.
+
 **Ancora aperto:**
 
-- (24c) Che `RemoteImages/Download` di un `Backdrop` aggiunga lo sfondo in fondo, e che `Images/Backdrop/{index}/Index` sposti come previsto.
-- (24c) Che `POST /Items/{id}` con il DTO letto da `GET /Items/{id}?userId=` non sporchi i dati utente, e quali campi servono perché `LockedFields` venga salvato.
+- (24c, prova a mano) Che sul server vero lo sfondo scaricato vada in prima posizione (§7.11: se il primo sfondo non è un file locale, Jellyfin non lo sposta e l'app non lo segnala) e che `Apply` oltre i 3 minuti si comporti come in §7.9. Sul sorgente sono verificati, sul server vero no.
 - (24b, **non verificato**) Che i dati di `MediaSources.Path` arrivino ai non admin: nessun task del 24b l'ha provato su un server vero. Se arrivano, l'app non li mostra comunque (decisione 17: il modello tiene solo il nome del file e la finestra Info tecniche lo mostra solo all'admin); se non arrivano, l'admin vede il nome del file. Da guardare nella prova a mano con l'utente non admin.
 - (24b, prova a mano) Che `PlaybackInfo` richiesto a metà di una transcodifica (§7.6, traccia nuova dal player) non disturbi la sessione in corso: l'app ignora il `PlaySessionId` nuovo che riceve.
 
@@ -543,5 +577,6 @@ Sul server vero, con l'admin e due utenti di prova, uno con la spunta sottotitol
 
 - **24a, plugin 1.12.0 (realizzato):** archivio, endpoint, cassetta, sottotitoli, `Info`. Il plugin 1.12.0 resta **build di prova** sul server fino alla fine del 24b: la release arriva con l'app.
 - **24b, app 0.18.0 (realizzato):** nucleo, menu "⋯", Segnala, riquadro e card, notifiche, Sottotitoli (anche dal player), Info tecniche. Build di prova per la prova a mano; il commit è `chore: app 0.18.0 and spec aligned with plan 24b`.
-- **24c, app 0.19.0 (da realizzare):** Modifica metadati, Identifica, Aggiorna, Locandina e sfondo, con le loro voci nel menu "⋯" e le scorciatoie del riquadro.
+- **24c, app 0.19.0 (realizzato):** Modifica metadati, Identifica, Aggiorna, Locandina e sfondo, con le loro voci nel menu "⋯" e le scorciatoie del riquadro. Build di prova per la prova a mano; il commit è `chore: app 0.19.0 and spec aligned with plan 24c`. Nessun plugin nuovo: parla solo con Jellyfin.
 - **Release:** plugin 1.12.0, poi app 0.18.0 dopo la prova a mano. **Non è obbligatoria**: l'app 0.17 funziona anche con il plugin 1.12.0 (solo senza segnalazioni e sottotitoli), e la 0.18.0 funziona anche con il plugin 1.11.0 (senza le funzioni `reports`). La riga `min-version` resta quella di prima, salvo diversa indicazione al rilascio.
+- **App 0.19.0:** nemmeno questa è obbligatoria. Funziona con qualunque plugin (gli strumenti admin parlano solo con Jellyfin), e senza `reports` mancano solo le funzioni del 24b.
