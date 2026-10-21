@@ -103,4 +103,4 @@ I prossimi episodi delle serie che si seguono, giorno per giorno, con un avviso 
 - Spec O — cosa guardano gli amici (plugin 1.9.0, app 0.15.0).
 - Spec P — match del film (plugin 1.10.0, app 0.16.0).
 - Spec Q — voti degli amici (plugin 1.11.0, app 0.17.0).
-- Spec R — segnalazioni e sottotitoli (plugin 1.12.0, app 0.18.0; strumenti admin dei metadati nel piano 24c).
+- Spec R — segnalazioni, sottotitoli e strumenti admin dei metadati (plugin 1.12.0, app 0.18.0 e 0.19.0).
