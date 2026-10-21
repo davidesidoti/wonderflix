@@ -1,7 +1,7 @@
 # WonderFlix — Spec R: segnalazioni e strumenti per sistemare i titoli
 
 - **Data:** 2026-10-21
-- **Stato:** approvata il 2026-10-21; piano 24a realizzato (`docs/superpowers/plans/2026-10-21-wonderflix-24a-segnalazioni-plugin.md`), build di prova sul server; piano 24b realizzato (`docs/superpowers/plans/2026-10-21-wonderflix-24b-segnalazioni-app.md`), app 0.18.0 in prova a mano; piano 24c da realizzare. Dove il testo dice "(24b)" descrive quello che il 24b ha realizzato, con le differenze dalla prima stesura e il loro motivo.
+- **Stato:** approvata il 2026-10-21; piano 24a realizzato (`docs/superpowers/plans/2026-10-21-wonderflix-24a-segnalazioni-plugin.md`), piano 24b realizzato (`docs/superpowers/plans/2026-10-21-wonderflix-24b-segnalazioni-app.md`), provato con l'utente il 2026-10-21. **Realizzati:** plugin 1.12.0 (tag `watch-party-plugin-v1.12.0`) e app 0.18.0 (tag `v0.18.0`). Piano 24c (strumenti admin, app 0.19.0) da realizzare. Dove il testo dice "(24b)" descrive quello che il 24b ha realizzato, con le differenze dalla prima stesura e il loro motivo.
 - **Ambito:** Spec R. Porta nell'app quello che oggi si fa solo dal menu "⋯" di jellyfin-web su un titolo: cercare e scaricare sottotitoli, modificare i metadati, identificare il titolo giusto, aggiornare i metadati, cambiare locandina e sfondo. Aggiunge le **segnalazioni**: chi trova un problema lo segnala e gli admin lo sistemano. Assorbe la parte "scaricare i sottotitoli mancanti" dell'idea 10 di `docs/IDEE.md`. Lo stile dei sottotitoli resta fuori.
 
 ## 1. Obiettivo

@@ -50,7 +50,7 @@ Un party con data e ora, per esempio "Venerdì 21:00 — Il Padrino". Gli amici 
 
 ## 10. Stile dei sottotitoli
 
-Oggi si può cambiare solo la dimensione (`subtitleScale`). Si aggiungono carattere, colore, contorno, sfondo e posizione, con l'anteprima dal vivo, salvati per profilo. Parte facoltativa: scaricare i sottotitoli mancanti dal player.
+Oggi si può cambiare solo la dimensione (`subtitleScale`). Si aggiungono carattere, colore, contorno, sfondo e posizione, con l'anteprima dal vivo, salvati per profilo. Il download dei sottotitoli mancanti, anche dal player, è arrivato con la Spec R (app 0.18.0).
 - **Da cercare:** quali opzioni di libmpv valgono anche per i sottotitoli ASS (che hanno il loro stile) e PGS (immagini); per il download, la ricerca remota di Jellyfin (`/Items/{id}/RemoteSearch/Subtitles/{lingua}`), che richiede un plugin di sottotitoli sul server (OpenSubtitles) e forse un permesso dell'utente.
 - Piccolo, medio con il download.
 
@@ -103,3 +103,4 @@ I prossimi episodi delle serie che si seguono, giorno per giorno, con un avviso 
 - Spec O — cosa guardano gli amici (plugin 1.9.0, app 0.15.0).
 - Spec P — match del film (plugin 1.10.0, app 0.16.0).
 - Spec Q — voti degli amici (plugin 1.11.0, app 0.17.0).
+- Spec R — segnalazioni e sottotitoli (plugin 1.12.0, app 0.18.0; strumenti admin dei metadati nel piano 24c).
