@@ -1,7 +1,7 @@
 # WonderFlix — Spec R: segnalazioni e strumenti per sistemare i titoli
 
 - **Data:** 2026-10-21
-- **Stato:** approvata il 2026-10-21; piano 24a realizzato (`docs/superpowers/plans/2026-10-21-wonderflix-24a-segnalazioni-plugin.md`), build di prova sul server; piani 24b e 24c da realizzare.
+- **Stato:** approvata il 2026-10-21; piano 24a realizzato (`docs/superpowers/plans/2026-10-21-wonderflix-24a-segnalazioni-plugin.md`), build di prova sul server; piano 24b realizzato (`docs/superpowers/plans/2026-10-21-wonderflix-24b-segnalazioni-app.md`), app 0.18.0 in prova a mano; piano 24c da realizzare. Dove il testo dice "(24b)" descrive quello che il 24b ha realizzato, con le differenze dalla prima stesura e il loro motivo.
 - **Ambito:** Spec R. Porta nell'app quello che oggi si fa solo dal menu "⋯" di jellyfin-web su un titolo: cercare e scaricare sottotitoli, modificare i metadati, identificare il titolo giusto, aggiornare i metadati, cambiare locandina e sfondo. Aggiunge le **segnalazioni**: chi trova un problema lo segnala e gli admin lo sistemano. Assorbe la parte "scaricare i sottotitoli mancanti" dell'idea 10 di `docs/IDEE.md`. Lo stile dei sottotitoli resta fuori.
 
 ## 1. Obiettivo
@@ -128,14 +128,17 @@ Decise dopo la revisione del documento:
   - due tipi nuovi di voce nella cassetta: `ReportPending` e `ReportResolved`;
   - endpoint sottotitoli lato server;
   - funzione `reports` in `Info`.
-- **App 0.18.0:**
+- **App 0.18.0 (piano 24b):**
   - menu "⋯" nel dettaglio (film, serie, stagione, episodio);
   - "Segnala un problema";
   - riquadro delle segnalazioni nel dettaglio e card nella dashboard;
   - notifiche;
   - finestra Sottotitoli, anche dal player;
   - Info tecniche;
+  - testi it/en.
+- **App 0.19.0 (piano 24c):**
   - Modifica metadati, Identifica, Aggiorna metadati, Locandina e sfondo;
+  - le loro voci nel menu "⋯" e le loro scorciatoie nel riquadro delle segnalazioni;
   - testi it/en.
 
 ### Escluso
@@ -169,7 +172,7 @@ Metadati, identifica, aggiorna, immagini (solo admin), elimina sottotitolo (solo
   App ──▶ Jellyfin direttamente, con il token dell'utente
 
 Info tecniche (tutti)
-  App: dati già presenti nell'item (MediaSources / MediaStreams)
+  App ──GET /Items/{id}?userId=&fields=MediaSources──▶ Jellyfin (modello a parte, `ItemMediaInfo`: §7.7)
 ```
 
 - **Il plugin decide:** chi riceve le notifiche, chi può gestire i sottotitoli e quali segnalazioni ci sono.
@@ -275,36 +278,42 @@ Endpoint ammessi a chi è **admin oppure** ha `EnableSubtitleManagement` (`user.
 ### 6.5 `Info`
 
 - Nuova funzione `reports`, in fondo a `WatchPartyProtocol.Features` (dopo `ratings`): `FeaturesWith` la include sempre, come le altre. Copre sia le segnalazioni sia gli endpoint sottotitoli. `Version` è "1.12.0", `Protocol` resta 1.
-- Con un plugin senza `reports`, l'app nasconde "Segnala", il riquadro, la card e la finestra Sottotitoli. Gli strumenti admin che parlano solo con Jellyfin (§7.6–7.9) restano.
+- Con un plugin senza `reports`, l'app nasconde "Segnala", il riquadro, la card e la finestra Sottotitoli. Restano Info tecniche (§7.7) e gli strumenti admin che parlano solo con Jellyfin (§7.8–7.11).
 
 ## 7. App 0.18.0
 
 ### 7.1 Nucleo
 
-- **Permessi:**
-  - `auth_models.dart` legge anche `Policy.EnableSubtitleManagement`;
-  - un provider `canManageSubtitlesProvider` vale `isAdmin || enableSubtitleManagement`, e insieme a `reports` in `Info` decide se mostrare gli strumenti dei sottotitoli.
-- **API:**
-  - `reports_api.dart` per le segnalazioni;
-  - `subtitles_api.dart` per i sottotitoli via plugin, più il `DELETE` diretto;
-  - `item_edit_api.dart` per MetadataEditor, `POST /Items/{id}`, RemoteSearch, Apply, Refresh, RemoteImages, upload e ordine delle immagini.
-- **Timeout:** Identifica: applica ha un timeout lungo, 3 minuti, perché Jellyfin risponde solo a fine refresh. Il resto usa quello normale.
+- **Permessi (24b):**
+  - `JellyfinUser.enableSubtitleManagement` (`auth_models.dart`) legge anche `Policy.EnableSubtitleManagement`;
+  - `canManageSubtitlesProvider` (`lib/features/reports/reports_providers.dart`) vale `(isAdmin || enableSubtitleManagement) && features.reports`: la funzione `reports` di `Info` è già dentro il provider, perché gli endpoint dei sottotitoli sono del plugin e senza `reports` non ci sono.
+- **Funzione `reports` (24b):** `PluginFeatures.reports` e `SocialFeatures.reports`. **Non dipende dall'accesso ai watch party**, a differenza di `ratings`: vale per chiunque abbia il plugin 1.12.0 (differenza dalla prima stesura: le segnalazioni non hanno a che fare con le sale). `describePluginFeatures` (diagnostica) la elenca come "segnalazioni".
+- **API (24b):**
+  - `lib/core/reports/report_models.dart` e `reports_api.dart`: tipi, esiti, `ItemReport`, `ReportsApi` (`create`, `mine`, `all`, `resolve`) e `ReportsException` con il motivo del 409 (`limitReached`, `closed`);
+  - `lib/core/subtitles/subtitle_models.dart` e `subtitles_api.dart`: `RemoteSubtitle`, `sortSubtitles`, `SubtitlesApi` (`search`, `download`, `upload` via plugin, più il `DELETE` diretto a Jellyfin) e `SubtitlesException`;
+  - `lib/core/jellyfin/media_info_models.dart` (`ItemMediaInfo`) con la lettura in `LibraryApi.mediaInfo` (§7.7);
+  - provider in `lib/features/reports/reports_providers.dart`: `reportsApiProvider`, `subtitlesApiProvider`, `itemMediaInfoProvider`, `canManageSubtitlesProvider`.
+  - Un 404 dal plugin vale "plugin vecchio" (`unavailable`): il plugin 1.12.0 non risponde mai 404.
+- **API (24c):** `item_edit_api.dart` per MetadataEditor, `POST /Items/{id}`, RemoteSearch, Apply, Refresh, RemoteImages, upload e ordine delle immagini.
+- **Timeout (24c):** Identifica: applica ha un timeout lungo, 3 minuti, perché Jellyfin risponde solo a fine refresh. Il resto usa quello normale.
 
 ### 7.2 Menu "⋯"
 
 Un bottone "⋯" in `detail_header.dart`, dopo Preferito e Visto. Uno uguale su ogni riga di `_EpisodeList` e uno a destra di `_SeasonTabs` per la stagione selezionata (decisione 23).
 
-| Voce | Chi | Dove |
-|---|---|---|
-| Segnala un problema | tutti (con `reports`) | film, serie, stagione, episodio |
-| Info tecniche | tutti | film, episodio |
-| Sottotitoli… | `canManageSubtitles` | film, episodio |
-| Modifica metadati | admin | tutti e quattro |
-| Identifica | admin | film, serie |
-| Aggiorna metadati | admin | tutti e quattro |
-| Locandina e sfondo | admin | tutti e quattro |
+| Voce | Chi | Dove | Piano |
+|---|---|---|---|
+| Segnala un problema | tutti (con `reports`) | film, serie, stagione, episodio | 24b |
+| Info tecniche | tutti (anche senza `reports`) | film, episodio | 24b |
+| Sottotitoli… | `canManageSubtitles` | film, episodio | 24b |
+| Modifica metadati | admin | tutti e quattro | 24c |
+| Identifica | admin | film, serie | 24c |
+| Aggiorna metadati | admin | tutti e quattro | 24c |
+| Locandina e sfondo | admin | tutti e quattro | 24c |
 
 Le voci che non si possono usare non compaiono; se non ne resta nessuna, il bottone non c'è. Le voci sono separate in tre gruppi (tutti / sottotitoli / admin), come nella bozza.
+
+**Come è fatto (24b):** `lib/features/detail/item_actions_menu.dart`. L'elenco delle voci è una funzione pura, `itemActionGroups(kind, reports, canManageSubtitles, isAdmin)`, che restituisce i gruppi senza quelli vuoti; il gruppo admin c'è già ma resta vuoto fino al 24c, che aggiunge le sue voci lì (differenza dalla prima stesura: così i ruoli × i livelli si provano senza costruire widget e il 24c non rifà il menu). `ItemActionsButton` mostra il `PopupMenuButton` con il separatore fra i gruppi. Conseguenza: senza `reports` una serie o una stagione non hanno il bottone, mentre film ed episodi lo hanno comunque per "Info tecniche".
 
 ### 7.3 Segnala un problema
 
@@ -317,6 +326,13 @@ Finestra `showWfDialog`, come nella bozza 2:
 - se `GET Reports/Mine` ha già una segnalazione con quel tipo: la scritta "Hai già segnalato questo problema: puoi aggiornare la nota" e la nota precompilata;
 - **Invia**, poi la conferma "Segnalazione inviata agli admin" (lo snackbar dell'app). Gli errori stanno nella finestra, che resta aperta.
 
+Come è fatta (24b, `lib/features/reports/report_dialog.dart`):
+
+- I livelli sono calcolati da una funzione pura, `reportTargets`. Da un episodio: l'episodio, la sua stagione e la serie; **il livello stagione manca se l'episodio non ha `parentIndexNumber`**, perché non ci sarebbe l'etichetta ("Stagione N"). Da una stagione: lei e la serie. Le voci senza id si saltano.
+- `GET Reports/Mine` si richiede all'apertura e a ogni cambio di livello; una risposta arrivata in ritardo per un livello lasciato si scarta. Un errore di `Mine` si ignora (la finestra serve lo stesso). La nota precompilata non sostituisce una nota già scritta.
+- La nota parte senza spazi ai bordi; una nota vuota non viene mandata.
+- Gli errori: 409 `LimitReached` dà "Hai già 20 segnalazioni aperte: aspetta che gli admin ne chiudano qualcuna"; 403 dà "Non hai il permesso per farlo" e rilegge l'utente (§8); il resto il messaggio generico. Durante l'invio la finestra non si chiude.
+
 ### 7.4 Segnalazioni lato admin
 
 - **Riquadro nel dettaglio** (bozza 3), solo per gli admin, sopra il contenuto del dettaglio di un film o di una serie.
@@ -324,24 +340,31 @@ Finestra `showWfDialog`, come nella bozza 2:
   - Ognuna ha: avatar e nome, tipo, nota, "Sistemato", "Non sistemabile" e la scorciatoia della decisione 11, scelta per livello come nella decisione 20 (sull'episodio o sulla stagione giusta).
   - "Sistemato" e "Non sistemabile" aprono una piccola finestra con la nota facoltativa e il bottone di conferma.
   - Se non ci sono segnalazioni, il riquadro non c'è.
-- **Card "Segnalazioni"** in `wonderflix_tab.dart`: tutte le aperte, con titolo, livello, tipo, chi e quando. "Apri" porta al dettaglio. Se è vuota: "Nessuna segnalazione aperta".
-- **Aggiornamento:** riquadro e card si ricaricano quando arriva `InboxChanged` (una `ReportPending` arriva o sparisce), dopo una chiusura e all'apertura.
+  - **Posizione (24b):** nella `ListView` del dettaglio, subito dopo `DetailHeader` e **fuori dalle `StaggerItem`**, così `detailEntranceCount` resta 9 e l'animazione d'ingresso non cambia (differenza dalla prima stesura, che non diceva dove). Nel dettaglio di un film (`movie_detail_view.dart`) compare solo se l'item è un film; in quello di una serie (`series_detail_view.dart`) sempre.
+  - **Scorciatoie (24b):** solo "Cerca sottotitoli", per le segnalazioni `Subtitles` di un film o di un episodio (`reportShortcut`); apre la finestra Sottotitoli sull'`ItemId` della segnalazione. "Identifica" e "Modifica metadati" della decisione 20 arrivano con il 24c, che le aggiunge nello stesso punto (differenza dalla prima stesura: gli strumenti non esistono ancora nell'app 0.18.0).
+  - **Finestra di chiusura (24b):** la nota ha le stesse regole di quella della segnalazione (500 punti di codice, contatore da 450); una nota vuota non si manda. La finestra tiene viva la lista delle segnalazioni finché è aperta: se nel frattempo l'ultima voce del titolo sparisce (la chiude un altro admin) il riquadro si smonta, ma "Conferma" funziona lo stesso. Durante la chiamata la finestra non si chiude e c'è una sola chiamata in volo. Gli errori sono in §8.
+- **Card "Segnalazioni"** in `wonderflix_tab.dart` (dopo "Commenti degli utenti"): tutte le aperte, con titolo, livello, tipo, chi e quando. "Apri" porta al dettaglio **della serie o del film** (`/item/{TitleId}`), anche per una segnalazione di stagione o di episodio, come per la notifica (§7.5). Se è vuota: "Nessuna segnalazione aperta". Senza la funzione `reports`: "Serve il plugin 1.12.0" (un messaggio, non la lista vuota); finché `Info` non ha risposto: scheletro.
+- **Aggiornamento:** riquadro e card si ricaricano quando arriva `InboxChanged` (una `ReportPending` arriva o sparisce), dopo una chiusura e all'apertura. Si ricaricano anche a ogni riconnessione del WebSocket (`ServerConnected`), per non perdere gli avvisi arrivati a connessione caduta (differenza dalla prima stesura). Il provider è `autoDispose`: vive solo con un riquadro, la card o una finestra di chiusura montati. Senza admin o senza `reports` non chiama il plugin.
 
 ### 7.5 Notifiche
 
 - **`ReportPending`**:
   - testo: "**Nome** ha segnalato un problema", sotto titolo · livello · tipo;
-  - al tocco apre il dettaglio di `TitleId`, con la stagione dell'episodio selezionata se possibile.
+  - al tocco apre il dettaglio di `TitleId`. **Differenza dalla prima stesura (24b):** la stagione dell'episodio non si seleziona, perché la voce ha i numeri ma non l'id della stagione: l'episodio apre la scheda della serie senza stagione scelta. Una segnalazione sulla **stagione** apre invece `/item/{TitleId}?season={ItemId}`.
 - **`ReportResolved`**:
-  - "Problema sistemato su **Titolo**" oppure "Non è stato possibile sistemare **Titolo**", sotto la nota dell'admin tra virgolette, se c'è;
-  - al tocco apre il dettaglio.
-- Icone e colori come nella bozza 4.
+  - "Problema sistemato su **Titolo**" oppure "Non è stato possibile sistemare **Titolo**", sotto la nota dell'admin tra virgolette, se c'è. Le virgolette sono quelle già usate dalla cassetta per i messaggi dei consigli («…»), non una chiave nuova;
+  - al tocco apre il dettaglio come sopra.
+- Il tocco chiude prima il pannello della cassetta. Una voce senza `TitleId` (il titolo non c'è più) chiude solo il pannello.
+- Il livello e il tipo sotto il testo si compongono nella lingua dell'app (`report_labels.dart`: `reportLevelLabel`, `reportTypeLabel`, `reportTitleLine`); un tipo che l'app non conosce (plugin più nuovo) si omette dalla riga, mentre nelle altre viste vale "Altro". Una voce con un id mancante, o `ReportResolved` con un esito sconosciuto, è ignorata; un tipo di titolo sconosciuto lascia la voce senza livello.
+- Icone e colori come nella bozza 4: la locandina del titolo se c'è `ImageItemId`, altrimenti una bandierina (in attesa) o un cerchio con la spunta o il punto esclamativo (esito).
 
 ### 7.6 Sottotitoli
 
 Finestra (bozza 5), da "⋯ → Sottotitoli…", dalla scorciatoia del riquadro e dal pannello tracce del player.
 
-- **Lingua:** menu con le lingue più comuni. All'inizio vale la lingua preferita dei sottotitoli dell'utente (`SubtitleLanguagePreference` della configurazione Jellyfin), altrimenti italiano. I codici sono ISO 639-2 a tre lettere (`ita`, `eng`…).
+**Come si apre (24b):** `showSubtitlesDialog(context, itemId:, title:, onTrackAdded:)` prende **l'id e il titolo, non un `JellyfinItem`** (differenza dalla prima stesura). Così la aprono allo stesso modo il menu, il riquadro admin (che ha solo i dati della segnalazione: `ItemId`, nome del titolo e livello) e il player. Il controller (`subtitles_controller.dart`) è un `Notifier` `autoDispose` per id: una sola operazione alla volta (cerca, scarica, carica o elimina), e chiudere la finestra ferma le attese.
+
+- **Lingua:** menu con le lingue di `playbackLanguages` (quelle delle impostazioni di riproduzione, già nell'app). All'inizio vale la lingua preferita dei sottotitoli dell'utente (`LanguagePreferences.subtitleLanguage`) se è fra quelle del menu, altrimenti italiano; se la preferenza arriva dopo l'apertura vale finché l'utente non sceglie. Cambiare lingua svuota i risultati, che sono di un'altra lingua. I codici sono ISO 639-2 a tre lettere (`ita`, `eng`…).
 - **Cerca:** lista dei risultati.
   - Ognuno ha nome, provider, formato, voto, numero di download e le etichette "Sincronizzato col file" (`IsHashMatch`), "Per non udenti", "Forzati", "Tradotto automaticamente" (`MachineTranslated`, che il plugin ricava da `AiTranslated` o `MachineTranslated` di Jellyfin).
   - L'ordine: prima i sincronizzati, poi per download.
@@ -349,11 +372,15 @@ Finestra (bozza 5), da "⋯ → Sottotitoli…", dalla scorciatoia del riquadro 
 - **Scarica:**
   - mentre scarica la riga mostra una rotella; 502 dà "Download non riuscito";
   - poi l'app rilegge l'item ogni 2 s, per al massimo 20 s, finché compare una traccia esterna nuova. Se non compare: "Scaricato: la traccia comparirà tra poco".
-- **Carica file…:** `file_selector` con `.srt .ass .ssa .vtt .sub`, al massimo 2 MiB (2 097 152 byte; il plugin controlla i byte decodificati). Lingua presa dal menu; "Forzati" e "Per non udenti" come caselle. Poi la stessa attesa di "Scarica".
-- **Tracce presenti:** lingua, formato, esterna o nel file. Solo per l'admin e solo sulle esterne c'è "Elimina", con conferma (`wf_confirm_dialog`).
+  - **Come si riconosce la traccia nuova (24b):** prima della chiamata l'app fotografa gli indici delle tracce esterne (`externalSubtitleIndexes` di `ItemMediaInfo`); poi, a ogni rilettura, cerca un indice esterno che non c'era. Vale per download e caricamento. Le riletture sono 10, a distanza di 2 s (il tempo si conta in giri, non a orologio: una rilettura lenta allunga un po' l'attesa); una rilettura che fallisce non chiude l'attesa, si riprova al giro dopo. Se la finestra si chiude durante l'attesa il timer si ferma, non parte nessuna chiamata in più e il player non viene avvisato. Dopo l'attesa, riuscita o no, la finestra si può chiudere: niente rotella infinita.
+- **Carica file…:** `file_selector` con `.srt .ass .ssa .vtt .sub`, al massimo 2 MiB (2 097 152 byte; il plugin controlla i byte decodificati). Lingua presa dal menu; "Forzati" e "Per non udenti" come caselle. Poi la stessa attesa di "Scarica". Il formato è l'estensione del nome, in minuscolo; un file oltre il limite dà "Il file supera 2 MB" senza nessuna chiamata.
+- **Tracce presenti:** lingua, formato, esterna o nel file (non le etichette Forzati e Per non udenti; con più versioni, le tracce con lo stesso indice si mostrano una volta). Solo per l'admin e solo sulle esterne c'è "Elimina", con conferma (`wf_confirm_dialog`).
 - **Dal player:**
-  - in `tracks_panel.dart`, sotto i sottotitoli, "Cerca sottotitoli" apre la stessa finestra sul titolo in riproduzione;
-  - quando la traccia nuova compare, il player rilegge `PlaybackInfo`. Se la traccia ha consegna esterna, la aggiunge fra le tracce caricandola da `deliveryUrl`, senza fermare la riproduzione e senza attivarla da sola. Altrimenti mostra il messaggio della decisione 21.
+  - in `tracks_panel.dart`, sotto i sottotitoli e sopra il ritardo, "Cerca sottotitoli" apre la stessa finestra sul titolo in riproduzione. Il pannello tracce si chiude e i tasti del player non agiscono finché la finestra è aperta. Il pulsante c'è solo con `canManageSubtitlesProvider`. Il titolo mostrato è il nome dell'item (per un episodio, il nome dell'episodio);
+  - quando la traccia nuova compare, il player rilegge `PlaybackInfo` (`PlayerController.refreshSubtitleStreams()`, che usa la stessa versione, lo stesso metodo di riproduzione e le stesse tracce scelte). Se la traccia ha consegna esterna, la aggiunge fra le tracce caricandola da `deliveryUrl`, senza fermare la riproduzione e senza attivarla da sola. Altrimenti mostra il messaggio della decisione 21.
+  - **Regola precisa (24b, decisione 8):** la traccia si aggiunge senza fermarsi solo se **ogni traccia di prima c'è ancora allo stesso indice con lo stesso tipo, codec, lingua ed `IsExternal`** e **tutti i sottotitoli nuovi hanno consegna esterna** (`deliveredExternally`). Altrimenti "Il sottotitolo sarà disponibile dalla prossima riproduzione" e il piano di riproduzione non cambia. Differenza dalla prima stesura, che confrontava solo il tipo: con il solo tipo uno spostamento fra due sottotitoli non si vedrebbe, la lista mostrerebbe le tracce nuove agli indici vecchi e il player sceglierebbe il file sbagliato; il confronto più stretto, nel dubbio, rimanda alla prossima riproduzione. Limite noto: due sottotitoli esterni scambiati con stesso codec e lingua non si distinguono.
+  - Le tracce vecchie restano com'erano (con il loro `DeliveryUrl`); i sottotitoli nuovi si aggiungono in fondo, presi dalla risposta. Qualunque errore nella rilettura (rete, risposta non leggibile) lascia tutto com'è, senza messaggio: nel log solo il tipo dell'errore. Se nel frattempo il player è ripartito, o la versione non c'è più, non si fa nulla.
+  - **Da guardare nella prova a mano:** non sappiamo se `PlaybackInfo` chiamato a metà di una transcodifica lascia intatta la sessione in corso (restituisce un `PlaySessionId` nuovo, che l'app ignora).
 
 ### 7.7 Info tecniche
 
@@ -364,9 +391,16 @@ Finestra con una sezione per ogni versione (`MediaSources`):
 - **audio:** una riga per traccia (lingua, codec, canali, predefinita);
 - **sottotitoli:** una riga per traccia (lingua, formato, esterno/nel file, forzati).
 
-Il nome del file lo vede solo l'admin (decisione 17). Se l'item non ha già `MediaSources`, l'app lo rilegge con quel campo.
+Il nome del file lo vede solo l'admin (decisione 17).
 
-### 7.8 Modifica metadati (admin)
+**Come è fatto (24b):** differenza dalla prima stesura, che rileggeva l'item solo se mancava `MediaSources`. L'app legge sempre `GET /Items/{id}?userId=&fields=MediaSources` (`LibraryApi.mediaInfo`) in un modello a parte, **`ItemMediaInfo`** (`lib/core/jellyfin/media_info_models.dart`: `MediaVersion`, `VideoTrack`, `AudioTrack`, `SubtitleTrack`), e `JellyfinItem` resta com'è. Motivo: `JellyfinItem` non ha `MediaSources` e le stesse tracce servono alla finestra Sottotitoli per riconoscere la traccia nuova (§7.6). `itemMediaInfoProvider` è `autoDispose` per id.
+
+- La finestra (`lib/features/detail/media_info_dialog.dart`) mostra il titolo della versione solo se ce n'è più di una. Dimensione in GB (se da 1 GB in su, unità decimali) o MB, durata, bitrate in Mbps.
+- Il modello tiene solo l'ultimo componente di `Path` (mai il percorso sul server), e la finestra lo mostra solo a chi è admin.
+- Se l'item non ha versioni, o la lettura fallisce, c'è il messaggio "informazioni non disponibili", non un errore.
+- La voce "Info tecniche" c'è anche senza la funzione `reports` (§8): non passa dal plugin.
+
+### 7.8 Modifica metadati (admin, piano 24c)
 
 - **Campi:**
   - titolo, titolo originale, titolo per l'ordinamento, tagline (non per gli episodi), trama;
@@ -380,7 +414,7 @@ Il nome del file lo vede solo l'admin (decisione 17). Se l'item non ha già `Med
   - poi l'app ricarica il dettaglio.
 - **Errori:** nella finestra, che resta aperta.
 
-### 7.9 Identifica (admin, film e serie)
+### 7.9 Identifica (admin, film e serie, piano 24c)
 
 - **Ricerca:** campi precompilati dall'item (nome, anno, id TMDb e IMDb; per le serie anche TVDB) e "Cerca", con `POST /Items/RemoteSearch/Movie|Series` e `ItemId`.
 - **Risultati:** locandina (`ImageUrl`), nome, anno, provider, trama accorciata.
@@ -389,7 +423,7 @@ Il nome del file lo vede solo l'admin (decisione 17). Se l'item non ha già `Med
   - poi `Apply`, con una rotella e il testo "Può volerci qualche minuto";
   - alla fine l'app ricarica il dettaglio. Se scade il timeout: "Jellyfin sta ancora lavorando: ricarica tra poco".
 
-### 7.10 Aggiorna metadati (admin)
+### 7.10 Aggiorna metadati (admin, piano 24c)
 
 Sottomenu con due voci:
 
@@ -398,7 +432,7 @@ Sottomenu con due voci:
 
 Jellyfin le mette in coda. L'app mostra "Aggiornamento avviato" e ricarica il dettaglio dopo 10 s.
 
-### 7.11 Locandina e sfondo (admin)
+### 7.11 Locandina e sfondo (admin, piano 24c)
 
 - **Due schede, Locandina e Sfondo**, con l'immagine attuale in alto. Stagioni ed episodi hanno una scheda sola (decisione 22).
 - **Griglia** da `GET /Items/{id}/RemoteImages?type=Primary|Backdrop`:
@@ -413,14 +447,19 @@ Jellyfin le mette in coda. L'app mostra "Aggiornamento avviato" e ricarica il de
 
 ### 7.12 Versione
 
-App `0.18.0`, plugin `1.12.0`.
+Il piano 24b chiude con l'app **`0.18.0`**, da rilasciare insieme al plugin **`1.12.0`** (§13). Il piano 24c sarà la **`0.19.0`**. Differenza dalla prima stesura, che metteva tutto nella 0.18.0: l'app si può provare e rilasciare a pezzi senza aspettare gli strumenti dei metadati.
+
+**Release non obbligatoria:** l'app 0.17 continua a funzionare con il plugin 1.12.0 (senza segnalazioni e sottotitoli). La riga `min-version` delle note resta quella di prima, salvo diversa indicazione al rilascio.
 
 ## 8. Senza plugin ed errori
 
 - **Plugin senza `reports`**, o plugin assente: niente "Segnala", riquadro, card e Sottotitoli. Restano Info tecniche e gli strumenti admin diretti.
 - **403 da Jellyfin o dal plugin**, per esempio un permesso tolto mentre l'app era aperta: "Non hai il permesso per farlo". L'app rilegge `/Users/Me`, così le voci spariscono.
+  - **Dove (24b):** nella finestra Segnala, nella finestra Sottotitoli (ricerca, download, caricamento ed eliminazione) e nella finestra di chiusura di una segnalazione. In tutte la finestra resta aperta con il messaggio.
+  - **Dopo la chiusura della finestra (24b):** il controller dei sottotitoli prende il notifier della sessione quando nasce, così un 403 che arriva a finestra già chiusa rilegge lo stesso l'utente; le operazioni in corso quando la finestra si chiude si fermano senza errori e senza nulla nel log.
 - **Errore di rete:** il messaggio generico dell'app, e la finestra resta aperta con i dati inseriti.
-- **Segnalazione già chiusa da un altro admin** (409 `Closed` su Resolve): "Questa segnalazione è già stata chiusa", e il riquadro si ricarica.
+- **Segnalazione già chiusa da un altro admin** (409 `Closed` su Resolve): "Questa segnalazione è già stata chiusa", e il riquadro si ricarica. La finestra di chiusura si chiude e il messaggio compare come snackbar (la finestra non c'è più per mostrarlo).
+- **Fallimenti del plugin (24b):** 502 sui sottotitoli = "Download non riuscito" o "Caricamento non riuscito"; la ricerca fallita mostra l'errore generico. Un 404 dal plugin (plugin vecchio) o un 409 con un motivo che l'app non conosce è trattato come richiesta non valida / non disponibile, mai come un successo. Nel log solo il tipo dell'errore e il nome del fallimento, mai note, nomi, titoli o nomi di file.
 
 ## 9. Testi nuovi (ARB, it + en)
 
@@ -474,7 +513,7 @@ Tutte le etichette, i messaggi e le notifiche di §7 e §8, in italiano e in ing
 
 ### 11.3 Prova a mano
 
-Sul server vero, con l'admin e due utenti di prova, uno con la spunta sottotitoli:
+Sul server vero, con l'admin e due utenti di prova, uno con la spunta sottotitoli. I passi 1, 2, 3 e 5 sono quelli del 24b (app 0.18.0; sono anche nella checklist di `docs/RELEASING.md`); il passo 4 aspetta il 24c. Nel passo 3 si guarda anche che la transcodifica in corso non si disturbi (§7.6).
 
 1. Un utente segnala un episodio. Gli admin ricevono la notifica, l'utente con la spunta no.
 2. L'admin apre la notifica, usa "Cerca sottotitoli", scarica un sottotitolo italiano e la traccia compare. "Sistemato" con nota: la notifica arriva all'utente.
@@ -493,15 +532,16 @@ Sul server vero, con l'admin e due utenti di prova, uno con la spunta sottotitol
 - **`RemoteSubtitleInfo`:** `CommunityRating` (`float?`), `DownloadCount` (`int?`) e `IsHashMatch`, `AiTranslated`, `MachineTranslated`, `Forced`, `HearingImpaired` (`bool?`).
 - **`PermissionKind.EnableSubtitleManagement`** esiste con questo nome, valore 22.
 
-**Ancora aperto** (piani 24b e 24c):
+**Ancora aperto:**
 
-- Che `RemoteImages/Download` di un `Backdrop` aggiunga lo sfondo in fondo, e che `Images/Backdrop/{index}/Index` sposti come previsto.
-- Che `POST /Items/{id}` con il DTO letto da `GET /Items/{id}?userId=` non sporchi i dati utente, e quali campi servono perché `LockedFields` venga salvato.
-- Che i dati di `MediaSources.Path` arrivino ai non admin: se sì, l'app non li mostra (decisione 17); se no, l'admin vede il nome del file.
+- (24c) Che `RemoteImages/Download` di un `Backdrop` aggiunga lo sfondo in fondo, e che `Images/Backdrop/{index}/Index` sposti come previsto.
+- (24c) Che `POST /Items/{id}` con il DTO letto da `GET /Items/{id}?userId=` non sporchi i dati utente, e quali campi servono perché `LockedFields` venga salvato.
+- (24b, **non verificato**) Che i dati di `MediaSources.Path` arrivino ai non admin: nessun task del 24b l'ha provato su un server vero. Se arrivano, l'app non li mostra comunque (decisione 17: il modello tiene solo il nome del file e la finestra Info tecniche lo mostra solo all'admin); se non arrivano, l'admin vede il nome del file. Da guardare nella prova a mano con l'utente non admin.
+- (24b, prova a mano) Che `PlaybackInfo` richiesto a metà di una transcodifica (§7.6, traccia nuova dal player) non disturbi la sessione in corso: l'app ignora il `PlaySessionId` nuovo che riceve.
 
 ## 13. Piani e release
 
 - **24a, plugin 1.12.0 (realizzato):** archivio, endpoint, cassetta, sottotitoli, `Info`. Il plugin 1.12.0 resta **build di prova** sul server fino alla fine del 24b: la release arriva con l'app.
-- **24b, app (segnalazioni e sottotitoli):** nucleo, menu "⋯", Segnala, riquadro e card, notifiche, Sottotitoli (anche dal player), Info tecniche.
-- **24c, app (strumenti admin):** Modifica metadati, Identifica, Aggiorna, Locandina e sfondo.
-- **Release:** plugin 1.12.0, poi app 0.18.0 dopo la prova a mano. Obbligatoria o no si decide al rilascio: l'app funziona anche con il plugin 1.11.0, solo senza segnalazioni e sottotitoli.
+- **24b, app 0.18.0 (realizzato):** nucleo, menu "⋯", Segnala, riquadro e card, notifiche, Sottotitoli (anche dal player), Info tecniche. Build di prova per la prova a mano; il commit è `chore: app 0.18.0 and spec aligned with plan 24b`.
+- **24c, app 0.19.0 (da realizzare):** Modifica metadati, Identifica, Aggiorna, Locandina e sfondo, con le loro voci nel menu "⋯" e le scorciatoie del riquadro.
+- **Release:** plugin 1.12.0, poi app 0.18.0 dopo la prova a mano. **Non è obbligatoria**: l'app 0.17 funziona anche con il plugin 1.12.0 (solo senza segnalazioni e sottotitoli), e la 0.18.0 funziona anche con il plugin 1.11.0 (senza le funzioni `reports`). La riga `min-version` resta quella di prima, salvo diversa indicazione al rilascio.
