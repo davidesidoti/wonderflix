@@ -48,6 +48,25 @@ void main() {
     expect(const JellyfinUser(id: 'u1', name: 'Mario').isAdministrator, isFalse);
   });
 
+  test('EnableSubtitleManagement nella Policy: vero, falso o assente', () {
+    JellyfinUser managed(Object? value) => JellyfinUser.fromJson({
+          'Id': 'u1',
+          'Name': 'Mario',
+          'Policy': {'EnableSubtitleManagement': ?value},
+        });
+
+    expect(managed(true).enableSubtitleManagement, isTrue);
+    expect(managed(false).enableSubtitleManagement, isFalse);
+    expect(managed(null).enableSubtitleManagement, isFalse);
+    expect(managed('true').enableSubtitleManagement, isFalse);
+    expect(JellyfinUser.fromJson({'Id': 'u1', 'Name': 'Mario'})
+        .enableSubtitleManagement, isFalse);
+    expect(managed(true),
+        isNot(const JellyfinUser(id: 'u1', name: 'Mario')));
+    expect(managed(true).hashCode,
+        isNot(const JellyfinUser(id: 'u1', name: 'Mario').hashCode));
+  });
+
   test('due utenti con gli stessi campi sono uguali', () {
     JellyfinUser build({
       String id = 'u1',

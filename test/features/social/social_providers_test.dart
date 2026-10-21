@@ -140,6 +140,21 @@ void main() {
     expect(noParty.read(socialAvailabilityProvider).ratings, isFalse);
   });
 
+  test('Info con le segnalazioni: reports vale anche senza accesso ai watch party',
+      () async {
+    api.install(features: const {PluginFeatures.reports});
+    final c = container(
+        session: const SessionSignedIn(JellyfinUser(
+            id: 'u1', name: 'Mario', syncPlayAccess: SyncPlayAccess.none)));
+    await pumpEventQueue();
+    expect(c.read(socialAvailabilityProvider),
+        const SocialFeatures(reports: true));
+
+    final withParty = container();
+    await pumpEventQueue();
+    expect(withParty.read(socialAvailabilityProvider).reports, isTrue);
+  });
+
   test('Info con le richieste: funzione requests, anche senza watch party',
       () async {
     api.install(features: const {PluginFeatures.inbox, PluginFeatures.requests});

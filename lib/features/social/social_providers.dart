@@ -32,6 +32,7 @@ class SocialFeatures {
     this.friendsActivity = false,
     this.match = false,
     this.ratings = false,
+    this.reports = false,
     this.known = true,
   });
 
@@ -89,6 +90,10 @@ class SocialFeatures {
   /// watch party.
   final bool ratings;
 
+  /// Le segnalazioni e i sottotitoli (spec R §7.1): non dipendono dai watch
+  /// party.
+  final bool reports;
+
   /// `false` finché `Info` non dà una risposta certa: le funzioni, oppure
   /// un 400/401/403/404. Un errore di rete non basta (vedi
   /// [SocialAvailability]).
@@ -111,6 +116,7 @@ class SocialFeatures {
       other.friendsActivity == friendsActivity &&
       other.match == match &&
       other.ratings == ratings &&
+      other.reports == reports &&
       other.known == known;
 
   @override
@@ -129,6 +135,7 @@ class SocialFeatures {
       friendsActivity,
       match,
       ratings,
+      reports,
       known);
 
   @override
@@ -136,7 +143,7 @@ class SocialFeatures {
       'inbox: $inbox, requests: $requests, collections: $collections, '
       'avatars: $avatars, account: $account, home: $home, '
       'upcomingSeries: $upcomingSeries, upcomingMovies: $upcomingMovies, '
-      'recommendations: $recommendations, friendsActivity: $friendsActivity, match: $match, ratings: $ratings, known: $known)';
+      'recommendations: $recommendations, friendsActivity: $friendsActivity, match: $match, ratings: $ratings, reports: $reports, known: $known)';
 }
 
 /// Chiede `Info` al plugin dopo il login e a ogni connessione del WebSocket,
@@ -244,6 +251,8 @@ class SocialAvailability extends Notifier<SocialFeatures> {
             _canJoin && info.features.contains(PluginFeatures.friendsActivity),
         match: _canJoin && info.features.contains(PluginFeatures.match),
         ratings: _canJoin && info.features.contains(PluginFeatures.ratings),
+        // Come inbox: non dipende dall'accesso ai watch party (piano 24b).
+        reports: info.features.contains(PluginFeatures.reports),
       ));
     } on SocialException catch (error) {
       if (!_isCurrent(generation)) return;

@@ -6,6 +6,7 @@ import 'api_exception.dart';
 import 'item_models.dart';
 import 'item_query.dart';
 import 'jellyfin_http.dart';
+import 'media_info_models.dart';
 
 /// Endpoint della libreria (Jellyfin 10.11). Lancia solo `ApiException`.
 class LibraryApi {
@@ -91,6 +92,14 @@ class LibraryApi {
   Future<JellyfinItem> item(String userId, String itemId) async => parseJson(
       await _http.get('/Items/$itemId', query: {'userId': userId}),
       JellyfinItem.fromJson);
+
+  /// Le versioni del file e le loro tracce (spec R §7.4): `JellyfinItem` non
+  /// ha `MediaSources`.
+  Future<ItemMediaInfo> mediaInfo(String userId, String itemId) async =>
+      parseJson(
+          await _http.get('/Items/$itemId',
+              query: {'userId': userId, 'fields': 'MediaSources'}),
+          ItemMediaInfo.fromItemJson);
 
   Future<List<JellyfinItem>> seasons(String userId, String seriesId) async =>
       _list(await _http.get('/Shows/$seriesId/Seasons',

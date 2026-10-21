@@ -49,6 +49,9 @@ abstract final class PluginFeatures {
 
   /// I voti degli amici (spec Q §6.6).
   static const ratings = 'ratings';
+
+  /// Le segnalazioni e i sottotitoli (spec R §7.1).
+  static const reports = 'reports';
 }
 
 /// Risposta di `GET /WonderFlixWatchParty/Info`, con le funzioni.

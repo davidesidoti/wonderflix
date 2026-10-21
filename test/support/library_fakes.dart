@@ -5,6 +5,7 @@ import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/item_query.dart';
 import 'package:wonderflix/core/jellyfin/library_api.dart';
+import 'package:wonderflix/core/jellyfin/media_info_models.dart';
 
 /// `LibraryApi` in memoria: risposte configurabili e chiamate registrate.
 class FakeLibraryApi implements LibraryApi {
@@ -224,6 +225,19 @@ class FakeLibraryApi implements LibraryApi {
   @override
   Future<JellyfinItem> item(String userId, String itemId) =>
       _answer(() => itemsById[itemId] ?? (throw const NotFoundException()));
+
+  /// Info tecniche per id; un titolo assente è 404.
+  final Map<String, ItemMediaInfo> mediaInfoById = {};
+
+  /// Titoli chiesti a [mediaInfo].
+  final mediaInfoCalls = <String>[];
+
+  @override
+  Future<ItemMediaInfo> mediaInfo(String userId, String itemId) {
+    mediaInfoCalls.add(itemId);
+    return _answer(
+        () => mediaInfoById[itemId] ?? (throw const NotFoundException()));
+  }
 
   @override
   Future<List<JellyfinItem>> seasons(String userId, String seriesId) {

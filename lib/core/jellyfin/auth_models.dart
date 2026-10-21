@@ -26,6 +26,12 @@ SyncPlayAccess _syncPlayAccess(Object? policy) {
 bool _isAdministrator(Object? policy) =>
     policy is Map<String, dynamic> && policy['IsAdministrator'] == true;
 
+/// L'utente gestisce i sottotitoli (`Policy.EnableSubtitleManagement`, spec R
+/// §7.2): solo con un `true` vero.
+bool _enableSubtitleManagement(Object? policy) =>
+    policy is Map<String, dynamic> &&
+    policy['EnableSubtitleManagement'] == true;
+
 class JellyfinUser {
   const JellyfinUser({
     required this.id,
@@ -33,6 +39,7 @@ class JellyfinUser {
     this.primaryImageTag,
     this.syncPlayAccess = SyncPlayAccess.createAndJoin,
     this.isAdministrator = false,
+    this.enableSubtitleManagement = false,
   });
 
   factory JellyfinUser.fromJson(Map<String, dynamic> json) => JellyfinUser(
@@ -41,6 +48,7 @@ class JellyfinUser {
         primaryImageTag: json['PrimaryImageTag'] as String?,
         syncPlayAccess: _syncPlayAccess(json['Policy']),
         isAdministrator: _isAdministrator(json['Policy']),
+        enableSubtitleManagement: _enableSubtitleManagement(json['Policy']),
       );
 
   final String id;
@@ -52,6 +60,9 @@ class JellyfinUser {
   /// ogni chiamata.
   final bool isAdministrator;
 
+  /// Può cercare, caricare e scaricare sottotitoli anche senza essere admin.
+  final bool enableSubtitleManagement;
+
   /// Uguali se hanno gli stessi campi: così una rilettura dell'utente che non
   /// cambia niente non produce un nuovo stato di sessione.
   @override
@@ -61,11 +72,12 @@ class JellyfinUser {
       other.name == name &&
       other.primaryImageTag == primaryImageTag &&
       other.syncPlayAccess == syncPlayAccess &&
-      other.isAdministrator == isAdministrator;
+      other.isAdministrator == isAdministrator &&
+      other.enableSubtitleManagement == enableSubtitleManagement;
 
   @override
-  int get hashCode =>
-      Object.hash(id, name, primaryImageTag, syncPlayAccess, isAdministrator);
+  int get hashCode => Object.hash(id, name, primaryImageTag, syncPlayAccess,
+      isAdministrator, enableSubtitleManagement);
 }
 
 class AuthResult {
