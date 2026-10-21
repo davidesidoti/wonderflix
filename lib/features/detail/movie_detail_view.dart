@@ -13,6 +13,7 @@ import '../library/user_data.dart';
 import '../ratings/friend_ratings_row.dart';
 import '../ratings/rate_panel.dart';
 import '../playback/play_launcher.dart';
+import '../reports/reports_banner.dart';
 import 'detail_header.dart';
 import 'detail_rows.dart';
 import 'header_parallax.dart';
@@ -47,6 +48,8 @@ class MovieDetailView extends ConsumerWidget {
         padding: const EdgeInsets.only(bottom: 40),
         children: [
           DetailHeader(item: item, primary: action, controller: controller),
+          // Fuori dalle StaggerItem: detailEntranceCount non cambia.
+          if (item.kind == ItemKind.movie) ReportsBanner(titleId: item.id),
           // Un episodio aperto da solo non ha la riga (si vota la stagione).
           if (item.kind == ItemKind.movie)
             StaggerItem(

@@ -20,6 +20,7 @@ import 'admin_time.dart';
 import 'admin_widgets.dart';
 import 'home_admin_cards.dart';
 import 'rating_comments_card.dart';
+import 'reports_card.dart';
 import 'wonderflix_controllers.dart';
 import 'wonderflix_labels.dart';
 
@@ -49,6 +50,7 @@ class _WonderflixTabState extends State<WonderflixTab> {
         children: const [
           AnnouncementCard(),
           RatingCommentsCard(),
+          ReportsCard(),
           NewTitlesCard(),
           HomeForEveryoneCard(),
           ArrCard(),

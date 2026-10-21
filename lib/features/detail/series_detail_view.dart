@@ -22,6 +22,7 @@ import '../library/user_data.dart';
 import '../playback/play_launcher.dart';
 import '../ratings/friend_ratings_row.dart';
 import '../ratings/rate_panel.dart';
+import '../reports/reports_banner.dart';
 import 'detail_header.dart';
 import 'detail_providers.dart';
 import 'detail_rows.dart';
@@ -85,6 +86,7 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
         children: [
           DetailHeader(
               item: series, primary: primary, controller: widget.controller),
+          ReportsBanner(titleId: series.id),
           if (shownSeason != null)
             StaggerItem(
               index: 5,
