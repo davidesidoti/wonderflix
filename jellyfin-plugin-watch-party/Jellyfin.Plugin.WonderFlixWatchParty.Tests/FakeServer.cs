@@ -3,8 +3,34 @@ using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
 
 /// <summary>Server finto: sessioni, gruppi SyncPlay e invii, in memoria.</summary>
-internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSender, IUserDirectory, ILibraryAccess, ILibraryTitles, INewTitlesSettings, IRecommendationLibrary, IPlaybackDirectory, IMatchLibrary, IRatingLibrary
+internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSender, IUserDirectory, ILibraryAccess, ILibraryTitles, INewTitlesSettings, IRecommendationLibrary, IPlaybackDirectory, IMatchLibrary, IRatingLibrary, IReportLibrary
 {
+    /// <summary>Titoli che si possono segnalare (spec R), per id.</summary>
+    public Dictionary<Guid, ReportedItem> ReportedItems { get; } = [];
+
+    /// <summary>Se true, <see cref="Find"/> lancia, come un errore di Jellyfin.</summary>
+    public bool ReportLibraryFails { get; set; }
+
+    public ReportedItem AddMovie(string name)
+    {
+        var id = Guid.NewGuid();
+        return ReportedItems[id] = new ReportedItem(id, "Movie", name, id, name, null, null);
+    }
+
+    public (ReportedItem Series, ReportedItem Season, ReportedItem Episode) AddEpisode(string series, int season, int episode)
+    {
+        var seriesId = Guid.NewGuid();
+        var seriesItem = ReportedItems[seriesId] = new ReportedItem(seriesId, "Series", series, seriesId, series, null, null);
+        var seasonId = Guid.NewGuid();
+        var seasonItem = ReportedItems[seasonId] = new ReportedItem(seasonId, "Season", $"Stagione {season}", seriesId, series, season, null);
+        var episodeId = Guid.NewGuid();
+        var episodeItem = ReportedItems[episodeId] = new ReportedItem(episodeId, "Episode", $"Episodio {episode}", seriesId, series, season, episode);
+        return (seriesItem, seasonItem, episodeItem);
+    }
+
+    public ReportedItem? Find(Guid itemId) =>
+        ReportLibraryFails ? throw new InvalidOperationException("libreria non disponibile") : ReportedItems.GetValueOrDefault(itemId);
+
     /// <summary>Film e stagioni che si possono votare (spec Q), per id.</summary>
     public Dictionary<Guid, RatedTitle> RatedTitles { get; } = [];
 
@@ -57,9 +83,9 @@ internal sealed class FakeServer : ISessionDirectory, IGroupDirectory, IEventSen
         return session;
     }
 
-    public UserRef AddUser(string name, bool enabled = true, bool canJoinParties = true, bool isAdmin = false)
+    public UserRef AddUser(string name, bool enabled = true, bool canJoinParties = true, bool isAdmin = false, bool canManageSubtitles = false)
     {
-        var user = new UserRef(Guid.NewGuid(), name, enabled, canJoinParties, isAdmin);
+        var user = new UserRef(Guid.NewGuid(), name, enabled, canJoinParties, isAdmin, canManageSubtitles);
         Users[user.Id] = user;
         return user;
     }
