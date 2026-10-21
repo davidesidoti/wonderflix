@@ -34,8 +34,7 @@ public sealed class ReportService(
     /// <summary>Lunghezza massima di una nota (segnalazione o chiusura), in punti di codice.</summary>
     public const int MaxNoteLength = 500;
 
-    // Per le notifiche della cassetta (Task 3): ancora non usata.
-    private readonly InboxService _inbox = inbox;
+    // Le chiamate alla cassetta stanno sempre fuori da _lock.
     private readonly Lock _lock = new();
     private ReportBook? _book;
 
@@ -76,7 +75,7 @@ public sealed class ReportService(
     /// chi chiama non vede il titolo; Conflict LimitReached oltre le segnalazioni aperte.
     /// Un doppione (stesso titolo e tipo) cambia la nota.
     /// </summary>
-    public Task<ReportOutcome> CreateAsync(Guid userId, CreateReportRequest? request)
+    public async Task<ReportOutcome> CreateAsync(Guid userId, CreateReportRequest? request)
     {
         var note = CleanNote(request?.Note, out var tooLong);
         if (request is null || tooLong || users.GetUser(userId) is not { } user
@@ -84,32 +83,43 @@ public sealed class ReportService(
             || !ReportTypes.IsValid(request.Type)
             || Visible(userId, itemId) is not { } item)
         {
-            return Task.FromResult(ReportOutcome.Invalid);
+            return ReportOutcome.Invalid;
         }
 
         var now = time.GetUtcNow();
         StoredReport report;
+        bool isNew;
         lock (_lock)
         {
             if (Book.FindOpen(userId, itemId, request.Type!) is { } open)
             {
                 report = Book.UpdateNote(open.Id, note, now);
+                isNew = false;
             }
             else if (Book.CountOpen(userId) >= MaxOpenPerUser)
             {
-                return Task.FromResult(ReportOutcome.Conflict(ReportReasons.LimitReached));
+                return ReportOutcome.Conflict(ReportReasons.LimitReached);
             }
             else
             {
                 report = new StoredReport(Guid.NewGuid(), userId, itemId, request.Type!, note, now, now);
                 Book.Add(report);
+                isNew = true;
             }
 
             Persist();
         }
 
         logger.LogDebug("Segnalazione {ReportId} di {UserId} su {ItemId}", Id(report.Id), Id(userId), Id(itemId));
-        return Task.FromResult(ReportOutcome.Ok(ToDto(report, item, user.Name)));
+
+        // Un doppione non avvisa di nuovo (spec R decisione 13).
+        if (isNew)
+        {
+            var admins = users.GetUsers().Where(u => u.IsAdmin && u.Enabled && u.Id != userId).Select(u => u.Id).ToList();
+            await inbox.AddReportPendingAsync(admins, report, item, user.Name).ConfigureAwait(false);
+        }
+
+        return ReportOutcome.Ok(ToDto(report, item, user.Name));
     }
 
     /// <summary>GET Reports/Mine: le segnalazioni di chi chiama su un titolo. Invalid per un id non valido o un utente che non esiste.</summary>
@@ -145,28 +155,39 @@ public sealed class ReportService(
     /// POST Reports/{id}/Resolve (spec R §6.3). Invalid per id, esito o nota non validi;
     /// Conflict Closed se la segnalazione non c'è più (già chiusa).
     /// </summary>
-    public Task<ReportOutcome> ResolveAsync(Guid adminId, string? reportId, ResolveReportRequest? request)
+    public async Task<ReportOutcome> ResolveAsync(Guid adminId, string? reportId, ResolveReportRequest? request)
     {
-        _ = CleanNote(request?.Note, out var tooLong);
+        var note = CleanNote(request?.Note, out var tooLong);
         if (request is null || tooLong || !ReportOutcomes.IsValid(request.Outcome)
             || !Guid.TryParse(reportId, out var id) || id == Guid.Empty)
         {
-            return Task.FromResult(ReportOutcome.Invalid);
+            return ReportOutcome.Invalid;
         }
 
+        StoredReport report;
         lock (_lock)
         {
-            if (!Book.Remove(id))
+            // Lettura e rimozione sotto lo stesso lock: di due admin insieme, solo il primo la chiude.
+            if (Book.Get(id) is not { } open)
             {
-                return Task.FromResult(ReportOutcome.Conflict(ReportReasons.Closed));
+                return ReportOutcome.Conflict(ReportReasons.Closed);
             }
 
+            report = open;
+            Book.Remove(id);
             Persist();
         }
 
         logger.LogInformation(
             "Segnalazione {ReportId} chiusa ({Outcome}) da {Admin}", Id(id), request.Outcome, AdminCaller.Describe(adminId));
-        return Task.FromResult(ReportOutcome.Ok(null));
+
+        await inbox.RemoveReportEntriesAsync([id]).ConfigureAwait(false);
+        if (report.UserId != adminId)
+        {
+            await inbox.AddReportResolvedAsync(report.UserId, report, FindOrNull(report.ItemId), request.Outcome!, note).ConfigureAwait(false);
+        }
+
+        return ReportOutcome.Ok(null);
     }
 
     /// <summary>
@@ -199,16 +220,37 @@ public sealed class ReportService(
             }
         }
 
+        IReadOnlyList<StoredReport> removed;
         lock (_lock)
         {
-            var removed = Book.Prune(id => users.GetUser(id) is not null, ItemExists).Count;
-            if (removed > 0)
+            removed = Book.Prune(id => users.GetUser(id) is not null, ItemExists);
+            if (removed.Count > 0)
             {
                 Persist();
-                logger.LogDebug("Pulizia delle segnalazioni: {Count} tolte", removed);
+                logger.LogDebug("Pulizia delle segnalazioni: {Count} tolte", removed.Count);
             }
+        }
 
-            return removed;
+        if (removed.Count > 0)
+        {
+            // La pulizia gira su un timer: l'avviso parte da solo.
+            _ = inbox.RemoveReportEntriesAsync([.. removed.Select(r => r.Id)]);
+        }
+
+        return removed.Count;
+    }
+
+    // Il titolo adesso; null se non c'è più o la libreria lancia.
+    private ReportedItem? FindOrNull(Guid itemId)
+    {
+        try
+        {
+            return library.Find(itemId);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Segnalazioni: la libreria non risponde per {ItemId}", Id(itemId));
+            return null;
         }
     }
 

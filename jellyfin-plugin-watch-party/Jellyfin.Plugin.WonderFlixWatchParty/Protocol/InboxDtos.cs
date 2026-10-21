@@ -25,6 +25,12 @@ public static class InboxEntryTypes
 
     /// <summary>Un amico invita a una sala del match (spec P §6.5).</summary>
     public const string MatchInvite = "MatchInvite";
+
+    /// <summary>Una segnalazione aperta, agli admin (spec R §6.3).</summary>
+    public const string ReportPending = "ReportPending";
+
+    /// <summary>Una segnalazione chiusa, a chi l'ha fatta (spec R §6.3).</summary>
+    public const string ReportResolved = "ReportResolved";
 }
 
 /// <summary>
@@ -135,6 +141,36 @@ public sealed class InboxEntry
     [JsonPropertyName("RoomId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? RoomId { get; set; }
+
+    /// <summary>ReportPending, ReportResolved: la segnalazione, in formato "N".</summary>
+    [JsonPropertyName("ReportId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ReportId { get; set; }
+
+    /// <summary>ReportPending, ReportResolved: il tipo della segnalazione (Subtitles, Metadata, AudioVideo, Other).</summary>
+    [JsonPropertyName("ReportType")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ReportType { get; set; }
+
+    /// <summary>ReportResolved: l'esito (Fixed, CannotFix).</summary>
+    [JsonPropertyName("Outcome")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Outcome { get; set; }
+
+    /// <summary>ReportPending, ReportResolved: Movie, Series, Season o Episode; manca se il titolo non c'è più.</summary>
+    [JsonPropertyName("ItemType")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ItemType { get; set; }
+
+    /// <summary>ReportPending, ReportResolved: la stagione, per stagioni ed episodi.</summary>
+    [JsonPropertyName("SeasonNumber")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? SeasonNumber { get; set; }
+
+    /// <summary>ReportPending, ReportResolved: l'episodio, per gli episodi.</summary>
+    [JsonPropertyName("EpisodeNumber")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? EpisodeNumber { get; set; }
 
     /// <summary>Copia superficiale: le liste (NewTitles, Seasons, Channels) non si cambiano mai dopo la creazione.</summary>
     public InboxEntry Copy() => (InboxEntry)MemberwiseClone();

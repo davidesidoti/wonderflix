@@ -327,6 +327,117 @@ public sealed class InboxService(
         }
     }
 
+    /// <summary>
+    /// "Nuova segnalazione" agli admin (spec R §6.3), con la nota di chi segnala.
+    /// Non lancia: un errore finisce nel log.
+    /// </summary>
+    public async Task AddReportPendingAsync(IReadOnlyList<Guid> userIds, StoredReport report, ReportedItem item, string fromName)
+    {
+        if (userIds.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var now = time.GetUtcNow();
+            lock (_lock)
+            {
+                foreach (var userId in userIds)
+                {
+                    var entry = ReportEntry(InboxEntryTypes.ReportPending, report, item, report.Note, now);
+                    entry.FromName = fromName;
+                    Book.Add(userId, entry);
+                }
+
+                Persist();
+            }
+
+            logger.LogDebug("Voci della segnalazione {ReportId} a {Count} admin", report.Id.ToString("N"), userIds.Count);
+            await NotifyAsync(userIds).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Voci della segnalazione {ReportId} non create o non notificate", report.Id.ToString("N"));
+        }
+    }
+
+    /// <summary>
+    /// "Segnalazione chiusa" a chi l'ha fatta (spec R §6.3), con l'esito e la nota dell'admin.
+    /// <paramref name="item"/> è null se il titolo non c'è più. Non lancia: un errore finisce nel log.
+    /// </summary>
+    public async Task AddReportResolvedAsync(Guid userId, StoredReport report, ReportedItem? item, string outcome, string? note)
+    {
+        try
+        {
+            var now = time.GetUtcNow();
+            lock (_lock)
+            {
+                var entry = ReportEntry(InboxEntryTypes.ReportResolved, report, item, note, now);
+                entry.Outcome = outcome;
+                Book.Add(userId, entry);
+                Persist();
+            }
+
+            logger.LogDebug("Voce di chiusura della segnalazione {ReportId}", report.Id.ToString("N"));
+            await NotifyAsync([userId]).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Voce di chiusura della segnalazione {ReportId} non creata o non notificata", report.Id.ToString("N"));
+        }
+    }
+
+    /// <summary>
+    /// Toglie le ReportPending di queste segnalazioni (chiuse o sparite) da tutte le cassette
+    /// e avvisa solo gli utenti toccati. Non lancia: un errore finisce nel log.
+    /// </summary>
+    public async Task RemoveReportEntriesAsync(IReadOnlyCollection<Guid> reportIds)
+    {
+        try
+        {
+            List<Guid> touched = [];
+            lock (_lock)
+            {
+                foreach (var reportId in reportIds)
+                {
+                    touched.AddRange(Book.RemoveReport(reportId.ToString("N")));
+                }
+
+                if (touched.Count > 0)
+                {
+                    Persist();
+                }
+            }
+
+            if (touched.Count > 0)
+            {
+                await NotifyAsync([.. touched.Distinct()]).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Voci di {Count} segnalazioni non tolte", reportIds.Count);
+        }
+    }
+
+    // Titolo, locandina e livello dal titolo segnalato; se non c'è più, solo l'id della segnalazione.
+    private static InboxEntry ReportEntry(string type, StoredReport report, ReportedItem? item, string? text, DateTimeOffset now) =>
+        new()
+        {
+            Type = type,
+            CreatedAt = now,
+            ReportId = report.Id.ToString("N"),
+            ReportType = report.Type,
+            Text = text,
+            ItemId = (item?.Id ?? report.ItemId).ToString("N"),
+            ItemType = item?.Type,
+            SeasonNumber = item?.SeasonNumber,
+            EpisodeNumber = item?.EpisodeNumber,
+            Title = item?.TitleName ?? string.Empty,
+            ImageItemId = item?.TitleId.ToString("N"),
+        };
+
     private async Task AddRequestAsync(
         string type, IReadOnlyList<Guid> userIds, RequestEvent request, string? requesterName)
     {

@@ -18,6 +18,9 @@ public sealed class ReportServiceTests : IDisposable
     private readonly UserRef _mario;
     private readonly UserRef _luigi;
     private readonly UserRef _peach;
+    private readonly UserRef _daisy;
+    private readonly UserRef _toad;
+    private readonly InboxService _inbox;
     private readonly ReportedItem _movie;
     private readonly ReportedItem _series;
     private readonly ReportedItem _season;
@@ -25,10 +28,13 @@ public sealed class ReportServiceTests : IDisposable
 
     public ReportServiceTests()
     {
-        _service = TestReports.Create(_server, _folder, _time, TestInbox.Create(_server, _folder, _time), _log);
+        _inbox = TestInbox.Create(_server, _folder, _time);
+        _service = TestReports.Create(_server, _folder, _time, _inbox, _log);
         _mario = _server.AddUser("Mario");
         _luigi = _server.AddUser("Luigi");
         _peach = _server.AddUser("Peach", isAdmin: true);
+        _daisy = _server.AddUser("Daisy", enabled: false, isAdmin: true);
+        _toad = _server.AddUser("Toad", canManageSubtitles: true);
         _movie = _server.AddMovie("Dune");
         (_series, _season, _episode) = _server.AddEpisode("Breaking Bad", 2, 3);
     }
@@ -234,6 +240,98 @@ public sealed class ReportServiceTests : IDisposable
         Assert.Equal(1, _service.Cleanup());
 
         Assert.Equal(_mario.Id, Guid.ParseExact(Assert.Single(_service.List().Items).UserId, "N"));
+    }
+
+    [Fact]
+    public async Task PendingGoesToEnabledAdminsOnly()
+    {
+        await _service.CreateAsync(_mario.Id, Request(_episode.Id, ReportTypes.Subtitles, null));
+        Assert.Equal(InboxEntryTypes.ReportPending, Assert.Single(_inbox.Get(_peach.Id).Entries).Type);
+        Assert.Empty(_inbox.Get(_daisy.Id).Entries);
+        Assert.Empty(_inbox.Get(_toad.Id).Entries);
+        Assert.Empty(_inbox.Get(_mario.Id).Entries);
+    }
+
+    [Fact]
+    public async Task ResolvingNotifiesTheReporterAndClearsTheAdmins()
+    {
+        var report = (await _service.CreateAsync(_mario.Id, Request(_episode.Id, ReportTypes.Subtitles, null))).Report!;
+        var outcome = await _service.ResolveAsync(_peach.Id, report.Id, new ResolveReportRequest { Outcome = ReportOutcomes.Fixed, Note = "Aggiunti" });
+        Assert.Equal(HubStatus.Ok, outcome.Status);
+        Assert.Empty(_inbox.Get(_peach.Id).Entries);
+        var entry = Assert.Single(_inbox.Get(_mario.Id).Entries);
+        Assert.Equal((InboxEntryTypes.ReportResolved, ReportOutcomes.Fixed, "Aggiunti"), (entry.Type, entry.Outcome, entry.Text));
+    }
+
+    [Fact]
+    public async Task TheResolvedNoteIsTheCleanedOne()
+    {
+        var report = (await _service.CreateAsync(_mario.Id, Request(_episode.Id, ReportTypes.Subtitles, null))).Report!;
+        await _service.ResolveAsync(_peach.Id, report.Id, new ResolveReportRequest { Outcome = ReportOutcomes.Fixed, Note = "  Aggiunti\ni sottotitoli " });
+        Assert.Equal("Aggiunti i sottotitoli", Assert.Single(_inbox.Get(_mario.Id).Entries).Text);
+    }
+
+    [Fact]
+    public async Task ResolvingWithAGoneTitleStillNotifiesTheReporter()
+    {
+        var report = (await _service.CreateAsync(_mario.Id, Request(_movie.Id, ReportTypes.Metadata, null))).Report!;
+        _server.ReportedItems.Remove(_movie.Id);
+        await _service.ResolveAsync(_peach.Id, report.Id, new ResolveReportRequest { Outcome = ReportOutcomes.CannotFix });
+        var entry = Assert.Single(_inbox.Get(_mario.Id).Entries);
+        Assert.Equal((N(_movie.Id), ""), (entry.ItemId, entry.Title));
+    }
+
+    [Fact]
+    public async Task ASecondResolveIsClosedAndNotifiesOnce()
+    {
+        var rosalina = _server.AddUser("Rosalina", isAdmin: true);
+        var report = (await _service.CreateAsync(_mario.Id, Request(_episode.Id, ReportTypes.Subtitles, null))).Report!;
+        var fixedIt = new ResolveReportRequest { Outcome = ReportOutcomes.Fixed };
+
+        Assert.Equal(HubStatus.Ok, (await _service.ResolveAsync(_peach.Id, report.Id, fixedIt)).Status);
+        var second = await _service.ResolveAsync(rosalina.Id, report.Id, fixedIt);
+
+        Assert.Equal((HubStatus.Conflict, ReportReasons.Closed), (second.Status, second.Reason));
+        Assert.Single(_inbox.Get(_mario.Id).Entries, e => e.Type == InboxEntryTypes.ReportResolved);
+        Assert.Empty(_inbox.Get(rosalina.Id).Entries);
+    }
+
+    [Fact]
+    public async Task AnAdminReportingHimselfGetsNoEntries()
+    {
+        var rosalina = _server.AddUser("Rosalina", isAdmin: true);
+        var report = (await _service.CreateAsync(_peach.Id, Request(_episode.Id, ReportTypes.Subtitles, null))).Report!;
+        Assert.Empty(_inbox.Get(_peach.Id).Entries);
+        Assert.Equal(InboxEntryTypes.ReportPending, Assert.Single(_inbox.Get(rosalina.Id).Entries).Type);
+
+        await _service.ResolveAsync(_peach.Id, report.Id, new ResolveReportRequest { Outcome = ReportOutcomes.Fixed });
+
+        Assert.Empty(_inbox.Get(rosalina.Id).Entries);
+        Assert.Empty(_inbox.Get(_peach.Id).Entries);
+    }
+
+    [Fact]
+    public async Task ADuplicateDoesNotNotifyAgain()
+    {
+        _server.AddSession("s-peach", _peach);
+        await _service.CreateAsync(_mario.Id, Request(_episode.Id, ReportTypes.Subtitles, "Uno"));
+        await _service.CreateAsync(_mario.Id, Request(_episode.Id, ReportTypes.Subtitles, "Due"));
+
+        Assert.Single(_inbox.Get(_peach.Id).Entries);
+        Assert.Single(_server.SentTo("s-peach"));
+    }
+
+    [Fact]
+    public async Task CleanupClearsThePendingEntries()
+    {
+        await _service.CreateAsync(_mario.Id, Request(_movie.Id, ReportTypes.Metadata, null));
+        Assert.Single(_inbox.Get(_peach.Id).Entries);
+        _server.ReportedItems.Remove(_movie.Id);
+
+        Assert.Equal(1, _service.Cleanup());
+
+        Assert.Empty(_inbox.Get(_peach.Id).Entries);
+        Assert.Empty(_inbox.Get(_mario.Id).Entries);
     }
 
     [Fact]

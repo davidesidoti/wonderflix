@@ -165,6 +165,13 @@ public sealed class InboxBook
         _users.TryGetValue(userId, out var inbox)
         && inbox.Entries.RemoveAll(e => e.Type == type) > 0;
 
+    /// <summary>Toglie le ReportPending di quella segnalazione da tutte le cassette; restituisce gli utenti toccati.</summary>
+    public IReadOnlyList<Guid> RemoveReport(string reportId) =>
+        [.. _users
+            .Where(pair => pair.Value.Entries.RemoveAll(e =>
+                e.Type == InboxEntryTypes.ReportPending && string.Equals(e.ReportId, reportId, StringComparison.OrdinalIgnoreCase)) > 0)
+            .Select(pair => pair.Key)];
+
     /// <summary>Svuota la cassetta (il Seq continua da dov'era); true se c'era qualcosa.</summary>
     public bool Clear(Guid userId)
     {
