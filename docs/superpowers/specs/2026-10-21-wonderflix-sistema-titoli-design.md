@@ -62,7 +62,7 @@ App 0.17.0, plugin 1.11.0, Jellyfin 10.11.9 su Ultra.cc. Plugin **Open Subtitles
 | Elimina sottotitolo esterno | `DELETE /Videos/{id}/Subtitles/{index}` | solo admin |
 | Identifica: cerca | `POST /Items/RemoteSearch/{Movie\|Series}` | qualunque utente |
 | Identifica: applica | `POST /Items/RemoteSearch/Apply/{id}?replaceAllImages=` | solo admin. **Sincrono e lento** |
-| Editor metadati | `GET /Items/{id}/MetadataEditor`, `POST /Items/{id}` (`Map` intera) | solo admin |
+| Editor metadati | `GET /Items/{id}/MetadataEditor`, `POST /Items/{id}` (i campi che il server rilegge, presi dalla `Map` letta) | solo admin |
 | Aggiorna metadati | `POST /Items/{id}/Refresh?metadataRefreshMode=&imageRefreshMode=&replaceAllMetadata=&replaceAllImages=` | solo admin. In coda |
 | Immagini remote | `GET /Items/{id}/RemoteImages`, `POST …/RemoteImages/Download?type=&imageUrl=` | lista: tutti; download: admin |
 | Carica immagine | `POST /Items/{id}/Images/{type}` (base64) | admin |
@@ -107,7 +107,7 @@ Prese con l'utente nel brainstorming del 2026-10-21:
 Decise dopo la revisione del documento:
 
 19. **Identifica e i campi bloccati.** Jellyfin non sovrascrive i campi bloccati, neanche con Identifica. Se l'item ha campi bloccati, la conferma di Identifica mostra la casella "Sblocca i campi modificati a mano", attiva di base. Con la casella attiva, l'app svuota `LockedFields` e `LockData` con `POST /Items/{id}` prima di `Apply`. Così il caso del titolo in arabo, prima corretto a mano e poi identificato, funziona.
-    - **Come (24c):** la casella c'è se l'item ha `LockData` o `LockedFields` non vuoti. Lo sblocco rimanda la `Map` letta di Jellyfin intera, con solo `LockData: false` e `LockedFields: []` (come il salvataggio dell'editor, §7.8).
+    - **Come (24c):** la casella c'è se l'item ha `LockData` o `LockedFields` non vuoti. Lo sblocco rimanda i campi della `Map` letta, con solo `LockData: false` e `LockedFields: []` (come il salvataggio dell'editor, §7.8).
 20. **Scorciatoie del riquadro per livello:**
     - Sottotitoli su un film o un episodio: "Cerca sottotitoli";
     - Sottotitoli su una stagione o una serie: niente scorciatoia, l'admin sceglie l'episodio dalla lista;
@@ -421,7 +421,8 @@ Il nome del file lo vede solo l'admin (decisione 17).
   - generi (chip con aggiunta e rimozione);
   - classificazione per età (menu da `ParentalRatingOptions` di `MetadataEditor`, più "Nessuna", che scrive `null`; una classificazione dell'item che non è nel menu resta fra le voci).
 - **Salvataggio (andata e ritorno della `Map`):**
-  - l'app parte dalla `Map` grezza di `GET /Items/{id}?userId=` (con l'utente admin), cambia **solo le chiavi dei campi modificati** e manda indietro la `Map` intera con `POST /Items/{id}`, come jellyfin-web (`applyMetadataEdits`, una funzione pura che non tocca l'originale). Differenza dalla prima stesura, che parlava di "DTO": non c'è un modello tipato che possa perdere campi;
+  - l'app parte dalla `Map` grezza di `GET /Items/{id}?userId=` (con l'utente admin), cambia **solo le chiavi dei campi modificati** e manda con `POST /Items/{id}` i campi che `UpdateItem` rilegge, presi da quella `Map` (`applyMetadataEdits`, una funzione pura che non tocca l'originale; `ItemEditApi.updateItem` tiene solo l'elenco dei campi del metadata editor di jellyfin-web 10.11). Differenza dalla prima stesura, che parlava di "DTO": non c'è un modello tipato che possa perdere campi;
+  - **corretto nella prova a mano (2026-10-22):** la `Map` letta non si può rimandare intera. Contiene campi di sola lettura, come `Trickplay`, che il server non sa rileggere: il salvataggio falliva con un 500 (`TrickplayInfoDto` non deserializzabile). jellyfin-web infatti costruisce il corpo con un elenco di campi; l'app ora fa lo stesso. `Tags` e `ProviderIds` vanno sempre (vuoti se mancano), `RunTimeTicks` solo per le serie;
   - motivo, verificato sul sorgente 10.11.9: `UpdateItem` riscrive dal DTO anche `Tags`, `ProviderIds`, `Studios`, `People`, `Genres` e altri campi, quindi una `Map` parziale li cancellerebbe. I dati dell'utente (visto, preferito) non si toccano;
   - poi l'app ricarica il dettaglio, mostra "Metadati salvati" e chiude.
 - **Blocchi (decisione 15 corretta):**

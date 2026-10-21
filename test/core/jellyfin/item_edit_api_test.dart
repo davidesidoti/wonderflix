@@ -41,7 +41,51 @@ void main() {
     request = adapter.requests.last;
     expect(request.method, 'POST');
     expect(request.path, '/Items/i1');
-    expect(request.data, item);
+    expect(request.data,
+        {'Id': 'i1', 'Name': 'Dark', 'Tags': ['a'], 'ProviderIds': {'Tmdb': '1'}});
+  });
+
+  test('updateItem manda solo i campi che Jellyfin rilegge, come jellyfin-web',
+      () async {
+    // Trickplay arriva in lettura ma il server non lo sa rileggere (500).
+    final item = <String, dynamic>{
+      'Id': 'i1',
+      'Type': 'Movie',
+      'Name': 'Dark',
+      'OriginalTitle': 'Dunkel',
+      'People': [
+        {'Name': 'A', 'Role': 'X', 'Type': 'Actor'},
+      ],
+      'Studios': [
+        {'Name': 'S', 'Id': 's1'},
+      ],
+      'LockedFields': ['Name'],
+      'LockData': false,
+      'RunTimeTicks': 100,
+      'Trickplay': {'x': {}},
+      'MediaSources': [{}],
+      'UserData': {'Played': true},
+      'ImageTags': {'Primary': 't'},
+    };
+    adapter.handler = (_) => const FakeResponse(204);
+    await api.updateItem('i1', item);
+    expect(adapter.requests.single.data, {
+      'Id': 'i1',
+      'Name': 'Dark',
+      'OriginalTitle': 'Dunkel',
+      'People': item['People'],
+      'Studios': item['Studios'],
+      'LockedFields': ['Name'],
+      'LockData': false,
+      'Tags': <String>[],
+      'ProviderIds': <String, dynamic>{},
+    });
+  });
+
+  test('updateItem: RunTimeTicks solo per le serie', () async {
+    adapter.handler = (_) => const FakeResponse(204);
+    await api.updateItem('s1', {'Id': 's1', 'Type': 'Series', 'RunTimeTicks': 5});
+    expect((adapter.requests.single.data as Map)['RunTimeTicks'], 5);
   });
 
   test('parentalRatings legge il menu del MetadataEditor', () async {

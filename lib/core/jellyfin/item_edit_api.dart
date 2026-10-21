@@ -31,9 +31,36 @@ class ItemEditApi {
       asJsonMap(await _http.get('/Items/$itemId',
           query: {'userId': userId}, quietStatuses: quietStatuses));
 
+  /// I campi che `ItemUpdateController.UpdateItem` rilegge, gli stessi che
+  /// manda il metadata editor di jellyfin-web (10.11). La Map letta non si
+  /// rimanda intera: campi di sola lettura come `Trickplay` fanno fallire la
+  /// lettura del corpo sul server (500).
+  static const _updateFields = [
+    'Id', 'Name', 'OriginalTitle', 'ForcedSortName', 'CommunityRating',
+    'CriticRating', 'IndexNumber', 'ParentIndexNumber',
+    'AirsBeforeSeasonNumber', 'AirsAfterSeasonNumber',
+    'AirsBeforeEpisodeNumber', 'DisplayOrder', 'Album', 'AlbumArtists',
+    'ArtistItems', 'Overview', 'Status', 'AirDays', 'AirTime', 'Genres',
+    'Tags', 'Studios', 'PremiereDate', 'DateCreated', 'EndDate',
+    'ProductionYear', 'Height', 'AspectRatio', 'Video3DFormat',
+    'OfficialRating', 'CustomRating', 'People', 'LockData', 'LockedFields',
+    'ProviderIds', 'PreferredMetadataLanguage', 'PreferredMetadataCountryCode',
+    'ProductionLocations', 'Taglines',
+  ];
+
   Future<void> updateItem(String itemId, Map<String, dynamic> item) async {
+    final body = <String, dynamic>{
+      for (final key in _updateFields)
+        if (item.containsKey(key)) key: item[key],
+      // Il server li legge senza controllare null.
+      'Tags': item['Tags'] ?? <String>[],
+      'ProviderIds': item['ProviderIds'] ?? <String, dynamic>{},
+      // Il server lo applica solo alle serie (la durata dei file è di ffprobe).
+      if (item['Type'] == 'Series' && item.containsKey('RunTimeTicks'))
+        'RunTimeTicks': item['RunTimeTicks'],
+    };
     await _http.post('/Items/$itemId',
-        body: item, quietStatuses: quietStatuses);
+        body: body, quietStatuses: quietStatuses);
   }
 
   Future<List<ParentalRatingOption>> parentalRatings(String itemId) async {
