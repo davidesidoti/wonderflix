@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:logging/logging.dart';
 
+import '../reports/report_models.dart';
 import 'account_models.dart';
 
 final _log = Logger('social');
@@ -269,6 +270,82 @@ final class MatchInviteEntry extends InboxEntry {
   final String fromName;
 }
 
+/// Una segnalazione aperta, per gli admin (spec R §6.3). Nome, titolo e testo
+/// sono dell'utente o della libreria: sempre testo semplice.
+final class ReportPendingEntry extends InboxEntry {
+  const ReportPendingEntry({
+    required super.id,
+    required super.seq,
+    required super.createdAt,
+    required super.read,
+    required this.reportId,
+    this.reportType,
+    required this.fromName,
+    required this.itemId,
+    this.itemType,
+    this.titleId,
+    required this.title,
+    this.seasonNumber,
+    this.episodeNumber,
+    this.text,
+  });
+
+  final String reportId;
+
+  /// `null` se il tipo è di un plugin più nuovo.
+  final ReportType? reportType;
+  final String fromName;
+
+  /// Il film, la serie, la stagione o l'episodio segnalato.
+  final String itemId;
+
+  /// `null` se il titolo non c'è più.
+  final ReportItemType? itemType;
+
+  /// La serie (o il film) di cui mostrare la locandina e da aprire; `null`
+  /// se il titolo non c'è più.
+  final String? titleId;
+  final String title;
+  final int? seasonNumber;
+  final int? episodeNumber;
+
+  /// La nota di chi ha segnalato; `null` senza.
+  final String? text;
+}
+
+/// L'esito di una segnalazione, a chi l'ha fatta (spec R §6.3).
+final class ReportResolvedEntry extends InboxEntry {
+  const ReportResolvedEntry({
+    required super.id,
+    required super.seq,
+    required super.createdAt,
+    required super.read,
+    required this.reportId,
+    this.reportType,
+    required this.outcome,
+    required this.itemId,
+    this.itemType,
+    this.titleId,
+    required this.title,
+    this.seasonNumber,
+    this.episodeNumber,
+    this.text,
+  });
+
+  final String reportId;
+  final ReportType? reportType;
+  final ReportOutcome outcome;
+  final String itemId;
+  final ReportItemType? itemType;
+  final String? titleId;
+  final String title;
+  final int? seasonNumber;
+  final int? episodeNumber;
+
+  /// La nota dell'admin; `null` senza.
+  final String? text;
+}
+
 /// Una voce di `GET Inbox`; `null` se il tipo non lo conosciamo (es. le
 /// voci di una versione più nuova del plugin).
 InboxEntry? inboxEntryFromJson(Map<String, dynamic> json) {
@@ -358,9 +435,56 @@ InboxEntry? inboxEntryFromJson(Map<String, dynamic> json) {
         roomId: json['RoomId'] as String,
         fromName: json['FromName'] as String? ?? '',
       ),
+    'ReportPending' => switch ((json['ReportId'], json['ItemId'])) {
+        (final String reportId, final String itemId) => ReportPendingEntry(
+            id: id,
+            seq: seq,
+            createdAt: createdAt,
+            read: read,
+            reportId: reportId,
+            reportType: ReportType.fromWire(json['ReportType']),
+            fromName: json['FromName'] as String? ?? '',
+            itemId: itemId,
+            itemType: ReportItemType.fromWire(json['ItemType']),
+            titleId: _nonEmpty(json['ImageItemId']),
+            title: json['Title'] as String? ?? '',
+            seasonNumber: (json['SeasonNumber'] as num?)?.toInt(),
+            episodeNumber: (json['EpisodeNumber'] as num?)?.toInt(),
+            text: _nonEmpty(json['Text']),
+          ),
+        _ => null,
+      },
+    'ReportResolved' => switch ((
+        json['ReportId'],
+        json['ItemId'],
+        ReportOutcome.fromWire(json['Outcome'])
+      )) {
+        (final String reportId, final String itemId, final ReportOutcome outcome) =>
+          ReportResolvedEntry(
+            id: id,
+            seq: seq,
+            createdAt: createdAt,
+            read: read,
+            reportId: reportId,
+            reportType: ReportType.fromWire(json['ReportType']),
+            outcome: outcome,
+            itemId: itemId,
+            itemType: ReportItemType.fromWire(json['ItemType']),
+            titleId: _nonEmpty(json['ImageItemId']),
+            title: json['Title'] as String? ?? '',
+            seasonNumber: (json['SeasonNumber'] as num?)?.toInt(),
+            episodeNumber: (json['EpisodeNumber'] as num?)?.toInt(),
+            text: _nonEmpty(json['Text']),
+          ),
+        _ => null,
+      },
     _ => null,
   };
 }
+
+/// Un testo non vuoto; assente o vuoto, `null`.
+String? _nonEmpty(Object? value) =>
+    value is String && value.isNotEmpty ? value : null;
 
 /// Le stagioni di una voce delle richieste; assenti, nessuna.
 List<int> _seasons(Object? raw) =>

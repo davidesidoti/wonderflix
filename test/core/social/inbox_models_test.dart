@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/reports/report_models.dart';
 import 'package:wonderflix/core/social/account_models.dart';
 import 'package:wonderflix/core/social/inbox_models.dart';
 
@@ -411,5 +412,75 @@ void main() {
     expect(entry, isA<MatchInviteEntry>());
     expect((entry! as MatchInviteEntry).roomId, 'r2');
     expect((entry as MatchInviteEntry).fromName, 'Luigi');
+  });
+
+  Map<String, dynamic> reportJson(String type, [Map<String, dynamic>? extra]) =>
+      {
+        'Id': 'e1',
+        'Seq': 7,
+        'Type': type,
+        'CreatedAt': '2026-10-21T20:00:00Z',
+        'Read': false,
+        'ReportId': 'rep1',
+        'ReportType': 'Subtitles',
+        'ItemId': 'ep1',
+        'ItemType': 'Episode',
+        'SeasonNumber': 2,
+        'EpisodeNumber': 3,
+        'Title': 'Dark',
+        'ImageItemId': 's1',
+        ...?extra,
+      };
+
+  test('ReportPending con tutti i campi', () {
+    final entry = inboxEntryFromJson(reportJson('ReportPending',
+        {'FromName': 'Luigi', 'Text': 'manca audio'}))! as ReportPendingEntry;
+    expect(entry.reportId, 'rep1');
+    expect(entry.reportType, ReportType.subtitles);
+    expect(entry.fromName, 'Luigi');
+    expect(entry.itemId, 'ep1');
+    expect(entry.itemType, ReportItemType.episode);
+    expect(entry.titleId, 's1');
+    expect(entry.title, 'Dark');
+    expect(entry.seasonNumber, 2);
+    expect(entry.episodeNumber, 3);
+    expect(entry.text, 'manca audio');
+  });
+
+  test('ReportResolved Fixed con la nota', () {
+    final entry = inboxEntryFromJson(
+            reportJson('ReportResolved', {'Outcome': 'Fixed', 'Text': 'fatto'}))!
+        as ReportResolvedEntry;
+    expect(entry.outcome, ReportOutcome.fixed);
+    expect(entry.text, 'fatto');
+    expect(entry.reportType, ReportType.subtitles);
+  });
+
+  test('titolo sparito: niente ImageItemId e ItemType', () {
+    final entry = inboxEntryFromJson(reportJson('ReportResolved', {
+      'Outcome': 'CannotFix',
+      'ItemType': '',
+      'ImageItemId': null,
+      'Title': '',
+    }))! as ReportResolvedEntry;
+    expect(entry.outcome, ReportOutcome.cannotFix);
+    expect(entry.itemType, isNull);
+    expect(entry.titleId, isNull);
+    expect(entry.title, '');
+    expect(entry.text, isNull);
+  });
+
+  test('senza ReportId o con Outcome sconosciuto si salta', () {
+    expect(
+        inboxEntryFromJson(
+            reportJson('ReportPending', {'FromName': 'L', 'ReportId': null})),
+        isNull);
+    expect(
+        inboxEntryFromJson(reportJson('ReportResolved', {'Outcome': 'Boh'})),
+        isNull);
+    expect(
+        inboxEntryFromJson(
+            reportJson('ReportPending', {'FromName': 'L', 'ItemId': null})),
+        isNull);
   });
 }

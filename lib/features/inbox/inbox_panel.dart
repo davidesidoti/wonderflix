@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/navigation.dart';
 import '../../app/shell_panels.dart';
 import '../../app/theme.dart';
+import '../../core/reports/report_models.dart';
 import '../../core/social/inbox_models.dart';
 import '../../core/social/social_api.dart';
 import '../../l10n/gen/app_localizations.dart';
@@ -15,6 +17,7 @@ import '../../ui/shell_side_panel.dart';
 import '../../ui/wf_image.dart';
 import '../library/library_providers.dart';
 import '../match/match_actions.dart';
+import '../reports/report_labels.dart';
 import '../requests/requests_navigation.dart';
 import '../watch_party/watch_party_actions.dart';
 import '../watch_party/watch_party_directory.dart';
@@ -330,6 +333,13 @@ class _EntryTileState extends ConsumerState<_EntryTile> {
               MatchInviteEntry() => const InboxRequestIcon(
                   icon: LucideIcons.heartHandshake,
                   size: InboxPanel.leadingSize),
+              ReportPendingEntry() => _reportLeading(
+                  entry.titleId, LucideIcons.flag),
+              ReportResolvedEntry() => _reportLeading(
+                  entry.titleId,
+                  entry.outcome == ReportOutcome.fixed
+                      ? LucideIcons.circleCheck
+                      : LucideIcons.circleAlert),
             },
             const SizedBox(width: 12),
             Expanded(
@@ -375,6 +385,32 @@ class _EntryTileState extends ConsumerState<_EntryTile> {
                     time: widget.time),
                 MatchInviteEntry() =>
                   _MatchInviteContent(entry: entry, time: widget.time),
+                ReportPendingEntry() => _ReportContent(
+                    key: Key('inbox-report-${entry.id}'),
+                    titleId: entry.titleId,
+                    itemId: entry.itemId,
+                    itemType: entry.itemType,
+                    first: _inviteFromSpan(
+                        l.inboxReportPending(entry.fromName), entry.fromName),
+                    second: reportTitleLine(l,
+                        title: entry.title,
+                        itemType: entry.itemType,
+                        season: entry.seasonNumber,
+                        episode: entry.episodeNumber,
+                        type: entry.reportType),
+                    time: widget.time),
+                ReportResolvedEntry() => _ReportContent(
+                    key: Key('inbox-report-${entry.id}'),
+                    titleId: entry.titleId,
+                    itemId: entry.itemId,
+                    itemType: entry.itemType,
+                    first: TextSpan(
+                        text: _reportResolvedText(l, entry.outcome, entry.title)),
+                    second: switch (entry.text) {
+                      final String note => l.inboxRecommendationMessage(note),
+                      null => null,
+                    },
+                    time: widget.time),
               },
             ),
             Focus(
@@ -508,6 +544,85 @@ class _RecommendationContent extends ConsumerWidget {
                   style: const TextStyle(color: WfColors.cream)),
               if (text != null)
                 Text(l.inboxRecommendationMessage(text),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: _mutedStyle),
+              const SizedBox(height: 4),
+              Text(time, style: _timeStyle),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// La locandina del titolo segnalato; se il titolo non c'è più, un'icona
+/// per lo stato della segnalazione.
+Widget _reportLeading(String? titleId, IconData icon) => titleId != null
+    ? _ItemPoster(itemId: titleId)
+    : InboxRequestIcon(icon: icon, size: InboxPanel.leadingSize);
+
+/// "Problema sistemato su Dark"; senza titolo, "un titolo".
+String _reportResolvedText(
+    AppLocalizations l, ReportOutcome outcome, String title) {
+  final name = title.isEmpty ? l.inboxReportUnknownTitle : title;
+  return switch (outcome) {
+    ReportOutcome.fixed => l.inboxReportFixed(name),
+    ReportOutcome.cannotFix => l.inboxReportCannotFix(name),
+  };
+}
+
+/// Segnalazione (aperta o chiusa): due righe e l'ora. Il clic chiude il
+/// pannello e apre il titolo: la stagione segnalata sulla sua scheda, gli
+/// altri sulla serie o sul film (piano 24b, decisione 4); senza titolo, solo
+/// la chiusura.
+class _ReportContent extends ConsumerWidget {
+  const _ReportContent({
+    super.key,
+    required this.titleId,
+    required this.itemId,
+    required this.itemType,
+    required this.first,
+    required this.second,
+    required this.time,
+  });
+
+  final String? titleId;
+  final String itemId;
+  final ReportItemType? itemType;
+  final TextSpan first;
+  final String? second;
+  final String time;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final second = this.second;
+    return SizedBox(
+      width: double.infinity,
+      child: InkWell(
+        onTap: () {
+          ref.read(shellPanelProvider.notifier).close();
+          final titleId = this.titleId;
+          if (titleId == null) return;
+          if (itemType == ReportItemType.season) {
+            context.push('/item/$titleId?season=$itemId');
+          } else {
+            openItemById(context, titleId);
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text.rich(first,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: WfColors.cream)),
+              if (second != null)
+                Text(second,
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     style: _mutedStyle),
