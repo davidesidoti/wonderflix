@@ -186,6 +186,26 @@ void main() {
     expect(editApi.calls, ['rawItem m1']);
   });
 
+  testWidgets('"Aggiorna metadati…" apre la finestra e avvia il lavoro',
+      (tester) async {
+    final editApi = FakeItemEditApi()
+      ..items['m1'] = testRawItem(id: 'm1', name: 'Dune', type: 'Movie');
+    await pumpDetail(tester, 'm1',
+        editApi: editApi,
+        user: const JellyfinUser(
+            id: 'u1', name: 'Mario', isAdministrator: true));
+    await tester.tap(find.byTooltip('Altre azioni'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Aggiorna metadati…'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cerca dati mancanti'), findsOneWidget);
+    await tester.tap(find.text('Aggiorna'));
+    await tester.pumpAndSettle();
+    expect(editApi.calls.last, 'refresh m1 false false');
+    // Il Timer del bump va fatto scadere: un Timer pendente fa fallire il test.
+    await tester.pump(const Duration(seconds: 10));
+  });
+
   testWidgets('un utente senza permessi admin non vede le voci dei metadati',
       (tester) async {
     await pumpDetail(tester, 'm1');

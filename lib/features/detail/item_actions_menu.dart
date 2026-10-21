@@ -11,6 +11,7 @@ import '../../ui/wf_menus.dart';
 import '../admin/admin_providers.dart';
 import '../item_edit/edit_metadata_dialog.dart';
 import '../item_edit/identify_dialog.dart';
+import '../item_edit/refresh_metadata_dialog.dart';
 import '../reports/report_dialog.dart';
 import '../reports/reports_providers.dart';
 import '../social/social_providers.dart';
@@ -132,8 +133,9 @@ class ItemActionsButton extends ConsumerWidget {
       case ItemAction.identify:
         unawaited(
             showIdentifyDialog(context, itemId: item.id, kind: item.kind));
-      // Task 4–5 del piano 24c: finestre ancora da collegare.
       case ItemAction.refresh:
+        unawaited(showRefreshMetadataDialog(context, itemId: item.id));
+      // Task 5 del piano 24c: finestra ancora da collegare.
       case ItemAction.images:
         break;
     }
