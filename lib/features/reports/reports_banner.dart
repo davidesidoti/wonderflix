@@ -5,11 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/theme.dart';
+import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/json_fields.dart';
 import '../../core/reports/report_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/user_avatar.dart';
 import '../../ui/wf_buttons.dart';
+import '../item_edit/edit_metadata_dialog.dart';
+import '../item_edit/identify_dialog.dart';
 import '../subtitles/subtitles_dialog.dart';
 import 'admin_reports_controller.dart';
 import 'report_labels.dart';
@@ -55,6 +58,15 @@ class ReportsBanner extends ConsumerWidget {
     );
   }
 }
+
+/// Il tipo della voce segnalata (c'è sempre quando c'è una scorciatoia).
+ItemKind _kindOf(ReportItemType? type) => switch (type) {
+      ReportItemType.movie => ItemKind.movie,
+      ReportItemType.series => ItemKind.series,
+      ReportItemType.season => ItemKind.season,
+      ReportItemType.episode => ItemKind.episode,
+      null => ItemKind.other,
+    };
 
 class _ReportRow extends ConsumerWidget {
   const _ReportRow({required this.report});
@@ -113,6 +125,26 @@ class _ReportRow extends ConsumerWidget {
                       onPressed: () => unawaited(showResolveReportDialog(
                           context, report, ReportOutcome.cannotFix)),
                     ),
+                    if (shortcut == ReportShortcut.identify)
+                      WfButton.secondary(
+                        label: l.reportShortcutIdentify,
+                        icon: LucideIcons.search,
+                        onPressed: () => unawaited(showIdentifyDialog(
+                          context,
+                          itemId: report.itemId,
+                          kind: _kindOf(report.itemType),
+                        )),
+                      ),
+                    if (shortcut == ReportShortcut.editMetadata)
+                      WfButton.secondary(
+                        label: l.reportShortcutEdit,
+                        icon: LucideIcons.pencil,
+                        onPressed: () => unawaited(showEditMetadataDialog(
+                          context,
+                          itemId: report.itemId,
+                          kind: _kindOf(report.itemType),
+                        )),
+                      ),
                     if (shortcut == ReportShortcut.subtitles)
                       WfButton.secondary(
                         label: l.reportShortcutSubtitles,

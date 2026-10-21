@@ -14,18 +14,31 @@ import 'reports_providers.dart';
 
 final _log = Logger('reports');
 
-/// Le azioni rapide di una segnalazione nel riquadro admin (il 24c ne
-/// aggiunge altre).
-enum ReportShortcut { subtitles }
+/// Le azioni rapide di una segnalazione nel riquadro admin.
+enum ReportShortcut { subtitles, identify, editMetadata }
 
 /// "Cerca sottotitoli" per i sottotitoli di un film o di un episodio;
-/// altrimenti nessuna (decisione 10 del piano 24b).
-ReportShortcut? reportShortcut(ItemReport report) =>
-    report.type == ReportType.subtitles &&
-            (report.itemType == ReportItemType.movie ||
-                report.itemType == ReportItemType.episode)
-        ? ReportShortcut.subtitles
-        : null;
+/// "Identifica" per titolo o informazioni di un film o di una serie,
+/// "Modifica metadati" per quelli di una stagione o di un episodio;
+/// altrimenti nessuna (decisione 10 del piano 24c).
+ReportShortcut? reportShortcut(ItemReport report) {
+  final itemType = report.itemType;
+  return switch (report.type) {
+    ReportType.subtitles
+        when itemType == ReportItemType.movie ||
+            itemType == ReportItemType.episode =>
+      ReportShortcut.subtitles,
+    ReportType.metadata
+        when itemType == ReportItemType.movie ||
+            itemType == ReportItemType.series =>
+      ReportShortcut.identify,
+    ReportType.metadata
+        when itemType == ReportItemType.season ||
+            itemType == ReportItemType.episode =>
+      ReportShortcut.editMetadata,
+    _ => null,
+  };
+}
 
 /// Tutte le segnalazioni aperte, per il riquadro nel dettaglio e per la card
 /// della dashboard (solo admin, solo con la funzione `reports`). Si rilegge a

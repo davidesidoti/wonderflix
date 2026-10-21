@@ -170,6 +170,22 @@ void main() {
     expect(editApi.calls, ['rawItem m1', 'parentalRatings m1']);
   });
 
+  testWidgets('"Identifica" apre la finestra', (tester) async {
+    final editApi = FakeItemEditApi()
+      ..items['m1'] = testRawItem(id: 'm1', name: 'Dune', type: 'Movie');
+    await pumpDetail(tester, 'm1',
+        editApi: editApi,
+        user: const JellyfinUser(
+            id: 'u1', name: 'Mario', isAdministrator: true));
+    await tester.tap(find.byTooltip('Altre azioni'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Identifica'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cerca'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Nome'), findsOneWidget);
+    expect(editApi.calls, ['rawItem m1']);
+  });
+
   testWidgets('un utente senza permessi admin non vede le voci dei metadati',
       (tester) async {
     await pumpDetail(tester, 'm1');

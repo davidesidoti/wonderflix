@@ -6,6 +6,7 @@ import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/reports/report_models.dart';
 import 'package:wonderflix/core/reports/reports_api.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/item_edit/item_edit_providers.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/reports/reports_banner.dart';
 import 'package:wonderflix/features/settings/language_preferences.dart';
@@ -15,6 +16,7 @@ import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
 import '../../support/admin_fakes.dart';
 import '../../support/fake_session_controller.dart';
+import '../../support/item_edit_fakes.dart';
 import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/report_fakes.dart';
@@ -25,12 +27,17 @@ import '../../support/test_data.dart';
 void main() {
   final it = lookupAppLocalizations(const Locale('it'));
   late FakeReportsApi api;
+  late FakeItemEditApi editApi;
   late FakeSessionController session;
   late ValueNotifier<bool> shown;
   late StreamController<ServerEvent> events;
 
   setUp(() {
     api = FakeReportsApi();
+    editApi = FakeItemEditApi()
+      ..items['s1'] = testRawItem(id: 's1')
+      ..items['m1'] = testRawItem(id: 'm1', name: 'Film', type: 'Movie')
+      ..items['e1'] = testRawItem(id: 'e1', name: 'Pilot', type: 'Episode');
     session = FakeSessionController(const SessionSignedIn(testAdmin));
     events = StreamController<ServerEvent>.broadcast();
     shown = ValueNotifier(true);
@@ -62,6 +69,7 @@ void main() {
           features: const SocialFeatures(reports: true, known: true),
         ),
         ...reportTestOverrides(reports: api),
+        itemEditApiProvider.overrideWithValue(editApi),
         watchPartyEventsProvider.overrideWithValue(events.stream),
         libraryApiProvider.overrideWithValue(
           FakeLibraryApi()..mediaInfoById['e1'] = testMediaInfo(),
@@ -211,6 +219,60 @@ void main() {
       expect(find.text(it.subtitlesDialogTitle), findsWidgets);
     },
   );
+
+  testWidgets('scorciatoia Identifica per i metadati di un film', (
+    tester,
+  ) async {
+    api.reports.add(testReport(
+      itemId: 'm1',
+      itemType: ReportItemType.movie,
+      type: ReportType.metadata,
+    ));
+    await pumpBanner(tester);
+    expect(button(it.reportShortcutEdit), findsNothing);
+
+    await tester.tap(button(it.reportShortcutIdentify));
+    await tester.pumpAndSettle();
+
+    expect(editApi.calls, ['rawItem m1']);
+    expect(find.text(it.identifySearch), findsOneWidget);
+  });
+
+  testWidgets('scorciatoia Identifica anche per una serie', (tester) async {
+    api.reports.add(testReport(
+      itemId: 's1',
+      itemType: ReportItemType.series,
+      seasonNumber: null,
+      episodeNumber: null,
+      type: ReportType.metadata,
+    ));
+    await pumpBanner(tester);
+    await tester.tap(button(it.reportShortcutIdentify));
+    await tester.pumpAndSettle();
+
+    expect(editApi.calls, ['rawItem s1']);
+    expect(find.text(it.identifyTvdb), findsOneWidget);
+  });
+
+  testWidgets('scorciatoia Modifica metadati per un episodio', (tester) async {
+    api.reports.add(testReport(type: ReportType.metadata));
+    await pumpBanner(tester);
+    expect(button(it.reportShortcutIdentify), findsNothing);
+
+    await tester.tap(button(it.reportShortcutEdit));
+    await tester.pumpAndSettle();
+
+    expect(editApi.calls, ['rawItem e1', 'parentalRatings e1']);
+    expect(find.text(it.editSave), findsOneWidget);
+  });
+
+  testWidgets('nessuna scorciatoia per Audio o video', (tester) async {
+    api.reports.add(testReport(type: ReportType.audioVideo));
+    await pumpBanner(tester);
+    expect(button(it.reportShortcutIdentify), findsNothing);
+    expect(button(it.reportShortcutEdit), findsNothing);
+    expect(button(it.reportShortcutSubtitles), findsNothing);
+  });
 
   group('la voce sparisce mentre la finestra è aperta', () {
     /// Apre la finestra su r1, poi un altro admin la chiude e `InboxChanged`

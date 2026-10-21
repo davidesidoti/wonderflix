@@ -10,6 +10,7 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_menus.dart';
 import '../admin/admin_providers.dart';
 import '../item_edit/edit_metadata_dialog.dart';
+import '../item_edit/identify_dialog.dart';
 import '../reports/report_dialog.dart';
 import '../reports/reports_providers.dart';
 import '../social/social_providers.dart';
@@ -128,8 +129,10 @@ class ItemActionsButton extends ConsumerWidget {
       case ItemAction.editMetadata:
         unawaited(
             showEditMetadataDialog(context, itemId: item.id, kind: item.kind));
-      // Task 3–5 del piano 24c: finestre ancora da collegare.
       case ItemAction.identify:
+        unawaited(
+            showIdentifyDialog(context, itemId: item.id, kind: item.kind));
+      // Task 4–5 del piano 24c: finestre ancora da collegare.
       case ItemAction.refresh:
       case ItemAction.images:
         break;

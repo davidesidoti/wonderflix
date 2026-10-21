@@ -126,7 +126,21 @@ void main() {
       expect(
           reportShortcut(testReport(itemType: ReportItemType.season)), isNull);
       expect(reportShortcut(testReport(itemType: null)), isNull);
-      expect(reportShortcut(testReport(type: ReportType.metadata)), isNull);
+      expect(reportShortcut(testReport(type: ReportType.audioVideo)), isNull);
+      expect(
+          reportShortcut(testReport(
+              type: ReportType.metadata, itemType: null)),
+          isNull);
+    });
+
+    test('titolo o informazioni: Identifica per film e serie, Modifica per '
+        'stagioni ed episodi', () {
+      ReportShortcut? of(ReportItemType type) => reportShortcut(
+          testReport(type: ReportType.metadata, itemType: type));
+      expect(of(ReportItemType.movie), ReportShortcut.identify);
+      expect(of(ReportItemType.series), ReportShortcut.identify);
+      expect(of(ReportItemType.season), ReportShortcut.editMetadata);
+      expect(of(ReportItemType.episode), ReportShortcut.editMetadata);
     });
   });
 }
