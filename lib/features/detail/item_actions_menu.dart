@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -7,6 +9,7 @@ import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_menus.dart';
 import '../admin/admin_providers.dart';
+import '../reports/report_dialog.dart';
 import '../reports/reports_providers.dart';
 import '../social/social_providers.dart';
 import 'media_info_dialog.dart';
@@ -93,7 +96,7 @@ class ItemActionsButton extends ConsumerWidget {
   void _run(BuildContext context, ItemAction action) {
     switch (action) {
       case ItemAction.report:
-        break; // Task 4: showReportDialog(context, item).
+        unawaited(showReportDialog(context, item));
       case ItemAction.mediaInfo:
         showMediaInfoDialog(context, item);
       case ItemAction.subtitles:

@@ -83,6 +83,7 @@ void main() {
     await pumpApp(tester, Scaffold(body: ItemDetailScreen(itemId: id)),
         overrides: [
           libraryApiProvider.overrideWithValue(api),
+          ...reportTestOverrides(),
           ...socialTestOverrides(FakeSocialApi(),
               features: SocialFeatures(reports: reports), session: false),
           sessionControllerProvider.overrideWith(
@@ -114,6 +115,15 @@ void main() {
     expect(find.text('Info tecniche'), findsOneWidget);
     expect(find.text('Sottotitoli…'), findsOneWidget);
     expect(find.byType(PopupMenuDivider), findsOneWidget);
+  });
+
+  testWidgets('"Segnala un problema" apre la finestra', (tester) async {
+    await pumpDetail(tester, 'm1');
+    await tester.tap(find.byTooltip('Altre azioni'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Segnala un problema'));
+    await tester.pumpAndSettle();
+    expect(find.text('Aggiungi dettagli (facoltativo)'), findsOneWidget);
   });
 
   testWidgets('"Info tecniche" apre la finestra', (tester) async {
