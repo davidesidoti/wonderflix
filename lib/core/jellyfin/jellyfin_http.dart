@@ -92,20 +92,24 @@ class JellyfinHttp {
 
   /// [quietStatuses] come in [get]. [contentType] per un corpo che non è
   /// JSON (l'immagine di un utente, spec K §10.4): senza, dio manda
-  /// `application/json`.
+  /// `application/json`. [receiveTimeout] per una risposta lenta, solo per
+  /// questa richiesta (senza, valgono i 30 secondi di base).
   Future<dynamic> post(
     String path, {
     Object? body,
     Map<String, dynamic>? query,
     String? contentType,
+    Duration? receiveTimeout,
     Set<int> quietStatuses = const {},
   }) =>
       _send(
           () => dio.post<dynamic>(path,
               data: body,
               queryParameters: query,
-              options:
-                  contentType == null ? null : Options(contentType: contentType)),
+              options: contentType == null && receiveTimeout == null
+                  ? null
+                  : Options(
+                      contentType: contentType, receiveTimeout: receiveTimeout)),
           quietStatuses: quietStatuses);
 
   Future<dynamic> delete(String path,

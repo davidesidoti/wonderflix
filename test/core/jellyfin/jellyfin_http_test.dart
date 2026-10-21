@@ -228,4 +228,12 @@ void main() {
     expect(request.data, 'QUJD');
     expect(request.contentType, 'image/png');
   });
+
+  test('post con receiveTimeout lo passa a dio', () async {
+    await http.post('/Slow', receiveTimeout: const Duration(minutes: 3));
+    expect(adapter.requests.last.receiveTimeout, const Duration(minutes: 3));
+
+    await http.post('/Fast');
+    expect(adapter.requests.last.receiveTimeout, const Duration(seconds: 30));
+  });
 }
