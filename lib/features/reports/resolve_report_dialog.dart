@@ -12,6 +12,7 @@ import '../../ui/rune_limit.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_dialog.dart';
 import '../auth/password_login_form.dart';
+import '../auth/session_controller.dart';
 import 'admin_reports_controller.dart';
 import 'report_dialog.dart';
 
@@ -23,22 +24,19 @@ const _counterFrom = 450;
 /// snackbar; gli altri errori restano nella finestra.
 Future<void> showResolveReportDialog(
   BuildContext context,
+  // Non serve più: la finestra legge i provider con il suo ref.
   WidgetRef ref,
   ItemReport report,
   ReportOutcome outcome,
 ) async {
   final messenger = ScaffoldMessenger.maybeOf(context);
   final l = AppLocalizations.of(context);
-  // La finestra può restare aperta dopo che il riquadro che l'ha aperta è
-  // sparito (l'ultima voce chiusa): il controller si prende ora.
-  final controller = ref.read(adminReportsProvider.notifier);
   final closed = await showWfDialog<bool>(
     context,
     semanticLabel: outcome == ReportOutcome.fixed
         ? l.reportResolveFixedTitle
         : l.reportResolveCannotFixTitle,
     builder: (_) => _ResolveDialog(
-      controller: controller,
       report: report,
       outcome: outcome,
     ),
@@ -48,22 +46,20 @@ Future<void> showResolveReportDialog(
   }
 }
 
-class _ResolveDialog extends StatefulWidget {
+class _ResolveDialog extends ConsumerStatefulWidget {
   const _ResolveDialog({
-    required this.controller,
     required this.report,
     required this.outcome,
   });
 
-  final AdminReportsController controller;
   final ItemReport report;
   final ReportOutcome outcome;
 
   @override
-  State<_ResolveDialog> createState() => _ResolveDialogState();
+  ConsumerState<_ResolveDialog> createState() => _ResolveDialogState();
 }
 
-class _ResolveDialogState extends State<_ResolveDialog> {
+class _ResolveDialogState extends ConsumerState<_ResolveDialog> {
   final _note = TextEditingController();
   bool _busy = false;
   String? _error;
@@ -72,6 +68,10 @@ class _ResolveDialogState extends State<_ResolveDialog> {
   void initState() {
     super.initState();
     _note.addListener(() => setState(() {}));
+    // Tiene viva la lista finché la finestra è aperta: se l'ultima voce del
+    // titolo sparisce (la chiude un altro admin) il riquadro si smonta, e
+    // senza questo il provider autoDispose morirebbe prima di "Conferma".
+    ref.listenManual(adminReportsProvider, (_, _) {});
   }
 
   @override
@@ -82,6 +82,8 @@ class _ResolveDialogState extends State<_ResolveDialog> {
 
   Future<void> _confirm() async {
     if (_busy) return;
+    final controller = ref.read(adminReportsProvider.notifier);
+    final session = ref.read(sessionControllerProvider.notifier);
     final l = AppLocalizations.of(context);
     setState(() {
       _busy = true;
@@ -89,14 +91,22 @@ class _ResolveDialogState extends State<_ResolveDialog> {
     });
     try {
       final note = _note.text.trim();
-      await widget.controller
+      await controller
           .resolve(widget.report, widget.outcome,
               note: note.isEmpty ? null : note);
       if (mounted) Navigator.of(context).pop(false);
     } on ReportsException catch (error) {
+      // Il permesso è cambiato: l'utente si rilegge.
+      if (error.failure == ReportsFailure.forbidden) {
+        unawaited(session.refreshUser());
+      }
       if (!mounted) return;
       if (error.failure == ReportsFailure.closed) {
         Navigator.of(context).pop(true);
+        return;
+      }
+      if (error.failure == ReportsFailure.forbidden) {
+        setState(() => _error = l.reportNoPermission);
         return;
       }
       setState(() => _error = describeError(l, error));
