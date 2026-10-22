@@ -20,6 +20,13 @@ const _keys = [
   'calendarOnServer',
   'calendarDayReleases',
   'calendarAlreadyOnServer',
+  'navCalendar',
+  'calendarToday',
+  'calendarPreviousMonth',
+  'calendarNextMonth',
+  'calendarEmpty',
+  'calendarSeriesUnavailable',
+  'calendarMoviesUnavailable',
 ];
 
 Map<String, dynamic> _arb(String name) =>
@@ -79,5 +86,19 @@ void main() {
     expect(en.requestsNextEpisode('S01E04', 'Nov 2'),
         'Next episode: S01E04 on Nov 2');
     expect(en.requestsNextEpisodeDate('Nov 2'), 'Next episode on Nov 2');
+    expect(it.navCalendar, 'Calendario');
+    expect(en.navCalendar, 'Calendar');
+    expect(it.calendarToday, 'Oggi');
+    expect(en.calendarToday, 'Today');
+    expect(it.calendarPreviousMonth, 'Mese precedente');
+    expect(en.calendarPreviousMonth, 'Previous month');
+    expect(it.calendarNextMonth, 'Mese successivo');
+    expect(en.calendarNextMonth, 'Next month');
+    expect(it.calendarEmpty, 'Nessuna uscita in questo mese');
+    expect(en.calendarEmpty, 'No releases this month');
+    expect(it.calendarSeriesUnavailable, 'Le serie non si possono caricare ora');
+    expect(en.calendarSeriesUnavailable, "Series can't be loaded right now");
+    expect(it.calendarMoviesUnavailable, 'I film non si possono caricare ora');
+    expect(en.calendarMoviesUnavailable, "Movies can't be loaded right now");
   });
 }

@@ -7,6 +7,8 @@ import '../features/admin/admin_navigation.dart';
 import '../features/admin/admin_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/session_controller.dart';
+import '../features/calendar/calendar_navigation.dart';
+import '../features/calendar/calendar_screen.dart';
 import '../features/catalog/catalog_navigation.dart';
 import '../features/catalog/catalog_screen.dart';
 import '../features/collections/collection_screen.dart';
@@ -176,6 +178,16 @@ final routerProvider = Provider<GoRouter>((ref) {
                       key: ValueKey(state.uri.toString()),
                       initialTab:
                           RequestsTab.parse(state.uri.queryParameters['tab'])),
+                  underBar: true)),
+          GoRoute(
+              path: '/calendar',
+              pageBuilder: (context, state) => shellPage(
+                  context,
+                  state,
+                  CalendarScreen(
+                      key: ValueKey(state.uri.toString()),
+                      month: parseCalendarMonth(
+                          state.uri.queryParameters['month'])),
                   underBar: true)),
           GoRoute(
               path: '/search',

@@ -5,8 +5,16 @@ import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/navigation.dart';
 import 'package:wonderflix/app/router.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/calendar/calendar_screen.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
+import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
+import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 
+import '../support/home_fakes.dart';
+import '../support/library_fakes.dart';
+import '../support/pump_app.dart';
 import '../support/test_data.dart';
+import '../support/watch_party_fakes.dart';
 
 void main() {
   const signedIn = SessionSignedIn(testUser);
@@ -188,5 +196,26 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('player e5'), findsNothing);
     expect(find.text('home'), findsOneWidget);
+  });
+
+  testWidgets('/calendar?month=2026-11 apre il calendario di novembre',
+      (tester) async {
+    late GoRouter router;
+    await pumpAppRouterOf(tester, (ref) => router = ref.watch(routerProvider),
+        overrides: [
+          ...homeOverrides(
+            library: FakeLibraryApi(),
+            features: const SocialFeatures(calendar: true),
+          ),
+          watchPartyDirectoryProvider.overrideWith(FakeWatchPartyDirectory.new),
+          syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
+          watchPartyEventsProvider.overrideWithValue(const Stream.empty()),
+        ]);
+    router.go('/calendar?month=2026-11');
+    await tester.pumpAndSettle();
+
+    expect(
+        tester.widget<CalendarScreen>(find.byType(CalendarScreen)).month,
+        DateTime(2026, 11));
   });
 }

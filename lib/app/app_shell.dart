@@ -11,6 +11,7 @@ import '../core/jellyfin/auth_models.dart';
 import '../features/admin/admin_navigation.dart';
 import '../features/auth/profiles_state.dart';
 import '../features/auth/session_controller.dart';
+import '../features/calendar/calendar_providers.dart';
 import '../features/friends/friend_request_card.dart';
 import '../features/friends/friends_button.dart';
 import '../features/friends/friends_panel.dart';
@@ -114,6 +115,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                           // Solo con le richieste con Seerr (spec I §9.4).
                           if (ref.watch(requestsAvailableProvider))
                             (label: l.navRequests, route: '/requests', icon: null),
+                          // Solo con il calendario del plugin (1.13.0).
+                          if (ref.watch(calendarAvailableProvider))
+                            (label: l.navCalendar, route: '/calendar', icon: null),
                           (
                             label: l.navSearch,
                             route: '/search',

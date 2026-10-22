@@ -83,6 +83,36 @@ void main() {
     expect(find.text('Richieste'), findsOneWidget);
   });
 
+  testWidgets('voce "Calendario" solo con la funzione calendar',
+      (tester) async {
+    final availability = FakeSocialAvailability(
+        const SocialFeatures(calendar: true, requests: true));
+    await pumpApp(
+      tester,
+      const AppShell(location: '/calendar', child: SizedBox()),
+      overrides: [
+        sessionControllerProvider
+            .overrideWith(() => FakeSessionController(const SessionSignedIn(testUser))),
+        watchPartyDirectoryProvider.overrideWith(FakeWatchPartyDirectory.new),
+        syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
+        watchPartyEventsProvider.overrideWithValue(const Stream.empty()),
+        socialAvailabilityProvider.overrideWith(() => availability),
+      ],
+    );
+
+    expect(find.text('Calendario'), findsOneWidget);
+    final calendar = tester.getTopLeft(find.byKey(const Key('nav-/calendar')));
+    expect(tester.getTopLeft(find.byKey(const Key('nav-/requests'))).dx,
+        lessThan(calendar.dx));
+    expect(tester.getTopLeft(find.byKey(const Key('nav-/search'))).dx,
+        greaterThan(calendar.dx));
+
+    availability.set(const SocialFeatures(requests: true));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('nav-/calendar')), findsNothing);
+    expect(find.byKey(const Key('nav-/requests')), findsOneWidget);
+  });
+
   testWidgets('menu: Cambia profilo e Aggiungi profilo', (tester) async {
     final fake = FakeSessionController(const SessionSignedIn(testUser));
     await pumpApp(
