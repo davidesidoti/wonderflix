@@ -42,8 +42,9 @@ final _weapons = CalendarEntry(
 
 Future<void> _open(
   WidgetTester tester,
-  void Function(CalendarEntry entry) onOpenEntry,
-) async {
+  void Function(CalendarEntry entry) onOpenEntry, {
+  bool Function(CalendarEntry entry)? canOpen,
+}) async {
   await pumpApp(
     tester,
     Scaffold(
@@ -54,6 +55,7 @@ Future<void> _open(
             day: _day,
             entries: [_weapons, _andor],
             onOpenEntry: onOpenEntry,
+            canOpen: canOpen ?? (_) => true,
           ),
           child: const Text('apri'),
         ),
@@ -110,5 +112,19 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('apri'), findsOneWidget);
     expect(opened, [_weapons]);
+  });
+
+  testWidgets('ARowThatCannotOpenIsNotClickable', (tester) async {
+    final opened = <CalendarEntry>[];
+    await _open(tester, opened.add, canOpen: (e) => e != _weapons);
+    InkWell row(String text) => tester.widget<InkWell>(
+      find.ancestor(of: find.text(text), matching: find.byType(InkWell)),
+    );
+    expect(row('Weapons').onTap, isNull);
+    expect(row('S03E04 · Il ponte').onTap, isNotNull);
+    await tester.tap(find.text('Weapons'));
+    await tester.pumpAndSettle();
+    expect(find.text('Giovedì 22 ottobre'), findsOneWidget);
+    expect(opened, isEmpty);
   });
 }

@@ -18,6 +18,7 @@ class CalendarMonthGrid extends StatefulWidget {
     required this.entries,
     required this.onOpenDay,
     required this.onOpenEntry,
+    required this.canOpen,
   });
 
   final DateTime month;
@@ -25,6 +26,9 @@ class CalendarMonthGrid extends StatefulWidget {
   final Map<DateTime, List<CalendarEntry>> entries;
   final void Function(DateTime day) onOpenDay;
   final void Function(CalendarEntry entry) onOpenEntry;
+
+  /// Se la voce porta da qualche parte; se no niente clic (spec §7.4).
+  final bool Function(CalendarEntry entry) canOpen;
 
   /// Sotto questa larghezza la casella mostra solo numero e puntini.
   static const compactCellWidth = 96.0;
@@ -35,8 +39,9 @@ class CalendarMonthGrid extends StatefulWidget {
   /// Altezza di una voce, spazio sopra compreso.
   static const entryHeight = 20.0;
 
-  /// Voci che una casella mostra comunque, anche se bassa.
-  static const minEntries = 2;
+  /// Voci che una casella mostra comunque, anche se bassa: una, che con
+  /// più voci diventa "+n" (alla finestra minima due non ci stanno).
+  static const minEntries = 1;
 
   @override
   State<CalendarMonthGrid> createState() => _CalendarMonthGridState();
@@ -191,7 +196,7 @@ class _CalendarMonthGridState extends State<CalendarMonthGrid> {
       key: Key('calendar-day-$id'),
       container: true,
       explicitChildNodes: true,
-      button: true,
+      button: entries.isNotEmpty,
       label: entries.isEmpty
           ? title
           : l.calendarDayReleases(title, entries.length),
@@ -253,7 +258,9 @@ class _CalendarMonthGridState extends State<CalendarMonthGrid> {
                           key: Key('calendar-entry-$id-$i'),
                           entry: entries[i],
                           serverDotKey: Key('calendar-entry-$id-$i-server'),
-                          onTap: () => widget.onOpenEntry(entries[i]),
+                          onTap: widget.canOpen(entries[i])
+                              ? () => widget.onOpenEntry(entries[i])
+                              : null,
                         ),
                       if (shown < entries.length)
                         SizedBox(
@@ -293,13 +300,48 @@ class _EntryChip extends StatelessWidget {
 
   final CalendarEntry entry;
   final Key serverDotKey;
-  final VoidCallback onTap;
+
+  /// Null: la voce non porta da nessuna parte, il tocco va alla casella.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final movie = entry.kind == CalendarEntryKind.movie;
     final label = calendarEntryLabel(entry, l);
+    final chip = Container(
+      height: CalendarMonthGrid.entryHeight - 2,
+      margin: const EdgeInsets.only(bottom: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: movie ? WfColors.calendarMovie : WfColors.calendarSeries,
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            movie ? LucideIcons.film : LucideIcons.tv,
+            size: 12,
+            color: WfColors.creamMuted,
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+              style: const TextStyle(fontSize: 11, color: WfColors.cream),
+            ),
+          ),
+          if (entry.onServer) ...[
+            const SizedBox(width: 4),
+            _Dot(key: serverDotKey, color: WfColors.online),
+          ],
+        ],
+      ),
+    );
+    final tap = onTap;
     return Semantics(
       container: true,
       excludeSemantics: true,
@@ -308,45 +350,13 @@ class _EntryChip extends StatelessWidget {
         label,
         if (entry.onServer) l.calendarAlreadyOnServer,
       ].join(', '),
-      onTap: onTap,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: onTap,
-          child: Container(
-            height: CalendarMonthGrid.entryHeight - 2,
-            margin: const EdgeInsets.only(bottom: 2),
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            decoration: BoxDecoration(
-              color: movie ? WfColors.calendarMovie : WfColors.calendarSeries,
-              borderRadius: BorderRadius.circular(3),
+      onTap: tap,
+      child: tap == null
+          ? chip
+          : MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(onTap: tap, child: chip),
             ),
-            child: Row(
-              children: [
-                Icon(
-                  movie ? LucideIcons.film : LucideIcons.tv,
-                  size: 12,
-                  color: WfColors.creamMuted,
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    softWrap: false,
-                    style: const TextStyle(fontSize: 11, color: WfColors.cream),
-                  ),
-                ),
-                if (entry.onServer) ...[
-                  const SizedBox(width: 4),
-                  _Dot(key: serverDotKey, color: WfColors.online),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

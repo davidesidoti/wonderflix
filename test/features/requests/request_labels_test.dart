@@ -158,5 +158,13 @@ void main() {
       expect(parts(series()), [('Prossimo episodio il 2 novembre', true)]);
       expect(parts(series(st: RequestStatus.available)).length, 1);
     });
+
+    test('APastNextAiringIsNotUpcoming', () {
+      final airing = DateTime.utc(2026, 10, 20, 12);
+      expect(
+          parts(testMediaRequest(
+              type: RequestMediaType.tv, nextAiring: airing)),
+          [('Prossimo episodio il 20 ottobre', false)]);
+    });
   });
 }

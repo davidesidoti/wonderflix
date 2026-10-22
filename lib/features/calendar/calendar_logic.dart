@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:intl/intl.dart';
 import 'package:wonderflix/core/requests/requests_models.dart';
 import 'package:wonderflix/core/social/home_models.dart';
@@ -95,13 +97,15 @@ Map<DateTime, List<CalendarEntry>> entriesByDay(CalendarPage page) {
       CalendarEntry(
         kind: CalendarEntryKind.series,
         title: first.seriesName,
+        // Almeno uno a blocco, anche con dati sbagliati del plugin.
         count: eps.fold(
           0,
           (n, e) =>
               n +
-              (e.lastEpisodeNumber ?? e.episodeNumber) -
-              e.episodeNumber +
-              1,
+              max(
+                1,
+                (e.lastEpisodeNumber ?? e.episodeNumber) - e.episodeNumber + 1,
+              ),
         ),
         onServer: eps.every((e) => e.onServer),
         posterUrl: first.posterUrl ?? first.backdropUrl,

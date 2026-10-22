@@ -28,6 +28,7 @@ Future<void> _pump(
   Map<DateTime, List<CalendarEntry>> entries = const {},
   void Function(DateTime day)? onOpenDay,
   void Function(CalendarEntry entry)? onOpenEntry,
+  bool Function(CalendarEntry entry)? canOpen,
   Size surfaceSize = const Size(1440, 900),
 }) => pumpApp(
   tester,
@@ -38,6 +39,7 @@ Future<void> _pump(
       entries: entries,
       onOpenDay: onOpenDay ?? (_) {},
       onOpenEntry: onOpenEntry ?? (_) {},
+      canOpen: canOpen ?? (_) => true,
     ),
   ),
   surfaceSize: surfaceSize,
@@ -53,10 +55,12 @@ void main() {
   testWidgets('TheGridHasFortyTwoDaysFromMonday', (tester) async {
     await _pump(tester);
     final keys = tester
-        .widgetList(find.byWidgetPredicate((w) {
-          final k = w.key;
-          return k is ValueKey<String> && k.value.startsWith('calendar-day-');
-        }))
+        .widgetList(
+          find.byWidgetPredicate((w) {
+            final k = w.key;
+            return k is ValueKey<String> && k.value.startsWith('calendar-day-');
+          }),
+        )
         .map((w) => (w.key! as ValueKey<String>).value)
         .toList();
     expect(keys, hasLength(42));
@@ -83,10 +87,7 @@ void main() {
                 )
                 .decoration!
             as BoxDecoration;
-    expect(
-      deco(_today).border,
-      Border.all(color: WfColors.gold),
-    );
+    expect(deco(_today).border, Border.all(color: WfColors.gold));
     expect(deco(DateTime(2026, 10, 21)).border, isNull);
   });
 
@@ -170,9 +171,7 @@ void main() {
     expect(find.text('+${8 - shown}'), findsOneWidget);
   });
 
-  testWidgets('TappingAnEntryOpensItTappingTheDayOpensTheList', (
-    tester,
-  ) async {
+  testWidgets('TappingAnEntryOpensItTappingTheDayOpensTheList', (tester) async {
     final movies = [
       for (var i = 0; i < 8; i++)
         CalendarEntry(kind: CalendarEntryKind.movie, title: 'Film $i'),
@@ -249,5 +248,87 @@ void main() {
     }
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     expect(days, [DateTime(2026, 10, 30)], reason: '6 nov senza voci');
+  });
+
+  testWidgets('EmptyDaysAreNotButtons', (tester) async {
+    final handle = tester.ensureSemantics();
+    await _pump(
+      tester,
+      entries: {
+        _today: const [_weapons],
+      },
+    );
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('Mercoledì 21 ottobre')),
+      isSemantics(isButton: false),
+    );
+    expect(
+      tester.getSemantics(
+        find.bySemanticsLabel('Giovedì 22 ottobre: 1 uscita'),
+      ),
+      isSemantics(isButton: true),
+    );
+    handle.dispose();
+  });
+
+  testWidgets('AnEntryThatCannotOpenIsNotClickable', (tester) async {
+    final handle = tester.ensureSemantics();
+    final opened = <CalendarEntry>[];
+    final days = <DateTime>[];
+    await _pump(
+      tester,
+      entries: {
+        _today: const [_weapons, _andor],
+      },
+      onOpenDay: days.add,
+      onOpenEntry: opened.add,
+      canOpen: (e) => e != _weapons,
+    );
+    final weapons = tester.getSemantics(
+      find.bySemanticsLabel('Film, Weapons, già sul server'),
+    );
+    final andor = tester.getSemantics(find.bySemanticsLabel('Serie, Andor ×3'));
+    expect(weapons.getSemanticsData().hasAction(SemanticsAction.tap), isFalse);
+    expect(andor.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+    Finder clickCursors(String text) => find.ancestor(
+      of: find.text(text),
+      matching: find.byWidgetPredicate(
+        (w) => w is MouseRegion && w.cursor == SystemMouseCursors.click,
+      ),
+    );
+    // Solo la casella del giorno; la voce aperta ha la sua.
+    expect(clickCursors('Weapons'), findsOneWidget);
+    expect(clickCursors('Andor ×3'), findsNWidgets(2));
+    // Il tocco va alla casella: si apre l'elenco del giorno, non la voce.
+    await tester.tap(find.text('Weapons'));
+    expect(opened, isEmpty);
+    expect(days, [_today]);
+    handle.dispose();
+  });
+
+  testWidgets('AShortCellShowsOnlyPlusN', (tester) async {
+    final movies = [
+      for (var i = 0; i < 3; i++)
+        CalendarEntry(kind: CalendarEntryKind.movie, title: 'Film $i'),
+    ];
+    // Celle di ~59 px: due voci (62 px) non ci stanno.
+    await _pump(
+      tester,
+      entries: {_today: movies},
+      surfaceSize: const Size(1440, 400),
+    );
+    final cell = tester.getRect(_day(_today));
+    expect(
+      cell.height,
+      lessThan(
+        CalendarMonthGrid.dayRowHeight + 2 * CalendarMonthGrid.entryHeight,
+      ),
+    );
+    for (var i = 0; i < 3; i++) {
+      expect(find.text('Film $i'), findsNothing);
+    }
+    final more = find.text('+3');
+    expect(more, findsOneWidget);
+    expect(tester.getRect(more).bottom, lessThanOrEqualTo(cell.bottom));
   });
 }

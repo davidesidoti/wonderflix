@@ -149,13 +149,18 @@ class _CalendarBody extends ConsumerWidget {
         : '$text · ${error == UpcomingError.unauthorized ? l.adminArrUnauthorized : l.adminArrUnreachable}';
     final canRequest = ref.watch(requestsAvailableProvider);
     final entries = entriesByDay(page);
-    final emptyMonth = !entries.keys.any(
-      (d) => d.year == month.year && d.month == month.month,
-    );
+    // Con un servizio in errore il mese non si sa se è vuoto.
+    final emptyMonth =
+        failing == 0 &&
+        !entries.keys.any(
+          (d) => d.year == month.year && d.month == month.month,
+        );
 
+    String? route(CalendarEntry entry) =>
+        calendarEntryRoute(entry, canRequest: canRequest);
+    bool canOpen(CalendarEntry entry) => route(entry) != null;
     void openEntry(CalendarEntry entry) {
-      final route = calendarEntryRoute(entry, canRequest: canRequest);
-      if (route != null) unawaited(context.push(route));
+      if (route(entry) case final r?) unawaited(context.push(r));
     }
 
     return Padding(
@@ -196,10 +201,12 @@ class _CalendarBody extends ConsumerWidget {
                     day: day,
                     entries: list,
                     onOpenEntry: openEntry,
+                    canOpen: canOpen,
                   ),
                 );
               },
               onOpenEntry: openEntry,
+              canOpen: canOpen,
             ),
           ),
           if (emptyMonth)

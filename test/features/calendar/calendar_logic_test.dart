@@ -85,6 +85,14 @@ void main() {
     expect(byName.single.count, 2);
   });
 
+  test('ABackwardsBlockCountsAsOneEpisode', () {
+    final air = DateTime.utc(2026, 10, 22, 12);
+    final entry = entriesByDay(
+      CalendarPage(episodes: [testEpisode(episode: 5, last: 3, airDate: air)]),
+    ).values.single.single;
+    expect(entry.count, 1);
+  });
+
   test('EpisodesOfOneSeriesInADayAreOneEntry', () {
     final air = DateTime.utc(2026, 10, 22, 23, 30);
     final map = entriesByDay(

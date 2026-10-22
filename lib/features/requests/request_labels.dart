@@ -79,7 +79,7 @@ List<RequestDatePart> requestDateParts(
         text: season != null && episode != null
             ? l.requestsNextEpisode('S${two(season)}E${two(episode)}', fmt(day))
             : l.requestsNextEpisodeDate(fmt(day)),
-        upcoming: true,
+        upcoming: airing.isAfter(now),
       ));
     }
   } else {

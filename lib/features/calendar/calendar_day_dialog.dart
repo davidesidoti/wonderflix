@@ -20,6 +20,7 @@ Future<void> showCalendarDay(
   required DateTime day,
   required List<CalendarEntry> entries,
   required void Function(CalendarEntry entry) onOpenEntry,
+  required bool Function(CalendarEntry entry) canOpen,
 }) {
   final l = AppLocalizations.of(context);
   final title = calendarDayTitle(day, l);
@@ -53,7 +54,7 @@ Future<void> showCalendarDay(
                         entry: entry,
                         subtitle: l.calendarMovieDigital,
                         onServer: entry.onServer,
-                        onTap: () => open(entry),
+                        onTap: canOpen(entry) ? () => open(entry) : null,
                       )
                     else
                       for (final e in entry.episodes)
@@ -69,7 +70,7 @@ Future<void> showCalendarDay(
                           ].join(' · '),
                           time: time.format(e.airDate.toLocal()),
                           onServer: e.onServer,
-                          onTap: () => open(entry),
+                          onTap: canOpen(entry) ? () => open(entry) : null,
                         ),
                 ],
               ),
@@ -94,7 +95,9 @@ class _DayRow extends StatelessWidget {
   final String subtitle;
   final String? time;
   final bool onServer;
-  final VoidCallback onTap;
+
+  /// Null: la voce non porta da nessuna parte (spec §7.4, niente clic).
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

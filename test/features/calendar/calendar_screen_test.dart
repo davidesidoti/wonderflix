@@ -1,5 +1,6 @@
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -190,6 +191,45 @@ void main() {
       expect(find.text('Le serie non si possono caricare ora'), findsOneWidget);
       expect(find.text('Hope'), findsOneWidget);
       expect(find.byType(ErrorView), findsNothing);
+    });
+  });
+
+  testWidgets('WithoutRequestsAMovieNotInTheLibraryDoesNotOpen', (
+    tester,
+  ) async {
+    await atNow(() async {
+      availability = FakeSocialAvailability(
+        const SocialFeatures(calendar: true),
+      );
+      api.calendarPage = CalendarPage(
+        movies: [testUpcomingMovie(title: 'Hope', tmdbId: 456)],
+      );
+      final handle = tester.ensureSemantics();
+      final router = await pumpScreen(tester);
+
+      final chip = tester.getSemantics(find.bySemanticsLabel('Film, Hope'));
+      expect(chip.getSemanticsData().hasAction(SemanticsAction.tap), isFalse);
+      // Il tocco apre l'elenco del giorno; lì la riga non apre niente.
+      await tester.tap(find.text('Hope'));
+      await tester.pumpAndSettle();
+      expect(find.text('Martedì 13 ottobre'), findsOneWidget);
+      await tester.tap(find.text('Hope').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Martedì 13 ottobre'), findsOneWidget);
+      expect(address(router), '/calendar');
+      handle.dispose();
+    });
+  });
+
+  testWidgets('AFailingServiceDoesNotSayTheMonthIsEmpty', (tester) async {
+    await atNow(() async {
+      api.calendarPage = const CalendarPage(
+        seriesError: UpcomingError.unreachable,
+      );
+      await pumpScreen(tester);
+
+      expect(find.text('Le serie non si possono caricare ora'), findsOneWidget);
+      expect(find.text('Nessuna uscita in questo mese'), findsNothing);
     });
   });
 
