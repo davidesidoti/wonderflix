@@ -48,12 +48,41 @@ void main() {
           testUpcomingMovie(
             digitalRelease: DateTime.utc(2026, 11, 12).toLocal(),
           ),
+          // 13 novembre in locale (CET): la chiave viene dal giorno UTC.
+          testUpcomingMovie(
+            title: 'Late',
+            tmdbId: 9,
+            digitalRelease: DateTime.utc(2026, 11, 12, 23, 30),
+          ),
         ],
       ),
     );
+    expect(map[DateTime(2026, 11, 12)], hasLength(2));
+    expect(map.containsKey(DateTime(2026, 11, 13)), isFalse);
     expect(map[DateTime(local.year, local.month, local.day)], hasLength(1));
-    expect(map[DateTime(2026, 11, 12)]!.single.kind, CalendarEntryKind.movie);
+    expect(map[DateTime(2026, 11, 12)]!.first.kind, CalendarEntryKind.movie);
     expect(map, hasLength(2));
+  });
+
+  test('GroupingPrefersTvdbIdThenTmdbIdThenName', () {
+    final air = DateTime.utc(2026, 10, 22, 12);
+    List<CalendarEntry> group(List<UpcomingEpisode> eps) =>
+        entriesByDay(CalendarPage(episodes: eps)).values.single;
+    // stesso tvdbId, tmdbId diversi: una voce
+    expect(
+      group([
+        testEpisode(airDate: air, tvdbId: 5, tmdbId: 1),
+        testEpisode(airDate: air, tvdbId: 5, tmdbId: 2, episode: 6),
+      ]),
+      hasLength(1),
+    );
+    // niente id: si unisce per nome senza badare alle maiuscole
+    final byName = group([
+      testEpisode(seriesName: 'Andor', airDate: air, tmdbId: null),
+      testEpisode(seriesName: 'andor', airDate: air, tmdbId: null, episode: 6),
+    ]);
+    expect(byName, hasLength(1));
+    expect(byName.single.count, 2);
   });
 
   test('EpisodesOfOneSeriesInADayAreOneEntry', () {
