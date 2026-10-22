@@ -167,4 +167,36 @@ void main() {
     expect(TmdbImages.poster(null), isNull);
     expect(TmdbImages.poster('p.jpg'), isNull);
   });
+
+  test('ReadsTheReleaseFields', () {
+    final request = MediaRequest.fromJson({
+      'Id': 1,
+      'MediaType': 'tv',
+      'TmdbId': 2,
+      'CreatedAt': '2026-10-03T20:00:00Z',
+      'Status': 'AwaitingRelease',
+      'InCinemas': '2026-09-25T00:00:00Z',
+      'DigitalRelease': '2026-11-12T00:00:00Z',
+      'NextAiring': '2026-11-02T01:00:00Z',
+      'NextSeasonNumber': 1,
+      'NextEpisodeNumber': 4,
+    });
+    expect(request.status, RequestStatus.awaitingRelease);
+    expect(request.inCinemas, DateTime.utc(2026, 9, 25));
+    expect(request.digitalRelease, DateTime.utc(2026, 11, 12));
+    expect(request.nextAiring, DateTime.utc(2026, 11, 2, 1));
+    expect((request.nextSeasonNumber, request.nextEpisodeNumber), (1, 4));
+  });
+
+  test('AGarbledDateDoesNotBreakTheRow', () {
+    final request = MediaRequest.fromJson({
+      'Id': 1,
+      'MediaType': 'movie',
+      'TmdbId': 2,
+      'CreatedAt': '2026-10-03T20:00:00Z',
+      'DigitalRelease': 'boh',
+    });
+    expect(request.digitalRelease, isNull);
+    expect(request.id, 1);
+  });
 }

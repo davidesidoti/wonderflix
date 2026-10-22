@@ -104,6 +104,7 @@ const _openRequests = {
   RequestStatus.approved,
   RequestStatus.downloading,
   RequestStatus.partial,
+  RequestStatus.awaitingRelease,
 };
 
 /// "Le mie richieste" (spec M §8.3): prima quelle in corso, poi le

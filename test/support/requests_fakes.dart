@@ -246,6 +246,11 @@ MediaRequest testMediaRequest({
   double? progress,
   String? jellyfinItemId,
   DateTime? createdAt,
+  DateTime? inCinemas,
+  DateTime? digitalRelease,
+  DateTime? nextAiring,
+  int? nextSeasonNumber,
+  int? nextEpisodeNumber,
 }) =>
     MediaRequest(
       id: id,
@@ -260,4 +265,9 @@ MediaRequest testMediaRequest({
       status: status,
       progress: progress,
       jellyfinItemId: jellyfinItemId,
+      inCinemas: inCinemas,
+      digitalRelease: digitalRelease,
+      nextAiring: nextAiring,
+      nextSeasonNumber: nextSeasonNumber,
+      nextEpisodeNumber: nextEpisodeNumber,
     );

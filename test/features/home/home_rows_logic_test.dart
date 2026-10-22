@@ -220,4 +220,15 @@ void main() {
     expect(BecauseYouWatchedContent(sourceName: 'x', items: [testItem()]).isEmpty,
         isFalse);
   });
+
+  test('AwaitingReleaseIsAnOpenRequest', () {
+    final now = DateTime(2026, 10, 10, 12);
+    final shown = homeRequests([
+      testMediaRequest(
+          id: 1,
+          status: RequestStatus.awaitingRelease,
+          createdAt: now.subtract(const Duration(days: 60))),
+    ], now);
+    expect(shown.map((r) => r.id), [1]);
+  });
 }

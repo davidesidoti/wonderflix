@@ -83,4 +83,19 @@ void main() {
     expect(find.text('azioni'), findsOneWidget);
     expect(find.text('In attesa'), findsNothing);
   });
+
+  testWidgets('TheDatesLineShowsUnderTheDetails', (tester) async {
+    await pumpRow(
+      tester,
+      testMediaRequest(
+          status: RequestStatus.awaitingRelease,
+          digitalRelease: DateTime.utc(2026, 11, 12)),
+    );
+    expect(find.textContaining('In digitale previsto il 12 novembre',
+            findRichText: true),
+        findsOneWidget);
+
+    await pumpRow(tester, testMediaRequest(status: RequestStatus.approved));
+    expect(find.textContaining('digitale', findRichText: true), findsNothing);
+  });
 }

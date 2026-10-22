@@ -1,3 +1,4 @@
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/theme.dart';
@@ -39,5 +40,99 @@ void main() {
     expect(requestStatusColor(RequestStatus.available), WfColors.online);
     expect(requestStatusColor(RequestStatus.declined), WfColors.error);
     expect(requestStatusColor(RequestStatus.failed), WfColors.error);
+  });
+
+  group('requestDateParts', () {
+    setUpAll(() => initializeDateFormatting());
+    final now = DateTime(2026, 10, 22, 12);
+    List<(String, bool)> parts(MediaRequest r) =>
+        [for (final p in requestDateParts(r, now, l)) (p.text, p.upcoming)];
+    MediaRequest movie({
+      DateTime? cinema,
+      DateTime? digital,
+      RequestStatus status = RequestStatus.approved,
+    }) =>
+        testMediaRequest(
+            status: status, inCinemas: cinema, digitalRelease: digital);
+
+    test('AwaitingReleaseHasItsLabelAndGold', () {
+      expect(
+          requestStatusLabel(
+              l, testMediaRequest(status: RequestStatus.awaitingRelease)),
+          "In attesa dell'uscita");
+      expect(requestStatusColor(RequestStatus.awaitingRelease), WfColors.gold);
+    });
+
+    test('AMovieWaitingForDigital', () {
+      expect(
+          parts(movie(
+              cinema: DateTime.utc(2026, 9, 25),
+              digital: DateTime.utc(2026, 11, 12))),
+          [
+            ('Al cinema dal 25 settembre', false),
+            ('in digitale previsto il 12 novembre', true),
+          ]);
+    });
+
+    test('AMovieAlreadyOutDigitally', () {
+      expect(
+          parts(movie(
+                  cinema: DateTime.utc(2026, 9, 25),
+                  digital: DateTime.utc(2026, 10, 20)))
+              .last,
+          ('uscito in digitale il 20 ottobre', false));
+    });
+
+    test('AMovieWithoutDigitalDate', () {
+      expect(parts(movie(cinema: DateTime.utc(2026, 12, 18))), [
+        ('Al cinema dal 18 dicembre', true),
+        ('in digitale: data non ancora nota', false),
+      ]);
+    });
+
+    test('OnlyDigitalStartsUppercase', () {
+      expect(parts(movie(digital: DateTime.utc(2026, 11, 12))),
+          [('In digitale previsto il 12 novembre', true)]);
+    });
+
+    test('NoDatesNoLine', () {
+      expect(parts(movie()), isEmpty);
+    });
+
+    test('FinishedMoviesHaveNoDates', () {
+      expect(
+          parts(movie(
+              status: RequestStatus.available,
+              cinema: DateTime.utc(2026, 9, 25),
+              digital: DateTime.utc(2026, 11, 12))),
+          isEmpty);
+    });
+
+    test('AnotherYearShowsTheYear', () {
+      expect(parts(movie(digital: DateTime.utc(2027, 3, 31))).single.$1,
+          'In digitale previsto il 31 marzo 2027');
+    });
+
+    test('AMovieDateIsTheUtcDay', () {
+      final utc = DateTime.utc(2026, 11, 12);
+      expect(parts(movie(digital: utc)).single.$1, contains('12 novembre'));
+      expect(parts(movie(digital: utc.toLocal())).single.$1,
+          contains('12 novembre'));
+    });
+
+    test('ASeriesShowsItsNextEpisode', () {
+      final airing = DateTime.utc(2026, 11, 2, 1);
+      MediaRequest series({int? s, int? e, RequestStatus? st}) =>
+          testMediaRequest(
+              type: RequestMediaType.tv,
+              status: st ?? RequestStatus.approved,
+              nextAiring: airing,
+              nextSeasonNumber: s,
+              nextEpisodeNumber: e);
+      expect(parts(series(s: 1, e: 4)),
+          [('Prossimo episodio: S01E04 il 2 novembre', true)]);
+      expect(parts(series()), [('Prossimo episodio il 2 novembre', true)]);
+      expect(parts(series(st: RequestStatus.available)).length, 1);
+    });
   });
 }

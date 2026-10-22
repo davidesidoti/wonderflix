@@ -1,5 +1,7 @@
 // Modelli delle richieste con Seerr (spec I §8.1), dalle risposte del plugin.
 
+import '../jellyfin/json_fields.dart';
+
 /// Film o serie, con i nomi di Seerr.
 enum RequestMediaType {
   movie('movie'),
@@ -45,7 +47,8 @@ enum RequestStatus {
   partial,
   available,
   declined,
-  failed;
+  failed,
+  awaitingRelease;
 
   static RequestStatus parse(Object? raw) => switch (raw) {
         'Pending' => pending,
@@ -55,6 +58,7 @@ enum RequestStatus {
         'Available' => available,
         'Declined' => declined,
         'Failed' => failed,
+        'AwaitingRelease' => awaitingRelease,
         _ => approved,
       };
 }
@@ -267,6 +271,11 @@ class MediaRequest {
     this.posterPath,
     this.progress,
     this.jellyfinItemId,
+    this.inCinemas,
+    this.digitalRelease,
+    this.nextAiring,
+    this.nextSeasonNumber,
+    this.nextEpisodeNumber,
   });
 
   factory MediaRequest.fromJson(Map<String, dynamic> json) => MediaRequest(
@@ -286,6 +295,11 @@ class MediaRequest {
         status: RequestStatus.parse(json['Status']),
         progress: (json['Progress'] as num?)?.toDouble(),
         jellyfinItemId: json['JellyfinItemId'] as String?,
+        inCinemas: jsonDate(json, 'InCinemas'),
+        digitalRelease: jsonDate(json, 'DigitalRelease'),
+        nextAiring: jsonDate(json, 'NextAiring'),
+        nextSeasonNumber: jsonInt(json, 'NextSeasonNumber'),
+        nextEpisodeNumber: jsonInt(json, 'NextEpisodeNumber'),
       );
 
   final int id;
@@ -304,6 +318,15 @@ class MediaRequest {
   /// Avanzamento del download, da 0 a 1.
   final double? progress;
   final String? jellyfinItemId;
+
+  /// Date di uscita, istanti UTC (il giorno dei film Ã¨ quello UTC).
+  final DateTime? inCinemas;
+  final DateTime? digitalRelease;
+
+  /// Prossimo episodio di una serie, ora vera (giorno locale).
+  final DateTime? nextAiring;
+  final int? nextSeasonNumber;
+  final int? nextEpisodeNumber;
 }
 
 /// Una pagina di richieste.

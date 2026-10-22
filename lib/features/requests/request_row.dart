@@ -55,6 +55,7 @@ class RequestRow extends StatelessWidget {
       if (showRequester) l.requestsRequestedBy(request.requestedBy.name),
       inboxTimeLabel(request.createdAt, now, l),
     ].join(' · ');
+    final dateParts = requestDateParts(request, now, l);
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -84,6 +85,25 @@ class RequestRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                           color: WfColors.creamMuted, fontSize: 13)),
+                  if (dateParts.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text.rich(
+                      TextSpan(children: [
+                        for (var i = 0; i < dateParts.length; i++) ...[
+                          if (i > 0) const TextSpan(text: ' · '),
+                          TextSpan(
+                              text: dateParts[i].text,
+                              style: dateParts[i].upcoming
+                                  ? const TextStyle(color: WfColors.gold)
+                                  : null),
+                        ],
+                      ]),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: WfColors.creamMuted, fontSize: 13),
+                    ),
+                  ],
                 ],
               ),
             ),
