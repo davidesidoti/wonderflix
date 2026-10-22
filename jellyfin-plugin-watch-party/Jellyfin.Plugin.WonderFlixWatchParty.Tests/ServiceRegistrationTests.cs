@@ -133,6 +133,10 @@ public class ServiceRegistrationTests
         Assert.NotNull(ActivatorUtilities.CreateInstance<Api.ReportsController>(provider));
         Assert.NotNull(ActivatorUtilities.CreateInstance<Api.SubtitlesController>(provider));
 
+        // Calendario delle uscite e date delle richieste (spec S).
+        Assert.Same(provider.GetRequiredService<Home.CalendarService>(), provider.GetRequiredService<Home.CalendarService>());
+        Assert.Same(provider.GetRequiredService<Home.ReleaseDatesService>(), provider.GetRequiredService<Home.ReleaseDatesService>());
+
         // Il promemoria dei contatti, oltre ai due di prima.
         // I consigli (spec N), oltre ai tre di prima.
         // L'attività degli amici (spec O), oltre ai quattro di prima.

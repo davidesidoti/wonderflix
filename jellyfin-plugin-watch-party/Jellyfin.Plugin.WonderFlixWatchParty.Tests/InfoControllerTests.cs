@@ -14,7 +14,7 @@ public class InfoControllerTests
     public void InfoReportsVersionProtocolAndFeatures()
     {
         var info = new InfoController(new FakeSeerrSettings { Url = string.Empty }, NoArr()).GetInfo().Value!;
-        Assert.Equal("1.12.0", info.Version);
+        Assert.Equal("1.13.0", info.Version);
         Assert.Equal(1, info.Protocol);
         Assert.Equal(
             new[] { "friends", "parties", "inbox", "queue", "collections", "avatars", "account", "home", "recommendations", "friendsActivity", "match", "ratings", "reports" },
@@ -28,7 +28,7 @@ public class InfoControllerTests
             new[]
             {
                 "friends", "parties", "inbox", "queue", "collections", "avatars", "account", "home", "recommendations", "friendsActivity", "match", "ratings", "reports",
-                "requests", "upcomingSeries", "upcomingMovies",
+                "requests", "upcomingSeries", "upcomingMovies", "calendar",
             },
             new InfoController(new FakeSeerrSettings(), new FakeArrSettings()).GetInfo().Value!.Features);
 
@@ -38,6 +38,18 @@ public class InfoControllerTests
         Assert.DoesNotContain("requests", features);
         Assert.DoesNotContain("upcomingSeries", features);
         Assert.Contains("upcomingMovies", features);
+        Assert.Contains("calendar", features);
+    }
+
+    [Fact]
+    public void CalendarFollowsTheUpcomingFeaturesAndNeedsOneOfThem()
+    {
+        var onlySonarr = new InfoController(new FakeSeerrSettings(), new FakeArrSettings { Radarr = ArrEndpoint.None })
+            .GetInfo().Value!.Features;
+        Assert.Equal(new[] { "requests", "upcomingSeries", "calendar" }, onlySonarr.Skip(13));
+
+        var neither = new InfoController(new FakeSeerrSettings(), NoArr()).GetInfo().Value!.Features;
+        Assert.DoesNotContain("calendar", neither);
     }
 
     [Fact]

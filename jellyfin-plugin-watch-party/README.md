@@ -110,6 +110,12 @@ uscite in arrivo.
   (con l'UrlBase, es. `https://host/sonarr`) e chiave di Sonarr e Radarr, i
   giorni e **Test connection** (`POST Upcoming/Test`, solo admin). Le chiavi
   non lasciano il server; le immagini sono gli indirizzi pubblici di TVDB e TMDB.
+- **Calendario (dalla 1.13.0):** `GET Upcoming/Calendar?start=YYYY-MM-DD&end=YYYY-MM-DD`
+  (`end` escluso, al massimo 42 giorni, altrimenti 400) dà gli episodi di
+  Sonarr e i film di Radarr del periodo, anche già scaricati, con `OnServer`;
+  risponde sempre 200, con `SeriesError` e `MoviesError` se qualcosa non va.
+  Le richieste hanno in più le date di uscita (`InCinemas`, `DigitalRelease`,
+  `NextAiring` e il numero del prossimo episodio) e lo stato `AwaitingRelease`.
 - **Consigli (dalla 1.8.0):** `GET Recommendations/Targets?itemId=` dà gli
   amici attivi con online e accesso al titolo; `POST Recommendations`
   `{ItemId, To, Message}` consiglia un film o una serie (messaggio fino a 200
@@ -168,7 +174,7 @@ uscite in arrivo.
 - **Funzioni:** `GET Info` annuncia quello che il plugin sa fare; dalla 1.5.0
   ci sono sempre anche `collections` e `avatars`, dalla 1.6.0 anche
   `account`, dalla 1.7.0 anche `home`, dalla 1.8.0 anche `recommendations`, dalla 1.9.0 anche `friendsActivity`, dalla 1.10.0 anche `match`, dalla 1.11.0 anche `ratings`, dalla 1.12.0 anche `reports`; `upcomingSeries` e `upcomingMovies`
-  solo con Sonarr e Radarr configurati. Gli endpoint delle saghe e delle
+  solo con Sonarr e Radarr configurati, e `calendar` con almeno uno dei due. Gli endpoint delle saghe e delle
   immagini sono aperti a ogni utente che ha fatto l'accesso. Quelli di
   `account` dipendono dalla rotta: `Account/Contacts` per ogni utente che ha
   fatto l'accesso (con la password attuale per cambiare i contatti),
