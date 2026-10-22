@@ -88,5 +88,27 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Giovedì 22 ottobre'), findsNothing);
     expect(opened, [_andor]);
+    // La pagina sotto c'è ancora.
+    expect(find.text('apri'), findsOneWidget);
+  });
+
+  testWidgets('ADoubleTapPopsOnlyTheDialog', (tester) async {
+    final opened = <CalendarEntry>[];
+    await _open(tester, opened.add);
+    // Due clic prima che la finestra se ne vada (il tocco vero del test
+    // viene già ignorato durante l'uscita, il callback no).
+    final onTap = tester
+        .widget<InkWell>(
+          find.ancestor(
+            of: find.text('Weapons'),
+            matching: find.byType(InkWell),
+          ),
+        )
+        .onTap!;
+    onTap();
+    onTap();
+    await tester.pumpAndSettle();
+    expect(find.text('apri'), findsOneWidget);
+    expect(opened, [_weapons]);
   });
 }

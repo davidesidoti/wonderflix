@@ -23,12 +23,16 @@ Future<void> showCalendarDay(
 }) {
   final l = AppLocalizations.of(context);
   final title = calendarDayTitle(day, l);
+  // Un secondo clic veloce chiuderebbe anche la pagina sotto.
+  var closing = false;
   return showWfDialog<void>(
     context,
     semanticLabel: title,
     builder: (context) {
       final time = DateFormat.Hm(l.localeName);
       void open(CalendarEntry entry) {
+        if (closing) return;
+        closing = true;
         Navigator.of(context).pop();
         onOpenEntry(entry);
       }

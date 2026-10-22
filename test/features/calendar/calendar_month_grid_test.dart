@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/theme.dart';
@@ -111,6 +112,41 @@ void main() {
     expect(find.bySemanticsLabel('Serie, Andor ×3'), findsOne);
     expect(find.bySemanticsLabel('Giovedì 22 ottobre: 2 uscite'), findsOne);
     expect(find.bySemanticsLabel('Mercoledì 21 ottobre'), findsOne);
+    handle.dispose();
+  });
+
+  testWidgets('ScreenReadersCanActivateDaysAndEntries', (tester) async {
+    final handle = tester.ensureSemantics();
+    final days = <DateTime>[];
+    final opened = <CalendarEntry>[];
+    await _pump(
+      tester,
+      entries: {
+        _today: const [_weapons],
+      },
+      onOpenDay: days.add,
+      onOpenEntry: opened.add,
+    );
+    final cell = tester.getSemantics(
+      find.bySemanticsLabel('Giovedì 22 ottobre: 1 uscita'),
+    );
+    final chip = tester.getSemantics(
+      find.bySemanticsLabel('Film, Weapons, già sul server'),
+    );
+    expect(cell.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+    expect(chip.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+    final empty = tester.getSemantics(
+      find.bySemanticsLabel('Mercoledì 21 ottobre'),
+    );
+    expect(empty.getSemanticsData().hasAction(SemanticsAction.tap), isFalse);
+    tester.semantics.tap(
+      find.semantics.byLabel('Giovedì 22 ottobre: 1 uscita'),
+    );
+    tester.semantics.tap(
+      find.semantics.byLabel('Film, Weapons, già sul server'),
+    );
+    expect(days, [_today]);
+    expect(opened, [_weapons]);
     handle.dispose();
   });
 

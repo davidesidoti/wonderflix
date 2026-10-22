@@ -57,6 +57,7 @@ final _aMonday = DateTime(2026, 9, 28);
 String _dayId(DateTime day) => DateFormat('yyyy-MM-dd').format(day);
 
 class _CalendarMonthGridState extends State<CalendarMonthGrid> {
+  // Fissi: la pagina rifà la griglia a ogni mese (ValueKey, decisione 10).
   late final List<DateTime> _days = gridDaysOf(widget.month);
   late int _selected = _startIndex();
   bool _focused = false;
@@ -194,6 +195,7 @@ class _CalendarMonthGridState extends State<CalendarMonthGrid> {
       label: entries.isEmpty
           ? title
           : l.calendarDayReleases(title, entries.length),
+      onTap: entries.isEmpty ? null : () => _openDay(day),
       child: MouseRegion(
         cursor: entries.isEmpty ? MouseCursor.defer : SystemMouseCursors.click,
         child: GestureDetector(
@@ -306,6 +308,7 @@ class _EntryChip extends StatelessWidget {
         label,
         if (entry.onServer) l.calendarAlreadyOnServer,
       ].join(', '),
+      onTap: onTap,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
