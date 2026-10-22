@@ -37,6 +37,23 @@ public sealed class ArrClient(
             $"calendar?start={Iso(from)}&end={Iso(to)}&unmonitored=false",
             cancellationToken).ConfigureAwait(false);
 
+    public async Task<IReadOnlyList<RadarrMovie?>> FindMoviesAsync(int tmdbId, CancellationToken cancellationToken) =>
+        await GetAsync<List<RadarrMovie?>>(
+            ArrKind.Radarr, $"movie?tmdbId={tmdbId.ToString(CultureInfo.InvariantCulture)}", cancellationToken)
+            .ConfigureAwait(false);
+
+    public Task<RadarrMovie> LookupMovieAsync(int tmdbId, CancellationToken cancellationToken) =>
+        GetAsync<RadarrMovie>(
+            ArrKind.Radarr, $"movie/lookup/tmdb?tmdbId={tmdbId.ToString(CultureInfo.InvariantCulture)}", cancellationToken);
+
+    public async Task<IReadOnlyList<SonarrSeries?>> GetSeriesAsync(CancellationToken cancellationToken) =>
+        await GetAsync<List<SonarrSeries?>>(ArrKind.Sonarr, "series", cancellationToken).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<SonarrEpisode?>> GetSeriesEpisodesAsync(int seriesId, CancellationToken cancellationToken) =>
+        await GetAsync<List<SonarrEpisode?>>(
+            ArrKind.Sonarr, $"episode?seriesId={seriesId.ToString(CultureInfo.InvariantCulture)}", cancellationToken)
+            .ConfigureAwait(false);
+
     public Task<ArrStatus> GetStatusAsync(ArrKind kind, CancellationToken cancellationToken) =>
         GetAsync<ArrStatus>(kind, "system/status", cancellationToken);
 

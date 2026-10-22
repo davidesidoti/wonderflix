@@ -200,6 +200,9 @@ public sealed class SeerrRequestMedia
 {
     public int TmdbId { get; set; }
 
+    /// <summary>Per le serie; null per i film (spec S §6.1).</summary>
+    public int? TvdbId { get; set; }
+
     public string? MediaType { get; set; }
 
     public int Status { get; set; }

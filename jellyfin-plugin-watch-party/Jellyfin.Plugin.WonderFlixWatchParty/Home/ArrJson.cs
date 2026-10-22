@@ -19,6 +19,12 @@ public sealed class ArrImage
 /// <summary>La serie di un episodio del calendario di Sonarr (includeSeries=true).</summary>
 public sealed class SonarrSeries
 {
+    /// <summary>L'id della serie in Sonarr (0 nel calendario con includeSeries).</summary>
+    public int Id { get; set; }
+
+    /// <summary>Il prossimo episodio in onda; null se Sonarr non ne conosce.</summary>
+    public DateTimeOffset? NextAiring { get; set; }
+
     public string? Title { get; set; }
 
     public int TvdbId { get; set; }
@@ -61,6 +67,12 @@ public sealed class RadarrMovie
 
     /// <summary>Null se Radarr non conosce l'uscita digitale.</summary>
     public DateTimeOffset? DigitalRelease { get; set; }
+
+    /// <summary>Null se Radarr non conosce l'uscita al cinema.</summary>
+    public DateTimeOffset? InCinemas { get; set; }
+
+    /// <summary>Null se Radarr non conosce l'uscita in supporto fisico.</summary>
+    public DateTimeOffset? PhysicalRelease { get; set; }
 
     public bool HasFile { get; set; }
 

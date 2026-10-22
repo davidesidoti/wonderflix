@@ -100,6 +100,78 @@ public class ArrClientTests
     }
 
     [Fact]
+    public async Task FindingAMovieAsksRadarrByTmdbId()
+    {
+        Answer(
+            HttpStatusCode.OK,
+            """[{"title":"Coco","tmdbId":354912,"inCinemas":"2017-10-27T00:00:00Z","digitalRelease":"2017-11-30T00:00:00Z","physicalRelease":"2018-02-27T00:00:00Z","hasFile":true,"id":1}]""");
+
+        var movies = await Client().FindMoviesAsync(354912, CancellationToken.None);
+
+        var seen = Assert.Single(_http.Requests);
+        Assert.Equal("https://arr.example/radarr/api/v3/movie?tmdbId=354912", seen.Uri.OriginalString);
+        Assert.Equal("radarr-key", seen.ApiKey);
+        var movie = Assert.Single(movies)!;
+        Assert.Equal(new DateTimeOffset(2017, 10, 27, 0, 0, 0, TimeSpan.Zero), movie.InCinemas);
+        Assert.Equal(new DateTimeOffset(2017, 11, 30, 0, 0, 0, TimeSpan.Zero), movie.DigitalRelease);
+        Assert.Equal(new DateTimeOffset(2018, 2, 27, 0, 0, 0, TimeSpan.Zero), movie.PhysicalRelease);
+        Assert.True(movie.HasFile);
+    }
+
+    [Fact]
+    public async Task TheLookupAsksRadarrForAMovieNotInTheLibrary()
+    {
+        Answer(
+            HttpStatusCode.OK,
+            """{"title":"Avatar: Fuoco e cenere","tmdbId":83533,"inCinemas":"2025-12-17T00:00:00Z","digitalRelease":"2026-03-31T00:00:00Z","physicalRelease":"2026-05-19T00:00:00Z"}""");
+
+        var movie = await Client().LookupMovieAsync(83533, CancellationToken.None);
+
+        var seen = Assert.Single(_http.Requests);
+        Assert.Equal("https://arr.example/radarr/api/v3/movie/lookup/tmdb?tmdbId=83533", seen.Uri.OriginalString);
+        Assert.Equal("radarr-key", seen.ApiKey);
+        Assert.Equal(new DateTimeOffset(2025, 12, 17, 0, 0, 0, TimeSpan.Zero), movie.InCinemas);
+        Assert.Equal(new DateTimeOffset(2026, 3, 31, 0, 0, 0, TimeSpan.Zero), movie.DigitalRelease);
+        Assert.Equal(new DateTimeOffset(2026, 5, 19, 0, 0, 0, TimeSpan.Zero), movie.PhysicalRelease);
+        Assert.False(movie.HasFile);
+    }
+
+    [Fact]
+    public async Task TheSeriesListHasTheNextAiring()
+    {
+        Answer(
+            HttpStatusCode.OK,
+            """[{"title":"Dexter: Resurrection","tvdbId":452595,"tmdbId":259909,"nextAiring":"2026-11-02T01:00:00Z","id":40}]""");
+
+        var series = await Client().GetSeriesAsync(CancellationToken.None);
+
+        var seen = Assert.Single(_http.Requests);
+        Assert.Equal("https://arr.example/sonarr/api/v3/series", seen.Uri.OriginalString);
+        Assert.Equal("sonarr-key", seen.ApiKey);
+        var one = Assert.Single(series)!;
+        Assert.Equal(40, one.Id);
+        Assert.Equal(new DateTimeOffset(2026, 11, 2, 1, 0, 0, TimeSpan.Zero), one.NextAiring);
+    }
+
+    [Fact]
+    public async Task TheEpisodesOfASeriesAreAskedBySeriesId()
+    {
+        Answer(
+            HttpStatusCode.OK,
+            """[{"seriesId":40,"seasonNumber":1,"episodeNumber":4,"airDateUtc":"2026-11-02T01:00:00Z","hasFile":false}]""");
+
+        var episodes = await Client().GetSeriesEpisodesAsync(40, CancellationToken.None);
+
+        var seen = Assert.Single(_http.Requests);
+        Assert.Equal("https://arr.example/sonarr/api/v3/episode?seriesId=40", seen.Uri.OriginalString);
+        Assert.Equal("sonarr-key", seen.ApiKey);
+        var episode = Assert.Single(episodes)!;
+        Assert.Equal(40, episode.SeriesId);
+        Assert.Equal(4, episode.EpisodeNumber);
+        Assert.Equal(new DateTimeOffset(2026, 11, 2, 1, 0, 0, TimeSpan.Zero), episode.AirDateUtc);
+    }
+
+    [Fact]
     public async Task StatusGivesTheVersionOfEachService()
     {
         _http.Respond = (request, _) => Task.FromResult(FakeSeerrHttp.Json(
@@ -194,6 +266,31 @@ public class ArrClientTests
         Assert.Contains("Sonarr", entry.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("sonarr-key", entry.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("2026-10", entry.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheNewReadsLogOnlyThePath()
+    {
+        Answer(HttpStatusCode.Unauthorized, "{}");
+        var client = Client();
+
+        await Assert.ThrowsAsync<ArrException>(() => client.FindMoviesAsync(354912, CancellationToken.None));
+        await Assert.ThrowsAsync<ArrException>(() => client.LookupMovieAsync(354912, CancellationToken.None));
+        await Assert.ThrowsAsync<ArrException>(() => client.GetSeriesAsync(CancellationToken.None));
+        await Assert.ThrowsAsync<ArrException>(() => client.GetSeriesEpisodesAsync(40, CancellationToken.None));
+
+        Assert.Equal(4, _logger.Entries.Count);
+        Assert.Contains("movie", _logger.Entries[0].Message, StringComparison.Ordinal);
+        Assert.Contains("movie/lookup/tmdb", _logger.Entries[1].Message, StringComparison.Ordinal);
+        Assert.Contains("series", _logger.Entries[2].Message, StringComparison.Ordinal);
+        Assert.Contains("episode", _logger.Entries[3].Message, StringComparison.Ordinal);
+        Assert.All(_logger.Entries, e =>
+        {
+            Assert.DoesNotContain("tmdbId=", e.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("seriesId=", e.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("radarr-key", e.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("sonarr-key", e.Message, StringComparison.Ordinal);
+        });
     }
 
     [Fact]
