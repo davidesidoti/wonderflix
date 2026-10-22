@@ -76,6 +76,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IArrClient, ArrClient>();
         serviceCollection.AddSingleton<ISeriesIndex, JellyfinSeriesIndex>();
         serviceCollection.AddSingleton<UpcomingService>();
+        serviceCollection.AddSingleton<CalendarService>();
         serviceCollection.AddSingleton<ILibraryTitles, JellyfinLibraryTitles>();
         // Consigli tra amici (spec N).
         serviceCollection.AddSingleton(provider => new RecommendationStore(

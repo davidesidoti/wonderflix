@@ -20,15 +20,19 @@ public class UpcomingControllerTests
     private readonly User _mario = new("mario", "provider", "reset");
     private readonly FakeArrClient _client = new();
     private readonly FakeSeriesIndex _index = new();
+    private readonly FakeTimeProvider _time = new(Now);
 
     private UpcomingController Controller()
     {
         var (library, stub) = InterfaceStub<ILibraryAccess>.Create();
         stub.Handlers["CanSee"] = args => (Guid)args[0]! == _mario.Id;
+        var settings = new FakeArrSettings();
         var service = new UpcomingService(
-            _client, new FakeArrSettings(), _index, library, new FakeTimeProvider(Now), new RecordingLogger<UpcomingService>());
+            _client, settings, _index, library, _time, new RecordingLogger<UpcomingService>());
+        var calendar = new CalendarService(
+            _client, settings, _index, library, _time, new RecordingLogger<CalendarService>());
         var auth = new AuthorizationInfo { DeviceId = "d", Client = "WonderFlix", User = _mario, IsAuthenticated = true };
-        return new UpcomingController(new FakeAuthorizationContext(auth), service)
+        return new UpcomingController(new FakeAuthorizationContext(auth), service, calendar)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
         };
@@ -55,6 +59,39 @@ public class UpcomingControllerTests
 
         Assert.Equal(bear.ToString("N"), Assert.Single(answer.Items).JellyfinSeriesId);
     }
+
+    [Fact]
+    public async Task TheCalendarIsReadForTheCaller()
+    {
+        var bear = Guid.NewGuid();
+        _index.Series.Add(new LibrarySeries(bear, "136311", null, null));
+        _client.Episodes = (_, _) => Task.FromResult<IReadOnlyList<SonarrEpisode?>>(
+        [
+            new SonarrEpisode
+            {
+                SeriesId = 1,
+                SeasonNumber = 1,
+                EpisodeNumber = 1,
+                AirDateUtc = new DateTimeOffset(2026, 10, 12, 1, 0, 0, TimeSpan.Zero),
+                Series = new SonarrSeries { Title = "The Bear", TvdbId = 136311 },
+            },
+        ]);
+
+        var answer = (await Controller().GetCalendar("2026-10-01", "2026-11-01")).Value!;
+
+        Assert.Equal(bear.ToString("N"), Assert.Single(answer.Episodes).JellyfinSeriesId);
+        Assert.Null(answer.SeriesError);
+        Assert.Empty(answer.Movies);
+    }
+
+    [Theory]
+    [InlineData(null, "2026-11-01")]
+    [InlineData("2026-10-1", "2026-11-01")]
+    [InlineData("01/10/2026", "2026-11-01")]
+    [InlineData("2026-10-01", "2026-10-01")]
+    [InlineData("2026-10-01", "2026-11-13")]
+    public async Task ABadPeriodIsABadRequest(string? start, string? end) =>
+        Assert.IsType<BadRequestResult>((await Controller().GetCalendar(start, end)).Result);
 
     [Fact]
     public async Task MoviesAndTheTest()

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Mime;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
@@ -19,7 +20,8 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Api;
 [Produces(MediaTypeNames.Application.Json)]
 public class UpcomingController(
     IAuthorizationContext authorizationContext,
-    UpcomingService upcoming) : ControllerBase
+    UpcomingService upcoming,
+    CalendarService calendar) : ControllerBase
 {
     /// <summary>Gli episodi in arrivo, con la serie di Jellyfin solo se chi chiama la vede.</summary>
     [HttpGet("Series")]
@@ -32,6 +34,21 @@ public class UpcomingController(
     [HttpGet("Movies")]
     public async Task<ActionResult<UpcomingMoviesResponse>> GetMovies() =>
         await upcoming.GetMoviesAsync(HttpContext.RequestAborted).ConfigureAwait(false);
+
+    /// <summary>Il calendario delle uscite da <c>start</c> a <c>end</c> escluso (spec S §6.1); 400 se il periodo non è valido.</summary>
+    [HttpGet("Calendar")]
+    public async Task<ActionResult<CalendarResponse>> GetCalendar([FromQuery] string? start, [FromQuery] string? end)
+    {
+        if (!DateOnly.TryParseExact(start, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var from)
+            || !DateOnly.TryParseExact(end, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var to)
+            || !CalendarService.IsValidPeriod(from, to))
+        {
+            return BadRequest();
+        }
+
+        var caller = (await authorizationContext.GetAuthorizationInfo(HttpContext).ConfigureAwait(false)).UserId;
+        return await calendar.GetAsync(caller, from, to, HttpContext.RequestAborted).ConfigureAwait(false);
+    }
 
     /// <summary>"Prova collegamento" della dashboard admin e della pagina del plugin.</summary>
     [HttpPost("Test")]
