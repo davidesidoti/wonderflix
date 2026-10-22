@@ -13,6 +13,9 @@ permissions:
 jobs:
   release:
     runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: app
     steps:
       - uses: actions/checkout@v4
 
@@ -122,7 +125,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: wonderflix-setup
-          path: dist/*
+          path: app/dist/*
 
       - name: GitHub Release (bozza)
         shell: pwsh

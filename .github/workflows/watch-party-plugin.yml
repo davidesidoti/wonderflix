@@ -8,11 +8,11 @@ on:
     branches: [main]
     tags: ['watch-party-plugin-v*.*.*']
     paths:
-      - 'jellyfin-plugin-watch-party/**'
+      - 'plugin/**'
       - '.github/workflows/watch-party-plugin.yml'
   pull_request:
     paths:
-      - 'jellyfin-plugin-watch-party/**'
+      - 'plugin/**'
       - '.github/workflows/watch-party-plugin.yml'
 
 permissions:
@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: jellyfin-plugin-watch-party
+        working-directory: plugin
     steps:
       - uses: actions/checkout@v4
 
@@ -44,7 +44,7 @@ jobs:
       contents: write
     defaults:
       run:
-        working-directory: jellyfin-plugin-watch-party
+        working-directory: plugin
     steps:
       - uses: actions/checkout@v4
 
@@ -74,4 +74,4 @@ jobs:
           "artifacts/wonderflix-watch-party_${VERSION}.zip.md5"
           --prerelease --latest=false
           --title "WonderFlix Watch Party ${VERSION}"
-          --notes "Plugin di Jellyfin per il watch party di WonderFlix. Aggiungere la versione a jellyfin-plugin-watch-party/manifest.json."
+          --notes "Plugin di Jellyfin per il watch party di WonderFlix. Aggiungere la versione a plugin/manifest.json."
