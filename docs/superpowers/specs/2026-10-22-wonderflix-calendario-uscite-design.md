@@ -1,7 +1,7 @@
 # WonderFlix — Spec S: calendario delle uscite
 
 - **Data:** 2026-10-22
-- **Stato:** approvata il 2026-10-22. Bozza della griglia: `.superpowers/brainstorm/1632-1792678780/content/calendario-layout.html` (opzione B, non nel repo).
+- **Stato:** approvata il 2026-10-22; piano 25a realizzato (`docs/superpowers/plans/2026-10-22-wonderflix-25a-calendario-plugin.md`), build di prova sul server; piano 25b da realizzare. Bozza della griglia: `.superpowers/brainstorm/1632-1792678780/content/calendario-layout.html` (opzione B, non nel repo).
 - **Ambito:** Spec S. Realizza l'idea 16 di `docs/IDEE.md` ("Calendario delle uscite"). Si appoggia alla Spec I (richieste con Seerr: `2026-10-05-wonderflix-seerr-design.md`), alla Spec M (Sonarr e Radarr nel plugin: `2026-10-10-wonderflix-home-su-misura-design.md`, §7) e alla Spec G (cassetta: `2026-10-03-wonderflix-notifiche-design.md`).
 
 ## 1. Obiettivo
@@ -89,13 +89,13 @@ App 0.19.0, plugin 1.12.0, Jellyfin 10.11.9 su Ultra.cc, Sonarr 4.0.20 e Radarr 
 
 ## 5. Architettura
 
-Il plugin resta l'unico che parla con Sonarr, Radarr e Seerr: le chiavi non arrivano mai all'app. Il calendario è una lettura in più dello stesso `IArrClient`, con la stessa cache e gli stessi codici d'errore dello spec M §7.4. Le date delle richieste le aggiunge `RequestsService`, leggendo la libreria di Radarr e di Sonarr una volta ogni 15 minuti per tutti.
+Il plugin resta l'unico che parla con Sonarr, Radarr e Seerr: le chiavi non arrivano mai all'app. Il calendario è una lettura in più dello stesso `IArrClient`, con la stessa cache e gli stessi codici d'errore dello spec M §7.4. Le date delle richieste le aggiunge `RequestsService` tramite `ReleaseDatesService`: i film si chiedono a Radarr uno per uno, per id TMDB; per le serie si legge la libreria di Sonarr (una volta ogni 15 minuti per tutti). Le letture di tutti e due passano da `ArrReadCache<T>`, una cache a chiavi condivisa (15 minuti, 1 minuto per un errore).
 
 ## 6. Plugin 1.13.0
 
 ### 6.1 `GET WonderFlixWatchParty/Upcoming/Calendar?start=YYYY-MM-DD&end=YYYY-MM-DD`
 
-- Per tutti gli utenti autenticati. `end` è escluso. Al massimo **42 giorni** (sei settimane: la griglia del mese con i giorni dei mesi vicini); un periodo più lungo, date non valide o `end ≤ start` → 400.
+- Per tutti gli utenti autenticati. `end` è escluso. Al massimo **42 giorni** (sei settimane: la griglia del mese con i giorni dei mesi vicini); un periodo più lungo, date non valide (solo `YYYY-MM-DD`, anche se mancano) o `end ≤ start` → 400 **senza corpo**, come gli altri controller del plugin.
 - Le date sono giorni di calendario. Il plugin chiede a Sonarr e Radarr da `start` 00:00 a `end` 00:00 **allargati di un giorno per parte** (14 ore bastano per i fusi, un giorno è più semplice). L'app mette ogni episodio nel giorno **locale** dell'utente, ogni film nel giorno della sua data (§10), e scarta quelle fuori dalla griglia.
 - Chiama Sonarr e Radarr **in parallelo**; se uno dei due non è configurato o va in errore, l'altro risponde lo stesso.
 - Risposta (sempre 200):
@@ -113,13 +113,15 @@ Il plugin resta l'unico che parla con Sonarr, Radarr e Seerr: le chiavi non arri
   ```
 
   - Le voci sono quelle di `Upcoming/Series` e `Upcoming/Movies` (Spec M §7.3), con le stesse regole per immagini, gruppi in blocco, `JellyfinSeriesId` per utente e ordine.
+  - Tutti i campi si scrivono sempre, anche se null (come `Year` e `PosterPath` di `MediaRequestDto`): l'app trova la chiave e non deve distinguere "manca" da "null".
   - **Differenze da `Upcoming/*`:** il periodo lo sceglie l'app; si tengono **anche** le uscite già scaricate (`hasFile = true`), con `OnServer = true`; senza `SeriesLookBack`.
   - Un gruppo in blocco è `OnServer` solo se tutti i suoi episodi lo sono.
   - Film: solo quelli con `digitalRelease` nel periodo (allargato). Un film con solo `inCinemas` nel periodo non c'è.
   - `JellyfinItemId` di un film (nuovo): il film di Jellyfin con lo stesso id TMDB, **solo se chi chiama lo vede**; altrimenti `null`. Come `JellyfinSeriesId`, con le stesse regole di scelta e ordine.
   - `SeriesError` e `MoviesError` usano i codici di Spec M §7.4 (`NotConfigured`, `Unauthorized`, `Unreachable`).
-- **Cache:** come Spec M §7.4, 15 minuti (1 minuto per un errore), legata a indirizzo, chiave e **periodo**. Tiene al massimo **pochi periodi** (scelta del costruttore, per esempio gli ultimi 6): chi sfoglia i mesi non deve far crescere la memoria senza limite. Il collegamento a Jellyfin si sceglie per utente dopo la cache.
-- Le richieste allo stesso periodo in contemporanea fanno una sola lettura, come oggi.
+- **Cache:** `ArrReadCache<T>` (§5), 15 minuti (1 minuto per un errore), legata a indirizzo, chiave e **periodo**. Tiene **6 periodi per servizio** (`CalendarService.MaxCachedPeriods`; Sonarr e Radarr hanno ognuno la sua cache): chi sfoglia i mesi non deve far crescere la memoria senza limite. Il limite vale per le letture finite; quelle in corso si aggiungono sempre, e quando serve posto esce la più vecchia.
+  - Nella cache ci sono le voci già costruite, compresi gli id dei titoli di Jellyfin che le corrispondono (uguali per tutti). Solo la scelta di quello che l'utente vede si fa per utente, **dopo** la cache.
+- Le richieste allo stesso periodo in contemporanea fanno una sola lettura. La lettura non si ferma se chi l'ha chiesta se ne va (il suo risultato serve alla prossima richiesta); chi chiede smette solo di aspettarla.
 
 ### 6.2 Date nelle richieste
 
@@ -132,11 +134,13 @@ Ogni `MediaRequestDto` riceve tre campi nuovi, che possono mancare (null):
 | `NextAiring` | — | prossimo episodio atteso: `nextAiring` di Sonarr, con stagione ed episodio (`NextSeasonNumber`, `NextEpisodeNumber`) |
 
 - **Da dove:**
-  - film: Radarr per `tmdbId`, uno per film chiesto (`movie?tmdbId=`, e se non è in libreria `movie/lookup/tmdb?tmdbId=`), oppure la libreria intera (`movie`, 5,4 MB). Le misure sono in §2, la scelta è del costruttore. Cache di 15 minuti per tutti (1 minuto con un errore), legata alle impostazioni come §6.1, con un limite di voci se è per film;
-  - serie: la libreria di Sonarr (`series`, 0,66 MB), letta tutta insieme con la stessa cache; si abbina per `tvdbId`, poi `tmdbId`.
-  - Il numero del prossimo episodio non è in `series`: il costruttore sceglie come averlo (per esempio il calendario di Sonarr dei prossimi giorni, già in cache, o `episode?seriesId=` solo per le serie chieste). Se costa troppo, `NextAiring` resta senza numero.
+  - film: Radarr **per `tmdbId`**, mai la libreria intera (5,4 MB, §2): prima `movie?tmdbId=`, poi, se l'elenco è vuoto, `movie/lookup/tmdb?tmdbId=`. Una voce in cache per film (15 minuti, 1 minuto con un errore), legata a indirizzo e chiave come §6.1, al massimo 500 film (`ReleaseDatesService.MaxCachedMovies`);
+  - **solo dove servono:** una richiesta `Available`, `Declined` o `Failed` non chiede niente a Radarr e i suoi campi restano null (l'app non li mostra, §7.5). Le altre, `Pending` compresa, sì;
+  - serie: la libreria di Sonarr (`series`, 0,66 MB), letta tutta insieme con la stessa cache (una sola voce); si abbina per **`tvdbId` del media di Seerr** (campo nuovo `SeerrRequestMedia.TvdbId`, null per i film), poi per `tmdbId`. Le serie le chiedono sempre, qualunque sia lo stato;
+  - il numero del prossimo episodio non è in `series`: si legge `episode?seriesId=` solo per una serie con `nextAiring`, e si prende l'episodio con quell'ora (a parità la stagione normale prima della 0, poi il numero più basso). Una voce in cache per serie, al massimo 200 (`ReleaseDatesService.MaxCachedSeriesEpisodes`). Se quella lettura fallisce o non trova l'episodio, `NextAiring` resta e `NextSeasonNumber` e `NextEpisodeNumber` sono null.
+  - Tutti i campi nuovi si scrivono anche se null, come quelli del calendario (§6.1).
 - **Richiesta non ancora in Radarr** (in attesa di approvazione, o approvata ma Radarr non l'ha ancora aggiunta): le date vengono da `movie/lookup/tmdb` (le date di TMDB, come le vedrebbe Radarr). Se anche questo fallisce, i campi restano null.
-- Sonarr o Radarr non configurati o in errore: i campi restano null, la pagina Richieste funziona come oggi. Un errore di Sonarr o Radarr **non** fa fallire l'elenco delle richieste.
+- Sonarr o Radarr non configurati o in errore: i campi restano null, la pagina Richieste funziona come oggi. Un errore di Sonarr o Radarr **non** fa fallire l'elenco delle richieste (`ReleaseDatesService` non lancia mai, tranne l'annullamento di chi chiede; nel log solo l'id, mai titoli o indirizzi).
 - **Stato nuovo `AwaitingRelease`**, tra 6 e 8 della Spec I §7.3: una richiesta di **film** approvata, non disponibile, senza download in corso, con Radarr che **non** ha il file (`hasFile` falso o film non in Radarr), e **non ancora uscito** → `AwaitingRelease` invece di `Approved`. "Non ancora uscito" vuol dire:
   - `DigitalRelease` nel futuro (dopo l'ora attuale); oppure
   - `DigitalRelease` null, `PhysicalRelease` null o nel futuro, e `InCinemas` null, nel futuro o negli **ultimi 12 mesi**.
@@ -145,6 +149,7 @@ Ogni `MediaRequestDto` riceve tre campi nuovi, che possono mancare (null):
   - Con `DigitalRelease` passato resta `Approved`: il film è uscito e Radarr lo sta cercando.
   - Con `hasFile` vero resta `Approved` (o `Downloading`): il film è sul server o ci sta arrivando, e Seerr lo segna `Available` entro pochi minuti (§2).
   - `PhysicalRelease` serve solo per questa regola: non va nel DTO.
+  - **Senza le date non si sa:** con Radarr non configurato o in errore (campi null) la richiesta resta `Approved`, non diventa `AwaitingRelease`.
   - `Pending` resta `Pending` anche se il film non è uscito: l'admin deve ancora approvarla.
   - Un'app vecchia mostra `AwaitingRelease` come "Approvata": `RequestStatus.parse` (`lib/core/requests/requests_models.dart`) legge ogni stato sconosciuto come `approved`. Nessun cambio di forma serve.
 
@@ -154,7 +159,7 @@ Niente di nuovo: il calendario usa la configurazione di Sonarr e Radarr che c'è
 
 ### 6.4 `Info` e versione
 
-- `calendar` in `Features` se Sonarr **o** Radarr è configurato.
+- `calendar` in `Features` se Sonarr **o** Radarr è configurato. Lo calcola `WatchPartyProtocol.FeaturesWith` (la firma non cambia) e lo mette subito dopo `upcomingSeries` e `upcomingMovies`: con tutti e due `…, "upcomingSeries", "upcomingMovies", "calendar"`, con solo Sonarr `…, "upcomingSeries", "calendar"`.
 - Versione **1.13.0**; descrizione e overview del manifest con il calendario.
 
 ## 7. App 0.20.0
@@ -253,6 +258,6 @@ Niente di nuovo: il calendario usa la configurazione di Sonarr e Radarr che c'è
 
 ## 11. Piani e release
 
-- **Piano 25a — plugin 1.13.0:** §6, test §9.1, build di prova installata a mano sul server.
+- **Piano 25a — plugin 1.13.0:** §6, test §9.1, build di prova installata a mano sul server. Realizzato.
 - **Piano 25b — app 0.20.0:** §7 e §8, test §9.2, poi la prova a mano §9.3 con l'utente.
 - Release insieme alla fine di 25b: tag del plugin `watch-party-plugin-v1.13.0` con manifest e Catalog, app `v0.20.0` (non obbligatoria) con le note in italiano nella bozza.
