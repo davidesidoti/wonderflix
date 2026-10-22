@@ -42,6 +42,12 @@ public sealed class DiscordBotClient(
     /// <summary>Attesa massima di un'operazione intera; i test la accorciano.</summary>
     internal TimeSpan Timeout { get; init; } = DefaultTimeout;
 
+    /// <summary>
+    /// Il tempo su cui scade <see cref="Timeout"/>; i test lo fanno avanzare a mano.
+    /// Ogni operazione ha un solo limite (deadline), unito all'annullamento di chi chiama (budget).
+    /// </summary>
+    internal TimeProvider Time { get; init; } = TimeProvider.System;
+
     public async Task<DiscordLookup> FindMemberAsync(string username, CancellationToken cancellationToken)
     {
         if (!settings.IsDiscordConfigured())
@@ -49,7 +55,8 @@ public sealed class DiscordBotClient(
             return DiscordLookup.Error;
         }
 
-        using var budget = StartBudget(cancellationToken);
+        using var deadline = new CancellationTokenSource(Timeout, Time);
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token, cancellationToken);
         var reply = await SendAsync(
             HttpMethod.Get,
             $"guilds/{settings.DiscordGuildId}/members/search?query={Uri.EscapeDataString(username)}&limit={SearchLimit}",
@@ -97,7 +104,8 @@ public sealed class DiscordBotClient(
         }
 
         // Un solo limite di tempo per i due passi (apri il canale, scrivi).
-        using var budget = StartBudget(cancellationToken);
+        using var deadline = new CancellationTokenSource(Timeout, Time);
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token, cancellationToken);
         var channel = await SendAsync(
             HttpMethod.Post, "users/@me/channels", new { recipient_id = userId }, budget.Token, cancellationToken)
             .ConfigureAwait(false);
@@ -126,7 +134,8 @@ public sealed class DiscordBotClient(
             return DiscordCheck.Invalid;
         }
 
-        using var budget = StartBudget(cancellationToken);
+        using var deadline = new CancellationTokenSource(Timeout, Time);
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token, cancellationToken);
         var me = await SendAsync(HttpMethod.Get, "users/@me", null, budget.Token, cancellationToken).ConfigureAwait(false);
         if (me is null)
         {
@@ -172,17 +181,6 @@ public sealed class DiscordBotClient(
             { Status: 401 or 403 } => DiscordCheck.Invalid,
             _ => DiscordCheck.Failed,
         };
-    }
-
-    /// <summary>
-    /// Il tempo di un'operazione intera: scade dopo <see cref="Timeout"/> e si
-    /// annulla anche se si annulla chi chiama.
-    /// </summary>
-    private CancellationTokenSource StartBudget(CancellationToken cancellationToken)
-    {
-        var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        budget.CancelAfter(Timeout);
-        return budget;
     }
 
     // 403 con il codice 50007: messaggi diretti chiusi. Ogni altro errore (429 compreso): Failed.

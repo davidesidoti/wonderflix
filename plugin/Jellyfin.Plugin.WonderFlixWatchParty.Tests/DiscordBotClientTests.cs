@@ -1,6 +1,7 @@
 using System.Net;
 using Jellyfin.Plugin.WonderFlixWatchParty.Account;
 using Jellyfin.Plugin.WonderFlixWatchParty.Server;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
@@ -12,9 +13,17 @@ public class DiscordBotClientTests
     private readonly FakeDiscordHttp _http = new();
     private readonly FakeAccountSettings _settings = new();
     private readonly RecordingLogger<DiscordBotClient> _logger = new();
+    private readonly FakeTimeProvider _time = new();
 
     private DiscordBotClient Client(TimeSpan? timeout = null) =>
-        new(_http, _settings, _logger) { Timeout = timeout ?? DiscordBotClient.DefaultTimeout };
+        new(_http, _settings, _logger) { Timeout = timeout ?? DiscordBotClient.DefaultTimeout, Time = _time };
+
+    // Una richiesta che dura `length` sul tempo finto: se intanto scade il limite, si annulla.
+    private void Elapse(TimeSpan length, CancellationToken ct)
+    {
+        _time.Advance(length);
+        ct.ThrowIfCancellationRequested();
+    }
 
     private static HttpResponseMessage Json(HttpStatusCode status, string json) => FakeDiscordHttp.Json(status, json);
 
@@ -166,6 +175,7 @@ public class DiscordBotClientTests
     {
         _http.Respond = async (_, ct) =>
         {
+            _time.Advance(TimeSpan.FromMilliseconds(50));
             await Task.Delay(Timeout.Infinite, ct);
             return Json(HttpStatusCode.OK, "{}");
         };
@@ -179,12 +189,12 @@ public class DiscordBotClientTests
     [Fact]
     public async Task TheTimeIsOneForTheWholeDirectMessage()
     {
-        _http.Respond = async (request, ct) =>
+        _http.Respond = (request, ct) =>
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(200), ct);
-            return request.RequestUri!.AbsolutePath == ChannelsPath
+            Elapse(TimeSpan.FromMilliseconds(200), ct);
+            return Task.FromResult(request.RequestUri!.AbsolutePath == ChannelsPath
                 ? Json(HttpStatusCode.OK, """{"id":"333333333333333333"}""")
-                : Json(HttpStatusCode.OK, "{}");
+                : Json(HttpStatusCode.OK, "{}"));
         };
 
         Assert.Equal(
@@ -200,10 +210,10 @@ public class DiscordBotClientTests
     [Fact]
     public async Task TheTimeIsOneForTheWholeCheck()
     {
-        _http.Respond = async (_, ct) =>
+        _http.Respond = (_, ct) =>
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(150), ct);
-            return Json(HttpStatusCode.OK, "{}");
+            Elapse(TimeSpan.FromMilliseconds(150), ct);
+            return Task.FromResult(Json(HttpStatusCode.OK, "{}"));
         };
 
         // Tre passi da 150 ms contro 300 ms.
