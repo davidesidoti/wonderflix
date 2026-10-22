@@ -170,30 +170,34 @@ UpcomingEpisode testEpisode({
   int? tmdbId = 136315,
   String? jellyfinSeriesId,
   String? backdropUrl = 'https://artworks.thetvdb.com/f.jpg',
-}) =>
-    UpcomingEpisode(
-      seriesName: seriesName,
-      seasonNumber: season,
-      episodeNumber: episode,
-      lastEpisodeNumber: last,
-      airDate: airDate ?? DateTime.utc(2026, 10, 12, 1),
-      tmdbId: tmdbId,
-      jellyfinSeriesId: jellyfinSeriesId,
-      backdropUrl: backdropUrl,
-    );
+  bool onServer = false,
+}) => UpcomingEpisode(
+  seriesName: seriesName,
+  seasonNumber: season,
+  episodeNumber: episode,
+  lastEpisodeNumber: last,
+  airDate: airDate ?? DateTime.utc(2026, 10, 12, 1),
+  tmdbId: tmdbId,
+  jellyfinSeriesId: jellyfinSeriesId,
+  backdropUrl: backdropUrl,
+  onServer: onServer,
+);
 
 UpcomingMovie testUpcomingMovie({
   String title = 'Hope',
   int tmdbId = 1058424,
   DateTime? digitalRelease,
-}) =>
-    UpcomingMovie(
-      title: title,
-      tmdbId: tmdbId,
-      year: 2026,
-      digitalRelease: digitalRelease ?? DateTime.utc(2026, 10, 13),
-      posterUrl: 'https://image.tmdb.org/t/p/original/p.jpg',
-    );
+  String? jellyfinItemId,
+  bool onServer = false,
+}) => UpcomingMovie(
+  title: title,
+  tmdbId: tmdbId,
+  year: 2026,
+  digitalRelease: digitalRelease ?? DateTime.utc(2026, 10, 13),
+  posterUrl: 'https://image.tmdb.org/t/p/original/p.jpg',
+  jellyfinItemId: jellyfinItemId,
+  onServer: onServer,
+);
 
 /// I provider della Home nei test: libreria, plugin, Seerr, saghe e
 /// preferenze finti; funzioni del plugin [features], oppure [availability]
@@ -208,21 +212,22 @@ List<Override> homeOverrides({
   FakeCollectionsApi? collections,
   FakeSessionController? session,
   FakeSocialApi? social,
-}) =>
-    [
-      socialApiProvider.overrideWithValue(social ?? FakeSocialApi()),
-      libraryApiProvider.overrideWithValue(library),
-      homeApiProvider.overrideWithValue(home ?? FakeHomeApi()),
-      displayPreferencesApiProvider
-          .overrideWithValue(prefs ?? FakeDisplayPreferencesApi()),
-      socialAvailabilityProvider.overrideWith(
-          () => availability ?? FakeSocialAvailability(features)),
-      requestsApiProvider.overrideWithValue(requests ?? FakeRequestsApi()),
-      collectionsApiProvider
-          .overrideWithValue(collections ?? FakeCollectionsApi()),
-      sessionControllerProvider.overrideWith(() =>
-          session ?? FakeSessionController(const SessionSignedIn(testUser))),
-    ];
+}) => [
+  socialApiProvider.overrideWithValue(social ?? FakeSocialApi()),
+  libraryApiProvider.overrideWithValue(library),
+  homeApiProvider.overrideWithValue(home ?? FakeHomeApi()),
+  displayPreferencesApiProvider.overrideWithValue(
+    prefs ?? FakeDisplayPreferencesApi(),
+  ),
+  socialAvailabilityProvider.overrideWith(
+    () => availability ?? FakeSocialAvailability(features),
+  ),
+  requestsApiProvider.overrideWithValue(requests ?? FakeRequestsApi()),
+  collectionsApiProvider.overrideWithValue(collections ?? FakeCollectionsApi()),
+  sessionControllerProvider.overrideWith(
+    () => session ?? FakeSessionController(const SessionSignedIn(testUser)),
+  ),
+];
 
 /// Quello che serve alla sezione Home delle Impostazioni: va aggiunto ai test
 /// che montano `SettingsScreen`, che hanno già l'utente collegato.
@@ -231,12 +236,13 @@ List<Override> homeSettingsOverrides({
   FakeHomeApi? home,
   SocialFeatures features = SocialFeatures.none,
   FakeSocialApi? social,
-}) =>
-    [
-      socialApiProvider.overrideWithValue(social ?? FakeSocialApi()),
-      displayPreferencesApiProvider
-          .overrideWithValue(prefs ?? FakeDisplayPreferencesApi()),
-      homeApiProvider.overrideWithValue(home ?? FakeHomeApi()),
-      socialAvailabilityProvider
-          .overrideWith(() => FakeSocialAvailability(features)),
-    ];
+}) => [
+  socialApiProvider.overrideWithValue(social ?? FakeSocialApi()),
+  displayPreferencesApiProvider.overrideWithValue(
+    prefs ?? FakeDisplayPreferencesApi(),
+  ),
+  homeApiProvider.overrideWithValue(home ?? FakeHomeApi()),
+  socialAvailabilityProvider.overrideWith(
+    () => FakeSocialAvailability(features),
+  ),
+];

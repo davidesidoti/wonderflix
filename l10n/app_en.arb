@@ -410,6 +410,7 @@
   "requestsDigitalUnknown": "digital: date not known yet",
   "requestsNextEpisode": "Next episode: {episode} on {date}",
   "requestsNextEpisodeDate": "Next episode on {date}",
+  "calendarSeriesCount": "{name} ×{count}",
   "requestsApprove": "Approve",
   "requestsDecline": "Decline",
   "requestsDeclineConfirm": "Confirm",

@@ -14,6 +14,7 @@ const _keys = [
   'requestsDigitalUnknown',
   'requestsNextEpisode',
   'requestsNextEpisodeDate',
+  'calendarSeriesCount',
 ];
 
 Map<String, dynamic> _arb(String name) =>
@@ -47,6 +48,8 @@ void main() {
         'Prossimo episodio: S01E04 il 2 novembre');
     expect(it.requestsNextEpisodeDate('2 novembre'),
         'Prossimo episodio il 2 novembre');
+    expect(it.calendarSeriesCount('Andor', 4), 'Andor ×4');
+    expect(en.calendarSeriesCount('Andor', 4), 'Andor ×4');
     expect(en.requestsStatusAwaitingRelease, 'Waiting for release');
     expect(en.requestsInCinemas('Sep 25'), 'In cinemas from Sep 25');
     expect(en.requestsDigitalExpected('Nov 12'), 'digital expected on Nov 12');
