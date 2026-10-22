@@ -28,6 +28,16 @@ public sealed class JellyfinSeriesIndex(ILibraryManager libraryManager) : ISerie
             .OrderBy(series => series.Id)
             .ToList();
 
+    public IReadOnlyList<LibraryMovie> GetMovies() =>
+        libraryManager.GetItemList(new InternalItemsQuery
+            {
+                IncludeItemTypes = [BaseItemKind.Movie],
+                IsVirtualItem = false,
+            })
+            .Select(item => new LibraryMovie(item.Id, ProviderId(item, MetadataProvider.Tmdb)))
+            .OrderBy(movie => movie.Id)
+            .ToList();
+
     private static string? ProviderId(BaseItem item, MetadataProvider provider) =>
         item.TryGetProviderId(provider, out var value) && !string.IsNullOrWhiteSpace(value) ? value.Trim() : null;
 }

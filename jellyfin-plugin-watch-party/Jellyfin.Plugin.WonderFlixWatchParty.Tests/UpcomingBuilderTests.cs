@@ -195,4 +195,76 @@ public class UpcomingBuilderTests
         Assert.Equal(new[] { byImdb }, matched.Single(g => g.SeriesName == "Andor").LibrarySeriesIds);
         Assert.Empty(matched.Single(g => g.SeriesName == "Nuova").LibrarySeriesIds);
     }
+
+    [Fact]
+    public void DownloadedEpisodesStayOnlyWhenAsked()
+    {
+        var at = From.AddDays(1);
+        SonarrEpisode[] episodes =
+        [
+            Episode(1, Bear(), 1, 1, at, hasFile: true),
+            Episode(2, Andor(), 1, 1, at),
+        ];
+
+        Assert.Equal("Andor", Assert.Single(UpcomingBuilder.Episodes(episodes, From, To)).SeriesName);
+
+        var all = UpcomingBuilder.Episodes(episodes, From, To, includeDownloaded: true);
+        Assert.Equal(2, all.Count);
+        Assert.True(all.Single(g => g.SeriesName == "The Bear").OnServer);
+        Assert.False(all.Single(g => g.SeriesName == "Andor").OnServer);
+    }
+
+    [Fact]
+    public void ABlockIsOnServerOnlyWhenAllItsEpisodesAre()
+    {
+        var at = From.AddDays(1);
+        var partial = UpcomingBuilder.Episodes(
+        [
+            Episode(1, Bear(), 1, 1, at, hasFile: true),
+            Episode(1, Bear(), 1, 2, at),
+            Episode(1, Bear(), 1, 3, at, hasFile: true),
+        ], From, To, includeDownloaded: true);
+        var block = Assert.Single(partial);
+        Assert.Equal(3, block.LastEpisodeNumber);
+        Assert.False(block.OnServer);
+
+        var full = UpcomingBuilder.Episodes(
+        [
+            Episode(1, Bear(), 1, 1, at, hasFile: true),
+            Episode(1, Bear(), 1, 2, at, hasFile: true),
+            Episode(1, Bear(), 1, 3, at, hasFile: true),
+        ], From, To, includeDownloaded: true);
+        Assert.True(Assert.Single(full).OnServer);
+    }
+
+    [Fact]
+    public void DownloadedMoviesStayOnlyWhenAsked()
+    {
+        var at = From.AddDays(1);
+        RadarrMovie[] movies =
+        [
+            new() { Title = "Odissea", TmdbId = 1, DigitalRelease = at, HasFile = true },
+            new() { Title = "Hope", TmdbId = 2, DigitalRelease = at },
+        ];
+
+        Assert.Equal("Hope", Assert.Single(UpcomingBuilder.Movies(movies, From, To)).Title);
+
+        var all = UpcomingBuilder.Movies(movies, From, To, includeDownloaded: true);
+        Assert.Equal(2, all.Count);
+        Assert.True(all.Single(m => m.Title == "Odissea").OnServer);
+        Assert.False(all.Single(m => m.Title == "Hope").OnServer);
+    }
+
+    [Fact]
+    public void MoviesAreMatchedByTmdbId()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        var movies = UpcomingBuilder.MatchMovies(
+            UpcomingBuilder.Movies(
+                [new RadarrMovie { Title = "Hope", TmdbId = 1058424, DigitalRelease = From.AddDays(1) }], From, To),
+            [new LibraryMovie(first, " 1058424 "), new LibraryMovie(Guid.NewGuid(), "1"), new LibraryMovie(second, "1058424")]);
+
+        Assert.Equal(new[] { first, second }, Assert.Single(movies).LibraryItemIds);
+    }
 }

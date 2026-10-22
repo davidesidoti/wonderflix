@@ -23,6 +23,9 @@ public sealed record UpcomingEpisodeGroup(
 {
     /// <summary>Le serie di Jellyfin con gli stessi id esterni; per ogni utente vale la prima che vede.</summary>
     public IReadOnlyList<Guid> LibrarySeriesIds { get; init; } = [];
+
+    /// <summary>Tutti gli episodi della voce sono già sul server (spec S §6.1).</summary>
+    public bool OnServer { get; init; }
 }
 
 /// <summary>Un film in arrivo (spec M §7.3).</summary>
@@ -32,7 +35,14 @@ public sealed record UpcomingMovie(
     int TmdbId,
     DateTimeOffset DigitalRelease,
     string? PosterUrl,
-    string? BackdropUrl);
+    string? BackdropUrl)
+{
+    /// <summary>Il film è già sul server (spec S §6.1).</summary>
+    public bool OnServer { get; init; }
+
+    /// <summary>I film di Jellyfin con lo stesso id TMDB.</summary>
+    public IReadOnlyList<Guid> LibraryItemIds { get; init; } = [];
+}
 
 /// <summary>
 /// Dai calendari di Sonarr e Radarr alle uscite della Home: filtri, blocchi
@@ -51,12 +61,12 @@ public static class UpcomingBuilder
     /// In ordine di uscita, poi di serie.
     /// </summary>
     public static IReadOnlyList<UpcomingEpisodeGroup> Episodes(
-        IEnumerable<SonarrEpisode?> episodes, DateTimeOffset from, DateTimeOffset to)
+        IEnumerable<SonarrEpisode?> episodes, DateTimeOffset from, DateTimeOffset to, bool includeDownloaded = false)
     {
         var groups = new List<UpcomingEpisodeGroup>();
         UpcomingEpisodeGroup? current = null;
         foreach (var episode in episodes.OfType<SonarrEpisode>()
-                     .Where(e => !e.HasFile
+                     .Where(e => (includeDownloaded || !e.HasFile)
                                  && !string.IsNullOrWhiteSpace(e.Series?.Title)
                                  && e.AirDateUtc is { } at && at >= from && at < to)
                      .OrderBy(e => e.AirDateUtc)
@@ -71,7 +81,12 @@ public static class UpcomingBuilder
                 && current.AirDateUtc == at
                 && (current.LastEpisodeNumber ?? current.EpisodeNumber) + 1 == episode.EpisodeNumber)
             {
-                current = current with { LastEpisodeNumber = episode.EpisodeNumber, EpisodeTitle = null };
+                current = current with
+                {
+                    LastEpisodeNumber = episode.EpisodeNumber,
+                    EpisodeTitle = null,
+                    OnServer = current.OnServer && episode.HasFile,
+                };
                 groups[^1] = current;
                 continue;
             }
@@ -89,7 +104,10 @@ public static class UpcomingBuilder
                 Positive(series.TmdbId),
                 Text(series.ImdbId),
                 Image(series.Images, PosterType),
-                Image(series.Images, BackdropType));
+                Image(series.Images, BackdropType))
+            {
+                OnServer = episode.HasFile,
+            };
             groups.Add(current);
         }
 
@@ -105,9 +123,10 @@ public static class UpcomingBuilder
     /// I film non ancora scaricati con l'uscita digitale nel periodo, un id
     /// TMDB e un titolo; in ordine di uscita, poi di titolo.
     /// </summary>
-    public static IReadOnlyList<UpcomingMovie> Movies(IEnumerable<RadarrMovie?> movies, DateTimeOffset from, DateTimeOffset to) =>
+    public static IReadOnlyList<UpcomingMovie> Movies(
+        IEnumerable<RadarrMovie?> movies, DateTimeOffset from, DateTimeOffset to, bool includeDownloaded = false) =>
         movies.OfType<RadarrMovie>()
-            .Where(m => !m.HasFile
+            .Where(m => (includeDownloaded || !m.HasFile)
                         && m.TmdbId > 0
                         && !string.IsNullOrWhiteSpace(m.Title)
                         && m.DigitalRelease is { } at && at >= from && at < to)
@@ -117,7 +136,10 @@ public static class UpcomingBuilder
                 m.TmdbId,
                 m.DigitalRelease!.Value,
                 Image(m.Images, PosterType),
-                Image(m.Images, BackdropType)))
+                Image(m.Images, BackdropType))
+            {
+                OnServer = m.HasFile,
+            })
             .OrderBy(m => m.DigitalRelease)
             .ThenBy(m => m.Title, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -131,6 +153,23 @@ public static class UpcomingBuilder
             .Select(group => group with
             {
                 LibrarySeriesIds = all.Where(series => Matches(group, series)).Select(series => series.Id).Distinct().ToList(),
+            })
+            .ToList();
+    }
+
+    /// <summary>Ogni film con i film della libreria che hanno lo stesso id TMDB, nell'ordine della libreria.</summary>
+    public static IReadOnlyList<UpcomingMovie> MatchMovies(
+        IReadOnlyList<UpcomingMovie> movies, IEnumerable<LibraryMovie> library)
+    {
+        var all = library.ToList();
+        return movies
+            .Select(movie => movie with
+            {
+                LibraryItemIds = all
+                    .Where(item => Same(item.TmdbId, movie.TmdbId.ToString(CultureInfo.InvariantCulture)))
+                    .Select(item => item.Id)
+                    .Distinct()
+                    .ToList(),
             })
             .ToList();
     }
