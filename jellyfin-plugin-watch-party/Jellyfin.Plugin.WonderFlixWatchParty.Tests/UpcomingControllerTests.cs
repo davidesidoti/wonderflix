@@ -90,6 +90,8 @@ public class UpcomingControllerTests
     [InlineData("01/10/2026", "2026-11-01")]
     [InlineData("2026-10-01", "2026-10-01")]
     [InlineData("2026-10-01", "2026-11-13")]
+    [InlineData("0001-01-01", "0001-01-02")]
+    [InlineData("9999-12-30", "9999-12-31")]
     public async Task ABadPeriodIsABadRequest(string? start, string? end) =>
         Assert.IsType<BadRequestResult>((await Controller().GetCalendar(start, end)).Result);
 

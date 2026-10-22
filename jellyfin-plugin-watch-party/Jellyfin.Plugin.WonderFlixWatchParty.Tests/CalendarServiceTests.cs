@@ -53,6 +53,8 @@ public class CalendarServiceTests
         Assert.True(CalendarService.IsValidPeriod(new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 2)));
         Assert.True(CalendarService.IsValidPeriod(Start, End));
         Assert.False(CalendarService.IsValidPeriod(Start, new DateOnly(2026, 11, 10)));
+        Assert.False(CalendarService.IsValidPeriod(new DateOnly(1, 1, 1), new DateOnly(1, 1, 2)));
+        Assert.False(CalendarService.IsValidPeriod(new DateOnly(9999, 12, 30), new DateOnly(9999, 12, 31)));
     }
 
     [Fact]

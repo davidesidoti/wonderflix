@@ -31,7 +31,8 @@ public sealed class CalendarService(
 
     /// <summary><c>end</c> dopo <c>start</c> e al più <see cref="MaxDays"/> giorni.</summary>
     public static bool IsValidPeriod(DateOnly start, DateOnly end) =>
-        end > start && end.DayNumber - start.DayNumber <= MaxDays;
+        // Ai due estremi del calendario il margine di un giorno non e' rappresentabile.
+        start > DateOnly.MinValue && end < DateOnly.MaxValue && end > start &&end.DayNumber - start.DayNumber <= MaxDays;
 
     /// <summary>Solo con un periodo valido.</summary>
     public async Task<CalendarResponse> GetAsync(
