@@ -2,7 +2,7 @@
 # Crea in artifacts/ la cartella del plugin da copiare nei plugin di Jellyfin
 # (dll + meta.json, spec E §6.8). Lo zip per il repository lo fa il workflow.
 # Uso, dalla root del repository:
-#   bash jellyfin-plugin-watch-party/pack.sh 1.0.0
+#   bash plugin/pack.sh 1.0.0
 set -euo pipefail
 
 version="${1:?versione mancante, es. 1.0.0}"

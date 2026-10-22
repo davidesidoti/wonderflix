@@ -1,5 +1,5 @@
 ﻿; WonderFlix: installer per utente (nessun UAC).
-; Compilazione (dalla root del repository, dopo la build release):
+; Compilazione (dalla cartella app/ del repository, dopo la build release):
 ;   ISCC.exe /DAppVersion=X.Y.Z installer\wonderflix.iss
 ; Risultato: dist\WonderFlix-Setup-X.Y.Z.exe
 

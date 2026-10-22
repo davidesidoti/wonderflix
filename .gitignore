@@ -1,12 +1,6 @@
 # Brainstorming companion
 .superpowers/
 
-# Config reale con l'indirizzo del server (nel repo c'è solo l'example)
-config/wonderflix.json
-
-# Localizzazioni generate da gen-l10n
-lib/l10n/gen/
-
 # Miscellaneous
 *.class
 *.log
@@ -21,26 +15,5 @@ lib/l10n/gen/
 .swiftpm/
 migrate_working_dir/
 
-# IntelliJ related
-*.iml
-*.ipr
-*.iws
-.idea/
-
-# Flutter/Dart/Pub related
-**/doc/api/
-.dart_tool/
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-/coverage/
-
-# Symbolication / obfuscation
-app.*.symbols
-app.*.map.json
-
 # Worktree locali
 .claude/worktrees/
-# Installer generati (installer/wonderflix.iss)
-/dist/
