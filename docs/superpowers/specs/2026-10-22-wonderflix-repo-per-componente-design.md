@@ -1,7 +1,7 @@
 # WonderFlix — Progetto 1a: repo organizzata per componente
 
 - **Data:** 2026-10-22
-- **Stato:** in attesa di approvazione.
+- **Stato:** approvata il 2026-10-22; **realizzata** il 2026-10-22 con il piano 26 (`docs/superpowers/plans/2026-10-22-wonderflix-26-repo-per-componente.md`), CI verde sulla PR #11, provata dall'utente.
 - **Ambito:** progetto 1a dell'idea 1 di `docs/IDEE.md` ("Versione web"). Prepara la repo per il progetto 1b (sito web) senza scrivere codice per il web.
 
 ## 1. Obiettivo
