@@ -1,6 +1,7 @@
 using System.Reflection;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.WonderFlixWatchParty.Api;
+using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
 using Jellyfin.Plugin.WonderFlixWatchParty.Seerr;
@@ -32,7 +33,7 @@ public sealed class RequestsControllerTests : IDisposable
         _server.Users[_mario.Id] = new UserRef(_mario.Id, "Mario", true, false);
         _seerr.Users.Add(new SeerrUser { Id = 24, Permissions = 32, JellyfinUserId = _mario.Id.ToString("N") });
         var map = new SeerrUserMap(_seerr, _time, NullLogger<SeerrUserMap>.Instance);
-        _service = new RequestsService(_seerr, map, new SeerrTitleCache(_seerr, _time));
+        _service = new RequestsService(_seerr, map, new SeerrTitleCache(_seerr, _time), new ReleaseDatesService(new FakeArrClient(), new FakeArrSettings { Sonarr = ArrEndpoint.None, Radarr = ArrEndpoint.None }, _time, NullLogger<ReleaseDatesService>.Instance), _time);
         _webhook = new RequestWebhookHandler(
             _settings, map, _server, TestInbox.Create(_server, _folder, _time), _time,
             NullLogger<RequestWebhookHandler>.Instance);

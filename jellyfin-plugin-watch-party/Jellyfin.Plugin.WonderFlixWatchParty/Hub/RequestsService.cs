@@ -1,3 +1,4 @@
+using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
 using Jellyfin.Plugin.WonderFlixWatchParty.Seerr;
 
@@ -8,7 +9,7 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 /// Seerr abbinato a chi chiama, oggetti del plugin per l'app. Lancia
 /// SeerrException, che il controller traduce in risposta.
 /// </summary>
-public sealed class RequestsService(ISeerrClient seerr, SeerrUserMap users, SeerrTitleCache titles)
+public sealed class RequestsService(ISeerrClient seerr, SeerrUserMap users, SeerrTitleCache titles, ReleaseDatesService dates, TimeProvider time)
 {
     /// <summary>Richieste al massimo per pagina.</summary>
     public const int MaxTake = 50;
@@ -293,9 +294,30 @@ public sealed class RequestsService(ISeerrClient seerr, SeerrUserMap users, Seer
     {
         var mediaType = MediaTypeOf(request.Media?.MediaType ?? request.Type) ?? RequestMediaTypes.Movie;
         var tmdbId = request.Media?.TmdbId ?? 0;
-        var title = tmdbId > 0
-            ? await titles.GetAsync(mediaType, tmdbId, language, cancellationToken).ConfigureAwait(false)
-            : null;
+        var status = SeerrMapping.RequestStatus(request);
+
+        // Le date si chiedono solo dove servono (un film già disponibile, rifiutato o fallito non le mostra)
+        // e insieme al titolo; ReleaseDatesService non lancia.
+        var titleTask = tmdbId > 0
+            ? titles.GetAsync(mediaType, tmdbId, language, cancellationToken)
+            : Task.FromResult<SeerrTitle?>(null);
+        var movieTask = mediaType == RequestMediaTypes.Movie && tmdbId > 0
+            && status is not (RequestStatuses.Available or RequestStatuses.Declined or RequestStatuses.Failed)
+            ? dates.GetMovieAsync(tmdbId, cancellationToken)
+            : Task.FromResult<MovieDates?>(null);
+        var seriesTask = mediaType == RequestMediaTypes.Tv
+            ? dates.GetSeriesAsync(request.Media?.TvdbId, tmdbId, cancellationToken)
+            : Task.FromResult<SeriesNext?>(null);
+        await Task.WhenAll(titleTask, movieTask, seriesTask).ConfigureAwait(false);
+        var title = await titleTask.ConfigureAwait(false);
+        var movie = await movieTask.ConfigureAwait(false);
+        var series = await seriesTask.ConfigureAwait(false);
+
+        if (status == RequestStatuses.Approved && ReleaseRules.IsAwaitingRelease(movie, time.GetUtcNow()))
+        {
+            status = RequestStatuses.AwaitingRelease;
+        }
+
         return new MediaRequestDto(
             request.Id,
             mediaType,
@@ -306,9 +328,14 @@ public sealed class RequestsService(ISeerrClient seerr, SeerrUserMap users, Seer
             request.Seasons.Select(s => s.SeasonNumber).Order().ToList(),
             new RequesterDto(request.RequestedBy?.DisplayName ?? string.Empty, request.RequestedBy?.Id == me),
             request.CreatedAt,
-            SeerrMapping.RequestStatus(request),
+            status,
             SeerrMapping.Progress(request.Media?.DownloadStatus ?? []),
-            SeerrMapping.JellyfinId(request.Media?.JellyfinMediaId));
+            SeerrMapping.JellyfinId(request.Media?.JellyfinMediaId),
+            movie?.InCinemas,
+            movie?.DigitalRelease,
+            series?.NextAiring,
+            series?.SeasonNumber,
+            series?.EpisodeNumber);
     }
 
     private async Task<SeerrUser> ManagerAsync(Guid userId, CancellationToken cancellationToken)

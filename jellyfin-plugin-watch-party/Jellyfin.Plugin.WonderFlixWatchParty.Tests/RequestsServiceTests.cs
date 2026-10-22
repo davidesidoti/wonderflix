@@ -1,3 +1,4 @@
+using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
 using Jellyfin.Plugin.WonderFlixWatchParty.Seerr;
@@ -15,14 +16,18 @@ public class RequestsServiceTests
     private static readonly CancellationToken Ct = CancellationToken.None;
     private readonly FakeSeerrClient _seerr = new();
     private readonly FakeTimeProvider _time = new();
+    private readonly FakeArrClient _arr = new();
+    private readonly FakeArrSettings _arrSettings = new() { Sonarr = ArrEndpoint.None, Radarr = ArrEndpoint.None };
     private readonly RequestsService _service;
+
+    private ReleaseDatesService Dates() => new(_arr, _arrSettings, _time, NullLogger<ReleaseDatesService>.Instance);
 
     public RequestsServiceTests()
     {
         _seerr.Users.Add(new SeerrUser { Id = 3, Permissions = 34, JellyfinUserId = Davide.ToString("N"), DisplayName = "davide" });
         _seerr.Users.Add(new SeerrUser { Id = 24, Permissions = 32, JellyfinUserId = Mario.ToString("N"), DisplayName = "mario" });
         _service = new RequestsService(
-            _seerr, new SeerrUserMap(_seerr, _time, NullLogger<SeerrUserMap>.Instance), new SeerrTitleCache(_seerr, _time));
+            _seerr, new SeerrUserMap(_seerr, _time, NullLogger<SeerrUserMap>.Instance), new SeerrTitleCache(_seerr, _time), Dates(), _time);
     }
 
     private static async Task<SeerrError> ErrorOf(Func<Task> action) =>
@@ -56,7 +61,7 @@ public class RequestsServiceTests
 
         var noDefaults = new FakeSeerrClient { DefaultPermissions = 0 };
         var service = new RequestsService(
-            noDefaults, new SeerrUserMap(noDefaults, _time, NullLogger<SeerrUserMap>.Instance), new SeerrTitleCache(noDefaults, _time));
+            noDefaults, new SeerrUserMap(noDefaults, _time, NullLogger<SeerrUserMap>.Instance), new SeerrTitleCache(noDefaults, _time), Dates(), _time);
         Assert.Equal(new RequestsMeResponse(false, false, false), await service.MeAsync(Luigi, Ct));
     }
 
@@ -242,7 +247,7 @@ public class RequestsServiceTests
         Assert.Equal(
             new MediaRequestDto(
                 1, "movie", 841, "Dune", 1984, "/d.jpg", movie.Seasons, new RequesterDto("mario", true),
-                new DateTimeOffset(2026, 10, 3, 20, 0, 0, TimeSpan.Zero), RequestStatuses.Pending, null, null),
+                new DateTimeOffset(2026, 10, 3, 20, 0, 0, TimeSpan.Zero), RequestStatuses.Pending, null, null, null, null, null, null, null),
             movie);
         Assert.Empty(movie.Seasons);
         // Seerr non conosce il titolo della serie: resta vuoto.
@@ -380,5 +385,128 @@ public class RequestsServiceTests
 
         Assert.Equal(RequestStatuses.Declined, declined.Status);
         Assert.Equal((3, 53, false), _seerr.StatusChanges.Last());
+    }
+
+    private static readonly DateTimeOffset Cinema = new(2026, 9, 25, 0, 0, 0, TimeSpan.Zero);
+
+    private void Radarr(DateTimeOffset digital)
+    {
+        _arrSettings.Radarr = new ArrEndpoint("https://arr.example/radarr", "radarr-key");
+        _arr.FindMovies = _ => Task.FromResult<IReadOnlyList<RadarrMovie?>>(
+            [new RadarrMovie { TmdbId = 841, InCinemas = Cinema, DigitalRelease = digital }]);
+    }
+
+    private async Task<MediaRequestDto> Only(SeerrRequest request)
+    {
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 22, 12, 0, 0, TimeSpan.Zero));
+        _seerr.Requests.Add(request);
+        return (await _service.ListAsync(Mario, RequestsService.FilterMine, 0, 20, "it", Ct)).Items.Single(i => i.Id == request.Id);
+    }
+
+    [Fact]
+    public async Task AnApprovedMovieNotYetOutDigitallyIsAwaitingRelease()
+    {
+        var digital = new DateTimeOffset(2026, 11, 12, 0, 0, 0, TimeSpan.Zero);
+        Radarr(digital);
+
+        var dto = await Only(Request(1, 841, status: SeerrCodes.RequestApproved));
+
+        Assert.Equal(RequestStatuses.AwaitingRelease, dto.Status);
+        Assert.Equal(Cinema, dto.InCinemas);
+        Assert.Equal(digital, dto.DigitalRelease);
+    }
+
+    [Fact]
+    public async Task AnApprovedMovieAlreadyOutStaysApproved()
+    {
+        var digital = new DateTimeOffset(2026, 10, 20, 0, 0, 0, TimeSpan.Zero);
+        Radarr(digital);
+
+        var dto = await Only(Request(1, 841, status: SeerrCodes.RequestApproved));
+
+        Assert.Equal(RequestStatuses.Approved, dto.Status);
+        Assert.Equal(digital, dto.DigitalRelease);
+    }
+
+    [Fact]
+    public async Task PendingAndDownloadingDoNotChange()
+    {
+        var digital = new DateTimeOffset(2026, 11, 12, 0, 0, 0, TimeSpan.Zero);
+        Radarr(digital);
+        var downloading = Request(2, 841, status: SeerrCodes.RequestApproved);
+        downloading.Media!.DownloadStatus.Add(new SeerrDownload { Size = 1000, SizeLeft = 250 });
+        _seerr.Requests.Add(downloading);
+
+        var pending = await Only(Request(1, 841));
+        var page = await _service.ListAsync(Mario, RequestsService.FilterMine, 0, 20, "it", Ct);
+
+        Assert.Equal(RequestStatuses.Pending, pending.Status);
+        Assert.Equal(digital, pending.DigitalRelease);
+        Assert.Equal(RequestStatuses.Downloading, page.Items.Single(i => i.Id == 2).Status);
+    }
+
+    [Fact]
+    public async Task AvailableMoviesAskRadarrNothing()
+    {
+        Radarr(new DateTimeOffset(2026, 11, 12, 0, 0, 0, TimeSpan.Zero));
+
+        var dto = await Only(Request(1, 841, status: SeerrCodes.RequestCompleted));
+
+        Assert.Equal(RequestStatuses.Available, dto.Status);
+        Assert.Null(dto.InCinemas);
+        Assert.Null(dto.DigitalRelease);
+        Assert.Empty(_arr.FindMovieCalls);
+    }
+
+    [Fact]
+    public async Task ASeriesGetsItsNextEpisode()
+    {
+        _arrSettings.Sonarr = new ArrEndpoint("https://arr.example/sonarr", "sonarr-key");
+        var next = new DateTimeOffset(2026, 11, 2, 1, 0, 0, TimeSpan.Zero);
+        _arr.Series = () => Task.FromResult<IReadOnlyList<SonarrSeries?>>(
+            [new SonarrSeries { Id = 40, TvdbId = 452595, NextAiring = next }]);
+        _arr.SeriesEpisodes = _ => Task.FromResult<IReadOnlyList<SonarrEpisode?>>(
+            [new SonarrEpisode { SeriesId = 40, SeasonNumber = 1, EpisodeNumber = 4, AirDateUtc = next }]);
+        var request = Request(1, 59941, "tv", SeerrCodes.RequestApproved);
+        request.Media!.TvdbId = 452595;
+
+        var dto = await Only(request);
+
+        Assert.Equal(next, dto.NextAiring);
+        Assert.Equal(1, dto.NextSeasonNumber);
+        Assert.Equal(4, dto.NextEpisodeNumber);
+    }
+
+    [Fact]
+    public async Task ArrFailuresNeverBreakTheRequestList()
+    {
+        _arrSettings.Radarr = new ArrEndpoint("https://arr.example/radarr", "radarr-key");
+        _arrSettings.Sonarr = new ArrEndpoint("https://arr.example/sonarr", "sonarr-key");
+        _arr.FindMovies = _ => Task.FromException<IReadOnlyList<RadarrMovie?>>(new ArrException(ArrError.Unreachable));
+        _arr.Series = () => Task.FromException<IReadOnlyList<SonarrSeries?>>(new ArrException(ArrError.Unreachable));
+        _seerr.Requests.Add(Request(2, 59941, "tv", SeerrCodes.RequestApproved));
+
+        var movie = await Only(Request(1, 841, status: SeerrCodes.RequestApproved));
+        var tv = (await _service.ListAsync(Mario, RequestsService.FilterMine, 0, 20, "it", Ct)).Items.Single(i => i.Id == 2);
+
+        Assert.Equal(RequestStatuses.Approved, movie.Status);
+        Assert.Null(movie.DigitalRelease);
+        Assert.Equal(RequestStatuses.Approved, tv.Status);
+        Assert.Null(tv.NextAiring);
+    }
+
+    [Fact]
+    public void NewRequestFieldsAreWrittenEvenWhenNull()
+    {
+        var dto = new MediaRequestDto(
+            1, "movie", 841, "Dune", null, null, [], new RequesterDto("mario", true),
+            DateTimeOffset.UnixEpoch, "Approved", null, null, null, null, null, null, null);
+
+        var json = System.Text.Json.JsonSerializer.Serialize(dto);
+
+        foreach (var name in new[] { "InCinemas", "DigitalRelease", "NextAiring", "NextSeasonNumber", "NextEpisodeNumber" })
+        {
+            Assert.Contains($"\"{name}\":null", json);
+        }
     }
 }

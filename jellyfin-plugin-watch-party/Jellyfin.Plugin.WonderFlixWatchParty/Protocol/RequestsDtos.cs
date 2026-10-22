@@ -22,6 +22,9 @@ public static class RequestStatuses
     public const string Available = "Available";
     public const string Declined = "Declined";
     public const string Failed = "Failed";
+
+    /// <summary>Approvata, ma il film non è ancora uscito in digitale (spec S §6.2).</summary>
+    public const string AwaitingRelease = "AwaitingRelease";
 }
 
 /// <summary>I due tipi di titolo, con i nomi di Seerr.</summary>
@@ -109,7 +112,12 @@ public sealed record MediaRequestDto(
     [property: JsonPropertyName("CreatedAt")] DateTimeOffset CreatedAt,
     [property: JsonPropertyName("Status")] string Status,
     [property: JsonPropertyName("Progress")] double? Progress,
-    [property: JsonPropertyName("JellyfinItemId")] string? JellyfinItemId);
+    [property: JsonPropertyName("JellyfinItemId")] string? JellyfinItemId,
+    [property: JsonPropertyName("InCinemas")] DateTimeOffset? InCinemas,
+    [property: JsonPropertyName("DigitalRelease")] DateTimeOffset? DigitalRelease,
+    [property: JsonPropertyName("NextAiring")] DateTimeOffset? NextAiring,
+    [property: JsonPropertyName("NextSeasonNumber")] int? NextSeasonNumber,
+    [property: JsonPropertyName("NextEpisodeNumber")] int? NextEpisodeNumber);
 
 /// <summary>Risposta di GET Requests.</summary>
 public sealed record RequestPageDto(
