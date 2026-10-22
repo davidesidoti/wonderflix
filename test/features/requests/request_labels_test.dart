@@ -1,4 +1,5 @@
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/theme.dart';
@@ -114,10 +115,33 @@ void main() {
     });
 
     test('AMovieDateIsTheUtcDay', () {
-      final utc = DateTime.utc(2026, 11, 12);
+      // 23:30 UTC e' gia' il 13 in CET: il giorno deve restare quello UTC.
+      final utc = DateTime.utc(2026, 11, 12, 23, 30);
       expect(parts(movie(digital: utc)).single.$1, contains('12 novembre'));
       expect(parts(movie(digital: utc.toLocal())).single.$1,
           contains('12 novembre'));
+    });
+
+    test('TodayIsNotUpcoming', () {
+      expect(
+          parts(movie(
+              cinema: DateTime.utc(2026, 10, 22),
+              digital: DateTime.utc(2026, 10, 22))),
+          [
+            ('Al cinema dal 22 ottobre', false),
+            ('uscito in digitale il 22 ottobre', false),
+          ]);
+    });
+
+    test('ASeriesDayIsTheLocalDay', () {
+      final airing = DateTime.utc(2026, 11, 1, 23, 30);
+      final local = airing.toLocal();
+      final expected = DateFormat.MMMMd('it')
+          .format(DateTime.utc(local.year, local.month, local.day));
+      expect(
+          parts(testMediaRequest(
+              type: RequestMediaType.tv, nextAiring: airing)),
+          [('Prossimo episodio il $expected', true)]);
     });
 
     test('ASeriesShowsItsNextEpisode', () {

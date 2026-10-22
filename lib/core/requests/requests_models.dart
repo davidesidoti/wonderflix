@@ -319,7 +319,7 @@ class MediaRequest {
   final double? progress;
   final String? jellyfinItemId;
 
-  /// Date di uscita, istanti UTC (il giorno dei film Ã¨ quello UTC).
+  /// Date di uscita, istanti UTC (il giorno dei film è quello UTC).
   final DateTime? inCinemas;
   final DateTime? digitalRelease;
 
