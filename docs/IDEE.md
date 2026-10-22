@@ -1,5 +1,7 @@
 # WonderFlix — lista di idee
 
+I percorsi `lib/…`, `test/…` sono dentro `app/`.
+
 Le idee per i prossimi spec, in nessun ordine. All'inizio di uno spec l'utente sceglie da qui; finito, l'idea esce dalla lista (le fatte sono in fondo).
 
 **Escluso per scelta dell'utente**, da non riproporre:
@@ -22,7 +24,7 @@ Scelta dall'utente il 2026-10-22. Ogni progetto ha il suo brainstorming, spec e 
 
 ### 1a. Riorganizzare la repo per componente
 
-Una cartella per componente, non per piattaforma (Flutter produce Windows e web dallo stesso codice): l'app Flutter (installer Windows + sito web) e il plugin Jellyfin (`jellyfin-plugin-watch-party/`). Vanno aggiornati CI e release (`.github/workflows/`), `installer/wonderflix.iss`, `docs/RELEASING.md`, i README e i percorsi citati nei documenti. Tutti gli installer e le build restano in quest'unica repo.
+Fatto il 2026-10-22, vedi `docs/superpowers/specs/2026-10-22-wonderflix-repo-per-componente-design.md`.
 
 ### 1b. WonderFlix nel browser del PC
 
@@ -39,7 +41,7 @@ Tutta l'app usabile dal browser del telefono, senza tagli. Layout per schermi st
 
 Rifare l'app perché si possa usare anche su Smart TV (Fire TV Stick e simili, cioè Android TV / Fire OS), telefoni e tablet Android e iOS, macOS e Linux. Ha molto in comune con la versione web (idea 1): in entrambi i casi le parti legate a Windows vanno separate dal resto.
 - **Cosa c'è già:** Flutter gira su tutte queste piattaforme, e media_kit (libmpv) ha i pacchetti per Android, iOS, macOS e Linux; client Jellyfin, SyncPlay, watch party e plugin non dipendono da Windows.
-- **Cosa è solo Windows oggi:** `media_kit_libs_windows_video`, `smtc_windows` (pannello multimediale), `window_manager` e `screen_retriever` (solo desktop), la pipe di Discord e la preferenza delle animazioni via `dart:ffi` (`windows_discord_pipe.dart`, `windows_animation_pref.dart`), installer e aggiornamenti da GitHub (`installer/`, `docs/RELEASING.md`), il runner `windows/`.
+- **Cosa è solo Windows oggi:** `media_kit_libs_windows_video`, `smtc_windows` (pannello multimediale), `window_manager` e `screen_retriever` (solo desktop), la pipe di Discord e la preferenza delle animazioni via `dart:ffi` (`windows_discord_pipe.dart`, `windows_animation_pref.dart`), installer e aggiornamenti da GitHub (`app/installer/`, `docs/RELEASING.md`), il runner `app/windows/`.
 - **Da cercare:**
   - **TV:** interfaccia da divano con il telecomando (D-pad: focus visibile e navigazione su ogni schermata, niente passaggio del mouse, tasti indietro/play), testi più grandi, prestazioni sui chip delle chiavette, decodifica hardware e HDR; distribuzione (Amazon Appstore, Google Play per Android TV, o installazione manuale dell'APK);
   - **telefoni e tablet:** tocco al posto del mouse (passaggio del mouse, anteprime, menu), schermi piccoli e verticali, player a tutto schermo con i gesti, controlli multimediali di sistema e riproduzione in background, picture-in-picture;
@@ -120,3 +122,4 @@ Tutto quello che si è visto, con la data, i filtri (film, serie, mese) e "segna
 - Spec Q — voti degli amici (plugin 1.11.0, app 0.17.0).
 - Spec R — segnalazioni, sottotitoli e strumenti admin dei metadati (plugin 1.12.0, app 0.18.0 e 0.19.0).
 - Spec S — calendario delle uscite e date nelle richieste (plugin 1.13.0, app 0.20.0).
+- Progetto 1a — repo organizzata per componente (`app/`, `plugin/`).

@@ -19,18 +19,18 @@ Su GitHub: *Settings → Secrets and variables → Actions → New repository se
 
 Firma del codice (per ora spenta in `release.yml`): `WONDERFLIX_SIGNING_CERT` (certificato `.pfx` in base64) e `WONDERFLIX_SIGNING_PASSWORD`, poi togli `if: ${{ false }}` dai due passaggi di firma.
 
-Prima di accenderla: passare i Secrets via `env:` invece che nello script, usare il percorso completo di `signtool.exe` del Windows Kit, cancellare `cert.pfx` a fine job e firmare anche il disinstallatore (`SignTool=` in `installer/wonderflix.iss`).
+Prima di accenderla: passare i Secrets via `env:` invece che nello script, usare il percorso completo di `signtool.exe` del Windows Kit, cancellare `cert.pfx` a fine job e firmare anche il disinstallatore (`SignTool=` in `app/installer/wonderflix.iss`).
 
 ## Procedura
 
-1. Aggiorna `version:` in `pubspec.yaml` (es. `0.1.1`) e fai commit su `main`.
+1. Aggiorna `version:` in `app/pubspec.yaml` (es. `0.1.1`) e fai commit su `main`.
 2. Esegui la **checklist dei test manuali** (sotto) su una build locale.
 3. Crea il tag e fai push:
    ```bash
    git tag v0.1.1
    git push origin v0.1.1
    ```
-   Il tag deve essere esattamente `v` + la versione di `pubspec.yaml`, altrimenti la pipeline si ferma.
+   Il tag deve essere esattamente `v` + la versione di `app/pubspec.yaml`, altrimenti la pipeline si ferma.
 4. Attendi la fine di **Release** in *Actions*: la pipeline crea una GitHub Release in **bozza** con `WonderFlix-Setup-0.1.1.exe` e il suo `.sha256`. Se la rilanci sullo stesso tag (*Re-run jobs*), la release esiste già: la pipeline sostituisce solo i due file (`gh release upload --clobber`), note e stato restano.
 5. Scrivi le note di rilascio nella bozza (markdown: l'app le mostra così).
 6. **Solo se l'aggiornamento è obbligatorio** (compatibilità col server, bug gravi): aggiungi alle note la riga
@@ -99,9 +99,9 @@ Prima di ogni release, su un utente di prova:
 
 ## Plugin "WonderFlix Watch Party"
 
-Il plugin del server (cartella `jellyfin-plugin-watch-party/`, spec E) ha versioni e release sue, separate dall'app.
+Il plugin del server (cartella `plugin/`, spec E) ha versioni e release sue, separate dall'app.
 
-1. Aggiorna `<Version>` in `jellyfin-plugin-watch-party/Jellyfin.Plugin.WonderFlixWatchParty/Jellyfin.Plugin.WonderFlixWatchParty.csproj` (es. `1.0.1`) e fai commit su `main`. Il workflow compila con la versione del tag: tienila uguale a quella del csproj.
+1. Aggiorna `<Version>` in `plugin/Jellyfin.Plugin.WonderFlixWatchParty/Jellyfin.Plugin.WonderFlixWatchParty.csproj` (es. `1.0.1`) e fai commit su `main`. Il workflow compila con la versione del tag: tienila uguale a quella del csproj.
    I test del plugin girano con le dll della versione di Jellyfin del server
    (oggi 10.11.9, nel progetto di test), il plugin si compila contro la
    10.11.0: Jellyfin cambia API anche nelle patch. Quando il server si
@@ -123,7 +123,7 @@ Il plugin del server (cartella `jellyfin-plugin-watch-party/`, spec E) ha versio
    git push origin watch-party-plugin-v1.0.1
    ```
 4. Il workflow **Watch party plugin** pubblica una **pre-release** con `wonderflix-watch-party_1.0.1.zip` e `.zip.md5`. È sempre pre-release e mai "latest": l'app legge `releases/latest` per i propri aggiornamenti.
-5. Aggiungi la versione in cima a `versions` in `jellyfin-plugin-watch-party/manifest.json` e fai push su `main`:
+5. Aggiungi la versione in cima a `versions` in `plugin/manifest.json` e fai push su `main`:
    ```json
    {
      "version": "1.0.1.0",
@@ -136,6 +136,6 @@ Il plugin del server (cartella `jellyfin-plugin-watch-party/`, spec E) ha versio
    ```
 6. Sul server: prima togli da `plugins/` un'eventuale cartella copiata a mano (passo 2), poi Dashboard → Plugin → Catalogo → aggiorna (o installa) **WonderFlix Watch Party** e riavvia Jellyfin (su Ultra.cc: `app-jellyfin restart`).
 
-Il repository dei plugin si aggiunge una volta sola: Dashboard → Plugin → Repository → **+**, URL `https://raw.githubusercontent.com/davidesidoti/wonderflix/main/jellyfin-plugin-watch-party/manifest.json`.
+Il repository dei plugin si aggiunge una volta sola: Dashboard → Plugin → Repository → **+**, URL `https://raw.githubusercontent.com/davidesidoti/wonderflix/main/plugin/manifest.json`.
 
 **Jellyfin 12:** serve una build nuova (net10.0, `targetAbi` `12.0.0.0`) prima di aggiornare il server.

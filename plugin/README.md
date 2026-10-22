@@ -186,14 +186,14 @@ uscite in arrivo.
 ## Installazione dal repository
 
 1. Dashboard → Plugin → Repository → **+**: nome a piacere, URL
-   `https://raw.githubusercontent.com/davidesidoti/wonderflix/main/jellyfin-plugin-watch-party/manifest.json`.
+   `https://raw.githubusercontent.com/davidesidoti/wonderflix/main/plugin/manifest.json`.
 2. Catalogo → **WonderFlix Watch Party** → Installa.
 3. Riavvia Jellyfin.
 
 ## Installazione a mano (prove)
 
-1. Dalla root del repository: `bash jellyfin-plugin-watch-party/pack.sh 1.12.0`.
-   Crea `jellyfin-plugin-watch-party/artifacts/WonderFlix Watch Party_1.12.0.0/`
+1. Dalla root del repository: `bash plugin/pack.sh 1.12.0`.
+   Crea `plugin/artifacts/WonderFlix Watch Party_1.12.0.0/`
    con la dll e `meta.json`.
 2. Copia la cartella dentro `plugins/` della cartella dati di Jellyfin (su
    Ultra.cc via SFTP).
@@ -204,7 +204,7 @@ Prima di installare dal Catalogo togli la cartella copiata a mano.
 
 ## Sviluppo
 
-- Test: `dotnet test jellyfin-plugin-watch-party/Jellyfin.Plugin.WonderFlixWatchParty.Tests`.
+- Test: `dotnet test plugin/Jellyfin.Plugin.WonderFlixWatchParty.Tests`.
 - Versioni di Jellyfin: il plugin è compilato contro Jellyfin 10.11.0 (il
   minimo), i test girano con quella del server (10.11.9). Jellyfin ha tolto
   `IUserManager.Users` in una patch 10.11.x, quindi i membri che sono cambiati
