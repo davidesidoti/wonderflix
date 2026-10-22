@@ -15,6 +15,11 @@ const _keys = [
   'requestsNextEpisode',
   'requestsNextEpisodeDate',
   'calendarSeriesCount',
+  'calendarMore',
+  'calendarMovieDigital',
+  'calendarOnServer',
+  'calendarDayReleases',
+  'calendarAlreadyOnServer',
 ];
 
 Map<String, dynamic> _arb(String name) =>
@@ -50,6 +55,22 @@ void main() {
         'Prossimo episodio il 2 novembre');
     expect(it.calendarSeriesCount('Andor', 4), 'Andor ×4');
     expect(en.calendarSeriesCount('Andor', 4), 'Andor ×4');
+    expect(it.calendarMore(3), '+3');
+    expect(en.calendarMore(3), '+3');
+    expect(it.calendarMovieDigital, 'Film · in digitale');
+    expect(en.calendarMovieDigital, 'Movie · digital');
+    expect(it.calendarOnServer, 'Sul server');
+    expect(en.calendarOnServer, 'On the server');
+    expect(it.calendarDayReleases('Giovedì 22 ottobre', 1),
+        'Giovedì 22 ottobre: 1 uscita');
+    expect(it.calendarDayReleases('Giovedì 22 ottobre', 3),
+        'Giovedì 22 ottobre: 3 uscite');
+    expect(en.calendarDayReleases('Thursday, October 22', 1),
+        'Thursday, October 22: 1 release');
+    expect(en.calendarDayReleases('Thursday, October 22', 3),
+        'Thursday, October 22: 3 releases');
+    expect(it.calendarAlreadyOnServer, 'già sul server');
+    expect(en.calendarAlreadyOnServer, 'already on the server');
     expect(en.requestsStatusAwaitingRelease, 'Waiting for release');
     expect(en.requestsInCinemas('Sep 25'), 'In cinemas from Sep 25');
     expect(en.requestsDigitalExpected('Nov 12'), 'digital expected on Nov 12');

@@ -13,6 +13,12 @@ abstract final class WfColors {
 
   /// Pallino degli amici online (spec F §8.3).
   static const online = Color(0xFF5BBF6A);
+
+  /// Fondo delle voci dei film nel calendario (oro scuro, piano 25b).
+  static const calendarMovie = Color(0xFF2B2418);
+
+  /// Fondo delle voci delle serie nel calendario (blu scuro, piano 25b).
+  static const calendarSeries = Color(0xFF1D2630);
 }
 
 abstract final class WfText {
