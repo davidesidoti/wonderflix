@@ -80,13 +80,6 @@ Tutto quello che si è visto, con la data, i filtri (film, serie, mese) e "segna
 - **Da cercare:** con i soli dati del server ogni titolo compare una volta, all'ultima visione; per lo storico completo serve il registro del plugin dell'idea 13.
 - Piccolo/medio.
 
-## 16. Calendario delle uscite
-
-I prossimi episodi delle serie che si seguono, giorno per giorno, con un avviso nella cassetta quando arrivano sul server.
-- **Cosa c'è già (Spec M):** il plugin legge il calendario di Sonarr e di Radarr (`Upcoming/Series`, `Upcoming/Movies`, con il collegamento alle serie della libreria); la Home ha le righe "Serie in arrivo" (7 giorni) e "Film in arrivo".
-- **Da cercare:** da dove prendere le date: `/Shows/Upcoming` di Jellyfin (se il server conosce gli episodi futuri) oppure il calendario di Sonarr, direttamente o attraverso il plugin; quali serie contano come "seguite" (La mia lista, guardate di recente); legame con l'avviso dei nuovi titoli che c'è già (`NewTitlesHostedService`).
-- Medio.
-
 ## Fatte
 
 - Spec D — rinnovo del player (app 0.4.0).
@@ -104,3 +97,4 @@ I prossimi episodi delle serie che si seguono, giorno per giorno, con un avviso 
 - Spec P — match del film (plugin 1.10.0, app 0.16.0).
 - Spec Q — voti degli amici (plugin 1.11.0, app 0.17.0).
 - Spec R — segnalazioni, sottotitoli e strumenti admin dei metadati (plugin 1.12.0, app 0.18.0 e 0.19.0).
+- Spec S — calendario delle uscite e date nelle richieste (plugin 1.13.0, app 0.20.0).

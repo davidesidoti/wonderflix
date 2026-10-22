@@ -1,7 +1,7 @@
 # WonderFlix — Spec S: calendario delle uscite
 
 - **Data:** 2026-10-22
-- **Stato:** approvata il 2026-10-22; piano 25a realizzato (`docs/superpowers/plans/2026-10-22-wonderflix-25a-calendario-plugin.md`), build di prova sul server; piano 25b realizzato (`docs/superpowers/plans/2026-10-22-wonderflix-25b-calendario-app.md`), prova a mano da fare. Bozza della griglia: `.superpowers/brainstorm/1632-1792678780/content/calendario-layout.html` (opzione B, non nel repo).
+- **Stato:** approvata il 2026-10-22; piano 25a realizzato (`docs/superpowers/plans/2026-10-22-wonderflix-25a-calendario-plugin.md`), build di prova sul server; piano 25b realizzato (`docs/superpowers/plans/2026-10-22-wonderflix-25b-calendario-app.md`), provato con l'utente il 2026-10-22. **Realizzata:** plugin 1.13.0 (tag `watch-party-plugin-v1.13.0`) e app 0.20.0 (tag `v0.20.0`). Bozza della griglia: `.superpowers/brainstorm/1632-1792678780/content/calendario-layout.html` (opzione B, non nel repo).
 - **Ambito:** Spec S. Realizza l'idea 16 di `docs/IDEE.md` ("Calendario delle uscite"). Si appoggia alla Spec I (richieste con Seerr: `2026-10-05-wonderflix-seerr-design.md`), alla Spec M (Sonarr e Radarr nel plugin: `2026-10-10-wonderflix-home-su-misura-design.md`, §7) e alla Spec G (cassetta: `2026-10-03-wonderflix-notifiche-design.md`).
 
 ## 1. Obiettivo
