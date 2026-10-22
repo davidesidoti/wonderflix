@@ -7,11 +7,33 @@ Le idee per i prossimi spec, in nessun ordine. All'inizio di uno spec l'utente s
 - nella coda del party, la ripetizione e lo svuotamento (Spec H §5);
 - HDR vero (oggi media_kit converte in SDR) e firma del codice (deciso all'inizio dello Spec K).
 
-## 1. Versione web
+## 1. Versione web — PROSSIMI PASSI, in tre progetti e in quest'ordine
 
-Stesso client nel browser, usato da tutti con il protocollo WonderFlix, watch party compreso. La logica di sincronizzazione è in Dart puro (`lib/core/syncplay/`).
-- **Da cercare:** video con `<video>` invece di libmpv e ricorso alla transcodifica HLS; sottotitoli ASS/PGS senza libass; CORS e dove salvare il token; precisione di `currentTime`/`playbackRate` per il `DriftCorrector`; cosa non esiste sul web (SMTC, Discord, installer, `window_manager`, `dart:ffi`); hosting e configurazione.
-- È lo spec più grosso.
+Scelta dall'utente il 2026-10-22. Ogni progetto ha il suo brainstorming, spec e piano, in una sessione di Claude Code separata; il successivo parte quando il precedente è su `main`.
+
+**Perché:** usare WonderFlix fuori casa senza installare niente, dal PC di un parente o dal telefono, sia per guardare sia per le azioni da admin. La usano tutti gli utenti del server, non solo l'admin. Le app native per smartphone verranno dopo (idea 2) e riuseranno il lavoro del progetto 1c, perché il codice Flutter è lo stesso.
+
+**Cosa sappiamo già (ricognizione del 2026-10-22):**
+- **Hosting:** file statici serviti dal nginx utente di ultra.cc con un `location /wonderflix/` in `~/.apps/nginx/proxy.d/wonderflix.conf` (`alias` sulla cartella della build, poi `app-nginx restart`). URL `https://hashvps.proton.usbx.me/wonderflix/`, stessa origine di Jellyfin (`/jellyfin/`), quindi niente CORS. Ultra.cc ammette solo percorsi, non sottodomini né domini propri. Il `conf/mime.types` utente non ha `wasm` (va aggiunto `default_type application/wasm` in un `location ~ \.wasm$` annidato). Il ToS ammette l'uso privato con login, non un servizio pubblico pubblicizzato. Fonti: docs.ultra.cc "Generic Software Installation", "Assigned ports command", "HTTP access".
+- **Da eliminare sul server:** la vecchia app di prova Next.js che occupa `/wonderflix` (`~/wonderflix`, `wonderflix.service` utente, `proxy.d/wonderflix.conf`). L'utente ha confermato che si può cancellare; va fatto nel progetto 1b, prima di pubblicare il sito.
+- **Parti solo Windows** (~25 file su ~400): player media_kit/mpv, `smtc_windows`, pipe di Discord, `window_manager`/`screen_retriever`, aggiornamento da GitHub, log su file e altri usi di `dart:io`/`dart:ffi`. Il player è già dietro `VideoEngine` (`lib/core/video/video_engine.dart`).
+- **Video nel browser, il nodo vero:** oggi il profilo (`lib/core/jellyfin/device_profile.dart`) fa direct play di tutto. La libreria ha 5.354 video, di cui 3.673 HEVC (1.920 a 10 bit, 116 in 4K). L'audio è quasi tutto EAC3/AC3 e ci sono circa 1.000 tracce PGS/DVD. Il server (EPYC da 128 thread, condiviso) non ha accelerazione hardware (`HardwareAccelerationType: none`). Serve un profilo che chieda al browser cosa sa leggere e converta il minimo: remux e audio costano poco, la conversione del video (HEVC su browser che non lo leggono, PGS bruciati) costa molto. Il `<video>` non manda header, quindi il token va nell'URL.
+- **Interfaccia desktop:** finestra minima 1024×640, hover in 23 file (anteprime delle card), pannelli laterali, scorciatoie e tooltip; si adattano alla larghezza solo la barra e il calendario.
+
+### 1a. Riorganizzare la repo per componente
+
+Una cartella per componente, non per piattaforma (Flutter produce Windows e web dallo stesso codice): l'app Flutter (installer Windows + sito web) e il plugin Jellyfin (`jellyfin-plugin-watch-party/`). Vanno aggiornati CI e release (`.github/workflows/`), `installer/wonderflix.iss`, `docs/RELEASING.md`, i README e i percorsi citati nei documenti. Tutti gli installer e le build restano in quest'unica repo.
+
+### 1b. WonderFlix nel browser del PC
+
+Build web di tutta l'app, watch party compreso (la sincronizzazione è in Dart puro, `lib/core/syncplay/`). Sostituti o spegnimento delle parti solo Windows: niente Discord Rich Presence, controlli multimediali di Windows né aggiornamento automatico (il sito si aggiorna da solo; scelta di Claude da confermare nello spec). Player web con un profilo che converta il minimo. Pubblicazione su ultra.cc e aggiornamento del sito a ogni release.
+- **Da cercare:** motore video web (media_kit web, `<video>` con hls.js o altro); sottotitoli ASS/PGS senza libass (bruciati o resi nel browser); dove salvare il token; precisione di `currentTime`/`playbackRate` per il `DriftCorrector`; caricamento di wasm su quel nginx; come la release porta la build sul server (via SSH da GitHub Actions o altro); limite alle conversioni contemporanee in Jellyfin.
+- **Fatto quando:** tutta l'app funziona da un browser del PC su `https://hashvps.proton.usbx.me/wonderflix/`, con login Jellyfin, e l'installer Windows continua a funzionare com'è.
+
+### 1c. Adattamento a telefono e touch
+
+Tutta l'app usabile dal browser del telefono, senza tagli. Layout per schermi stretti e verticali (per esempio navigazione in basso, pannelli laterali che diventano pagine), tocco al posto dell'hover (anteprime delle card, menu, tooltip), player con controlli touch. È la base delle future app native (idea 2).
+- **Fatto quando:** dal browser del telefono si guarda e si fanno le azioni admin senza bisogno di un PC.
 
 ## 2. Altre piattaforme: Smart TV, Android, iOS, macOS, Linux
 
