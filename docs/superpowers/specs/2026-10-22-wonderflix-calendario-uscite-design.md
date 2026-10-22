@@ -113,7 +113,7 @@ Il plugin resta l'unico che parla con Sonarr, Radarr e Seerr: le chiavi non arri
   ```
 
   - Le voci sono quelle di `Upcoming/Series` e `Upcoming/Movies` (Spec M §7.3), con le stesse regole per immagini, gruppi in blocco, `JellyfinSeriesId` per utente e ordine.
-  - Tutti i campi si scrivono sempre, anche se null (come `Year` e `PosterPath` di `MediaRequestDto`): l'app trova la chiave e non deve distinguere "manca" da "null".
+  - **Campi null:** il plugin non mette `WhenWritingNull`, ma Jellyfin non scrive i null nelle sue risposte (provato sul server il 2026-10-22: senza errori mancano `SeriesError` e `MoviesError`, e nelle voci mancano i campi null). Come per `Upcoming/*` (Spec M), l'app legge un campo mancante come null.
   - **Differenze da `Upcoming/*`:** il periodo lo sceglie l'app; si tengono **anche** le uscite già scaricate (`hasFile = true`), con `OnServer = true`; senza `SeriesLookBack`.
   - Un gruppo in blocco è `OnServer` solo se tutti i suoi episodi lo sono.
   - Film: solo quelli con `digitalRelease` nel periodo (allargato). Un film con solo `inCinemas` nel periodo non c'è.
@@ -138,7 +138,7 @@ Ogni `MediaRequestDto` riceve tre campi nuovi, che possono mancare (null):
   - **solo dove servono:** una richiesta `Available`, `Declined` o `Failed` non chiede niente a Radarr e i suoi campi restano null (l'app non li mostra, §7.5). Le altre, `Pending` compresa, sì;
   - serie: la libreria di Sonarr (`series`, 0,66 MB), letta tutta insieme con la stessa cache (una sola voce); si abbina per **`tvdbId` del media di Seerr** (campo nuovo `SeerrRequestMedia.TvdbId`, null per i film), poi per `tmdbId`. Le serie le chiedono sempre, qualunque sia lo stato;
   - il numero del prossimo episodio non è in `series`: si legge `episode?seriesId=` solo per una serie con `nextAiring`, e si prende l'episodio con quell'ora (a parità la stagione normale prima della 0, poi il numero più basso). Una voce in cache per serie, al massimo 200 (`ReleaseDatesService.MaxCachedSeriesEpisodes`). Se quella lettura fallisce o non trova l'episodio, `NextAiring` resta e `NextSeasonNumber` e `NextEpisodeNumber` sono null.
-  - Tutti i campi nuovi si scrivono anche se null, come quelli del calendario (§6.1).
+  - I campi nuovi null non arrivano all'app (Jellyfin non scrive i null, §6.1): l'app legge un campo mancante come null.
 - **Richiesta non ancora in Radarr** (in attesa di approvazione, o approvata ma Radarr non l'ha ancora aggiunta): le date vengono da `movie/lookup/tmdb` (le date di TMDB, come le vedrebbe Radarr). Se anche questo fallisce, i campi restano null.
 - Sonarr o Radarr non configurati o in errore: i campi restano null, la pagina Richieste funziona come oggi. Un errore di Sonarr o Radarr **non** fa fallire l'elenco delle richieste (`ReleaseDatesService` non lancia mai, tranne l'annullamento di chi chiede; nel log solo l'id, mai titoli o indirizzi).
 - **Stato nuovo `AwaitingRelease`**, tra 6 e 8 della Spec I §7.3: una richiesta di **film** approvata, non disponibile, senza download in corso, con Radarr che **non** ha il file (`hasFile` falso o film non in Radarr), e **non ancora uscito** → `AwaitingRelease` invece di `Approved`. "Non ancora uscito" vuol dire:
