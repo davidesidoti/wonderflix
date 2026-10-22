@@ -1,7 +1,7 @@
 # WonderFlix — Spec S: calendario delle uscite
 
 - **Data:** 2026-10-22
-- **Stato:** approvata il 2026-10-22; piano 25a realizzato (`docs/superpowers/plans/2026-10-22-wonderflix-25a-calendario-plugin.md`), build di prova sul server; piano 25b da realizzare. Bozza della griglia: `.superpowers/brainstorm/1632-1792678780/content/calendario-layout.html` (opzione B, non nel repo).
+- **Stato:** approvata il 2026-10-22; piano 25a realizzato (`docs/superpowers/plans/2026-10-22-wonderflix-25a-calendario-plugin.md`), build di prova sul server; piano 25b realizzato (`docs/superpowers/plans/2026-10-22-wonderflix-25b-calendario-app.md`), prova a mano da fare. Bozza della griglia: `.superpowers/brainstorm/1632-1792678780/content/calendario-layout.html` (opzione B, non nel repo).
 - **Ambito:** Spec S. Realizza l'idea 16 di `docs/IDEE.md` ("Calendario delle uscite"). Si appoggia alla Spec I (richieste con Seerr: `2026-10-05-wonderflix-seerr-design.md`), alla Spec M (Sonarr e Radarr nel plugin: `2026-10-10-wonderflix-home-su-misura-design.md`, §7) e alla Spec G (cassetta: `2026-10-03-wonderflix-notifiche-design.md`).
 
 ## 1. Obiettivo
@@ -168,6 +168,7 @@ Niente di nuovo: il calendario usa la configurazione di Sonarr e Radarr che c'è
 
 - Voce **"Calendario"** nella barra in alto, tra "Richieste" e "Cerca", solo con la funzione `calendar`.
 - Indirizzo `/calendar?month=YYYY-MM`; senza `month` il mese di oggi. Le frecce cambiano l'indirizzo, come le schede della pagina Richieste.
+- La pagina si rifà a ogni mese (la chiave è l'indirizzo, come la pagina Richieste): dopo un cambio di mese il fuoco della tastiera ricomincia da capo.
 
 ### 7.2 Griglia del mese
 
@@ -175,23 +176,24 @@ Niente di nuovo: il calendario usa la configurazione di Sonarr e Radarr che c'è
 - Sette colonne da **lunedì** a domenica, intestazioni corte ("L M M G V S D" o "lun mar …", scelta del costruttore); sei righe sempre, con i giorni dei mesi vicini più spenti.
 - Il giorno di oggi ha il bordo oro.
 - Ogni casella: il numero del giorno e le voci di quel giorno (episodi nel giorno **locale** del PC, film nel giorno della data, §10):
-  - film in oro scuro, serie in blu scuro (come la bozza `.superpowers/brainstorm/…/calendario-layout.html`, opzione B); il colore non è l'unico segno: una piccola icona (film / serie) o il testo per gli screen reader;
-  - serie: "{SeriesName}" per un episodio, "{SeriesName} ×{n}" per un gruppo in blocco o per più episodi della stessa serie nello stesso giorno;
+  - film in oro scuro (`WfColors.calendarMovie`), serie in blu scuro (`WfColors.calendarSeries`), presi dalla bozza `.superpowers/brainstorm/…/calendario-layout.html`, opzione B; il colore non è l'unico segno: una piccola icona (film / serie) e il testo per gli screen reader;
+  - serie: "{SeriesName}" per un episodio, "{SeriesName} ×{n}" per un gruppo in blocco o per più episodi della stessa serie nello stesso giorno. Gli episodi della stessa serie nello stesso giorno locale sono **una** voce (stesso `tvdbId`, altrimenti `tmdbId`, altrimenti il nome senza badare alle maiuscole); `n` è il numero degli episodi (un blocco "E01–E03" vale 3); la voce è `OnServer` solo se lo sono tutti gli episodi;
   - una voce già sul server (`OnServer`) ha il segno verde (un puntino o una spunta `online`);
   - in ordine: prima i film, poi le serie, ognuno per nome.
-- **Troppe voci:** la casella ne mostra quante ci stanno (almeno 2, il costruttore decide dall'altezza); l'ultima riga diventa **"+{n}"**.
+- **Troppe voci:** la casella ne mostra quante ci stanno secondo l'altezza, **almeno 1** (`CalendarMonthGrid.minEntries`; la riga del numero è alta 22 px, una voce 20 px). Se le voci sono più di quelle che ci stanno, l'ultima riga diventa **"+{n}"**. Alla finestra minima (1024×640) una casella ha posto per una sola riga: con più di una voce quella riga diventa "+{n}". Il minimo è 1 e non 2 perché a quell'altezza due righe non ci stanno.
 - **Clic sulla casella** (o su "+{n}"): si apre l'**elenco del giorno** (§7.3).
-- **Clic su una voce:** come §7.4.
+- **Clic su una voce:** come §7.4. Una voce che non si può aprire ("niente clic") non ha clic, cursore né azione per lo screen reader, né nella griglia né nell'elenco del giorno: il clic passa alla casella del giorno, che apre l'elenco.
 - Senza uscite nel mese: la griglia vuota e sotto "Nessuna uscita in questo mese".
-- **Tastiera:** frecce e Invio per muoversi tra i giorni, come la Home; PagSu e PagGiù per i mesi (scelta del costruttore, se costa poco).
-- La griglia si adatta alla larghezza della finestra; sotto una larghezza minima le caselle mostrano solo il numero e i puntini (scelta del costruttore).
+- **Tastiera:** frecce (±1 giorno a sinistra e destra, ±7 giorni in su e in giù) e Invio, dentro i 42 giorni della griglia, a partire dal giorno di oggi (o dal primo del mese, se oggi non c'è nella griglia). Invio apre l'elenco del giorno. La Home non ha una tastiera da imitare: la griglia ha la sua. **Niente PagSu e PagGiù**: i mesi si cambiano con le frecce in alto.
+- La griglia si adatta alla larghezza della finestra. Sotto i 96 px di larghezza per casella (`CalendarMonthGrid.compactCellWidth`) la casella mostra solo il numero e un puntino per voce (al massimo 4); il clic apre l'elenco del giorno. È solo una protezione: con la finestra minima di 1024 px le caselle sono larghe circa 133 px, quindi nell'app vera non compare mai. I puntini sono oro per i film e crema per le serie (i colori scuri delle voci a 6 px non si vedrebbero).
+- **Semantica (screen reader):** le caselle con voci sono pulsanti con l'azione di tocco; i giorni vuoti non sono pulsanti. Le righe della finestra del giorno sono protette da un doppio tocco.
 
 ### 7.3 Elenco del giorno
 
 - Una finestra (`showWfDialog`) con il titolo "Mercoledì 22 ottobre" e l'elenco completo:
   - locandina piccola, nome, "Film · in digitale" oppure "S03E04 · {EpisodeTitle}" / "S03E01–E03", ora locale per gli episodi;
   - "Sul server" in verde per `OnServer`.
-- Clic su una riga: come §7.4 (la finestra si chiude).
+- Clic su una riga: come §7.4 (la finestra si chiude). Una riga che non porta da nessuna parte non ha clic.
 
 ### 7.4 Dove porta un titolo
 
@@ -208,7 +210,10 @@ Niente di nuovo: il calendario usa la configurazione di Sonarr e Radarr che c'è
 - **Riga** (`request_row.dart`): sotto la riga di oggi, una riga in più con le date, solo se ce n'è almeno una:
   - film: "Al cinema dal {data}" · "in digitale previsto il {data}" (futuro) / "uscito in digitale il {data}" (passato) / "in digitale: data non ancora nota" (null, solo se la richiesta non è disponibile);
   - serie: "Prossimo episodio: S{n}E{m} il {data}" (senza numero: "Prossimo episodio il {data}");
-  - la data futura in oro, come nella bozza; formato "12 novembre" (con l'anno solo se non è quest'anno).
+  - la data futura in oro, come nella bozza; per la serie la data del prossimo episodio è in oro solo se è futura; formato "12 novembre" (con l'anno solo se non è quest'anno);
+  - la prima parte della riga comincia con la maiuscola ("In digitale previsto il…" se manca il cinema);
+  - un film senza **nessuna** data (né cinema né digitale) non ha la riga: vuol dire Radarr non configurato o plugin vecchio, e "data non ancora nota" sarebbe falso.
+  - Per 1-2 ore dopo la mezzanotte locale (Italia) un film può mostrare "In attesa dell'uscita" accanto a "uscito in digitale il …": il plugin confronta l'istante, l'app il giorno locale. Accettato.
   - Su una richiesta `Available`, `Declined` o `Failed` le date di un film non si mostrano (non servono più); quelle di una serie sì.
 - **Stato nuovo:** `awaitingRelease` → etichetta **"In attesa dell'uscita"**, oro. Va anche nel filtro e nei conteggi come `approved`.
 - Nessuna chiamata nuova: le date arrivano con le richieste.
@@ -216,7 +221,12 @@ Niente di nuovo: il calendario usa la configurazione di Sonarr e Radarr che c'è
 ### 7.6 Senza plugin ed errori
 
 - Plugin < 1.13.0: niente voce "Calendario", righe delle richieste senza date (i campi mancano).
-- `SeriesError` o `MoviesError` nella risposta: la griglia mostra quello che c'è e una riga sopra: "Le serie non si possono caricare ora" / "I film non si possono caricare ora" (con il motivo per l'admin, come le card di Spec M §8.6). Entrambi in errore → errore con "Riprova".
+- `SeriesError` o `MoviesError` nella risposta: la griglia mostra quello che c'è e una riga sopra: "Le serie non si possono caricare ora" / "I film non si possono caricare ora".
+  - **`NotConfigured` non è un errore da mostrare:** con solo Sonarr configurato, `MoviesError` è `NotConfigured` e la pagina non dice niente dei film. La riga c'è solo per `Unauthorized` e `Unreachable`.
+  - **Il motivo per l'admin** (come le card di Spec M §8.6) è il testo di `arrTestLabel` dopo un " · ": "Le serie non si possono caricare ora · Chiave rifiutata". Gli altri vedono solo la prima parte.
+  - **Errore a pagina intera con "Riprova"** solo se **ogni** servizio configurato è in errore.
+  - "Nessuna uscita in questo mese" non si mostra se un servizio è in errore (il mese potrebbe non essere vuoto).
+  - **Campi mancanti:** Jellyfin non scrive i null (§6.1), quindi `SeriesError`, `MoviesError`, `JellyfinSeriesId`, `JellyfinItemId` e le date delle richieste di solito mancano; l'app li legge come null (`OnServer` mancante = falso). Il calendario riusa `UpcomingEpisode` e `UpcomingMovie` con i campi nuovi facoltativi, senza modelli nuovi; la Home li ignora.
 - Errore di rete o di Jellyfin → errore con "Riprova", come le altre pagine.
 - Il mese si rilegge quando la pagina si riapre o si cambia mese; nessun aggiornamento automatico.
 
@@ -240,7 +250,7 @@ Niente di nuovo: il calendario usa la configurazione di Sonarr e Radarr che c'è
 
 ### 9.2 App
 
-- Costruzione della griglia: mese che parte di domenica, febbraio, cambio dell'ora legale (le uscite non saltano di giorno), giorno locale da `AirDateUtc`.
+- Costruzione della griglia (il giorno di un film è la data UTC di `DigitalRelease`, mai spostata dal fuso): mese che parte di domenica, febbraio, cambio dell'ora legale (le uscite non saltano di giorno), giorno locale da `AirDateUtc`.
 - Raggruppamento per serie e giorno, ordine, "+{n}".
 - Destinazioni del clic (§7.4).
 - Righe delle date nella pagina Richieste e l'etichetta "In attesa dell'uscita".
