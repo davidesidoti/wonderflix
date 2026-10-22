@@ -53,6 +53,7 @@ class UpcomingEpisode {
     this.posterUrl,
     this.backdropUrl,
     this.jellyfinSeriesId,
+    this.onServer = false,
   });
 
   /// `null` senza nome della serie, numeri o una data valida: la voce si
@@ -77,6 +78,7 @@ class UpcomingEpisode {
       posterUrl: _webAddress(json, 'PosterUrl'),
       backdropUrl: _webAddress(json, 'BackdropUrl'),
       jellyfinSeriesId: jsonString(json, 'JellyfinSeriesId'),
+      onServer: json['OnServer'] == true,
     );
   }
 
@@ -95,6 +97,9 @@ class UpcomingEpisode {
 
   /// La serie di Jellyfin, solo se l'utente la vede.
   final String? jellyfinSeriesId;
+
+  /// Già sul server (solo nel calendario, spec S §6.4).
+  final bool onServer;
 }
 
 /// Un film in arrivo (spec M §7.3).
@@ -106,6 +111,8 @@ class UpcomingMovie {
     this.year,
     this.posterUrl,
     this.backdropUrl,
+    this.jellyfinItemId,
+    this.onServer = false,
   });
 
   /// `null` senza titolo, id TMDB o data d'uscita: la voce si scarta.
@@ -121,6 +128,8 @@ class UpcomingMovie {
       year: jsonInt(json, 'Year'),
       posterUrl: _webAddress(json, 'PosterUrl'),
       backdropUrl: _webAddress(json, 'BackdropUrl'),
+      jellyfinItemId: jsonString(json, 'JellyfinItemId'),
+      onServer: json['OnServer'] == true,
     );
   }
 
@@ -132,6 +141,39 @@ class UpcomingMovie {
   final DateTime digitalRelease;
   final String? posterUrl;
   final String? backdropUrl;
+
+  /// Il film di Jellyfin, solo se l'utente lo vede (spec S §6.4).
+  final String? jellyfinItemId;
+
+  /// Già sul server (solo nel calendario).
+  final bool onServer;
+}
+
+/// Il calendario delle uscite (spec S §6.4): episodi e film di un periodo,
+/// con l'errore di ciascun servizio. Liste mancanti valgono vuote.
+class CalendarPage {
+  const CalendarPage({
+    this.episodes = const [],
+    this.movies = const [],
+    this.seriesError,
+    this.moviesError,
+  });
+
+  factory CalendarPage.fromJson(Map<String, dynamic> json) => CalendarPage(
+        episodes: json['Episodes'] is List
+            ? jsonList(json['Episodes'], UpcomingEpisode.fromJson)
+            : const [],
+        movies: json['Movies'] is List
+            ? jsonList(json['Movies'], UpcomingMovie.fromJson)
+            : const [],
+        seriesError: UpcomingError.parse(json['SeriesError']),
+        moviesError: UpcomingError.parse(json['MoviesError']),
+      );
+
+  final List<UpcomingEpisode> episodes;
+  final List<UpcomingMovie> movies;
+  final UpcomingError? seriesError;
+  final UpcomingError? moviesError;
 }
 
 /// Solo indirizzi http(s) completi: un'immagine non si chiede a un

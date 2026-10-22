@@ -32,6 +32,17 @@ class HomeApi {
               quietStatuses: _quiet)),
           UpcomingEpisode.fromJson);
 
+  /// Le uscite da [start] a [end] (escluso), contando i giorni di calendario
+  /// senza l'ora (spec S §6.4).
+  Future<CalendarPage> calendar(DateTime start, DateTime end) async =>
+      CalendarPage.fromJson(asJsonMap(await _http.get(
+          '$_base/Upcoming/Calendar',
+          query: {'start': _day(start), 'end': _day(end)},
+          quietStatuses: _quiet)));
+
+  static String _day(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
   Future<UpcomingPage<UpcomingMovie>> upcomingMovies() async =>
       UpcomingPage.fromJson(
           asJsonMap(await _http.get('$_base/Upcoming/Movies',

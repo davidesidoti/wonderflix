@@ -86,6 +86,18 @@ class FakeHomeApi implements HomeApi {
     return series;
   }
 
+  CalendarPage calendarPage = const CalendarPage();
+  Object? calendarError;
+  final calendarCalls = <(DateTime, DateTime)>[];
+
+  @override
+  Future<CalendarPage> calendar(DateTime start, DateTime end) async {
+    calendarCalls.add((start, end));
+    final error = calendarError;
+    if (error != null) throw error;
+    return calendarPage;
+  }
+
   @override
   Future<UpcomingPage<UpcomingMovie>> upcomingMovies() async {
     moviesCalls++;

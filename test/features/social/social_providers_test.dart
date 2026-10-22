@@ -226,6 +226,27 @@ void main() {
         contains('upcomingMovies: true'));
   });
 
+  test('Info con il calendario: funzione calendar, anche senza watch party',
+      () async {
+    api.install(features: const {PluginFeatures.calendar});
+    final c = container(
+        session: const SessionSignedIn(JellyfinUser(
+            id: 'u1', name: 'Mario', syncPlayAccess: SyncPlayAccess.none)));
+    await pumpEventQueue();
+    expect(c.read(socialAvailabilityProvider),
+        const SocialFeatures(calendar: true));
+  });
+
+  test('Info senza il calendario: calendar falso', () async {
+    api.install(features: const {PluginFeatures.home});
+    final c = container(
+        session: const SessionSignedIn(JellyfinUser(
+            id: 'u1', name: 'Mario', syncPlayAccess: SyncPlayAccess.none)));
+    await pumpEventQueue();
+    expect(c.read(socialAvailabilityProvider).calendar, isFalse);
+    expect(const SocialFeatures(calendar: true), isNot(const SocialFeatures()));
+  });
+
   test('Info con gli amici: funzione attiva', () async {
     api.install();
     final c = container();

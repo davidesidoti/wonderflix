@@ -38,6 +38,9 @@ abstract final class PluginFeatures {
   /// "Film in arrivo" da Radarr (spec M §7.6): solo con Radarr configurato.
   static const upcomingMovies = 'upcomingMovies';
 
+  /// Il calendario delle uscite (spec S §6.4).
+  static const calendar = 'calendar';
+
   /// I consigli tra amici (spec N §6.6).
   static const recommendations = 'recommendations';
 

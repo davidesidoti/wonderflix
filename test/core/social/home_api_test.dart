@@ -137,6 +137,61 @@ void main() {
     }
   });
 
+  test('CalendarAsksThePeriodAsDays', () async {
+    await api.calendar(DateTime(2026, 9, 28, 15, 30), DateTime(2026, 11, 9));
+    final request = adapter.requests.single;
+    expect(request.path, '/WonderFlixWatchParty/Upcoming/Calendar');
+    expect(request.queryParameters, {'start': '2026-09-28', 'end': '2026-11-09'});
+  });
+
+  test('CalendarReadsBothListsAndMissingFieldsAsNull', () async {
+    adapter.handler = (_) => const FakeResponse(200, {
+          'Episodes': [
+            {
+              'SeriesName': 'Andor',
+              'SeasonNumber': 3,
+              'EpisodeNumber': 1,
+              'AirDateUtc': '2026-10-23T01:00:00Z',
+              'OnServer': true,
+            },
+          ],
+          'Movies': [
+            {
+              'Title': 'Weapons',
+              'TmdbId': 1078605,
+              'DigitalRelease': '2026-10-20T00:00:00Z',
+              'JellyfinItemId': 'abc',
+            },
+            {'Title': 'Senza id'},
+          ],
+        });
+    final page = await api.calendar(DateTime(2026, 9, 28), DateTime(2026, 11, 9));
+    expect(page.episodes.single.onServer, isTrue);
+    expect(page.episodes.single.jellyfinSeriesId, isNull);
+    expect(page.movies.single.jellyfinItemId, 'abc');
+    expect(page.movies.single.onServer, isFalse);
+    expect(page.seriesError, isNull);
+    expect(page.moviesError, isNull);
+  });
+
+  test('CalendarReadsTheErrors', () async {
+    adapter.handler = (_) => const FakeResponse(200, {
+          'Episodes': <Object>[],
+          'Movies': <Object>[],
+          'SeriesError': 'Unreachable',
+          'MoviesError': 'NotConfigured',
+        });
+    final page = await api.calendar(DateTime(2026, 9, 28), DateTime(2026, 11, 9));
+    expect(page.seriesError, UpcomingError.unreachable);
+    expect(page.moviesError, UpcomingError.notConfigured);
+  });
+
+  test('CalendarWithoutListsIsEmpty', () async {
+    final page = await api.calendar(DateTime(2026, 9, 28), DateTime(2026, 11, 9));
+    expect(page.episodes, isEmpty);
+    expect(page.movies, isEmpty);
+  });
+
   test('risposte inattese', () async {
     adapter.handler = (_) => const FakeResponse(200, ['non un oggetto']);
     await expectLater(api.upcomingSeries(), throwsA(isA<ServerErrorException>()));
