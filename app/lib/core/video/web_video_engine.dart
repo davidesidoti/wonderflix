@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:logging/logging.dart';
 import 'package:web/web.dart' as web;
 
+import 'hls_levels.dart';
 import 'open_sequence.dart';
 import 'video_engine.dart';
 import 'web_subtitles.dart';
@@ -27,11 +28,20 @@ extension type _Hls._(JSObject _) implements JSObject {
 
   external void recoverMediaError();
 
+  external JSArray<_HlsLevel> get levels;
+
+  /// Impostato, toglie la scelta automatica (e vale anche come partenza).
+  external set loadLevel(int index);
+
   external void destroy();
 }
 
 extension type _HlsConfig._(JSObject _) implements JSObject {
   external factory _HlsConfig({double startPosition, JSFunction xhrSetup});
+}
+
+extension type _HlsLevel._(JSObject _) implements JSObject {
+  external String get uri;
 }
 
 extension type _HlsErrorData._(JSObject _) implements JSObject {
@@ -142,9 +152,10 @@ class WebVideoEngine implements VideoEngine {
 
   void _attach(VideoSource source) {
     final url = source.url;
-    if (url.contains('.m3u8') &&
-        _video.canPlayType('application/vnd.apple.mpegurl').isEmpty &&
-        _hlsSupported()) {
+    // Come jellyfin-web: hls.js ovunque ci sia MSE. L'HLS nativo di Chrome
+    // sceglie da solo la variante H.264 (transcodifica completa) e si blocca
+    // sui salti lontani; resta solo per i browser senza MSE (Safari su iOS).
+    if (url.contains('.m3u8') && _useHlsJs()) {
       // La playlist può non ricopiare il token nei segmenti: va nell'header.
       final authorization = source.headers['Authorization'];
       final hls = _hls = _Hls(_HlsConfig(
@@ -155,6 +166,16 @@ class WebVideoEngine implements VideoEngine {
           }
         }).toJS,
       ));
+      hls.on(
+          'hlsManifestParsed',
+          ((JSString _, JSObject _) {
+            final levels = hls.levels.toDart;
+            final index = copyLevel([for (final level in levels) level.uri]);
+            if (levels.isNotEmpty) {
+              _log.info('hls.js: livello $index di ${levels.length}');
+              hls.loadLevel = index;
+            }
+          }).toJS);
       hls.on(
           'hlsError',
           ((JSString _, _HlsErrorData data) {
@@ -178,12 +199,17 @@ class WebVideoEngine implements VideoEngine {
     }
   }
 
-  /// `false` se il browser non ha MSE; [EngineOpenException] se hls.js non
-  /// si è caricato.
-  bool _hlsSupported() {
+  /// `false` se il browser non ha MSE, o se hls.js non si è caricato ma il
+  /// browser legge l'HLS da solo; altrimenti, senza hls.js,
+  /// [EngineOpenException].
+  bool _useHlsJs() {
     try {
       return _Hls.isSupported();
     } on Object catch (error) {
+      if (_video.canPlayType('application/vnd.apple.mpegurl').isNotEmpty) {
+        _log.warning('hls.js non disponibile, HLS nativo: $error');
+        return false;
+      }
       throw EngineOpenException('hls.js non disponibile: $error');
     }
   }
