@@ -23,9 +23,12 @@ BrowserCapabilities probeBrowser() {
   final h264 = can('video/mp4; codecs="avc1.640029"');
   return BrowserCapabilities(
     h264: h264,
-    hevc: can('video/mp4; codecs="hvc1.1.L120"') ||
-        can('video/mp4; codecs="hev1.1.L120"'),
-    hevcMain10: can('video/mp4; codecs="hvc1.2.4.L153"'),
+    // Stringhe complete (profilo, compatibilità, livello, vincoli): Chrome
+    // risponde "" alle forme corte come `hvc1.1.L120`.
+    hevc: can('video/mp4; codecs="hvc1.1.6.L120.90"') ||
+        can('video/mp4; codecs="hev1.1.6.L120.90"'),
+    hevcMain10: can('video/mp4; codecs="hvc1.2.4.L153.B0"') ||
+        can('video/mp4; codecs="hev1.2.4.L153.B0"'),
     vp9: can('video/webm; codecs="vp9"'),
     av1: can('video/mp4; codecs="av01.0.08M.08"'),
     aac: can('audio/mp4; codecs="mp4a.40.2"'),
