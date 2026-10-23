@@ -39,4 +39,11 @@ void main() {
     expect(cues.single.end, const Duration(minutes: 1, seconds: 4));
     expect(cues.single.text, 'Testo');
   });
+
+  test('decodifica le entità, &amp; per ultima', () {
+    const source =
+        '00:00:01.000 --> 00:00:02.000\n'
+        'Tom &amp; Jerry &lt;3&gt;&nbsp;fine &amp;lt;\n';
+    expect(parseVtt(source).single.text, 'Tom & Jerry <3> fine &lt;');
+  });
 }

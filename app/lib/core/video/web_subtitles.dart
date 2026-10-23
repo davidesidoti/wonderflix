@@ -120,9 +120,15 @@ class WebSubtitles {
           final fonts = await _fallbackFonts(url);
           if (selection == _selection) _show(graphic: _octopus(url, fonts));
         case final kind:
-          final module = await (_bitsub ??= importModule(
-            _resolve(_bitsubModule).toJS,
-          ).toDart);
+          final JSObject module;
+          try {
+            module = await (_bitsub ??= importModule(
+              _resolve(_bitsubModule).toJS,
+            ).toDart);
+          } on Object {
+            _bitsub = null; // Un import fallito si riprova alla scelta dopo.
+            rethrow;
+          }
           final name = kind == SubtitleKind.pgs
               ? 'PgsRenderer'
               : 'VobSubRenderer';

@@ -27,7 +27,15 @@ List<VttCue> parseVtt(String source) {
     final match = _timing.firstMatch(lines[at].trim())!;
     final text = lines
         .skip(at + 1)
-        .map((line) => line.replaceAll(_tag, ''))
+        .map(
+          (line) => line
+              .replaceAll(_tag, '')
+              .replaceAll('&lt;', '<')
+              .replaceAll('&gt;', '>')
+              .replaceAll('&nbsp;', ' ')
+              // Per ultima: `&amp;lt;` resta `&lt;`.
+              .replaceAll('&amp;', '&'),
+        )
         .join('\n')
         .trim();
     if (text.isEmpty) continue;
