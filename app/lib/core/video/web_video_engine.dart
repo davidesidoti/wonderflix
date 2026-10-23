@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:logging/logging.dart';
 import 'package:web/web.dart' as web;
 
+import 'open_sequence.dart';
 import 'video_engine.dart';
 
 final _log = Logger('player');
@@ -22,6 +23,8 @@ extension type _Hls._(JSObject _) implements JSObject {
   external void attachMedia(web.HTMLMediaElement media);
 
   external void on(String event, JSFunction callback);
+
+  external void recoverMediaError();
 
   external void destroy();
 }
@@ -96,9 +99,6 @@ class WebVideoEngine implements VideoEngine {
     ]);
   }
 
-  /// La transcodifica sul server può impiegare parecchi secondi a partire.
-  static const openTimeout = Duration(seconds: 60);
-
   static int _views = 0;
 
   final String _viewType = 'wonderflix-video-${_views++}';
@@ -112,7 +112,11 @@ class WebVideoEngine implements VideoEngine {
 
   _Hls? _hls;
   Duration _start = Duration.zero;
-  Completer<void>? _opening;
+  // La transcodifica sul server può impiegare parecchi secondi a partire.
+  final _openings = OpenSequence();
+
+  /// `true` dopo un `recoverMediaError` di hls.js in questa apertura.
+  bool _recovered = false;
   final _firstFrame = Completer<void>();
 
   final _position = StreamController<Duration>.broadcast();
@@ -126,12 +130,16 @@ class WebVideoEngine implements VideoEngine {
   @override
   Future<void> open(VideoSource source) async {
     _unload();
-    final opening = _opening = Completer<void>();
     _start = source.start;
+    _recovered = false;
+    await _openings.run(attach: () => _attach(source), release: _unload);
+  }
+
+  void _attach(VideoSource source) {
     final url = source.url;
     if (url.contains('.m3u8') &&
         _video.canPlayType('application/vnd.apple.mpegurl').isEmpty &&
-        _Hls.isSupported()) {
+        _hlsSupported()) {
       // La playlist può non ricopiare il token nei segmenti: va nell'header.
       final authorization = source.headers['Authorization'];
       final hls = _hls = _Hls(_HlsConfig(
@@ -146,10 +154,15 @@ class WebVideoEngine implements VideoEngine {
           'hlsError',
           ((JSString _, _HlsErrorData data) {
             final message = 'hls.js ${data.type}/${data.details}';
-            if (data.fatal) {
-              _fail(message);
-            } else {
+            if (!data.fatal) {
               _errors.add(message);
+            } else if (data.type == 'mediaError' && !_recovered) {
+              // Un errore di decodifica si recupera una volta, poi si rinuncia.
+              _recovered = true;
+              _errors.add('$message: recupero');
+              hls.recoverMediaError();
+            } else {
+              _fail(message);
             }
           }).toJS);
       hls
@@ -158,35 +171,27 @@ class WebVideoEngine implements VideoEngine {
     } else {
       _video.src = url;
     }
+  }
+
+  /// `false` se il browser non ha MSE; [EngineOpenException] se hls.js non
+  /// si è caricato.
+  bool _hlsSupported() {
     try {
-      await opening.future.timeout(openTimeout,
-          onTimeout: () => throw const EngineOpenException('timeout'));
-    } on Object {
-      _unload();
-      rethrow;
-    } finally {
-      if (identical(_opening, opening)) _opening = null;
+      return _Hls.isSupported();
+    } on Object catch (error) {
+      throw EngineOpenException('hls.js non disponibile: $error');
     }
   }
 
   void _completeOpening() {
-    final opening = _opening;
     final seconds = _video.duration;
-    if (opening != null &&
-        !opening.isCompleted &&
-        seconds.isFinite &&
-        seconds > 0) {
-      opening.complete();
-    }
+    if (seconds.isFinite && seconds > 0) _openings.loaded();
   }
 
   /// Un errore durante l'apertura la fa fallire; dopo va solo nel log.
   void _fail(String message) {
     _errors.add(message);
-    final opening = _opening;
-    if (opening != null && !opening.isCompleted) {
-      opening.completeError(EngineOpenException(message));
-    }
+    _openings.failed(message);
   }
 
   /// Libera la sorgente (e hls.js), senza togliere gli ascoltatori.
@@ -261,10 +266,7 @@ class WebVideoEngine implements VideoEngine {
       unawaited(subscription.cancel());
     }
     _subscriptions.clear();
-    final opening = _opening;
-    if (opening != null && !opening.isCompleted) {
-      opening.completeError(const EngineOpenException('motore chiuso'));
-    }
+    _openings.failed('motore chiuso');
     _unload();
   }
 

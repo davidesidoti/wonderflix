@@ -318,6 +318,27 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('schermo intero lasciato da fuori: il player si riallinea',
+      (tester) async {
+    await pumpPlayer(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+    await tester.pump();
+    expect(find.byTooltip('Esci da schermo intero'), findsOneWidget);
+
+    // Esc del browser: la finestra esce da sola.
+    window.changeFullScreenExternally(false);
+    await tester.pump();
+    await tester.pump();
+    expect(find.byTooltip('Esci da schermo intero'), findsNothing);
+
+    // Un solo F per rientrare.
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+    await tester.pump();
+    expect(window.fullScreenCalls, [true, true]);
+    expect(find.byTooltip('Esci da schermo intero'), findsOneWidget);
+    await unmount(tester);
+  });
+
   testWidgets('F e Esc: schermo intero, poi finestra, poi uscita',
       (tester) async {
     await pumpPlayer(tester);

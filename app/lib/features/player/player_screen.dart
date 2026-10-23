@@ -276,6 +276,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   late final PlayerActiveController _playerActive;
   late final MediaSession _mediaSession;
   StreamSubscription<MediaButton>? _mediaButtons;
+  StreamSubscription<bool>? _fullScreenChanges;
   Timer? _timelineTimer;
 
   /// Nel watch party: applica i comandi del gruppo al motore.
@@ -300,6 +301,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _handover = ref.read(playerHandoverProvider);
     _window = ref.read(playerWindowProvider);
     _window.addCloseListener(_onWindowClose);
+    // Nel browser Esc esce dallo schermo intero senza passare dal player.
+    _fullScreenChanges = _window.fullScreenChanges.listen((value) {
+      if (mounted && value != _fullscreen) setState(() => _fullscreen = value);
+    });
     unawaited(_window.setPreventClose(true));
     // Sessione condivisa: con l'episodio successivo la nuova schermata
     // parte prima che la vecchia sia chiusa.
@@ -372,6 +377,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     unawaited(_durations?.cancel());
     unawaited(_autoSkips?.cancel());
     unawaited(_mediaButtons?.cancel());
+    unawaited(_fullScreenChanges?.cancel());
     // Uscendo dal player il pannello media sparisce; passando all'episodio
     // successivo resta alla nuova schermata. Non si chiude mai: è dell'app.
     if (!handingOver) unawaited(_mediaSession.clear());

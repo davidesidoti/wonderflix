@@ -10,6 +10,10 @@ abstract class PlayerWindow {
 
   Future<bool> isFullScreen();
 
+  /// Schermo intero cambiato da fuori (nel browser: Esc o richiesta
+  /// rifiutata). Su Windows non emette: lo cambia solo il player.
+  Stream<bool> get fullScreenChanges;
+
   /// Con `true` la finestra non si chiude da sola: vengono chiamati gli
   /// ascoltatori di [addCloseListener], che poi devono chiamare [destroy].
   /// Ogni `true` va bilanciato da un `false`: la chiusura torna libera solo
@@ -47,6 +51,9 @@ class WindowManagerPlayerWindow implements PlayerWindow {
 
   @override
   Future<bool> isFullScreen() async => _fullScreen.active;
+
+  @override
+  Stream<bool> get fullScreenChanges => const Stream.empty();
 
   @override
   Future<void> setPreventClose(bool value) async {

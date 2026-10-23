@@ -475,6 +475,17 @@ class FakePlayerWindow implements PlayerWindow {
     return fullScreen;
   }
 
+  final _fullScreenChanges = StreamController<bool>.broadcast();
+
+  @override
+  Stream<bool> get fullScreenChanges => _fullScreenChanges.stream;
+
+  /// Lo schermo intero cambia da fuori (Esc nel browser, richiesta rifiutata).
+  void changeFullScreenExternally(bool value) {
+    fullScreen = value;
+    _fullScreenChanges.add(value);
+  }
+
   @override
   Future<void> setPreventClose(bool value) async =>
       preventCloseCalls.add(value);
