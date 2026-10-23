@@ -1,10 +1,12 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
 import '../../app/providers.dart';
 import '../../core/logging/app_log.dart';
+import '../../core/platform/platform_info.dart';
 import '../../core/party_channel/party_channel_models.dart';
 import '../../core/social/social_models.dart';
 import '../discord/discord_settings.dart';
@@ -78,7 +80,7 @@ String buildDiagnostics({
 }) {
   final buffer = StringBuffer()
     ..writeln('WonderFlix $appVersion')
-    ..writeln('Windows: $windowsVersion')
+    ..writeln('${kIsWeb ? 'Browser' : 'Windows'}: $windowsVersion')
     ..writeln('Jellyfin: ${serverVersion ?? 'non raggiungibile'}')
     ..writeln('Player: quality=${player.quality.name}, '
         'hardwareDecoding=${player.hardwareDecoding}, '
@@ -159,7 +161,7 @@ final collectDiagnosticsProvider =
           }
           return buildDiagnostics(
             appVersion: ref.read(clientInfoProvider).version,
-            windowsVersion: Platform.operatingSystemVersion,
+            windowsVersion: systemDescription(),
             serverVersion: server,
             player: ref.read(playerSettingsProvider),
             discord: ref.read(discordSettingsProvider),

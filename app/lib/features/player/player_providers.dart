@@ -8,10 +8,11 @@ import '../../app/providers.dart';
 import '../../core/jellyfin/playback_api.dart';
 import '../../core/media_session/media_session.dart';
 import '../../core/media_session/mirrored_media_session.dart';
-import '../../core/video/media_kit_engine.dart';
+import '../../core/video/default_video_engine.dart';
 import '../../core/video/video_engine.dart';
 import '../../ui/wf_image.dart';
 import '../discord/discord_providers.dart';
+import 'default_player_window.dart';
 import 'playback_service.dart';
 import 'player_settings.dart';
 import 'player_window.dart';
@@ -35,11 +36,11 @@ final playbackServiceProvider = Provider<PlaybackService>((ref) {
 final videoEngineFactoryProvider = Provider<VideoEngine Function()>((ref) {
   final hardware =
       ref.watch(playerSettingsProvider.select((s) => s.hardwareDecoding));
-  return () => MediaKitEngine(hwdec: hardware ? 'auto-safe' : 'no');
+  return () => createVideoEngine(hardwareDecoding: hardware);
 });
 
 final playerWindowProvider =
-    Provider<PlayerWindow>((ref) => WindowManagerPlayerWindow());
+    Provider<PlayerWindow>((ref) => createPlayerWindow());
 
 /// Immagine che richiede l'header di autenticazione (mosaici trickplay).
 final authImageProvider = Provider<ImageProvider Function(String url)>((ref) {

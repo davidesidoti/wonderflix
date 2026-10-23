@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -151,10 +152,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               section(l.settingsLanguages),
               const LanguageSettingsSection(),
             ]),
-            item(7, [
-              section(l.settingsDiscord),
-              const DiscordSettingsSection(),
-            ]),
+            // Nel browser la Rich Presence è spenta (spec 1b §4.6).
+            if (!kIsWeb)
+              item(7, [
+                section(l.settingsDiscord),
+                const DiscordSettingsSection(),
+              ]),
             item(8, [
               section(l.settingsSupport),
               const SupportSection(),

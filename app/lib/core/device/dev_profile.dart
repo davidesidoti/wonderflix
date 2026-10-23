@@ -1,5 +1,4 @@
-import 'dart:io';
-
+import '../platform/platform_info.dart' as platform;
 import '../storage/profile_store.dart';
 import '../storage/session_store.dart';
 
@@ -7,7 +6,7 @@ import '../storage/session_store.dart';
 /// seconda istanza con dati e `DeviceId` propri, per provare il watch party
 /// sullo stesso PC (spec B §7.2). `null` = istanza normale.
 String? devProfile([Map<String, String>? environment]) {
-  final value = (environment ?? Platform.environment)['WONDERFLIX_PROFILE']
+  final value = (environment ?? platform.environment())['WONDERFLIX_PROFILE']
       ?.trim()
       .toLowerCase();
   if (value == null || !RegExp(r'^[a-z0-9]{1,16}$').hasMatch(value)) {

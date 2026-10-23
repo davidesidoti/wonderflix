@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,11 +52,14 @@ class SupportSection extends ConsumerWidget {
               icon: LucideIcons.clipboardCopy,
               onPressed: () => unawaited(_copy(context, ref)),
             ),
-            WfButton.secondary(
-              label: l.settingsOpenLogs,
-              icon: LucideIcons.folderOpen,
-              onPressed: () => unawaited(ref.read(openLogsFolderProvider)()),
-            ),
+            // Nel browser i log restano in memoria: nessuna cartella.
+            if (!kIsWeb)
+              WfButton.secondary(
+                label: l.settingsOpenLogs,
+                icon: LucideIcons.folderOpen,
+                onPressed: () =>
+                    unawaited(ref.read(openLogsFolderProvider)()),
+              ),
           ],
         ),
       ],

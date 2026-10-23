@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../core/discord/discord_ipc.dart';
-import '../../core/discord/windows_discord_pipe.dart';
+import '../../core/discord/default_discord_pipe.dart';
 import '../../core/media_session/media_session.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../settings/locale_controller.dart';
@@ -30,7 +30,7 @@ final discordLabelsProvider = Provider<DiscordLabels>((ref) {
 
 /// Crea la pipe verso Discord; nei test si usa una pipe finta.
 final discordPipeFactoryProvider =
-    Provider<DiscordPipe Function()>((ref) => WindowsDiscordPipe.new);
+    Provider<DiscordPipe Function()>((ref) => createDiscordPipe);
 
 /// Attività su Discord. Di default non fa nulla; `main` la sostituisce con
 /// [createDiscordPresence].

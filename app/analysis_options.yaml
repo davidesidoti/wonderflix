@@ -5,6 +5,7 @@ analyzer:
     - lib/l10n/gen/**
     - build/**
     - windows/**
+    - web/**
 
 linter:
   rules:

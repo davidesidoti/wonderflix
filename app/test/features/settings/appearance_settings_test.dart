@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/providers.dart';
-import 'package:wonderflix/core/system/windows_animation_pref.dart';
+import 'package:wonderflix/core/system/animation_preference.dart';
 import 'package:wonderflix/features/settings/appearance_settings.dart';
 
 class FakeAnimationPreference implements AnimationPreference {

@@ -1,38 +1,27 @@
-import 'dart:async';
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
-import 'package:media_kit/media_kit.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:smtc_windows/smtc_windows.dart';
-import 'package:window_manager/window_manager.dart';
 
 import 'app/app.dart';
 import 'app/config_error_app.dart';
+import 'app/platform_startup.dart';
 import 'app/providers.dart';
-import 'app/window_setup.dart';
 import 'config/app_config.dart';
 import 'core/device/dev_profile.dart';
 import 'core/device/device_identity.dart';
 import 'core/jellyfin/client_info.dart';
 import 'core/logging/app_log.dart';
-import 'core/logging/rotating_file_sink.dart';
-import 'core/media_session/smtc_media_session.dart';
-import 'features/discord/discord_providers.dart';
-import 'features/player/player_providers.dart';
+import 'core/platform/platform_info.dart';
 
 final _log = Logger('startup');
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Per primo: da qui in poi ogni messaggio finisce anche nel file di log.
-  final appLog =
-      AppLog(sink: RotatingFileSink(logsDirectory()), echo: kDebugMode)
-        ..attach();
+  final appLog = AppLog(sink: createLogSink(), echo: kDebugMode)..attach();
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
     Logger('flutter')
@@ -42,9 +31,6 @@ Future<void> main() async {
     Logger('app').severe('errore non gestito', error, stack);
     return true;
   };
-  // Carica libmpv: va fatto prima di creare qualunque Player.
-  MediaKit.ensureInitialized();
-
   try {
     // Sviluppo: seconda istanza con dati separati (WONDERFLIX_PROFILE).
     final profile = devProfile();
@@ -57,17 +43,8 @@ Future<void> main() async {
       _log.info('profilo di sviluppo: $profile');
     }
     final prefs = await SharedPreferences.getInstance();
-    await setupWindow(prefs);
-
-    // Pannello media di Windows: se non si avvia, il player funziona lo
-    // stesso (senza pannello e con i tasti multimediali gestiti dal player).
-    var smtcReady = false;
-    try {
-      await SMTCWindows.initialize();
-      smtcReady = true;
-    } on Object catch (e) {
-      _log.warning('SMTC non disponibile: $e');
-    }
+    // Su Windows: libmpv, finestra e pannello media (SMTC).
+    final smtcReady = await initPlatform(prefs);
 
     final AppConfig config;
     try {
@@ -80,8 +57,7 @@ Future<void> main() async {
 
     final identity = await DeviceIdentity.load(prefs, profile: profile);
     final package = await PackageInfo.fromPlatform();
-    _log.info('WonderFlix ${package.version} su '
-        '${Platform.operatingSystemVersion}');
+    _log.info('WonderFlix ${package.version} su ${systemDescription()}');
 
     runApp(ProviderScope(
       overrides: [
@@ -94,13 +70,7 @@ Future<void> main() async {
           deviceId: identity.deviceId,
           version: package.version,
         )),
-        if (smtcReady)
-          systemMediaSessionProvider.overrideWith((ref) {
-            final session = SmtcMediaSession();
-            ref.onDispose(() => unawaited(session.dispose()));
-            return session;
-          }),
-        discordSessionProvider.overrideWith(createDiscordPresence),
+        ...platformOverrides(smtcReady: smtcReady),
       ],
       // Nessun retry automatico: gli errori li gestiscono le schermate.
       retry: (_, _) => null,
@@ -111,7 +81,7 @@ Future<void> main() async {
     // Nessun errore di avvio deve lasciare una finestra nascosta in giro:
     // mostrala comunque, con un messaggio, invece di restare invisibile.
     try {
-      await windowManager.show();
+      await showWindowAfterStartupError();
     } on Object {
       // Ignora: proviamo comunque a mostrare l'errore.
     }

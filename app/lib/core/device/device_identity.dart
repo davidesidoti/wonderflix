@@ -1,7 +1,7 @@
-import 'dart:io';
-
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
+
+import '../platform/platform_info.dart' as platform;
 
 /// DeviceId stabile per installazione + nome del PC.
 /// Jellyfin lo usa per distinguere le sessioni ("WonderFlix – PC-MARIO").
@@ -23,7 +23,7 @@ class DeviceIdentity {
     String Function()? hostName,
     String Function()? newId,
   }) async {
-    final name = (hostName ?? () => Platform.localHostname)();
+    final name = (hostName ?? platform.hostName)();
     if (profile != null) {
       final id = const Uuid()
           .v5(Namespace.url.value, 'wonderflix-dev:$name:$profile');

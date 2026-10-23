@@ -2,7 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/motion.dart';
 import '../../app/providers.dart';
-import '../../core/system/windows_animation_pref.dart';
+import '../../core/system/animation_preference.dart';
+import '../../core/system/default_animation_preference.dart';
 
 /// Voce "Animazioni" delle impostazioni (spec C §4.3).
 enum MotionSetting { system, full, reduced }
@@ -40,7 +41,7 @@ final motionSettingProvider =
 
 /// Sostituito nei test.
 final animationPreferenceProvider =
-    Provider<AnimationPreference>((ref) => WindowsAnimationPreference());
+    Provider<AnimationPreference>((ref) => createAnimationPreference());
 
 /// "Effetti di animazione" di Windows; [refresh] al ritorno del focus.
 class SystemAnimationsController extends Notifier<bool> {

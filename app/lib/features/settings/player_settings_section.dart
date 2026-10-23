@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -70,13 +71,15 @@ class PlayerSettingsSection extends ConsumerWidget {
                   save(settings.copyWith(subtitleScale: selection.first)),
             ),
             const SizedBox(height: 8),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(l.settingsHardwareDecoding),
-              value: settings.hardwareDecoding,
-              onChanged: (value) =>
-                  save(settings.copyWith(hardwareDecoding: value)),
-            ),
+            // Nel browser la decodifica la sceglie il browser.
+            if (!kIsWeb)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(l.settingsHardwareDecoding),
+                value: settings.hardwareDecoding,
+                onChanged: (value) =>
+                    save(settings.copyWith(hardwareDecoding: value)),
+              ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(l.settingsAutoSkipIntro),

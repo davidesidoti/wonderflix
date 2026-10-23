@@ -3,11 +3,7 @@ import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 import 'package:logging/logging.dart';
 
-/// Preferenza di sistema per le animazioni.
-abstract interface class AnimationPreference {
-  /// `true` se il sistema ha le animazioni attive.
-  bool animationsEnabled();
-}
+import 'animation_preference.dart';
 
 /// `SPI_GETCLIENTAREAANIMATION`: voce "Effetti di animazione" di Windows.
 const _spiGetClientAreaAnimation = 0x1042;
