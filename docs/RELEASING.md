@@ -108,7 +108,7 @@ Lo stesso tag `vX.Y.Z` fa partire anche il job `web` di **Release**, in parallel
 | `WONDERFLIX_DEPLOY_SSH_KEY` | chiave privata SSH (senza passphrase) usata solo per il deploy |
 | `WONDERFLIX_DEPLOY_KNOWN_HOSTS` | riga di `known_hosts` del server (`ssh-keyscan -t ed25519 46.232.210.229`) |
 
-La chiave pubblica sta in `~/.ssh/authorized_keys` dell'utente `hashvps` sul server, vincolata a `command="/usr/bin/rrsync /home/hashvps/wonderflix-web"` (con `restrict`): può solo copiare file in quella cartella. Per rigenerarla: `ssh-keygen -t ed25519 -N "" -f deploy_key`, sostituisci la riga in `authorized_keys` con la nuova pubblica, aggiorna il Secret con la privata (`gh secret set WONDERFLIX_DEPLOY_SSH_KEY < deploy_key`) e cancella i due file locali.
+La chiave pubblica sta in `~/.ssh/authorized_keys` dell'utente `hashvps` sul server, vincolata a `command="/usr/bin/rrsync /home/hashvps/wonderflix-web"` (con `restrict`): può solo copiare file in quella cartella. Per rigenerarla: `ssh-keygen -t ed25519 -N "" -f deploy_key`, nella riga di `authorized_keys` sostituisci solo la parte `ssh-ed25519 AAAA…` con il contenuto di `deploy_key.pub`, lasciando il prefisso `restrict,command="/usr/bin/rrsync /home/hashvps/wonderflix-web"`, aggiorna il Secret con la privata (`gh secret set WONDERFLIX_DEPLOY_SSH_KEY < deploy_key`) e cancella i due file locali.
 
 **Rimettere una versione vecchia:** in *Actions* apri il run di **Release** del tag precedente e premi *Re-run* sul solo job `web`. Ricompila e ricopia quella versione.
 
