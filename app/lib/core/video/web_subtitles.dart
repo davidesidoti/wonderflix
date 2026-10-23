@@ -246,12 +246,14 @@ class WebSubtitles {
 
   void setScale(double scale) => _scale.value = scale;
 
-  /// Dimentica i sottotitoli del video chiuso.
-  void clear() {
+  /// Dimentica i sottotitoli del video chiuso. Con [keepDownloads] tiene i
+  /// sottotitoli di testo già scaricati (la riapertura dello stesso video,
+  /// per esempio al cambio audio, non li riscarica).
+  void clear({bool keepDownloads = false}) {
     ++_selection;
     _show();
     _urls.clear();
-    _cues.clear();
+    if (!keepDownloads) _cues.clear();
   }
 
   /// Il testo sopra il video: bianco con contorno, in basso al centro.

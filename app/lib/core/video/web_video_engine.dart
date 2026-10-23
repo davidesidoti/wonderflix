@@ -143,7 +143,7 @@ class WebVideoEngine implements VideoEngine {
   Future<void> open(VideoSource source) async {
     _unload();
     _subtitles
-      ..clear()
+      ..clear(keepDownloads: true)
       ..headers = source.headers;
     _start = source.start;
     _recovered = false;
