@@ -39,7 +39,7 @@ Prima di accenderla: passare i Secrets via `env:` invece che nello script, usare
    ```
    dove `0.1.1` è la versione minima ancora accettata (di solito quella che stai pubblicando). La riga non compare nelle note mostrate nell'app.
 7. Pubblica la bozza. Da questo momento le app installate la trovano (all'avvio o entro 6 ore).
-8. Per le prove interne pubblica come **pre-release**: le app la ignorano.
+8. Per le prove interne pubblica come **pre-release**: le app la ignorano. Ma **qualsiasi tag** aggiorna anche il sito per tutti gli utenti (il job `web` non guarda se è una bozza o una pre-release): un tag di prova pubblica il sito.
 9. **Ricorda:** il marcatore si legge **solo nell'ultima release pubblicata**. Se una release successiva deve mantenere il blocco, riporta la stessa riga `min-version` (o una più alta).
 
 ## Come si aggiorna l'app
@@ -92,6 +92,7 @@ Prima di ogni release, su un utente di prova:
 - [ ] Segnalazioni e sottotitoli (plugin 1.12.0, un admin e due utenti di prova, uno con la spunta sottotitoli): (1) un utente segnala un episodio, gli admin ricevono la notifica e l'utente con la spunta no; (2) l'admin apre la notifica, usa "Cerca sottotitoli", scarica un sottotitolo italiano e la traccia compare, poi "Sistemato" con nota e la notifica arriva all'utente; (3) l'utente con la spunta cerca e scarica dal player senza fermarlo e non vede le voci admin; (5) "Non sistemabile" con nota: arriva la notifica giusta. Da guardare anche: la transcodifica non si disturba quando si scarica un sottotitolo a metà video.
 - [ ] Strumenti admin dei metadati (app 0.19.0, un admin e un utente non admin): (4) l'admin reidentifica un film (con un campo bloccato a mano: la casella "Sblocca i campi modificati a mano"), modifica un titolo e aggiorna i metadati, e verifica che il titolo bloccato resti; cambia locandina e sfondo (lo sfondo nuovo diventa il primo; un file oltre 10 MB viene rifiutato). Il non admin non vede le voci. Da guardare: la griglia delle immagini nella finestra vera, e che lo sfondo nuovo vada davvero in prima posizione (se il primo sfondo non è un file locale resta in fondo).
 - [ ] Calendario delle uscite (app 0.20.0, plugin 1.13.0): sul server vero il mese di oggi e quello dopo, con le serie di Sonarr e i film di Radarr; un film già scaricato segnato in verde; clic su una serie della libreria e su un film da richiedere; frecce e Invio sulla griglia, "+n" e l'elenco del giorno. Pagina Richieste: un film approvato non ancora uscito in digitale ("In attesa dell'uscita" con le date) e una serie con il prossimo episodio. Con un plugin senza la funzione `calendar`: niente voce "Calendario" e nessun errore.
+- [ ] Sito web nel browser: login; un titolo HEVC in copia (TranscodeReasons solo audio); sottotitoli PGS, ASS e SRT; cambio traccia audio; Esc esce dal tutto schermo; chiudere la scheda ferma la sessione.
 - [ ] Aggiornamento da una versione precedente; aggiornamento obbligatorio.
 - [ ] Discord Rich Presence attiva e disattivata.
 - [ ] Pannello media di Windows con il nome "WonderFlix" (app installata).
@@ -99,7 +100,7 @@ Prima di ogni release, su un utente di prova:
 
 ## Sito web
 
-Lo stesso tag `vX.Y.Z` fa partire anche il job `web` di **Release**, in parallelo a quello Windows: controlla il tag, compila il sito (`flutter build web --wasm`, base `/wonderflix/`) con la stessa configurazione dei Secrets e lo copia con `rsync` in `~/wonderflix-web` sul server. Prima i file, poi `index.html`; i file che non esistono più vengono tolti. Il sito è su `https://hashvps.proton.usbx.me/wonderflix/` e non ha bozza: va online appena il job finisce, anche se la release di Windows resta in bozza.
+Lo stesso tag `vX.Y.Z` fa partire anche il job `web` di **Release**, dopo quello Windows (`needs: release`: se Windows fallisce il sito non esce; il tag lo controlla già quel job): compila il sito (`flutter build web --wasm`, base `/wonderflix/`) con la stessa configurazione dei Secrets e lo copia con `rsync` in `~/wonderflix-web` sul server. Prima i file, poi `index.html`; i file che non esistono più vengono tolti. Il sito è su `https://hashvps.proton.usbx.me/wonderflix/` e non ha bozza: va online appena il job finisce, anche se la release di Windows resta in bozza.
 
 **Secrets del sito** (oltre a quelli sopra):
 
@@ -112,7 +113,7 @@ La chiave pubblica sta in `~/.ssh/authorized_keys` dell'utente `hashvps` sul ser
 
 **Rimettere una versione vecchia:** in *Actions* apri il run di **Release** del tag precedente e premi *Re-run* sul solo job `web`. Ricompila e ricopia quella versione.
 
-**nginx:** la conf del sito (file statici, `.wasm` e `.mjs` con il tipo giusto) è in `app/web/deploy/wonderflix.conf`; va in `~/.apps/nginx/proxy.d/` sul server, poi `app-nginx restart`.
+**nginx:** la conf del sito (file statici, `.wasm` e `.mjs` con il tipo giusto) è in `app/deploy/wonderflix.conf`; va in `~/.apps/nginx/proxy.d/` sul server, poi `app-nginx restart`.
 
 ## Plugin "WonderFlix Watch Party"
 
