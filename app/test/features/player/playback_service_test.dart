@@ -12,12 +12,16 @@ void main() {
 
   setUp(() => api = FakePlaybackApi());
 
-  PlaybackService service({Uri? serverUrl, bool breakDirectPlay = false}) =>
+  PlaybackService service(
+          {Uri? serverUrl,
+          bool breakDirectPlay = false,
+          String? Function()? mediaToken}) =>
       PlaybackService(
         api: api,
         serverUrl: serverUrl ?? testServerUrl,
         authorization: () => 'MediaBrowser Token="t1"',
         breakDirectPlay: breakDirectPlay,
+        mediaToken: mediaToken,
       );
 
   test('direct play: stream statico con header e posizione', () async {
@@ -125,5 +129,33 @@ void main() {
     final broken =
         await service(breakDirectPlay: true).prepare(itemId: 'm1', userId: 'u1');
     expect(broken.source.url, contains('mediaSourceId=wonderflix-test-invalid'));
+  });
+
+  test('prepare con mediaToken mette ApiKey negli URL', () async {
+    final direct = await service(mediaToken: () => 'tk')
+        .prepare(itemId: 'm1', userId: 'u1');
+    expect(direct.source.url, contains('static=true'));
+    expect(direct.source.url, contains('ApiKey=tk'));
+    expect(direct.source.headers, {'Authorization': 'MediaBrowser Token="t1"'});
+
+    api.onPlaybackInfo = (_) => testPlaybackInfo(directPlay: false);
+    final hls = await service(mediaToken: () => 'tk')
+        .prepare(itemId: 'm1', userId: 'u1');
+    expect(hls.source.url, contains('master.m3u8'));
+    expect(hls.source.url, contains('ApiKey=tk'));
+  });
+
+  test("senza mediaToken l'URL non ha token", () async {
+    final direct = await service().prepare(itemId: 'm1', userId: 'u1');
+    expect(direct.source.url, isNot(contains('ApiKey')));
+    api.onPlaybackInfo = (_) => testPlaybackInfo(directPlay: false);
+    final hls = await service().prepare(itemId: 'm1', userId: 'u1');
+    expect(hls.source.url, isNot(contains('ApiKey')));
+  });
+
+  test('subtitleUrl con mediaToken', () async {
+    final plan = await service().prepare(itemId: 'm1', userId: 'u1');
+    expect(service(mediaToken: () => 'tk').subtitleUrl(plan.mediaSource.stream(5)!),
+        'https://media.example.com/Videos/m1/ms1/Subtitles/5/0/Stream.srt?ApiKey=tk');
   });
 }

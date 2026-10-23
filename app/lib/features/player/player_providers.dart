@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
+import '../../core/jellyfin/media_url.dart';
 import '../../core/jellyfin/playback_api.dart';
 import '../../core/media_session/media_session.dart';
 import '../../core/media_session/mirrored_media_session.dart';
@@ -26,6 +28,7 @@ final playbackServiceProvider = Provider<PlaybackService>((ref) {
     api: ref.watch(playbackApiProvider),
     serverUrl: ref.watch(appConfigProvider).serverUrl,
     authorization: () => http.authorizationHeader,
+    mediaToken: kIsWeb ? () => http.token : null,
     // Solo per provare il ripiego: --dart-define=wfBreakDirectPlay=true
     breakDirectPlay: const bool.fromEnvironment('wfBreakDirectPlay'),
   );
@@ -45,6 +48,13 @@ final playerWindowProvider =
 /// Immagine che richiede l'header di autenticazione (mosaici trickplay).
 final authImageProvider = Provider<ImageProvider Function(String url)>((ref) {
   final http = ref.watch(jellyfinHttpProvider);
+  // Nel browser il token va nell'URL: l'header farebbe un preflight CORS.
+  if (kIsWeb) {
+    return (url) => CachedNetworkImageProvider(
+          withApiKey(url, http.token ?? ''),
+          cacheManager: wonderflixImageCache,
+        );
+  }
   return (url) => CachedNetworkImageProvider(
         url,
         headers: {'Authorization': http.authorizationHeader},

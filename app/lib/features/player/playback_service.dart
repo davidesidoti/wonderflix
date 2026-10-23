@@ -1,5 +1,6 @@
 import '../../core/jellyfin/api_exception.dart';
 import '../../core/jellyfin/device_profile.dart';
+import '../../core/jellyfin/media_url.dart';
 import '../../core/jellyfin/playback_api.dart';
 import '../../core/jellyfin/playback_models.dart';
 import '../../core/video/video_engine.dart';
@@ -52,6 +53,7 @@ class PlaybackService {
     required Uri serverUrl,
     required String Function() authorization,
     this.breakDirectPlay = false,
+    this.mediaToken,
   })  : _api = api,
         _serverUrl = serverUrl,
         _authorization = authorization;
@@ -59,9 +61,19 @@ class PlaybackService {
   final PlaybackApi _api;
   final Uri _serverUrl;
 
-  /// Header `Authorization` corrente: il token viaggia nell'header, non
-  /// nell'URL.
+  /// Header `Authorization` corrente: su Windows il token viaggia solo
+  /// nell'header; nel browser, dove i media non possono portarlo, va anche
+  /// nell'URL (vedi [mediaToken]).
   final String Function() _authorization;
+
+  /// Solo nel browser: il token da mettere come `ApiKey` negli URL di video e
+  /// sottotitoli. `null` (Windows) = URL senza token.
+  final String? Function()? mediaToken;
+
+  String _withToken(String url) {
+    final token = mediaToken?.call();
+    return token == null ? url : withApiKey(url, token);
+  }
 
   /// Solo per le prove manuali del ripiego: rende invalido l'URL del direct
   /// play, così l'apertura fallisce.
@@ -127,7 +139,7 @@ class PlaybackService {
       mediaSource: source,
       playSessionId: info.playSessionId,
       source: VideoSource(
-        url: url,
+        url: _withToken(url),
         headers: {'Authorization': _authorization()},
         start: start,
       ),
@@ -162,7 +174,7 @@ class PlaybackService {
   /// URL assoluto di un sottotitolo da caricare a parte
   /// (`MediaStreamInfo.deliveredExternally`).
   String subtitleUrl(MediaStreamInfo stream) =>
-      resolveServerUrl(_serverUrl, stream.deliveryUrl!);
+      _withToken(resolveServerUrl(_serverUrl, stream.deliveryUrl!));
 
   static MediaSourceInfo? _pickSource(
       List<MediaSourceInfo> sources, String? id) {

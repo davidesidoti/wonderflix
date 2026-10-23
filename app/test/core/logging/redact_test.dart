@@ -12,6 +12,8 @@ void main() {
     expect(redactSecrets('GET /Videos/1/stream?api_key=abc&static=true'),
         'GET /Videos/1/stream?api_key=***&static=true');
     expect(redactSecrets('https://x/a?ApiKey=zz'), 'https://x/a?ApiKey=***');
+    expect(redactSecrets('https://h/x/master.m3u8?a=1&ApiKey=abc123'),
+        'https://h/x/master.m3u8?a=1&ApiKey=***');
   });
 
   test('JSON con password e token', () {
