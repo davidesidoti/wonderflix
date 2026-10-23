@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -32,7 +33,9 @@ class AppearanceSettingsSection extends ConsumerWidget {
               segments: [
                 ButtonSegment(
                     value: MotionSetting.system,
-                    label: Text(l.settingsAnimationsSystem)),
+                    label: Text(kIsWeb
+                        ? l.settingsAnimationsSystemWeb
+                        : l.settingsAnimationsSystem)),
                 ButtonSegment(
                     value: MotionSetting.full, label: Text(l.settingsAnimationsFull)),
                 ButtonSegment(
@@ -44,7 +47,7 @@ class AppearanceSettingsSection extends ConsumerWidget {
                   ref.read(motionSettingProvider.notifier).set(selection.first)),
             ),
             const SizedBox(height: 8),
-            Text(l.settingsAnimationsHint,
+            Text(kIsWeb ? l.settingsAnimationsHintWeb : l.settingsAnimationsHint,
                 style: const TextStyle(color: WfColors.creamMuted, fontSize: 12.5)),
           ],
         ),

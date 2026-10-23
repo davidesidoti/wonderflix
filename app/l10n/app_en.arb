@@ -224,6 +224,8 @@
   "settingsAnimations": "Animations",
   "settingsAnimationsHint": "“Same as Windows” follows “Animation effects” in the Windows settings. “Reduced” keeps only short fades.",
   "settingsAnimationsSystem": "Same as Windows",
+  "settingsAnimationsSystemWeb": "Same as system",
+  "settingsAnimationsHintWeb": "“Same as system” follows the system’s “reduce motion” preference, as read by the browser. “Reduced” keeps only short fades.",
   "settingsAnimationsFull": "Full",
   "settingsAnimationsReduced": "Reduced",
   "previewResume": "Resume",

@@ -14,5 +14,7 @@ void main() {
     expect(it.settingsAnimationsReduced, 'Ridotte');
     expect(en.settingsAnimationsSystem, 'Same as Windows');
     expect(en.settingsAnimationsReduced, 'Reduced');
+    expect(it.settingsAnimationsSystemWeb, 'Come il sistema');
+    expect(en.settingsAnimationsSystemWeb, 'Same as system');
   });
 }
