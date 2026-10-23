@@ -37,6 +37,9 @@ class JellyfinHttp {
 
   final Dio dio;
   final Uri _baseUrl;
+
+  /// Indirizzo del server (con l'eventuale sotto-percorso).
+  Uri get serverUrl => _baseUrl;
   final ClientInfo _clientInfo;
 
   String? _token;

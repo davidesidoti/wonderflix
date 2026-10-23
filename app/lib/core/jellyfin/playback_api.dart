@@ -1,6 +1,11 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 import 'device_profile.dart';
 import 'item_models.dart';
 import 'jellyfin_http.dart';
+import 'keepalive_post.dart';
 import 'playback_models.dart';
 
 /// Profilo del dispositivo per un tetto di bitrate.
@@ -53,8 +58,21 @@ class PlaybackApi {
     await _http.post('/Sessions/Playing/Progress', body: report.toJson());
   }
 
+  /// Nel browser parte con `keepalive`: arriva anche se la scheda si chiude.
   Future<void> reportStopped(PlaybackReport report) async {
-    await _http.post('/Sessions/Playing/Stopped', body: report.toStoppedJson());
+    const path = '/Sessions/Playing/Stopped';
+    if (kIsWeb) {
+      await keepalivePost(
+        Uri.parse(resolveServerUrl(_http.serverUrl, path)),
+        {
+          'Authorization': _http.authorizationHeader,
+          'Content-Type': 'application/json',
+        },
+        jsonEncode(report.toStoppedJson()),
+      );
+      return;
+    }
+    await _http.post(path, body: report.toStoppedJson());
   }
 
   /// Intro, riassunti, crediti… dell'elemento. Vuota se il server non ha un

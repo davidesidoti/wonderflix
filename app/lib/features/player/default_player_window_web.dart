@@ -1,15 +1,36 @@
+import 'dart:async';
+import 'dart:js_interop';
+
+import 'package:logging/logging.dart';
+import 'package:web/web.dart' as web;
+
 import 'player_window.dart';
 
-PlayerWindow createPlayerWindow() => _BrowserPlayerWindow();
+final _log = Logger('player');
 
-/// Provvisorio: nel browser non c'è una finestra da gestire. Lo schermo
-/// intero arriva con il player web (piano 27).
-class _BrowserPlayerWindow implements PlayerWindow {
-  @override
-  Future<void> setFullScreen(bool value) async {}
+PlayerWindow createPlayerWindow() => WebPlayerWindow();
+
+/// La "finestra" nel browser: schermo intero con la Fullscreen API, chiusura
+/// della scheda con `pagehide`. La scheda non si può trattenere né nascondere.
+class WebPlayerWindow implements PlayerWindow {
+  final _listeners = <Future<void> Function(), StreamSubscription<web.Event>>{};
 
   @override
-  Future<bool> isFullScreen() async => false;
+  Future<void> setFullScreen(bool value) async {
+    try {
+      if (value) {
+        await web.document.documentElement?.requestFullscreen().toDart;
+      } else if (web.document.fullscreenElement != null) {
+        await web.document.exitFullscreen().toDart;
+      }
+    } on Object catch (error) {
+      // Il browser lo rifiuta, per esempio senza un gesto dell'utente.
+      _log.warning('schermo intero rifiutato: $error');
+    }
+  }
+
+  @override
+  Future<bool> isFullScreen() async => web.document.fullscreenElement != null;
 
   @override
   Future<void> setPreventClose(bool value) async {}
@@ -21,8 +42,14 @@ class _BrowserPlayerWindow implements PlayerWindow {
   Future<void> destroy() async {}
 
   @override
-  void addCloseListener(Future<void> Function() onClose) {}
+  void addCloseListener(Future<void> Function() onClose) {
+    removeCloseListener(onClose);
+    _listeners[onClose] = web.EventStreamProviders.pageHideEvent
+        .forTarget(web.window)
+        .listen((_) => unawaited(onClose()));
+  }
 
   @override
-  void removeCloseListener(Future<void> Function() onClose) {}
+  void removeCloseListener(Future<void> Function() onClose) =>
+      unawaited(_listeners.remove(onClose)?.cancel());
 }
