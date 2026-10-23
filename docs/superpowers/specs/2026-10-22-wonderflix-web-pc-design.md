@@ -169,7 +169,7 @@ Le scelte tecniche le ha lasciate tutte a Claude, che le ha spiegate all'utente 
   ```
   lanciata da `app/`.
   - Il wasm gira in Chrome e in Edge; Firefox ricade da solo sulla versione JS.
-  - Niente header COOP/COEP: il wasm gira con un solo thread, che basta, ed evita problemi con le immagini di TMDB e con i worker (scelta di Claude).
+  - Header COOP `same-origin` e COEP `credentialless`, così il wasm usa più thread. Con un solo thread l'interfaccia scattava sul portatile dell'utente; immagini TMDB, video e worker dei sottotitoli funzionano anche così (scelta di Claude, rivista il 2026-10-23).
 - **Server:**
   - I file stanno in `~/wonderflix-web/`. La cartella e il nome sono una scelta di Claude.
   - Il nuovo `~/.apps/nginx/proxy.d/wonderflix.conf` fa un `alias` su quella cartella, con `default_type application/wasm` per i `.wasm` e senza la query string nei log.
