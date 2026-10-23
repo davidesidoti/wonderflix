@@ -92,26 +92,28 @@ Map<String, dynamic> buildBrowserDeviceProfile(BrowserCapabilities caps,
     'MaxStreamingBitrate': maxBitrate,
     'MaxStaticBitrate': maxBitrate,
     'DirectPlayProfiles': [
-      {
-        'Type': 'Video',
-        'Container': 'mp4,m4v',
-        'VideoCodec': video,
-        'AudioCodec': audio,
-      },
-      if (webmVideo.isNotEmpty)
-        {
-          'Type': 'Video',
-          'Container': 'webm',
-          'VideoCodec': webmVideo,
-          'AudioCodec': codecs({'opus': caps.opus}),
-        },
-      if (caps.mkv)
-        {
-          'Type': 'Video',
-          'Container': 'mkv',
-          'VideoCodec': video,
-          'AudioCodec': audio,
-        },
+      for (final (container, videoCodecs, audioCodecs) in [
+        ('mp4,m4v', video, audio),
+        ('webm', webmVideo, codecs({'opus': caps.opus})),
+        if (caps.mkv) ('mkv', video, audio),
+      ])
+        // Una lista vuota per Jellyfin vuol dire "qualunque codec".
+        if (videoCodecs.isNotEmpty && audioCodecs.isNotEmpty)
+          {
+            'Type': 'Video',
+            'Container': container,
+            'VideoCodec': videoCodecs,
+            'AudioCodec': audioCodecs,
+          },
+      // File solo audio, come jellyfin-web.
+      for (final (container, codec, supported) in [
+        ('mp3', 'mp3', caps.mp3),
+        ('m4a,mp4', 'aac', caps.aac),
+        ('flac', 'flac', caps.flac),
+        ('webm,ogg', 'opus', caps.opus),
+      ])
+        if (supported)
+          {'Type': 'Audio', 'Container': container, 'AudioCodec': codec},
     ],
     'TranscodingProfiles': [
       {
@@ -197,6 +199,8 @@ const _videoConversionReasons = {
   'AnamorphicVideoNotSupported',
   'InterlacedVideoNotSupported',
   'SubtitleCodecNotSupported',
+  // La qualità scelta è sotto il bitrate del file: il video si ricodifica.
+  'ContainerBitrateExceedsLimit',
 };
 
 /// Tetto di 1080p e 20 Mbps al video che il server converte. Un video

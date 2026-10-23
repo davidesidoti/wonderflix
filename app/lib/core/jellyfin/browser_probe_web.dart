@@ -35,7 +35,7 @@ BrowserCapabilities probeBrowser() {
     ac3: can('audio/mp4; codecs="ac-3"'),
     eac3: can('audio/mp4; codecs="ec-3"'),
     // jellyfin-web spegne l'MKV su Firefox (bug del precaricamento).
-    mkv: !isFirefox && can('video/x-matroska'),
+    mkv: !isFirefox && (can('video/x-matroska') || can('video/mkv')),
     // Firefox 149 ha un bug sui tfdt dei segmenti fMP4: lì si usa il TS.
     fmp4Hls: (nativeHls || mse('video/mp4; codecs="avc1.640029"')) &&
         !userAgent.contains('Firefox/149.'),

@@ -160,7 +160,75 @@ void main() {
         '8');
   });
 
+  BrowserCapabilities only({
+    bool h264 = false,
+    bool hevc = false,
+    bool vp9 = false,
+    bool aac = false,
+    bool mp3 = false,
+    bool opus = false,
+    bool flac = false,
+    bool fmp4Hls = true,
+  }) =>
+      BrowserCapabilities(
+        h264: h264,
+        hevc: hevc,
+        hevcMain10: false,
+        vp9: vp9,
+        av1: false,
+        aac: aac,
+        mp3: mp3,
+        opus: opus,
+        flac: flac,
+        ac3: false,
+        eac3: false,
+        mkv: false,
+        fmp4Hls: fmp4Hls,
+        nativeHls: false,
+        isFirefox: false,
+      );
+
+  List<Map> directProfiles(Map<String, dynamic> profile) =>
+      (profile['DirectPlayProfiles'] as List).cast<Map>();
+
+  test('mai liste di codec vuote (vuota = qualunque codec)', () {
+    final profile =
+        buildBrowserDeviceProfile(only(h264: true, vp9: true, aac: true));
+    expect(directContainers(profile), isNot(contains('webm')),
+        reason: 'webm senza opus');
+    for (final p in directProfiles(profile)) {
+      for (final key in ['VideoCodec', 'AudioCodec']) {
+        if (p.containsKey(key)) expect(p[key], isNotEmpty);
+      }
+    }
+  });
+
+  test('direct play dei file solo audio', () {
+    final audio = directProfiles(buildBrowserDeviceProfile(chromeHevc))
+        .where((p) => p['Type'] == 'Audio')
+        .map((p) => '${p['Container']}:${p['AudioCodec']}');
+    expect(audio, ['mp3:mp3', 'm4a,mp4:aac', 'flac:flac', 'webm,ogg:opus']);
+
+    final aacOnly = directProfiles(buildBrowserDeviceProfile(only(aac: true)))
+        .where((p) => p['Type'] == 'Audio')
+        .map((p) => p['Container']);
+    expect(aacOnly, ['m4a,mp4']);
+  });
+
+  test('HLS senza fMP4: TS e H.264 anche con HEVC', () {
+    final profile = buildBrowserDeviceProfile(
+        only(h264: true, hevc: true, aac: true, fmp4Hls: false));
+    expect(transcoding(profile)['Container'], 'ts');
+    expect(transcoding(profile)['VideoCodec'], 'h264');
+  });
+
   group('capConvertedVideo', () {
+    test('qualità più bassa (ContainerBitrateExceedsLimit): 1080p', () {
+      final url = Uri.parse(capConvertedVideo(
+          '/videos/m1/master.m3u8?TranscodeReasons=ContainerBitrateExceedsLimit'));
+      expect(url.queryParameters['MaxHeight'], '1080');
+    });
+
     test('solo audio convertito: URL invariato', () {
       const url =
           '/videos/m1/master.m3u8?MediaSourceId=ms1&TranscodeReasons=AudioCodecNotSupported';
