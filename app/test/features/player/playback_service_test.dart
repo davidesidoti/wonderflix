@@ -15,13 +15,15 @@ void main() {
   PlaybackService service(
           {Uri? serverUrl,
           bool breakDirectPlay = false,
-          String? Function()? mediaToken}) =>
+          String? Function()? mediaToken,
+          bool capConvertedVideo = false}) =>
       PlaybackService(
         api: api,
         serverUrl: serverUrl ?? testServerUrl,
         authorization: () => 'MediaBrowser Token="t1"',
         breakDirectPlay: breakDirectPlay,
         mediaToken: mediaToken,
+        capConvertedVideo: capConvertedVideo,
       );
 
   test('direct play: stream statico con header e posizione', () async {
@@ -157,5 +159,35 @@ void main() {
     final plan = await service().prepare(itemId: 'm1', userId: 'u1');
     expect(service(mediaToken: () => 'tk').subtitleUrl(plan.mediaSource.stream(5)!),
         'https://media.example.com/Videos/m1/ms1/Subtitles/5/0/Stream.srt?ApiKey=tk');
+  });
+
+  group('capConvertedVideo', () {
+    PlaybackInfoResult converted(String reasons) => PlaybackInfoResult.fromJson({
+          'PlaySessionId': 'ps1',
+          'MediaSources': [
+            {
+              'Id': 'ms1',
+              'SupportsDirectPlay': false,
+              'TranscodingUrl':
+                  '/videos/m1/master.m3u8?MediaSourceId=ms1&TranscodeReasons=$reasons',
+              'MediaStreams': [],
+            },
+          ],
+        });
+
+    test('video convertito: tetto a 1080p, poi il token', () async {
+      api.onPlaybackInfo = (_) => converted('VideoCodecNotSupported');
+      final plan = await service(capConvertedVideo: true, mediaToken: () => 'tk')
+          .prepare(itemId: 'm1', userId: 'u1');
+      final url = Uri.parse(plan.source.url);
+      expect(url.queryParameters['MaxHeight'], '1080');
+      expect(url.queryParameters['ApiKey'], 'tk');
+    });
+
+    test('senza capConvertedVideo (Windows) nessun tetto', () async {
+      api.onPlaybackInfo = (_) => converted('VideoCodecNotSupported');
+      final plan = await service().prepare(itemId: 'm1', userId: 'u1');
+      expect(plan.source.url, isNot(contains('MaxHeight')));
+    });
   });
 }

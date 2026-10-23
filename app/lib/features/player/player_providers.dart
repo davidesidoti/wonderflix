@@ -4,8 +4,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 
 import '../../app/providers.dart';
+import '../../core/jellyfin/browser_probe.dart';
+import '../../core/jellyfin/browser_profile.dart';
 import '../../core/jellyfin/media_url.dart';
 import '../../core/jellyfin/playback_api.dart';
 import '../../core/media_session/media_session.dart';
@@ -19,8 +22,16 @@ import 'playback_service.dart';
 import 'player_settings.dart';
 import 'player_window.dart';
 
-final playbackApiProvider =
-    Provider<PlaybackApi>((ref) => PlaybackApi(ref.watch(jellyfinHttpProvider)));
+final playbackApiProvider = Provider<PlaybackApi>((ref) {
+  final http = ref.watch(jellyfinHttpProvider);
+  if (!kIsWeb) return PlaybackApi(http);
+  final caps = probeBrowser();
+  _log.info('capacità del browser: $caps');
+  return PlaybackApi(http,
+      profile: (b) => buildBrowserDeviceProfile(caps, maxBitrate: b));
+});
+
+final _log = Logger('player');
 
 final playbackServiceProvider = Provider<PlaybackService>((ref) {
   final http = ref.watch(jellyfinHttpProvider);
@@ -29,6 +40,7 @@ final playbackServiceProvider = Provider<PlaybackService>((ref) {
     serverUrl: ref.watch(appConfigProvider).serverUrl,
     authorization: () => http.authorizationHeader,
     mediaToken: kIsWeb ? () => http.token : null,
+    capConvertedVideo: kIsWeb,
     // Solo per provare il ripiego: --dart-define=wfBreakDirectPlay=true
     breakDirectPlay: const bool.fromEnvironment('wfBreakDirectPlay'),
   );

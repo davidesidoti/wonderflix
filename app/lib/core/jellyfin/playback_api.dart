@@ -3,11 +3,17 @@ import 'item_models.dart';
 import 'jellyfin_http.dart';
 import 'playback_models.dart';
 
+/// Profilo del dispositivo per un tetto di bitrate.
+typedef DeviceProfileBuilder = Map<String, dynamic> Function(int maxBitrate);
+
 /// Endpoint della riproduzione (Jellyfin 10.11). Lancia solo `ApiException`.
 class PlaybackApi {
-  PlaybackApi(this._http);
+  /// [profile]: di default quello di mpv; nel browser `buildBrowserDeviceProfile`.
+  PlaybackApi(this._http, {DeviceProfileBuilder? profile})
+      : _profile = profile ?? ((b) => buildDeviceProfile(maxBitrate: b));
 
   final JellyfinHttp _http;
+  final DeviceProfileBuilder _profile;
 
   /// Come riprodurre [itemId]: sorgenti, tracce, direct play o transcodifica.
   /// - Con [allowDirect] a `false` il server propone solo la transcodifica.
@@ -27,7 +33,7 @@ class PlaybackApi {
       'UserId': userId,
       'StartTimeTicks': durationToTicks(start),
       'MaxStreamingBitrate': maxBitrate,
-      'DeviceProfile': buildDeviceProfile(maxBitrate: maxBitrate),
+      'DeviceProfile': _profile(maxBitrate),
       'EnableDirectPlay': allowDirect,
       'EnableDirectStream': allowDirect,
       'EnableTranscoding': true,

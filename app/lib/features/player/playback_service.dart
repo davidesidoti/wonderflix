@@ -1,4 +1,5 @@
 import '../../core/jellyfin/api_exception.dart';
+import '../../core/jellyfin/browser_profile.dart' as browser;
 import '../../core/jellyfin/device_profile.dart';
 import '../../core/jellyfin/media_url.dart';
 import '../../core/jellyfin/playback_api.dart';
@@ -54,6 +55,7 @@ class PlaybackService {
     required String Function() authorization,
     this.breakDirectPlay = false,
     this.mediaToken,
+    this.capConvertedVideo = false,
   })  : _api = api,
         _serverUrl = serverUrl,
         _authorization = authorization;
@@ -74,6 +76,10 @@ class PlaybackService {
     final token = mediaToken?.call();
     return token == null ? url : withApiKey(url, token);
   }
+
+  /// Solo nel browser: tetto di 1080p al video convertito dal server
+  /// (`capConvertedVideo` di `browser_profile.dart`).
+  final bool capConvertedVideo;
 
   /// Solo per le prove manuali del ripiego: rende invalido l'URL del direct
   /// play, così l'apertura fallisce.
@@ -122,7 +128,8 @@ class PlaybackService {
       ).toString();
       method = PlayMethod.directPlay;
     } else if (transcodingUrl != null) {
-      url = resolveServerUrl(_serverUrl, transcodingUrl);
+      final resolved = resolveServerUrl(_serverUrl, transcodingUrl);
+      url = capConvertedVideo ? browser.capConvertedVideo(resolved) : resolved;
       method = PlayMethod.transcode;
     } else {
       throw const PlaybackUnavailableException(null);

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/device_profile.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
 import 'package:wonderflix/core/jellyfin/playback_api.dart';
 import 'package:wonderflix/core/jellyfin/playback_models.dart';
@@ -49,6 +50,26 @@ void main() {
     expect(body['DeviceProfile'], isA<Map<String, dynamic>>());
     expect(result.playSessionId, 'ps1');
     expect(result.mediaSources.single.supportsDirectPlay, isTrue);
+  });
+
+  test('playbackInfo usa il profilo passato', () async {
+    adapter.handler = (_) => const FakeResponse(200, {'MediaSources': []});
+    final custom = PlaybackApi(
+        JellyfinHttp(
+            baseUrl: testServerUrl, clientInfo: testClientInfo, adapter: adapter),
+        profile: (b) => {'Name': 'x'});
+    await custom.playbackInfo('m1',
+        userId: 'u1', start: Duration.zero, maxBitrate: 5, allowDirect: true);
+    final body = adapter.requests.single.data as Map<String, dynamic>;
+    expect(body['DeviceProfile'], {'Name': 'x'});
+  });
+
+  test('playbackInfo senza profilo usa quello di mpv', () async {
+    adapter.handler = (_) => const FakeResponse(200, {'MediaSources': []});
+    await api.playbackInfo('m1',
+        userId: 'u1', start: Duration.zero, maxBitrate: 5, allowDirect: true);
+    final body = adapter.requests.single.data as Map<String, dynamic>;
+    expect(body['DeviceProfile'], buildDeviceProfile(maxBitrate: 5));
   });
 
   test('playbackInfo senza indici non li invia', () async {
