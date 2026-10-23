@@ -8,6 +8,7 @@ import 'package:logging/logging.dart';
 import 'package:web/web.dart' as web;
 
 import 'subtitle_kind.dart';
+import 'text_subtitle_cache.dart';
 import 'vtt.dart';
 
 final _log = Logger('player');
@@ -72,7 +73,7 @@ class WebSubtitles {
 
   /// L'id è la posizione nella lista: stabile finché il video resta aperto.
   final _urls = <String>[];
-  final _cues = <String, List<VttCue>>{};
+  final _cues = TextSubtitleCache();
   int _selection = 0;
   Duration _delay = Duration.zero;
   _Graphic? _graphic;
@@ -83,7 +84,8 @@ class WebSubtitles {
   static Future<JSObject>? _bitsub;
 
   /// Carica e mostra [url]; `null` se il browser non sa disegnarlo o non si è
-  /// caricato (resta quello di prima).
+  /// caricato (resta quello di prima). Come ASS e PGS, il testo si mostra
+  /// quando arriva: la scelta non aspetta il server.
   Future<String?> add(String url) async {
     if (subtitleKindForUrl(url) == null) return null;
     var index = _urls.indexOf(url);
@@ -106,16 +108,21 @@ class WebSubtitles {
     try {
       switch (subtitleKindForUrl(url)!) {
         case SubtitleKind.text:
-          final cues = _cues[id!] ??= parseVtt(
-            (await Dio().get<String>(
-              url,
-              options: Options(
-                headers: headers,
-                responseType: ResponseType.plain,
-              ),
-            )).data!,
+          // Il server può impiegare minuti (`TextSubtitleCache`): intanto
+          // il sottotitolo di prima sparisce.
+          _show();
+          unawaited(
+            _cues
+                .load(url, headers)
+                .then(
+                  (cues) {
+                    if (selection == _selection) _show(text: cues);
+                  },
+                  onError: (Object error) => _log.warning(
+                    'sottotitolo non caricato ($url): $error',
+                  ),
+                ),
           );
-          if (selection == _selection) _show(text: cues);
         case SubtitleKind.ass:
           final fonts = await _fallbackFonts(url);
           if (selection == _selection) _show(graphic: _octopus(url, fonts));
