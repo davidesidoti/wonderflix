@@ -219,6 +219,11 @@ class FakePlaybackApi implements PlaybackApi {
 
 /// Motore video in memoria: registra i comandi e simula gli eventi di mpv.
 class FakeVideoEngine implements VideoEngine {
+  FakeVideoEngine({this.selectsEmbeddedTracks = true});
+
+  @override
+  final bool selectsEmbeddedTracks;
+
   /// Quante delle prossime aperture devono fallire.
   int failOpens = 0;
   List<EngineTrack> engineTracks = const [];

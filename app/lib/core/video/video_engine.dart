@@ -71,6 +71,10 @@ abstract class VideoEngine {
   /// watch party la usa per recuperare piccoli scarti senza salti.
   Future<void> setRate(double rate);
 
+  /// `true` se il motore sa scegliere le tracce interne del file (mpv); il
+  /// browser no: lì il cambio di audio riapre il video dal server.
+  bool get selectsEmbeddedTracks;
+
   Future<List<EngineTrack>> tracks();
 
   /// Id da [tracks]; `null` = nessuna traccia.

@@ -304,6 +304,29 @@ void main() {
     expect(engine.opened, hasLength(1));
   });
 
+  test(
+      'selectAudio in direct play con un motore senza tracce interne riapre '
+      'con la traccia scelta', () async {
+    engine = FakeVideoEngine(selectsEmbeddedTracks: false)
+      ..engineTracks = testEngineTracks;
+    final controller = await start();
+    expect(engine.selectedAudio, isEmpty);
+    await controller.selectAudio(2);
+    await pumpEventQueue();
+    final call = playback.playbackInfoCalls.last;
+    expect(call.allowDirect, isTrue);
+    expect(call.audioStreamIndex, 2);
+    expect(engine.opened, hasLength(2));
+    expect(view().audioIndex, 2);
+  });
+
+  test('con mpv selectAudio in direct play non riapre', () async {
+    final controller = await start();
+    await controller.selectAudio(2);
+    expect(playback.playbackInfoCalls, hasLength(1));
+    expect(engine.opened, hasLength(1));
+  });
+
   test('audio in transcodifica: riapre la conversione dal punto attuale',
       () async {
     playback.onPlaybackInfo = (_) => testPlaybackInfo(directPlay: false);

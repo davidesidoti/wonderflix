@@ -293,6 +293,11 @@ class PlayerController extends Notifier<PlayerViewState> {
         maxBitrate: _settings.quality.bitrate,
       );
       if (stale()) return;
+      if (plan.isTranscode) {
+        final reasons = Uri.tryParse(plan.source.url)?.queryParameters[
+            'TranscodeReasons'];
+        _log.info('transcodifica: ${reasons ?? 'motivi non indicati'}');
+      }
       _externalSubtitles.clear();
       await _engine.open(plan.source);
       if (stale()) return;
@@ -367,7 +372,9 @@ class PlayerController extends Notifier<PlayerViewState> {
   /// [_loadPendingSubtitle].
   Future<int?> _applyTracks(PlaybackPlan plan) async {
     final audioIndex = plan.audioIndex;
-    if (!plan.isTranscode && audioIndex != null) {
+    if (!plan.isTranscode &&
+        _engine.selectsEmbeddedTracks &&
+        audioIndex != null) {
       final stream = plan.mediaSource.stream(audioIndex);
       final track = stream == null
           ? null
@@ -528,6 +535,13 @@ class PlayerController extends Notifier<PlayerViewState> {
           // L'audio è scelto dal server nella conversione: va rifatta.
           return _start(_engine.position,
               forceTranscode: true,
+              audioIndex: index,
+              subtitleIndex: _view.subtitleIndex ?? -1);
+        }
+        if (!_engine.selectsEmbeddedTracks) {
+          // Il browser non sceglie la traccia: il server copia o converte.
+          return _start(_engine.position,
+              forceTranscode: false,
               audioIndex: index,
               subtitleIndex: _view.subtitleIndex ?? -1);
         }

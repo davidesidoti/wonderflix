@@ -30,6 +30,9 @@ class _PendingWebEngine implements VideoEngine {
   Future<void> setRate(double rate) async {}
 
   @override
+  bool get selectsEmbeddedTracks => false;
+
+  @override
   Future<List<EngineTrack>> tracks() async => const [];
 
   @override

@@ -150,6 +150,9 @@ class MediaKitEngine implements VideoEngine {
   }
 
   @override
+  bool get selectsEmbeddedTracks => true;
+
+  @override
   Future<void> selectAudio(String? id) =>
       _native.setProperty('aid', id ?? 'no');
 
