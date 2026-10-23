@@ -383,7 +383,7 @@ void main() {
           _fails(AvatarImageError.invalid));
     });
 
-    test('un PNG che si espande oltre le sue misure: non valida', () {
+    test('rifiuta un PNG che si gonfia oltre il limite anche senza dart:io', () {
       // 1×1 in grigi: 2 byte decompressi; l'IDAT ne dà 1 MB.
       expect(() => prepareAvatarImageSync(_pngInflatingTo(1 << 20)),
           _fails(AvatarImageError.invalid));

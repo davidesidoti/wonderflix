@@ -1,8 +1,8 @@
-import 'dart:io' show ZLibCodec;
-import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:archive/archive.dart' show Inflate, OutputMemoryStream;
+import 'package:flutter/foundation.dart' show compute;
 import 'package:image/image.dart' as img;
 
 /// Le estensioni che si possono scegliere (spec K §10.3).
@@ -78,7 +78,7 @@ class CropArea {
 /// Prepara in un isolate il file scelto (spec K §10.3). Lancia
 /// [AvatarImageException].
 Future<WorkingImage> prepareAvatarImage(Uint8List bytes) =>
-    Isolate.run(() => prepareAvatarImageSync(bytes));
+    compute(prepareAvatarImageSync, bytes);
 
 /// Come [prepareAvatarImage], nel thread di chi chiama.
 WorkingImage prepareAvatarImageSync(Uint8List bytes) {
@@ -190,13 +190,12 @@ int _pngDataLimit(img.PngInfo info) {
 }
 
 /// I dati IDAT di [bytes] (un PNG già riconosciuto) si espandono al massimo
-/// di [limit] byte. Si decomprimono a pezzi contando i byte, senza tenerli:
-/// il decoder del pacchetto `image` li espande tutti in memoria, anche
-/// gigabyte da un file di pochi MB.
+/// di [limit] byte. L'inflate è in Dart puro (funziona anche nel browser) e
+/// si ferma al limite: il decoder del pacchetto `image` espande tutto in
+/// memoria, anche gigabyte da un file di pochi MB.
 bool _pngInflatesWithin(Uint8List bytes, int limit) {
-  final counter = _CountingSink(limit);
-  final inflater = ZLibCodec().decoder.startChunkedConversion(counter);
   try {
+    final idat = BytesBuilder(copy: false);
     // Dopo la firma (8 byte), i blocchi: lunghezza (4), tipo (4), dati e CRC
     // (4).
     var i = 8;
@@ -205,32 +204,47 @@ bool _pngInflatesWithin(Uint8List bytes, int limit) {
       final type = String.fromCharCodes(bytes, i + 4, i + 8);
       final end = i + 8 + length;
       if (end + 4 > bytes.length) return false;
-      if (type == 'IDAT') inflater.add(Uint8List.sublistView(bytes, i + 8, end));
+      if (type == 'IDAT') idat.add(Uint8List.sublistView(bytes, i + 8, end));
       if (type == 'IEND') break;
       i = end + 4;
     }
-    inflater.close();
+    final data = idat.takeBytes();
+    if (data.length < 2) return false;
+    // Via l'intestazione zlib (2 byte): `Inflate` vuole il deflate grezzo.
+    Inflate(Uint8List.sublistView(data, 2), output: _LimitedOutput(limit));
     return true;
   } on Object {
     return false;
   }
 }
 
-/// Conta i byte decompressi, e si ferma oltre [limit].
-class _CountingSink implements Sink<List<int>> {
-  _CountingSink(this.limit);
+/// Un buffer di output che si ferma oltre [limit] byte.
+class _LimitedOutput extends OutputMemoryStream {
+  _LimitedOutput(this.limit);
 
   final int limit;
-  int _count = 0;
 
-  @override
-  void add(List<int> data) {
-    _count += data.length;
-    if (_count > limit) throw const FormatException('PNG troppo grande');
+  void _check() {
+    if (length > limit) throw const FormatException('PNG troppo grande');
   }
 
   @override
-  void close() {}
+  void writeByte(int value) {
+    super.writeByte(value);
+    _check();
+  }
+
+  @override
+  void writeBytes(List<int> bytes, {int? length}) {
+    super.writeBytes(bytes, length: length);
+    _check();
+  }
+
+  @override
+  void writeBackReference(int distance, int count) {
+    super.writeBackReference(distance, count);
+    _check();
+  }
 }
 
 img.Image _decodeOrInvalid(img.Image? Function() decode) {
@@ -399,7 +413,7 @@ img.Image _flatten(img.Image image) {
 /// Ritaglia in un isolate [area] dall'immagine di lavoro: un JPEG di
 /// [avatarOutputSize] di lato. La trasparenza l'ha già tolta la preparazione.
 Future<Uint8List> cropAvatarImage(Uint8List workingPng, CropArea area) =>
-    Isolate.run(() => cropAvatarImageSync(workingPng, area));
+    compute((_) => cropAvatarImageSync(workingPng, area), null);
 
 /// Come [cropAvatarImage], nel thread di chi chiama. Un riquadro più grande
 /// dell'immagine si stringe al lato corto; uno che esce dall'immagine si
