@@ -322,11 +322,15 @@ class WebVideoEngine implements VideoEngine {
   @override
   Future<void> get firstFrame => _firstFrame.future;
 
+  // Il platform view, colpito, vince l'arena dei gesti: il tocco sul film
+  // non arriverebbe al `GestureDetector` del player. Il video non ne vuole.
   @override
-  Widget buildView() => Stack(fit: StackFit.expand, children: [
-        HtmlElementView(viewType: _viewType),
-        _subtitles.view(),
-      ]);
+  Widget buildView() => IgnorePointer(
+        child: Stack(fit: StackFit.expand, children: [
+          HtmlElementView(viewType: _viewType),
+          _subtitles.view(),
+        ]),
+      );
 }
 
 double _seconds(Duration value) => value.inMicroseconds / 1e6;
