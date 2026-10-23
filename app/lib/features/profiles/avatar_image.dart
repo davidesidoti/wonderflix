@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:archive/archive.dart' show Inflate, OutputMemoryStream;
+import 'package:archive/archive.dart' show Inflate, OutputMemoryStream, getAdler32;
 import 'package:flutter/foundation.dart' show compute;
 import 'package:image/image.dart' as img;
 
@@ -85,8 +85,9 @@ WorkingImage prepareAvatarImageSync(Uint8List bytes) {
   if (bytes.length > maxAvatarFileBytes) {
     throw const AvatarImageException(AvatarImageError.tooLarge);
   }
-  final image =
-      _toWorking(_isJpeg(bytes) ? _decodeJpeg(bytes) : _decodeOther(bytes));
+  final image = _toWorking(
+    _isJpeg(bytes) ? _decodeJpeg(bytes) : _decodeOther(bytes),
+  );
   // Niente EXIF nel PNG di lavoro, e quindi nemmeno nel JPEG caricato: le
   // immagini degli utenti sono pubbliche, e l'EXIF di una foto può dire dove
   // è stata scattata (GPS), quando e con cosa. Si toglie qui, senza contare
@@ -132,7 +133,8 @@ img.Image _decodeOther(Uint8List bytes) {
     throw const AvatarImageException(AvatarImageError.invalid);
   }
   final (decoder, info) = header;
-  final accepted = decoder is img.PngDecoder ||
+  final accepted =
+      decoder is img.PngDecoder ||
       decoder is img.GifDecoder ||
       decoder is img.WebPDecoder ||
       decoder is img.BmpDecoder;
@@ -211,8 +213,15 @@ bool _pngInflatesWithin(Uint8List bytes, int limit) {
     final data = idat.takeBytes();
     if (data.length < 2) return false;
     // Via l'intestazione zlib (2 byte): `Inflate` vuole il deflate grezzo.
-    Inflate(Uint8List.sublistView(data, 2), output: _LimitedOutput(limit));
-    return true;
+    final output = _LimitedOutput(limit);
+    Inflate(Uint8List.sublistView(data, 2), output: output);
+    // I blocchi non compressi arrivano con `writeStream`: si ricontrolla alla
+    // fine, su qualunque strada abbia scritto.
+    if (output.length > limit) return false;
+    // Come zlib: lo stream deve finire con l'adler32 dei dati, quindi un IDAT
+    // troncato o alterato non passa.
+    final adler = ByteData.sublistView(data, data.length - 4).getUint32(0);
+    return adler == getAdler32(output.getBytes());
   } on Object {
     return false;
   }
@@ -374,10 +383,16 @@ img.Image _toWorking(img.Image decoded) {
   image.exif.imageIfd.orientation = null;
   if (math.max(image.width, image.height) > maxWorkingSide) {
     image = image.width >= image.height
-        ? img.copyResize(image,
-            width: maxWorkingSide, interpolation: img.Interpolation.average)
-        : img.copyResize(image,
-            height: maxWorkingSide, interpolation: img.Interpolation.average);
+        ? img.copyResize(
+            image,
+            width: maxWorkingSide,
+            interpolation: img.Interpolation.average,
+          )
+        : img.copyResize(
+            image,
+            height: maxWorkingSide,
+            interpolation: img.Interpolation.average,
+          );
   }
   // 16 bit, grigi a pochi bit, HDR: 8 bit per canale, come il JPEG.
   if (image.format != img.Format.uint8) {
