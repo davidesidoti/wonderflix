@@ -8,6 +8,7 @@ import 'package:web/web.dart' as web;
 
 import 'open_sequence.dart';
 import 'video_engine.dart';
+import 'web_subtitles.dart';
 
 final _log = Logger('player');
 
@@ -104,10 +105,11 @@ class WebVideoEngine implements VideoEngine {
   final String _viewType = 'wonderflix-video-${_views++}';
 
   /// Contenitore del platform view: il `<video>` e, sopra, i canvas dei
-  /// sottotitoli (Task 8).
+  /// sottotitoli ASS e PGS.
   final web.HTMLDivElement container = web.HTMLDivElement();
 
   final web.HTMLVideoElement _video = web.HTMLVideoElement();
+  late final _subtitles = WebSubtitles(_video);
   final _subscriptions = <StreamSubscription<web.Event>>[];
 
   _Hls? _hls;
@@ -130,6 +132,9 @@ class WebVideoEngine implements VideoEngine {
   @override
   Future<void> open(VideoSource source) async {
     _unload();
+    _subtitles
+      ..clear()
+      ..headers = source.headers;
     _start = source.start;
     _recovered = false;
     await _openings.run(attach: () => _attach(source), release: _unload);
@@ -243,22 +248,23 @@ class WebVideoEngine implements VideoEngine {
   Future<void> selectAudio(String? id) async {}
 
   @override
-  Future<void> selectSubtitle(String? id) async {}
+  Future<void> selectSubtitle(String? id) => _subtitles.select(id);
 
-  // I sottotitoli arrivano nel Task 8 (canvas dentro [container]).
   @override
   Future<String?> addSubtitle(
     String url, {
     String? title,
     String? language,
-  }) async =>
-      null;
+  }) =>
+      _subtitles.add(url);
 
   @override
-  Future<void> setSubtitleDelay(Duration delay) async {}
+  Future<void> setSubtitleDelay(Duration delay) async =>
+      _subtitles.setDelay(delay);
 
   @override
-  Future<void> setSubtitleScale(double scale) async {}
+  Future<void> setSubtitleScale(double scale) async =>
+      _subtitles.setScale(scale);
 
   @override
   Future<void> dispose() async {
@@ -267,6 +273,7 @@ class WebVideoEngine implements VideoEngine {
     }
     _subscriptions.clear();
     _openings.failed('motore chiuso');
+    _subtitles.clear();
     _unload();
   }
 
@@ -316,7 +323,10 @@ class WebVideoEngine implements VideoEngine {
   Future<void> get firstFrame => _firstFrame.future;
 
   @override
-  Widget buildView() => HtmlElementView(viewType: _viewType);
+  Widget buildView() => Stack(fit: StackFit.expand, children: [
+        HtmlElementView(viewType: _viewType),
+        _subtitles.view(),
+      ]);
 }
 
 double _seconds(Duration value) => value.inMicroseconds / 1e6;

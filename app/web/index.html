@@ -19,10 +19,34 @@
   <title>WonderFlix</title>
   <link rel="manifest" href="manifest.json">
   <style>body { background: #0A0A0A; margin: 0; }</style>
+  <!-- libbitsub (PGS/VobSub) è un ES module con import senza estensione, da
+       bundler: la mappa li fa puntare ai file `.js`. Deve venire prima di
+       ogni module script. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "./vendor/libbitsub-1.11.0/dist/wrapper": "./vendor/libbitsub-1.11.0/dist/wrapper.js",
+      "./vendor/libbitsub-1.11.0/dist/ts/diagnostics": "./vendor/libbitsub-1.11.0/dist/ts/diagnostics.js",
+      "./vendor/libbitsub-1.11.0/dist/ts/frame-export": "./vendor/libbitsub-1.11.0/dist/ts/frame-export.js",
+      "./vendor/libbitsub-1.11.0/dist/ts/parsers": "./vendor/libbitsub-1.11.0/dist/ts/parsers.js",
+      "./vendor/libbitsub-1.11.0/dist/ts/range-loader": "./vendor/libbitsub-1.11.0/dist/ts/range-loader.js",
+      "./vendor/libbitsub-1.11.0/dist/ts/renderers": "./vendor/libbitsub-1.11.0/dist/ts/renderers.js",
+      "./vendor/libbitsub-1.11.0/dist/ts/utils": "./vendor/libbitsub-1.11.0/dist/ts/utils.js",
+      "./vendor/libbitsub-1.11.0/dist/ts/wasm": "./vendor/libbitsub-1.11.0/dist/ts/wasm.js",
+      "./vendor/libbitsub-1.11.0/dist/ts/webgl2-renderer": "./vendor/libbitsub-1.11.0/dist/ts/webgl2-renderer.js",
+      "./vendor/libbitsub-1.11.0/dist/ts/webgpu-renderer": "./vendor/libbitsub-1.11.0/dist/ts/webgpu-renderer.js",
+      "./vendor/libbitsub-1.11.0/dist/ts/worker": "./vendor/libbitsub-1.11.0/dist/ts/worker.js",
+      "./vendor/libbitsub-1.11.0/pkg/libbitsub": "./vendor/libbitsub-1.11.0/pkg/libbitsub.js"
+    }
+  }
+  </script>
 </head>
 <body>
   <!-- HLS nel browser che non lo legge da solo (player web). -->
   <script src="vendor/hls.js-1.7.3/hls.min.js"></script>
+  <!-- Sottotitoli ASS/SSA (SubtitlesOctopus). libbitsub si carica solo al
+       primo PGS, con un import dinamico da `web_subtitles.dart`. -->
+  <script src="vendor/libass-wasm-4.2.4/subtitles-octopus.js"></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
