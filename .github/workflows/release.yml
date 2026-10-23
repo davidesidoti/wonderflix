@@ -145,3 +145,76 @@ jobs:
             gh release create $env:GITHUB_REF_NAME $assets --draft --title "WonderFlix ${{ steps.version.outputs.version }}" --notes "Scrivi qui le note di rilascio (docs/RELEASING.md)."
           }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  # Sito web: build wasm e copia sul server via rsync (docs/RELEASING.md, "Sito web").
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.5
+          cache: true
+
+      - name: Versione
+        run: |
+          version=$(sed -n 's/^version:[[:space:]]*\([^[:space:]]*\).*/\1/p' pubspec.yaml | head -n1)
+          version=${version%%+*}
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Versione $version non valida: solo versioni X.Y.Z; per le prove usa una pre-release da una versione normale (docs/RELEASING.md)"
+            exit 1
+          fi
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Il tag $GITHUB_REF_NAME non corrisponde alla versione di pubspec.yaml ($version)"
+            exit 1
+          fi
+
+      - name: Configurazione dai Secrets
+        env:
+          SERVER_URL: ${{ secrets.WONDERFLIX_SERVER_URL }}
+          DISCORD_APP_ID: ${{ secrets.WONDERFLIX_DISCORD_APP_ID }}
+          SUPPORT_URL: ${{ secrets.WONDERFLIX_SUPPORT_URL }}
+          ACCESS_REQUEST_URL: ${{ secrets.WONDERFLIX_ACCESS_REQUEST_URL }}
+        run: |
+          if [ -z "$SERVER_URL" ]; then
+            echo "::error::Manca il Secret WONDERFLIX_SERVER_URL (docs/RELEASING.md)"
+            exit 1
+          fi
+          jq -n \
+            --arg serverUrl "$SERVER_URL" \
+            --arg githubRepo "$GITHUB_REPOSITORY" \
+            --arg discordAppId "$DISCORD_APP_ID" \
+            --arg supportUrl "$SUPPORT_URL" \
+            --arg accessRequestUrl "$ACCESS_REQUEST_URL" \
+            '$ARGS.named' > config/wonderflix.json
+
+      - run: flutter pub get
+      - run: flutter gen-l10n
+      - run: flutter build web --release --wasm --base-href /wonderflix/ --pwa-strategy=none --dart-define-from-file=config/wonderflix.json
+
+      - name: Chiave di deploy
+        env:
+          DEPLOY_KEY: ${{ secrets.WONDERFLIX_DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.WONDERFLIX_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          if [ -z "$DEPLOY_KEY" ] || [ -z "$KNOWN_HOSTS" ]; then
+            echo "::error::Mancano i Secrets WONDERFLIX_DEPLOY_SSH_KEY / WONDERFLIX_DEPLOY_KNOWN_HOSTS (docs/RELEASING.md)"
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      # La chiave sul server è vincolata a rrsync sulla cartella del sito:
+      # la destinazione è relativa a quella cartella. index.html va per ultimo,
+      # così il sito non punta a file non ancora copiati.
+      - name: Pubblicazione sul server
+        run: |
+          rsync -az --delete --exclude index.html -e "ssh -i ~/.ssh/id_deploy" build/web/ hashvps@46.232.210.229:
+          rsync -az -e "ssh -i ~/.ssh/id_deploy" build/web/index.html hashvps@46.232.210.229:

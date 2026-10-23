@@ -27,3 +27,4 @@ jobs:
       - run: flutter analyze
       - run: flutter test
       - run: flutter build windows --debug
+      - run: flutter build web --wasm --base-href /wonderflix/ --pwa-strategy=none

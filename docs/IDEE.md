@@ -28,9 +28,7 @@ Fatto il 2026-10-22, vedi `docs/superpowers/specs/2026-10-22-wonderflix-repo-per
 
 ### 1b. WonderFlix nel browser del PC
 
-Build web di tutta l'app, watch party compreso (la sincronizzazione è in Dart puro, `lib/core/syncplay/`). Sostituti o spegnimento delle parti solo Windows: niente Discord Rich Presence, controlli multimediali di Windows né aggiornamento automatico (il sito si aggiorna da solo; scelta di Claude da confermare nello spec). Player web con un profilo che converta il minimo. Pubblicazione su ultra.cc e aggiornamento del sito a ogni release.
-- **Da cercare:** motore video web (media_kit web, `<video>` con hls.js o altro); sottotitoli ASS/PGS senza libass (bruciati o resi nel browser); dove salvare il token; precisione di `currentTime`/`playbackRate` per il `DriftCorrector`; caricamento di wasm su quel nginx; come la release porta la build sul server (via SSH da GitHub Actions o altro); limite alle conversioni contemporanee in Jellyfin.
-- **Fatto quando:** tutta l'app funziona da un browser del PC su `https://hashvps.proton.usbx.me/wonderflix/`, con login Jellyfin, e l'installer Windows continua a funzionare com'è.
+Fatto il 2026-10-23, vedi `docs/superpowers/specs/2026-10-22-wonderflix-web-pc-design.md`.
 
 ### 1c. Adattamento a telefono e touch
 
@@ -123,3 +121,4 @@ Tutto quello che si è visto, con la data, i filtri (film, serie, mese) e "segna
 - Spec R — segnalazioni, sottotitoli e strumenti admin dei metadati (plugin 1.12.0, app 0.18.0 e 0.19.0).
 - Spec S — calendario delle uscite e date nelle richieste (plugin 1.13.0, app 0.20.0).
 - Progetto 1a — repo organizzata per componente (`app/`, `plugin/`).
+- Progetto 1b — WonderFlix nel browser del PC (app 0.21.0).

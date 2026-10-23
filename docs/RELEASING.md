@@ -97,6 +97,23 @@ Prima di ogni release, su un utente di prova:
 - [ ] Pannello media di Windows con il nome "WonderFlix" (app installata).
 - [ ] "Copia diagnostica" e cartella dei log.
 
+## Sito web
+
+Lo stesso tag `vX.Y.Z` fa partire anche il job `web` di **Release**, in parallelo a quello Windows: controlla il tag, compila il sito (`flutter build web --wasm`, base `/wonderflix/`) con la stessa configurazione dei Secrets e lo copia con `rsync` in `~/wonderflix-web` sul server. Prima i file, poi `index.html`; i file che non esistono più vengono tolti. Il sito è su `https://hashvps.proton.usbx.me/wonderflix/` e non ha bozza: va online appena il job finisce, anche se la release di Windows resta in bozza.
+
+**Secrets del sito** (oltre a quelli sopra):
+
+| Secret | Valore |
+|---|---|
+| `WONDERFLIX_DEPLOY_SSH_KEY` | chiave privata SSH (senza passphrase) usata solo per il deploy |
+| `WONDERFLIX_DEPLOY_KNOWN_HOSTS` | riga di `known_hosts` del server (`ssh-keyscan -t ed25519 46.232.210.229`) |
+
+La chiave pubblica sta in `~/.ssh/authorized_keys` dell'utente `hashvps` sul server, vincolata a `command="/usr/bin/rrsync /home/hashvps/wonderflix-web"` (con `restrict`): può solo copiare file in quella cartella. Per rigenerarla: `ssh-keygen -t ed25519 -N "" -f deploy_key`, sostituisci la riga in `authorized_keys` con la nuova pubblica, aggiorna il Secret con la privata (`gh secret set WONDERFLIX_DEPLOY_SSH_KEY < deploy_key`) e cancella i due file locali.
+
+**Rimettere una versione vecchia:** in *Actions* apri il run di **Release** del tag precedente e premi *Re-run* sul solo job `web`. Ricompila e ricopia quella versione.
+
+**nginx:** la conf del sito (file statici, `.wasm` e `.mjs` con il tipo giusto) è in `app/web/deploy/wonderflix.conf`; va in `~/.apps/nginx/proxy.d/` sul server, poi `app-nginx restart`.
+
 ## Plugin "WonderFlix Watch Party"
 
 Il plugin del server (cartella `plugin/`, spec E) ha versioni e release sue, separate dall'app.
