@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/core/jellyfin/web_event_socket.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 
 class FakeSocket implements EventSocket {
@@ -255,5 +257,46 @@ void main() {
       unawaited(client.stop());
       async.flushMicrotasks();
     });
+  });
+
+  test('browserSocketUri: ApiKey e deviceId, con codifica', () {
+    expect(
+        browserSocketUri(Uri.parse('wss://h/jellyfin/socket'),
+            token: 'abc', deviceId: 'd1'),
+        Uri.parse('wss://h/jellyfin/socket?ApiKey=abc&deviceId=d1'));
+    final encoded = browserSocketUri(Uri.parse('wss://h/socket'),
+        token: 'a&b', deviceId: 'd');
+    expect(encoded.queryParameters['ApiKey'], 'a&b');
+    expect(encoded.toString(), contains('ApiKey=a%26b'));
+  });
+
+  test('il connettore di default rilegge i valori a ogni connessione',
+      () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    final seen = <String?>[];
+    server.listen((request) async {
+      seen.add(request.headers.value('Authorization'));
+      final ws = await WebSocketTransformer.upgrade(request);
+      ws.listen((_) {});
+    });
+    var current = 'one';
+    final client = ServerEventsClient(
+      serverUrl: Uri.parse('http://127.0.0.1:${server.port}'),
+      authorizationHeader: () => 'Token="$current"',
+      connector: defaultEventSocketConnector(
+          token: () => current, deviceId: () => 'd-$current'),
+    );
+    addTearDown(client.dispose);
+    final connected = client.events.where((e) => e is ServerConnected);
+    final first = connected.first;
+    client.start();
+    await first;
+    await client.stop();
+    current = 'two';
+    final second = connected.first;
+    client.start();
+    await second;
+    expect(seen, ['Token="one"', 'Token="two"']);
   });
 }

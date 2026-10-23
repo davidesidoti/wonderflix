@@ -4,14 +4,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../core/jellyfin/server_events.dart';
+import '../../core/jellyfin/web_event_socket.dart';
 import '../auth/session_controller.dart';
 import 'library_providers.dart';
 import 'user_data.dart';
 
 final serverEventsClientProvider = Provider<ServerEventsClient>((ref) {
+  final http = ref.read(jellyfinHttpProvider);
   final client = ServerEventsClient(
     serverUrl: ref.watch(appConfigProvider).serverUrl,
     authorizationHeader: () => ref.read(jellyfinHttpProvider).authorizationHeader,
+    // Valori letti a ogni connessione: il profilo può cambiare.
+    connector: defaultEventSocketConnector(
+        token: () => http.token ?? '', deviceId: () => http.deviceId),
   );
   ref.onDispose(() => unawaited(client.dispose()));
   return client;

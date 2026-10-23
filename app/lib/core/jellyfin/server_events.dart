@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
 
 import '../party_channel/party_channel_models.dart';
@@ -124,34 +123,21 @@ abstract interface class EventSocket {
 typedef EventSocketConnector = Future<EventSocket> Function(
     Uri uri, Map<String, String> headers);
 
-Future<EventSocket> connectIoSocket(Uri uri, Map<String, String> headers) async {
-  final ws = await WebSocket.connect(uri.toString(), headers: headers);
-  // Ping di livello protocollo: rileva le connessioni cadute in silenzio.
-  ws.pingInterval = const Duration(seconds: 30);
-  return _IoEventSocket(ws);
-}
-
-class _IoEventSocket implements EventSocket {
-  _IoEventSocket(this._socket);
-
-  final WebSocket _socket;
-
-  @override
-  Stream<dynamic> get stream => _socket;
-
-  @override
-  void send(String message) => _socket.add(message);
-
-  @override
-  Future<void> close() => _socket.close();
-}
+/// Nel browser il WebSocket non ha header: token e deviceId vanno in query.
+Uri browserSocketUri(Uri socketUri,
+        {required String token, required String deviceId}) =>
+    socketUri.replace(queryParameters: {
+      ...socketUri.queryParameters,
+      'ApiKey': token,
+      'deviceId': deviceId,
+    });
 
 /// Client WebSocket di Jellyfin: riconnessione automatica e keep-alive.
 class ServerEventsClient {
   ServerEventsClient({
     required Uri serverUrl,
     required String Function() authorizationHeader,
-    EventSocketConnector connector = connectIoSocket,
+    required EventSocketConnector connector,
     List<Duration> retryDelays = const [
       Duration(seconds: 2),
       Duration(seconds: 5),
