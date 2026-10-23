@@ -148,6 +148,13 @@ jobs:
 
   # Sito web: build wasm e copia sul server via rsync (docs/RELEASING.md, "Sito web").
   web:
+    # Il sito esce solo se la release di Windows è riuscita.
+    needs: release
+    permissions:
+      contents: read
+    concurrency:
+      group: web-deploy
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -160,19 +167,6 @@ jobs:
           channel: stable
           flutter-version: 3.47.5
           cache: true
-
-      - name: Versione
-        run: |
-          version=$(sed -n 's/^version:[[:space:]]*\([^[:space:]]*\).*/\1/p' pubspec.yaml | head -n1)
-          version=${version%%+*}
-          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Versione $version non valida: solo versioni X.Y.Z; per le prove usa una pre-release da una versione normale (docs/RELEASING.md)"
-            exit 1
-          fi
-          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
-            echo "::error::Il tag $GITHUB_REF_NAME non corrisponde alla versione di pubspec.yaml ($version)"
-            exit 1
-          fi
 
       - name: Configurazione dai Secrets
         env:
