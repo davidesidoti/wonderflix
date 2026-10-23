@@ -46,6 +46,9 @@ List<Override> platformOverrides({required bool smtcReady}) => [
 
 RotatingFileSink? createLogSink() => RotatingFileSink(logsDirectory());
 
+/// Su Windows i log vanno solo nel file (e, in debug, nella console).
+const void Function(Level level, String text)? logToConsole = null;
+
 /// Nessun errore di avvio deve lasciare una finestra nascosta in giro.
 Future<void> showWindowAfterStartupError() => windowManager.show();
 

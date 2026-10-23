@@ -27,6 +27,17 @@ void main() {
     expect(written, endsWith('\n'));
   });
 
+  test('console del browser: da INFO in su, senza segreti', () {
+    final lines = <(Level, String)>[];
+    final log = AppLog(console: (level, text) => lines.add((level, text)));
+    log.add(LogRecord(Level.FINE, 'dettaglio', 'a'));
+    log.add(LogRecord(Level.INFO, 'header Token="segreto"', 'http'));
+    log.add(LogRecord(Level.SEVERE, 'rotto', 'a'));
+    expect(lines.map((line) => line.$1), [Level.INFO, Level.SEVERE]);
+    expect(lines.first.$2, contains('Token="***"'));
+    expect(lines.first.$2, isNot(contains('segreto')));
+  });
+
   test('ultimi errori: solo avvisi ed errori, al massimo maxRecentErrors', () {
     final log = AppLog(maxRecentErrors: 2);
     log.add(LogRecord(Level.INFO, 'info', 'a'));

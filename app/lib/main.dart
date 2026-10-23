@@ -21,7 +21,9 @@ final _log = Logger('startup');
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Per primo: da qui in poi ogni messaggio finisce anche nel file di log.
-  final appLog = AppLog(sink: createLogSink(), echo: kDebugMode)..attach();
+  final appLog = AppLog(
+      sink: createLogSink(), echo: kDebugMode, console: logToConsole)
+    ..attach();
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
     Logger('flutter')

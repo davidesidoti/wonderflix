@@ -14,12 +14,21 @@ import 'rotating_file_sink.dart';
 /// file a rotazione (senza segreti) e tiene in memoria gli ultimi avvisi ed
 /// errori per la diagnostica.
 class AppLog {
-  AppLog({this.sink, this.echo = false, this.maxRecentErrors = 50});
+  AppLog({
+    this.sink,
+    this.echo = false,
+    this.console,
+    this.maxRecentErrors = 50,
+  });
 
   final RotatingFileSink? sink;
 
   /// Ripete i messaggi nella console (in debug).
   final bool echo;
+
+  /// Nel browser, fuori dal debug: riceve i messaggi da INFO in su (già
+  /// senza segreti), per leggerli negli strumenti per sviluppatori.
+  final void Function(Level level, String text)? console;
   final int maxRecentErrors;
 
   final _recentErrors = ListQueue<String>();
@@ -42,7 +51,11 @@ class AppLog {
   void add(LogRecord record) {
     final text = redactSecrets(formatLogRecord(record));
     sink?.write('$text\n');
-    if (echo) debugPrint(text);
+    if (echo) {
+      debugPrint(text);
+    } else if (record.level >= Level.INFO) {
+      console?.call(record.level, text);
+    }
     if (record.level >= Level.WARNING) {
       _recentErrors.addLast(text);
       while (_recentErrors.length > maxRecentErrors) {
