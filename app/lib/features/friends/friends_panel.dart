@@ -77,9 +77,12 @@ class _FriendsPanelState extends ConsumerState<FriendsPanel> {
     super.initState();
     // Il campo prende il fuoco all'apertura. `autofocus` non basta: nella
     // shell vera lo scope della pagina ha già un figlio col fuoco (il
-    // navigatore annidato) e `autofocus` viene scartato.
+    // navigatore annidato) e `autofocus` viene scartato. Col dito no: sul
+    // telefono aprirebbe la tastiera a ogni apertura.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _searchFocus.requestFocus();
+      if (mounted && !FormFactor.of(context).touch) {
+        _searchFocus.requestFocus();
+      }
     });
   }
 

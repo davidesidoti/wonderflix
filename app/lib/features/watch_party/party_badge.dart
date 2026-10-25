@@ -10,6 +10,7 @@ import '../../app/theme.dart';
 import '../../core/social/social_api.dart';
 import '../../core/social/social_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/poster_card.dart';
 import '../../ui/user_avatar.dart';
 import '../../ui/wf_menus.dart';
@@ -33,30 +34,53 @@ class PartyChip extends StatelessWidget {
   static const maxCount = 9;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-        decoration: BoxDecoration(
-          border: Border.all(color: WfColors.gold),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(LucideIcons.users, size: 16, color: WfColors.gold),
-            const SizedBox(width: 6),
-            Text(label,
-                style: const TextStyle(
-                    color: WfColors.gold, fontWeight: FontWeight.w600)),
-            if (count > 0) ...[
-              const SizedBox(width: 6),
-              CountBadge(
-                  key: const Key('watch-party-unread'),
-                  count: count,
-                  max: maxCount),
-            ],
-          ],
+  Widget build(BuildContext context) {
+    // Nel layout stretto solo l'icona, in un bersaglio da dito: l'etichetta
+    // non ci sta nella barra (spec 1c §4.2).
+    if (FormFactor.of(context).compact) {
+      return Tooltip(
+        message: label,
+        child: SizedBox.square(
+          dimension: minTouchTarget,
+          child: Center(
+            child: Badge(
+              key: count > 0 ? const Key('watch-party-unread') : null,
+              isLabelVisible: count > 0,
+              label: Text(count > maxCount ? '$maxCount+' : '$count'),
+              backgroundColor: WfColors.gold,
+              textColor: WfColors.bg,
+              child: const Icon(LucideIcons.users,
+                  size: 20, color: WfColors.gold),
+            ),
+          ),
         ),
       );
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        border: Border.all(color: WfColors.gold),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(LucideIcons.users, size: 16, color: WfColors.gold),
+          const SizedBox(width: 6),
+          Text(label,
+              style: const TextStyle(
+                  color: WfColors.gold, fontWeight: FontWeight.w600)),
+          if (count > 0) ...[
+            const SizedBox(width: 6),
+            CountBadge(
+                key: const Key('watch-party-unread'),
+                count: count,
+                max: maxCount),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 /// L'avatar di un membro del party o di un amico (spec K §10.5): l'immagine

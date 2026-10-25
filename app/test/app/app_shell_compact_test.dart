@@ -8,11 +8,13 @@ import 'package:wonderflix/app/page_transitions.dart';
 import 'package:wonderflix/app/router.dart';
 import 'package:wonderflix/app/shell_panels.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
+import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/friends/friends_panel.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
+import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 
 import '../support/fake_session_controller.dart';
 import '../support/pump_app.dart';
@@ -23,6 +25,13 @@ import '../support/watch_party_fakes.dart';
 const _phone = Size(390, 844);
 const _phoneLandscape = Size(844, 390);
 const _desktop = Size(1440, 900);
+
+/// Dentro un watch party.
+class _InParty extends WatchPartySession {
+  @override
+  WatchPartyState build() =>
+      const WatchPartyState(phase: WatchPartyPhase.inGroup);
+}
 
 /// Shell con un vero `GoRouter` come in `router.dart`, pagine finte e la
 /// pagina-pannello Amici vera.
@@ -73,20 +82,25 @@ void main() {
     Size size = _phone,
     SocialFeatures features = const SocialFeatures(friends: true),
     JellyfinUser user = testUser,
+    bool touch = true,
+    List<GroupInfo> groups = const [],
+    bool inParty = false,
   }) async {
     final router = _router();
     await pumpAppRouter(
       tester,
       router,
       surfaceSize: size,
-      touch: true,
+      touch: touch,
       overrides: [
         ...socialTestOverrides(api, features: features, session: false),
         sessionControllerProvider
             .overrideWith(() => FakeSessionController(SessionSignedIn(user))),
         // Nessun elenco dei watch party (né timer).
-        watchPartyDirectoryProvider.overrideWith(FakeWatchPartyDirectory.new),
+        watchPartyDirectoryProvider
+            .overrideWith(() => FakeWatchPartyDirectory(groups)),
         syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
+        if (inParty) watchPartySessionProvider.overrideWith(_InParty.new),
       ],
     );
     await tester.pumpAndSettle();
@@ -270,5 +284,51 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets(
+        'stretto: con un watch party la barra in alto non va in overflow a '
+        '${size.width}×${size.height}', (tester) async {
+      await pumpShell(tester,
+          size: size,
+          groups: [testGroup()],
+          features: const SocialFeatures(friends: true, inbox: true));
+      expect(tester.takeException(), isNull);
+      final chip = find.byKey(const Key('watch-party-button'));
+      expect(chip, findsOneWidget);
+      expect(tester.getSize(chip).width, greaterThanOrEqualTo(44));
+      expect(find.byTooltip('Watch party · 1'), findsOneWidget);
+    });
+
+    testWidgets(
+        'stretto: dentro un watch party la barra in alto non va in overflow '
+        'a ${size.width}×${size.height}', (tester) async {
+      await pumpShell(tester,
+          size: size,
+          inParty: true,
+          features: const SocialFeatures(friends: true, inbox: true));
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(const Key('watch-party-in-party')), findsOneWidget);
+    });
   }
+
+  testWidgets('stretto col dito: Amici non mette il fuoco nel campo',
+      (tester) async {
+    await pumpShell(tester);
+    await tester.tap(find.byKey(const Key('friends-button')));
+    await tester.pumpAndSettle();
+    final field =
+        tester.widget<TextField>(find.byKey(const Key('friends-search')));
+    expect(field.focusNode?.hasFocus, isFalse,
+        reason: 'la tastiera del telefono non si apre da sola');
+  });
+
+  testWidgets('stretto col mouse: Amici mette il fuoco nel campo come oggi',
+      (tester) async {
+    await pumpShell(tester, touch: false);
+    await tester.tap(find.byKey(const Key('friends-button')));
+    await tester.pumpAndSettle();
+    final field =
+        tester.widget<TextField>(find.byKey(const Key('friends-search')));
+    expect(field.focusNode?.hasFocus, isTrue);
+  });
 }
