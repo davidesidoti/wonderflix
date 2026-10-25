@@ -129,6 +129,10 @@ Ogni tag pubblica il sito per tutti, quindi la build di un ramo si prova su un p
    rsync -a --delete --exclude index.html build/web/ ultra:~/wonderflix-web-prova/
    rsync -a build/web/index.html ultra:~/wonderflix-web-prova/
    ```
+   Da Git Bash su Windows: la build va lanciata con `MSYS_NO_PATHCONV=1`, altrimenti `/wonderflix-prova/` diventa un percorso di Windows. E lì `rsync` non c'è: si copia con `tar` in una cartella nuova che poi prende il posto della vecchia:
+   ```bash
+   tar czf - -C build/web . | ssh ultra 'rm -rf ~/wonderflix-web-prova.new && mkdir ~/wonderflix-web-prova.new && tar xzf - -C ~/wonderflix-web-prova.new && rm -rf ~/wonderflix-web-prova && mv ~/wonderflix-web-prova.new ~/wonderflix-web-prova'
+   ```
 3. **Solo la prima volta:** copia `app/deploy/wonderflix-prova.conf` in `~/.apps/nginx/proxy.d/wonderflix-prova.conf` sul server e `app-nginx restart`. Le copie successive non toccano nginx.
 
 La conf ha gli stessi header del sito vero (COOP/COEP, `no-cache`, `.wasm`, `.mjs`, niente log). Il sito di prova non è collegato ai tag: va aggiornato a mano.
