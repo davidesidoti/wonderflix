@@ -7,6 +7,7 @@ import '../../app/navigation.dart';
 import '../../app/theme.dart';
 import '../../core/social/collections_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/wf_image.dart';
 import '../library/library_providers.dart';
 
@@ -40,7 +41,7 @@ class _CollectionCardState extends ConsumerState<CollectionCard> {
       width: widget.width,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
+        onEnter: (_) => setState(() => _hover = !FormFactor.of(context).touch),
         onExit: (_) => setState(() => _hover = false),
         child: GestureDetector(
           onTap: () => openCollection(context, collection.id),

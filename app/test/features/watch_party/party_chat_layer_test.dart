@@ -49,7 +49,7 @@ void main() {
 
   /// Il livello della chat in basso a sinistra, nel gruppo `g1` con il
   /// canale attivo. [open] decide se è aperta.
-  Future<void> pumpChat(WidgetTester tester) async {
+  Future<void> pumpChat(WidgetTester tester, {bool touch = false}) async {
     // Il focus del campo è di chi monta la chat, come nel player.
     final focusNode = FocusNode(debugLabel: 'party-chat');
     addTearDown(focusNode.dispose);
@@ -79,6 +79,7 @@ void main() {
         watchPartyEventsProvider.overrideWithValue(events.stream),
         partyChannelApiProvider.overrideWithValue(channelApi),
       ],
+      touch: touch,
     );
     unawaited(
         container(tester).read(watchPartySessionProvider.notifier).join('g1'));
@@ -442,6 +443,21 @@ void main() {
       expect(box.bottom + PartyChatBubble.gap,
           moreOrLessEquals(tester.getRect(field()).top));
       expect(box.height, lessThan(100), reason: 'non occupa il 40%');
+      await leave(tester);
+    });
+
+    testWidgets('tocco: scorrere la chat rinnova la chiusura dopo 20 s',
+        (tester) async {
+      longHistory();
+      await pumpChat(tester, touch: true);
+      await openChat(tester);
+      await tester.pump(const Duration(seconds: 15));
+      expect(open.value, isTrue);
+      await tester.drag(history(), const Offset(0, 40));
+      await tester.pump(const Duration(seconds: 15));
+      expect(open.value, isTrue, reason: '30 s in tutto, ma ha scorso a 15');
+      await tester.pump(const Duration(seconds: 10));
+      expect(open.value, isFalse);
       await leave(tester);
     });
 

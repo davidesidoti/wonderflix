@@ -48,7 +48,8 @@ void main() {
   Future<void> pumpPanel(WidgetTester tester,
       {List<GroupInfo> parties = const [],
       double width = InboxPanel.width,
-      double textScale = 1}) async {
+      double textScale = 1,
+      bool touch = false}) async {
     await pumpApp(
       tester,
       Builder(
@@ -73,6 +74,7 @@ void main() {
         partyChannelApiProvider
             .overrideWithValue(FakePartyChannelApi()..install()),
       ],
+      touch: touch,
     );
     await tester.pump();
   }
@@ -128,6 +130,21 @@ void main() {
     await tester.pump();
     expect(api.calls, contains('remove-entry a1'));
     expect(find.text('Stasera manutenzione'), findsNothing);
+  });
+
+  testWidgets('tocco: la × delle notifiche è visibile', (tester) async {
+    api.inboxSnapshot = InboxSnapshot(
+        entries: [testAnnouncement(createdAt: fiveMinutesAgo())], unread: 1);
+    await pumpPanel(tester, touch: true);
+    expect(
+        tester
+            .widget<Opacity>(find
+                .ancestor(
+                    of: find.byTooltip('Rimuovi'),
+                    matching: find.byType(Opacity))
+                .first)
+            .opacity,
+        1);
   });
 
   testWidgets('× non riuscita: lo dice', (tester) async {

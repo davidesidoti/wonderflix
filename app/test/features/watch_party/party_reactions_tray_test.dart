@@ -17,7 +17,7 @@ void main() {
     open = ValueNotifier(true);
   });
 
-  Future<void> pumpTray(WidgetTester tester) => pumpApp(
+  Future<void> pumpTray(WidgetTester tester, {bool touch = false}) => pumpApp(
         tester,
         Scaffold(
           body: Center(
@@ -34,6 +34,7 @@ void main() {
             ),
           ),
         ),
+        touch: touch,
       );
 
   testWidgets('sei emoji con il tasto e l\'etichetta', (tester) async {
@@ -83,6 +84,19 @@ void main() {
     await tester.pump(step);
     expect(closed, 0);
     await tester.pump(PartyReactionsTray.idleClose - step);
+    expect(closed, 1);
+  });
+
+  testWidgets('tocco: toccare il vassoio lo tiene aperto', (tester) async {
+    await pumpTray(tester, touch: true);
+    await tester.pump(const Duration(seconds: 4));
+    // Il bordo del vassoio, non una reazione.
+    await tester.tapAt(
+        tester.getTopLeft(find.byType(PartyReactionsTray)) + const Offset(4, 4));
+    await tester.pump(const Duration(seconds: 3));
+    expect(closed, 0);
+    expect(sent, isEmpty);
+    await tester.pump(const Duration(seconds: 3));
     expect(closed, 1);
   });
 

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/material.dart' show Colors, showModalBottomSheet;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,14 +13,71 @@ import '../app/navigation.dart';
 import '../core/jellyfin/item_models.dart';
 import '../features/playback/play_launcher.dart';
 import 'card_preview.dart';
+import 'form_factor.dart';
 
 /// Suffisso della sorgente del volo per l'anteprima: la card e la sua
 /// anteprima stanno nella stessa pagina e non possono avere lo stesso tag.
 const previewHeroSuffix = '.preview';
 
+/// Anteprima dal basso, per il dito (non c'è hover): stesso contenuto e stesse
+/// azioni di quella del mouse; ogni azione chiude il foglio. [ref] serve a
+/// `playItem`, che lo usa dopo la chiusura.
+Future<void> showCardPreviewSheet(
+    BuildContext context, WidgetRef ref, JellyfinItem item,
+    {CardPreviewExtra? extra, String? heroSource}) {
+  final extraHeight = extra?.height ?? 0;
+  return showModalBottomSheet<void>(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (sheet) {
+      final screen = MediaQuery.sizeOf(sheet);
+      final body = previewBodyHeight + minTouchTarget - 36 + extraHeight;
+      // In orizzontale lo schermo è basso: l'immagine si restringe.
+      final width = [
+        screen.width - 2 * previewMargin,
+        480.0,
+        (screen.height * 0.9 - body) * 16 / 9,
+      ].reduce((a, b) => a < b ? a : b);
+      void then(VoidCallback action) {
+        Navigator.of(sheet).pop();
+        action();
+      }
+
+      final dismiss = extra?.onDismiss;
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(previewMargin),
+          child: Center(
+            heightFactor: 1,
+            child: SizedBox(
+              width: width,
+              height: width * 9 / 16 + body,
+              child: CardPreview(
+                item: item,
+                heroTag: null,
+                extra: dismiss == null
+                    ? extra
+                    : CardPreviewExtra(
+                        notes: extra!.notes,
+                        dismissTooltip: extra.dismissTooltip,
+                        onDismiss: () => then(dismiss)),
+                onPlay: () => then(() => unawaited(playItem(context, ref, item))),
+                onDetails: () =>
+                    then(() => openItem(context, item, heroSource: heroSource)),
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
 /// Avvolge una card: con il mouse fermo sopra per [previewHoverDelay] apre
-/// l'anteprima nell'overlay principale (spec C §7). Solo con il mouse: con
-/// tocco e tastiera il clic della card apre la scheda.
+/// l'anteprima nell'overlay principale (spec C §7). Solo con il mouse: col
+/// dito la pressione lunga apre [showCardPreviewSheet], il tocco la scheda.
 class CardPreviewHost extends ConsumerStatefulWidget {
   const CardPreviewHost({
     super.key,
@@ -401,7 +459,13 @@ class _CardPreviewHostState extends ConsumerState<CardPreviewHost>
       child: MouseRegion(
         onEnter: _onEnter,
         onExit: _onExitCard,
-        child: widget.child,
+        child: GestureDetector(
+          onLongPress: FormFactor.of(context).touch
+              ? () => unawaited(showCardPreviewSheet(context, ref, widget.item,
+                  extra: widget.extra, heroSource: widget.heroSource))
+              : null,
+          child: widget.child,
+        ),
       ),
     );
   }

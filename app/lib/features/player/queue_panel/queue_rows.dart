@@ -6,6 +6,7 @@ import '../../../app/motion.dart';
 import '../../../app/theme.dart';
 import '../../../core/jellyfin/item_models.dart';
 import '../../../l10n/gen/app_localizations.dart';
+import '../../../ui/form_factor.dart';
 import '../../../ui/wf_image.dart';
 import '../../library/item_labels.dart';
 import '../../library/library_providers.dart';
@@ -105,10 +106,12 @@ class _QueueRowState extends ConsumerState<QueueRow> {
         item == null ? null : queueRowDetails(l, item, playing: playing);
     // Maniglia e ✕ si vedono solo passando sopra, e finché non si vedono non
     // prendono né clic né trascinamenti: restano alla riga.
+    // Col dito non c'è hover: restano sempre visibili.
+    final shown = _hovered || FormFactor.of(context).touch;
     Widget hoverOnly(Widget child) => AnimatedOpacity(
-        opacity: _hovered ? 1 : 0,
+        opacity: shown ? 1 : 0,
         duration: WfMotion.fast,
-        child: IgnorePointer(ignoring: !_hovered, child: child));
+        child: IgnorePointer(ignoring: !shown, child: child));
     final row = Padding(
       padding: const EdgeInsets.fromLTRB(4, 6, 4, 6),
       child: Row(

@@ -11,6 +11,7 @@ import '../features/library/library_providers.dart';
 import '../features/library/user_data.dart';
 import 'card_preview.dart';
 import 'card_preview_host.dart';
+import 'form_factor.dart';
 import 'wf_image.dart';
 
 /// Locandina 2:3 con titolo, anno, avanzamento e badge "visto".
@@ -78,7 +79,7 @@ class _PosterCardState extends ConsumerState<PosterCard> {
       width: widget.width,
       child: MouseRegion(
         cursor: openable ? SystemMouseCursors.click : MouseCursor.defer,
-        onEnter: (_) => setState(() => _hover = true),
+        onEnter: (_) => setState(() => _hover = !FormFactor.of(context).touch),
         onExit: (_) => setState(() => _hover = false),
         child: GestureDetector(
           onTap: !openable

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app/motion.dart';
 import '../app/theme.dart';
 import '../core/jellyfin/image_urls.dart';
+import 'form_factor.dart';
 import 'wf_image.dart';
 
 /// Forma di una [RemoteImageCard], uguale alle card della libreria.
@@ -110,7 +111,7 @@ class _RemoteImageCardState extends State<RemoteImageCard> {
           ? content
           : MouseRegion(
               cursor: SystemMouseCursors.click,
-              onEnter: (_) => setState(() => _hover = true),
+              onEnter: (_) => setState(() => _hover = !FormFactor.of(context).touch),
               onExit: (_) => setState(() => _hover = false),
               child: GestureDetector(onTap: onTap, child: content),
             ),

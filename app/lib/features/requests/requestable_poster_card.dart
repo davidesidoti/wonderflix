@@ -5,6 +5,7 @@ import '../../app/theme.dart';
 import '../../core/requests/requests_models.dart';
 import '../../core/requests/tmdb_images.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/wf_image.dart';
 
 /// L'etichetta di una card "Da richiedere" (spec I §9.1).
@@ -50,7 +51,7 @@ class _RequestablePosterCardState extends State<RequestablePosterCard> {
       width: widget.width,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
+        onEnter: (_) => setState(() => _hover = !FormFactor.of(context).touch),
         onExit: (_) => setState(() => _hover = false),
         child: GestureDetector(
           onTap: widget.onTap,

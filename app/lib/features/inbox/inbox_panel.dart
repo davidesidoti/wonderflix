@@ -14,6 +14,7 @@ import '../../core/social/inbox_models.dart';
 import '../../core/social/social_api.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/shell_side_panel.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/wf_image.dart';
 import '../library/library_providers.dart';
 import '../match/match_actions.dart';
@@ -418,7 +419,8 @@ class _EntryTileState extends ConsumerState<_EntryTile> {
               skipTraversal: true,
               onFocusChange: (focused) => setState(() => _focused = focused),
               child: Opacity(
-                opacity: _hovered || _focused ? 1 : 0,
+                opacity:
+                    _hovered || _focused || FormFactor.of(context).touch ? 1 : 0,
                 // Nascosta resta per i lettori di schermo.
                 alwaysIncludeSemantics: true,
                 child: IconButton(

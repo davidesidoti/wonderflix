@@ -16,6 +16,7 @@ import '../features/library/library_providers.dart';
 import '../features/library/user_data.dart';
 import '../l10n/gen/app_localizations.dart';
 import 'backdrop_image.dart';
+import 'form_factor.dart';
 import 'poster_card.dart';
 import 'wf_buttons.dart';
 import 'wf_image.dart';
@@ -226,6 +227,7 @@ class CardPreview extends ConsumerWidget {
     final logo = episode ? null : urls.logo(item);
     final subtitle = episode ? cardSubtitle(item) : null;
     const muted = TextStyle(color: WfColors.creamMuted, fontSize: 12);
+    final size = FormFactor.of(context).touch ? minTouchTarget : _buttonSize;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -305,6 +307,7 @@ class CardPreview extends ConsumerWidget {
                           tooltip:
                               progress != null ? l.previewResume : l.actionPlay,
                           filled: true,
+                          size: size,
                           onPressed: onPlay,
                         ),
                         const SizedBox(width: 8),
@@ -315,7 +318,7 @@ class CardPreview extends ConsumerWidget {
                             tooltip: userData.isFavorite
                                 ? l.actionRemoveFromList
                                 : l.actionAddToList,
-                            size: _buttonSize,
+                            size: size,
                             iconSize: _iconSize,
                             onPressed: () => unawaited(_toggle(
                                 context, () => overrides.toggleFavorite(item))),
@@ -328,7 +331,7 @@ class CardPreview extends ConsumerWidget {
                           tooltip: userData.played
                               ? l.actionMarkUnwatched
                               : l.actionMarkWatched,
-                          size: _buttonSize,
+                          size: size,
                           iconSize: _iconSize,
                           onPressed: () => unawaited(_toggle(
                               context, () => overrides.togglePlayed(item))),
@@ -338,6 +341,7 @@ class CardPreview extends ConsumerWidget {
                           _RoundButton(
                             icon: LucideIcons.x,
                             tooltip: extra!.dismissTooltip,
+                            size: size,
                             onPressed: dismiss,
                           ),
                         ],
@@ -345,6 +349,7 @@ class CardPreview extends ConsumerWidget {
                         _RoundButton(
                           icon: LucideIcons.chevronDown,
                           tooltip: l.actionDetails,
+                          size: size,
                           onPressed: onDetails,
                         ),
                       ],
@@ -401,9 +406,11 @@ class _RoundButton extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onPressed,
+    required this.size,
     this.filled = false,
   });
 
+  final double size;
   final IconData icon;
   final String tooltip;
   final VoidCallback onPressed;
@@ -415,8 +422,8 @@ class _RoundButton extends StatelessWidget {
         onPressed: onPressed,
         style: IconButton.styleFrom(
           // Il minimo di Material (40) lo allargherebbe.
-          minimumSize: const Size.square(_buttonSize),
-          fixedSize: const Size.square(_buttonSize),
+          minimumSize: Size.square(size),
+          fixedSize: Size.square(size),
           backgroundColor: filled ? WfColors.gold : Colors.transparent,
           foregroundColor: filled ? WfColors.bg : WfColors.cream,
           side: filled ? null : const BorderSide(color: WfColors.creamMuted),

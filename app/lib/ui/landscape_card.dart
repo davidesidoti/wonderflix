@@ -10,6 +10,7 @@ import '../features/library/item_labels.dart';
 import '../features/library/library_providers.dart';
 import '../features/library/user_data.dart';
 import 'card_preview_host.dart';
+import 'form_factor.dart';
 import 'poster_card.dart';
 import 'wf_image.dart';
 
@@ -60,7 +61,7 @@ class _LandscapeCardState extends ConsumerState<LandscapeCard> {
       width: widget.width,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
+        onEnter: (_) => setState(() => _hover = !FormFactor.of(context).touch),
         onExit: (_) => setState(() => _hover = false),
         child: GestureDetector(
           onTap: widget.onTap ??

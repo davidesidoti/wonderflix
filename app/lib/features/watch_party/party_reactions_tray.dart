@@ -113,7 +113,10 @@ class _PartyReactionsTrayState extends State<PartyReactionsTray> {
           alignment: Alignment.bottomRight,
           duration: duration,
           curve: curve,
-          child: MouseRegion(
+          child: Listener(
+            // Col dito non c'è hover: un tocco sul vassoio lo tiene aperto.
+            onPointerDown: (_) => _restartIdle(),
+            child: MouseRegion(
             onEnter: (_) => _setHovered(true),
             onExit: (_) => _setHovered(false),
             child: Material(
@@ -172,6 +175,7 @@ class _PartyReactionsTrayState extends State<PartyReactionsTray> {
             ),
           ),
         ),
+      ),
       ),
     );
   }

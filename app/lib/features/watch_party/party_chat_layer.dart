@@ -354,11 +354,18 @@ class _PartyChatLayerState extends ConsumerState<PartyChatLayer> {
     final maxHistory = MediaQuery.sizeOf(context).height *
         PartyChatLayer.historyHeightFraction;
     return Listener(
+      // Col dito non c'è hover: un tocco o uno scroll è attività.
+      onPointerDown: (_) => _restartIdle(),
       // La rotella sopra la chat aperta non cambia il volume: scorre lo
       // storico (che, più interno, si registra prima) o non fa nulla.
       onPointerSignal: (event) => GestureBinding.instance.pointerSignalResolver
           .register(event, (_) {}),
-      child: MouseRegion(
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (_) {
+          _restartIdle();
+          return false;
+        },
+        child: MouseRegion(
         onHover: (_) => _restartIdle(),
         child: SizedBox(
           width: PartyChatBubble.width,
@@ -440,6 +447,7 @@ class _PartyChatLayerState extends ConsumerState<PartyChatLayer> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

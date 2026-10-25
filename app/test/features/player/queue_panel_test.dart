@@ -64,7 +64,8 @@ void main() {
   Future<List<String>> pumpPanel(WidgetTester tester,
       {ValueNotifier<PlayQueue>? notifier,
       ValueNotifier<Map<String, JellyfinItem?>>? details,
-      VoidCallback? onAddTitles}) async {
+      VoidCallback? onAddTitles,
+      bool touch = false}) async {
     final calls = <String>[];
     final current = notifier ?? ValueNotifier(queue());
     final currentDetails = details ?? ValueNotifier(items);
@@ -92,6 +93,7 @@ void main() {
           ),
         ),
       ),
+      touch: touch,
     );
     return calls;
   }
@@ -220,6 +222,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(calls, ['jump p3']);
     expect(top('p4'), before);
+  });
+
+  testWidgets('tocco: nella coda del party maniglia e × sono visibili e '
+      'funzionano', (tester) async {
+    final calls = await pumpPanel(tester, touch: true);
+    final rowHeight = tester.getSize(row('p3')).height;
+    await tester.tap(inRow('p3', find.byTooltip(l.partyQueueRemove)));
+    expect(calls, ['remove p3']);
+    final gesture = await tester.startGesture(
+        tester.getCenter(inRow('p4', find.byIcon(LucideIcons.gripVertical))));
+    await tester.pump();
+    await gesture.moveBy(Offset(0, -rowHeight));
+    await tester.pump();
+    await gesture.moveBy(const Offset(0, -10));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(calls, ['remove p3', 'move p4 0']);
   });
 
   testWidgets('passando sopra una riga compaiono maniglia e ✕',
