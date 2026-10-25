@@ -85,6 +85,8 @@ class _AppShellState extends ConsumerState<AppShell> {
     final user = session is SessionSignedIn ? session.user : null;
     final l = AppLocalizations.of(context);
     final compact = FormFactor.of(context).compact;
+    // Tacca del telefono: la barra in alto scende sotto di lei.
+    final inset = MediaQuery.paddingOf(context).top;
 
     return Scaffold(
       body: BackNavigationHandler(
@@ -101,13 +103,14 @@ class _AppShellState extends ConsumerState<AppShell> {
               top: 0,
               left: 0,
               right: 0,
-              height: compact ? shellCompactBarHeight : shellBarHeight,
+              height: (compact ? shellCompactBarHeight : shellBarHeight) + inset,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
                   _BarBackground(scrolled: _scrolled),
                   Padding(
-                    padding: EdgeInsets.symmetric(horizontal: compact ? 4 : 24),
+                    padding: EdgeInsets.fromLTRB(
+                        compact ? 4 : 24, inset, compact ? 4 : 24, 0),
                     child: Row(
                       children: compact ? _compactBar(user) : [
                         const _BackButton(),
@@ -165,7 +168,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             // (spec F §8.4), una sotto l'altra. Nel layout stretto a tutta
             // larghezza, sotto la barra.
             Positioned(
-              top: compact ? shellCompactBarHeight + 8 : 72,
+              top: (compact ? shellCompactBarHeight + 8 : 72) + inset,
               left: compact ? 8 : null,
               right: compact ? 8 : 24,
               child: const Column(

@@ -217,7 +217,9 @@ class PlayerOverlay extends StatelessWidget {
                     ],
                   ),
                 ),
-                child: Padding(
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
                   padding: compact
                       ? const EdgeInsets.fromLTRB(8, 8, 12, 24)
                       : const EdgeInsets.fromLTRB(16, 16, 24, 48),
@@ -258,6 +260,7 @@ class PlayerOverlay extends StatelessWidget {
                       ],
                     ],
                   ),
+                ),
                 ),
               ),
             ),
@@ -301,7 +304,9 @@ class PlayerOverlay extends StatelessWidget {
                     ],
                   ),
                 ),
-                child: Padding(
+                child: SafeArea(
+                  top: false,
+                  child: Padding(
                   padding: compact
                       ? const EdgeInsets.fromLTRB(12, 24, 12, 8)
                       : const EdgeInsets.fromLTRB(24, 48, 24, 16),
@@ -416,6 +421,7 @@ class PlayerOverlay extends StatelessWidget {
                       ),
                     ],
                   ),
+                ),
                 ),
               ),
             ),

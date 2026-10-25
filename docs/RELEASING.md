@@ -93,6 +93,7 @@ Prima di ogni release, su un utente di prova:
 - [ ] Strumenti admin dei metadati (app 0.19.0, un admin e un utente non admin): (4) l'admin reidentifica un film (con un campo bloccato a mano: la casella "Sblocca i campi modificati a mano"), modifica un titolo e aggiorna i metadati, e verifica che il titolo bloccato resti; cambia locandina e sfondo (lo sfondo nuovo diventa il primo; un file oltre 10 MB viene rifiutato). Il non admin non vede le voci. Da guardare: la griglia delle immagini nella finestra vera, e che lo sfondo nuovo vada davvero in prima posizione (se il primo sfondo non è un file locale resta in fondo).
 - [ ] Calendario delle uscite (app 0.20.0, plugin 1.13.0): sul server vero il mese di oggi e quello dopo, con le serie di Sonarr e i film di Radarr; un film già scaricato segnato in verde; clic su una serie della libreria e su un film da richiedere; frecce e Invio sulla griglia, "+n" e l'elenco del giorno. Pagina Richieste: un film approvato non ancora uscito in digitale ("In attesa dell'uscita" con le date) e una serie con il prossimo episodio. Con un plugin senza la funzione `calendar`: niente voce "Calendario" e nessun errore.
 - [ ] Sito web nel browser: login; un titolo HEVC in copia (TranscodeReasons solo audio); sottotitoli PGS, ASS e SRT; cambio traccia audio; Esc esce dal tutto schermo; chiudere la scheda ferma la sessione.
+- [ ] Sito dal telefono (iPhone, sul sito di prova; vedi "Sito di prova"): barra in basso e "Altro" con tutte le voci; anteprima di una card tenendo premuto; un episodio con i controlli al tocco (tocco mostra/nasconde, doppio tocco ai lati salta di 10 s); salti e tracce; ricerca di un sottotitolo (e scaricamento); una richiesta; ogni scheda dell'Admin; Amici e Notifiche come pagina; un watch party con il sito sul PC; la tastiera sui campi (login, ricerca, chat: il campo resta visibile); rotazione verticale/orizzontale a metà video; tacca e barra home non coprono barre e controlli.
 - [ ] Aggiornamento da una versione precedente; aggiornamento obbligatorio.
 - [ ] Discord Rich Presence attiva e disattivata.
 - [ ] Pannello media di Windows con il nome "WonderFlix" (app installata).
@@ -114,6 +115,23 @@ La chiave pubblica sta in `~/.ssh/authorized_keys` dell'utente `hashvps` sul ser
 **Rimettere una versione vecchia:** in *Actions* apri il run di **Release** del tag precedente e premi *Re-run* sul solo job `web`. Ricompila e ricopia quella versione.
 
 **nginx:** la conf del sito (file statici, `.wasm` e `.mjs` con il tipo giusto) è in `app/deploy/wonderflix.conf`; va in `~/.apps/nginx/proxy.d/` sul server, poi `app-nginx restart`.
+
+## Sito di prova
+
+Ogni tag pubblica il sito per tutti, quindi la build di un ramo si prova su un percorso separato dello stesso server: `https://hashvps.proton.usbx.me/wonderflix-prova/` (file in `~/wonderflix-web-prova/`). È la stessa origine del sito vero, quindi il login di Jellyfin funziona.
+
+1. Build (da `app/`), con la base del percorso di prova:
+   ```bash
+   flutter build web --wasm --base-href /wonderflix-prova/ --dart-define-from-file=config/wonderflix.json
+   ```
+2. Copia (prima tutto tranne `index.html`, poi `index.html`; i file che non esistono più vengono tolti):
+   ```bash
+   rsync -a --delete --exclude index.html build/web/ ultra:~/wonderflix-web-prova/
+   rsync -a build/web/index.html ultra:~/wonderflix-web-prova/
+   ```
+3. **Solo la prima volta:** copia `app/deploy/wonderflix-prova.conf` in `~/.apps/nginx/proxy.d/wonderflix-prova.conf` sul server e `app-nginx restart`. Le copie successive non toccano nginx.
+
+La conf ha gli stessi header del sito vero (COOP/COEP, `no-cache`, `.wasm`, `.mjs`, niente log). Il sito di prova non è collegato ai tag: va aggiornato a mano.
 
 ## Plugin "WonderFlix Watch Party"
 

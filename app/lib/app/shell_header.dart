@@ -127,7 +127,7 @@ class _ShellPageFrameState extends State<ShellPageFrame> {
     final bar = compact ? shellCompactBarHeight : shellBarHeight;
     return Padding(
       padding: EdgeInsets.only(
-        top: widget.underBar ? bar : 0,
+        top: widget.underBar ? bar + MediaQuery.paddingOf(context).top : 0,
         // Nel layout stretto la pagina finisce sopra la barra in basso.
         bottom: compact
             ? shellBottomBarHeight + MediaQuery.paddingOf(context).bottom
