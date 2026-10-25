@@ -26,6 +26,7 @@ import '../ratings/rating_round_controller.dart';
 import '../ratings/rating_round_panel.dart';
 import '../reports/reports_providers.dart';
 import '../social/social_providers.dart';
+import '../../ui/form_factor.dart';
 import '../subtitles/subtitles_dialog.dart';
 import '../watch_party/group_authority.dart';
 import '../watch_party/group_playback_driver.dart';
@@ -237,6 +238,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _firstFrame = false;
   Timer? _firstFrameTimer;
   late bool _fullscreen = widget.fullscreen;
+
+  /// Doppio tocco (modo tocco) sulla metà sinistra: salto indietro.
+  bool _doubleTapLeft = false;
   bool _leaving = false;
 
   /// Si passa all'episodio successivo: la finestra resta com'è.
@@ -1572,6 +1576,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       });
     }
 
+    final touch = FormFactor.of(context).touch;
     return Scaffold(
       backgroundColor: Colors.black,
       body: Focus(
@@ -1584,7 +1589,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           },
           // Col tasto premuto (trascinamento della barra) `onHover` non
           // scatta: i movimenti tengono vivi i controlli.
-          onPointerMove: (_) => _chrome.pointerActivity(),
+          // Col dito un tocco che trema di poco muove il puntatore: non
+          // deve riportare i controlli che il tocco poi nasconderebbe.
+          onPointerMove: (_) {
+            if (!touch || _chrome.controlsVisible) _chrome.pointerActivity();
+          },
           onPointerSignal: _onPointerSignal,
           child: MouseRegion(
             // Nel post-play i controlli non ci sono ma il cursore resta.
@@ -1621,11 +1630,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           } else if (_postPlayShown(ref.read(provider))) {
                             // Clic sul film piccolo: torna a tutto schermo.
                             _dismissNext();
+                          } else if (touch) {
+                            // Col dito il tocco mostra o nasconde i
+                            // controlli: la pausa è nel pulsante.
+                            _chrome.toggleControls();
                           } else {
                             unawaited(controller.togglePlay());
                           }
                         },
-                        onDoubleTap: () => unawaited(_toggleFullscreen()),
+                        // Col dito il doppio tocco salta di 10 s dal lato
+                        // toccato, come le frecce (con la pillola).
+                        onDoubleTapDown: touch
+                            ? (details) => _doubleTapLeft =
+                                details.globalPosition.dx <
+                                    MediaQuery.sizeOf(context).width / 2
+                            : null,
+                        onDoubleTap: touch
+                            ? () => _seekBy(
+                                _doubleTapLeft ? -seekStep : seekStep,
+                                ready: ref.read(provider).status ==
+                                    PlayerStatus.ready)
+                            : () => unawaited(_toggleFullscreen()),
                         child: controller.engine.buildView(),
                       ),
                       if (view.status == PlayerStatus.ready && !loading)

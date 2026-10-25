@@ -6,6 +6,7 @@ import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/video/video_engine.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../library/item_labels.dart';
 import 'player_commands.dart';
 import 'player_controller.dart';
@@ -264,6 +265,9 @@ class PlayerOverlay extends StatelessWidget {
                                 view.muted ? l.playerUnmute : l.playerMute,
                             onPressed: onToggleMute,
                           ),
+                          // Col dito il volume è quello del telefono (su iOS
+                          // il video non lo cambia): resta il muto.
+                          if (!FormFactor.of(context).touch)
                           SizedBox(
                             width: 120,
                             child: SliderTheme(

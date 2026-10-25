@@ -137,6 +137,20 @@ class PlayerChromeController extends ChangeNotifier {
     _scheduleHide();
   }
 
+  /// Tocco sul video (modo tocco): nascosti, i controlli compaiono e il
+  /// conto riparte; visibili, si nascondono, salvo in pausa o con un
+  /// riquadro aperto.
+  void toggleControls() {
+    if (!_controlsVisible || _pauseScreen) {
+      pointerActivity();
+      return;
+    }
+    if (!_playing || _popup != null) return;
+    _hideTimer?.cancel();
+    _controlsVisible = false;
+    notifyListeners();
+  }
+
   /// Un tasto o la rotella: chiude la schermata di pausa e fa ripartire il
   /// conto, senza mostrare i controlli (spec D §9.1).
   void keyActivity() {

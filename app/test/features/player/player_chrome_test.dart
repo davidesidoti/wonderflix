@@ -457,4 +457,34 @@ void main() {
       chrome.dispose();
     });
   });
+
+  test('toggleControls: mostra e riavvia il conto, nasconde salvo pausa o '
+      'riquadro', () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController()
+        ..setPlayback(playing: true, canShowPauseScreen: false);
+      async.elapse(PlayerChromeController.hideDelay);
+      expect(chrome.controlsVisible, isFalse);
+
+      chrome.toggleControls();
+      expect(chrome.controlsVisible, isTrue);
+      async.elapse(const Duration(milliseconds: 2900));
+      expect(chrome.controlsVisible, isTrue);
+      chrome.toggleControls();
+      expect(chrome.controlsVisible, isFalse);
+
+      chrome
+        ..toggleControls()
+        ..openPopup(PlayerPopup.tracks)
+        ..toggleControls();
+      expect(chrome.controlsVisible, isTrue, reason: 'riquadro aperto');
+
+      chrome
+        ..closePopup()
+        ..setPlayback(playing: false, canShowPauseScreen: false)
+        ..toggleControls();
+      expect(chrome.controlsVisible, isTrue, reason: 'in pausa');
+      chrome.dispose();
+    });
+  });
 }
