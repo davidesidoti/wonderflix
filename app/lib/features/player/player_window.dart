@@ -10,6 +10,16 @@ abstract class PlayerWindow {
 
   Future<bool> isFullScreen();
 
+  /// `false` dove lo schermo intero non c'è (Safari su iPhone): il player
+  /// non mostra il pulsante.
+  bool get supportsFullScreen;
+
+  /// Blocca lo schermo in orizzontale (telefono a schermo intero). Se il
+  /// browser non lo permette non succede niente.
+  Future<void> lockLandscape();
+
+  Future<void> unlockOrientation();
+
   /// Schermo intero cambiato da fuori (nel browser: Esc o richiesta
   /// rifiutata). Su Windows non emette: lo cambia solo il player.
   Stream<bool> get fullScreenChanges;
@@ -54,6 +64,15 @@ class WindowManagerPlayerWindow implements PlayerWindow {
 
   @override
   Stream<bool> get fullScreenChanges => const Stream.empty();
+
+  @override
+  bool get supportsFullScreen => true;
+
+  @override
+  Future<void> lockLandscape() async {}
+
+  @override
+  Future<void> unlockOrientation() async {}
 
   @override
   Future<void> setPreventClose(bool value) async {

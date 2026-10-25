@@ -138,6 +138,7 @@ class WebVideoEngine implements VideoEngine {
   final _buffering = StreamController<bool>.broadcast();
   final _completed = StreamController<bool>.broadcast();
   final _errors = StreamController<String>.broadcast();
+  final _playBlocked = StreamController<void>.broadcast();
 
   @override
   Future<void> open(VideoSource source) async {
@@ -245,8 +246,20 @@ class WebVideoEngine implements VideoEngine {
       // Di solito il browser vuole un gesto dell'utente prima dell'audio.
       _log.warning('play rifiutato dal browser: $error');
       _playing.add(false);
+      if (_notAllowed(error)) _playBlocked.add(null);
     }
   }
+
+  static bool _notAllowed(Object error) {
+    try {
+      return (error as web.DOMException).name == 'NotAllowedError';
+    } on Object {
+      return false;
+    }
+  }
+
+  @override
+  Stream<void> get playBlockedStream => _playBlocked.stream;
 
   @override
   Future<void> pause() async => _video.pause();

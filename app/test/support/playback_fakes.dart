@@ -338,8 +338,23 @@ class FakeVideoEngine implements VideoEngine {
   @override
   Future<void> play() async {
     calls.add('play');
+    if (_blockNextPlay) {
+      // Come il browser che rifiuta l'avvio con l'audio (iOS).
+      _blockNextPlay = false;
+      _playBlocked.add(null);
+      return;
+    }
     _setPlaying(true);
   }
+
+  bool _blockNextPlay = false;
+  final _playBlocked = StreamController<void>.broadcast();
+
+  /// Il prossimo [play] viene rifiutato (`NotAllowedError` del browser).
+  void blockNextPlay() => _blockNextPlay = true;
+
+  @override
+  Stream<void> get playBlockedStream => _playBlocked.stream;
 
   @override
   Future<void> pause() async {
@@ -449,6 +464,19 @@ class FakeVideoEngine implements VideoEngine {
 /// Finestra in memoria: registra le chiamate e simula la chiusura.
 class FakePlayerWindow implements PlayerWindow {
   final fullScreenCalls = <bool>[];
+
+  @override
+  bool supportsFullScreen = true;
+
+  /// `lock` e `unlock` dell'orientamento, in ordine.
+  final orientationCalls = <String>[];
+
+  @override
+  Future<void> lockLandscape() async => orientationCalls.add('lock');
+
+  @override
+  Future<void> unlockOrientation() async => orientationCalls.add('unlock');
+
   bool fullScreen = false;
   final preventCloseCalls = <bool>[];
   bool destroyed = false;

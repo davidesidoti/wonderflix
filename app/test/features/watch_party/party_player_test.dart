@@ -269,6 +269,37 @@ void main() {
     await finish(tester);
   });
 
+  testWidgets(
+      'avvio rifiutato nel party: dopo il tocco il driver riprende senza '
+      'nuovi tentativi da solo', (tester) async {
+    await pumpPartyPlayer(tester);
+    engine.blockNextPlay();
+    emit(const GroupStateUpdate('g1', GroupState.playing, 'Unpause'));
+    events.add(SyncPlayCommandReceived(command(SyncPlayCommandType.unpause)));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 10));
+    int plays() => engine.calls.where((call) => call == 'play').length;
+    expect(plays(), 1, reason: 'senza tocco nessun nuovo tentativo');
+    expect(engine.playing, isFalse);
+    expect(find.text(l.playerTapToPlay), findsOneWidget);
+
+    api.calls.clear();
+    await tester.tap(find.text(l.playerTapToPlay));
+    await tester.pump();
+    expect(plays(), 2);
+    expect(engine.playing, isTrue);
+    expect(api.calls, isNot(contains('unpause')),
+        reason: 'il gruppo va già: si parte solo qui');
+    // Il film è fermo a 0 mentre il gruppo è a 10 s: il DriftCorrector
+    // riallinea come oggi.
+    await tester.pump(const Duration(seconds: 2));
+    expect(engine.seeks.last, greaterThan(const Duration(seconds: 9)));
+    await tester.pumpAndSettle();
+    expect(find.text(l.playerTapToPlay), findsNothing);
+    await finish(tester);
+  });
+
   testWidgets('distintivo con i membri e uscita dal gruppo', (tester) async {
     await pumpPartyPlayer(tester);
     expect(find.text(l.watchPartyButton(2)), findsOneWidget);

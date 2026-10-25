@@ -116,6 +116,11 @@ abstract class VideoEngine {
   /// `true` alla fine del video.
   Stream<bool> get completedStream;
 
+  /// Il browser ha rifiutato [play] (`NotAllowedError`: su iOS l'audio
+  /// parte solo dopo un tocco). Il video resta fermo finché non lo si
+  /// rifà partire da un tocco.
+  Stream<void> get playBlockedStream;
+
   /// Errori segnalati dal motore durante la riproduzione (solo per il log).
   Stream<String> get errorStream;
 

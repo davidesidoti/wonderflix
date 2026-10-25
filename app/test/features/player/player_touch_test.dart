@@ -197,6 +197,8 @@ void main() {
     await pumpPlayer(tester, touch: true);
     engine.emitPosition(const Duration(minutes: 1));
     await tester.pump();
+    // Il telefono è entrato a schermo intero all'apertura: conta da qui.
+    window.fullScreenCalls.clear();
 
     await doubleTapAt(tester, const Offset(700, 195));
     expect(engine.position, const Duration(seconds: 70));

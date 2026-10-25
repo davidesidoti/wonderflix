@@ -7,10 +7,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logging/logging.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/motion.dart';
 import '../../app/navigation.dart';
 import '../../app/providers.dart';
+import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/json_fields.dart';
 import '../../core/media_session/media_session.dart';
@@ -283,6 +285,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   StreamSubscription<bool>? _fullScreenChanges;
   Timer? _timelineTimer;
 
+  /// Il browser ha rifiutato l'avvio (iOS, audio senza un tocco): c'è
+  /// "Tocca per riprodurre" finché il video non parte.
+  bool _playBlocked = false;
+  StreamSubscription<void>? _playBlocks;
+  StreamSubscription<bool>? _playingChanges;
+
   /// Nel watch party: applica i comandi del gruppo al motore.
   GroupPlaybackDriver? _driver;
 
@@ -355,6 +363,44 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // Salto automatico di intro o riassunto: lo dice la pillola.
     _autoSkips = _controller.autoSkips
         .listen((kind) => _chrome.showFeedback(SkipFeedback(kind)));
+    _playBlocks = engine.playBlockedStream.listen((_) {
+      if (mounted) setState(() => _playBlocked = true);
+    });
+    _playingChanges = engine.playingStream.listen((playing) {
+      if (playing && _playBlocked && mounted) {
+        setState(() => _playBlocked = false);
+      }
+    });
+    // Sul telefono il player si apre a schermo intero e in orizzontale (una
+    // volta: arrivando dall'episodio prima resta com'era).
+    if (!widget.fullscreen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted &&
+            FormFactor.of(context).phone &&
+            _window.supportsFullScreen) {
+          unawaited(_enterPhoneFullscreen());
+        }
+      });
+    }
+  }
+
+  Future<void> _enterPhoneFullscreen() async {
+    setState(() => _fullscreen = true);
+    await _window.setFullScreen(true);
+    // Il blocco vale solo a schermo intero (Chrome su Android).
+    await _window.lockLandscape();
+  }
+
+  /// "Tocca per riprodurre": nel gruppo che va già si parte solo qui, dentro
+  /// il tocco (come vuole iOS), e il driver ci rimette in pari; altrimenti
+  /// come Spazio.
+  void _tapToPlay() {
+    final party = _inParty ? ref.read(watchPartySessionProvider) : null;
+    if (party != null && party.groupState == GroupState.playing) {
+      unawaited(_controller.engine.play());
+    } else {
+      unawaited(_controller.togglePlay());
+    }
   }
 
   @override
@@ -375,6 +421,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _window.removeCloseListener(_onWindowClose);
     unawaited(_window.setPreventClose(false));
     if (_fullscreen && !handingOver) unawaited(_window.setFullScreen(false));
+    if (!handingOver) unawaited(_window.unlockOrientation());
     _timelineTimer?.cancel();
     _firstFrameTimer?.cancel();
     unawaited(_positions?.cancel());
@@ -382,6 +429,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     unawaited(_autoSkips?.cancel());
     unawaited(_mediaButtons?.cancel());
     unawaited(_fullScreenChanges?.cancel());
+    unawaited(_playBlocks?.cancel());
+    unawaited(_playingChanges?.cancel());
     // Uscendo dal player il pannello media sparisce; passando all'episodio
     // successivo resta alla nuova schermata. Non si chiude mai: è dell'app.
     if (!handingOver) unawaited(_mediaSession.clear());
@@ -688,6 +737,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _toggleFullscreen() async {
+    if (!_window.supportsFullScreen) return;
     final next = !_fullscreen;
     setState(() => _fullscreen = next);
     await _window.setFullScreen(next);
@@ -1736,8 +1786,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             unawaited(controller.setVolume(volume)),
                         onToggleMute: () => unawaited(controller.toggleMute()),
                         onToggleTracks: _chrome.togglePanel,
-                        onToggleFullscreen: () =>
-                            unawaited(_toggleFullscreen()),
+                        onToggleFullscreen: _window.supportsFullScreen
+                            ? () => unawaited(_toggleFullscreen())
+                            : null,
                         onNextEpisode: _inParty
                             ? (party != null && party.hasNext
                                 ? _playNext
@@ -1803,6 +1854,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         onBack: _exit,
                       ),
                     ),
+                  ),
+                if (_playBlocked)
+                  Positioned.fill(
+                    key: const ValueKey('player-tap-to-play'),
+                    child: ExcludeFocus(
+                        child: _TapToPlayLayer(onTap: _tapToPlay)),
                   ),
                 if (view.status == PlayerStatus.ready) ...[
                   // Salta intro / riassunto: visibile anche a controlli
@@ -2141,4 +2198,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ),
     );
   }
+}
+
+/// Velo sopra il player quando il browser rifiuta l'avvio: un tocco
+/// ovunque fa partire il video.
+class _TapToPlayLayer extends StatelessWidget {
+  const _TapToPlayLayer({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: ColoredBox(
+          color: WfColors.bg.withValues(alpha: 0.6),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(LucideIcons.play, size: 64, color: WfColors.cream),
+                const SizedBox(height: 16),
+                Text(AppLocalizations.of(context).playerTapToPlay,
+                    style: WfText.display(28)),
+              ],
+            ),
+          ),
+        ),
+      );
 }

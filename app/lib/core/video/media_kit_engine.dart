@@ -243,6 +243,9 @@ class MediaKitEngine implements VideoEngine {
   Stream<String> get errorStream => _player.stream.error;
 
   @override
+  Stream<void> get playBlockedStream => const Stream.empty();
+
+  @override
   Future<void> get firstFrame => _video.waitUntilFirstFrameRendered;
 
   @override

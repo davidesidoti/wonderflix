@@ -57,7 +57,8 @@ class PlayerOverlay extends StatelessWidget {
   final ValueChanged<double> onVolume;
   final VoidCallback onToggleMute;
   final VoidCallback onToggleTracks;
-  final VoidCallback onToggleFullscreen;
+  /// `null` dove lo schermo intero non c'è (Safari su iPhone).
+  final VoidCallback? onToggleFullscreen;
 
   /// Controlli mostrati.
   final bool visible;
@@ -401,15 +402,16 @@ class PlayerOverlay extends StatelessWidget {
                             tooltip: l.playerAudioAndSubtitles,
                             onPressed: onToggleTracks,
                           ),
-                          PlayerIconButton(
-                            icon: Icon(fullscreen
-                                ? LucideIcons.minimize
-                                : LucideIcons.maximize),
-                            tooltip: fullscreen
-                                ? l.playerExitFullscreen
-                                : l.playerFullscreen,
-                            onPressed: onToggleFullscreen,
-                          ),
+                          if (onToggleFullscreen case final toggle?)
+                            PlayerIconButton(
+                              icon: Icon(fullscreen
+                                  ? LucideIcons.minimize
+                                  : LucideIcons.maximize),
+                              tooltip: fullscreen
+                                  ? l.playerExitFullscreen
+                                  : l.playerFullscreen,
+                              onPressed: toggle,
+                            ),
                         ],
                       ),
                     ],
@@ -453,10 +455,11 @@ class PlayerOverlay extends StatelessWidget {
         _Command(const Icon(LucideIcons.smilePlus), l.partyReactionsOpen,
             (_) => reactions(),
             key: const Key('player-reactions-button'), reactions: true),
-      _Command(
-          Icon(fullscreen ? LucideIcons.minimize : LucideIcons.maximize),
-          fullscreen ? l.playerExitFullscreen : l.playerFullscreen,
-          (_) => onToggleFullscreen()),
+      if (onToggleFullscreen case final toggle?)
+        _Command(
+            Icon(fullscreen ? LucideIcons.minimize : LucideIcons.maximize),
+            fullscreen ? l.playerExitFullscreen : l.playerFullscreen,
+            (_) => toggle()),
       if (onToggleQueue case final queue?)
         _Command(const Icon(LucideIcons.listVideo), l.partyQueueOpen,
             (_) => queue(),

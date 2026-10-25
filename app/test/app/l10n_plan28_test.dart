@@ -9,6 +9,7 @@ import 'package:wonderflix/l10n/gen/app_localizations.dart';
 const _keys = [
   'navMore',
   'playerMoreControls',
+  'playerTapToPlay',
 ];
 
 Map<String, dynamic> _arb(String name) =>
@@ -40,5 +41,12 @@ void main() {
         'Altri controlli');
     expect(lookupAppLocalizations(const Locale('en')).playerMoreControls,
         'More controls');
+  });
+
+  test('avvio bloccato dal browser', () {
+    expect(lookupAppLocalizations(const Locale('it')).playerTapToPlay,
+        'Tocca per riprodurre');
+    expect(lookupAppLocalizations(const Locale('en')).playerTapToPlay,
+        'Tap to play');
   });
 }

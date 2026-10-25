@@ -44,6 +44,28 @@ class WebPlayerWindow implements PlayerWindow {
   bool get _active => web.document.fullscreenElement != null;
 
   @override
+  bool get supportsFullScreen => web.document.fullscreenEnabled;
+
+  @override
+  Future<void> lockLandscape() async {
+    try {
+      await web.window.screen.orientation.lock('landscape').toDart;
+    } on Object catch (error) {
+      // Il computer, Safari, o fuori dallo schermo intero: si resta così.
+      _log.fine('orientamento non bloccato: $error');
+    }
+  }
+
+  @override
+  Future<void> unlockOrientation() async {
+    try {
+      web.window.screen.orientation.unlock();
+    } on Object catch (error) {
+      _log.fine('orientamento non sbloccato: $error');
+    }
+  }
+
+  @override
   Stream<bool> get fullScreenChanges => _fullScreenChanges.stream;
 
   @override
