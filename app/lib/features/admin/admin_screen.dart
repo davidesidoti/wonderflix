@@ -14,6 +14,8 @@ import 'admin_navigation.dart';
 import 'admin_providers.dart';
 import 'admin_widgets.dart';
 import 'maintenance_tab.dart';
+import 'restart_controller.dart';
+import 'server_info_controller.dart';
 import 'server_strip.dart';
 import 'sessions_tab.dart';
 import 'users_tab.dart';
@@ -67,6 +69,11 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
       return const SizedBox.shrink();
     }
     _wasAdmin = true;
+    // Nello stretto la striscia è un figlio della lista e si smonta scorrendo:
+    // senza ascoltatori i due provider (autoDispose) morirebbero con lei,
+    // perdendo il riavvio in corso. La pagina li tiene vivi.
+    ref.listen(restartControllerProvider, (_, _) {});
+    ref.listen(serverInfoControllerProvider, (_, _) {});
     // Le schede del plugin (Utenti e WonderFlix) ci sono solo con le sue
     // funzioni; se una manca ed è nell'indirizzo (o la funzione sparisce
     // mentre la si guarda), si mostra Sessioni. Ma finché non si sa se il

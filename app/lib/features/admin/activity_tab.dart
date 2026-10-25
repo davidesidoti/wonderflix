@@ -168,9 +168,11 @@ class _ActivityTabState extends ConsumerState<ActivityTab> {
       }
       return top == null
           ? empty
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [top, Expanded(child: empty)],
+          : CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(child: top),
+                SliverFillRemaining(hasScrollBody: false, child: empty),
+              ],
             );
     }
     final now = clock.now();

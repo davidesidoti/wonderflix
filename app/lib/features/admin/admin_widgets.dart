@@ -21,14 +21,18 @@ double adminSideMargin(BuildContext context) =>
 Widget adminTabState(BuildContext context, Widget? header, Widget state) =>
     header == null
         ? state
-        : Column(
-            children: [
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                    adminSideMargin(context), 0, adminSideMargin(context), 16),
-                child: header,
+        // Striscia e stato scorrono insieme: a 844x390 lo stato d'errore non
+        // ci starebbe sotto la striscia.
+        : CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(adminSideMargin(context), 0,
+                      adminSideMargin(context), 16),
+                  child: header,
+                ),
               ),
-              Expanded(child: state),
+              SliverFillRemaining(hasScrollBody: false, child: state),
             ],
           );
 

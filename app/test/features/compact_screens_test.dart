@@ -1,6 +1,15 @@
 import 'dart:async';
 
 import 'package:clock/clock.dart';
+import 'package:wonderflix/core/jellyfin/api_exception.dart';
+import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/features/admin/restart_controller.dart';
+import 'package:wonderflix/features/admin/server_strip.dart';
+import 'package:wonderflix/features/friends/friend_request_card.dart';
+import 'package:wonderflix/features/match/match_invites.dart';
+import 'package:wonderflix/features/watch_party/watch_party_button.dart';
+import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
+import 'package:wonderflix/features/watch_party/watch_party_invites.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wonderflix/core/requests/requests_models.dart';
 import 'package:wonderflix/core/social/home_models.dart';
@@ -545,6 +554,73 @@ void main() {
       expect(find.text('Annuncio'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
+    testWidgets('admin stretto: scorrendo la striscia non si perde il riavvio '
+        'in corso né si rilegge il server', (tester) async {
+      api.upAnswers.addAll(List.filled(100, false));
+      await pumpApp(
+        tester,
+        const Scaffold(body: AdminScreen()),
+        overrides: admin(),
+        surfaceSize: const Size(390, 844),
+        touch: true,
+      );
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+          tester.element(find.byType(AdminScreen)));
+      unawaited(container.read(restartControllerProvider.notifier).restart());
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Riavvio in corso…'), findsOneWidget);
+      final infoCalls = api.count('info');
+
+      // Fuori vista la striscia si smonta: lo stato deve restare.
+      final list = find.byType(ListView).first;
+      for (var i = 0; i < 6; i++) {
+        await tester.drag(list, const Offset(0, -400));
+        await tester.pump();
+      }
+      expect(find.byType(ServerStrip), findsNothing);
+      // Il tempo della pulizia dei provider senza ascoltatori.
+      await tester.pump(const Duration(seconds: 1));
+      for (var i = 0; i < 6; i++) {
+        await tester.drag(list, const Offset(0, 400));
+        await tester.pump();
+      }
+      expect(find.text('Riavvio in corso…'), findsOneWidget);
+      expect(container.read(restartControllerProvider), RestartPhase.waiting);
+      expect(api.count('info'), infoCalls);
+
+      // Chiude la pagina e lascia finire l'attesa, senza timer pendenti.
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 4));
+    });
+
+    // Server giù: errore e vuoto non devono sforare sotto la striscia.
+    for (final (tab, arrange, text) in <(AdminTab, void Function(), String)>[
+      (AdminTab.sessions,
+          () => api.sessionsError = const ServerUnreachableException(),
+          'Riprova'),
+      (AdminTab.users,
+          () => plugin.accountUsersError = const ServerUnreachableException(),
+          'Riprova'),
+      (AdminTab.maintenance,
+          () => api.librariesError = const ServerUnreachableException(),
+          'Riprova'),
+      (AdminTab.activity,
+          () => api.activityError = const ServerUnreachableException(),
+          'Riprova'),
+      (AdminTab.activity, () => api.activityValue = const [], 'Nessuna voce'),
+    ]) {
+      testWidgets('admin: scheda ${tab.name} senza dati ($text)',
+          (tester) async {
+        arrange();
+        await expectNoOverflow(
+          tester,
+          Scaffold(body: AdminScreen(tab: tab)),
+          overrides: admin(),
+          content: find.text(text),
+        );
+      });
+    }
   });
 
   group('richieste', () {
@@ -773,6 +849,106 @@ void main() {
             reason: '$size');
         expect(tester.takeException(), isNull, reason: '$size');
         // Un tocco fuori chiude il menu.
+        await tester.tapAt(const Offset(1, 1));
+        await tester.pumpAndSettle();
+      }
+    });
+
+    // L'invito al match e quello al party non stanno insieme: due prove.
+    for (final withMatch in [false, true]) {
+    testWidgets('avvisi nella shell stretta: a tutta larghezza '
+        '(${withMatch ? 'match' : 'party'})', (tester) async {
+      final events = StreamController<ServerEvent>.broadcast();
+      addTearDown(events.close);
+      final dune = testGroup(
+          name: 'Davide · $longName', participants: const ['Davide']);
+      await pumpApp(
+        tester,
+        Scaffold(
+          body: Stack(children: [
+            Positioned(
+              top: 8,
+              left: 8,
+              right: 8,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                spacing: 8,
+                children: const [
+                  WatchPartyInviteCard(),
+                  MatchInviteCard(),
+                  FriendRequestCard(),
+                ],
+              ),
+            ),
+          ]),
+        ),
+        overrides: [
+          ...socialTestOverrides(FakeSocialApi(),
+              events: events.stream,
+              features: const SocialFeatures(
+                  friends: true, parties: true, match: true)),
+          matchApiProvider.overrideWithValue(FakeMatchApi()),
+          syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
+          partyChannelApiProvider
+              .overrideWithValue(FakePartyChannelApi()..install()),
+          watchPartyInvitesProvider.overrideWith(
+              () => FakeWatchPartyInvites(withMatch ? null : dune)),
+        ],
+        surfaceSize: _sizes.first,
+        touch: true,
+      );
+      if (withMatch) {
+        events.add(matchInviteReceived('r2', 'Luigi con un nome molto lungo'));
+      }
+      events.add(friendRequestReceived('u3', 'Peach con un nome molto lungo'));
+      await tester.pumpAndSettle();
+      for (final size in _sizes) {
+        await tester.binding.setSurfaceSize(size);
+        tester.view.physicalSize = size * tester.view.devicePixelRatio;
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'a $size');
+        for (final key in [
+          withMatch ? 'match-invite' : 'watch-party-invite',
+          'friend-request-card',
+        ]) {
+          expect(find.byKey(Key(key)), findsOneWidget, reason: key);
+          expect(tester.getSize(find.byKey(Key(key))).width, size.width - 16,
+              reason: '$key a $size');
+        }
+      }
+    });
+    }
+
+    testWidgets('elenco dei party: la riga col nome lungo sta nello schermo',
+        (tester) async {
+      for (final size in _sizes) {
+        await pumpApp(
+          tester,
+          const Scaffold(
+              body: Align(
+                  alignment: Alignment.topRight, child: WatchPartyButton())),
+          overrides: [
+            watchPartyDirectoryProvider
+                .overrideWith(() => FakeWatchPartyDirectory([
+                      testGroup(
+                          name: 'Davide · $longName $longName',
+                          participants: const ['Davide', 'Mario', 'Luigi']),
+                    ])),
+            syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
+            watchPartyEventsProvider
+                .overrideWithValue(const Stream<ServerEvent>.empty()),
+            sessionControllerProvider.overrideWith(
+                () => FakeSessionController(const SessionSignedIn(testUser))),
+          ],
+          surfaceSize: size,
+          touch: true,
+        );
+        await tester.tap(find.byKey(const Key('watch-party-button')));
+        await tester.pumpAndSettle();
+        expect(find.textContaining('Davide · '), findsOneWidget,
+            reason: '$size');
+        expect(tester.takeException(), isNull, reason: 'a $size');
         await tester.tapAt(const Offset(1, 1));
         await tester.pumpAndSettle();
       }
