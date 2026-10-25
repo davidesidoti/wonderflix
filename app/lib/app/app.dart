@@ -10,6 +10,7 @@ import '../features/settings/locale_controller.dart';
 import '../features/update/update_gate.dart';
 import '../features/watch_party/watch_party_routing.dart';
 import '../l10n/gen/app_localizations.dart';
+import '../ui/form_factor.dart';
 import 'motion.dart';
 import 'platform_startup.dart';
 import 'router.dart';
@@ -58,9 +59,11 @@ class _WonderflixAppState extends ConsumerState<WonderflixApp> {
       // servono: il sito è sempre all'ultima versione.
       builder: (context, child) {
         final page = child ?? const SizedBox.shrink();
-        return WfMotionScope(
-          motion: motion,
-          child: kIsWeb ? page : UpdateGate(child: page),
+        return FormFactorScope(
+          child: WfMotionScope(
+            motion: motion,
+            child: kIsWeb ? page : UpdateGate(child: page),
+          ),
         );
       },
       localizationsDelegates: AppLocalizations.localizationsDelegates,

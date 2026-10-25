@@ -10,6 +10,7 @@ import 'package:wonderflix/config/app_config.dart';
 import 'package:wonderflix/features/home/hero_carousel.dart';
 import 'package:wonderflix/features/library/server_events_binding.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
+import 'package:wonderflix/ui/form_factor.dart';
 import 'package:wonderflix/ui/wf_image.dart';
 
 final testAppConfig = AppConfig(
@@ -42,6 +43,18 @@ List<Override> _baseOverrides(
       ...overrides,
     ];
 
+/// Imposta la superficie di prova. `setSurfaceSize` da solo non cambia la
+/// `MediaQuery` (resterebbe 800x600): la vista vera sì, come ridimensionare
+/// la finestra.
+Future<void> _setSurface(WidgetTester tester, Size size) async {
+  await tester.binding.setSurfaceSize(size);
+  tester.view.physicalSize = size * tester.view.devicePixelRatio;
+  addTearDown(() {
+    tester.view.resetPhysicalSize();
+    return tester.binding.setSurfaceSize(null);
+  });
+}
+
 /// Monta [child] con tema, localizzazione italiana e provider di test.
 ///
 /// Il carosello della Home non avanza da solo salvo [carouselAutoplay]:
@@ -53,9 +66,9 @@ Future<void> pumpApp(
   Size surfaceSize = const Size(1440, 900),
   MotionLevel motion = MotionLevel.reduced,
   bool carouselAutoplay = false,
+  bool touch = false,
 }) async {
-  await tester.binding.setSurfaceSize(surfaceSize);
-  addTearDown(() => tester.binding.setSurfaceSize(null));
+  await _setSurface(tester, surfaceSize);
   await tester.pumpWidget(ProviderScope(
     overrides: _baseOverrides(
         carouselAutoplay: carouselAutoplay, overrides: overrides),
@@ -65,8 +78,9 @@ Future<void> pumpApp(
       locale: const Locale('it'),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      builder: (context, child) =>
-          WfMotionScope(motion: WfMotion(motion), child: child!),
+      builder: (context, child) => FormFactorScope(
+          touchOverride: touch,
+          child: WfMotionScope(motion: WfMotion(motion), child: child!)),
       home: child,
     ),
   ));
@@ -79,10 +93,11 @@ Future<void> pumpAppRouter(
   GoRouter router, {
   List<Override> overrides = const [],
   Size surfaceSize = const Size(1440, 900),
+  bool touch = false,
 }) {
   addTearDown(router.dispose);
   return pumpAppRouterOf(tester, (_) => router,
-      overrides: overrides, surfaceSize: surfaceSize);
+      overrides: overrides, surfaceSize: surfaceSize, touch: touch);
 }
 
 /// Come [pumpAppRouter], ma il router si legge con [router] dallo stesso
@@ -93,9 +108,9 @@ Future<void> pumpAppRouterOf(
   GoRouter Function(WidgetRef ref) router, {
   List<Override> overrides = const [],
   Size surfaceSize = const Size(1440, 900),
+  bool touch = false,
 }) async {
-  await tester.binding.setSurfaceSize(surfaceSize);
-  addTearDown(() => tester.binding.setSurfaceSize(null));
+  await _setSurface(tester, surfaceSize);
   await tester.pumpWidget(ProviderScope(
     overrides: _baseOverrides(carouselAutoplay: false, overrides: overrides),
     retry: (_, _) => null,
@@ -106,8 +121,10 @@ Future<void> pumpAppRouterOf(
         locale: const Locale('it'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        builder: (context, child) => WfMotionScope(
-            motion: const WfMotion(MotionLevel.reduced), child: child!),
+        builder: (context, child) => FormFactorScope(
+            touchOverride: touch,
+            child: WfMotionScope(
+                motion: const WfMotion(MotionLevel.reduced), child: child!)),
       ),
     ),
   ));
