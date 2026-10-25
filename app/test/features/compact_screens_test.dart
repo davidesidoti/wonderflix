@@ -1,4 +1,28 @@
+import 'dart:async';
+
+import 'package:clock/clock.dart';
+import 'package:go_router/go_router.dart';
+import 'package:wonderflix/core/requests/requests_models.dart';
+import 'package:wonderflix/core/social/home_models.dart';
+import 'package:wonderflix/core/social/match_models.dart';
+import 'package:wonderflix/core/syncplay/party_mode.dart';
+import 'package:wonderflix/features/admin/admin_navigation.dart';
+import 'package:wonderflix/features/admin/admin_screen.dart';
+import 'package:wonderflix/features/calendar/calendar_month_grid.dart';
+import 'package:wonderflix/features/calendar/calendar_screen.dart';
+import 'package:wonderflix/features/home/home_providers.dart';
+import 'package:wonderflix/features/match/match_actions.dart';
+import 'package:wonderflix/features/match/match_column.dart';
+import 'package:wonderflix/features/match/match_providers.dart';
+import 'package:wonderflix/features/match/match_screen.dart';
+import 'package:wonderflix/features/match/match_swipe_deck.dart';
+import 'package:wonderflix/features/requests/requests_navigation.dart';
+import 'package:wonderflix/features/requests/requests_screen.dart';
+import 'package:wonderflix/features/watch_party/invite_card_frame.dart';
+import 'package:wonderflix/features/watch_party/party_mode_menu.dart';
+import 'package:wonderflix/ui/wf_buttons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -34,7 +58,11 @@ import 'package:wonderflix/features/settings/settings_screen.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 
+import '../support/admin_fakes.dart';
 import '../support/fake_session_controller.dart';
+import '../support/match_fakes.dart';
+import '../support/requests_fakes.dart';
+import '../support/watch_party_fakes.dart';
 import '../support/home_fakes.dart';
 import '../support/library_fakes.dart';
 import '../support/profile_fakes.dart';
@@ -447,5 +475,326 @@ void main() {
       content: find.textContaining('Riprendi "Il signore'),
       overrides: library(api),
     );
+  });
+
+  group('amministrazione', () {
+    late FakeAdminApi api;
+    late FakePluginAdminApi plugin;
+
+    setUp(() {
+      api = FakeAdminApi()
+        ..sessionsValue = testSessions()
+        ..partiesValue = testParties()
+        ..librariesValue = testLibraries()
+        ..tasksValue = testTasks()
+        ..activityValue = testActivity();
+      plugin = FakePluginAdminApi();
+    });
+
+    List<Override> admin() => adminTestOverrides(api,
+        plugin: plugin,
+        features: const SocialFeatures(inbox: true, account: true));
+
+    for (final (tab, text) in [
+      (AdminTab.sessions, 'In riproduzione'),
+      (AdminTab.users, 'garg'),
+      (AdminTab.maintenance, 'Librerie'),
+      (AdminTab.activity, 'Aggiorna'),
+      (AdminTab.wonderflix, 'Annuncio'),
+    ]) {
+      testWidgets('admin: scheda ${tab.name}', (tester) async {
+        await expectNoOverflow(
+          tester,
+          Scaffold(body: AdminScreen(tab: tab)),
+          overrides: admin(),
+          content: find.text(text),
+        );
+        // Le righe fuori vista non sono costruite: si scorre fino in fondo.
+        await tester.binding.setSurfaceSize(_sizes.first);
+        tester.view.physicalSize = _sizes.first * tester.view.devicePixelRatio;
+        await tester.pumpAndSettle();
+        for (var i = 0; i < 40; i++) {
+          await tester.drag(find.byType(ListView).first, const Offset(0, -300));
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull, reason: 'scorrendo, passo $i');
+        }
+      });
+    }
+
+    testWidgets('admin stretto: le schede scorrono e si raggiungono tutte',
+        (tester) async {
+      final router = GoRouter(initialLocation: '/admin', routes: [
+        GoRoute(
+          path: '/admin',
+          builder: (context, state) => Scaffold(
+              body: AdminScreen(
+                  tab: AdminTab.parse(state.uri.queryParameters['tab']))),
+        ),
+      ]);
+      await pumpAppRouter(tester, router,
+          overrides: admin(), surfaceSize: const Size(390, 844), touch: true);
+      await tester.pumpAndSettle();
+
+      final last = find.byKey(const ValueKey('admin-tab-wonderflix'));
+      await tester.ensureVisible(last);
+      await tester.pumpAndSettle();
+      expect(tester.getRect(last).right, lessThanOrEqualTo(390));
+      expect(tester.getSize(last).height, greaterThanOrEqualTo(44));
+      await tester.tap(last);
+      await tester.pumpAndSettle();
+      expect(find.text('Annuncio'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('richieste', () {
+    late FakeRequestsApi api;
+
+    setUp(() {
+      api = FakeRequestsApi()
+        ..meValue = const RequestsMe(
+            canRequest: true, canManage: true, hasAccount: true)
+        ..lists[RequestsFilter.pending] = [
+          testMediaRequest(
+              id: 1,
+              title: 'Dune - Parte due con un titolo molto lungo da spezzare',
+              requester: 'Garg'),
+        ]
+        ..lists[RequestsFilter.mine] = [testMediaRequest(id: 3, title: 'Mia')];
+    });
+
+    List<Override> requests() => [
+          ...requestsTestOverrides(api),
+          socialAvailabilityProvider.overrideWith(() => FakeSocialAvailability(
+              const SocialFeatures(requests: true))),
+        ];
+
+    testWidgets('richieste', (tester) async {
+      await expectNoOverflow(
+        tester,
+        const Scaffold(body: RequestsScreen(initialTab: RequestsTab.pending)),
+        overrides: requests(),
+        content: find.textContaining('Dune - Parte due'),
+      );
+    });
+
+    testWidgets('richiesta stretta: Approva e Rifiuta sotto il titolo e '
+        'toccabili', (tester) async {
+      await pumpApp(
+        tester,
+        const Scaffold(body: RequestsScreen(initialTab: RequestsTab.pending)),
+        overrides: requests(),
+        surfaceSize: const Size(390, 844),
+        touch: true,
+      );
+      await tester.pumpAndSettle();
+
+      final title = find.textContaining('Dune - Parte due');
+      expect(title, findsOneWidget);
+      expect(tester.getSize(title).width, greaterThanOrEqualTo(390 / 2));
+      final decline = find.byKey(const Key('request-decline'));
+      final approve = find.byType(WfButton);
+      for (final button in [decline, approve]) {
+        final size = tester.getSize(button);
+        expect(size.width, greaterThanOrEqualTo(44));
+        expect(size.height, greaterThanOrEqualTo(44));
+        expect(tester.getTopLeft(button).dy,
+            greaterThan(tester.getBottomLeft(title).dy));
+      }
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('calendario', () {
+    late FakeHomeApi api;
+
+    setUp(() {
+      api = FakeHomeApi()
+        ..calendarPage = CalendarPage(
+          episodes: [
+            for (var d = 1; d <= 3; d++)
+              testEpisode(
+                  seriesName: 'The Bear con un titolo davvero molto lungo',
+                  episode: d,
+                  airDate: DateTime.utc(2026, 10, 12, 1)),
+          ],
+          movies: [testUpcomingMovie(title: 'Hope')],
+        );
+    });
+
+    List<Override> calendar() => [
+          homeApiProvider.overrideWithValue(api),
+          socialAvailabilityProvider.overrideWith(() => FakeSocialAvailability(
+              const SocialFeatures(calendar: true, requests: true))),
+          sessionControllerProvider.overrideWith(
+              () => FakeSessionController(const SessionSignedIn(testUser))),
+        ];
+
+    testWidgets('calendario', (tester) async {
+      await withClock(Clock.fixed(DateTime(2026, 10, 22, 12)), () async {
+        await expectNoOverflow(
+          tester,
+          const Scaffold(body: CalendarScreen()),
+          overrides: calendar(),
+          content: find.text('Ottobre 2026'),
+        );
+      });
+    });
+
+    testWidgets('calendario a 844x390: celle alte almeno 44, la griglia '
+        'scorre', (tester) async {
+      await withClock(Clock.fixed(DateTime(2026, 10, 22, 12)), () async {
+        await pumpApp(
+          tester,
+          const Scaffold(body: CalendarScreen()),
+          overrides: calendar(),
+          surfaceSize: const Size(844, 390),
+          touch: true,
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Ottobre 2026'), findsOneWidget);
+        final cell = find.byKey(const Key('calendar-day-2026-10-12'));
+        expect(tester.getSize(cell).height, greaterThanOrEqualTo(44));
+        expect(
+            find.descendant(
+                of: find.byType(CalendarMonthGrid),
+                matching: find.byType(Scrollable)),
+            findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    });
+  });
+
+  Future<void> pumpMatchRoom(WidgetTester tester, MatchState state) async {
+    final match = FakeMatchApi();
+    match.rooms['r1'] = state;
+    final library = FakeLibraryApi()
+      ..itemsById['m1'] = testItem(id: 'm1', name: longName)
+      ..itemsById['m2'] = testItem(id: 'm2', name: 'Alien');
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final router = GoRouter(routes: [
+      GoRoute(
+        path: '/',
+        builder: (context, _) => Scaffold(
+          body: Consumer(
+            builder: (context, ref, _) => TextButton(
+              onPressed: () => unawaited(openMatchRoom(context, ref)),
+              child: const Text('apri'),
+            ),
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/match/:id',
+        builder: (context, state) =>
+            Scaffold(body: MatchScreen(roomId: state.pathParameters['id']!)),
+      ),
+    ]);
+    await pumpAppRouter(
+      tester,
+      router,
+      surfaceSize: _sizes.first,
+      touch: true,
+      overrides: [
+        ...socialTestOverrides(FakeSocialApi(),
+            events: const Stream.empty(),
+            features: const SocialFeatures(
+                friends: true, parties: true, match: true)),
+        syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
+        partyChannelApiProvider.overrideWithValue(
+            FakePartyChannelApi()..install()),
+        matchApiProvider.overrideWithValue(match),
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        libraryApiProvider.overrideWithValue(library),
+      ],
+    );
+    await tester.tap(find.text('apri'));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> expectMatchFits(WidgetTester tester, Finder content) async {
+    for (final size in _sizes) {
+      await tester.binding.setSurfaceSize(size);
+      tester.view.physicalSize = size * tester.view.devicePixelRatio;
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: 'a $size');
+      expect(content, findsWidgets, reason: 'a $size');
+    }
+  }
+
+  testWidgets('match: attesa con gli amici da invitare', (tester) async {
+    await pumpMatchRoom(tester, testMatchState());
+    await expectMatchFits(tester, find.byKey(const Key('match-start')));
+  });
+
+  testWidgets('match: votazione, mazzo sopra e match sotto', (tester) async {
+    const mario = MatchMember(userId: 'u1', name: 'Mario', voted: 0);
+    const luigi = MatchMember(userId: 'u2', name: 'Luigi', voted: 0);
+    await pumpMatchRoom(
+        tester,
+        testMatchState(
+            phase: MatchPhase.voting,
+            members: const [mario, luigi],
+            stack: const ['m1', 'm2'],
+            matches: const ['m2']));
+    await expectMatchFits(tester, find.text(longName));
+    // Nello stretto il mazzo sta sopra la colonna dei match, non accanto.
+    await tester.binding.setSurfaceSize(_sizes.first);
+    tester.view.physicalSize = _sizes.first * tester.view.devicePixelRatio;
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(find.byType(MatchColumn)).dy,
+        greaterThan(tester.getBottomLeft(find.byType(MatchSwipeDeck)).dy));
+  });
+
+  group('watch party', () {
+    testWidgets('menu della modalità aperto', (tester) async {
+      for (final size in [const Size(360, 640), const Size(844, 390)]) {
+        await pumpApp(
+          tester,
+          Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () =>
+                    showPartyModeMenu(context, last: PartyMode.friends),
+                child: const Text('apri'),
+              ),
+            ),
+          ),
+          surfaceSize: size,
+          touch: true,
+        );
+        await tester.tap(find.text('apri'));
+        await tester.pumpAndSettle();
+        final item = find.byKey(const Key('party-mode-Private'));
+        expect(item, findsOneWidget, reason: '$size');
+        expect(tester.getSize(item).width, lessThanOrEqualTo(size.width - 16),
+            reason: '$size');
+        expect(tester.takeException(), isNull, reason: '$size');
+        // Un tocco fuori chiude il menu.
+        await tester.tapAt(const Offset(1, 1));
+        await tester.pumpAndSettle();
+      }
+    });
+
+    testWidgets('invito al party mostrato', (tester) async {
+      await expectNoOverflow(
+        tester,
+        Scaffold(
+          body: Align(
+            alignment: Alignment.topRight,
+            child: InviteCardFrame(
+              icon: Icons.group,
+              title: 'Garg ti invita a guardare "$longName"',
+              subtitle: 'Serata con un nome piuttosto lungo davvero',
+              onDismiss: () {},
+              onJoin: () {},
+            ),
+          ),
+        ),
+        content: find.textContaining('Garg ti invita'),
+      );
+    });
   });
 }

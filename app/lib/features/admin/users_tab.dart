@@ -8,6 +8,7 @@ import '../../app/theme.dart';
 import '../../core/jellyfin/json_fields.dart';
 import '../../core/social/plugin_admin_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
 import '../../ui/user_avatar.dart';
@@ -32,7 +33,10 @@ const _spinnerSize = 16.0;
 /// La scheda Utenti (spec L §9.5): ogni utente con i suoi contatti per il
 /// recupero e le azioni dell'admin.
 class UsersTab extends ConsumerStatefulWidget {
-  const UsersTab({super.key});
+  const UsersTab({super.key, this.header});
+
+  /// La striscia del server, nel layout stretto: scorre con l'elenco.
+  final Widget? header;
 
   @override
   ConsumerState<UsersTab> createState() => _UsersTabState();
@@ -54,11 +58,17 @@ class _UsersTabState extends ConsumerState<UsersTab> {
     final users = data.value;
     if (users == null) {
       final error = data.error;
-      if (error == null) return const LoadingView();
-      return ErrorView(
-        error: error,
-        onRetry: () => unawaited(
-            ref.read(accountUsersControllerProvider.notifier).refresh()),
+      if (error == null) {
+        return adminTabState(context, widget.header, const LoadingView());
+      }
+      return adminTabState(
+        context,
+        widget.header,
+        ErrorView(
+          error: error,
+          onRetry: () => unawaited(
+              ref.read(accountUsersControllerProvider.notifier).refresh()),
+        ),
       );
     }
     final me = ref.watch(sessionControllerProvider.select(
@@ -66,8 +76,11 @@ class _UsersTabState extends ConsumerState<UsersTab> {
     final updatedAt = data.updatedAt;
     return ListView(
       controller: _scroll,
-      padding: const EdgeInsets.fromLTRB(32, 8, 32, 40),
+      padding: EdgeInsets.fromLTRB(
+          adminSideMargin(context), 8, adminSideMargin(context), 40),
       children: [
+        if (widget.header case final header?)
+          Padding(padding: const EdgeInsets.only(bottom: 8), child: header),
         if (data.stale && updatedAt != null)
           AdminStaleNote(updatedAt: updatedAt),
         if (users.isEmpty)
@@ -267,7 +280,7 @@ class _AccountUserRowState extends ConsumerState<AccountUserRow>
           ),
           const SizedBox(width: 8),
           SizedBox(
-            width: _menuWidth,
+            width: FormFactor.of(context).compact ? minTouchTarget : _menuWidth,
             child: actions.isEmpty
                 ? null
                 : PopupMenuButton<UserAction>(

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,12 +38,13 @@ final partyModeMenuHeight =
 Future<PartyMode?> showPartyModeMenu(BuildContext anchor,
     {required PartyMode last}) {
   final l = AppLocalizations.of(anchor);
+  // Mai più largo dello schermo (meno 8 per lato di margine).
+  final width = min(partyModeMenuWidth, MediaQuery.sizeOf(anchor).width - 16);
   return showMenu<PartyMode>(
     context: anchor,
     position: menuPositionBelow(anchor, estimatedHeight: partyModeMenuHeight),
     popUpAnimationStyle: wfPopUpAnimation(anchor),
-    constraints: const BoxConstraints(
-        minWidth: partyModeMenuWidth, maxWidth: partyModeMenuWidth),
+    constraints: BoxConstraints(minWidth: width, maxWidth: width),
     menuPadding: const EdgeInsets.symmetric(vertical: _menuVerticalPadding),
     items: [
       for (final mode in PartyMode.values)

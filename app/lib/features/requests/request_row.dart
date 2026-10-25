@@ -4,6 +4,7 @@ import '../../app/theme.dart';
 import '../../core/requests/requests_models.dart';
 import '../../core/requests/tmdb_images.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/wf_image.dart';
 import '../inbox/inbox_time.dart';
 import 'request_labels.dart';
@@ -56,11 +57,10 @@ class RequestRow extends StatelessWidget {
       inboxTimeLabel(request.createdAt, now, l),
     ].join(' · ');
     final dateParts = requestDateParts(request, now, l);
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
+    // Nello stretto le azioni (Approva, Rifiuta) vanno sotto il testo: accanto
+    // lascerebbero al titolo meno di metà schermo.
+    final stacked = FormFactor.of(context).compact && trailing != null;
+    final row = Row(
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
@@ -107,10 +107,26 @@ class RequestRow extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 12),
-            trailing ?? RequestStatusLabel(request: request),
+            if (!stacked) ...[
+              const SizedBox(width: 12),
+              trailing ?? RequestStatusLabel(request: request),
+            ],
           ],
-        ),
+        );
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: stacked
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  row,
+                  const SizedBox(height: 8),
+                  Align(alignment: Alignment.centerRight, child: trailing),
+                ],
+              )
+            : row,
       ),
     );
   }

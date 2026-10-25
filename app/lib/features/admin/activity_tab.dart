@@ -10,15 +10,20 @@ import '../../app/navigation.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/activity_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
 import 'activity_controller.dart';
 import 'admin_providers.dart';
 import 'admin_time.dart';
+import 'admin_widgets.dart';
 
 /// La scheda Registro (spec J §9.5): filtri, "Aggiorna" e le voci a pagine.
 class ActivityTab extends ConsumerStatefulWidget {
-  const ActivityTab({super.key});
+  const ActivityTab({super.key, this.header});
+
+  /// La striscia del server, nel layout stretto: scorre con l'elenco.
+  final Widget? header;
 
   @override
   ConsumerState<ActivityTab> createState() => _ActivityTabState();
@@ -85,96 +90,140 @@ class _ActivityTabState extends ConsumerState<ActivityTab> {
       }
     });
 
+    final compact = FormFactor.of(context).compact;
+    final side = adminSideMargin(context);
+    final chips = [
+      for (final filter in ActivityFilter.values)
+        ChoiceChip(
+          key: ValueKey('activity-filter-${filter.name}'),
+          label: Text(_filterLabel(l, filter)),
+          selected: filter == state.filter,
+          onSelected: (_) => unawaited(controller.setFilter(filter)),
+        ),
+    ];
+    final refresh = TextButton.icon(
+      onPressed: () {
+        // Si riparte dalla prima pagina: anche la vista torna in
+        // cima, non resta a metà di un elenco che cambia.
+        if (_scroll.hasClients) _scroll.jumpTo(0);
+        unawaited(controller.reload());
+      },
+      icon: const Icon(LucideIcons.refreshCw, size: 16),
+      label: Text(l.adminActivityRefresh),
+    );
+    final filters = Padding(
+      padding: EdgeInsets.fromLTRB(side, 0, side, 8),
+      child: compact
+          // Nello stretto i filtri vanno a capo.
+          ? Wrap(
+              spacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [...chips, refresh])
+          : Row(
+              children: [
+                for (final chip in chips) ...[chip, const SizedBox(width: 8)],
+                const Spacer(),
+                refresh,
+              ],
+            ),
+    );
+    // Nel layout stretto la striscia del server e i filtri scorrono con
+    // l'elenco.
+    final header = widget.header;
+    final top = header == null
+        ? null
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                  padding: EdgeInsets.fromLTRB(side, 0, side, 16),
+                  child: header),
+              filters,
+            ],
+          );
+    final list = _list(l, state, controller, top);
+    if (top != null) return list;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(32, 0, 32, 8),
-          child: Row(
-            children: [
-              for (final filter in ActivityFilter.values) ...[
-                ChoiceChip(
-                  key: ValueKey('activity-filter-${filter.name}'),
-                  label: Text(_filterLabel(l, filter)),
-                  selected: filter == state.filter,
-                  onSelected: (_) => unawaited(controller.setFilter(filter)),
-                ),
-                const SizedBox(width: 8),
-              ],
-              const Spacer(),
-              TextButton.icon(
-                onPressed: () {
-                  // Si riparte dalla prima pagina: anche la vista torna in
-                  // cima, non resta a metà di un elenco che cambia.
-                  if (_scroll.hasClients) _scroll.jumpTo(0);
-                  unawaited(controller.reload());
-                },
-                icon: const Icon(LucideIcons.refreshCw, size: 16),
-                label: Text(l.adminActivityRefresh),
-              ),
-            ],
-          ),
-        ),
-        Expanded(child: _list(l, state, controller)),
-      ],
+      children: [filters, Expanded(child: list)],
     );
   }
 
-  Widget _list(
-      AppLocalizations l, ActivityState state, ActivityController controller) {
+  Widget _list(AppLocalizations l, ActivityState state,
+      ActivityController controller, Widget? top) {
     final error = state.error;
     if (state.items.isEmpty) {
+      final Widget empty;
       if (error != null) {
-        return ErrorView(
+        empty = ErrorView(
             error: error, onRetry: () => unawaited(controller.reload()));
+      } else if (state.loading) {
+        empty = const LoadingView();
+      } else {
+        empty = Padding(
+          padding: EdgeInsets.symmetric(horizontal: adminSideMargin(context)),
+          child: Text(l.adminActivityEmpty,
+              style: const TextStyle(color: WfColors.creamMuted)),
+        );
       }
-      if (state.loading) return const LoadingView();
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Text(l.adminActivityEmpty,
-            style: const TextStyle(color: WfColors.creamMuted)),
-      );
+      return top == null
+          ? empty
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [top, Expanded(child: empty)],
+            );
     }
     final now = clock.now();
+    final offset = top == null ? 0 : 1;
     return ListView.builder(
       controller: _scroll,
-      padding: const EdgeInsets.fromLTRB(32, 0, 32, 40),
-      itemCount: state.items.length + 1,
+      // Il margine laterale è delle righe, non della lista: la testa
+      // (striscia e filtri) ha già il suo.
+      padding: const EdgeInsets.only(bottom: 40),
+      itemCount: state.items.length + 1 + offset,
       itemBuilder: (context, index) {
-        if (index < state.items.length) {
-          final entry = state.items[index];
-          return ActivityRow(
-              key: ValueKey('activity-${entry.id}'), entry: entry, now: now);
-        }
+        if (top != null && index == 0) return top;
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Center(
-            child: state.loading
-                ? const SizedBox.square(
-                    dimension: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : error != null
-                    ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Flexible(
-                            child: Text(describeError(l, error),
-                                style:
-                                    const TextStyle(color: WfColors.creamMuted)),
-                          ),
-                          const SizedBox(width: 8),
-                          TextButton(
-                              onPressed: () => unawaited(controller.retry()),
-                              child: Text(l.retry)),
-                        ],
-                      )
-                    : state.hasMore
-                        ? const SizedBox.shrink()
-                        : Text(l.adminActivityEnd,
-                            style: const TextStyle(color: WfColors.creamMuted)),
-          ),
+          padding: EdgeInsets.symmetric(horizontal: adminSideMargin(context)),
+          child: _row(l, state, controller, index - offset, now),
         );
       },
+    );
+  }
+
+  Widget _row(AppLocalizations l, ActivityState state,
+      ActivityController controller, int index, DateTime now) {
+    final error = state.error;
+    if (index < state.items.length) {
+      final entry = state.items[index];
+      return ActivityRow(
+          key: ValueKey('activity-${entry.id}'), entry: entry, now: now);
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Center(
+        child: state.loading
+            ? const SizedBox.square(
+                dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
+            : error != null
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(describeError(l, error),
+                            style: const TextStyle(color: WfColors.creamMuted)),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton(
+                          onPressed: () => unawaited(controller.retry()),
+                          child: Text(l.retry)),
+                    ],
+                  )
+                : state.hasMore
+                    ? const SizedBox.shrink()
+                    : Text(l.adminActivityEnd,
+                        style: const TextStyle(color: WfColors.creamMuted)),
+      ),
     );
   }
 }
@@ -203,6 +252,7 @@ class _ActivityRowState extends State<ActivityRow> {
     final itemId = entry.itemId;
     final date = entry.date;
     const muted = TextStyle(color: WfColors.creamMuted, fontSize: 13);
+    final compact = FormFactor.of(context).compact;
     final (icon, color) = switch (entry.severity) {
       ActivitySeverity.info => (LucideIcons.info, WfColors.creamMuted),
       ActivitySeverity.warning => (LucideIcons.triangleAlert, WfColors.gold),
@@ -235,7 +285,7 @@ class _ActivityRowState extends State<ActivityRow> {
                     TextButton(
                       style: TextButton.styleFrom(
                         padding: EdgeInsets.zero,
-                        minimumSize: const Size(0, 32),
+                        minimumSize: Size(0, compact ? minTouchTarget : 32),
                       ),
                       onPressed: () => openItemById(context, itemId),
                       child: Text(l.adminActivityOpenItem),

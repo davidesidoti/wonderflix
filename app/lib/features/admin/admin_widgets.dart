@@ -4,11 +4,33 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../app/error_text.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/user_avatar.dart';
 import 'admin_time.dart';
 
 /// Diametro dell'avatar di una riga utente.
 const _adminAvatarSize = 28.0;
+
+/// Margine laterale delle schede: più stretto nel layout stretto.
+double adminSideMargin(BuildContext context) =>
+    FormFactor.of(context).compact ? 16 : 32;
+
+/// Lo stato di una scheda senza elenco (caricamento, errore): nel layout
+/// stretto la striscia del server ([header]) sta sopra, così Riavvia resta
+/// raggiungibile anche con il server che non risponde.
+Widget adminTabState(BuildContext context, Widget? header, Widget state) =>
+    header == null
+        ? state
+        : Column(
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                    adminSideMargin(context), 0, adminSideMargin(context), 16),
+                child: header,
+              ),
+              Expanded(child: state),
+            ],
+          );
 
 /// Titolo di una sezione di una scheda ("In riproduzione", "Collegati"…).
 class AdminSectionTitle extends StatelessWidget {

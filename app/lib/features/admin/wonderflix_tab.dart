@@ -28,7 +28,10 @@ import 'wonderflix_labels.dart';
 /// novità, Home per tutti, Sonarr e Radarr, Seerr, recupero della password.
 /// Ogni card ha il suo stato: se una non carica, le altre funzionano.
 class WonderflixTab extends StatefulWidget {
-  const WonderflixTab({super.key});
+  const WonderflixTab({super.key, this.header});
+
+  /// La striscia del server, nel layout stretto: scorre con l'elenco.
+  final Widget? header;
 
   @override
   State<WonderflixTab> createState() => _WonderflixTabState();
@@ -46,16 +49,19 @@ class _WonderflixTabState extends State<WonderflixTab> {
   @override
   Widget build(BuildContext context) => ListView(
         controller: _scroll,
-        padding: const EdgeInsets.fromLTRB(32, 8, 32, 40),
-        children: const [
-          AnnouncementCard(),
-          RatingCommentsCard(),
-          ReportsCard(),
-          NewTitlesCard(),
-          HomeForEveryoneCard(),
-          ArrCard(),
-          SeerrCard(),
-          AccountRecoveryCard(),
+        padding: EdgeInsets.fromLTRB(
+            adminSideMargin(context), 8, adminSideMargin(context), 40),
+        children: [
+          if (widget.header case final header?)
+            Padding(padding: const EdgeInsets.only(bottom: 8), child: header),
+          const AnnouncementCard(),
+          const RatingCommentsCard(),
+          const ReportsCard(),
+          const NewTitlesCard(),
+          const HomeForEveryoneCard(),
+          const ArrCard(),
+          const SeerrCard(),
+          const AccountRecoveryCard(),
         ],
       );
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../app/theme.dart';
+import 'form_factor.dart';
 
 /// Il pulsante di una scheda (pagine Richieste e Amministrazione, vista
 /// Film|Saghe del catalogo): testo, con la riga oro sotto quella scelta.
@@ -18,9 +19,14 @@ class WfTabButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Nel layout stretto si tocca con il dito: almeno 44 di altezza.
+    final compact = FormFactor.of(context).compact;
     return InkWell(
       onTap: onTap,
       child: Container(
+        constraints:
+            BoxConstraints(minHeight: compact ? minTouchTarget : 0),
+        alignment: compact ? Alignment.center : null,
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
         decoration: BoxDecoration(
           border: Border(

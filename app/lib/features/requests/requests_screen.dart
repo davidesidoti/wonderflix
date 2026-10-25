@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
 import '../../core/requests/requests_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_tab_button.dart';
@@ -90,19 +91,24 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen> {
           RequestsTab.all => l.requestsTabAll,
         };
 
+    final compact = FormFactor.of(context).compact;
+    final side = compact ? 16.0 : 32.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(32, 16, 32, 12),
-          child: Text(l.navRequests.toUpperCase(), style: WfText.display(40)),
+          padding: EdgeInsets.fromLTRB(side, 16, side, 12),
+          child: Text(l.navRequests.toUpperCase(),
+              style: WfText.display(compact ? 28 : 40)),
         ),
         if (!ready)
           const Expanded(child: LoadingView())
         else ...[
           if (tabs.length > 1)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
+            // Le schede possono non starci in larghezza: scorrono.
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsets.symmetric(horizontal: side),
               child: Row(
                 children: [
                   for (final item in tabs) ...[
@@ -206,6 +212,7 @@ class _RequestsListState extends ConsumerState<_RequestsList> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final side = FormFactor.of(context).compact ? 16.0 : 32.0;
     final provider = requestsListControllerProvider(widget.listKey);
     final state = ref.watch(provider);
     final controller = ref.read(provider.notifier);
@@ -237,7 +244,7 @@ class _RequestsListState extends ConsumerState<_RequestsList> {
       }
       if (state.loading) return const LoadingView();
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
+        padding: EdgeInsets.symmetric(horizontal: side),
         child: Text(_emptyText(l), style: const TextStyle(color: WfColors.creamMuted)),
       );
     }
@@ -245,7 +252,7 @@ class _RequestsListState extends ConsumerState<_RequestsList> {
     final footer = state.loading || error != null;
     return ListView.builder(
       controller: _scroll,
-      padding: const EdgeInsets.fromLTRB(32, 0, 32, 40),
+      padding: EdgeInsets.fromLTRB(side, 0, side, 40),
       itemCount: state.items.length + (footer ? 1 : 0),
       itemBuilder: (context, index) {
         if (index == state.items.length) {

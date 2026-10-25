@@ -8,6 +8,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/maintenance_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
 import 'admin_action_button.dart';
@@ -18,7 +19,10 @@ import 'task_labels.dart';
 
 /// La scheda Manutenzione (spec J §9.4): librerie e attività pianificate.
 class MaintenanceTab extends ConsumerStatefulWidget {
-  const MaintenanceTab({super.key});
+  const MaintenanceTab({super.key, this.header});
+
+  /// La striscia del server, nel layout stretto: scorre con l'elenco.
+  final Widget? header;
 
   @override
   ConsumerState<MaintenanceTab> createState() => _MaintenanceTabState();
@@ -41,16 +45,24 @@ class _MaintenanceTabState extends ConsumerState<MaintenanceTab> {
     final snapshot = data.value;
     if (snapshot == null) {
       final error = data.error;
-      if (error == null) return const LoadingView();
-      return ErrorView(
-          error: error, onRetry: () => unawaited(controller.refresh()));
+      if (error == null) {
+        return adminTabState(context, widget.header, const LoadingView());
+      }
+      return adminTabState(
+        context,
+        widget.header,
+        ErrorView(error: error, onRetry: () => unawaited(controller.refresh())),
+      );
     }
     final now = clock.now();
     final updatedAt = data.updatedAt;
     return ListView(
       controller: _scroll,
-      padding: const EdgeInsets.fromLTRB(32, 0, 32, 40),
+      padding: EdgeInsets.fromLTRB(
+          adminSideMargin(context), 0, adminSideMargin(context), 40),
       children: [
+        if (widget.header case final header?)
+          Padding(padding: const EdgeInsets.only(bottom: 8), child: header),
         if (data.stale && updatedAt != null) AdminStaleNote(updatedAt: updatedAt),
         // Con una chiave: la riga "Dati non aggiornati" in cima, che va e
         // viene, non sposta la testata (e non smonta "Scansiona tutte" mentre
@@ -120,35 +132,44 @@ class _LibrariesHeader extends StatelessWidget {
     // "Scansiona tutte" avvia quell'attività: senza (o con l'attività già in
     // corso) non c'è niente da avviare.
     final canScan = task != null && task.state == TaskState.idle;
+    final compact = FormFactor.of(context).compact;
+    final scanAll = AdminActionButton(
+      label: l.adminScanAll,
+      icon: LucideIcons.refreshCw,
+      onPressed: canScan ? onScanAll : null,
+    );
     return Padding(
       padding: const EdgeInsets.only(top: 24, bottom: 12),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(l.adminLibraries,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-          const SizedBox(width: 12),
-          // Lo stato prende tutto lo spazio che resta, a destra, e si
-          // accorcia se non basta: così il pulsante sta sempre sul bordo
-          // destro, come "Scansiona" delle librerie.
-          Expanded(
-            child: status == null
-                ? const SizedBox.shrink()
-                : Align(
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: Text(status,
-                        key: const Key('scan-all-status'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            color: WfColors.creamMuted, fontSize: 13)),
-                  ),
+          Row(
+            children: [
+              Text(l.adminLibraries,
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w600)),
+              const SizedBox(width: 12),
+              // Lo stato prende tutto lo spazio che resta, a destra, e si
+              // accorcia se non basta: così il pulsante sta sempre sul bordo
+              // destro, come "Scansiona" delle librerie.
+              Expanded(
+                child: status == null
+                    ? const SizedBox.shrink()
+                    : Align(
+                        alignment: AlignmentDirectional.centerEnd,
+                        child: Text(status,
+                            key: const Key('scan-all-status'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: WfColors.creamMuted, fontSize: 13)),
+                      ),
+              ),
+              if (!compact) ...[const SizedBox(width: 12), scanAll],
+            ],
           ),
-          const SizedBox(width: 12),
-          AdminActionButton(
-            label: l.adminScanAll,
-            icon: LucideIcons.refreshCw,
-            onPressed: canScan ? onScanAll : null,
-          ),
+          // Nello stretto il pulsante va sotto: accanto al titolo non ci sta.
+          if (compact) ...[const SizedBox(height: 8), scanAll],
         ],
       ),
     );
@@ -267,11 +288,20 @@ class _TaskRowState extends State<TaskRow> {
                 onTap: errorMessage == null
                     ? null
                     : () => setState(() => _showError = !_showError),
-                child: Text(l.adminTaskFailed,
-                    style: const TextStyle(
-                        color: WfColors.error,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600)),
+                child: ConstrainedBox(
+                  // Col dito si tocca su almeno 44 di altezza.
+                  constraints: BoxConstraints(
+                      minHeight:
+                          FormFactor.of(context).compact ? minTouchTarget : 0),
+                  child: Align(
+                    widthFactor: 1,
+                    child: Text(l.adminTaskFailed,
+                        style: const TextStyle(
+                            color: WfColors.error,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600)),
+                  ),
+                ),
               ),
           ],
         ),

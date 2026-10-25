@@ -10,6 +10,7 @@ import '../../app/theme.dart';
 import '../../core/jellyfin/api_exception.dart';
 import '../../core/social/home_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/states.dart';
 import '../admin/admin_providers.dart';
 import '../requests/requests_providers.dart';
@@ -48,15 +49,22 @@ class CalendarScreen extends ConsumerWidget {
     final page = ref.watch(calendarPageProvider(shown));
     void retry() => ref.invalidate(calendarPageProvider(shown));
 
+    final compact = FormFactor.of(context).compact;
+    final monthTitle = Text(
+      calendarMonthTitle(shown, l),
+      textAlign: TextAlign.center,
+      style: WfText.display(28),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(32, 16, 32, 12),
-          child: Text(l.navCalendar.toUpperCase(), style: WfText.display(40)),
+          padding: EdgeInsets.fromLTRB(compact ? 16 : 32, 16, compact ? 16 : 32, 12),
+          child: Text(l.navCalendar.toUpperCase(),
+              style: WfText.display(compact ? 28 : 40)),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 24),
           child: Row(
             children: [
               IconButton(
@@ -68,15 +76,12 @@ class CalendarScreen extends ConsumerWidget {
                   DateTime(shown.year, shown.month - 1),
                 ),
               ),
-              SizedBox(
-                // Larghezza fissa: le frecce non si spostano tra i mesi.
-                width: 220,
-                child: Text(
-                  calendarMonthTitle(shown, l),
-                  textAlign: TextAlign.center,
-                  style: WfText.display(28),
-                ),
-              ),
+              // Larghezza fissa: le frecce non si spostano tra i mesi; nello
+              // stretto il titolo prende lo spazio che resta.
+              if (compact)
+                Expanded(child: monthTitle)
+              else
+                SizedBox(width: 220, child: monthTitle),
               IconButton(
                 key: const Key('calendar-next'),
                 tooltip: l.calendarNextMonth,
@@ -86,7 +91,7 @@ class CalendarScreen extends ConsumerWidget {
                   DateTime(shown.year, shown.month + 1),
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: compact ? 4 : 12),
               TextButton(
                 key: const Key('calendar-today'),
                 onPressed: shown == thisMonth
@@ -163,8 +168,9 @@ class _CalendarBody extends ConsumerWidget {
       if (route(entry) case final r?) unawaited(context.push(r));
     }
 
+    final side = FormFactor.of(context).compact ? 16.0 : 32.0;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(32, 0, 32, 24),
+      padding: EdgeInsets.fromLTRB(side, 0, side, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

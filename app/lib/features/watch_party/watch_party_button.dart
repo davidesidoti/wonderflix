@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -82,7 +83,9 @@ class _GroupTile extends StatelessWidget {
     final l = AppLocalizations.of(context);
     const muted = TextStyle(color: WfColors.creamMuted, fontSize: 12);
     return SizedBox(
-      width: 320,
+      // Mai più largo dello schermo, meno i margini del menu (8 per lato) e
+      // lo spazio delle voci (16 per lato).
+      width: min(320, MediaQuery.sizeOf(context).width - 48),
       child: Row(
         children: [
           Expanded(

@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../app/error_text.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_buttons.dart';
 import 'admin_widgets.dart';
@@ -22,6 +23,7 @@ class ServerStrip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
+    final compact = FormFactor.of(context).compact;
     final data = ref.watch(serverInfoControllerProvider);
     final info = data.value;
     final error = data.error;
@@ -78,10 +80,11 @@ class ServerStrip extends ConsumerWidget {
               const Icon(LucideIcons.server, color: WfColors.gold),
               const SizedBox(width: 12),
               Expanded(child: title),
-              const SizedBox(width: 16),
-              const RestartArea(),
+              // Nello stretto Riavvia va sotto: non c'è posto accanto al nome.
+              if (!compact) ...const [SizedBox(width: 16), RestartArea()],
             ],
           ),
+          if (compact) ...const [SizedBox(height: 12), RestartArea()],
           if (info?.hasPendingRestart ?? false) ...[
             const SizedBox(height: 12),
             Row(
@@ -131,12 +134,13 @@ class RestartArea extends ConsumerWidget {
             Text(l.adminRestarting),
           ],
         ),
-      RestartPhase.timedOut => Row(
-          mainAxisSize: MainAxisSize.min,
+      RestartPhase.timedOut => Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 12,
+          runSpacing: 8,
           children: [
             Text(l.adminRestartTimedOut,
                 style: const TextStyle(color: WfColors.gold)),
-            const SizedBox(width: 12),
             WfButton.secondary(
               label: l.adminRestartRecheck,
               icon: LucideIcons.refreshCw,

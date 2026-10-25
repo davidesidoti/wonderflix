@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/wf_buttons.dart';
 
 /// Quanto resta "Conferma" dopo il primo clic su Rifiuta, come "Svuota"
@@ -91,7 +92,11 @@ class _PendingRequestActionsState extends State<PendingRequestActions> {
                 onPressed: confirming ? _decline : _ask,
                 style: TextButton.styleFrom(
                     foregroundColor:
-                        confirming ? WfColors.error : WfColors.creamMuted),
+                        confirming ? WfColors.error : WfColors.creamMuted,
+                    // Col dito si tocca su almeno 44.
+                    minimumSize: FormFactor.of(context).compact
+                        ? const Size(minTouchTarget, minTouchTarget)
+                        : null),
                 child: Text(
                   confirming ? l.requestsDeclineConfirm : l.requestsDecline,
                   // Lo screen reader sente cosa si conferma.

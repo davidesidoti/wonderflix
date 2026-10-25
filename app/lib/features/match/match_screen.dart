@@ -11,6 +11,7 @@ import '../../core/social/match_api.dart';
 import '../../core/social/match_models.dart';
 import '../../core/social/social_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/user_avatar.dart';
 import '../../ui/wf_buttons.dart';
 import '../friends/friends_controller.dart';
@@ -187,18 +188,21 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     ref.listen(matchTitlesProvider, (_, _) => _autoVote());
     final view = ref.watch(matchRoomProvider);
     final state = _isThisRoom(view) ? view!.state : null;
+    final compact = FormFactor.of(context).compact;
+    final side = compact ? 16.0 : 32.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(32, 16, 32, 12),
-          child: Text(l.matchTitle.toUpperCase(), style: WfText.display(40)),
+          padding: EdgeInsets.fromLTRB(side, 16, side, 12),
+          child: Text(l.matchTitle.toUpperCase(),
+              style: WfText.display(compact ? 28 : 40)),
         ),
         Expanded(
           child: state == null
               ? const SizedBox.shrink()
               : ListView(
-                  padding: const EdgeInsets.fromLTRB(32, 0, 32, 40),
+                  padding: EdgeInsets.fromLTRB(side, 0, side, 40),
                   children: [
                     MatchMembersBar(state: state),
                     const SizedBox(height: 32),
@@ -322,55 +326,57 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
           ]
         : const <JellyfinItem>[];
     final celebrating = _celebrate.firstOrNull;
-    final row = Row(
+    final deck = Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: _deckMaxWidth),
+        child: topId == null
+            ? _endOfStack(l, view, state)
+            : !loaded
+            ? const Center(child: CircularProgressIndicator())
+            : MatchSwipeDeck(
+                cards: cards,
+                onVote: (yes) => _vote(cards.first.id, yes),
+              ),
+      ),
+    );
+    final matches = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          flex: 3,
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: _deckMaxWidth),
-              child: topId == null
-                  ? _endOfStack(l, view, state)
-                  : !loaded
-                  ? const Center(child: CircularProgressIndicator())
-                  : MatchSwipeDeck(
-                      cards: cards,
-                      onVote: (yes) => _vote(cards.first.id, yes),
-                    ),
-            ),
-          ),
+        MatchColumn(
+          state: state,
+          titles: titles,
+          chosen: _firstChoice,
+          onChoose: state.isCreator(ref.watch(currentUserIdProvider))
+              ? (id) => setState(() => _firstChoice = id)
+              : null,
         ),
-        const SizedBox(width: 32),
-        Expanded(
-          flex: 2,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              MatchColumn(
-                state: state,
-                titles: titles,
-                chosen: _firstChoice,
-                onChoose: state.isCreator(ref.watch(currentUserIdProvider))
-                    ? (id) => setState(() => _firstChoice = id)
-                    : null,
-              ),
-              if (state.isCreator(ref.watch(currentUserIdProvider)) &&
-                  (state.matches.isNotEmpty || state.nearMatches.isNotEmpty)) ...[
-                const SizedBox(height: 24),
-                WfButton.primary(
-                  key: const Key('match-start-party'),
-                  label: l.matchStartParty,
-                  icon: LucideIcons.play,
-                  onPressed:
-                      _partyStarting ? null : () => unawaited(_startParty()),
-                ),
-              ],
-            ],
+        if (state.isCreator(ref.watch(currentUserIdProvider)) &&
+            (state.matches.isNotEmpty || state.nearMatches.isNotEmpty)) ...[
+          const SizedBox(height: 24),
+          WfButton.primary(
+            key: const Key('match-start-party'),
+            label: l.matchStartParty,
+            icon: LucideIcons.play,
+            onPressed: _partyStarting ? null : () => unawaited(_startParty()),
           ),
-        ),
+        ],
       ],
     );
+    // Nello stretto il mazzo sta sopra e i match sotto: affiancati non ci
+    // stanno.
+    final row = FormFactor.of(context).compact
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [deck, const SizedBox(height: 32), matches],
+          )
+        : Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 3, child: deck),
+              const SizedBox(width: 32),
+              Expanded(flex: 2, child: matches),
+            ],
+          );
     if (celebrating == null) return row;
     return Stack(
       children: [
@@ -463,7 +469,12 @@ class _InviteFriends extends ConsumerWidget {
                 TextButton(
                   key: Key('match-invite-${friend.userId}'),
                   onPressed: () => unawaited(onInvite(friend.userId)),
-                  style: TextButton.styleFrom(foregroundColor: WfColors.gold),
+                  style: TextButton.styleFrom(
+                      foregroundColor: WfColors.gold,
+                      // Col dito si tocca su almeno 44.
+                      minimumSize: FormFactor.of(context).compact
+                          ? const Size(minTouchTarget, minTouchTarget)
+                          : null),
                   child: Text(invited.contains(friend.userId)
                       ? l.matchInvited
                       : l.matchInviteFriend),

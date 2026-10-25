@@ -8,6 +8,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/admin_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_image.dart';
@@ -21,7 +22,10 @@ import 'sessions_controller.dart';
 /// La scheda Sessioni (spec J §9.3): chi guarda, chi è collegato, i watch
 /// party.
 class SessionsTab extends ConsumerStatefulWidget {
-  const SessionsTab({super.key});
+  const SessionsTab({super.key, this.header});
+
+  /// La striscia del server, nel layout stretto: scorre con l'elenco.
+  final Widget? header;
 
   @override
   ConsumerState<SessionsTab> createState() => _SessionsTabState();
@@ -43,19 +47,28 @@ class _SessionsTabState extends ConsumerState<SessionsTab> {
     final snapshot = data.value;
     if (snapshot == null) {
       final error = data.error;
-      if (error == null) return const LoadingView();
-      return ErrorView(
-        error: error,
-        onRetry: () =>
-            unawaited(ref.read(sessionsControllerProvider.notifier).refresh()),
+      if (error == null) {
+        return adminTabState(context, widget.header, const LoadingView());
+      }
+      return adminTabState(
+        context,
+        widget.header,
+        ErrorView(
+          error: error,
+          onRetry: () => unawaited(
+              ref.read(sessionsControllerProvider.notifier).refresh()),
+        ),
       );
     }
     final now = clock.now();
     final updatedAt = data.updatedAt;
     return ListView(
       controller: _scroll,
-      padding: const EdgeInsets.fromLTRB(32, 0, 32, 40),
+      padding: EdgeInsets.fromLTRB(
+          adminSideMargin(context), 0, adminSideMargin(context), 40),
       children: [
+        if (widget.header case final header?)
+          Padding(padding: const EdgeInsets.only(bottom: 8), child: header),
         if (data.stale && updatedAt != null) AdminStaleNote(updatedAt: updatedAt),
         AdminSectionTitle(title: l.adminSessionsPlaying),
         if (snapshot.playing.isEmpty)
@@ -120,6 +133,13 @@ class PlayingSessionCard extends ConsumerWidget {
         ? null
         : transcodeReasons(l, transcode.reasons);
     const muted = TextStyle(color: WfColors.creamMuted, fontSize: 13);
+    final timeText = Text(
+        runtime == null
+            ? formatClock(position)
+            : '${formatClock(position)} / ${formatClock(runtime)}',
+        style: muted);
+    // Nello stretto il tempo va sotto la barra: accanto non ci sta.
+    final compact = FormFactor.of(context).compact;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
@@ -175,14 +195,10 @@ class PlayingSessionCard extends ConsumerWidget {
                         backgroundColor: WfColors.surfaceHigh,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Text(
-                        runtime == null
-                            ? formatClock(position)
-                            : '${formatClock(position)} / ${formatClock(runtime)}',
-                        style: muted),
+                    if (!compact) ...[const SizedBox(width: 12), timeText],
                   ],
                 ),
+                if (compact) ...[const SizedBox(height: 4), timeText],
                 if (methodLabel != null) ...[
                   const SizedBox(height: 8),
                   Text(methodLabel,

@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import 'calendar_logic.dart';
 
 /// La griglia del mese: sette colonne dal lunedì, sei righe.
@@ -113,9 +114,15 @@ class _CalendarMonthGridState extends State<CalendarMonthGrid> {
       onFocusChange: (f) => setState(() => _focused = f),
       child: LayoutBuilder(
         builder: (context, constraints) {
+          // Nello stretto le caselle si toccano col dito: se non ci stanno
+          // alte almeno [minTouchTarget] la griglia scorre in verticale.
+          final minHeight = FormFactor.of(context).compact
+              ? _headerHeight + 5 * _gap + 6 * minTouchTarget
+              : 0.0;
+          final gridHeight = max(constraints.maxHeight, minHeight);
+          final scrolls = gridHeight > constraints.maxHeight;
           final cellWidth = (constraints.maxWidth - 6 * _gap) / 7;
-          final cellHeight =
-              (constraints.maxHeight - _headerHeight - 5 * _gap) / 6;
+          final cellHeight = (gridHeight - _headerHeight - 5 * _gap) / 6;
           final compact = cellWidth < CalendarMonthGrid.compactCellWidth;
           final rows = max(
             CalendarMonthGrid.minEntries,
@@ -135,7 +142,7 @@ class _CalendarMonthGridState extends State<CalendarMonthGrid> {
               ],
             ),
           );
-          return Column(
+          final grid = Column(
             children: [
               SizedBox(
                 height: _headerHeight,
@@ -168,6 +175,10 @@ class _CalendarMonthGridState extends State<CalendarMonthGrid> {
                 week(w),
               ],
             ],
+          );
+          if (!scrolls) return grid;
+          return SingleChildScrollView(
+            child: SizedBox(height: gridHeight, child: grid),
           );
         },
       ),

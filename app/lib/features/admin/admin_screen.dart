@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_tab_button.dart';
 import '../auth/session_controller.dart';
@@ -11,6 +12,7 @@ import '../social/social_providers.dart';
 import 'activity_tab.dart';
 import 'admin_navigation.dart';
 import 'admin_providers.dart';
+import 'admin_widgets.dart';
 import 'maintenance_tab.dart';
 import 'server_strip.dart';
 import 'sessions_tab.dart';
@@ -78,20 +80,30 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
     final tab = tabs.contains(widget.tab) || waitingForPlugin
         ? widget.tab
         : AdminTab.sessions;
+    final compact = FormFactor.of(context).compact;
+    final side = adminSideMargin(context);
+    // Nel layout stretto la striscia del server scorre con la scheda (spec
+    // 1c): ogni scheda la mette in cima al suo elenco.
+    final Widget? header = compact ? const ServerStrip() : null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(32, 16, 32, 12),
-          child: Text(l.menuAdmin.toUpperCase(), style: WfText.display(40)),
+          padding: EdgeInsets.fromLTRB(side, 16, side, 12),
+          child: Text(l.menuAdmin.toUpperCase(),
+              style: WfText.display(compact ? 28 : 40)),
         ),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 32),
-          child: ServerStrip(),
-        ),
-        const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
+        if (!compact) ...const [
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 32),
+            child: ServerStrip(),
+          ),
+          SizedBox(height: 16),
+        ],
+        // Le schede possono non starci in larghezza: scorrono.
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: EdgeInsets.symmetric(horizontal: side),
           child: Row(
             children: [
               for (final item in tabs) ...[
@@ -111,11 +123,11 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
           child: waitingForPlugin
               ? const LoadingView()
               : switch (tab) {
-                  AdminTab.sessions => const SessionsTab(),
-                  AdminTab.users => const UsersTab(),
-                  AdminTab.maintenance => const MaintenanceTab(),
-                  AdminTab.activity => const ActivityTab(),
-                  AdminTab.wonderflix => const WonderflixTab(),
+                  AdminTab.sessions => SessionsTab(header: header),
+                  AdminTab.users => UsersTab(header: header),
+                  AdminTab.maintenance => MaintenanceTab(header: header),
+                  AdminTab.activity => ActivityTab(header: header),
+                  AdminTab.wonderflix => WonderflixTab(header: header),
                 },
         ),
       ],
