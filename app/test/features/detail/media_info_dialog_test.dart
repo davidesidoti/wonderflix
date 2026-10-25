@@ -21,10 +21,12 @@ void main() {
   setUp(() => api = FakeLibraryApi());
 
   Future<void> openDialog(WidgetTester tester,
-      {JellyfinUser user = testUser}) async {
+      {JellyfinUser user = testUser,
+      Size surfaceSize = const Size(1440, 900)}) async {
     final item = testItem(id: 'e1', name: 'Pilot', kind: ItemKind.episode);
     await pumpApp(
       tester,
+      surfaceSize: surfaceSize,
       Scaffold(
         body: Consumer(
           builder: (context, ref, _) => TextButton(
@@ -121,4 +123,11 @@ void main() {
 
     expect(find.text('Info tecniche'), findsNothing);
   });
+
+  for (final size in const [Size(390, 844), Size(844, 390)]) {
+    testWidgets('telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow', (tester) async {
+      await openDialog(tester, surfaceSize: size);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

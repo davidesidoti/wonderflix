@@ -141,13 +141,16 @@ class _SetPasswordDialogState extends ConsumerState<SetPasswordDialog> {
               child: Text(l.accountCancel),
             ),
             const SizedBox(width: 12),
-            FilledButton(
-              key: const Key('set-password-submit'),
-              // Il tema fa i FilledButton larghi all'infinito: in una Row
-              // servono larghi quanto il testo.
-              style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
-              onPressed: _busy ? null : () => unawaited(_submit()),
-              child: Text(l.adminUsersSetPassword),
+            // `Flexible`: nello stretto il testo va a capo nel pulsante.
+            Flexible(
+              child: FilledButton(
+                key: const Key('set-password-submit'),
+                // Il tema fa i FilledButton larghi all'infinito: in una Row
+                // servono larghi quanto il testo.
+                style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+                onPressed: _busy ? null : () => unawaited(_submit()),
+                child: Text(l.adminUsersSetPassword),
+              ),
             ),
           ],
         ),
@@ -155,6 +158,7 @@ class _SetPasswordDialogState extends ConsumerState<SetPasswordDialog> {
     );
     // Esc e il clic fuori non la chiudono durante la richiesta: la password
     // cambierebbe senza l'avviso.
-    return PopScope(canPop: !_busy, child: content);
+    return PopScope(
+        canPop: !_busy, child: SingleChildScrollView(child: content));
   }
 }

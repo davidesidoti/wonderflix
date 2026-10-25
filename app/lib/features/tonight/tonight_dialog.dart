@@ -11,6 +11,7 @@ import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/backdrop_image.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_dialog.dart';
@@ -119,7 +120,9 @@ class _TonightDialogState extends ConsumerState<TonightDialog> {
     final state = ref.watch(tonightControllerProvider);
     final filters = state.filters;
     final pick = state.pick.value;
-    return Column(
+    // Nello stretto la finestra è una pagina: scorre tutta.
+    final compact = FormFactor.of(context).compact;
+    final body = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -134,9 +137,11 @@ class _TonightDialogState extends ConsumerState<TonightDialog> {
                   size: 24, color: WfColors.gold),
             ),
             const SizedBox(width: 12),
-            Text(l.tonightButton,
-                style:
-                    const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+            Flexible(
+              child: Text(l.tonightButton,
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.w600)),
+            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -144,8 +149,9 @@ class _TonightDialogState extends ConsumerState<TonightDialog> {
         const SizedBox(height: 20),
         // Nelle finestre basse lo spazio si accorcia e il titolo scorre: i
         // filtri e i pulsanti restano sempre in vista.
-        Flexible(
-          child: SizedBox(
+        _pickSlot(
+          compact,
+          SizedBox(
             height: tonightPickHeight,
             child: switch (state.pick) {
               AsyncData(value: final item?) => _TonightPick(item: item),
@@ -195,7 +201,13 @@ class _TonightDialogState extends ConsumerState<TonightDialog> {
         ),
       ],
     );
+    return compact ? SingleChildScrollView(child: body) : body;
   }
+
+  /// Nelle finestre basse lo spazio si accorcia; nello stretto, dove scorre
+  /// tutta la pagina, l'altezza è piena.
+  Widget _pickSlot(bool compact, Widget pick) =>
+      compact ? pick : Flexible(child: pick);
 }
 
 /// Il titolo proposto: sfondo, titolo, dati, voto e trama.

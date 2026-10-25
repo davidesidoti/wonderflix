@@ -28,9 +28,10 @@ void main() {
   });
 
   Future<void> open(WidgetTester tester, AccountChannel channel,
-      {AppConfig? config}) async {
+      {AppConfig? config, Size surfaceSize = const Size(1440, 900)}) async {
     await pumpApp(
       tester,
+      surfaceSize: surfaceSize,
       Scaffold(
         body: Builder(
           builder: (context) => TextButton(
@@ -464,4 +465,11 @@ void main() {
     expect(closed, isTrue);
     expect(linked, isNull);
   });
+
+  for (final size in const [Size(390, 844), Size(844, 390)]) {
+    testWidgets('telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow', (tester) async {
+      await open(tester, AccountChannel.discord, surfaceSize: size);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

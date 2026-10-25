@@ -219,4 +219,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     expect(choice, isA<TonightPlay>());
   });
+
+  for (final size in const [Size(390, 844), Size(844, 390)]) {
+    testWidgets('telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow', (tester) async {
+      await openDialog(tester, surfaceSize: size);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

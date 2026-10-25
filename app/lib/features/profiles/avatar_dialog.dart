@@ -44,8 +44,9 @@ const _selectedGap = 2.0;
 const _galleryTileExtent =
     _galleryTileSize + 2 * (_selectedGap + _selectedBorder);
 
-/// Avatar per riga nella galleria.
-const _galleryColumns = 6;
+/// Larghezza massima di una colonna della galleria: nella finestra larga
+/// (512 punti utili) sono 6 per riga, nel telefono quanti ne stanno.
+const _galleryMaxColumnExtent = 88.0;
 
 /// Spazio tra le colonne della galleria.
 const _galleryColumnGap = 12.0;
@@ -314,8 +315,8 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog>
       children: [
         Expanded(
           child: GridView.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: _galleryColumns,
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: _galleryMaxColumnExtent,
               mainAxisExtent: _galleryTileExtent,
               crossAxisSpacing: _galleryColumnGap,
               mainAxisSpacing: _galleryRowGap,

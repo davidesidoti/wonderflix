@@ -290,6 +290,7 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
     // Esc e il clic fuori non chiudono la finestra mentre la richiesta è in
     // volo: il collegamento riuscirebbe sul server e la riga resterebbe
     // vecchia.
-    return PopScope(canPop: !_busy, child: content);
+    return PopScope(
+        canPop: !_busy, child: SingleChildScrollView(child: content));
   }
 }

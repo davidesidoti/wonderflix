@@ -105,7 +105,8 @@ class _ApproveDialogState extends ConsumerState<ApproveDialog> {
     }
     final server = servers.where((s) => s.id == _serverId).firstOrNull;
     final choice = _choice;
-    return Column(
+    return SingleChildScrollView(
+        child: Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -200,7 +201,7 @@ class _ApproveDialogState extends ConsumerState<ApproveDialog> {
           ],
         ),
       ],
-    );
+    ));
   }
 }
 

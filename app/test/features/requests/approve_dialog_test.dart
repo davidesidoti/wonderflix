@@ -42,7 +42,8 @@ void main() {
   });
 
   /// Apre la finestra e restituisce come leggere la scelta.
-  Future<ApproveChoice? Function()> openDialog(WidgetTester tester) async {
+  Future<ApproveChoice? Function()> openDialog(WidgetTester tester,
+      {Size surfaceSize = const Size(1440, 900)}) async {
     ApproveChoice? result;
     var closed = false;
     await pumpApp(
@@ -59,6 +60,7 @@ void main() {
           ),
         ),
       ),
+      surfaceSize: surfaceSize,
       overrides: requestsTestOverrides(api),
     );
     await tester.tap(find.text('apri'));
@@ -315,4 +317,11 @@ void main() {
     final result = choice()!;
     expect((result.serverId, result.profileId, result.rootFolder), (2, 5, '/media/b'));
   });
+
+  for (final size in const [Size(390, 844), Size(844, 390)]) {
+    testWidgets('telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow', (tester) async {
+      await openDialog(tester, surfaceSize: size);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

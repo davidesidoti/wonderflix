@@ -14,6 +14,7 @@ Future<bool> showWfConfirmDialog(
   final confirmed = await showWfDialog<bool>(
     context,
     semanticLabel: title,
+    fullPageWhenCompact: false,
     builder: (context) => Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,

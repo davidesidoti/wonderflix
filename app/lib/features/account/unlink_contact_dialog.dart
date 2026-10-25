@@ -136,6 +136,7 @@ class _UnlinkContactDialogState extends ConsumerState<UnlinkContactDialog> {
     // Esc e il clic fuori non chiudono la finestra mentre la richiesta è in
     // volo: lo scollegamento riuscirebbe sul server e la riga resterebbe
     // vecchia.
-    return PopScope(canPop: !_busy, child: content);
+    return PopScope(
+        canPop: !_busy, child: SingleChildScrollView(child: content));
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../catalog/catalog_filters_bar.dart';
 import 'tonight_controller.dart';
 import 'tonight_logic.dart';
@@ -29,12 +30,19 @@ class TonightFiltersBar extends ConsumerWidget {
     });
     final genres = ref.watch(tonightGenresProvider(filters.type)).value ??
         const <String>[];
+    // Nello stretto un gruppo di segmenti più largo della finestra scorre di
+    // lato invece di sbordare.
+    final compact = FormFactor.of(context).compact;
+    Widget fit(Widget segments) => compact
+        ? SingleChildScrollView(
+            scrollDirection: Axis.horizontal, child: segments)
+        : segments;
     return Wrap(
       spacing: 12,
       runSpacing: 12,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        SegmentedButton<TonightType>(
+        fit(SegmentedButton<TonightType>(
           key: const Key('tonight-type'),
           showSelectedIcon: false,
           segments: [
@@ -48,8 +56,8 @@ class TonightFiltersBar extends ConsumerWidget {
           selected: {filters.type},
           onSelectionChanged: (selection) =>
               onChanged(filters.copyWith(type: selection.first)),
-        ),
-        SegmentedButton<TonightDuration>(
+        )),
+        fit(SegmentedButton<TonightDuration>(
           key: const Key('tonight-duration'),
           showSelectedIcon: false,
           segments: [
@@ -68,7 +76,7 @@ class TonightFiltersBar extends ConsumerWidget {
               ? null
               : (selection) =>
                   onChanged(filters.copyWith(duration: selection.first)),
-        ),
+        )),
         FilterPicker<String?>(
           value: filters.genre,
           items: {
@@ -77,7 +85,7 @@ class TonightFiltersBar extends ConsumerWidget {
           },
           onChanged: (genre) => onChanged(filters.copyWith(genre: genre)),
         ),
-        SegmentedButton<TonightRating>(
+        fit(SegmentedButton<TonightRating>(
           key: const Key('tonight-rating'),
           showSelectedIcon: false,
           segments: [
@@ -91,7 +99,7 @@ class TonightFiltersBar extends ConsumerWidget {
           selected: {filters.rating},
           onSelectionChanged: (selection) =>
               onChanged(filters.copyWith(rating: selection.first)),
-        ),
+        )),
       ],
     );
   }

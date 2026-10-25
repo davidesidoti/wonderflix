@@ -109,6 +109,9 @@ void main() {
     addTearDown(router.dispose);
     await tester.binding.setSurfaceSize(const Size(1440, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
+    // La vista vera: senza, la `MediaQuery` resta 800x600 (layout stretto).
+    tester.view.physicalSize = const Size(1440, 900) * tester.view.devicePixelRatio;
+    addTearDown(tester.view.resetPhysicalSize);
     await tester.pumpWidget(ProviderScope(
       overrides: [
         libraryApiProvider.overrideWithValue(library),

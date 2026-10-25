@@ -49,9 +49,11 @@ void main() {
     WidgetTester tester, {
     String id = 'i1',
     ItemKind kind = ItemKind.series,
+    Size surfaceSize = const Size(1440, 900),
   }) async {
     await pumpApp(
       tester,
+      surfaceSize: surfaceSize,
       Scaffold(
         body: Builder(
           builder: (context) => TextButton(
@@ -302,4 +304,11 @@ void main() {
     expect(find.text('Altro titolo'), findsOneWidget);
     expect(find.text(it.identifyApply), findsNothing);
   });
+
+  for (final size in const [Size(390, 844), Size(844, 390)]) {
+    testWidgets('telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow', (tester) async {
+      await open(tester, surfaceSize: size);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

@@ -452,4 +452,11 @@ void main() {
     expect(find.text('id t9 nome t9'), findsOneWidget);
     expect(api.calls, hasLength(calls));
   });
+
+  for (final size in const [Size(390, 844), Size(844, 390)]) {
+    testWidgets('telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow', (tester) async {
+      await openDialog(tester, surfaceSize: size);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }
