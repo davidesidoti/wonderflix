@@ -10,6 +10,7 @@ import '../../app/theme.dart';
 import '../../core/jellyfin/api_exception.dart';
 import '../../core/jellyfin/user_image_api.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/user_avatar.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_dialog.dart';
@@ -75,13 +76,20 @@ typedef AvatarFilePicker = Future<PickedAvatarFile?> Function(String label);
 
 /// Con `file_selector` (nei test si sostituisce: apre una finestra di
 /// sistema).
-final avatarFilePickerProvider = Provider<AvatarFilePicker>((ref) => (label) async {
-      final file = await openFile(acceptedTypeGroups: [
+final avatarFilePickerProvider = Provider<AvatarFilePicker>(
+  (ref) => (label) async {
+    final file = await openFile(
+      acceptedTypeGroups: [
         XTypeGroup(label: label, extensions: avatarFileExtensions),
-      ]);
-      if (file == null) return null;
-      return PickedAvatarFile(length: await file.length(), read: file.readAsBytes);
-    });
+      ],
+    );
+    if (file == null) return null;
+    return PickedAvatarFile(
+      length: await file.length(),
+      read: file.readAsBytes,
+    );
+  },
+);
 
 /// Il lavoro sulle immagini: isolate e `toImage`, che nei widget test si
 /// sostituiscono.
@@ -97,8 +105,9 @@ class AvatarImageTools {
       cropAvatarImage(image.bytes, area);
 }
 
-final avatarImageToolsProvider =
-    Provider<AvatarImageTools>((ref) => const AvatarImageTools());
+final avatarImageToolsProvider = Provider<AvatarImageTools>(
+  (ref) => const AvatarImageTools(),
+);
 
 /// Apre la finestra dell'immagine del profilo [userId] (spec K §10.1).
 Future<void> showAvatarDialog(
@@ -106,14 +115,13 @@ Future<void> showAvatarDialog(
   required String userId,
   required String name,
   required String? imageTag,
-}) =>
-    showWfDialog<void>(
-      context,
-      maxWidth: _dialogWidth,
-      semanticLabel: AppLocalizations.of(context).profileImageTitle,
-      builder: (context) =>
-          AvatarDialog(userId: userId, name: name, imageTag: imageTag),
-    );
+}) => showWfDialog<void>(
+  context,
+  maxWidth: _dialogWidth,
+  semanticLabel: AppLocalizations.of(context).profileImageTitle,
+  builder: (context) =>
+      AvatarDialog(userId: userId, name: name, imageTag: imageTag),
+);
 
 /// La finestra dell'immagine del profilo (spec K §10.1): le schede Avatar,
 /// Dal PC e Rimuovi. Mentre carica i pulsanti sono spenti e la finestra non
@@ -200,7 +208,11 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog>
       if (user != null) {
         container
             .read(avatarDirectoryProvider)
-            ?.remember(userId: user.id, name: user.name, tag: user.primaryImageTag);
+            ?.remember(
+              userId: user.id,
+              name: user.name,
+              tag: user.primaryImageTag,
+            );
         // Solo gli avatar di questo utente si rileggono (dalla cache).
         container
           ..invalidate(avatarImageProvider(AvatarLookup.byId(user.id)))
@@ -243,14 +255,17 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog>
       setState(() {
         _working = working;
         _area = initialCropArea(
-            Size(working.width.toDouble(), working.height.toDouble()),
-            _cropViewport);
+          Size(working.width.toDouble(), working.height.toDouble()),
+          _cropViewport,
+        );
       });
     } on AvatarImageException catch (error) {
       if (mounted) {
-        setState(() => _error = error.reason == AvatarImageError.tooLarge
-            ? l.profileImageTooLarge
-            : l.profileImageInvalid);
+        setState(
+          () => _error = error.reason == AvatarImageError.tooLarge
+              ? l.profileImageTooLarge
+              : l.profileImageInvalid,
+        );
       }
     } on Object {
       if (mounted) setState(() => _error = l.profileImageInvalid);
@@ -263,51 +278,63 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog>
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final error = _error;
-    // Durante il caricamento Esc e il clic fuori non la chiudono.
-    return PopScope(
-      canPop: !_uploading,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(l.profileImageTitle,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 12),
-          TabBar(controller: _tabs, tabs: [
+    // Nello stretto la finestra è una pagina: scorre tutta, le schede hanno
+    // l'altezza piena (il ritaglio non sta nell'altezza di un telefono per
+    // il lungo).
+    final compact = FormFactor.of(context).compact;
+    final dialog = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          l.profileImageTitle,
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 12),
+        TabBar(
+          controller: _tabs,
+          tabs: [
             Tab(text: l.profileImageAvatars),
             Tab(text: l.profileImageFromPc),
             Tab(text: l.profilesRemove),
-          ]),
-          SizedBox(
-            height: _progressSlotHeight,
-            child: Center(child: _busy ? const LinearProgressIndicator() : null),
-          ),
-          if (error != null) ...[
-            ErrorBanner(error),
-            const SizedBox(height: 12),
           ],
-          // Nella finestra più piccola, con un errore, le schede si
-          // stringono.
-          Flexible(
-            child: SizedBox(
-              height: _tabHeight,
-              child: TabBarView(
-                controller: _tabs,
-                // Trascinare l'immagine nel ritaglio non deve cambiare scheda.
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  _galleryTab(l),
-                  // Il ritaglio resta com'è quando si guarda un'altra scheda.
-                  _KeepAlive(child: _fileTab(l)),
-                  _removeTab(l),
-                ],
-              ),
+        ),
+        SizedBox(
+          height: _progressSlotHeight,
+          child: Center(child: _busy ? const LinearProgressIndicator() : null),
+        ),
+        if (error != null) ...[ErrorBanner(error), const SizedBox(height: 12)],
+        // Nella finestra più piccola, con un errore, le schede si
+        // stringono.
+        _tabSlot(
+          compact,
+          SizedBox(
+            height: _tabHeight,
+            child: TabBarView(
+              controller: _tabs,
+              // Trascinare l'immagine nel ritaglio non deve cambiare scheda.
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                _galleryTab(l),
+                // Il ritaglio resta com'è quando si guarda un'altra scheda.
+                _KeepAlive(child: _fileTab(l)),
+                _removeTab(l),
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
+    );
+    // Durante il caricamento Esc e il clic fuori non la chiudono.
+    return PopScope(
+      canPop: !_uploading,
+      child: compact ? SingleChildScrollView(child: dialog) : dialog,
     );
   }
+
+  /// Nelle finestre basse le schede si accorciano; nello stretto no.
+  Widget _tabSlot(bool compact, Widget tabs) =>
+      compact ? tabs : Flexible(child: tabs);
 
   Widget _galleryTab(AppLocalizations l) {
     final selected = _selected;
@@ -341,9 +368,14 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog>
             icon: LucideIcons.check,
             onPressed: _busy || selected == null
                 ? null
-                : () => unawaited(_save(() async => ImageUpload(
-                    await _tools.renderGallery(galleryAvatars[selected]),
-                    'image/png'))),
+                : () => unawaited(
+                    _save(
+                      () async => ImageUpload(
+                        await _tools.renderGallery(galleryAvatars[selected]),
+                        'image/png',
+                      ),
+                    ),
+                  ),
           ),
         ),
       ],
@@ -388,8 +420,14 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog>
               icon: LucideIcons.check,
               onPressed: _busy || area == null
                   ? null
-                  : () => unawaited(_save(() async => ImageUpload(
-                      await _tools.crop(working, _area!), 'image/jpeg'))),
+                  : () => unawaited(
+                      _save(
+                        () async => ImageUpload(
+                          await _tools.crop(working, _area!),
+                          'image/jpeg',
+                        ),
+                      ),
+                    ),
             ),
           ],
         ),
@@ -398,27 +436,27 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog>
   }
 
   Widget _removeTab(AppLocalizations l) => Column(
-        children: [
-          const SizedBox(height: 24),
-          UserAvatar(
-            userId: widget.userId,
-            name: widget.name,
-            size: _previewSize,
-            imageTag: widget.imageTag,
-          ),
-          const Spacer(),
-          Align(
-            alignment: Alignment.centerRight,
-            child: WfButton.secondary(
-              label: l.profileImageRemove,
-              icon: LucideIcons.trash2,
-              onPressed: _busy || widget.imageTag == null
-                  ? null
-                  : () => unawaited(_save(() async => null)),
-            ),
-          ),
-        ],
-      );
+    children: [
+      const SizedBox(height: 24),
+      UserAvatar(
+        userId: widget.userId,
+        name: widget.name,
+        size: _previewSize,
+        imageTag: widget.imageTag,
+      ),
+      const Spacer(),
+      Align(
+        alignment: Alignment.centerRight,
+        child: WfButton.secondary(
+          label: l.profileImageRemove,
+          icon: LucideIcons.trash2,
+          onPressed: _busy || widget.imageTag == null
+              ? null
+              : () => unawaited(_save(() async => null)),
+        ),
+      ),
+    ],
+  );
 }
 
 /// Tiene viva una scheda quando non si vede.
@@ -461,28 +499,28 @@ class _GalleryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Semantics(
-        container: true,
-        button: true,
-        selected: selected,
-        label: label,
-        child: SizedBox.square(
-          dimension: _galleryTileExtent,
-          child: InkWell(
-            onTap: onTap,
-            customBorder: const CircleBorder(),
-            focusColor: WfColors.gold.withValues(alpha: 0.18),
-            child: Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: selected ? WfColors.gold : Colors.transparent,
-                  width: _selectedBorder,
-                ),
-              ),
-              padding: const EdgeInsets.all(_selectedGap),
-              child: GalleryAvatarView(avatar: avatar, size: _galleryTileSize),
+    container: true,
+    button: true,
+    selected: selected,
+    label: label,
+    child: SizedBox.square(
+      dimension: _galleryTileExtent,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        focusColor: WfColors.gold.withValues(alpha: 0.18),
+        child: Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: selected ? WfColors.gold : Colors.transparent,
+              width: _selectedBorder,
             ),
           ),
+          padding: const EdgeInsets.all(_selectedGap),
+          child: GalleryAvatarView(avatar: avatar, size: _galleryTileSize),
         ),
-      );
+      ),
+    ),
+  );
 }

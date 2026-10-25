@@ -57,8 +57,8 @@ void main() {
       Scaffold(
         body: Builder(
           builder: (context) => TextButton(
-            onPressed: () => unawaited(
-                showIdentifyDialog(context, itemId: id, kind: kind)),
+            onPressed: () =>
+                unawaited(showIdentifyDialog(context, itemId: id, kind: kind)),
             child: const Text('apri'),
           ),
         ),
@@ -77,9 +77,9 @@ void main() {
   String textOf(WidgetTester tester, String label) =>
       tester.widget<TextField>(field(label)).controller!.text;
 
-  int revision(WidgetTester tester) =>
-      ProviderScope.containerOf(tester.element(find.byType(Scaffold).first))
-          .read(libraryRevisionProvider);
+  int revision(WidgetTester tester) => ProviderScope.containerOf(
+    tester.element(find.byType(Scaffold).first),
+  ).read(libraryRevisionProvider);
 
   /// Cerca e sceglie il primo risultato.
   Future<void> searchAndChoose(WidgetTester tester) async {
@@ -128,8 +128,9 @@ void main() {
     expect(find.text(it.identifyNoResults), findsOneWidget);
   });
 
-  testWidgets('conferma senza la casella di sblocco se non ci sono blocchi',
-      (tester) async {
+  testWidgets('conferma senza la casella di sblocco se non ci sono blocchi', (
+    tester,
+  ) async {
     await open(tester);
     await searchAndChoose(tester);
 
@@ -162,8 +163,9 @@ void main() {
     expect(sent['Name'], 'Dark');
   });
 
-  testWidgets('sblocco spento: niente updateItem; immagini non sostituite',
-      (tester) async {
+  testWidgets('sblocco spento: niente updateItem; immagini non sostituite', (
+    tester,
+  ) async {
     await open(tester, id: 'l1');
     await searchAndChoose(tester);
     await tester.tap(find.text(it.identifyUnlock));
@@ -209,8 +211,9 @@ void main() {
     expect(session.refreshUserCalls, 0);
   });
 
-  testWidgets('Apply che scade con un 504 del gateway: "sta lavorando"',
-      (tester) async {
+  testWidgets('Apply che scade con un 504 del gateway: "sta lavorando"', (
+    tester,
+  ) async {
     await open(tester);
     await searchAndChoose(tester);
     final before = revision(tester);
@@ -230,13 +233,16 @@ void main() {
     await tester.tap(find.text(it.identifyReplaceImages));
     await tester.pump();
 
-    expect(find.text(it.identifyConfirmNoImages('Dark Serie (2017)')),
-        findsOneWidget);
+    expect(
+      find.text(it.identifyConfirmNoImages('Dark Serie (2017)')),
+      findsOneWidget,
+    );
     expect(find.text(it.identifyConfirm('Dark Serie (2017)')), findsNothing);
   });
 
-  testWidgets('rete giù durante lo sblocco: errore, non "sta lavorando"',
-      (tester) async {
+  testWidgets('rete giù durante lo sblocco: errore, non "sta lavorando"', (
+    tester,
+  ) async {
     await open(tester, id: 'l1');
     await searchAndChoose(tester);
     final before = revision(tester);
@@ -306,9 +312,29 @@ void main() {
   });
 
   for (final size in const [Size(390, 844), Size(844, 390)]) {
-    testWidgets('telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow', (tester) async {
-      await open(tester, surfaceSize: size);
-      expect(tester.takeException(), isNull);
-    });
+    testWidgets(
+      'telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
+      (tester) async {
+        await open(tester, surfaceSize: size);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  for (final size in const [Size(390, 844), Size(844, 390)]) {
+    testWidgets(
+      'risultati ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
+      (tester) async {
+        await open(tester, surfaceSize: size);
+        await tester.tap(find.text(it.identifySearch));
+        await tester.pumpAndSettle();
+        expect(find.text('Dark Serie'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.text('Dark Serie'));
+        await tester.pumpAndSettle();
+        expect(find.text(it.identifyApply), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 }

@@ -49,9 +49,11 @@ void main() {
     WidgetTester tester, {
     String titleId = 's1',
     bool admin = true,
+    Size surfaceSize = const Size(1440, 900),
   }) async {
     await pumpApp(
       tester,
+      surfaceSize: surfaceSize,
       Scaffold(
         body: ValueListenableBuilder(
           valueListenable: shown,
@@ -223,11 +225,13 @@ void main() {
   testWidgets('scorciatoia Identifica per i metadati di un film', (
     tester,
   ) async {
-    api.reports.add(testReport(
-      itemId: 'm1',
-      itemType: ReportItemType.movie,
-      type: ReportType.metadata,
-    ));
+    api.reports.add(
+      testReport(
+        itemId: 'm1',
+        itemType: ReportItemType.movie,
+        type: ReportType.metadata,
+      ),
+    );
     await pumpBanner(tester);
     expect(button(it.reportShortcutEdit), findsNothing);
 
@@ -239,13 +243,15 @@ void main() {
   });
 
   testWidgets('scorciatoia Identifica anche per una serie', (tester) async {
-    api.reports.add(testReport(
-      itemId: 's1',
-      itemType: ReportItemType.series,
-      seasonNumber: null,
-      episodeNumber: null,
-      type: ReportType.metadata,
-    ));
+    api.reports.add(
+      testReport(
+        itemId: 's1',
+        itemType: ReportItemType.series,
+        seasonNumber: null,
+        episodeNumber: null,
+        type: ReportType.metadata,
+      ),
+    );
     await pumpBanner(tester);
     await tester.tap(button(it.reportShortcutIdentify));
     await tester.pumpAndSettle();
@@ -334,4 +340,20 @@ void main() {
     expect(find.text(it.reportResolveFixedTitle), findsOneWidget);
     expect(session.refreshUserCalls, 1);
   });
+
+  for (final size in const [Size(390, 844), Size(844, 390)]) {
+    testWidgets(
+      'chiudi segnalazione ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
+      (tester) async {
+        api.reports.add(testReport());
+        await pumpBanner(tester, surfaceSize: size);
+        await tester.tap(button(it.reportFixed));
+        await tester.pumpAndSettle();
+        expect(find.text(it.reportResolveFixedTitle), findsOneWidget);
+        await tester.enterText(find.byType(TextField), 'x' * 460);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 }

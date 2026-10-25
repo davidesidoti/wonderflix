@@ -20,38 +20,44 @@ void main() {
   final AppLocalizations l = AppLocalizationsIt();
 
   JellyfinItem episode({String? seasonId = 'se1', int? season = 1}) => testItem(
-      id: 'e1',
-      name: 'Pilot',
-      kind: ItemKind.episode,
-      seriesId: 's1',
-      seriesName: 'Dark',
-      seasonId: seasonId,
-      seasonIndex: season,
-      index: 2);
+    id: 'e1',
+    name: 'Pilot',
+    kind: ItemKind.episode,
+    seriesId: 's1',
+    seriesName: 'Dark',
+    seasonId: seasonId,
+    seasonIndex: season,
+    index: 2,
+  );
 
   group('reportTargets', () {
     test('da un episodio: episodio, stagione, serie', () {
       final targets = reportTargets(l, episode());
-      expect([for (final t in targets) (t.itemId, t.label)], [
-        ('e1', 'Questo episodio'),
-        ('se1', 'Stagione 1'),
-        ('s1', 'Tutta la serie'),
-      ]);
+      expect(
+        [for (final t in targets) (t.itemId, t.label)],
+        [
+          ('e1', 'Questo episodio'),
+          ('se1', 'Stagione 1'),
+          ('s1', 'Tutta la serie'),
+        ],
+      );
     });
 
     test('da una stagione: stagione e serie', () {
       final targets = reportTargets(
-          l,
-          testItem(
-              id: 'se1',
-              kind: ItemKind.season,
-              seriesId: 's1',
-              seriesName: 'Dark',
-              index: 2));
-      expect([for (final t in targets) (t.itemId, t.label)], [
-        ('se1', 'Questa stagione'),
-        ('s1', 'Tutta la serie'),
-      ]);
+        l,
+        testItem(
+          id: 'se1',
+          kind: ItemKind.season,
+          seriesId: 's1',
+          seriesName: 'Dark',
+          index: 2,
+        ),
+      );
+      expect(
+        [for (final t in targets) (t.itemId, t.label)],
+        [('se1', 'Questa stagione'), ('s1', 'Tutta la serie')],
+      );
     });
 
     test('stagione 0: Speciali', () {
@@ -67,8 +73,9 @@ void main() {
     test('film e serie: un solo bersaglio', () {
       expect(reportTargets(l, testItem(id: 'm1')), hasLength(1));
       expect(
-          reportTargets(l, testItem(id: 's1', kind: ItemKind.series)).single,
-          isA<ReportTarget>().having((t) => t.itemId, 'itemId', 's1'));
+        reportTargets(l, testItem(id: 's1', kind: ItemKind.series)).single,
+        isA<ReportTarget>().having((t) => t.itemId, 'itemId', 's1'),
+      );
     });
   });
 
@@ -81,9 +88,14 @@ void main() {
       session = FakeSessionController(const SessionSignedIn(testUser));
     });
 
-    Future<void> open(WidgetTester tester, JellyfinItem item) async {
+    Future<void> open(
+      WidgetTester tester,
+      JellyfinItem item, {
+      Size surfaceSize = const Size(1440, 900),
+    }) async {
       await pumpApp(
         tester,
+        surfaceSize: surfaceSize,
         Scaffold(
           body: Builder(
             builder: (context) => TextButton(
@@ -101,23 +113,42 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    for (final size in const [Size(390, 844), Size(844, 390)]) {
+      testWidgets(
+        'episodio ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
+        (tester) async {
+          await open(tester, episode(), surfaceSize: size);
+          expect(find.byType(ChoiceChip), findsNWidgets(3 + 4));
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+
     // `WfButton.primary` è un `FilledButton.icon`, sottoclasse privata.
     Finder submit() => find.ancestor(
-        of: find.text('Invia segnalazione'),
-        matching: find.bySubtype<FilledButton>());
+      of: find.text('Invia segnalazione'),
+      matching: find.bySubtype<FilledButton>(),
+    );
 
     bool submitEnabled(WidgetTester tester) =>
         tester.widget<FilledButton>(submit()).onPressed != null;
 
-    testWidgets('titolo, riga del contenuto e livelli di un episodio',
-        (tester) async {
+    testWidgets('titolo, riga del contenuto e livelli di un episodio', (
+      tester,
+    ) async {
       await open(tester, episode());
 
       expect(find.text('Segnala un problema'), findsOneWidget);
       expect(find.text('Dark · S1 E2 “Pilot”'), findsOneWidget);
       expect(find.byType(ChoiceChip), findsNWidgets(3 + 4));
-      expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Questo episodio')).selected,
-          isTrue);
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.widgetWithText(ChoiceChip, 'Questo episodio'),
+            )
+            .selected,
+        isTrue,
+      );
     });
 
     testWidgets('un film non ha la riga dei livelli', (tester) async {
@@ -156,10 +187,11 @@ void main() {
     testWidgets('doppione: avviso e nota precompilata', (tester) async {
       api.mineById['m1'] = [
         testReport(
-            itemId: 'm1',
-            type: ReportType.subtitles,
-            note: 'vecchia',
-            itemType: ReportItemType.movie)
+          itemId: 'm1',
+          type: ReportType.subtitles,
+          note: 'vecchia',
+          itemType: ReportItemType.movie,
+        ),
       ];
       await open(tester, testItem(id: 'm1'));
       expect(find.textContaining('Hai già segnalato'), findsNothing);
@@ -177,7 +209,11 @@ void main() {
 
     testWidgets('doppione: la nota già scritta non si tocca', (tester) async {
       api.mineById['m1'] = [
-        testReport(itemId: 'm1', note: 'vecchia', itemType: ReportItemType.movie)
+        testReport(
+          itemId: 'm1',
+          note: 'vecchia',
+          itemType: ReportItemType.movie,
+        ),
       ];
       await open(tester, testItem(id: 'm1'));
       await tester.enterText(find.byType(TextField), 'nuova');
@@ -190,8 +226,9 @@ void main() {
       expect(find.text('vecchia'), findsNothing);
     });
 
-    testWidgets('cambio di bersaglio: nuova lettura delle proprie',
-        (tester) async {
+    testWidgets('cambio di bersaglio: nuova lettura delle proprie', (
+      tester,
+    ) async {
       await open(tester, episode());
       expect(api.calls, ['mine e1']);
 
@@ -201,9 +238,12 @@ void main() {
       expect(api.calls, ['mine e1', 'mine s1']);
     });
 
-    testWidgets('cambio di bersaglio: via avviso e nota del precedente',
-        (tester) async {
-      api.mineById['e1'] = [testReport(type: ReportType.subtitles, note: 'vecchia')];
+    testWidgets('cambio di bersaglio: via avviso e nota del precedente', (
+      tester,
+    ) async {
+      api.mineById['e1'] = [
+        testReport(type: ReportType.subtitles, note: 'vecchia'),
+      ];
       await open(tester, episode());
       await tester.tap(find.text('Sottotitoli'));
       await tester.pump();
@@ -221,8 +261,9 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('un errore nella lettura delle proprie non si mostra',
-        (tester) async {
+    testWidgets('un errore nella lettura delle proprie non si mostra', (
+      tester,
+    ) async {
       api.nextFailure = ReportsFailure.network;
       await open(tester, testItem(id: 'm1'));
 
@@ -234,8 +275,7 @@ void main() {
       expect(submitEnabled(tester), isTrue);
     });
 
-    testWidgets('contatore della nota da 450 punti di codice',
-        (tester) async {
+    testWidgets('contatore della nota da 450 punti di codice', (tester) async {
       await open(tester, testItem(id: 'm1'));
       expect(find.textContaining('/500'), findsNothing);
 
@@ -248,8 +288,9 @@ void main() {
       expect(find.text('500/500'), findsOneWidget);
     });
 
-    testWidgets('limite raggiunto: messaggio nella finestra che resta aperta',
-        (tester) async {
+    testWidgets('limite raggiunto: messaggio nella finestra che resta aperta', (
+      tester,
+    ) async {
       await open(tester, testItem(id: 'm1'));
       await tester.tap(find.text('Altro'));
       await tester.pump();
@@ -263,8 +304,9 @@ void main() {
       expect(submitEnabled(tester), isTrue);
     });
 
-    testWidgets('permesso tolto: messaggio e rilettura dell\'utente',
-        (tester) async {
+    testWidgets('permesso tolto: messaggio e rilettura dell\'utente', (
+      tester,
+    ) async {
       await open(tester, testItem(id: 'm1'));
       await tester.tap(find.text('Altro'));
       await tester.pump();

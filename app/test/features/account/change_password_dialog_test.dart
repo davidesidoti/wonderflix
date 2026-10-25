@@ -26,8 +26,10 @@ void main() {
     result = null;
   });
 
-  Future<void> open(WidgetTester tester,
-      {Size surfaceSize = const Size(1440, 900)}) async {
+  Future<void> open(
+    WidgetTester tester, {
+    Size surfaceSize = const Size(1440, 900),
+  }) async {
     await pumpApp(
       tester,
       surfaceSize: surfaceSize,
@@ -41,30 +43,45 @@ void main() {
       ),
       overrides: [
         sessionControllerProvider.overrideWith(
-            () => FakeSessionController(const SessionSignedIn(testUser))),
-        authApiProvider.overrideWithValue(AuthApi(JellyfinHttp(
-            baseUrl: testServerUrl,
-            clientInfo: testClientInfo,
-            adapter: adapter))),
+          () => FakeSessionController(const SessionSignedIn(testUser)),
+        ),
+        authApiProvider.overrideWithValue(
+          AuthApi(
+            JellyfinHttp(
+              baseUrl: testServerUrl,
+              clientInfo: testClientInfo,
+              adapter: adapter,
+            ),
+          ),
+        ),
       ],
     );
     await tester.tap(find.text('apri'));
     await tester.pumpAndSettle();
   }
 
-  Future<void> fill(WidgetTester tester,
-      {String current = '', required String next, String? confirm}) async {
+  Future<void> fill(
+    WidgetTester tester, {
+    String current = '',
+    required String next,
+    String? confirm,
+  }) async {
     await tester.enterText(
-        find.byKey(const Key('change-password-current')), current);
+      find.byKey(const Key('change-password-current')),
+      current,
+    );
     await tester.enterText(find.byKey(const Key('change-password-new')), next);
     await tester.enterText(
-        find.byKey(const Key('change-password-confirm')), confirm ?? next);
+      find.byKey(const Key('change-password-confirm')),
+      confirm ?? next,
+    );
     await tester.tap(find.byKey(const Key('change-password-submit')));
     await tester.pump();
   }
 
-  testWidgets('password corta e conferma diversa: errori, nessuna chiamata',
-      (tester) async {
+  testWidgets('password corta e conferma diversa: errori, nessuna chiamata', (
+    tester,
+  ) async {
     await open(tester);
 
     await fill(tester, next: 'abc');
@@ -76,8 +93,9 @@ void main() {
     expect(adapter.requests, isEmpty);
   });
 
-  testWidgets('password attuale sbagliata: errore sotto il campo',
-      (tester) async {
+  testWidgets('password attuale sbagliata: errore sotto il campo', (
+    tester,
+  ) async {
     adapter.handler = (_) => const FakeResponse(403);
     await open(tester);
 
@@ -88,17 +106,24 @@ void main() {
     expect(find.byKey(const Key('change-password-submit')), findsOneWidget);
   });
 
-  testWidgets('password attuale sbagliata: il fuoco torna lì, selezionato',
-      (tester) async {
+  testWidgets('password attuale sbagliata: il fuoco torna lì, selezionato', (
+    tester,
+  ) async {
     adapter.handler = (_) => const FakeResponse(403);
     await open(tester);
 
     await tester.enterText(
-        find.byKey(const Key('change-password-current')), 'sbagliata');
+      find.byKey(const Key('change-password-current')),
+      'sbagliata',
+    );
     await tester.enterText(
-        find.byKey(const Key('change-password-new')), 'nuova123');
+      find.byKey(const Key('change-password-new')),
+      'nuova123',
+    );
     await tester.enterText(
-        find.byKey(const Key('change-password-confirm')), 'nuova123');
+      find.byKey(const Key('change-password-confirm')),
+      'nuova123',
+    );
     // Invio nell'ultimo campo toglie il fuoco: l'errore deve ridarlo alla
     // password attuale.
     await tester.testTextInput.receiveAction(TextInputAction.done);
@@ -106,7 +131,10 @@ void main() {
 
     expect(find.text('Password attuale sbagliata'), findsOneWidget);
     expectFocusedAndSelected(
-        tester, 'change-password-current', 'sbagliata'.length);
+      tester,
+      'change-password-current',
+      'sbagliata'.length,
+    );
   });
 
   testWidgets('riuscito: manda le password e chiude con true', (tester) async {
@@ -123,15 +151,18 @@ void main() {
     expect(find.byKey(const Key('change-password-submit')), findsNothing);
   });
 
-  testWidgets('account senza password: la password attuale va vuota',
-      (tester) async {
+  testWidgets('account senza password: la password attuale va vuota', (
+    tester,
+  ) async {
     await open(tester);
 
     await fill(tester, next: 'nuova123');
     await tester.pumpAndSettle();
 
-    expect(
-        adapter.requests.single.data, {'CurrentPw': '', 'NewPw': 'nuova123'});
+    expect(adapter.requests.single.data, {
+      'CurrentPw': '',
+      'NewPw': 'nuova123',
+    });
   });
 
   testWidgets('server irraggiungibile: avviso sopra i campi', (tester) async {
@@ -142,13 +173,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-        find.text(
-            'WonderFlix non è raggiungibile. Controlla la connessione.'),
-        findsOneWidget);
+      find.text('WonderFlix non è raggiungibile. Controlla la connessione.'),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('nginx mentre Jellyfin riparte: server non raggiungibile',
-      (tester) async {
+  testWidgets('nginx mentre Jellyfin riparte: server non raggiungibile', (
+    tester,
+  ) async {
     await open(tester);
 
     // 502, 503 e 504 sono le risposte di nginx durante un riavvio: come nei
@@ -158,10 +190,10 @@ void main() {
       await fill(tester, current: 'vecchia', next: 'nuova123');
       await tester.pumpAndSettle();
       expect(
-          find.text(
-              'WonderFlix non è raggiungibile. Controlla la connessione.'),
-          findsOneWidget,
-          reason: '$status');
+        find.text('WonderFlix non è raggiungibile. Controlla la connessione.'),
+        findsOneWidget,
+        reason: '$status',
+      );
     }
 
     // Un altro errore del server resta generico.
@@ -170,12 +202,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Qualcosa è andato storto. Riprova.'), findsOneWidget);
     expect(
-        find.text('WonderFlix non è raggiungibile. Controlla la connessione.'),
-        findsNothing);
+      find.text('WonderFlix non è raggiungibile. Controlla la connessione.'),
+      findsNothing,
+    );
   });
 
-  testWidgets('i campi lasciano andare a capo errori e suggerimenti',
-      (tester) async {
+  testWidgets('i campi lasciano andare a capo errori e suggerimenti', (
+    tester,
+  ) async {
     await open(tester);
 
     // Senza `errorMaxLines` Flutter taglia l'errore su una riga.
@@ -184,14 +218,19 @@ void main() {
     final current = decorationOf('change-password-current');
     expect(current.errorMaxLines, accountErrorMaxLines);
     expect(current.helperMaxLines, accountHelperMaxLines);
-    expect(decorationOf('change-password-new').errorMaxLines,
-        accountErrorMaxLines);
-    expect(decorationOf('change-password-confirm').errorMaxLines,
-        accountErrorMaxLines);
+    expect(
+      decorationOf('change-password-new').errorMaxLines,
+      accountErrorMaxLines,
+    );
+    expect(
+      decorationOf('change-password-confirm').errorMaxLines,
+      accountErrorMaxLines,
+    );
   });
 
-  testWidgets('con la richiesta in volo, Esc e Annulla non chiudono',
-      (tester) async {
+  testWidgets('con la richiesta in volo, Esc e Annulla non chiudono', (
+    tester,
+  ) async {
     final reply = Completer<void>();
     adapter.handler = (_) async {
       await reply.future;
@@ -204,10 +243,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('change-password-submit')), findsOneWidget);
     expect(
-        tester
-            .widget<TextButton>(find.widgetWithText(TextButton, 'Annulla'))
-            .onPressed,
-        isNull);
+      tester
+          .widget<TextButton>(find.widgetWithText(TextButton, 'Annulla'))
+          .onPressed,
+      isNull,
+    );
 
     // La password cambia: la finestra si chiude con `true`, e chi l'ha
     // aperta può dare l'avviso.
@@ -225,9 +265,12 @@ void main() {
   });
 
   for (final size in const [Size(390, 844), Size(844, 390)]) {
-    testWidgets('telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow', (tester) async {
-      await open(tester, surfaceSize: size);
-      expect(tester.takeException(), isNull);
-    });
+    testWidgets(
+      'telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
+      (tester) async {
+        await open(tester, surfaceSize: size);
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 }

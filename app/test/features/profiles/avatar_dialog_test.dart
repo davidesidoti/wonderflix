@@ -39,7 +39,10 @@ class _FakeTools extends AvatarImageTools {
     final error = prepareError;
     if (error != null) throw error;
     return WorkingImage(
-        img.encodePng(img.Image(width: 4, height: 2)), 400, 200);
+      img.encodePng(img.Image(width: 4, height: 2)),
+      400,
+      200,
+    );
   }
 
   @override
@@ -61,31 +64,39 @@ void main() {
   });
 
   List<Override> dialogOverrides() => [
-        sessionControllerProvider.overrideWith(() => session),
-        avatarImageToolsProvider.overrideWithValue(tools),
-        avatarFilePickerProvider.overrideWithValue((label) async => picked),
-      ];
+    sessionControllerProvider.overrideWith(() => session),
+    avatarImageToolsProvider.overrideWithValue(tools),
+    avatarFilePickerProvider.overrideWithValue((label) async => picked),
+  ];
 
   /// Il pulsante che apre la finestra, con [below] sotto.
   Widget opener({String? imageTag, Widget? below}) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Builder(
-            builder: (context) => TextButton(
-              onPressed: () => unawaited(showAvatarDialog(context,
-                  userId: 'u1', name: 'Mario', imageTag: imageTag)),
-              child: const Text('apri'),
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Builder(
+        builder: (context) => TextButton(
+          onPressed: () => unawaited(
+            showAvatarDialog(
+              context,
+              userId: 'u1',
+              name: 'Mario',
+              imageTag: imageTag,
             ),
           ),
-          ?below,
-        ],
-      );
+          child: const Text('apri'),
+        ),
+      ),
+      ?below,
+    ],
+  );
 
-  Future<void> openDialog(WidgetTester tester,
-      {String? imageTag,
-      Widget? below,
-      List<Override> overrides = const [],
-      Size surfaceSize = const Size(1440, 900)}) async {
+  Future<void> openDialog(
+    WidgetTester tester, {
+    String? imageTag,
+    Widget? below,
+    List<Override> overrides = const [],
+    Size surfaceSize = const Size(1440, 900),
+  }) async {
     await pumpApp(
       tester,
       opener(imageTag: imageTag, below: below),
@@ -106,8 +117,9 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('tre schede; "Usa questo" solo con un avatar scelto',
-      (tester) async {
+  testWidgets('tre schede; "Usa questo" solo con un avatar scelto', (
+    tester,
+  ) async {
     await openDialog(tester);
 
     expect(find.text('Immagine del profilo'), findsOneWidget);
@@ -121,8 +133,9 @@ void main() {
     expect(onPressed(tester, 'Usa questo'), isNotNull);
   });
 
-  testWidgets('un avatar della galleria: un PNG, poi la finestra si chiude',
-      (tester) async {
+  testWidgets('un avatar della galleria: un PNG, poi la finestra si chiude', (
+    tester,
+  ) async {
     await openDialog(tester);
 
     await chooseGalleryAvatar(tester);
@@ -135,16 +148,19 @@ void main() {
     expect(find.text('Immagine del profilo'), findsNothing);
   });
 
-  testWidgets('senza permesso: il messaggio, e la finestra resta',
-      (tester) async {
+  testWidgets('senza permesso: il messaggio, e la finestra resta', (
+    tester,
+  ) async {
     await openDialog(tester);
     session.profileImageError = const ForbiddenException();
 
     await chooseGalleryAvatar(tester);
     await tester.pumpAndSettle();
 
-    expect(find.text('Non hai il permesso di cambiare l\'immagine'),
-        findsOneWidget);
+    expect(
+      find.text('Non hai il permesso di cambiare l\'immagine'),
+      findsOneWidget,
+    );
     expect(find.text('Immagine del profilo'), findsOneWidget);
   });
 
@@ -158,8 +174,9 @@ void main() {
     expect(find.text('Caricamento non riuscito'), findsOneWidget);
   });
 
-  testWidgets('un 401: il profilo è scaduto e la finestra si chiude',
-      (tester) async {
+  testWidgets('un 401: il profilo è scaduto e la finestra si chiude', (
+    tester,
+  ) async {
     await openDialog(tester);
     session.profileImageError = const UnauthorizedException();
 
@@ -169,20 +186,25 @@ void main() {
     expect(find.text('Immagine del profilo'), findsNothing);
   });
 
-  testWidgets('cambiando scheda il messaggio d\'errore sparisce',
-      (tester) async {
+  testWidgets('cambiando scheda il messaggio d\'errore sparisce', (
+    tester,
+  ) async {
     await openDialog(tester);
     session.profileImageError = const ForbiddenException();
     await chooseGalleryAvatar(tester);
     await tester.pumpAndSettle();
-    expect(find.text('Non hai il permesso di cambiare l\'immagine'),
-        findsOneWidget);
+    expect(
+      find.text('Non hai il permesso di cambiare l\'immagine'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Dal PC'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Non hai il permesso di cambiare l\'immagine'),
-        findsNothing);
+    expect(
+      find.text('Non hai il permesso di cambiare l\'immagine'),
+      findsNothing,
+    );
   });
 
   testWidgets('finestra più piccola, con l\'errore: le 4 righe della '
@@ -197,10 +219,14 @@ void main() {
 
     expect(find.text('Caricamento non riuscito'), findsOneWidget);
     final last = find.byKey(ValueKey('gallery-${galleryAvatars.length - 1}'));
-    expect(tester.getRect(last).bottom,
-        lessThanOrEqualTo(tester.getRect(find.byType(GridView)).bottom));
-    expect(tester.getSize(find.byType(GalleryAvatarView).first),
-        const Size(56, 56));
+    expect(
+      tester.getRect(last).bottom,
+      lessThanOrEqualTo(tester.getRect(find.byType(GridView)).bottom),
+    );
+    expect(
+      tester.getSize(find.byType(GalleryAvatarView).first),
+      const Size(56, 56),
+    );
   });
 
   testWidgets('gli avatar della galleria: pulsanti con un nome, e quale è '
@@ -208,14 +234,18 @@ void main() {
     final semantics = tester.ensureSemantics();
     await openDialog(tester);
     final tile = find.byKey(const ValueKey('gallery-3'));
-    expect(tester.getSemantics(tile),
-        isSemantics(label: 'Avatar 4', isButton: true, isSelected: false));
+    expect(
+      tester.getSemantics(tile),
+      isSemantics(label: 'Avatar 4', isButton: true, isSelected: false),
+    );
 
     await tester.tap(tile);
     await tester.pump();
 
-    expect(tester.getSemantics(tile),
-        isSemantics(label: 'Avatar 4', isButton: true, isSelected: true));
+    expect(
+      tester.getSemantics(tile),
+      isSemantics(label: 'Avatar 4', isButton: true, isSelected: true),
+    );
     semantics.dispose();
   });
 
@@ -237,8 +267,9 @@ void main() {
     expect(find.text('Immagine del profilo'), findsNothing);
   });
 
-  testWidgets('durante il caricamento Esc e il clic fuori non la chiudono',
-      (tester) async {
+  testWidgets('durante il caricamento Esc e il clic fuori non la chiudono', (
+    tester,
+  ) async {
     await openDialog(tester);
     final gate = Completer<void>();
     session.profileImageGate = gate;
@@ -256,10 +287,13 @@ void main() {
     expect(find.text('apri'), findsOneWidget);
   });
 
-  testWidgets('mentre si prepara un\'immagine dal PC Esc la chiude',
-      (tester) async {
+  testWidgets('mentre si prepara un\'immagine dal PC Esc la chiude', (
+    tester,
+  ) async {
     picked = PickedAvatarFile(
-        length: 3, read: () async => Uint8List.fromList([1, 2, 3]));
+      length: 3,
+      read: () async => Uint8List.fromList([1, 2, 3]),
+    );
     final gate = Completer<void>();
     tools.prepareGate = gate;
     await openDialog(tester);
@@ -286,9 +320,13 @@ void main() {
       tester,
       Builder(
         builder: (context) => TextButton(
-          onPressed: () => unawaited(Navigator.of(context).push(
+          onPressed: () => unawaited(
+            Navigator.of(context).push(
               MaterialPageRoute<void>(
-                  builder: (_) => Scaffold(body: Center(child: opener()))))),
+                builder: (_) => Scaffold(body: Center(child: opener())),
+              ),
+            ),
+          ),
           child: const Text('pagina'),
         ),
       ),
@@ -323,14 +361,18 @@ void main() {
     expect(tools.prepared, isEmpty);
 
     picked = PickedAvatarFile(
-        length: maxAvatarFileBytes + 1, read: () async => Uint8List(0));
+      length: maxAvatarFileBytes + 1,
+      read: () async => Uint8List(0),
+    );
     await tester.tap(find.text('Scegli un\'immagine…'));
     await tester.pumpAndSettle();
     expect(find.text('Immagine troppo grande'), findsOneWidget);
     expect(tools.prepared, isEmpty);
 
     picked = PickedAvatarFile(
-        length: 3, read: () async => Uint8List.fromList([1, 2, 3]));
+      length: 3,
+      read: () async => Uint8List.fromList([1, 2, 3]),
+    );
     tools.prepareError = const AvatarImageException(AvatarImageError.invalid);
     await tester.tap(find.text('Scegli un\'immagine…'));
     await tester.pumpAndSettle();
@@ -339,7 +381,9 @@ void main() {
 
   testWidgets('Dal PC: il ritaglio, poi un JPEG', (tester) async {
     picked = PickedAvatarFile(
-        length: 3, read: () async => Uint8List.fromList([1, 2, 3]));
+      length: 3,
+      read: () async => Uint8List.fromList([1, 2, 3]),
+    );
     await openDialog(tester);
     await tester.tap(find.text('Dal PC'));
     await tester.pumpAndSettle();
@@ -358,10 +402,13 @@ void main() {
     expect(upload.bytes, [8]);
   });
 
-  testWidgets('Dal PC: cambiando scheda il ritaglio resta quello che si vede',
-      (tester) async {
+  testWidgets('Dal PC: cambiando scheda il ritaglio resta quello che si vede', (
+    tester,
+  ) async {
     picked = PickedAvatarFile(
-        length: 3, read: () async => Uint8List.fromList([1, 2, 3]));
+      length: 3,
+      read: () async => Uint8List.fromList([1, 2, 3]),
+    );
     await openDialog(tester);
     await tester.tap(find.text('Dal PC'));
     await tester.pumpAndSettle();
@@ -384,10 +431,13 @@ void main() {
     expect(tools.cropped.single, const CropArea(175, 75, 50));
   });
 
-  testWidgets('Dal PC: trascinare l\'immagine non cambia scheda',
-      (tester) async {
+  testWidgets('Dal PC: trascinare l\'immagine non cambia scheda', (
+    tester,
+  ) async {
     picked = PickedAvatarFile(
-        length: 3, read: () async => Uint8List.fromList([1, 2, 3]));
+      length: 3,
+      read: () async => Uint8List.fromList([1, 2, 3]),
+    );
     await openDialog(tester);
     await tester.tap(find.text('Dal PC'));
     await tester.pumpAndSettle();
@@ -395,7 +445,9 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.drag(
-        find.byKey(const Key('avatar-crop-area')), const Offset(-400, 0));
+      find.byKey(const Key('avatar-crop-area')),
+      const Offset(-400, 0),
+    );
     await tester.pumpAndSettle();
 
     expect(find.byType(AvatarCropper), findsOneWidget);
@@ -425,25 +477,35 @@ void main() {
       'e gli avatar sullo schermo la mostrano', (tester) async {
     final api = FakeAvatarsApi();
     // Gli avatar dell'utente già sullo schermo, per id e per nome.
-    final onScreen = Consumer(builder: (context, ref, _) {
-      final byId = ref.watch(avatarImageProvider(AvatarLookup.byId('u1')));
-      final byName =
-          ref.watch(avatarImageProvider(AvatarLookup.byName('Mario')));
-      return Text('id ${byId.value?.tag} nome ${byName.value?.tag}');
-    });
-    await openDialog(tester, below: onScreen, overrides: [
-      // Con `overrideWith` la cache si chiude con il container: nessun timer
-      // resta in sospeso a fine test.
-      avatarDirectoryProvider.overrideWith((ref) {
-        final directory = AvatarDirectory(api);
-        ref.onDispose(directory.dispose);
-        return directory;
-      }),
-    ]);
+    final onScreen = Consumer(
+      builder: (context, ref, _) {
+        final byId = ref.watch(avatarImageProvider(AvatarLookup.byId('u1')));
+        final byName = ref.watch(
+          avatarImageProvider(AvatarLookup.byName('Mario')),
+        );
+        return Text('id ${byId.value?.tag} nome ${byName.value?.tag}');
+      },
+    );
+    await openDialog(
+      tester,
+      below: onScreen,
+      overrides: [
+        // Con `overrideWith` la cache si chiude con il container: nessun timer
+        // resta in sospeso a fine test.
+        avatarDirectoryProvider.overrideWith((ref) {
+          final directory = AvatarDirectory(api);
+          ref.onDispose(directory.dispose);
+          return directory;
+        }),
+      ],
+    );
     expect(find.text('id null nome null'), findsOneWidget);
     final calls = api.calls.length;
-    session.profileImageResult =
-        const JellyfinUser(id: 'u1', name: 'Mario', primaryImageTag: 't9');
+    session.profileImageResult = const JellyfinUser(
+      id: 'u1',
+      name: 'Mario',
+      primaryImageTag: 't9',
+    );
 
     await chooseGalleryAvatar(tester);
     await tester.pumpAndSettle();
@@ -454,9 +516,31 @@ void main() {
   });
 
   for (final size in const [Size(390, 844), Size(844, 390)]) {
-    testWidgets('telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow', (tester) async {
-      await openDialog(tester, surfaceSize: size);
-      expect(tester.takeException(), isNull);
-    });
+    testWidgets(
+      'telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
+      (tester) async {
+        await openDialog(tester, surfaceSize: size);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  for (final size in const [Size(390, 844), Size(844, 390)]) {
+    testWidgets(
+      'ritaglio ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
+      (tester) async {
+        picked = PickedAvatarFile(
+          length: 3,
+          read: () async => Uint8List.fromList([1, 2, 3]),
+        );
+        await openDialog(tester, surfaceSize: size);
+        await tester.tap(find.text('Dal PC'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text("Scegli un'immagine…"));
+        await tester.pumpAndSettle();
+        expect(find.byType(AvatarCropper), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 }

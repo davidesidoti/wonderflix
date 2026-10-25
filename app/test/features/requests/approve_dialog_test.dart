@@ -42,8 +42,10 @@ void main() {
   });
 
   /// Apre la finestra e restituisce come leggere la scelta.
-  Future<ApproveChoice? Function()> openDialog(WidgetTester tester,
-      {Size surfaceSize = const Size(1440, 900)}) async {
+  Future<ApproveChoice? Function()> openDialog(
+    WidgetTester tester, {
+    Size surfaceSize = const Size(1440, 900),
+  }) async {
     ApproveChoice? result;
     var closed = false;
     await pumpApp(
@@ -53,7 +55,9 @@ void main() {
           builder: (context) => TextButton(
             onPressed: () async {
               result = await showApproveDialog(
-                  context, testMediaRequest(id: 53, title: 'Dune'));
+                context,
+                testMediaRequest(id: 53, title: 'Dune'),
+              );
               closed = true;
             },
             child: const Text('apri'),
@@ -71,8 +75,9 @@ void main() {
     };
   }
 
-  testWidgets('"Predefinito": nessun profilo né cartella, decide Seerr',
-      (tester) async {
+  testWidgets('"Predefinito": nessun profilo né cartella, decide Seerr', (
+    tester,
+  ) async {
     final choice = await openDialog(tester);
 
     expect(find.text('Approva: Dune'), findsOneWidget);
@@ -83,12 +88,16 @@ void main() {
     await tester.pumpAndSettle();
 
     final result = choice()!;
-    expect((result.serverId, result.profileId, result.rootFolder), (null, null, null));
+    expect(
+      (result.serverId, result.profileId, result.rootFolder),
+      (null, null, null),
+    );
     expect(api.calls, ['services:movie']);
   });
 
-  testWidgets('un altro server: profilo e cartella, con i suoi predefiniti',
-      (tester) async {
+  testWidgets('un altro server: profilo e cartella, con i suoi predefiniti', (
+    tester,
+  ) async {
     final choice = await openDialog(tester);
 
     await tester.tap(find.byKey(const Key('approve-server')));
@@ -108,17 +117,23 @@ void main() {
     await tester.pumpAndSettle();
 
     final result = choice()!;
-    expect((result.serverId, result.profileId, result.rootFolder), (1, 7, '/media/movies'));
+    expect(
+      (result.serverId, result.profileId, result.rootFolder),
+      (1, 7, '/media/movies'),
+    );
   });
 
-  testWidgets('server non disponibili: solo "Predefinito" con una nota',
-      (tester) async {
+  testWidgets('server non disponibili: solo "Predefinito" con una nota', (
+    tester,
+  ) async {
     api.servicesFailure = RequestsFailure.seerrUnavailable;
     final choice = await openDialog(tester);
 
     expect(find.text('Predefinito'), findsOneWidget);
-    expect(find.text('Server non disponibili: si approva con i valori predefiniti'),
-        findsOneWidget);
+    expect(
+      find.text('Server non disponibili: si approva con i valori predefiniti'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Approva'));
     await tester.pumpAndSettle();
@@ -134,79 +149,92 @@ void main() {
     expect(choice(), isNull);
   });
 
-  testWidgets('Invio approva subito: "Approva" ha il fuoco all\'apertura',
-      (tester) async {
+  testWidgets('Invio approva subito: "Approva" ha il fuoco all\'apertura', (
+    tester,
+  ) async {
     final choice = await openDialog(tester);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
 
     final result = choice()!;
-    expect((result.serverId, result.profileId, result.rootFolder), (null, null, null));
+    expect(
+      (result.serverId, result.profileId, result.rootFolder),
+      (null, null, null),
+    );
   });
 
-  testWidgets('nessun server predefinito: si parte dal primo, con i suoi valori',
-      (tester) async {
-    api.servicesByType[RequestMediaType.movie] = const [
-      ServiceOption(
-        id: 2,
-        name: 'Radarr Uno',
-        isDefault: false,
-        profiles: [
-          ProfileOption(id: 4, name: 'Basso'),
-          ProfileOption(id: 5, name: 'Alto'),
-        ],
-        rootFolders: ['/media/a', '/media/b'],
-        defaultProfileId: 5,
-        defaultRootFolder: '/media/b',
-      ),
-      ServiceOption(
-        id: 6,
-        name: 'Radarr Due',
-        isDefault: false,
-        profiles: [ProfileOption(id: 9, name: 'Unico')],
-        rootFolders: ['/media/c'],
-      ),
-    ];
-    final choice = await openDialog(tester);
+  testWidgets(
+    'nessun server predefinito: si parte dal primo, con i suoi valori',
+    (tester) async {
+      api.servicesByType[RequestMediaType.movie] = const [
+        ServiceOption(
+          id: 2,
+          name: 'Radarr Uno',
+          isDefault: false,
+          profiles: [
+            ProfileOption(id: 4, name: 'Basso'),
+            ProfileOption(id: 5, name: 'Alto'),
+          ],
+          rootFolders: ['/media/a', '/media/b'],
+          defaultProfileId: 5,
+          defaultRootFolder: '/media/b',
+        ),
+        ServiceOption(
+          id: 6,
+          name: 'Radarr Due',
+          isDefault: false,
+          profiles: [ProfileOption(id: 9, name: 'Unico')],
+          rootFolders: ['/media/c'],
+        ),
+      ];
+      final choice = await openDialog(tester);
 
-    // Senza un predefinito Seerr non manderebbe niente a Radarr: il primo
-    // server è già scelto, con il suo profilo e la sua cartella.
-    expect(find.text('Radarr Uno'), findsOneWidget);
-    expect(find.text('Profilo'), findsOneWidget);
-    expect(find.text('Alto'), findsOneWidget);
-    expect(find.text('/media/b'), findsOneWidget);
+      // Senza un predefinito Seerr non manderebbe niente a Radarr: il primo
+      // server è già scelto, con il suo profilo e la sua cartella.
+      expect(find.text('Radarr Uno'), findsOneWidget);
+      expect(find.text('Profilo'), findsOneWidget);
+      expect(find.text('Alto'), findsOneWidget);
+      expect(find.text('/media/b'), findsOneWidget);
 
-    // "Predefinito" resta tra le voci, ma la scelta di partenza è un'altra:
-    // una scelta dell'utente non viene toccata dai ricaricamenti.
-    await tester.tap(find.byKey(const Key('approve-server')));
-    await tester.pumpAndSettle();
-    expect(find.text('Predefinito'), findsOneWidget);
-    await tester.tap(find.text('Predefinito'));
-    await tester.pumpAndSettle();
-    expect(find.text('Profilo'), findsNothing);
+      // "Predefinito" resta tra le voci, ma la scelta di partenza è un'altra:
+      // una scelta dell'utente non viene toccata dai ricaricamenti.
+      await tester.tap(find.byKey(const Key('approve-server')));
+      await tester.pumpAndSettle();
+      expect(find.text('Predefinito'), findsOneWidget);
+      await tester.tap(find.text('Predefinito'));
+      await tester.pumpAndSettle();
+      expect(find.text('Profilo'), findsNothing);
 
-    await tester.tap(find.byKey(const Key('approve-server')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Radarr Uno').last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Approva'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('approve-server')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Radarr Uno').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Approva'));
+      await tester.pumpAndSettle();
 
-    final result = choice()!;
-    expect((result.serverId, result.profileId, result.rootFolder), (2, 5, '/media/b'));
-  });
+      final result = choice()!;
+      expect(
+        (result.serverId, result.profileId, result.rootFolder),
+        (2, 5, '/media/b'),
+      );
+    },
+  );
 
-  testWidgets('con un server predefinito, si parte da "Predefinito"',
-      (tester) async {
+  testWidgets('con un server predefinito, si parte da "Predefinito"', (
+    tester,
+  ) async {
     await openDialog(tester);
 
     expect(find.text('Predefinito (Radarr)'), findsOneWidget);
     expect(find.text('Profilo'), findsNothing);
   });
 
-  testWidgets('nomi lunghi: una riga con i puntini, in ogni menu', (tester) async {
-    const long = 'Un nome di server, di profilo o di cartella molto lungo, '
+  testWidgets('nomi lunghi: una riga con i puntini, in ogni menu', (
+    tester,
+  ) async {
+    const long =
+        'Un nome di server, di profilo o di cartella molto lungo, '
         'più lungo di quanto la finestra possa mostrare in una riga sola';
     api.servicesByType[RequestMediaType.movie] = const [
       ServiceOption(
@@ -226,8 +254,9 @@ void main() {
     await tester.pumpAndSettle();
 
     for (final key in ['approve-server', 'approve-profile', 'approve-folder']) {
-      final labels = tester.widgetList<Text>(find.descendant(
-          of: find.byKey(Key(key)), matching: find.byType(Text)));
+      final labels = tester.widgetList<Text>(
+        find.descendant(of: find.byKey(Key(key)), matching: find.byType(Text)),
+      );
       expect(labels, isNotEmpty, reason: key);
       for (final label in labels) {
         expect(label.maxLines, 1, reason: key);
@@ -236,32 +265,40 @@ void main() {
     }
   });
 
-  testWidgets('la finestra ha il titolo come nome per chi usa lo screen reader',
-      (tester) async {
-    final semantics = tester.ensureSemantics();
-    await openDialog(tester);
+  testWidgets(
+    'la finestra ha il titolo come nome per chi usa lo screen reader',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      await openDialog(tester);
 
-    expect(
-      find.byWidgetPredicate((w) =>
-          w is Semantics &&
-          w.properties.namesRoute == true &&
-          w.properties.scopesRoute == true &&
-          w.properties.label == 'Approva: Dune'),
-      findsOneWidget,
-    );
-    semantics.dispose();
-  });
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is Semantics &&
+              w.properties.namesRoute == true &&
+              w.properties.scopesRoute == true &&
+              w.properties.label == 'Approva: Dune',
+        ),
+        findsOneWidget,
+      );
+      semantics.dispose();
+    },
+  );
 
   /// L'onPressed del pulsante "Approva" della finestra (nullo se spento).
   VoidCallback? approvePressed(WidgetTester tester) => tester
-      .widget<ButtonStyleButton>(find.ancestor(
+      .widget<ButtonStyleButton>(
+        find.ancestor(
           of: find.text('Approva'),
           // `FilledButton.icon` è una sottoclasse: `byType` non la troverebbe.
-          matching: find.byWidgetPredicate((w) => w is ButtonStyleButton)))
+          matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+        ),
+      )
       .onPressed;
 
-  testWidgets('server in arrivo: "Approva" è spento, Invio non approva',
-      (tester) async {
+  testWidgets('server in arrivo: "Approva" è spento, Invio non approva', (
+    tester,
+  ) async {
     final gate = Completer<void>();
     api.servicesGate = gate;
     final choice = await openDialog(tester);
@@ -283,45 +320,56 @@ void main() {
     await tester.pumpAndSettle();
 
     final result = choice()!;
-    expect((result.serverId, result.profileId, result.rootFolder), (null, null, null));
+    expect(
+      (result.serverId, result.profileId, result.rootFolder),
+      (null, null, null),
+    );
   });
 
-  testWidgets('server in arrivo e nessun predefinito: Invio approva col primo',
-      (tester) async {
-    final gate = Completer<void>();
-    api.servicesGate = gate;
-    api.servicesByType[RequestMediaType.movie] = const [
-      ServiceOption(
-        id: 2,
-        name: 'Radarr Uno',
-        isDefault: false,
-        profiles: [ProfileOption(id: 5, name: 'Alto')],
-        rootFolders: ['/media/b'],
-        defaultProfileId: 5,
-        defaultRootFolder: '/media/b',
-      ),
-    ];
-    final choice = await openDialog(tester);
+  testWidgets(
+    'server in arrivo e nessun predefinito: Invio approva col primo',
+    (tester) async {
+      final gate = Completer<void>();
+      api.servicesGate = gate;
+      api.servicesByType[RequestMediaType.movie] = const [
+        ServiceOption(
+          id: 2,
+          name: 'Radarr Uno',
+          isDefault: false,
+          profiles: [ProfileOption(id: 5, name: 'Alto')],
+          rootFolders: ['/media/b'],
+          defaultProfileId: 5,
+          defaultRootFolder: '/media/b',
+        ),
+      ];
+      final choice = await openDialog(tester);
 
-    // Con "Predefinito" Seerr non manderebbe niente a Radarr: Invio, mentre
-    // i server arrivano, non deve approvare così.
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
-    expect(find.text('Approva: Dune'), findsOneWidget);
+      // Con "Predefinito" Seerr non manderebbe niente a Radarr: Invio, mentre
+      // i server arrivano, non deve approvare così.
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(find.text('Approva: Dune'), findsOneWidget);
 
-    gate.complete();
-    await tester.pumpAndSettle();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+      gate.complete();
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
 
-    final result = choice()!;
-    expect((result.serverId, result.profileId, result.rootFolder), (2, 5, '/media/b'));
-  });
+      final result = choice()!;
+      expect(
+        (result.serverId, result.profileId, result.rootFolder),
+        (2, 5, '/media/b'),
+      );
+    },
+  );
 
   for (final size in const [Size(390, 844), Size(844, 390)]) {
-    testWidgets('telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow', (tester) async {
-      await openDialog(tester, surfaceSize: size);
-      expect(tester.takeException(), isNull);
-    });
+    testWidgets(
+      'telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
+      (tester) async {
+        await openDialog(tester, surfaceSize: size);
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 }

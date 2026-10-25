@@ -15,8 +15,10 @@ void main() {
     result = null;
   });
 
-  Future<void> openDialog(WidgetTester tester,
-      {Size surfaceSize = const Size(1440, 900)}) async {
+  Future<void> openDialog(
+    WidgetTester tester, {
+    Size surfaceSize = const Size(1440, 900),
+  }) async {
     await pumpApp(
       tester,
       Scaffold(
@@ -42,10 +44,15 @@ void main() {
     expect(find.text('2 persone stanno guardando:'), findsOneWidget);
     expect(find.text('viviroby — Lost · S1:E3 · Pilota'), findsOneWidget);
     expect(find.text('lucia — Dune (2021)'), findsOneWidget);
-    expect(find.text('Il riavvio interrompe la visione e i watch party.'),
-        findsOneWidget);
-    expect(find.textContaining('davide.sidoti'), findsNothing,
-        reason: 'è collegato ma non guarda');
+    expect(
+      find.text('Il riavvio interrompe la visione e i watch party.'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('davide.sidoti'),
+      findsNothing,
+      reason: 'è collegato ma non guarda',
+    );
     expect(api.count('sessions'), 1);
   });
 
@@ -71,8 +78,9 @@ void main() {
     expect(find.text('Non so chi sta guardando.'), findsOneWidget);
   });
 
-  testWidgets('tanti spettatori: la lista scorre e i pulsanti restano',
-      (tester) async {
+  testWidgets('tanti spettatori: la lista scorre e i pulsanti restano', (
+    tester,
+  ) async {
     // Il minimo della finestra dell'app: 1024x640.
     api.sessionsValue = [
       for (var i = 0; i < 20; i++)
@@ -83,7 +91,9 @@ void main() {
     // Un overflow farebbe fallire il test da solo.
     expect(find.text('20 persone stanno guardando:'), findsOneWidget);
     expect(find.text('Annulla'), findsOneWidget);
-    final buttonRect = tester.getRect(find.widgetWithText(FilledButton, 'Riavvia'));
+    final buttonRect = tester.getRect(
+      find.widgetWithText(FilledButton, 'Riavvia'),
+    );
     expect(buttonRect.bottom, lessThanOrEqualTo(640));
 
     await tester.tap(find.widgetWithText(FilledButton, 'Riavvia'));
@@ -103,4 +113,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(result, isTrue);
   });
+
+  for (final size in const [Size(390, 844), Size(844, 390)]) {
+    testWidgets(
+      'telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
+      (tester) async {
+        api.sessionsValue = testSessions();
+        await openDialog(tester, surfaceSize: size);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 }

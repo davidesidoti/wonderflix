@@ -19,8 +19,10 @@ Future<bool> showWfConfirmDialog(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+        Text(
+          title,
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 16),
         Text(message),
         const SizedBox(height: 24),

@@ -75,8 +75,13 @@ class _ChangePasswordDialogState extends ConsumerState<ChangePasswordDialog> {
     if (_newError != null || _confirmError != null) return;
     setState(() => _busy = true);
     try {
-      await ref.read(authApiProvider).changePassword(session.user.id,
-          currentPassword: _current.text, newPassword: password);
+      await ref
+          .read(authApiProvider)
+          .changePassword(
+            session.user.id,
+            currentPassword: _current.text,
+            newPassword: password,
+          );
       if (mounted) Navigator.of(context).pop(true);
     } on ForbiddenException {
       if (!mounted) return;
@@ -86,14 +91,16 @@ class _ChangePasswordDialogState extends ConsumerState<ChangePasswordDialog> {
       focusAndSelectAfterFrame(this, _currentFocus, _current);
     } on Object catch (error) {
       if (mounted) {
-        setState(() => _error = switch (error) {
-              // nginx mentre Jellyfin si riavvia (502, 503, 504): come nei
-              // contatti, "non raggiungibile".
-              ServerErrorException(:final statusCode)
-                  when restartGatewayStatuses.contains(statusCode) =>
-                l.errorServerUnreachable,
-              _ => describeError(l, error),
-            });
+        setState(
+          () => _error = switch (error) {
+            // nginx mentre Jellyfin si riavvia (502, 503, 504): come nei
+            // contatti, "non raggiungibile".
+            ServerErrorException(:final statusCode)
+                when restartGatewayStatuses.contains(statusCode) =>
+              l.errorServerUnreachable,
+            _ => describeError(l, error),
+          },
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -107,8 +114,10 @@ class _ChangePasswordDialogState extends ConsumerState<ChangePasswordDialog> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(l.settingsChangePassword,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+        Text(
+          l.settingsChangePassword,
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 16),
         if (_error != null) ...[
           ErrorBanner(_error!),
@@ -180,6 +189,8 @@ class _ChangePasswordDialogState extends ConsumerState<ChangePasswordDialog> {
     // Esc e il clic fuori non chiudono la finestra mentre la richiesta è in
     // volo: la password cambierebbe senza l'avviso.
     return PopScope(
-        canPop: !_busy, child: SingleChildScrollView(child: content));
+      canPop: !_busy,
+      child: SingleChildScrollView(child: content),
+    );
   }
 }

@@ -30,42 +30,60 @@ void main() {
     result = null;
   });
 
-  Future<void> open(WidgetTester tester,
-      {Size surfaceSize = const Size(1440, 900)}) async {
+  Future<void> open(
+    WidgetTester tester, {
+    Size surfaceSize = const Size(1440, 900),
+  }) async {
     await pumpApp(
       tester,
       surfaceSize: surfaceSize,
       Scaffold(
         body: Builder(
           builder: (context) => TextButton(
-            onPressed: () => result =
-                showSetPasswordDialog(context, userId: 'u3', name: 'lucia'),
+            onPressed: () => result = showSetPasswordDialog(
+              context,
+              userId: 'u3',
+              name: 'lucia',
+            ),
             child: const Text('apri'),
           ),
         ),
       ),
       overrides: [
-        ...adminTestOverrides(FakeAdminApi(),
-            session: session,
-            features: const SocialFeatures(inbox: true, account: true)),
-        authApiProvider.overrideWithValue(AuthApi(JellyfinHttp(
-            baseUrl: testServerUrl,
-            clientInfo: testClientInfo,
-            adapter: adapter))),
+        ...adminTestOverrides(
+          FakeAdminApi(),
+          session: session,
+          features: const SocialFeatures(inbox: true, account: true),
+        ),
+        authApiProvider.overrideWithValue(
+          AuthApi(
+            JellyfinHttp(
+              baseUrl: testServerUrl,
+              clientInfo: testClientInfo,
+              adapter: adapter,
+            ),
+          ),
+        ),
       ],
     );
     // Come nella scheda Utenti, che lo guarda: il controller resta vivo.
-    ProviderScope.containerOf(tester.element(find.text('apri')))
-        .listen(accountUsersControllerProvider, (_, _) {});
+    ProviderScope.containerOf(
+      tester.element(find.text('apri')),
+    ).listen(accountUsersControllerProvider, (_, _) {});
     await tester.tap(find.text('apri'));
     await tester.pumpAndSettle();
   }
 
-  Future<void> fill(WidgetTester tester,
-      {required String next, String? confirm}) async {
+  Future<void> fill(
+    WidgetTester tester, {
+    required String next,
+    String? confirm,
+  }) async {
     await tester.enterText(find.byKey(const Key('set-password-new')), next);
     await tester.enterText(
-        find.byKey(const Key('set-password-confirm')), confirm ?? next);
+      find.byKey(const Key('set-password-confirm')),
+      confirm ?? next,
+    );
     await tester.tap(find.byKey(const Key('set-password-submit')));
     await tester.pumpAndSettle();
   }
@@ -74,13 +92,15 @@ void main() {
     await open(tester);
     expect(find.text('Imposta la password di lucia'), findsOneWidget);
     expect(find.text('Le sessioni di lucia verranno chiuse.'), findsOneWidget);
-    final field =
-        tester.widget<TextField>(find.byKey(const Key('set-password-new')));
+    final field = tester.widget<TextField>(
+      find.byKey(const Key('set-password-new')),
+    );
     expect(field.decoration!.errorMaxLines, accountErrorMaxLines);
   });
 
-  testWidgets('password corta e conferma diversa: errori, nessuna chiamata',
-      (tester) async {
+  testWidgets('password corta e conferma diversa: errori, nessuna chiamata', (
+    tester,
+  ) async {
     await open(tester);
 
     await fill(tester, next: 'abc');
@@ -91,8 +111,9 @@ void main() {
     expect(adapter.requests, isEmpty);
   });
 
-  testWidgets('riuscita: senza la password attuale, e chiude con true',
-      (tester) async {
+  testWidgets('riuscita: senza la password attuale, e chiude con true', (
+    tester,
+  ) async {
     await open(tester);
 
     await fill(tester, next: 'nuova123');
@@ -104,21 +125,25 @@ void main() {
     expect(await result, isTrue);
   });
 
-  testWidgets('403: l\'errore sopra i campi e l\'utente riletto',
-      (tester) async {
+  testWidgets('403: l\'errore sopra i campi e l\'utente riletto', (
+    tester,
+  ) async {
     adapter.handler = (_) => const FakeResponse(403);
     await open(tester);
 
     await fill(tester, next: 'nuova123');
 
-    expect(find.text('Account disabilitato o accesso non consentito.'),
-        findsOneWidget);
+    expect(
+      find.text('Account disabilitato o accesso non consentito.'),
+      findsOneWidget,
+    );
     expect(session.refreshUserCalls, 1);
     expect(find.byKey(const Key('set-password-submit')), findsOneWidget);
   });
 
-  testWidgets('404: l\'utente è stato cancellato, lo dice la finestra',
-      (tester) async {
+  testWidgets('404: l\'utente è stato cancellato, lo dice la finestra', (
+    tester,
+  ) async {
     // Jellyfin non trova più l'utente. Lo dice solo la finestra: per le
     // chiamate del plugin un 404 vuol dire "funzione assente".
     adapter.handler = (_) => const FakeResponse(404);
@@ -140,9 +165,14 @@ void main() {
     };
     await open(tester);
 
-    await tester.enterText(find.byKey(const Key('set-password-new')), 'nuova123');
     await tester.enterText(
-        find.byKey(const Key('set-password-confirm')), 'nuova123');
+      find.byKey(const Key('set-password-new')),
+      'nuova123',
+    );
+    await tester.enterText(
+      find.byKey(const Key('set-password-confirm')),
+      'nuova123',
+    );
     await tester.tap(find.byKey(const Key('set-password-submit')));
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
@@ -157,9 +187,12 @@ void main() {
   });
 
   for (final size in const [Size(390, 844), Size(844, 390)]) {
-    testWidgets('telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow', (tester) async {
-      await open(tester, surfaceSize: size);
-      expect(tester.takeException(), isNull);
-    });
+    testWidgets(
+      'telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
+      (tester) async {
+        await open(tester, surfaceSize: size);
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 }

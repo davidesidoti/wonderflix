@@ -87,71 +87,88 @@ void main() {
   });
 
   /// Home ('/') con il player aperto sopra, come nell'app.
-  Future<void> pumpPlayer(WidgetTester tester,
-      {bool settle = true, List<Override> overrides = const []}) async {
-    router = GoRouter(routes: [
-      GoRoute(
+  Future<void> pumpPlayer(
+    WidgetTester tester, {
+    bool settle = true,
+    List<Override> overrides = const [],
+  }) async {
+    router = GoRouter(
+      routes: [
+        GoRoute(
           path: '/',
-          builder: (context, state) => const Scaffold(body: Text('home'))),
-      GoRoute(
-        path: '/play/:id',
-        builder: (context, state) => PlayerScreen(
-          key: ValueKey(state.uri.toString()),
-          args: (
-            itemId: state.pathParameters['id']!,
-            start: playerStartFrom(state.uri),
-            party: state.uri.queryParameters['party'],
-          ),
-          fullscreen: state.uri.queryParameters['fs'] == '1',
+          builder: (context, state) => const Scaffold(body: Text('home')),
         ),
-      ),
-    ]);
+        GoRoute(
+          path: '/play/:id',
+          builder: (context, state) => PlayerScreen(
+            key: ValueKey(state.uri.toString()),
+            args: (
+              itemId: state.pathParameters['id']!,
+              start: playerStartFrom(state.uri),
+              party: state.uri.queryParameters['party'],
+            ),
+            fullscreen: state.uri.queryParameters['fs'] == '1',
+          ),
+        ),
+      ],
+    );
     addTearDown(router.dispose);
     await tester.binding.setSurfaceSize(const Size(1440, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     // La vista vera: senza, la `MediaQuery` resta 800x600 (layout stretto).
-    tester.view.physicalSize = const Size(1440, 900) * tester.view.devicePixelRatio;
+    tester.view.physicalSize =
+        const Size(1440, 900) * tester.view.devicePixelRatio;
     addTearDown(tester.view.resetPhysicalSize);
-    await tester.pumpWidget(ProviderScope(
-      overrides: [
-        libraryApiProvider.overrideWithValue(library),
-        playbackApiProvider.overrideWithValue(playback),
-        playbackServiceProvider.overrideWithValue(PlaybackService(
-          api: playback,
-          serverUrl: testServerUrl,
-          authorization: () => 'MediaBrowser Token="t1"',
-        )),
-        videoEngineFactoryProvider.overrideWithValue(() {
-          final created = engines.isEmpty
-              ? engine
-              : (FakeVideoEngine()..engineTracks = testEngineTracks);
-          engines.add(created);
-          return created;
-        }),
-        playerWindowProvider.overrideWithValue(window),
-        mediaSessionProvider.overrideWithValue(mediaSession),
-        playerSettingsProvider.overrideWith(() => FakePlayerSettings(settings)),
-        playerVolumeProvider.overrideWith(() => FakePlayerVolume(savedVolume)),
-        sessionControllerProvider.overrideWith(
-            () => FakeSessionController(const SessionSignedIn(testUser))),
-        appConfigProvider.overrideWithValue(testAppConfig),
-        imageBuilderProvider
-            .overrideWithValue((image, fit) => const ColoredBox(color: Color(0xFF333333))),
-        authImageProvider.overrideWithValue((url) {
-          authImageUrls.add(url);
-          return MemoryImage(Uint8List.fromList(transparentPng));
-        }),
-        ...overrides,
-      ],
-      retry: (_, _) => null,
-      child: MaterialApp.router(
-        theme: buildWonderflixTheme(),
-        locale: const Locale('it'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        routerConfig: router,
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          libraryApiProvider.overrideWithValue(library),
+          playbackApiProvider.overrideWithValue(playback),
+          playbackServiceProvider.overrideWithValue(
+            PlaybackService(
+              api: playback,
+              serverUrl: testServerUrl,
+              authorization: () => 'MediaBrowser Token="t1"',
+            ),
+          ),
+          videoEngineFactoryProvider.overrideWithValue(() {
+            final created = engines.isEmpty
+                ? engine
+                : (FakeVideoEngine()..engineTracks = testEngineTracks);
+            engines.add(created);
+            return created;
+          }),
+          playerWindowProvider.overrideWithValue(window),
+          mediaSessionProvider.overrideWithValue(mediaSession),
+          playerSettingsProvider.overrideWith(
+            () => FakePlayerSettings(settings),
+          ),
+          playerVolumeProvider.overrideWith(
+            () => FakePlayerVolume(savedVolume),
+          ),
+          sessionControllerProvider.overrideWith(
+            () => FakeSessionController(const SessionSignedIn(testUser)),
+          ),
+          appConfigProvider.overrideWithValue(testAppConfig),
+          imageBuilderProvider.overrideWithValue(
+            (image, fit) => const ColoredBox(color: Color(0xFF333333)),
+          ),
+          authImageProvider.overrideWithValue((url) {
+            authImageUrls.add(url);
+            return MemoryImage(Uint8List.fromList(transparentPng));
+          }),
+          ...overrides,
+        ],
+        retry: (_, _) => null,
+        child: MaterialApp.router(
+          theme: buildWonderflixTheme(),
+          locale: const Locale('it'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
       ),
-    ));
+    );
     unawaited(router.push('/play/e4'));
     if (settle) {
       await tester.pumpAndSettle();
@@ -179,35 +196,45 @@ void main() {
     expect(find.text('Breaking Bad'), findsOneWidget);
     expect(find.text('S1:E4 · Pilot'), findsOneWidget);
     expect(find.byTooltip('Pausa'), findsOneWidget);
-    expect(find.byTooltip('Coda'), findsNothing,
-        reason: 'solo nel watch party');
+    expect(
+      find.byTooltip('Coda'),
+      findsNothing,
+      reason: 'solo nel watch party',
+    );
     expect(window.preventCloseCalls, [true]);
     await unmount(tester);
   });
 
-  testWidgets('caricamento: sfondo e titolo finché arriva il primo fotogramma',
-      (tester) async {
-    engine.holdFirstFrame = true;
-    await pumpPlayer(tester, settle: false);
-    final layer = find.byKey(const Key('player-loading'));
-    expect(layer, findsOneWidget);
-    expect(find.descendant(of: layer, matching: find.text('BREAKING BAD')),
-        findsOneWidget);
-    expect(find.descendant(of: layer, matching: find.byTooltip('Indietro')),
-        findsOneWidget);
-    expect(controlsOpacity(tester), 0, reason: 'controlli nascosti');
+  testWidgets(
+    'caricamento: sfondo e titolo finché arriva il primo fotogramma',
+    (tester) async {
+      engine.holdFirstFrame = true;
+      await pumpPlayer(tester, settle: false);
+      final layer = find.byKey(const Key('player-loading'));
+      expect(layer, findsOneWidget);
+      expect(
+        find.descendant(of: layer, matching: find.text('BREAKING BAD')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: layer, matching: find.byTooltip('Indietro')),
+        findsOneWidget,
+      );
+      expect(controlsOpacity(tester), 0, reason: 'controlli nascosti');
 
-    engine.completeFirstFrame();
-    await tester.pump();
-    await tester.pumpAndSettle();
-    expect(layer, findsNothing);
-    expect(find.byType(LoadingLine), findsNothing);
-    expect(controlsOpacity(tester), 1);
-    await unmount(tester);
-  });
+      engine.completeFirstFrame();
+      await tester.pump();
+      await tester.pumpAndSettle();
+      expect(layer, findsNothing);
+      expect(find.byType(LoadingLine), findsNothing);
+      expect(controlsOpacity(tester), 1);
+      await unmount(tester);
+    },
+  );
 
-  testWidgets('caricamento: senza primo fotogramma sfuma dopo 3 s',
-      (tester) async {
+  testWidgets('caricamento: senza primo fotogramma sfuma dopo 3 s', (
+    tester,
+  ) async {
     engine.holdFirstFrame = true;
     await pumpPlayer(tester, settle: false);
     // Prima dei 3 s il caricamento c'è ancora.
@@ -220,28 +247,33 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('controlli: il conto per nasconderli riparte dal primo fotogramma',
-      (tester) async {
-    engine.holdFirstFrame = true;
-    await pumpPlayer(tester, settle: false);
-    // Il video parte dopo 2,5 s (capita con le transcodifiche): il conto dei
-    // 3 s, partito con `playing`, scadrebbe appena il caricamento sfuma.
-    await tester.pump(const Duration(milliseconds: 2500));
-    engine.completeFirstFrame();
-    await tester.pump();
-    // La linea del caricamento gira finché lo strato non esce dall'albero.
-    await tester.pump(WfMotion.slow);
-    await tester.pump(WfMotion.slow);
-    expect(find.byKey(const Key('player-loading')), findsNothing);
+  testWidgets(
+    'controlli: il conto per nasconderli riparte dal primo fotogramma',
+    (tester) async {
+      engine.holdFirstFrame = true;
+      await pumpPlayer(tester, settle: false);
+      // Il video parte dopo 2,5 s (capita con le transcodifiche): il conto dei
+      // 3 s, partito con `playing`, scadrebbe appena il caricamento sfuma.
+      await tester.pump(const Duration(milliseconds: 2500));
+      engine.completeFirstFrame();
+      await tester.pump();
+      // La linea del caricamento gira finché lo strato non esce dall'albero.
+      await tester.pump(WfMotion.slow);
+      await tester.pump(WfMotion.slow);
+      expect(find.byKey(const Key('player-loading')), findsNothing);
 
-    await tester.pump(const Duration(seconds: 1));
-    expect(controlsOpacity(tester), 1,
-        reason: 'il conto è ripartito dal primo fotogramma');
-    await tester.pump(PlayerChromeController.hideDelay);
-    await tester.pumpAndSettle();
-    expect(controlsOpacity(tester), 0);
-    await unmount(tester);
-  });
+      await tester.pump(const Duration(seconds: 1));
+      expect(
+        controlsOpacity(tester),
+        1,
+        reason: 'il conto è ripartito dal primo fotogramma',
+      );
+      await tester.pump(PlayerChromeController.hideDelay);
+      await tester.pumpAndSettle();
+      expect(controlsOpacity(tester), 0);
+      await unmount(tester);
+    },
+  );
 
   testWidgets('buffering: lo spinner solo oltre 300 ms', (tester) async {
     await pumpPlayer(tester);
@@ -287,8 +319,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('tastiera: pillola con i riscontri; i salti si sommano',
-      (tester) async {
+  testWidgets('tastiera: pillola con i riscontri; i salti si sommano', (
+    tester,
+  ) async {
     await pumpPlayer(tester);
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
     await tester.pumpAndSettle();
@@ -296,8 +329,10 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
     await tester.pumpAndSettle();
     expect(find.text('+20 s · 00:20'), findsOneWidget);
-    expect(engine.seeks,
-        [const Duration(seconds: 10), const Duration(seconds: 20)]);
+    expect(engine.seeks, [
+      const Duration(seconds: 10),
+      const Duration(seconds: 20),
+    ]);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.space);
     await tester.pumpAndSettle();
@@ -321,8 +356,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('schermo intero lasciato da fuori: il player si riallinea',
-      (tester) async {
+  testWidgets('schermo intero lasciato da fuori: il player si riallinea', (
+    tester,
+  ) async {
     await pumpPlayer(tester);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
     await tester.pump();
@@ -342,8 +378,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('F e Esc: schermo intero, poi finestra, poi uscita',
-      (tester) async {
+  testWidgets('F e Esc: schermo intero, poi finestra, poi uscita', (
+    tester,
+  ) async {
     await pumpPlayer(tester);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
     await tester.pump();
@@ -363,8 +400,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('controlli nascosti dopo 3 s, di nuovo visibili col mouse',
-      (tester) async {
+  testWidgets('controlli nascosti dopo 3 s, di nuovo visibili col mouse', (
+    tester,
+  ) async {
     await pumpPlayer(tester);
     await tester.pump(const Duration(seconds: 3));
     expect(controlsOpacity(tester), 0);
@@ -420,8 +458,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('pausa: dopo 8 s senza mouse né tasti, "Stai guardando"',
-      (tester) async {
+  testWidgets('pausa: dopo 8 s senza mouse né tasti, "Stai guardando"', (
+    tester,
+  ) async {
     library.itemsById['e4'] = testItem(
       id: 'e4',
       name: 'Pilot',
@@ -435,8 +474,9 @@ void main() {
     await pumpPlayer(tester);
     await tester.sendKeyEvent(LogicalKeyboardKey.space);
     await tester.pump();
-    await tester.pump(PlayerChromeController.pauseScreenDelay -
-        const Duration(seconds: 1));
+    await tester.pump(
+      PlayerChromeController.pauseScreenDelay - const Duration(seconds: 1),
+    );
     expect(find.text('STAI GUARDANDO'), findsNothing);
     await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
@@ -473,8 +513,9 @@ void main() {
     expect(find.text('STAI GUARDANDO'), findsOneWidget);
   }
 
-  testWidgets('pausa: qualsiasi tasto la chiude, anche senza comando',
-      (tester) async {
+  testWidgets('pausa: qualsiasi tasto la chiude, anche senza comando', (
+    tester,
+  ) async {
     await pumpPlayer(tester);
     await pauseUntilPauseScreen(tester);
 
@@ -489,8 +530,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('pausa: Esc la chiude soltanto, il secondo Esc esce',
-      (tester) async {
+  testWidgets('pausa: Esc la chiude soltanto, il secondo Esc esce', (
+    tester,
+  ) async {
     await pumpPlayer(tester);
     await pauseUntilPauseScreen(tester);
 
@@ -519,8 +561,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('rotella: volume come le frecce, anche sulla barra del volume',
-      (tester) async {
+  testWidgets('rotella: volume come le frecce, anche sulla barra del volume', (
+    tester,
+  ) async {
     savedVolume = 50;
     await pumpPlayer(tester);
     final wheel = TestPointer(1, PointerDeviceKind.mouse);
@@ -552,8 +595,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('rotella: i controlli non compaiono; chiude "Stai guardando"',
-      (tester) async {
+  testWidgets('rotella: i controlli non compaiono; chiude "Stai guardando"', (
+    tester,
+  ) async {
     await pumpPlayer(tester);
     final wheel = TestPointer(1, PointerDeviceKind.mouse);
     await tester.sendEventToBinding(wheel.hover(const Offset(720, 450)));
@@ -583,7 +627,8 @@ void main() {
     final count = engine.volumes.length;
     final wheel = TestPointer(1, PointerDeviceKind.mouse);
     await tester.sendEventToBinding(
-        wheel.hover(tester.getCenter(find.byType(TracksPanel))));
+      wheel.hover(tester.getCenter(find.byType(TracksPanel))),
+    );
     // Prima in su: la lista è in cima e non può scorrere, quindi lavora la
     // barriera del pannello; poi in giù.
     await tester.sendEventToBinding(wheel.scroll(const Offset(0, -60)));
@@ -595,8 +640,7 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('rotella: funziona anche durante il caricamento',
-      (tester) async {
+  testWidgets('rotella: funziona anche durante il caricamento', (tester) async {
     engine.holdFirstFrame = true;
     await pumpPlayer(tester, settle: false);
     expect(find.byKey(const Key('player-loading')), findsOneWidget);
@@ -635,70 +679,82 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('pannello: dimensione dei sottotitoli subito e salvata; × chiude',
-      (tester) async {
-    await pumpPlayer(tester);
-    await tester.tap(find.byTooltip('Audio e sottotitoli'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Grandi'));
-    await tester.pump();
-    expect(engine.subtitleScales.last, 1.0);
-    final container =
-        ProviderScope.containerOf(tester.element(find.byType(PlayerScreen)));
-    expect(container.read(playerSettingsProvider).subtitleScale, 1.0);
+  testWidgets(
+    'pannello: dimensione dei sottotitoli subito e salvata; × chiude',
+    (tester) async {
+      await pumpPlayer(tester);
+      await tester.tap(find.byTooltip('Audio e sottotitoli'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Grandi'));
+      await tester.pump();
+      expect(engine.subtitleScales.last, 1.0);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(PlayerScreen)),
+      );
+      expect(container.read(playerSettingsProvider).subtitleScale, 1.0);
 
-    await tester.tap(find.byTooltip('Chiudi'));
-    await tester.pumpAndSettle();
-    expect(find.text('Grandi'), findsNothing);
-    await unmount(tester);
-  });
+      await tester.tap(find.byTooltip('Chiudi'));
+      await tester.pumpAndSettle();
+      expect(find.text('Grandi'), findsNothing);
+      await unmount(tester);
+    },
+  );
 
   testWidgets(
-      'dal pannello tracce si apre la finestra dei sottotitoli e i tasti del '
-      'player non agiscono', (tester) async {
-    library.mediaInfoById['e4'] = testMediaInfo();
-    await pumpPlayer(tester, overrides: [
-      canManageSubtitlesProvider.overrideWithValue(true),
-      ...reportTestOverrides(),
-      userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
-    ]);
-    await tester.tap(find.byTooltip('Audio e sottotitoli'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Cerca sottotitoli'));
-    await tester.pumpAndSettle();
-    expect(find.byType(Dialog), findsOneWidget);
-    expect(find.text('Dimensione'), findsNothing, reason: 'pannello chiuso');
+    'dal pannello tracce si apre la finestra dei sottotitoli e i tasti del '
+    'player non agiscono',
+    (tester) async {
+      library.mediaInfoById['e4'] = testMediaInfo();
+      await pumpPlayer(
+        tester,
+        overrides: [
+          canManageSubtitlesProvider.overrideWithValue(true),
+          ...reportTestOverrides(),
+          userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
+        ],
+      );
+      await tester.tap(find.byTooltip('Audio e sottotitoli'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cerca sottotitoli'));
+      await tester.pumpAndSettle();
+      expect(find.byType(Dialog), findsOneWidget);
+      expect(find.text('Dimensione'), findsNothing, reason: 'pannello chiuso');
 
-    await tester.sendKeyEvent(LogicalKeyboardKey.space);
-    await tester.pump();
-    expect(engine.playing, isTrue);
-    expect(engine.calls, isNot(contains('pause')));
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pump();
+      expect(engine.playing, isTrue);
+      expect(engine.calls, isNot(contains('pause')));
 
-    // Esc chiude la finestra e resta nel player; poi i tasti tornano a lui.
-    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await tester.pumpAndSettle();
-    expect(find.byType(Dialog), findsNothing);
-    expect(find.text('home'), findsNothing);
-    await tester.sendKeyEvent(LogicalKeyboardKey.space);
-    await tester.pump();
-    expect(engine.playing, isFalse);
-    await unmount(tester);
-  });
+      // Esc chiude la finestra e resta nel player; poi i tasti tornano a lui.
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(Dialog), findsNothing);
+      expect(find.text('home'), findsNothing);
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pump();
+      expect(engine.playing, isFalse);
+      await unmount(tester);
+    },
+  );
 
-  testWidgets(
-      'sottotitolo non consegnato a parte: il messaggio "prossima '
+  testWidgets('sottotitolo non consegnato a parte: il messaggio "prossima '
       'riproduzione" compare dopo la chiusura della finestra', (tester) async {
     library.mediaInfoById['e4'] = testMediaInfo();
-    await pumpPlayer(tester, overrides: [
-      canManageSubtitlesProvider.overrideWithValue(true),
-      ...reportTestOverrides(),
-      userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
-      subtitleFilePickerProvider.overrideWithValue((_) async =>
-          PickedSubtitleFile(
-              name: 'a.srt',
-              length: 1,
-              read: () async => Uint8List.fromList([1]))),
-    ]);
+    await pumpPlayer(
+      tester,
+      overrides: [
+        canManageSubtitlesProvider.overrideWithValue(true),
+        ...reportTestOverrides(),
+        userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
+        subtitleFilePickerProvider.overrideWithValue(
+          (_) async => PickedSubtitleFile(
+            name: 'a.srt',
+            length: 1,
+            read: () async => Uint8List.fromList([1]),
+          ),
+        ),
+      ],
+    );
     await tester.tap(find.byTooltip('Audio e sottotitoli'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Cerca sottotitoli'));
@@ -711,37 +767,41 @@ void main() {
     // senza ripartire.
     final streams = testStreams();
     playback.onPlaybackInfo = (_) => PlaybackInfoResult.fromJson({
-          'PlaySessionId': 'ps1',
-          'MediaSources': [
+      'PlaySessionId': 'ps1',
+      'MediaSources': [
+        {
+          'Id': 'ms1',
+          'SupportsDirectPlay': true,
+          'SupportsDirectStream': true,
+          'DefaultAudioStreamIndex': 1,
+          'DefaultSubtitleStreamIndex': 3,
+          'MediaStreams': [
+            ...streams,
             {
-              'Id': 'ms1',
-              'SupportsDirectPlay': true,
-              'SupportsDirectStream': true,
-              'DefaultAudioStreamIndex': 1,
-              'DefaultSubtitleStreamIndex': 3,
-              'MediaStreams': [
-                ...streams,
-                {
-                  'Index': 20,
-                  'Type': 'Subtitle',
-                  'Codec': 'PGSSUB',
-                  'IsExternal': true,
-                  'DeliveryMethod': 'Encode',
-                },
-              ],
+              'Index': 20,
+              'Type': 'Subtitle',
+              'Codec': 'PGSSUB',
+              'IsExternal': true,
+              'DeliveryMethod': 'Encode',
             },
           ],
-        });
+        },
+      ],
+    });
     library.mediaInfoById['e4'] = testMediaInfo(
-        subtitles: const [SubtitleTrack(index: 20, isExternal: true)]);
+      subtitles: const [SubtitleTrack(index: 20, isExternal: true)],
+    );
     await tester.pump(subtitlePollInterval);
     await tester.pump();
     await tester.pump();
     const nextPlayback =
         'Il sottotitolo sarà disponibile dalla prossima riproduzione';
     expect(find.text('Sottotitolo aggiunto'), findsOneWidget);
-    expect(find.text(nextPlayback), findsNothing,
-        reason: 'sotto la finestra non si vedrebbe');
+    expect(
+      find.text(nextPlayback),
+      findsNothing,
+      reason: 'sotto la finestra non si vedrebbe',
+    );
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
@@ -768,7 +828,11 @@ void main() {
     await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
     await tester.pumpAndSettle();
     expect(find.text('Dimensione'), findsNothing);
-    expect(engine.playing, isTrue, reason: 'il clic chiude, non mette in pausa');
+    expect(
+      engine.playing,
+      isTrue,
+      reason: 'il clic chiude, non mette in pausa',
+    );
     await unmount(tester);
   });
 
@@ -784,16 +848,23 @@ void main() {
     await tester.tap(find.text('Italiano - PGS - Esterno'));
     await tester.pumpAndSettle();
     expect(find.text('Impossibile riprodurre il video'), findsOneWidget);
-    expect(find.text('Dimensione'), findsNothing,
-        reason: 'il pannello non resta a destra dello strato dell\'errore');
+    expect(
+      find.text('Dimensione'),
+      findsNothing,
+      reason: 'il pannello non resta a destra dello strato dell\'errore',
+    );
     await unmount(tester);
   });
 
-  testWidgets('avviso di conversione: non resta sulla Home all\'uscita',
-      (tester) async {
+  testWidgets('avviso di conversione: non resta sulla Home all\'uscita', (
+    tester,
+  ) async {
     engine.failOpens = 1;
     await pumpPlayer(tester);
-    expect(find.text('Il server sta convertendo questo video.'), findsOneWidget);
+    expect(
+      find.text('Il server sta convertendo questo video.'),
+      findsOneWidget,
+    );
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
@@ -823,8 +894,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('chiusura della finestra: fine della sessione, poi chiusura',
-      (tester) async {
+  testWidgets('chiusura della finestra: fine della sessione, poi chiusura', (
+    tester,
+  ) async {
     await pumpPlayer(tester);
     engine.emitPosition(const Duration(minutes: 5));
     final closing = window.simulateClose();
@@ -835,19 +907,24 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('chiusura della finestra: il volume si scrive subito',
-      (tester) async {
+  testWidgets('chiusura della finestra: il volume si scrive subito', (
+    tester,
+  ) async {
     await pumpPlayer(tester);
-    final container =
-        ProviderScope.containerOf(tester.element(find.byType(PlayerScreen)));
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(PlayerScreen)),
+    );
     final volume =
         container.read(playerVolumeProvider.notifier) as FakePlayerVolume;
     volume.holdFlush = Completer<void>();
     final closing = window.simulateClose();
     await tester.pump();
     expect(volume.flushes, 1);
-    expect(window.destroyed, isFalse,
-        reason: 'la finestra aspetta la scrittura');
+    expect(
+      window.destroyed,
+      isFalse,
+      reason: 'la finestra aspetta la scrittura',
+    );
     volume.holdFlush!.complete();
     await tester.pump();
     await closing;
@@ -856,63 +933,84 @@ void main() {
   });
 
   testWidgets(
-      'chiusura della finestra: sparisce subito, prima che il video si spenga',
-      (tester) async {
-    savedVolume = 70;
-    await pumpPlayer(tester);
-    final container =
-        ProviderScope.containerOf(tester.element(find.byType(PlayerScreen)));
-    final volume =
-        container.read(playerVolumeProvider.notifier) as FakePlayerVolume;
-    volume.holdFlush = Completer<void>();
-    bool? engineDisposedAtHide;
-    double? volumeAtHide;
-    window.onHide = () {
-      engineDisposedAtHide = engine.disposed;
-      volumeAtHide = engine.volumes.lastOrNull;
-    };
-    final closing = window.simulateClose();
-    await tester.pump();
-    expect(engineDisposedAtHide, isFalse,
-        reason: 'il motore si spegne solo a finestra già nascosta');
-    expect(volumeAtHide, 0, reason: 'il film tace insieme alla finestra');
-    expect(window.hidden, isTrue,
-        reason: 'nascosta mentre il lavoro di uscita è ancora in corso');
-    expect(window.destroyed, isFalse);
-    volume.holdFlush!.complete();
-    await tester.pump();
-    await closing;
-    expect(window.destroyed, isTrue);
-    expect(container.read(playerVolumeProvider), 70,
-        reason: 'il muto non diventa il volume salvato');
-    expect(playback.stopped.single.volume, 70,
-        reason: 'il server riceve il volume scelto, non lo zero del muto');
-    expect(playback.stopped.single.isMuted, isFalse);
-    await unmount(tester);
-  });
+    'chiusura della finestra: sparisce subito, prima che il video si spenga',
+    (tester) async {
+      savedVolume = 70;
+      await pumpPlayer(tester);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(PlayerScreen)),
+      );
+      final volume =
+          container.read(playerVolumeProvider.notifier) as FakePlayerVolume;
+      volume.holdFlush = Completer<void>();
+      bool? engineDisposedAtHide;
+      double? volumeAtHide;
+      window.onHide = () {
+        engineDisposedAtHide = engine.disposed;
+        volumeAtHide = engine.volumes.lastOrNull;
+      };
+      final closing = window.simulateClose();
+      await tester.pump();
+      expect(
+        engineDisposedAtHide,
+        isFalse,
+        reason: 'il motore si spegne solo a finestra già nascosta',
+      );
+      expect(volumeAtHide, 0, reason: 'il film tace insieme alla finestra');
+      expect(
+        window.hidden,
+        isTrue,
+        reason: 'nascosta mentre il lavoro di uscita è ancora in corso',
+      );
+      expect(window.destroyed, isFalse);
+      volume.holdFlush!.complete();
+      await tester.pump();
+      await closing;
+      expect(window.destroyed, isTrue);
+      expect(
+        container.read(playerVolumeProvider),
+        70,
+        reason: 'il muto non diventa il volume salvato',
+      );
+      expect(
+        playback.stopped.single.volume,
+        70,
+        reason: 'il server riceve il volume scelto, non lo zero del muto',
+      );
+      expect(playback.stopped.single.isMuted, isFalse);
+      await unmount(tester);
+    },
+  );
 
   testWidgets(
-      'chiusura della finestra: un errore nel lavoro di uscita chiude lo '
-      'stesso', (tester) async {
-    await pumpPlayer(tester);
-    final container =
-        ProviderScope.containerOf(tester.element(find.byType(PlayerScreen)));
-    final volume =
-        container.read(playerVolumeProvider.notifier) as FakePlayerVolume;
-    volume.holdFlush = Completer<void>();
-    final closing = window.simulateClose();
-    await tester.pump();
-    expect(window.destroyed, isFalse);
-    volume.holdFlush!.completeError(StateError('disco pieno'));
-    await tester.pump();
-    await closing;
-    expect(window.destroyed, isTrue,
-        reason: 'senza destroy il processo resterebbe vivo e invisibile');
-    await unmount(tester);
-  });
+    'chiusura della finestra: un errore nel lavoro di uscita chiude lo '
+    'stesso',
+    (tester) async {
+      await pumpPlayer(tester);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(PlayerScreen)),
+      );
+      final volume =
+          container.read(playerVolumeProvider.notifier) as FakePlayerVolume;
+      volume.holdFlush = Completer<void>();
+      final closing = window.simulateClose();
+      await tester.pump();
+      expect(window.destroyed, isFalse);
+      volume.holdFlush!.completeError(StateError('disco pieno'));
+      await tester.pump();
+      await closing;
+      expect(
+        window.destroyed,
+        isTrue,
+        reason: 'senza destroy il processo resterebbe vivo e invisibile',
+      );
+      await unmount(tester);
+    },
+  );
 
-  testWidgets('chiusura della finestra: se non si nasconde chiude lo stesso',
-      (tester) async {
+  testWidgets('chiusura della finestra: se non si nasconde chiude lo stesso', (
+    tester,
+  ) async {
     await pumpPlayer(tester);
     window.onHide = () => throw StateError('nascondi');
     final closing = window.simulateClose();
@@ -924,14 +1022,14 @@ void main() {
   });
 
   JellyfinItem episode5() => testItem(
-        id: 'e5',
-        name: 'Cat in the Bag',
-        kind: ItemKind.episode,
-        seriesName: 'Breaking Bad',
-        seriesId: 's1',
-        index: 5,
-        seasonIndex: 1,
-      );
+    id: 'e5',
+    name: 'Cat in the Bag',
+    kind: ItemKind.episode,
+    seriesName: 'Breaking Bad',
+    seriesId: 's1',
+    index: 5,
+    seasonIndex: 1,
+  );
 
   void withNextEpisode() {
     final next = episode5();
@@ -940,16 +1038,16 @@ void main() {
   }
 
   JellyfinItem episode3({int positionTicks = 0}) => testItem(
-        id: 'e3',
-        name: 'The Cat',
-        kind: ItemKind.episode,
-        seriesName: 'Breaking Bad',
-        seriesId: 's1',
-        index: 3,
-        seasonIndex: 1,
-        positionTicks: positionTicks,
-        playedPercentage: positionTicks > 0 ? 10 : null,
-      );
+    id: 'e3',
+    name: 'The Cat',
+    kind: ItemKind.episode,
+    seriesName: 'Breaking Bad',
+    seriesId: 's1',
+    index: 3,
+    seasonIndex: 1,
+    positionTicks: positionTicks,
+    playedPercentage: positionTicks > 0 ? 10 : null,
+  );
 
   void withPreviousEpisode({int positionTicks = 0}) {
     final previous = episode3(positionTicks: positionTicks);
@@ -960,9 +1058,10 @@ void main() {
   testWidgets('salta intro: pulsante durante l\'intro', (tester) async {
     playback.segments = const [
       MediaSegment(
-          type: MediaSegmentType.intro,
-          start: Duration(seconds: 10),
-          end: Duration(seconds: 90)),
+        type: MediaSegmentType.intro,
+        start: Duration(seconds: 10),
+        end: Duration(seconds: 90),
+      ),
     ];
     await pumpPlayer(tester);
     engine.emitPosition(const Duration(seconds: 20));
@@ -978,9 +1077,10 @@ void main() {
     settings = const PlayerSettings(autoSkipIntro: true);
     playback.segments = const [
       MediaSegment(
-          type: MediaSegmentType.intro,
-          start: Duration(seconds: 10),
-          end: Duration(seconds: 90)),
+        type: MediaSegmentType.intro,
+        start: Duration(seconds: 10),
+        end: Duration(seconds: 90),
+      ),
     ];
     await pumpPlayer(tester);
     engine.emitPosition(const Duration(seconds: 20));
@@ -992,7 +1092,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('prossimo episodio: scheda e conto alla rovescia', (tester) async {
+  testWidgets('prossimo episodio: scheda e conto alla rovescia', (
+    tester,
+  ) async {
     withNextEpisode();
     await pumpPlayer(tester);
     engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
@@ -1005,14 +1107,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('S1:E5 · Cat in the Bag'), findsOneWidget);
     expect(router.state.uri.path, '/play/e5');
-    expect(router.state.extra, isA<PlayerReplacement>(),
-        reason: 'la transizione parte dal nero, non dalla pagina sotto');
+    expect(
+      router.state.extra,
+      isA<PlayerReplacement>(),
+      reason: 'la transizione parte dal nero, non dalla pagina sotto',
+    );
     expect(playback.stopped.first.itemId, 'e4');
     expect(engines, hasLength(2), reason: 'un motore per episodio');
     expect(engine.disposed, isTrue);
     expect(engines.last.disposed, isFalse);
-    expect(library.playedCalls, [('e4', true)],
-        reason: 'nei titoli di coda: episodio visto');
+    expect(library.playedCalls, [
+      ('e4', true),
+    ], reason: 'nei titoli di coda: episodio visto');
     // La nuova schermata blocca la chiusura prima che la vecchia la
     // rilasci: le richieste si contano, quindi resta bloccata.
     expect(window.preventCloseCalls, [true, true, false]);
@@ -1040,11 +1146,17 @@ void main() {
     final video = tester.element(find.byKey(const Key('fake-video')));
     void expectSameLayers() {
       mounted.forEach((layer, element) {
-        expect(tester.element(find.byType(layer)), same(element),
-            reason: '$layer rimontato');
+        expect(
+          tester.element(find.byType(layer)),
+          same(element),
+          reason: '$layer rimontato',
+        );
       });
-      expect(tester.element(find.byKey(const Key('fake-video'))), same(video),
-          reason: 'video rimontato');
+      expect(
+        tester.element(find.byKey(const Key('fake-video'))),
+        same(video),
+        reason: 'video rimontato',
+      );
     }
 
     // Il file è pronto: compaiono "Stai guardando", "salta intro" e la
@@ -1088,8 +1200,11 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(seconds: 15));
     expect(find.text('Riproduci ora · 10'), findsOneWidget);
-    expect(find.text('S1:E5 · Cat in the Bag'), findsOneWidget,
-        reason: 'solo nella scheda');
+    expect(
+      find.text('S1:E5 · Cat in the Bag'),
+      findsOneWidget,
+      reason: 'solo nella scheda',
+    );
     expect(engines, hasLength(1));
 
     await tester.sendKeyEvent(LogicalKeyboardKey.space);
@@ -1099,8 +1214,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('episodio successivo già iniziato: riprende da dove era',
-      (tester) async {
+  testWidgets('episodio successivo già iniziato: riprende da dove era', (
+    tester,
+  ) async {
     final next = testItem(
       id: 'e5',
       name: 'Cat in the Bag',
@@ -1119,13 +1235,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(engines, hasLength(2));
     expect(engines.last.opened.single.start, const Duration(minutes: 12));
-    expect(library.playedCalls, isEmpty,
-        reason: 'lasciato a metà: resta in corso');
+    expect(
+      library.playedCalls,
+      isEmpty,
+      reason: 'lasciato a metà: resta in corso',
+    );
     await unmount(tester);
   });
 
-  testWidgets('volume: l\'episodio successivo parte dall\'ultimo scelto',
-      (tester) async {
+  testWidgets('volume: l\'episodio successivo parte dall\'ultimo scelto', (
+    tester,
+  ) async {
     withNextEpisode();
     await pumpPlayer(tester);
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
@@ -1139,8 +1259,7 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
     await tester.pumpAndSettle();
     expect(engines, hasLength(2));
-    expect(engines.last.volumes.first, 90,
-        reason: 'stesso volume, senza muto');
+    expect(engines.last.volumes.first, 90, reason: 'stesso volume, senza muto');
     await unmount(tester);
   });
 
@@ -1171,8 +1290,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('riproduzione automatica spenta: niente conto alla rovescia',
-      (tester) async {
+  testWidgets('riproduzione automatica spenta: niente conto alla rovescia', (
+    tester,
+  ) async {
     settings = const PlayerSettings(autoplayNext: false);
     withNextEpisode();
     await pumpPlayer(tester);
@@ -1193,9 +1313,10 @@ void main() {
   void withCredits() {
     playback.segments = const [
       MediaSegment(
-          type: MediaSegmentType.outro,
-          start: Duration(hours: 1, minutes: 55),
-          end: Duration(hours: 2)),
+        type: MediaSegmentType.outro,
+        start: Duration(hours: 1, minutes: 55),
+        end: Duration(hours: 2),
+      ),
     ];
     final next = testItem(
       id: 'e5',
@@ -1247,20 +1368,31 @@ void main() {
     // si contano i 10 s.
     final start = tester.binding.clock.now();
     await toCredits(tester);
-    await tester.pump(const Duration(milliseconds: 9900) -
-        tester.binding.clock.now().difference(start));
+    await tester.pump(
+      const Duration(milliseconds: 9900) -
+          tester.binding.clock.now().difference(start),
+    );
     expect(find.text('Riproduci ora · 1'), findsOneWidget);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pump();
     // Il pulsante che sfuma via (in `fast`) resta montato un attimo e il suo
     // conto scade: si va oltre i 10 s ma non oltre la dissolvenza.
     await tester.pump(const Duration(milliseconds: 120));
-    expect(router.state.uri.path, '/play/e4',
-        reason: 'il successivo non deve partire');
-    expect(find.byType(PlayNowButton), findsOneWidget,
-        reason: 'ancora montato mentre sfuma');
-    expect(find.text('Riproduci ora'), findsOneWidget,
-        reason: 'il conto è arrivato a zero');
+    expect(
+      router.state.uri.path,
+      '/play/e4',
+      reason: 'il successivo non deve partire',
+    );
+    expect(
+      find.byType(PlayNowButton),
+      findsOneWidget,
+      reason: 'ancora montato mentre sfuma',
+    );
+    expect(
+      find.text('Riproduci ora'),
+      findsOneWidget,
+      reason: 'il conto è arrivato a zero',
+    );
     await tester.pumpAndSettle();
     expect(engines, hasLength(1));
     expect(router.state.uri.path, '/play/e4', reason: 'si resta nel player');
@@ -1286,8 +1418,7 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('post-play: Esc lo chiude e si resta nel player',
-      (tester) async {
+  testWidgets('post-play: Esc lo chiude e si resta nel player', (tester) async {
     withCredits();
     await pumpPlayer(tester);
     await toCredits(tester);
@@ -1302,12 +1433,20 @@ void main() {
     withCredits();
     await pumpPlayer(tester);
     await toCredits(tester);
-    await tester.tapAt(Offset(postPlayInset + 1440 * postPlayScale / 2,
-        postPlayInset + 900 * postPlayScale / 2));
+    await tester.tapAt(
+      Offset(
+        postPlayInset + 1440 * postPlayScale / 2,
+        postPlayInset + 900 * postPlayScale / 2,
+      ),
+    );
     await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
     await tester.pumpAndSettle();
     expect(shrunk(tester), isFalse);
-    expect(engine.playing, isTrue, reason: 'il clic chiude, non mette in pausa');
+    expect(
+      engine.playing,
+      isTrue,
+      reason: 'il clic chiude, non mette in pausa',
+    );
     await unmount(tester);
   });
 
@@ -1342,8 +1481,9 @@ void main() {
     expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
   }
 
-  testWidgets('post-play a video finito: "Guarda i titoli" esce',
-      (tester) async {
+  testWidgets('post-play a video finito: "Guarda i titoli" esce', (
+    tester,
+  ) async {
     await toFinishedPostPlay(tester);
     await tester.tap(find.text('Guarda i titoli'));
     await tester.pumpAndSettle();
@@ -1351,11 +1491,16 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('post-play a video finito: un clic sul film piccolo esce',
-      (tester) async {
+  testWidgets('post-play a video finito: un clic sul film piccolo esce', (
+    tester,
+  ) async {
     await toFinishedPostPlay(tester);
-    await tester.tapAt(Offset(postPlayInset + 1440 * postPlayScale / 2,
-        postPlayInset + 900 * postPlayScale / 2));
+    await tester.tapAt(
+      Offset(
+        postPlayInset + 1440 * postPlayScale / 2,
+        postPlayInset + 900 * postPlayScale / 2,
+      ),
+    );
     await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
     await tester.pumpAndSettle();
     expect(find.text('home'), findsOneWidget);
@@ -1389,15 +1534,19 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('post-play: niente schermata di pausa; il pannello si chiude',
-      (tester) async {
+  testWidgets('post-play: niente schermata di pausa; il pannello si chiude', (
+    tester,
+  ) async {
     withCredits();
     await pumpPlayer(tester);
     await tester.tap(find.byTooltip('Audio e sottotitoli'));
     await tester.pumpAndSettle();
     await toCredits(tester);
-    expect(find.text('Dimensione'), findsNothing,
-        reason: 'all\'inizio dei titoli il pannello si chiude');
+    expect(
+      find.text('Dimensione'),
+      findsNothing,
+      reason: 'all\'inizio dei titoli il pannello si chiude',
+    );
     await tester.sendKeyEvent(LogicalKeyboardKey.space);
     await tester.pump();
     await tester.pump(const Duration(seconds: 9));
@@ -1434,15 +1583,17 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     expect(shrunk(tester), isFalse);
-    expect(window.fullScreenCalls, [true],
-        reason: 'prima si chiude il post-play');
+    expect(window.fullScreenCalls, [
+      true,
+    ], reason: 'prima si chiude il post-play');
     expect(find.byTooltip('Esci da schermo intero'), findsOneWidget);
     expect(find.text('home'), findsNothing);
     await unmount(tester);
   });
 
-  testWidgets('post-play: un clic fuori dal film piccolo non fa nulla',
-      (tester) async {
+  testWidgets('post-play: un clic fuori dal film piccolo non fa nulla', (
+    tester,
+  ) async {
     withCredits();
     await pumpPlayer(tester);
     await toCredits(tester);
@@ -1456,8 +1607,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('post-play: lo spinner del buffering sta sul film piccolo',
-      (tester) async {
+  testWidgets('post-play: lo spinner del buffering sta sul film piccolo', (
+    tester,
+  ) async {
     withCredits();
     await pumpPlayer(tester);
     final video = tester.element(find.byKey(const Key('fake-video')));
@@ -1470,12 +1622,22 @@ void main() {
     // Lo spinner gira: niente `pumpAndSettle` finché si vede.
     final spinner = find.byType(CircularProgressIndicator);
     expect(spinner, findsOneWidget);
-    const film = Rect.fromLTWH(postPlayInset, postPlayInset,
-        1440 * postPlayScale, 900 * postPlayScale);
-    expect(film.contains(tester.getCenter(spinner)), isTrue,
-        reason: 'non sotto l\'immagine dell\'episodio');
-    expect(tester.element(find.byKey(const Key('fake-video'))), same(video),
-        reason: 'il video non si rimonta');
+    const film = Rect.fromLTWH(
+      postPlayInset,
+      postPlayInset,
+      1440 * postPlayScale,
+      900 * postPlayScale,
+    );
+    expect(
+      film.contains(tester.getCenter(spinner)),
+      isTrue,
+      reason: 'non sotto l\'immagine dell\'episodio',
+    );
+    expect(
+      tester.element(find.byKey(const Key('fake-video'))),
+      same(video),
+      reason: 'il video non si rimonta',
+    );
 
     engine.emitBuffering(false);
     await tester.pump();
@@ -1496,8 +1658,11 @@ void main() {
     // Il caricamento c'è ancora: la linea gira, niente `pumpAndSettle`.
     expect(find.byKey(const Key('player-loading')), findsOneWidget);
     expect(find.text('PROSSIMO EPISODIO'), findsNothing);
-    expect(find.byType(PlayNowButton), findsNothing,
-        reason: 'nessun conto alla rovescia sotto il caricamento');
+    expect(
+      find.byType(PlayNowButton),
+      findsNothing,
+      reason: 'nessun conto alla rovescia sotto il caricamento',
+    );
     expect(shrunk(tester), isFalse);
 
     engine.completeFirstFrame();
@@ -1538,14 +1703,15 @@ void main() {
 
   /// Opacità dello strato (`AnimatedSwitcher`) attorno a [finder].
   double slotOpacity(WidgetTester tester, Finder finder) => tester
-      .widget<FadeTransition>(find
-          .ancestor(of: finder, matching: find.byType(FadeTransition))
-          .first)
+      .widget<FadeTransition>(
+        find.ancestor(of: finder, matching: find.byType(FadeTransition)).first,
+      )
       .opacity
       .value;
 
-  testWidgets('scheda: lo strato non la sfuma, entra con la sua animazione',
-      (tester) async {
+  testWidgets('scheda: lo strato non la sfuma, entra con la sua animazione', (
+    tester,
+  ) async {
     withNextEpisode();
     await pumpPlayer(tester);
     engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
@@ -1556,39 +1722,44 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('post-play: lo strato non lo sfuma, entra con la sua animazione',
-      (tester) async {
-    withCredits();
-    await pumpPlayer(tester);
-    engine.emitPosition(const Duration(hours: 1, minutes: 55, seconds: 10));
-    await tester.pump();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(slotOpacity(tester, find.text('PROSSIMO EPISODIO')), 1);
-    await unmount(tester);
-  });
+  testWidgets(
+    'post-play: lo strato non lo sfuma, entra con la sua animazione',
+    (tester) async {
+      withCredits();
+      await pumpPlayer(tester);
+      engine.emitPosition(const Duration(hours: 1, minutes: 55, seconds: 10));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(slotOpacity(tester, find.text('PROSSIMO EPISODIO')), 1);
+      await unmount(tester);
+    },
+  );
 
-  testWidgets('scheda piccola: compare quando arriva la durata, a video fermo',
-      (tester) async {
-    withNextEpisode();
-    await pumpPlayer(tester);
-    engine.emitPosition(const Duration(minutes: 59, seconds: 40));
-    await tester.sendKeyEvent(LogicalKeyboardKey.space);
-    await tester.pump();
-    await tester.pump();
-    expect(find.text('PROSSIMO EPISODIO'), findsNothing);
+  testWidgets(
+    'scheda piccola: compare quando arriva la durata, a video fermo',
+    (tester) async {
+      withNextEpisode();
+      await pumpPlayer(tester);
+      engine.emitPosition(const Duration(minutes: 59, seconds: 40));
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('PROSSIMO EPISODIO'), findsNothing);
 
-    // La durata vera è un'ora: si è già negli ultimi 30 s.
-    engine.emitDuration(const Duration(hours: 1));
-    await tester.pump();
-    await tester.pump();
-    await tester.pumpAndSettle();
-    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
-    await unmount(tester);
-  });
+      // La durata vera è un'ora: si è già negli ultimi 30 s.
+      engine.emitDuration(const Duration(hours: 1));
+      await tester.pump();
+      await tester.pump();
+      await tester.pumpAndSettle();
+      expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+      await unmount(tester);
+    },
+  );
 
-  testWidgets('N a schermo intero: il successivo resta a schermo intero',
-      (tester) async {
+  testWidgets('N a schermo intero: il successivo resta a schermo intero', (
+    tester,
+  ) async {
     withNextEpisode();
     await pumpPlayer(tester);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
@@ -1625,13 +1796,16 @@ void main() {
     addTearDown(gesture.removePointer);
     await gesture.moveTo(tester.getCenter(find.byType(SeekBar)));
     await tester.pump();
-    expect(authImageUrls.last,
-        'https://media.example.com/Videos/e4/Trickplay/320/3.jpg?mediaSourceId=ms1');
+    expect(
+      authImageUrls.last,
+      'https://media.example.com/Videos/e4/Trickplay/320/3.jpg?mediaSourceId=ms1',
+    );
     await unmount(tester);
   });
 
-  testWidgets('anteprime di un\'altra sorgente: URL con quella sorgente',
-      (tester) async {
+  testWidgets('anteprime di un\'altra sorgente: URL con quella sorgente', (
+    tester,
+  ) async {
     library.itemsById['e4'] = JellyfinItem.fromJson({
       'Id': 'e4',
       'Name': 'Pilot',
@@ -1655,13 +1829,16 @@ void main() {
     addTearDown(gesture.removePointer);
     await gesture.moveTo(tester.getCenter(find.byType(SeekBar)));
     await tester.pump();
-    expect(authImageUrls.last,
-        'https://media.example.com/Videos/e4/Trickplay/320/3.jpg?mediaSourceId=ms2');
+    expect(
+      authImageUrls.last,
+      'https://media.example.com/Videos/e4/Trickplay/320/3.jpg?mediaSourceId=ms2',
+    );
     await unmount(tester);
   });
 
-  testWidgets('pannello media: titolo, stato, tasti e chiusura',
-      (tester) async {
+  testWidgets('pannello media: titolo, stato, tasti e chiusura', (
+    tester,
+  ) async {
     await pumpPlayer(tester);
     expect(mediaSession.metadata.last.title, 'Breaking Bad');
     expect(mediaSession.metadata.last.subtitle, 'S1:E4 · Pilot');
@@ -1690,8 +1867,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('pannello media: pausa e play non invertono uno stato vecchio',
-      (tester) async {
+  testWidgets('pannello media: pausa e play non invertono uno stato vecchio', (
+    tester,
+  ) async {
     await pumpPlayer(tester);
     mediaSession.press(MediaButton.play);
     await tester.pump();
@@ -1707,8 +1885,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('tasti multimediali: ignorati se li gestisce la sessione',
-      (tester) async {
+  testWidgets('tasti multimediali: ignorati se li gestisce la sessione', (
+    tester,
+  ) async {
     mediaSession.handlesMediaKeys = true;
     await pumpPlayer(tester);
     await tester.sendKeyEvent(LogicalKeyboardKey.mediaPlayPause);
@@ -1720,8 +1899,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('pannello media: play e pausa mostrano la pillola come Spazio',
-      (tester) async {
+  testWidgets('pannello media: play e pausa mostrano la pillola come Spazio', (
+    tester,
+  ) async {
     await pumpPlayer(tester);
     expect(find.text('In pausa'), findsNothing);
 
@@ -1739,8 +1919,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('pannello media: "successivo" solo se c\'è un episodio dopo',
-      (tester) async {
+  testWidgets('pannello media: "successivo" solo se c\'è un episodio dopo', (
+    tester,
+  ) async {
     withNextEpisode();
     await pumpPlayer(tester);
     expect(mediaSession.nextEnabled.last, isTrue);
@@ -1748,11 +1929,17 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
     expect(find.text('S1:E5 · Cat in the Bag'), findsOneWidget);
-    expect(mediaSession.cleared, 0,
-        reason: 'passando all\'episodio successivo il pannello resta');
+    expect(
+      mediaSession.cleared,
+      0,
+      reason: 'passando all\'episodio successivo il pannello resta',
+    );
     expect(mediaSession.metadata.last.subtitle, 'S1:E5 · Cat in the Bag');
-    expect(mediaSession.nextEnabled.last, isFalse,
-        reason: 'e5 è l\'ultimo: niente "successivo"');
+    expect(
+      mediaSession.nextEnabled.last,
+      isFalse,
+      reason: 'e5 è l\'ultimo: niente "successivo"',
+    );
 
     // Il pannello comanda il nuovo episodio.
     mediaSession.press(MediaButton.pause);
@@ -1770,8 +1957,9 @@ void main() {
 
   testWidgets('segnala il player aperto finché non si esce', (tester) async {
     await pumpPlayer(tester);
-    final container =
-        ProviderScope.containerOf(tester.element(find.byType(PlayerScreen)));
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(PlayerScreen)),
+    );
     expect(container.read(playerActiveProvider), isTrue);
 
     mediaSession.press(MediaButton.stop);
@@ -1782,10 +1970,12 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('episodio precedente (spec H §9.1): pulsante, da dove era',
-      (tester) async {
+  testWidgets('episodio precedente (spec H §9.1): pulsante, da dove era', (
+    tester,
+  ) async {
     withPreviousEpisode(
-        positionTicks: durationToTicks(const Duration(minutes: 5)));
+      positionTicks: durationToTicks(const Duration(minutes: 5)),
+    );
     await pumpPlayer(tester);
     // Negli ultimi 30 s (durata: 2 h): di qui il successivo segnerebbe
     // l'episodio come visto, il precedente no.
@@ -1797,13 +1987,17 @@ void main() {
     expect(find.text('S1:E3 · The Cat'), findsOneWidget);
     expect(engines, hasLength(2));
     expect(engines.last.opened.single.start, const Duration(minutes: 5));
-    expect(library.playedCalls, isEmpty,
-        reason: 'tornando indietro non si segna come visto');
+    expect(
+      library.playedCalls,
+      isEmpty,
+      reason: 'tornando indietro non si segna come visto',
+    );
     await unmount(tester);
   });
 
-  testWidgets('senza episodio precedente: né pulsante né tasto P',
-      (tester) async {
+  testWidgets('senza episodio precedente: né pulsante né tasto P', (
+    tester,
+  ) async {
     await pumpPlayer(tester);
     expect(find.byTooltip('Episodio precedente'), findsNothing);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyP);
@@ -1812,8 +2006,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('P a schermo intero: il precedente resta a schermo intero',
-      (tester) async {
+  testWidgets('P a schermo intero: il precedente resta a schermo intero', (
+    tester,
+  ) async {
     withPreviousEpisode();
     await pumpPlayer(tester);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
@@ -1825,8 +2020,9 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('pannello media: "precedente" solo se c\'è un episodio prima',
-      (tester) async {
+  testWidgets('pannello media: "precedente" solo se c\'è un episodio prima', (
+    tester,
+  ) async {
     withPreviousEpisode();
     await pumpPlayer(tester);
     expect(mediaSession.previousEnabled.last, isTrue);
@@ -1834,8 +2030,11 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
     expect(find.text('S1:E3 · The Cat'), findsOneWidget);
-    expect(mediaSession.previousEnabled.last, isFalse,
-        reason: 'e3 non ha un episodio prima');
+    expect(
+      mediaSession.previousEnabled.last,
+      isFalse,
+      reason: 'e3 non ha un episodio prima',
+    );
     await unmount(tester);
   });
 }

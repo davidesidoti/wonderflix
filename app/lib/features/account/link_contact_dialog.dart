@@ -18,7 +18,9 @@ import 'resend_code_button.dart';
 /// Collega (o sostituisce) il contatto di [channel] (spec L §9.2): i
 /// contatti dopo la conferma, `null` se la finestra si chiude prima.
 Future<AccountContacts?> showLinkContactDialog(
-    BuildContext context, AccountChannel channel) {
+  BuildContext context,
+  AccountChannel channel,
+) {
   final l = AppLocalizations.of(context);
   return showWfDialog<AccountContacts>(
     context,
@@ -80,8 +82,11 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
   /// Mostra [failure] sotto il campo che lo riguarda, se è sullo schermo;
   /// altrimenti sopra i campi.
   void _show(AccountFailure failure) {
-    final text =
-        accountFailureText(AppLocalizations.of(context), failure, _channel);
+    final text = accountFailureText(
+      AppLocalizations.of(context),
+      failure,
+      _channel,
+    );
     final firstStep = _sentTo == null;
     setState(() {
       switch (failure) {
@@ -122,8 +127,14 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
       _clearErrors();
     });
     try {
-      await ref.read(accountApiProvider).startLink(_channel,
-          target: target, password: _password.text, language: language);
+      await ref
+          .read(accountApiProvider)
+          .startLink(
+            _channel,
+            target: target,
+            password: _password.text,
+            language: language,
+          );
       return null;
     } on AccountException catch (error) {
       if (mounted) _show(error.failure);
@@ -169,8 +180,9 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
       _clearErrors();
     });
     try {
-      final contacts =
-          await ref.read(accountApiProvider).confirmLink(_channel, code);
+      final contacts = await ref
+          .read(accountApiProvider)
+          .confirmLink(_channel, code);
       if (mounted) Navigator.of(context).pop(contacts);
     } on AccountException catch (error) {
       if (mounted) _show(error.failure);
@@ -190,8 +202,10 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(l.accountLinkTitle(accountChannelName(l, _channel)),
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+        Text(
+          l.accountLinkTitle(accountChannelName(l, _channel)),
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 16),
         if (_error != null) ...[
           ErrorBanner(_error!),
@@ -204,8 +218,9 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
             focusNode: _targetFocus,
             autofocus: true,
             textInputAction: TextInputAction.next,
-            keyboardType:
-                discord ? TextInputType.text : TextInputType.emailAddress,
+            keyboardType: discord
+                ? TextInputType.text
+                : TextInputType.emailAddress,
             decoration: InputDecoration(
               labelText: discord ? l.accountDiscordName : l.accountChannelEmail,
               helperText: discord ? l.accountDiscordNameHint : null,
@@ -239,9 +254,9 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
             ),
           ),
         ] else ...[
-          Text(discord
-              ? l.accountCodeSentDiscord
-              : l.accountCodeSentEmail(sentTo)),
+          Text(
+            discord ? l.accountCodeSentDiscord : l.accountCodeSentEmail(sentTo),
+          ),
           const SizedBox(height: 12),
           TextField(
             key: const Key('link-code'),
@@ -281,7 +296,8 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
                   ? null
                   : () => unawaited(sentTo == null ? _start() : _confirm()),
               child: Text(
-                  sentTo == null ? l.accountSendCode : l.accountConfirm),
+                sentTo == null ? l.accountSendCode : l.accountConfirm,
+              ),
             ),
           ],
         ),
@@ -291,6 +307,8 @@ class _LinkContactDialogState extends ConsumerState<LinkContactDialog> {
     // volo: il collegamento riuscirebbe sul server e la riga resterebbe
     // vecchia.
     return PopScope(
-        canPop: !_busy, child: SingleChildScrollView(child: content));
+      canPop: !_busy,
+      child: SingleChildScrollView(child: content),
+    );
   }
 }

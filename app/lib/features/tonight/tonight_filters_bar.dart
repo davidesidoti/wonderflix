@@ -10,8 +10,11 @@ import 'tonight_logic.dart';
 /// I filtri di "Cosa guardo stasera?" (spec M §8.4): tipo, durata (solo per
 /// i film), genere e voto (0.16.1). Li usa anche la sala del match (spec P §7.3).
 class TonightFiltersBar extends ConsumerWidget {
-  const TonightFiltersBar(
-      {super.key, required this.filters, required this.onChanged});
+  const TonightFiltersBar({
+    super.key,
+    required this.filters,
+    required this.onChanged,
+  });
 
   final TonightFilters filters;
   final ValueChanged<TonightFilters> onChanged;
@@ -28,55 +31,72 @@ class TonightFiltersBar extends ConsumerWidget {
         onChanged(filters.copyWith(genre: null));
       }
     });
-    final genres = ref.watch(tonightGenresProvider(filters.type)).value ??
+    final genres =
+        ref.watch(tonightGenresProvider(filters.type)).value ??
         const <String>[];
     // Nello stretto un gruppo di segmenti più largo della finestra scorre di
     // lato invece di sbordare.
     final compact = FormFactor.of(context).compact;
     Widget fit(Widget segments) => compact
         ? SingleChildScrollView(
-            scrollDirection: Axis.horizontal, child: segments)
+            scrollDirection: Axis.horizontal,
+            child: segments,
+          )
         : segments;
     return Wrap(
       spacing: 12,
       runSpacing: 12,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        fit(SegmentedButton<TonightType>(
-          key: const Key('tonight-type'),
-          showSelectedIcon: false,
-          segments: [
-            ButtonSegment(
-                value: TonightType.movies, label: Text(l.tonightTypeMovies)),
-            ButtonSegment(
-                value: TonightType.series, label: Text(l.tonightTypeSeries)),
-            ButtonSegment(
-                value: TonightType.both, label: Text(l.tonightTypeBoth)),
-          ],
-          selected: {filters.type},
-          onSelectionChanged: (selection) =>
-              onChanged(filters.copyWith(type: selection.first)),
-        )),
-        fit(SegmentedButton<TonightDuration>(
-          key: const Key('tonight-duration'),
-          showSelectedIcon: false,
-          segments: [
-            ButtonSegment(
-                value: TonightDuration.any, label: Text(l.tonightDurationAny)),
-            ButtonSegment(
+        fit(
+          SegmentedButton<TonightType>(
+            key: const Key('tonight-type'),
+            showSelectedIcon: false,
+            segments: [
+              ButtonSegment(
+                value: TonightType.movies,
+                label: Text(l.tonightTypeMovies),
+              ),
+              ButtonSegment(
+                value: TonightType.series,
+                label: Text(l.tonightTypeSeries),
+              ),
+              ButtonSegment(
+                value: TonightType.both,
+                label: Text(l.tonightTypeBoth),
+              ),
+            ],
+            selected: {filters.type},
+            onSelectionChanged: (selection) =>
+                onChanged(filters.copyWith(type: selection.first)),
+          ),
+        ),
+        fit(
+          SegmentedButton<TonightDuration>(
+            key: const Key('tonight-duration'),
+            showSelectedIcon: false,
+            segments: [
+              ButtonSegment(
+                value: TonightDuration.any,
+                label: Text(l.tonightDurationAny),
+              ),
+              ButtonSegment(
                 value: TonightDuration.under90,
-                label: Text(l.tonightDuration90)),
-            ButtonSegment(
+                label: Text(l.tonightDuration90),
+              ),
+              ButtonSegment(
                 value: TonightDuration.under120,
-                label: Text(l.tonightDuration120)),
-          ],
-          selected: {filters.duration},
-          // La durata vale solo per i film (spec M §8.4).
-          onSelectionChanged: filters.type == TonightType.series
-              ? null
-              : (selection) =>
-                  onChanged(filters.copyWith(duration: selection.first)),
-        )),
+                label: Text(l.tonightDuration120),
+              ),
+            ],
+            selected: {filters.duration},
+            // La durata vale solo per i film (spec M §8.4).
+            onSelectionChanged: filters.type == TonightType.series
+                ? null
+                : (selection) =>
+                      onChanged(filters.copyWith(duration: selection.first)),
+          ),
+        ),
         FilterPicker<String?>(
           value: filters.genre,
           items: {
@@ -85,21 +105,29 @@ class TonightFiltersBar extends ConsumerWidget {
           },
           onChanged: (genre) => onChanged(filters.copyWith(genre: genre)),
         ),
-        fit(SegmentedButton<TonightRating>(
-          key: const Key('tonight-rating'),
-          showSelectedIcon: false,
-          segments: [
-            ButtonSegment(
-                value: TonightRating.any, label: Text(l.tonightRatingAny)),
-            ButtonSegment(
-                value: TonightRating.good, label: Text(l.tonightRatingGood)),
-            ButtonSegment(
-                value: TonightRating.bad, label: Text(l.tonightRatingBad)),
-          ],
-          selected: {filters.rating},
-          onSelectionChanged: (selection) =>
-              onChanged(filters.copyWith(rating: selection.first)),
-        )),
+        fit(
+          SegmentedButton<TonightRating>(
+            key: const Key('tonight-rating'),
+            showSelectedIcon: false,
+            segments: [
+              ButtonSegment(
+                value: TonightRating.any,
+                label: Text(l.tonightRatingAny),
+              ),
+              ButtonSegment(
+                value: TonightRating.good,
+                label: Text(l.tonightRatingGood),
+              ),
+              ButtonSegment(
+                value: TonightRating.bad,
+                label: Text(l.tonightRatingBad),
+              ),
+            ],
+            selected: {filters.rating},
+            onSelectionChanged: (selection) =>
+                onChanged(filters.copyWith(rating: selection.first)),
+          ),
+        ),
       ],
     );
   }

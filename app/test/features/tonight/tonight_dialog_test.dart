@@ -27,27 +27,32 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     prefs = await SharedPreferences.getInstance();
     library = FakeLibraryApi()
-      ..filtersByKind[ItemKind.movie] =
-          const LibraryFilters(genres: ['Azione', 'Dramma'])
-      ..filtersByKind[ItemKind.series] =
-          const LibraryFilters(genres: ['Anime', 'Dramma']);
+      ..filtersByKind[ItemKind.movie] = const LibraryFilters(
+        genres: ['Azione', 'Dramma'],
+      )
+      ..filtersByKind[ItemKind.series] = const LibraryFilters(
+        genres: ['Anime', 'Dramma'],
+      );
     choice = null;
     closed = false;
   });
 
   final dune = testItem(
-      id: 'm1',
-      name: 'Dune',
-      year: 2021,
-      runtimeMinutes: 155,
-      genres: ['Fantascienza'],
-      rating: 8.1,
-      overview: 'Paul Atreides arriva su Arrakis.');
+    id: 'm1',
+    name: 'Dune',
+    year: 2021,
+    runtimeMinutes: 155,
+    genres: ['Fantascienza'],
+    rating: 8.1,
+    overview: 'Paul Atreides arriva su Arrakis.',
+  );
   final alien = testItem(id: 'm2', name: 'Alien', runtimeMinutes: 117);
 
-  Future<void> openDialog(WidgetTester tester,
-      {MotionLevel motion = MotionLevel.reduced,
-      Size surfaceSize = const Size(1440, 900)}) async {
+  Future<void> openDialog(
+    WidgetTester tester, {
+    MotionLevel motion = MotionLevel.reduced,
+    Size surfaceSize = const Size(1440, 900),
+  }) async {
     await pumpApp(
       tester,
       Scaffold(
@@ -69,7 +74,8 @@ void main() {
         libraryApiProvider.overrideWithValue(library),
         sharedPreferencesProvider.overrideWithValue(prefs),
         sessionControllerProvider.overrideWith(
-            () => FakeSessionController(const SessionSignedIn(testUser))),
+          () => FakeSessionController(const SessionSignedIn(testUser)),
+        ),
       ],
     );
     await tester.tap(find.text('apri'));
@@ -82,9 +88,11 @@ void main() {
       'la finestra', (tester) async {
     var pressed = 0;
     await pumpApp(
-        tester,
-        Scaffold(
-            body: Center(child: TonightButton(onPressed: () => pressed++))));
+      tester,
+      Scaffold(
+        body: Center(child: TonightButton(onPressed: () => pressed++)),
+      ),
+    );
     expect(find.text('Cosa guardo stasera?'), findsOneWidget);
     await tester.tap(find.byKey(const Key('tonight-button')));
     await tester.pump();
@@ -112,8 +120,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('Alien'), findsOneWidget);
-    final dice =
-        tester.widget<AnimatedRotation>(find.byKey(const Key('tonight-dice')));
+    final dice = tester.widget<AnimatedRotation>(
+      find.byKey(const Key('tonight-dice')),
+    );
     expect(dice.turns, 1);
     expect(dice.duration, WfMotion.slow);
   });
@@ -123,8 +132,9 @@ void main() {
     await openDialog(tester);
     await tester.tap(find.byKey(const Key('tonight-another')));
     await tester.pump();
-    final dice =
-        tester.widget<AnimatedRotation>(find.byKey(const Key('tonight-dice')));
+    final dice = tester.widget<AnimatedRotation>(
+      find.byKey(const Key('tonight-dice')),
+    );
     expect(dice.duration, Duration.zero);
   });
 
@@ -135,7 +145,8 @@ void main() {
     await tester.pump();
     await tester.pump();
     final duration = tester.widget<SegmentedButton<TonightDuration>>(
-        find.byKey(const Key('tonight-duration')));
+      find.byKey(const Key('tonight-duration')),
+    );
     expect(duration.onSelectionChanged, isNull);
     expect(library.randomCalls.last.kinds, {ItemKind.series});
     expect(prefs.getString(tonightTypeKey), 'series');
@@ -145,9 +156,12 @@ void main() {
     library.randomPages.add(pageOf([dune]));
     await openDialog(tester);
     final picker = tester.widget<DropdownButton<String?>>(
-        find.byType(DropdownButton<String?>));
-    expect([for (final item in picker.items!) (item.child as Text).data],
-        ['Tutti i generi', 'Anime', 'Azione', 'Dramma']);
+      find.byType(DropdownButton<String?>),
+    );
+    expect(
+      [for (final item in picker.items!) (item.child as Text).data],
+      ['Tutti i generi', 'Anime', 'Azione', 'Dramma'],
+    );
   });
 
   testWidgets('nessun titolo: il messaggio e Togli i filtri', (tester) async {
@@ -162,8 +176,9 @@ void main() {
     expect(prefs.getString(tonightGenreKey), isNull);
   });
 
-  testWidgets('un genere salvato che non c\'è più torna a tutti i generi',
-      (tester) async {
+  testWidgets('un genere salvato che non c\'è più torna a tutti i generi', (
+    tester,
+  ) async {
     await prefs.setString(tonightGenreKey, 'Western');
     library.randomPages.add(pageOf([dune]));
     await openDialog(tester);
@@ -185,20 +200,25 @@ void main() {
 
   testWidgets('nella finestra più piccola non sborda', (tester) async {
     final long = testItem(
-        id: 'm3',
-        name: 'Il titolo molto lungo di un film che va su due righe, '
-            'con il sottotitolo che ne aggiunge altre',
-        genres: ['Fantascienza', 'Avventura', 'Dramma'],
-        rating: 7.5,
-        overview: List.filled(12, 'Una trama molto lunga che occupa righe.')
-            .join(' '));
+      id: 'm3',
+      name:
+          'Il titolo molto lungo di un film che va su due righe, '
+          'con il sottotitolo che ne aggiunge altre',
+      genres: ['Fantascienza', 'Avventura', 'Dramma'],
+      rating: 7.5,
+      overview: List.filled(
+        12,
+        'Una trama molto lunga che occupa righe.',
+      ).join(' '),
+    );
     library.randomPages.add(pageOf([long]));
     await openDialog(tester, surfaceSize: minWindowSize);
     expect(tester.takeException(), isNull);
     // I pulsanti restano in vista: è il titolo che scorre.
     expect(
-        tester.getBottomLeft(find.byKey(const Key('tonight-play'))).dy,
-        lessThanOrEqualTo(minWindowSize.height));
+      tester.getBottomLeft(find.byKey(const Key('tonight-play'))).dy,
+      lessThanOrEqualTo(minWindowSize.height),
+    );
   });
 
   testWidgets('Dettagli e Riproduci chiudono con la scelta', (tester) async {
@@ -221,9 +241,12 @@ void main() {
   });
 
   for (final size in const [Size(390, 844), Size(844, 390)]) {
-    testWidgets('telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow', (tester) async {
-      await openDialog(tester, surfaceSize: size);
-      expect(tester.takeException(), isNull);
-    });
+    testWidgets(
+      'telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
+      (tester) async {
+        await openDialog(tester, surfaceSize: size);
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 }

@@ -21,16 +21,20 @@ void main() {
     unlinked = null;
   });
 
-  Future<void> open(WidgetTester tester,
-      {Size surfaceSize = const Size(1440, 900)}) async {
+  Future<void> open(
+    WidgetTester tester, {
+    Size surfaceSize = const Size(1440, 900),
+  }) async {
     await pumpApp(
       tester,
       surfaceSize: surfaceSize,
       Scaffold(
         body: Builder(
           builder: (context) => TextButton(
-            onPressed: () async => unlinked =
-                await showUnlinkContactDialog(context, AccountChannel.email),
+            onPressed: () async => unlinked = await showUnlinkContactDialog(
+              context,
+              AccountChannel.email,
+            ),
             child: const Text('apri'),
           ),
         ),
@@ -47,8 +51,9 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('password sbagliata resta aperta; giusta scollega',
-      (tester) async {
+  testWidgets('password sbagliata resta aperta; giusta scollega', (
+    tester,
+  ) async {
     await open(tester);
     expect(find.text('Scollegare Email?'), findsOneWidget);
 
@@ -64,13 +69,16 @@ void main() {
     expect(unlinked, isTrue);
   });
 
-  testWidgets('password sbagliata: il fuoco torna alla password, selezionata',
-      (tester) async {
+  testWidgets('password sbagliata: il fuoco torna alla password, selezionata', (
+    tester,
+  ) async {
     await open(tester);
 
     api.unlinkFailure = AccountFailure.wrongPassword;
     await tester.enterText(
-        find.byKey(const Key('unlink-password')), 'sbagliata');
+      find.byKey(const Key('unlink-password')),
+      'sbagliata',
+    );
     // Invio toglie il fuoco al campo: l'errore deve ridarglielo.
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pump();
@@ -86,8 +94,9 @@ void main() {
     expect(find.text('Troppe richieste: riprova più tardi'), findsOneWidget);
   });
 
-  testWidgets('il campo lascia andare a capo errore e suggerimento',
-      (tester) async {
+  testWidgets('il campo lascia andare a capo errore e suggerimento', (
+    tester,
+  ) async {
     await open(tester);
 
     // Senza `errorMaxLines` Flutter taglia l'errore su una riga.
@@ -98,8 +107,9 @@ void main() {
     expect(decoration.helperMaxLines, accountHelperMaxLines);
   });
 
-  testWidgets('con la richiesta in volo, Esc e Annulla non chiudono',
-      (tester) async {
+  testWidgets('con la richiesta in volo, Esc e Annulla non chiudono', (
+    tester,
+  ) async {
     api.gate = Completer<void>();
     await open(tester);
     await submit(tester, 'segreta');
@@ -109,10 +119,11 @@ void main() {
     expect(find.byKey(const Key('unlink-submit')), findsOneWidget);
     expect(unlinked, isNull);
     expect(
-        tester
-            .widget<TextButton>(find.widgetWithText(TextButton, 'Annulla'))
-            .onPressed,
-        isNull);
+      tester
+          .widget<TextButton>(find.widgetWithText(TextButton, 'Annulla'))
+          .onPressed,
+      isNull,
+    );
 
     // Lo scollegamento riesce: la finestra si chiude con `true`, e la riga
     // si può rileggere.
@@ -130,9 +141,12 @@ void main() {
   });
 
   for (final size in const [Size(390, 844), Size(844, 390)]) {
-    testWidgets('telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow', (tester) async {
-      await open(tester, surfaceSize: size);
-      expect(tester.takeException(), isNull);
-    });
+    testWidgets(
+      'telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
+      (tester) async {
+        await open(tester, surfaceSize: size);
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 }

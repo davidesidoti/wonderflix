@@ -15,7 +15,9 @@ import 'field_focus.dart';
 /// Scollega il contatto di [channel] dopo la password attuale (spec L
 /// §9.2). `true` se scollegato.
 Future<bool> showUnlinkContactDialog(
-    BuildContext context, AccountChannel channel) async {
+  BuildContext context,
+  AccountChannel channel,
+) async {
   final l = AppLocalizations.of(context);
   return await showWfDialog<bool>(
         context,
@@ -88,8 +90,10 @@ class _UnlinkContactDialogState extends ConsumerState<UnlinkContactDialog> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(l.accountUnlinkTitle(accountChannelName(l, widget.channel)),
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+        Text(
+          l.accountUnlinkTitle(accountChannelName(l, widget.channel)),
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 16),
         Text(l.accountUnlinkBody),
         const SizedBox(height: 16),
@@ -137,6 +141,8 @@ class _UnlinkContactDialogState extends ConsumerState<UnlinkContactDialog> {
     // volo: lo scollegamento riuscirebbe sul server e la riga resterebbe
     // vecchia.
     return PopScope(
-        canPop: !_busy, child: SingleChildScrollView(child: content));
+      canPop: !_busy,
+      child: SingleChildScrollView(child: content),
+    );
   }
 }

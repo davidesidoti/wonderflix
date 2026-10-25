@@ -35,7 +35,8 @@ Future<T?> showWfDialog<T>(
               scopesRoute: true,
               namesRoute: true,
               explicitChildNodes: true,
-              label: semanticLabel ??
+              label:
+                  semanticLabel ??
                   MaterialLocalizations.of(context).dialogLabel,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -60,29 +61,29 @@ Future<T?> showWfDialog<T>(
     );
   }
   return showDialog<T>(
-      context: context,
-      barrierColor: _barrier,
-      builder: (context) => Dialog(
-        backgroundColor: WfColors.surface,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-          side: const BorderSide(color: WfColors.border),
-        ),
-        // Come `AlertDialog`: la finestra è un ambito a sé e dà il nome alla rotta.
-        child: Semantics(
-          scopesRoute: true,
-          namesRoute: true,
-          explicitChildNodes: true,
-          label: semanticLabel ?? MaterialLocalizations.of(context).dialogLabel,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: maxWidth),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Builder(builder: builder),
-            ),
+    context: context,
+    barrierColor: _barrier,
+    builder: (context) => Dialog(
+      backgroundColor: WfColors.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: const BorderSide(color: WfColors.border),
+      ),
+      // Come `AlertDialog`: la finestra è un ambito a sé e dà il nome alla rotta.
+      child: Semantics(
+        scopesRoute: true,
+        namesRoute: true,
+        explicitChildNodes: true,
+        label: semanticLabel ?? MaterialLocalizations.of(context).dialogLabel,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Builder(builder: builder),
           ),
         ),
       ),
-    );
+    ),
+  );
 }

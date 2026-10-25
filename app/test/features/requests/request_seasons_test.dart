@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
@@ -10,6 +11,7 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/detail/detail_header.dart';
 import 'package:wonderflix/features/detail/item_detail_screen.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/features/requests/request_seasons.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
@@ -24,13 +26,19 @@ void main() {
   setUp(() {
     library = FakeLibraryApi()
       ..itemsById['s1'] = testItem(
-          id: 's1',
-          name: 'The Last of Us',
-          kind: ItemKind.series,
-          childCount: 1,
-          tmdbId: 100088)
+        id: 's1',
+        name: 'The Last of Us',
+        kind: ItemKind.series,
+        childCount: 1,
+        tmdbId: 100088,
+      )
       ..seasonsBySeries['s1'] = [
-        testItem(id: 'se1', name: 'Stagione 1', kind: ItemKind.season, index: 1),
+        testItem(
+          id: 'se1',
+          name: 'Stagione 1',
+          kind: ItemKind.season,
+          index: 1,
+        ),
       ];
     requests = FakeRequestsApi()
       ..titles[100088] = testDetails(
@@ -39,22 +47,30 @@ void main() {
         type: RequestMediaType.tv,
         status: TitleStatus.partial,
         seasons: const [
-          SeasonInfo(seasonNumber: 1, episodeCount: 9, status: TitleStatus.available),
+          SeasonInfo(
+            seasonNumber: 1,
+            episodeCount: 9,
+            status: TitleStatus.available,
+          ),
           SeasonInfo(seasonNumber: 2, episodeCount: 7),
           SeasonInfo(seasonNumber: 3, episodeCount: 8),
         ],
       );
   });
 
-  Future<void> pumpSeries(WidgetTester tester,
-      {bool available = true, String itemId = 's1'}) async {
+  Future<void> pumpSeries(
+    WidgetTester tester, {
+    bool available = true,
+    String itemId = 's1',
+  }) async {
     await pumpApp(
       tester,
       Scaffold(body: ItemDetailScreen(itemId: itemId)),
       overrides: [
         libraryApiProvider.overrideWithValue(library),
         sessionControllerProvider.overrideWith(
-            () => FakeSessionController(const SessionSignedIn(testUser))),
+          () => FakeSessionController(const SessionSignedIn(testUser)),
+        ),
         ...requestsTestOverrides(requests, available: available),
       ],
     );
@@ -63,26 +79,31 @@ void main() {
     }
   }
 
-  testWidgets('stagioni mancanti: "Richiedi stagioni" apre la scelta e chiede',
-      (tester) async {
-    await pumpSeries(tester);
-    expect(find.text('Richiedi stagioni'), findsOneWidget);
+  testWidgets(
+    'stagioni mancanti: "Richiedi stagioni" apre la scelta e chiede',
+    (tester) async {
+      await pumpSeries(tester);
+      expect(find.text('Richiedi stagioni'), findsOneWidget);
 
-    await tester.tap(find.text('Richiedi stagioni'));
-    await tester.pumpAndSettle();
-    final dialog = find.byType(Dialog);
-    expect(find.descendant(of: dialog, matching: find.text('The Last of Us')), findsOneWidget);
-    expect(find.text('Stagione 2 · 7 episodi'), findsOneWidget);
+      await tester.tap(find.text('Richiedi stagioni'));
+      await tester.pumpAndSettle();
+      final dialog = find.byType(Dialog);
+      expect(
+        find.descendant(of: dialog, matching: find.text('The Last of Us')),
+        findsOneWidget,
+      );
+      expect(find.text('Stagione 2 · 7 episodi'), findsOneWidget);
 
-    await tester.tap(find.text('Stagione 3 · 8 episodi'));
-    await tester.pump();
-    await tester.tap(find.text('Richiedi 1 stagione'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Stagione 3 · 8 episodi'));
+      await tester.pump();
+      await tester.tap(find.text('Richiedi 1 stagione'));
+      await tester.pumpAndSettle();
 
-    expect(requests.created.single.seasons, [2]);
-    expect(find.byType(Dialog), findsNothing);
-    expect(find.text('Richiesta inviata'), findsOneWidget);
-  });
+      expect(requests.created.single.seasons, [2]);
+      expect(find.byType(Dialog), findsNothing);
+      expect(find.text('Richiesta inviata'), findsOneWidget);
+    },
+  );
 
   testWidgets('nessuna stagione da chiedere: niente pulsante', (tester) async {
     requests.titles[100088] = testDetails(
@@ -90,7 +111,11 @@ void main() {
       type: RequestMediaType.tv,
       status: TitleStatus.available,
       seasons: const [
-        SeasonInfo(seasonNumber: 1, episodeCount: 9, status: TitleStatus.available),
+        SeasonInfo(
+          seasonNumber: 1,
+          episodeCount: 9,
+          status: TitleStatus.available,
+        ),
       ],
     );
     await pumpSeries(tester);
@@ -98,7 +123,9 @@ void main() {
     expect(find.text('Richiedi stagioni'), findsNothing);
   });
 
-  testWidgets('senza la funzione: niente pulsante e niente Seerr', (tester) async {
+  testWidgets('senza la funzione: niente pulsante e niente Seerr', (
+    tester,
+  ) async {
     await pumpSeries(tester, available: false);
 
     expect(find.text('Richiedi stagioni'), findsNothing);
@@ -106,16 +133,20 @@ void main() {
   });
 
   testWidgets('chi non può chiedere non vede il pulsante', (tester) async {
-    requests.meValue =
-        const RequestsMe(canRequest: false, canManage: false, hasAccount: true);
+    requests.meValue = const RequestsMe(
+      canRequest: false,
+      canManage: false,
+      hasAccount: true,
+    );
     await pumpSeries(tester);
 
     expect(find.text('Richiedi stagioni'), findsNothing);
     expect(requests.calls.where((c) => c.startsWith('title:')), isEmpty);
   });
 
-  testWidgets('Invio chiede subito: "Richiedi" ha il fuoco all\'apertura',
-      (tester) async {
+  testWidgets('Invio chiede subito: "Richiedi" ha il fuoco all\'apertura', (
+    tester,
+  ) async {
     await pumpSeries(tester);
     await tester.tap(find.text('Richiedi stagioni'));
     await tester.pumpAndSettle();
@@ -129,26 +160,30 @@ void main() {
   });
 
   testWidgets('un nome lungo sta su una riga con i puntini', (tester) async {
-    const long = 'Un titolo di serie molto più lungo di quanto la finestra '
+    const long =
+        'Un titolo di serie molto più lungo di quanto la finestra '
         'possa mostrare in una riga sola, con tutti i suoi sottotitoli';
     library.itemsById['s1'] = testItem(
-        id: 's1',
-        name: long,
-        kind: ItemKind.series,
-        childCount: 1,
-        tmdbId: 100088);
+      id: 's1',
+      name: long,
+      kind: ItemKind.series,
+      childCount: 1,
+      tmdbId: 100088,
+    );
     await pumpSeries(tester);
     await tester.tap(find.text('Richiedi stagioni'));
     await tester.pumpAndSettle();
 
-    final name = tester.widget<Text>(find.descendant(
-        of: find.byType(Dialog), matching: find.text(long)));
+    final name = tester.widget<Text>(
+      find.descendant(of: find.byType(Dialog), matching: find.text(long)),
+    );
     expect(name.maxLines, 1);
     expect(name.overflow, TextOverflow.ellipsis);
   });
 
-  testWidgets('durante l\'invio la finestra non si chiude: né Esc né Annulla',
-      (tester) async {
+  testWidgets('durante l\'invio la finestra non si chiude: né Esc né Annulla', (
+    tester,
+  ) async {
     final gate = requests.createGate = Completer<void>();
     await pumpSeries(tester);
     await tester.tap(find.text('Richiedi stagioni'));
@@ -189,8 +224,9 @@ void main() {
     expect(find.byType(SnackBar), findsNothing);
   });
 
-  testWidgets('Annulla scarta le caselle tolte: riaprendo ci sono tutte',
-      (tester) async {
+  testWidgets('Annulla scarta le caselle tolte: riaprendo ci sono tutte', (
+    tester,
+  ) async {
     await pumpSeries(tester);
     await tester.tap(find.text('Richiedi stagioni'));
     await tester.pumpAndSettle();
@@ -211,8 +247,9 @@ void main() {
     expect(requests.created.single.seasons, [2, 3]);
   });
 
-  testWidgets('errore di Seerr sulla scheda: niente pulsante e niente avviso',
-      (tester) async {
+  testWidgets('errore di Seerr sulla scheda: niente pulsante e niente avviso', (
+    tester,
+  ) async {
     // `title` lancia `invalid` per un id che il finto non conosce.
     requests.titles.remove(100088);
     await pumpSeries(tester);
@@ -223,7 +260,9 @@ void main() {
     expect(find.byType(SnackBar), findsNothing);
   });
 
-  testWidgets('chieste le ultime stagioni: il pulsante sparisce', (tester) async {
+  testWidgets('chieste le ultime stagioni: il pulsante sparisce', (
+    tester,
+  ) async {
     await pumpSeries(tester);
     await tester.tap(find.text('Richiedi stagioni'));
     await tester.pumpAndSettle();
@@ -235,9 +274,21 @@ void main() {
       type: RequestMediaType.tv,
       status: TitleStatus.processing,
       seasons: const [
-        SeasonInfo(seasonNumber: 1, episodeCount: 9, status: TitleStatus.available),
-        SeasonInfo(seasonNumber: 2, episodeCount: 7, status: TitleStatus.pending),
-        SeasonInfo(seasonNumber: 3, episodeCount: 8, status: TitleStatus.pending),
+        SeasonInfo(
+          seasonNumber: 1,
+          episodeCount: 9,
+          status: TitleStatus.available,
+        ),
+        SeasonInfo(
+          seasonNumber: 2,
+          episodeCount: 7,
+          status: TitleStatus.pending,
+        ),
+        SeasonInfo(
+          seasonNumber: 3,
+          episodeCount: 8,
+          status: TitleStatus.pending,
+        ),
       ],
     );
     await tester.tap(find.text('Richiedi'));
@@ -248,7 +299,9 @@ void main() {
     expect(find.text('Richiedi stagioni'), findsNothing);
   });
 
-  testWidgets('un film con l\'id TMDB non tocca la scheda di Seerr', (tester) async {
+  testWidgets('un film con l\'id TMDB non tocca la scheda di Seerr', (
+    tester,
+  ) async {
     library.itemsById['m1'] = testItem(id: 'm1', tmdbId: 438631);
     await pumpSeries(tester, itemId: 'm1');
 
@@ -257,13 +310,16 @@ void main() {
     expect(requests.calls.where((c) => c.startsWith('title:')), isEmpty);
   });
 
-  testWidgets('"Richiedi stagioni" arriva dopo i toggle e non li sposta',
-      (tester) async {
+  testWidgets('"Richiedi stagioni" arriva dopo i toggle e non li sposta', (
+    tester,
+  ) async {
     // La scheda di Seerr arriva tardi: il pulsante compare dopo gli altri.
     final gate = requests.titleGate = Completer<void>();
     await pumpSeries(tester);
-    Finder inHeader(IconData icon) =>
-        find.descendant(of: find.byType(DetailHeader), matching: find.byIcon(icon));
+    Finder inHeader(IconData icon) => find.descendant(
+      of: find.byType(DetailHeader),
+      matching: find.byIcon(icon),
+    );
     expect(find.text('Richiedi stagioni'), findsNothing);
     final heart = tester.getCenter(inHeader(LucideIcons.heart));
     final check = tester.getCenter(inHeader(LucideIcons.check));
@@ -276,24 +332,67 @@ void main() {
     expect(find.text('Richiedi stagioni'), findsOneWidget);
     expect(tester.getCenter(inHeader(LucideIcons.heart)), heart);
     expect(tester.getCenter(inHeader(LucideIcons.check)), check);
-    expect(tester.getCenter(find.text('Richiedi stagioni')).dx, greaterThan(check.dx));
+    expect(
+      tester.getCenter(find.text('Richiedi stagioni')).dx,
+      greaterThan(check.dx),
+    );
   });
 
-  testWidgets('la finestra ha il suo titolo come nome per lo screen reader',
-      (tester) async {
+  testWidgets('la finestra ha il suo titolo come nome per lo screen reader', (
+    tester,
+  ) async {
     final semantics = tester.ensureSemantics();
     await pumpSeries(tester);
     await tester.tap(find.text('Richiedi stagioni'));
     await tester.pumpAndSettle();
 
     expect(
-      find.byWidgetPredicate((w) =>
-          w is Semantics &&
-          w.properties.namesRoute == true &&
-          w.properties.scopesRoute == true &&
-          w.properties.label == 'Richiedi stagioni'),
+      find.byWidgetPredicate(
+        (w) =>
+            w is Semantics &&
+            w.properties.namesRoute == true &&
+            w.properties.scopesRoute == true &&
+            w.properties.label == 'Richiedi stagioni',
+      ),
       findsOneWidget,
     );
     semantics.dispose();
   });
+
+  for (final size in const [Size(390, 844), Size(844, 390)]) {
+    testWidgets(
+      'stagioni ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
+      (tester) async {
+        await pumpApp(
+          tester,
+          Scaffold(
+            body: Consumer(
+              builder: (context, ref, _) => TextButton(
+                onPressed: () => unawaited(
+                  showRequestSeasonsDialog(
+                    context,
+                    ref,
+                    (type: RequestMediaType.tv, tmdbId: 100088, language: 'it'),
+                    'The Last of Us con un nome piuttosto lungo da stare in una riga',
+                  ),
+                ),
+                child: const Text('apri'),
+              ),
+            ),
+          ),
+          surfaceSize: size,
+          overrides: [
+            sessionControllerProvider.overrideWith(
+              () => FakeSessionController(const SessionSignedIn(testUser)),
+            ),
+            ...requestsTestOverrides(requests),
+          ],
+        );
+        await tester.tap(find.text('apri'));
+        await tester.pumpAndSettle();
+        expect(find.text('Stagione 2 · 7 episodi'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 }

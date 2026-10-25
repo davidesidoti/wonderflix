@@ -20,9 +20,11 @@ void main() {
 
   setUp(() => api = FakeLibraryApi());
 
-  Future<void> openDialog(WidgetTester tester,
-      {JellyfinUser user = testUser,
-      Size surfaceSize = const Size(1440, 900)}) async {
+  Future<void> openDialog(
+    WidgetTester tester, {
+    JellyfinUser user = testUser,
+    Size surfaceSize = const Size(1440, 900),
+  }) async {
     final item = testItem(id: 'e1', name: 'Pilot', kind: ItemKind.episode);
     await pumpApp(
       tester,
@@ -38,7 +40,8 @@ void main() {
       overrides: [
         libraryApiProvider.overrideWithValue(api),
         sessionControllerProvider.overrideWith(
-            () => FakeSessionController(SessionSignedIn(user))),
+          () => FakeSessionController(SessionSignedIn(user)),
+        ),
       ],
     );
     await tester.tap(find.text('apri'));
@@ -48,16 +51,23 @@ void main() {
   }
 
   testWidgets('due versioni, video, audio e sottotitoli', (tester) async {
-    final base = testMediaInfo(subtitles: const [
-      SubtitleTrack(
-          index: 2, language: 'ita', codec: 'subrip', isExternal: true),
-      SubtitleTrack(
-          index: 3, language: 'eng', codec: 'ass', isForced: true),
-    ]);
-    api.mediaInfoById['e1'] = ItemMediaInfo(versions: [
-      ...base.versions,
-      const MediaVersion(id: 'v2', name: 'Dark 4K', container: 'mp4'),
-    ]);
+    final base = testMediaInfo(
+      subtitles: const [
+        SubtitleTrack(
+          index: 2,
+          language: 'ita',
+          codec: 'subrip',
+          isExternal: true,
+        ),
+        SubtitleTrack(index: 3, language: 'eng', codec: 'ass', isForced: true),
+      ],
+    );
+    api.mediaInfoById['e1'] = ItemMediaInfo(
+      versions: [
+        ...base.versions,
+        const MediaVersion(id: 'v2', name: 'Dark 4K', container: 'mp4'),
+      ],
+    );
     await openDialog(tester);
 
     expect(find.text('Info tecniche'), findsOneWidget);
@@ -106,8 +116,7 @@ void main() {
     expect(find.text('Informazioni non disponibili'), findsOneWidget);
   });
 
-  testWidgets('nessuna versione: informazioni non disponibili',
-      (tester) async {
+  testWidgets('nessuna versione: informazioni non disponibili', (tester) async {
     api.mediaInfoById['e1'] = const ItemMediaInfo();
     await openDialog(tester);
     expect(find.text('Informazioni non disponibili'), findsOneWidget);
@@ -125,9 +134,28 @@ void main() {
   });
 
   for (final size in const [Size(390, 844), Size(844, 390)]) {
-    testWidgets('telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow', (tester) async {
-      await openDialog(tester, surfaceSize: size);
-      expect(tester.takeException(), isNull);
-    });
+    testWidgets(
+      'telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
+      (tester) async {
+        final base = testMediaInfo();
+        api.mediaInfoById['e1'] = ItemMediaInfo(
+          versions: [
+            MediaVersion(
+              id: 'v1',
+              name: 'Dark 4K',
+              container: 'mkv',
+              fileName:
+                  'Dark.S01E02.2160p.WEB-DL.DDP5.1.Atmos.HDR10.H265-GRUPPO.mkv',
+              video: base.versions.first.video,
+              audio: base.versions.first.audio,
+            ),
+          ],
+        );
+        // L'amministratore vede anche il nome del file, il valore più lungo.
+        await openDialog(tester, user: testAdmin, surfaceSize: size);
+        expect(find.textContaining('GRUPPO'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 }

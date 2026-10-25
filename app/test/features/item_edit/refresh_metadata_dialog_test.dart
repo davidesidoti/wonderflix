@@ -25,9 +25,13 @@ void main() {
     session = FakeSessionController(const SessionSignedIn(testAdmin));
   });
 
-  Future<void> open(WidgetTester tester) async {
+  Future<void> open(
+    WidgetTester tester, {
+    Size surfaceSize = const Size(1440, 900),
+  }) async {
     await pumpApp(
       tester,
+      surfaceSize: surfaceSize,
       Scaffold(
         body: Builder(
           builder: (context) => TextButton(
@@ -46,13 +50,14 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  int revision(WidgetTester tester) =>
-      ProviderScope.containerOf(tester.element(find.byType(Scaffold).first))
-          .read(libraryRevisionProvider);
+  int revision(WidgetTester tester) => ProviderScope.containerOf(
+    tester.element(find.byType(Scaffold).first),
+  ).read(libraryRevisionProvider);
 
   bool? imagesChecked(WidgetTester tester) => tester
-      .widget<CheckboxListTile>(find.widgetWithText(
-          CheckboxListTile, it.refreshAlsoImages))
+      .widget<CheckboxListTile>(
+        find.widgetWithText(CheckboxListTile, it.refreshAlsoImages),
+      )
       .value;
 
   testWidgets('cerca dati mancanti: replace falsi', (tester) async {
@@ -91,11 +96,13 @@ void main() {
     await tester.pump(refreshReloadDelay);
   });
 
-  testWidgets('la casella delle immagini è spenta con cerca dati mancanti',
-      (tester) async {
+  testWidgets('la casella delle immagini è spenta con cerca dati mancanti', (
+    tester,
+  ) async {
     await open(tester);
     final box = tester.widget<CheckboxListTile>(
-        find.widgetWithText(CheckboxListTile, it.refreshAlsoImages));
+      find.widgetWithText(CheckboxListTile, it.refreshAlsoImages),
+    );
     expect(box.onChanged, isNull);
 
     // Spunta con "sostituisci", poi torna a "mancanti": non conta più.
@@ -113,8 +120,9 @@ void main() {
     await tester.pump(refreshReloadDelay);
   });
 
-  testWidgets('bump 10 s dopo, non prima, anche a finestra chiusa',
-      (tester) async {
+  testWidgets('bump 10 s dopo, non prima, anche a finestra chiusa', (
+    tester,
+  ) async {
     await open(tester);
     final before = revision(tester);
     await tester.tap(find.text(it.refreshStart));
@@ -169,4 +177,14 @@ void main() {
     expect(find.text(it.refreshStart), findsOneWidget);
     expect(session.refreshUserCalls, 0);
   });
+
+  for (final size in const [Size(390, 844), Size(844, 390)]) {
+    testWidgets(
+      'telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
+      (tester) async {
+        await open(tester, surfaceSize: size);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 }

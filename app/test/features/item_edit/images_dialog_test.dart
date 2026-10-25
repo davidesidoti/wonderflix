@@ -20,14 +20,14 @@ import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
 
 RemoteImage _image(int n, {String? language = 'it'}) => RemoteImage(
-      url: 'https://img.example.com/$n.jpg',
-      provider: 'TheMovieDb',
-      thumbnailUrl: 'https://img.example.com/t$n.jpg',
-      width: 1000 + n,
-      height: 1500,
-      language: language,
-      rating: 5.3,
-    );
+  url: 'https://img.example.com/$n.jpg',
+  provider: 'TheMovieDb',
+  thumbnailUrl: 'https://img.example.com/t$n.jpg',
+  width: 1000 + n,
+  height: 1500,
+  language: language,
+  rating: 5.3,
+);
 
 /// Il download passa, la rilettura degli sfondi no.
 class _RawFails extends FakeItemEditApi {
@@ -54,8 +54,11 @@ void main() {
       ..itemsById['i1'] = testItem(id: 'i1', kind: ItemKind.series)
       ..itemsById['one'] = testItem(id: 'one', kind: ItemKind.series)
       ..itemsById['se1'] = testItem(id: 'se1', kind: ItemKind.season)
-      ..itemsById['bare'] = JellyfinItem.fromJson(
-          {'Id': 'bare', 'Name': 'Senza', 'Type': 'Series'});
+      ..itemsById['bare'] = JellyfinItem.fromJson({
+        'Id': 'bare',
+        'Name': 'Senza',
+        'Type': 'Series',
+      });
     session = FakeSessionController(const SessionSignedIn(testAdmin));
     picked = null;
   });
@@ -89,9 +92,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  int revision(WidgetTester tester) =>
-      ProviderScope.containerOf(tester.element(find.byType(Scaffold).first))
-          .read(libraryRevisionProvider);
+  int revision(WidgetTester tester) => ProviderScope.containerOf(
+    tester.element(find.byType(Scaffold).first),
+  ).read(libraryRevisionProvider);
 
   Future<void> openBackdropTab(WidgetTester tester) async {
     await tester.tap(find.widgetWithText(ChoiceChip, it.imagesBackdrop));
@@ -120,8 +123,9 @@ void main() {
     expect(backdropToMoveFirst(5), 4);
   });
 
-  testWidgets('una sola scheda per stagioni ed episodi: niente riga',
-      (tester) async {
+  testWidgets('una sola scheda per stagioni ed episodi: niente riga', (
+    tester,
+  ) async {
     await open(tester, id: 'se1', kind: ItemKind.season);
     expect(find.byType(ChoiceChip), findsNothing);
     expect(api.calls, ['remoteImages se1 Primary 0 false']);
@@ -136,8 +140,9 @@ void main() {
     expect(find.text(it.imagesNone), findsNothing);
   });
 
-  testWidgets('senza immagine attuale compare "nessuna immagine"',
-      (tester) async {
+  testWidgets('senza immagine attuale compare "nessuna immagine"', (
+    tester,
+  ) async {
     await open(tester, id: 'bare');
     expect(find.text(it.imagesNone), findsOneWidget);
   });
@@ -218,8 +223,9 @@ void main() {
     expect(api.calls.where((c) => c.startsWith('moveBackdropFirst')), isEmpty);
   });
 
-  testWidgets('lo spostamento che fallisce: errore, ma la scheda si rilegge',
-      (tester) async {
+  testWidgets('lo spostamento che fallisce: errore, ma la scheda si rilegge', (
+    tester,
+  ) async {
     api = _RawFails()
       ..items['i1'] = testRawItem(backdropImageTags: ['b1', 'b2'])
       ..page = RemoteImagesPage(images: [_image(1)], total: 1);
@@ -270,8 +276,9 @@ void main() {
     expect(api.calls.last, 'uploadImage i1 Primary 6 image/jpeg');
   });
 
-  testWidgets('upload di uno sfondo: sposta il nuovo in prima posizione',
-      (tester) async {
+  testWidgets('upload di uno sfondo: sposta il nuovo in prima posizione', (
+    tester,
+  ) async {
     await open(tester);
     await openBackdropTab(tester);
     picked = file('s.jpg', 3);
@@ -336,9 +343,23 @@ void main() {
   });
 
   for (final size in const [Size(390, 844), Size(844, 390)]) {
-    testWidgets('telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow', (tester) async {
-      await open(tester, surfaceSize: size);
-      expect(tester.takeException(), isNull);
-    });
+    testWidgets(
+      'telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
+      (tester) async {
+        await open(tester, surfaceSize: size);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  for (final size in const [Size(390, 844), Size(844, 390)]) {
+    testWidgets(
+      'scheda sfondo ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
+      (tester) async {
+        await open(tester, surfaceSize: size);
+        await openBackdropTab(tester);
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 }

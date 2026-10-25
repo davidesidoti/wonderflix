@@ -15,8 +15,11 @@ import 'account_admin_labels.dart';
 
 /// "Imposta password" per l'utente [userId] (spec L §9.5). `true` se
 /// impostata.
-Future<bool> showSetPasswordDialog(BuildContext context,
-    {required String userId, required String name}) async {
+Future<bool> showSetPasswordDialog(
+  BuildContext context, {
+  required String userId,
+  required String name,
+}) async {
   final l = AppLocalizations.of(context);
   return await showWfDialog<bool>(
         context,
@@ -30,8 +33,11 @@ Future<bool> showSetPasswordDialog(BuildContext context,
 /// chiude le sessioni dell'utente. Come le finestre del 18b, non si chiude
 /// durante la richiesta.
 class SetPasswordDialog extends ConsumerStatefulWidget {
-  const SetPasswordDialog(
-      {super.key, required this.userId, required this.name});
+  const SetPasswordDialog({
+    super.key,
+    required this.userId,
+    required this.name,
+  });
 
   final String userId;
   final String name;
@@ -82,9 +88,11 @@ class _SetPasswordDialogState extends ConsumerState<SetPasswordDialog> {
       // vuol dire "funzione assente", ed è `accountAdminErrorText` a non
       // dirlo).
       if (mounted) {
-        setState(() => _error = error is NotFoundException
-            ? l.adminUsersUnknown
-            : accountAdminErrorText(l, error, widget.name));
+        setState(
+          () => _error = error is NotFoundException
+              ? l.adminUsersUnknown
+              : accountAdminErrorText(l, error, widget.name),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -98,11 +106,15 @@ class _SetPasswordDialogState extends ConsumerState<SetPasswordDialog> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(l.adminUsersSetPasswordTitle(widget.name),
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+        Text(
+          l.adminUsersSetPasswordTitle(widget.name),
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 8),
-        Text(l.adminUsersSetPasswordHint(widget.name),
-            style: const TextStyle(color: WfColors.creamMuted)),
+        Text(
+          l.adminUsersSetPasswordHint(widget.name),
+          style: const TextStyle(color: WfColors.creamMuted),
+        ),
         const SizedBox(height: 16),
         if (_error != null) ...[
           ErrorBanner(_error!),
@@ -159,6 +171,8 @@ class _SetPasswordDialogState extends ConsumerState<SetPasswordDialog> {
     // Esc e il clic fuori non la chiudono durante la richiesta: la password
     // cambierebbe senza l'avviso.
     return PopScope(
-        canPop: !_busy, child: SingleChildScrollView(child: content));
+      canPop: !_busy,
+      child: SingleChildScrollView(child: content),
+    );
   }
 }

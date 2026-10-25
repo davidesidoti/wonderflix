@@ -82,11 +82,11 @@ class TonightButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => WfButton.secondary(
-        key: const Key('tonight-button'),
-        label: AppLocalizations.of(context).tonightButton,
-        icon: LucideIcons.dices,
-        onPressed: onPressed,
-      );
+    key: const Key('tonight-button'),
+    label: AppLocalizations.of(context).tonightButton,
+    icon: LucideIcons.dices,
+    onPressed: onPressed,
+  );
 }
 
 /// La finestra (spec M §8.4): filtri, il titolo proposto, Riproduci,
@@ -110,8 +110,7 @@ class _TonightDialogState extends ConsumerState<TonightDialog> {
     unawaited(_controller.another());
   }
 
-  void _filters(TonightFilters next) =>
-      unawaited(_controller.setFilters(next));
+  void _filters(TonightFilters next) => unawaited(_controller.setFilters(next));
 
   @override
   Widget build(BuildContext context) {
@@ -133,14 +132,21 @@ class _TonightDialogState extends ConsumerState<TonightDialog> {
               turns: _spins.toDouble(),
               duration: motion.isReduced ? Duration.zero : WfMotion.slow,
               curve: WfMotion.emphasized,
-              child: const Icon(LucideIcons.dices,
-                  size: 24, color: WfColors.gold),
+              child: const Icon(
+                LucideIcons.dices,
+                size: 24,
+                color: WfColors.gold,
+              ),
             ),
             const SizedBox(width: 12),
             Flexible(
-              child: Text(l.tonightButton,
-                  style: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.w600)),
+              child: Text(
+                l.tonightButton,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ],
         ),
@@ -156,15 +162,15 @@ class _TonightDialogState extends ConsumerState<TonightDialog> {
             child: switch (state.pick) {
               AsyncData(value: final item?) => _TonightPick(item: item),
               AsyncData() => _TonightMessage(
-                  text: l.tonightEmpty,
-                  action: filters.isDefault ? null : l.tonightClearFilters,
-                  onAction: () => _filters(TonightFilters.defaults),
-                ),
+                text: l.tonightEmpty,
+                action: filters.isDefault ? null : l.tonightClearFilters,
+                onAction: () => _filters(TonightFilters.defaults),
+              ),
               AsyncError(:final error) => _TonightMessage(
-                  text: describeError(l, error),
-                  action: l.retry,
-                  onAction: _another,
-                ),
+                text: describeError(l, error),
+                action: l.retry,
+                onAction: _another,
+              ),
               _ => const SkeletonBox(height: tonightPickHeight),
             },
           ),
@@ -239,7 +245,9 @@ class _TonightPick extends ConsumerWidget {
                 fit: StackFit.expand,
                 children: [
                   BackdropImage(
-                      backdrop: urls.backdrop(item), fallback: urls.poster(item)),
+                    backdrop: urls.backdrop(item),
+                    fallback: urls.poster(item),
+                  ),
                   const DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -254,10 +262,12 @@ class _TonightPick extends ConsumerWidget {
                     left: 16,
                     right: 16,
                     bottom: 12,
-                    child: Text(item.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: WfText.display(32)),
+                    child: Text(
+                      item.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: WfText.display(32),
+                    ),
                   ),
                 ],
               ),
@@ -273,11 +283,19 @@ class _TonightPick extends ConsumerWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(LucideIcons.star, size: 14, color: WfColors.gold),
+                    const Icon(
+                      LucideIcons.star,
+                      size: 14,
+                      color: WfColors.gold,
+                    ),
                     const SizedBox(width: 4),
-                    Text(rating.toStringAsFixed(1),
-                        style: const TextStyle(
-                            color: WfColors.gold, fontWeight: FontWeight.w600)),
+                    Text(
+                      rating.toStringAsFixed(1),
+                      style: const TextStyle(
+                        color: WfColors.gold,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ],
                 ),
             ],
@@ -294,8 +312,11 @@ class _TonightPick extends ConsumerWidget {
 
 /// Nessun titolo, o un errore: il messaggio e, se c'è, un'azione.
 class _TonightMessage extends StatelessWidget {
-  const _TonightMessage(
-      {required this.text, required this.action, required this.onAction});
+  const _TonightMessage({
+    required this.text,
+    required this.action,
+    required this.onAction,
+  });
 
   final String text;
   final String? action;
@@ -308,9 +329,11 @@ class _TonightMessage extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(text,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: WfColors.creamMuted)),
+          Text(
+            text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: WfColors.creamMuted),
+          ),
           if (label != null) ...[
             const SizedBox(height: 8),
             TextButton(onPressed: onAction, child: Text(label)),

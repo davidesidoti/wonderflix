@@ -44,6 +44,7 @@ Future<void> _open(
   WidgetTester tester,
   void Function(CalendarEntry entry) onOpenEntry, {
   bool Function(CalendarEntry entry)? canOpen,
+  Size surfaceSize = const Size(1440, 900),
 }) async {
   await pumpApp(
     tester,
@@ -61,6 +62,7 @@ Future<void> _open(
         ),
       ),
     ),
+    surfaceSize: surfaceSize,
   );
   await tester.tap(find.text('apri'));
   await tester.pumpAndSettle();
@@ -127,4 +129,14 @@ void main() {
     expect(find.text('Giovedì 22 ottobre'), findsOneWidget);
     expect(opened, isEmpty);
   });
+
+  for (final size in const [Size(390, 844), Size(844, 390)]) {
+    testWidgets(
+      'telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
+      (tester) async {
+        await _open(tester, (_) {}, surfaceSize: size);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 }

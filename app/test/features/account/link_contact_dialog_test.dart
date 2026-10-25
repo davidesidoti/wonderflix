@@ -27,8 +27,12 @@ void main() {
     closed = false;
   });
 
-  Future<void> open(WidgetTester tester, AccountChannel channel,
-      {AppConfig? config, Size surfaceSize = const Size(1440, 900)}) async {
+  Future<void> open(
+    WidgetTester tester,
+    AccountChannel channel, {
+    AppConfig? config,
+    Size surfaceSize = const Size(1440, 900),
+  }) async {
     await pumpApp(
       tester,
       surfaceSize: surfaceSize,
@@ -61,15 +65,23 @@ void main() {
   /// uno per riga (con `maxLines` quelle oltre il tetto non si disegnano).
   int drawnLines(WidgetTester tester, Finder finder) {
     final paragraph = tester.renderObject<RenderParagraph>(finder);
-    final boxes = paragraph.getBoxesForSelection(TextSelection(
-        baseOffset: 0, extentOffset: paragraph.text.toPlainText().length));
+    final boxes = paragraph.getBoxesForSelection(
+      TextSelection(
+        baseOffset: 0,
+        extentOffset: paragraph.text.toPlainText().length,
+      ),
+    );
     return boxes.map((box) => box.top).toSet().length;
   }
 
-  testWidgets('Discord: nome e password, poi il codice e i contatti nuovi',
-      (tester) async {
+  testWidgets('Discord: nome e password, poi il codice e i contatti nuovi', (
+    tester,
+  ) async {
     api.confirmResult = const AccountContacts(
-        discordAvailable: true, emailAvailable: true, discordName: 'garg');
+      discordAvailable: true,
+      emailAvailable: true,
+      discordName: 'garg',
+    );
     await open(tester, AccountChannel.discord);
     expect(find.text('Collega Discord'), findsOneWidget);
 
@@ -84,7 +96,9 @@ void main() {
       language: 'it',
     ));
     expect(
-        find.text('Ti abbiamo mandato un codice su Discord'), findsOneWidget);
+      find.text('Ti abbiamo mandato un codice su Discord'),
+      findsOneWidget,
+    );
     expect(find.text('Rimanda tra 60 s'), findsOneWidget);
     expect(find.byKey(const Key('link-password')), findsNothing);
 
@@ -97,8 +111,9 @@ void main() {
     expect(linked!.discordName, 'garg');
   });
 
-  testWidgets('primo passo: gli errori sotto il campo giusto o sopra',
-      (tester) async {
+  testWidgets('primo passo: gli errori sotto il campo giusto o sopra', (
+    tester,
+  ) async {
     await open(tester, AccountChannel.discord);
 
     // Nome vuoto: nessuna chiamata.
@@ -109,15 +124,19 @@ void main() {
     await tester.enterText(find.byKey(const Key('link-target')), 'garg');
     api.startLinkFailure = AccountFailure.memberNotFound;
     await submit(tester);
-    expect(find.textContaining('Non ti trovo nel server Discord'),
-        findsOneWidget);
+    expect(
+      find.textContaining('Non ti trovo nel server Discord'),
+      findsOneWidget,
+    );
     // Un errore lungo va a capo sotto il campo, non si tronca con "…" su una
     // riga. Il font dei test (FlutterTest) è più largo di Inter: questo
     // testo non starebbe in tre righe, quindi qui si conta solo che vada a
     // capo. Il tetto di righe di ogni campo sta in 'i campi lasciano andare
     // a capo…'.
-    expect(drawnLines(tester, find.textContaining('Non ti trovo')),
-        greaterThan(1));
+    expect(
+      drawnLines(tester, find.textContaining('Non ti trovo')),
+      greaterThan(1),
+    );
 
     api.startLinkFailure = AccountFailure.wrongPassword;
     await submit(tester);
@@ -126,8 +145,10 @@ void main() {
 
     api.startLinkFailure = AccountFailure.dmClosed;
     await submit(tester);
-    expect(find.textContaining('Il bot non riesce a scriverti'),
-        findsOneWidget);
+    expect(
+      find.textContaining('Il bot non riesce a scriverti'),
+      findsOneWidget,
+    );
 
     api.startLinkFailure = AccountFailure.rateLimited;
     await submit(tester);
@@ -151,29 +172,37 @@ void main() {
       await submit(tester);
     }
 
-    testWidgets('sotto l\'errore, "Unisciti al server Discord" attivo',
-        (tester) async {
+    testWidgets('sotto l\'errore, "Unisciti al server Discord" attivo', (
+      tester,
+    ) async {
       await notInServer(tester);
 
       expect(join, findsOneWidget);
       expect(find.text('Unisciti al server Discord'), findsOneWidget);
       expect(tester.widget<TextButton>(join).onPressed, isNotNull);
       // Sotto il campo del nome, sopra la password.
-      expect(tester.getTopLeft(join).dy,
-          greaterThan(tester.getTopLeft(find.byKey(const Key('link-target'))).dy));
-      expect(tester.getTopLeft(join).dy,
-          lessThan(tester.getTopLeft(find.byKey(const Key('link-password'))).dy));
+      expect(
+        tester.getTopLeft(join).dy,
+        greaterThan(tester.getTopLeft(find.byKey(const Key('link-target'))).dy),
+      );
+      expect(
+        tester.getTopLeft(join).dy,
+        lessThan(tester.getTopLeft(find.byKey(const Key('link-password'))).dy),
+      );
     });
 
-    testWidgets('sparisce con l\'errore: un altro errore o il codice partito',
-        (tester) async {
+    testWidgets('sparisce con l\'errore: un altro errore o il codice partito', (
+      tester,
+    ) async {
       await notInServer(tester);
       expect(join, findsOneWidget);
 
       api.startLinkFailure = AccountFailure.dmClosed;
       await submit(tester);
-      expect(find.textContaining('Il bot non riesce a scriverti'),
-          findsOneWidget);
+      expect(
+        find.textContaining('Il bot non riesce a scriverti'),
+        findsOneWidget,
+      );
       expect(join, findsNothing);
 
       api.startLinkFailure = AccountFailure.memberNotFound;
@@ -186,18 +215,23 @@ void main() {
       expect(join, findsNothing);
     });
 
-    testWidgets('senza supportUrl niente pulsante, l\'errore resta',
-        (tester) async {
-      await notInServer(tester,
-          config: AppConfig(
-            serverUrl: Uri.parse('https://media.example.com'),
-            githubRepo: 'owner/repo',
-            discordAppId: '1',
-            supportUrl: null,
-          ));
+    testWidgets('senza supportUrl niente pulsante, l\'errore resta', (
+      tester,
+    ) async {
+      await notInServer(
+        tester,
+        config: AppConfig(
+          serverUrl: Uri.parse('https://media.example.com'),
+          githubRepo: 'owner/repo',
+          discordAppId: '1',
+          supportUrl: null,
+        ),
+      );
 
-      expect(find.textContaining('Non ti trovo nel server Discord'),
-          findsOneWidget);
+      expect(
+        find.textContaining('Non ti trovo nel server Discord'),
+        findsOneWidget,
+      );
       expect(join, findsNothing);
     });
 
@@ -211,15 +245,20 @@ void main() {
     });
   });
 
-  testWidgets('email: codice sbagliato, Rimanda con la stessa password',
-      (tester) async {
+  testWidgets('email: codice sbagliato, Rimanda con la stessa password', (
+    tester,
+  ) async {
     await open(tester, AccountChannel.email);
     await tester.enterText(
-        find.byKey(const Key('link-target')), 'a@example.com');
+      find.byKey(const Key('link-target')),
+      'a@example.com',
+    );
     await tester.enterText(find.byKey(const Key('link-password')), 'segreta');
     await submit(tester);
-    expect(find.text('Ti abbiamo mandato un codice a a@example.com'),
-        findsOneWidget);
+    expect(
+      find.text('Ti abbiamo mandato un codice a a@example.com'),
+      findsOneWidget,
+    );
 
     api.confirmFailure = AccountFailure.invalidCode;
     await tester.enterText(find.byKey(const Key('link-code')), '111111');
@@ -237,8 +276,9 @@ void main() {
     expect(find.text('Rimanda tra 60 s'), findsOneWidget);
   });
 
-  testWidgets('mentre il codice parte, un secondo clic non fa niente',
-      (tester) async {
+  testWidgets('mentre il codice parte, un secondo clic non fa niente', (
+    tester,
+  ) async {
     api.gate = Completer<void>();
     await open(tester, AccountChannel.discord);
     await tester.enterText(find.byKey(const Key('link-target')), 'garg');
@@ -270,14 +310,16 @@ void main() {
   VoidCallback? resendAction(WidgetTester tester) =>
       tester.widget<TextButton>(find.byKey(const Key('resend-code'))).onPressed;
 
-  testWidgets('i campi lasciano andare a capo errori e suggerimenti',
-      (tester) async {
+  testWidgets('i campi lasciano andare a capo errori e suggerimenti', (
+    tester,
+  ) async {
     await open(tester, AccountChannel.discord);
 
     // Senza `errorMaxLines` Flutter taglia l'errore su una riga.
     for (final key in ['link-target', 'link-password']) {
-      final decoration =
-          tester.widget<TextField>(find.byKey(Key(key))).decoration!;
+      final decoration = tester
+          .widget<TextField>(find.byKey(Key(key)))
+          .decoration!;
       expect(decoration.errorMaxLines, accountErrorMaxLines, reason: key);
       expect(decoration.helperMaxLines, accountHelperMaxLines, reason: key);
     }
@@ -287,8 +329,9 @@ void main() {
     expect(code.decoration!.errorMaxLines, accountErrorMaxLines);
   });
 
-  testWidgets('errore sul nome: il fuoco torna al nome, selezionato',
-      (tester) async {
+  testWidgets('errore sul nome: il fuoco torna al nome, selezionato', (
+    tester,
+  ) async {
     await open(tester, AccountChannel.discord);
 
     for (final (failure, text) in [
@@ -296,8 +339,7 @@ void main() {
       (AccountFailure.invalidTarget, 'Nome utente Discord non valido'),
     ]) {
       await tester.enterText(find.byKey(const Key('link-target')), 'garg');
-      await tester.enterText(
-          find.byKey(const Key('link-password')), 'segreta');
+      await tester.enterText(find.byKey(const Key('link-password')), 'segreta');
       api.startLinkFailure = failure;
       // Invio nella password toglie il fuoco al campo: l'errore, che sta
       // sotto il nome, deve portarlo lì.
@@ -309,8 +351,9 @@ void main() {
     }
   });
 
-  testWidgets('codice non valido: il fuoco torna al codice, selezionato',
-      (tester) async {
+  testWidgets('codice non valido: il fuoco torna al codice, selezionato', (
+    tester,
+  ) async {
     await open(tester, AccountChannel.discord);
     await reachCodeStep(tester);
 
@@ -324,8 +367,7 @@ void main() {
     expectFocusedAndSelected(tester, 'link-code', '000000'.length);
   });
 
-  testWidgets('Rimanda dopo un 429: avviso e il conto riparte',
-      (tester) async {
+  testWidgets('Rimanda dopo un 429: avviso e il conto riparte', (tester) async {
     await open(tester, AccountChannel.discord);
     await reachCodeStep(tester);
     await tester.pump(ResendCodeButton.delay);
@@ -339,8 +381,9 @@ void main() {
     expect(find.text('Rimanda tra 60 s'), findsOneWidget);
   });
 
-  testWidgets('Rimanda dopo un invio fallito: avviso e subito attivo',
-      (tester) async {
+  testWidgets('Rimanda dopo un invio fallito: avviso e subito attivo', (
+    tester,
+  ) async {
     await open(tester, AccountChannel.discord);
     await reachCodeStep(tester);
     await tester.pump(ResendCodeButton.delay);
@@ -349,14 +392,14 @@ void main() {
     await tester.tap(find.byKey(const Key('resend-code')));
     await tester.pump();
 
-    expect(find.text('Invio non riuscito, riprova più tardi'),
-        findsOneWidget);
+    expect(find.text('Invio non riuscito, riprova più tardi'), findsOneWidget);
     expect(find.text('Rimanda il codice'), findsOneWidget);
     expect(resendAction(tester), isNotNull);
   });
 
-  testWidgets('Rimanda riuscito: il codice vecchio esce dal campo',
-      (tester) async {
+  testWidgets('Rimanda riuscito: il codice vecchio esce dal campo', (
+    tester,
+  ) async {
     await open(tester, AccountChannel.discord);
     await reachCodeStep(tester);
     String codeText() => tester
@@ -382,8 +425,9 @@ void main() {
     expect(codeText(), isEmpty);
   });
 
-  testWidgets('Rimanda con la password cambiata altrove: primo passo',
-      (tester) async {
+  testWidgets('Rimanda con la password cambiata altrove: primo passo', (
+    tester,
+  ) async {
     await open(tester, AccountChannel.discord);
     await reachCodeStep(tester);
     await tester.pump(ResendCodeButton.delay);
@@ -398,24 +442,27 @@ void main() {
     expect(find.byKey(const Key('link-password')), findsOneWidget);
     expect(find.text('Password attuale sbagliata'), findsOneWidget);
     expect(
-        tester
-            .widget<TextField>(find.byKey(const Key('link-target')))
-            .controller!
-            .text,
-        'garg');
+      tester
+          .widget<TextField>(find.byKey(const Key('link-target')))
+          .controller!
+          .text,
+      'garg',
+    );
 
     // Il fuoco non resta sul nome (autofocus): va alla password, che ha
     // ancora quella vecchia, selezionata per riscriverla.
     final password = find.byKey(const Key('link-password'));
     final editable = tester.widget<EditableText>(
-        find.descendant(of: password, matching: find.byType(EditableText)));
+      find.descendant(of: password, matching: find.byType(EditableText)),
+    );
     expect(editable.focusNode.hasPrimaryFocus, isTrue);
-    expect(editable.controller.selection,
-        const TextSelection(baseOffset: 0, extentOffset: 7));
+    expect(
+      editable.controller.selection,
+      const TextSelection(baseOffset: 0, extentOffset: 7),
+    );
   });
 
-  testWidgets('Rimanda è spento mentre la conferma è in volo',
-      (tester) async {
+  testWidgets('Rimanda è spento mentre la conferma è in volo', (tester) async {
     await open(tester, AccountChannel.discord);
     await reachCodeStep(tester);
     await tester.pump(ResendCodeButton.delay);
@@ -431,10 +478,14 @@ void main() {
     expect(closed, isTrue);
   });
 
-  testWidgets('con la richiesta in volo, Esc e Annulla non chiudono',
-      (tester) async {
+  testWidgets('con la richiesta in volo, Esc e Annulla non chiudono', (
+    tester,
+  ) async {
     api.confirmResult = const AccountContacts(
-        discordAvailable: true, emailAvailable: true, discordName: 'garg');
+      discordAvailable: true,
+      emailAvailable: true,
+      discordName: 'garg',
+    );
     await open(tester, AccountChannel.discord);
     await reachCodeStep(tester);
     await tester.enterText(find.byKey(const Key('link-code')), '123456');
@@ -446,10 +497,11 @@ void main() {
     expect(find.byKey(const Key('link-code')), findsOneWidget);
     expect(closed, isFalse);
     expect(
-        tester
-            .widget<TextButton>(find.widgetWithText(TextButton, 'Annulla'))
-            .onPressed,
-        isNull);
+      tester
+          .widget<TextButton>(find.widgetWithText(TextButton, 'Annulla'))
+          .onPressed,
+      isNull,
+    );
 
     // La conferma arriva: la finestra si chiude con i contatti.
     api.gate!.complete();
@@ -467,9 +519,12 @@ void main() {
   });
 
   for (final size in const [Size(390, 844), Size(844, 390)]) {
-    testWidgets('telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow', (tester) async {
-      await open(tester, AccountChannel.discord, surfaceSize: size);
-      expect(tester.takeException(), isNull);
-    });
+    testWidgets(
+      'telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
+      (tester) async {
+        await open(tester, AccountChannel.discord, surfaceSize: size);
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 }

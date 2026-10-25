@@ -16,35 +16,49 @@ import 'season_picker.dart';
 /// La serie della libreria ha stagioni che si possono chiedere (spec I
 /// §9.3). La scheda di Seerr si carica in silenzio, e solo con la funzione
 /// e se l'utente può chiedere; un errore vale "no".
-final seasonsToRequestProvider =
-    Provider.autoDispose.family<bool, RequestTitleKey>((ref, key) {
-  if (!ref.watch(requestsAvailableProvider)) return false;
-  if (!(ref.watch(requestsMeProvider).value?.canRequest ?? false)) return false;
-  final details = ref.watch(requestTitleControllerProvider(key)).details;
-  return details != null && details.requestableSeasons.isNotEmpty;
-});
+final seasonsToRequestProvider = Provider.autoDispose
+    .family<bool, RequestTitleKey>((ref, key) {
+      if (!ref.watch(requestsAvailableProvider)) return false;
+      if (!(ref.watch(requestsMeProvider).value?.canRequest ?? false)) {
+        return false;
+      }
+      final details = ref.watch(requestTitleControllerProvider(key)).details;
+      return details != null && details.requestableSeasons.isNotEmpty;
+    });
 
 /// Apre "Richiedi stagioni" (spec I §9.3) e mostra l'esito come avviso.
 /// Parte sempre con tutte le stagioni da chiedere scelte: la scelta sta nel
 /// controller della scheda, che la testata tiene vivo, e un Annulla
 /// precedente non deve lasciare caselle tolte.
-Future<void> showRequestSeasonsDialog(BuildContext context, WidgetRef ref,
-    RequestTitleKey key, String title) async {
+Future<void> showRequestSeasonsDialog(
+  BuildContext context,
+  WidgetRef ref,
+  RequestTitleKey key,
+  String title,
+) async {
   final l = AppLocalizations.of(context);
   final messenger = ScaffoldMessenger.of(context);
   ref.read(requestTitleControllerProvider(key).notifier).resetSelection();
-  final outcome = await showWfDialog<RequestOutcome>(context,
-      semanticLabel: l.requestsMoreSeasons,
-      builder: (_) => RequestSeasonsDialog(titleKey: key, title: title));
+  final outcome = await showWfDialog<RequestOutcome>(
+    context,
+    semanticLabel: l.requestsMoreSeasons,
+    builder: (_) => RequestSeasonsDialog(titleKey: key, title: title),
+  );
   if (outcome != null) {
-    messenger.showSnackBar(SnackBar(content: Text(requestOutcomeText(l, outcome))));
+    messenger.showSnackBar(
+      SnackBar(content: Text(requestOutcomeText(l, outcome))),
+    );
   }
 }
 
 /// Le stagioni con le caselle, Annulla e Richiedi: lo stesso controller
 /// della scheda da richiedere (decisione 7 del piano 15b).
 class RequestSeasonsDialog extends ConsumerWidget {
-  const RequestSeasonsDialog({super.key, required this.titleKey, required this.title});
+  const RequestSeasonsDialog({
+    super.key,
+    required this.titleKey,
+    required this.title,
+  });
 
   /// Altezza massima dell'elenco delle stagioni; oltre scorre.
   static const _seasonsMaxHeight = 360.0;
@@ -57,7 +71,10 @@ class RequestSeasonsDialog extends ConsumerWidget {
   /// Il nome della serie nella libreria.
   final String title;
 
-  Future<void> _submit(BuildContext context, RequestTitleController controller) async {
+  Future<void> _submit(
+    BuildContext context,
+    RequestTitleController controller,
+  ) async {
     final outcome = await controller.submit();
     if (context.mounted) Navigator.of(context).pop(outcome);
   }
@@ -78,13 +95,17 @@ class RequestSeasonsDialog extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(l.requestsMoreSeasons,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+        Text(
+          l.requestsMoreSeasons,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 4),
-        Text(title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: WfColors.creamMuted)),
+        Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: WfColors.creamMuted),
+        ),
         const SizedBox(height: 16),
         ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: _seasonsMaxHeight),
@@ -111,13 +132,17 @@ class RequestSeasonsDialog extends ConsumerWidget {
             runSpacing: 8,
             children: [
               TextButton(
-                onPressed: state.sending ? null : () => Navigator.of(context).pop(),
+                onPressed: state.sending
+                    ? null
+                    : () => Navigator.of(context).pop(),
                 child: Text(l.requestsCancel),
               ),
               WfButton.primary(
                 // Le stagioni da chiedere sono già tutte scelte: Invio chiede.
                 autofocus: true,
-                label: all ? l.requestsRequest : l.requestsRequestSeasons(chosen),
+                label: all
+                    ? l.requestsRequest
+                    : l.requestsRequestSeasons(chosen),
                 icon: LucideIcons.plus,
                 onPressed: state.sending || chosen == 0
                     ? null
@@ -131,6 +156,9 @@ class RequestSeasonsDialog extends ConsumerWidget {
     // Con la richiesta in viaggio la finestra non si chiude (né Esc né il
     // clic sul velo, che passano da `maybePop`): l'avviso dell'esito arriva
     // solo se la finestra è ancora lì a riceverlo.
-    return PopScope(canPop: !state.sending, child: content);
+    return PopScope(
+      canPop: !state.sending,
+      child: SingleChildScrollView(child: content),
+    );
   }
 }

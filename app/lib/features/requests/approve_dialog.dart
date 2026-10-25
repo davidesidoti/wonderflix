@@ -13,11 +13,14 @@ import 'requests_providers.dart';
 /// I server di Radarr (film) o Sonarr (serie) per la finestra Approva.
 final requestServicesProvider = FutureProvider.autoDispose
     .family<List<ServiceOption>, RequestMediaType>(
-        (ref, type) => ref.watch(requestsApiProvider).services(type));
+      (ref, type) => ref.watch(requestsApiProvider).services(type),
+    );
 
 /// Apre la finestra Approva (spec I §9.5): la scelta, o `null` se annullata.
 Future<ApproveChoice?> showApproveDialog(
-    BuildContext context, MediaRequest request) {
+  BuildContext context,
+  MediaRequest request,
+) {
   final l = AppLocalizations.of(context);
   return showWfDialog<ApproveChoice>(
     context,
@@ -79,7 +82,11 @@ class _ApproveDialogState extends ConsumerState<ApproveDialog> {
     final profileId = _profileId;
     final folder = _folder;
     if (profileId == null || folder == null) return null;
-    return ApproveChoice(serverId: _serverId, profileId: profileId, rootFolder: folder);
+    return ApproveChoice(
+      serverId: _serverId,
+      profileId: profileId,
+      rootFolder: folder,
+    );
   }
 
   @override
@@ -106,102 +113,119 @@ class _ApproveDialogState extends ConsumerState<ApproveDialog> {
     final server = servers.where((s) => s.id == _serverId).firstOrNull;
     final choice = _choice;
     return SingleChildScrollView(
-        child: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(l.requestsApproveTitle(title),
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 20),
-        if (loading)
-          const SkeletonBox(height: 48)
-        else ...[
-          _Field(
-            label: l.requestsServer,
-            child: DropdownButton<int>(
-              key: const Key('approve-server'),
-              isExpanded: true,
-              value: _serverId,
-              dropdownColor: WfColors.surfaceHigh,
-              items: [
-                DropdownMenuItem(
-                  value: _defaultServer,
-                  child: _MenuLabel(defaultServer == null
-                      ? l.requestsServerDefaultPlain
-                      : l.requestsServerDefault(defaultServer.name)),
-                ),
-                for (final option in servers)
-                  DropdownMenuItem(
-                      value: option.id, child: _MenuLabel(option.name)),
-              ],
-              onChanged: (value) => _selectServer(servers, value),
-            ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l.requestsApproveTitle(title),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           ),
-          if (services.hasError)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(l.requestsServersUnavailable,
-                  style: const TextStyle(color: WfColors.creamMuted, fontSize: 13)),
-            ),
-          if (server != null) ...[
-            const SizedBox(height: 12),
+          const SizedBox(height: 20),
+          if (loading)
+            const SkeletonBox(height: 48)
+          else ...[
             _Field(
-              label: l.requestsProfile,
+              label: l.requestsServer,
               child: DropdownButton<int>(
-                key: const Key('approve-profile'),
+                key: const Key('approve-server'),
                 isExpanded: true,
-                value: _profileId,
+                value: _serverId,
                 dropdownColor: WfColors.surfaceHigh,
                 items: [
-                  for (final profile in server.profiles)
+                  DropdownMenuItem(
+                    value: _defaultServer,
+                    child: _MenuLabel(
+                      defaultServer == null
+                          ? l.requestsServerDefaultPlain
+                          : l.requestsServerDefault(defaultServer.name),
+                    ),
+                  ),
+                  for (final option in servers)
                     DropdownMenuItem(
-                        value: profile.id, child: _MenuLabel(profile.name)),
+                      value: option.id,
+                      child: _MenuLabel(option.name),
+                    ),
                 ],
-                onChanged: (value) => setState(() => _profileId = value),
+                onChanged: (value) => _selectServer(servers, value),
               ),
             ),
-            const SizedBox(height: 12),
-            _Field(
-              label: l.requestsFolder,
-              child: DropdownButton<String>(
-                key: const Key('approve-folder'),
-                isExpanded: true,
-                value: _folder,
-                dropdownColor: WfColors.surfaceHigh,
-                items: [
-                  for (final folder in server.rootFolders)
-                    DropdownMenuItem(value: folder, child: _MenuLabel(folder)),
-                ],
-                onChanged: (value) => setState(() => _folder = value),
+            if (services.hasError)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  l.requestsServersUnavailable,
+                  style: const TextStyle(
+                    color: WfColors.creamMuted,
+                    fontSize: 13,
+                  ),
+                ),
               ),
-            ),
+            if (server != null) ...[
+              const SizedBox(height: 12),
+              _Field(
+                label: l.requestsProfile,
+                child: DropdownButton<int>(
+                  key: const Key('approve-profile'),
+                  isExpanded: true,
+                  value: _profileId,
+                  dropdownColor: WfColors.surfaceHigh,
+                  items: [
+                    for (final profile in server.profiles)
+                      DropdownMenuItem(
+                        value: profile.id,
+                        child: _MenuLabel(profile.name),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() => _profileId = value),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _Field(
+                label: l.requestsFolder,
+                child: DropdownButton<String>(
+                  key: const Key('approve-folder'),
+                  isExpanded: true,
+                  value: _folder,
+                  dropdownColor: WfColors.surfaceHigh,
+                  items: [
+                    for (final folder in server.rootFolders)
+                      DropdownMenuItem(
+                        value: folder,
+                        child: _MenuLabel(folder),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() => _folder = value),
+                ),
+              ),
+            ],
           ],
+          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(l.requestsCancel),
+              ),
+              const SizedBox(width: 12),
+              WfButton.primary(
+                // Chiavi diverse: il pulsante si ricrea quando si accende e
+                // l'autofocus scatta di nuovo. Con i server arrivati
+                // "Predefinito" (o il primo server) è già scelto: Invio approva.
+                key: ValueKey('approve-loading-$loading'),
+                autofocus: true,
+                label: l.requestsApprove,
+                icon: LucideIcons.check,
+                onPressed: loading || choice == null
+                    ? null
+                    : () => Navigator.of(context).pop(choice),
+              ),
+            ],
+          ),
         ],
-        const SizedBox(height: 24),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(l.requestsCancel),
-            ),
-            const SizedBox(width: 12),
-            WfButton.primary(
-              // Chiavi diverse: il pulsante si ricrea quando si accende e
-              // l'autofocus scatta di nuovo. Con i server arrivati
-              // "Predefinito" (o il primo server) è già scelto: Invio approva.
-              key: ValueKey('approve-loading-$loading'),
-              autofocus: true,
-              label: l.requestsApprove,
-              icon: LucideIcons.check,
-              onPressed: loading || choice == null
-                  ? null
-                  : () => Navigator.of(context).pop(choice),
-            ),
-          ],
-        ),
-      ],
-    ));
+      ),
+    );
   }
 }
 
@@ -229,7 +253,10 @@ class _Field extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: WfColors.creamMuted, fontSize: 12.5)),
+        Text(
+          label,
+          style: const TextStyle(color: WfColors.creamMuted, fontSize: 12.5),
+        ),
         const SizedBox(height: 4),
         child,
       ],

@@ -24,8 +24,10 @@ void main() {
       final original = testRawItem();
       final snapshot = testRawItem();
 
-      final sent =
-          applyMetadataEdits(original, const MetadataEdits(name: 'Dark 2'));
+      final sent = applyMetadataEdits(
+        original,
+        const MetadataEdits(name: 'Dark 2'),
+      );
 
       expect(sent['Name'], 'Dark 2');
       for (final key in ['Tags', 'ProviderIds', 'People', 'Studios']) {
@@ -42,11 +44,13 @@ void main() {
       final snapshot = testRawItem(lockedFields: ['Overview']);
 
       final sent = applyMetadataEdits(
-          original,
-          const MetadataEdits(
-              name: 'Altro',
-              genres: ['Giallo'],
-              lockedFields: {'Overview', 'Genres'}));
+        original,
+        const MetadataEdits(
+          name: 'Altro',
+          genres: ['Giallo'],
+          lockedFields: {'Overview', 'Genres'},
+        ),
+      );
 
       expect(sent['Genres'], ['Giallo']);
       expect(sent['LockedFields'], containsAll(['Overview', 'Genres', 'Name']));
@@ -56,55 +60,73 @@ void main() {
     test('un campo bloccabile cambiato entra in LockedFields, uno non '
         'bloccabile no', () {
       final sent = applyMetadataEdits(
-          testRawItem(),
-          const MetadataEdits(
-              name: 'Nuovo', originalTitle: 'Orig', sortName: 'Sort'));
+        testRawItem(),
+        const MetadataEdits(
+          name: 'Nuovo',
+          originalTitle: 'Orig',
+          sortName: 'Sort',
+        ),
+      );
 
       expect(sent['LockedFields'], ['Name']);
     });
 
     test('un valore uguale all\'originale non blocca niente', () {
       final sent = applyMetadataEdits(
-          testRawItem(), const MetadataEdits(name: 'Dark'));
+        testRawItem(),
+        const MetadataEdits(name: 'Dark'),
+      );
       expect(sent['LockedFields'], isEmpty);
     });
 
     test('lucchetto tolto a mano: il campo esce da LockedFields', () {
       final sent = applyMetadataEdits(
-          testRawItem(lockedFields: ['Name', 'Overview']),
-          const MetadataEdits(
-              name: 'Nuovo',
-              lockedFields: {'Overview'},
-              unlockedFields: {'Name'}));
+        testRawItem(lockedFields: ['Name', 'Overview']),
+        const MetadataEdits(
+          name: 'Nuovo',
+          lockedFields: {'Overview'},
+          unlockedFields: {'Name'},
+        ),
+      );
 
       expect(sent['LockedFields'], ['Overview']);
     });
 
     test('tagline in Taglines[0]', () {
       final sent = applyMetadataEdits(
-          testRawItem(), const MetadataEdits(tagline: 'Il passato'));
+        testRawItem(),
+        const MetadataEdits(tagline: 'Il passato'),
+      );
       expect(sent['Taglines'], ['Il passato']);
       expect(sent['LockedFields'], isEmpty);
     });
 
     test('data a mezzanotte UTC', () {
       final sent = applyMetadataEdits(
-          testRawItem(), MetadataEdits(premiereDate: DateTime(2020, 3, 5)));
-      expect(DateTime.parse(sent['PremiereDate'] as String),
-          DateTime.utc(2020, 3, 5));
+        testRawItem(),
+        MetadataEdits(premiereDate: DateTime(2020, 3, 5)),
+      );
+      expect(
+        DateTime.parse(sent['PremiereDate'] as String),
+        DateTime.utc(2020, 3, 5),
+      );
     });
 
     test('classificazione nessuna → null', () {
-      final sent =
-          applyMetadataEdits(testRawItem(), const MetadataEdits(rating: ''));
+      final sent = applyMetadataEdits(
+        testRawItem(),
+        const MetadataEdits(rating: ''),
+      );
       expect(sent.containsKey('OfficialRating'), isTrue);
       expect(sent['OfficialRating'], isNull);
       expect(sent['LockedFields'], ['OfficialRating']);
     });
 
     test('anno e trama', () {
-      final sent = applyMetadataEdits(testRawItem(),
-          const MetadataEdits(year: 1999, overview: 'Nuova trama'));
+      final sent = applyMetadataEdits(
+        testRawItem(),
+        const MetadataEdits(year: 1999, overview: 'Nuova trama'),
+      );
       expect(sent['ProductionYear'], 1999);
       expect(sent['Overview'], 'Nuova trama');
       expect(sent['LockedFields'], ['Overview']);
@@ -112,10 +134,14 @@ void main() {
 
     test('lockAll → LockData true', () {
       final sent = applyMetadataEdits(
-          testRawItem(), const MetadataEdits(lockAll: true));
+        testRawItem(),
+        const MetadataEdits(lockAll: true),
+      );
       expect(sent['LockData'], isTrue);
       final back = applyMetadataEdits(
-          testRawItem(lockData: true), const MetadataEdits());
+        testRawItem(lockData: true),
+        const MetadataEdits(),
+      );
       expect(back['LockData'], isFalse);
     });
   });
@@ -133,15 +159,21 @@ void main() {
       session = FakeSessionController(const SessionSignedIn(testAdmin));
     });
 
-    Future<void> open(WidgetTester tester,
-        {String id = 'i1', ItemKind kind = ItemKind.series}) async {
+    Future<void> open(
+      WidgetTester tester, {
+      String id = 'i1',
+      ItemKind kind = ItemKind.series,
+      Size surfaceSize = const Size(1440, 900),
+    }) async {
       await pumpApp(
         tester,
+        surfaceSize: surfaceSize,
         Scaffold(
           body: Builder(
             builder: (context) => TextButton(
               onPressed: () => unawaited(
-                  showEditMetadataDialog(context, itemId: id, kind: kind)),
+                showEditMetadataDialog(context, itemId: id, kind: kind),
+              ),
               child: const Text('apri'),
             ),
           ),
@@ -163,9 +195,19 @@ void main() {
     Finder save() => find.text('Salva');
 
     int revision(WidgetTester tester) => ProviderScope.containerOf(
-            tester.element(find.byType(Scaffold).first))
-        .read(libraryRevisionProvider);
+      tester.element(find.byType(Scaffold).first),
+    ).read(libraryRevisionProvider);
 
+    for (final size in const [Size(390, 844), Size(844, 390)]) {
+      testWidgets(
+        'telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
+        (tester) async {
+          await open(tester, surfaceSize: size);
+          expect(find.text('Salva'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
     testWidgets('campi precompilati dalla Map e tagline nascosta per un '
         'episodio', (tester) async {
       await open(tester);
@@ -193,8 +235,13 @@ void main() {
         Scaffold(
           body: Builder(
             builder: (context) => TextButton(
-              onPressed: () => unawaited(showEditMetadataDialog(context,
-                  itemId: 'i1', kind: ItemKind.series)),
+              onPressed: () => unawaited(
+                showEditMetadataDialog(
+                  context,
+                  itemId: 'i1',
+                  kind: ItemKind.series,
+                ),
+              ),
               child: const Text('apri'),
             ),
           ),
@@ -241,9 +288,12 @@ void main() {
       await tester.pump();
       expect(find.text('Thriller'), findsOneWidget);
 
-      await tester.tap(find.descendant(
+      await tester.tap(
+        find.descendant(
           of: find.widgetWithText(InputChip, 'Drammatico'),
-          matching: find.byIcon(LucideIcons.x)));
+          matching: find.byIcon(LucideIcons.x),
+        ),
+      );
       await tester.pump();
       await tester.tap(save());
       await tester.pumpAndSettle();
@@ -270,8 +320,9 @@ void main() {
       expect(api.lastUpdate!['LockData'], isTrue);
     });
 
-    testWidgets('titolo vuoto o data impossibile: Salva spento',
-        (tester) async {
+    testWidgets('titolo vuoto o data impossibile: Salva spento', (
+      tester,
+    ) async {
       await open(tester);
       bool enabled() =>
           tester.widget<WfButton>(find.byType(WfButton)).onPressed != null;
@@ -293,8 +344,9 @@ void main() {
       expect(enabled(), isTrue);
     });
 
-    testWidgets('etichetta dei generi e suggerimento delle cartelle',
-        (tester) async {
+    testWidgets('etichetta dei generi e suggerimento delle cartelle', (
+      tester,
+    ) async {
       await open(tester);
       expect(find.text('Generi'), findsOneWidget);
       expect(find.text(it.editLockAllHintFolder), findsOneWidget);

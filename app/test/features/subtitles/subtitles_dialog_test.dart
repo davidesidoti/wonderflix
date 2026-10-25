@@ -58,9 +58,11 @@ void main() {
     WidgetTester tester, {
     JellyfinUser user = testUser,
     PickedSubtitleFile? picked,
+    Size surfaceSize = const Size(1440, 900),
   }) async {
     await pumpApp(
       tester,
+      surfaceSize: surfaceSize,
       Scaffold(
         body: Builder(
           builder: (context) => TextButton(
@@ -336,16 +338,20 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.byKey(progress), findsOneWidget);
-    expect(find.text('Aspetto che Jellyfin aggiunga la traccia…'),
-        findsNothing);
+    expect(
+      find.text('Aspetto che Jellyfin aggiunga la traccia…'),
+      findsNothing,
+    );
 
     gate.complete();
     await tester.pump();
     await tester.pump();
     // Ora c'è l'avviso con la sua rotella: quella dei risultati non serve.
     expect(find.byKey(progress), findsNothing);
-    expect(find.text('Aspetto che Jellyfin aggiunga la traccia…'),
-        findsOneWidget);
+    expect(
+      find.text('Aspetto che Jellyfin aggiunga la traccia…'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('il menu della lingua ha la sua etichetta e Chiudi chiude', (
@@ -359,4 +365,32 @@ void main() {
 
     expect(find.text('Lingua'), findsNothing);
   });
+
+  for (final size in const [Size(390, 844), Size(844, 390)]) {
+    testWidgets(
+      'con i risultati ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
+      (tester) async {
+        api.results.addAll([
+          testSubtitle(
+            id: 'a',
+            name:
+                'Dark.S01E02.2160p.WEB-DL.DDP5.1.Atmos.HDR10.H265-GRUPPO.ita.forced',
+            providerName: 'OpenSubtitles',
+            format: 'ass',
+            communityRating: 7.5,
+            downloadCount: 1200,
+            forced: true,
+            machineTranslated: true,
+            hearingImpaired: true,
+            isHashMatch: true,
+          ),
+          testSubtitle(id: 'b', name: 'Beta', providerName: 'Podnapisi'),
+        ]);
+        await open(tester, user: testAdmin, surfaceSize: size);
+        await search(tester);
+        expect(row('a'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 }
