@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
+import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/library/item_labels.dart';
 import 'package:wonderflix/features/player/pause_screen.dart';
 import 'package:wonderflix/features/player/player_controller.dart';
@@ -8,12 +9,16 @@ import 'package:wonderflix/features/player/player_extras.dart';
 import 'package:wonderflix/features/player/player_overlay.dart';
 import 'package:wonderflix/features/player/player_side_panel_host.dart';
 import 'package:wonderflix/features/player/post_play.dart';
+import 'package:wonderflix/features/player/queue_panel/queue_panel.dart';
+import 'package:wonderflix/features/ratings/rating_round_controller.dart';
+import 'package:wonderflix/features/ratings/rating_round_panel.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 import 'package:wonderflix/ui/form_factor.dart';
 
 import '../../support/library_fakes.dart';
 import '../../support/playback_fakes.dart';
 import '../../support/pump_app.dart';
+import '../../support/rating_fakes.dart';
 
 /// Player nel layout stretto (spec §4.5): controlli, pannelli, post-play,
 /// pausa e scheda del prossimo episodio a misura di telefono.
@@ -39,6 +44,7 @@ void main() {
     WidgetTester tester,
     Size size, {
     bool touch = true,
+    bool chatUnread = false,
   }) async {
     final calls = <String>[];
     await pumpApp(
@@ -66,6 +72,7 @@ void main() {
           partyBadge: const SizedBox(width: 80, height: 32),
           onWatchTogether: (_) => calls.add('together'),
           onToggleChat: () => calls.add('chat'),
+          chatUnread: chatUnread,
           onToggleReactions: () => calls.add('reactions'),
           reactionsLink: LayerLink(),
           onToggleQueue: () => calls.add('queue'),
@@ -154,8 +161,45 @@ void main() {
     for (final size in phoneSizes) {
       await pumpOverlay(tester, size, touch: false);
       expect(tester.takeException(), isNull, reason: '$size');
-      expect(find.byKey(const Key('volume-slider')), findsOneWidget);
+      // In verticale non c'è posto: resta il muto.
+      expect(
+        find.byKey(const Key('volume-slider')),
+        size.width < 480 ? findsNothing : findsOneWidget,
+        reason: '$size',
+      );
     }
+  });
+
+  testWidgets('stretto col mouse in orizzontale: volume e tutte le icone, '
+      'allineate a destra', (tester) async {
+    await pumpOverlay(tester, const Size(844, 390), touch: false);
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const Key('volume-slider')), findsOneWidget);
+    expect(find.byTooltip(l.playerMoreControls), findsNothing);
+    final right = find
+        .byType(IconButton)
+        .evaluate()
+        .map((e) => tester.getRect(find.byWidget(e.widget)).right)
+        .reduce((a, b) => a > b ? a : b);
+    expect(right, closeTo(844 - 12, 0.5));
+  });
+
+  testWidgets('stretto: la chat nel menu ⋯ porta il puntino sul ⋯', (
+    tester,
+  ) async {
+    // In verticale la chat non entra nella riga.
+    const size = Size(390, 844);
+    await pumpOverlay(tester, size, chatUnread: true);
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const Key('player-chat-button')), findsNothing);
+    Finder dotOnMore() => find.descendant(
+      of: find.byKey(const Key('player-more-controls')),
+      matching: find.byKey(const Key('player-chat-unread')),
+    );
+    expect(dotOnMore(), findsOneWidget);
+
+    await pumpOverlay(tester, size);
+    expect(dotOnMore(), findsNothing);
   });
 
   testWidgets('largo (1440×900): niente menu ⋯ né play al centro', (
@@ -187,6 +231,120 @@ void main() {
       }
     },
   );
+
+  for (final size in phoneSizes) {
+    final name = '${size.width.toInt()}×${size.height.toInt()}';
+
+    testWidgets('stretto: la coda vera nel foglio dal basso, senza overflow '
+        '($name)', (tester) async {
+      final items = <String, JellyfinItem?>{
+        for (var i = 1; i <= 12; i++)
+          'e$i': testItem(
+            id: 'e$i',
+            name: 'Un episodio dal titolo piuttosto lungo numero $i',
+            kind: ItemKind.episode,
+            seriesName: 'Una serie con un nome lunghissimo',
+            seriesId: 's1',
+            index: i,
+            seasonIndex: 1,
+          ),
+      };
+      await pumpApp(
+        tester,
+        Scaffold(
+          body: PlayerSidePanelHost(
+            open: true,
+            panel: QueuePanel(
+              queue: PlayQueue(
+                reason: 'NewPlaylist',
+                lastUpdate: DateTime.utc(2026, 10, 4, 10),
+                entries: [
+                  for (var i = 1; i <= 12; i++)
+                    PlayQueueEntry(itemId: 'e$i', playlistItemId: 'p$i'),
+                ],
+                playingIndex: 2,
+                startPosition: Duration.zero,
+                isPlaying: true,
+                shuffled: false,
+              ),
+              items: items,
+              onJump: (_) {},
+              onRemove: (_) {},
+              onMove: (_, _) {},
+              onShuffle: (_) {},
+              onClose: () {},
+              onAddTitles: () {},
+            ),
+          ),
+        ),
+        surfaceSize: size,
+        touch: true,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(l.partyQueueTitle), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      expect(tester.getRect(find.byType(QueuePanel)).width, size.width);
+    });
+
+    for (final revealed in [false, true]) {
+      final phase = revealed ? 'risultati' : 'voto';
+      testWidgets('stretto: il voto vero nel foglio dal basso, senza overflow '
+          '($name, $phase)', (tester) async {
+        final voters = [
+          {'UserId': 'u1', 'Name': 'Mario', 'Status': 'Voted'},
+          {'UserId': 'u2', 'Name': 'Luigi', 'Status': 'Voted'},
+          {'UserId': 'u3', 'Name': 'Peach', 'Status': 'Waiting'},
+        ];
+        final round = revealed
+            ? testRatingRound(
+                phase: 'Revealed',
+                average: 7.5,
+                voters: voters,
+                results: [
+                  {
+                    'UserId': 'u2',
+                    'Name': 'Luigi',
+                    'Score': 9,
+                    'Comment': 'Capolavoro assoluto, da rivedere subito ' * 3,
+                  },
+                  {'UserId': 'u1', 'Name': 'Mario', 'Score': 6},
+                ],
+              )
+            : testRatingRound(voters: voters);
+        await pumpApp(
+          tester,
+          Scaffold(
+            body: PlayerSidePanelHost(
+              open: true,
+              panel: RatingRoundPanel(onClose: () {}),
+            ),
+          ),
+          overrides: [
+            ratingRoundProvider.overrideWith(
+              () => _Rating(
+                RatingRoundView(
+                  round: round,
+                  playlistItemId: 'p1',
+                  userId: 'u1',
+                  source: testItem(name: 'Il Padrino'),
+                ),
+              ),
+            ),
+          ],
+          surfaceSize: size,
+          touch: true,
+        );
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('rating-panel')), findsOneWidget);
+        expect(find.textContaining('Il Padrino'), findsWidgets);
+        expect(tester.takeException(), isNull);
+        expect(
+          tester.getRect(find.byKey(const Key('rating-panel'))).width,
+          size.width,
+        );
+      });
+    }
+  }
 
   testWidgets('largo: il pannello resta a destra', (tester) async {
     await pumpApp(
@@ -324,3 +482,13 @@ Matcher _contains(Rect rect) => predicate<Rect>(
       outer.inflate(0.5).contains(rect.bottomRight),
   'contains $rect',
 );
+
+/// La votazione del party ferma su una vista data.
+class _Rating extends RatingRoundController {
+  _Rating(this.view);
+
+  final RatingRoundView view;
+
+  @override
+  RatingRoundView? build() => view;
+}

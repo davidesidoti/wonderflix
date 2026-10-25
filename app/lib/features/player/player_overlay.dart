@@ -319,10 +319,12 @@ class PlayerOverlay extends StatelessWidget {
                           children: [
                             mute,
                             // Col mouse in una finestra stretta il volume
-                            // resta, più corto (e cede posto alle icone).
-                            if (slider != null)
-                              Flexible(
-                                  child: SizedBox(width: 80, child: slider)),
+                            // resta, più corto; sotto [compactSliderMinWidth]
+                            // non ci sta (c'è il muto).
+                            if (slider != null &&
+                                MediaQuery.sizeOf(context).width >=
+                                    compactSliderMinWidth)
+                              SizedBox(width: 80, child: slider),
                             const SizedBox(width: 4),
                             RepaintBoundary(child: TimeLabel(engine: engine)),
                             const SizedBox(width: 8),
@@ -425,6 +427,9 @@ class PlayerOverlay extends StatelessWidget {
   static const centerPlaySize = 64.0;
   static const centerSeekSize = 56.0;
 
+  /// Nel layout stretto col mouse, finestra minima per il cursore del volume.
+  static const compactSliderMinWidth = 480.0;
+
   /// I comandi della riga in basso nel layout stretto, dal più usato: quelli
   /// che non entrano finiscono nel menu ⋯ (nessuno si perde).
   Widget _compactCommands(AppLocalizations l) {
@@ -442,7 +447,8 @@ class PlayerOverlay extends StatelessWidget {
                 child: const Icon(LucideIcons.messageCircle)),
             l.partyChatOpen,
             (_) => chat(),
-            key: const Key('player-chat-button')),
+            key: const Key('player-chat-button'),
+            dot: chatUnread),
       if (onToggleReactions case final reactions?)
         _Command(const Icon(LucideIcons.smilePlus), l.partyReactionsOpen,
             (_) => reactions(),
@@ -472,6 +478,8 @@ class PlayerOverlay extends StatelessWidget {
       // La barretta delle reazioni si aggancia al suo pulsante; se è nel
       // menu, al ⋯.
       final reactionsInMenu = more.any((command) => command.reactions);
+      // Un puntino nel menu (messaggi non letti) si vede anche sul ⋯.
+      final dotInMenu = more.any((command) => command.dot);
       return Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
@@ -495,7 +503,9 @@ class PlayerOverlay extends StatelessWidget {
                 builder: (buttonContext) => PopupMenuButton<_Command>(
                   key: const Key('player-more-controls'),
                   tooltip: l.playerMoreControls,
-                  icon: const Icon(LucideIcons.ellipsis),
+                  icon: _WithDot(
+                      show: dotInMenu,
+                      child: const Icon(LucideIcons.ellipsis)),
                   iconColor: WfColors.cream,
                   style: _sizedStyle(minTouchTarget),
                   itemBuilder: (_) => [
@@ -526,7 +536,7 @@ class PlayerOverlay extends StatelessWidget {
 /// voce del menu ⋯. [run] riceve il contesto del pulsante che lo lancia.
 class _Command {
   const _Command(this.icon, this.tooltip, this.run,
-      {this.key, this.reactions = false});
+      {this.key, this.reactions = false, this.dot = false});
 
   final Widget icon;
   final String tooltip;
@@ -535,6 +545,9 @@ class _Command {
 
   /// Il pulsante delle reazioni (la barretta si aggancia a lui).
   final bool reactions;
+
+  /// L'icona ha il puntino oro (messaggi non letti).
+  final bool dot;
 }
 
 /// Pulsante quadrato di lato [size], senza margini aggiunti dal tema.
