@@ -109,6 +109,7 @@ class ItemActionsButton extends ConsumerWidget {
       // Il valore è un'[ItemAction] o una voce di [extra]: scelta a menu
       // chiuso, così un'azione che apre una pagina non viene chiusa con lui.
       child: PopupMenuButton<Object>(
+        useRootNavigator: true,
         tooltip: l.itemActionsMenu,
         padding: EdgeInsets.zero,
         icon: const Icon(LucideIcons.ellipsis,

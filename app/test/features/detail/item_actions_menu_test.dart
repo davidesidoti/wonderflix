@@ -16,8 +16,57 @@ import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/report_fakes.dart';
 import '../../support/social_fakes.dart';
+import '../../support/test_data.dart';
 
 void main() {
+  testWidgets('il menu sta sopra una barra del guscio, non sotto',
+      (tester) async {
+    var picked = false;
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: Stack(children: [
+          // Un navigatore annidato come quello di una pagina del guscio.
+          Navigator(
+            onGenerateRoute: (_) => MaterialPageRoute<void>(
+              builder: (_) => Align(
+                alignment: Alignment.centerRight,
+                child: ItemActionsButton(
+                  item: testItem(id: 'm1', name: 'Film'),
+                  extra: [
+                    (label: 'Voce A', onSelected: () {}),
+                    (label: 'Voce B', onSelected: () {}),
+                    (label: 'Voce C', onSelected: () => picked = true),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // La barra in basso: sta sopra la pagina, non sopra il menu.
+          Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              top: 460,
+              child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {},
+                  child: const ColoredBox(color: Colors.red))),
+        ]),
+      ),
+      overrides: [
+        sessionControllerProvider.overrideWith(
+            () => FakeSessionController(const SessionSignedIn(testUser))),
+      ],
+    );
+    await tester.tap(find.byType(ItemActionsButton));
+    await tester.pumpAndSettle();
+    // La terza voce cade dove sta la barra: si tocca solo se il menu è sopra.
+    await tester.tap(find.text('Voce C'));
+    await tester.pumpAndSettle();
+    expect(picked, isTrue);
+  });
+
   test('voci per ruolo e livello (spec §7.2)', () {
     expect(
         itemActionGroups(

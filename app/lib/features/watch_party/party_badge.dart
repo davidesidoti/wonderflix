@@ -38,8 +38,10 @@ class PartyChip extends StatelessWidget {
     // Nel layout stretto solo l'icona, in un bersaglio da dito: l'etichetta
     // non ci sta nella barra (spec 1c §4.2).
     if (FormFactor.of(context).compact) {
-      return Tooltip(
-        message: label,
+      // Il tooltip lo dà già il menu che la contiene; qui l'etichetta resta
+      // per i lettori di schermo.
+      return Semantics(
+        label: label,
         child: SizedBox.square(
           dimension: minTouchTarget,
           child: Center(

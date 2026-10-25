@@ -94,6 +94,10 @@ class CalendarScreen extends ConsumerWidget {
               SizedBox(width: compact ? 4 : 12),
               TextButton(
                 key: const Key('calendar-today'),
+                style: compact
+                    ? TextButton.styleFrom(
+                        minimumSize: const Size(0, minTouchTarget))
+                    : null,
                 onPressed: shown == thisMonth
                     ? null
                     : () => openCalendarMonth(context, thisMonth),

@@ -284,6 +284,7 @@ class _AccountUserRowState extends ConsumerState<AccountUserRow>
             child: actions.isEmpty
                 ? null
                 : PopupMenuButton<UserAction>(
+                    useRootNavigator: true,
                     key: Key('user-menu-${user.id}'),
                     tooltip: l.adminUsersActionsFor(user.name),
                     // Il menu resta (spento) invece di sparire: il posto, e

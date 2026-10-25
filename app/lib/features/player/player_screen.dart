@@ -1861,7 +1861,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   Positioned.fill(
                     key: const ValueKey('player-tap-to-play'),
                     child: ExcludeFocus(
-                        child: _TapToPlayLayer(onTap: _tapToPlay)),
+                        child: _TapToPlayLayer(
+                            onTap: _tapToPlay, onBack: _exit)),
                   ),
                 if (view.status == PlayerStatus.ready) ...[
                   // Salta intro / riassunto: visibile anche a controlli
@@ -2205,27 +2206,44 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 /// Velo sopra il player quando il browser rifiuta l'avvio: un tocco
 /// ovunque fa partire il video.
 class _TapToPlayLayer extends StatelessWidget {
-  const _TapToPlayLayer({required this.onTap});
+  const _TapToPlayLayer({required this.onTap, required this.onBack});
 
   final VoidCallback onTap;
+  final VoidCallback onBack;
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: ColoredBox(
-          color: WfColors.bg.withValues(alpha: 0.6),
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(LucideIcons.play, size: 64, color: WfColors.cream),
-                const SizedBox(height: 16),
-                Text(AppLocalizations.of(context).playerTapToPlay,
-                    style: WfText.display(28)),
-              ],
+  Widget build(BuildContext context) => Stack(
+        fit: StackFit.expand,
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: ColoredBox(
+              color: WfColors.bg.withValues(alpha: 0.6),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(LucideIcons.play,
+                        size: 64, color: WfColors.cream),
+                    const SizedBox(height: 16),
+                    Text(AppLocalizations.of(context).playerTapToPlay,
+                        style: WfText.display(28)),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
+          // Se WebKit rifiuta anche il tocco, resta una via d'uscita.
+          Positioned(
+            top: 16,
+            left: 16,
+            child: PlayerIconButton(
+              icon: const Icon(LucideIcons.arrowLeft),
+              tooltip: AppLocalizations.of(context).navBack,
+              onPressed: onBack,
+            ),
+          ),
+        ],
       );
 }

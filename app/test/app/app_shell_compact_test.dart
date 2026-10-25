@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wonderflix/app/app_shell.dart';
 import 'package:wonderflix/app/page_transitions.dart';
 import 'package:wonderflix/app/router.dart';
 import 'package:wonderflix/app/shell_panels.dart';
@@ -126,6 +127,47 @@ void main() {
     // L'avatar senza nome.
     expect(find.byKey(const Key('user-menu')), findsOneWidget);
     expect(find.text('Mario'), findsNothing);
+  });
+
+  testWidgets(
+      'stretto in orizzontale con la tastiera: niente barra in basso e la '
+      'pagina prende lo spazio', (tester) async {
+    await pumpShell(tester, size: _phoneLandscape);
+    double bottomPad() => tester
+        .widget<Padding>(find
+            .descendant(
+                of: find.byType(ShellPageFrame), matching: find.byType(Padding))
+            .first)
+        .padding
+        .resolve(TextDirection.ltr)
+        .bottom;
+    expect(find.byKey(const Key('bottom-nav-/home')), findsOneWidget);
+    expect(bottomPad(), greaterThan(0));
+
+    tester.view.viewInsets =
+        FakeViewPadding(bottom: 200 * tester.view.devicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('bottom-nav-/home')), findsNothing);
+    expect(bottomPad(), 0);
+  });
+
+  testWidgets('stretto: gli avvisi stanno sopra la barra in basso',
+      (tester) async {
+    await pumpShell(tester);
+    ScaffoldMessenger.of(tester.element(find.text('pagina /home')))
+        .showSnackBar(const SnackBar(content: Text('avviso')));
+    await tester.pumpAndSettle();
+    final bar = tester.getTopLeft(find.byKey(const Key('bottom-nav-/home'))).dy;
+    expect(tester.getBottomLeft(find.text('avviso')).dy, lessThanOrEqualTo(bar));
+  });
+
+  testWidgets('largo: gli avvisi restano dove sono', (tester) async {
+    await pumpShell(tester, size: _desktop, touch: false);
+    ScaffoldMessenger.of(tester.element(find.text('pagina /home')))
+        .showSnackBar(const SnackBar(content: Text('avviso')));
+    await tester.pumpAndSettle();
+    expect(tester.getBottomLeft(find.text('avviso')).dy, greaterThan(850));
   });
 
   testWidgets('stretto: Richieste in basso quando ci sono', (tester) async {
@@ -296,7 +338,10 @@ void main() {
       final chip = find.byKey(const Key('watch-party-button'));
       expect(chip, findsOneWidget);
       expect(tester.getSize(chip).width, greaterThanOrEqualTo(44));
-      expect(find.byTooltip('Watch party · 1'), findsOneWidget);
+      // L'etichetta intera resta per i lettori di schermo; il tooltip è
+      // solo quello del menu, non due uno sopra l'altro.
+      expect(find.bySemanticsLabel(RegExp('Watch party · 1')), findsWidgets);
+      expect(find.byTooltip('Watch party · 1'), findsNothing);
     });
 
     testWidgets(

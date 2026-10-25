@@ -87,8 +87,22 @@ class _AppShellState extends ConsumerState<AppShell> {
     final compact = FormFactor.of(context).compact;
     // Tacca del telefono: la barra in alto scende sotto di lei.
     final inset = MediaQuery.paddingOf(context).top;
+    // Con la tastiera aperta la barra in basso sparisce: in orizzontale
+    // mangerebbe lo spazio che resta al campo.
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final theme = Theme.of(context);
 
-    return Scaffold(
+    return Theme(
+      // Gli avvisi flottanti stanno sopra la barra in basso.
+      data: !compact || keyboard
+          ? theme
+          : theme.copyWith(
+              snackBarTheme: theme.snackBarTheme.copyWith(
+                insetPadding: EdgeInsets.fromLTRB(15, 5, 15,
+                    10 + shellBottomBarHeight + MediaQuery.paddingOf(context).bottom),
+              ),
+            ),
+      child: Scaffold(
       body: BackNavigationHandler(
         child: Stack(
           children: [
@@ -96,6 +110,7 @@ class _AppShellState extends ConsumerState<AppShell> {
               child: _ShellBarScope(
                 scrolled: _scrolled,
                 header: _header,
+                keyboard: keyboard,
                 child: widget.child,
               ),
             ),
@@ -153,7 +168,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 ],
               ),
             ),
-            if (compact)
+            if (compact && !keyboard)
               Positioned(
                 left: 0,
                 right: 0,
@@ -192,6 +207,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             const Positioned.fill(child: RatePanelHost()),
           ],
         ),
+      ),
       ),
     );
   }

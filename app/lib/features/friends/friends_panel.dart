@@ -548,6 +548,7 @@ class _FriendRowState extends ConsumerState<_FriendRow> {
             onPressed: _remove,
           )
         : PopupMenuButton<String>(
+            useRootNavigator: true,
             tooltip: l.friendsMore,
             icon: const Icon(LucideIcons.ellipsis,
                 size: 18, color: WfColors.creamMuted),

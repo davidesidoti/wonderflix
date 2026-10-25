@@ -121,6 +121,21 @@ void main() {
     },
   );
 
+  testWidgets('avvio rifiutato: la freccia indietro resta raggiungibile',
+      (tester) async {
+    engine.blockNextPlay();
+    await pumpPlayer(tester, touch: true, surfaceSize: const Size(844, 390));
+    expect(find.text(l.playerTapToPlay), findsOneWidget);
+
+    await tester.tap(find.descendant(
+        of: find.byKey(const ValueKey('player-tap-to-play')),
+        matching: find.byTooltip(l.navBack)));
+    await tester.pumpAndSettle();
+    expect(find.text('home'), findsOneWidget);
+    expect(find.text(l.playerTapToPlay), findsNothing);
+    await unmount(tester);
+  });
+
   testWidgets('avvio riuscito: niente Tocca per riprodurre', (tester) async {
     await pumpPlayer(tester, touch: true, surfaceSize: const Size(844, 390));
     expect(engine.playing, isTrue);

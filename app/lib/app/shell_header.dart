@@ -11,15 +11,26 @@ class _ShellBarScope extends InheritedWidget {
   const _ShellBarScope({
     required this.scrolled,
     required this.header,
+    required this.keyboard,
     required super.child,
   });
 
   final ValueNotifier<bool> scrolled;
   final ValueNotifier<ShellHeader?> header;
 
+  /// La tastiera è aperta: la barra in basso non c'è. Lo scrive la shell,
+  /// perché lo `Scaffold` toglie gli inset dal contesto delle pagine.
+  final bool keyboard;
+
+  static bool keyboardOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_ShellBarScope>()?.keyboard ??
+      false;
+
   @override
   bool updateShouldNotify(_ShellBarScope oldWidget) =>
-      oldWidget.scrolled != scrolled || oldWidget.header != header;
+      oldWidget.scrolled != scrolled ||
+      oldWidget.header != header ||
+      oldWidget.keyboard != keyboard;
 }
 
 /// Titolo e azione della pagina mostrati nella barra quando la sua testata
@@ -129,7 +140,8 @@ class _ShellPageFrameState extends State<ShellPageFrame> {
       padding: EdgeInsets.only(
         top: widget.underBar ? bar + MediaQuery.paddingOf(context).top : 0,
         // Nel layout stretto la pagina finisce sopra la barra in basso.
-        bottom: compact
+        // (con la tastiera aperta la barra non c'è).
+        bottom: compact && !_ShellBarScope.keyboardOf(context)
             ? shellBottomBarHeight + MediaQuery.paddingOf(context).bottom
             : 0,
       ),

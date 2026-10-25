@@ -137,6 +137,18 @@ void main() {
     });
   });
 
+  testWidgets('TodayButtonIsAFingerTargetOnPhones', (tester) async {
+    await atNow(() async {
+      await pumpScreen(tester);
+      tester.view.physicalSize =
+          const Size(390, 844) * tester.view.devicePixelRatio;
+      addTearDown(tester.view.resetPhysicalSize);
+      await tester.pumpAndSettle();
+      expect(tester.getSize(find.byKey(const Key('calendar-today'))).height,
+          greaterThanOrEqualTo(44));
+    });
+  });
+
   testWidgets('ArrowsAndTodayChangeTheAddress', (tester) async {
     await atNow(() async {
       final router = await pumpScreen(tester);
