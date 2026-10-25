@@ -144,7 +144,12 @@ void main() {
     // Come `WonderflixApp`: il routing ascolta la sessione prima del player.
     container.listen(watchPartyRoutingProvider, (_, _) {});
     await tester.binding.setSurfaceSize(const Size(1440, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    // Anche la MediaQuery: sotto 1024 la shell è stretta.
+    tester.view.physicalSize = const Size(1440, 900) * tester.view.devicePixelRatio;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      return tester.binding.setSurfaceSize(null);
+    });
     await tester.pumpWidget(UncontrolledProviderScope(
       container: container,
       child: MaterialApp.router(

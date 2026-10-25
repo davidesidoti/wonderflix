@@ -13,12 +13,16 @@ import '../features/catalog/catalog_navigation.dart';
 import '../features/catalog/catalog_screen.dart';
 import '../features/collections/collection_screen.dart';
 import '../features/detail/item_detail_screen.dart';
+import '../features/friends/friends_panel.dart';
 import '../features/home/home_screen.dart';
+import '../features/inbox/inbox_panel.dart';
 import '../features/match/match_screen.dart';
 import '../features/mylist/my_list_screen.dart';
 import '../features/person/person_screen.dart';
 import '../features/player/player_screen.dart';
 import '../features/profiles/profiles_screen.dart';
+import '../features/ratings/rate_panel.dart';
+import '../features/recommendations/recommend_panel.dart';
 import '../features/requests/requests_navigation.dart';
 import '../features/requests/requests_screen.dart';
 import '../features/requests/tmdb_title_screen.dart';
@@ -31,6 +35,7 @@ import 'hero_launch.dart';
 import 'motion.dart';
 import 'navigation.dart';
 import 'page_transitions.dart';
+import 'shell_panels.dart';
 
 const _entryRoutes = {'/splash', '/login', '/unreachable', '/profiles'};
 
@@ -211,6 +216,38 @@ final routerProvider = Provider<GoRouter>((ref) {
                   state,
                   AdminScreen(
                       tab: AdminTab.parse(state.uri.queryParameters['tab'])),
+                  underBar: true)),
+          // I pannelli come pagine nel layout stretto (spec 1c §4.2). Consiglia
+          // e Vota senza titolo (pagina ricaricata) tornano alla Home.
+          GoRoute(
+              path: '/friends',
+              pageBuilder: (context, state) => shellPage(
+                  context,
+                  state,
+                  const ShellPanelPage(
+                      panel: ShellPanel.friends, child: FriendsPanel()),
+                  underBar: true)),
+          GoRoute(
+              path: '/inbox',
+              pageBuilder: (context, state) => shellPage(
+                  context,
+                  state,
+                  const ShellPanelPage(
+                      panel: ShellPanel.inbox, child: InboxPanel()),
+                  underBar: true)),
+          GoRoute(
+              path: '/recommend',
+              redirect: (context, state) =>
+                  ref.read(recommendSubjectProvider) == null ? '/home' : null,
+              pageBuilder: (context, state) => shellPage(
+                  context, state, const RecommendPanelPage(),
+                  underBar: true)),
+          GoRoute(
+              path: '/rate',
+              redirect: (context, state) =>
+                  ref.read(rateSubjectProvider) == null ? '/home' : null,
+              pageBuilder: (context, state) => shellPage(
+                  context, state, const RatePanelPage(),
                   underBar: true)),
           GoRoute(
             path: '/item/:id',

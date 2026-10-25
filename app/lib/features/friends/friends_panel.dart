@@ -9,6 +9,7 @@ import '../../app/theme.dart';
 import '../../core/social/social_api.dart';
 import '../../core/social/social_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/shell_side_panel.dart';
 import '../../ui/wf_menus.dart';
 import '../match/match_actions.dart';
@@ -772,6 +773,8 @@ class FriendsPanelHost extends ConsumerWidget {
         ref.read(shellPanelProvider.notifier).close();
       }
     });
+    // Nel layout stretto il pannello è una pagina ([ShellPanelPage]).
+    if (FormFactor.of(context).compact) return const SizedBox.shrink();
     return ShellSidePanel(
       open: ref.watch(friendsPanelVisibleProvider),
       onClose: () => ref.read(shellPanelProvider.notifier).close(),

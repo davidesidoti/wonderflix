@@ -195,7 +195,7 @@ class DetailHeader extends ConsumerWidget {
                 WfButton.secondary(
                   label: l.recommendButton,
                   icon: LucideIcons.send,
-                  onPressed: () => openRecommendPanel(
+                  onPressed: () => openRecommendPanel(context,
                       ref, RecommendSubject(itemId: item.id, name: item.name)),
                 ),
               // Dopo i toggle: la scheda di Seerr arriva dopo due

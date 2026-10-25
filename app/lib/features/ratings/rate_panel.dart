@@ -11,6 +11,7 @@ import '../../core/jellyfin/item_models.dart';
 import '../../core/social/rating_models.dart';
 import '../../core/social/social_api.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/shell_side_panel.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_image.dart';
@@ -44,9 +45,9 @@ final rateSubjectProvider =
         RateSubjectController.new);
 
 /// Apre il pannello del voto per [subject].
-void openRatePanel(WidgetRef ref, RateSubject subject) {
+void openRatePanel(BuildContext context, WidgetRef ref, RateSubject subject) {
   ref.read(rateSubjectProvider.notifier).set(subject);
-  ref.read(shellPanelProvider.notifier).open(ShellPanel.rate);
+  openShellPanel(context, ref, ShellPanel.rate);
 }
 
 /// Locandina (2:3) in alto.
@@ -252,6 +253,8 @@ class RatePanelHost extends ConsumerWidget {
         ref.read(shellPanelProvider.notifier).close();
       }
     });
+    // Nel layout stretto il pannello è una pagina ([ShellPanelPage]).
+    if (FormFactor.of(context).compact) return const SizedBox.shrink();
     final subject = ref.watch(rateSubjectProvider);
     return ShellSidePanel(
       open: ref.watch(ratePanelVisibleProvider),
@@ -260,6 +263,23 @@ class RatePanelHost extends ConsumerWidget {
       child: subject == null
           ? const SizedBox.shrink()
           // Un titolo nuovo: un pannello nuovo (voto e commento da capo).
+          : RatePanel(key: ValueKey(subject.item.id), subject: subject),
+    );
+  }
+}
+
+/// Il pannello come pagina nel layout stretto. Senza titolo (pagina
+/// ricaricata) la rotta torna alla Home prima di arrivare qui.
+class RatePanelPage extends ConsumerWidget {
+  const RatePanelPage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final subject = ref.watch(rateSubjectProvider);
+    return ShellPanelPage(
+      panel: ShellPanel.rate,
+      child: subject == null
+          ? const SizedBox.shrink()
           : RatePanel(key: ValueKey(subject.item.id), subject: subject),
     );
   }

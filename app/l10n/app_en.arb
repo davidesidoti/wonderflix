@@ -22,6 +22,7 @@
   "unreachableBody": "Retrying automatically every 15 seconds.",
   "navHome": "Home",
   "navBack": "Back",
+  "navMore": "More",
   "menuLogout": "Sign out",
   "homeWelcome": "Hi, {name}",
   "navMovies": "Movies",

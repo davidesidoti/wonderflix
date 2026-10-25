@@ -29,8 +29,7 @@ class FriendsButton extends ConsumerWidget {
       child: IconButton(
         key: const Key('friends-button'),
         tooltip: l.friendsTitle,
-        onPressed: () =>
-            ref.read(shellPanelProvider.notifier).toggle(ShellPanel.friends),
+        onPressed: () => openShellPanel(context, ref, ShellPanel.friends),
         icon: Badge(
           isLabelVisible: count > 0,
           label: Text('$count'),

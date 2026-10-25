@@ -22,6 +22,7 @@
   "unreachableBody": "Nuovo tentativo automatico ogni 15 secondi.",
   "navHome": "Home",
   "navBack": "Indietro",
+  "navMore": "Altro",
   "menuLogout": "Esci",
   "homeWelcome": "Ciao, {name}",
   "@homeWelcome": {

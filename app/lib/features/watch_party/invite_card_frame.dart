@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/wf_buttons.dart';
 
 /// Il posto della carta d'invito in alto a destra (spec C §11.4): entra da
@@ -67,7 +68,8 @@ class InviteCardFrame extends StatelessWidget {
       elevation: 8,
       borderRadius: BorderRadius.circular(10),
       child: SizedBox(
-        width: 340,
+        // Nel layout stretto a tutta larghezza (spec 1c §4.2).
+        width: FormFactor.of(context).compact ? double.infinity : 340,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 8, 16),
           child: Column(

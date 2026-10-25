@@ -122,13 +122,23 @@ class _ShellPageFrameState extends State<ShellPageFrame> {
   }
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: EdgeInsets.only(top: widget.underBar ? shellBarHeight : 0),
-        child: NotificationListener<ScrollNotification>(
-          onNotification: _onScroll,
-          child: widget.child,
-        ),
-      );
+  Widget build(BuildContext context) {
+    final compact = FormFactor.of(context).compact;
+    final bar = compact ? shellCompactBarHeight : shellBarHeight;
+    return Padding(
+      padding: EdgeInsets.only(
+        top: widget.underBar ? bar : 0,
+        // Nel layout stretto la pagina finisce sopra la barra in basso.
+        bottom: compact
+            ? shellBottomBarHeight + MediaQuery.paddingOf(context).bottom
+            : 0,
+      ),
+      child: NotificationListener<ScrollNotification>(
+        onNotification: _onScroll,
+        child: widget.child,
+      ),
+    );
+  }
 }
 
 /// Pubblica [header] nella barra quando [visibleAt] è vero per lo scroll di

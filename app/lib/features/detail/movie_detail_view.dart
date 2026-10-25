@@ -56,7 +56,7 @@ class MovieDetailView extends ConsumerWidget {
               index: 5,
               child: FriendRatingsRow(
                 item: item,
-                onRate: (r) => openRatePanel(
+                onRate: (r) => openRatePanel(context,
                     ref, RateSubject(item: item, title: item.name, mine: r.mine)),
               ),
             ),

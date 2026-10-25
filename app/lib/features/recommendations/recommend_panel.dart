@@ -10,6 +10,7 @@ import '../../app/theme.dart';
 import '../../core/social/recommendation_models.dart';
 import '../../core/social/social_api.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/rune_limit.dart';
 import '../../ui/shell_side_panel.dart';
 import '../../ui/wf_buttons.dart';
@@ -48,9 +49,10 @@ final recommendSubjectProvider =
         RecommendSubjectController.new);
 
 /// Apre il pannello per [subject] (spec N §7.2).
-void openRecommendPanel(WidgetRef ref, RecommendSubject subject) {
+void openRecommendPanel(
+    BuildContext context, WidgetRef ref, RecommendSubject subject) {
   ref.read(recommendSubjectProvider.notifier).set(subject);
-  ref.read(shellPanelProvider.notifier).open(ShellPanel.recommend);
+  openShellPanel(context, ref, ShellPanel.recommend);
 }
 
 /// Gli amici a cui si può consigliare il titolo, letti all'apertura.
@@ -334,6 +336,8 @@ class RecommendPanelHost extends ConsumerWidget {
         ref.read(shellPanelProvider.notifier).close();
       }
     });
+    // Nel layout stretto il pannello è una pagina ([ShellPanelPage]).
+    if (FormFactor.of(context).compact) return const SizedBox.shrink();
     final subject = ref.watch(recommendSubjectProvider);
     return ShellSidePanel(
       open: ref.watch(recommendPanelVisibleProvider),
@@ -342,6 +346,23 @@ class RecommendPanelHost extends ConsumerWidget {
       child: subject == null
           ? const SizedBox.shrink()
           // Un titolo nuovo: un pannello nuovo (scelte e messaggio vuoti).
+          : RecommendPanel(key: ValueKey(subject.itemId), subject: subject),
+    );
+  }
+}
+
+/// Il pannello come pagina nel layout stretto. Senza titolo (pagina
+/// ricaricata) la rotta torna alla Home prima di arrivare qui.
+class RecommendPanelPage extends ConsumerWidget {
+  const RecommendPanelPage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final subject = ref.watch(recommendSubjectProvider);
+    return ShellPanelPage(
+      panel: ShellPanel.recommend,
+      child: subject == null
+          ? const SizedBox.shrink()
           : RecommendPanel(key: ValueKey(subject.itemId), subject: subject),
     );
   }

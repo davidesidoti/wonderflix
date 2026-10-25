@@ -9,6 +9,7 @@ import '../../app/theme.dart';
 import '../../core/social/social_api.dart';
 import '../../core/social/social_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/user_avatar.dart';
 import '../../ui/wf_buttons.dart';
 import 'friend_request_notices.dart';
@@ -68,7 +69,8 @@ class FriendRequestCard extends ConsumerWidget {
       elevation: 8,
       borderRadius: BorderRadius.circular(10),
       child: SizedBox(
-        width: 340,
+        // Nel layout stretto a tutta larghezza (spec 1c §4.2).
+        width: FormFactor.of(context).compact ? double.infinity : 340,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 8, 16),
           child: Column(

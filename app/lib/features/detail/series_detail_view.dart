@@ -95,6 +95,7 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
                 item: shownSeason,
                 title: l.ratingFriendsRowSeason(shownSeason.name),
                 onRate: (r) => openRatePanel(
+                    context,
                     ref,
                     RateSubject(
                         item: shownSeason,

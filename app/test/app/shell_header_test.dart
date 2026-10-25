@@ -160,7 +160,12 @@ void main() {
     ]);
     addTearDown(router.dispose);
     await tester.binding.setSurfaceSize(size);
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    // Anche la MediaQuery: sotto 1024 la shell è stretta.
+    tester.view.physicalSize = size * tester.view.devicePixelRatio;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      return tester.binding.setSurfaceSize(null);
+    });
     await tester.pumpWidget(ProviderScope(
       overrides: [
         appConfigProvider.overrideWithValue(testAppConfig),

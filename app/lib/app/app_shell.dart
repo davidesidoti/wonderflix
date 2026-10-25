@@ -25,18 +25,23 @@ import '../features/requests/requests_providers.dart';
 import '../features/watch_party/watch_party_button.dart';
 import '../features/watch_party/watch_party_invites.dart';
 import '../l10n/gen/app_localizations.dart';
+import '../ui/form_factor.dart';
 import '../ui/hover_builder.dart';
 import '../ui/sliding_underline.dart';
 import '../ui/user_avatar.dart';
 import '../ui/wf_menus.dart';
 import 'back_navigation.dart';
 import 'motion.dart';
+import 'shell_bottom_bar.dart';
 import 'theme.dart';
 
 part 'shell_header.dart';
 
 /// Altezza della barra in alto.
 const shellBarHeight = 64.0;
+
+/// Altezza della barra in alto nel layout stretto.
+const shellCompactBarHeight = 56.0;
 
 /// Diametro dell'avatar del menu.
 const _menuAvatarSize = 30.0;
@@ -79,6 +84,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     final session = ref.watch(sessionControllerProvider);
     final user = session is SessionSignedIn ? session.user : null;
     final l = AppLocalizations.of(context);
+    final compact = FormFactor.of(context).compact;
 
     return Scaffold(
       body: BackNavigationHandler(
@@ -95,15 +101,15 @@ class _AppShellState extends ConsumerState<AppShell> {
               top: 0,
               left: 0,
               right: 0,
-              height: shellBarHeight,
+              height: compact ? shellCompactBarHeight : shellBarHeight,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
                   _BarBackground(scrolled: _scrolled),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    padding: EdgeInsets.symmetric(horizontal: compact ? 4 : 24),
                     child: Row(
-                      children: [
+                      children: compact ? _compactBar(user) : [
                         const _BackButton(),
                         Image.asset('assets/brand/logo.png', height: 40),
                         const SizedBox(width: 32),
@@ -144,13 +150,25 @@ class _AppShellState extends ConsumerState<AppShell> {
                 ],
               ),
             ),
+            if (compact)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: ShellBottomBar(
+                  location: widget.location,
+                  onMenu: (value) => _runMenuAction(context, ref, value),
+                ),
+              ),
             // Invito a un watch party appena nato (spec B §5.8), invito a una sala
             // del match (spec P §7.2) e richiesta di amicizia appena arrivata
-            // (spec F §8.4), una sotto l'altra.
-            const Positioned(
-              top: 72,
-              right: 24,
-              child: Column(
+            // (spec F §8.4), una sotto l'altra. Nel layout stretto a tutta
+            // larghezza, sotto la barra.
+            Positioned(
+              top: compact ? shellCompactBarHeight + 8 : 72,
+              left: compact ? 8 : null,
+              right: compact ? 8 : 24,
+              child: const Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 spacing: 8,
@@ -174,6 +192,19 @@ class _AppShellState extends ConsumerState<AppShell> {
       ),
     );
   }
+
+  /// Barra in alto del layout stretto (spec 1c §4.2): le voci stanno nella
+  /// barra in basso, l'avatar è senza nome.
+  List<Widget> _compactBar(JellyfinUser? user) => [
+        const _BackButton(),
+        Image.asset('assets/brand/logo.png', height: 28),
+        const SizedBox(width: 8),
+        Expanded(child: Center(child: _BarTitle(header: _header))),
+        const WatchPartyButton(),
+        const InboxButton(),
+        const FriendsButton(),
+        if (user != null) _UserMenu(user: user, compact: true),
+      ];
 }
 
 /// Sfondo della barra: velo in cima finché la pagina è in alto, scuro e
@@ -364,35 +395,50 @@ class _NavItem extends StatelessWidget {
   }
 }
 
+/// Esegue una voce del menu del profilo o di "Altro": una rotta (`/movies`)
+/// o `settings`, `admin`, `switch`, `add`, `logout`.
+void _runMenuAction(BuildContext context, WidgetRef ref, String value) {
+  switch (value) {
+    case 'settings':
+      context.go('/settings');
+    case 'admin':
+      openAdmin(context);
+    case 'switch':
+      unawaited(changeProfile(context, ref));
+    case 'add':
+      unawaited(changeProfile(context, ref, addProfile: true));
+    case 'logout':
+      unawaited(ref.read(sessionControllerProvider.notifier).logout());
+    default:
+      context.go(value);
+  }
+}
+
 class _UserMenu extends ConsumerWidget {
-  const _UserMenu({required this.user});
+  const _UserMenu({required this.user, this.compact = false});
 
   final JellyfinUser user;
+
+  /// Solo l'avatar, in un bersaglio da dito.
+  final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final canAddProfile =
         !ref.watch(profilesProvider.select((p) => p.book.isFull));
+    final avatar = UserAvatar(
+      userId: user.id,
+      name: user.name,
+      size: _menuAvatarSize,
+      imageTag: user.primaryImageTag,
+    );
     return PopupMenuButton<String>(
       key: const Key('user-menu'),
       tooltip: user.name,
       position: PopupMenuPosition.under,
       popUpAnimationStyle: wfPopUpAnimation(context),
-      onSelected: (value) {
-        switch (value) {
-          case 'settings':
-            context.go('/settings');
-          case 'admin':
-            openAdmin(context);
-          case 'switch':
-            unawaited(changeProfile(context, ref));
-          case 'add':
-            unawaited(changeProfile(context, ref, addProfile: true));
-          case 'logout':
-            unawaited(ref.read(sessionControllerProvider.notifier).logout());
-        }
-      },
+      onSelected: (value) => _runMenuAction(context, ref, value),
       itemBuilder: (context) => [
         PopupMenuItem(
           value: 'settings',
@@ -451,26 +497,24 @@ class _UserMenu extends ConsumerWidget {
           ),
         ),
       ],
-      child: HoverBuilder(
-        builder: (context, hovered) => Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            UserAvatar(
-              userId: user.id,
-              name: user.name,
-              size: _menuAvatarSize,
-              imageTag: user.primaryImageTag,
+      child: compact
+          ? SizedBox.square(
+              dimension: minTouchTarget, child: Center(child: avatar))
+          : HoverBuilder(
+              builder: (context, hovered) => Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  avatar,
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(user.name,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            color: hovered ? WfColors.gold : WfColors.cream)),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(user.name,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      color: hovered ? WfColors.gold : WfColors.cream)),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

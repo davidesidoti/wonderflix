@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../app/shell_panels.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/shell_side_panel.dart';
 import '../social/social_providers.dart';
 import 'inbox_controller.dart';
@@ -37,8 +38,7 @@ class InboxButton extends ConsumerWidget {
       child: IconButton(
         key: const Key('inbox-button'),
         tooltip: l.inboxTitle,
-        onPressed: () =>
-            ref.read(shellPanelProvider.notifier).toggle(ShellPanel.inbox),
+        onPressed: () => openShellPanel(context, ref, ShellPanel.inbox),
         icon: Badge(
           isLabelVisible: count > 0,
           label: Text(inboxBadgeLabel(count)),
@@ -69,6 +69,8 @@ class InboxPanelHost extends ConsumerWidget {
         ref.read(shellPanelProvider.notifier).close();
       }
     });
+    // Nel layout stretto il pannello è una pagina ([ShellPanelPage]).
+    if (FormFactor.of(context).compact) return const SizedBox.shrink();
     return ShellSidePanel(
       open: ref.watch(inboxPanelVisibleProvider),
       onClose: () => ref.read(shellPanelProvider.notifier).close(),
