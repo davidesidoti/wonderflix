@@ -371,8 +371,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         setState(() => _playBlocked = false);
       }
     });
-    // Sul telefono il player si apre a schermo intero e in orizzontale (una
-    // volta: arrivando dall'episodio prima resta com'era).
+    // Sul telefono il player si apre a schermo intero e in orizzontale, una
+    // volta. Arrivando a schermo intero dall'episodio prima non si rifà;
+    // arrivando senza (l'utente ne era uscito) ci si rientra.
     if (!widget.fullscreen) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted &&
@@ -387,8 +388,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<void> _enterPhoneFullscreen() async {
     setState(() => _fullscreen = true);
     await _window.setFullScreen(true);
-    // Il blocco vale solo a schermo intero (Chrome su Android).
-    await _window.lockLandscape();
+    // Il blocco vale solo a schermo intero (Chrome su Android). Uscendo nel
+    // frattempo il `dispose` ha già sbloccato: niente blocco tardivo.
+    if (mounted) await _window.lockLandscape();
   }
 
   /// "Tocca per riprodurre": nel gruppo che va già si parte solo qui, dentro

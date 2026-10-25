@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
 
 import 'package:logging/logging.dart';
 import 'package:web/web.dart' as web;
@@ -44,7 +45,17 @@ class WebPlayerWindow implements PlayerWindow {
   bool get _active => web.document.fullscreenElement != null;
 
   @override
-  bool get supportsFullScreen => web.document.fullscreenEnabled;
+  bool get supportsFullScreen {
+    // Letto come valore JS: su iPhone l'attributo può mancare (`undefined`),
+    // e il getter tipato di `package:web` lancerebbe con wasm.
+    try {
+      final enabled =
+          web.document.getProperty<JSAny?>('fullscreenEnabled'.toJS);
+      return enabled.isA<JSBoolean>() && (enabled as JSBoolean).toDart;
+    } on Object {
+      return false;
+    }
+  }
 
   @override
   Future<void> lockLandscape() async {

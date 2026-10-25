@@ -132,6 +132,9 @@ class GroupPlaybackDriver {
     _subscriptions.addAll([
       _commandStream.listen(_receive),
       _engine.bufferingStream.listen(_onBuffering),
+      // Avvio rifiutato dal browser (iOS): l'attesa fino al tocco non è il
+      // ritardo di partenza del motore, non si misura.
+      _engine.playBlockedStream.listen((_) => _measureLag = false),
     ]);
     _ticker = Timer.periodic(tick, (_) => _onTick());
   }

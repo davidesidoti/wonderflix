@@ -664,6 +664,27 @@ void main() {
   });
 
   group('ritardo alla ripartenza', () {
+    test('avvio rifiutato dal browser: l\'attesa del tocco non si misura',
+        () {
+      fakeAsync((async) {
+        final startLag = StartLag();
+        setUpDriver(async, startLag: startLag);
+        engine.blockNextPlay();
+        final first = command(SyncPlayCommandType.unpause,
+            at: const Duration(milliseconds: 500));
+        send(async, first);
+        async.elapse(const Duration(seconds: 5));
+        expect(engine.playing, isFalse);
+        // Il tocco dopo 5 s: il video parte da 10:00, il gruppo è avanti.
+        unawaited(engine.play());
+        async.flushMicrotasks();
+        runLaggedStart(async, const Duration(seconds: 3),
+            from: first, startLag: const Duration(milliseconds: 5500));
+        expect(startLag.value, Duration.zero);
+        tearDownDriver(async);
+      });
+    });
+
     test('si impara e alla ripresa dopo ci si allinea in anticipo', () {
       fakeAsync((async) {
         setUpDriver(async);
