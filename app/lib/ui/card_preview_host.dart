@@ -35,22 +35,31 @@ Future<void> showCardPreviewSheet(
       final screen = MediaQuery.sizeOf(sheet);
       final body = previewBodyHeight + minTouchTarget - 36 + extraHeight;
       // In orizzontale lo schermo è basso: l'immagine si restringe.
+      final safe = MediaQuery.paddingOf(sheet).vertical;
       final width = [
         screen.width - 2 * previewMargin,
         480.0,
-        (screen.height * 0.9 - body) * 16 / 9,
-      ].reduce((a, b) => a < b ? a : b);
+        (screen.height * 0.9 - safe - 2 * previewMargin - body) * 16 / 9,
+      ].reduce((a, b) => a < b ? a : b).clamp(previewMinWidth, double.infinity);
       void then(VoidCallback action) {
         Navigator.of(sheet).pop();
         action();
       }
 
+      // Il foglio sta sul navigatore radice e può sopravvivere alla card
+      // (riga ricostruita): allora Riproduci e Dettagli non hanno più dove
+      // agire.
+      void onCard(VoidCallback action) => then(() {
+            if (context.mounted) action();
+          });
+
       final dismiss = extra?.onDismiss;
       return SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(previewMargin),
-          child: Center(
-            heightFactor: 1,
+          // Se non entra (orizzontale, testo grande, molte note) scorre.
+          child: SingleChildScrollView(
+            child: Center(
             child: SizedBox(
               width: width,
               height: width * 9 / 16 + body,
@@ -63,10 +72,12 @@ Future<void> showCardPreviewSheet(
                         notes: extra!.notes,
                         dismissTooltip: extra.dismissTooltip,
                         onDismiss: () => then(dismiss)),
-                onPlay: () => then(() => unawaited(playItem(context, ref, item))),
-                onDetails: () =>
-                    then(() => openItem(context, item, heroSource: heroSource)),
+                onPlay: () =>
+                    onCard(() => unawaited(playItem(context, ref, item))),
+                onDetails: () => onCard(
+                    () => openItem(context, item, heroSource: heroSource)),
               ),
+            ),
             ),
           ),
         ),

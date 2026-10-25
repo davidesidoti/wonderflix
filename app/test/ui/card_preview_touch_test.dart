@@ -22,27 +22,77 @@ void main() {
   late List<String> calls;
   setUp(() => calls = []);
 
-  Future<void> pumpCard(WidgetTester tester, {required bool touch}) => pumpApp(
-        tester,
-        Scaffold(
-          body: Align(
-            alignment: Alignment.topCenter,
-            child: PosterCard(
-              key: const Key('card'),
-              item: testItem(id: 'a', name: 'Alien'),
-              width: 160,
-              onTap: () => calls.add('tap'),
-              previewExtra: CardPreviewExtra(
-                notes: const ['Da Luca'],
-                dismissTooltip: 'Non mi interessa',
-                onDismiss: () => calls.add('dismiss'),
-              ),
-            ),
-          ),
+  /// Togliendo la card dall albero con [shown] il foglio resta aperto.
+  final shown = ValueNotifier(true);
+
+  Future<void> pumpCard(WidgetTester tester,
+      {required bool touch,
+      Size surface = const Size(1440, 900),
+      List<String> notes = const ['Da Luca']}) {
+    shown.value = true;
+    return pumpApp(
+      tester,
+      Scaffold(
+        body: ValueListenableBuilder<bool>(
+          valueListenable: shown,
+          builder: (context, on, _) => !on
+              ? const SizedBox()
+              : Align(
+                  alignment: Alignment.topCenter,
+                  child: PosterCard(
+                    key: const Key('card'),
+                    item: testItem(id: 'a', name: 'Alien'),
+                    width: 160,
+                    onTap: () => calls.add('tap'),
+                    previewExtra: CardPreviewExtra(
+                      notes: notes,
+                      dismissTooltip: 'Non mi interessa',
+                      onDismiss: () => calls.add('dismiss'),
+                    ),
+                  ),
+                ),
         ),
-        overrides: overrides,
-        touch: touch,
-      );
+      ),
+      overrides: overrides,
+      touch: touch,
+      surfaceSize: surface,
+    );
+  }
+
+  for (final play in [true, false]) {
+    testWidgets(
+        'tocco: card tolta con il foglio aperto, ${play ? 'Riproduci' : 'Dettagli'} '
+        'non lancia', (tester) async {
+      await pumpCard(tester, touch: true);
+      await tester.longPress(find.byKey(const Key('card')));
+      await tester.pumpAndSettle();
+      shown.value = false;
+      await tester.pump();
+      expect(find.byKey(const Key('card')), findsNothing);
+      await tester.tap(find.byTooltip(play ? 'Riproduci' : 'Dettagli'));
+      await tester.pumpAndSettle();
+      expect(find.byType(CardPreview), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final (name, bottom, notes) in [
+    ('con 21 px di area sicura', 21.0, const ['Da Luca']),
+    ('con molte note', 0.0, [for (var i = 0; i < 8; i++) 'Nota lunga $i']),
+  ]) {
+    testWidgets('tocco: foglio a 844x390 $name senza overflow', (tester) async {
+      await pumpCard(tester,
+          touch: true, surface: const Size(844, 390), notes: notes);
+      tester.view.padding =
+          FakeViewPadding(bottom: bottom * tester.view.devicePixelRatio);
+      addTearDown(tester.view.resetPadding);
+      await tester.longPress(find.byKey(const Key('card')));
+      await tester.pumpAndSettle();
+      expect(find.byType(CardPreview), findsOneWidget);
+      expect(find.text(notes.first), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets(
       'tocco: pressione lunga su una card apre l anteprima dal basso con la × '

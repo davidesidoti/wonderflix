@@ -461,6 +461,24 @@ void main() {
       await leave(tester);
     });
 
+    testWidgets('tocco: lo scroll senza puntatore rinnova la chiusura',
+        (tester) async {
+      longHistory();
+      await pumpChat(tester, touch: true);
+      await openChat(tester);
+      await tester.pump(const Duration(seconds: 15));
+      tester
+          .state<ScrollableState>(find.descendant(
+              of: history(), matching: find.byType(Scrollable)))
+          .position
+          .jumpTo(40);
+      await tester.pump(const Duration(seconds: 15));
+      expect(open.value, isTrue, reason: 'ha scorso a 15 s, siamo a 30 s');
+      await tester.pump(const Duration(seconds: 10));
+      expect(open.value, isFalse);
+      await leave(tester);
+    });
+
     testWidgets('inviare da più su riporta in fondo', (tester) async {
       longHistory();
       await pumpChat(tester);
