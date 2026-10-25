@@ -1,7 +1,7 @@
 # WonderFlix — Progetto 1b: WonderFlix nel browser del PC
 
 - **Data:** 2026-10-22
-- **Stato:** approvata il 2026-10-22.
+- **Stato:** approvata il 2026-10-22; **realizzata** il 2026-10-25 con il piano 27 (`docs/superpowers/plans/2026-10-22-wonderflix-27-web-pc.md`), provata dall'utente, sito pubblicato su `https://hashvps.proton.usbx.me/wonderflix/`.
 - **Ambito:** progetto 1b dell'idea 1 di `docs/IDEE.md` ("Versione web"). Viene dopo il progetto 1a (repo per componente, su `main`) e prima del progetto 1c (telefono e touch).
 - **Ricerche:** le fonti di questa spec sono in due note di sessione, l'inventario del codice e la ricerca sul video nel browser. Le cose che servono sono riportate qui sotto.
 
