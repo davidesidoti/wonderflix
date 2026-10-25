@@ -5,6 +5,7 @@ import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/item_query.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/poster_card.dart';
 import '../../ui/skeletons.dart';
 import '../../ui/smooth_scroll.dart';
@@ -121,7 +122,11 @@ class _MyListScreenState extends ConsumerState<MyListScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(l.navMyList.toUpperCase(), style: WfText.display(40)),
+            Flexible(
+              child: Text(l.navMyList.toUpperCase(),
+                  style: WfText.display(
+                      FormFactor.of(context).compact ? 28 : 40)),
+            ),
             if (count > 0) ...[
               const SizedBox(width: 16),
               Padding(

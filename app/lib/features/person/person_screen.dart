@@ -7,6 +7,7 @@ import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/item_query.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/poster_card.dart';
 import '../../ui/skeletons.dart';
 import '../../ui/smooth_scroll.dart';
@@ -76,40 +77,44 @@ class _PersonScreenState extends ConsumerState<PersonScreen> {
     final bio = person?.overview;
     final films =
         person == null ? null : ref.watch(filmographyProvider(widget.personId));
+    // Nello stretto la foto sta sopra il nome, più piccola.
+    final compact = FormFactor.of(context).compact;
+    final details = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(name.toUpperCase(), style: WfText.display(compact ? 28 : 48)),
+        if (bio != null) ...[
+          const SizedBox(height: 12),
+          Text(bio,
+              maxLines: 10,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(height: 1.5)),
+        ],
+      ],
+    );
     return CustomScrollView(
       controller: _scroll,
       slivers: [
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(32, 32, 32, 0),
           sliver: SliverToBoxAdapter(
-            child: Row(
+            child: Flex(
+              direction: compact ? Axis.vertical : Axis.horizontal,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 WfHero(
                   tag: launch?.tag,
                   borderRadius: BorderRadius.circular(8),
                   child: SizedBox(
-                    width: 200,
-                    height: 300,
+                    width: compact ? 140 : 200,
+                    height: compact ? 210 : 300,
                     child: WfImage(image: photo, fallbackIcon: LucideIcons.user),
                   ),
                 ),
-                const SizedBox(width: 32),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(name.toUpperCase(), style: WfText.display(48)),
-                      if (bio != null) ...[
-                        const SizedBox(height: 12),
-                        Text(bio,
-                            maxLines: 10,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(height: 1.5)),
-                      ],
-                    ],
-                  ),
-                ),
+                const SizedBox(width: 32, height: 16),
+                // Nello stretto niente Expanded: la colonna è sull'asse che
+                // scorre.
+                if (compact) details else Expanded(child: details),
               ],
             ),
           ),

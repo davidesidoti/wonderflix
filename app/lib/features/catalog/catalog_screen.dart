@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/poster_card.dart';
 import '../../ui/skeletons.dart';
 import '../../ui/smooth_scroll.dart';
@@ -87,7 +88,11 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(title.toUpperCase(), style: WfText.display(40)),
+              Flexible(
+                child: Text(title.toUpperCase(),
+                    style: WfText.display(
+                        FormFactor.of(context).compact ? 28 : 40)),
+              ),
               const SizedBox(width: 16),
               if (count != null)
                 Padding(

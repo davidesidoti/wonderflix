@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/staggered_entrance.dart';
 import 'auth_providers.dart';
 import 'password_login_form.dart';
@@ -65,25 +66,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }),
     );
 
+    // Nello stretto il logo sta sopra il pannello, che prende tutta la
+    // larghezza: affiancati servirebbero 716 punti.
+    final compact = FormFactor.of(context).compact;
+
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(32),
+          padding: EdgeInsets.all(compact ? 16 : 32),
           // Il logo, poi il pannello (spec C §11.3).
           child: StaggerGroup(
             count: 2,
-            child: Row(
+            child: Flex(
+              direction: compact ? Axis.vertical : Axis.horizontal,
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: compact
+                  ? CrossAxisAlignment.stretch
+                  : CrossAxisAlignment.center,
               children: [
                 StaggerItem(
                   index: 0,
-                  child: Image.asset('assets/brand/logo.png', width: 280),
+                  child: Align(
+                    child: Image.asset('assets/brand/logo.png',
+                        width: compact ? 200 : 280),
+                  ),
                 ),
-                const SizedBox(width: 56),
+                const SizedBox(width: 56, height: 24),
                 StaggerItem(
                   index: 1,
                   child: Container(
-                    width: 380,
+                    key: const Key('login-panel'),
+                    width: compact ? null : 380,
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
                       color: WfColors.surface,
@@ -135,13 +148,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     ],
                                   ),
                                   const SizedBox(height: 16),
-                                  SizedBox(
-                                    height: 300,
-                                    child: TabBarView(children: [
-                                      form,
-                                      const QuickConnectPanel(),
-                                    ]),
-                                  ),
+                                  if (compact)
+                                    // Senza altezza fissa: una scheda alla
+                                    // volta, entrambe vive (il nome scritto
+                                    // resta).
+                                    Builder(builder: (context) {
+                                      final tabs =
+                                          DefaultTabController.of(context);
+                                      return ListenableBuilder(
+                                        listenable: tabs,
+                                        builder: (context, _) => IndexedStack(
+                                          index: tabs.index,
+                                          children: [
+                                            form,
+                                            const QuickConnectPanel(),
+                                          ],
+                                        ),
+                                      );
+                                    })
+                                  else
+                                    SizedBox(
+                                      height: 300,
+                                      child: TabBarView(children: [
+                                        form,
+                                        const QuickConnectPanel(),
+                                      ]),
+                                    ),
                                 ],
                               ),
                             )

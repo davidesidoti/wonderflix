@@ -4,6 +4,7 @@ import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/item_query.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 
 /// Altezza di una riga di menu della barra dei filtri.
 const filtersBarHeight = 40.0;
@@ -107,6 +108,8 @@ class FilterPicker<T> extends StatelessWidget {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<T>(
+          // Nello stretto riempie la riga: col testo lungo non sfora.
+          isExpanded: FormFactor.of(context).compact,
           value: items.containsKey(value) ? value : null,
           dropdownColor: WfColors.surface,
           style: const TextStyle(color: WfColors.cream, fontSize: 13.5),

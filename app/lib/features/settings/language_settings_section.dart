@@ -7,6 +7,7 @@ import '../../app/error_text.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/user_config_api.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import 'language_preferences.dart';
 
 /// Lingue di audio e sottotitoli e quando mostrare i sottotitoli: sono
@@ -76,6 +77,9 @@ class _LanguageForm extends ConsumerWidget {
         ? preferences.subtitleMode
         : 'Default';
 
+    // Nello stretto i menu riempiono la riga: col testo lungo non sforano.
+    final fill = FormFactor.of(context).compact;
+
     Widget labeled(String label, Widget field) => Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: Column(
@@ -99,6 +103,7 @@ class _LanguageForm extends ConsumerWidget {
             labeled(
               l.settingsAudioLanguage,
               DropdownButton<String>(
+                isExpanded: fill,
                 key: const Key('audio-language'),
                 value: preferences.audioLanguage,
                 items: languages(preferences.audioLanguage),
@@ -109,6 +114,7 @@ class _LanguageForm extends ConsumerWidget {
             labeled(
               l.settingsSubtitleLanguage,
               DropdownButton<String>(
+                isExpanded: fill,
                 key: const Key('subtitle-language'),
                 value: preferences.subtitleLanguage,
                 items: languages(preferences.subtitleLanguage),
@@ -119,6 +125,7 @@ class _LanguageForm extends ConsumerWidget {
             labeled(
               l.settingsSubtitleMode,
               DropdownButton<String>(
+                isExpanded: fill,
                 key: const Key('subtitle-mode'),
                 value: mode,
                 items: [

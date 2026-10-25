@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../player/player_settings.dart';
 
 /// "Massima (originale)", "Alta (20 Mbps)", "Media (8 Mbps)", "Bassa (4 Mbps)".
@@ -45,6 +46,8 @@ class PlayerSettingsSection extends ConsumerWidget {
             Text(l.settingsQuality),
             const SizedBox(height: 6),
             DropdownButton<StreamQuality>(
+              // Nello stretto riempie la riga: col testo lungo non sfora.
+              isExpanded: FormFactor.of(context).compact,
               key: const Key('player-quality'),
               value: settings.quality,
               items: [

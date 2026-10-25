@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import 'form_factor.dart';
 import 'shimmer.dart';
 import 'states.dart';
 
@@ -182,7 +183,33 @@ class PersonSkeleton extends StatelessWidget {
   const PersonSkeleton({super.key});
 
   @override
-  Widget build(BuildContext context) => const WfShimmer(
+  Widget build(BuildContext context) {
+    // Come PersonScreen: nello stretto la foto sta sopra il nome.
+    if (FormFactor.of(context).compact) {
+      return const WfShimmer(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(32, 32, 32, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: SkeletonBox(width: 140, height: 210, radius: 8),
+              ),
+              SizedBox(height: 16),
+              SkeletonBox(height: 32),
+              SizedBox(height: 16),
+              SkeletonBox(height: 14),
+              SizedBox(height: 8),
+              SkeletonBox(height: 14),
+              SizedBox(height: 8),
+              SkeletonBox(height: 14),
+            ],
+          ),
+        ),
+      );
+    }
+    return const WfShimmer(
         child: Padding(
           padding: EdgeInsets.fromLTRB(32, 32, 32, 0),
           child: Row(
@@ -206,4 +233,5 @@ class PersonSkeleton extends StatelessWidget {
           ),
         ),
       );
+  }
 }
