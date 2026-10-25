@@ -9,6 +9,7 @@ import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/poster_card.dart';
 import '../../ui/skeletons.dart';
 import '../../ui/smooth_scroll.dart';
@@ -48,6 +49,9 @@ class CollectionScreen extends ConsumerStatefulWidget {
 class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   final _scroll = SmoothScrollController();
 
+  /// Testata della saga (vedi `CollectionView.headerKey`).
+  final _header = GlobalKey();
+
   /// Stato di caricamento: la saga o i suoi titoli non sono ancora arrivati.
   static const (String, Widget) _loading =
       ('loading', DetailSkeleton(headerHeight: detailHeaderHeight));
@@ -86,7 +90,8 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
               CollectionView(
                   collectionId: widget.collectionId,
                   collection: item,
-                  controller: _scroll),
+                  controller: _scroll,
+                  headerKey: _header),
             )
           : _loading,
     );
@@ -122,6 +127,7 @@ class CollectionView extends ConsumerWidget {
     required this.collectionId,
     required this.collection,
     this.controller,
+    this.headerKey,
   });
 
   /// Id della rotta: la stessa chiave dei provider della pagina, che può
@@ -132,6 +138,10 @@ class CollectionView extends ConsumerWidget {
 
   /// Scroll della pagina (lo segue anche lo sfondo).
   final ScrollController? controller;
+
+  /// Chiave della testata: nel layout stretto dice quando il titolo va
+  /// nella barra (`barTitleVisible`).
+  final GlobalKey? headerKey;
 
   /// Elementi della testata che entrano scaglionati (logo, conteggio,
   /// sinossi, pulsante).
@@ -155,6 +165,7 @@ class CollectionView extends ConsumerWidget {
         slivers: [
           SliverToBoxAdapter(
             child: CollectionHeader(
+                key: headerKey,
                 collection: collection,
                 items: items,
                 action: action,
@@ -203,9 +214,11 @@ class CollectionView extends ConsumerWidget {
     // Senza controller (vista montata da sola) niente titolo nella barra.
     if (scroll == null) return page;
     final reduced = WfMotion.of(context).isReduced;
+    final compactHeader = FormFactor.of(context).compact ? headerKey : null;
     return ShellHeaderPublisher(
       controller: scroll,
-      visibleAt: (offset) => barTitleVisible(offset, reduced: reduced),
+      visibleAt: (offset) => barTitleVisible(offset,
+          reduced: reduced, compactHeader: compactHeader),
       header: ShellHeader(
         title: collection.name,
         // Nella barra l'etichetta è corta, come nella scheda di un film; il

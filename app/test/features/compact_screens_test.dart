@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wonderflix/app/app_shell.dart';
+import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/storage/profile_store.dart';
@@ -12,6 +15,10 @@ import 'package:wonderflix/features/auth/login_screen.dart';
 import 'package:wonderflix/features/auth/quick_connect_flow.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/catalog/catalog_screen.dart';
+import 'package:wonderflix/features/collections/collection_screen.dart';
+import 'package:wonderflix/features/detail/detail_backdrop.dart';
+import 'package:wonderflix/features/detail/detail_header.dart';
+import 'package:wonderflix/features/detail/header_parallax.dart';
 import 'package:wonderflix/features/detail/item_detail_screen.dart';
 import 'package:wonderflix/features/home/home_screen.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
@@ -338,8 +345,8 @@ void main() {
 
     // Visibile come pulsante (testo o tooltip) o come voce del menu ⋯.
     Future<void> expectReachable(String label) async {
-      final shown = find.text(label).evaluate().isNotEmpty ||
-          find.byTooltip(label).evaluate().isNotEmpty;
+      final shown = find.text(label).hitTestable().evaluate().isNotEmpty ||
+          find.byTooltip(label).hitTestable().evaluate().isNotEmpty;
       if (shown) return;
       await tester.tap(find.byTooltip('Altre azioni'));
       await tester.pumpAndSettle();
@@ -365,5 +372,80 @@ void main() {
         scrollable: find.byType(Scrollable).first);
     expect(find.text('Vota'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('scheda stretta: lo sfondo resta nel suo spazio, il titolo va '
+      'nella barra dopo le azioni', (tester) async {
+    final api = libraryApi()..itemsById['m1'] = fullMovie();
+    await pumpApp(
+      tester,
+      const Scaffold(body: ItemDetailScreen(itemId: 'm1')),
+      surfaceSize: _sizes.first,
+      touch: true,
+      motion: MotionLevel.full,
+      overrides: library(api),
+    );
+    await tester.pumpAndSettle();
+    final position =
+        tester.state<ScrollableState>(find.byType(Scrollable).first).position;
+    final title = find.textContaining('IL SIGNORE DEGLI ANELLI');
+
+    // Con la parallasse lo sfondo sale a metà velocità: il ritaglio lo
+    // ferma al fondo del suo spazio 16:9, dove inizia il titolo.
+    position.jumpTo(100);
+    await tester.pump();
+    final clip = tester.renderObject<RenderClipRect>(find
+        .descendant(
+            of: find.byType(DetailBackdrop), matching: find.byType(ClipRect))
+        .first);
+    expect(clip.clipper!.getClip(clip.size).bottom,
+        lessThanOrEqualTo(tester.getTopLeft(title).dy + 0.5));
+    // Il testo sotto l'immagine non sfuma.
+    expect(
+        tester
+            .widgetList<Opacity>(
+                find.ancestor(of: title, matching: find.byType(Opacity)))
+            .every((o) => o.opacity == 1),
+        isTrue);
+
+    // Titolo nella barra solo quando il fondo della testata (le azioni) è
+    // sotto la barra.
+    final header = find.byType(DetailHeader);
+    final key = tester.widget(header).key! as GlobalKey;
+    final threshold = tester.getSize(header).height - shellCompactBarHeight;
+    expect(
+        barTitleVisible(threshold - 1, reduced: false, compactHeader: key),
+        isFalse);
+    expect(barTitleVisible(threshold, reduced: false, compactHeader: key),
+        isTrue);
+    position.jumpTo(threshold);
+    await tester.pump();
+    expect(tester.getRect(find.byTooltip('Altre azioni')).bottom,
+        lessThanOrEqualTo(shellCompactBarHeight + 0.5));
+  });
+
+  testWidgets('saga', (tester) async {
+    final api = libraryApi()
+      ..itemsById['c1'] = testItem(
+          id: 'c1',
+          name: '$longName - Collezione',
+          kind: ItemKind.boxSet,
+          year: null,
+          runtimeMinutes: null,
+          overview: List.filled(8, 'Tre film nella Terra di Mezzo.').join(' '))
+      ..itemsByCollection['c1'] = [
+        testItem(id: 'a1', name: '$longName 1', played: true),
+        testItem(
+            id: 'a2',
+            name: '$longName 2',
+            positionTicks: 600000000,
+            playedPercentage: 10),
+      ];
+    await expectNoOverflow(
+      tester,
+      const Scaffold(body: CollectionScreen(collectionId: 'c1')),
+      content: find.textContaining('Riprendi "Il signore'),
+      overrides: library(api),
+    );
   });
 }

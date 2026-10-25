@@ -57,11 +57,13 @@ class HeroCarousel extends ConsumerStatefulWidget {
   static const height = 460.0;
 
   /// Altezza della parte con le immagini: nel layout stretto al massimo
-  /// 1,1 volte la larghezza.
-  static double heightOf(BuildContext context) =>
-      FormFactor.of(context).compact
-          ? math.min(height, MediaQuery.sizeOf(context).width * 1.1)
-          : height;
+  /// 1,1 volte la larghezza e 0,8 volte l'altezza della finestra (il
+  /// telefono in orizzontale vede ancora l'inizio delle righe).
+  static double heightOf(BuildContext context) {
+    if (!FormFactor.of(context).compact) return height;
+    final size = MediaQuery.sizeOf(context);
+    return math.min(height, math.min(size.width * 1.1, size.height * 0.8));
+  }
 
   @override
   ConsumerState<HeroCarousel> createState() => _HeroCarouselState();

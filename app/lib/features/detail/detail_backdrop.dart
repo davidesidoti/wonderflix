@@ -7,6 +7,7 @@ import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../ui/backdrop_image.dart';
 import '../library/library_providers.dart';
+import 'detail_header.dart';
 import 'header_parallax.dart';
 
 /// Sfondo della scheda, dietro al contenuto. Con lo scroll della pagina sale
@@ -39,13 +40,14 @@ class DetailBackdrop extends ConsumerWidget {
       fallback: current != null ? urls.poster(current) : launch?.fallback,
     );
     final reduced = WfMotion.of(context).isReduced;
+    final height = detailBackdropHeight(context);
     return AnimatedBuilder(
       animation: controller,
       child: WfHero(
           tag: launch?.tag, borderRadius: BorderRadius.zero, child: image),
       builder: (context, child) {
         final offset = controller.hasClients ? controller.offset : 0.0;
-        final p = headerParallax(offset, reduced: reduced);
+        final p = headerParallax(offset, reduced: reduced, height: height);
         return ClipRect(
           clipper: _VisibleHeader(p.visibleHeight),
           child: Transform.translate(

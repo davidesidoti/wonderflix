@@ -323,9 +323,11 @@ class DetailHeaderFrame extends StatelessWidget {
               ),
             ),
           ),
+          // Il testo sta sotto l'immagine e scorre con la pagina, senza
+          // sfumare (vedi `barTitleVisible`).
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: _ScrollFade(controller: controller, child: text),
+            child: text,
           ),
         ],
       );

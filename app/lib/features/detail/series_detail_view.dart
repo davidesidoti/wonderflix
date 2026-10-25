@@ -38,6 +38,7 @@ class SeriesDetailView extends ConsumerStatefulWidget {
     this.initialSeasonId,
     this.controller,
     this.entranceDelay = Duration.zero,
+    this.headerKey,
   });
 
   final JellyfinItem series;
@@ -48,6 +49,10 @@ class SeriesDetailView extends ConsumerStatefulWidget {
 
   /// Attesa prima dell'entrata scaglionata (a volo Hero finito).
   final Duration entranceDelay;
+
+  /// Chiave della testata: nel layout stretto dice quando il titolo va
+  /// nella barra (`barTitleVisible`).
+  final GlobalKey? headerKey;
 
   @override
   ConsumerState<SeriesDetailView> createState() => _SeriesDetailViewState();
@@ -86,7 +91,10 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
         padding: const EdgeInsets.only(bottom: 40),
         children: [
           DetailHeader(
-              item: series, primary: primary, controller: widget.controller),
+              key: widget.headerKey,
+              item: series,
+              primary: primary,
+              controller: widget.controller),
           ReportsBanner(titleId: series.id),
           if (shownSeason != null)
             StaggerItem(
@@ -168,9 +176,12 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
     if (scroll == null) return page;
     final action = primary;
     final reduced = WfMotion.of(context).isReduced;
+    final compactHeader =
+        FormFactor.of(context).compact ? widget.headerKey : null;
     return ShellHeaderPublisher(
       controller: scroll,
-      visibleAt: (offset) => barTitleVisible(offset, reduced: reduced),
+      visibleAt: (offset) => barTitleVisible(offset,
+          reduced: reduced, compactHeader: compactHeader),
       header: ShellHeader(
         title: series.name,
         actionLabel: action == null ? null : primaryActionLabel(l, action),

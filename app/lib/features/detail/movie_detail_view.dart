@@ -7,6 +7,7 @@ import '../../app/app_shell.dart';
 import '../../app/motion.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/staggered_entrance.dart';
 import '../collections/collection_rows.dart';
 import '../library/user_data.dart';
@@ -26,6 +27,7 @@ class MovieDetailView extends ConsumerWidget {
     required this.item,
     this.controller,
     this.entranceDelay = Duration.zero,
+    this.headerKey,
   });
 
   final JellyfinItem item;
@@ -35,6 +37,10 @@ class MovieDetailView extends ConsumerWidget {
 
   /// Attesa prima dell'entrata scaglionata (a volo Hero finito).
   final Duration entranceDelay;
+
+  /// Chiave della testata: nel layout stretto dice quando il titolo va
+  /// nella barra (`barTitleVisible`).
+  final GlobalKey? headerKey;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -47,7 +53,11 @@ class MovieDetailView extends ConsumerWidget {
         controller: controller,
         padding: const EdgeInsets.only(bottom: 40),
         children: [
-          DetailHeader(item: item, primary: action, controller: controller),
+          DetailHeader(
+              key: headerKey,
+              item: item,
+              primary: action,
+              controller: controller),
           // Fuori dalle StaggerItem: detailEntranceCount non cambia.
           if (item.kind == ItemKind.movie) ReportsBanner(titleId: item.id),
           // Un episodio aperto da solo non ha la riga (si vota la stagione).
@@ -73,9 +83,11 @@ class MovieDetailView extends ConsumerWidget {
     if (scroll == null) return page;
     final l = AppLocalizations.of(context);
     final reduced = WfMotion.of(context).isReduced;
+    final compactHeader = FormFactor.of(context).compact ? headerKey : null;
     return ShellHeaderPublisher(
       controller: scroll,
-      visibleAt: (offset) => barTitleVisible(offset, reduced: reduced),
+      visibleAt: (offset) => barTitleVisible(offset,
+          reduced: reduced, compactHeader: compactHeader),
       header: ShellHeader(
         title: item.name,
         actionLabel: primaryActionLabel(l, action),

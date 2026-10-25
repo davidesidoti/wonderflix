@@ -36,6 +36,10 @@ class ItemDetailScreen extends ConsumerStatefulWidget {
 class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
   final _scroll = SmoothScrollController();
 
+  /// Testata della scheda (vedi `MovieDetailView.headerKey`). Come
+  /// [_scroll], sta solo sulla vista dei dati.
+  final _header = GlobalKey();
+
   /// Il passaggio alla pagina della saga è già partito.
   bool _redirected = false;
 
@@ -103,11 +107,13 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
                       series: item,
                       initialSeasonId: widget.seasonId,
                       controller: _scroll,
-                      entranceDelay: entranceDelay)
+                      entranceDelay: entranceDelay,
+                      headerKey: _header)
                   : MovieDetailView(
                       item: item,
                       controller: _scroll,
-                      entranceDelay: entranceDelay),
+                      entranceDelay: entranceDelay,
+                      headerKey: _header),
             ),
     );
     // Sfondo solo con i dati o con un volo in arrivo, mai per una saga.

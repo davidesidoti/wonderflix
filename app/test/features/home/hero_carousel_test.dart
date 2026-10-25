@@ -282,4 +282,12 @@ void main() {
     expect(dot.height, greaterThanOrEqualTo(44));
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('stretto in orizzontale: alto al massimo 0,8 volte la finestra',
+      (tester) async {
+    await pumpHero(tester, surfaceSize: const Size(844, 390), touch: true);
+    final slide = tester.getRect(find.byKey(const ValueKey('slide-Dune')));
+    expect(slide.height, 390 * 0.8);
+    expect(tester.takeException(), isNull);
+  });
 }

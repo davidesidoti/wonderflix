@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import '../../app/app_shell.dart';
 import 'detail_header.dart';
@@ -29,7 +29,19 @@ const detailBarTitleReducedOffset =
 
 /// Il titolo e "Riproduci" compaiono nella barra quando il testo della
 /// testata è quasi sparito (spec C §9.2, decisione della prova 6b).
-bool barTitleVisible(double offset, {required bool reduced}) {
+///
+/// Nel layout stretto si passa la chiave della testata in [compactHeader]:
+/// la testata è alta quanto il suo contenuto e il testo non sfuma, quindi il
+/// titolo va nella barra quando il fondo della testata (le azioni) passa
+/// sotto la barra.
+bool barTitleVisible(double offset,
+    {required bool reduced, GlobalKey? compactHeader}) {
+  if (compactHeader != null) {
+    final box = compactHeader.currentContext?.findRenderObject();
+    return box is RenderBox &&
+        box.hasSize &&
+        offset >= box.size.height - shellCompactBarHeight;
+  }
   if (reduced) return offset >= detailBarTitleReducedOffset;
   return headerParallax(offset, reduced: false).textOpacity <=
       barTitleTextOpacity;
@@ -61,9 +73,13 @@ class HeaderParallax {
   final double visibleHeight;
 }
 
-HeaderParallax headerParallax(double offset, {required bool reduced}) {
+/// [height] è l'altezza dello sfondo: nel layout stretto quella
+/// dell'immagine 16:9 (`detailBackdropHeight`), così il ritaglio segue il
+/// fondo del suo spazio nella pagina.
+HeaderParallax headerParallax(double offset,
+    {required bool reduced, double height = detailHeaderHeight}) {
   final o = math.max(0.0, offset);
-  final visible = (detailHeaderHeight - o).clamp(0.0, detailHeaderHeight);
+  final visible = (height - o).clamp(0.0, height);
   if (reduced) {
     return HeaderParallax(
       backdropShift: -o,
@@ -74,7 +90,7 @@ HeaderParallax headerParallax(double offset, {required bool reduced}) {
       visibleHeight: visible,
     );
   }
-  final k = (o / detailHeaderHeight).clamp(0.0, 1.0);
+  final k = (o / height).clamp(0.0, 1.0);
   return HeaderParallax(
     backdropShift: -o * parallaxFactor,
     backdropScale: 1 + parallaxMaxZoom * k,
