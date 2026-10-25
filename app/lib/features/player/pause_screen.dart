@@ -6,6 +6,7 @@ import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/wf_image.dart';
 import '../library/item_labels.dart';
 import '../library/library_providers.dart';
@@ -39,6 +40,9 @@ class PauseScreen extends StatefulWidget {
   /// Margine del testo dal bordo sinistro.
   static const textInset = 64.0;
 
+  /// Margine del testo nel layout stretto (spec §4.5).
+  static const compactTextInset = 24.0;
+
   @override
   State<PauseScreen> createState() => _PauseScreenState();
 }
@@ -58,6 +62,9 @@ class _PauseScreenState extends State<PauseScreen> {
     if (!_present) return const SizedBox.shrink();
     final motion = WfMotion.of(context);
     final visible = widget.visible;
+    final compact = FormFactor.of(context).compact;
+    final inset =
+        compact ? PauseScreen.compactTextInset : PauseScreen.textInset;
     return IgnorePointer(
       child: TweenAnimationBuilder<double>(
         key: const Key('pause-screen'),
@@ -74,8 +81,8 @@ class _PauseScreenState extends State<PauseScreen> {
             children: [
               const _PauseShade(),
               Positioned(
-                left: PauseScreen.textInset,
-                right: PauseScreen.textInset,
+                left: inset,
+                right: inset,
                 top: 0,
                 bottom: 0,
                 child: Align(
@@ -90,11 +97,14 @@ class _PauseScreenState extends State<PauseScreen> {
                   ),
                 ),
               ),
-              const Positioned(right: 32, bottom: 32, child: _PausedBadge()),
+              Positioned(
+                  right: compact ? 16 : 32,
+                  bottom: compact ? 16 : 32,
+                  child: const _PausedBadge()),
             ],
           ),
         ),
-        child: _PauseText(item: widget.item),
+        child: _PauseText(item: widget.item, compact: compact),
       ),
     );
   }
@@ -136,13 +146,18 @@ class _PausedBadge extends StatelessWidget {
 
 /// "STAI GUARDANDO", logo (o titolo), episodio, dati e trama.
 class _PauseText extends ConsumerWidget {
-  const _PauseText({required this.item});
+  const _PauseText({required this.item, required this.compact});
 
   final JellyfinItem item;
+
+  /// Layout stretto: logo e testo più piccoli, meno righe.
+  final bool compact;
 
   /// Spazio per il logo.
   static const logoHeight = 120.0;
   static const logoWidth = 420.0;
+  static const compactLogoHeight = 64.0;
+  static const compactLogoWidth = 240.0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -167,8 +182,8 @@ class _PauseText extends ConsumerWidget {
           const SizedBox(height: 12),
           if (logo != null)
             SizedBox(
-              height: logoHeight,
-              width: logoWidth,
+              height: compact ? compactLogoHeight : logoHeight,
+              width: compact ? compactLogoWidth : logoWidth,
               child: Align(
                 alignment: Alignment.bottomLeft,
                 child: WfImage(
@@ -177,12 +192,14 @@ class _PauseText extends ConsumerWidget {
             )
           else
             Text(cardTitle(item).toUpperCase(),
-                maxLines: 2,
+                maxLines: compact ? 1 : 2,
                 overflow: TextOverflow.ellipsis,
-                style: WfText.display(64)),
+                style: WfText.display(compact ? 32 : 64)),
           if (episode != null) ...[
             const SizedBox(height: 12),
             Text(episode,
+                maxLines: compact ? 1 : null,
+                overflow: compact ? TextOverflow.ellipsis : null,
                 style:
                     const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
           ],
@@ -193,7 +210,7 @@ class _PauseText extends ConsumerWidget {
           if (overview != null) ...[
             const SizedBox(height: 16),
             Text(overview,
-                maxLines: 4,
+                maxLines: compact ? 3 : 4,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(height: 1.45)),
           ],

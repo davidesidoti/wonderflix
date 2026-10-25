@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -315,6 +316,9 @@ class NextEpisodeCard extends ConsumerWidget {
   /// Di quanto arriva da destra entrando.
   static const enterShift = 40.0;
 
+  /// Larghezza della scheda.
+  static const width = 380.0;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
@@ -335,7 +339,8 @@ class NextEpisodeCard extends ConsumerWidget {
         elevation: 8,
         borderRadius: BorderRadius.circular(10),
         child: SizedBox(
-          width: 380,
+          // Nel layout stretto entra nello schermo, 16 per lato (spec §4.5).
+          width: math.min(width, MediaQuery.sizeOf(context).width - 32),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(

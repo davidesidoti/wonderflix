@@ -84,7 +84,8 @@ void main() {
       bool plugin = true,
       bool queueFeature = true,
       bool previousInLibrary = false,
-      FakeSocialApi? social}) async {
+      FakeSocialApi? social,
+      Size size = const Size(1440, 900)}) async {
     engine = FakeVideoEngine()..engineTracks = testEngineTracks;
     engine.failOpens = failOpens;
     engines = [];
@@ -191,8 +192,13 @@ void main() {
       ],
       retry: (_, _) => null,
     );
-    await tester.binding.setSurfaceSize(const Size(1440, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.binding.setSurfaceSize(size);
+    tester.view.physicalSize = size * tester.view.devicePixelRatio;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetViewInsets();
+      return tester.binding.setSurfaceSize(null);
+    });
     await tester.pumpWidget(UncontrolledProviderScope(
       container: container,
       child: MaterialApp.router(
@@ -1018,6 +1024,26 @@ void main() {
     expect(FocusManager.instance.primaryFocus?.debugLabel, 'party-chat');
     await finish(tester);
   });
+
+  for (final size in const [Size(390, 844), Size(844, 390)]) {
+    testWidgets('stretto: chat del party con la tastiera aperta, campo '
+        'visibile (${size.width.toInt()}×${size.height.toInt()})',
+        (tester) async {
+      await pumpPartyPlayer(tester, size: size);
+      await openChatWithEnter(tester);
+      // La tastiera del telefono copre 300 punti in basso.
+      tester.view.viewInsets =
+          FakeViewPadding(bottom: 300 * tester.view.devicePixelRatio);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      final field = tester.getRect(chatField());
+      expect(field.top, greaterThanOrEqualTo(0));
+      expect(field.bottom, lessThanOrEqualTo(size.height - 300));
+      expect(field.left, 16);
+      expect(field.width, size.width - 32, reason: 'a tutta larghezza');
+      await finish(tester);
+    });
+  }
 
   testWidgets('chat: senza plugin niente pulsante, Invio non fa nulla',
       (tester) async {

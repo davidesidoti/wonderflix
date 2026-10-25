@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -108,15 +110,16 @@ class PlayerOverlay extends StatelessWidget {
       ? child
       : CompositedTransformTarget(link: link, child: child);
 
-  /// Parte alta o bassa: sfuma e scivola verso il suo bordo. Entrata
-  /// `medium`, uscita `fast`; con le animazioni ridotte solo dissolvenza.
+  /// Parte alta o bassa: sfuma e scivola verso il suo bordo (quella al
+  /// centro, [top] `null`, sfuma e basta). Entrata `medium`, uscita `fast`;
+  /// con le animazioni ridotte solo dissolvenza.
   Widget _part(BuildContext context,
-      {required Key key, required bool top, required Widget child}) {
+      {required Key key, required bool? top, required Widget child}) {
     final motion = WfMotion.of(context);
     final duration =
         visible ? motion.duration(WfMotion.medium) : WfMotion.fast;
     final curve = visible ? WfMotion.emphasized : WfMotion.accelerate;
-    final shift = visible || motion.isReduced
+    final shift = visible || motion.isReduced || top == null
         ? 0.0
         : (top ? -hiddenShift : hiddenShift);
     return AnimatedOpacity(
@@ -141,6 +144,53 @@ class PlayerOverlay extends StatelessWidget {
         ? cardSubtitle(item)
         : null;
     final volume = view.muted ? 0.0 : view.volume;
+    // Layout stretto (spec §4.5): titolo più piccolo, -10/play/+10 al centro,
+    // in basso le icone che entrano e le altre nel menu ⋯.
+    final compact = FormFactor.of(context).compact;
+    final rewind = PlayerIconButton(
+      icon: const Icon(LucideIcons.rewind),
+      tooltip: l.playerRewind,
+      size: compact ? centerSeekSize : null,
+      onPressed: () => onSeekBy(-seekStep),
+    );
+    final playPause = PlayerIconButton(
+      iconSize: compact ? 40 : 34,
+      icon: PlayPauseIcon(playing: view.playing),
+      tooltip: view.playing ? l.playerPause : l.actionPlay,
+      size: compact ? centerPlaySize : null,
+      onPressed: onTogglePlay,
+    );
+    final forward = PlayerIconButton(
+      icon: const Icon(LucideIcons.fastForward),
+      tooltip: l.playerForward,
+      size: compact ? centerSeekSize : null,
+      onPressed: () => onSeekBy(seekStep),
+    );
+    final mute = PlayerIconButton(
+      icon: Icon(volume == 0 ? LucideIcons.volumeX : LucideIcons.volume2),
+      tooltip: view.muted ? l.playerUnmute : l.playerMute,
+      size: compact ? minTouchTarget : null,
+      onPressed: onToggleMute,
+    );
+    // Col dito il volume è quello del telefono (su iOS il video non lo
+    // cambia): resta il muto.
+    final slider = FormFactor.of(context).touch
+        ? null
+        : SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 3,
+              activeTrackColor: WfColors.cream,
+              inactiveTrackColor: WfColors.cream.withValues(alpha: 0.2),
+              thumbColor: WfColors.cream,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+            ),
+            child: Slider(
+              key: const Key('volume-slider'),
+              value: volume,
+              max: 100,
+              onChanged: onVolume,
+            ),
+          );
 
     return IconButtonTheme(
       data: IconButtonThemeData(
@@ -167,12 +217,15 @@ class PlayerOverlay extends StatelessWidget {
                   ),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 24, 48),
+                  padding: compact
+                      ? const EdgeInsets.fromLTRB(8, 8, 12, 24)
+                      : const EdgeInsets.fromLTRB(16, 16, 24, 48),
                   child: Row(
                     children: [
                       PlayerIconButton(
                         icon: const Icon(LucideIcons.arrowLeft),
                         tooltip: l.navBack,
+                        size: compact ? minTouchTarget : null,
                         onPressed: onBack,
                       ),
                       const SizedBox(width: 8),
@@ -185,7 +238,9 @@ class PlayerOverlay extends StatelessWidget {
                               Text(cardTitle(item),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: WfText.display(28)),
+                                  style: compact
+                                      ? Theme.of(context).textTheme.titleLarge
+                                      : WfText.display(28)),
                               if (episode != null)
                                 Text(episode,
                                     maxLines: 1,
@@ -206,6 +261,26 @@ class PlayerOverlay extends StatelessWidget {
               ),
             ),
           ),
+          if (compact)
+            Positioned.fill(
+              child: _part(
+                context,
+                key: const Key('player-controls-center'),
+                top: null,
+                child: Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      rewind,
+                      const SizedBox(width: 24),
+                      playPause,
+                      const SizedBox(width: 24),
+                      forward,
+                    ],
+                  ),
+                ),
+              ),
+            ),
           Positioned(
             left: 0,
             right: 0,
@@ -226,7 +301,9 @@ class PlayerOverlay extends StatelessWidget {
                   ),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 48, 24, 16),
+                  padding: compact
+                      ? const EdgeInsets.fromLTRB(12, 24, 12, 8)
+                      : const EdgeInsets.fromLTRB(24, 48, 24, 16),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -237,57 +314,31 @@ class PlayerOverlay extends StatelessWidget {
                         zones: seekZones(view.segments),
                         preview: preview,
                       ),
+                      if (compact)
+                        Row(
+                          children: [
+                            mute,
+                            // Col mouse in una finestra stretta il volume
+                            // resta, più corto (e cede posto alle icone).
+                            if (slider != null)
+                              Flexible(
+                                  child: SizedBox(width: 80, child: slider)),
+                            const SizedBox(width: 4),
+                            RepaintBoundary(child: TimeLabel(engine: engine)),
+                            const SizedBox(width: 8),
+                            Expanded(child: _compactCommands(l)),
+                          ],
+                        )
+                      else
                       Row(
                         children: [
-                          PlayerIconButton(
-                            icon: const Icon(LucideIcons.rewind),
-                            tooltip: l.playerRewind,
-                            onPressed: () => onSeekBy(-seekStep),
-                          ),
-                          PlayerIconButton(
-                            iconSize: 34,
-                            icon: PlayPauseIcon(playing: view.playing),
-                            tooltip:
-                                view.playing ? l.playerPause : l.actionPlay,
-                            onPressed: onTogglePlay,
-                          ),
-                          PlayerIconButton(
-                            icon: const Icon(LucideIcons.fastForward),
-                            tooltip: l.playerForward,
-                            onPressed: () => onSeekBy(seekStep),
-                          ),
+                          rewind,
+                          playPause,
+                          forward,
                           const SizedBox(width: 8),
-                          PlayerIconButton(
-                            icon: Icon(volume == 0
-                                ? LucideIcons.volumeX
-                                : LucideIcons.volume2),
-                            tooltip:
-                                view.muted ? l.playerUnmute : l.playerMute,
-                            onPressed: onToggleMute,
-                          ),
-                          // Col dito il volume è quello del telefono (su iOS
-                          // il video non lo cambia): resta il muto.
-                          if (!FormFactor.of(context).touch)
-                          SizedBox(
-                            width: 120,
-                            child: SliderTheme(
-                              data: SliderTheme.of(context).copyWith(
-                                trackHeight: 3,
-                                activeTrackColor: WfColors.cream,
-                                inactiveTrackColor:
-                                    WfColors.cream.withValues(alpha: 0.2),
-                                thumbColor: WfColors.cream,
-                                thumbShape: const RoundSliderThumbShape(
-                                    enabledThumbRadius: 6),
-                              ),
-                              child: Slider(
-                                key: const Key('volume-slider'),
-                                value: volume,
-                                max: 100,
-                                onChanged: onVolume,
-                              ),
-                            ),
-                          ),
+                          mute,
+                          if (slider != null)
+                            SizedBox(width: 120, child: slider),
                           const SizedBox(width: 12),
                           RepaintBoundary(child: TimeLabel(engine: engine)),
                           const Spacer(),
@@ -369,7 +420,131 @@ class PlayerOverlay extends StatelessWidget {
       ),
     );
   }
+
+  /// Lati dei pulsanti al centro nel layout stretto.
+  static const centerPlaySize = 64.0;
+  static const centerSeekSize = 56.0;
+
+  /// I comandi della riga in basso nel layout stretto, dal più usato: quelli
+  /// che non entrano finiscono nel menu ⋯ (nessuno si perde).
+  Widget _compactCommands(AppLocalizations l) {
+    final commands = <_Command>[
+      _Command(const Icon(LucideIcons.captions), l.playerAudioAndSubtitles,
+          (_) => onToggleTracks()),
+      if (onNextEpisode case final next?)
+        _Command(const Icon(LucideIcons.skipForward),
+            partyQueue ? l.playerNextInQueue : l.playerNextEpisode,
+            (_) => next()),
+      if (onToggleChat case final chat?)
+        _Command(
+            _WithDot(
+                show: chatUnread,
+                child: const Icon(LucideIcons.messageCircle)),
+            l.partyChatOpen,
+            (_) => chat(),
+            key: const Key('player-chat-button')),
+      if (onToggleReactions case final reactions?)
+        _Command(const Icon(LucideIcons.smilePlus), l.partyReactionsOpen,
+            (_) => reactions(),
+            key: const Key('player-reactions-button'), reactions: true),
+      _Command(
+          Icon(fullscreen ? LucideIcons.minimize : LucideIcons.maximize),
+          fullscreen ? l.playerExitFullscreen : l.playerFullscreen,
+          (_) => onToggleFullscreen()),
+      if (onToggleQueue case final queue?)
+        _Command(const Icon(LucideIcons.listVideo), l.partyQueueOpen,
+            (_) => queue(),
+            key: const Key('player-queue-button')),
+      if (onPrevious case final previous?)
+        _Command(const Icon(LucideIcons.skipBack),
+            partyQueue ? l.playerPreviousInQueue : l.playerPreviousEpisode,
+            (_) => previous()),
+      if (onWatchTogether case final together?)
+        _Command(const Icon(LucideIcons.users), l.watchPartyWatchTogether,
+            together),
+    ];
+    return LayoutBuilder(builder: (context, constraints) {
+      final slots = (constraints.maxWidth / minTouchTarget).floor();
+      final shown = commands.length <= slots
+          ? commands.length
+          : math.max(0, slots - 1);
+      final more = commands.sublist(shown);
+      // La barretta delle reazioni si aggancia al suo pulsante; se è nel
+      // menu, al ⋯.
+      final reactionsInMenu = more.any((command) => command.reactions);
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          for (final command in commands.take(shown))
+            _anchored(
+              command.reactions ? reactionsLink : null,
+              Builder(
+                builder: (buttonContext) => PlayerIconButton(
+                  key: command.key,
+                  icon: command.icon,
+                  tooltip: command.tooltip,
+                  size: minTouchTarget,
+                  onPressed: () => command.run(buttonContext),
+                ),
+              ),
+            ),
+          if (more.isNotEmpty)
+            _anchored(
+              reactionsInMenu ? reactionsLink : null,
+              Builder(
+                builder: (buttonContext) => PopupMenuButton<_Command>(
+                  key: const Key('player-more-controls'),
+                  tooltip: l.playerMoreControls,
+                  icon: const Icon(LucideIcons.ellipsis),
+                  iconColor: WfColors.cream,
+                  style: _sizedStyle(minTouchTarget),
+                  itemBuilder: (_) => [
+                    for (final command in more)
+                      PopupMenuItem(
+                        value: command,
+                        child: Row(
+                          children: [
+                            command.icon,
+                            const SizedBox(width: 12),
+                            Flexible(child: Text(command.tooltip)),
+                          ],
+                        ),
+                      ),
+                  ],
+                  // Il menu delle modalità di "Guarda insieme" si ancora al ⋯.
+                  onSelected: (command) => command.run(buttonContext),
+                ),
+              ),
+            ),
+        ],
+      );
+    });
+  }
 }
+
+/// Un comando della riga in basso nel layout stretto: un pulsante o una
+/// voce del menu ⋯. [run] riceve il contesto del pulsante che lo lancia.
+class _Command {
+  const _Command(this.icon, this.tooltip, this.run,
+      {this.key, this.reactions = false});
+
+  final Widget icon;
+  final String tooltip;
+  final ValueChanged<BuildContext> run;
+  final Key? key;
+
+  /// Il pulsante delle reazioni (la barretta si aggancia a lui).
+  final bool reactions;
+}
+
+/// Pulsante quadrato di lato [size], senza margini aggiunti dal tema.
+ButtonStyle _sizedStyle(double size) => IconButton.styleFrom(
+      fixedSize: Size.square(size),
+      minimumSize: Size.square(size),
+      padding: EdgeInsets.zero,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.standard,
+    );
 
 /// Icona dei controlli del player con il linguaggio di `WfButton` (spec D
 /// §7.2): al passaggio fondo crema tenue, alone oro e scala 1,08; premuta,
@@ -381,6 +556,7 @@ class PlayerIconButton extends StatefulWidget {
     required this.tooltip,
     required this.onPressed,
     this.iconSize = 24,
+    this.size,
   });
 
   /// Di solito un `Icon`; play/pausa passa un [PlayPauseIcon].
@@ -388,6 +564,9 @@ class PlayerIconButton extends StatefulWidget {
   final String tooltip;
   final VoidCallback? onPressed;
   final double iconSize;
+
+  /// Lato fisso del pulsante (layout stretto); `null` = misura del tema.
+  final double? size;
 
   @override
   State<PlayerIconButton> createState() => _PlayerIconButtonState();
@@ -441,6 +620,7 @@ class _PlayerIconButtonState extends State<PlayerIconButton> {
               iconSize: widget.iconSize,
               tooltip: widget.tooltip,
               onPressed: widget.onPressed,
+              style: widget.size == null ? null : _sizedStyle(widget.size!),
               color: WfColors.cream,
               // Spec D §7.2: fondo crema al 12% al passaggio.
               hoverColor: WfColors.cream.withValues(alpha: 0.12),

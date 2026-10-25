@@ -8,6 +8,7 @@ import 'package:wonderflix/l10n/gen/app_localizations.dart';
 /// Le chiavi del piano 28 (i Task successivi le estendono).
 const _keys = [
   'navMore',
+  'playerMoreControls',
 ];
 
 Map<String, dynamic> _arb(String name) =>
@@ -32,5 +33,12 @@ void main() {
     final en = lookupAppLocalizations(const Locale('en'));
     expect(it.navMore, 'Altro');
     expect(en.navMore, 'More');
+  });
+
+  test('menu dei controlli del player', () {
+    expect(lookupAppLocalizations(const Locale('it')).playerMoreControls,
+        'Altri controlli');
+    expect(lookupAppLocalizations(const Locale('en')).playerMoreControls,
+        'More controls');
   });
 }

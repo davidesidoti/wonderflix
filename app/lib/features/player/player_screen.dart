@@ -1576,7 +1576,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       });
     }
 
-    final touch = FormFactor.of(context).touch;
+    final formFactor = FormFactor.of(context);
+    final touch = formFactor.touch;
+    final compact = formFactor.compact;
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom > 0;
+    // Pannello o chat aperti: il tocco sul film li chiude e basta; sul film
+    // piccolo del post-play torna a tutto schermo. `true` se ha chiuso.
+    bool closeOverVideo() {
+      if (_chrome.popup != null) {
+        _chrome.closePopup();
+      } else if (_postPlayShown(ref.read(provider))) {
+        _dismissNext();
+      } else {
+        return false;
+      }
+      return true;
+    }
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Focus(
@@ -1619,39 +1635,40 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      GestureDetector(
-                        key: const ValueKey('player-video-view'),
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () {
-                          if (_chrome.popup != null) {
-                            // Pannello o chat aperti: il clic li chiude e
-                            // basta.
-                            _chrome.closePopup();
-                          } else if (_postPlayShown(ref.read(provider))) {
-                            // Clic sul film piccolo: torna a tutto schermo.
-                            _dismissNext();
-                          } else if (touch) {
-                            // Col dito il tocco mostra o nasconde i
-                            // controlli: la pausa è nel pulsante.
-                            _chrome.toggleControls();
-                          } else {
-                            unawaited(controller.togglePlay());
-                          }
-                        },
-                        // Col dito il doppio tocco salta di 10 s dal lato
-                        // toccato, come le frecce (con la pillola).
-                        onDoubleTapDown: touch
-                            ? (details) => _doubleTapLeft =
-                                details.globalPosition.dx <
-                                    MediaQuery.sizeOf(context).width / 2
-                            : null,
-                        onDoubleTap: touch
-                            ? () => _seekBy(
-                                _doubleTapLeft ? -seekStep : seekStep,
-                                ready: ref.read(provider).status ==
-                                    PlayerStatus.ready)
-                            : () => unawaited(_toggleFullscreen()),
-                        child: controller.engine.buildView(),
+                      // Le metà del doppio tocco si misurano sul film (nel
+                      // post-play è piccolo), non sulla finestra.
+                      LayoutBuilder(
+                        builder: (context, box) => GestureDetector(
+                          key: const ValueKey('player-video-view'),
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            if (closeOverVideo()) return;
+                            if (touch) {
+                              // Col dito il tocco mostra o nasconde i
+                              // controlli: la pausa è nel pulsante.
+                              _chrome.toggleControls();
+                            } else {
+                              unawaited(controller.togglePlay());
+                            }
+                          },
+                          // Col dito il doppio tocco salta di 10 s dal lato
+                          // toccato, come le frecce (con la pillola); con un
+                          // pannello aperto o nel post-play fa come il tocco.
+                          onDoubleTapDown: touch
+                              ? (details) => _doubleTapLeft =
+                                  details.localPosition.dx < box.maxWidth / 2
+                              : null,
+                          onDoubleTap: touch
+                              ? () {
+                                  if (closeOverVideo()) return;
+                                  _seekBy(
+                                      _doubleTapLeft ? -seekStep : seekStep,
+                                      ready: ref.read(provider).status ==
+                                          PlayerStatus.ready);
+                                }
+                              : () => unawaited(_toggleFullscreen()),
+                          child: controller.engine.buildView(),
+                        ),
                       ),
                       if (view.status == PlayerStatus.ready && !loading)
                         BufferingSpinner(
@@ -1792,7 +1809,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   // nascosti.
                   Positioned(
                     key: const ValueKey('player-skip'),
-                    right: 32,
+                    right: compact ? 16 : 32,
                     bottom: 150,
                     child: ExcludeFocus(
                       child: SkipSegmentButton(
@@ -1807,7 +1824,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   // (spec D §12.2); sempre presente, il contenuto cambia.
                   Positioned(
                     key: const ValueKey('player-next-card'),
-                    right: 32,
+                    right: compact ? 16 : 32,
                     bottom: 150,
                     child: ExcludeFocus(
                       child: AnimatedSwitcher(
@@ -1894,7 +1911,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   children: [
                                     Positioned.fromRect(
                                       rect: postPlaySideRect(
-                                          constraints.biggest),
+                                          constraints.biggest,
+                                          compact: compact),
                                       child: Align(
                                         alignment: Alignment.topLeft,
                                         child: RatingRoundPanel(
@@ -1957,8 +1975,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 if (chatActive)
                   Positioned(
                     key: const ValueKey('player-party-chat'),
-                    left: PartyChatLayer.left,
-                    bottom: PartyChatLayer.bottom,
+                    left: compact ? 16 : PartyChatLayer.left,
+                    // Nel layout stretto a tutta larghezza; con la tastiera
+                    // aperta (lo `Scaffold` ha già alzato il player) sta
+                    // appena sopra di lei. shortcut: in orizzontale con la
+                    // tastiera lo storico lungo esce in alto (il campo resta
+                    // visibile); da limitare se dà fastidio.
+                    right: compact ? 16 : null,
+                    bottom: compact && keyboard
+                        ? 8
+                        : PartyChatLayer.bottom,
                     child: PartyChatLayer(
                       open: _chrome.chatOpen,
                       focusNode: _chatFocusNode,
@@ -2005,7 +2031,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             AnimatedPositioned(
                               top: 96,
                               left: 0,
-                              right: sidePanelOpen
+                              // Nel layout stretto il pannello è in basso.
+                              right: sidePanelOpen && !compact
                                   ? PlayerSidePanelHost.widthFor(
                                       constraints.maxWidth)
                                   : 0,

@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wonderflix/app/navigation.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
+import 'package:wonderflix/core/jellyfin/playback_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/player/playback_service.dart';
@@ -16,6 +17,8 @@ import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
 import 'package:wonderflix/features/player/player_volume.dart';
+import 'package:wonderflix/features/player/post_play.dart';
+import 'package:wonderflix/features/player/tracks_panel.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
@@ -37,6 +40,7 @@ void main() {
     WidgetTester tester, {
     required bool touch,
     Size surfaceSize = const Size(844, 390),
+    bool credits = false,
   }) async {
     final playback = FakePlaybackApi();
     final library = FakeLibraryApi()
@@ -49,6 +53,22 @@ void main() {
         index: 4,
         seasonIndex: 1,
       );
+    if (credits) {
+      // Titoli di coda noti (dall'1:55:00) e l'episodio successivo: il
+      // post-play.
+      playback.segments = const [
+        MediaSegment(
+          type: MediaSegmentType.outro,
+          start: Duration(hours: 1, minutes: 55),
+          end: Duration(hours: 2),
+        ),
+      ];
+      final next = testItem(
+          id: 'e5', name: 'Cat in the Bag', kind: ItemKind.episode);
+      library
+        ..itemsById['e5'] = next
+        ..nextEpisodes['e4'] = next;
+    }
     final router = GoRouter(
       routes: [
         GoRoute(
@@ -130,7 +150,8 @@ void main() {
     expect(controlsOpacity(tester), 0);
   }
 
-  const center = Offset(422, 195);
+  // Sul film, a lato dei pulsanti al centro (layout stretto).
+  const center = Offset(150, 195);
 
   testWidgets('tocco: un tocco sul video mostra i controlli e non mette in '
       'pausa', (tester) async {
@@ -186,6 +207,57 @@ void main() {
     await doubleTapAt(tester, const Offset(140, 195));
     expect(engine.position, const Duration(seconds: 60));
     expect(engine.playing, isTrue);
+    await unmount(tester);
+  });
+
+  testWidgets('tocco: doppio tocco nel post-play lo chiude, non salta', (
+    tester,
+  ) async {
+    await pumpPlayer(tester, touch: true, credits: true);
+    const credits = Duration(hours: 1, minutes: 55, seconds: 10);
+    engine.emitPosition(credits);
+    await tester.pump();
+    await tester.pump();
+    await tester.pumpAndSettle();
+    final frame = find.byType(PostPlayFrame);
+    expect(tester.widget<PostPlayFrame>(frame).active, isTrue);
+
+    // Sul film piccolo, nella sua metà destra.
+    final film = postPlayFilmRect(const Size(844, 390), compact: true);
+    await doubleTapAt(tester, Offset(film.left + film.width * 0.75,
+        film.center.dy));
+    expect(tester.widget<PostPlayFrame>(frame).active, isFalse);
+    expect(engine.position, credits, reason: 'niente salto di 10 s');
+    await unmount(tester);
+  });
+
+  testWidgets('tocco: doppio tocco con un pannello aperto lo chiude, non '
+      'salta', (tester) async {
+    await pumpPlayer(tester, touch: true);
+    engine.emitPosition(const Duration(minutes: 1));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Audio e sottotitoli'));
+    await tester.pumpAndSettle();
+    expect(find.byType(TracksPanel), findsOneWidget);
+
+    // Sopra il pannello (che nel layout stretto sale dal basso).
+    await doubleTapAt(tester, const Offset(100, 100));
+    expect(find.byType(TracksPanel), findsNothing);
+    expect(engine.position, const Duration(minutes: 1));
+    await unmount(tester);
+  });
+
+  testWidgets('rotazione col player aperto: niente eccezioni', (tester) async {
+    await pumpPlayer(tester, touch: true, surfaceSize: const Size(390, 844));
+    await tester.tap(find.byTooltip('Audio e sottotitoli'));
+    await tester.pumpAndSettle();
+    for (final size in const [Size(844, 390), Size(390, 844), Size(1440, 900)]) {
+      await tester.binding.setSurfaceSize(size);
+      tester.view.physicalSize = size * tester.view.devicePixelRatio;
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: '$size');
+      expect(find.byType(TracksPanel), findsOneWidget, reason: '$size');
+    }
     await unmount(tester);
   });
 

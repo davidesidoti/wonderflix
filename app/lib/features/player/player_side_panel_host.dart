@@ -5,12 +5,14 @@ import 'package:flutter/material.dart';
 
 import '../../app/motion.dart';
 import '../../app/theme.dart';
+import '../../ui/form_factor.dart';
 
 /// Un pannello a destra del player, a tutta altezza sopra i controlli, con
 /// un velo sul film verso di lui (spec D §14): entra scorrendo (`medium`),
 /// esce in `fast`; con le animazioni ridotte solo dissolvenza. Chiuso, non è
 /// nell'albero (e le voci rientrano scaglionate alla prossima apertura). Lo
 /// usano "Audio e sottotitoli" e la coda del watch party (spec H §9.1).
+/// Nel layout stretto (spec §4.5) sale dal basso, a tutta larghezza.
 class PlayerSidePanelHost extends StatefulWidget {
   const PlayerSidePanelHost({
     super.key,
@@ -30,6 +32,9 @@ class PlayerSidePanelHost extends StatefulWidget {
 
   static const defaultWidth = 360.0;
   static const defaultMaxWidthFraction = 0.35;
+
+  /// Nel layout stretto: la parte della finestra che può occupare in altezza.
+  static const compactHeightFraction = 0.7;
 
   /// Larghezza del pannello in uno spazio largo [available]. La usa l'host,
   /// e chi deve lasciargli posto (la pillola del player): i due conti non
@@ -87,6 +92,7 @@ class _PlayerSidePanelHostState extends State<PlayerSidePanelHost>
   @override
   Widget build(BuildContext context) {
     final reduced = WfMotion.of(context).isReduced;
+    final compact = FormFactor.of(context).compact;
     // La larghezza si misura sullo spazio che l'host ha davvero (nel player
     // è la finestra intera), non su `MediaQuery`.
     return LayoutBuilder(
@@ -102,9 +108,28 @@ class _PlayerSidePanelHostState extends State<PlayerSidePanelHost>
               children: [
                 Positioned.fill(
                   child: IgnorePointer(
-                    child: Opacity(opacity: t, child: const _PanelVeil()),
+                    child: Opacity(
+                        opacity: t, child: _PanelVeil(fromBottom: compact)),
                   ),
                 ),
+                if (compact)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: constraints.maxHeight *
+                        PlayerSidePanelHost.compactHeightFraction,
+                    child: SafeArea(
+                      top: false,
+                      child: reduced
+                          ? Opacity(opacity: t, child: widget.panel)
+                          : FractionalTranslation(
+                              translation: Offset(0, 1 - t),
+                              child: widget.panel,
+                            ),
+                    ),
+                  )
+                else
                 Positioned(
                   top: 0,
                   bottom: 0,
@@ -126,14 +151,18 @@ class _PlayerSidePanelHostState extends State<PlayerSidePanelHost>
   }
 }
 
-/// Il film si scurisce appena verso il pannello.
+/// Il film si scurisce appena verso il pannello (a destra, o in basso).
 class _PanelVeil extends StatelessWidget {
-  const _PanelVeil();
+  const _PanelVeil({required this.fromBottom});
+
+  final bool fromBottom;
 
   @override
   Widget build(BuildContext context) => DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(
+            begin: fromBottom ? Alignment.topCenter : Alignment.centerLeft,
+            end: fromBottom ? Alignment.bottomCenter : Alignment.centerRight,
             colors: [
               WfColors.bg.withValues(alpha: 0),
               WfColors.bg.withValues(alpha: 0.45),

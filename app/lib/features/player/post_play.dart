@@ -9,6 +9,7 @@ import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_image.dart';
 import '../library/item_labels.dart';
@@ -27,14 +28,66 @@ const postPlayRadius = 12.0;
 /// Spazio tra il film piccolo, le informazioni e l'immagine.
 const postPlayGap = 24.0;
 
-/// Il riquadro a destra del film piccolo, in una schermata di [size]: lì
-/// stanno l'immagine del prossimo titolo o il pannello del voto.
-Rect postPlaySideRect(Size size) => Rect.fromLTRB(
-      postPlayInset + size.width * postPlayScale + postPlayGap,
-      postPlayInset,
-      size.width - postPlayInset,
-      size.height - postPlayInset,
+/// Margine e spazio nel layout stretto (spec §4.5).
+const postPlayCompactInset = 16.0;
+
+/// Il film piccolo, in una schermata di [size].
+Rect postPlayFilmRect(Size size, {bool compact = false}) {
+  final inset = compact ? postPlayCompactInset : postPlayInset;
+  return Rect.fromLTWH(inset, inset, size.width * postPlayScale,
+      size.height * postPlayScale);
+}
+
+/// Nel layout stretto, tutto lo spazio sotto il film.
+Rect _compactBelow(Size size) => Rect.fromLTRB(
+      postPlayCompactInset,
+      postPlayFilmRect(size, compact: true).bottom + postPlayCompactInset,
+      size.width - postPlayCompactInset,
+      size.height - postPlayCompactInset,
     );
+
+/// Lo spazio sotto il film diviso in due, il lato lungo a metà: [first]
+/// è la parte a sinistra (o in alto), se no l'altra.
+Rect _compactHalf(Size size, {required bool first}) {
+  final below = _compactBelow(size);
+  const half = postPlayCompactInset / 2;
+  if (below.width >= below.height) {
+    return first
+        ? Rect.fromLTRB(below.left, below.top, below.center.dx - half,
+            below.bottom)
+        : Rect.fromLTRB(below.center.dx + half, below.top, below.right,
+            below.bottom);
+  }
+  return first
+      ? Rect.fromLTRB(below.left, below.top, below.right, below.center.dy - half)
+      : Rect.fromLTRB(below.left, below.center.dy + half, below.right,
+          below.bottom);
+}
+
+/// Il riquadro a destra del film piccolo, in una schermata di [size]: lì
+/// stanno l'immagine del prossimo titolo o il pannello del voto. Nel layout
+/// stretto è sotto il film, accanto (o sotto) le informazioni, e c'è solo
+/// il voto.
+Rect postPlaySideRect(Size size, {bool compact = false}) => compact
+    ? _compactHalf(size, first: false)
+    : Rect.fromLTRB(
+        postPlayFilmRect(size).right + postPlayGap,
+        postPlayInset,
+        size.width - postPlayInset,
+        size.height - postPlayInset,
+      );
+
+/// Il riquadro delle informazioni, sotto il film. Nel layout stretto è
+/// largo quanto la schermata; con il voto ([shared]) ne lascia metà a lui.
+Rect postPlayInfoRect(Size size,
+    {bool compact = false, bool shared = false}) {
+  if (compact) {
+    return shared ? _compactHalf(size, first: true) : _compactBelow(size);
+  }
+  final film = postPlayFilmRect(size);
+  return Rect.fromLTRB(film.left, film.bottom + postPlayGap, film.right,
+      size.height - postPlayInset);
+}
 
 /// Il film: nel post-play si rimpicciolisce in alto a sinistra con angoli
 /// arrotondati e un bordo crema, poi torna a tutto schermo. La struttura
@@ -49,17 +102,20 @@ class PostPlayFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final motion = WfMotion.of(context);
+    final inset = FormFactor.of(context).compact
+        ? postPlayCompactInset
+        : postPlayInset;
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: active ? 1 : 0),
       duration: motion.duration(WfMotion.slow),
       curve: WfMotion.emphasized,
       builder: (context, t, child) {
         final scale = lerpDouble(1, postPlayScale, t)!;
-        final inset = postPlayInset * t;
+        final shift = inset * t;
         // Raggio e bordo nelle coordinate del figlio (che è scalato).
         final radius = BorderRadius.circular(postPlayRadius * t / scale);
         return Transform(
-          transform: Matrix4.translationValues(inset, inset, 0)
+          transform: Matrix4.translationValues(shift, shift, 0)
               .multiplied(Matrix4.diagonal3Values(scale, scale, 1)),
           child: ClipRRect(
             borderRadius: radius,
@@ -135,6 +191,9 @@ class PostPlayLayer extends ConsumerWidget {
     final total = shrink ~/ 2 + fade;
     final start = (shrink ~/ 2).inMicroseconds / total.inMicroseconds;
     final episode = this.episode;
+    // Nel layout stretto le informazioni vanno sotto il film, senza
+    // l'immagine (spec §4.5).
+    final compact = FormFactor.of(context).compact;
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
       duration: total,
@@ -142,19 +201,13 @@ class PostPlayLayer extends ConsumerWidget {
       builder: (context, t, child) =>
           Opacity(opacity: t.clamp(0.0, 1.0), child: child),
       child: LayoutBuilder(builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final height = constraints.maxHeight;
-        final filmWidth = width * postPlayScale;
-        final filmHeight = height * postPlayScale;
         if (episode == null) return const SizedBox.expand();
         final overview = episode.overview;
         return Stack(
           children: [
-            Positioned(
-              left: postPlayInset,
-              top: postPlayInset + filmHeight + postPlayGap,
-              width: filmWidth,
-              bottom: postPlayInset,
+            Positioned.fromRect(
+              rect: postPlayInfoRect(constraints.biggest,
+                  compact: compact, shared: !showImage),
               // I pulsanti si dispongono sempre: con poco spazio (finestra
               // bassa, testo grande) cede la trama.
               child: Align(
@@ -220,7 +273,7 @@ class PostPlayLayer extends ConsumerWidget {
                 ),
               ),
             ),
-            if (showImage)
+            if (showImage && !compact)
               Positioned.fromRect(
                 rect: postPlaySideRect(constraints.biggest),
                 // Limitata nei due sensi: in una finestra molto larga il 16:9
