@@ -24,7 +24,9 @@ void main() {
   Future<ValueNotifier<List<JellyfinItem>>> pumpHero(WidgetTester tester,
       {bool autoplay = false,
       MotionLevel motion = MotionLevel.reduced,
-      Widget? corner}) async {
+      Widget? corner,
+      Size surfaceSize = const Size(1440, 900),
+      bool touch = false}) async {
     final items = ValueNotifier(three);
     addTearDown(items.dispose);
     await pumpApp(
@@ -43,6 +45,8 @@ void main() {
       ],
       carouselAutoplay: autoplay,
       motion: motion,
+      surfaceSize: surfaceSize,
+      touch: touch,
     );
     return items;
   }
@@ -244,5 +248,38 @@ void main() {
       ),
       findsWidgets,
     );
+  });
+
+  testWidgets('carosello: trascinare a sinistra passa al titolo dopo',
+      (tester) async {
+    await pumpHero(tester, touch: true);
+    expect(find.text('DUNE'), findsOneWidget);
+    await tester.drag(find.byType(HeroCarousel), const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('ALIEN'), findsOneWidget);
+    expect(find.text('DUNE'), findsNothing);
+    // A destra torna indietro.
+    await tester.drag(find.byType(HeroCarousel), const Offset(300, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('DUNE'), findsOneWidget);
+  });
+
+  testWidgets('stretto: alto al massimo 1,1 volte la larghezza, pulsanti '
+      'sotto il testo, puntini da 44', (tester) async {
+    await pumpHero(tester,
+        surfaceSize: const Size(390, 844),
+        touch: true,
+        corner: const SizedBox(key: Key('corner'), width: 200, height: 40));
+    final play = tester.getRect(find.text('Riproduci'));
+    final corner = tester.getRect(find.byKey(const Key('corner')));
+    expect(corner.top, greaterThan(play.bottom),
+        reason: "l'angolo va sotto il testo");
+    expect(corner.left, 16);
+    final slide = tester.getRect(find.byKey(const ValueKey('slide-Dune')));
+    expect(slide.height, 390 * 1.1);
+    final dot = tester.getSize(find.byKey(const ValueKey('hero-dot-1')));
+    expect(dot.width, greaterThanOrEqualTo(44));
+    expect(dot.height, greaterThanOrEqualTo(44));
+    expect(tester.takeException(), isNull);
   });
 }

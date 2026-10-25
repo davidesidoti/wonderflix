@@ -96,7 +96,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
           top: 0,
           left: 0,
           right: 0,
-          height: detailHeaderHeight,
+          height: detailBackdropHeight(context),
           // Lo sfondo entra con la testata, non prima; resta anche dietro un
           // errore successivo.
           child: collection != null && state != 'loading'

@@ -94,14 +94,14 @@ class SimilarRow extends ConsumerWidget {
     if (items.isEmpty) return const SizedBox.shrink();
     return MediaRow(
       title: AppLocalizations.of(context).detailSimilar,
-      height: 300,
+      height: rowPosterSize(context).rowHeight,
       itemCount: items.length,
       // Le card volano con la riga, dopo la testata (elementi 5+ del
       // gruppo della scheda); con le animazioni ridotte niente entrata.
       animateEntrance: true,
       itemBuilder: (context, i) => PosterCard(
         item: items[i],
-        width: 160,
+        width: rowPosterSize(context).width,
         heroSource: 'similar.$i',
       ),
     );

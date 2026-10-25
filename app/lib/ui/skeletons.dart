@@ -22,7 +22,13 @@ class DetailRowsSkeleton extends StatelessWidget {
               const SizedBox(height: 12),
               SizedBox(
                 height: 200,
-                child: Row(children: [
+                // Lista e non Row: in una finestra stretta le card escono
+                // dal bordo invece di sbordare.
+                child: ListView(
+                    primary: false,
+                    scrollDirection: Axis.horizontal,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
                   for (var i = 0; i < 6; i++) ...[
                     const SkeletonBox(width: 130, height: 195),
                     const SizedBox(width: 16),
@@ -89,31 +95,41 @@ class EpisodeListSkeleton extends StatelessWidget {
   final int count;
 
   @override
-  Widget build(BuildContext context) => WfShimmer(
+  Widget build(BuildContext context) {
+    // Come EpisodeTile: nello stretto miniatura da 120 e margini da 16.
+    final compact = FormFactor.of(context).compact;
+    return WfShimmer(
         child: Column(children: [
           for (var i = 0; i < count; i++)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 32, vertical: 10),
+            Padding(
+              padding: EdgeInsets.symmetric(
+                  horizontal: compact ? 16 : 32, vertical: 10),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SkeletonBox(width: 200, height: 112, radius: 5),
-                  SizedBox(width: 16),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SkeletonBox(width: 240, height: 14),
-                      SizedBox(height: 8),
-                      SkeletonBox(width: 120, height: 12),
-                      SizedBox(height: 10),
-                      SkeletonBox(width: 420, height: 12),
-                    ],
+                  SkeletonBox(
+                      width: compact ? 120 : 200,
+                      height: compact ? 68 : 112,
+                      radius: 5),
+                  SizedBox(width: compact ? 12 : 16),
+                  const Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SkeletonBox(width: 240, height: 14),
+                        SizedBox(height: 8),
+                        SkeletonBox(width: 120, height: 12),
+                        SizedBox(height: 10),
+                        SkeletonBox(width: 420, height: 12),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
         ]),
       );
+  }
 }
 
 /// Griglia di locandine (Catalogo, La mia lista, filmografia): stessa

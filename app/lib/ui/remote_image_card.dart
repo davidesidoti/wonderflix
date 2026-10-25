@@ -32,6 +32,7 @@ class RemoteImageCard extends StatefulWidget {
     this.subtitle,
     this.badge,
     this.onTap,
+    this.width,
   });
 
   final RemoteCardShape shape;
@@ -40,6 +41,9 @@ class RemoteImageCard extends StatefulWidget {
   final String? subtitle;
   final Widget? badge;
   final VoidCallback? onTap;
+
+  /// Al posto della larghezza di [shape] (card più piccole nello stretto).
+  final double? width;
 
   @override
   State<RemoteImageCard> createState() => _RemoteImageCardState();
@@ -101,7 +105,7 @@ class _RemoteImageCardState extends State<RemoteImageCard> {
       ],
     );
     return SizedBox(
-      width: widget.shape.width,
+      width: widget.width ?? widget.shape.width,
       child: onTap == null
           ? content
           : MouseRegion(

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,7 @@ import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/card_preview.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_image.dart';
 import '../library/item_labels.dart';
@@ -35,6 +37,10 @@ const heroTextExit = Duration(milliseconds: 250);
 /// pallini (spec M §8.4).
 const heroCornerBottom = 56.0;
 
+/// Trascinamento minimo (o velocità) che cambia diapositiva col dito.
+const heroSwipeDistance = 48.0;
+const heroSwipeVelocity = 300.0;
+
 /// Titoli in evidenza a tutta larghezza; cambia ogni 8 secondi con una
 /// dissolvenza incrociata (spec C §8.1).
 class HeroCarousel extends ConsumerStatefulWidget {
@@ -49,6 +55,13 @@ class HeroCarousel extends ConsumerStatefulWidget {
   static const interval = Duration(seconds: 8);
 
   static const height = 460.0;
+
+  /// Altezza della parte con le immagini: nel layout stretto al massimo
+  /// 1,1 volte la larghezza.
+  static double heightOf(BuildContext context) =>
+      FormFactor.of(context).compact
+          ? math.min(height, MediaQuery.sizeOf(context).width * 1.1)
+          : height;
 
   @override
   ConsumerState<HeroCarousel> createState() => _HeroCarouselState();
@@ -83,6 +96,9 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
   /// Un'anteprima di una card è aperta (spec C §7): conta come il mouse
   /// sopra.
   bool _previewOpen = false;
+
+  /// Spostamento orizzontale del trascinamento in corso (solo col dito).
+  double _dragDx = 0;
 
   /// Falso quando la Home è coperta da un'altra pagina. Un ticker spento
   /// non chiama più il controller ma il suo tempo continua a scorrere:
@@ -143,6 +159,17 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
     _syncProgress();
   }
 
+  /// Fine di un trascinamento: a sinistra la successiva, a destra la
+  /// precedente.
+  void _swipeEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (_dragDx < -heroSwipeDistance || velocity < -heroSwipeVelocity) {
+      _goTo(_index + 1);
+    } else if (_dragDx > heroSwipeDistance || velocity > heroSwipeVelocity) {
+      _goTo(_index - 1);
+    }
+  }
+
   void _hover(bool hovered) {
     _hovered = hovered;
     _syncProgress();
@@ -171,72 +198,97 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
       _previewOpen = open;
       _syncProgress();
     });
-    if (widget.items.isEmpty) {
-      return const SizedBox(height: HeroCarousel.height);
-    }
+    final form = FormFactor.of(context);
+    final height = HeroCarousel.heightOf(context);
+    if (widget.items.isEmpty) return SizedBox(height: height);
     final motion = WfMotion.of(context);
     final previous = _previous;
     final current = widget.items[_index];
+    final corner = widget.corner;
     // Diapositive con chiave per titolo: quella che esce conserva il suo
     // elemento (e l'immagine già caricata) passando sotto.
-    return MouseRegion(
+    final carousel = MouseRegion(
       onEnter: (_) => _hover(true),
       onExit: (_) => _hover(false),
-      child: SizedBox(
-        height: HeroCarousel.height,
-        // Il Ken Burns ingrandisce lo sfondo oltre i bordi: senza ritaglio
-        // sborderebbe sotto il carosello, sopra la prima riga.
-        child: ClipRect(
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // Stessa struttura per le due diapositive: passando da attuale
-              // a precedente il sottoalbero (logo, pulsanti) non si ricrea.
-              if (previous != null && previous < widget.items.length)
+      // Col dito si scorre tra le diapositive; col mouse resta com'era.
+      child: GestureDetector(
+        onHorizontalDragStart: form.touch ? (_) => _dragDx = 0 : null,
+        onHorizontalDragUpdate: form.touch
+            ? (details) => _dragDx += details.primaryDelta ?? 0
+            : null,
+        onHorizontalDragEnd: form.touch ? _swipeEnd : null,
+        child: SizedBox(
+          height: height,
+          // Il Ken Burns ingrandisce lo sfondo oltre i bordi: senza ritaglio
+          // sborderebbe sotto il carosello, sopra la prima riga.
+          child: ClipRect(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // Stessa struttura per le due diapositive: passando da attuale
+                // a precedente il sottoalbero (logo, pulsanti) non si ricrea.
+                if (previous != null && previous < widget.items.length)
+                  KeyedSubtree(
+                    key: ValueKey('slide-${widget.items[previous].id}'),
+                    // Chi esce non riceve più clic.
+                    child: IgnorePointer(
+                      child: FadeTransition(
+                        opacity: kAlwaysCompleteAnimation,
+                        child: _HeroSlide(
+                          item: widget.items[previous],
+                          kenBurns: motion.isReduced
+                              ? null
+                              : AlwaysStoppedAnimation(_previousProgress),
+                          entrance: kAlwaysCompleteAnimation,
+                          textOpacity: _textExit(motion),
+                        ),
+                      ),
+                    ),
+                  ),
                 KeyedSubtree(
-                  key: ValueKey('slide-${widget.items[previous].id}'),
-                  // Chi esce non riceve più clic.
+                  key: ValueKey('slide-${current.id}'),
                   child: IgnorePointer(
+                    ignoring: false,
                     child: FadeTransition(
-                      opacity: kAlwaysCompleteAnimation,
+                      opacity: _fade.drive(CurveTween(curve: WfMotion.standard)),
                       child: _HeroSlide(
-                        item: widget.items[previous],
-                        kenBurns: motion.isReduced
-                            ? null
-                            : AlwaysStoppedAnimation(_previousProgress),
-                        entrance: kAlwaysCompleteAnimation,
-                        textOpacity: _textExit(motion),
+                        item: current,
+                        kenBurns: motion.isReduced ? null : _progress,
+                        entrance:
+                            motion.isReduced ? kAlwaysCompleteAnimation : _fade,
+                        textOpacity: kAlwaysCompleteAnimation,
                       ),
                     ),
                   ),
                 ),
-              KeyedSubtree(
-                key: ValueKey('slide-${current.id}'),
-                child: IgnorePointer(
-                  ignoring: false,
-                  child: FadeTransition(
-                    opacity: _fade.drive(CurveTween(curve: WfMotion.standard)),
-                    child: _HeroSlide(
-                      item: current,
-                      kenBurns: motion.isReduced ? null : _progress,
-                      entrance:
-                          motion.isReduced ? kAlwaysCompleteAnimation : _fade,
-                      textOpacity: kAlwaysCompleteAnimation,
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(right: 32, bottom: 20, child: _dots(motion)),
-              if (widget.corner case final corner?)
-                Positioned(right: 32, bottom: heroCornerBottom, child: corner),
-            ],
+                Positioned(
+                    right: form.compact ? 16 : 32,
+                    bottom: form.touch ? 0 : 20,
+                    child: _dots(motion, touch: form.touch)),
+                if (corner != null && !form.compact)
+                  Positioned(right: 32, bottom: heroCornerBottom, child: corner),
+              ],
+            ),
           ),
         ),
       ),
     );
+    if (corner == null || !form.compact) return carousel;
+    // Nello stretto l'angolo coprirebbe il testo: va sotto il carosello.
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        carousel,
+        Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: corner),
+      ],
+    );
   }
 
-  Widget _dots(WfMotion motion) => Row(
+  /// Col dito ogni puntino si tocca su almeno [minTouchTarget] di lato.
+  Widget _dots(WfMotion motion, {required bool touch}) => Row(
         children: [
           for (var i = 0; i < widget.items.length; i++)
             MouseRegion(
@@ -245,7 +297,12 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
                 key: ValueKey('hero-dot-$i'),
                 behavior: HitTestBehavior.opaque,
                 onTap: () => _goTo(i),
-                child: Padding(
+                child: Container(
+                  constraints: touch
+                      ? const BoxConstraints(
+                          minWidth: minTouchTarget, minHeight: minTouchTarget)
+                      : null,
+                  alignment: touch ? Alignment.center : null,
                   padding: const EdgeInsets.fromLTRB(3, 8, 3, 8),
                   child: AnimatedContainer(
                     duration: motion.duration(WfMotion.medium),
@@ -346,6 +403,7 @@ class _HeroSlide extends ConsumerWidget {
       ...item.genres.take(2),
     ].join(' · ');
     final backdrop = WfImage(image: urls.backdrop(item));
+    final compact = FormFactor.of(context).compact;
     final kenBurns = this.kenBurns;
 
     return Stack(
@@ -395,9 +453,10 @@ class _HeroSlide extends ConsumerWidget {
           ),
         ),
         Positioned(
-          left: 32,
+          left: compact ? 16 : 32,
+          right: compact ? 16 : null,
           bottom: 48,
-          width: 560,
+          width: compact ? null : 560,
           child: FadeTransition(
             opacity: textOpacity,
             child: Column(
@@ -409,15 +468,16 @@ class _HeroSlide extends ConsumerWidget {
                   0,
                   logo != null
                       ? SizedBox(
-                          height: 110,
-                          width: 420,
+                          height: compact ? 80 : 110,
+                          width: compact ? 240 : 420,
                           child: Align(
                             alignment: Alignment.bottomLeft,
                             child: WfImage(image: logo, fit: BoxFit.contain),
                           ),
                         )
                       : Text(item.name.toUpperCase(),
-                          maxLines: 2, style: WfText.display(56)),
+                          maxLines: 2,
+                          style: WfText.display(compact ? 40 : 56)),
                 ),
                 const SizedBox(height: 10),
                 _enter(entrance, 1,

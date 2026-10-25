@@ -81,12 +81,18 @@ String _label(AppLocalizations l, ItemAction action) => switch (action) {
       ItemAction.images => l.itemActionImages,
     };
 
+/// Voce in più del menu "⋯", in cima: un'azione della testata che nel
+/// layout stretto non ha un pulsante suo.
+typedef ExtraItemAction = ({String label, VoidCallback onSelected});
+
 /// Il bottone "⋯" di un titolo: film, serie, stagione o episodio. Senza voci
 /// da mostrare non c'è.
 class ItemActionsButton extends ConsumerWidget {
-  const ItemActionsButton({super.key, required this.item});
+  const ItemActionsButton(
+      {super.key, required this.item, this.extra = const []});
 
   final JellyfinItem item;
+  final List<ExtraItemAction> extra;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -96,22 +102,33 @@ class ItemActionsButton extends ConsumerWidget {
       canManageSubtitles: ref.watch(canManageSubtitlesProvider),
       isAdmin: ref.watch(isAdminProvider),
     );
-    if (groups.isEmpty) return const SizedBox.shrink();
+    if (groups.isEmpty && extra.isEmpty) return const SizedBox.shrink();
     final l = AppLocalizations.of(context);
     return SizedBox.square(
       dimension: _buttonSize,
-      child: PopupMenuButton<ItemAction>(
+      // Il valore è un'[ItemAction] o una voce di [extra]: scelta a menu
+      // chiuso, così un'azione che apre una pagina non viene chiusa con lui.
+      child: PopupMenuButton<Object>(
         tooltip: l.itemActionsMenu,
         padding: EdgeInsets.zero,
         icon: const Icon(LucideIcons.ellipsis,
             size: _iconSize, color: WfColors.cream),
         popUpAnimationStyle: wfPopUpAnimation(context),
-        onSelected: (action) => _run(context, action),
+        onSelected: (value) {
+          switch (value) {
+            case ItemAction action:
+              _run(context, action);
+            case (label: _, :final VoidCallback onSelected):
+              onSelected();
+          }
+        },
         itemBuilder: (context) => [
+          for (final entry in extra)
+            PopupMenuItem<Object>(value: entry, child: Text(entry.label)),
           for (final (i, group) in groups.indexed) ...[
-            if (i > 0) const PopupMenuDivider(),
+            if (i > 0 || extra.isNotEmpty) const PopupMenuDivider(),
             for (final action in group)
-              PopupMenuItem<ItemAction>(
+              PopupMenuItem<Object>(
                   value: action, child: Text(_label(l, action))),
           ],
         ],

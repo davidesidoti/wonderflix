@@ -46,13 +46,6 @@ class HomeRowView extends ConsumerWidget {
   /// Le card volano dentro con la riga (vedi `MediaRow.animateEntrance`).
   final bool animateEntrance;
 
-  /// Altezze delle righe di locandine e di card orizzontali.
-  static const posterRowHeight = 300.0;
-  static const landscapeRowHeight = 230.0;
-
-  /// Larghezza delle locandine della libreria (come `RemoteCardShape.poster`).
-  static const posterWidth = 160.0;
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
@@ -64,11 +57,12 @@ class HomeRowView extends ConsumerWidget {
       BecauseYouWatchedContent(:final sourceName, :final items) =>
         _posters(l.homeBecauseYouWatched(sourceName), items),
       RequestsRowContent(:final requests) => _row(
-          l.homeMyRequests, posterRowHeight, requests.length, (context, i) {
+          l.homeMyRequests, true, requests.length, (context, i) {
           final request = requests[i];
           final year = request.year;
           return RemoteImageCard(
             shape: RemoteCardShape.poster,
+            width: rowPosterSize(context).width,
             image: TmdbImages.poster(request.posterPath),
             title: request.title,
             subtitle: year?.toString(),
@@ -78,10 +72,11 @@ class HomeRowView extends ConsumerWidget {
           );
         }),
       SagasRowContent(:final sagas) => _row(
-          l.homeContinueSaga, landscapeRowHeight, sagas.length, (context, i) {
+          l.homeContinueSaga, false, sagas.length, (context, i) {
           final saga = sagas[i];
           return LandscapeCard(
             item: saga.next,
+            width: rowLandscapeSize(context).width,
             subtitle:
                 l.homeSagaProgress(saga.saga.name, saga.watched, saga.total),
             onTap: () => openCollection(context, saga.saga.id),
@@ -115,13 +110,13 @@ class HomeRowView extends ConsumerWidget {
 
   /// "Visti dagli amici": chi l'ha visto sotto la locandina (spec O §7.4).
   Widget _friendsWatched(AppLocalizations l, List<FriendsWatchedItem> titles) =>
-      _row(l.homeRowFriendsWatched, posterRowHeight, titles.length,
+      _row(l.homeRowFriendsWatched, true, titles.length,
           (context, i) {
         final title = titles[i];
         return PosterCard(
           key: ValueKey('friends-watched-${title.item.id}'),
           item: title.item,
-          width: posterWidth,
+          width: rowPosterSize(context).width,
           heroSource: 'home.${kind.id}.$i',
           subtitle: friendsWatchedBy(l, title.by),
         );
@@ -138,12 +133,12 @@ class HomeRowView extends ConsumerWidget {
         if (!dismissed.contains(jellyfinIdKey(title.item.id))) title,
     ];
     if (shown.isEmpty) return const SizedBox.shrink();
-    return _row(l.homeRowRecommended, posterRowHeight, shown.length, (context, i) {
+    return _row(l.homeRowRecommended, true, shown.length, (context, i) {
       final title = shown[i];
       return PosterCard(
         key: ValueKey('recommended-${title.item.id}'),
         item: title.item,
-        width: posterWidth,
+        width: rowPosterSize(context).width,
         heroSource: 'home.${kind.id}.$i',
         subtitle: recommendedFrom(l, title.from),
         previewExtra: CardPreviewExtra(
@@ -165,26 +160,34 @@ class HomeRowView extends ConsumerWidget {
     }
   }
 
-  Widget _row(String title, double height, int count,
+  /// Riga di locandine ([poster]) o di card orizzontali.
+  Widget _row(String title, bool poster, int count,
           IndexedWidgetBuilder itemBuilder) =>
-      MediaRow(
-        title: title,
-        height: height,
-        itemCount: count,
-        animateEntrance: animateEntrance,
-        itemBuilder: itemBuilder,
+      Builder(
+        builder: (context) => MediaRow(
+          title: title,
+          height: (poster
+                  ? rowPosterSize(context)
+                  : rowLandscapeSize(context))
+              .rowHeight,
+          itemCount: count,
+          animateEntrance: animateEntrance,
+          itemBuilder: itemBuilder,
+        ),
       );
 
   Widget _posters(String title, List<JellyfinItem> items) =>
-      _row(title, posterRowHeight, items.length, (context, i) => PosterCard(
+      _row(title, true, items.length, (context, i) => PosterCard(
             item: items[i],
-            width: posterWidth,
+            width: rowPosterSize(context).width,
             heroSource: 'home.${kind.id}.$i',
           ));
 
   Widget _landscapes(String title, List<JellyfinItem> items) =>
-      _row(title, landscapeRowHeight, items.length, (context, i) =>
-          LandscapeCard(item: items[i], heroSource: 'home.${kind.id}.$i'));
+      _row(title, false, items.length, (context, i) => LandscapeCard(
+          item: items[i],
+          width: rowLandscapeSize(context).width,
+          heroSource: 'home.${kind.id}.$i'));
 
   /// Sfondo: quello di Jellyfin se la serie c'è, poi quello di Sonarr, poi la
   /// locandina; clic: la scheda, poi Seerr, poi niente (spec M §8.3).
@@ -193,7 +196,7 @@ class HomeRowView extends ConsumerWidget {
     final urls = ref.watch(imageUrlsProvider);
     final canRequest = ref.watch(requestsAvailableProvider);
     final now = clock.now();
-    return _row(l.homeUpcomingSeries, landscapeRowHeight, episodes.length,
+    return _row(l.homeUpcomingSeries, false, episodes.length,
         (context, i) {
       final episode = episodes[i];
       final seriesId = episode.jellyfinSeriesId;
@@ -201,6 +204,7 @@ class HomeRowView extends ConsumerWidget {
       final remote = episode.backdropUrl ?? episode.posterUrl;
       return RemoteImageCard(
         shape: RemoteCardShape.landscape,
+        width: rowLandscapeSize(context).width,
         image: seriesId != null
             ? urls.backdropOf(seriesId)
             : remote == null
@@ -221,12 +225,13 @@ class HomeRowView extends ConsumerWidget {
   Widget _upcomingMovies(
       WidgetRef ref, AppLocalizations l, List<UpcomingMovie> movies) {
     final canRequest = ref.watch(requestsAvailableProvider);
-    return _row(l.homeUpcomingMovies, posterRowHeight, movies.length,
+    return _row(l.homeUpcomingMovies, true, movies.length,
         (context, i) {
       final movie = movies[i];
       final poster = movie.posterUrl;
       return RemoteImageCard(
         shape: RemoteCardShape.poster,
+        width: rowPosterSize(context).width,
         image: poster == null ? null : ImageRef(poster),
         title: movie.title,
         subtitle: upcomingMovieLabel(movie, l),

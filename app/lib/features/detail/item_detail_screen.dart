@@ -121,7 +121,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
           top: 0,
           left: 0,
           right: 0,
-          height: detailHeaderHeight,
+          height: detailBackdropHeight(context),
           child: showBackdrop
               ? DetailBackdrop(item: item, launch: launch, controller: _scroll)
               : const SizedBox.shrink(),

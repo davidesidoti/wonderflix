@@ -3,6 +3,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../app/motion.dart';
 import '../app/theme.dart';
+import 'form_factor.dart';
 import 'smooth_scroll.dart';
 import 'staggered_entrance.dart';
 
@@ -11,6 +12,20 @@ const rowEntranceCount = 8;
 
 /// Passo tra una card e l'altra nell'entrata di una riga.
 const rowEntranceStagger = Duration(milliseconds: 40);
+
+/// Misure delle card di una riga: locandine 160 e card 16:9 da 300, più
+/// piccole nel layout stretto, con l'altezza della riga che le contiene.
+typedef RowCardSize = ({double width, double rowHeight});
+
+RowCardSize rowPosterSize(BuildContext context) =>
+    FormFactor.of(context).compact
+        ? (width: 112, rowHeight: 230)
+        : (width: 160, rowHeight: 300);
+
+RowCardSize rowLandscapeSize(BuildContext context) =>
+    FormFactor.of(context).compact
+        ? (width: 220, rowHeight: 190)
+        : (width: 300, rowHeight: 230);
 
 /// Riga orizzontale con titolo e frecce (per chi usa il mouse).
 class MediaRow extends StatefulWidget {
@@ -91,10 +106,11 @@ class _MediaRowState extends State<MediaRow> {
   @override
   Widget build(BuildContext context) {
     final animate = widget.animateEntrance;
+    final side = FormFactor.of(context).compact ? 16.0 : 32.0;
     Widget list = ListView.separated(
       controller: _controller,
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 32),
+      padding: EdgeInsets.symmetric(horizontal: side),
       itemCount: widget.itemCount,
       separatorBuilder: (context, index) => const SizedBox(width: 16),
       // Senza entrata le card non si avvolgono: uno StaggerItem cercherebbe
@@ -121,7 +137,7 @@ class _MediaRowState extends State<MediaRow> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
+            padding: EdgeInsets.symmetric(horizontal: side),
             child: Row(
               children: [
                 Flexible(child: _title()),

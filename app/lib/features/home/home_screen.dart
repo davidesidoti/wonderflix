@@ -375,9 +375,10 @@ class _EntryButtons extends StatelessWidget {
   final VoidCallback onMatch;
 
   @override
-  Widget build(BuildContext context) => Row(
-        mainAxisSize: MainAxisSize.min,
+  // Wrap: in una finestra stretta il secondo va a capo invece di sbordare.
+  Widget build(BuildContext context) => Wrap(
         spacing: 12,
+        runSpacing: 12,
         children: [
           MatchButton(onPressed: onMatch),
           TonightButton(onPressed: onTonight),

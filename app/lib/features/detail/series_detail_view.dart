@@ -9,6 +9,7 @@ import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/poster_card.dart';
 import '../../ui/skeletons.dart';
 import '../../ui/sliding_underline.dart';
@@ -324,17 +325,18 @@ class EpisodeTile extends ConsumerWidget {
         l.detailRemaining(formatRuntime(runtime - userData.playbackPosition)),
     ].join(' · ');
     final overview = episode.overview;
+    final compact = FormFactor.of(context).compact;
 
     return InkWell(
       onTap: () => unawaited(playItem(context, ref, episode)),
       child: Container(
         color: highlighted ? WfColors.surface : null,
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
+        padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 32, vertical: 10),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
-              width: 200,
+              width: compact ? 120 : 200,
               child: AspectRatio(
                 aspectRatio: 16 / 9,
                 child: ClipRRect(
@@ -349,7 +351,7 @@ class EpisodeTile extends ConsumerWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: compact ? 12 : 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

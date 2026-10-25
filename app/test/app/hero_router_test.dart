@@ -67,8 +67,15 @@ void main() {
       state.extra is HeroLaunch ? state.extra as HeroLaunch : null;
 
   Future<GoRouter> pumpRouter(WidgetTester tester, String initial) async {
+    // Anche la vista: con la sola superficie la MediaQuery resterebbe
+    // 800×600, cioè il layout stretto.
     await tester.binding.setSurfaceSize(const Size(1440, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.physicalSize =
+        const Size(1440, 900) * tester.view.devicePixelRatio;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      return tester.binding.setSurfaceSize(null);
+    });
     final router = GoRouter(
       initialLocation: initial,
       routes: [
