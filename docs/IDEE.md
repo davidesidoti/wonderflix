@@ -9,7 +9,7 @@ Le idee per i prossimi spec, in nessun ordine. All'inizio di uno spec l'utente s
 - nella coda del party, la ripetizione e lo svuotamento (Spec H §5);
 - HDR vero (oggi media_kit converte in SDR) e firma del codice (deciso all'inizio dello Spec K).
 
-## 1. Versione web — PROSSIMI PASSI, in tre progetti e in quest'ordine
+## 1. Versione web — FATTA, in tre progetti
 
 Scelta dall'utente il 2026-10-22. Ogni progetto ha il suo brainstorming, spec e piano, in una sessione di Claude Code separata; il successivo parte quando il precedente è su `main`.
 
@@ -32,8 +32,7 @@ Fatto il 2026-10-23, vedi `docs/superpowers/specs/2026-10-22-wonderflix-web-pc-d
 
 ### 1c. Adattamento a telefono e touch
 
-Tutta l'app usabile dal browser del telefono, senza tagli. Layout per schermi stretti e verticali (per esempio navigazione in basso, pannelli laterali che diventano pagine), tocco al posto dell'hover (anteprime delle card, menu, tooltip), player con controlli touch. È la base delle future app native (idea 2).
-- **Fatto quando:** dal browser del telefono si guarda e si fanno le azioni admin senza bisogno di un PC.
+Fatto il 2026-10-26, vedi `docs/superpowers/specs/2026-10-25-wonderflix-web-telefono-design.md`.
 
 ## 2. Altre piattaforme: Smart TV, Android, iOS, macOS, Linux
 

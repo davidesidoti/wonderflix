@@ -1,7 +1,7 @@
 # WonderFlix — Progetto 1c: WonderFlix dal browser del telefono
 
 - **Data:** 2026-10-25
-- **Stato:** approvata il 2026-10-25.
+- **Stato:** approvata il 2026-10-25; **realizzata** il 2026-10-26 con il piano 28 (`docs/superpowers/plans/2026-10-25-wonderflix-28-web-telefono.md`), provata dall'utente dall'iPhone sul sito di prova `https://hashvps.proton.usbx.me/wonderflix-prova/`.
 - **Ambito:** progetto 1c dell'idea 1 di `docs/IDEE.md` ("Versione web"). Viene dopo il progetto 1b (sito per il PC, su `main`, spec `2026-10-22-wonderflix-web-pc-design.md`).
 - **Ricerca:** inventario del codice nella nota di sessione `1c-inventario-desktop.md`. Le cose che servono sono riportate qui sotto.
 
