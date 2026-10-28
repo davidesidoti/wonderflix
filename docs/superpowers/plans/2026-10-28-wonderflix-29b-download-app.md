@@ -105,7 +105,7 @@ Percorsi relativi ad `app/`, se non è detto altro.
 
 - [ ] **Step 1: test che falliscono:**
   - `download_models_test.dart`: `AnOverviewParses` (un JSON completo con una scelta, una voce `NeedsYou`/`BelowMinScore`, una riga da ripassare); `ASearchParses` (candidati, scarti con `TooSmall` e `Detail` `"0.57"`, `Current`); `ABrokenRowIsSkipped` (`SizeBytes` `"tanti"` in un candidato su tre → due); `UnknownValuesAreUnknown` (`State` `"Exploded"` → `unknown`).
-  - `downloads_api_test.dart` (con il finto `JellyfinHttp` dei test di `ReportsApi`): `SearchWaitsUpToTwoAndAHalfMinutes` (la GET di `Search` ha `receiveTimeout` 150 s e la chiave in `query`), `GrabPostsKeyGuidAndIndexer` (corpo `{"Key","Guid","IndexerId"}`), `ConflictIsExpired` (409 → `expired`), `NotFoundIsUnavailable` (404), `BadRequestIsInvalid` (400), `BusyAndUnavailableAreMapped` (409 `Busy` → `busy`, 503 `Unavailable` → `arrUnavailable`).
+  - `downloads_api_test.dart` (con il finto `JellyfinHttp` dei test di `ReportsApi`): `SearchWaitsUpToTwoAndAHalfMinutes` (la GET di `Search` ha `receiveTimeout` 150 s e la chiave in `query`), `GrabPostsKeyGuidAndIndexer` (corpo `{"Key","Guid","IndexerId"}`), `ConflictIsExpired` (409 con `{"Reason":"Expired"}` → `expired`; 409 con `{"Reason":"Busy"}` → `busy`; 409 con `Reason` mancante o sconosciuto → `expired`), `NotFoundIsUnavailable` (404), `BadRequestIsInvalid` (400), `BusyAndUnavailableAreMapped` (409 con corpo `{"Reason":"Busy"}` → `busy`; 503 con corpo `{"Reason":"Unavailable"}` → `arrUnavailable`).
   - Test di `SocialAvailability`: `downloads` vero quando `Info.Features` lo contiene.
 - [ ] **Step 2: i test falliscono.**
 - [ ] **Step 3: il codice**, sul modello di `ReportsApi`.
@@ -129,6 +129,7 @@ Percorsi relativi ad `app/`, se non è detto altro.
     - `String formatGb(AppLocalizations l, int bytes)` (decisione 6);
     - `String downloadStateLabel(AppLocalizations l, DownloadItem item)`: "In attesa", "In download", "Cerca un upgrade", "Serve te: {motivo}";
     - `String downloadReasonLabel(AppLocalizations l, DownloadReason r)`: "nessun file valido", "solo file con punteggio basso", "Radarr/Sonarr non lo importano", "ricerca non riuscita";
+    - `String downloadsFailureLabel(AppLocalizations l, DownloadsFailure f)`: i testi di "Errori" in Global Constraints (`invalid` "Richiesta non valida", `expired` "Questa release non c'è più: ricerca di nuovo", `busy` "Un altro download di questo titolo è in corso: riprova tra poco", `arrUnavailable` "Radarr o Sonarr non rispondono"; gli altri come le altre schede admin);
     - `String rejectedLabel(AppLocalizations l, DownloadRejected r)`: `tooSmall` → "{detail} GB/ora, sotto la soglia"; `arr` → il `Detail` così com'è;
     - `String choiceWhy(AppLocalizations l, DownloadCandidate c)` (decisione 2);
     - `String nextSearchLabel(AppLocalizations l, DateTime? at, DateTime now)`: "prossima ricerca tra {n} h" / "domani" / "il {data}".
@@ -189,7 +190,7 @@ Percorsi relativi ad `app/`, se non è detto altro.
   - "Va bene così" (solo per una chiave in "Da ripassare", cioè quando la pagina è aperta da `ReviewRow`: parametro `bool reviewing` di `showDownloadSearch`): `accept`, poi si chiude.
   - Errore della ricerca (`Error` nel DTO o eccezione): messaggio e "Riprova".
 
-- [ ] **Step 1: test che falliscono:** `TheChoiceIsHighlightedWithItsReason`; `RejectedAreGreyWithTheirReason`; `ALowerScoreAsksFirst` (punteggio uguale al file attuale → conferma; annullare non scarica); `ANonImportAsksFirst` (`WouldImport` falso → conferma con il testo dell'import manuale); `GrabIsDisabledWhileRunning`; `ExpiredKeepsThePage`; `AcceptOnlyWhenReviewing`; `ClosingDuringASearchIsQuiet` (chiudere durante l'attesa: nessun errore e nessun SnackBar); `NarrowLayoutHasNoHorizontalOverflow` (larghezza 375: nessun overflow, le release sono schede).
+- [ ] **Step 1: test che falliscono:** `TheChoiceIsHighlightedWithItsReason`; `RejectedAreGreyWithTheirReason`; `ALowerScoreAsksFirst` (punteggio uguale al file attuale → conferma; annullare non scarica); `ANonImportAsksFirst` (`WouldImport` falso → conferma con il testo dell'import manuale); `GrabIsDisabledWhileRunning`; `ExpiredKeepsThePage`; `BusyAndArrDownShowAMessage` (`grab` dà `busy` o `arrUnavailable`: compare il messaggio e la pagina resta aperta); `AcceptOnlyWhenReviewing`; `ClosingDuringASearchIsQuiet` (chiudere durante l'attesa: nessun errore e nessun SnackBar); `NarrowLayoutHasNoHorizontalOverflow` (larghezza 375: nessun overflow, le release sono schede).
 - [ ] **Step 2: i test falliscono.**
 - [ ] **Step 3: il codice.**
 - [ ] **Step 4: i test passano**, poi `flutter gen-l10n`, `flutter analyze`, `flutter test`.

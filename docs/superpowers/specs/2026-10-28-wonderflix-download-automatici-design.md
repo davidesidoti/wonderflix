@@ -129,6 +129,7 @@ Le ricerche sono una alla volta, con una pausa tra l'una e l'altra, per non pesa
 - Dopo un download di WonderFlix, se il file ha un punteggio sotto l'**obiettivo** del profilo, il titolo resta tra quelli da ricercare per 30 giorni con lo stesso ritmo di §5.2.
 - Obiettivo iniziale: 150 nei Main Profile (ITA-ENG). Negli anime non c'è un massimo sensato: l'obiettivo resta vuoto e si ricerca per 30 giorni.
 - Si scarica un upgrade solo se la nuova scelta ha un **punteggio più alto** del file presente. Un file più leggero con lo stesso punteggio non basta.
+- Dopo un import normale (non un upgrade) il punteggio del file è quello della release scaricata, già noto: il file non si rilegge.
 - Un upgrade finito si conferma leggendo il file (`moviefile`/`episodefile`): se non è più quello di prima (stesso punteggio e stessa qualità), è importato e il suo punteggio diventa quello attuale. Se è ancora quello di prima, l'upgrade è fallito e il titolo torna a guardare gli upgrade, con la finestra di 30 giorni che aveva.
 - Dopo i 30 giorni, un titolo ancora sotto l'obiettivo passa in "Da ripassare" (§6).
 - Radarr e Sonarr importano il nuovo file solo se lo considerano un upgrade. Con i profili di oggi un WEBRip 150 non sostituisce un Bluray 0, perché il Bluray sta più in alto in qualità. Vedi §9, punto 4.
@@ -161,7 +162,7 @@ Come è fatto:
 ### 5.5 Quando non trova niente o qualcosa va storto
 
 - Nessun candidato valido: il titolo resta "In attesa" con la prossima ricerca. Dopo 7 giorni dalla disponibilità senza niente, o se ci sono risultati ma tutti sotto il punteggio minimo, compare anche in **"Serve te"**.
-- Una ricerca o un download che falliscono (indexer o servizio in errore): il titolo si riprova dopo 15 minuti, così non occupa sempre i primi posti del giro.
+- Una ricerca o un download che falliscono (indexer o servizio in errore): il titolo mostra il motivo `SearchFailed` ("ricerca non riuscita") e si riprova dopo 15 minuti, così non occupa sempre i primi posti del giro.
 - Download fallito (sparito dalla coda senza file, §5.3a): la release è in blocklist e WonderFlix riprende dalla scelta successiva al prossimo giro. Il "riscarica i falliti" di Radarr e Sonarr va spento (§9), altrimenti scelgono loro.
 - Radarr, Sonarr o un indexer non rispondono: il giro salta quel titolo e riprova al successivo; la scheda Download lo mostra.
 - Un titolo eliminato o smesso di monitorare in Radarr/Sonarr esce dal ciclo.
@@ -195,7 +196,7 @@ Nella pagina di configurazione del plugin, accanto a Sonarr e Radarr:
 ### 7.3 Servizio e dati
 
 - Un servizio in background fa il ciclo di §5, un titolo alla volta.
-- Su disco (`downloads.json`, come `reports.json`): per ogni titolo seguito lo stato (in attesa, scaricato, in upgrade, serve te, va bene così), le ultime ricerche, la scelta con le prime alternative e gli scarti con il motivo, le release fallite. La storia delle scelte si tiene per 90 giorni.
+- Su disco (`downloads.json`, come `reports.json`): per ogni titolo seguito lo stato (in attesa, scaricato, in upgrade, serve te, va bene così), le ultime ricerche, la scelta con le prime alternative e gli scarti con il motivo, le stagioni divise in episodi. La storia delle scelte si tiene per 90 giorni.
 
 ### 7.4 Endpoint (solo admin)
 
