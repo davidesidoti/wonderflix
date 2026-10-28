@@ -1,7 +1,7 @@
 # WonderFlix — Spec T: download automatici con le regole dell'admin
 
 - **Data:** 2026-10-28
-- **Stato:** bozza, in attesa di approvazione dell'utente. Bozza delle schermate: `.superpowers/brainstorm/1831-1793204853/content/download-tab-v2.html` (non nel repo).
+- **Stato:** piano 29a realizzato (plugin 1.14.0, branch `feat/download-automatici`, non ancora rilasciato); piano 29b da fare. Bozza delle schermate: `.superpowers/brainstorm/1831-1793204853/content/download-tab-v2.html` (non nel repo).
 - **Ambito:** Spec T. Si appoggia alla Spec M (Sonarr e Radarr nel plugin: `2026-10-10-wonderflix-home-su-misura-design.md`, §7), alla Spec I (richieste con Seerr: `2026-10-05-wonderflix-seerr-design.md`), alla Spec S (calendario: `2026-10-22-wonderflix-calendario-uscite-design.md`) e alla dashboard admin (`2026-10-06-wonderflix-dashboard-admin-design.md`).
 
 ## 1. Obiettivo
@@ -129,13 +129,15 @@ Le ricerche sono una alla volta, con una pausa tra l'una e l'altra, per non pesa
 - Dopo un download di WonderFlix, se il file ha un punteggio sotto l'**obiettivo** del profilo, il titolo resta tra quelli da ricercare per 30 giorni con lo stesso ritmo di §5.2.
 - Obiettivo iniziale: 150 nei Main Profile (ITA-ENG). Negli anime non c'è un massimo sensato: l'obiettivo resta vuoto e si ricerca per 30 giorni.
 - Si scarica un upgrade solo se la nuova scelta ha un **punteggio più alto** del file presente. Un file più leggero con lo stesso punteggio non basta.
+- Un upgrade finito si conferma leggendo il file (`moviefile`/`episodefile`): se non è più quello di prima (stesso punteggio e stessa qualità), è importato e il suo punteggio diventa quello attuale. Se è ancora quello di prima, l'upgrade è fallito e il titolo torna a guardare gli upgrade, con la finestra di 30 giorni che aveva.
 - Dopo i 30 giorni, un titolo ancora sotto l'obiettivo passa in "Da ripassare" (§6).
 - Radarr e Sonarr importano il nuovo file solo se lo considerano un upgrade. Con i profili di oggi un WEBRip 150 non sostituisce un Bluray 0, perché il Bluray sta più in alto in qualità. Vedi §9, punto 4.
 
 ### 5.3a Mentre scarica (mia scelta)
 
 - Un titolo con un download nella coda di Radarr/Sonarr (`GET /api/v3/queue`), chiunque l'abbia fatto partire (WonderFlix, l'admin, l'RSS prima di spegnerlo), **non si ricerca**: si aspetta l'import.
-- Un download fermo, cioè senza progressi e senza seeders da 24 ore, conta come fallito: WonderFlix lo toglie dalla coda e da qBittorrent con la blocklist (`DELETE /api/v3/queue/{id}?removeFromClient=true&blocklist=true`) e al giro dopo passa alla scelta successiva. Lo stesso per un download segnalato come fallito da Radarr/Sonarr.
+- Un download fermo conta come fallito. È fermo solo se la coda dice "downloading" e `sizeleft` non cambia da 24 ore: un torrent lento ma vivo no, e nemmeno uno in coda, in pausa o con il client irraggiungibile (il tempo riparte). I seeders non si leggono. WonderFlix lo toglie dalla coda e da qBittorrent con la blocklist (`DELETE /api/v3/queue/{id}?removeFromClient=true&blocklist=true`) e al giro dopo passa alla scelta successiva.
+- Un download che sparisce dalla coda senza che Radarr/Sonarr abbiano il file conta come fallito, e si riparte allo stesso modo: Radarr e Sonarr mettono già in blocklist la release fallita, quindi non si legge la cronologia. Un upgrade fermo o fallito torna a guardare gli upgrade (§5.3), non in attesa.
 - Un download finito che Radarr/Sonarr non importano (per esempio "non è un upgrade") non si riscarica: il titolo va in "Serve te" con il motivo.
 
 ### 5.3b Upgrade che Radarr e Sonarr non importerebbero (mia scelta)
@@ -143,15 +145,24 @@ Le ricerche sono una alla volta, con una pausa tra l'una e l'altra, per non pesa
 - WonderFlix scarica **da solo** un upgrade solo se Radarr/Sonarr lo importerebbero: punteggio più alto **e** qualità non più bassa nell'ordine del profilo. Con i profili di oggi un WEBRip 150 non sostituisce un Bluray 0, e un 720p 150 non sostituisce un 1080p 50. Questi casi non si scaricano da soli: vanno in "Da ripassare", dove decide l'admin.
 - Quando invece è l'admin a scegliere un file che Radarr/Sonarr non importerebbero, la conferma lo dice. Dopo il download WonderFlix fa l'import manuale con sostituzione (`manualimport`), come si fa a mano nella schermata di import di Radarr. Chi costruisce verifica che l'API lo permetta sulle versioni del server; se non lo permette, il pulsante resta solo per i file che Radarr/Sonarr importano.
 - Con i profili uniti per risoluzione (§12) restano fuori quasi solo i passaggi da 1080p a 720p.
+- "Lo importerebbero?" si decide con la posizione della qualità nel profilo (gli `items` ammessi, dal più basso al più alto; un gruppo è una posizione sola): importano se la posizione nuova è più alta, o uguale con punteggio più alto.
+- Se l'import manuale con sostituzione fallisce, il titolo va in "Serve te" con il motivo `ImportBlocked`.
 
 ### 5.4 Stagioni intere
 
 Se mancano tutti gli episodi andati in onda di una stagione finita, WonderFlix fa prima la ricerca della stagione. Prende il pack se vince con la regola e se pesa al massimo il 20% in più della somma dei migliori episodi singoli; altrimenti scarica gli episodi uno per uno. Per le serie in corso cerca episodio per episodio.
 
+Come è fatto:
+
+- Pack e singoli vengono dalla stessa ricerca di stagione di Sonarr, senza ricerche in più. I singoli si raggruppano per episodio e di ognuno si tiene il migliore con la regola. La somma si confronta con il pack solo se ogni episodio mancante ha un singolo.
+- Se la ricerca di stagione non dà nessun pack valido, o il pack non conviene, la voce di stagione si divide per sempre in voci di episodio, da cercare subito.
+- Una stagione con qualcosa in coda, o con una scelta di WonderFlix negli ultimi 90 giorni, non si raggruppa: si cerca episodio per episodio.
+
 ### 5.5 Quando non trova niente o qualcosa va storto
 
 - Nessun candidato valido: il titolo resta "In attesa" con la prossima ricerca. Dopo 7 giorni dalla disponibilità senza niente, o se ci sono risultati ma tutti sotto il punteggio minimo, compare anche in **"Serve te"**.
-- Download fallito (cronologia di Radarr/Sonarr): WonderFlix mette quella release in blocklist e riprende dalla scelta successiva al prossimo giro. Il "riscarica i falliti" di Radarr e Sonarr va spento (§9), altrimenti scelgono loro.
+- Una ricerca o un download che falliscono (indexer o servizio in errore): il titolo si riprova dopo 15 minuti, così non occupa sempre i primi posti del giro.
+- Download fallito (sparito dalla coda senza file, §5.3a): la release è in blocklist e WonderFlix riprende dalla scelta successiva al prossimo giro. Il "riscarica i falliti" di Radarr e Sonarr va spento (§9), altrimenti scelgono loro.
 - Radarr, Sonarr o un indexer non rispondono: il giro salta quel titolo e riprova al successivo; la scheda Download lo mostra.
 - Un titolo eliminato o smesso di monitorare in Radarr/Sonarr esce dal ciclo.
 
@@ -161,7 +172,7 @@ Nella configurazione c'è "Download automatici" (spento all'installazione). Spen
 
 ## 6. Da ripassare
 
-- Un elenco dei film e degli episodi già scaricati con punteggio **sotto l'obiettivo** del profilo (`moviefile`/`episodefile`), più quelli usciti dagli upgrade automatici dopo 30 giorni. Prima i punteggi più bassi, poi i file più grandi.
+- Un elenco dei film e degli episodi già scaricati con punteggio **sotto l'obiettivo** del profilo (`moviefile`/`episodefile`), più quelli usciti dagli upgrade automatici dopo 30 giorni. Prima i punteggi più bassi, poi i file più grandi. I profili anime non hanno un obiettivo, quindi i loro titoli non compaiono mai in "Da ripassare", nemmeno a fine finestra degli upgrade.
 - WonderFlix non ricerca da solo questi titoli. L'admin apre un titolo, vede la ricerca con la regola (§8.3) e decide. Un titolo sistemato, o che l'admin segna "va bene così", esce dall'elenco.
 - L'elenco si ricalcola una volta al giorno, non a ogni apertura (796 film e migliaia di episodi).
 - Le serie (mia scelta): una riga per serie, che si apre nelle stagioni. Ricerca, "scarica" e "va bene così" lavorano per stagione (ricerca della stagione, poi episodi singoli come in §5.4). Il punteggio della stagione è quello del suo episodio peggiore.
@@ -175,10 +186,11 @@ Nella pagina di configurazione del plugin, accanto a Sonarr e Radarr:
 - "Download automatici" acceso/spento (spento);
 - peso minimo in GB all'ora (0,8);
 - per ogni profilo di qualità di Radarr e Sonarr (letti dalle API): punteggio minimo per scaricare da solo e obiettivo per gli upgrade, con i valori di §4 e §5.3.
+- Si salva una regola solo per i profili che l'admin ha cambiato (o che ne avevano già una). Gli altri restano senza riga e valgono i valori predefiniti: profilo con "anime" nel nome, minimo 1 e nessun obiettivo; altrimenti minimo 50 e obiettivo 150. Le regole dei profili non mostrati (servizio giù) restano.
 
 ### 7.2 Client
 
-`IArrClient` aggiunge la ricerca manuale (`GET release`), il download di una release (`POST release`), i film disponibili senza file, gli episodi mancanti, i file con il loro punteggio, i profili di qualità, la cronologia dei falliti, la coda (`GET queue`, `DELETE queue/{id}`) e l'import manuale (`manualimport`). La ricerca ha un timeout suo, più lungo dei 10 s di oggi.
+`IArrClient` aggiunge la ricerca manuale (`GET release`), il download di una release (`POST release`), i film disponibili senza file, gli episodi mancanti, i file con il loro punteggio (`moviefile`, `episodefile`), i profili di qualità, l'episodio (`episode/{id}`), la coda (`GET queue`, `DELETE queue/{id}`) e l'import manuale (`manualimport`). La cronologia (`history`) non si usa (§5.3a). La ricerca ha un timeout suo, più lungo dei 10 s di oggi.
 
 ### 7.3 Servizio e dati
 
@@ -189,7 +201,7 @@ Nella pagina di configurazione del plugin, accanto a Sonarr e Radarr:
 
 - elenco "Scelte automatiche", "In attesa", "Serve te", "Da ripassare";
 - ricerca di un titolo con la regola applicata (risultato ordinato con i motivi);
-- scarica una release scelta dall'admin ("cambia" o ricerca a mano);
+- scarica una release scelta dall'admin ("cambia" o ricerca a mano). Oltre a 409 `Expired` (la release non c'è più), risponde 409 `Busy` (un altro download dello stesso titolo è in corso, dal giro o da un altro admin) e 503 `Unavailable` (Radarr o Sonarr non rispondono);
 - segna "va bene così";
 - forza una ricerca subito.
 

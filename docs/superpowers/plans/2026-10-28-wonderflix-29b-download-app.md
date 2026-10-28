@@ -28,9 +28,9 @@
 - App **0.23.0** (`pubspec.yaml`; se intanto 0.23.0 è uscita con un altro lavoro, la successiva libera, da segnalare).
 - **Funzione** `downloads` (`PluginFeatures.downloads`), letta come le altre in `SocialAvailability`; senza, la scheda non c'è.
 - **Scheda** `AdminTab.downloads`, tra `activity` e `wonderflix`; parametro dell'indirizzo `tab=downloads`.
-- **Endpoint e JSON:** esattamente quelli del piano 29a, "Global Constraints" (PascalCase, campi null ammessi ovunque). Lettura tollerante: un campo mancante o di tipo sbagliato non rompe la pagina, la riga si salta.
+- **Endpoint e JSON:** esattamente quelli del piano 29a, "Global Constraints" (PascalCase). Ogni campo che può essere null c'è sempre nel JSON, con valore `null` (il plugin lo forza); la lettura accetta comunque anche un campo mancante. Lettura tollerante: un campo mancante o di tipo sbagliato non rompe la pagina, la riga si salta.
 - **Ricerca:** `GET /WonderFlixWatchParty/Downloads/Search?key=` con `receiveTimeout` di **150 secondi** (il plugin aspetta Radarr/Sonarr fino a 2 minuti).
-- **Errori:** 400 → "Richiesta non valida"; 409 `Expired` → "Questa release non c'è più: ricerca di nuovo"; 401/403 → come le altre schede admin; rete → messaggio di rete. Codici `SonarrError`/`RadarrError` (`NotConfigured`, `Unauthorized`, `Unreachable`) con le etichette che ci sono già per il calendario, se ci sono; altrimenti nuove.
+- **Errori:** 400 → "Richiesta non valida"; 409 `Expired` → "Questa release non c'è più: ricerca di nuovo"; 409 `Busy` → "Un altro download di questo titolo è in corso: riprova tra poco"; 503 `Unavailable` → "Radarr o Sonarr non rispondono"; 401/403 → come le altre schede admin; rete → messaggio di rete. Codici `SonarrError`/`RadarrError` (`NotConfigured`, `Unauthorized`, `Unreachable`) con le etichette che ci sono già per il calendario, se ci sono; altrimenti nuove.
 - **Testi:** italiano e inglese in `l10n/app_it.arb` e `l10n/app_en.arb`, chiavi che iniziano con `downloads`. Si generano con `flutter gen-l10n`.
 - **Commit:** con l'identità git del repository; **mai** trailer `Co-Authored-By` né righe "Generated with…"; mai le parole `closes`, `fixes`, `resolves` (né simili) nei messaggi; messaggi in italiano.
 - **Processi:** mai terminarli per nome d'immagine (`taskkill /IM`, `Stop-Process -Name`, `pkill`); solo per PID.
@@ -98,14 +98,14 @@ Percorsi relativi ad `app/`, se non è detto altro.
 - Produces:
   - Modelli immutabili con `static X? fromJson(Map<String, dynamic>)` e `static List<X> listFromJson(Object?)` (righe non valide saltate): `DownloadRelease`, `DownloadChoice`, `DownloadItem`, `ReviewItem`, `DownloadsOverview`, `DownloadCandidate`, `DownloadRejected`, `DownloadCurrentFile`, `DownloadSearch`. Campi = quelli JSON del piano 29a in camelCase Dart (`sizeBytes`, `previousScore`, …); date `DateTime` UTC.
   - Enum con `fromWire(String?)` e un valore `unknown`: `DownloadKind { movie, episode, season, unknown }`, `DownloadState { waiting, downloading, upgradeWatch, needsYou, unknown }`, `DownloadReason { nothingFound, belowMinScore, importBlocked, searchFailed, unknown }`, `RejectedReason { arr, tooSmall, unknown }`.
-  - `enum DownloadsFailure { unavailable, invalid, forbidden, expired, network }`; `class DownloadsException implements Exception { final DownloadsFailure failure; }`.
+  - `enum DownloadsFailure { unavailable, invalid, forbidden, expired, busy, arrUnavailable, network }` (`unavailable` = 404, plugin senza la funzione; `busy` = 409 `Busy`; `arrUnavailable` = 503 `Unavailable`; il 409 si distingue dal `Reason` del corpo); `class DownloadsException implements Exception { final DownloadsFailure failure; }`.
   - `class DownloadsApi(JellyfinHttp http)`: `Future<DownloadsOverview> overview()`, `Future<DownloadSearch> search(String key, {CancelToken? cancelToken})`, `Future<void> grab(String key, String guid, int indexerId)`, `Future<void> accept(String key)`, `Future<void> searchNow(String key)`. `static const searchTimeout = Duration(seconds: 150)`.
   - `JellyfinHttp.get` impara `Duration? receiveTimeout`, come `post`.
   - `PluginFeatures.downloads = 'downloads'`; `SocialFeatures.downloads` (bool, falso di base).
 
 - [ ] **Step 1: test che falliscono:**
   - `download_models_test.dart`: `AnOverviewParses` (un JSON completo con una scelta, una voce `NeedsYou`/`BelowMinScore`, una riga da ripassare); `ASearchParses` (candidati, scarti con `TooSmall` e `Detail` `"0.57"`, `Current`); `ABrokenRowIsSkipped` (`SizeBytes` `"tanti"` in un candidato su tre → due); `UnknownValuesAreUnknown` (`State` `"Exploded"` → `unknown`).
-  - `downloads_api_test.dart` (con il finto `JellyfinHttp` dei test di `ReportsApi`): `SearchWaitsUpToTwoAndAHalfMinutes` (la GET di `Search` ha `receiveTimeout` 150 s e la chiave in `query`), `GrabPostsKeyGuidAndIndexer` (corpo `{"Key","Guid","IndexerId"}`), `ConflictIsExpired` (409 → `expired`), `NotFoundIsUnavailable` (404), `BadRequestIsInvalid` (400).
+  - `downloads_api_test.dart` (con il finto `JellyfinHttp` dei test di `ReportsApi`): `SearchWaitsUpToTwoAndAHalfMinutes` (la GET di `Search` ha `receiveTimeout` 150 s e la chiave in `query`), `GrabPostsKeyGuidAndIndexer` (corpo `{"Key","Guid","IndexerId"}`), `ConflictIsExpired` (409 → `expired`), `NotFoundIsUnavailable` (404), `BadRequestIsInvalid` (400), `BusyAndUnavailableAreMapped` (409 `Busy` → `busy`, 503 `Unavailable` → `arrUnavailable`).
   - Test di `SocialAvailability`: `downloads` vero quando `Info.Features` lo contiene.
 - [ ] **Step 2: i test falliscono.**
 - [ ] **Step 3: il codice**, sul modello di `ReportsApi`.
