@@ -75,6 +75,9 @@ public sealed class DownloadEntry
 
     public int ProfileId { get; set; }
 
+    /// <summary>Il nome del profilo all'ultima scelta: serve all'obiettivo quando il file arriva.</summary>
+    public string? ProfileName { get; set; }
+
     public int RuntimeMinutes { get; set; }
 }
 

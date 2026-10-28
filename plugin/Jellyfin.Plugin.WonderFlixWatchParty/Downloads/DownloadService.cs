@@ -12,12 +12,12 @@ public sealed record CycleReport(int Searched, int Grabbed, string? SonarrError,
 }
 
 /// <summary>
-/// I download automatici (spec T §5): il giro che sceglie i titoli da seguire e
-/// segue la coda di Radarr e Sonarr. Stato in <see cref="DownloadBook"/>, su disco con
-/// <see cref="DownloadStore"/>. Sicuro tra thread: il libro sta sotto un lock che
-/// non resta mai preso durante una chiamata a Radarr o Sonarr.
+/// I download automatici (spec T §5): il giro che sceglie i titoli da seguire,
+/// segue la coda di Radarr e Sonarr e cerca quelli che mancano (DownloadService.Search.cs).
+/// Stato in <see cref="DownloadBook"/>, su disco con <see cref="DownloadStore"/>. Sicuro tra
+/// thread: il libro sta sotto un lock che non resta mai preso durante una chiamata a Radarr o Sonarr.
 /// </summary>
-public sealed class DownloadService(
+public sealed partial class DownloadService(
     IArrClient arr,
     IArrSettings arrSettings,
     IDownloadSettings settings,
@@ -111,19 +111,20 @@ public sealed class DownloadService(
 
         var now = time.GetUtcNow();
         var stalled = new List<(ArrKind Kind, int QueueId, string Key)>();
+        var views = new Dictionary<ArrKind, ArrView>();
         lock (_lock)
         {
-            if (radarr.View is { } movies)
+            if (radarr.Value is { } movies)
             {
                 Apply(ArrKind.Radarr, movies, now, stalled);
+                views[ArrKind.Radarr] = movies;
             }
 
-            if (sonarr.View is { } episodes)
+            if (sonarr.Value is { } episodes)
             {
                 Apply(ArrKind.Sonarr, episodes, now, stalled);
+                views[ArrKind.Sonarr] = episodes;
             }
-
-            _lastErrors = (sonarr.Error, radarr.Error);
         }
 
         foreach (var (kind, queueId, key) in stalled)
@@ -131,15 +132,19 @@ public sealed class DownloadService(
             await RemoveStalledAsync(kind, queueId, key, cancellationToken).ConfigureAwait(false);
         }
 
+        var errors = new Dictionary<ArrKind, string?> { [ArrKind.Radarr] = radarr.Error, [ArrKind.Sonarr] = sonarr.Error };
+        var (searched, grabbed) = await SearchDueAsync(views, errors, cancellationToken).ConfigureAwait(false);
+
         lock (_lock)
         {
+            _lastErrors = (errors[ArrKind.Sonarr], errors[ArrKind.Radarr]);
             Book.Prune(now);
 
             // Sotto il lock come gli altri store: il libro non è sicuro tra thread e la scrittura è breve.
             store.Save(Book);
         }
 
-        return new CycleReport(0, 0, sonarr.Error, radarr.Error);
+        return new CycleReport(searched, grabbed, errors[ArrKind.Sonarr], errors[ArrKind.Radarr]);
     }
 
     // Quello che un servizio dice di un titolo, già nella forma di una voce.
@@ -151,6 +156,7 @@ public sealed class DownloadService(
         int ProfileId,
         int RuntimeMinutes,
         DateTimeOffset? AvailableSince,
+        bool Monitored,
         bool Followed,
         bool Wanted,
         bool HasFile);
@@ -163,8 +169,9 @@ public sealed class DownloadService(
         string EntryKind,
         bool AbsentHasFile);
 
-    private async Task<(ArrView? View, string? Error)> ReadAsync(
-        ArrKind kind, Func<CancellationToken, Task<ArrView>> read, CancellationToken cancellationToken)
+    private async Task<(T? Value, string? Error)> ReadAsync<T>(
+        ArrKind kind, Func<CancellationToken, Task<T>> read, CancellationToken cancellationToken)
+        where T : class
     {
         if (!arrSettings.Endpoint(kind).IsConfigured)
         {
@@ -201,6 +208,7 @@ public sealed class DownloadService(
                 m.QualityProfileId,
                 m.Runtime,
                 null,
+                m.Monitored,
                 Followed: m.Monitored && !m.HasFile,
                 Wanted: m.Monitored && !m.HasFile && m.IsAvailable,
                 m.HasFile));
@@ -225,6 +233,7 @@ public sealed class DownloadService(
                 e.Series?.QualityProfileId ?? 0,
                 e.Series?.Runtime ?? 0,
                 e.AirDateUtc,
+                e.Monitored,
                 Followed: e.Monitored,
                 Wanted: e.Monitored && e.AirDateUtc <= now,
                 HasFile: false));
@@ -269,11 +278,18 @@ public sealed class DownloadService(
         foreach (var entry in Book.Entries.Where(e => e.Kind == view.EntryKind && !view.Queue.ContainsKey(e.Key)))
         {
             var title = view.Titles.GetValueOrDefault(entry.Key);
-            if (entry.QueueId is not null)
+
+            // Scaricata da WonderFlix ma non ancora vista in coda.
+            var grabbed = entry.QueueId is null && entry.State == DownloadStates.Downloading;
+            if (entry.QueueId is not null || grabbed)
             {
                 if (title is null ? view.AbsentHasFile : title.HasFile)
                 {
                     OnImported(entry, now);
+                }
+                else if (grabbed && entry.LastSearchAt is { } grabbedAt && now - grabbedAt < CycleInterval)
+                {
+                    // Radarr/Sonarr non l'hanno ancora messa in coda: riscaricarla farebbe due copie.
                 }
                 else if (title?.Followed != true)
                 {
@@ -288,6 +304,13 @@ public sealed class DownloadService(
             }
             else if (entry.State is DownloadStates.Waiting or DownloadStates.NeedsYou && title?.Followed != true)
             {
+                Book.Remove(entry.Key);
+            }
+            else if (entry.State == DownloadStates.UpgradeWatch
+                && (now >= entry.UpgradeUntil || (title is null ? !view.AbsentHasFile : !title.Monitored)))
+            {
+                // Finestra chiusa (lo riprende "Da ripassare"), o titolo tolto o non monitorato.
+                // Un episodio col file non è tra i mancanti: si segue fino a UpgradeUntil.
                 Book.Remove(entry.Key);
             }
         }
@@ -319,11 +342,27 @@ public sealed class DownloadService(
             && now - since >= DownloadSchedule.StalledAfter;
     }
 
-    // Solo sotto _lock. Il file è arrivato: per ora la voce esce.
+    // Solo sotto _lock. Il file è arrivato: sotto l'obiettivo (o senza) si tengono d'occhio gli upgrade (spec T §5.3).
     private void OnImported(DownloadEntry entry, DateTimeOffset now)
     {
-        Book.Remove(entry.Key);
         logger.LogInformation("Download automatici: {Key} importato", entry.Key);
+        var target = settings.For(ServiceOf(entry.Kind), entry.ProfileId, entry.ProfileName).TargetScore;
+
+        // CurrentScore c'è solo per una scelta di WonderFlix: gli altri download non hanno upgrade (spec T §11).
+        if (entry.CurrentScore is not { } score || score >= target)
+        {
+            Book.Remove(entry.Key);
+            return;
+        }
+
+        var chosenAt = LatestChoice(entry.Key)?.At ?? now;
+        entry.State = DownloadStates.UpgradeWatch;
+        entry.Reason = null;
+        entry.QueueId = null;
+        entry.LastSizeLeft = null;
+        entry.LastProgressAt = null;
+        entry.UpgradeUntil = chosenAt + DownloadSchedule.UpgradeWindow;
+        entry.NextSearchAt = DownloadSchedule.Next(chosenAt, now);
     }
 
     // Solo sotto _lock. Radarr/Sonarr non riescono a importare: serve l'admin.
@@ -342,7 +381,7 @@ public sealed class DownloadService(
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             // La voce resta com'è: il prossimo giro ci riprova.
-            logger.LogWarning("Download automatici: {Key} fermo, {Kind} non l'ha tolto dalla coda ({Error})", key, kind, ex is ArrException arrError ? arrError.Error : ex.GetType().Name);
+            logger.LogWarning("Download automatici: {Key} fermo, {Kind} non l'ha tolto dalla coda ({Error})", key, kind, ErrorOf(ex));
             return;
         }
 
@@ -388,17 +427,27 @@ public sealed class DownloadService(
         entry.LastSizeLeft = null;
         entry.LastProgressAt = null;
         entry.NextSearchAt = now;
+
+        // Il file non è arrivato: la scelta non conta più per gli upgrade.
+        entry.CurrentScore = null;
+        entry.CurrentQualityId = null;
     }
 
     private static string Key(string kind, int id) => new DownloadKey(kind, id, 0).ToString();
+
+    private static ArrKind ServiceOf(string kind) => kind == DownloadKinds.Movie ? ArrKind.Radarr : ArrKind.Sonarr;
+
+    // Solo il codice, mai il messaggio: può contenere indirizzi o query.
+    private static string ErrorOf(Exception ex) => ex is ArrException arrError ? arrError.Error.ToString() : ex.GetType().Name;
 
     private static string? Poster(List<ArrImage?>? images) =>
         images?.FirstOrDefault(i => string.Equals(i?.CoverType, "poster", StringComparison.OrdinalIgnoreCase))?.RemoteUrl;
 
     // Il primo per chiave: un doppione nella risposta non deve far saltare il giro.
-    private static Dictionary<string, T> ByKey<T>(IEnumerable<T> items, Func<T, string> key)
+    private static Dictionary<TKey, T> ByKey<TKey, T>(IEnumerable<T> items, Func<T, TKey> key)
+        where TKey : notnull
     {
-        var result = new Dictionary<string, T>();
+        var result = new Dictionary<TKey, T>();
         foreach (var item in items)
         {
             result.TryAdd(key(item), item);

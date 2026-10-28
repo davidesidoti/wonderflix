@@ -3,6 +3,7 @@ using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Xunit;
+using static Jellyfin.Plugin.WonderFlixWatchParty.Tests.DownloadTestData;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
 
@@ -39,36 +40,6 @@ public sealed class DownloadServiceCycleTests : IDisposable
     // Lo stato salvato a fine giro: i test guardano downloads.json.
     private DownloadEntry? Saved(string key) => Store().Load().Get(key);
 
-    private static RadarrMovie Movie(int id, bool monitored = true, bool available = true, bool hasFile = false) => new()
-    {
-        Id = id,
-        Title = "Dune",
-        Year = 2021,
-        Runtime = 155,
-        Monitored = monitored,
-        IsAvailable = available,
-        HasFile = hasFile,
-        QualityProfileId = 4,
-        Images = [new ArrImage { CoverType = "fanart", RemoteUrl = "https://img.example/fanart.jpg" }, new ArrImage { CoverType = "Poster", RemoteUrl = "https://img.example/poster.jpg" }],
-    };
-
-    private static SonarrEpisode Episode(int id, DateTimeOffset? airDate, bool monitored = true) => new()
-    {
-        Id = id,
-        SeriesId = 7,
-        SeasonNumber = 2,
-        EpisodeNumber = 5,
-        AirDateUtc = airDate,
-        Monitored = monitored,
-        Series = new SonarrSeries { Title = "Severance", Runtime = 50, QualityProfileId = 6, Images = [new ArrImage { CoverType = "poster", RemoteUrl = "https://img.example/sev.jpg" }] },
-    };
-
-    private static ArrQueueItem MovieQueue(int queueId, int movieId, long sizeLeft, string state = "downloading", string status = "downloading") =>
-        new() { Id = queueId, MovieId = movieId, Size = 10_000, Sizeleft = sizeLeft, TrackedDownloadState = state, Status = status };
-
-    private static ArrQueueItem EpisodeQueue(int queueId, int episodeId, long sizeLeft) =>
-        new() { Id = queueId, EpisodeId = episodeId, SeriesId = 7, SeasonNumber = 2, Size = 10_000, Sizeleft = sizeLeft, TrackedDownloadState = "downloading", Status = "downloading" };
-
     [Fact]
     public async Task ADisabledServiceDoesNothing()
     {
@@ -88,10 +59,11 @@ public sealed class DownloadServiceCycleTests : IDisposable
 
         var report = await _service.RunCycleAsync(CancellationToken.None);
 
-        Assert.Equal(new CycleReport(0, 0, null, null), report);
+        // Il titolo si cerca nello stesso giro (nessuna release nel fake).
+        Assert.Equal(new CycleReport(1, 0, null, null), report);
         var entry = Saved("movie:12")!;
         Assert.Equal((DownloadKinds.Movie, "Dune (2021)", "https://img.example/poster.jpg"), (entry.Kind, entry.Title, entry.PosterUrl));
-        Assert.Equal((DownloadStates.Waiting, (string?)null, T0, (DateTimeOffset?)T0), (entry.State, entry.Reason, entry.AvailableSince, entry.NextSearchAt));
+        Assert.Equal((DownloadStates.Waiting, (string?)null, T0, (DateTimeOffset?)T0), (entry.State, entry.Reason, entry.AvailableSince, entry.LastSearchAt));
         Assert.Equal((4, 155), (entry.ProfileId, entry.RuntimeMinutes));
 
         // Il giro dopo non la ricrea: la data è quella della prima volta.
@@ -130,7 +102,7 @@ public sealed class DownloadServiceCycleTests : IDisposable
 
         var entry = Saved("episode:34")!;
         Assert.Equal((DownloadKinds.Episode, "Severance · S02E05", "https://img.example/sev.jpg"), (entry.Kind, entry.Title, entry.PosterUrl));
-        Assert.Equal((DownloadStates.Waiting, aired, (DateTimeOffset?)T0), (entry.State, entry.AvailableSince, entry.NextSearchAt));
+        Assert.Equal((DownloadStates.Waiting, aired, (DateTimeOffset?)T0), (entry.State, entry.AvailableSince, entry.LastSearchAt));
         Assert.Equal((6, 50), (entry.ProfileId, entry.RuntimeMinutes));
     }
 
@@ -199,7 +171,7 @@ public sealed class DownloadServiceCycleTests : IDisposable
 
         Assert.Equal((ArrKind.Radarr, 90, true), Assert.Single(_arr.RemoveFromQueueCalls));
         var entry = Saved("movie:12")!;
-        Assert.Equal((DownloadStates.Waiting, (int?)null, (DateTimeOffset?)_time.GetUtcNow()), (entry.State, entry.QueueId, entry.NextSearchAt));
+        Assert.Equal((DownloadStates.Waiting, (int?)null, (DateTimeOffset?)_time.GetUtcNow()), (entry.State, entry.QueueId, entry.LastSearchAt));
     }
 
     [Theory]
@@ -252,7 +224,7 @@ public sealed class DownloadServiceCycleTests : IDisposable
         await _service.RunCycleAsync(CancellationToken.None);
 
         var entry = Saved("movie:12")!;
-        Assert.Equal((DownloadStates.Waiting, (int?)null, (long?)null, (DateTimeOffset?)_time.GetUtcNow()), (entry.State, entry.QueueId, entry.LastSizeLeft, entry.NextSearchAt));
+        Assert.Equal((DownloadStates.Waiting, (int?)null, (long?)null, (DateTimeOffset?)_time.GetUtcNow()), (entry.State, entry.QueueId, entry.LastSizeLeft, entry.LastSearchAt));
         Assert.Empty(_arr.RemoveFromQueueCalls);
     }
 
