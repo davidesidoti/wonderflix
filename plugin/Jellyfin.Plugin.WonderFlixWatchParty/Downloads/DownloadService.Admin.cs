@@ -107,20 +107,22 @@ public sealed partial class DownloadService
             }
         }
 
+        // Le chiavi tenute da questo grab: quella dell'admin e, per un singolo da una ricerca di stagione, quella dell'episodio.
+        List<string> guarded = [parsed.ToString()];
         try
         {
-            return await GrabGuardedAsync(parsed, guid, indexerId, cancellationToken).ConfigureAwait(false);
+            return await GrabGuardedAsync(parsed, guid, indexerId, guarded, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
             lock (_lock)
             {
-                _grabbing.Remove(parsed.ToString());
+                guarded.ForEach(k => _grabbing.Remove(k));
             }
         }
     }
 
-    private async Task<GrabOutcome> GrabGuardedAsync(DownloadKey parsed, string guid, int indexerId, CancellationToken cancellationToken)
+    private async Task<GrabOutcome> GrabGuardedAsync(DownloadKey parsed, string guid, int indexerId, List<string> guarded, CancellationToken cancellationToken)
     {
         var service = ServiceOf(parsed.Kind);
         AdminSearch? search;
@@ -158,6 +160,20 @@ public sealed partial class DownloadService
             // Prima si toglie il download di prima, così non arrivano due copie (spec T §8.2); per un singolo da una
             // ricerca di stagione anche quello del suo episodio.
             var target = GrabTargetOf(search, release, time.GetUtcNow());
+            if (!guarded.Contains(target.Title.Key))
+            {
+                lock (_lock)
+                {
+                    // Il giro sta scaricando quell'episodio: come per la chiave dell'admin (ruling 8).
+                    if (!_grabbing.Add(target.Title.Key))
+                    {
+                        return GrabOutcome.Busy;
+                    }
+                }
+
+                guarded.Add(target.Title.Key);
+            }
+
             if (!oldRemoved
                 && (!await RemoveOldDownloadAsync(parsed, service, cancellationToken).ConfigureAwait(false)
                     || (target.Title.Key != parsed.ToString()
@@ -534,6 +550,16 @@ public sealed partial class DownloadService
             if (target.Title.Key != search.Title.Key && Book.Get(search.Title.Key) is { State: not DownloadStates.UpgradeWatch })
             {
                 Book.Remove(search.Title.Key);
+            }
+
+            // Un pack: gli episodi che copre e che aspettano escono subito, così un giro in corso non li scarica; quelli che
+            // scaricano o tengono d'occhio un upgrade restano.
+            foreach (var episode in (search.Episodes ?? []).Where(e => target.EpisodeNumbers?.Contains(e.EpisodeNumber) == true))
+            {
+                if (Book.Get(Key(DownloadKinds.Episode, episode.Id)) is { State: DownloadStates.Waiting or DownloadStates.NeedsYou } waiting)
+                {
+                    Book.Remove(waiting.Key);
+                }
             }
 
             // Subito su disco, come dopo un grab del giro.

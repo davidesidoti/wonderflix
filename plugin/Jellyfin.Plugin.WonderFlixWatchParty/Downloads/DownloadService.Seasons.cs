@@ -143,7 +143,9 @@ public sealed partial class DownloadService
 
             if (seasonQueue.TryGetValue(key, out var records))
             {
-                records = mine is null ? records : [.. records.Where(r => r.EpisodeId is not > 0 || mine.Contains(Key(DownloadKinds.Episode, r.EpisodeId.Value)))];
+                // Il download di un episodio con una voce sua (per esempio un singolo dell'admin) resta dell'episodio.
+                records = [.. records.Where(r => r.EpisodeId is not > 0
+                    || (Book.Get(Key(DownloadKinds.Episode, r.EpisodeId.Value)) is null && (mine is null || mine.Contains(Key(DownloadKinds.Episode, r.EpisodeId.Value)))))];
                 if (records.Count == 0)
                 {
                     continue;

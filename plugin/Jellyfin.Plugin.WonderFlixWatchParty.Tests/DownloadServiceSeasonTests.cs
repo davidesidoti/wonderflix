@@ -362,6 +362,87 @@ public sealed class DownloadServiceSeasonTests : IDisposable
     }
 
     [Fact]
+    public async Task AnAdminSingleOnASeasonInUpgradeWatchKeepsItsDownload()
+    {
+        // La stagione tiene d'occhio gli upgrade con i tre file del pack (50 punti); la sua ricerca trova un singolo di e2 da 150.
+        await GrabAndImportPack();
+        foreach (var episode in _seriesEpisodes)
+        {
+            (episode!.HasFile, episode.EpisodeFileId) = (true, 800 + episode.EpisodeNumber);
+        }
+
+        _arr.Series = () => Task.FromResult<IReadOnlyList<SonarrSeries?>>([new SonarrSeries { Id = 7, Title = "Severance", Runtime = 50, QualityProfileId = 6 }]);
+        _arr.EpisodeFiles = _ => Task.FromResult<IReadOnlyList<ArrFile?>>([SeasonFile(801, 2, 50), SeasonFile(802, 2, 50), SeasonFile(803, 2, 50)]);
+        _releases = [Single("e2", 2, 1, 150)];
+        await _service.SearchAsync("season:7:2", CancellationToken.None);
+        Assert.Equal(GrabOutcome.Ok, await _service.GrabAsync("season:7:2", "e2", 1, CancellationToken.None));
+        _releases = [];
+        Assert.Equal((DownloadStates.Downloading, (int?)50), (Saved("episode:202")!.State, Saved("episode:202")!.PreviousScore));
+        Assert.Equal(DownloadStates.UpgradeWatch, Saved("season:7:2")!.State);
+
+        // Il download in coda è dell'episodio, non della stagione.
+        _time.Advance(DownloadService.CycleInterval);
+        _sonarrQueue = [EpisodeQueue(94, 202, 5_000)];
+        await Cycle();
+        Assert.Equal((DownloadStates.Downloading, (int?)94), (Saved("episode:202")!.State, Saved("episode:202")!.QueueId));
+        Assert.Equal(DownloadStates.UpgradeWatch, Saved("season:7:2")!.State);
+
+        // Importato: il file nuovo da 150 conferma l'upgrade (all'obiettivo, la voce esce), niente ritorno al punteggio vecchio.
+        _seriesEpisodes[1]!.EpisodeFileId = 902;
+        _arr.EpisodeFiles = _ => Task.FromResult<IReadOnlyList<ArrFile?>>([SeasonFile(801, 2, 50), SeasonFile(902, 2, 150), SeasonFile(803, 2, 50)]);
+        _time.Advance(DownloadService.CycleInterval);
+        _sonarrQueue = [];
+        await Cycle();
+        Assert.Null(Saved("episode:202"));
+        Assert.Equal(DownloadStates.UpgradeWatch, Saved("season:7:2")!.State);
+        Assert.Single(_arr.GrabCalls, c => c.Guid == "e2");
+    }
+
+    [Fact]
+    public async Task AnAdminSingleInFlightIsNotGrabbedByTheCycle()
+    {
+        // Il singolo e5 si trova anche con la ricerca dell'episodio.
+        PartlyDownloadedSeason();
+        var pack = Release("p34", WebRip1080, "WEBRip-1080p", 3, 50);
+        (pack.EpisodeNumbers, pack.SeasonNumber) = ([3, 4], 2);
+        _arr.Releases = (_, query) => Task.FromResult<IReadOnlyList<ArrRelease?>>(
+            query.StartsWith("seriesId", StringComparison.Ordinal) ? [pack, Single("e5", 5, 1, 150)]
+            : query == "episodeId=205" ? [Single("e5", 5, 1, 150)]
+            : []);
+        await _service.SearchAsync("season:7:2", CancellationToken.None);
+        var adminGrab = new TaskCompletionSource();
+        var grabs = 0;
+        _arr.Grab = (_, _, _) => grabs++ == 0 ? adminGrab.Task : Task.CompletedTask;
+        var admin = _service.GrabAsync("season:7:2", "e5", 1, CancellationToken.None);
+
+        // Il giro arriva al grab di episode:205 mentre l'admin lo sta scaricando: lo salta (ruling 8).
+        await Cycle().WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Single(_arr.GrabCalls);
+
+        adminGrab.SetResult();
+        Assert.Equal(GrabOutcome.Ok, await admin);
+        Assert.Equal(DownloadStates.Downloading, Saved("episode:205")!.State);
+        Assert.True(Store().Load().Choices.Single(c => c.Key == "episode:205").ByAdmin);
+    }
+
+    [Fact]
+    public async Task AnAdminPackRemovesTheWaitingEpisodesItCovers()
+    {
+        // 3, 5 e 6 voci in attesa, 4 già in coda; l'admin scarica il pack di 3-4 senza una voce di stagione.
+        PartlyDownloadedSeason();
+        _sonarrQueue = [EpisodeQueue(80, 204, 5_000)];
+        await Cycle();
+        Assert.Equal(["episode:203", "episode:204", "episode:205", "episode:206"], SavedKeys());
+        Assert.Equal(DownloadStates.Downloading, Saved("episode:204")!.State);
+
+        await _service.SearchAsync("season:7:2", CancellationToken.None);
+        Assert.Equal(GrabOutcome.Ok, await _service.GrabAsync("season:7:2", "p34", 1, CancellationToken.None));
+
+        // Subito, non al giro dopo: un giro in corso non scarica più l'episodio 3; il 4 che scarica resta.
+        Assert.Equal(["episode:204", "episode:205", "episode:206", "season:7:2"], SavedKeys());
+    }
+
+    [Fact]
     public async Task AFailedPackStaysASeason()
     {
         WholeSeason();
