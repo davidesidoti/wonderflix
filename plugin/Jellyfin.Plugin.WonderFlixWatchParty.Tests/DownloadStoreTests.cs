@@ -50,6 +50,21 @@ public sealed class DownloadStoreTests : IDisposable
         Assert.False(File.Exists(_folder.DownloadsFile));
     }
 
+    [Theory]
+    [InlineData("""{"Version":1,"Entries":[{"Key":null}]}""")]
+    [InlineData("""{"Version":1,"Entries":[{"Key":""}]}""")]
+    [InlineData("""{"Version":1,"Entries":null}""")]
+    [InlineData("""{"Version":1,"Entries":[null]}""")]
+    [InlineData("""{"Version":1,"Accepted":[null]}""")]
+    public void AnInvalidFileStartsEmpty(string json)
+    {
+        WriteRaw(json);
+
+        Assert.Empty(Store().Load().Entries);
+        Assert.True(File.Exists(_folder.DownloadsFile + ".bad"));
+        Assert.False(File.Exists(_folder.DownloadsFile));
+    }
+
     [Fact]
     public void AFutureVersionStartsEmpty()
     {

@@ -139,7 +139,7 @@ public sealed class DownloadBook
     /// <summary>Dalla più recente.</summary>
     public IReadOnlyList<DownloadChoice> Choices => [.. _choices.OrderByDescending(c => c.At)];
 
-    public IReadOnlyList<ReviewItem> Review => _review;
+    public IReadOnlyList<ReviewItem> Review => [.. _review];
 
     public DateTimeOffset? ReviewAt { get; private set; }
 
@@ -182,6 +182,12 @@ public sealed class DownloadBook
         var book = new DownloadBook();
         foreach (var entry in Required(file.Entries))
         {
+            // La chiave indicizza il dizionario: una voce senza chiave è un file rovinato.
+            if (string.IsNullOrEmpty(entry.Key))
+            {
+                throw new FormatException("voce senza chiave");
+            }
+
             book.Put(entry);
         }
 
