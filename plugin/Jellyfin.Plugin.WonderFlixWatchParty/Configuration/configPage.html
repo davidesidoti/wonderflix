@@ -626,6 +626,7 @@
                     }).then(function (saved) {
                         Dashboard.processPluginConfigurationUpdateResult(saved);
                         loadArr();
+                        loadDownloads();
                     }, function () {
                         Dashboard.hideLoadingMsg();
                         arrResult.textContent = 'Settings not saved.';
@@ -673,12 +674,20 @@
                     dlProfiles.textContent = text;
                 }
 
-                function dlInput(value) {
+                // Campi semplici: emby-input vuole un'etichetta flottante e non sta in una cella di tabella.
+                function dlInput(value, label) {
                     var input = document.createElement('input');
                     input.type = 'number';
                     input.step = '1';
+                    input.setAttribute('aria-label', label);
                     input.value = value === undefined || value === null ? '' : value;
                     return input;
+                }
+
+                function dlFindRule(rules, service, profileId) {
+                    return rules.filter(function (r) {
+                        return r.Service === service && r.ProfileId === profileId;
+                    })[0];
                 }
 
                 function dlTable(profiles, rules) {
@@ -689,17 +698,24 @@
                     });
                     var body = table.createTBody();
                     dlRows = profiles.map(function (profile) {
-                        var rule = rules.filter(function (r) {
-                            return r.Service === profile.Service && r.ProfileId === profile.ProfileId;
-                        })[0] || profile;
+                        var saved = dlFindRule(rules, profile.Service, profile.ProfileId);
+                        var rule = saved || profile;
                         var row = body.insertRow();
                         row.insertCell().textContent = profile.Service;
                         row.insertCell().textContent = profile.Name;
-                        var min = dlInput(rule.MinScore);
-                        var target = dlInput(rule.TargetScore);
+                        var min = dlInput(rule.MinScore, profile.Name + ' minimum score');
+                        var target = dlInput(rule.TargetScore, profile.Name + ' target score');
                         row.insertCell().appendChild(min);
                         row.insertCell().appendChild(target);
-                        return { service: profile.Service, profileId: profile.ProfileId, min: min, target: target };
+                        return {
+                            service: profile.Service,
+                            profileId: profile.ProfileId,
+                            min: min,
+                            target: target,
+                            hadRule: !!saved,
+                            loadedMin: rule.MinScore,
+                            loadedTarget: rule.TargetScore === undefined ? null : rule.TargetScore
+                        };
                     });
                     dlProfiles.textContent = '';
                     dlProfiles.appendChild(table);
@@ -744,15 +760,23 @@
                         var gb = parseFloat(dlMinGb.value);
                         config.DownloadsMinGbPerHour = isNaN(gb) ? config.DownloadsMinGbPerHour : gb;
                         if (dlRows !== null) {
-                            config.DownloadProfileRules = dlRows.map(function (row) {
-                                var target = parseInt(row.target.value, 10);
-                                return {
-                                    Service: row.service,
-                                    ProfileId: row.profileId,
-                                    MinScore: numberIn(row.min, 0),
-                                    TargetScore: isNaN(target) ? null : target
-                                };
+                            // Si parte dalle regole salvate: quelle di un profilo senza riga (l'altro servizio non risponde) restano.
+                            // Una riga si scrive solo se il profilo aveva gia' una regola o l'admin ha cambiato i valori:
+                            // le soglie predefinite non si congelano.
+                            var rules = (config.DownloadProfileRules || []).filter(function (r) {
+                                return !dlRows.some(function (row) {
+                                    return row.service === r.Service && row.profileId === r.ProfileId;
+                                });
                             });
+                            dlRows.forEach(function (row) {
+                                var min = numberIn(row.min, row.loadedMin);
+                                var target = parseInt(row.target.value, 10);
+                                target = isNaN(target) ? null : target;
+                                if (row.hadRule || min !== row.loadedMin || target !== row.loadedTarget) {
+                                    rules.push({ Service: row.service, ProfileId: row.profileId, MinScore: min, TargetScore: target });
+                                }
+                            });
+                            config.DownloadProfileRules = rules;
                         }
                         return ApiClient.updatePluginConfiguration(pluginId, config);
                     }).then(function (saved) {
