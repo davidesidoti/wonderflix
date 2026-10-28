@@ -59,4 +59,10 @@ public interface IArrClient
 
     /// <summary>Gli indexer, con la priorità (numero più basso = preferito) (spec T §2).</summary>
     Task<IReadOnlyList<ArrIndexer?>> GetIndexersAsync(ArrKind kind, CancellationToken cancellationToken);
+
+    /// <summary>I file di un download come li vede la schermata di import manuale, anche già importati (decisione 9).</summary>
+    Task<IReadOnlyList<ArrManualImportItem?>> GetManualImportAsync(ArrKind kind, string downloadId, CancellationToken cancellationToken);
+
+    /// <summary>Importa questi file al posto di quelli che ci sono, come l'import manuale di Radarr/Sonarr (decisione 9).</summary>
+    Task ManualImportAsync(ArrKind kind, IReadOnlyList<ArrManualImportItem> items, CancellationToken cancellationToken);
 }

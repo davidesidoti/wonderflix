@@ -122,7 +122,7 @@ public sealed class RadarrMovie
     public ArrFileRef? MovieFile { get; set; }
 }
 
-/// <summary>Il riferimento a un file dentro un film di Radarr (spec T §2).</summary>
+/// <summary>Un oggetto di cui serve solo l'id: il file di un film, il film, la serie o un episodio di <c>manualimport</c> (spec T §2).</summary>
 public sealed class ArrFileRef
 {
     public int Id { get; set; }
@@ -246,6 +246,40 @@ public sealed class ArrFile
     public long Size { get; set; }
 
     public ArrQualityModel? Quality { get; set; }
+}
+
+/// <summary>
+/// Un file di <c>manualimport</c> (decisione 9; campi verificati su Radarr e Sonarr il 2026-10-28). Quality e Languages
+/// restano JSON: si rimandano uguali nel comando ManualImport.
+/// </summary>
+public sealed class ArrManualImportItem
+{
+    public string? Path { get; set; }
+
+    public JsonElement? Quality { get; set; }
+
+    public JsonElement? Languages { get; set; }
+
+    public string? ReleaseGroup { get; set; }
+
+    public string? DownloadId { get; set; }
+
+    /// <summary>Solo Radarr: il film riconosciuto; null se Radarr non l'ha riconosciuto.</summary>
+    public ArrFileRef? Movie { get; set; }
+
+    /// <summary>Solo Sonarr.</summary>
+    public ArrFileRef? Series { get; set; }
+
+    /// <summary>Solo Sonarr: gli episodi del file.</summary>
+    public List<ArrFileRef?>? Episodes { get; set; }
+
+    public List<ArrRejection?>? Rejections { get; set; }
+}
+
+/// <summary>Un motivo per cui Radarr/Sonarr non importerebbero un file di <c>manualimport</c> (decisione 9).</summary>
+public sealed class ArrRejection
+{
+    public string? Reason { get; set; }
 }
 
 /// <summary>Un indexer; Priority più bassa = preferito (spec T §2).</summary>

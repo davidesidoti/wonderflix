@@ -333,6 +333,9 @@ public sealed partial class DownloadService
         entry.CurrentQualityId = quality?.Id;
         entry.CurrentSizeBytes = choice.Size;
         entry.ProfileName = profileName;
+
+        // Solo per la release dell'admin che lo chiede (GrabbedByAdmin): un download nuovo non eredita quello di prima.
+        entry.ManualImportPending = false;
     }
 
     // Un upgrade uscito dalla coda: il file da rileggere (film: id del file; episodio: serie ed episodio; stagione: serie e stagione).

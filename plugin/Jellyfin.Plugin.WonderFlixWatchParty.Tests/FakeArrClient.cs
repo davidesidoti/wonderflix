@@ -280,4 +280,33 @@ internal sealed class FakeArrClient : IArrClient
 
         return Indexers(kind);
     }
+
+    public Func<ArrKind, string, Task<IReadOnlyList<ArrManualImportItem?>>> ManualImportItems { get; set; } =
+        (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>([]);
+
+    public Func<ArrKind, IReadOnlyList<ArrManualImportItem>, Task> ManualImport { get; set; } = (_, _) => Task.CompletedTask;
+
+    public List<(ArrKind Kind, string DownloadId)> ManualImportReadCalls { get; } = [];
+
+    public List<(ArrKind Kind, IReadOnlyList<ArrManualImportItem> Items)> ManualImportCalls { get; } = [];
+
+    public Task<IReadOnlyList<ArrManualImportItem?>> GetManualImportAsync(ArrKind kind, string downloadId, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            ManualImportReadCalls.Add((kind, downloadId));
+        }
+
+        return ManualImportItems(kind, downloadId);
+    }
+
+    public Task ManualImportAsync(ArrKind kind, IReadOnlyList<ArrManualImportItem> items, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            ManualImportCalls.Add((kind, items));
+        }
+
+        return ManualImport(kind, items);
+    }
 }

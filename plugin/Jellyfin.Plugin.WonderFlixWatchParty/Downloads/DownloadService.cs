@@ -112,19 +112,20 @@ public sealed partial class DownloadService(
         var now = time.GetUtcNow();
         var stalled = new List<(ArrKind Kind, int QueueId, string Key)>();
         var checks = new List<UpgradeCheck>();
+        var imports = new List<ManualImport>();
         var views = new Dictionary<ArrKind, ArrView>();
         lock (_lock)
         {
             if (radarr.Value is { } movies)
             {
-                Apply(ArrKind.Radarr, movies, now, stalled, checks);
+                Apply(ArrKind.Radarr, movies, now, stalled, checks, imports);
                 views[ArrKind.Radarr] = movies;
             }
 
             if (sonarr.Value is { } episodes)
             {
                 var view = GroupSeasons(episodes, now);
-                Apply(ArrKind.Sonarr, view, now, stalled, checks);
+                Apply(ArrKind.Sonarr, view, now, stalled, checks, imports);
                 views[ArrKind.Sonarr] = view;
             }
         }
@@ -136,6 +137,11 @@ public sealed partial class DownloadService(
             foreach (var (kind, queueId, key) in stalled)
             {
                 await RemoveStalledAsync(kind, queueId, key, cancellationToken).ConfigureAwait(false);
+            }
+
+            foreach (var import in imports)
+            {
+                await ImportByHandAsync(import, cancellationToken).ConfigureAwait(false);
             }
 
             foreach (var check in checks)
@@ -273,7 +279,8 @@ public sealed partial class DownloadService(
         string.Create(CultureInfo.InvariantCulture, $"{series} · Stagione {season}");
 
     // Solo sotto _lock.
-    private void Apply(ArrKind kind, ArrView view, DateTimeOffset now, List<(ArrKind, int, string)> stalled, List<UpgradeCheck> checks)
+    private void Apply(
+        ArrKind kind, ArrView view, DateTimeOffset now, List<(ArrKind, int, string)> stalled, List<UpgradeCheck> checks, List<ManualImport> imports)
     {
         // 1-2. I titoli da seguire hanno una voce; quelle che ci sono si aggiornano.
         foreach (var title in view.Titles.Values.Where(t => t.Wanted))
@@ -296,7 +303,7 @@ public sealed partial class DownloadService(
                 entry = Create(title, now);
             }
 
-            if (Track(entry, item, now))
+            if (Track(entry, item, now, imports))
             {
                 // Un pack ha un elemento per episodio: si tolgono tutti, prima quello della voce.
                 foreach (var queueId in view.SeasonQueue?.GetValueOrDefault(key)?.Select(q => q.Id) ?? [item.Id])
@@ -357,7 +364,7 @@ public sealed partial class DownloadService(
     }
 
     // Solo sotto _lock. True se il download è fermo da StalledAfter.
-    private bool Track(DownloadEntry entry, ArrQueueItem item, DateTimeOffset now)
+    private bool Track(DownloadEntry entry, ArrQueueItem item, DateTimeOffset now, List<ManualImport> imports)
     {
         // Fermo solo se scarica davvero: in coda, in pausa o col client giù l'orologio riparte (decisione 3).
         var active = string.Equals(item.Status, DownloadingState, StringComparison.OrdinalIgnoreCase)
@@ -373,7 +380,7 @@ public sealed partial class DownloadService(
         entry.Reason = null;
         if (string.Equals(item.TrackedDownloadState, ImportBlockedState, StringComparison.OrdinalIgnoreCase))
         {
-            OnImportBlocked(entry, item);
+            OnImportBlocked(entry, item, imports);
             return false;
         }
 
@@ -408,9 +415,18 @@ public sealed partial class DownloadService(
         entry.NextSearchAt = DownloadSchedule.Next(chosenAt, now);
     }
 
-    // Solo sotto _lock. Radarr/Sonarr non riescono a importare: serve l'admin.
-    private static void OnImportBlocked(DownloadEntry entry, ArrQueueItem item)
+    // Solo sotto _lock. Radarr/Sonarr non riescono a importare: serve l'admin. Una release scelta dall'admin che non
+    // importerebbero si importa a mano, una volta sola: se al giro dopo è ancora bloccata, serve l'admin (decisione 9).
+    private static void OnImportBlocked(DownloadEntry entry, ArrQueueItem item, List<ManualImport> imports)
     {
+        var pending = entry.ManualImportPending && !string.IsNullOrEmpty(item.DownloadId);
+        entry.ManualImportPending = false;
+        if (pending)
+        {
+            imports.Add(new ManualImport(entry.Key, ServiceOf(entry.Kind), item.DownloadId!, item.Id));
+            return;
+        }
+
         entry.State = DownloadStates.NeedsYou;
         entry.Reason = DownloadReasons.ImportBlocked;
     }

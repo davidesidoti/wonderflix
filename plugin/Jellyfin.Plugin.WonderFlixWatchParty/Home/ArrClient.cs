@@ -111,6 +111,22 @@ public sealed class ArrClient(
         ArrKind kind, CancellationToken cancellationToken) =>
         await GetAsync<List<ArrQualityProfile?>>(kind, "qualityprofile", cancellationToken).ConfigureAwait(false);
 
+    public async Task<IReadOnlyList<ArrManualImportItem?>> GetManualImportAsync(
+        ArrKind kind, string downloadId, CancellationToken cancellationToken) =>
+        await GetAsync<List<ArrManualImportItem?>>(
+            kind, $"manualimport?downloadId={Uri.EscapeDataString(downloadId)}&filterExistingFiles=false", cancellationToken)
+            .ConfigureAwait(false);
+
+    public Task ManualImportAsync(ArrKind kind, IReadOnlyList<ArrManualImportItem> items, CancellationToken cancellationToken)
+    {
+        // Come la schermata di import manuale: i campi della GET, con gli id al posto degli oggetti.
+        var files = items.Select(i => kind == ArrKind.Radarr
+            ? (object)new { i.Path, MovieId = i.Movie?.Id, i.Quality, i.Languages, i.ReleaseGroup, i.DownloadId }
+            : new { i.Path, SeriesId = i.Series?.Id, EpisodeIds = i.Episodes?.OfType<ArrFileRef>().Select(e => e.Id), i.Quality, i.Languages, i.ReleaseGroup, i.DownloadId });
+        return SendWithoutResultAsync(
+            kind, HttpMethod.Post, "command", new { name = "ManualImport", importMode = "auto", files }, cancellationToken);
+    }
+
     public Task<IReadOnlyList<ArrQueueItem?>> GetQueueAsync(ArrKind kind, CancellationToken cancellationToken) =>
         GetAllPagesAsync<ArrQueueItem>(
             kind, page => $"queue?page={page.ToString(CultureInfo.InvariantCulture)}&pageSize={PageSize}", cancellationToken);

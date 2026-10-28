@@ -361,6 +361,35 @@ public class ArrClientTests
     }
 
     [Fact]
+    public async Task ManualImportPostsTheCommand()
+    {
+        // Come risponde Radarr (campi verificati sul server il 2026-10-28); quality e languages tornano uguali.
+        const string Quality = """{"quality":{"id":7,"name":"Bluray-1080p","source":"bluray","resolution":1080,"modifier":"none"},"revision":{"version":1,"real":0,"isRepack":false}}""";
+        const string Languages = """[{"id":1,"name":"English"}]""";
+        Answer(HttpStatusCode.OK, $$"""[{"id":1,"path":"/dl/a.mkv","releaseGroup":"GRP","downloadId":"D1","movie":{"id":12,"title":"Amistad"},"quality":{{Quality}},"languages":{{Languages}},"rejections":[{"reason":"Not an upgrade for existing movie file","type":"permanent"}]}]""");
+
+        var items = await Client().GetManualImportAsync(ArrKind.Radarr, "D 1", CancellationToken.None);
+        await Client().ManualImportAsync(ArrKind.Radarr, [items[0]!], CancellationToken.None);
+
+        Assert.Equal("https://arr.example/radarr/api/v3/manualimport?downloadId=D%201&filterExistingFiles=false", _http.Requests[0].Uri.OriginalString);
+        Assert.Equal("Not an upgrade for existing movie file", items[0]!.Rejections![0]!.Reason);
+        var post = _http.Requests[1];
+        Assert.Equal((HttpMethod.Post, "https://arr.example/radarr/api/v3/command", "radarr-key"), (post.Method, post.Uri.OriginalString, post.ApiKey));
+        Assert.Equal(
+            $$"""{"name":"ManualImport","importMode":"auto","files":[{"path":"/dl/a.mkv","movieId":12,"quality":{{Quality}},"languages":{{Languages}},"releaseGroup":"GRP","downloadId":"D1"}]}""",
+            post.Body);
+
+        // Sonarr: la serie e gli episodi del file.
+        Answer(HttpStatusCode.OK, $$"""[{"path":"/dl/s/e1.mkv","releaseGroup":null,"downloadId":"D2","series":{"id":7},"episodes":[{"id":201},{"id":202}],"seasonNumber":2,"quality":{{Quality}},"languages":{{Languages}},"rejections":[]}]""");
+        var episodes = await Client().GetManualImportAsync(ArrKind.Sonarr, "D2", CancellationToken.None);
+        await Client().ManualImportAsync(ArrKind.Sonarr, [episodes[0]!], CancellationToken.None);
+
+        Assert.Equal(
+            $$"""{"name":"ManualImport","importMode":"auto","files":[{"path":"/dl/s/e1.mkv","seriesId":7,"episodeIds":[201,202],"quality":{{Quality}},"languages":{{Languages}},"releaseGroup":null,"downloadId":"D2"}]}""",
+            _http.Requests[3].Body);
+    }
+
+    [Fact]
     public async Task AFailedGrabCarriesTheHttpStatus()
     {
         Answer(HttpStatusCode.NotFound, "{}");
