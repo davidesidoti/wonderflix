@@ -71,10 +71,15 @@ public sealed class DownloadEntry
 
     public int? CurrentQualityId { get; set; }
 
-    /// <summary>Durante il download di un upgrade: punteggio e qualità del file di prima (null per un primo download).</summary>
+    /// <summary>Peso della scelta mentre scarica, poi del file arrivato.</summary>
+    public long? CurrentSizeBytes { get; set; }
+
+    /// <summary>Durante il download di un upgrade: punteggio, qualità e peso del file di prima (null per un primo download).</summary>
     public int? PreviousScore { get; set; }
 
     public int? PreviousQualityId { get; set; }
+
+    public long? PreviousSizeBytes { get; set; }
 
     /// <summary>Solo Sonarr: la serie dell'episodio, per rileggere il suo file.</summary>
     public int SeriesId { get; set; }

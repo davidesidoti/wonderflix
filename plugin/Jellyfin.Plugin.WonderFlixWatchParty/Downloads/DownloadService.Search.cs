@@ -167,6 +167,15 @@ public sealed partial class DownloadService
             return false;
         }
 
+        // La ricerca dura fino a 2 minuti: nel frattempo la voce può essere sparita o già in download (l'admin).
+        lock (_lock)
+        {
+            if (Book.Get(item.Key) is not { } current || current.State == DownloadStates.Downloading)
+            {
+                return false;
+            }
+        }
+
         try
         {
             await arr.GrabReleaseAsync(item.Service, choice.Guid!, choice.IndexerId, cancellationToken).ConfigureAwait(false);
@@ -176,9 +185,10 @@ public sealed partial class DownloadService
             logger.LogWarning("Download automatici: {Key}, {Kind} non ha scaricato la scelta ({Error})", item.Key, item.Service, ErrorOf(ex));
             Update(item.Key, (entry, now) =>
             {
+                // Spesso il client di download giù per poco: si riprova al giro dopo, come per la ricerca.
                 entry.LastSearchAt = now;
                 entry.Reason = DownloadReasons.SearchFailed;
-                entry.NextSearchAt = DownloadSchedule.Next(SinceOf(entry), now);
+                entry.NextSearchAt = now + CycleInterval;
             });
             return false;
         }
@@ -190,6 +200,9 @@ public sealed partial class DownloadService
             {
                 Grabbed(entry, choice, item.Upgrade, profile?.Name, time.GetUtcNow());
             }
+
+            // Subito su disco: un riavvio prima della fine del giro non deve perdere il download.
+            store.Save(Book);
         }
 
         return true;
@@ -253,8 +266,8 @@ public sealed partial class DownloadService
             Score = choice.CustomFormatScore,
             Seeders = choice.Seeders,
 
-            // Un UpgradeWatch nasce sempre da una scelta di WonderFlix: il file attuale è quello.
-            PreviousSizeBytes = upgrade ? LatestChoice(entry.Key)?.SizeBytes : null,
+            // Il file che c'è adesso (dopo un upgrade fallito è ancora quello di prima, non l'ultima scelta).
+            PreviousSizeBytes = upgrade ? entry.CurrentSizeBytes : null,
             PreviousScore = upgrade ? entry.CurrentScore : null,
             ByAdmin = false,
         });
@@ -263,8 +276,10 @@ public sealed partial class DownloadService
         entry.LastSearchAt = now;
         entry.PreviousScore = upgrade ? entry.CurrentScore : null;
         entry.PreviousQualityId = upgrade ? entry.CurrentQualityId : null;
+        entry.PreviousSizeBytes = upgrade ? entry.CurrentSizeBytes : null;
         entry.CurrentScore = choice.CustomFormatScore;
         entry.CurrentQualityId = quality?.Id;
+        entry.CurrentSizeBytes = choice.Size;
         entry.ProfileName = profileName;
     }
 
@@ -323,6 +338,7 @@ public sealed partial class DownloadService
             {
                 entry.CurrentScore = file.CustomFormatScore;
                 entry.CurrentQualityId = file.Quality?.Quality?.Id;
+                entry.CurrentSizeBytes = file.Size;
             }
 
             OnImported(entry, now);
@@ -358,8 +374,10 @@ public sealed partial class DownloadService
         entry.LastProgressAt = null;
         entry.CurrentScore = entry.PreviousScore;
         entry.CurrentQualityId = entry.PreviousQualityId;
+        entry.CurrentSizeBytes = entry.PreviousSizeBytes;
         entry.PreviousScore = null;
         entry.PreviousQualityId = null;
+        entry.PreviousSizeBytes = null;
         entry.NextSearchAt = DownloadSchedule.Next(SinceOf(entry), now);
     }
 

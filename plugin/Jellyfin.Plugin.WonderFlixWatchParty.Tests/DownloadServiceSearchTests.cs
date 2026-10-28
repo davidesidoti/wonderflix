@@ -376,7 +376,7 @@ public sealed class DownloadServiceSearchTests : IDisposable
         Assert.Equal((1, 0), (report.Searched, report.Grabbed));
         var entry = Saved("movie:12")!;
         Assert.Equal((DownloadStates.Waiting, DownloadReasons.SearchFailed, (int?)null), (entry.State, entry.Reason, entry.CurrentScore));
-        Assert.Equal(T0 + TimeSpan.FromHours(6), entry.NextSearchAt);
+        Assert.Equal(T0 + DownloadService.CycleInterval, entry.NextSearchAt);
         Assert.Empty(Store().Load().Choices);
     }
 
@@ -440,6 +440,14 @@ public sealed class DownloadServiceSearchTests : IDisposable
         Assert.Equal((DownloadStates.UpgradeWatch, (int?)50, (int?)WebRip1080, (int?)null), (entry.State, entry.CurrentScore, entry.CurrentQualityId, entry.PreviousScore));
         Assert.Equal(T0 + DownloadSchedule.UpgradeWindow, entry.UpgradeUntil);
         Assert.Equal(_time.GetUtcNow() + TimeSpan.FromHours(6), entry.NextSearchAt);
+        Assert.Equal((long?)(4 * Gb), entry.CurrentSizeBytes);
+
+        // L'upgrade dopo confronta con il file su disco (4 GB), non con quello fallito (5 GB).
+        _time.Advance(TimeSpan.FromHours(6));
+        _releases = [Release("ita-eng-2", WebRip1080, "WEBRip-1080p", 6, 150)];
+        await Cycle();
+        var choice = Store().Load().Choices[0];
+        Assert.Equal(("ita-eng-2", (int?)50, (long?)(4 * Gb)), (choice.Guid, choice.PreviousScore, choice.PreviousSizeBytes));
     }
 
     [Fact]
@@ -502,5 +510,58 @@ public sealed class DownloadServiceSearchTests : IDisposable
         Assert.Equal([7], _arr.EpisodeFileCalls);
         var entry = Saved("episode:34")!;
         Assert.Equal((DownloadStates.UpgradeWatch, (int?)50), (entry.State, entry.CurrentScore));
+    }
+
+    [Fact]
+    public async Task ACancelledCycleKeepsItsGrabs()
+    {
+        using var cancel = new CancellationTokenSource();
+        _movies = [Movie(12), Movie(13), Movie(14)];
+        string? stateDuringTheSecondSearch = null;
+        _arr.Releases = (_, query) =>
+        {
+            if (query == "movieId=13")
+            {
+                // Già su disco prima della fine del giro; poi il giro si interrompe nella pausa che segue.
+                stateDuringTheSecondSearch = Saved("movie:12")?.State;
+                cancel.Cancel();
+            }
+
+            IReadOnlyList<ArrRelease?> releases = query == "movieId=12" ? [Release("ita", WebRip1080, "WEBRip-1080p", 4, 150)] : [];
+            return Task.FromResult(releases);
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _service.RunCycleAsync(cancel.Token));
+
+        Assert.Equal(DownloadStates.Downloading, stateDuringTheSecondSearch);
+        var restarted = new DownloadService(_arr, _arrSettings, _settings, Store(), _time, NullLogger<DownloadService>.Instance) { Pause = TimeSpan.Zero };
+        restarted.Load();
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.Downloading, (int?)150), (entry.State, entry.CurrentScore));
+        Assert.Equal("ita", Assert.Single(Store().Load().Choices).Guid);
+        Assert.Equal(2, _arr.SearchReleaseCalls.Count);
+
+        // La ricerca di 13 (niente trovato) la salva solo il salvataggio di fine giro, anche se interrotto.
+        Assert.Equal(T0, Saved("movie:13")!.LastSearchAt);
+    }
+
+    [Fact]
+    public async Task AnEntryTakenMeanwhileIsNotGrabbed()
+    {
+        _movies = [Movie(12)];
+        _arr.Releases = async (_, _) =>
+        {
+            // Durante la ricerca il titolo entra in coda (un giro nel frattempo lo segna Downloading).
+            _radarrQueue = [MovieQueue(90, 12, 5_000)];
+            await _service.RunCycleAsync(CancellationToken.None);
+            return [Release("ita", WebRip1080, "WEBRip-1080p", 4, 150)];
+        };
+
+        var report = await Cycle();
+
+        Assert.Equal(0, report.Grabbed);
+        Assert.Empty(_arr.GrabCalls);
+        Assert.Empty(Store().Load().Choices);
+        Assert.Equal((DownloadStates.Downloading, (int?)90), (Saved("movie:12")!.State, Saved("movie:12")!.QueueId));
     }
 }

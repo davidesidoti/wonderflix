@@ -128,26 +128,33 @@ public sealed partial class DownloadService(
             }
         }
 
-        foreach (var (kind, queueId, key) in stalled)
-        {
-            await RemoveStalledAsync(kind, queueId, key, cancellationToken).ConfigureAwait(false);
-        }
-
-        foreach (var check in checks)
-        {
-            await ConfirmUpgradeAsync(check, cancellationToken).ConfigureAwait(false);
-        }
-
         var errors = new Dictionary<ArrKind, string?> { [ArrKind.Radarr] = radarr.Error, [ArrKind.Sonarr] = sonarr.Error };
-        var (searched, grabbed) = await SearchDueAsync(views, errors, cancellationToken).ConfigureAwait(false);
-
-        lock (_lock)
+        var (searched, grabbed) = (0, 0);
+        try
         {
-            _lastErrors = (errors[ArrKind.Sonarr], errors[ArrKind.Radarr]);
-            Book.Prune(now);
+            foreach (var (kind, queueId, key) in stalled)
+            {
+                await RemoveStalledAsync(kind, queueId, key, cancellationToken).ConfigureAwait(false);
+            }
 
-            // Sotto il lock come gli altri store: il libro non è sicuro tra thread e la scrittura è breve.
-            store.Save(Book);
+            foreach (var check in checks)
+            {
+                await ConfirmUpgradeAsync(check, cancellationToken).ConfigureAwait(false);
+            }
+
+            (searched, grabbed) = await SearchDueAsync(views, errors, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            // Anche se il giro si interrompe a metà: i download già partiti non vanno persi.
+            lock (_lock)
+            {
+                _lastErrors = (errors[ArrKind.Sonarr], errors[ArrKind.Radarr]);
+                Book.Prune(now);
+
+                // Sotto il lock come gli altri store: il libro non è sicuro tra thread e la scrittura è breve.
+                store.Save(Book);
+            }
         }
 
         return new CycleReport(searched, grabbed, errors[ArrKind.Sonarr], errors[ArrKind.Radarr]);
@@ -381,6 +388,7 @@ public sealed partial class DownloadService(
         entry.LastProgressAt = null;
         entry.PreviousScore = null;
         entry.PreviousQualityId = null;
+        entry.PreviousSizeBytes = null;
         entry.UpgradeUntil = chosenAt + DownloadSchedule.UpgradeWindow;
         entry.NextSearchAt = DownloadSchedule.Next(chosenAt, now);
     }
@@ -460,8 +468,10 @@ public sealed partial class DownloadService(
         // Il file non è arrivato: la scelta non conta più per gli upgrade.
         entry.CurrentScore = null;
         entry.CurrentQualityId = null;
+        entry.CurrentSizeBytes = null;
         entry.PreviousScore = null;
         entry.PreviousQualityId = null;
+        entry.PreviousSizeBytes = null;
     }
 
     private static string Key(string kind, int id) => new DownloadKey(kind, id, 0).ToString();
