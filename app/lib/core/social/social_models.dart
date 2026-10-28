@@ -41,6 +41,9 @@ abstract final class PluginFeatures {
   /// Il calendario delle uscite (spec S §6.4).
   static const calendar = 'calendar';
 
+  /// I download automatici (spec T §8), solo admin.
+  static const downloads = 'downloads';
+
   /// I consigli tra amici (spec N §6.6).
   static const recommendations = 'recommendations';
 

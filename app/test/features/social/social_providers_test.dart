@@ -247,6 +247,18 @@ void main() {
     expect(const SocialFeatures(calendar: true), isNot(const SocialFeatures()));
   });
 
+  test('Info con i download: funzione downloads, falsa senza', () async {
+    api.install(features: const {PluginFeatures.downloads});
+    final c = container(
+        session: const SessionSignedIn(JellyfinUser(
+            id: 'u1', name: 'Mario', syncPlayAccess: SyncPlayAccess.none)));
+    await pumpEventQueue();
+    expect(c.read(socialAvailabilityProvider),
+        const SocialFeatures(downloads: true));
+    expect(const SocialFeatures(downloads: true), isNot(const SocialFeatures()));
+    expect(const SocialFeatures().downloads, isFalse);
+  });
+
   test('Info con gli amici: funzione attiva', () async {
     api.install();
     final c = container();

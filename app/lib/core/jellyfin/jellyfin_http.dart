@@ -81,16 +81,22 @@ class JellyfinHttp {
       token: token);
 
   /// Con [quietStatuses] le risposte con quei codici, attese da chi chiama,
-  /// vanno nel log come info e non tra gli errori.
+  /// vanno nel log come info e non tra gli errori. [receiveTimeout] come in
+  /// [post].
   Future<dynamic> get(
     String path, {
     Map<String, dynamic>? query,
     CancelToken? cancelToken,
+    Duration? receiveTimeout,
     Set<int> quietStatuses = const {},
   }) =>
       _send(
           () => dio.get<dynamic>(path,
-              queryParameters: query, cancelToken: cancelToken),
+              queryParameters: query,
+              cancelToken: cancelToken,
+              options: receiveTimeout == null
+                  ? null
+                  : Options(receiveTimeout: receiveTimeout)),
           quietStatuses: quietStatuses);
 
   /// [quietStatuses] come in [get]. [contentType] per un corpo che non è

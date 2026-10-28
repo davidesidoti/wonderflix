@@ -29,6 +29,7 @@ class SocialFeatures {
     this.upcomingSeries = false,
     this.upcomingMovies = false,
     this.calendar = false,
+    this.downloads = false,
     this.recommendations = false,
     this.friendsActivity = false,
     this.match = false,
@@ -78,6 +79,9 @@ class SocialFeatures {
   /// Il calendario delle uscite (spec S §6.4): non dipende dai watch party.
   final bool calendar;
 
+  /// I download automatici (spec T §8): non dipendono dai watch party.
+  final bool downloads;
+
   /// I consigli tra amici (spec N §7.1): come gli amici, solo con l'accesso
   /// ai watch party (piano 20b, decisione 7).
   final bool recommendations;
@@ -117,6 +121,7 @@ class SocialFeatures {
       other.upcomingSeries == upcomingSeries &&
       other.upcomingMovies == upcomingMovies &&
       other.calendar == calendar &&
+      other.downloads == downloads &&
       other.recommendations == recommendations &&
       other.friendsActivity == friendsActivity &&
       other.match == match &&
@@ -137,6 +142,7 @@ class SocialFeatures {
       upcomingSeries,
       upcomingMovies,
       calendar,
+      downloads,
       recommendations,
       friendsActivity,
       match,
@@ -148,7 +154,7 @@ class SocialFeatures {
   String toString() => 'SocialFeatures(friends: $friends, parties: $parties, '
       'inbox: $inbox, requests: $requests, collections: $collections, '
       'avatars: $avatars, account: $account, home: $home, '
-      'upcomingSeries: $upcomingSeries, upcomingMovies: $upcomingMovies, calendar: $calendar, '
+      'upcomingSeries: $upcomingSeries, upcomingMovies: $upcomingMovies, calendar: $calendar, downloads: $downloads, '
       'recommendations: $recommendations, friendsActivity: $friendsActivity, match: $match, ratings: $ratings, reports: $reports, known: $known)';
 }
 
@@ -252,6 +258,7 @@ class SocialAvailability extends Notifier<SocialFeatures> {
         upcomingSeries: info.features.contains(PluginFeatures.upcomingSeries),
         upcomingMovies: info.features.contains(PluginFeatures.upcomingMovies),
         calendar: info.features.contains(PluginFeatures.calendar),
+        downloads: info.features.contains(PluginFeatures.downloads),
         recommendations:
             _canJoin && info.features.contains(PluginFeatures.recommendations),
         friendsActivity:
