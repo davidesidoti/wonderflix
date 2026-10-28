@@ -83,4 +83,26 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>Giorni di "Film in arrivo" (uscita digitale), da 1 a 365.</summary>
     public int UpcomingMoviesDays { get; set; } = 90;
+
+    /// <summary>Download automatici accesi (spec T). Spenti per predefinito.</summary>
+    public bool DownloadsEnabled { get; set; }
+
+    /// <summary>GB all'ora sotto cui una release è scartata come troppo piccola (da 0,1 a 20).</summary>
+    public double DownloadsMinGbPerHour { get; set; } = 0.8;
+
+    /// <summary>Soglie di punteggio per profilo di qualità; un profilo senza riga usa quelle predefinite. Un array: XmlSerializer lo sa scrivere.</summary>
+    public DownloadProfileRule[] DownloadProfileRules { get; set; } = [];
+}
+
+/// <summary>Le soglie di un profilo di qualità di Radarr o Sonarr (spec T). <c>TargetScore</c> null: nessun obiettivo.</summary>
+public class DownloadProfileRule
+{
+    /// <summary>"Radarr" o "Sonarr".</summary>
+    public string Service { get; set; } = string.Empty;
+
+    public int ProfileId { get; set; }
+
+    public int MinScore { get; set; }
+
+    public int? TargetScore { get; set; }
 }
