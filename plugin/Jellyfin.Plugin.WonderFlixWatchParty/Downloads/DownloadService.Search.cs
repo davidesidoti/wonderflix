@@ -127,12 +127,7 @@ public sealed partial class DownloadService
             return null;
         }
 
-        var (service, query) = key.Kind switch
-        {
-            DownloadKinds.Movie => (ArrKind.Radarr, string.Create(CultureInfo.InvariantCulture, $"movieId={key.Id}")),
-            DownloadKinds.Episode => (ArrKind.Sonarr, string.Create(CultureInfo.InvariantCulture, $"episodeId={key.Id}")),
-            _ => (ArrKind.Sonarr, string.Create(CultureInfo.InvariantCulture, $"seriesId={key.Id}&seasonNumber={key.Season}")),
-        };
+        var (service, query) = (ServiceOf(key.Kind), QueryOf(key));
         var upgrade = entry.State == DownloadStates.UpgradeWatch;
         var item = new SearchItem(entry.Key, service, query, upgrade, entry.ProfileId, entry.RuntimeMinutes, entry.CurrentScore, entry.CurrentQualityId);
         if (key.Kind != DownloadKinds.Season)
@@ -145,6 +140,14 @@ public sealed partial class DownloadService
         var episodes = upgrade ? entry.EpisodeNumbers : season?.Missing;
         return episodes is { Count: > 0 } ? item with { Episodes = episodes, SplitInto = season?.Episodes } : null;
     }
+
+    // La query di release per la chiave.
+    private static string QueryOf(DownloadKey key) => key.Kind switch
+    {
+        DownloadKinds.Movie => string.Create(CultureInfo.InvariantCulture, $"movieId={key.Id}"),
+        DownloadKinds.Episode => string.Create(CultureInfo.InvariantCulture, $"episodeId={key.Id}"),
+        _ => string.Create(CultureInfo.InvariantCulture, $"seriesId={key.Id}&seasonNumber={key.Season}"),
+    };
 
     // Una ricerca e quello che ne segue; true se ha scaricato.
     private async Task<bool> SearchOneAsync(SearchItem item, SearchContext context, CancellationToken cancellationToken)
@@ -278,7 +281,7 @@ public sealed partial class DownloadService
     }
 
     // Solo sotto _lock. La voce scarica: CurrentScore e CurrentQualityId sono quelli della scelta.
-    private void Grabbed(DownloadEntry entry, ArrRelease choice, bool upgrade, string? profileName, DateTimeOffset now)
+    private void Grabbed(DownloadEntry entry, ArrRelease choice, bool upgrade, string? profileName, DateTimeOffset now, bool byAdmin = false)
     {
         var quality = choice.Quality?.Quality;
         Book.AddChoice(new DownloadChoice
@@ -302,7 +305,7 @@ public sealed partial class DownloadService
             // Il file che c'è adesso (dopo un upgrade fallito è ancora quello di prima, non l'ultima scelta).
             PreviousSizeBytes = upgrade ? entry.CurrentSizeBytes : null,
             PreviousScore = upgrade ? entry.CurrentScore : null,
-            ByAdmin = false,
+            ByAdmin = byAdmin,
         });
         entry.State = DownloadStates.Downloading;
         entry.Reason = null;

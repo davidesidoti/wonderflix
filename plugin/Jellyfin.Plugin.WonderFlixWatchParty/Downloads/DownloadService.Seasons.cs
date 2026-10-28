@@ -1,4 +1,3 @@
-using System.Globalization;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Microsoft.Extensions.Logging;
 
@@ -47,7 +46,7 @@ public sealed partial class DownloadService
                 var title = new ArrTitle(
                     key,
                     DownloadKinds.Season,
-                    string.Create(CultureInfo.InvariantCulture, $"{show?.Title} · Stagione {season.Key}"),
+                    SeasonTitleOf(show?.Title, season.Key),
                     Poster(show?.Images),
                     show?.QualityProfileId ?? 0,
                     show?.Runtime ?? 0,

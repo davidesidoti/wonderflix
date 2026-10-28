@@ -223,9 +223,11 @@ public sealed class DownloadBook
     public bool Accept(string key)
     {
         var added = _accepted.Add(key);
-        var removed = _review.RemoveAll(r => r.Key == key) > 0;
-        return added || removed;
+        return RemoveFromReview(key) || added;
     }
+
+    /// <summary>Toglie il titolo dall'elenco (per esempio dopo un download scelto dall'admin); true se c'era.</summary>
+    public bool RemoveFromReview(string key) => _review.RemoveAll(r => r.Key == key) > 0;
 
     public bool IsAccepted(string key) => _accepted.Contains(key);
 

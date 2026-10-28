@@ -189,7 +189,7 @@ public sealed partial class DownloadService(
 
     private async Task<(T? Value, string? Error)> ReadAsync<T>(
         ArrKind kind, Func<CancellationToken, Task<T>> read, CancellationToken cancellationToken)
-        where T : class
+        where T : class?
     {
         if (!arrSettings.Endpoint(kind).IsConfigured)
         {
@@ -217,20 +217,7 @@ public sealed partial class DownloadService(
         // Prima la coda: un import che finisce tra le due letture sembra così ancora in coda, mai fallito.
         var queue = await arr.GetQueueAsync(ArrKind.Radarr, cancellationToken).ConfigureAwait(false);
         var movies = await arr.GetLibraryMoviesAsync(cancellationToken).ConfigureAwait(false);
-        var titles = movies.OfType<RadarrMovie>()
-            .Select(m => new ArrTitle(
-                Key(DownloadKinds.Movie, m.Id),
-                DownloadKinds.Movie,
-                string.Create(CultureInfo.InvariantCulture, $"{m.Title} ({m.Year})"),
-                Poster(m.Images),
-                m.QualityProfileId,
-                m.Runtime,
-                null,
-                m.Monitored,
-                Followed: m.Monitored && !m.HasFile,
-                Wanted: m.Monitored && !m.HasFile && m.IsAvailable,
-                m.HasFile,
-                FileId: m.MovieFile?.Id ?? 0));
+        var titles = movies.OfType<RadarrMovie>().Select(MovieTitleOf);
         return new ArrView(
             ByKey(titles, t => t.Key),
             ByKey(queue.OfType<ArrQueueItem>().Where(q => q.MovieId > 0), q => Key(DownloadKinds.Movie, q.MovieId!.Value)),
@@ -243,21 +230,7 @@ public sealed partial class DownloadService(
         var missing = await arr.GetMissingEpisodesAsync(cancellationToken).ConfigureAwait(false);
         var now = time.GetUtcNow();
         var episodes = missing.OfType<SonarrEpisode>().ToList();
-        var titles = ByKey(
-            episodes.Select(e => new ArrTitle(
-                Key(DownloadKinds.Episode, e.Id),
-                DownloadKinds.Episode,
-                string.Create(CultureInfo.InvariantCulture, $"{e.Series?.Title} · S{e.SeasonNumber:00}E{e.EpisodeNumber:00}"),
-                Poster(e.Series?.Images),
-                e.Series?.QualityProfileId ?? 0,
-                e.Series?.Runtime ?? 0,
-                e.AirDateUtc,
-                e.Monitored,
-                Followed: e.Monitored,
-                Wanted: e.Monitored && e.AirDateUtc <= now,
-                HasFile: false,
-                SeriesId: e.SeriesId)),
-            t => t.Key);
+        var titles = ByKey(episodes.Select(e => EpisodeTitleOf(e, now)), t => t.Key);
         var records = queue.OfType<ArrQueueItem>().ToList();
         return new ArrView(
             titles,
@@ -266,6 +239,38 @@ public sealed partial class DownloadService(
             await ReadSeasonsAsync(episodes, titles, now, cancellationToken).ConfigureAwait(false),
             SeasonQueueOf(records));
     }
+
+    private static ArrTitle MovieTitleOf(RadarrMovie m) => new(
+        Key(DownloadKinds.Movie, m.Id),
+        DownloadKinds.Movie,
+        string.Create(CultureInfo.InvariantCulture, $"{m.Title} ({m.Year})"),
+        Poster(m.Images),
+        m.QualityProfileId,
+        m.Runtime,
+        null,
+        m.Monitored,
+        Followed: m.Monitored && !m.HasFile,
+        Wanted: m.Monitored && !m.HasFile && m.IsAvailable,
+        m.HasFile,
+        FileId: m.MovieFile?.Id ?? 0);
+
+    // Un episodio mancante, con la sua serie in Series.
+    private static ArrTitle EpisodeTitleOf(SonarrEpisode e, DateTimeOffset now) => new(
+        Key(DownloadKinds.Episode, e.Id),
+        DownloadKinds.Episode,
+        string.Create(CultureInfo.InvariantCulture, $"{e.Series?.Title} · S{e.SeasonNumber:00}E{e.EpisodeNumber:00}"),
+        Poster(e.Series?.Images),
+        e.Series?.QualityProfileId ?? 0,
+        e.Series?.Runtime ?? 0,
+        e.AirDateUtc,
+        e.Monitored,
+        Followed: e.Monitored,
+        Wanted: e.Monitored && e.AirDateUtc <= now,
+        HasFile: false,
+        SeriesId: e.SeriesId);
+
+    private static string SeasonTitleOf(string? series, int season) =>
+        string.Create(CultureInfo.InvariantCulture, $"{series} · Stagione {season}");
 
     // Solo sotto _lock.
     private void Apply(ArrKind kind, ArrView view, DateTimeOffset now, List<(ArrKind, int, string)> stalled, List<UpgradeCheck> checks)
