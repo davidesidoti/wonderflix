@@ -91,7 +91,11 @@ public sealed class DownloadEntry
     /// <summary>Il nome del profilo all'ultima scelta: serve all'obiettivo quando il file arriva.</summary>
     public string? ProfileName { get; set; }
 
+    /// <summary>Durata di un episodio anche per una stagione: il pack la moltiplica (spec T §5.4).</summary>
     public int RuntimeMinutes { get; set; }
+
+    /// <summary>Solo stagioni: i numeri degli episodi del pack scaricato, per cercarne gli upgrade.</summary>
+    public List<int>? EpisodeNumbers { get; set; }
 }
 
 /// <summary>Una scelta fatta (spec T §3): i campi della release sono piatti, come in <c>DownloadChoiceDto</c>.</summary>
@@ -168,6 +172,9 @@ public sealed class DownloadFile
     public DateTimeOffset? ReviewAt { get; set; }
 
     public List<string> Accepted { get; set; } = [];
+
+    /// <summary>Le stagioni divise in episodi (<c>season:5:2</c>): non tornano più una voce sola (decisione 6).</summary>
+    public List<string> SplitSeasons { get; set; } = [];
 }
 
 /// <summary>
@@ -182,6 +189,7 @@ public sealed class DownloadBook
     private readonly Dictionary<string, DownloadEntry> _entries = [];
     private readonly List<DownloadChoice> _choices = [];
     private readonly HashSet<string> _accepted = [];
+    private readonly HashSet<string> _split = [];
     private List<ReviewItem> _review = [];
 
     public IReadOnlyList<DownloadEntry> Entries => [.. _entries.Values];
@@ -221,6 +229,11 @@ public sealed class DownloadBook
 
     public bool IsAccepted(string key) => _accepted.Contains(key);
 
+    /// <summary>La stagione si è divisa in episodi: da qui in poi resta divisa.</summary>
+    public void Split(string seasonKey) => _split.Add(seasonKey);
+
+    public bool IsSplit(string seasonKey) => _split.Contains(seasonKey);
+
     /// <summary>Legge il file; <see cref="FormatException"/> per una versione diversa da 1, un elenco null o una voce null.</summary>
     public static DownloadBook FromFile(DownloadFile file)
     {
@@ -249,6 +262,7 @@ public sealed class DownloadBook
             book._accepted.Add(key);
         }
 
+        book._split.UnionWith(Required(file.SplitSeasons));
         return book;
     }
 
@@ -259,6 +273,7 @@ public sealed class DownloadBook
         Review = [.. _review],
         ReviewAt = ReviewAt,
         Accepted = [.. _accepted],
+        SplitSeasons = [.. _split],
     };
 
     private static List<T> Required<T>(List<T>? list) =>

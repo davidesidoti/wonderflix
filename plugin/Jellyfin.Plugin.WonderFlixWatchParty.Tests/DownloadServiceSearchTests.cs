@@ -506,7 +506,8 @@ public sealed class DownloadServiceSearchTests : IDisposable
         _time.Advance(DownloadService.CycleInterval);
         await Cycle();
 
-        Assert.Equal([7], _arr.SeriesEpisodeCalls);
+        // Il primo 7 è del primo giro: la serie si legge per vedere se la stagione è intera (Task 8).
+        Assert.Equal([7, 7], _arr.SeriesEpisodeCalls);
         Assert.Equal([7], _arr.EpisodeFileCalls);
         var entry = Saved("episode:34")!;
         Assert.Equal((DownloadStates.UpgradeWatch, (int?)50), (entry.State, entry.CurrentScore));

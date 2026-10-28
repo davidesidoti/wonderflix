@@ -123,8 +123,9 @@ public sealed partial class DownloadService(
 
             if (sonarr.Value is { } episodes)
             {
-                Apply(ArrKind.Sonarr, episodes, now, stalled, checks);
-                views[ArrKind.Sonarr] = episodes;
+                var view = GroupSeasons(episodes, now);
+                Apply(ArrKind.Sonarr, view, now, stalled, checks);
+                views[ArrKind.Sonarr] = view;
             }
         }
 
@@ -178,11 +179,13 @@ public sealed partial class DownloadService(
 
     // La lettura di un servizio: i suoi titoli per chiave e la coda per chiave.
     // AbsentHasFile: Sonarr toglie dai mancanti un episodio appena ha il file.
+    // Solo Sonarr: le stagioni con episodi mancanti e la coda di ogni stagione (DownloadService.Seasons.cs).
     private sealed record ArrView(
         IReadOnlyDictionary<string, ArrTitle> Titles,
         IReadOnlyDictionary<string, ArrQueueItem> Queue,
-        string EntryKind,
-        bool AbsentHasFile);
+        bool AbsentHasFile,
+        IReadOnlyDictionary<string, ArrSeason>? Seasons = null,
+        IReadOnlyDictionary<string, IReadOnlyList<ArrQueueItem>>? SeasonQueue = null);
 
     private async Task<(T? Value, string? Error)> ReadAsync<T>(
         ArrKind kind, Func<CancellationToken, Task<T>> read, CancellationToken cancellationToken)
@@ -231,7 +234,6 @@ public sealed partial class DownloadService(
         return new ArrView(
             ByKey(titles, t => t.Key),
             ByKey(queue.OfType<ArrQueueItem>().Where(q => q.MovieId > 0), q => Key(DownloadKinds.Movie, q.MovieId!.Value)),
-            DownloadKinds.Movie,
             AbsentHasFile: false);
     }
 
@@ -240,8 +242,9 @@ public sealed partial class DownloadService(
         var queue = await arr.GetQueueAsync(ArrKind.Sonarr, cancellationToken).ConfigureAwait(false);
         var missing = await arr.GetMissingEpisodesAsync(cancellationToken).ConfigureAwait(false);
         var now = time.GetUtcNow();
-        var titles = missing.OfType<SonarrEpisode>()
-            .Select(e => new ArrTitle(
+        var episodes = missing.OfType<SonarrEpisode>().ToList();
+        var titles = ByKey(
+            episodes.Select(e => new ArrTitle(
                 Key(DownloadKinds.Episode, e.Id),
                 DownloadKinds.Episode,
                 string.Create(CultureInfo.InvariantCulture, $"{e.Series?.Title} · S{e.SeasonNumber:00}E{e.EpisodeNumber:00}"),
@@ -253,12 +256,15 @@ public sealed partial class DownloadService(
                 Followed: e.Monitored,
                 Wanted: e.Monitored && e.AirDateUtc <= now,
                 HasFile: false,
-                SeriesId: e.SeriesId));
+                SeriesId: e.SeriesId)),
+            t => t.Key);
+        var records = queue.OfType<ArrQueueItem>().ToList();
         return new ArrView(
-            ByKey(titles, t => t.Key),
-            ByKey(queue.OfType<ArrQueueItem>().Where(q => q.EpisodeId > 0), q => Key(DownloadKinds.Episode, q.EpisodeId!.Value)),
-            DownloadKinds.Episode,
-            AbsentHasFile: true);
+            titles,
+            ByKey(records.Where(q => q.EpisodeId > 0), q => Key(DownloadKinds.Episode, q.EpisodeId!.Value)),
+            AbsentHasFile: true,
+            await ReadSeasonsAsync(episodes, titles, now, cancellationToken).ConfigureAwait(false),
+            SeasonQueueOf(records));
     }
 
     // Solo sotto _lock.
@@ -287,12 +293,16 @@ public sealed partial class DownloadService(
 
             if (Track(entry, item, now))
             {
-                stalled.Add((kind, item.Id, key));
+                // Un pack ha un elemento per episodio: si tolgono tutti, prima quello della voce.
+                foreach (var queueId in view.SeasonQueue?.GetValueOrDefault(key)?.Select(q => q.Id) ?? [item.Id])
+                {
+                    stalled.Add((kind, queueId, key));
+                }
             }
         }
 
         // 4-5. Download finiti e titoli da non seguire più.
-        foreach (var entry in Book.Entries.Where(e => e.Kind == view.EntryKind && !view.Queue.ContainsKey(e.Key)))
+        foreach (var entry in Book.Entries.Where(e => ServiceOf(e.Kind) == kind && !view.Queue.ContainsKey(e.Key)))
         {
             var title = view.Titles.GetValueOrDefault(entry.Key);
 

@@ -10,8 +10,18 @@ public sealed partial class DownloadService
     // Letti una volta per giro e servizio: i profili per id e la priorità di ogni indexer.
     private sealed record SearchContext(IReadOnlyDictionary<int, ArrQualityProfile> Profiles, IReadOnlyDictionary<int, int> IndexerPriority);
 
-    // Una voce da cercare, copiata sotto il lock.
-    private sealed record SearchItem(string Key, ArrKind Service, string Query, bool Upgrade, int ProfileId, int RuntimeMinutes, int? CurrentScore, int? CurrentQualityId);
+    // Una voce da cercare, copiata sotto il lock. Solo stagioni: i numeri degli episodi per il pack e le voci in cui si divide.
+    private sealed record SearchItem(
+        string Key,
+        ArrKind Service,
+        string Query,
+        bool Upgrade,
+        int ProfileId,
+        int RuntimeMinutes,
+        int? CurrentScore,
+        int? CurrentQualityId,
+        IReadOnlyList<int>? Episodes = null,
+        IReadOnlyList<ArrTitle>? SplitInto = null);
 
     // Le voci con la ricerca scaduta, dalla più vecchia; al massimo MaxSearchesPerCycle ricerche, una alla volta.
     private async Task<(int Searched, int Grabbed)> SearchDueAsync(
@@ -37,7 +47,7 @@ public sealed partial class DownloadService
             SearchItem? item;
             lock (_lock)
             {
-                item = Book.Get(key) is { } entry && IsDue(entry, views, time.GetUtcNow()) ? ToSearchItem(entry) : null;
+                item = Book.Get(key) is { } entry && IsDue(entry, views, time.GetUtcNow()) ? ToSearchItem(entry, views[ServiceOf(entry.Kind)]) : null;
             }
 
             if (item is null)
@@ -110,7 +120,7 @@ public sealed partial class DownloadService
             _ => false,
         };
 
-    private static SearchItem? ToSearchItem(DownloadEntry entry)
+    private static SearchItem? ToSearchItem(DownloadEntry entry, ArrView view)
     {
         if (!DownloadKey.TryParse(entry.Key, out var key))
         {
@@ -121,13 +131,19 @@ public sealed partial class DownloadService
         {
             DownloadKinds.Movie => (ArrKind.Radarr, string.Create(CultureInfo.InvariantCulture, $"movieId={key.Id}")),
             DownloadKinds.Episode => (ArrKind.Sonarr, string.Create(CultureInfo.InvariantCulture, $"episodeId={key.Id}")),
-
-            // Le stagioni intere arrivano con il Task 8.
-            _ => (ArrKind.Sonarr, (string?)null),
+            _ => (ArrKind.Sonarr, string.Create(CultureInfo.InvariantCulture, $"seriesId={key.Id}&seasonNumber={key.Season}")),
         };
-        return query is null
-            ? null
-            : new SearchItem(entry.Key, service, query, entry.State == DownloadStates.UpgradeWatch, entry.ProfileId, entry.RuntimeMinutes, entry.CurrentScore, entry.CurrentQualityId);
+        var upgrade = entry.State == DownloadStates.UpgradeWatch;
+        var item = new SearchItem(entry.Key, service, query, upgrade, entry.ProfileId, entry.RuntimeMinutes, entry.CurrentScore, entry.CurrentQualityId);
+        if (key.Kind != DownloadKinds.Season)
+        {
+            return item;
+        }
+
+        // Gli episodi che mancano, o per un upgrade quelli del pack scaricato.
+        var season = view.Seasons?.GetValueOrDefault(entry.Key);
+        var episodes = upgrade ? entry.EpisodeNumbers : season?.Missing;
+        return episodes is { Count: > 0 } ? item with { Episodes = episodes, SplitInto = season?.Episodes } : null;
     }
 
     // Una ricerca e quello che ne segue; true se ha scaricato.
@@ -154,8 +170,24 @@ public sealed partial class DownloadService
 
         var thresholds = settings.For(item.Service, item.ProfileId, profile?.Name);
         var input = new RuleInput(item.RuntimeMinutes, item.Service == ArrKind.Radarr, settings.MinGbPerHour, thresholds.MinScore, context.IndexerPriority);
-        var result = DownloadRule.Choose(releases, input);
-        var choice = result.Choice;
+        ArrRelease? choice;
+        var belowMinScore = false;
+        if (item.Episodes is { } episodes)
+        {
+            // Una stagione: il pack se conviene (spec T §5.4), altrimenti si divide; un upgrade resta com'è.
+            choice = SeasonPackRule.ChoosePack(releases, episodes, input);
+            if (choice is null && !item.Upgrade)
+            {
+                Split(item);
+                return false;
+            }
+        }
+        else
+        {
+            var result = DownloadRule.Choose(releases, input);
+            (choice, belowMinScore) = (result.Choice, result.BelowMinScore);
+        }
+
         if (choice is not null && item.Upgrade && !IsUpgrade(choice, item, profile))
         {
             choice = null;
@@ -163,7 +195,7 @@ public sealed partial class DownloadService
 
         if (choice is null)
         {
-            Update(item.Key, (entry, now) => NothingChosen(entry, result.BelowMinScore, now));
+            Update(item.Key, (entry, now) => NothingChosen(entry, belowMinScore, now));
             return false;
         }
 
@@ -199,6 +231,7 @@ public sealed partial class DownloadService
             if (Book.Get(item.Key) is { } entry)
             {
                 Grabbed(entry, choice, item.Upgrade, profile?.Name, time.GetUtcNow());
+                entry.EpisodeNumbers = item.Episodes?.ToList();
             }
 
             // Subito su disco: un riavvio prima della fine del giro non deve perdere il download.
@@ -283,8 +316,8 @@ public sealed partial class DownloadService
         entry.ProfileName = profileName;
     }
 
-    // Un upgrade uscito dalla coda: il file da rileggere (film: id del file; episodio: serie ed episodio).
-    private sealed record UpgradeCheck(string Key, ArrKind Service, int MovieFileId, int SeriesId, int EpisodeId);
+    // Un upgrade uscito dalla coda: il file da rileggere (film: id del file; episodio: serie ed episodio; stagione: serie e stagione).
+    private sealed record UpgradeCheck(string Key, ArrKind Service, int MovieFileId, int SeriesId, int EpisodeId, int Season = 0);
 
     // Solo sotto _lock. Null se non si sa quale file leggere: vale la decisione 2.
     private static UpgradeCheck? UpgradeCheckOf(DownloadEntry entry, ArrTitle? title)
@@ -298,17 +331,18 @@ public sealed partial class DownloadService
         {
             DownloadKinds.Movie when title?.FileId > 0 => new UpgradeCheck(entry.Key, ArrKind.Radarr, title.FileId, 0, 0),
             DownloadKinds.Episode when entry.SeriesId > 0 => new UpgradeCheck(entry.Key, ArrKind.Sonarr, 0, entry.SeriesId, key.Id),
+            DownloadKinds.Season when entry.SeriesId > 0 => new UpgradeCheck(entry.Key, ArrKind.Sonarr, 0, entry.SeriesId, 0, key.Season),
             _ => null,
         };
     }
 
-    // Fuori dal lock: il file di adesso dice se l'upgrade è arrivato. Lettura fallita: la voce resta Downloading, si riprova al giro dopo.
+    // Fuori dal lock: i file di adesso dicono se l'upgrade è arrivato. Lettura fallita: la voce resta Downloading, si riprova al giro dopo.
     private async Task ConfirmUpgradeAsync(UpgradeCheck check, CancellationToken cancellationToken)
     {
-        ArrFile? file;
+        IReadOnlyList<ArrFile> files;
         try
         {
-            file = await CurrentFileAsync(check, cancellationToken).ConfigureAwait(false);
+            files = await CurrentFilesAsync(check, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
@@ -326,15 +360,15 @@ public sealed partial class DownloadService
 
             var now = time.GetUtcNow();
 
-            // Ancora il file di prima: l'upgrade è fallito (Radarr/Sonarr hanno già messo la release in blocklist).
-            if (file is not null && file.CustomFormatScore == previousScore && file.Quality?.Quality?.Id == entry.PreviousQualityId)
+            // Ancora il file di prima (per una stagione tutti i suoi file): l'upgrade è fallito (Radarr/Sonarr hanno già messo la release in blocklist).
+            if (files.Count > 0 && files.All(f => f.CustomFormatScore == previousScore && f.Quality?.Quality?.Id == entry.PreviousQualityId))
             {
                 BackToUpgradeWatch(entry, now);
                 return;
             }
 
-            // Un file diverso: importato. Il punteggio vero è quello del file.
-            if (file is not null)
+            // Un file diverso: importato. Il punteggio vero è quello del file; per una stagione di più file resta quello del pack.
+            if (files is [var file])
             {
                 entry.CurrentScore = file.CustomFormatScore;
                 entry.CurrentQualityId = file.Quality?.Quality?.Id;
@@ -345,23 +379,30 @@ public sealed partial class DownloadService
         }
     }
 
-    private async Task<ArrFile?> CurrentFileAsync(UpgradeCheck check, CancellationToken cancellationToken)
+    // Il file del film o dell'episodio (nessuno se non c'è), o i file della stagione.
+    private async Task<IReadOnlyList<ArrFile>> CurrentFilesAsync(UpgradeCheck check, CancellationToken cancellationToken)
     {
         if (check.Service == ArrKind.Radarr)
         {
             var movieFiles = await arr.GetMovieFilesAsync([check.MovieFileId], cancellationToken).ConfigureAwait(false);
-            return movieFiles.FirstOrDefault(f => f?.Id == check.MovieFileId);
+            return [.. movieFiles.OfType<ArrFile>().Where(f => f.Id == check.MovieFileId).Take(1)];
+        }
+
+        if (check.Season > 0)
+        {
+            var seasonFiles = await arr.GetEpisodeFilesAsync(check.SeriesId, cancellationToken).ConfigureAwait(false);
+            return [.. seasonFiles.OfType<ArrFile>().Where(f => f.SeasonNumber == check.Season)];
         }
 
         var episodes = await arr.GetSeriesEpisodesAsync(check.SeriesId, cancellationToken).ConfigureAwait(false);
         var fileId = episodes.FirstOrDefault(e => e?.Id == check.EpisodeId)?.EpisodeFileId ?? 0;
         if (fileId == 0)
         {
-            return null;
+            return [];
         }
 
         var episodeFiles = await arr.GetEpisodeFilesAsync(check.SeriesId, cancellationToken).ConfigureAwait(false);
-        return episodeFiles.FirstOrDefault(f => f?.Id == fileId);
+        return [.. episodeFiles.OfType<ArrFile>().Where(f => f.Id == fileId).Take(1)];
     }
 
     // Solo sotto _lock. Upgrade fallito o fermo: si torna al file di prima, la finestra resta quella (spec T §5.3).
