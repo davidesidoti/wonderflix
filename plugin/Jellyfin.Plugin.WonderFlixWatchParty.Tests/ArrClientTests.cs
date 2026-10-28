@@ -672,6 +672,49 @@ public class ArrClientTests
     }
 
     [Fact]
+    public async Task AGrabAndTheManualImportReadWaitLonger()
+    {
+        // Il grab scarica il .torrent tramite Prowlarr; manualimport legge i file di un pack.
+        _http.Respond = async (_, ct) =>
+        {
+            await Task.Delay(200, ct);
+            return FakeSeerrHttp.Json(HttpStatusCode.OK, "[]");
+        };
+        var client = Client(TimeSpan.FromMilliseconds(50));
+
+        await client.GrabReleaseAsync(ArrKind.Radarr, "g1", 3, CancellationToken.None);
+        Assert.Empty(await client.GetManualImportAsync(ArrKind.Radarr, "D1", CancellationToken.None));
+
+        Assert.Equal(TimeSpan.FromSeconds(60), ArrClient.GrabTimeout);
+    }
+
+    [Fact]
+    public async Task AMovieIsAskedById()
+    {
+        Answer(HttpStatusCode.OK, """{"id":12,"title":"Animals","year":2025,"runtime":106,"monitored":true,"isAvailable":true,"hasFile":true,"qualityProfileId":4,"movieFile":{"id":512}}""");
+
+        var movie = await Client().GetMovieAsync(12, CancellationToken.None);
+
+        var seen = Assert.Single(_http.Requests);
+        Assert.Equal(("https://arr.example/radarr/api/v3/movie/12", "radarr-key"), (seen.Uri.OriginalString, seen.ApiKey));
+        Assert.Equal((12, "Animals", 2025, 106, true, 4, 512), (movie.Id, movie.Title, movie.Year, movie.Runtime, movie.HasFile, movie.QualityProfileId, movie.MovieFile!.Id));
+
+        Answer(HttpStatusCode.NotFound, "{}");
+        Assert.Equal(404, (await Assert.ThrowsAsync<ArrException>(() => Client().GetMovieAsync(1, CancellationToken.None))).Status);
+    }
+
+    [Fact]
+    public async Task ADecimalSizeInTheQueueIsRounded()
+    {
+        // Radarr e Sonarr scrivono size e sizeleft come decimal: un valore con la virgola non deve rompere la coda.
+        Answer(HttpStatusCode.OK, """{"totalRecords":1,"records":[{"id":1,"movieId":5,"size":1000.0,"sizeleft":123.5}]}""");
+
+        var item = Assert.Single(await Client().GetQueueAsync(ArrKind.Radarr, CancellationToken.None))!;
+
+        Assert.Equal((1000L, 124L), (item.Size, item.Sizeleft));
+    }
+
+    [Fact]
     public async Task TheNewCallsLogTheMethodAndThePathButNeverTheQueryOrTheRelease()
     {
         Answer(HttpStatusCode.Unauthorized, "{}");

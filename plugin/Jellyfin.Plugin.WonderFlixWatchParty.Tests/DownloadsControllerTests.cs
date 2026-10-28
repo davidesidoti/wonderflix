@@ -188,4 +188,15 @@ public sealed class DownloadsControllerTests : IDisposable
         Assert.Equal(["Radarr", "Sonarr"], profiles.Select(p => p.Service));
         Assert.All(profiles, p => Assert.Equal((4, "Main", 50, 150), (p.ProfileId, p.Name, p.MinScore, p.TargetScore)));
     }
+
+    [Fact]
+    public async Task ProfilesWithEveryServiceDownAreUnavailable()
+    {
+        _arr.QualityProfiles = _ => Task.FromException<IReadOnlyList<ArrQualityProfile?>>(new ArrException(ArrError.Unreachable));
+
+        var result = (await _controller.Profiles()).Result!;
+
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, Status(result));
+        Assert.Equal("Unavailable", Reason(result));
+    }
 }

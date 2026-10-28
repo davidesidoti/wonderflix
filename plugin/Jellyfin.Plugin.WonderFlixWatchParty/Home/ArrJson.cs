@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Home;
 
@@ -6,6 +7,15 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Home;
 internal static class ArrJson
 {
     public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
+}
+
+/// <summary>Un numero intero che Radarr/Sonarr scrivono come decimal (size, sizeleft della coda): arrotondato (spec T §2).</summary>
+internal sealed class RoundedLongConverter : JsonConverter<long>
+{
+    public override long Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        reader.TryGetInt64(out var value) ? value : (long)Math.Round(reader.GetDouble(), MidpointRounding.AwayFromZero);
+
+    public override void Write(Utf8JsonWriter writer, long value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
 }
 
 /// <summary>Un'immagine: remoteUrl è l'indirizzo pubblico (TVDB, TMDB, Fanart).</summary>
@@ -219,8 +229,12 @@ public sealed class ArrQueueItem
 
     public string? DownloadId { get; set; }
 
+    /// <summary>Un decimal in Radarr/Sonarr: un valore con la virgola si arrotonda, non rompe la lettura della coda.</summary>
+    [JsonConverter(typeof(RoundedLongConverter))]
     public long Size { get; set; }
 
+    /// <summary>Come <see cref="Size"/>.</summary>
+    [JsonConverter(typeof(RoundedLongConverter))]
     public long Sizeleft { get; set; }
 
     /// <summary>"downloading", "importBlocked", "importPending", "failed", ...</summary>
@@ -263,6 +277,9 @@ public sealed class ArrManualImportItem
     public string? ReleaseGroup { get; set; }
 
     public string? DownloadId { get; set; }
+
+    /// <summary>Il peso del file: di un film si importa solo il più grande (ruling 14).</summary>
+    public long Size { get; set; }
 
     /// <summary>Solo Radarr: il film riconosciuto; null se Radarr non l'ha riconosciuto.</summary>
     public ArrFileRef? Movie { get; set; }

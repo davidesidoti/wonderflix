@@ -138,6 +138,25 @@ internal sealed class FakeArrClient : IArrClient
     public Func<Task<IReadOnlyList<RadarrMovie?>>> LibraryMovies { get; set; } =
         () => Task.FromResult<IReadOnlyList<RadarrMovie?>>([]);
 
+    // Di base il film della libreria finta, 404 se non c'è.
+    public Func<int, Task<RadarrMovie>> MovieById { get; set; }
+
+    public List<int> MovieByIdCalls { get; } = [];
+
+    public FakeArrClient() =>
+        MovieById = async id => (await LibraryMovies().ConfigureAwait(false)).FirstOrDefault(m => m?.Id == id)
+            ?? throw new ArrException(ArrError.Unreachable, status: 404);
+
+    public Task<RadarrMovie> GetMovieAsync(int movieId, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            MovieByIdCalls.Add(movieId);
+        }
+
+        return MovieById(movieId);
+    }
+
     public Func<Task<IReadOnlyList<SonarrEpisode?>>> MissingEpisodes { get; set; } =
         () => Task.FromResult<IReadOnlyList<SonarrEpisode?>>([]);
 

@@ -275,6 +275,93 @@ public sealed class DownloadServiceSeasonTests : IDisposable
     }
 
     [Fact]
+    public async Task AStalledPackInWarningIsRemoved()
+    {
+        WholeSeason();
+        _releases = [Pack("pack", 3, 50)];
+        await Cycle();
+        _releases = [];
+
+        // stalledDL di qBittorrent (ruling 11): un elemento in "warning", gli altri in "downloading".
+        _time.Advance(DownloadService.CycleInterval);
+        _sonarrQueue = [EpisodeQueue(91, 201, 5_000), EpisodeQueue(92, 202, 5_000), EpisodeQueue(93, 203, 5_000)];
+        _sonarrQueue[0]!.Status = "warning";
+        await Cycle();
+
+        SearchesFail();
+        _time.Advance(DownloadSchedule.StalledAfter);
+        await Cycle();
+
+        Assert.Equal([91, 92, 93], _arr.RemoveFromQueueCalls.Select(c => c.QueueId));
+        Assert.Equal(DownloadStates.Waiting, Saved("season:7:2")!.State);
+    }
+
+    // Stagione 2 di sei episodi: 1 e 2 già scaricati, 3-6 mancanti; la ricerca di stagione trova un pack di 3-4 e il singolo 5.
+    private void PartlyDownloadedSeason(int packScore = 50)
+    {
+        _seriesEpisodes = [.. Enumerable.Range(1, 6).Select(n => (SonarrEpisode?)Ep(200 + n, n, T0 - TimeSpan.FromDays(40 - n)))];
+        foreach (var episode in _seriesEpisodes.Take(2))
+        {
+            (episode!.HasFile, episode.EpisodeFileId) = (true, 100 + episode.Id);
+        }
+
+        _missing = [.. _seriesEpisodes.Skip(2)];
+        _arr.Series = () => Task.FromResult<IReadOnlyList<SonarrSeries?>>([new SonarrSeries { Id = 7, Title = "Severance", Runtime = 50, QualityProfileId = 6 }]);
+        _arr.EpisodeFiles = _ => Task.FromResult<IReadOnlyList<ArrFile?>>([SeasonFile(301, 2, 150), SeasonFile(302, 2, 150)]);
+        var pack = Release("p34", WebRip1080, "WEBRip-1080p", 3, packScore);
+        (pack.EpisodeNumbers, pack.SeasonNumber) = ([3, 4], 2);
+        _arr.Releases = (_, query) => Task.FromResult<IReadOnlyList<ArrRelease?>>(query.StartsWith("seriesId", StringComparison.Ordinal) ? [pack, Single("e5", 5, 1, 150)] : []);
+    }
+
+    [Fact]
+    public async Task AnAdminPackOnAPartlyDownloadedSeasonTakesOnlyItsEpisodes()
+    {
+        PartlyDownloadedSeason();
+        await _service.SearchAsync("season:7:2", CancellationToken.None);
+        Assert.Equal(GrabOutcome.Ok, await _service.GrabAsync("season:7:2", "p34", 1, CancellationToken.None));
+        var entry = Saved("season:7:2")!;
+        Assert.Equal([3, 4], entry.EpisodeNumbers!);
+        Assert.Null(entry.PreviousScore);
+
+        // Il pack in coda è della voce di stagione; 5 e 6 restano episodi e si cercano (ruling 13).
+        _sonarrQueue = [EpisodeQueue(91, 203, 5_000), EpisodeQueue(92, 204, 5_000)];
+        await Cycle();
+        Assert.Equal(["episode:205", "episode:206", "season:7:2"], SavedKeys());
+        Assert.Equal((DownloadStates.Downloading, (int?)91), (Saved("season:7:2")!.State, Saved("season:7:2")!.QueueId));
+        Assert.Equal(["episodeId=205", "episodeId=206"], _arr.SearchReleaseCalls.Skip(1).Select(c => c.Query).Order(StringComparer.Ordinal));
+
+        // Importato: 3 e 4 hanno il file, 5 e 6 mancano ancora. La voce di stagione è importata, non torna in attesa.
+        _time.Advance(DownloadService.CycleInterval);
+        _sonarrQueue = [];
+        _missing = [.. _seriesEpisodes.Skip(4)];
+        await Cycle();
+        entry = Saved("season:7:2")!;
+        Assert.Equal((DownloadStates.UpgradeWatch, (int?)50), (entry.State, entry.CurrentScore));
+        Assert.Equal(["episode:205", "episode:206", "season:7:2"], SavedKeys());
+    }
+
+    [Fact]
+    public async Task AnAdminSingleFromASeasonSearchIsAnEpisode()
+    {
+        PartlyDownloadedSeason();
+        await _service.SearchAsync("season:7:2", CancellationToken.None);
+
+        Assert.Equal(GrabOutcome.Ok, await _service.GrabAsync("season:7:2", "e5", 1, CancellationToken.None));
+
+        Assert.Null(Saved("season:7:2"));
+        var entry = Saved("episode:205")!;
+        Assert.Equal((DownloadKinds.Episode, "Severance · S02E05", DownloadStates.Downloading, (int?)null), (entry.Kind, entry.Title, entry.State, entry.PreviousScore));
+        Assert.Null(entry.EpisodeNumbers);
+        Assert.Equal(("episode:205", "e5"), (Store().Load().Choices[0].Key, Store().Load().Choices[0].Guid));
+
+        // Il giro la segue come episodio.
+        _sonarrQueue = [EpisodeQueue(91, 205, 5_000)];
+        await Cycle();
+        Assert.Equal((DownloadStates.Downloading, (int?)91), (Saved("episode:205")!.State, Saved("episode:205")!.QueueId));
+        Assert.Null(Saved("season:7:2"));
+    }
+
+    [Fact]
     public async Task AFailedPackStaysASeason()
     {
         WholeSeason();

@@ -245,6 +245,22 @@ public sealed class DownloadServiceReviewTests : IDisposable
     }
 
     [Fact]
+    public async Task OnlyTheLargestFileOfTheMovieIsImported()
+    {
+        // Un extra senza "Sample" nel nome: importato prenderebbe il posto del film (ruling 14).
+        AdminGrabBlocked(12, 90, "D1");
+        var film = ImportItem("/dl/a.mkv", 12);
+        film.Size = 4 * Gb;
+        var extra = ImportItem("/dl/featurette.mkv", 12);
+        extra.Size = Gb / 3;
+        _arr.ManualImportItems = (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>([extra, film]);
+
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Same(film, Assert.Single(Assert.Single(_arr.ManualImportCalls).Items));
+    }
+
+    [Fact]
     public async Task AFailedManualImportNeedsYou()
     {
         // 12: Radarr non accetta il comando; 13: nessun file da importare.
@@ -276,15 +292,18 @@ public sealed class DownloadServiceReviewTests : IDisposable
             (record!.DownloadId, record.TrackedDownloadState, record.Status) = ("P", "importBlocked", "completed");
         }
 
-        ArrManualImportItem Episode(int id) => new()
+        ArrManualImportItem Episode(int id, string name = "", long size = Gb) => new()
         {
-            Path = $"/dl/e{id}.mkv",
+            Path = $"/dl/e{id}{name}.mkv",
             Series = new ArrFileRef { Id = 7 },
             Episodes = [new ArrFileRef { Id = id }],
             Quality = JsonDocument.Parse("{}").RootElement,
+            Size = size,
         };
 
-        _arr.ManualImportItems = (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>([Episode(201), Episode(202), new ArrManualImportItem { Path = "/dl/x.mkv", Series = new ArrFileRef { Id = 7 }, Quality = JsonDocument.Parse("{}").RootElement }]);
+        // Due file per l'episodio 201: si importa il più grande (ruling 14).
+        _arr.ManualImportItems = (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>(
+            [Episode(201, "-extra", Gb / 10), Episode(201), Episode(202), new ArrManualImportItem { Path = "/dl/x.mkv", Series = new ArrFileRef { Id = 7 }, Quality = JsonDocument.Parse("{}").RootElement }]);
 
         await _service.RunCycleAsync(CancellationToken.None);
 

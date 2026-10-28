@@ -23,6 +23,12 @@ public sealed class ArrClient(
     /// <summary>Attesa massima di una ricerca dal vivo: gli indexer rispondono piano (spec T §2).</summary>
     public static readonly TimeSpan SearchTimeout = TimeSpan.FromMinutes(2);
 
+    /// <summary>
+    /// Attesa massima di un grab: Radarr/Sonarr scaricano il .torrent tramite Prowlarr e lo passano al client; con 10 s
+    /// un grab lento sembra fallito mentre il download parte, e l'admin riproverebbe (doppione).
+    /// </summary>
+    public static readonly TimeSpan GrabTimeout = TimeSpan.FromSeconds(60);
+
     /// <summary>Record per pagina di <c>queue</c> e <c>wanted/missing</c> (spec T §2).</summary>
     private const int PageSize = 250;
 
@@ -75,7 +81,10 @@ public sealed class ArrClient(
             .ConfigureAwait(false);
 
     public Task GrabReleaseAsync(ArrKind kind, string guid, int indexerId, CancellationToken cancellationToken) =>
-        SendWithoutResultAsync(kind, HttpMethod.Post, "release", new { guid, indexerId }, cancellationToken);
+        SendWithoutResultAsync(kind, HttpMethod.Post, "release", new { guid, indexerId }, cancellationToken, GrabTimeout);
+
+    public Task<RadarrMovie> GetMovieAsync(int movieId, CancellationToken cancellationToken) =>
+        GetAsync<RadarrMovie>(ArrKind.Radarr, $"movie/{movieId.ToString(CultureInfo.InvariantCulture)}", cancellationToken);
 
     public async Task<IReadOnlyList<RadarrMovie?>> GetLibraryMoviesAsync(CancellationToken cancellationToken) =>
         await GetAsync<List<RadarrMovie?>>(ArrKind.Radarr, "movie", cancellationToken).ConfigureAwait(false);
@@ -113,8 +122,9 @@ public sealed class ArrClient(
 
     public async Task<IReadOnlyList<ArrManualImportItem?>> GetManualImportAsync(
         ArrKind kind, string downloadId, CancellationToken cancellationToken) =>
-        await GetAsync<List<ArrManualImportItem?>>(
-            kind, $"manualimport?downloadId={Uri.EscapeDataString(downloadId)}&filterExistingFiles=false", cancellationToken)
+        // I file di un pack grande si leggono piano: come una ricerca.
+        await SendAsync<List<ArrManualImportItem?>>(
+            kind, HttpMethod.Get, $"manualimport?downloadId={Uri.EscapeDataString(downloadId)}&filterExistingFiles=false", null, SearchTimeout, cancellationToken)
             .ConfigureAwait(false);
 
     public Task ManualImportAsync(ArrKind kind, IReadOnlyList<ArrManualImportItem> items, CancellationToken cancellationToken)
@@ -165,10 +175,10 @@ public sealed class ArrClient(
                 ?? throw new JsonException("risposta vuota"),
             cancellationToken);
 
-    /// <summary>Una chiamata di cui conta solo l'esito: il corpo della risposta non si legge.</summary>
+    /// <summary>Una chiamata di cui conta solo l'esito: il corpo della risposta non si legge. Senza timeout: <see cref="Timeout"/>.</summary>
     private Task SendWithoutResultAsync(
-        ArrKind kind, HttpMethod method, string path, object? body, CancellationToken cancellationToken) =>
-        SendCoreAsync(kind, method, path, body, Timeout, (_, _) => Task.FromResult(true), cancellationToken);
+        ArrKind kind, HttpMethod method, string path, object? body, CancellationToken cancellationToken, TimeSpan? timeout = null) =>
+        SendCoreAsync(kind, method, path, body, timeout ?? Timeout, (_, _) => Task.FromResult(true), cancellationToken);
 
     /// <summary>Tutte le pagine di <c>queue</c> o <c>wanted/missing</c>: si ferma al totale o a una pagina vuota.</summary>
     private async Task<IReadOnlyList<T?>> GetAllPagesAsync<T>(

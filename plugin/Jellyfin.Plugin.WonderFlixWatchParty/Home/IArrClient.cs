@@ -36,6 +36,9 @@ public interface IArrClient
     /// <summary>Fa scaricare una release trovata da <see cref="SearchReleasesAsync"/> (spec T §2).</summary>
     Task GrabReleaseAsync(ArrKind kind, string guid, int indexerId, CancellationToken cancellationToken);
 
+    /// <summary>Un film di Radarr per id, con durata e file; 404 se non c'è (spec T §8.2).</summary>
+    Task<RadarrMovie> GetMovieAsync(int movieId, CancellationToken cancellationToken);
+
     /// <summary>Tutti i film di Radarr, con id, durata e file (spec T §2).</summary>
     Task<IReadOnlyList<RadarrMovie?>> GetLibraryMoviesAsync(CancellationToken cancellationToken);
 

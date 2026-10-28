@@ -41,15 +41,57 @@ public sealed class DownloadServiceCycleTests : IDisposable
     private DownloadEntry? Saved(string key) => Store().Load().Get(key);
 
     [Fact]
-    public async Task ADisabledServiceDoesNothing()
+    public async Task ADisabledServiceCreatesNothing()
     {
+        // Spento (ruling 12): legge Radarr e Sonarr, ma niente voci nuove e niente ricerche; gli errori si aggiornano.
         _settings.Enabled = false;
+        _movies = [Movie(12), Movie(13)];
+        _radarrQueue = [MovieQueue(90, 13, 5_000)];
+        _arr.MissingEpisodes = () => Task.FromException<IReadOnlyList<SonarrEpisode?>>(new ArrException(ArrError.Unreachable));
 
-        Assert.Same(CycleReport.Skipped, await _service.RunCycleAsync(CancellationToken.None));
+        var report = await _service.RunCycleAsync(CancellationToken.None);
 
-        Assert.Equal(0, _arr.LibraryMovieCalls);
-        Assert.Equal(0, _arr.MissingEpisodeCalls);
-        Assert.Empty(_arr.QueueCalls);
+        Assert.Equal(new CycleReport(0, 0, "Unreachable", null), report);
+        Assert.Equal(("Unreachable", (string?)null), _service.LastErrors);
+        Assert.Equal(1, _arr.LibraryMovieCalls);
+        Assert.Empty(_arr.SearchReleaseCalls);
+        Assert.Empty(Store().Load().Entries);
+    }
+
+    [Fact]
+    public async Task ADisabledServiceFollowsTheDownloadsItHas()
+    {
+        _movies = [Movie(12)];
+        _radarrQueue = [MovieQueue(90, 12, 5_000)];
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        // Spento: la coda si segue ancora, e l'import fa uscire la voce.
+        _settings.Enabled = false;
+        _time.Advance(DownloadService.CycleInterval);
+        _radarrQueue = [MovieQueue(90, 12, 4_000)];
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Equal(((long?)4_000, (DateTimeOffset?)_time.GetUtcNow()), (Saved("movie:12")!.LastSizeLeft, Saved("movie:12")!.LastProgressAt));
+
+        _time.Advance(DownloadService.CycleInterval);
+        _radarrQueue = [];
+        _movies = [Movie(12, hasFile: true)];
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Null(Saved("movie:12"));
+    }
+
+    [Fact]
+    public async Task ADisabledServiceDoesNotRemoveStalledDownloads()
+    {
+        _movies = [Movie(12)];
+        _radarrQueue = [MovieQueue(90, 12, 5_000)];
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        _settings.Enabled = false;
+        _time.Advance(DownloadSchedule.StalledAfter);
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Empty(_arr.RemoveFromQueueCalls);
+        Assert.Equal((DownloadStates.Downloading, (int?)90), (Saved("movie:12")!.State, Saved("movie:12")!.QueueId));
     }
 
     [Fact]
@@ -172,6 +214,21 @@ public sealed class DownloadServiceCycleTests : IDisposable
         Assert.Equal((ArrKind.Radarr, 90, true), Assert.Single(_arr.RemoveFromQueueCalls));
         var entry = Saved("movie:12")!;
         Assert.Equal((DownloadStates.Waiting, (int?)null, (DateTimeOffset?)_time.GetUtcNow()), (entry.State, entry.QueueId, entry.LastSearchAt));
+    }
+
+    [Fact]
+    public async Task AStalledTorrentInWarningIsRemoved()
+    {
+        // stalledDL di qBittorrent: status "warning" con trackedDownloadState "downloading" (visto su Sonarr, ruling 11).
+        _movies = [Movie(12)];
+        _radarrQueue = [MovieQueue(90, 12, 5_000, status: "warning")];
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        _time.Advance(DownloadSchedule.StalledAfter);
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Equal((ArrKind.Radarr, 90, true), Assert.Single(_arr.RemoveFromQueueCalls));
+        Assert.Equal(DownloadStates.Waiting, Saved("movie:12")!.State);
     }
 
     [Theory]

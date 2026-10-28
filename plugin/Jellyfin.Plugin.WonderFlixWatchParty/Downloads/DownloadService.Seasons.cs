@@ -76,13 +76,14 @@ public sealed partial class DownloadService
             .ToDictionary(g => g.Key, g => (IReadOnlyList<ArrQueueItem>)[.. g.OrderBy(q => q.Id)]);
 
     // Solo sotto _lock. La vista di Sonarr con le stagioni intere al posto dei loro episodi, nei titoli e nella coda.
-    private ArrView GroupSeasons(ArrView view, DateTimeOffset now)
+    // Spento non si creano voci di stagione (ruling 12).
+    private ArrView GroupSeasons(ArrView view, DateTimeOffset now, bool enabled)
     {
-        var seasons = view.Seasons ?? new Dictionary<string, ArrSeason>();
+        var seasons = (view.Seasons ?? new Dictionary<string, ArrSeason>()).ToDictionary();
         var seasonQueue = view.SeasonQueue ?? new Dictionary<string, IReadOnlyList<ArrQueueItem>>();
         var grouped = Book.Entries.Where(e => e.Kind == DownloadKinds.Season).Select(e => e.Key).ToHashSet();
         var chosen = Book.Choices.Select(c => c.Key).ToHashSet();
-        foreach (var season in seasons.Values.Where(s => s.Whole && !grouped.Contains(s.Title.Key)))
+        foreach (var season in seasons.Values.Where(s => enabled && s.Whole && !grouped.Contains(s.Title.Key)))
         {
             var episodeKeys = season.EpisodeIds.Select(id => Key(DownloadKinds.Episode, id)).ToList();
 
@@ -109,19 +110,45 @@ public sealed partial class DownloadService
         var queue = view.Queue.ToDictionary();
         foreach (var key in grouped)
         {
-            // Nessun mancante: la stagione non ha titolo, come un episodio che ha il file.
+            // Una voce (dell'admin) con i suoi episodi su una stagione non intera prende solo quelli; gli altri restano
+            // episodi, e l'import si controlla sui suoi (ruling 13).
+            var taken = seasons.GetValueOrDefault(key) is { Whole: false } && Book.Get(key)?.EpisodeNumbers is { Count: > 0 } numbers ? numbers : null;
+            HashSet<string>? mine = null;
             if (seasons.TryGetValue(key, out var season))
             {
+                if (taken is not null)
+                {
+                    var episodes = season.Episodes.Where(e => taken.Contains(e.EpisodeNumber)).ToList();
+                    season = season with
+                    {
+                        Title = season.Title with { Wanted = episodes.Any(e => e.Wanted) },
+                        Episodes = episodes,
+                        Missing = [.. season.Missing.Where(taken.Contains)],
+                    };
+                    seasons[key] = season;
+                    mine = [.. episodes.Select(e => e.Key)];
+                }
+
                 foreach (var episode in season.Episodes)
                 {
                     titles.Remove(episode.Key);
                 }
 
-                titles[key] = season.Title;
+                // Nessun mancante: la stagione non ha titolo, come un episodio che ha il file.
+                if (season.Episodes.Count > 0)
+                {
+                    titles[key] = season.Title;
+                }
             }
 
             if (seasonQueue.TryGetValue(key, out var records))
             {
+                records = mine is null ? records : [.. records.Where(r => r.EpisodeId is not > 0 || mine.Contains(Key(DownloadKinds.Episode, r.EpisodeId.Value)))];
+                if (records.Count == 0)
+                {
+                    continue;
+                }
+
                 foreach (var record in records.Where(r => r.EpisodeId > 0))
                 {
                     queue.Remove(Key(DownloadKinds.Episode, record.EpisodeId!.Value));
@@ -131,16 +158,14 @@ public sealed partial class DownloadService
             }
         }
 
-        return view with { Titles = titles, Queue = queue };
+        return view with { Titles = titles, Queue = queue, Seasons = seasons };
     }
 
     // Gli elementi di un pack come un download solo: l'id più basso, la somma di sizeleft (che resta uguale solo se resta
-    // uguale ognuno); scarica solo se scaricano tutti, ImportBlocked se lo è uno.
+    // uguale ognuno); scarica solo se scaricano tutti (anche in "warning", ruling 11), ImportBlocked se lo è uno.
     private static ArrQueueItem PackQueueItem(IReadOnlyList<ArrQueueItem> records)
     {
-        var downloading = records.All(r =>
-            string.Equals(r.Status, DownloadingState, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(r.TrackedDownloadState, DownloadingState, StringComparison.OrdinalIgnoreCase));
+        var downloading = records.All(IsActive);
         var blocked = records.Any(r => string.Equals(r.TrackedDownloadState, ImportBlockedState, StringComparison.OrdinalIgnoreCase));
         return new ArrQueueItem
         {

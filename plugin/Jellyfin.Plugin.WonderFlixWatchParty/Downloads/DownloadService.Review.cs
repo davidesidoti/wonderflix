@@ -113,8 +113,10 @@ public sealed partial class DownloadService
         string error;
         try
         {
-            var files = (await arr.GetManualImportAsync(import.Service, import.DownloadId, cancellationToken).ConfigureAwait(false))
-                .OfType<ArrManualImportItem>().Where(i => Importable(import.Service, i)).ToList();
+            var files = OnePerTitle(
+                import.Service,
+                [.. (await arr.GetManualImportAsync(import.Service, import.DownloadId, cancellationToken).ConfigureAwait(false))
+                    .OfType<ArrManualImportItem>().Where(i => Importable(import.Service, i))]);
             if (files.Count > 0)
             {
                 await arr.ManualImportAsync(import.Service, files, cancellationToken).ConfigureAwait(false);
@@ -139,6 +141,16 @@ public sealed partial class DownloadService
             }
         }
     }
+
+    // Il file più grande per film, o per episodio: un extra senza "Sample" nel nome prenderebbe il posto del film (ruling 14).
+    private static List<ArrManualImportItem> OnePerTitle(ArrKind kind, List<ArrManualImportItem> files) =>
+        kind == ArrKind.Radarr
+            ? [.. files.GroupBy(f => f.Movie!.Id).Select(g => g.MaxBy(f => f.Size)!)]
+            : [.. files
+                .SelectMany(f => f.Episodes!.OfType<ArrFileRef>().Where(e => e.Id > 0).Select(e => (e.Id, File: f)))
+                .GroupBy(p => p.Id)
+                .Select(g => g.MaxBy(p => p.File.Size).File)
+                .Distinct()];
 
     // Un file riconosciuto (il film, o la serie e gli episodi) e non un sample: un sample prenderebbe il posto del film.
     private static bool Importable(ArrKind kind, ArrManualImportItem item) =>

@@ -92,6 +92,10 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Assert.Equal(("movie:12", DownloadKinds.Movie, "Animals (2025)", 106, (string?)null), (result.Key, result.Kind, result.Title, result.RuntimeMinutes, result.Error));
         Assert.Null(result.Current);
         Assert.Equal((ArrKind.Radarr, "movieId=12"), Assert.Single(_arr.SearchReleaseCalls));
+
+        // Solo il film, non tutta la libreria di Radarr (ruling 14).
+        Assert.Equal([12], _arr.MovieByIdCalls);
+        Assert.Equal(0, _arr.LibraryMovieCalls);
         Assert.Equal(["b", "a", "c"], result.Candidates.Select(c => c.Release.Guid));
         Assert.Equal([1, 2, 3], result.Candidates.Select(c => c.Rank));
         Assert.Equal([true, false, false], result.Candidates.Select(c => c.IsChoice));
@@ -434,11 +438,17 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Assert.Equal([1, 2, 3], entry.EpisodeNumbers!);
         Assert.False(entry.ManualImportPending);
 
-        // "cambia": si tolgono tutti gli elementi del pack in coda, non quelli della stagione 1.
+        // "cambia" con il singolo: si tolgono tutti gli elementi del pack in coda, non quelli della stagione 1.
         _sonarrQueue = [EpisodeQueue(61, 202, 5_000), EpisodeQueue(60, 201, 5_000), new ArrQueueItem { Id = 62, SeriesId = 7, SeasonNumber = 1 }];
         Assert.Equal(GrabOutcome.Ok, await Grab("season:7:2", "s", 1));
         Assert.Equal([60, 61], _arr.RemoveFromQueueCalls.Select(c => c.QueueId));
-        Assert.Equal([1], Saved("season:7:2")!.EpisodeNumbers!);
+
+        // Il singolo è una voce di episodio, con il file di quell'episodio (ruling 13); la voce di stagione, che scaricava il pack, esce.
+        var episode = Saved("episode:201")!;
+        Assert.Equal((DownloadKinds.Episode, DownloadStates.Downloading, 7, (int?)30, (int?)WebRip1080, (long?)(2 * Gb)), (episode.Kind, episode.State, episode.SeriesId, episode.PreviousScore, episode.PreviousQualityId, episode.PreviousSizeBytes));
+        Assert.Null(episode.EpisodeNumbers);
+        Assert.Contains(("episode:201", "s"), Store().Load().Choices.Select(c => (c.Key, c.Guid)));
+        Assert.Null(Saved("season:7:2"));
     }
 
     [Fact]
@@ -481,11 +491,17 @@ public sealed class DownloadServiceAdminTests : IDisposable
 
         Assert.Equal(
             [("Radarr", 4, "Main", 60, (int?)200), ("Radarr", 9, "Radarr Anime", 1, (int?)null)],
-            profiles.Select(p => (p.Service, p.ProfileId, p.Name, p.MinScore, p.TargetScore)));
+            profiles!.Select(p => (p.Service, p.ProfileId, p.Name, p.MinScore, p.TargetScore)));
 
         _arr.QualityProfiles = _ => Task.FromResult<IReadOnlyList<ArrQualityProfile?>>([MainProfile(6)]);
         profiles = await _service.ProfilesAsync(CancellationToken.None);
-        Assert.Equal([("Radarr", 6, 50, (int?)150), ("Sonarr", 6, 50, (int?)150)], profiles.Select(p => (p.Service, p.ProfileId, p.MinScore, p.TargetScore)));
+        Assert.Equal([("Radarr", 6, 50, (int?)150), ("Sonarr", 6, 50, (int?)150)], profiles!.Select(p => (p.Service, p.ProfileId, p.MinScore, p.TargetScore)));
+
+        // Tutti e due in errore: null, non un elenco vuoto (ruling 14); nessuno configurato: vuoto.
+        _arr.QualityProfiles = _ => Task.FromException<IReadOnlyList<ArrQualityProfile?>>(new ArrException(ArrError.Unreachable));
+        Assert.Null(await _service.ProfilesAsync(CancellationToken.None));
+        (_arrSettings.Radarr, _arrSettings.Sonarr) = (ArrEndpoint.None, ArrEndpoint.None);
+        Assert.Empty((await _service.ProfilesAsync(CancellationToken.None))!);
     }
 
     private static (string, int, string, string, string, int, long, int, int?) Flat(DownloadReleaseDto r) =>

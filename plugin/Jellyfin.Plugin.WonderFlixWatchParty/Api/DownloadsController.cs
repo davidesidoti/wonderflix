@@ -60,11 +60,12 @@ public class DownloadsController(DownloadService downloads) : ControllerBase
     public ActionResult SearchNow([FromBody] KeyRequest? request) =>
         request?.Key is { } key && downloads.SearchNow(key) ? Accepted() : BadRequest();
 
-    /// <summary>I profili di qualità con le loro soglie, per la pagina di configurazione.</summary>
+    /// <summary>I profili di qualità con le loro soglie, per la pagina di configurazione; 503 se nessun servizio configurato risponde.</summary>
     [HttpGet("Profiles")]
     public async Task<ActionResult<IReadOnlyList<DownloadProfileDto>>> Profiles() =>
-        new ActionResult<IReadOnlyList<DownloadProfileDto>>(
-            await downloads.ProfilesAsync(HttpContext.RequestAborted).ConfigureAwait(false));
+        await downloads.ProfilesAsync(HttpContext.RequestAborted).ConfigureAwait(false) is { } profiles
+            ? new ActionResult<IReadOnlyList<DownloadProfileDto>>(profiles)
+            : Error(StatusCodes.Status503ServiceUnavailable, "Unavailable");
 
     private static ObjectResult Error(int status, string reason) =>
         new(new DownloadsErrorDto(reason)) { StatusCode = status };

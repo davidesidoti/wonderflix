@@ -5,11 +5,7 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 
 /// <summary>Esito di un giro (spec T §5): ricerche fatte, release scaricate e l'errore di ciascun servizio.</summary>
-public sealed record CycleReport(int Searched, int Grabbed, string? SonarrError, string? RadarrError)
-{
-    /// <summary>Download automatici spenti: il giro non ha fatto niente.</summary>
-    public static readonly CycleReport Skipped = new(0, 0, null, null);
-}
+public sealed record CycleReport(int Searched, int Grabbed, string? SonarrError, string? RadarrError);
 
 /// <summary>
 /// I download automatici (spec T §5): il giro che sceglie i titoli da seguire,
@@ -45,6 +41,9 @@ public sealed partial class DownloadService(
 
     // Status e trackedDownloadState di un elemento che sta scaricando: solo lui può essere fermo.
     private const string DownloadingState = "downloading";
+
+    // Status di un torrent senza connessioni (stalledDL di qBittorrent, visto su Sonarr): scarica, ma niente (ruling 11).
+    private const string WarningStatus = "warning";
 
     private readonly Lock _lock = new();
     private DownloadBook? _book;
@@ -98,14 +97,11 @@ public sealed partial class DownloadService(
     /// <summary>
     /// Un giro (spec T §5): legge Radarr e Sonarr, poi aggiorna le voci sotto il lock e
     /// salva. Un servizio non configurato o che non risponde lascia le sue voci come sono.
+    /// Spento (ruling 12): segue solo le voci che ci sono già, senza crearne, cercare o togliere download fermi.
     /// </summary>
     public async Task<CycleReport> RunCycleAsync(CancellationToken cancellationToken)
     {
-        if (!settings.Enabled)
-        {
-            return CycleReport.Skipped;
-        }
-
+        var enabled = settings.Enabled;
         var radarr = await ReadAsync(ArrKind.Radarr, ReadRadarrAsync, cancellationToken).ConfigureAwait(false);
         var sonarr = await ReadAsync(ArrKind.Sonarr, ReadSonarrAsync, cancellationToken).ConfigureAwait(false);
 
@@ -118,14 +114,14 @@ public sealed partial class DownloadService(
         {
             if (radarr.Value is { } movies)
             {
-                Apply(ArrKind.Radarr, movies, now, stalled, checks, imports);
+                Apply(ArrKind.Radarr, movies, now, enabled, stalled, checks, imports);
                 views[ArrKind.Radarr] = movies;
             }
 
             if (sonarr.Value is { } episodes)
             {
-                var view = GroupSeasons(episodes, now);
-                Apply(ArrKind.Sonarr, view, now, stalled, checks, imports);
+                var view = GroupSeasons(episodes, now, enabled);
+                Apply(ArrKind.Sonarr, view, now, enabled, stalled, checks, imports);
                 views[ArrKind.Sonarr] = view;
             }
         }
@@ -149,7 +145,10 @@ public sealed partial class DownloadService(
                 await ConfirmUpgradeAsync(check, cancellationToken).ConfigureAwait(false);
             }
 
-            (searched, grabbed) = await SearchDueAsync(views, errors, cancellationToken).ConfigureAwait(false);
+            if (enabled)
+            {
+                (searched, grabbed) = await SearchDueAsync(views, errors, cancellationToken).ConfigureAwait(false);
+            }
         }
         finally
         {
@@ -181,7 +180,8 @@ public sealed partial class DownloadService(
         bool Wanted,
         bool HasFile,
         int FileId = 0,
-        int SeriesId = 0);
+        int SeriesId = 0,
+        int EpisodeNumber = 0);
 
     // La lettura di un servizio: i suoi titoli per chiave e la coda per chiave.
     // AbsentHasFile: Sonarr toglie dai mancanti un episodio appena ha il file.
@@ -273,19 +273,29 @@ public sealed partial class DownloadService(
         Followed: e.Monitored,
         Wanted: e.Monitored && e.AirDateUtc <= now,
         HasFile: false,
-        SeriesId: e.SeriesId);
+        SeriesId: e.SeriesId,
+        EpisodeNumber: e.EpisodeNumber);
 
     private static string SeasonTitleOf(string? series, int season) =>
         string.Create(CultureInfo.InvariantCulture, $"{series} · Stagione {season}");
 
-    // Solo sotto _lock.
+    // Solo sotto _lock. Spento: niente voci nuove e niente download fermi da togliere (ruling 12).
     private void Apply(
-        ArrKind kind, ArrView view, DateTimeOffset now, List<(ArrKind, int, string)> stalled, List<UpgradeCheck> checks, List<ManualImport> imports)
+        ArrKind kind,
+        ArrView view,
+        DateTimeOffset now,
+        bool enabled,
+        List<(ArrKind, int, string)> stalled,
+        List<UpgradeCheck> checks,
+        List<ManualImport> imports)
     {
         // 1-2. I titoli da seguire hanno una voce; quelle che ci sono si aggiornano.
         foreach (var title in view.Titles.Values.Where(t => t.Wanted))
         {
-            Describe(Book.Get(title.Key) ?? Create(title, now), title);
+            if ((Book.Get(title.Key) ?? (enabled ? Create(title, now) : null)) is { } existing)
+            {
+                Describe(existing, title);
+            }
         }
 
         // 3. La coda, anche quella che non ha avviato WonderFlix.
@@ -295,7 +305,7 @@ public sealed partial class DownloadService(
             if (entry is null)
             {
                 // Un episodio che non manca non è da seguire (ha il file o non è monitorato).
-                if (!view.Titles.TryGetValue(key, out var title))
+                if (!enabled || !view.Titles.TryGetValue(key, out var title))
                 {
                     continue;
                 }
@@ -303,7 +313,7 @@ public sealed partial class DownloadService(
                 entry = Create(title, now);
             }
 
-            if (Track(entry, item, now, imports))
+            if (Track(entry, item, now, imports) && enabled)
             {
                 // Un pack ha un elemento per episodio: si tolgono tutti, prima quello della voce.
                 foreach (var queueId in view.SeasonQueue?.GetValueOrDefault(key)?.Select(q => q.Id) ?? [item.Id])
@@ -367,8 +377,7 @@ public sealed partial class DownloadService(
     private bool Track(DownloadEntry entry, ArrQueueItem item, DateTimeOffset now, List<ManualImport> imports)
     {
         // Fermo solo se scarica davvero: in coda, in pausa o col client giù l'orologio riparte (decisione 3).
-        var active = string.Equals(item.Status, DownloadingState, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(item.TrackedDownloadState, DownloadingState, StringComparison.OrdinalIgnoreCase);
+        var active = IsActive(item);
         if (!active || entry.QueueId != item.Id || entry.LastSizeLeft != item.Sizeleft)
         {
             entry.QueueId = item.Id;
@@ -388,6 +397,12 @@ public sealed partial class DownloadService(
             && entry.LastProgressAt is { } since
             && now - since >= DownloadSchedule.StalledAfter;
     }
+
+    // Scarica (anche senza connessioni, "warning"): solo così può essere fermo (ruling 11).
+    private static bool IsActive(ArrQueueItem item) =>
+        string.Equals(item.TrackedDownloadState, DownloadingState, StringComparison.OrdinalIgnoreCase)
+        && (string.Equals(item.Status, DownloadingState, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(item.Status, WarningStatus, StringComparison.OrdinalIgnoreCase));
 
     // Solo sotto _lock. Il file è arrivato: sotto l'obiettivo (o senza) si tengono d'occhio gli upgrade (spec T §5.3).
     private void OnImported(DownloadEntry entry, DateTimeOffset now)
