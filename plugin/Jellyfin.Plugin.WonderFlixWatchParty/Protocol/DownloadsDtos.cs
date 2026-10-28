@@ -12,18 +12,18 @@ public sealed record DownloadReleaseDto(
     [property: JsonPropertyName("Resolution")] int Resolution,
     [property: JsonPropertyName("SizeBytes")] long SizeBytes,
     [property: JsonPropertyName("Score")] int Score,
-    [property: JsonPropertyName("Seeders")] int? Seeders);
+    [property: JsonPropertyName("Seeders")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  int? Seeders);
 
 /// <summary>Una scelta fatta, da WonderFlix o dall'admin (spec T §8.1). Previous*: il file di prima, per un upgrade.</summary>
 public sealed record DownloadChoiceDto(
     [property: JsonPropertyName("Key")] string Key,
     [property: JsonPropertyName("Kind")] string Kind,
     [property: JsonPropertyName("Title")] string Title,
-    [property: JsonPropertyName("PosterUrl")] string? PosterUrl,
+    [property: JsonPropertyName("PosterUrl")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? PosterUrl,
     [property: JsonPropertyName("At")] DateTimeOffset At,
     [property: JsonPropertyName("Release")] DownloadReleaseDto Release,
-    [property: JsonPropertyName("PreviousSizeBytes")] long? PreviousSizeBytes,
-    [property: JsonPropertyName("PreviousScore")] int? PreviousScore,
+    [property: JsonPropertyName("PreviousSizeBytes")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  long? PreviousSizeBytes,
+    [property: JsonPropertyName("PreviousScore")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  int? PreviousScore,
     [property: JsonPropertyName("ByAdmin")] bool ByAdmin);
 
 /// <summary>Un titolo seguito (spec T §8.1): in attesa, in download, in upgrade o "Serve te".</summary>
@@ -31,19 +31,19 @@ public sealed record DownloadItemDto(
     [property: JsonPropertyName("Key")] string Key,
     [property: JsonPropertyName("Kind")] string Kind,
     [property: JsonPropertyName("Title")] string Title,
-    [property: JsonPropertyName("PosterUrl")] string? PosterUrl,
+    [property: JsonPropertyName("PosterUrl")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? PosterUrl,
     [property: JsonPropertyName("State")] string State,
-    [property: JsonPropertyName("Reason")] string? Reason,
+    [property: JsonPropertyName("Reason")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? Reason,
     [property: JsonPropertyName("AvailableSince")] DateTimeOffset AvailableSince,
-    [property: JsonPropertyName("LastSearchAt")] DateTimeOffset? LastSearchAt,
-    [property: JsonPropertyName("NextSearchAt")] DateTimeOffset? NextSearchAt);
+    [property: JsonPropertyName("LastSearchAt")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  DateTimeOffset? LastSearchAt,
+    [property: JsonPropertyName("NextSearchAt")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  DateTimeOffset? NextSearchAt);
 
 /// <summary>Un titolo da ripassare con il file di adesso (spec T §6).</summary>
 public sealed record ReviewItemDto(
     [property: JsonPropertyName("Key")] string Key,
     [property: JsonPropertyName("Kind")] string Kind,
     [property: JsonPropertyName("Title")] string Title,
-    [property: JsonPropertyName("PosterUrl")] string? PosterUrl,
+    [property: JsonPropertyName("PosterUrl")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? PosterUrl,
     [property: JsonPropertyName("Score")] int Score,
     [property: JsonPropertyName("SizeBytes")] long SizeBytes,
     [property: JsonPropertyName("Quality")] string Quality);
@@ -54,9 +54,9 @@ public sealed record DownloadsOverviewDto(
     [property: JsonPropertyName("Recent")] IReadOnlyList<DownloadChoiceDto> Recent,
     [property: JsonPropertyName("Waiting")] IReadOnlyList<DownloadItemDto> Waiting,
     [property: JsonPropertyName("Review")] IReadOnlyList<ReviewItemDto> Review,
-    [property: JsonPropertyName("ReviewAt")] DateTimeOffset? ReviewAt,
-    [property: JsonPropertyName("SonarrError")] string? SonarrError,
-    [property: JsonPropertyName("RadarrError")] string? RadarrError);
+    [property: JsonPropertyName("ReviewAt")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  DateTimeOffset? ReviewAt,
+    [property: JsonPropertyName("SonarrError")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? SonarrError,
+    [property: JsonPropertyName("RadarrError")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? RadarrError);
 
 /// <summary>Una release valida, nell'ordine della regola (Rank da 1) (spec T §8.2).</summary>
 public sealed record DownloadCandidateDto(
@@ -69,7 +69,7 @@ public sealed record DownloadCandidateDto(
 public sealed record DownloadRejectedDto(
     [property: JsonPropertyName("Release")] DownloadReleaseDto Release,
     [property: JsonPropertyName("Reason")] string Reason,
-    [property: JsonPropertyName("Detail")] string? Detail);
+    [property: JsonPropertyName("Detail")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? Detail);
 
 /// <summary>Il file di adesso; per una stagione il peso di tutti i file e il punteggio e la qualità del peggiore (spec T §8.2).</summary>
 public sealed record DownloadCurrentFileDto(
@@ -83,12 +83,12 @@ public sealed record DownloadSearchDto(
     [property: JsonPropertyName("Kind")] string Kind,
     [property: JsonPropertyName("Title")] string Title,
     [property: JsonPropertyName("RuntimeMinutes")] int RuntimeMinutes,
-    [property: JsonPropertyName("Current")] DownloadCurrentFileDto? Current,
+    [property: JsonPropertyName("Current")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  DownloadCurrentFileDto? Current,
     [property: JsonPropertyName("Candidates")] IReadOnlyList<DownloadCandidateDto> Candidates,
     [property: JsonPropertyName("Rejected")] IReadOnlyList<DownloadRejectedDto> Rejected,
     [property: JsonPropertyName("ValidCount")] int ValidCount,
     [property: JsonPropertyName("TotalCount")] int TotalCount,
-    [property: JsonPropertyName("Error")] string? Error);
+    [property: JsonPropertyName("Error")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? Error);
 
 /// <summary>Un profilo di qualità con le sue soglie (spec T §7.1). Service: "Radarr" o "Sonarr".</summary>
 public sealed record DownloadProfileDto(
@@ -96,7 +96,7 @@ public sealed record DownloadProfileDto(
     [property: JsonPropertyName("ProfileId")] int ProfileId,
     [property: JsonPropertyName("Name")] string Name,
     [property: JsonPropertyName("MinScore")] int MinScore,
-    [property: JsonPropertyName("TargetScore")] int? TargetScore);
+    [property: JsonPropertyName("TargetScore")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  int? TargetScore);
 
 /// <summary>Corpo di POST Downloads/Grab: la release di una ricerca (spec T §7.4).</summary>
 public sealed class GrabRequest

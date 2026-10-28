@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
+using Jellyfin.Extensions.Json;
 using Jellyfin.Plugin.WonderFlixWatchParty.Api;
 using Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
@@ -144,11 +145,39 @@ public sealed class DownloadsControllerTests : IDisposable
     {
         var search = (await _controller.Search("movie:12")).Value!;
 
-        var json = JsonSerializer.Serialize(search);
+        // Come Jellyfin: le sue opzioni omettono i null, quindi ogni campo nullable ha JsonIgnoreCondition.Never.
+        var json = JsonSerializer.Serialize(search, JsonDefaults.PascalCaseOptions);
 
         Assert.Contains("\"Error\":null", json);
         Assert.Contains("\"Current\":null", json);
-        Assert.Contains("\"SonarrError\":null", JsonSerializer.Serialize(_controller.Overview().Value));
+        var overview = JsonSerializer.Serialize(_controller.Overview().Value, JsonDefaults.PascalCaseOptions);
+        Assert.Contains("\"SonarrError\":null", overview);
+        Assert.Contains("\"RadarrError\":null", overview);
+        Assert.Contains("\"ReviewAt\":null", overview);
+    }
+
+    [Fact]
+    public void EveryNullablePropertyOfTheDtosIsWrittenWhenNull()
+    {
+        var release = new DownloadReleaseDto("g", 1, "idx", "t", "WEBRip-1080p", 1080, 1, 1, null);
+        var dtos = new object[]
+        {
+            release,
+            new DownloadChoiceDto("movie:1", "Movie", "T", null, T0, release, null, null, false),
+            new DownloadItemDto("movie:1", "Movie", "T", null, "Waiting", null, T0, null, null),
+            new ReviewItemDto("movie:1", "Movie", "T", null, 1, 1, "q"),
+            new DownloadRejectedDto(release, "Arr", null),
+            new DownloadProfileDto("Radarr", 4, "Main", 50, null),
+        };
+
+        foreach (var dto in dtos)
+        {
+            var json = JsonSerializer.Serialize(dto, dto.GetType(), JsonDefaults.PascalCaseOptions);
+            foreach (var property in dto.GetType().GetProperties().Where(p => Nullable.GetUnderlyingType(p.PropertyType) is not null || (!p.PropertyType.IsValueType && p.GetValue(dto) is null)))
+            {
+                Assert.Contains($"\"{property.Name}\":null", json);
+            }
+        }
     }
 
     [Fact]
