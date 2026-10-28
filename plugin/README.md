@@ -25,6 +25,7 @@ Dalla 1.9.0 mostra agli amici cosa si sta guardando in WonderFlix e i titoli vis
 Dalla 1.10.0 c'è il match del film: gli amici in una sala votano sì o no su una pila di titoli e partono in un party privato con quelli che piacciono a tutti (spec P, `docs/superpowers/specs/2026-10-14-wonderflix-match-film-design.md`).
 Dalla 1.11.0 ci sono i voti degli amici: a fine film nel watch party ognuno vota da 1 a 10, i voti si scoprono tutti insieme, e nella scheda restano la media e i commenti degli amici (spec Q, `docs/superpowers/specs/2026-10-20-wonderflix-voti-amici-design.md`).
 Dalla 1.12.0 ci sono le segnalazioni: chi trova un problema su un titolo lo segnala, gli admin ricevono una notifica e la chiudono, e chi ha segnalato riceve l'esito; in più admin e utenti con la spunta sottotitoli di Jellyfin cercano, scaricano e caricano sottotitoli (spec R, `docs/superpowers/specs/2026-10-21-wonderflix-sistema-titoli-design.md`).
+Dalla 1.14.0 ci sono i download automatici: il plugin cerca i film e gli episodi che mancano in Radarr e Sonarr e scarica la release migliore con una regola sua, e gli admin vedono e correggono le scelte dalla scheda Download dell'app (spec T, `docs/superpowers/specs/2026-10-28-wonderflix-download-automatici-design.md`).
 Senza il plugin WonderFlix funziona lo stesso, con gli avvisi
 anonimi, senza saghe, con le iniziali al posto delle immagini, senza il
 recupero della password, con la Home nell'ordine predefinito e senza le
@@ -34,7 +35,7 @@ uscite in arrivo.
   una build nuova (net10.0).
 - Le impostazioni stanno nella pagina del plugin nella Dashboard (menu
   laterale, sotto Plugin): **Notify new titles** (accesa di default), Seerr, il
-  recupero della password e Sonarr e Radarr. La stessa pagina manda
+  recupero della password, Sonarr e Radarr e i download automatici. La stessa pagina manda
   un **annuncio** a tutti e, con **Send now**, il riepilogo dei nuovi titoli in
   attesa. Endpoint sotto `/WonderFlixWatchParty`; gli eventi arrivano ai client
   come `GeneralCommand` `SendString` con la chiave `WonderFlixWatchParty`.
@@ -116,6 +117,45 @@ uscite in arrivo.
   risponde sempre 200, con `SeriesError` e `MoviesError` se qualcosa non va.
   Le richieste hanno in più le date di uscita (`InCinemas`, `DigitalRelease`,
   `NextAiring` e il numero del prossimo episodio) e lo stato `AwaitingRelease`.
+- **Download automatici (dalla 1.14.0):** tutti gli endpoint sono solo per
+  l'admin. `GET Downloads` dà la panoramica (`Enabled`, `Recent` le scelte
+  degli ultimi 90 giorni, `Waiting` i titoli in attesa o in download, tra cui
+  quelli che servono all'admin, `Review` l'elenco da ripassare, `SonarrError`
+  e `RadarrError`); `GET Downloads/Search?key=` fa la ricerca dal vivo (fino a
+  2 minuti) e dà le release in ordine con quelle scartate; `POST Downloads/Grab`
+  `{Key, Guid, IndexerId}` scarica la release scelta (204; 400 per corpo o
+  chiave non validi; 409 `{"Reason":"Expired"}` se la release non c'è più,
+  `{"Reason":"Busy"}` se un'altra azione è in corso; 503
+  `{"Reason":"Unavailable"}` se Radarr o Sonarr non rispondono);
+  `POST Downloads/Accept` `{Key}` è "va bene così" (204, 400);
+  `POST Downloads/SearchNow` `{Key}` ricerca subito (202, 400);
+  `GET Downloads/Profiles` dà i profili di qualità di Radarr e Sonarr con le
+  soglie per la pagina del plugin. Le chiavi dei titoli sono `movie:{id}`,
+  `episode:{id}` e `season:{idSerie}:{numero}`. Lo stato sta in
+  `plugins/configurations/WonderFlixWatchParty/downloads.json` (un file
+  illeggibile diventa `downloads.json.bad` e si riparte da vuoto). Nella
+  pagina del plugin: l'interruttore, i GB all'ora minimi e il punteggio
+  minimo e obiettivo di ogni profilo. Funzione `downloads`, presente con
+  almeno uno tra Sonarr e Radarr.
+  **Attivazione sul server** (a mano, nell'ordine; l'interruttore resta
+  spento finché non sono fatti):
+  1. Provare la regola con l'interruttore spento (dalla scheda Download
+     dell'app, ricerca su qualche titolo).
+  2. **Prowlarr → Settings → Apps → Sync Profiles → "Standard"**: spegnere
+     "Enable RSS". Lasciare accese la ricerca automatica e quella manuale (la
+     ricerca manuale serve a WonderFlix). Dopo la sincronizzazione controllare
+     che in Radarr e Sonarr gli indexer risultino senza RSS.
+  3. **Radarr e Sonarr → Settings → Download Clients**: spegnere "Redownload
+     Failed" e "Redownload Failed from Interactive Search".
+  4. **Profili di qualità**: perché Radarr e Sonarr accettino come upgrade un
+     file con punteggio più alto ma di qualità più bassa (un WEBRip 150 al
+     posto di un Bluray 0), i 1080p del Main Profile vanno messi in un solo
+     gruppo (HDTV-1080p, WEB 1080p, Bluray-1080p), e lo stesso per i 720p.
+     Così dentro la stessa risoluzione decide il punteggio, come nella regola
+     di WonderFlix.
+  5. **Seerr**: sul server "Radarr Anime" accendere "prevent search";
+     facoltativo, su Sonarr mettere `[Anime] 1080p` come profilo anime.
+  6. Accendere "Automatic downloads" nella pagina del plugin.
 - **Consigli (dalla 1.8.0):** `GET Recommendations/Targets?itemId=` dà gli
   amici attivi con online e accesso al titolo; `POST Recommendations`
   `{ItemId, To, Message}` consiglia un film o una serie (messaggio fino a 200
@@ -173,7 +213,7 @@ uscite in arrivo.
   provider falliscono); i 409 hanno `{Reason}`.
 - **Funzioni:** `GET Info` annuncia quello che il plugin sa fare; dalla 1.5.0
   ci sono sempre anche `collections` e `avatars`, dalla 1.6.0 anche
-  `account`, dalla 1.7.0 anche `home`, dalla 1.8.0 anche `recommendations`, dalla 1.9.0 anche `friendsActivity`, dalla 1.10.0 anche `match`, dalla 1.11.0 anche `ratings`, dalla 1.12.0 anche `reports`; `upcomingSeries` e `upcomingMovies`
+  `account`, dalla 1.7.0 anche `home`, dalla 1.8.0 anche `recommendations`, dalla 1.9.0 anche `friendsActivity`, dalla 1.10.0 anche `match`, dalla 1.11.0 anche `ratings`, dalla 1.12.0 anche `reports`, dalla 1.14.0 anche `downloads` (con almeno uno tra Sonarr e Radarr); `upcomingSeries` e `upcomingMovies`
   solo con Sonarr e Radarr configurati, e `calendar` con almeno uno dei due. Gli endpoint delle saghe e delle
   immagini sono aperti a ogni utente che ha fatto l'accesso. Quelli di
   `account` dipendono dalla rotta: `Account/Contacts` per ogni utente che ha
@@ -181,7 +221,7 @@ uscite in arrivo.
   `Account/Recovery` senza accesso, `Account/Admin` solo per gli admin. Quelli
   di `Home` e `Upcoming` sono aperti a ogni utente che ha fatto l'accesso,
   tranne le scritture (`POST Home/Layout`, `POST Upcoming/Test`), solo per gli
-  admin. Quelli di `Recommendations` hanno la stessa policy degli amici. Quelli di `Activity` hanno la stessa policy degli amici. Quelli di `Match` hanno la stessa policy degli amici. Quelli di `Ratings` hanno la stessa policy degli amici, tranne `Ratings/Admin`, solo per l'admin.
+  admin. Quelli di `Recommendations` hanno la stessa policy degli amici. Quelli di `Activity` hanno la stessa policy degli amici. Quelli di `Match` hanno la stessa policy degli amici. Quelli di `Ratings` hanno la stessa policy degli amici, tranne `Ratings/Admin`, solo per l'admin. Quelli di `Downloads` sono solo per l'admin.
 
 ## Installazione dal repository
 

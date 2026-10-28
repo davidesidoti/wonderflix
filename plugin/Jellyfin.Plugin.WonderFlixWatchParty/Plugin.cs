@@ -13,7 +13,7 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty;
 /// dalla 1.6.0, il recupero della password (spec L: Discord, email e
 /// promemoria) e, dalla 1.7.0, la Home su misura (spec M: la Home dell'admin
 /// e le uscite di Sonarr e Radarr) e, dalla 1.8.0, i consigli tra amici
-/// (spec N) e, dalla 1.9.0, cosa guardano gli amici (spec O) e, dalla 1.10.0, il match del film (spec P) e, dalla 1.11.0, i voti degli amici (spec Q) e, dalla 1.12.0, le segnalazioni e i sottotitoli (spec R) e, dalla 1.13.0, il calendario delle uscite e le date delle richieste (spec S). La sua pagina nella Dashboard serve per
+/// (spec N) e, dalla 1.9.0, cosa guardano gli amici (spec O) e, dalla 1.10.0, il match del film (spec P) e, dalla 1.11.0, i voti degli amici (spec Q) e, dalla 1.12.0, le segnalazioni e i sottotitoli (spec R) e, dalla 1.13.0, il calendario delle uscite e le date delle richieste (spec S) e, dalla 1.14.0, i download automatici (spec T). La sua pagina nella Dashboard serve per
 /// queste, per gli annunci e per mandare subito i nuovi titoli (spec G §6.8).
 /// </summary>
 public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages

@@ -122,6 +122,31 @@
                         <div id="WonderFlixArrResult" class="fieldDescription" aria-live="polite"></div>
                     </div>
                 </form>
+                <form id="WonderFlixDownloadsForm">
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Automatic downloads</h3>
+                        <div class="fieldDescription">
+                            WonderFlix looks for the missing movies and episodes in Radarr and Sonarr and downloads the best release by its own rule. Needs Sonarr or Radarr above. Follow the activation steps in the plugin README before turning this on.
+                        </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="WonderFlixDownloadsEnabled" type="checkbox" is="emby-checkbox" />
+                                <span>Automatic downloads</span>
+                            </label>
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="number" id="WonderFlixDownloadsMinGbPerHour" label="Minimum size (GB per hour)" min="0.1" max="20" step="0.1" />
+                            <div class="fieldDescription">Releases smaller than this for their length are skipped.</div>
+                        </div>
+                        <h4>Quality profiles</h4>
+                        <div class="fieldDescription">Minimum and target score per profile. A release below the minimum is never taken; a file at or above the target is good enough. Empty target: no target.</div>
+                        <div id="WonderFlixDownloadsProfiles"></div>
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span>Save</span>
+                        </button>
+                        <div id="WonderFlixDownloadsResult" class="fieldDescription" aria-live="polite"></div>
+                    </div>
+                </form>
                 <form id="WonderFlixRecoveryForm">
                     <div class="verticalSection">
                         <h3 class="sectionTitle">Password recovery</h3>
@@ -634,6 +659,110 @@
                     }, function () {
                         arrResult.textContent = 'Test failed: try again.';
                     });
+                });
+                // Download automatici (spec T): come Sonarr e Radarr, Salva solo dopo aver letto la configurazione.
+                var dlEnabled = page.querySelector('#WonderFlixDownloadsEnabled');
+                var dlMinGb = page.querySelector('#WonderFlixDownloadsMinGbPerHour');
+                var dlProfiles = page.querySelector('#WonderFlixDownloadsProfiles');
+                var dlResult = page.querySelector('#WonderFlixDownloadsResult');
+                var dlLoaded = false;
+                var dlRows = null; // null: tabella non caricata, le regole in configurazione restano come sono
+
+                function dlNote(text) {
+                    dlRows = null;
+                    dlProfiles.textContent = text;
+                }
+
+                function dlInput(value) {
+                    var input = document.createElement('input');
+                    input.type = 'number';
+                    input.step = '1';
+                    input.value = value === undefined || value === null ? '' : value;
+                    return input;
+                }
+
+                function dlTable(profiles, rules) {
+                    var table = document.createElement('table');
+                    var head = table.createTHead().insertRow();
+                    ['Service', 'Profile', 'Minimum', 'Target'].forEach(function (title) {
+                        head.insertCell().textContent = title;
+                    });
+                    var body = table.createTBody();
+                    dlRows = profiles.map(function (profile) {
+                        var rule = rules.filter(function (r) {
+                            return r.Service === profile.Service && r.ProfileId === profile.ProfileId;
+                        })[0] || profile;
+                        var row = body.insertRow();
+                        row.insertCell().textContent = profile.Service;
+                        row.insertCell().textContent = profile.Name;
+                        var min = dlInput(rule.MinScore);
+                        var target = dlInput(rule.TargetScore);
+                        row.insertCell().appendChild(min);
+                        row.insertCell().appendChild(target);
+                        return { service: profile.Service, profileId: profile.ProfileId, min: min, target: target };
+                    });
+                    dlProfiles.textContent = '';
+                    dlProfiles.appendChild(table);
+                }
+
+                function loadDownloads() {
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        dlEnabled.checked = config.DownloadsEnabled === true;
+                        dlMinGb.value = config.DownloadsMinGbPerHour === undefined || config.DownloadsMinGbPerHour === null ? 0.8 : config.DownloadsMinGbPerHour;
+                        dlLoaded = true;
+                        dlResult.textContent = '';
+                        ApiClient.getJSON(ApiClient.getUrl('WonderFlixWatchParty/Downloads/Profiles')).then(function (profiles) {
+                            if (profiles.length === 0) {
+                                dlNote('No quality profiles found.');
+                            } else {
+                                dlTable(profiles, config.DownloadProfileRules || []);
+                            }
+                        }, function () {
+                            dlNote('Profiles not available: set up Sonarr or Radarr above and check they answer. The saved profile scores stay as they are.');
+                        });
+                    }, function () {
+                        dlLoaded = false;
+                        dlNote('');
+                        dlResult.textContent = 'Settings not loaded: reload the page.';
+                    });
+                }
+
+                page.addEventListener('pageshow', loadDownloads);
+                loadDownloads();
+
+                page.querySelector('#WonderFlixDownloadsForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    dlResult.textContent = '';
+                    if (!dlLoaded) {
+                        dlResult.textContent = 'Settings not loaded: reload the page.';
+                        return false;
+                    }
+
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        config.DownloadsEnabled = dlEnabled.checked;
+                        var gb = parseFloat(dlMinGb.value);
+                        config.DownloadsMinGbPerHour = isNaN(gb) ? config.DownloadsMinGbPerHour : gb;
+                        if (dlRows !== null) {
+                            config.DownloadProfileRules = dlRows.map(function (row) {
+                                var target = parseInt(row.target.value, 10);
+                                return {
+                                    Service: row.service,
+                                    ProfileId: row.profileId,
+                                    MinScore: numberIn(row.min, 0),
+                                    TargetScore: isNaN(target) ? null : target
+                                };
+                            });
+                        }
+                        return ApiClient.updatePluginConfiguration(pluginId, config);
+                    }).then(function (saved) {
+                        Dashboard.processPluginConfigurationUpdateResult(saved);
+                        loadDownloads();
+                    }, function () {
+                        Dashboard.hideLoadingMsg();
+                        dlResult.textContent = 'Settings not saved.';
+                    });
+                    return false;
                 });
             })();
         </script>
