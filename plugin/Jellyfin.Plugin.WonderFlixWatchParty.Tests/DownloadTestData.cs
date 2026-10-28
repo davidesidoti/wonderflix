@@ -17,6 +17,7 @@ internal static class DownloadTestData
         IsAvailable = available,
         HasFile = hasFile,
         QualityProfileId = 4,
+        MovieFile = hasFile ? new ArrFileRef { Id = 500 + id } : null,
         Images = [new ArrImage { CoverType = "fanart", RemoteUrl = "https://img.example/fanart.jpg" }, new ArrImage { CoverType = "Poster", RemoteUrl = "https://img.example/poster.jpg" }],
     };
 
@@ -54,6 +55,9 @@ internal static class DownloadTestData
         Quality = new ArrQualityModel { Quality = new ArrQuality { Id = qualityId, Name = quality, Resolution = quality.EndsWith("720p", StringComparison.Ordinal) ? 720 : 1080 } },
         CustomFormatScore = score,
     };
+
+    public static ArrFile File(int id, int qualityId, int score) =>
+        new() { Id = id, CustomFormatScore = score, Quality = new ArrQualityModel { Quality = new ArrQuality { Id = qualityId } } };
 
     // HDTV-720p, poi il gruppo WEB 1080p (WEBDL e WEBRip nella stessa posizione), poi Bluray-1080p.
     public static ArrQualityProfile MainProfile(int id) => new()

@@ -111,18 +111,19 @@ public sealed partial class DownloadService(
 
         var now = time.GetUtcNow();
         var stalled = new List<(ArrKind Kind, int QueueId, string Key)>();
+        var checks = new List<UpgradeCheck>();
         var views = new Dictionary<ArrKind, ArrView>();
         lock (_lock)
         {
             if (radarr.Value is { } movies)
             {
-                Apply(ArrKind.Radarr, movies, now, stalled);
+                Apply(ArrKind.Radarr, movies, now, stalled, checks);
                 views[ArrKind.Radarr] = movies;
             }
 
             if (sonarr.Value is { } episodes)
             {
-                Apply(ArrKind.Sonarr, episodes, now, stalled);
+                Apply(ArrKind.Sonarr, episodes, now, stalled, checks);
                 views[ArrKind.Sonarr] = episodes;
             }
         }
@@ -130,6 +131,11 @@ public sealed partial class DownloadService(
         foreach (var (kind, queueId, key) in stalled)
         {
             await RemoveStalledAsync(kind, queueId, key, cancellationToken).ConfigureAwait(false);
+        }
+
+        foreach (var check in checks)
+        {
+            await ConfirmUpgradeAsync(check, cancellationToken).ConfigureAwait(false);
         }
 
         var errors = new Dictionary<ArrKind, string?> { [ArrKind.Radarr] = radarr.Error, [ArrKind.Sonarr] = sonarr.Error };
@@ -159,7 +165,9 @@ public sealed partial class DownloadService(
         bool Monitored,
         bool Followed,
         bool Wanted,
-        bool HasFile);
+        bool HasFile,
+        int FileId = 0,
+        int SeriesId = 0);
 
     // La lettura di un servizio: i suoi titoli per chiave e la coda per chiave.
     // AbsentHasFile: Sonarr toglie dai mancanti un episodio appena ha il file.
@@ -211,7 +219,8 @@ public sealed partial class DownloadService(
                 m.Monitored,
                 Followed: m.Monitored && !m.HasFile,
                 Wanted: m.Monitored && !m.HasFile && m.IsAvailable,
-                m.HasFile));
+                m.HasFile,
+                FileId: m.MovieFile?.Id ?? 0));
         return new ArrView(
             ByKey(titles, t => t.Key),
             ByKey(queue.OfType<ArrQueueItem>().Where(q => q.MovieId > 0), q => Key(DownloadKinds.Movie, q.MovieId!.Value)),
@@ -236,7 +245,8 @@ public sealed partial class DownloadService(
                 e.Monitored,
                 Followed: e.Monitored,
                 Wanted: e.Monitored && e.AirDateUtc <= now,
-                HasFile: false));
+                HasFile: false,
+                SeriesId: e.SeriesId));
         return new ArrView(
             ByKey(titles, t => t.Key),
             ByKey(queue.OfType<ArrQueueItem>().Where(q => q.EpisodeId > 0), q => Key(DownloadKinds.Episode, q.EpisodeId!.Value)),
@@ -245,7 +255,7 @@ public sealed partial class DownloadService(
     }
 
     // Solo sotto _lock.
-    private void Apply(ArrKind kind, ArrView view, DateTimeOffset now, List<(ArrKind, int, string)> stalled)
+    private void Apply(ArrKind kind, ArrView view, DateTimeOffset now, List<(ArrKind, int, string)> stalled, List<UpgradeCheck> checks)
     {
         // 1-2. I titoli da seguire hanno una voce; quelle che ci sono si aggiornano.
         foreach (var title in view.Titles.Values.Where(t => t.Wanted))
@@ -283,13 +293,21 @@ public sealed partial class DownloadService(
             var grabbed = entry.QueueId is null && entry.State == DownloadStates.Downloading;
             if (entry.QueueId is not null || grabbed)
             {
-                if (title is null ? view.AbsentHasFile : title.HasFile)
-                {
-                    OnImported(entry, now);
-                }
-                else if (grabbed && entry.LastSearchAt is { } grabbedAt && now - grabbedAt < CycleInterval)
+                var hasFile = title is null ? view.AbsentHasFile : title.HasFile;
+                var upgrade = entry.PreviousScore is not null;
+                if (grabbed && entry.LastSearchAt is { } grabbedAt && now - grabbedAt < CycleInterval && (upgrade || !hasFile))
                 {
                     // Radarr/Sonarr non l'hanno ancora messa in coda: riscaricarla farebbe due copie.
+                    // Per un upgrade il file che c'è può essere ancora quello vecchio.
+                }
+                else if (hasFile && upgrade && UpgradeCheckOf(entry, title) is { } check)
+                {
+                    // Il file c'era già: se è cambiato lo dice solo il file (decisione 2 non basta).
+                    checks.Add(check);
+                }
+                else if (hasFile)
+                {
+                    OnImported(entry, now);
                 }
                 else if (title?.Followed != true)
                 {
@@ -361,6 +379,8 @@ public sealed partial class DownloadService(
         entry.QueueId = null;
         entry.LastSizeLeft = null;
         entry.LastProgressAt = null;
+        entry.PreviousScore = null;
+        entry.PreviousQualityId = null;
         entry.UpgradeUntil = chosenAt + DownloadSchedule.UpgradeWindow;
         entry.NextSearchAt = DownloadSchedule.Next(chosenAt, now);
     }
@@ -390,7 +410,15 @@ public sealed partial class DownloadService(
         {
             if (Book.Get(key) is { } entry && entry.QueueId == queueId)
             {
-                BackToWaiting(entry, time.GetUtcNow());
+                // Un upgrade fermo torna a UpgradeWatch con il file di prima, un primo download in attesa.
+                if (entry.PreviousScore is not null)
+                {
+                    BackToUpgradeWatch(entry, time.GetUtcNow());
+                }
+                else
+                {
+                    BackToWaiting(entry, time.GetUtcNow());
+                }
             }
         }
     }
@@ -417,6 +445,7 @@ public sealed partial class DownloadService(
         entry.PosterUrl = title.PosterUrl;
         entry.ProfileId = title.ProfileId;
         entry.RuntimeMinutes = title.RuntimeMinutes;
+        entry.SeriesId = title.SeriesId;
     }
 
     private static void BackToWaiting(DownloadEntry entry, DateTimeOffset now)
@@ -431,6 +460,8 @@ public sealed partial class DownloadService(
         // Il file non è arrivato: la scelta non conta più per gli upgrade.
         entry.CurrentScore = null;
         entry.CurrentQualityId = null;
+        entry.PreviousScore = null;
+        entry.PreviousQualityId = null;
     }
 
     private static string Key(string kind, int id) => new DownloadKey(kind, id, 0).ToString();

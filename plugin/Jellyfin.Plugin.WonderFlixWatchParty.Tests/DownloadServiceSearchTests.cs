@@ -22,6 +22,7 @@ public sealed class DownloadServiceSearchTests : IDisposable
     private List<SonarrEpisode?> _missing = [];
     private List<ArrQueueItem?> _radarrQueue = [];
     private List<ArrRelease?> _releases = [];
+    private int _fileScore = 50;
 
     public DownloadServiceSearchTests()
     {
@@ -29,6 +30,7 @@ public sealed class DownloadServiceSearchTests : IDisposable
         _arr.MissingEpisodes = () => Task.FromResult<IReadOnlyList<SonarrEpisode?>>(_missing);
         _arr.Queue = kind => Task.FromResult<IReadOnlyList<ArrQueueItem?>>(kind == ArrKind.Radarr ? _radarrQueue : []);
         _arr.Releases = (_, _) => Task.FromResult<IReadOnlyList<ArrRelease?>>(_releases);
+        _arr.MovieFiles = ids => Task.FromResult<IReadOnlyList<ArrFile?>>([File(ids[0], WebRip1080, _fileScore)]);
         _arr.QualityProfiles = _ => Task.FromResult<IReadOnlyList<ArrQualityProfile?>>([MainProfile(4), MainProfile(6)]);
         _arr.Indexers = _ => Task.FromResult<IReadOnlyList<ArrIndexer?>>([new ArrIndexer { Id = 1, Priority = 25 }, new ArrIndexer { Id = 3, Priority = 10 }]);
         _service = new DownloadService(
@@ -60,6 +62,26 @@ public sealed class DownloadServiceSearchTests : IDisposable
         _radarrQueue = [];
         _movies = [Movie(12, hasFile: true)];
         await Cycle();
+    }
+
+    // Dopo GrabAndImport (50): un upgrade scaricato e visto in coda; il test decide come finisce.
+    private async Task StartUpgrade(ArrRelease release)
+    {
+        _time.Advance(TimeSpan.FromHours(6));
+        _releases = [release];
+        await Cycle();
+        _releases = [];
+
+        // Un nudge subito dopo: non ancora in coda e il file è quello vecchio, ma non è un upgrade fallito.
+        _time.Advance(DownloadService.NudgeDelay);
+        await Cycle();
+        Assert.Equal(DownloadStates.Downloading, Saved("movie:12")!.State);
+        Assert.Empty(_arr.MovieFileCalls);
+
+        _time.Advance(DownloadService.CycleInterval);
+        _radarrQueue = [MovieQueue(91, 12, 5_000)];
+        await Cycle();
+        Assert.Equal((DownloadStates.Downloading, (int?)50), (Saved("movie:12")!.State, Saved("movie:12")!.PreviousScore));
     }
 
     [Fact]
@@ -193,6 +215,9 @@ public sealed class DownloadServiceSearchTests : IDisposable
         var entry = Saved("movie:12")!;
         Assert.Equal((DownloadStates.UpgradeWatch, (int?)null), (entry.State, entry.QueueId));
         Assert.Equal(T0 + TimeSpan.FromDays(30), entry.UpgradeUntil);
+
+        // Un primo download non rilegge il file (decisione 2).
+        Assert.Empty(_arr.MovieFileCalls);
         Assert.Equal(_time.GetUtcNow() + TimeSpan.FromHours(6), entry.NextSearchAt);
     }
 
@@ -331,7 +356,7 @@ public sealed class DownloadServiceSearchTests : IDisposable
         Assert.Equal((1, 0, (string?)null), (report.Searched, report.Grabbed, report.RadarrError));
         Assert.Empty(_arr.GrabCalls);
         var entry = Saved("movie:12")!;
-        Assert.Equal((DownloadStates.Waiting, DownloadReasons.SearchFailed, (DateTimeOffset?)T0), (entry.State, entry.Reason, entry.NextSearchAt));
+        Assert.Equal((DownloadStates.Waiting, DownloadReasons.SearchFailed, (DateTimeOffset?)(T0 + DownloadService.CycleInterval)), (entry.State, entry.Reason, entry.NextSearchAt));
 
         // Si riprova al giro dopo.
         _time.Advance(DownloadService.CycleInterval);
@@ -371,5 +396,111 @@ public sealed class DownloadServiceSearchTests : IDisposable
         Assert.Equal((ArrKind.Sonarr, "episodeId=34"), Assert.Single(_arr.SearchReleaseCalls));
         var movie = Saved("movie:12")!;
         Assert.Equal((DownloadStates.Waiting, (string?)null, (DateTimeOffset?)T0), (movie.State, movie.Reason, movie.NextSearchAt));
+    }
+
+    [Fact]
+    public async Task AFailingSearchDoesNotStarveOthers()
+    {
+        _movies = [.. Enumerable.Range(1, 12).Select(id => (RadarrMovie?)Movie(id))];
+        _arr.Releases = (_, query) => query is "movieId=1" or "movieId=2"
+            ? Task.FromException<IReadOnlyList<ArrRelease?>>(new ArrException(ArrError.Unreachable))
+            : Task.FromResult<IReadOnlyList<ArrRelease?>>([]);
+
+        await Cycle();
+        _time.Advance(DownloadService.CycleInterval);
+        await Cycle();
+
+        var queries = _arr.SearchReleaseCalls.Select(c => c.Query).ToList();
+        Assert.All(Enumerable.Range(3, 10), id => Assert.Contains($"movieId={id}", queries));
+
+        // Nel secondo giro prima le voci mai cercate, poi quelle in errore.
+        Assert.Equal(["movieId=11", "movieId=12", "movieId=1", "movieId=2"], queries.Skip(10));
+    }
+
+    [Fact]
+    public async Task AFailedUpgradeKeepsTheOldScore()
+    {
+        await GrabAndImport(Release("ita", WebRip1080, "WEBRip-1080p", 4, 50));
+        await StartUpgrade(Release("ita-eng", WebRip1080, "WEBRip-1080p", 5, 150));
+
+        // Esce dalla coda ma Radarr non dà il file: si aspetta il giro dopo.
+        _arr.MovieFiles = _ => Task.FromException<IReadOnlyList<ArrFile?>>(new ArrException(ArrError.Unreachable));
+        _time.Advance(DownloadService.CycleInterval);
+        _radarrQueue = [];
+        await Cycle();
+        Assert.Equal(DownloadStates.Downloading, Saved("movie:12")!.State);
+
+        // Il file è ancora quello di prima: l'upgrade è fallito.
+        _arr.MovieFiles = ids => Task.FromResult<IReadOnlyList<ArrFile?>>([File(ids[0], WebRip1080, 50)]);
+        _time.Advance(DownloadService.CycleInterval);
+        await Cycle();
+
+        Assert.Equal([512], _arr.MovieFileCalls[^1]);
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.UpgradeWatch, (int?)50, (int?)WebRip1080, (int?)null), (entry.State, entry.CurrentScore, entry.CurrentQualityId, entry.PreviousScore));
+        Assert.Equal(T0 + DownloadSchedule.UpgradeWindow, entry.UpgradeUntil);
+        Assert.Equal(_time.GetUtcNow() + TimeSpan.FromHours(6), entry.NextSearchAt);
+    }
+
+    [Fact]
+    public async Task AnImportedUpgradeIsConfirmedByTheFile()
+    {
+        await GrabAndImport(Release("ita", WebRip1080, "WEBRip-1080p", 4, 50));
+        await StartUpgrade(Release("ita-eng", WebRip1080, "WEBRip-1080p", 5, 150));
+
+        _fileScore = 150;
+        _time.Advance(DownloadService.CycleInterval);
+        _radarrQueue = [];
+        await Cycle();
+
+        // All'obiettivo: la voce esce.
+        Assert.Single(_arr.MovieFileCalls);
+        Assert.Null(Saved("movie:12"));
+    }
+
+    [Fact]
+    public async Task AStalledUpgradeGoesBackToUpgradeWatch()
+    {
+        await GrabAndImport(Release("ita", WebRip1080, "WEBRip-1080p", 4, 50));
+        await StartUpgrade(Release("ita-eng", WebRip1080, "WEBRip-1080p", 5, 150));
+
+        _time.Advance(DownloadSchedule.StalledAfter);
+        await Cycle();
+
+        Assert.Equal((ArrKind.Radarr, 91, true), Assert.Single(_arr.RemoveFromQueueCalls));
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.UpgradeWatch, (int?)50, (int?)null), (entry.State, entry.CurrentScore, entry.QueueId));
+        Assert.Equal(T0 + DownloadSchedule.UpgradeWindow, entry.UpgradeUntil);
+    }
+
+    [Fact]
+    public async Task AFailedEpisodeUpgradeKeepsTheOldScore()
+    {
+        _missing = [Episode(34, T0 - TimeSpan.FromDays(1))];
+        _releases = [Release("ep", WebRip1080, "WEBRip-1080p", 1, 50)];
+        await Cycle();
+        _releases = [];
+
+        // Importato: Sonarr lo toglie dai mancanti.
+        _missing = [];
+        _time.Advance(DownloadService.CycleInterval);
+        await Cycle();
+        Assert.Equal(DownloadStates.UpgradeWatch, Saved("episode:34")!.State);
+
+        _time.Advance(TimeSpan.FromHours(6));
+        _releases = [Release("ep-ita-eng", WebRip1080, "WEBRip-1080p", 1.5, 150)];
+        await Cycle();
+        _releases = [];
+        Assert.Equal(2, _arr.GrabCalls.Count);
+
+        _arr.SeriesEpisodes = _ => Task.FromResult<IReadOnlyList<SonarrEpisode?>>([new SonarrEpisode { Id = 33, EpisodeFileId = 801 }, new SonarrEpisode { Id = 34, EpisodeFileId = 800 }]);
+        _arr.EpisodeFiles = _ => Task.FromResult<IReadOnlyList<ArrFile?>>([File(801, WebRip1080, 150), File(800, WebRip1080, 50)]);
+        _time.Advance(DownloadService.CycleInterval);
+        await Cycle();
+
+        Assert.Equal([7], _arr.SeriesEpisodeCalls);
+        Assert.Equal([7], _arr.EpisodeFileCalls);
+        var entry = Saved("episode:34")!;
+        Assert.Equal((DownloadStates.UpgradeWatch, (int?)50), (entry.State, entry.CurrentScore));
     }
 }

@@ -144,9 +144,10 @@ public sealed partial class DownloadService
             logger.LogWarning("Download automatici: ricerca di {Key} su {Kind} non riuscita ({Error})", item.Key, item.Service, ErrorOf(ex));
             Update(item.Key, (entry, now) =>
             {
-                // NextSearchAt non cambia: si riprova al giro dopo.
+                // Si riprova al giro dopo, ma dietro alle voci che aspettano già.
                 entry.LastSearchAt = now;
                 entry.Reason = DownloadReasons.SearchFailed;
+                entry.NextSearchAt = now + CycleInterval;
             });
             return false;
         }
@@ -260,9 +261,106 @@ public sealed partial class DownloadService
         entry.State = DownloadStates.Downloading;
         entry.Reason = null;
         entry.LastSearchAt = now;
+        entry.PreviousScore = upgrade ? entry.CurrentScore : null;
+        entry.PreviousQualityId = upgrade ? entry.CurrentQualityId : null;
         entry.CurrentScore = choice.CustomFormatScore;
         entry.CurrentQualityId = quality?.Id;
         entry.ProfileName = profileName;
+    }
+
+    // Un upgrade uscito dalla coda: il file da rileggere (film: id del file; episodio: serie ed episodio).
+    private sealed record UpgradeCheck(string Key, ArrKind Service, int MovieFileId, int SeriesId, int EpisodeId);
+
+    // Solo sotto _lock. Null se non si sa quale file leggere: vale la decisione 2.
+    private static UpgradeCheck? UpgradeCheckOf(DownloadEntry entry, ArrTitle? title)
+    {
+        if (!DownloadKey.TryParse(entry.Key, out var key))
+        {
+            return null;
+        }
+
+        return key.Kind switch
+        {
+            DownloadKinds.Movie when title?.FileId > 0 => new UpgradeCheck(entry.Key, ArrKind.Radarr, title.FileId, 0, 0),
+            DownloadKinds.Episode when entry.SeriesId > 0 => new UpgradeCheck(entry.Key, ArrKind.Sonarr, 0, entry.SeriesId, key.Id),
+            _ => null,
+        };
+    }
+
+    // Fuori dal lock: il file di adesso dice se l'upgrade è arrivato. Lettura fallita: la voce resta Downloading, si riprova al giro dopo.
+    private async Task ConfirmUpgradeAsync(UpgradeCheck check, CancellationToken cancellationToken)
+    {
+        ArrFile? file;
+        try
+        {
+            file = await CurrentFileAsync(check, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning("Download automatici: {Key}, {Kind} non ha dato il file ({Error})", check.Key, check.Service, ErrorOf(ex));
+            return;
+        }
+
+        lock (_lock)
+        {
+            // PreviousScore c'è solo mentre l'upgrade scarica (anche in ImportBlocked): altrimenti è già cambiato tutto.
+            if (Book.Get(check.Key) is not { PreviousScore: { } previousScore } entry)
+            {
+                return;
+            }
+
+            var now = time.GetUtcNow();
+
+            // Ancora il file di prima: l'upgrade è fallito (Radarr/Sonarr hanno già messo la release in blocklist).
+            if (file is not null && file.CustomFormatScore == previousScore && file.Quality?.Quality?.Id == entry.PreviousQualityId)
+            {
+                BackToUpgradeWatch(entry, now);
+                return;
+            }
+
+            // Un file diverso: importato. Il punteggio vero è quello del file.
+            if (file is not null)
+            {
+                entry.CurrentScore = file.CustomFormatScore;
+                entry.CurrentQualityId = file.Quality?.Quality?.Id;
+            }
+
+            OnImported(entry, now);
+        }
+    }
+
+    private async Task<ArrFile?> CurrentFileAsync(UpgradeCheck check, CancellationToken cancellationToken)
+    {
+        if (check.Service == ArrKind.Radarr)
+        {
+            var movieFiles = await arr.GetMovieFilesAsync([check.MovieFileId], cancellationToken).ConfigureAwait(false);
+            return movieFiles.FirstOrDefault(f => f?.Id == check.MovieFileId);
+        }
+
+        var episodes = await arr.GetSeriesEpisodesAsync(check.SeriesId, cancellationToken).ConfigureAwait(false);
+        var fileId = episodes.FirstOrDefault(e => e?.Id == check.EpisodeId)?.EpisodeFileId ?? 0;
+        if (fileId == 0)
+        {
+            return null;
+        }
+
+        var episodeFiles = await arr.GetEpisodeFilesAsync(check.SeriesId, cancellationToken).ConfigureAwait(false);
+        return episodeFiles.FirstOrDefault(f => f?.Id == fileId);
+    }
+
+    // Solo sotto _lock. Upgrade fallito o fermo: si torna al file di prima, la finestra resta quella (spec T §5.3).
+    private static void BackToUpgradeWatch(DownloadEntry entry, DateTimeOffset now)
+    {
+        entry.State = DownloadStates.UpgradeWatch;
+        entry.Reason = null;
+        entry.QueueId = null;
+        entry.LastSizeLeft = null;
+        entry.LastProgressAt = null;
+        entry.CurrentScore = entry.PreviousScore;
+        entry.CurrentQualityId = entry.PreviousQualityId;
+        entry.PreviousScore = null;
+        entry.PreviousQualityId = null;
+        entry.NextSearchAt = DownloadSchedule.Next(SinceOf(entry), now);
     }
 
     // In UpgradeWatch il ritmo conta dalla scelta (UpgradeUntil − UpgradeWindow), altrimenti dalla disponibilità.

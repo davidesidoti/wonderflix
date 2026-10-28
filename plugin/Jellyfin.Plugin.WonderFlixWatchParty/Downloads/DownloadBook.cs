@@ -71,6 +71,14 @@ public sealed class DownloadEntry
 
     public int? CurrentQualityId { get; set; }
 
+    /// <summary>Durante il download di un upgrade: punteggio e qualità del file di prima (null per un primo download).</summary>
+    public int? PreviousScore { get; set; }
+
+    public int? PreviousQualityId { get; set; }
+
+    /// <summary>Solo Sonarr: la serie dell'episodio, per rileggere il suo file.</summary>
+    public int SeriesId { get; set; }
+
     public bool ManualImportPending { get; set; }
 
     public int ProfileId { get; set; }
