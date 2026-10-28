@@ -225,6 +225,9 @@ public sealed class ArrQueueItem
 
     /// <summary>"downloading", "importBlocked", "importPending", "failed", ...</summary>
     public string? TrackedDownloadState { get; set; }
+
+    /// <summary>Lo stato nel client: "downloading", "queued", "paused", "delay", "downloadClientUnavailable", "completed", "warning", ...</summary>
+    public string? Status { get; set; }
 }
 
 /// <summary>Un file di un film (Radarr <c>moviefile</c>) o di un episodio (Sonarr <c>episodefile</c>) (spec T §2).</summary>

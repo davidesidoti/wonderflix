@@ -43,7 +43,7 @@ public sealed class DownloadService(
     // Lo stato di un elemento della coda che aspetta l'admin (spec T §2).
     private const string ImportBlockedState = "importBlocked";
 
-    // Lo stato di un elemento della coda che sta ancora scaricando: solo lui può essere fermo.
+    // Status e trackedDownloadState di un elemento che sta scaricando: solo lui può essere fermo.
     private const string DownloadingState = "downloading";
 
     private readonly Lock _lock = new();
@@ -189,8 +189,9 @@ public sealed class DownloadService(
 
     private async Task<ArrView> ReadRadarrAsync(CancellationToken cancellationToken)
     {
-        var movies = await arr.GetLibraryMoviesAsync(cancellationToken).ConfigureAwait(false);
+        // Prima la coda: un import che finisce tra le due letture sembra così ancora in coda, mai fallito.
         var queue = await arr.GetQueueAsync(ArrKind.Radarr, cancellationToken).ConfigureAwait(false);
+        var movies = await arr.GetLibraryMoviesAsync(cancellationToken).ConfigureAwait(false);
         var titles = movies.OfType<RadarrMovie>()
             .Select(m => new ArrTitle(
                 Key(DownloadKinds.Movie, m.Id),
@@ -212,8 +213,8 @@ public sealed class DownloadService(
 
     private async Task<ArrView> ReadSonarrAsync(CancellationToken cancellationToken)
     {
-        var missing = await arr.GetMissingEpisodesAsync(cancellationToken).ConfigureAwait(false);
         var queue = await arr.GetQueueAsync(ArrKind.Sonarr, cancellationToken).ConfigureAwait(false);
+        var missing = await arr.GetMissingEpisodesAsync(cancellationToken).ConfigureAwait(false);
         var now = time.GetUtcNow();
         var titles = missing.OfType<SonarrEpisode>()
             .Select(e => new ArrTitle(
@@ -274,6 +275,11 @@ public sealed class DownloadService(
                 {
                     OnImported(entry, now);
                 }
+                else if (title?.Followed != true)
+                {
+                    // Fallito, ma il titolo non è più da seguire (tolto o non monitorato).
+                    Book.Remove(entry.Key);
+                }
                 else
                 {
                     // Radarr e Sonarr hanno già messo in blocklist la release fallita (decisione 2).
@@ -290,7 +296,10 @@ public sealed class DownloadService(
     // Solo sotto _lock. True se il download è fermo da StalledAfter.
     private bool Track(DownloadEntry entry, ArrQueueItem item, DateTimeOffset now)
     {
-        if (entry.QueueId != item.Id || entry.LastSizeLeft != item.Sizeleft)
+        // Fermo solo se scarica davvero: in coda, in pausa o col client giù l'orologio riparte (decisione 3).
+        var active = string.Equals(item.Status, DownloadingState, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(item.TrackedDownloadState, DownloadingState, StringComparison.OrdinalIgnoreCase);
+        if (!active || entry.QueueId != item.Id || entry.LastSizeLeft != item.Sizeleft)
         {
             entry.QueueId = item.Id;
             entry.LastSizeLeft = item.Sizeleft;
@@ -305,7 +314,7 @@ public sealed class DownloadService(
             return false;
         }
 
-        return string.Equals(item.TrackedDownloadState, DownloadingState, StringComparison.OrdinalIgnoreCase)
+        return active
             && entry.LastProgressAt is { } since
             && now - since >= DownloadSchedule.StalledAfter;
     }

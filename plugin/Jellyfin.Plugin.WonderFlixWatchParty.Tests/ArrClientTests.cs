@@ -458,7 +458,7 @@ public class ArrClientTests
         _http.Respond = (request, _) => Task.FromResult(FakeSeerrHttp.Json(
             HttpStatusCode.OK,
             request.RequestUri!.Query.Contains("page=2", StringComparison.Ordinal)
-                ? """{"totalRecords":251,"records":[{"id":251,"episodeId":9,"seriesId":6,"seasonNumber":2,"downloadId":"D","size":10,"sizeleft":4,"trackedDownloadState":"downloading"}]}"""
+                ? """{"totalRecords":251,"records":[{"id":251,"episodeId":9,"seriesId":6,"seasonNumber":2,"downloadId":"D","size":10,"sizeleft":4,"trackedDownloadState":"downloading","status":"paused"}]}"""
                 : $$"""{"totalRecords":251,"records":[{{string.Join(",", Enumerable.Range(1, 250).Select(id => $$"""{"id":{{id}},"movieId":5}"""))}}]}"""));
 
         var items = await Client().GetQueueAsync(ArrKind.Sonarr, CancellationToken.None);
@@ -477,6 +477,7 @@ public class ArrClientTests
         Assert.Equal(10, last.Size);
         Assert.Equal(4, last.Sizeleft);
         Assert.Equal("downloading", last.TrackedDownloadState);
+        Assert.Equal("paused", last.Status);
         Assert.Equal(5, items[0]!.MovieId);
         Assert.Null(items[0]!.EpisodeId);
     }

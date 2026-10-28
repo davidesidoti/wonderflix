@@ -63,11 +63,11 @@ public sealed class DownloadServiceCycleTests : IDisposable
         Series = new SonarrSeries { Title = "Severance", Runtime = 50, QualityProfileId = 6, Images = [new ArrImage { CoverType = "poster", RemoteUrl = "https://img.example/sev.jpg" }] },
     };
 
-    private static ArrQueueItem MovieQueue(int queueId, int movieId, long sizeLeft, string state = "downloading") =>
-        new() { Id = queueId, MovieId = movieId, Size = 10_000, Sizeleft = sizeLeft, TrackedDownloadState = state };
+    private static ArrQueueItem MovieQueue(int queueId, int movieId, long sizeLeft, string state = "downloading", string status = "downloading") =>
+        new() { Id = queueId, MovieId = movieId, Size = 10_000, Sizeleft = sizeLeft, TrackedDownloadState = state, Status = status };
 
     private static ArrQueueItem EpisodeQueue(int queueId, int episodeId, long sizeLeft) =>
-        new() { Id = queueId, EpisodeId = episodeId, SeriesId = 7, SeasonNumber = 2, Size = 10_000, Sizeleft = sizeLeft, TrackedDownloadState = "downloading" };
+        new() { Id = queueId, EpisodeId = episodeId, SeriesId = 7, SeasonNumber = 2, Size = 10_000, Sizeleft = sizeLeft, TrackedDownloadState = "downloading", Status = "downloading" };
 
     [Fact]
     public async Task ADisabledServiceDoesNothing()
@@ -202,6 +202,29 @@ public sealed class DownloadServiceCycleTests : IDisposable
         Assert.Equal((DownloadStates.Waiting, (int?)null, (DateTimeOffset?)_time.GetUtcNow()), (entry.State, entry.QueueId, entry.NextSearchAt));
     }
 
+    [Theory]
+    [InlineData("queued")]
+    [InlineData("paused")]
+    [InlineData("delay")]
+    [InlineData("downloadClientUnavailable")]
+    public async Task AQueuedOrPausedDownloadIsNeverStalled(string status)
+    {
+        _movies = [Movie(12)];
+        _radarrQueue = [MovieQueue(90, 12, 5_000, status: status)];
+        for (var cycle = 0; cycle < 3 * 24 * 4; cycle++)
+        {
+            await _service.RunCycleAsync(CancellationToken.None);
+            _time.Advance(DownloadService.CycleInterval);
+        }
+
+        Assert.Empty(_arr.RemoveFromQueueCalls);
+
+        // Riparte a scaricare: l'orologio conta da quando scarica davvero.
+        _radarrQueue = [MovieQueue(90, 12, 5_000)];
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Empty(_arr.RemoveFromQueueCalls);
+    }
+
     [Fact]
     public async Task AStuckDownloadThatCannotBeRemovedStays()
     {
@@ -231,6 +254,49 @@ public sealed class DownloadServiceCycleTests : IDisposable
         var entry = Saved("movie:12")!;
         Assert.Equal((DownloadStates.Waiting, (int?)null, (long?)null, (DateTimeOffset?)_time.GetUtcNow()), (entry.State, entry.QueueId, entry.LastSizeLeft, entry.NextSearchAt));
         Assert.Empty(_arr.RemoveFromQueueCalls);
+    }
+
+    [Fact]
+    public async Task AnImportDuringTheCycleIsNotAFailure()
+    {
+        _movies = [Movie(12)];
+        _radarrQueue = [MovieQueue(90, 12, 0, state: "importing")];
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        // L'import finisce dopo la prima lettura del giro: chi legge dopo vede il file e la coda vuota.
+        var imported = false;
+        _arr.Queue = kind =>
+        {
+            IReadOnlyList<ArrQueueItem?> queue = kind == ArrKind.Radarr && !imported ? [MovieQueue(90, 12, 0, state: "importing")] : [];
+            imported = kind == ArrKind.Radarr || imported;
+            return Task.FromResult(queue);
+        };
+        _arr.LibraryMovies = () =>
+        {
+            IReadOnlyList<RadarrMovie?> movies = [Movie(12, hasFile: imported)];
+            imported = true;
+            return Task.FromResult(movies);
+        };
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Equal(DownloadStates.Downloading, Saved("movie:12")!.State);
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Null(Saved("movie:12"));
+    }
+
+    [Fact]
+    public async Task AFailedDownloadOfATitleNoLongerFollowedLeaves()
+    {
+        _movies = [Movie(12), Movie(13)];
+        _radarrQueue = [MovieQueue(90, 12, 5_000), MovieQueue(91, 13, 5_000)];
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        // 12 tolto da Radarr, 13 non più monitorato; nessuno dei due ha il file.
+        _movies = [Movie(13, monitored: false)];
+        _radarrQueue = [];
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Empty(Store().Load().Entries);
     }
 
     [Fact]
