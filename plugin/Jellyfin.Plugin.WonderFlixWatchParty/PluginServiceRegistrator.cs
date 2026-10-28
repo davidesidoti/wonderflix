@@ -1,4 +1,5 @@
 using Jellyfin.Plugin.WonderFlixWatchParty.Account;
+using Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Seerr;
@@ -110,6 +111,12 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ReportService>();
         serviceCollection.AddSingleton<ISubtitleTools, JellyfinSubtitleTools>();
         serviceCollection.AddSingleton<SubtitleService>();
+        // Download automatici (spec T).
+        serviceCollection.AddSingleton(provider => new DownloadStore(
+            DownloadStore.DefaultPath(provider.GetRequiredService<IApplicationPaths>()),
+            provider.GetRequiredService<ILogger<DownloadStore>>()));
+        serviceCollection.AddSingleton<IDownloadSettings, PluginDownloadSettings>();
+        serviceCollection.AddSingleton<DownloadService>();
         serviceCollection.AddSingleton<NewTitlesCollector>();
         serviceCollection.AddSingleton<PresenceTracker>();
         serviceCollection.AddSingleton<PartyDirectory>();
@@ -127,5 +134,6 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddHostedService<MatchHostedService>();
         serviceCollection.AddHostedService<RatingsHostedService>();
         serviceCollection.AddHostedService<ReportsHostedService>();
+        serviceCollection.AddHostedService<DownloadsHostedService>();
     }
 }

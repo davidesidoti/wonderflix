@@ -14,7 +14,7 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Api;
 /// somma a quello della classe, non lo allarga. "requests" c'è solo con
 /// Seerr configurato (spec I §7.1); upcomingSeries e upcomingMovies ci sono
 /// solo con Sonarr e Radarr configurati (spec M §7.6); calendar c'è con almeno
-/// uno dei due (spec S §6.4).
+/// uno dei due (spec S §6.4), come downloads (spec T §8).
 /// </summary>
 [ApiController]
 [Route("WonderFlixWatchParty")]

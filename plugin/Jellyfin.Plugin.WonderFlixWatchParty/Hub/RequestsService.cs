@@ -1,3 +1,4 @@
+using Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
 using Jellyfin.Plugin.WonderFlixWatchParty.Seerr;
@@ -9,7 +10,7 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 /// Seerr abbinato a chi chiama, oggetti del plugin per l'app. Lancia
 /// SeerrException, che il controller traduce in risposta.
 /// </summary>
-public sealed class RequestsService(ISeerrClient seerr, SeerrUserMap users, SeerrTitleCache titles, ReleaseDatesService dates, TimeProvider time)
+public sealed class RequestsService(ISeerrClient seerr, SeerrUserMap users, SeerrTitleCache titles, ReleaseDatesService dates, DownloadService downloads, TimeProvider time)
 {
     /// <summary>Richieste al massimo per pagina.</summary>
     public const int MaxTake = 50;
@@ -263,6 +264,8 @@ public sealed class RequestsService(ISeerrClient seerr, SeerrUserMap users, Seer
 
         var approved = await seerr.SetRequestStatusAsync(manager.Id, requestId, approve: true, cancellationToken)
             .ConfigureAwait(false);
+        // Seerr aggiunge il titolo a Radarr/Sonarr: un giro dei download parte tra poco (spec T §5, decisione 7).
+        downloads.Nudge();
         return await ToDtoAsync(approved, manager.Id, language, cancellationToken).ConfigureAwait(false);
     }
 

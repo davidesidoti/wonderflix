@@ -39,6 +39,9 @@ public static class WatchPartyProtocol
     /// <summary>Il calendario delle uscite (spec S §6.4): con Sonarr o Radarr configurato.</summary>
     public const string CalendarFeature = "calendar";
 
+    /// <summary>I download automatici (spec T §8): con Sonarr o Radarr configurato, come il calendario.</summary>
+    public const string DownloadsFeature = "downloads";
+
     /// <summary>Le funzioni di GET Info, con quelle che dipendono dalla configurazione.</summary>
     public static IReadOnlyList<string> FeaturesWith(bool requests, bool upcomingSeries, bool upcomingMovies)
     {
@@ -61,6 +64,7 @@ public static class WatchPartyProtocol
         if (upcomingSeries || upcomingMovies)
         {
             features.Add(CalendarFeature);
+            features.Add(DownloadsFeature);
         }
 
         return features;

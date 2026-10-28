@@ -137,12 +137,21 @@ public class ServiceRegistrationTests
         Assert.Same(provider.GetRequiredService<Home.CalendarService>(), provider.GetRequiredService<Home.CalendarService>());
         Assert.Same(provider.GetRequiredService<Home.ReleaseDatesService>(), provider.GetRequiredService<Home.ReleaseDatesService>());
 
+        // Download automatici (spec T).
+        Assert.Same(provider.GetRequiredService<Downloads.DownloadService>(), provider.GetRequiredService<Downloads.DownloadService>());
+        Assert.EndsWith(
+            Path.Combine("WonderFlixWatchParty", "downloads.json"),
+            provider.GetRequiredService<Downloads.DownloadStore>().FilePath);
+        Assert.IsType<Server.PluginDownloadSettings>(provider.GetRequiredService<Downloads.IDownloadSettings>());
+        Assert.NotNull(ActivatorUtilities.CreateInstance<Api.DownloadsController>(provider));
+
         // Il promemoria dei contatti, oltre ai due di prima.
         // I consigli (spec N), oltre ai tre di prima.
         // L'attività degli amici (spec O), oltre ai quattro di prima.
         // Le sale del match (spec P), oltre ai cinque di prima.
         // I voti degli amici (spec Q), oltre ai sei di prima.
         // Le segnalazioni (spec R), oltre ai sette di prima.
-        Assert.Equal(8, provider.GetServices<IHostedService>().Count());
+        // I download automatici (spec T), oltre agli otto di prima.
+        Assert.Equal(9, provider.GetServices<IHostedService>().Count());
     }
 }

@@ -1,3 +1,4 @@
+using Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
@@ -18,6 +19,7 @@ public class RequestsServiceTests
     private readonly FakeTimeProvider _time = new();
     private readonly FakeArrClient _arr = new();
     private readonly FakeArrSettings _arrSettings = new() { Sonarr = ArrEndpoint.None, Radarr = ArrEndpoint.None };
+    private readonly DownloadService _downloads = TestDownloads.Create(new FakeArrClient());
     private readonly RequestsService _service;
 
     private ReleaseDatesService Dates() => new(_arr, _arrSettings, _time, NullLogger<ReleaseDatesService>.Instance);
@@ -27,7 +29,7 @@ public class RequestsServiceTests
         _seerr.Users.Add(new SeerrUser { Id = 3, Permissions = 34, JellyfinUserId = Davide.ToString("N"), DisplayName = "davide" });
         _seerr.Users.Add(new SeerrUser { Id = 24, Permissions = 32, JellyfinUserId = Mario.ToString("N"), DisplayName = "mario" });
         _service = new RequestsService(
-            _seerr, new SeerrUserMap(_seerr, _time, NullLogger<SeerrUserMap>.Instance), new SeerrTitleCache(_seerr, _time), Dates(), _time);
+            _seerr, new SeerrUserMap(_seerr, _time, NullLogger<SeerrUserMap>.Instance), new SeerrTitleCache(_seerr, _time), Dates(), _downloads, _time);
     }
 
     private static async Task<SeerrError> ErrorOf(Func<Task> action) =>
@@ -61,7 +63,7 @@ public class RequestsServiceTests
 
         var noDefaults = new FakeSeerrClient { DefaultPermissions = 0 };
         var service = new RequestsService(
-            noDefaults, new SeerrUserMap(noDefaults, _time, NullLogger<SeerrUserMap>.Instance), new SeerrTitleCache(noDefaults, _time), Dates(), _time);
+            noDefaults, new SeerrUserMap(noDefaults, _time, NullLogger<SeerrUserMap>.Instance), new SeerrTitleCache(noDefaults, _time), Dates(), _downloads, _time);
         Assert.Equal(new RequestsMeResponse(false, false, false), await service.MeAsync(Luigi, Ct));
     }
 
@@ -347,6 +349,23 @@ public class RequestsServiceTests
         Assert.Equal(RequestStatuses.Approved, approved.Status);
         Assert.Equal("Dune", approved.Title);
         Assert.False(approved.RequestedBy.IsMe);
+    }
+
+    [Fact]
+    public async Task ApprovingNudgesTheDownloads()
+    {
+        var nudges = 0;
+        _downloads.Nudged += () => nudges++;
+        _seerr.Requests.Add(Request(53, 841));
+
+        Assert.Equal(SeerrError.NoPermission, await ErrorOf(() => _service.ApproveAsync(Mario, 53, null, "it", Ct)));
+        Assert.Equal(0, nudges);
+
+        await _service.ApproveAsync(Davide, 53, new ApproveBody(), "it", Ct);
+        Assert.Equal(1, nudges);
+
+        await _service.DeclineAsync(Davide, 53, "it", Ct);
+        Assert.Equal(1, nudges);
     }
 
     [Fact]
