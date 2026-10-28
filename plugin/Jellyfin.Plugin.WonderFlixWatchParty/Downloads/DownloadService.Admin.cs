@@ -6,7 +6,8 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 
 /// <summary>
 /// Esito di un download scelto dall'admin (spec T §8.2): Invalid per una chiave o una release non valide, Expired se la
-/// release non c'è più nemmeno in una nuova ricerca, Unavailable se Radarr/Sonarr non rispondono (ruling 7).
+/// release non c'è più nemmeno in una nuova ricerca, Unavailable se Radarr/Sonarr non rispondono (ruling 7), Busy se
+/// un download dello stesso titolo è già in corso, dal giro o da un altro admin (ruling 8).
 /// </summary>
 public enum GrabOutcome
 {
@@ -14,6 +15,7 @@ public enum GrabOutcome
     Invalid,
     Expired,
     Unavailable,
+    Busy,
 }
 
 /// <summary>
@@ -27,6 +29,9 @@ public sealed partial class DownloadService
 
     // Solo sotto _lock. L'ultima ricerca dell'admin per chiave, solo in memoria.
     private readonly Dictionary<string, AdminSearch> _lastSearch = [];
+
+    // Solo sotto _lock. Le chiavi con un download in corso (giro o admin): un secondo si salta (ruling 8).
+    private readonly HashSet<string> _grabbing = [];
 
     // Il file di adesso; per una stagione il peso di tutti i file, punteggio e qualità del peggiore.
     private sealed record CurrentFile(long SizeBytes, int Score, int? QualityId, string Quality);
@@ -82,6 +87,29 @@ public sealed partial class DownloadService
             return GrabOutcome.Invalid;
         }
 
+        lock (_lock)
+        {
+            if (!_grabbing.Add(parsed.ToString()))
+            {
+                return GrabOutcome.Busy;
+            }
+        }
+
+        try
+        {
+            return await GrabGuardedAsync(parsed, guid, indexerId, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            lock (_lock)
+            {
+                _grabbing.Remove(parsed.ToString());
+            }
+        }
+    }
+
+    private async Task<GrabOutcome> GrabGuardedAsync(DownloadKey parsed, string guid, int indexerId, CancellationToken cancellationToken)
+    {
         var service = ServiceOf(parsed.Kind);
         AdminSearch? search;
         lock (_lock)
@@ -187,11 +215,13 @@ public sealed partial class DownloadService
     /// <summary>La panoramica (spec T §8.1), tutta dal libro: scelte dalla più recente, voci seguite, "Da ripassare", errori dell'ultimo giro.</summary>
     public DownloadsOverviewDto Overview()
     {
+        var since = time.GetUtcNow() - DownloadBook.ChoiceRetention;
         lock (_lock)
         {
+            // Prune gira solo con i download accesi: le scelte vecchie si filtrano qui.
             return new DownloadsOverviewDto(
                 settings.Enabled,
-                [.. Book.Choices.Select(ChoiceDto)],
+                [.. Book.Choices.Where(c => c.At >= since).Select(ChoiceDto)],
                 [.. Book.Entries
                     .Where(e => e.State is DownloadStates.Waiting or DownloadStates.NeedsYou or DownloadStates.Downloading or DownloadStates.UpgradeWatch)
                     .OrderBy(e => e.NextSearchAt)
@@ -251,7 +281,7 @@ public sealed partial class DownloadService
             [.. rule.Candidates.Select((r, i) => new DownloadCandidateDto(i + 1, ReleaseDto(r), ReferenceEquals(r, choice), WouldImport(profile, current, r)))],
             [.. rule.Rejected.Select(r => new DownloadRejectedDto(ReleaseDto(r.Release), r.Reason, r.Detail))],
             rule.Candidates.Count,
-            releases.Count,
+            releases.Count(r => !string.IsNullOrEmpty(r.Guid)),
             null);
 
         var search = new AdminSearch(title, current, profile, target.SeasonEpisodes, releases, result, time.GetUtcNow());
@@ -282,62 +312,55 @@ public sealed partial class DownloadService
             return new AdminTarget(title, title.FileId > 0 ? new UpgradeCheck(title.Key, ArrKind.Radarr, title.FileId, 0, 0) : null);
         }
 
-        var series = (await arr.GetSeriesAsync(cancellationToken).ConfigureAwait(false)).OfType<SonarrSeries>().Where(s => s.Id > 0).ToList();
         var now = time.GetUtcNow();
-        if (key.Kind == DownloadKinds.Season)
+        if (key.Kind == DownloadKinds.Episode)
         {
-            if (series.FirstOrDefault(s => s.Id == key.Id) is not { } show)
+            // Un episodio: una chiamata, la serie è dentro (verificato su Sonarr). 404: Sonarr non l'ha.
+            SonarrEpisode episode;
+            try
+            {
+                episode = await arr.GetEpisodeAsync(key.Id, cancellationToken).ConfigureAwait(false);
+            }
+            catch (ArrException ex) when (ex.Status == 404)
             {
                 return null;
             }
 
-            var episodes = (await arr.GetSeriesEpisodesAsync(show.Id, cancellationToken).ConfigureAwait(false))
-                .OfType<SonarrEpisode>().Where(e => e.SeasonNumber == key.Season).ToList();
-            if (episodes.Count == 0)
-            {
-                return null;
-            }
-
-            // Il pack si misura sugli episodi che mancano, come nel giro; senza mancanti (da "Da ripassare") su tutti.
-            var all = episodes.Select(e => e.EpisodeNumber).Distinct().Order().ToList();
-            var missing = episodes.Where(e => e.Monitored && !e.HasFile && e.AirDateUtc <= now).Select(e => e.EpisodeNumber).Distinct().Order().ToList();
-            var title = new ArrTitle(
-                key.ToString(),
-                DownloadKinds.Season,
-                SeasonTitleOf(show.Title, key.Season),
-                Poster(show.Images),
-                show.QualityProfileId,
-                show.Runtime,
-                episodes.Max(e => e.AirDateUtc),
-                Monitored: true,
-                Followed: true,
-                Wanted: missing.Count > 0,
-                HasFile: missing.Count == 0,
-                SeriesId: show.Id);
-            return new AdminTarget(title, new UpgradeCheck(title.Key, ArrKind.Sonarr, 0, show.Id, 0, key.Season), missing.Count > 0 ? missing : all, all);
-        }
-
-        // Un episodio: la serie della voce; senza voce si cerca in tutte (un clic dell'admin, e "Da ripassare" va per stagioni).
-        int knownSeries;
-        lock (_lock)
-        {
-            knownSeries = Book.Get(key.ToString())?.SeriesId ?? 0;
-        }
-
-        foreach (var show in series.Where(s => knownSeries == 0 || s.Id == knownSeries))
-        {
-            var episodes = await arr.GetSeriesEpisodesAsync(show.Id, cancellationToken).ConfigureAwait(false);
-            if (episodes.FirstOrDefault(e => e?.Id == key.Id) is not { } episode)
-            {
-                continue;
-            }
-
-            (episode.Series, episode.SeriesId) = (show, show.Id);
             var title = EpisodeTitleOf(episode, now);
-            return new AdminTarget(title, episode.EpisodeFileId > 0 ? new UpgradeCheck(title.Key, ArrKind.Sonarr, 0, show.Id, key.Id) : null);
+            return new AdminTarget(title, episode.EpisodeFileId > 0 ? new UpgradeCheck(title.Key, ArrKind.Sonarr, 0, episode.SeriesId, key.Id) : null);
         }
 
-        return null;
+        // Una stagione.
+        var series = await arr.GetSeriesAsync(cancellationToken).ConfigureAwait(false);
+        if (series.FirstOrDefault(s => s?.Id == key.Id) is not { } show)
+        {
+            return null;
+        }
+
+        var episodes = (await arr.GetSeriesEpisodesAsync(show.Id, cancellationToken).ConfigureAwait(false))
+            .OfType<SonarrEpisode>().Where(e => e.SeasonNumber == key.Season).ToList();
+        if (episodes.Count == 0)
+        {
+            return null;
+        }
+
+        // Il pack si misura sugli episodi che mancano, come nel giro; senza mancanti (da "Da ripassare") su tutti.
+        var all = episodes.Select(e => e.EpisodeNumber).Distinct().Order().ToList();
+        var missing = episodes.Where(e => e.Monitored && !e.HasFile && e.AirDateUtc <= now).Select(e => e.EpisodeNumber).Distinct().Order().ToList();
+        var seasonTitle = new ArrTitle(
+            key.ToString(),
+            DownloadKinds.Season,
+            SeasonTitleOf(show.Title, key.Season),
+            Poster(show.Images),
+            show.QualityProfileId,
+            show.Runtime,
+            episodes.Max(e => e.AirDateUtc),
+            Monitored: true,
+            Followed: true,
+            Wanted: missing.Count > 0,
+            HasFile: missing.Count == 0,
+            SeriesId: show.Id);
+        return new AdminTarget(seasonTitle, new UpgradeCheck(seasonTitle.Key, ArrKind.Sonarr, 0, show.Id, 0, key.Season), missing.Count > 0 ? missing : all, all);
     }
 
     // La regola sulle release di una ricerca. Una stagione: ogni release si misura sui suoi episodi (un pack su quelli
@@ -361,9 +384,10 @@ public sealed partial class DownloadService
             rejected.AddRange(one.Rejected);
         }
 
-        // Già misurate: qui serve solo l'ordine della regola.
+        // Già misurate: qui serve solo l'ordine della regola, con la scelta del pack al primo posto.
         var ordered = DownloadRule.Choose(valid, input with { MinGbPerHour = 0 });
-        return (ordered with { Rejected = rejected }, SeasonPackRule.ChoosePack(releases, seasonEpisodes, input));
+        var choice = SeasonPackRule.ChoosePack(releases, seasonEpisodes, input);
+        return (ordered with { Candidates = [.. ordered.Candidates.OrderBy(r => !ReferenceEquals(r, choice))], Rejected = rejected }, choice);
     }
 
     // Radarr/Sonarr importerebbero la release al posto del file di adesso? Senza profilo no (spec T §5.3b).
@@ -371,35 +395,39 @@ public sealed partial class DownloadService
         profile is not null
         && DownloadRule.WouldImport(profile, release.Quality?.Quality?.Id ?? 0, release.CustomFormatScore, current?.QualityId, current?.Score);
 
-    // "cambia": la voce in download si toglie dalla coda e dal client, senza blocklist (spec T §8.2). Falso se non si è potuto.
+    // "cambia" (spec T §8.2): tutto quello che il titolo ha in coda si toglie, anche dal client, senza blocklist; anche un
+    // download fermo in "Serve te" o appena scelto (QueueId non ancora letto). Falso se non si è potuto.
     private async Task<bool> RemoveOldDownloadAsync(DownloadKey key, ArrKind service, CancellationToken cancellationToken)
     {
-        int queueId;
         lock (_lock)
         {
-            if (Book.Get(key.ToString()) is not { State: DownloadStates.Downloading, QueueId: { } id })
+            if (Book.Get(key.ToString()) is not { } entry || (entry.QueueId is null && entry.State != DownloadStates.Downloading))
             {
                 return true;
             }
-
-            queueId = id;
         }
 
         try
         {
-            // Un pack ha un elemento per episodio: si tolgono tutti, prima quello della voce (come un pack fermo).
-            List<int> ids = [queueId];
-            if (key.Kind == DownloadKinds.Season)
+            var queue = (await arr.GetQueueAsync(service, cancellationToken).ConfigureAwait(false)).OfType<ArrQueueItem>();
+            List<int> ids = key.Kind switch
             {
-                var queue = await arr.GetQueueAsync(service, cancellationToken).ConfigureAwait(false);
-                ids.AddRange(SeasonQueueOf(queue.OfType<ArrQueueItem>()).GetValueOrDefault(key.ToString())?.Select(q => q.Id).Where(i => i != queueId) ?? []);
-            }
+                DownloadKinds.Movie => [.. queue.Where(q => q.MovieId == key.Id).Select(q => q.Id)],
+                DownloadKinds.Episode => [.. queue.Where(q => q.EpisodeId == key.Id).Select(q => q.Id)],
+
+                // Un pack ha un elemento per episodio, dal più basso: si tolgono tutti (come un pack fermo).
+                _ => [.. SeasonQueueOf(queue).GetValueOrDefault(key.ToString())?.Select(q => q.Id) ?? []],
+            };
 
             for (var i = 0; i < ids.Count; i++)
             {
                 try
                 {
                     await arr.RemoveFromQueueAsync(service, ids[i], blocklist: false, cancellationToken).ConfigureAwait(false);
+                }
+                catch (ArrException ex) when (ex.Status == 404)
+                {
+                    // Già importato, o tolto insieme al torrent del pack: non c'è più, si va avanti.
                 }
                 catch (Exception ex) when (i > 0 && !cancellationToken.IsCancellationRequested)
                 {
@@ -438,7 +466,7 @@ public sealed partial class DownloadService
             entry.QueueId = null;
             entry.LastSizeLeft = null;
             entry.LastProgressAt = null;
-            entry.ManualImportPending = !WouldImport(search.Profile, search.Current, release);
+            entry.ManualImportPending = search.Current is not null && !WouldImport(search.Profile, search.Current, release);
 
             // Un pack intero copre tutta la stagione; un pack parziale o un singolo i suoi episodi.
             entry.EpisodeNumbers = search.SeasonEpisodes is not { } all ? null

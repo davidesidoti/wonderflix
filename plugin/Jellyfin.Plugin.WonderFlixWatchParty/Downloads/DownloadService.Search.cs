@@ -202,15 +202,31 @@ public sealed partial class DownloadService
             return false;
         }
 
-        // La ricerca dura fino a 2 minuti: nel frattempo la voce può essere sparita o già in download (l'admin).
+        // La ricerca dura fino a 2 minuti: nel frattempo la voce può essere sparita o già in download, o l'admin la sta scaricando.
         lock (_lock)
         {
-            if (Book.Get(item.Key) is not { } current || current.State == DownloadStates.Downloading)
+            if (Book.Get(item.Key) is not { } current || current.State == DownloadStates.Downloading || !_grabbing.Add(item.Key))
             {
                 return false;
             }
         }
 
+        try
+        {
+            return await GrabChoiceAsync(item, choice, profile, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            lock (_lock)
+            {
+                _grabbing.Remove(item.Key);
+            }
+        }
+    }
+
+    // Il grab della scelta del giro; true se ha scaricato.
+    private async Task<bool> GrabChoiceAsync(SearchItem item, ArrRelease choice, ArrQualityProfile? profile, CancellationToken cancellationToken)
+    {
         try
         {
             await arr.GrabReleaseAsync(item.Service, choice.Guid!, choice.IndexerId, cancellationToken).ConfigureAwait(false);

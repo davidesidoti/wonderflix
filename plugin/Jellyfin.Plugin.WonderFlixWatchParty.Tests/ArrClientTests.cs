@@ -520,6 +520,25 @@ public class ArrClientTests
     }
 
     [Fact]
+    public async Task AnEpisodeIsAskedById()
+    {
+        // Come risponde Sonarr: la serie dentro l'episodio.
+        Answer(
+            HttpStatusCode.OK,
+            """{"id":11980,"seriesId":211,"seasonNumber":1,"episodeNumber":3,"episodeFileId":0,"hasFile":false,"monitored":true,"series":{"id":211,"title":"Pluribus","runtime":45,"qualityProfileId":6}}""");
+
+        var episode = await Client().GetEpisodeAsync(11980, CancellationToken.None);
+
+        var seen = Assert.Single(_http.Requests);
+        Assert.Equal("https://arr.example/sonarr/api/v3/episode/11980", seen.Uri.OriginalString);
+        Assert.Equal("sonarr-key", seen.ApiKey);
+        Assert.Equal((11980, 211, 3, "Pluribus", 45, 6), (episode.Id, episode.SeriesId, episode.EpisodeNumber, episode.Series!.Title, episode.Series.Runtime, episode.Series.QualityProfileId));
+
+        Answer(HttpStatusCode.NotFound, "{}");
+        Assert.Equal(404, (await Assert.ThrowsAsync<ArrException>(() => Client().GetEpisodeAsync(1, CancellationToken.None))).Status);
+    }
+
+    [Fact]
     public async Task EpisodeFilesAreAskedBySeriesId()
     {
         Answer(

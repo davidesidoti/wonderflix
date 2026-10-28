@@ -63,6 +63,9 @@ public sealed class ArrClient(
             ArrKind.Sonarr, $"episode?seriesId={seriesId.ToString(CultureInfo.InvariantCulture)}", cancellationToken)
             .ConfigureAwait(false);
 
+    public Task<SonarrEpisode> GetEpisodeAsync(int episodeId, CancellationToken cancellationToken) =>
+        GetAsync<SonarrEpisode>(ArrKind.Sonarr, $"episode/{episodeId.ToString(CultureInfo.InvariantCulture)}", cancellationToken);
+
     public Task<ArrStatus> GetStatusAsync(ArrKind kind, CancellationToken cancellationToken) =>
         GetAsync<ArrStatus>(kind, "system/status", cancellationToken);
 

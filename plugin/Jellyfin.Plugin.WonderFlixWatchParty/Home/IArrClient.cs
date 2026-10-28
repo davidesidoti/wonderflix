@@ -21,6 +21,9 @@ public interface IArrClient
     /// <summary>Gli episodi di una serie di Sonarr (spec S §6.1).</summary>
     Task<IReadOnlyList<SonarrEpisode?>> GetSeriesEpisodesAsync(int seriesId, CancellationToken cancellationToken);
 
+    /// <summary>Un episodio di Sonarr per id, con la serie (e il file, se c'è); 404 se non c'è (spec T §8.2).</summary>
+    Task<SonarrEpisode> GetEpisodeAsync(int episodeId, CancellationToken cancellationToken);
+
     Task<ArrStatus> GetStatusAsync(ArrKind kind, CancellationToken cancellationToken);
 
     /// <summary>

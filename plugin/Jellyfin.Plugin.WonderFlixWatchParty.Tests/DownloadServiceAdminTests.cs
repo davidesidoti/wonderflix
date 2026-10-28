@@ -21,13 +21,14 @@ public sealed class DownloadServiceAdminTests : IDisposable
 
     private List<RadarrMovie?> _movies = [];
     private List<ArrQueueItem?> _radarrQueue = [];
+    private List<ArrQueueItem?> _sonarrQueue = [];
     private List<ArrRelease?> _releases = [];
     private List<ArrFile?> _movieFiles = [];
 
     public DownloadServiceAdminTests()
     {
         _arr.LibraryMovies = () => Task.FromResult<IReadOnlyList<RadarrMovie?>>(_movies);
-        _arr.Queue = kind => Task.FromResult<IReadOnlyList<ArrQueueItem?>>(kind == ArrKind.Radarr ? _radarrQueue : []);
+        _arr.Queue = kind => Task.FromResult<IReadOnlyList<ArrQueueItem?>>(kind == ArrKind.Radarr ? _radarrQueue : _sonarrQueue);
         _arr.Releases = (_, _) => Task.FromResult<IReadOnlyList<ArrRelease?>>(_releases);
         _arr.MovieFiles = _ => Task.FromResult<IReadOnlyList<ArrFile?>>(_movieFiles);
         _arr.QualityProfiles = _ => Task.FromResult<IReadOnlyList<ArrQualityProfile?>>([MainProfile(4), MainProfile(6)]);
@@ -82,6 +83,9 @@ public sealed class DownloadServiceAdminTests : IDisposable
     public async Task SearchMarksTheChoiceAndRejected()
     {
         Animals();
+
+        // Una release senza guid non si può scaricare: la regola non la guarda e non si conta.
+        _releases = [.. _releases, Release("", WebRip1080, "WEBRip-1080p", 2, 150)];
 
         var result = (await Search("movie:12"))!;
 
@@ -253,6 +257,123 @@ public sealed class DownloadServiceAdminTests : IDisposable
     }
 
     [Fact]
+    public async Task AChangeRightAfterAGrabRemovesItToo()
+    {
+        // L'admin ha appena scaricato b: la voce non ha ancora il QueueId, ma Radarr l'ha già in coda (78).
+        Animals();
+        await Search("movie:12");
+        Assert.Equal(GrabOutcome.Ok, await Grab("movie:12", "b", 3));
+        Assert.Null(Saved("movie:12")!.QueueId);
+        _radarrQueue = [MovieQueue(78, 12, 5_000), MovieQueue(90, 13, 5_000)];
+
+        Assert.Equal(GrabOutcome.Ok, await Grab("movie:12", "a", 1));
+
+        Assert.Equal((ArrKind.Radarr, 78, false), Assert.Single(_arr.RemoveFromQueueCalls));
+        Assert.Equal(["b", "a"], _arr.GrabCalls.Select(c => c.Guid));
+    }
+
+    [Fact]
+    public async Task AChangeRemovesABlockedDownload()
+    {
+        // Animals fermo in "Serve te" (77, Radarr non lo importa); intanto è stato importato a mano e Radarr risponde 404.
+        var book = new DownloadBook();
+        book.Put(new DownloadEntry { Key = "movie:12", Kind = DownloadKinds.Movie, Title = "Animals (2025)", State = DownloadStates.NeedsYou, Reason = DownloadReasons.ImportBlocked, QueueId = 77, AvailableSince = T0 });
+        Store().Save(book);
+        Animals();
+        _radarrQueue = [MovieQueue(77, 12, 0, state: "importBlocked", status: "completed")];
+        _arr.RemoveFromQueue = (_, _, _) => Task.FromException(new ArrException(ArrError.Unreachable, status: 404));
+        await Search("movie:12");
+
+        Assert.Equal(GrabOutcome.Ok, await Grab("movie:12", "a", 1));
+
+        Assert.Equal((ArrKind.Radarr, 77, false), Assert.Single(_arr.RemoveFromQueueCalls));
+        Assert.Equal("a", Assert.Single(_arr.GrabCalls).Guid);
+        Assert.Equal((DownloadStates.Downloading, (string?)null), (Saved("movie:12")!.State, Saved("movie:12")!.Reason));
+    }
+
+    [Fact]
+    public async Task OneGrabAtATime()
+    {
+        // L'admin scarica b: un altro admin trova Busy, il giro cerca ma non scarica.
+        Animals();
+        await Search("movie:12");
+        var adminGrab = new TaskCompletionSource();
+        _arr.Grab = (_, _, _) => adminGrab.Task;
+        var first = Grab("movie:12", "b", 3);
+
+        Assert.Equal(GrabOutcome.Busy, await Grab("movie:12", "a", 1));
+
+        // Senza il controllo il giro aspetterebbe il grab dell'admin per sempre.
+        await _service.RunCycleAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(2, _arr.SearchReleaseCalls.Count);
+        Assert.Single(_arr.GrabCalls);
+        adminGrab.SetResult();
+        Assert.Equal(GrabOutcome.Ok, await first);
+
+        // Il giro scarica Dune: l'admin trova Busy.
+        _movies = [.. _movies, Movie(13, title: "Dune")];
+        var cycleGrab = new TaskCompletionSource();
+        _arr.Grab = (_, _, _) => cycleGrab.Task;
+        var cycle = _service.RunCycleAsync(CancellationToken.None);
+        Assert.Equal(2, _arr.GrabCalls.Count);
+
+        Assert.Equal(GrabOutcome.Busy, await Grab("movie:13", "a", 1));
+        cycleGrab.SetResult();
+        await cycle;
+        Assert.Equal(2, _arr.GrabCalls.Count);
+        Assert.Equal(DownloadStates.Downloading, Saved("movie:13")!.State);
+    }
+
+    [Fact]
+    public async Task AnEpisodeIsReadWithOneCall()
+    {
+        // Severance S02E05 (42) con un profilo che Sonarr non ha più: nessuna release si importerebbe da sola.
+        var episode = Episode(42, T0 - TimeSpan.FromDays(1));
+        episode.Series!.QualityProfileId = 99;
+        _arr.EpisodeById = _ => Task.FromResult(episode);
+        _releases = [Release("e", WebDl1080, "WEBDL-1080p", 1, 150)];
+
+        // Senza voce.
+        var result = (await Search("episode:42"))!;
+        Assert.Equal(("Severance · S02E05", DownloadKinds.Episode, 50, (string?)null), (result.Title, result.Kind, result.RuntimeMinutes, result.Error));
+        Assert.Equal((ArrKind.Sonarr, "episodeId=42"), Assert.Single(_arr.SearchReleaseCalls));
+        Assert.False(Assert.Single(result.Candidates).WouldImport);
+
+        // Senza un file non c'è niente da importare a mano.
+        Assert.Equal(GrabOutcome.Ok, await Grab("episode:42", "e", 1));
+        var entry = Saved("episode:42")!;
+        Assert.Equal((DownloadStates.Downloading, 7, false), (entry.State, entry.SeriesId, entry.ManualImportPending));
+
+        // "cambia": si toglie l'elemento dell'episodio, non quello di un altro.
+        _sonarrQueue = [EpisodeQueue(55, 42, 5_000), EpisodeQueue(56, 41, 5_000)];
+        Assert.Equal(GrabOutcome.Ok, await Grab("episode:42", "e", 1));
+        Assert.Equal((ArrKind.Sonarr, 55, false), Assert.Single(_arr.RemoveFromQueueCalls));
+
+        // Con la voce: sempre una chiamata, senza leggere le serie.
+        await Search("episode:42");
+        Assert.Equal([42, 42], _arr.EpisodeByIdCalls);
+        Assert.Equal(0, _arr.SeriesCalls);
+        Assert.Empty(_arr.SeriesEpisodeCalls);
+
+        // Un episodio che Sonarr non ha (404).
+        _arr.EpisodeById = _ => Task.FromException<SonarrEpisode>(new ArrException(ArrError.Unreachable, status: 404));
+        Assert.Null(await Search("episode:43"));
+    }
+
+    [Fact]
+    public void TheOverviewShowsTheLast90Days()
+    {
+        // Con i download spenti il giro non pota le scelte vecchie.
+        _settings.Enabled = false;
+        var book = new DownloadBook();
+        book.AddChoice(new DownloadChoice { Key = "movie:12", Kind = DownloadKinds.Movie, Guid = "old", At = T0 - DownloadBook.ChoiceRetention - TimeSpan.FromDays(1) });
+        book.AddChoice(new DownloadChoice { Key = "movie:13", Kind = DownloadKinds.Movie, Guid = "new", At = T0 - TimeSpan.FromDays(1) });
+        Store().Save(book);
+
+        Assert.Equal(["new"], _service.Overview().Recent.Select(c => c.Release.Guid));
+    }
+
+    [Fact]
     public async Task AGrabThatWouldNotImportIsFlagged()
     {
         AnimalsOnBluray();
@@ -304,13 +425,20 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Assert.Equal(("Severance · Stagione 2", DownloadKinds.Season, 50), (result.Title, result.Kind, result.RuntimeMinutes));
         Assert.Equal(((long)(7 * Gb), 10, "WEBDL-1080p"), (result.Current!.SizeBytes, result.Current.Score, result.Current.Quality));
         Assert.Empty(result.Rejected);
-        Assert.Equal([("s", false), ("p", true)], result.Candidates.Select(c => (c.Release.Guid, c.IsChoice)));
+        // La scelta della regola è la prima, anche se da sola il singolo verrebbe prima.
+        Assert.Equal([("p", true, 1), ("s", false, 2)], result.Candidates.Select(c => (c.Release.Guid, c.IsChoice, c.Rank)));
 
         Assert.Equal(GrabOutcome.Ok, await Grab("season:7:2", "p", 1));
         var entry = Saved("season:7:2")!;
         Assert.Equal((DownloadKinds.Season, 7, "Severance · Stagione 2", (int?)10, (int?)WebDl1080, (long?)(7 * Gb)), (entry.Kind, entry.SeriesId, entry.Title, entry.PreviousScore, entry.PreviousQualityId, entry.PreviousSizeBytes));
         Assert.Equal([1, 2, 3], entry.EpisodeNumbers!);
         Assert.False(entry.ManualImportPending);
+
+        // "cambia": si tolgono tutti gli elementi del pack in coda, non quelli della stagione 1.
+        _sonarrQueue = [EpisodeQueue(61, 202, 5_000), EpisodeQueue(60, 201, 5_000), new ArrQueueItem { Id = 62, SeriesId = 7, SeasonNumber = 1 }];
+        Assert.Equal(GrabOutcome.Ok, await Grab("season:7:2", "s", 1));
+        Assert.Equal([60, 61], _arr.RemoveFromQueueCalls.Select(c => c.QueueId));
+        Assert.Equal([1], Saved("season:7:2")!.EpisodeNumbers!);
     }
 
     [Fact]

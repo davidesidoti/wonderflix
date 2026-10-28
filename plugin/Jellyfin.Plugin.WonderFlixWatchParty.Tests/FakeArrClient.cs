@@ -82,6 +82,21 @@ internal sealed class FakeArrClient : IArrClient
         return SeriesEpisodes(seriesId);
     }
 
+    public Func<int, Task<SonarrEpisode>> EpisodeById { get; set; } =
+        _ => Task.FromException<SonarrEpisode>(new ArrException(ArrError.Unreachable, status: 404));
+
+    public List<int> EpisodeByIdCalls { get; } = [];
+
+    public Task<SonarrEpisode> GetEpisodeAsync(int episodeId, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            EpisodeByIdCalls.Add(episodeId);
+        }
+
+        return EpisodeById(episodeId);
+    }
+
     public Task<IReadOnlyList<SonarrEpisode?>> GetEpisodesAsync(
         DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)
     {
