@@ -113,4 +113,156 @@ internal sealed class FakeArrClient : IArrClient
 
         return Status(kind);
     }
+
+    // Le chiamate della spec T (download automatici): elenchi vuoti e successo, salvo gestori diversi.
+    public Func<ArrKind, string, Task<IReadOnlyList<ArrRelease?>>> Releases { get; set; } =
+        (_, _) => Task.FromResult<IReadOnlyList<ArrRelease?>>([]);
+
+    public Func<ArrKind, string, int, Task> Grab { get; set; } = (_, _, _) => Task.CompletedTask;
+
+    public Func<Task<IReadOnlyList<RadarrMovie?>>> LibraryMovies { get; set; } =
+        () => Task.FromResult<IReadOnlyList<RadarrMovie?>>([]);
+
+    public Func<Task<IReadOnlyList<SonarrEpisode?>>> MissingEpisodes { get; set; } =
+        () => Task.FromResult<IReadOnlyList<SonarrEpisode?>>([]);
+
+    public Func<IReadOnlyList<int>, Task<IReadOnlyList<ArrFile?>>> MovieFiles { get; set; } =
+        _ => Task.FromResult<IReadOnlyList<ArrFile?>>([]);
+
+    public Func<int, Task<IReadOnlyList<ArrFile?>>> EpisodeFiles { get; set; } =
+        _ => Task.FromResult<IReadOnlyList<ArrFile?>>([]);
+
+    public Func<ArrKind, Task<IReadOnlyList<ArrQualityProfile?>>> QualityProfiles { get; set; } =
+        _ => Task.FromResult<IReadOnlyList<ArrQualityProfile?>>([]);
+
+    public Func<ArrKind, Task<IReadOnlyList<ArrQueueItem?>>> Queue { get; set; } =
+        _ => Task.FromResult<IReadOnlyList<ArrQueueItem?>>([]);
+
+    public Func<ArrKind, int, bool, Task> RemoveFromQueue { get; set; } = (_, _, _) => Task.CompletedTask;
+
+    public Func<ArrKind, Task<IReadOnlyList<ArrIndexer?>>> Indexers { get; set; } =
+        _ => Task.FromResult<IReadOnlyList<ArrIndexer?>>([]);
+
+    public List<(ArrKind Kind, string Query)> SearchReleaseCalls { get; } = [];
+
+    public List<(ArrKind Kind, string Guid, int IndexerId)> GrabCalls { get; } = [];
+
+    public int LibraryMovieCalls { get; private set; }
+
+    public int MissingEpisodeCalls { get; private set; }
+
+    public List<IReadOnlyList<int>> MovieFileCalls { get; } = [];
+
+    public List<int> EpisodeFileCalls { get; } = [];
+
+    public List<ArrKind> QualityProfileCalls { get; } = [];
+
+    public List<ArrKind> QueueCalls { get; } = [];
+
+    public List<(ArrKind Kind, int QueueId, bool Blocklist)> RemoveFromQueueCalls { get; } = [];
+
+    public List<ArrKind> IndexerCalls { get; } = [];
+
+    public Task<IReadOnlyList<ArrRelease?>> SearchReleasesAsync(
+        ArrKind kind, string query, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            SearchReleaseCalls.Add((kind, query));
+        }
+
+        return Releases(kind, query);
+    }
+
+    public Task GrabReleaseAsync(ArrKind kind, string guid, int indexerId, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            GrabCalls.Add((kind, guid, indexerId));
+        }
+
+        return Grab(kind, guid, indexerId);
+    }
+
+    public Task<IReadOnlyList<RadarrMovie?>> GetLibraryMoviesAsync(CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            LibraryMovieCalls++;
+        }
+
+        return LibraryMovies();
+    }
+
+    public Task<IReadOnlyList<SonarrEpisode?>> GetMissingEpisodesAsync(CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            MissingEpisodeCalls++;
+        }
+
+        return MissingEpisodes();
+    }
+
+    public Task<IReadOnlyList<ArrFile?>> GetMovieFilesAsync(
+        IReadOnlyList<int> movieFileIds, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            MovieFileCalls.Add(movieFileIds);
+        }
+
+        return MovieFiles(movieFileIds);
+    }
+
+    public Task<IReadOnlyList<ArrFile?>> GetEpisodeFilesAsync(int seriesId, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            EpisodeFileCalls.Add(seriesId);
+        }
+
+        return EpisodeFiles(seriesId);
+    }
+
+    public Task<IReadOnlyList<ArrQualityProfile?>> GetQualityProfilesAsync(
+        ArrKind kind, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            QualityProfileCalls.Add(kind);
+        }
+
+        return QualityProfiles(kind);
+    }
+
+    public Task<IReadOnlyList<ArrQueueItem?>> GetQueueAsync(ArrKind kind, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            QueueCalls.Add(kind);
+        }
+
+        return Queue(kind);
+    }
+
+    public Task RemoveFromQueueAsync(ArrKind kind, int queueId, bool blocklist, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            RemoveFromQueueCalls.Add((kind, queueId, blocklist));
+        }
+
+        return RemoveFromQueue(kind, queueId, blocklist);
+    }
+
+    public Task<IReadOnlyList<ArrIndexer?>> GetIndexersAsync(ArrKind kind, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            IndexerCalls.Add(kind);
+        }
+
+        return Indexers(kind);
+    }
 }

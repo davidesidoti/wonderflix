@@ -35,6 +35,25 @@ public sealed class SonarrSeries
 
     // Un null esplicito nel JSON vince sull'inizializzatore: niente "= []".
     public List<ArrImage?>? Images { get; set; }
+
+    /// <summary>Durata di un episodio in minuti (0 se Sonarr non la sa) (spec T §2).</summary>
+    public int Runtime { get; set; }
+
+    /// <summary>Il profilo di qualità della serie (spec T §2).</summary>
+    public int QualityProfileId { get; set; }
+
+    /// <summary>Lo stato della serie ("continuing", "ended", ...) (spec T §2).</summary>
+    public string? Status { get; set; }
+
+    /// <summary>I conteggi della serie; null se Sonarr non li manda (spec T §2).</summary>
+    public SonarrSeriesStatistics? Statistics { get; set; }
+}
+
+/// <summary>I conteggi di una serie di Sonarr (spec T §2).</summary>
+public sealed class SonarrSeriesStatistics
+{
+    /// <summary>Gli episodi che hanno un file.</summary>
+    public int EpisodeFileCount { get; set; }
 }
 
 /// <summary>Un episodio del calendario di Sonarr.</summary>
@@ -54,6 +73,14 @@ public sealed class SonarrEpisode
     public bool HasFile { get; set; }
 
     public SonarrSeries? Series { get; set; }
+
+    /// <summary>L'id dell'episodio in Sonarr (spec T §2).</summary>
+    public int Id { get; set; }
+
+    public bool Monitored { get; set; }
+
+    /// <summary>L'id del file dell'episodio; 0 se non c'è (spec T §2).</summary>
+    public int EpisodeFileId { get; set; }
 }
 
 /// <summary>Un film del calendario di Radarr.</summary>
@@ -77,6 +104,161 @@ public sealed class RadarrMovie
     public bool HasFile { get; set; }
 
     public List<ArrImage?>? Images { get; set; }
+
+    /// <summary>L'id del film in Radarr (spec T §2).</summary>
+    public int Id { get; set; }
+
+    /// <summary>Durata in minuti (0 se Radarr non la sa) (spec T §2).</summary>
+    public int Runtime { get; set; }
+
+    public bool Monitored { get; set; }
+
+    /// <summary>Se il film è già uscito secondo Radarr (spec T §2).</summary>
+    public bool IsAvailable { get; set; }
+
+    public int QualityProfileId { get; set; }
+
+    /// <summary>Il file del film; null se non c'è (spec T §2).</summary>
+    public ArrFileRef? MovieFile { get; set; }
+}
+
+/// <summary>Il riferimento a un file dentro un film di Radarr (spec T §2).</summary>
+public sealed class ArrFileRef
+{
+    public int Id { get; set; }
+}
+
+/// <summary>Una qualità di Sonarr o Radarr; Resolution è l'altezza in pixel (spec T §2).</summary>
+public sealed class ArrQuality
+{
+    public int Id { get; set; }
+
+    public string? Name { get; set; }
+
+    public int Resolution { get; set; }
+}
+
+/// <summary>Il <c>quality</c> di una release o di un file: la qualità dentro un involucro (spec T §2).</summary>
+public sealed class ArrQualityModel
+{
+    public ArrQuality? Quality { get; set; }
+}
+
+/// <summary>Una release trovata da una ricerca di Radarr o Sonarr (spec T §2).</summary>
+public sealed class ArrRelease
+{
+    public string? Guid { get; set; }
+
+    public int IndexerId { get; set; }
+
+    public string? Indexer { get; set; }
+
+    public string? Title { get; set; }
+
+    public long Size { get; set; }
+
+    /// <summary>Null per un indexer che non li dichiara (Usenet).</summary>
+    public int? Seeders { get; set; }
+
+    public ArrQualityModel? Quality { get; set; }
+
+    public int CustomFormatScore { get; set; }
+
+    /// <summary>Se Radarr o Sonarr la scarterebbero.</summary>
+    public bool Rejected { get; set; }
+
+    public List<string>? Rejections { get; set; }
+
+    /// <summary>Solo Sonarr: un pack di stagione intera.</summary>
+    public bool FullSeason { get; set; }
+
+    /// <summary>Solo Sonarr: gli episodi coperti dalla release.</summary>
+    public List<int>? EpisodeNumbers { get; set; }
+
+    public int SeasonNumber { get; set; }
+}
+
+/// <summary>Una voce del profilo: una qualità sola (Quality) o un gruppo (Name e Items) (spec T §2).</summary>
+public sealed class ArrQualityProfileItem
+{
+    public string? Name { get; set; }
+
+    public ArrQuality? Quality { get; set; }
+
+    public List<ArrQualityProfileItem>? Items { get; set; }
+
+    public bool Allowed { get; set; }
+}
+
+/// <summary>Un profilo di qualità; gli Items vanno dal più basso al più alto (spec T §2).</summary>
+public sealed class ArrQualityProfile
+{
+    public int Id { get; set; }
+
+    public string? Name { get; set; }
+
+    public List<ArrQualityProfileItem>? Items { get; set; }
+}
+
+/// <summary>Una voce della coda di Radarr o Sonarr (spec T §2).</summary>
+public sealed class ArrQueueItem
+{
+    public int Id { get; set; }
+
+    /// <summary>Solo Radarr.</summary>
+    public int? MovieId { get; set; }
+
+    /// <summary>Solo Sonarr.</summary>
+    public int? EpisodeId { get; set; }
+
+    /// <summary>Solo Sonarr.</summary>
+    public int? SeriesId { get; set; }
+
+    /// <summary>Solo Sonarr.</summary>
+    public int? SeasonNumber { get; set; }
+
+    public string? DownloadId { get; set; }
+
+    public long Size { get; set; }
+
+    public long Sizeleft { get; set; }
+
+    /// <summary>"downloading", "importBlocked", "importPending", "failed", ...</summary>
+    public string? TrackedDownloadState { get; set; }
+}
+
+/// <summary>Un file di un film (Radarr <c>moviefile</c>) o di un episodio (Sonarr <c>episodefile</c>) (spec T §2).</summary>
+public sealed class ArrFile
+{
+    public int Id { get; set; }
+
+    /// <summary>Solo Radarr.</summary>
+    public int MovieId { get; set; }
+
+    /// <summary>Solo Sonarr.</summary>
+    public int SeasonNumber { get; set; }
+
+    public int CustomFormatScore { get; set; }
+
+    public long Size { get; set; }
+
+    public ArrQualityModel? Quality { get; set; }
+}
+
+/// <summary>Un indexer; Priority più bassa = preferito (spec T §2).</summary>
+public sealed class ArrIndexer
+{
+    public int Id { get; set; }
+
+    public int Priority { get; set; }
+}
+
+/// <summary>Una pagina di una risposta con <c>page</c> e <c>pageSize</c> (<c>queue</c>, <c>wanted/missing</c>).</summary>
+public sealed class ArrPage<T>
+{
+    public int TotalRecords { get; set; }
+
+    public List<T?>? Records { get; set; }
 }
 
 /// <summary>Risposta di system/status.</summary>

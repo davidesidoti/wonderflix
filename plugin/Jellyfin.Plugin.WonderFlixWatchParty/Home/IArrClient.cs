@@ -22,4 +22,38 @@ public interface IArrClient
     Task<IReadOnlyList<SonarrEpisode?>> GetSeriesEpisodesAsync(int seriesId, CancellationToken cancellationToken);
 
     Task<ArrStatus> GetStatusAsync(ArrKind kind, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Le release trovate da una ricerca dal vivo (spec T §2). <paramref name="query"/> è la query di
+    /// <c>release</c>: <c>movieId=12</c>, <c>episodeId=34</c> o <c>seriesId=5&amp;seasonNumber=2</c>.
+    /// Può durare fino a <see cref="ArrClient.SearchTimeout"/>.
+    /// </summary>
+    Task<IReadOnlyList<ArrRelease?>> SearchReleasesAsync(ArrKind kind, string query, CancellationToken cancellationToken);
+
+    /// <summary>Fa scaricare una release trovata da <see cref="SearchReleasesAsync"/> (spec T §2).</summary>
+    Task GrabReleaseAsync(ArrKind kind, string guid, int indexerId, CancellationToken cancellationToken);
+
+    /// <summary>Tutti i film di Radarr, con id, durata e file (spec T §2).</summary>
+    Task<IReadOnlyList<RadarrMovie?>> GetLibraryMoviesAsync(CancellationToken cancellationToken);
+
+    /// <summary>Gli episodi mancanti e monitorati di Sonarr, con la serie; tutte le pagine (spec T §2).</summary>
+    Task<IReadOnlyList<SonarrEpisode?>> GetMissingEpisodesAsync(CancellationToken cancellationToken);
+
+    /// <summary>I file dei film con questi id di file, a gruppi di 100 (spec T §2).</summary>
+    Task<IReadOnlyList<ArrFile?>> GetMovieFilesAsync(IReadOnlyList<int> movieFileIds, CancellationToken cancellationToken);
+
+    /// <summary>I file degli episodi di una serie di Sonarr (spec T §2).</summary>
+    Task<IReadOnlyList<ArrFile?>> GetEpisodeFilesAsync(int seriesId, CancellationToken cancellationToken);
+
+    /// <summary>I profili di qualità (spec T §2).</summary>
+    Task<IReadOnlyList<ArrQualityProfile?>> GetQualityProfilesAsync(ArrKind kind, CancellationToken cancellationToken);
+
+    /// <summary>La coda dei download; tutte le pagine (spec T §2).</summary>
+    Task<IReadOnlyList<ArrQueueItem?>> GetQueueAsync(ArrKind kind, CancellationToken cancellationToken);
+
+    /// <summary>Toglie una voce dalla coda e dal client di download, con o senza blocklist (spec T §2).</summary>
+    Task RemoveFromQueueAsync(ArrKind kind, int queueId, bool blocklist, CancellationToken cancellationToken);
+
+    /// <summary>Gli indexer, con la priorità (numero più basso = preferito) (spec T §2).</summary>
+    Task<IReadOnlyList<ArrIndexer?>> GetIndexersAsync(ArrKind kind, CancellationToken cancellationToken);
 }

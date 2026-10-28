@@ -16,13 +16,17 @@ public enum ArrError
 /// <summary>Errore di Sonarr o Radarr già classificato. Il messaggio non contiene mai la chiave.</summary>
 public sealed class ArrException : Exception
 {
-    public ArrException(ArrError error, Exception? inner = null)
+    public ArrException(ArrError error, Exception? inner = null, int? status = null)
         : base("Sonarr/Radarr: " + error, inner)
     {
         Error = error;
+        Status = status;
     }
 
     public ArrError Error { get; }
+
+    /// <summary>Lo stato HTTP di una risposta non riuscita; null per rete e timeout (spec T §6).</summary>
+    public int? Status { get; }
 }
 
 /// <summary>I codici di "Error" nelle risposte di Upcoming (spec M §7.4; decisione 1 del piano 19a).</summary>
