@@ -129,7 +129,7 @@ Le ricerche sono una alla volta, con una pausa tra l'una e l'altra, per non pesa
 - Dopo un download di WonderFlix, se il file ha un punteggio sotto l'**obiettivo** del profilo, il titolo resta tra quelli da ricercare per 30 giorni con lo stesso ritmo di §5.2.
 - Obiettivo iniziale: 150 nei Main Profile (ITA-ENG). Negli anime non c'è un massimo sensato: l'obiettivo resta vuoto e si ricerca per 30 giorni.
 - Si scarica un upgrade solo se la nuova scelta ha un **punteggio più alto** del file presente. Un file più leggero con lo stesso punteggio non basta.
-- Dopo un import normale (non un upgrade) il punteggio del file è quello della release scaricata, già noto: il file non si rilegge.
+- Dopo un import normale (non un upgrade) il punteggio del file è quello della release scaricata, già noto: per questa decisione il file non si rilegge (la lista "Da ripassare" invece legge i file, §6).
 - Un upgrade finito si conferma leggendo il file (`moviefile`/`episodefile`): se non è più quello di prima (stesso punteggio e stessa qualità), è importato e il suo punteggio diventa quello attuale. Se è ancora quello di prima, l'upgrade è fallito e il titolo torna a guardare gli upgrade, con la finestra di 30 giorni che aveva.
 - Dopo i 30 giorni, un titolo ancora sotto l'obiettivo passa in "Da ripassare" (§6).
 - Radarr e Sonarr importano il nuovo file solo se lo considerano un upgrade. Con i profili di oggi un WEBRip 150 non sostituisce un Bluray 0, perché il Bluray sta più in alto in qualità. Vedi §9, punto 4.
@@ -217,7 +217,7 @@ Nuova voce `AdminTab.downloads` nella dashboard admin, tra Attività e WonderFli
 Tre sezioni, più "Serve te" in evidenza quando non è vuota:
 
 - **Scelte automatiche** (ultimi 7 giorni, poi "mostra altri"): titolo, release scelta, peso, punteggio, indexer, quando; un segno "upgrade" con il prima e dopo. Pulsante "cambia".
-- **In attesa:** titolo, quando esce o da quanto si cerca, prossima ricerca. Quelli in "Serve te" hanno il pulsante "guarda".
+- **In attesa:** titolo, quando esce o da quanto si cerca, prossima ricerca e il motivo, se l'ultima ricerca non è riuscita. Quelli in "Serve te" hanno il pulsante "guarda".
 - **Da ripassare:** titolo, punteggio e peso del file attuale; pulsante "apri".
 
 ### 8.2 Ricerca di un titolo

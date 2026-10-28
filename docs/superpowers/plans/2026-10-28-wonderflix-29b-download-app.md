@@ -124,7 +124,7 @@ Percorsi relativi ad `app/`, se non è detto altro.
 - Produces:
   - `final downloadsApiProvider = Provider<DownloadsApi>(…)` (da `jellyfinHttpProvider`).
   - `DownloadsController extends AsyncNotifier<DownloadsOverview>` (`downloadsControllerProvider`, autoDispose): legge solo per un admin con la funzione `downloads`, altrimenti una panoramica vuota; `Future<void> reload()`; vale solo l'ultima risposta (come `AdminReportsController._loads`).
-  - `DownloadSearchController extends AutoDisposeFamilyAsyncNotifier<DownloadSearch, String>` (`downloadSearchControllerProvider(key)`): `build` fa la ricerca; `Future<void> searchAgain()`; `Future<DownloadsFailure?> grab(DownloadCandidate c)` e `Future<DownloadsFailure?> accept()`, che dopo un successo rileggono la panoramica (`ref.invalidate(downloadsControllerProvider)`); `bool get busy` (vero durante `grab`/`accept`). Un `CancelToken` annulla la ricerca quando il provider si smonta.
+  - `DownloadSearchController extends AutoDisposeFamilyAsyncNotifier<DownloadSearch, String>` (`downloadSearchControllerProvider(key)`): `build` fa la ricerca; `Future<void> searchAgain()`; `Future<DownloadsFailure?> grab(DownloadCandidate c)` e `Future<DownloadsFailure?> accept()`, che dopo un successo rileggono la panoramica (`ref.invalidate(downloadsControllerProvider)`); `bool get grabbing` (vero durante `grab`/`accept`). Un `CancelToken` annulla la ricerca quando il provider si smonta.
   - `download_labels.dart`:
     - `String formatGb(AppLocalizations l, int bytes)` (decisione 6);
     - `String downloadStateLabel(AppLocalizations l, DownloadItem item)`: "In attesa", "In download", "Cerca un upgrade", "Serve te: {motivo}";
@@ -136,8 +136,8 @@ Percorsi relativi ad `app/`, se non è detto altro.
 
 - [ ] **Step 1: test che falliscono:**
   - `downloads_controller_test.dart`: `NonAdminsGetNothing` (nessuna chiamata), `WithoutTheFeatureGetsNothing`, `OnlyTheLastAnswerCounts`.
-  - `download_search_controller_test.dart`: `GrabReloadsTheOverview`, `GrabIsBusyUntilItAnswers`, `ExpiredIsReturned` (`grab` dà `DownloadsFailure.expired` e la ricerca resta a schermo), `DisposingCancelsTheSearch`.
-  - `download_labels_test.dart`: `GigabytesUseTheItalianComma` (1 890 000 000 → "1,89 GB" in it, "1.89 GB" in en), `TheChoiceExplainsItself` (150, 1080 → testo con "150" e "1080p"), `TooSmallShowsTheRate`.
+  - `download_search_controller_test.dart`: `GrabReloadsTheOverview`, `GrabIsDisabledUntilItAnswers`, `ExpiredIsReturned` (`grab` dà `DownloadsFailure.expired` e la ricerca resta a schermo), `DisposingCancelsTheSearch`.
+  - `download_labels_test.dart`: `GigabytesUseTheItalianComma` (1 890 000 000 → "1,89 GB" in it, "1.89 GB" in en), `TheChoiceExplainsItself` (150, 1080 → testo con "150" e "1080p"), `TooSmallShowsTheRate`, `FailuresAndReasonsHaveTexts` (`downloadsFailureLabel` per `busy`, `arrUnavailable`, `expired`; `downloadReasonLabel(searchFailed)`).
 - [ ] **Step 2: i test falliscono.**
 - [ ] **Step 3: il codice**, con le chiavi ARB nuove in it e en.
 - [ ] **Step 4: i test passano**, poi `flutter gen-l10n`, `flutter analyze`, `flutter test`.
@@ -158,14 +158,14 @@ Percorsi relativi ad `app/`, se non è detto altro.
   - Sezioni nell'ordine, con `AdminSectionTitle` e il numero:
     1. **Serve te** (solo se non vuota): le voci `NeedsYou`, pulsante "Guarda".
     2. **Scelte automatiche**: `DownloadChoiceRow` (poster, titolo, release, peso, punteggio come pastiglia, indexer, quando; "upgrade" con prima → dopo se `PreviousScore` c'è; "scelta tua" se `ByAdmin`), pulsante "Cambia"; 7 giorni e "Mostra altre" (decisione 3).
-    3. **In attesa**: `DownloadItemRow` per `Waiting`, `Downloading`, `UpgradeWatch` (titolo, stato, uscita o da quanto, prossima ricerca); pulsanti "Guarda" e "Cerca ora" (`searchNow`).
+    3. **In attesa**: `DownloadItemRow` per `Waiting`, `Downloading`, `UpgradeWatch` (titolo, stato, uscita o da quanto, prossima ricerca; se `Reason` c'è, anche il motivo con `downloadReasonLabel`, per esempio "ricerca non riuscita, riprovo tra poco"); pulsanti "Guarda" e "Cerca ora" (`searchNow`).
     4. **Da ripassare**: `ReviewRow` (titolo, punteggio e peso del file attuale), pulsante "Apri"; 50 e "Mostra altre"; sotto il titolo "aggiornato {quando}" da `ReviewAt`.
   - "Guarda", "Cambia", "Apri" chiamano `showDownloadSearch(context, key, title)` (Task 4).
 
 - [ ] **Step 1: test che falliscono:**
   - `admin_navigation_test.dart`: `TheTabNeedsTheFeature` (senza `downloads` non c'è; con, viene dopo Registro); `ParsesDownloads` (`tab=downloads`).
   - `admin_screen_test.dart`: la scheda c'è con la funzione; senza, l'indirizzo `tab=downloads` va su Sessioni.
-  - `downloads_tab_test.dart`: `SectionsComeInOrder`; `NeedsYouHidesWhenEmpty`; `OnlySevenDaysUntilShowMore`; `ReviewShowsFiftyAtATime`; `DisabledShowsTheNote`; `AServiceErrorIsShown`; `AnUpgradeShowsBeforeAndAfter`.
+  - `downloads_tab_test.dart`: `SectionsComeInOrder`; `NeedsYouHidesWhenEmpty`; `OnlySevenDaysUntilShowMore`; `ReviewShowsFiftyAtATime`; `DisabledShowsTheNote`; `AServiceErrorIsShown`; `AnUpgradeShowsBeforeAndAfter`; `AWaitingRowShowsItsReason` (una voce `Waiting` con `Reason` `SearchFailed` mostra "ricerca non riuscita").
 - [ ] **Step 2: i test falliscono.**
 - [ ] **Step 3: il codice.** Le righe come nella bozza: poster piccolo (`CachedNetworkImage` o il widget di poster che usano già le righe della Home, con `PosterUrl` di Radarr/Sonarr), pastiglie con `WfColors.online` per 150 o più, `WfColors.gold` sotto l'obiettivo, `WfColors.error` per "Serve te".
 - [ ] **Step 4: i test passano**, poi `flutter gen-l10n`, `flutter analyze`, `flutter test`.
@@ -186,7 +186,7 @@ Percorsi relativi ad `app/`, se non è detto altro.
   - Durante la ricerca: attesa con il testo "Cerco su Radarr/Sonarr, può volerci un minuto".
   - **Candidati**, in ordine: numero, release, punteggio, peso, seeders, indexer, pulsante "Scarica". La scelta è evidenziata (sfondo `WfColors.calendarMovie`, come la bozza) con `choiceWhy` sotto. Largo: una tabella; stretto: una scheda per release con le stesse informazioni.
   - **Scartati** sotto, in grigio, con `rejectedLabel`.
-  - "Scarica": conferma per decisione 5 (`showAdminConfirmDialog`); spento mentre `busy`; dopo il successo uno SnackBar "Download avviato" e la pagina si chiude; con `expired` un messaggio e la ricerca resta.
+  - "Scarica": conferma per decisione 5 (`showAdminConfirmDialog`); spento mentre `grabbing`; dopo il successo uno SnackBar "Download avviato" e la pagina si chiude; con `expired` un messaggio e la ricerca resta.
   - "Va bene così" (solo per una chiave in "Da ripassare", cioè quando la pagina è aperta da `ReviewRow`: parametro `bool reviewing` di `showDownloadSearch`): `accept`, poi si chiude.
   - Errore della ricerca (`Error` nel DTO o eccezione): messaggio e "Riprova".
 
