@@ -26,6 +26,9 @@ internal sealed class TempFolder : IDisposable
     /// <summary>Percorso di activity.json, accanto a inbox.json.</summary>
     public string ActivityFile => System.IO.Path.Combine(Path, "WonderFlixWatchParty", "activity.json");
 
+    /// <summary>Percorso di downloads.json, accanto a inbox.json.</summary>
+    public string DownloadsFile => System.IO.Path.Combine(Path, "WonderFlixWatchParty", "downloads.json");
+
     public void Dispose()
     {
         if (Directory.Exists(Path))
