@@ -196,7 +196,7 @@ Nella pagina di configurazione del plugin, accanto a Sonarr e Radarr:
 ### 7.3 Servizio e dati
 
 - Un servizio in background fa il ciclo di §5, un titolo alla volta.
-- Su disco (`downloads.json`, come `reports.json`): per ogni titolo seguito lo stato (in attesa, scaricato, in upgrade, serve te, va bene così), le ultime ricerche, la scelta con le prime alternative e gli scarti con il motivo, le stagioni divise in episodi. La storia delle scelte si tiene per 90 giorni.
+- Su disco (`downloads.json`, come `reports.json`): per ogni titolo seguito lo stato (in attesa, scaricato, in upgrade, serve te, va bene così), le ultime ricerche, la scelta, le stagioni divise in episodi. Le alternative e gli scarti con il motivo non si salvano: vengono dalla ricerca dal vivo. La storia delle scelte si tiene per 90 giorni.
 
 ### 7.4 Endpoint (solo admin)
 
@@ -217,7 +217,7 @@ Nuova voce `AdminTab.downloads` nella dashboard admin, tra Attività e WonderFli
 Tre sezioni, più "Serve te" in evidenza quando non è vuota:
 
 - **Scelte automatiche** (ultimi 7 giorni, poi "mostra altri"): titolo, release scelta, peso, punteggio, indexer, quando; un segno "upgrade" con il prima e dopo. Pulsante "cambia".
-- **In attesa:** titolo, quando esce o da quanto si cerca, prossima ricerca e il motivo, se l'ultima ricerca non è riuscita. Quelli in "Serve te" hanno il pulsante "guarda".
+- **In attesa:** titolo, quando esce o da quanto si cerca, prossima ricerca e il motivo, se c'è. Quelli in "Serve te" hanno il pulsante "guarda".
 - **Da ripassare:** titolo, punteggio e peso del file attuale; pulsante "apri".
 
 ### 8.2 Ricerca di un titolo

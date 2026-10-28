@@ -137,6 +137,9 @@ uscite in arrivo.
   pagina del plugin: l'interruttore, i GB all'ora minimi e il punteggio
   minimo e obiettivo di ogni profilo. Funzione `downloads`, presente con
   almeno uno tra Sonarr e Radarr.
+  Con l'interruttore spento WonderFlix segue ancora i download già partiti
+  (dalla scheda Download o prima di spegnerlo), ma non cerca e non ne avvia
+  di nuovi.
   **Attivazione sul server** (a mano, nell'ordine; l'interruttore resta
   spento finché non sono fatti):
   1. Provare la regola con l'interruttore spento (dalla scheda Download
