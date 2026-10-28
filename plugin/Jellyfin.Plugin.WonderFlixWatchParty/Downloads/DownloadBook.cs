@@ -1,5 +1,39 @@
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 
+/// <summary>Il <c>Kind</c> di una voce, come nei DTO (spec T §3).</summary>
+public static class DownloadKinds
+{
+    public const string Movie = "Movie";
+
+    public const string Episode = "Episode";
+
+    public const string Season = "Season";
+}
+
+/// <summary>Lo <c>State</c> di una voce, come nei DTO (spec T §3).</summary>
+public static class DownloadStates
+{
+    public const string Waiting = "Waiting";
+
+    public const string Downloading = "Downloading";
+
+    public const string UpgradeWatch = "UpgradeWatch";
+
+    public const string NeedsYou = "NeedsYou";
+}
+
+/// <summary>La <c>Reason</c> di una voce, come nei DTO (spec T §3); null se non serve.</summary>
+public static class DownloadReasons
+{
+    public const string NothingFound = "NothingFound";
+
+    public const string BelowMinScore = "BelowMinScore";
+
+    public const string ImportBlocked = "ImportBlocked";
+
+    public const string SearchFailed = "SearchFailed";
+}
+
 /// <summary>Un titolo che manca o che si tiene d'occhio (spec T §3). Serializzato così com'è; <c>Kind</c> e <c>State</c> sono stringhe come nei DTO.</summary>
 public sealed class DownloadEntry
 {
