@@ -126,7 +126,7 @@ class _SearchPage extends ConsumerWidget {
         children: [
           _Header(
             search: search,
-            onAgain: again,
+            onAgain: busy ? null : again,
             onAccept: reviewing && !busy ? () => _accept(context, ref) : null,
             reviewing: reviewing,
           ),
@@ -186,7 +186,7 @@ class _Header extends StatelessWidget {
   });
 
   final DownloadSearch search;
-  final VoidCallback onAgain;
+  final VoidCallback? onAgain;
   final VoidCallback? onAccept;
   final bool reviewing;
 
@@ -213,11 +213,17 @@ class _Header extends StatelessWidget {
             style: muted),
         OutlinedButton(onPressed: onAgain, child: Text(l.downloadsSearchAgain)),
         if (reviewing)
-          FilledButton(onPressed: onAccept, child: Text(l.downloadsAccept)),
+          FilledButton(
+              style: _compactButton,
+              onPressed: onAccept,
+              child: Text(l.downloadsAccept)),
       ],
     );
   }
 }
+
+// Il tema dà ai FilledButton la larghezza piena: qui servono della misura del testo.
+final _compactButton = FilledButton.styleFrom(minimumSize: const Size(0, 40));
 
 // Colonne della tabella (largo): rango, release, punteggio, peso, seeders,
 // indexer, pulsante.
@@ -263,7 +269,8 @@ class _CandidateRow extends StatelessWidget {
     final l = AppLocalizations.of(context);
     final r = candidate.release;
     final compact = FormFactor.of(context).compact;
-    final button = FilledButton(onPressed: onGrab, child: Text(l.downloadsGrab));
+    final button = FilledButton(
+        style: _compactButton, onPressed: onGrab, child: Text(l.downloadsGrab));
     final size = formatGb(l, r.sizeBytes);
     final seeders = r.seeders?.toString() ?? '-';
     final name = Text(r.title, maxLines: 2, overflow: TextOverflow.ellipsis);

@@ -39,7 +39,8 @@ void main() {
       reason: RejectedReason.tooSmall,
       detail: '0.62',
     );
-    expect(rejectedLabel(it, rejected), '0.62 GB/ora, sotto la soglia');
+    expect(rejectedLabel(it, rejected), '0,62 GB/ora, sotto la soglia');
+    expect(rejectedLabel(en, rejected), contains('0.62'));
     final arr = DownloadRejected(
       release: testRelease(),
       reason: RejectedReason.arr,

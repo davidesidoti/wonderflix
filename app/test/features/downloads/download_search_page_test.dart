@@ -108,7 +108,7 @@ void main() {
 
     expect(find.text('Scartati · 2'), findsOneWidget);
     expect(find.textContaining('Già nel catalogo'), findsOneWidget);
-    expect(find.textContaining('0.62 GB/ora, sotto la soglia'), findsOneWidget);
+    expect(find.textContaining('0,62 GB/ora, sotto la soglia'), findsOneWidget);
   });
 
   testWidgets('ALowerScoreAsksFirst', (tester) async {
@@ -173,6 +173,11 @@ void main() {
     final buttons = tester.widgetList<FilledButton>(find.byType(FilledButton));
     expect(buttons, hasLength(3));
     expect(buttons.map((b) => b.onPressed), everyElement(isNull));
+    expect(
+        tester
+            .widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'Ricerca di nuovo'))
+            .onPressed,
+        isNull);
     expect(grabs(), hasLength(1));
 
     api.actionGate!.complete();

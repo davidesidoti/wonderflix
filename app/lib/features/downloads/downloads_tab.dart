@@ -7,12 +7,14 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/theme.dart';
 import '../../core/downloads/download_models.dart';
+import '../../core/downloads/downloads_api.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
 import '../admin/admin_poller.dart';
 import '../admin/admin_time.dart';
 import '../admin/admin_widgets.dart';
+import 'download_labels.dart';
 import 'download_rows.dart';
 import 'download_search_page.dart';
 import 'downloads_controller.dart';
@@ -68,7 +70,16 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
   }
 
   Future<void> _searchNow(String key) async {
-    await ref.read(downloadsApiProvider).searchNow(key);
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(downloadsApiProvider).searchNow(key);
+    } on DownloadsException catch (e) {
+      // Un errore del plugin è atteso: si mostra, non è un difetto da loggare.
+      messenger.showSnackBar(
+          SnackBar(content: Text(downloadsFailureLabel(l, e.failure))));
+    }
+    if (!mounted) return;
     await _reload();
   }
 

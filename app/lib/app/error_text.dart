@@ -1,7 +1,9 @@
+import '../core/downloads/downloads_api.dart';
 import '../core/jellyfin/api_exception.dart';
 import '../core/requests/requests_api.dart';
 import '../core/storage/profile_store.dart';
 import '../core/video/video_engine.dart';
+import '../features/downloads/download_labels.dart';
 import '../l10n/gen/app_localizations.dart';
 
 /// Messaggio per l'utente a partire da un errore qualsiasi.
@@ -15,6 +17,7 @@ String describeError(AppLocalizations l, Object error) => switch (error) {
         failure: RequestsFailure.seerrUnavailable || RequestsFailure.notConfigured
       ) =>
         l.requestsSeerrDown,
+      DownloadsException(:final failure) => downloadsFailureLabel(l, failure),
       ProfileLimitException() => l.profilesLimit,
       _ => l.errorGeneric,
     };

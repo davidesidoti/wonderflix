@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
+import 'package:wonderflix/core/downloads/downloads_api.dart';
+import 'package:wonderflix/l10n/gen/app_localizations.dart';
 import 'package:wonderflix/core/downloads/download_models.dart';
 import 'package:wonderflix/features/downloads/download_rows.dart';
 import 'package:wonderflix/features/downloads/downloads_tab.dart';
@@ -176,6 +179,31 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(api.calls, ['searchNow movie:2', 'overview']);
+  });
+
+  testWidgets('Cerca ora che fallisce dice il motivo e non logga',
+      (tester) async {
+    api.overviewValue =
+        DownloadsOverview(enabled: true, waiting: [_item('movie:2')]);
+    await pumpTab(tester);
+    api.nextActionFailure = DownloadsFailure.invalid;
+    final records = <LogRecord>[];
+    final sub = Logger.root.onRecord.listen(records.add);
+    addTearDown(sub.cancel);
+
+    await tester.tap(find.text('Cerca ora'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Richiesta non valida'), findsOneWidget);
+    expect(records.where((r) => r.level >= Level.WARNING), isEmpty);
+  });
+
+  testWidgets('un errore di caricamento ha il suo testo', (tester) async {
+    api.overviewError = const DownloadsException(DownloadsFailure.forbidden);
+    await pumpTab(tester);
+
+    expect(find.text(lookupAppLocalizations(const Locale('it')).errorAccountDisabled),
+        findsOneWidget);
   });
 
   testWidgets('Guarda apre la ricerca e alla chiusura rilegge',

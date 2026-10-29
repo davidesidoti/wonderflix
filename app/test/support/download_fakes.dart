@@ -58,9 +58,13 @@ class FakeDownloadsApi implements DownloadsApi {
   /// Errore della prossima [grab] o [accept], una volta sola.
   DownloadsFailure? nextActionFailure;
 
+  /// Se valorizzato, [overview] fallisce con questo.
+  Object? overviewError;
+
   @override
   Future<DownloadsOverview> overview() async {
     calls.add('overview');
+    if (overviewError case final e?) throw e;
     if (overviewGates.isEmpty) return overviewValue;
     return overviewGates.removeAt(0).future;
   }

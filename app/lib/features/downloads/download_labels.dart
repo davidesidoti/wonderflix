@@ -48,10 +48,14 @@ String downloadsFailureLabel(AppLocalizations l, DownloadsFailure f) =>
       DownloadsFailure.network => l.errorServerUnreachable,
     };
 
-String rejectedLabel(AppLocalizations l, DownloadRejected r) =>
-    r.reason == RejectedReason.tooSmall
-    ? l.downloadsRejectedTooSmall(r.detail ?? '')
-    : r.detail ?? '';
+String rejectedLabel(AppLocalizations l, DownloadRejected r) {
+  final detail = r.detail ?? '';
+  if (r.reason != RejectedReason.tooSmall) return detail;
+  // Il plugin manda "0.62" col punto: in italiano la virgola.
+  final rate = double.tryParse(detail);
+  return l.downloadsRejectedTooSmall(
+      rate == null ? detail : NumberFormat('0.00', l.localeName).format(rate));
+}
 
 /// Perché la regola ha scelto [c] (decisione 2 del piano 29b).
 String choiceWhy(AppLocalizations l, DownloadCandidate c) =>
