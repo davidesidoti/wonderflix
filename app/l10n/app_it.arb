@@ -1240,5 +1240,20 @@
   "downloadsConfirmTitle": "Scaricare questa release?",
   "downloadsConfirmLowerScore": "Il punteggio ({score}) non supera quello del file attuale ({current}).",
   "@downloadsConfirmLowerScore": {"placeholders": {"score": {"type": "int"}, "current": {"type": "int"}}},
-  "downloadsConfirmNoImport": "Radarr/Sonarr non la importerebbero da soli: dovrai importarla a mano."
+  "downloadsConfirmNoImport": "Radarr/Sonarr non la importerebbero da soli: dovrai importarla a mano.",
+  "downloadsBestEpisodes": "Migliori episodi",
+  "downloadsEpisodeShort": "E{number}",
+  "@downloadsEpisodeShort": {"placeholders": {"number": {"type": "int"}}},
+  "downloadsEpisodeNone": "nessun file valido",
+  "downloadsGrabAll": "Scarica tutti ({count})",
+  "@downloadsGrabAll": {"placeholders": {"count": {"type": "int"}}},
+  "downloadsGrabAllProgress": "Scarico {done}/{total}",
+  "@downloadsGrabAllProgress": {"placeholders": {"done": {"type": "int"}, "total": {"type": "int"}}},
+  "downloadsGrabAllConfirmTitle": "Scaricare tutti gli episodi?",
+  "downloadsGrabAllConfirmNoImport": "{count, plural, =1{1 episodio non verrebbe importato} other{{count} episodi non verrebbero importati}} da Radarr/Sonarr da soli: dovrai importarli a mano.",
+  "@downloadsGrabAllConfirmNoImport": {"placeholders": {"count": {"type": "int"}}},
+  "downloadsGrabAllDone": "{count, plural, =1{1 download avviato} other{{count} download avviati}}",
+  "@downloadsGrabAllDone": {"placeholders": {"count": {"type": "int"}}},
+  "downloadsGrabAllPartial": "{started} avviati, {failed} no: {reason}",
+  "@downloadsGrabAllPartial": {"placeholders": {"started": {"type": "int"}, "failed": {"type": "int"}, "reason": {"type": "String"}}}
 }

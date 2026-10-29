@@ -1,4 +1,5 @@
-// Modelli dei download automatici (spec T §8): i DTO del plugin 1.14.0.
+// Modelli dei download automatici (spec T §8): i DTO del plugin 1.14.0
+// (`EpisodeChoices` dalla 1.15.0).
 // Lettura tollerante: un campo obbligatorio mancante o di tipo sbagliato
 // salta la riga, mai la pagina.
 
@@ -377,6 +378,41 @@ class DownloadCurrentFile {
   }
 }
 
+/// Il singolo migliore di un episodio di una stagione senza un pack
+/// conveniente (spec T §5.4, §8.2). [release] null: nessun singolo valido.
+class DownloadEpisodeChoice {
+  const DownloadEpisodeChoice({
+    required this.episodeNumber,
+    this.release,
+    required this.wouldImport,
+  });
+
+  final int episodeNumber;
+  final DownloadRelease? release;
+  final bool wouldImport;
+
+  static DownloadEpisodeChoice? fromJson(Map<String, dynamic> json) {
+    try {
+      final raw = json['Release'];
+      final release = raw == null
+          ? null
+          : DownloadRelease.fromJson((raw as Map).cast<String, dynamic>());
+      // Una release presente ma rotta salta la riga, non diventa "nessuno".
+      if (raw != null && release == null) return null;
+      return DownloadEpisodeChoice(
+        episodeNumber: (json['EpisodeNumber'] as num).toInt(),
+        release: release,
+        wouldImport: json['WouldImport'] as bool,
+      );
+    } on Object {
+      return null;
+    }
+  }
+
+  static List<DownloadEpisodeChoice> listFromJson(Object? json) =>
+      _list(json, fromJson);
+}
+
 class DownloadSearch {
   const DownloadSearch({
     required this.key,
@@ -389,6 +425,7 @@ class DownloadSearch {
     required this.validCount,
     required this.totalCount,
     this.error,
+    this.episodeChoices = const [],
   });
 
   final String key;
@@ -403,6 +440,10 @@ class DownloadSearch {
 
   /// Codice d'errore (come `SonarrError`/`RadarrError`) se la ricerca è fallita.
   final String? error;
+
+  /// I migliori singoli per episodio (plugin 1.15.0, solo per una stagione
+  /// senza un pack scelto); vuota altrimenti e con un plugin più vecchio.
+  final List<DownloadEpisodeChoice> episodeChoices;
 
   static DownloadSearch? fromJson(Map<String, dynamic> json) {
     try {
@@ -420,6 +461,8 @@ class DownloadSearch {
         validCount: (json['ValidCount'] as num).toInt(),
         totalCount: (json['TotalCount'] as num).toInt(),
         error: json['Error'] as String?,
+        episodeChoices: DownloadEpisodeChoice.listFromJson(
+            json['EpisodeChoices']),
       );
     } on Object {
       return null;

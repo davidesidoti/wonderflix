@@ -24,6 +24,33 @@ DownloadCandidate testCandidate({int rank = 1, String guid = 'g1'}) =>
       wouldImport: true,
     );
 
+DownloadEpisodeChoice testEpisodeChoice(
+  int number, {
+  bool hasRelease = true,
+  bool wouldImport = true,
+}) =>
+    DownloadEpisodeChoice(
+      episodeNumber: number,
+      release: hasRelease ? testRelease(guid: 'e$number') : null,
+      wouldImport: hasRelease && wouldImport,
+    );
+
+/// Una stagione senza un pack conveniente: la lista completa più i singoli.
+DownloadSearch testSeasonSearch(
+  List<DownloadEpisodeChoice> choices, [
+  String key = 'season:1',
+]) =>
+    DownloadSearch(
+      key: key,
+      kind: DownloadKind.season,
+      title: 'Serie S1',
+      runtimeMinutes: 45,
+      candidates: [testCandidate()],
+      validCount: 1,
+      totalCount: 1,
+      episodeChoices: choices,
+    );
+
 DownloadSearch testSearch([String key = 'movie:1']) => DownloadSearch(
   key: key,
   kind: DownloadKind.movie,
@@ -54,6 +81,10 @@ class FakeDownloadsApi implements DownloadsApi {
 
   /// Se valorizzato, [grab] e [accept] aspettano.
   Completer<void>? actionGate;
+
+  /// Se non vuota, ogni [grab] o [accept] aspetta la prima, che toglie: per
+  /// guardare cosa succede tra un grab e l'altro.
+  final actionGates = <Completer<void>>[];
 
   /// Errore della prossima [grab] o [accept], una volta sola.
   DownloadsFailure? nextActionFailure;
@@ -91,6 +122,7 @@ class FakeDownloadsApi implements DownloadsApi {
 
   Future<void> _action(String call) async {
     calls.add(call);
+    if (actionGates.isNotEmpty) await actionGates.removeAt(0).future;
     await actionGate?.future;
     final failure = nextActionFailure;
     if (failure == null) return;

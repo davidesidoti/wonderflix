@@ -158,6 +158,7 @@ Come è fatto:
 - Pack e singoli vengono dalla stessa ricerca di stagione di Sonarr, senza ricerche in più. I singoli si raggruppano per episodio e di ognuno si tiene il migliore con la regola. La somma si confronta con il pack solo se ogni episodio mancante ha un singolo.
 - Se la ricerca di stagione non dà nessun pack valido, o il pack non conviene, la voce di stagione si divide per sempre in voci di episodio, da cercare subito.
 - Una stagione con qualcosa in coda, o con una scelta di WonderFlix negli ultimi 90 giorni, non si raggruppa: si cerca episodio per episodio.
+- **Migliori episodi (piano 29c, plugin 1.15.0, app 0.24.0):** nella ricerca manuale di una stagione senza un pack scelto (nessun pack o pack non conveniente) il plugin manda anche, per ogni episodio considerato, il singolo scelto con la regola per episodio (la stessa scelta di sopra). Gli episodi considerati sono quelli che mancano; se non ne manca nessuno (titolo da "Da ripassare") quelli il cui file è sotto l'obiettivo del profilo, o tutti se il profilo non ha obiettivo. Singolo = release non di stagione intera con un solo episodio.
 
 ### 5.5 Quando non trova niente o qualcosa va storto
 
@@ -229,6 +230,7 @@ Si apre da "cambia", "guarda" o "apri". È una schermata a tutto schermo sopra l
 
 - In alto: titolo, durata, file attuale (peso e punteggio), quanti risultati validi, "ricerca di nuovo".
 - L'elenco ordinato con la regola, con la scelta di WonderFlix evidenziata e il perché ("più leggero dei 150 in 1080p"). Ogni riga ha release, punteggio, peso, seeders, indexer e "scarica".
+- **Migliori episodi** (solo stagioni senza un pack scelto, `EpisodeChoices`): un riquadro in cima, sopra l'elenco. Una riga per episodio (numero, release, punteggio, peso, seeders, indexer, "scarica") o "nessun file valido", e "Scarica tutti (N)", N = gli episodi con un singolo. "Scarica" di una riga è il grab di sempre. "Scarica tutti" fa i grab uno dopo l'altro con `Downloads/Grab` (chiave della stagione e guid/indexer del singolo); i pulsanti restano spenti e il pulsante mostra "Scarico 3/N". Conferma una sola volta, con quanti sono, se qualche episodio non verrebbe importato (`WouldImport` falso): il DTO non ha il punteggio del file di ogni episodio, quindi qui non c'è il confronto di punteggio. Alla fine uno SnackBar con quanti sono partiti e quanti no (con il primo motivo): la pagina resta aperta se qualcuno è fallito, si chiude se sono partiti tutti. Chiudere la pagina ferma la serie.
 - Sotto, in grigio, gli scartati con il motivo ("non in italiano", "0,6 GB/ora, sotto la soglia", "qualità non ammessa").
 - Per i titoli in "Da ripassare", anche "va bene così".
 - Scaricare un file con punteggio più basso o uguale a quello presente chiede conferma; lo stesso se Radarr o Sonarr non importerebbero la release. Il testo dice quale dei due casi è.

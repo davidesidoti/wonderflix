@@ -91,6 +91,111 @@ void main() {
     sub.close();
   });
 
+  group('GrabAll', () {
+    final releases = [for (final n in [1, 2, 3]) testRelease(guid: 'e$n')];
+
+    test('GrabsInOrderAndReloadsTheOverviewOnce', () async {
+      final c = container();
+      final sub = c.listen(downloadSearchControllerProvider(_key), (_, _) {});
+      await c.read(downloadSearchControllerProvider(_key).future);
+      await c.read(downloadsControllerProvider.future);
+      api.calls.clear();
+
+      final result = await c
+          .read(downloadSearchControllerProvider(_key).notifier)
+          .grabAll(releases);
+      await c.read(downloadsControllerProvider.future);
+
+      expect((result.started, result.failed, result.firstFailure),
+          (3, 0, null));
+      expect(api.calls, [
+        'grab movie:1 e1 3',
+        'grab movie:1 e2 3',
+        'grab movie:1 e3 3',
+        'overview',
+      ]);
+      expect(c.read(downloadGrabbingProvider(_key)), isFalse);
+      sub.close();
+    });
+
+    test('GrabbingStaysTrueForTheWholeRunAndProgressCounts', () async {
+      final c = container();
+      final sub = c.listen(downloadSearchControllerProvider(_key), (_, _) {});
+      await c.read(downloadSearchControllerProvider(_key).future);
+      final notifier = c.read(downloadSearchControllerProvider(_key).notifier);
+      api.actionGates.addAll([for (var i = 0; i < 3; i++) Completer<void>()]);
+      final gates = [...api.actionGates];
+
+      final pending = notifier.grabAll(releases);
+      await Future<void>.delayed(Duration.zero);
+      expect(c.read(downloadGrabProgressProvider(_key)), (1, 3));
+      gates[0].complete();
+      await Future<void>.delayed(Duration.zero);
+      // Tra un grab e l'altro il flag non cade.
+      expect(notifier.grabbing, isTrue);
+      expect(c.read(downloadGrabProgressProvider(_key)), (2, 3));
+
+      gates[1].complete();
+      gates[2].complete();
+      await pending;
+      expect(notifier.grabbing, isFalse);
+      expect(c.read(downloadGrabProgressProvider(_key)), isNull);
+      sub.close();
+    });
+
+    test('AFailureDoesNotStopTheOthers', () async {
+      final c = container();
+      final sub = c.listen(downloadSearchControllerProvider(_key), (_, _) {});
+      await c.read(downloadSearchControllerProvider(_key).future);
+      api.nextActionFailure = DownloadsFailure.refused;
+
+      final result = await c
+          .read(downloadSearchControllerProvider(_key).notifier)
+          .grabAll(releases);
+
+      expect((result.started, result.failed, result.firstFailure),
+          (2, 1, DownloadsFailure.refused));
+      expect(api.calls.where((x) => x.startsWith('grab')), hasLength(3));
+      sub.close();
+    });
+
+    test('NothingStartedDoesNotReloadTheOverview', () async {
+      final c = container();
+      final sub = c.listen(downloadSearchControllerProvider(_key), (_, _) {});
+      await c.read(downloadSearchControllerProvider(_key).future);
+      await c.read(downloadsControllerProvider.future);
+      api.calls.clear();
+      api.nextActionFailure = DownloadsFailure.busy;
+
+      final result = await c
+          .read(downloadSearchControllerProvider(_key).notifier)
+          .grabAll([releases.first]);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(result.started, 0);
+      expect(api.calls, ['grab movie:1 e1 3']);
+      sub.close();
+    });
+
+    test('ClosingThePageStopsTheRun', () async {
+      final c = container();
+      final sub = c.listen(downloadSearchControllerProvider(_key), (_, _) {});
+      await c.read(downloadSearchControllerProvider(_key).future);
+      final notifier = c.read(downloadSearchControllerProvider(_key).notifier);
+      final gate = Completer<void>();
+      api.actionGates.add(gate);
+
+      final pending = notifier.grabAll(releases);
+      await Future<void>.delayed(Duration.zero);
+      sub.close();
+      await Future<void>.delayed(Duration.zero);
+      gate.complete();
+      await pending;
+
+      expect(api.calls.where((x) => x.startsWith('grab')), ['grab movie:1 e1 3']);
+    });
+  });
+
   test('DisposingCancelsTheSearch', () async {
     api.searchGate = Completer();
     final c = container();

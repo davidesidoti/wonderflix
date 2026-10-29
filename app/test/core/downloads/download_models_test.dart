@@ -106,6 +106,40 @@ void main() {
     expect((search.validCount, search.totalCount, search.error), (1, 3, null));
   });
 
+  test('EpisodeChoicesParseTolerantly', () {
+    Map<String, dynamic> base([Object? choices = 'absent']) => {
+          'Key': 'season:1',
+          'Kind': 'Season',
+          'Title': 'Serie S1',
+          'RuntimeMinutes': 45,
+          'Current': null,
+          'Candidates': [],
+          'Rejected': [],
+          'ValidCount': 0,
+          'TotalCount': 0,
+          'Error': null,
+          if (choices != 'absent') 'EpisodeChoices': choices,
+        };
+
+    // Plugin 1.14.0: il campo manca.
+    expect(DownloadSearch.fromJson(base())!.episodeChoices, isEmpty);
+
+    final choices = DownloadSearch.fromJson(base([
+      {'EpisodeNumber': 1, 'Release': releaseJson(guid: 'a'), 'WouldImport': true},
+      {'EpisodeNumber': 2, 'Release': null, 'WouldImport': false},
+      {'EpisodeNumber': 3, 'Release': releaseJson(size: 'tanti'), 'WouldImport': true},
+      {'EpisodeNumber': 'x', 'Release': null, 'WouldImport': false},
+      {'EpisodeNumber': 4, 'Release': releaseJson(guid: 'd'), 'WouldImport': false},
+    ]))!
+        .episodeChoices;
+
+    // La release rotta e il numero rotto saltano la riga; "nessuno" resta.
+    expect(choices.map((c) => c.episodeNumber), [1, 2, 4]);
+    expect(choices[0].release!.guid, 'a');
+    expect(choices[1].release, isNull);
+    expect(choices[2].wouldImport, isFalse);
+  });
+
   test('ABrokenRowIsSkipped', () {
     final releases = DownloadRelease.listFromJson([
       releaseJson(guid: 'a'),

@@ -48,18 +48,20 @@ class _SearchPage extends ConsumerWidget {
             AppLocalizations.of(context), failure)),
       ));
 
+  /// [current]: il file con cui confrontare il punteggio (null: nessun
+  /// confronto, come per un singolo del riquadro "Migliori episodi").
   Future<void> _grab(BuildContext context, WidgetRef ref,
-      DownloadSearch search, DownloadCandidate c) async {
+      DownloadCurrentFile? current, DownloadRelease release,
+      {required bool wouldImport}) async {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     final controller = ref.read(downloadSearchControllerProvider(dlKey).notifier);
     // Decisione 5: conferma se non migliora il file attuale o non si importa.
-    final current = search.current;
     final reasons = [
-      if (current != null && c.release.score <= current.score)
-        l.downloadsConfirmLowerScore(c.release.score, current.score),
-      if (!c.wouldImport) l.downloadsConfirmNoImport,
+      if (current != null && release.score <= current.score)
+        l.downloadsConfirmLowerScore(release.score, current.score),
+      if (!wouldImport) l.downloadsConfirmNoImport,
     ];
     if (reasons.isNotEmpty) {
       final ok = await showAdminConfirmDialog(
@@ -70,11 +72,49 @@ class _SearchPage extends ConsumerWidget {
       );
       if (!ok || !context.mounted) return;
     }
-    final failure = await controller.grab(c);
+    final failure = await controller.grabRelease(release);
     if (!context.mounted) return;
     if (failure != null) return _fail(context, failure);
     messenger.showSnackBar(SnackBar(content: Text(l.downloadsStarted)));
     navigator.pop();
+  }
+
+  /// "Scarica tutti" del riquadro "Migliori episodi" (decisione 4 del piano 29c).
+  Future<void> _grabAll(BuildContext context, WidgetRef ref,
+      List<DownloadEpisodeChoice> choices) async {
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final controller = ref.read(downloadSearchControllerProvider(dlKey).notifier);
+    // Il DTO non ha il punteggio del file di ogni episodio: l'unico motivo di
+    // conferma qui è WouldImport falso (il confronto di punteggio lo ha già
+    // fatto il plugin scegliendo gli episodi).
+    final noImport = choices.where((c) => !c.wouldImport).length;
+    if (noImport > 0) {
+      final ok = await showAdminConfirmDialog(
+        context,
+        title: l.downloadsGrabAllConfirmTitle,
+        message: l.downloadsGrabAllConfirmNoImport(noImport),
+        confirmLabel: l.downloadsGrab,
+      );
+      if (!ok || !context.mounted) return;
+    }
+    final result = await controller.grabAll([for (final c in choices) c.release!]);
+    // Pagina chiusa durante la serie: niente da dire a nessuno.
+    if (!context.mounted) return;
+    if (result.failed == 0) {
+      messenger.showSnackBar(
+          SnackBar(content: Text(l.downloadsGrabAllDone(result.started))));
+      navigator.pop();
+      return;
+    }
+    // La pagina resta: l'admin vede i motivi e può riprovare.
+    messenger.showSnackBar(SnackBar(
+      content: Text(l.downloadsGrabAllPartial(
+          result.started,
+          result.failed,
+          downloadsFailureLabel(l, result.firstFailure!))),
+    ));
   }
 
   Future<void> _accept(BuildContext context, WidgetRef ref) async {
@@ -131,6 +171,15 @@ class _SearchPage extends ConsumerWidget {
             reviewing: reviewing,
           ),
           const SizedBox(height: 16),
+          if (search.episodeChoices.isNotEmpty)
+            _BestEpisodes(
+              choices: search.episodeChoices,
+              busy: busy,
+              progress: ref.watch(downloadGrabProgressProvider(dlKey)),
+              onGrab: (c) => _grab(context, ref, null, c.release!,
+                  wouldImport: c.wouldImport),
+              onGrabAll: (withRelease) => _grabAll(context, ref, withRelease),
+            ),
           if (search.candidates.isEmpty) AdminEmptyText(text: l.downloadsNothingYet),
           if (search.candidates.isNotEmpty &&
               !FormFactor.of(context).compact)
@@ -139,7 +188,10 @@ class _SearchPage extends ConsumerWidget {
             _CandidateRow(
               key: ValueKey('candidate-${c.release.guid}'),
               candidate: c,
-              onGrab: busy ? null : () => _grab(context, ref, search, c),
+              onGrab: busy
+                  ? null
+                  : () => _grab(context, ref, search.current, c.release,
+                      wouldImport: c.wouldImport),
             ),
           if (search.rejected.isNotEmpty) ...[
             AdminSectionTitle(
@@ -225,9 +277,9 @@ class _Header extends StatelessWidget {
 // Il tema dà ai FilledButton la larghezza piena: qui servono della misura del testo.
 final _compactButton = FilledButton.styleFrom(minimumSize: const Size(0, 40));
 
-// Colonne della tabella (largo): rango, release, punteggio, peso, seeders,
-// indexer, pulsante.
-const _colRank = 32.0;
+// Colonne della tabella (largo): rango (o "E12"), release, punteggio, peso,
+// seeders, indexer, pulsante.
+const _colRank = 44.0;
 const _colScore = 80.0;
 const _colSize = 90.0;
 const _colSeeders = 80.0;
@@ -258,11 +310,116 @@ class _TableHead extends StatelessWidget {
   }
 }
 
+/// Il riquadro "Migliori episodi" (spec T §8.2): il singolo scelto di ogni
+/// episodio e "Scarica tutti". Le righe sono quelle della lista completa.
+class _BestEpisodes extends StatelessWidget {
+  const _BestEpisodes({
+    required this.choices,
+    required this.busy,
+    required this.progress,
+    required this.onGrab,
+    required this.onGrabAll,
+  });
+
+  final List<DownloadEpisodeChoice> choices;
+  final bool busy;
+  final (int, int)? progress;
+  final void Function(DownloadEpisodeChoice) onGrab;
+  final void Function(List<DownloadEpisodeChoice>) onGrabAll;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final withRelease = [
+      for (final c in choices)
+        if (c.release != null) c,
+    ];
+    final progress = this.progress;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 16,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(l.downloadsBestEpisodes,
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w600)),
+              if (withRelease.isNotEmpty)
+                FilledButton(
+                  style: _compactButton,
+                  onPressed: busy ? null : () => onGrabAll(withRelease),
+                  child: Text(progress == null
+                      ? l.downloadsGrabAll(withRelease.length)
+                      : l.downloadsGrabAllProgress(progress.$1, progress.$2)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          for (final c in choices)
+            if (c.release == null)
+              _NoEpisodeRow(number: c.episodeNumber)
+            else
+              _CandidateRow(
+                key: ValueKey('episode-${c.episodeNumber}'),
+                candidate: DownloadCandidate(
+                  rank: c.episodeNumber,
+                  release: c.release!,
+                  isChoice: false,
+                  wouldImport: c.wouldImport,
+                ),
+                rankText: l.downloadsEpisodeShort(c.episodeNumber),
+                onGrab: busy ? null : () => onGrab(c),
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NoEpisodeRow extends StatelessWidget {
+  const _NoEpisodeRow({required this.number});
+
+  final int number;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: WfColors.surface,
+        border: Border.all(color: WfColors.border),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(children: [
+        SizedBox(width: _colRank, child: Text(l.downloadsEpisodeShort(number))),
+        Expanded(
+          child: Text(l.downloadsEpisodeNone,
+              style: const TextStyle(color: WfColors.creamMuted)),
+        ),
+      ]),
+    );
+  }
+}
+
 class _CandidateRow extends StatelessWidget {
-  const _CandidateRow({super.key, required this.candidate, required this.onGrab});
+  const _CandidateRow({
+    super.key,
+    required this.candidate,
+    required this.onGrab,
+    this.rankText,
+  });
 
   final DownloadCandidate candidate;
   final VoidCallback? onGrab;
+
+  /// Al posto del rango (per "E12" nel riquadro dei migliori episodi).
+  final String? rankText;
 
   @override
   Widget build(BuildContext context) {
@@ -278,7 +435,7 @@ class _CandidateRow extends StatelessWidget {
         ? Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('${candidate.rank}. ${r.title}'),
+              Text('${rankText ?? '${candidate.rank}.'} ${r.title}'),
               const SizedBox(height: 4),
               Text(
                   '${l.downloadsColScore} ${r.score} · $size · '
@@ -290,7 +447,8 @@ class _CandidateRow extends StatelessWidget {
             ],
           )
         : Row(children: [
-            SizedBox(width: _colRank, child: Text('${candidate.rank}')),
+            SizedBox(
+                width: _colRank, child: Text(rankText ?? '${candidate.rank}')),
             Expanded(flex: 4, child: name),
             SizedBox(width: _colScore, child: Text('${r.score}')),
             SizedBox(width: _colSize, child: Text(size)),
