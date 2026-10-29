@@ -59,6 +59,10 @@ void main() {
       'Radarr o Sonarr non rispondono',
     );
     expect(
+      downloadsFailureLabel(it, DownloadsFailure.refused),
+      contains('qBittorrent'),
+    );
+    expect(
       downloadsFailureLabel(it, DownloadsFailure.expired),
       'Questa release non c\'è più: ricerca di nuovo',
     );

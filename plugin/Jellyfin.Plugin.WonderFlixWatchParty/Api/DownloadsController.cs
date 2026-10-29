@@ -44,6 +44,7 @@ public class DownloadsController(DownloadService downloads) : ControllerBase
             GrabOutcome.Ok => NoContent(),
             GrabOutcome.Expired => Error(StatusCodes.Status409Conflict, "Expired"),
             GrabOutcome.Busy => Error(StatusCodes.Status409Conflict, "Busy"),
+            GrabOutcome.Refused => Error(StatusCodes.Status502BadGateway, "Refused"),
             GrabOutcome.Unavailable => Error(StatusCodes.Status503ServiceUnavailable, "Unavailable"),
             GrabOutcome.Invalid => BadRequest(),
             _ => throw new InvalidOperationException("GrabOutcome sconosciuto"),

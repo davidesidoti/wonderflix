@@ -213,11 +213,16 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Assert.Empty(result.Rejected);
         Assert.Equal(GrabOutcome.Unavailable, await Grab("movie:12", "b", 3));
 
-        // Il client di download giù (500): né Expired né una voce nuova.
+        // Radarr/Sonarr rispondono 500 (il client di download rifiuta il torrent): Refused, né Expired né una voce nuova.
         _arr.Releases = (_, _) => Task.FromResult<IReadOnlyList<ArrRelease?>>(_releases);
         _arr.Grab = (_, _, _) => Task.FromException(new ArrException(ArrError.Unreachable, status: 500));
-        Assert.Equal(GrabOutcome.Unavailable, await Grab("movie:12", "b", 3));
+        Assert.Equal(GrabOutcome.Refused, await Grab("movie:12", "b", 3));
         Assert.Single(_arr.GrabCalls);
+        Assert.Null(Saved("movie:12"));
+
+        // Rete o timeout (nessuno stato): il servizio non risponde.
+        _arr.Grab = (_, _, _) => Task.FromException(new ArrException(ArrError.Unreachable));
+        Assert.Equal(GrabOutcome.Unavailable, await Grab("movie:12", "b", 3));
         Assert.Null(Saved("movie:12"));
     }
 

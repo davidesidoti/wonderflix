@@ -202,7 +202,7 @@ Nella pagina di configurazione del plugin, accanto a Sonarr e Radarr:
 
 - elenco "Scelte automatiche", "In attesa", "Serve te", "Da ripassare";
 - ricerca di un titolo con la regola applicata (risultato ordinato con i motivi);
-- scarica una release scelta dall'admin ("cambia" o ricerca a mano). Oltre a 409 `Expired` (la release non c'è più), risponde 409 `Busy` (un altro download dello stesso titolo è in corso, dal giro o da un altro admin) e 503 `Unavailable` (Radarr o Sonarr non rispondono);
+- scarica una release scelta dall'admin ("cambia" o ricerca a mano). Oltre a 409 `Expired` (la release non c'è più), risponde 409 `Busy` (un altro download dello stesso titolo è in corso, dal giro o da un altro admin) e 503 `Unavailable` (Radarr o Sonarr non rispondono), più 502 `Refused` (Radarr o Sonarr hanno risposto con un errore, per esempio il client di download rifiuta il torrent);
 - segna "va bene così";
 - forza una ricerca subito.
 

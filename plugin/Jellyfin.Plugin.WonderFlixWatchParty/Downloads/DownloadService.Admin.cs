@@ -7,7 +7,8 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 /// <summary>
 /// Esito di un download scelto dall'admin (spec T §8.2): Invalid per una chiave o una release non valide, Expired se la
 /// release non c'è più nemmeno in una nuova ricerca, Unavailable se Radarr/Sonarr non rispondono (ruling 7), Busy se
-/// un download dello stesso titolo è già in corso, dal giro o da un altro admin (ruling 8).
+/// un download dello stesso titolo è già in corso, dal giro o da un altro admin (ruling 8), Refused se Radarr/Sonarr
+/// hanno risposto con un errore, per esempio il client di download ha rifiutato il torrent (spec T §8.2).
 /// </summary>
 public enum GrabOutcome
 {
@@ -16,6 +17,7 @@ public enum GrabOutcome
     Expired,
     Unavailable,
     Busy,
+    Refused,
 }
 
 /// <summary>
@@ -198,6 +200,12 @@ public sealed partial class DownloadService
 
                 search = null;
                 continue;
+            }
+            catch (ArrException ex) when (ex.Status >= 500)
+            {
+                // Radarr/Sonarr hanno risposto: non è un servizio che non risponde (spec T §8.2).
+                logger.LogWarning("Download automatici: {Key}, {Kind} ha rifiutato la release dell'admin ({Error})", search.Title.Key, service, ErrorOf(ex));
+                return GrabOutcome.Refused;
             }
             catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {

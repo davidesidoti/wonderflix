@@ -45,6 +45,7 @@ String downloadsFailureLabel(AppLocalizations l, DownloadsFailure f) =>
       DownloadsFailure.expired => l.downloadsFailureExpired,
       DownloadsFailure.busy => l.downloadsFailureBusy,
       DownloadsFailure.arrUnavailable => l.downloadsFailureArrUnavailable,
+      DownloadsFailure.refused => l.downloadsFailureRefused,
       DownloadsFailure.network => l.errorServerUnreachable,
     };
 

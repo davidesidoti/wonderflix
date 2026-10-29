@@ -1031,6 +1031,7 @@
   "downloadsFailureExpired": "This release is gone: search again",
   "downloadsFailureBusy": "Another download of this title is in progress: try again shortly",
   "downloadsFailureArrUnavailable": "Radarr or Sonarr are not responding",
+  "downloadsFailureRefused": "Sonarr or Radarr could not hand it to the download client (for example, the torrent is already in qBittorrent)",
   "downloadsRejectedTooSmall": "{rate} GB/hour, below the threshold",
   "@downloadsRejectedTooSmall": {"placeholders": {"rate": {"type": "String"}}},
   "downloadsChoiceWhy": "The lightest among those with score {score} in {resolution}p",

@@ -126,7 +126,9 @@ uscite in arrivo.
   `{Key, Guid, IndexerId}` scarica la release scelta (204; 400 per corpo o
   chiave non validi; 409 `{"Reason":"Expired"}` se la release non c'è più,
   `{"Reason":"Busy"}` se un'altra azione è in corso; 503
-  `{"Reason":"Unavailable"}` se Radarr o Sonarr non rispondono);
+  `{"Reason":"Unavailable"}` se Radarr o Sonarr non rispondono; 502
+  `{"Reason":"Refused"}` se Radarr o Sonarr hanno risposto con un errore, per
+  esempio il client di download ha rifiutato il torrent);
   `POST Downloads/Accept` `{Key}` è "va bene così" (204, 400);
   `POST Downloads/SearchNow` `{Key}` ricerca subito (202, 400);
   `GET Downloads/Profiles` dà i profili di qualità di Radarr e Sonarr con le

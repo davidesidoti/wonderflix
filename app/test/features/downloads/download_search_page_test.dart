@@ -202,6 +202,7 @@ void main() {
       'Un altro download di questo titolo è in corso: riprova tra poco',
     ),
     (DownloadsFailure.arrUnavailable, 'Radarr o Sonarr non rispondono'),
+    (DownloadsFailure.refused, 'Sonarr o Radarr non sono riusciti a passarlo al client di download (per esempio il torrent è già in qBittorrent)'),
   ]) {
     testWidgets('BusyAndArrDownShowAMessage ${failure.name}', (tester) async {
       api.nextActionFailure = failure;

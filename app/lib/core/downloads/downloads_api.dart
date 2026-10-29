@@ -27,6 +27,9 @@ enum DownloadsFailure {
   /// 503 `Unavailable`: Radarr o Sonarr non rispondono.
   arrUnavailable,
 
+  /// 502 `Refused`: Radarr o Sonarr hanno risposto con un errore (per esempio il client di download rifiuta il torrent).
+  refused,
+
   /// Rete, timeout o errore del server.
   network,
 }
@@ -51,7 +54,7 @@ class DownloadsApi {
   static const searchTimeout = Duration(seconds: 150);
 
   /// Esiti previsti: nel log come info, non tra gli "Ultimi errori".
-  static const _quiet = {400, 403, 404, 409, 503};
+  static const _quiet = {400, 403, 404, 409, 502, 503};
 
   final JellyfinHttp _http;
 
@@ -96,6 +99,7 @@ class DownloadsApi {
         409 => reason == 'Busy'
             ? DownloadsFailure.busy
             : DownloadsFailure.expired,
+        502 when reason == 'Refused' => DownloadsFailure.refused,
         503 when reason == 'Unavailable' => DownloadsFailure.arrUnavailable,
         _ => DownloadsFailure.network,
       });

@@ -89,6 +89,17 @@ public sealed class DownloadsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task RefusedIsBadGateway()
+    {
+        _arr.Grab = (_, _, _) => Task.FromException(new ArrException(ArrError.Unreachable, status: 500));
+
+        var result = await _controller.Grab(Body());
+
+        Assert.Equal(StatusCodes.Status502BadGateway, Status(result));
+        Assert.Equal("Refused", Reason(result));
+    }
+
+    [Fact]
     public async Task ASecondGrabOfTheSameTitleIsBusy()
     {
         var gate = new TaskCompletionSource<IReadOnlyList<ArrRelease?>>(TaskCreationOptions.RunContinuationsAsynchronously);

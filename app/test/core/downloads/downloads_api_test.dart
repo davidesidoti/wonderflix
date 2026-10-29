@@ -77,6 +77,10 @@ void main() {
     expect(await failure(() => api.searchNow('k')), DownloadsFailure.arrUnavailable);
     adapter.handler = (_) => const FakeResponse(503);
     expect(await failure(() => api.searchNow('k')), DownloadsFailure.network);
+    adapter.handler = (_) => const FakeResponse(502, {'Reason': 'Refused'});
+    expect(await failure(() => api.grab('k', 'g', 1)), DownloadsFailure.refused);
+    adapter.handler = (_) => const FakeResponse(502);
+    expect(await failure(() => api.grab('k', 'g', 1)), DownloadsFailure.network);
     adapter.handler = (_) => const FakeResponse(403);
     expect(await failure(() => api.overview()), DownloadsFailure.forbidden);
     adapter.handler = (_) => const FakeResponse(200, {'Boh': 1});
