@@ -2,11 +2,19 @@
   {
     "guid": "882eb47e-668a-4935-ba55-c2858eb4ed90",
     "name": "WonderFlix Watch Party",
-    "description": "Names, chat, reactions, friends, public, friends-only or private parties and an in-app notifications inbox (invites, new titles, admin announcements, requests) for SyncPlay watch parties in WonderFlix, recommendations between friends, what friends are watching, a movie match (friends swipe yes or no on titles and start a party with the ones everyone likes), friends' ratings (a 1 to 10 rating with a comment at the end of a watch party, revealed to everyone at once, and friends' ratings on the title page), problem reports (users report a problem on a title, admins are notified and close it) and subtitle search and download for admins and users allowed to manage subtitles, plus Seerr requests (search, request and approve movies and series), collections (sagas) and user pictures, and password recovery by Discord or e-mail, plus the WonderFlix Home rows chosen by the admin and the upcoming episodes and movies from Sonarr and Radarr, with a monthly release calendar and the release dates of requested titles.",
-    "overview": "WonderFlix watch party: names, chat, reactions, friends, party modes, notifications, recommendations, friends activity, movie match, friends' ratings, problem reports, subtitle search, Seerr requests, collections, user pictures, password recovery, Home rows, upcoming from Sonarr and Radarr, release calendar",
+    "description": "Names, chat, reactions, friends, public, friends-only or private parties and an in-app notifications inbox (invites, new titles, admin announcements, requests) for SyncPlay watch parties in WonderFlix, recommendations between friends, what friends are watching, a movie match (friends swipe yes or no on titles and start a party with the ones everyone likes), friends' ratings (a 1 to 10 rating with a comment at the end of a watch party, revealed to everyone at once, and friends' ratings on the title page), problem reports (users report a problem on a title, admins are notified and close it) and subtitle search and download for admins and users allowed to manage subtitles, plus Seerr requests (search, request and approve movies and series), collections (sagas) and user pictures, and password recovery by Discord or e-mail, plus the WonderFlix Home rows chosen by the admin and the upcoming episodes and movies from Sonarr and Radarr, with a monthly release calendar and the release dates of requested titles, plus automatic downloads for admins (WonderFlix picks and grabs releases from Radarr and Sonarr with the admin rule and shows the choices in the app).",
+    "overview": "WonderFlix watch party: names, chat, reactions, friends, party modes, notifications, recommendations, friends activity, movie match, friends' ratings, problem reports, subtitle search, Seerr requests, collections, user pictures, password recovery, Home rows, upcoming from Sonarr and Radarr, release calendar, automatic downloads",
     "owner": "davidesidoti",
     "category": "General",
     "versions": [
+      {
+        "version": "1.14.0.0",
+        "changelog": "Download automatici per WonderFlix 0.23.0: il plugin cerca su Radarr e Sonarr i film e gli episodi che mancano e scarica la release con la regola dell'admin (punteggio dei custom format, poi 1080p prima di 720p, poi il file più leggero sopra una dimensione minima), anche stagioni intere, upgrade e anime; gli admin vedono e correggono le scelte dalla scheda Download dell'app e hanno l'elenco dei titoli da ripassare. L'interruttore nella pagina del plugin è spento di default.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.14.0/wonderflix-watch-party_1.14.0.zip",
+        "checksum": "33cc0411806b58968ca87a29fa714e1f",
+        "timestamp": "2026-10-29T03:14:06Z"
+      },
       {
         "version": "1.13.0.0",
         "changelog": "Calendario delle uscite per WonderFlix 0.20.0: la griglia del mese con le uscite di Sonarr e Radarr (anche quelle già sul server, con la serie o il film della libreria), e nelle richieste le date di uscita al cinema e in digitale, il prossimo episodio delle serie e lo stato \"In attesa dell'uscita\" per i film approvati non ancora usciti in digitale.",
