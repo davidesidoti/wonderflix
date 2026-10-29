@@ -32,6 +32,9 @@ public static class DownloadReasons
     public const string ImportBlocked = "ImportBlocked";
 
     public const string SearchFailed = "SearchFailed";
+
+    /// <summary>Il client di download ha rifiutato la release (Sonarr/Radarr rispondono 5xx al grab); resta in "Serve te" e si riprova piano (spec T §7, §8.1).</summary>
+    public const string GrabRefused = "GrabRefused";
 }
 
 /// <summary>Un titolo che manca o che si tiene d'occhio (spec T §3). Serializzato così com'è; <c>Kind</c> e <c>State</c> sono stringhe come nei DTO.</summary>
@@ -50,7 +53,7 @@ public sealed class DownloadEntry
     /// <summary><c>Waiting</c>, <c>Downloading</c>, <c>UpgradeWatch</c> o <c>NeedsYou</c>.</summary>
     public string State { get; set; } = "";
 
-    /// <summary><c>NothingFound</c>, <c>BelowMinScore</c>, <c>ImportBlocked</c>, <c>SearchFailed</c> o null.</summary>
+    /// <summary><c>NothingFound</c>, <c>BelowMinScore</c>, <c>ImportBlocked</c>, <c>SearchFailed</c>, <c>GrabRefused</c> o null.</summary>
     public string? Reason { get; set; }
 
     public DateTimeOffset AvailableSince { get; set; }

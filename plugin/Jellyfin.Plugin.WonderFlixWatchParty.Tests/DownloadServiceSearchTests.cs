@@ -381,6 +381,40 @@ public sealed class DownloadServiceSearchTests : IDisposable
     }
 
     [Fact]
+    public async Task ARefusedGrabGoesToNeedsYouOnTheSlowSchedule()
+    {
+        _movies = [Movie(12)];
+        _releases = [Release("ita", WebRip1080, "WEBRip-1080p", 4, 150)];
+        _arr.Grab = (_, _, _) => Task.FromException(new ArrException(ArrError.Unreachable, status: 500));
+
+        await Cycle();
+
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.NeedsYou, DownloadReasons.GrabRefused), (entry.State, entry.Reason));
+        Assert.Equal(T0 + TimeSpan.FromHours(6), entry.NextSearchAt);
+
+        // Non si riprova al giro dopo.
+        _time.Advance(DownloadService.CycleInterval);
+        await Cycle();
+        Assert.Single(_arr.GrabCalls);
+    }
+
+    [Fact]
+    public async Task ARefusedUpgradeGrabKeepsTheUpgradeWatch()
+    {
+        await GrabAndImport(Release("ita", WebRip1080, "WEBRip-1080p", 4, 50));
+        _time.Advance(TimeSpan.FromHours(6));
+        _releases = [Release("ita-eng", WebRip1080, "WEBRip-1080p", 5, 150)];
+        _arr.Grab = (_, _, _) => Task.FromException(new ArrException(ArrError.Unreachable, status: 500));
+
+        await Cycle();
+
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.UpgradeWatch, DownloadReasons.GrabRefused), (entry.State, entry.Reason));
+        Assert.True(entry.NextSearchAt > _time.GetUtcNow() + DownloadService.CycleInterval);
+    }
+
+    [Fact]
     public async Task AProfileReadErrorSkipsThatService()
     {
         _movies = [Movie(12)];

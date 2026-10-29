@@ -16,6 +16,7 @@ String downloadReasonLabel(AppLocalizations l, DownloadReason r) => switch (r) {
   DownloadReason.belowMinScore => l.downloadReasonBelowMinScore,
   DownloadReason.importBlocked => l.downloadReasonImportBlocked,
   DownloadReason.searchFailed => l.downloadReasonSearchFailed,
+  DownloadReason.grabRefused => l.downloadReasonGrabRefused,
   DownloadReason.unknown => '',
 };
 

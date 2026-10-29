@@ -140,4 +140,8 @@ void main() {
     expect(item.reason, DownloadReason.unknown);
     expect(RejectedReason.fromWire('X'), RejectedReason.unknown);
   });
+
+  test('GrabRefusedReason', () {
+    expect(DownloadReason.fromWire('GrabRefused'), DownloadReason.grabRefused);
+  });
 }

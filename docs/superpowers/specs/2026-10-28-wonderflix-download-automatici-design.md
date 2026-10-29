@@ -163,6 +163,7 @@ Come è fatto:
 
 - Nessun candidato valido: il titolo resta "In attesa" con la prossima ricerca. Dopo 7 giorni dalla disponibilità senza niente, o se ci sono risultati ma tutti sotto il punteggio minimo, compare anche in **"Serve te"**.
 - Una ricerca o un download che falliscono (indexer o servizio in errore): il titolo mostra il motivo `SearchFailed` ("ricerca non riuscita") e si riprova dopo 15 minuti, così non occupa sempre i primi posti del giro.
+- Il client di download rifiuta la release scelta (Radarr/Sonarr rispondono con un errore 5xx al grab, per esempio il torrent è già in qBittorrent): il titolo va in **"Serve te"** con il motivo `GrabRefused` (un upgrade resta in `UpgradeWatch`, con lo stesso motivo) e si riprova al ritmo lento di §3, non ogni 15 minuti. "Cerca ora" lo cerca subito.
 - Download fallito (sparito dalla coda senza file, §5.3a): la release è in blocklist e WonderFlix riprende dalla scelta successiva al prossimo giro. Il "riscarica i falliti" di Radarr e Sonarr va spento (§9), altrimenti scelgono loro.
 - Radarr, Sonarr o un indexer non rispondono: il giro salta quel titolo e riprova al successivo; la scheda Download lo mostra.
 - Un titolo eliminato o smesso di monitorare in Radarr/Sonarr esce dal ciclo.

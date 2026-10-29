@@ -1182,6 +1182,7 @@
   "downloadReasonBelowMinScore": "solo file con punteggio basso",
   "downloadReasonImportBlocked": "Radarr/Sonarr non lo importano",
   "downloadReasonSearchFailed": "ricerca non riuscita",
+  "downloadReasonGrabRefused": "il client di download ha rifiutato la release (per esempio è già in qBittorrent)",
   "downloadsFailureUnavailable": "Serve il plugin 1.14.0",
   "downloadsFailureInvalid": "Richiesta non valida",
   "downloadsFailureExpired": "Questa release non c'è più: ricerca di nuovo",

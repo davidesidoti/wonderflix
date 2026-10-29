@@ -231,6 +231,22 @@ public sealed partial class DownloadService
         {
             await arr.GrabReleaseAsync(item.Service, choice.Guid!, choice.IndexerId, cancellationToken).ConfigureAwait(false);
         }
+        catch (ArrException ex) when (ex.Status >= 500 && !cancellationToken.IsCancellationRequested)
+        {
+            // Il client di download ha rifiutato la release (per esempio il torrent c'è già): riprovare ogni giro è inutile, si avvisa l'admin e si riprova piano.
+            logger.LogWarning("Download automatici: {Key}, {Kind} ha avuto la scelta rifiutata dal client ({Error}, stato {Status})", item.Key, item.Service, ErrorOf(ex), ex.Status);
+            Update(item.Key, (entry, now) =>
+            {
+                entry.LastSearchAt = now;
+                entry.Reason = DownloadReasons.GrabRefused;
+                entry.NextSearchAt = DownloadSchedule.Next(SinceOf(entry), now);
+                if (entry.State != DownloadStates.UpgradeWatch)
+                {
+                    entry.State = DownloadStates.NeedsYou;
+                }
+            });
+            return false;
+        }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             logger.LogWarning("Download automatici: {Key}, {Kind} non ha scaricato la scelta ({Error})", item.Key, item.Service, ErrorOf(ex));

@@ -1026,6 +1026,7 @@
   "downloadReasonBelowMinScore": "only low-score files",
   "downloadReasonImportBlocked": "Radarr/Sonarr will not import it",
   "downloadReasonSearchFailed": "search failed",
+  "downloadReasonGrabRefused": "the download client refused the release (for example, it is already in qBittorrent)",
   "downloadsFailureUnavailable": "Needs plugin 1.14.0",
   "downloadsFailureInvalid": "Invalid request",
   "downloadsFailureExpired": "This release is gone: search again",

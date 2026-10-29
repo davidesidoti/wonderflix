@@ -70,6 +70,10 @@ void main() {
       downloadReasonLabel(it, DownloadReason.searchFailed),
       'ricerca non riuscita',
     );
+    expect(
+      downloadReasonLabel(it, DownloadReason.grabRefused),
+      contains('qBittorrent'),
+    );
   });
 
   test('StatesAndNextSearch', () {

@@ -34,6 +34,7 @@ enum DownloadReason {
   belowMinScore('BelowMinScore'),
   importBlocked('ImportBlocked'),
   searchFailed('SearchFailed'),
+  grabRefused('GrabRefused'),
   unknown('');
 
   const DownloadReason(this.wire);
