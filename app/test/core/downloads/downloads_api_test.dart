@@ -47,6 +47,8 @@ void main() {
     expect((request.method, request.path),
         ('POST', '/WonderFlixWatchParty/Downloads/Grab'));
     expect(request.data, {'Key': 'movie:1', 'Guid': 'g1', 'IndexerId': 3});
+    // Il plugin può rifare la ricerca dentro il grab (fino a 2 minuti).
+    expect(request.receiveTimeout, const Duration(seconds: 150));
   });
 
   test('ConflictIsExpired', () async {

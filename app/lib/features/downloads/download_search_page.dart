@@ -48,20 +48,21 @@ class _SearchPage extends ConsumerWidget {
             AppLocalizations.of(context), failure)),
       ));
 
-  /// [current]: il file con cui confrontare il punteggio (null: nessun
-  /// confronto, come per un singolo del riquadro "Migliori episodi").
-  Future<void> _grab(BuildContext context, WidgetRef ref,
-      DownloadCurrentFile? current, DownloadRelease release,
-      {required bool wouldImport}) async {
+  /// [currentScore]: il punteggio del file con cui confrontare (null: nessun
+  /// confronto). [sonarr]: un episodio di una stagione, il testo dice Sonarr.
+  Future<void> _grab(BuildContext context, WidgetRef ref, int? currentScore,
+      DownloadRelease release,
+      {required bool wouldImport, bool sonarr = false}) async {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     final controller = ref.read(downloadSearchControllerProvider(dlKey).notifier);
     // Decisione 5: conferma se non migliora il file attuale o non si importa.
     final reasons = [
-      if (current != null && release.score <= current.score)
-        l.downloadsConfirmLowerScore(release.score, current.score),
-      if (!wouldImport) l.downloadsConfirmNoImport,
+      if (currentScore != null && release.score <= currentScore)
+        l.downloadsConfirmLowerScore(release.score, currentScore),
+      if (!wouldImport)
+        sonarr ? l.downloadsConfirmNoImportSonarr : l.downloadsConfirmNoImport,
     ];
     if (reasons.isNotEmpty) {
       final ok = await showAdminConfirmDialog(
@@ -86,15 +87,18 @@ class _SearchPage extends ConsumerWidget {
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     final controller = ref.read(downloadSearchControllerProvider(dlKey).notifier);
-    // Il DTO non ha il punteggio del file di ogni episodio: l'unico motivo di
-    // conferma qui è WouldImport falso (il confronto di punteggio lo ha già
-    // fatto il plugin scegliendo gli episodi).
+    // Decisione 4: una sola conferma se qualche episodio non migliora il suo
+    // file o non verrebbe importato.
+    final lower = choices.where((c) => c.lowersScore).length;
     final noImport = choices.where((c) => !c.wouldImport).length;
-    if (noImport > 0) {
+    if (lower > 0 || noImport > 0) {
       final ok = await showAdminConfirmDialog(
         context,
         title: l.downloadsGrabAllConfirmTitle,
-        message: l.downloadsGrabAllConfirmNoImport(noImport),
+        message: [
+          if (lower > 0) l.downloadsGrabAllConfirmLowerScore(lower),
+          if (noImport > 0) l.downloadsGrabAllConfirmNoImport(noImport),
+        ].join('\n'),
         confirmLabel: l.downloadsGrab,
       );
       if (!ok || !context.mounted) return;
@@ -176,8 +180,8 @@ class _SearchPage extends ConsumerWidget {
               choices: search.episodeChoices,
               busy: busy,
               progress: ref.watch(downloadGrabProgressProvider(dlKey)),
-              onGrab: (c) => _grab(context, ref, null, c.release!,
-                  wouldImport: c.wouldImport),
+              onGrab: (c) => _grab(context, ref, c.currentScore, c.release!,
+                  wouldImport: c.wouldImport, sonarr: true),
               onGrabAll: (withRelease) => _grabAll(context, ref, withRelease),
             ),
           if (search.candidates.isEmpty) AdminEmptyText(text: l.downloadsNothingYet),
@@ -190,7 +194,7 @@ class _SearchPage extends ConsumerWidget {
               candidate: c,
               onGrab: busy
                   ? null
-                  : () => _grab(context, ref, search.current, c.release,
+                  : () => _grab(context, ref, search.current?.score, c.release,
                       wouldImport: c.wouldImport),
             ),
           if (search.rejected.isNotEmpty) ...[
@@ -359,6 +363,7 @@ class _BestEpisodes extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
+          if (!FormFactor.of(context).compact) const _TableHead(),
           for (final c in choices)
             if (c.release == null)
               _NoEpisodeRow(number: c.episodeNumber)

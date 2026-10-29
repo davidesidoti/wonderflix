@@ -104,6 +104,8 @@ class DownloadSearchController extends AsyncNotifier<DownloadSearch> {
   /// episodi, ruling 13). `grabbing` resta vero per tutta la serie; un
   /// fallimento non ferma le altre; si ferma se il provider viene smontato
   /// (pagina chiusa). La panoramica si ricarica una volta sola, alla fine.
+  /// Gli episodi partiti escono dalla ricerca a schermo: riprovando non si
+  /// scaricano due volte.
   Future<({int started, int failed, DownloadsFailure? firstFailure})> grabAll(
     List<DownloadRelease> releases,
   ) async {
@@ -112,6 +114,7 @@ class DownloadSearchController extends AsyncNotifier<DownloadSearch> {
     final progress = ref.read(downloadGrabProgressProvider(key).notifier);
     var started = 0;
     var failed = 0;
+    final startedGuids = <String>{};
     DownloadsFailure? firstFailure;
     try {
       for (final (i, release) in releases.indexed) {
@@ -120,6 +123,7 @@ class DownloadSearchController extends AsyncNotifier<DownloadSearch> {
         try {
           await api.grab(key, release.guid, release.indexerId);
           started++;
+          startedGuids.add(release.guid);
         } on DownloadsException catch (error) {
           failed++;
           firstFailure ??= error.failure;
@@ -127,6 +131,12 @@ class DownloadSearchController extends AsyncNotifier<DownloadSearch> {
       }
       if (started > 0 && ref.mounted) {
         ref.invalidate(downloadsControllerProvider);
+        if (state.value case final search?) {
+          state = AsyncData(search.withEpisodeChoices([
+            for (final c in search.episodeChoices)
+              if (!startedGuids.contains(c.release?.guid)) c,
+          ]));
+        }
       }
     } finally {
       if (ref.mounted) {

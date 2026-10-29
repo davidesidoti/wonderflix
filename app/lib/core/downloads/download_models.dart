@@ -385,11 +385,24 @@ class DownloadEpisodeChoice {
     required this.episodeNumber,
     this.release,
     required this.wouldImport,
+    this.currentScore,
   });
 
   final int episodeNumber;
   final DownloadRelease? release;
   final bool wouldImport;
+
+  /// Il punteggio del file di quell'episodio (il peggiore se più d'uno); null
+  /// senza file o con un plugin che non lo manda.
+  final int? currentScore;
+
+  /// La release non migliora il file attuale (punteggio pari o più basso).
+  bool get lowersScore =>
+      release != null && currentScore != null && release!.score <= currentScore!;
+
+  /// Serve la conferma (decisione 4): non migliora il file o Sonarr non lo
+  /// importerebbe.
+  bool get needsConfirm => !wouldImport || lowersScore;
 
   static DownloadEpisodeChoice? fromJson(Map<String, dynamic> json) {
     try {
@@ -403,6 +416,10 @@ class DownloadEpisodeChoice {
         episodeNumber: (json['EpisodeNumber'] as num).toInt(),
         release: release,
         wouldImport: json['WouldImport'] as bool,
+        currentScore: switch (json['CurrentScore']) {
+          final num n => n.toInt(),
+          _ => null,
+        },
       );
     } on Object {
       return null;
@@ -444,6 +461,22 @@ class DownloadSearch {
   /// I migliori singoli per episodio (plugin 1.15.0, solo per una stagione
   /// senza un pack scelto); vuota altrimenti e con un plugin più vecchio.
   final List<DownloadEpisodeChoice> episodeChoices;
+
+  /// La stessa ricerca con altri [episodeChoices].
+  DownloadSearch withEpisodeChoices(List<DownloadEpisodeChoice> choices) =>
+      DownloadSearch(
+        key: key,
+        kind: kind,
+        title: title,
+        runtimeMinutes: runtimeMinutes,
+        current: current,
+        candidates: candidates,
+        rejected: rejected,
+        validCount: validCount,
+        totalCount: totalCount,
+        error: error,
+        episodeChoices: choices,
+      );
 
   static DownloadSearch? fromJson(Map<String, dynamic> json) {
     try {

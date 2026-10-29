@@ -125,17 +125,21 @@ void main() {
     expect(DownloadSearch.fromJson(base())!.episodeChoices, isEmpty);
 
     final choices = DownloadSearch.fromJson(base([
-      {'EpisodeNumber': 1, 'Release': releaseJson(guid: 'a'), 'WouldImport': true},
+      {'EpisodeNumber': 1, 'Release': releaseJson(guid: 'a'), 'WouldImport': true, 'CurrentScore': 90},
       {'EpisodeNumber': 2, 'Release': null, 'WouldImport': false},
       {'EpisodeNumber': 3, 'Release': releaseJson(size: 'tanti'), 'WouldImport': true},
       {'EpisodeNumber': 'x', 'Release': null, 'WouldImport': false},
-      {'EpisodeNumber': 4, 'Release': releaseJson(guid: 'd'), 'WouldImport': false},
+      {'EpisodeNumber': 4, 'Release': releaseJson(guid: 'd'), 'WouldImport': false, 'CurrentScore': 'x'},
     ]))!
         .episodeChoices;
 
     // La release rotta e il numero rotto saltano la riga; "nessuno" resta.
     expect(choices.map((c) => c.episodeNumber), [1, 2, 4]);
     expect(choices[0].release!.guid, 'a');
+    // CurrentScore: presente, assente (null o plugin vecchio) e rotto non fanno cadere la riga.
+    expect(choices[0].currentScore, 90);
+    expect(choices[1].currentScore, isNull);
+    expect(choices[2].currentScore, isNull);
     expect(choices[1].release, isNull);
     expect(choices[2].wouldImport, isFalse);
   });

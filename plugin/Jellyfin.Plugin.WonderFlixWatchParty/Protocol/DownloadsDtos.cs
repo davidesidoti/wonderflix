@@ -79,12 +79,14 @@ public sealed record DownloadCurrentFileDto(
 
 /// <summary>
 /// Il singolo migliore di un episodio nella ricerca di una stagione senza un pack conveniente (spec T §5.4, §8.2).
-/// Release null: nessun singolo valido. WouldImport: Radarr/Sonarr lo importerebbero al posto del file di quell'episodio.
+/// Release null: nessun singolo valido. WouldImport: Sonarr lo importerebbe al posto del file di quell'episodio.
+/// CurrentScore: il punteggio del file di quell'episodio (il peggiore se più d'uno), null senza file.
 /// </summary>
 public sealed record DownloadEpisodeChoiceDto(
     [property: JsonPropertyName("EpisodeNumber")] int EpisodeNumber,
     [property: JsonPropertyName("Release")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  DownloadReleaseDto? Release,
-    [property: JsonPropertyName("WouldImport")] bool WouldImport);
+    [property: JsonPropertyName("WouldImport")] bool WouldImport,
+    [property: JsonPropertyName("CurrentScore")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] int? CurrentScore);
 
 /// <summary>
 /// Risposta di GET Downloads/Search (spec T §8.2). Con Error (un codice di UpcomingErrors) le liste sono vuote.

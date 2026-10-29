@@ -75,6 +75,8 @@ class DownloadsApi {
   Future<void> grab(String key, String guid, int indexerId) =>
       _call(() => _http.post('$_base/Grab',
           body: {'Key': key, 'Guid': guid, 'IndexerId': indexerId},
+          // Se Sonarr ha dimenticato le release il plugin le cerca di nuovo.
+          receiveTimeout: searchTimeout,
           quietStatuses: _quiet));
 
   Future<void> accept(String key) => _call(() =>

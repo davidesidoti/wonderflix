@@ -363,7 +363,18 @@ void main() {
       // Come negli altri test: il testo si trova due volte (SnackBar della pagina).
       expect(find.textContaining('2 avviati, 1 no: Sonarr o Radarr'), findsWidgets);
       expect(find.byType(Dialog), findsOneWidget);
-      expect(grabAllButton('Scarica tutti (3)'), findsOneWidget);
+      // Resta solo E1, quello fallito: E2 ed E3 sono partiti e non si
+      // riscaricano.
+      expect(find.text('E1'), findsOneWidget);
+      expect(find.text('E2'), findsNothing);
+      expect(find.text('E3'), findsNothing);
+      expect(grabAllButton('Scarica tutti (1)'), findsOneWidget);
+
+      await tester.tap(grabAllButton('Scarica tutti (1)'));
+      await tester.pumpAndSettle();
+      expect(grabs().skip(3), ['grab movie:1 e1 3']);
+      // Partito l'ultimo, la pagina si chiude.
+      expect(find.byType(Dialog), findsNothing);
     });
 
     testWidgets('asks once when some episodes would not be imported',
@@ -378,7 +389,9 @@ void main() {
       await tester.tap(grabAllButton('Scarica tutti (3)'));
       await tester.pumpAndSettle();
       expect(find.text('Scaricare tutti gli episodi?'), findsOneWidget);
-      expect(find.textContaining('2 episodi'), findsOneWidget);
+      expect(find.textContaining('2 episodi non verrebbero importati da Sonarr'),
+          findsOneWidget);
+      expect(find.textContaining('Radarr'), findsNothing);
       expect(grabs(), isEmpty);
 
       await tester.tap(find.text('Annulla'));
@@ -402,7 +415,84 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(_confirmTitle), findsOneWidget);
-      expect(find.textContaining('importarla a mano'), findsOneWidget);
+      expect(find.textContaining('Sonarr non la importerebbe da solo'),
+          findsOneWidget);
+      expect(find.textContaining('Radarr'), findsNothing);
+    });
+
+    testWidgets('a row that does not improve its file asks, a better one not',
+        (tester) async {
+      api.searchValue = season([
+        testEpisodeChoice(1, currentScore: 120),
+        testEpisodeChoice(2, currentScore: 100),
+        testEpisodeChoice(3, currentScore: 150),
+      ]);
+      await open(tester);
+
+      // Punteggio pari (120 contro 120) e più basso (120 contro 150): chiede.
+      for (final index in [0, 2]) {
+        await tester
+            .tap(find.widgetWithText(FilledButton, 'Scarica').at(index));
+        await tester.pumpAndSettle();
+        expect(find.text(_confirmTitle), findsOneWidget);
+        expect(find.textContaining('non supera quello del file attuale'),
+            findsOneWidget);
+        await tester.tap(find.text('Annulla'));
+        await tester.pumpAndSettle();
+      }
+      expect(grabs(), isEmpty);
+
+      // Più alto e importabile: parte senza chiedere.
+      await tester.tap(find.widgetWithText(FilledButton, 'Scarica').at(1));
+      await tester.pumpAndSettle();
+      expect(find.text(_confirmTitle), findsNothing);
+      expect(grabs(), ['grab movie:1 e2 3']);
+    });
+
+    testWidgets('"Scarica tutti" asks when episodes do not improve',
+        (tester) async {
+      api.searchValue = season([
+        testEpisodeChoice(1, currentScore: 120),
+        testEpisodeChoice(2, currentScore: 150),
+        testEpisodeChoice(3, currentScore: 100),
+        testEpisodeChoice(4),
+      ]);
+      await open(tester);
+
+      await tester.tap(grabAllButton('Scarica tutti (4)'));
+      await tester.pumpAndSettle();
+      expect(find.text('Scaricare tutti gli episodi?'), findsOneWidget);
+      expect(find.textContaining('2 episodi non migliorano il file attuale'),
+          findsOneWidget);
+      expect(find.textContaining('non verrebbero importati'), findsNothing);
+      expect(grabs(), isEmpty);
+    });
+
+    testWidgets('"Scarica tutti" does not ask when every episode improves',
+        (tester) async {
+      api.searchValue = season([
+        testEpisodeChoice(1, currentScore: 100),
+        testEpisodeChoice(2),
+      ]);
+      await open(tester);
+
+      await tester.tap(grabAllButton('Scarica tutti (2)'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Scaricare tutti gli episodi?'), findsNothing);
+      expect(grabs(), hasLength(2));
+    });
+
+    testWidgets('wide layout has a column header above the box rows',
+        (tester) async {
+      api.searchValue = season([testEpisodeChoice(1)]);
+      await open(tester);
+
+      // Quella del riquadro e quella della lista completa.
+      expect(find.text('Release'), findsNWidgets(2));
+      expect(
+          tester.getTopLeft(find.text('Release').first).dy,
+          lessThan(tester.getTopLeft(find.text('E1')).dy));
     });
 
     testWidgets('narrow layout has no horizontal overflow', (tester) async {

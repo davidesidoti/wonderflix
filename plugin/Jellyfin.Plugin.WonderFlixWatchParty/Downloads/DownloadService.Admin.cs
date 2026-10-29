@@ -330,7 +330,7 @@ public sealed partial class DownloadService
             rule.Candidates.Count,
             releases.Count(r => !string.IsNullOrEmpty(r.Guid)),
             null,
-            choice is null ? EpisodeChoicesOf(target, releases, files, input, thresholds.TargetScore, profile) : []);
+            choice is null ? EpisodeChoicesOf(target, releases, files, input, thresholds.TargetScore, profile, time.GetUtcNow()) : []);
 
         var search = new AdminSearch(title, current, profile, target.SeasonEpisodes, releases, result, time.GetUtcNow(), target.Episodes, files);
         lock (_lock)
@@ -475,16 +475,22 @@ public sealed partial class DownloadService
     }
 
     // Stagione senza un pack scelto (spec T §5.4, §8.2): il singolo migliore di ogni episodio, nella stessa scelta del giro.
-    // Gli episodi sono quelli che mancano; senza mancanti quelli con il file sotto l'obiettivo (senza obiettivo tutti).
+    // Gli episodi sono quelli che mancano; senza mancanti quelli monitorati e già usciti con il file sotto l'obiettivo (senza
+    // obiettivo tutti): un episodio che l'admin ha tolto dal monitoraggio non si scarica con "Scarica tutti".
     // WouldImport si misura sul file di quell'episodio, non sul peggiore della stagione.
     private static List<DownloadEpisodeChoiceDto> EpisodeChoicesOf(
-        AdminTarget target, IReadOnlyList<ArrRelease> releases, IReadOnlyList<ArrFile> files, RuleInput input, int? targetScore, ArrQualityProfile? profile)
+        AdminTarget target, IReadOnlyList<ArrRelease> releases, IReadOnlyList<ArrFile> files, RuleInput input, int? targetScore, ArrQualityProfile? profile, DateTimeOffset now)
     {
         var episodes = target.Episodes ?? [];
         var singles = releases.Where(r => !r.FullSeason && r.EpisodeNumbers is { Count: 1 }).ToLookup(r => r.EpisodeNumbers![0]);
         var result = new List<DownloadEpisodeChoiceDto>();
         foreach (var number in target.RuleEpisodes ?? [])
         {
+            if (!target.Title.Wanted && !episodes.Any(e => e.EpisodeNumber == number && e.Monitored && e.AirDateUtc <= now))
+            {
+                continue;
+            }
+
             var fileIds = episodes.Where(e => e.EpisodeNumber == number).Select(e => e.EpisodeFileId).Where(id => id > 0).ToHashSet();
             var current = CurrentOf([.. files.Where(f => fileIds.Contains(f.Id))]);
             if (!target.Title.Wanted && targetScore is { } goal && current is not null && current.Score >= goal)
@@ -493,7 +499,7 @@ public sealed partial class DownloadService
             }
 
             var choice = DownloadRule.Choose(singles[number], input).Choice;
-            result.Add(new DownloadEpisodeChoiceDto(number, choice is null ? null : ReleaseDto(choice), choice is not null && WouldImport(profile, current, choice)));
+            result.Add(new DownloadEpisodeChoiceDto(number, choice is null ? null : ReleaseDto(choice), choice is not null && WouldImport(profile, current, choice), current?.Score));
         }
 
         return result;

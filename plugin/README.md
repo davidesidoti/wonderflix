@@ -124,9 +124,10 @@ uscite in arrivo.
   e `RadarrError`); `GET Downloads/Search?key=` fa la ricerca dal vivo (fino a
   2 minuti) e dà le release in ordine con quelle scartate (dalla 1.15.0 anche
   `EpisodeChoices`: per una stagione senza un pack conveniente il singolo
-  migliore di ogni episodio che manca, o sotto l'obiettivo se non ne manca
-  nessuno, con `EpisodeNumber`, `Release` (null senza un singolo valido) e
-  `WouldImport`; altrimenti la lista è vuota); `POST Downloads/Grab`
+  migliore di ogni episodio che manca, o, se non ne manca nessuno, di quelli
+  monitorati e già usciti con il file sotto l'obiettivo, con `EpisodeNumber`,
+  `Release` (null senza un singolo valido), `WouldImport` e `CurrentScore`
+  (il punteggio del file dell'episodio, null senza file); altrimenti la lista è vuota); `POST Downloads/Grab`
   `{Key, Guid, IndexerId}` scarica la release scelta (204; 400 per corpo o
   chiave non validi; 409 `{"Reason":"Expired"}` se la release non c'è più,
   `{"Reason":"Busy"}` se un'altra azione è in corso; 503

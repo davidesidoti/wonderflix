@@ -505,7 +505,8 @@ public sealed class DownloadServiceAdminTests : IDisposable
 
         // Il JSON del server salta i null: "Release" deve esserci lo stesso, e la lista anche per un film.
         var options = new System.Text.Json.JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull };
-        Assert.Contains("{\"EpisodeNumber\":3,\"Release\":null,\"WouldImport\":false}", System.Text.Json.JsonSerializer.Serialize(result, options));
+        Assert.All(result.EpisodeChoices, c => Assert.Null(c.CurrentScore));
+        Assert.Contains("{\"EpisodeNumber\":3,\"Release\":null,\"WouldImport\":false,\"CurrentScore\":null}", System.Text.Json.JsonSerializer.Serialize(result, options));
     }
 
     [Fact]
@@ -552,10 +553,37 @@ public sealed class DownloadServiceAdminTests : IDisposable
         var result = (await Search("season:7:2"))!;
 
         Assert.Equal([(2, "s2", true), (3, "s3", false)], Flat(result));
+        Assert.Equal([40, 90], result.EpisodeChoices.Select(c => c.CurrentScore));
 
         // Senza un obiettivo (profilo senza) tutti.
         _settings.Thresholds[(ArrKind.Sonarr, 6)] = new ProfileThresholds(50, null);
         Assert.Equal([1, 2, 3, 4], (await Search("season:7:2"))!.EpisodeChoices.Select(c => c.EpisodeNumber));
+    }
+
+    [Fact]
+    public async Task WithoutMissingEpisodesOnlyMonitoredAiredOnesAreChoices()
+    {
+        // 1 a posto, 2 e 3 non monitorati (con e senza file), 4 e 5 non ancora usciti (con e senza file), 6 sotto l'obiettivo.
+        SeasonOf(150, 40, null, 40, null, 40);
+        var episodes = _arr.SeriesEpisodes;
+        _arr.SeriesEpisodes = async id =>
+        {
+            var list = await episodes(id);
+            list[1]!.Monitored = false;
+            list[2]!.Monitored = false;
+            list[3]!.AirDateUtc = T0 + TimeSpan.FromDays(3);
+            list[4]!.AirDateUtc = T0 + TimeSpan.FromDays(3);
+            return list;
+        };
+        _releases = [.. Enumerable.Range(1, 6).Select(n => Single("s" + n, n, 1, 150))];
+
+        var result = (await Search("season:7:2"))!;
+
+        Assert.Equal([6], result.EpisodeChoices.Select(c => c.EpisodeNumber));
+
+        // Senza obiettivo tutti i monitorati e usciti, non gli altri.
+        _settings.Thresholds[(ArrKind.Sonarr, 6)] = new ProfileThresholds(50, null);
+        Assert.Equal([1, 6], (await Search("season:7:2"))!.EpisodeChoices.Select(c => c.EpisodeNumber));
     }
 
     [Fact]

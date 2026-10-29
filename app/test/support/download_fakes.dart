@@ -28,11 +28,13 @@ DownloadEpisodeChoice testEpisodeChoice(
   int number, {
   bool hasRelease = true,
   bool wouldImport = true,
+  int? currentScore,
 }) =>
     DownloadEpisodeChoice(
       episodeNumber: number,
       release: hasRelease ? testRelease(guid: 'e$number') : null,
       wouldImport: hasRelease && wouldImport,
+      currentScore: currentScore,
     );
 
 /// Una stagione senza un pack conveniente: la lista completa più i singoli.
