@@ -1,7 +1,7 @@
 # WonderFlix — Spec T: download automatici con le regole dell'admin
 
 - **Data:** 2026-10-28
-- **Stato:** piano 29a realizzato (plugin 1.14.0, branch `feat/download-automatici`, non ancora rilasciato); piano 29b da fare. Bozza delle schermate: `.superpowers/brainstorm/1831-1793204853/content/download-tab-v2.html` (non nel repo).
+- **Stato:** piani 29a e 29b realizzati (plugin 1.14.0, app 0.23.0, branch `feat/download-automatici`, non ancora rilasciato). Bozza delle schermate: `.superpowers/brainstorm/1831-1793204853/content/download-tab-v2.html` (non nel repo).
 - **Ambito:** Spec T. Si appoggia alla Spec M (Sonarr e Radarr nel plugin: `2026-10-10-wonderflix-home-su-misura-design.md`, §7), alla Spec I (richieste con Seerr: `2026-10-05-wonderflix-seerr-design.md`), alla Spec S (calendario: `2026-10-22-wonderflix-calendario-uscite-design.md`) e alla dashboard admin (`2026-10-06-wonderflix-dashboard-admin-design.md`).
 
 ## 1. Obiettivo
@@ -220,20 +220,22 @@ Tre sezioni, più "Serve te" in evidenza quando non è vuota:
 - **In attesa:** titolo, quando esce o da quanto si cerca, prossima ricerca e il motivo, se c'è. Quelli in "Serve te" hanno il pulsante "guarda".
 - **Da ripassare:** titolo, punteggio e peso del file attuale; pulsante "apri".
 
+Ogni sezione mostra le prime righe; "mostra altri" estende. Scelte automatiche: 7 giorni, poi tutte quelle che il plugin conserva (90 giorni). Da ripassare: 50 righe, poi altre 50. La panoramica si ricarica ogni 60 s con la scheda aperta e subito dopo ogni azione. Gli errori di Sonarr e Radarr compaiono come nota in cima alla scheda, senza nascondere il resto.
+
 ### 8.2 Ricerca di un titolo
 
-Si apre da "cambia", "guarda" o "apri".
+Si apre da "cambia", "guarda" o "apri". È una schermata a tutto schermo sopra la dashboard, non una route, e si apre solo dalle righe della scheda. Il perché della scelta lo compone l'app dai dati (il plugin non manda testi).
 
 - In alto: titolo, durata, file attuale (peso e punteggio), quanti risultati validi, "ricerca di nuovo".
 - L'elenco ordinato con la regola, con la scelta di WonderFlix evidenziata e il perché ("più leggero dei 150 in 1080p"). Ogni riga ha release, punteggio, peso, seeders, indexer e "scarica".
 - Sotto, in grigio, gli scartati con il motivo ("non in italiano", "0,6 GB/ora, sotto la soglia", "qualità non ammessa").
 - Per i titoli in "Da ripassare", anche "va bene così".
-- Scaricare un file con punteggio più basso o uguale a quello presente chiede conferma.
+- Scaricare un file con punteggio più basso o uguale a quello presente chiede conferma; lo stesso se Radarr o Sonarr non importerebbero la release. Il testo dice quale dei due casi è.
 - **"cambia"** (mia scelta): se la scelta precedente è ancora in coda, WonderFlix la toglie dalla coda e da qBittorrent (senza blocklist) e scarica la nuova, così non arrivano due copie. Se è già importata, la nuova è un upgrade scelto dall'admin (§5.3b).
 
 ### 8.3 Testi
 
-Italiano e inglese negli ARB, come il resto della dashboard.
+Italiano e inglese negli ARB, come il resto della dashboard. I pesi sono in GB con due decimali e la virgola, come nel dettaglio media.
 
 ## 9. Attivazione sul server
 
