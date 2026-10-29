@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.15.0.0",
+        "changelog": "Migliori episodi per WonderFlix 0.24.0: nella ricerca di una stagione senza un pack conveniente il plugin indica per ogni episodio (mancante, o sotto il punteggio obiettivo, solo monitorati e già usciti) il singolo migliore secondo la regola dell'admin, con il punteggio del file attuale; un download rifiutato dal client (Sonarr/Radarr con errore 5xx) dà 502 \"Refused\" e nel giro va in \"Serve te\" invece di riprovare ogni 15 minuti.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.15.0/wonderflix-watch-party_1.15.0.zip",
+        "checksum": "5a8775216be6610583f01067bb9c77c6",
+        "timestamp": "2026-10-29T22:12:20Z"
+      },
+      {
         "version": "1.14.0.0",
         "changelog": "Download automatici per WonderFlix 0.23.0: il plugin cerca su Radarr e Sonarr i film e gli episodi che mancano e scarica la release con la regola dell'admin (punteggio dei custom format, poi 1080p prima di 720p, poi il file più leggero sopra una dimensione minima), anche stagioni intere, upgrade e anime; gli admin vedono e correggono le scelte dalla scheda Download dell'app e hanno l'elenco dei titoli da ripassare. L'interruttore nella pagina del plugin è spento di default.",
         "targetAbi": "10.11.0.0",
