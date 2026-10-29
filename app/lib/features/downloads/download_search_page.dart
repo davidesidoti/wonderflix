@@ -231,7 +231,7 @@ const _colRank = 32.0;
 const _colScore = 80.0;
 const _colSize = 90.0;
 const _colSeeders = 80.0;
-const _colButton = 110.0;
+const _colButton = 140.0;
 
 class _TableHead extends StatelessWidget {
   const _TableHead();
