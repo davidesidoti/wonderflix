@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/app/router.dart';
@@ -50,6 +51,8 @@ void main() {
   }) async {
     await tester.binding.setSurfaceSize(const Size(1440, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
     final sessionState = ValueNotifier<SessionState>(session.initial);
     addTearDown(sessionState.dispose);
     final router = GoRouter(
@@ -88,6 +91,7 @@ void main() {
     await tester.pumpWidget(ProviderScope(
       overrides: [
         appConfigProvider.overrideWithValue(testAppConfig),
+        sharedPreferencesProvider.overrideWithValue(prefs),
         serverEventsBindingProvider.overrideWithValue(null),
         imageBuilderProvider.overrideWithValue(
             (image, fit) => const ColoredBox(color: Color(0xFF333333))),

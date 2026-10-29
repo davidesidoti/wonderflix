@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/providers.dart';
@@ -21,6 +22,8 @@ import 'download_rows.dart';
 import 'download_search_page.dart';
 import 'downloads_controller.dart';
 import 'downloads_providers.dart';
+
+final _log = Logger('downloads');
 
 /// La scheda Download (spec T §8.1): panoramica dei download automatici in
 /// quattro sezioni.
@@ -52,14 +55,13 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
   void initState() {
     super.initState();
     try {
-      _collapsed =
-          ref
+      _collapsed = ref
               .read(sharedPreferencesProvider)
               .getStringList(_collapsedKey)
               ?.toSet() ??
           {};
-    } catch (_) {
-      // Preferenze illeggibili: tutte aperte.
+    } on TypeError {
+      // Valore di un altro tipo sotto la chiave: tutte aperte.
     }
     // Decisione 4: si rilegge ogni minuto finché la scheda è aperta.
     _poller = AdminPoller(
@@ -80,14 +82,17 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
       () =>
           _collapsed.contains(id) ? _collapsed.remove(id) : _collapsed.add(id),
     );
+    unawaited(_save());
+  }
+
+  Future<void> _save() async {
     try {
-      unawaited(
-        ref
-            .read(sharedPreferencesProvider)
-            .setStringList(_collapsedKey, _collapsed.toList()),
-      );
-    } catch (_) {
-      // Non salvata: la scelta vale fino alla chiusura della scheda.
+      await ref
+          .read(sharedPreferencesProvider)
+          .setStringList(_collapsedKey, _collapsed.toList());
+    } on Object catch (error) {
+      // La scelta vale fino alla chiusura della scheda.
+      _log.warning('sezioni chiuse non salvate: ${error.runtimeType}');
     }
   }
 

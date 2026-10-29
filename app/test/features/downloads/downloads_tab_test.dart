@@ -314,6 +314,20 @@ void main() {
       expect(find.text('Voce movie:2'), findsOneWidget);
     });
 
+    testWidgets('un valore di altro tipo nelle preferenze: tutte aperte',
+        (tester) async {
+      SharedPreferences.setMockInitialValues({key: 'chosen'});
+      prefs = await SharedPreferences.getInstance();
+      fill();
+      await pumpTab(tester);
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Scelto movie:1'), findsOneWidget);
+      expect(find.text('Voce movie:2'), findsOneWidget);
+      expect(find.text('Voce movie:3'), findsOneWidget);
+      expect(find.byType(ReviewRow), findsOneWidget);
+    });
+
     testWidgets('l intestazione è un pulsante che dice se è aperta',
         (tester) async {
       fill();
