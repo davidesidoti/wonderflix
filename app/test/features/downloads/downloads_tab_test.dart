@@ -188,10 +188,10 @@ void main() {
     await tester.tap(find.text('Guarda'));
     await tester.pumpAndSettle();
     expect(find.text('Voce movie:2'), findsWidgets);
-    expect(api.calls, isEmpty);
+    expect(api.calls, ['search movie:2']);
 
     await tester.tap(find.byIcon(Icons.close));
     await tester.pumpAndSettle();
-    expect(api.calls, ['overview']);
+    expect(api.calls, ['search movie:2', 'overview']);
   });
 }

@@ -45,6 +45,9 @@ class FakeDownloadsApi implements DownloadsApi {
   /// Se valorizzato, [overview] aspetta e dà il suo valore.
   final overviewGates = <Completer<DownloadsOverview>>[];
 
+  /// La risposta di [search] se non è [searchGate]; senza, [testSearch].
+  DownloadSearch? searchValue;
+
   /// Se valorizzato, [search] aspetta; un token annullato la fa fallire.
   Completer<DownloadSearch>? searchGate;
   CancelToken? searchToken;
@@ -67,7 +70,7 @@ class FakeDownloadsApi implements DownloadsApi {
     calls.add('search $key');
     searchToken = cancelToken;
     final gate = searchGate;
-    if (gate == null) return testSearch(key);
+    if (gate == null) return searchValue ?? testSearch(key);
     final done = Completer<DownloadSearch>();
     unawaited(gate.future.then(done.complete, onError: done.completeError));
     unawaited(
