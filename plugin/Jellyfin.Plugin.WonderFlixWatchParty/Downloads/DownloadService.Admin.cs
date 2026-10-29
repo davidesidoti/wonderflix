@@ -87,7 +87,7 @@ public sealed partial class DownloadService
             title = Book.Get(parsed.ToString())?.Title ?? "";
         }
 
-        return new DownloadSearchDto(parsed.ToString(), parsed.Kind, title, 0, null, [], [], 0, 0, error);
+        return new DownloadSearchDto(parsed.ToString(), parsed.Kind, title, 0, null, [], [], 0, 0, error, []);
     }
 
     /// <summary>
@@ -329,7 +329,8 @@ public sealed partial class DownloadService
             [.. rule.Rejected.Select(r => new DownloadRejectedDto(ReleaseDto(r.Release), r.Reason, r.Detail))],
             rule.Candidates.Count,
             releases.Count(r => !string.IsNullOrEmpty(r.Guid)),
-            null);
+            null,
+            choice is null ? EpisodeChoicesOf(target, releases, files, input, thresholds.TargetScore, profile) : []);
 
         var search = new AdminSearch(title, current, profile, target.SeasonEpisodes, releases, result, time.GetUtcNow(), target.Episodes, files);
         lock (_lock)
@@ -471,6 +472,31 @@ public sealed partial class DownloadService
         var ordered = DownloadRule.Choose(valid, input with { MinGbPerHour = 0 });
         var choice = SeasonPackRule.ChoosePack(releases, seasonEpisodes, input);
         return (ordered with { Candidates = [.. ordered.Candidates.OrderBy(r => !ReferenceEquals(r, choice))], Rejected = rejected }, choice);
+    }
+
+    // Stagione senza un pack scelto (spec T §5.4, §8.2): il singolo migliore di ogni episodio, nella stessa scelta del giro.
+    // Gli episodi sono quelli che mancano; senza mancanti quelli con il file sotto l'obiettivo (senza obiettivo tutti).
+    // WouldImport si misura sul file di quell'episodio, non sul peggiore della stagione.
+    private static List<DownloadEpisodeChoiceDto> EpisodeChoicesOf(
+        AdminTarget target, IReadOnlyList<ArrRelease> releases, IReadOnlyList<ArrFile> files, RuleInput input, int? targetScore, ArrQualityProfile? profile)
+    {
+        var episodes = target.Episodes ?? [];
+        var singles = releases.Where(r => !r.FullSeason && r.EpisodeNumbers is { Count: 1 }).ToLookup(r => r.EpisodeNumbers![0]);
+        var result = new List<DownloadEpisodeChoiceDto>();
+        foreach (var number in target.RuleEpisodes ?? [])
+        {
+            var fileIds = episodes.Where(e => e.EpisodeNumber == number).Select(e => e.EpisodeFileId).Where(id => id > 0).ToHashSet();
+            var current = CurrentOf([.. files.Where(f => fileIds.Contains(f.Id))]);
+            if (!target.Title.Wanted && targetScore is { } goal && current is not null && current.Score >= goal)
+            {
+                continue;
+            }
+
+            var choice = DownloadRule.Choose(singles[number], input).Choice;
+            result.Add(new DownloadEpisodeChoiceDto(number, choice is null ? null : ReleaseDto(choice), choice is not null && WouldImport(profile, current, choice)));
+        }
+
+        return result;
     }
 
     // Radarr/Sonarr importerebbero la release al posto del file di adesso? Senza profilo no (spec T §5.3b).

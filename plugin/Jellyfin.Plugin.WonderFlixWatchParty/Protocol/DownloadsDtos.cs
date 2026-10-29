@@ -77,7 +77,19 @@ public sealed record DownloadCurrentFileDto(
     [property: JsonPropertyName("Score")] int Score,
     [property: JsonPropertyName("Quality")] string Quality);
 
-/// <summary>Risposta di GET Downloads/Search (spec T §8.2). Con Error (un codice di UpcomingErrors) le liste sono vuote.</summary>
+/// <summary>
+/// Il singolo migliore di un episodio nella ricerca di una stagione senza un pack conveniente (spec T §5.4, §8.2).
+/// Release null: nessun singolo valido. WouldImport: Radarr/Sonarr lo importerebbero al posto del file di quell'episodio.
+/// </summary>
+public sealed record DownloadEpisodeChoiceDto(
+    [property: JsonPropertyName("EpisodeNumber")] int EpisodeNumber,
+    [property: JsonPropertyName("Release")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  DownloadReleaseDto? Release,
+    [property: JsonPropertyName("WouldImport")] bool WouldImport);
+
+/// <summary>
+/// Risposta di GET Downloads/Search (spec T §8.2). Con Error (un codice di UpcomingErrors) le liste sono vuote.
+/// EpisodeChoices (dalla 1.15.0): i migliori singoli per episodio, solo per una stagione senza un pack scelto; altrimenti vuota.
+/// </summary>
 public sealed record DownloadSearchDto(
     [property: JsonPropertyName("Key")] string Key,
     [property: JsonPropertyName("Kind")] string Kind,
@@ -88,7 +100,8 @@ public sealed record DownloadSearchDto(
     [property: JsonPropertyName("Rejected")] IReadOnlyList<DownloadRejectedDto> Rejected,
     [property: JsonPropertyName("ValidCount")] int ValidCount,
     [property: JsonPropertyName("TotalCount")] int TotalCount,
-    [property: JsonPropertyName("Error")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? Error);
+    [property: JsonPropertyName("Error")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? Error,
+    [property: JsonPropertyName("EpisodeChoices")] IReadOnlyList<DownloadEpisodeChoiceDto> EpisodeChoices);
 
 /// <summary>Un profilo di qualità con le sue soglie (spec T §7.1). Service: "Radarr" o "Sonarr".</summary>
 public sealed record DownloadProfileDto(

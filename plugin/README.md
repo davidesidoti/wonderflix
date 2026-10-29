@@ -122,7 +122,11 @@ uscite in arrivo.
   degli ultimi 90 giorni, `Waiting` i titoli in attesa o in download, tra cui
   quelli che servono all'admin, `Review` l'elenco da ripassare, `SonarrError`
   e `RadarrError`); `GET Downloads/Search?key=` fa la ricerca dal vivo (fino a
-  2 minuti) e dà le release in ordine con quelle scartate; `POST Downloads/Grab`
+  2 minuti) e dà le release in ordine con quelle scartate (dalla 1.15.0 anche
+  `EpisodeChoices`: per una stagione senza un pack conveniente il singolo
+  migliore di ogni episodio che manca, o sotto l'obiettivo se non ne manca
+  nessuno, con `EpisodeNumber`, `Release` (null senza un singolo valido) e
+  `WouldImport`; altrimenti la lista è vuota); `POST Downloads/Grab`
   `{Key, Guid, IndexerId}` scarica la release scelta (204; 400 per corpo o
   chiave non validi; 409 `{"Reason":"Expired"}` se la release non c'è più,
   `{"Reason":"Busy"}` se un'altra azione è in corso; 503

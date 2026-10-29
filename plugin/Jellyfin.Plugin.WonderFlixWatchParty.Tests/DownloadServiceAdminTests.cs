@@ -456,6 +456,128 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Assert.Null(Saved("season:7:2"));
     }
 
+    // Severance stagione 2 (50 minuti, profilo 6: obiettivo 150): un episodio per punteggio, null = manca. Il file pesa 2 GB.
+    private void SeasonOf(params int?[] scores)
+    {
+        _arr.Series = () => Task.FromResult<IReadOnlyList<SonarrSeries?>>(
+            [new SonarrSeries { Id = 7, Title = "Severance", Runtime = 50, QualityProfileId = 6 }]);
+        _arr.SeriesEpisodes = _ => Task.FromResult<IReadOnlyList<SonarrEpisode?>>(
+            [.. scores.Select((score, i) => (SonarrEpisode?)new SonarrEpisode { Id = 201 + i, SeriesId = 7, SeasonNumber = 2, EpisodeNumber = i + 1, Monitored = true, HasFile = score is not null, EpisodeFileId = score is null ? 0 : 301 + i, AirDateUtc = T0 - TimeSpan.FromDays(30) })]);
+        _arr.EpisodeFiles = _ => Task.FromResult<IReadOnlyList<ArrFile?>>(
+            [.. scores.Select((score, i) => (ArrFile?)(score is null ? null : File(301 + i, WebRip1080, score.Value))).OfType<ArrFile>().Select(f => { f.SeasonNumber = 2; f.Size = 2 * Gb; f.Quality!.Quality!.Name = "WEBRip-1080p"; return (ArrFile?)f; })]);
+    }
+
+    private static ArrRelease Single(string guid, int episode, double gb, int score, int qualityId = WebRip1080, string quality = "WEBRip-1080p")
+    {
+        var release = Release(guid, qualityId, quality, gb, score);
+        release.EpisodeNumbers = [episode];
+        return release;
+    }
+
+    private static ArrRelease Pack(string guid, double gb, int score)
+    {
+        var release = Release(guid, WebRip1080, "WEBRip-1080p", gb, score);
+        release.FullSeason = true;
+        return release;
+    }
+
+    private static List<(int, string?, bool)> Flat(DownloadSearchDto result) =>
+        [.. result.EpisodeChoices.Select(c => (c.EpisodeNumber, c.Release?.Guid, c.WouldImport))];
+
+    [Fact]
+    public async Task ASeasonWithoutAPackHasTheBestSinglePerMissingEpisode()
+    {
+        // Mancano 1, 2 e 3; il 4 c'è e non conta. Il 3 ha solo un singolo troppo leggero (0,2 GB in 50 minuti).
+        SeasonOf(null, null, null, 150);
+        _releases =
+        [
+            Single("s1a", 1, 1, 100),
+            Single("s1b", 1, 1.2, 150),
+            Single("s2", 2, 1, 150),
+            Single("s3", 3, 0.2, 150),
+            Single("s4", 4, 1, 150),
+        ];
+
+        var result = (await Search("season:7:2"))!;
+
+        Assert.Equal([(1, "s1b", true), (2, "s2", true), (3, (string?)null, false)], Flat(result));
+        Assert.Equal(("s1b", 150, (int?)10), (result.EpisodeChoices[0].Release!.Guid, result.EpisodeChoices[0].Release!.Score, result.EpisodeChoices[0].Release!.Seeders));
+
+        // Il JSON del server salta i null: "Release" deve esserci lo stesso, e la lista anche per un film.
+        var options = new System.Text.Json.JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull };
+        Assert.Contains("{\"EpisodeNumber\":3,\"Release\":null,\"WouldImport\":false}", System.Text.Json.JsonSerializer.Serialize(result, options));
+    }
+
+    [Fact]
+    public async Task APackTooHeavyForItsSinglesIsNotAChoice()
+    {
+        SeasonOf(null, null);
+        _releases = [Pack("p", 20, 150), Single("s1", 1, 1, 150), Single("s2", 2, 1, 150)];
+
+        var result = (await Search("season:7:2"))!;
+
+        Assert.False(Assert.Single(result.Candidates, c => c.Release.Guid == "p").IsChoice);
+        Assert.Equal([(1, "s1", true), (2, "s2", true)], Flat(result));
+    }
+
+    [Fact]
+    public async Task AChosenPackLeavesNoEpisodeChoices()
+    {
+        // L'episodio 3 non ha singoli validi: il pack si prende e non c'è niente da scegliere episodio per episodio.
+        SeasonOf(null, null, null);
+        _releases = [Pack("p", 6, 150), Single("s1", 1, 1, 150), Single("s2", 2, 1, 150)];
+
+        var result = (await Search("season:7:2"))!;
+
+        Assert.True(Assert.Single(result.Candidates, c => c.Release.Guid == "p").IsChoice);
+        Assert.Empty(result.EpisodeChoices);
+    }
+
+    [Fact]
+    public async Task AMovieHasNoEpisodeChoices()
+    {
+        Animals();
+
+        Assert.Empty((await Search("movie:12"))!.EpisodeChoices);
+    }
+
+    [Fact]
+    public async Task AWholeSeasonWithoutMissingEpisodesChoosesTheOnesBelowTarget()
+    {
+        // Nessun episodio manca: contano quelli sotto l'obiettivo (150). Il file del 3 vale 90: un 60 non lo migliora,
+        // anche se batte il peggiore della stagione (40).
+        SeasonOf(150, 40, 90, 150);
+        _releases = [Single("s1", 1, 1, 150), Single("s2", 2, 1, 60), Single("s3", 3, 1, 60), Single("s4", 4, 1, 150)];
+
+        var result = (await Search("season:7:2"))!;
+
+        Assert.Equal([(2, "s2", true), (3, "s3", false)], Flat(result));
+
+        // Senza un obiettivo (profilo senza) tutti.
+        _settings.Thresholds[(ArrKind.Sonarr, 6)] = new ProfileThresholds(50, null);
+        Assert.Equal([1, 2, 3, 4], (await Search("season:7:2"))!.EpisodeChoices.Select(c => c.EpisodeNumber));
+    }
+
+    [Fact]
+    public async Task TwoSingleGrabsFromTheSameSeasonSearchBothStart()
+    {
+        SeasonOf(null, null, null);
+        _releases = [Single("s1", 1, 1, 150), Single("s2", 2, 1, 150), Single("s3", 3, 1, 150)];
+        await Search("season:7:2");
+
+        Assert.Equal(GrabOutcome.Ok, await Grab("season:7:2", "s1", 1));
+
+        // Il primo sta già in coda: il secondo non lo deve togliere.
+        _sonarrQueue = [EpisodeQueue(70, 201, 5_000)];
+        Assert.Equal(GrabOutcome.Ok, await Grab("season:7:2", "s2", 1));
+
+        Assert.Equal(["s1", "s2"], _arr.GrabCalls.Select(c => c.Guid));
+        Assert.Empty(_arr.RemoveFromQueueCalls);
+        Assert.Single(_arr.SearchReleaseCalls);
+        Assert.Equal((DownloadStates.Downloading, DownloadStates.Downloading), (Saved("episode:201")!.State, Saved("episode:202")!.State));
+        Assert.Equal(["episode:201", "episode:202"], Store().Load().Choices.Select(c => c.Key));
+    }
+
     [Fact]
     public void AcceptHidesFromReview()
     {
