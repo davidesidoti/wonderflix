@@ -12,10 +12,12 @@ import 'package:wonderflix/core/social/plugin_admin_models.dart';
 import 'package:wonderflix/core/social/rating_models.dart';
 import 'package:wonderflix/features/admin/admin_providers.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/downloads/downloads_providers.dart';
 import 'package:wonderflix/features/home/home_providers.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 
 import 'admin_json.dart';
+import 'download_fakes.dart';
 import 'fake_session_controller.dart';
 import 'home_fakes.dart';
 import 'social_fakes.dart';
@@ -450,6 +452,7 @@ List<Override> adminTestOverrides(
   FakeAdminForeground? foreground,
   FakePluginAdminApi? plugin,
   FakeHomeApi? home,
+  FakeDownloadsApi? downloads,
   SocialFeatures features = const SocialFeatures(inbox: true),
   FakeSocialAvailability? availability,
 }) =>
@@ -457,6 +460,7 @@ List<Override> adminTestOverrides(
       adminApiProvider.overrideWithValue(api),
       pluginAdminApiProvider.overrideWithValue(plugin ?? FakePluginAdminApi()),
       homeApiProvider.overrideWithValue(home ?? FakeHomeApi()),
+      downloadsApiProvider.overrideWithValue(downloads ?? FakeDownloadsApi()),
       sessionControllerProvider.overrideWith(() =>
           session ?? FakeSessionController(const SessionSignedIn(testAdmin))),
       adminForegroundProvider

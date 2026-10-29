@@ -219,6 +219,27 @@ void main() {
     expect(find.text('viviroby'), findsOneWidget);
   });
 
+  testWidgets('con la funzione download: la scheda Download si apre',
+      (tester) async {
+    await pumpScreen(tester,
+        session: FakeSessionController(const SessionSignedIn(testAdmin)),
+        location: '/admin?tab=downloads',
+        features: const SocialFeatures(inbox: true, downloads: true));
+
+    expect(find.byKey(const ValueKey('admin-tab-downloads')), findsOneWidget);
+    expect(find.text('Scelte automatiche · 0'), findsOneWidget);
+  });
+
+  testWidgets('senza la funzione download: niente scheda, si mostra Sessioni',
+      (tester) async {
+    await pumpScreen(tester,
+        session: FakeSessionController(const SessionSignedIn(testAdmin)),
+        location: '/admin?tab=downloads');
+
+    expect(find.byKey(const ValueKey('admin-tab-downloads')), findsNothing);
+    expect(find.text('viviroby'), findsOneWidget);
+  });
+
   testWidgets('con i contatti del plugin: Utenti dopo Sessioni', (tester) async {
     final router = await pumpScreen(tester,
         session: FakeSessionController(const SessionSignedIn(testAdmin)),

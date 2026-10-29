@@ -8,6 +8,7 @@ import '../../ui/form_factor.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_tab_button.dart';
 import '../auth/session_controller.dart';
+import '../downloads/downloads_tab.dart';
 import '../social/social_providers.dart';
 import 'activity_tab.dart';
 import 'admin_navigation.dart';
@@ -81,8 +82,16 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
     // aspetta, senza passare da Sessioni, che si rileggerebbe per niente e
     // farebbe un lampo di contenuto sbagliato.
     final features = ref.watch(socialAvailabilityProvider.select(
-        (f) => (inbox: f.inbox, account: f.account, known: f.known)));
-    final tabs = adminTabs(inbox: features.inbox, account: features.account);
+        (f) => (
+          inbox: f.inbox,
+          account: f.account,
+          downloads: f.downloads,
+          known: f.known,
+        )));
+    final tabs = adminTabs(
+        inbox: features.inbox,
+        account: features.account,
+        downloads: features.downloads);
     final waitingForPlugin = !features.known && !tabs.contains(widget.tab);
     final tab = tabs.contains(widget.tab) || waitingForPlugin
         ? widget.tab
@@ -134,6 +143,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                   AdminTab.users => UsersTab(header: header),
                   AdminTab.maintenance => MaintenanceTab(header: header),
                   AdminTab.activity => ActivityTab(header: header),
+                  AdminTab.downloads => DownloadsTab(header: header),
                   AdminTab.wonderflix => WonderflixTab(header: header),
                 },
         ),
