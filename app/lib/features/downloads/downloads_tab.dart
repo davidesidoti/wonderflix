@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../core/downloads/download_models.dart';
 import '../../core/downloads/downloads_api.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
 import '../admin/admin_poller.dart';
@@ -42,9 +44,23 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
   bool _allRecent = false;
   int _reviewShown = _reviewPage;
 
+  /// Le sezioni chiuse, per id; restano tra una visita e l'altra.
+  static const _collapsedKey = 'downloads.collapsedSections';
+  Set<String> _collapsed = {};
+
   @override
   void initState() {
     super.initState();
+    try {
+      _collapsed =
+          ref
+              .read(sharedPreferencesProvider)
+              .getStringList(_collapsedKey)
+              ?.toSet() ??
+          {};
+    } catch (_) {
+      // Preferenze illeggibili: tutte aperte.
+    }
     // Decisione 4: si rilegge ogni minuto finché la scheda è aperta.
     _poller = AdminPoller(
       read: () => ref.read(downloadsControllerProvider.notifier).reload(),
@@ -58,6 +74,28 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
     _scroll.dispose();
     super.dispose();
   }
+
+  void _toggle(String id) {
+    setState(
+      () =>
+          _collapsed.contains(id) ? _collapsed.remove(id) : _collapsed.add(id),
+    );
+    try {
+      unawaited(
+        ref
+            .read(sharedPreferencesProvider)
+            .setStringList(_collapsedKey, _collapsed.toList()),
+      );
+    } catch (_) {
+      // Non salvata: la scelta vale fino alla chiusura della scheda.
+    }
+  }
+
+  Widget _header(String id, String title) => _SectionHeader(
+    title: title,
+    expanded: !_collapsed.contains(id),
+    onToggle: () => _toggle(id),
+  );
 
   Future<void> _reload() =>
       ref.read(downloadsControllerProvider.notifier).reload();
@@ -77,7 +115,8 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
     } on DownloadsException catch (e) {
       // Un errore del plugin è atteso: si mostra, non è un difetto da loggare.
       messenger.showSnackBar(
-          SnackBar(content: Text(downloadsFailureLabel(l, e.failure))));
+        SnackBar(content: Text(downloadsFailureLabel(l, e.failure))),
+      );
     }
     if (!mounted) return;
     await _reload();
@@ -139,7 +178,11 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
     return ListView(
       controller: _scroll,
       padding: EdgeInsets.fromLTRB(
-          adminSideMargin(context), 0, adminSideMargin(context), 40),
+        adminSideMargin(context),
+        0,
+        adminSideMargin(context),
+        40,
+      ),
       children: [
         if (widget.header case final header?)
           Padding(padding: const EdgeInsets.only(bottom: 8), child: header),
@@ -148,57 +191,124 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
         for (final text in errors)
           _Note(text: text, icon: LucideIcons.circleAlert),
         if (needsYou.isNotEmpty) ...[
-          AdminSectionTitle(
-              title: '${l.downloadsSectionNeedsYou} · ${needsYou.length}'),
-          for (final item in needsYou) _itemRow(item, now),
+          _header(
+            'needsYou',
+            '${l.downloadsSectionNeedsYou} · ${needsYou.length}',
+          ),
+          if (!_collapsed.contains('needsYou'))
+            for (final item in needsYou) _itemRow(item, now),
         ],
-        AdminSectionTitle(
-            title: '${l.downloadsSectionChosen} · ${recent.length}'),
-        if (recent.isEmpty) AdminEmptyText(text: l.downloadsNothingYet),
-        for (final choice in recent)
-          DownloadChoiceRow(
-            key: ValueKey('choice-${choice.key}-${choice.at.toIso8601String()}'),
-            choice: choice,
-            now: now,
-            onChange: () => unawaited(_open(choice.key, choice.title)),
-          ),
-        if (!_allRecent && recent.length < overview.recent.length)
-          _MoreButton(onPressed: () => setState(() => _allRecent = true)),
-        AdminSectionTitle(
-            title: '${l.downloadsSectionWaiting} · ${waiting.length}'),
-        if (waiting.isEmpty) AdminEmptyText(text: l.downloadsNothingYet),
-        for (final item in waiting) _itemRow(item, now),
-        AdminSectionTitle(
-            title: '${l.downloadsSectionReview} · ${review.length}'),
-        if (reviewAt != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(l.downloadsReviewAt(adminTimeLabel(reviewAt, now, l)),
+        _header('chosen', '${l.downloadsSectionChosen} · ${recent.length}'),
+        if (!_collapsed.contains('chosen')) ...[
+          if (recent.isEmpty) AdminEmptyText(text: l.downloadsNothingYet),
+          for (final choice in recent)
+            DownloadChoiceRow(
+              key: ValueKey(
+                'choice-${choice.key}-${choice.at.toIso8601String()}',
+              ),
+              choice: choice,
+              now: now,
+              onChange: () => unawaited(_open(choice.key, choice.title)),
+            ),
+          if (!_allRecent && recent.length < overview.recent.length)
+            _MoreButton(onPressed: () => setState(() => _allRecent = true)),
+        ],
+        _header('waiting', '${l.downloadsSectionWaiting} · ${waiting.length}'),
+        if (!_collapsed.contains('waiting')) ...[
+          if (waiting.isEmpty) AdminEmptyText(text: l.downloadsNothingYet),
+          for (final item in waiting) _itemRow(item, now),
+        ],
+        _header('review', '${l.downloadsSectionReview} · ${review.length}'),
+        if (!_collapsed.contains('review')) ...[
+          if (reviewAt != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                l.downloadsReviewAt(adminTimeLabel(reviewAt, now, l)),
                 style: const TextStyle(
-                    color: WfColors.creamMuted, fontSize: 13)),
-          ),
-        if (review.isEmpty) AdminEmptyText(text: l.downloadsNothingYet),
-        for (final item in review.take(_reviewShown))
-          ReviewRow(
-            key: ValueKey('review-${item.key}'),
-            item: item,
-            onOpen: () =>
-                unawaited(_open(item.key, item.title, reviewing: true)),
-          ),
-        if (review.length > _reviewShown)
-          _MoreButton(
-              onPressed: () => setState(() => _reviewShown += _reviewPage)),
+                  color: WfColors.creamMuted,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          if (review.isEmpty) AdminEmptyText(text: l.downloadsNothingYet),
+          for (final item in review.take(_reviewShown))
+            ReviewRow(
+              key: ValueKey('review-${item.key}'),
+              item: item,
+              onOpen: () =>
+                  unawaited(_open(item.key, item.title, reviewing: true)),
+            ),
+          if (review.length > _reviewShown)
+            _MoreButton(
+              onPressed: () => setState(() => _reviewShown += _reviewPage),
+            ),
+        ],
       ],
     );
   }
 
   Widget _itemRow(DownloadItem item, DateTime now) => DownloadItemRow(
-        key: ValueKey('item-${item.key}'),
-        item: item,
-        now: now,
-        onWatch: () => unawaited(_open(item.key, item.title)),
-        onSearchNow: () => _searchNow(item.key),
-      );
+    key: ValueKey('item-${item.key}'),
+    item: item,
+    now: now,
+    onWatch: () => unawaited(_open(item.key, item.title)),
+    onSearchNow: () => _searchNow(item.key),
+  );
+}
+
+/// Il titolo di una sezione, tutta la riga si tocca per chiuderla o aprirla
+/// (spec T §8.1). Stesso aspetto di [AdminSectionTitle].
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
+    required this.title,
+    required this.expanded,
+    required this.onToggle,
+  });
+
+  final String title;
+  final bool expanded;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 16, bottom: 4),
+    child: Semantics(
+      button: true,
+      expanded: expanded,
+      child: InkWell(
+        onTap: onToggle,
+        borderRadius: BorderRadius.circular(8),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: FormFactor.of(context).compact ? minTouchTarget : 0,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                Icon(
+                  expanded ? LucideIcons.chevronDown : LucideIcons.chevronRight,
+                  size: 18,
+                  color: WfColors.creamMuted,
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 /// Una nota in cima: funzione spenta o servizio che non risponde.
@@ -210,19 +320,21 @@ class _Note extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: 14, color: WfColors.gold),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(text,
-                  style: const TextStyle(color: WfColors.gold, fontSize: 13)),
-            ),
-          ],
+    padding: const EdgeInsets.only(top: 8),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 14, color: WfColors.gold),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            text,
+            style: const TextStyle(color: WfColors.gold, fontSize: 13),
+          ),
         ),
-      );
+      ],
+    ),
+  );
 }
 
 class _MoreButton extends StatelessWidget {
@@ -232,10 +344,10 @@ class _MoreButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Align(
-        alignment: AlignmentDirectional.centerStart,
-        child: TextButton(
-          onPressed: onPressed,
-          child: Text(AppLocalizations.of(context).downloadsShowMore),
-        ),
-      );
+    alignment: AlignmentDirectional.centerStart,
+    child: TextButton(
+      onPressed: onPressed,
+      child: Text(AppLocalizations.of(context).downloadsShowMore),
+    ),
+  );
 }

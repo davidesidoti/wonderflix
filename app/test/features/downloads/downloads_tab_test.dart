@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/downloads/downloads_api.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 import 'package:wonderflix/core/downloads/download_models.dart';
@@ -53,14 +55,22 @@ ReviewItem _review(int n) => ReviewItem(
 
 void main() {
   late FakeDownloadsApi api;
+  late SharedPreferences prefs;
 
-  setUp(() => api = FakeDownloadsApi());
+  setUp(() async {
+    api = FakeDownloadsApi();
+    SharedPreferences.setMockInitialValues({});
+    prefs = await SharedPreferences.getInstance();
+  });
 
   Future<void> pumpTab(WidgetTester tester) async {
     await pumpApp(tester, const Scaffold(body: DownloadsTab()),
-        overrides: adminTestOverrides(FakeAdminApi(),
-            downloads: api,
-            features: const SocialFeatures(inbox: true, downloads: true)),
+        overrides: [
+          ...adminTestOverrides(FakeAdminApi(),
+              downloads: api,
+              features: const SocialFeatures(inbox: true, downloads: true)),
+          sharedPreferencesProvider.overrideWithValue(prefs),
+        ],
         surfaceSize: const Size(1440, 20000));
     await tester.pumpAndSettle();
   }
@@ -221,5 +231,102 @@ void main() {
     await tester.tap(find.byIcon(Icons.close));
     await tester.pumpAndSettle();
     expect(api.calls, ['search movie:2', 'overview']);
+  });
+
+  group('sezioni compattabili', () {
+    const key = 'downloads.collapsedSections';
+
+    void fill() => api.overviewValue = DownloadsOverview(
+          enabled: true,
+          recent: [_choice('movie:1')],
+          waiting: [
+            _item('movie:2'),
+            _item('movie:3', state: DownloadState.needsYou),
+          ],
+          review: [_review(4)],
+        );
+
+    testWidgets('un tocco sull intestazione nasconde le voci, il secondo le '
+        'rimostra', (tester) async {
+      fill();
+      await pumpTab(tester);
+      expect(find.text('Scelto movie:1'), findsOneWidget);
+
+      await tester.tap(find.text('Scelte automatiche · 1'));
+      await tester.pumpAndSettle();
+      expect(find.text('Scelto movie:1'), findsNothing);
+      expect(find.text('Scelte automatiche · 1'), findsOneWidget);
+      expect(find.text('Voce movie:2'), findsOneWidget);
+      expect(prefs.getStringList(key), ['chosen']);
+
+      await tester.tap(find.text('Scelte automatiche · 1'));
+      await tester.pumpAndSettle();
+      expect(find.text('Scelto movie:1'), findsOneWidget);
+      expect(prefs.getStringList(key), isEmpty);
+    });
+
+    testWidgets('chiusa nasconde anche Mostra altre e aggiornato',
+        (tester) async {
+      api.overviewValue = DownloadsOverview(
+        enabled: true,
+        reviewAt: DateTime.now(),
+        review: [for (var i = 0; i < 60; i++) _review(i)],
+      );
+      await pumpTab(tester);
+      expect(find.text('Mostra altre'), findsOneWidget);
+      expect(find.textContaining('aggiornato'), findsOneWidget);
+
+      await tester.tap(find.text('Da ripassare · 60'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ReviewRow), findsNothing);
+      expect(find.text('Mostra altre'), findsNothing);
+      expect(find.textContaining('aggiornato'), findsNothing);
+    });
+
+    testWidgets('resta chiusa quando la scheda si rimonta, le altre no',
+        (tester) async {
+      fill();
+      await pumpTab(tester);
+      await tester.tap(find.text('In attesa · 1'));
+      await tester.pumpAndSettle();
+
+      await tester.pumpWidget(const SizedBox());
+      await pumpTab(tester);
+
+      expect(find.text('In attesa · 1'), findsOneWidget);
+      expect(find.text('Voce movie:2'), findsNothing);
+      expect(find.text('Scelto movie:1'), findsOneWidget);
+      expect(find.text('Voce movie:3'), findsOneWidget);
+      expect(find.byType(ReviewRow), findsOneWidget);
+    });
+
+    testWidgets('legge le sezioni chiuse dalle preferenze', (tester) async {
+      SharedPreferences.setMockInitialValues({
+        key: ['needsYou', 'review', 'sconosciuta'],
+      });
+      prefs = await SharedPreferences.getInstance();
+      fill();
+      await pumpTab(tester);
+
+      expect(find.text('Voce movie:3'), findsNothing);
+      expect(find.byType(ReviewRow), findsNothing);
+      expect(find.text('Scelto movie:1'), findsOneWidget);
+      expect(find.text('Voce movie:2'), findsOneWidget);
+    });
+
+    testWidgets('l intestazione è un pulsante che dice se è aperta',
+        (tester) async {
+      fill();
+      final handle = tester.ensureSemantics();
+      await pumpTab(tester);
+
+      Matcher header(bool expanded) => isSemantics(
+          isButton: true, hasExpandedState: true, isExpanded: expanded);
+      expect(tester.getSemantics(find.text('In attesa · 1')), header(true));
+      await tester.tap(find.text('In attesa · 1'));
+      await tester.pumpAndSettle();
+      expect(tester.getSemantics(find.text('In attesa · 1')), header(false));
+      handle.dispose();
+    });
   });
 }
