@@ -145,6 +145,17 @@ public class ServiceRegistrationTests
         Assert.IsType<Server.PluginDownloadSettings>(provider.GetRequiredService<Downloads.IDownloadSettings>());
         Assert.NotNull(ActivatorUtilities.CreateInstance<Api.DownloadsController>(provider));
 
+        // Spazio del seedbox (spec U).
+        Assert.Same(provider.GetRequiredService<Space.SpaceService>(), provider.GetRequiredService<Space.SpaceService>());
+        Assert.EndsWith(
+            Path.Combine("WonderFlixWatchParty", "space.json"),
+            provider.GetRequiredService<Space.SpaceStore>().FilePath);
+        Assert.IsType<Space.QbitClient>(provider.GetRequiredService<Space.IQbitClient>());
+        Assert.IsType<Server.LinuxFileProbe>(provider.GetRequiredService<Space.IFileProbe>());
+        Assert.IsType<Server.JellyfinViewingFacts>(provider.GetRequiredService<Space.IViewingFacts>());
+        Assert.IsType<Server.JellyfinLibraryRefresh>(provider.GetRequiredService<Space.ILibraryRefresh>());
+        Assert.NotNull(ActivatorUtilities.CreateInstance<Api.SpaceController>(provider));
+
         // Il promemoria dei contatti, oltre ai due di prima.
         // I consigli (spec N), oltre ai tre di prima.
         // L'attività degli amici (spec O), oltre ai quattro di prima.
@@ -152,6 +163,7 @@ public class ServiceRegistrationTests
         // I voti degli amici (spec Q), oltre ai sei di prima.
         // Le segnalazioni (spec R), oltre ai sette di prima.
         // I download automatici (spec T), oltre agli otto di prima.
-        Assert.Equal(9, provider.GetServices<IHostedService>().Count());
+        // Lo spazio (spec U), oltre ai nove di prima.
+        Assert.Equal(10, provider.GetServices<IHostedService>().Count());
     }
 }

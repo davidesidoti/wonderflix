@@ -83,6 +83,9 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false })
             .RedactLoggedHeaders(["Cookie", "Set-Cookie"]);
         serviceCollection.AddSingleton<IQbitClient, QbitClient>();
+        serviceCollection.AddSingleton<IFileProbe, LinuxFileProbe>();
+        serviceCollection.AddSingleton<IViewingFacts, JellyfinViewingFacts>();
+        serviceCollection.AddSingleton<ILibraryRefresh, JellyfinLibraryRefresh>();
         serviceCollection.AddSingleton<ISeriesIndex, JellyfinSeriesIndex>();
         serviceCollection.AddSingleton<UpcomingService>();
         serviceCollection.AddSingleton<ReleaseDatesService>();
@@ -125,6 +128,10 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             provider.GetRequiredService<ILogger<DownloadStore>>()));
         serviceCollection.AddSingleton<IDownloadSettings, PluginDownloadSettings>();
         serviceCollection.AddSingleton<DownloadService>();
+        serviceCollection.AddSingleton(provider => new SpaceStore(
+            SpaceStore.DefaultPath(provider.GetRequiredService<IApplicationPaths>()),
+            provider.GetRequiredService<ILogger<SpaceStore>>()));
+        serviceCollection.AddSingleton<SpaceService>();
         serviceCollection.AddSingleton<NewTitlesCollector>();
         serviceCollection.AddSingleton<PresenceTracker>();
         serviceCollection.AddSingleton<PartyDirectory>();
@@ -143,5 +150,6 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddHostedService<RatingsHostedService>();
         serviceCollection.AddHostedService<ReportsHostedService>();
         serviceCollection.AddHostedService<DownloadsHostedService>();
+        serviceCollection.AddHostedService<SpaceHostedService>();
     }
 }

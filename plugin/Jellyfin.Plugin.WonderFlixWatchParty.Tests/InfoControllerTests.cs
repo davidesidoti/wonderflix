@@ -14,7 +14,7 @@ public class InfoControllerTests
     public void InfoReportsVersionProtocolAndFeatures()
     {
         var info = new InfoController(new FakeSeerrSettings { Url = string.Empty }, NoArr()).GetInfo().Value!;
-        Assert.Equal("1.15.1", info.Version);
+        Assert.Equal("1.16.0", info.Version);
         Assert.Equal(1, info.Protocol);
         Assert.Equal(
             new[] { "friends", "parties", "inbox", "queue", "collections", "avatars", "account", "home", "recommendations", "friendsActivity", "match", "ratings", "reports" },
@@ -28,7 +28,7 @@ public class InfoControllerTests
             new[]
             {
                 "friends", "parties", "inbox", "queue", "collections", "avatars", "account", "home", "recommendations", "friendsActivity", "match", "ratings", "reports",
-                "requests", "upcomingSeries", "upcomingMovies", "calendar", "downloads",
+                "requests", "upcomingSeries", "upcomingMovies", "calendar", "downloads", "space",
             },
             new InfoController(new FakeSeerrSettings(), new FakeArrSettings()).GetInfo().Value!.Features);
 
@@ -40,6 +40,7 @@ public class InfoControllerTests
         Assert.Contains("upcomingMovies", features);
         Assert.Contains("calendar", features);
         Assert.Contains("downloads", features);
+        Assert.Contains("space", features);
     }
 
     [Fact]
@@ -47,11 +48,12 @@ public class InfoControllerTests
     {
         var onlySonarr = new InfoController(new FakeSeerrSettings(), new FakeArrSettings { Radarr = ArrEndpoint.None })
             .GetInfo().Value!.Features;
-        Assert.Equal(new[] { "requests", "upcomingSeries", "calendar", "downloads" }, onlySonarr.Skip(13));
+        Assert.Equal(new[] { "requests", "upcomingSeries", "calendar", "downloads", "space" }, onlySonarr.Skip(13));
 
         var neither = new InfoController(new FakeSeerrSettings(), NoArr()).GetInfo().Value!.Features;
         Assert.DoesNotContain("calendar", neither);
         Assert.DoesNotContain("downloads", neither);
+        Assert.DoesNotContain("space", neither);
     }
 
     [Fact]

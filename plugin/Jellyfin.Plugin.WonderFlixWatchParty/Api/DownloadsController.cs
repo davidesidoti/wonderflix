@@ -39,7 +39,7 @@ public class DownloadsController(DownloadService downloads) : ControllerBase
             return BadRequest();
         }
 
-        return await downloads.GrabAsync(request.Key, request.Guid, request.IndexerId, HttpContext.RequestAborted).ConfigureAwait(false) switch
+        return await downloads.GrabAsync(request.Key, request.Guid, request.IndexerId, HttpContext.RequestAborted, request.Lighten).ConfigureAwait(false) switch
         {
             GrabOutcome.Ok => NoContent(),
             GrabOutcome.Expired => Error(StatusCodes.Status409Conflict, "Expired"),

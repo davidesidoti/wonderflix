@@ -109,12 +109,12 @@ public sealed partial class DownloadService
 
     // Solo sotto _lock. Waiting e NeedsYou (non ImportBlocked) di un titolo ancora da scaricare, o UpgradeWatch;
     // solo per i servizi letti in questo giro: degli altri non si sa se il titolo è in coda.
-    private static bool IsDue(DownloadEntry entry, IReadOnlyDictionary<ArrKind, ArrView> views, DateTimeOffset now) =>
+    private bool IsDue(DownloadEntry entry, IReadOnlyDictionary<ArrKind, ArrView> views, DateTimeOffset now) =>
         entry.NextSearchAt <= now
         && views.TryGetValue(ServiceOf(entry.Kind), out var view)
         && entry.State switch
         {
-            DownloadStates.UpgradeWatch => true,
+            DownloadStates.UpgradeWatch => !Book.IsAccepted(entry.Key),
             DownloadStates.Waiting => view.Titles.GetValueOrDefault(entry.Key)?.Wanted == true,
             DownloadStates.NeedsYou => entry.Reason != DownloadReasons.ImportBlocked && view.Titles.GetValueOrDefault(entry.Key)?.Wanted == true,
             _ => false,

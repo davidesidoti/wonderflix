@@ -176,6 +176,26 @@ public sealed class DownloadServiceAdminTests : IDisposable
     }
 
     [Fact]
+    public async Task ALightenGrabIsAccepted()
+    {
+        Animals();
+
+        Assert.Equal(GrabOutcome.Ok, await _service.GrabAsync("movie:12", "b", 3, CancellationToken.None, lighten: true));
+
+        Assert.True(Store().Load().IsAccepted("movie:12"));
+    }
+
+    [Fact]
+    public async Task AnOrdinaryGrabIsNotAccepted()
+    {
+        Animals();
+
+        Assert.Equal(GrabOutcome.Ok, await Grab("movie:12", "b", 3));
+
+        Assert.False(Store().Load().IsAccepted("movie:12"));
+    }
+
+    [Fact]
     public async Task AnExpiredReleaseIsSearchedAgain()
     {
         Animals();

@@ -411,7 +411,8 @@ public sealed partial class DownloadService(
         var target = settings.For(ServiceOf(entry.Kind), entry.ProfileId, entry.ProfileName).TargetScore;
 
         // CurrentScore c'è solo per una scelta di WonderFlix: gli altri download non hanno upgrade (spec T §11).
-        if (entry.CurrentScore is not { } score || score >= target)
+        // Un titolo accettato ("va bene così" o "Alleggerisci") non ha upgrade.
+        if (entry.CurrentScore is not { } score || score >= target || Book.IsAccepted(entry.Key))
         {
             Book.Remove(entry.Key);
             return;

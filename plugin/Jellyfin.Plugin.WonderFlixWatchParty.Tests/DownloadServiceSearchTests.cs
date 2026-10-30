@@ -222,6 +222,43 @@ public sealed class DownloadServiceSearchTests : IDisposable
     }
 
     [Fact]
+    public async Task AnAcceptedImportDoesNotWatchUpgrades()
+    {
+        // "Alleggerisci" (spec U): una release più leggera scelta dall'admin; il file importato sotto l'obiettivo non resta in UpgradeWatch.
+        await GrabAndImport(Release("ita", WebRip1080, "WEBRip-1080p", 4, 50));
+        _releases = [Release("light", WebRip1080, "WEBRip-1080p", 2, 50)];
+        Assert.Equal(GrabOutcome.Ok, await _service.GrabAsync("movie:12", "light", 1, CancellationToken.None, lighten: true));
+
+        _time.Advance(DownloadService.CycleInterval);
+        _radarrQueue = [MovieQueue(91, 12, 2_000)];
+        await Cycle();
+        Assert.Equal(DownloadStates.Downloading, Saved("movie:12")!.State);
+
+        // Il file è cambiato ma sotto l'obiettivo.
+        _fileScore = 60;
+        _time.Advance(DownloadService.CycleInterval);
+        _radarrQueue = [];
+        await Cycle();
+
+        Assert.Null(Saved("movie:12"));
+    }
+
+    [Fact]
+    public async Task AnAcceptedUpgradeWatchIsNotSearched()
+    {
+        await GrabAndImport(Release("ita", WebRip1080, "WEBRip-1080p", 4, 50));
+        Assert.Equal(DownloadStates.UpgradeWatch, Saved("movie:12")!.State);
+        Assert.True(_service.Accept("movie:12"));
+
+        _time.Advance(TimeSpan.FromHours(6));
+        _releases = [Release("ita-eng", WebRip1080, "WEBRip-1080p", 5, 150)];
+        await Cycle();
+
+        Assert.Single(_arr.GrabCalls);
+        Assert.Equal(DownloadStates.UpgradeWatch, Saved("movie:12")!.State);
+    }
+
+    [Fact]
     public async Task AnImportAtTargetLeaves()
     {
         _movies = [Movie(12)];

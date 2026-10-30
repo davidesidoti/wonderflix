@@ -148,3 +148,29 @@ public sealed record SpaceOverviewDto(
     [property: JsonPropertyName("Operations")] IReadOnlyList<SpaceOperationDto> Operations,
     [property: JsonPropertyName("TopGenres")] IReadOnlyList<string> TopGenres,
     [property: JsonPropertyName("Errors")] SpaceErrorsDto Errors);
+
+/// <summary>Risposta di <c>POST Space/Operations</c>: l'id con cui seguire l'operazione (spec U §7.4).</summary>
+public sealed record SpaceStartedDto([property: JsonPropertyName("Id")] string Id);
+
+/// <summary>Errore dello spazio: <c>Unknown</c>, <c>Busy</c> o <c>NotReady</c> (spec U §7.4).</summary>
+public sealed record SpaceErrorDto([property: JsonPropertyName("Reason")] string Reason);
+
+/// <summary>Corpo di <c>POST Space/Operations</c> (spec U §7.4).</summary>
+public sealed class StartOperationRequest
+{
+    [JsonPropertyName("Kind")]
+    public string? Kind { get; set; }
+
+    [JsonPropertyName("Key")]
+    public string? Key { get; set; }
+}
+
+/// <summary>Corpo di <c>POST Space/Kept</c> (spec U §7.4).</summary>
+public sealed class KeepRequest
+{
+    [JsonPropertyName("Key")]
+    public string? Key { get; set; }
+
+    [JsonPropertyName("Title")]
+    public string? Title { get; set; }
+}

@@ -148,6 +148,15 @@ public sealed partial class SpaceService(
         }
     }
 
+    /// <summary>Legge subito space.json (all'avvio del plugin): un'operazione rimasta a metà risulta fallita, i problemi finiscono nel registro.</summary>
+    public void Load()
+    {
+        lock (_lock)
+        {
+            _ = Book;
+        }
+    }
+
     /// <summary>"Tienilo" (spec U §6.4).</summary>
     public void Keep(string key, string title)
     {

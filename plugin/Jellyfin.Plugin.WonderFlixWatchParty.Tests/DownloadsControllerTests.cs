@@ -129,6 +129,16 @@ public sealed class DownloadsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task TheGrabBodyReadsLighten()
+    {
+        var body = JsonSerializer.Deserialize<GrabRequest>("""{"Key":"movie:12","Guid":"b","IndexerId":3,"Lighten":true}""");
+
+        Assert.Equal(StatusCodes.Status204NoContent, Status(await _controller.Grab(body)));
+
+        Assert.True(new DownloadStore(_folder.DownloadsFile, Microsoft.Extensions.Logging.Abstractions.NullLogger<DownloadStore>.Instance).Load().IsAccepted("movie:12"));
+    }
+
+    [Fact]
     public async Task AGrabWithoutAnIndexerIsBadRequestNotConflict()
     {
         var body = JsonSerializer.Deserialize<GrabRequest>("""{"Key":"movie:12","Guid":"b"}""");

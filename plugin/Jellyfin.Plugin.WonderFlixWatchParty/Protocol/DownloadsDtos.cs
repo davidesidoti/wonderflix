@@ -124,6 +124,10 @@ public sealed class GrabRequest
 
     [JsonPropertyName("IndexerId")]
     public int IndexerId { get; set; }
+
+    /// <summary>"Alleggerisci" (spec U): a download scelto il titolo diventa "va bene così" e non si cercano upgrade.</summary>
+    [JsonPropertyName("Lighten")]
+    public bool Lighten { get; set; }
 }
 
 /// <summary>Corpo di POST Downloads/Accept e Downloads/SearchNow (spec T §7.4).</summary>

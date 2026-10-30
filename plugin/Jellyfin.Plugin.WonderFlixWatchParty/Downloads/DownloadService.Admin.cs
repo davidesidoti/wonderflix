@@ -94,7 +94,7 @@ public sealed partial class DownloadService
     /// Scarica una release dell'ultima ricerca dell'admin (spec T §8.2), anche al posto del download in corso ("cambia").
     /// Se Radarr/Sonarr hanno dimenticato i risultati (dopo circa 30 minuti) si cerca di nuovo e si riprova una volta (spec T §11).
     /// </summary>
-    public async Task<GrabOutcome> GrabAsync(string key, string guid, int indexerId, CancellationToken cancellationToken)
+    public async Task<GrabOutcome> GrabAsync(string key, string guid, int indexerId, CancellationToken cancellationToken, bool lighten = false)
     {
         if (!DownloadKey.TryParse(key, out var parsed) || string.IsNullOrEmpty(guid))
         {
@@ -113,7 +113,19 @@ public sealed partial class DownloadService
         List<string> guarded = [parsed.ToString()];
         try
         {
-            return await GrabGuardedAsync(parsed, guid, indexerId, guarded, cancellationToken).ConfigureAwait(false);
+            var outcome = await GrabGuardedAsync(parsed, guid, indexerId, guarded, cancellationToken).ConfigureAwait(false);
+
+            // "Alleggerisci" (spec U): il titolo scelto non entra negli upgrade, come dopo "va bene così".
+            if (lighten && outcome == GrabOutcome.Ok)
+            {
+                lock (_lock)
+                {
+                    Book.Accept(parsed.ToString());
+                    store.Save(Book);
+                }
+            }
+
+            return outcome;
         }
         finally
         {
