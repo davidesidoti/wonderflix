@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.16.0.0",
+        "changelog": "Spazio per WonderFlix 0.25.0: nella dashboard admin la quota del seedbox, i candidati da cancellare (nessuno li guarda più, mai aperti, voti bassi), i file da alleggerire con il progresso del download e la pulizia (torrent senza copia in libreria, file orfani, doppioni). Le eliminazioni, anche in blocco, partono solo da un pulsante e mostrano i passi; i torrent di ItaTorrents e ShareIsland si tolgono solo a fine seed obbligatorio (ratio 10 o 30 giorni). Serve qBittorrent configurato nella pagina del plugin.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.16.0/wonderflix-watch-party_1.16.0.zip",
+        "checksum": "8dfddb9ea6a61c93da14bdb9d95251fc",
+        "timestamp": "2026-10-30T20:43:33Z"
+      },
+      {
         "version": "1.15.1.0",
         "changelog": "Migliori episodi anche per una stagione non monitorata: se Sonarr non monitora nessun episodio della stagione (serie tolta dal monitoraggio), il riquadro considera tutti gli episodi già usciti.",
         "targetAbi": "10.11.0.0",
