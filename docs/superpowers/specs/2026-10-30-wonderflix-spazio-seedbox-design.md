@@ -1,7 +1,7 @@
 # WonderFlix — Spec U: spazio sul seedbox
 
 - **Data:** 2026-10-30
-- **Stato:** piano 30a realizzato (plugin 1.16.0, branch `feat/spazio-seedbox`, non ancora rilasciato); piano 30b (app) da fare.
+- **Stato:** piani 30a e 30b realizzati (plugin 1.16.0, app 0.25.0, branch `feat/spazio-seedbox`, non ancora rilasciato).
 - **Ambito:** Spec U. Si appoggia alla Spec T (download automatici: `2026-10-28-wonderflix-download-automatici-design.md`), alla Spec M (Sonarr e Radarr nel plugin), alla Spec I (richieste con Seerr) e alla dashboard admin.
 
 ## 1. Obiettivo
