@@ -95,6 +95,9 @@ class _TitleBodyState extends ConsumerState<_TitleBody> {
   /// Elimina in corso: una seconda pressione non fa ripartire la conferma.
   bool _busy = false;
 
+  /// "Tienilo" in corso: rotellina sul pulsante, gli altri spenti.
+  bool _keeping = false;
+
   SpaceCandidate get candidate => widget.candidate;
 
   @override
@@ -244,18 +247,33 @@ class _TitleBodyState extends ConsumerState<_TitleBody> {
                 WfButton.secondary(
                   label: l.spaceLightenAction,
                   icon: LucideIcons.minimize2,
-                  onPressed: () => unawaited(_lighten(context, ref, title)),
+                  onPressed: _busy || _keeping
+                      ? null
+                      : () => unawaited(_lighten(context, ref, title)),
                 ),
               WfButton.secondary(
+                key: const ValueKey('space-keep'),
                 label: l.spaceDialogKeep,
                 icon: LucideIcons.shield,
-                onPressed: () => unawaited(_keep(context, ref, title)),
+                // Il plugin risponde e la panoramica si rilegge: intanto la
+                // rotellina dice che sta lavorando.
+                overlay: _keeping
+                    ? const Center(
+                        child: SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : null,
+                onPressed: _busy || _keeping
+                    ? null
+                    : () => unawaited(_keep(context, ref, title)),
               ),
               if (lighten == null)
                 WfButton.primary(
                   label: l.spaceDialogDelete,
                   icon: LucideIcons.trash2,
-                  onPressed: _busy
+                  onPressed: _busy || _keeping
                       ? null
                       : () => unawaited(_delete(context, ref, title)),
                 ),
@@ -291,9 +309,11 @@ class _TitleBodyState extends ConsumerState<_TitleBody> {
   Future<void> _keep(BuildContext context, WidgetRef ref, String title) async {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
+    setState(() => _keeping = true);
     final failure = await ref
         .read(spaceControllerProvider.notifier)
         .keep(candidate.key, title);
+    if (mounted) setState(() => _keeping = false);
     if (failure != null) {
       messenger.showSnackBar(
         SnackBar(content: Text(spaceFailureLabel(l, failure))),

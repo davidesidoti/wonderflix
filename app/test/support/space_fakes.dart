@@ -26,8 +26,12 @@ class FakeSpaceApi implements SpaceApi {
     return overviewGates.removeAt(0).future;
   }
 
+  /// Se valorizzato, keep/unkeep/dropPending aspettano questo prima di rispondere.
+  Completer<void>? actionGate;
+
   Future<void> _action(String call) async {
     calls.add(call);
+    if (actionGate case final gate?) await gate.future;
     if (nextActionFailure case final f?) {
       nextActionFailure = null;
       throw SpaceException(f);

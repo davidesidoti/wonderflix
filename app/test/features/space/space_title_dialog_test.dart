@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/space/space_models.dart';
@@ -103,6 +105,27 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(api.calls, contains('keep movie:1 Film Raro'));
+    expect(find.text('Film Raro'), findsNothing);
+  });
+
+  testWidgets('KeepShowsASpinnerWhileWaiting', (tester) async {
+    await open(tester, _candidate());
+    final gate = api.actionGate = Completer<void>();
+
+    await tester.tap(find.text('Tienilo'));
+    await tester.pump();
+
+    final keep = find.byKey(const ValueKey('space-keep'));
+    expect(
+      find.descendant(of: keep, matching: find.byType(CircularProgressIndicator)),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Tienilo'), warnIfMissed: false);
+    await tester.pump();
+    expect(api.calls.where((c) => c.startsWith('keep')), hasLength(1));
+
+    gate.complete();
+    await tester.pumpAndSettle();
     expect(find.text('Film Raro'), findsNothing);
   });
 
