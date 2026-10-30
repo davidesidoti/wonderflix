@@ -1438,5 +1438,11 @@
   "spaceTotalsCleanup": "{gb} liberabili ora",
   "@spaceTotalsCleanup": {"placeholders": {"gb": {"type": "String"}}},
   "spaceLightenFacts": "{excess} in più · {rate} GB/ora",
-  "@spaceLightenFacts": {"placeholders": {"excess": {"type": "String"}, "rate": {"type": "String"}}}
+  "@spaceLightenFacts": {"placeholders": {"excess": {"type": "String"}, "rate": {"type": "String"}}},
+  "spaceDownloading": "In download {p} %",
+  "@spaceDownloading": {"placeholders": {"p": {"type": "int"}}},
+  "spaceImporting": "In importazione",
+  "spaceDownloadFailed": "Download non riuscito",
+  "spaceSizeLeft": "{gb} rimanenti",
+  "@spaceSizeLeft": {"placeholders": {"gb": {"type": "String"}}}
 }

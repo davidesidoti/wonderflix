@@ -54,6 +54,11 @@ Map<String, dynamic> _overview({List<Object?>? delete, Object? quota}) => {
           'SizeBytes': 9000,
           'ExcessBytes': 4000,
           'GbPerHour': 12.5,
+          'Download': {
+            'State': 'Downloading',
+            'Progress': 0.75,
+            'SizeLeftBytes': 1000,
+          },
         },
       ],
       'Cleanup': {
@@ -146,6 +151,8 @@ void main() {
     final l = o.lighten.single;
     expect((l.key, l.sizeBytes, l.excessBytes, l.gbPerHour),
         ('movie:2', 9000, 4000, 12.5));
+    final d = l.download!;
+    expect((d.state, d.progress, d.sizeLeftBytes), ('Downloading', 0.75, 1000));
 
     final t = o.cleanup.torrents.single;
     expect((t.hash, t.tracker, t.ratio, t.seedingDays, t.canRemoveNow),

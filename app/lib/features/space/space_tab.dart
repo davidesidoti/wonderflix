@@ -397,8 +397,11 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
               ),
       );
     }
-    // Decisione 9: 5 s mentre il plugin calcola, poi 60 s.
-    _poller.interval = Duration(seconds: o.scanning ? 5 : 60);
+    // Decisione 9: 5 s mentre il plugin calcola o una riga scarica, poi 60 s.
+    final downloading = o.lighten.any(
+      (i) => i.download != null && i.download!.state != 'Failed',
+    );
+    _poller.interval = Duration(seconds: o.scanning || downloading ? 5 : 60);
     final now = clock.now();
     final e = o.errors;
     final notes = [

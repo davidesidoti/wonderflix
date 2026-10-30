@@ -184,6 +184,33 @@ class SpaceCandidate {
   );
 }
 
+/// Il download di Alleggerisci di una riga: [state] è `Downloading`,
+/// `Importing` o `Failed`; [progress] da 0 a 1.
+class SpaceLightenDownload {
+  const SpaceLightenDownload({
+    required this.state,
+    required this.progress,
+    required this.sizeLeftBytes,
+  });
+
+  final String state;
+  final double progress;
+  final int sizeLeftBytes;
+
+  /// Uno stato sconosciuto vale come nessun download.
+  static SpaceLightenDownload? fromJson(Object? json) => _guard<SpaceLightenDownload?>(json, (j) {
+    final state = j['State'] as String;
+    if (!const {'Downloading', 'Importing', 'Failed'}.contains(state)) {
+      return null;
+    }
+    return SpaceLightenDownload(
+      state: state,
+      progress: _double(j['Progress']),
+      sizeLeftBytes: _int(j['SizeLeftBytes']),
+    );
+  });
+}
+
 /// Una riga di Alleggerire: oltre la soglia di GB all'ora.
 class SpaceLighten {
   const SpaceLighten({
@@ -196,6 +223,7 @@ class SpaceLighten {
     required this.sizeBytes,
     required this.excessBytes,
     required this.gbPerHour,
+    this.download,
   });
 
   final String key;
@@ -207,6 +235,7 @@ class SpaceLighten {
   final int sizeBytes;
   final int excessBytes;
   final double gbPerHour;
+  final SpaceLightenDownload? download;
 
   static SpaceLighten? fromJson(Object? json) => _guard(
     json,
@@ -220,6 +249,7 @@ class SpaceLighten {
       sizeBytes: _int(j['SizeBytes']),
       excessBytes: _int(j['ExcessBytes']),
       gbPerHour: _double(j['GbPerHour']),
+      download: SpaceLightenDownload.fromJson(j['Download']),
     ),
   );
 }

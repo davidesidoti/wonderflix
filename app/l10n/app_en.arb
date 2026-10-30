@@ -1282,5 +1282,11 @@
   "spaceTotalsCleanup": "{gb} can be freed now",
   "@spaceTotalsCleanup": {"placeholders": {"gb": {"type": "String"}}},
   "spaceLightenFacts": "{excess} more · {rate} GB/h",
-  "@spaceLightenFacts": {"placeholders": {"excess": {"type": "String"}, "rate": {"type": "String"}}}
+  "@spaceLightenFacts": {"placeholders": {"excess": {"type": "String"}, "rate": {"type": "String"}}},
+  "spaceDownloading": "Downloading {p} %",
+  "@spaceDownloading": {"placeholders": {"p": {"type": "int"}}},
+  "spaceImporting": "Importing",
+  "spaceDownloadFailed": "Download failed",
+  "spaceSizeLeft": "{gb} left",
+  "@spaceSizeLeft": {"placeholders": {"gb": {"type": "String"}}}
 }

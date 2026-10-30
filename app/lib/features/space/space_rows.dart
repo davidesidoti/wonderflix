@@ -172,6 +172,32 @@ class SpaceSeriesGroup extends StatelessWidget {
   }
 }
 
+List<Widget> _downloadLines(AppLocalizations l, SpaceLightenDownload d) {
+  switch (d.state) {
+    case 'Downloading':
+      return [
+        _line(l.spaceDownloading((d.progress * 100).round()), _gold),
+        _line(l.spaceSizeLeft(spaceGb(l, d.sizeLeftBytes))),
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: d.progress.clamp(0.0, 1.0),
+              minHeight: 4,
+              color: WfColors.gold,
+              backgroundColor: WfColors.border,
+            ),
+          ),
+        ),
+      ];
+    case 'Importing':
+      return [_line(l.spaceImporting, _gold)];
+    default:
+      return [_line(l.spaceDownloadFailed, _gold)];
+  }
+}
+
 /// Una riga di "Alleggerire".
 class SpaceLightenRow extends StatelessWidget {
   const SpaceLightenRow({
@@ -188,6 +214,8 @@ class SpaceLightenRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final d = item.download;
+    final busy = d != null && d.state != 'Failed';
     return _tappable(
       onOpen,
       RowShell(
@@ -201,9 +229,11 @@ class SpaceLightenRow extends StatelessWidget {
               spaceGb(l, item.excessBytes),
             ),
           ),
+          if (d != null) ..._downloadLines(l, d),
         ],
         actions: [
-          AdminActionButton(
+          if (!busy)
+            AdminActionButton(
             label: l.spaceLightenAction,
             icon: LucideIcons.minimize2,
             onPressed: onLighten,

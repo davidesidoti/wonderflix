@@ -297,6 +297,79 @@ void main() {
     expect(find.text('1,00 GB liberabili ora'), findsOneWidget);
   });
 
+  SpaceLighten lightenWith(SpaceLightenDownload? d) => SpaceLighten(
+    key: 'movie:1',
+    kind: 'Movie',
+    title: 'Film',
+    sizeBytes: 9000000000,
+    excessBytes: 5000000000,
+    gbPerHour: 6.5,
+    download: d,
+  );
+
+  Future<void> pumpLighten(WidgetTester tester, SpaceLightenDownload? d) async {
+    api.overviewValue = _overview(
+      scannedAt: _scanned,
+      lighten: [lightenWith(d)],
+    );
+    await pumpTab(tester);
+  }
+
+  testWidgets('ADownloadingLightenRowShowsProgress', (tester) async {
+    await pumpLighten(
+      tester,
+      const SpaceLightenDownload(
+        state: 'Downloading',
+        progress: 0.75,
+        sizeLeftBytes: 1000000000,
+      ),
+    );
+    expect(find.byType(LinearProgressIndicator), findsNWidgets(2));
+    expect(find.text('In download 75 %'), findsOneWidget);
+    expect(find.text('1,00 GB rimanenti'), findsOneWidget);
+    expect(find.text('Alleggerisci'), findsNothing);
+  });
+
+  testWidgets('ImportingShowsTheLabel', (tester) async {
+    await pumpLighten(
+      tester,
+      const SpaceLightenDownload(
+        state: 'Importing',
+        progress: 1,
+        sizeLeftBytes: 0,
+      ),
+    );
+    expect(find.text('In importazione'), findsOneWidget);
+    expect(find.text('Alleggerisci'), findsNothing);
+  });
+
+  testWidgets('AFailedDownloadShowsTheButtonAgain', (tester) async {
+    await pumpLighten(
+      tester,
+      const SpaceLightenDownload(
+        state: 'Failed',
+        progress: 0,
+        sizeLeftBytes: 0,
+      ),
+    );
+    expect(find.text('Download non riuscito'), findsOneWidget);
+    expect(find.text('Alleggerisci'), findsOneWidget);
+  });
+
+  testWidgets('PollingIsFastWhileDownloading', (tester) async {
+    await pumpLighten(
+      tester,
+      const SpaceLightenDownload(
+        state: 'Downloading',
+        progress: 0.1,
+        sizeLeftBytes: 5,
+      ),
+    );
+    final before = api.calls.where((c) => c == 'overview').length;
+    await tester.pump(const Duration(seconds: 6));
+    expect(api.calls.where((c) => c == 'overview').length, greaterThan(before));
+  });
+
   testWidgets('LightenRowOpensTheReducedCard', (tester) async {
     api.overviewValue = _overview(
       scannedAt: _scanned,
