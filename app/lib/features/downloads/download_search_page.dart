@@ -15,18 +15,21 @@ import 'download_labels.dart';
 import 'download_search_controller.dart';
 
 /// La pagina a tutto schermo con le release di un titolo (spec T §8.2).
-/// [reviewing]: aperta da "Da ripassare", con "Va bene così".
+/// [reviewing]: aperta da "Da ripassare", con "Va bene così". [lighten]: da
+/// "Alleggerisci", ogni scarico toglie poi il file pesante.
 Future<void> showDownloadSearch(
   BuildContext context,
   String key,
   String title, {
   bool reviewing = false,
+  bool lighten = false,
 }) =>
     showDialog<void>(
       context: context,
       useSafeArea: false,
       builder: (context) => Dialog.fullscreen(
-        child: _SearchPage(dlKey: key, title: title, reviewing: reviewing),
+        child: _SearchPage(
+            dlKey: key, title: title, reviewing: reviewing, lighten: lighten),
       ),
     );
 
@@ -35,11 +38,13 @@ class _SearchPage extends ConsumerWidget {
     required this.dlKey,
     required this.title,
     required this.reviewing,
+    required this.lighten,
   });
 
   final String dlKey;
   final String title;
   final bool reviewing;
+  final bool lighten;
 
   /// Un errore dopo un'azione: la pagina resta, con il messaggio.
   void _fail(BuildContext context, DownloadsFailure failure) =>
@@ -73,7 +78,7 @@ class _SearchPage extends ConsumerWidget {
       );
       if (!ok || !context.mounted) return;
     }
-    final failure = await controller.grabRelease(release);
+    final failure = await controller.grabRelease(release, lighten: lighten);
     if (!context.mounted) return;
     if (failure != null) return _fail(context, failure);
     messenger.showSnackBar(SnackBar(content: Text(l.downloadsStarted)));
@@ -103,7 +108,9 @@ class _SearchPage extends ConsumerWidget {
       );
       if (!ok || !context.mounted) return;
     }
-    final result = await controller.grabAll([for (final c in choices) c.release!]);
+    final result = await controller.grabAll(
+        [for (final c in choices) c.release!],
+        lighten: lighten);
     // Pagina chiusa durante la serie: niente da dire a nessuno.
     if (!context.mounted) return;
     if (result.failed == 0) {

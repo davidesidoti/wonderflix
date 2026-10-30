@@ -72,9 +72,16 @@ class DownloadsApi {
               quietStatuses: _quiet))) ??
           (throw const ServerErrorException(null)));
 
-  Future<void> grab(String key, String guid, int indexerId) =>
+  /// [lighten]: dopo il grab il plugin toglie il file pesante (spec U §6.1).
+  Future<void> grab(String key, String guid, int indexerId,
+          {bool lighten = false}) =>
       _call(() => _http.post('$_base/Grab',
-          body: {'Key': key, 'Guid': guid, 'IndexerId': indexerId},
+          body: {
+            'Key': key,
+            'Guid': guid,
+            'IndexerId': indexerId,
+            if (lighten) 'Lighten': true,
+          },
           // Se Sonarr ha dimenticato le release il plugin le cerca di nuovo.
           receiveTimeout: searchTimeout,
           quietStatuses: _quiet));

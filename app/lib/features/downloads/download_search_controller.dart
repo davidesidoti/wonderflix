@@ -89,15 +89,20 @@ class DownloadSearchController extends AsyncNotifier<DownloadSearch> {
 
   /// Scarica [candidate]. Dà l'errore, o null se è andata: in caso d'errore la
   /// ricerca resta a schermo.
-  Future<DownloadsFailure?> grab(DownloadCandidate candidate) =>
-      grabRelease(candidate.release);
+  Future<DownloadsFailure?> grab(
+    DownloadCandidate candidate, {
+    bool lighten = false,
+  }) => grabRelease(candidate.release, lighten: lighten);
 
   /// Come [grab], per una release che non è un candidato (il singolo di un
   /// episodio, spec T §8.2).
-  Future<DownloadsFailure?> grabRelease(DownloadRelease release) => _act(
+  Future<DownloadsFailure?> grabRelease(
+    DownloadRelease release, {
+    bool lighten = false,
+  }) => _act(
     () => ref
         .read(downloadsApiProvider)
-        .grab(key, release.guid, release.indexerId),
+        .grab(key, release.guid, release.indexerId, lighten: lighten),
   );
 
   /// Scarica [releases] una dopo l'altra (il plugin le segue come voci degli
@@ -107,8 +112,9 @@ class DownloadSearchController extends AsyncNotifier<DownloadSearch> {
   /// Gli episodi partiti escono dalla ricerca a schermo: riprovando non si
   /// scaricano due volte.
   Future<({int started, int failed, DownloadsFailure? firstFailure})> grabAll(
-    List<DownloadRelease> releases,
-  ) async {
+    List<DownloadRelease> releases, {
+    bool lighten = false,
+  }) async {
     final api = ref.read(downloadsApiProvider);
     final flag = ref.read(downloadGrabbingProvider(key).notifier)..set(true);
     final progress = ref.read(downloadGrabProgressProvider(key).notifier);
@@ -121,7 +127,7 @@ class DownloadSearchController extends AsyncNotifier<DownloadSearch> {
         if (!ref.mounted) break;
         progress.set((i + 1, releases.length));
         try {
-          await api.grab(key, release.guid, release.indexerId);
+          await api.grab(key, release.guid, release.indexerId, lighten: lighten);
           started++;
           startedGuids.add(release.guid);
         } on DownloadsException catch (error) {

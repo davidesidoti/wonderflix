@@ -51,6 +51,12 @@ void main() {
     expect(request.receiveTimeout, const Duration(seconds: 150));
   });
 
+  test('GrabCanLighten', () async {
+    await api.grab('movie:1', 'g1', 3, lighten: true);
+    expect(adapter.requests.single.data,
+        {'Key': 'movie:1', 'Guid': 'g1', 'IndexerId': 3, 'Lighten': true});
+  });
+
   test('ConflictIsExpired', () async {
     adapter.handler = (_) => const FakeResponse(409, {'Reason': 'Expired'});
     expect(await failure(() => api.grab('k', 'g', 1)), DownloadsFailure.expired);

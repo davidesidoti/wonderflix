@@ -57,6 +57,26 @@ void main() {
     sub.close();
   });
 
+  test('ALightenGrabReachesTheApi', () async {
+    final c = container();
+    final sub = c.listen(downloadSearchControllerProvider(_key), (_, _) {});
+    await c.read(downloadSearchControllerProvider(_key).future);
+    api.calls.clear();
+    final notifier = c.read(downloadSearchControllerProvider(_key).notifier);
+
+    expect(await notifier.grab(testCandidate(), lighten: true), isNull);
+    expect(await notifier.grabRelease(testCandidate().release, lighten: true),
+        isNull);
+    expect(await notifier.grabRelease(testCandidate().release), isNull);
+
+    expect(api.calls.where((c) => c.startsWith('grab')), [
+      'grab movie:1 g1 3 lighten',
+      'grab movie:1 g1 3 lighten',
+      'grab movie:1 g1 3',
+    ]);
+    sub.close();
+  });
+
   test('GrabIsDisabledUntilItAnswers', () async {
     final c = container();
     final sub = c.listen(downloadSearchControllerProvider(_key), (_, _) {});

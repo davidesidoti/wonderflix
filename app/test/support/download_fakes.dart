@@ -133,8 +133,9 @@ class FakeDownloadsApi implements DownloadsApi {
   }
 
   @override
-  Future<void> grab(String key, String guid, int indexerId) =>
-      _action('grab $key $guid $indexerId');
+  Future<void> grab(String key, String guid, int indexerId,
+          {bool lighten = false}) =>
+      _action('grab $key $guid $indexerId${lighten ? ' lighten' : ''}');
 
   @override
   Future<void> accept(String key) => _action('accept $key');
