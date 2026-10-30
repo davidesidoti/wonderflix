@@ -35,6 +35,12 @@ class FakeSpaceApi implements SpaceApi {
   }
 
   @override
+  Future<String> start(String kind, String key) async {
+    await _action('start $kind $key');
+    return 'op1';
+  }
+
+  @override
   Future<void> keep(String key, String title) => _action('keep $key $title');
 
   @override

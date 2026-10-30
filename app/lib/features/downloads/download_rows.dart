@@ -37,9 +37,10 @@ class ScorePill extends StatelessWidget {
   }
 }
 
-/// La base di una riga: poster, testi e pulsanti (sotto nel layout stretto).
-class _RowShell extends StatelessWidget {
-  const _RowShell({
+/// La base di una riga (anche della scheda Spazio): poster, testi e pulsanti (sotto nel layout stretto).
+class RowShell extends StatelessWidget {
+  const RowShell({
+    super.key,
     required this.posterUrl,
     required this.lines,
     required this.actions,
@@ -126,7 +127,7 @@ class DownloadChoiceRow extends StatelessWidget {
     final l = AppLocalizations.of(context);
     final release = choice.release;
     final previous = choice.previousScore;
-    return _RowShell(
+    return RowShell(
       posterUrl: choice.posterUrl,
       lines: [
         _title(choice.title),
@@ -190,7 +191,7 @@ class DownloadItemRow extends StatelessWidget {
     final next = nextSearchLabel(l, item.nextSearchAt, now);
     final since = l.downloadsSince(
         DateFormat.MMMd(l.localeName).format(item.availableSince.toLocal()));
-    return _RowShell(
+    return RowShell(
       posterUrl: item.posterUrl,
       accent: needsYou ? WfColors.error : null,
       lines: [
@@ -227,7 +228,7 @@ class ReviewRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    return _RowShell(
+    return RowShell(
       posterUrl: item.posterUrl,
       lines: [
         _title(item.title),

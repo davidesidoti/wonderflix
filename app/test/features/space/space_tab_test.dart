@@ -1,0 +1,269 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/space/space_models.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
+import 'package:wonderflix/features/space/space_providers.dart';
+import 'package:wonderflix/features/space/space_tab.dart';
+
+import '../../support/admin_fakes.dart';
+import '../../support/download_fakes.dart';
+import '../../support/pump_app.dart';
+import '../../support/space_fakes.dart';
+
+SpaceCandidate _candidate(
+  String key, {
+  String? title,
+  String kind = 'Movie',
+  int? season,
+  String? seriesKey,
+  List<String> via = const [],
+  List<String> keep = const [],
+  List<String> genres = const [],
+}) => SpaceCandidate(
+  key: key,
+  kind: kind,
+  title: title ?? 'Titolo $key',
+  seasonNumber: season,
+  seriesKey: seriesKey,
+  sizeBytes: 2000000000,
+  freeNowBytes: 2000000000,
+  freeLaterBytes: 0,
+  inPackBytes: 0,
+  via: via,
+  keep: keep,
+  viewers: const [],
+  requests: const [],
+  ratingCount: 0,
+  genres: genres,
+);
+
+SpaceOverview _overview({
+  DateTime? scannedAt,
+  bool scanning = false,
+  List<SpaceCandidate> delete = const [],
+  List<SpaceLighten> lighten = const [],
+  SpaceCleanup cleanup = const SpaceCleanup(),
+  SpaceErrors errors = const SpaceErrors(),
+  List<String> topGenres = const [],
+}) => SpaceOverview(
+  scannedAt: scannedAt,
+  scanning: scanning,
+  quota: const SpaceQuota(usedBytes: 3000000000000, limitBytes: 4000000000000),
+  breakdown: SpaceOverview.empty.breakdown,
+  delete: delete,
+  lighten: lighten,
+  cleanup: cleanup,
+  pending: const [],
+  kept: const [],
+  operations: const [],
+  topGenres: topGenres,
+  errors: errors,
+);
+
+final _scanned = DateTime.now().subtract(const Duration(hours: 2));
+
+void main() {
+  late FakeSpaceApi api;
+  late FakeDownloadsApi downloads;
+
+  setUp(() {
+    api = FakeSpaceApi();
+    downloads = FakeDownloadsApi();
+  });
+
+  Future<void> pumpTab(
+    WidgetTester tester, {
+    Size size = const Size(1440, 20000),
+  }) async {
+    await pumpApp(
+      tester,
+      const Scaffold(body: SpaceTab()),
+      overrides: [
+        ...adminTestOverrides(
+          FakeAdminApi(),
+          downloads: downloads,
+          features: const SocialFeatures(
+            inbox: true,
+            downloads: true,
+            space: true,
+            known: true,
+          ),
+        ),
+        spaceApiProvider.overrideWithValue(api),
+      ],
+      surfaceSize: size,
+    );
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('BeforeTheFirstScanShowsCalculating', (tester) async {
+    api.overviewValue = _overview(scanning: true);
+    await pumpTab(tester);
+
+    expect(find.text('Calcolo in corso…'), findsOneWidget);
+    expect(find.text('Cancellare'), findsNothing);
+  });
+
+  testWidgets('AFailedScanShowsRetry', (tester) async {
+    api.overviewValue = _overview();
+    await pumpTab(tester);
+
+    expect(find.text('Calcolo non riuscito'), findsOneWidget);
+    await tester.tap(find.text('Ricalcola'));
+    await tester.pumpAndSettle();
+    expect(api.calls, contains('recalculate'));
+  });
+
+  testWidgets('SeasonsAreGroupedUnderTheSeries', (tester) async {
+    api.overviewValue = _overview(
+      scannedAt: _scanned,
+      delete: [
+        _candidate(
+          'season:7:1',
+          title: 'Serie Lunga',
+          kind: 'Season',
+          season: 1,
+          seriesKey: 'series:7',
+        ),
+        _candidate(
+          'season:7:2',
+          title: 'Serie Lunga',
+          kind: 'Season',
+          season: 2,
+          seriesKey: 'series:7',
+        ),
+      ],
+    );
+    await pumpTab(tester);
+
+    expect(find.text('Serie Lunga'), findsOneWidget);
+    expect(find.text('4,00 GB'), findsOneWidget);
+    expect(find.text('Stagione 1'), findsNothing);
+    await tester.tap(find.text('Serie Lunga'));
+    await tester.pump();
+    expect(find.text('Stagione 1'), findsOneWidget);
+    expect(find.text('Stagione 2'), findsOneWidget);
+  });
+
+  testWidgets('TwentyRowsThenShowMore', (tester) async {
+    api.overviewValue = _overview(
+      scannedAt: _scanned,
+      delete: [for (var i = 0; i < 25; i++) _candidate('movie:$i')],
+    );
+    await pumpTab(tester);
+
+    expect(find.textContaining('Titolo movie:'), findsNWidgets(20));
+    await tester.tap(find.text('Mostra altri'));
+    await tester.pump();
+    expect(find.textContaining('Titolo movie:'), findsNWidgets(25));
+    expect(find.text('Mostra altri'), findsNothing);
+  });
+
+  testWidgets('LightenOpensTheSearchWithLighten', (tester) async {
+    api.overviewValue = _overview(
+      scannedAt: _scanned,
+      lighten: const [
+        SpaceLighten(
+          key: 'movie:1',
+          kind: 'Movie',
+          title: 'Film',
+          sizeBytes: 9000000000,
+          excessBytes: 5000000000,
+          gbPerHour: 6.5,
+        ),
+      ],
+    );
+    await pumpTab(tester);
+
+    expect(find.text('9,00 GB · 6,5 GB/ora · 5,00 GB in più'), findsOneWidget);
+    await tester.tap(find.text('Alleggerisci'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Scarica').first);
+    await tester.pumpAndSettle();
+
+    expect(downloads.calls, contains('grab movie:1 g1 3 lighten'));
+  });
+
+  testWidgets('ServiceErrorsAreNotes', (tester) async {
+    api.overviewValue = _overview(
+      scannedAt: _scanned,
+      errors: const SpaceErrors(qbit: 'Unauthorized'),
+      delete: [_candidate('movie:1')],
+    );
+    await pumpTab(tester);
+
+    expect(
+      find.text('qBittorrent: utente o password sbagliati'),
+      findsOneWidget,
+    );
+    expect(find.text('Titolo movie:1'), findsOneWidget);
+  });
+
+  testWidgets('UnknownCodesDoNotCrash', (tester) async {
+    api.overviewValue = _overview(
+      scannedAt: _scanned,
+      delete: [
+        _candidate('thing:1', kind: 'Boh', via: ['Strano'], keep: ['X']),
+      ],
+    );
+    await pumpTab(tester);
+
+    expect(find.text('Strano'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('RemovingATorrentAsksFirst', (tester) async {
+    api.overviewValue = _overview(
+      scannedAt: _scanned,
+      cleanup: const SpaceCleanup(
+        torrents: [
+          SpaceTorrent(
+            key: 'torrent:abc',
+            hash: 'abc',
+            name: 'Film.2020.1080p',
+            tracker: 'tracker.it',
+            sizeBytes: 3000000000,
+            ratio: 1.5,
+            seedingDays: 12,
+            canRemoveNow: true,
+          ),
+        ],
+      ),
+    );
+    await pumpTab(tester);
+
+    expect(
+      find.text('Togli tutti quelli possibili ora (1, 3,00 GB)'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Togli'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Tolgo i torrent'), findsOneWidget);
+    expect(api.calls, isNot(contains('start Torrent torrent:abc')));
+    await tester.tap(find.widgetWithText(FilledButton, 'Elimina'));
+    await tester.pumpAndSettle();
+    expect(api.calls, contains('start Torrent torrent:abc'));
+  });
+
+  testWidgets('NarrowLayoutHasNoHorizontalOverflow', (tester) async {
+    const long =
+        'Un titolo lunghissimo che non finisce mai e va a capo '
+        'almeno due volte nella riga stretta';
+    api.overviewValue = _overview(
+      scannedAt: _scanned,
+      topGenres: const ['Dramma'],
+      delete: [
+        _candidate(
+          'movie:1',
+          title: long,
+          via: ['NobodyWatching', 'NeverOpened', 'LowRating'],
+          keep: ['InProgress'],
+          genres: ['Dramma'],
+        ),
+      ],
+    );
+    await pumpTab(tester, size: const Size(360, 900));
+
+    expect(tester.takeException(), isNull);
+  });
+}
