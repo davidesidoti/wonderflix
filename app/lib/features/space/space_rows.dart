@@ -39,13 +39,15 @@ Widget _chip(String text, Color color) => Container(
   child: Text(text, style: TextStyle(color: color, fontSize: 12)),
 );
 
-Widget _tappable(VoidCallback? onTap, Widget child) => onTap == null
-    ? child
-    : InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: child,
-      );
+// L'evidenziazione al passaggio del mouse la disegna RowShell, dentro la scheda.
+Widget _tappable(VoidCallback? onTap, RowShell row) => RowShell(
+      key: row.key,
+      posterUrl: row.posterUrl,
+      lines: row.lines,
+      actions: row.actions,
+      accent: row.accent,
+      onTap: onTap,
+    );
 
 /// Una riga di "Cancellare" (spec U §8). [showSeasonOnly]: dentro il gruppo
 /// di una serie, dove basta "Stagione N".

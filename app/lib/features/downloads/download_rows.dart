@@ -45,6 +45,7 @@ class RowShell extends StatelessWidget {
     required this.lines,
     required this.actions,
     this.accent,
+    this.onTap,
   });
 
   final String? posterUrl;
@@ -54,19 +55,16 @@ class RowShell extends StatelessWidget {
   /// Il colore del bordo ("Serve te").
   final Color? accent;
 
+  /// Riga toccabile: l'evidenziazione resta dentro la scheda arrotondata.
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
     final compact = FormFactor.of(context).compact;
     final url = posterUrl;
     final buttons = Wrap(spacing: 8, runSpacing: 8, children: actions);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+    final row = Padding(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: WfColors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: accent ?? WfColors.border),
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -90,6 +88,18 @@ class RowShell extends StatelessWidget {
           ),
           if (!compact) ...[const SizedBox(width: 12), buttons],
         ],
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: WfColors.surface,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: accent ?? WfColors.border),
+        ),
+        child: onTap == null ? row : InkWell(onTap: onTap, child: row),
       ),
     );
   }
