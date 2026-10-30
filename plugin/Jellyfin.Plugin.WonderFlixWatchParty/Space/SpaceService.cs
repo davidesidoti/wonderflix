@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Threading.Channels;
+using Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
@@ -26,6 +27,7 @@ public sealed partial class SpaceService(
     ISeriesIndex jellyfin,
     RatingService ratings,
     IUserDirectory users,
+    DownloadService downloads,
     TimeProvider time,
     ILogger<SpaceService> logger)
 {

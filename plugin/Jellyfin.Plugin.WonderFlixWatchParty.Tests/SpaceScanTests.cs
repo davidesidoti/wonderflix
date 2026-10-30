@@ -53,6 +53,7 @@ public sealed class SpaceScanTests : IDisposable
             _index,
             _ratings,
             _server,
+            TestDownloads.Create(_arr, _time, _folder.DownloadsFile),
             _time,
             NullLogger<SpaceService>.Instance);
     }
@@ -119,7 +120,7 @@ public sealed class SpaceScanTests : IDisposable
     private async Task<SpaceOverviewDto> ScanAsync(Guid? caller = null)
     {
         await _service.ScanAsync(CancellationToken.None);
-        return _service.Overview(caller ?? _admin.Id);
+        return await _service.OverviewAsync(caller ?? _admin.Id, CancellationToken.None);
     }
 
     [Fact]
@@ -147,13 +148,13 @@ public sealed class SpaceScanTests : IDisposable
         await _service.ScanAsync(CancellationToken.None);
 
         _service.Keep("movie:12", "Coco");
-        Assert.Empty(_service.Overview(_admin.Id).Delete);
-        Assert.Equal("movie:12", Assert.Single(_service.Overview(_admin.Id).Kept).Key);
+        Assert.Empty((await _service.OverviewAsync(_admin.Id, CancellationToken.None)).Delete);
+        Assert.Equal("movie:12", Assert.Single((await _service.OverviewAsync(_admin.Id, CancellationToken.None)).Kept).Key);
 
         _service.Unkeep("movie:12");
         _viewing.Favorites.Add((_admin.Id, itemId));
-        Assert.Empty(_service.Overview(_admin.Id).Delete);
-        Assert.Single(_service.Overview(_luca.Id).Delete);
+        Assert.Empty((await _service.OverviewAsync(_admin.Id, CancellationToken.None)).Delete);
+        Assert.Single((await _service.OverviewAsync(_luca.Id, CancellationToken.None)).Delete);
     }
 
     [Fact]
@@ -334,7 +335,7 @@ public sealed class SpaceScanTests : IDisposable
 
         _service.Keep("series:5", "Serie");
 
-        Assert.Empty(_service.Overview(_admin.Id).Delete);
+        Assert.Empty((await _service.OverviewAsync(_admin.Id, CancellationToken.None)).Delete);
         Assert.Equal(SpaceService.StartOutcome.Unknown, _service.Start(SpaceKinds.Season, "season:5:1").Outcome);
     }
 
@@ -504,7 +505,7 @@ public sealed class SpaceScanTests : IDisposable
 
         _service.Keep("season:5:2", "Serie - Stagione 2");
 
-        Assert.Empty(_service.Overview(_admin.Id).Delete);
+        Assert.Empty((await _service.OverviewAsync(_admin.Id, CancellationToken.None)).Delete);
         Assert.Equal(SpaceService.StartOutcome.Unknown, _service.Start(SpaceKinds.Series, "series:5").Outcome);
         _service.Unkeep("season:5:2");
         Assert.Equal(SpaceService.StartOutcome.Started, _service.Start(SpaceKinds.Series, "series:5").Outcome);
@@ -596,9 +597,9 @@ public sealed class SpaceScanTests : IDisposable
         _service.Start(SpaceKinds.AllTorrents, SpaceService.AllTorrentsKey);
         _service.Start(SpaceKinds.Orphan, before.Cleanup.Orphans[0].Key);
         await _service.DrainAsync(CancellationToken.None);
-        Assert.All(_service.Overview(_admin.Id).Operations, o => Assert.Equal(SpaceOperationStates.Done, o.State));
+        Assert.All((await _service.OverviewAsync(_admin.Id, CancellationToken.None)).Operations, o => Assert.Equal(SpaceOperationStates.Done, o.State));
 
-        var after = _service.Overview(_admin.Id);
+        var after = await _service.OverviewAsync(_admin.Id, CancellationToken.None);
         Assert.Empty(after.Delete);
         Assert.Empty(after.Cleanup.Torrents);
         Assert.Empty(after.Cleanup.Orphans);

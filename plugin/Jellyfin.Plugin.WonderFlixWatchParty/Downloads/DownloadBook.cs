@@ -178,6 +178,9 @@ public sealed class DownloadFile
 
     /// <summary>Le stagioni divise in episodi (<c>season:5:2</c>): non tornano più una voce sola (decisione 6).</summary>
     public List<string> SplitSeasons { get; set; } = [];
+
+    /// <summary>I grab di "Alleggerisci" (spec U, piano 30d), per chiave, con il loro momento; manca nei file vecchi.</summary>
+    public Dictionary<string, DateTimeOffset> Lightened { get; set; } = [];
 }
 
 /// <summary>
@@ -193,6 +196,7 @@ public sealed class DownloadBook
     private readonly List<DownloadChoice> _choices = [];
     private readonly HashSet<string> _accepted = [];
     private readonly HashSet<string> _split = [];
+    private readonly Dictionary<string, DateTimeOffset> _lightened = [];
     private List<ReviewItem> _review = [];
 
     public IReadOnlyList<DownloadEntry> Entries => [.. _entries.Values];
@@ -239,6 +243,14 @@ public sealed class DownloadBook
 
     public bool IsSplit(string seasonKey) => _split.Contains(seasonKey);
 
+    public IReadOnlyDictionary<string, DateTimeOffset> Lightened => _lightened;
+
+    /// <summary>Un grab di "Alleggerisci": la scheda spazio ne segue il download.</summary>
+    public void MarkLightened(string key, DateTimeOffset at) => _lightened[key] = at;
+
+    /// <summary>True se la chiave c'era.</summary>
+    public bool ForgetLightened(string key) => _lightened.Remove(key);
+
     /// <summary>Legge il file; <see cref="FormatException"/> per una versione diversa da 1, un elenco null o una voce null.</summary>
     public static DownloadBook FromFile(DownloadFile file)
     {
@@ -268,6 +280,13 @@ public sealed class DownloadBook
         }
 
         book._split.UnionWith(Required(file.SplitSeasons));
+
+        // Un "Lightened": null scritto a mano vale come vuoto, come il campo che manca.
+        foreach (var (key, at) in file.Lightened ?? [])
+        {
+            book._lightened[key] = at;
+        }
+
         return book;
     }
 
@@ -279,6 +298,7 @@ public sealed class DownloadBook
         ReviewAt = ReviewAt,
         Accepted = [.. _accepted],
         SplitSeasons = [.. _split],
+        Lightened = new(_lightened),
     };
 
     private static List<T> Required<T>(List<T>? list) =>

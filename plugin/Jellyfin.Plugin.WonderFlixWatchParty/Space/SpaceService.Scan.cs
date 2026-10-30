@@ -81,9 +81,10 @@ public sealed partial class SpaceService
 
     /// <summary>
     /// <c>GET Space</c> (spec U §7.4): l'ultimo calcolo senza i titoli tenuti e senza i preferiti di chi chiama (spec U §4.2),
-    /// con i suoi generi (decisione 14), i torrent in attesa, i tenuti e le ultime operazioni.
+    /// con i suoi generi (decisione 14), i torrent in attesa, i tenuti e le ultime operazioni. Le righe di Alleggerire hanno
+    /// lo stato del loro download di "Alleggerisci" (piano 30d).
     /// </summary>
-    public SpaceOverviewDto Overview(Guid callerId)
+    public async Task<SpaceOverviewDto> OverviewAsync(Guid callerId, CancellationToken ct)
     {
         var scan = LastScan;
         HashSet<string> keptKeys;
@@ -114,13 +115,17 @@ public sealed partial class SpaceService
             .Where(id => ratings.Of(id, caller).TryGetValue(callerId, out var rating) && rating.Score >= settings.HighRating)
             .ToHashSet();
         var shown = scan ?? new SpaceScan();
+        var lighten = await WithDownloadsAsync(
+            [.. shown.Lighten.Where(r => Visible(r.Keys, r.ItemIds) && !r.Keys.Any(doneKeys.Contains)).Select(r => r.Dto)],
+            shown.ScannedAt,
+            ct).ConfigureAwait(false);
         return new SpaceOverviewDto(
             shown.ScannedAt,
             Scanning,
             shown.Quota,
             shown.Breakdown,
             [.. shown.Delete.Where(r => Visible(r.Keys, r.ItemIds) && !Done(r.Dto.Key, r.Dto.SeriesKey)).Select(r => r.Dto)],
-            [.. shown.Lighten.Where(r => Visible(r.Keys, r.ItemIds) && !r.Keys.Any(doneKeys.Contains)).Select(r => r.Dto)],
+            lighten,
             new SpaceCleanupDto(
                 [.. shown.Cleanup.Torrents.Where(t => !removedHashes.Contains(t.Hash))],
                 [.. shown.Cleanup.Orphans.Where(f => !doneKeys.Contains(f.Key))],

@@ -41,6 +41,30 @@ public sealed class DownloadStoreTests : IDisposable
     }
 
     [Fact]
+    public void LightenedKeysAreSaved()
+    {
+        var at = new DateTimeOffset(2026, 10, 30, 12, 0, 0, TimeSpan.Zero);
+        var book = new DownloadBook();
+        book.MarkLightened("season:5:2", at);
+
+        Store().Save(book);
+
+        Assert.Equal(at, Store().Load().Lightened["season:5:2"]);
+    }
+
+    [Fact]
+    public void AnOldFileWithoutLightenedLoads()
+    {
+        WriteRaw("""{"Version":1,"Entries":[],"Choices":[],"Review":[],"Accepted":["movie:2"],"SplitSeasons":[]}""");
+
+        var book = Store().Load();
+
+        Assert.True(book.IsAccepted("movie:2"));
+        Assert.Empty(book.Lightened);
+        Assert.False(File.Exists(_folder.DownloadsFile + ".bad"));
+    }
+
+    [Fact]
     public void ABrokenFileStartsEmpty()
     {
         WriteRaw("{nope");

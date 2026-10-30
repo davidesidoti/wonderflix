@@ -186,6 +186,21 @@ public sealed class DownloadServiceAdminTests : IDisposable
     }
 
     [Fact]
+    public async Task ALightenGrabIsRemembered()
+    {
+        Animals();
+
+        Assert.Equal(GrabOutcome.Ok, await _service.GrabAsync("movie:12", "b", 3, CancellationToken.None, lighten: true));
+
+        Assert.Equal(T0, Store().Load().Lightened["movie:12"]);
+        Assert.Equal(T0, _service.LightenedKeys()["movie:12"]);
+
+        _service.ForgetLightened("movie:12");
+        Assert.Empty(_service.LightenedKeys());
+        Assert.Empty(Store().Load().Lightened);
+    }
+
+    [Fact]
     public async Task ALightenGrabStaysOkWhenTheDiskDoesNotWrite()
     {
         Animals();
@@ -202,6 +217,7 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Assert.Equal(GrabOutcome.Ok, await Grab("movie:12", "b", 3));
 
         Assert.False(Store().Load().IsAccepted("movie:12"));
+        Assert.Empty(Store().Load().Lightened);
     }
 
     [Fact]

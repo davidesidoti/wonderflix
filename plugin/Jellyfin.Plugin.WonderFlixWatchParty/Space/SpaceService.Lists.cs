@@ -224,7 +224,8 @@ public sealed partial class SpaceService
             ? new ScanRow<SpaceLightenDto>(
                 new SpaceLightenDto(
                     key, kind, title, season, itemId?.ToString("N"), poster, sizeBytes, (long)(sizeBytes - limit),
-                    Math.Round(sizeBytes / BytesPerGb / hours, 2)),
+                    Math.Round(sizeBytes / BytesPerGb / hours, 2),
+                    null),
                 keys,
                 itemIds)
             : null;

@@ -84,6 +84,7 @@ public sealed class SpaceOperationsTests : IDisposable
         new FakeSeriesIndex(),
         TestRatings.Create(_server, _folder, _time, TestRecommendations.Friends(_server, _folder, _time)),
         _server,
+        TestDownloads.Create(_arr, _time, _folder.DownloadsFile),
         _time,
         NullLogger<SpaceService>.Instance);
 

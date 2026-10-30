@@ -85,7 +85,17 @@ public sealed record SpaceLightenDto(
     [property: JsonPropertyName("PosterUrl")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? PosterUrl,
     [property: JsonPropertyName("SizeBytes")] long SizeBytes,
     [property: JsonPropertyName("ExcessBytes")] long ExcessBytes,
-    [property: JsonPropertyName("GbPerHour")] double GbPerHour);
+    [property: JsonPropertyName("GbPerHour")] double GbPerHour,
+    [property: JsonPropertyName("Download")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] SpaceLightenDownloadDto? Download);
+
+/// <summary>
+/// Il download di un "Alleggerisci" (piano 30d): <c>State</c> <c>Downloading</c>, <c>Importing</c> o <c>Failed</c>,
+/// <c>Progress</c> da 0 a 1 con due decimali, i byte che mancano.
+/// </summary>
+public sealed record SpaceLightenDownloadDto(
+    [property: JsonPropertyName("State")] string State,
+    [property: JsonPropertyName("Progress")] double Progress,
+    [property: JsonPropertyName("SizeLeftBytes")] long SizeLeftBytes);
 
 /// <summary>Un torrent senza copia in libreria (spec U §5.3); <c>Tracker</c> è l'host.</summary>
 public sealed record SpaceTorrentDto(

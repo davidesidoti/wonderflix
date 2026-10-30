@@ -28,6 +28,7 @@ public sealed class SpaceHostedServiceTests : IDisposable
             new FakeSeriesIndex(),
             TestRatings.Create(_server, _folder, _time, TestRecommendations.Friends(_server, _folder, _time)),
             _server,
+            TestDownloads.Create(new FakeArrClient(), _time, _folder.DownloadsFile),
             _time,
             NullLogger<SpaceService>.Instance);
         _hosted = new SpaceHostedService(_space, _time, NullLogger<SpaceHostedService>.Instance);

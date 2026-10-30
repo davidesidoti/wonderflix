@@ -119,9 +119,14 @@ public sealed partial class DownloadService
             // Tutte le chiavi del grab: per un singolo da una ricerca di stagione anche quella dell'episodio.
             if (lighten && outcome == GrabOutcome.Ok)
             {
+                var at = time.GetUtcNow();
                 lock (_lock)
                 {
-                    guarded.ForEach(k => Book.Accept(k));
+                    guarded.ForEach(k =>
+                    {
+                        Book.Accept(k);
+                        Book.MarkLightened(k, at);
+                    });
                     SaveAfterGrab();
                 }
             }
@@ -133,6 +138,27 @@ public sealed partial class DownloadService
             lock (_lock)
             {
                 guarded.ForEach(k => _grabbing.Remove(k));
+            }
+        }
+    }
+
+    /// <summary>I grab di "Alleggerisci" ancora ricordati, per la scheda spazio: una copia.</summary>
+    public IReadOnlyDictionary<string, DateTimeOffset> LightenedKeys()
+    {
+        lock (_lock)
+        {
+            return new Dictionary<string, DateTimeOffset>(Book.Lightened);
+        }
+    }
+
+    /// <summary>Dimentica un grab di "Alleggerisci" (importato o troppo vecchio).</summary>
+    public void ForgetLightened(string key)
+    {
+        lock (_lock)
+        {
+            if (Book.ForgetLightened(key))
+            {
+                SaveAfterGrab();
             }
         }
     }

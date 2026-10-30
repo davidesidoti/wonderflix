@@ -22,7 +22,9 @@ public class SpaceController(SpaceService space, IAuthorizationContext authoriza
     /// <summary>La panoramica per chi chiama; con una chiave API senza utente <c>Guid.Empty</c>: nessun preferito tolto, niente generi.</summary>
     [HttpGet]
     public async Task<ActionResult<SpaceOverviewDto>> Overview() =>
-        space.Overview((await authorizationContext.GetAuthorizationInfo(HttpContext).ConfigureAwait(false)).UserId);
+        await space.OverviewAsync(
+            (await authorizationContext.GetAuthorizationInfo(HttpContext).ConfigureAwait(false)).UserId,
+            HttpContext.RequestAborted).ConfigureAwait(false);
 
     /// <summary>Un nuovo calcolo, senza aspettarlo: 202. Il suo errore lo gestisce il servizio.</summary>
     [HttpPost("Recalculate")]
