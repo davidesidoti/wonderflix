@@ -160,7 +160,7 @@ public sealed class SpaceLightenStatusTests : IDisposable
         ];
 
         Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Downloading, 0.75, 1 * Gb), await DownloadOf("season:5:2"));
-        Assert.Empty(_arr.QueueCalls.Where(k => k == ArrKind.Radarr));
+        Assert.DoesNotContain(ArrKind.Radarr, _arr.QueueCalls);
     }
 
     [Fact]

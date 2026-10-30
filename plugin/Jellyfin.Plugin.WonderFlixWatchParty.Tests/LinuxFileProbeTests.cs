@@ -81,8 +81,19 @@ public sealed class LinuxFileProbeTests : IDisposable
         var film = Make(Path.Combine("downloads", "a", "film.mkv"));
         var folder = new DirectoryInfo(Path.Combine(root, "a"));
 
-        // Su Windows una cartella di sola lettura non si cancella: la potatura fallisce dopo che il file è andato.
-        folder.Attributes |= FileAttributes.ReadOnly;
+        // La potatura deve fallire dopo che il file è andato. Su Windows una cartella di sola
+        // lettura non si cancella; su Linux serve togliere la scrittura alla cartella sopra.
+        var windows = OperatingSystem.IsWindows();
+        var rootMode = windows ? default : File.GetUnixFileMode(root);
+        if (windows)
+        {
+            folder.Attributes |= FileAttributes.ReadOnly;
+        }
+        else
+        {
+            File.SetUnixFileMode(root, rootMode & ~(UnixFileMode.UserWrite | UnixFileMode.GroupWrite | UnixFileMode.OtherWrite));
+        }
+
         try
         {
             Assert.True(probe.Delete(film, [root]));
@@ -90,8 +101,15 @@ public sealed class LinuxFileProbeTests : IDisposable
         }
         finally
         {
-            folder.Refresh();
-            folder.Attributes &= ~FileAttributes.ReadOnly;
+            if (windows)
+            {
+                folder.Refresh();
+                folder.Attributes &= ~FileAttributes.ReadOnly;
+            }
+            else
+            {
+                File.SetUnixFileMode(root, rootMode);
+            }
         }
     }
 
