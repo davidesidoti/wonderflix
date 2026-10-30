@@ -11,6 +11,6 @@ public interface IQbitClient
     /// <exception cref="QbitException"><see cref="QbitError.NotFound"/> se il torrent non c'è.</exception>
     Task<IReadOnlyList<QbitTracker>> GetTrackersAsync(string hash, CancellationToken cancellationToken);
 
-    /// <summary>Toglie i torrent e i loro file dal disco; un elenco vuoto non chiama.</summary>
-    Task DeleteAsync(IReadOnlyList<string> hashes, CancellationToken cancellationToken);
+    /// <summary>Toglie i torrent, e con <paramref name="deleteFiles"/> anche i loro file dal disco; un elenco vuoto non chiama.</summary>
+    Task DeleteAsync(IReadOnlyList<string> hashes, bool deleteFiles, CancellationToken cancellationToken);
 }

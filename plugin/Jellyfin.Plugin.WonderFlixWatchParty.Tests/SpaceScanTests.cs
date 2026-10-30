@@ -477,7 +477,8 @@ public sealed class SpaceScanTests : IDisposable
     [Fact]
     public async Task OneScanAtATime()
     {
-        Assert.False(_service.Scanning);
+        // Prima del primo calcolo risulta in corso (spec U §7.3).
+        Assert.True(_service.Scanning);
         Task? second = null;
         var scanning = false;
         _qbit.OnGetTorrents = () =>
@@ -492,5 +493,131 @@ public sealed class SpaceScanTests : IDisposable
         Assert.True(second!.IsCompleted);
         Assert.Single(_seerr.Listed);
         Assert.False(_service.Scanning);
+    }
+
+    [Fact]
+    public async Task AKeptSeasonHidesItsWholeSeries()
+    {
+        AddSeries("ended");
+        await _service.ScanAsync(CancellationToken.None);
+        Assert.Equal(["series:5", "season:5:1", "season:5:2", "season:5:3"], _service.LastScan!.Delete.Single().Keys);
+
+        _service.Keep("season:5:2", "Serie - Stagione 2");
+
+        Assert.Empty(_service.Overview(_admin.Id).Delete);
+        Assert.Equal(SpaceService.StartOutcome.Unknown, _service.Start(SpaceKinds.Series, "series:5").Outcome);
+        _service.Unkeep("season:5:2");
+        Assert.Equal(SpaceService.StartOutcome.Started, _service.Start(SpaceKinds.Series, "series:5").Outcome);
+    }
+
+    private void AddCleanupTorrent(string hash, long inode)
+    {
+        _qbit.Torrents.Add(new QbitTorrent { Hash = hash, Name = "Old", Size = 3 * Gb, Progress = 1, Tracker = "https://tracker.example/a", SavePath = "/srv/seedings" });
+        _qbit.Files[hash] = [new QbitFile { Name = hash + ".mkv", Size = 3 * Gb }];
+        _probe.Files[$"/srv/seedings/{hash}.mkv"] = new FileStamp(new FileId(3, inode), 1, 3 * Gb);
+    }
+
+    [Fact]
+    public async Task ATorrentStillInARadarrOrSonarrQueueIsNotCleanup()
+    {
+        AddCleanupTorrent("aaaa", 11);
+        AddCleanupTorrent("bbbb", 12);
+        AddCleanupTorrent("cccc", 13);
+        _arr.Queue = kind => Task.FromResult<IReadOnlyList<ArrQueueItem?>>(
+            kind == ArrKind.Radarr ? [new ArrQueueItem { Id = 1, DownloadId = "AAAA" }, null] : [new ArrQueueItem { Id = 2, DownloadId = "BBBB" }]);
+
+        var overview = await ScanAsync();
+
+        Assert.Equal("torrent:cccc", Assert.Single(overview.Cleanup.Torrents).Key);
+        Assert.Equal(["cccc"], _service.LastScan!.Torrents.Keys);
+    }
+
+    [Fact]
+    public async Task AnUnreadableQueueMeansNoCleanupTorrents()
+    {
+        AddCleanupTorrent("aaaa", 11);
+        _arr.Queue = kind => kind == ArrKind.Sonarr
+            ? Task.FromException<IReadOnlyList<ArrQueueItem?>>(new ArrException(ArrError.Unreachable))
+            : Task.FromResult<IReadOnlyList<ArrQueueItem?>>([]);
+
+        var overview = await ScanAsync();
+
+        Assert.Empty(overview.Cleanup.Torrents);
+        Assert.Empty(_service.LastScan!.Torrents);
+        Assert.Equal("Unreachable", overview.Errors.Sonarr);
+    }
+
+    [Fact]
+    public async Task ASeriesDuplicateNeedsAKnownEpisodeWithTheSameCode()
+    {
+        AddSeries("continuing");
+        _probe.Files[SeriesFolder + "/Serie.s01e02.720p.mkv"] = new FileStamp(new FileId(2, 90), 1, Gb);
+        _probe.Files[SeriesFolder + "/Serie.S04E01.mkv"] = new FileStamp(new FileId(2, 91), 1, Gb);
+        _probe.Files[SeriesFolder + "/Making of.mkv"] = new FileStamp(new FileId(2, 92), 1, Gb);
+
+        var overview = await ScanAsync();
+
+        Assert.Equal(SeriesFolder + "/Serie.s01e02.720p.mkv", Assert.Single(overview.Cleanup.Duplicates).Path);
+    }
+
+    [Theory]
+    [InlineData("Extras")]
+    [InlineData("featurettes")]
+    [InlineData("Behind The Scenes")]
+    [InlineData("deleted scenes")]
+    [InlineData("Interviews")]
+    [InlineData("scenes")]
+    [InlineData("Shorts")]
+    [InlineData("trailers")]
+    [InlineData("Other")]
+    [InlineData("samples")]
+    public async Task AMovieExtraIsNeverADuplicate(string folder)
+    {
+        AddMovie(12, 6 * Gb, Now.AddMonths(-8));
+        _probe.Files[$"{MovieFolder}/{folder}/Bonus.mkv"] = new FileStamp(new FileId(1, 98), 1, 2 * Gb);
+        _probe.Files[MovieFolder + "/Coco.old.mkv"] = new FileStamp(new FileId(1, 99), 1, 5 * Gb);
+
+        var overview = await ScanAsync();
+
+        Assert.Equal(MovieFolder + "/Coco.old.mkv", Assert.Single(overview.Cleanup.Duplicates).Path);
+    }
+
+    [Fact]
+    public async Task RowsDoneAfterTheScanAreHiddenUntilTheNextOne()
+    {
+        AddMovie(12, 6 * Gb, Now.AddMonths(-8));
+        AddCleanupTorrent("aaaa", 11);
+        _probe.Files["/srv/downloads/Lost.mkv"] = new FileStamp(new FileId(3, 2), 1, 2 * Gb);
+        var before = await ScanAsync();
+        Assert.Equal((1, 1, 1), (before.Delete.Count, before.Cleanup.Torrents.Count, before.Cleanup.Orphans.Count));
+
+        _time.Advance(TimeSpan.FromMinutes(1));
+        _service.Start(SpaceKinds.Movie, "movie:12");
+        _service.Start(SpaceKinds.AllTorrents, SpaceService.AllTorrentsKey);
+        _service.Start(SpaceKinds.Orphan, before.Cleanup.Orphans[0].Key);
+        await _service.DrainAsync(CancellationToken.None);
+        Assert.All(_service.Overview(_admin.Id).Operations, o => Assert.Equal(SpaceOperationStates.Done, o.State));
+
+        var after = _service.Overview(_admin.Id);
+        Assert.Empty(after.Delete);
+        Assert.Empty(after.Cleanup.Torrents);
+        Assert.Empty(after.Cleanup.Orphans);
+
+        // Il film è ancora in Radarr (finto): il calcolo dopo lo rimostra.
+        _time.Advance(TimeSpan.FromMinutes(1));
+        Assert.Single((await ScanAsync()).Delete);
+    }
+
+    [Fact]
+    public async Task UnseenTorrentFilesMeanNoOrphans()
+    {
+        // qBittorrent dice un percorso che stat non vede: il legame torrent -> file non è affidabile.
+        _qbit.Torrents.Add(new QbitTorrent { Hash = "t1", Name = "Old", Size = 3 * Gb, Progress = 1, Tracker = "https://tracker.example/a", SavePath = "/data/torrents" });
+        _qbit.Files["t1"] = [new QbitFile { Name = "Old.mkv", Size = 3 * Gb }];
+        _probe.Files["/srv/seedings/Old.mkv"] = new FileStamp(new FileId(3, 1), 1, 3 * Gb);
+
+        var overview = await ScanAsync();
+
+        Assert.Empty(overview.Cleanup.Orphans);
     }
 }

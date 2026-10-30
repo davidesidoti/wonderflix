@@ -227,8 +227,10 @@ public class QbitClientTests
         Assert.Equal(["** [DHT] **", "https://t.example/announce"], trackers.Select(t => t.Url));
     }
 
-    [Fact]
-    public async Task DeleteSendsHashesAndFiles()
+    [Theory]
+    [InlineData(true, "hashes=a%7Cb&deleteFiles=true")]
+    [InlineData(false, "hashes=a%7Cb&deleteFiles=false")]
+    public async Task DeleteSendsHashesAndTheFilesFlag(bool deleteFiles, string body)
     {
         Script(new()
         {
@@ -236,17 +238,17 @@ public class QbitClientTests
             ["/api/v2/torrents/delete"] = Seq(() => Status(HttpStatusCode.OK)),
         });
 
-        await Client().DeleteAsync(["a", "b"], CancellationToken.None);
+        await Client().DeleteAsync(["a", "b"], deleteFiles, CancellationToken.None);
 
         var delete = _http.Requests.Single(r => r.Uri.AbsolutePath.EndsWith("/delete", StringComparison.Ordinal));
         Assert.Equal(HttpMethod.Post, delete.Method);
-        Assert.Equal("hashes=a%7Cb&deleteFiles=true", delete.Body);
+        Assert.Equal(body, delete.Body);
     }
 
     [Fact]
     public async Task DeletingNothingCallsNothing()
     {
-        await Client().DeleteAsync([], CancellationToken.None);
+        await Client().DeleteAsync([], true, CancellationToken.None);
 
         Assert.Empty(_http.Requests);
     }

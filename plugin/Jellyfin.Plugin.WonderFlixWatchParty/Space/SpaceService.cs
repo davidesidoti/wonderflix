@@ -35,6 +35,9 @@ public sealed partial class SpaceService(
     /// <summary>La chiave di "togli tutti quelli possibili ora" (decisione 11).</summary>
     public const string AllTorrentsKey = "all-torrents";
 
+    /// <summary>Il titolo dell'operazione "togli tutti", mostrato nell'app.</summary>
+    private const string AllTorrentsTitle = "Pulizia: torrent senza libreria";
+
     private const string TorrentPrefix = "torrent:";
 
     private readonly Lock _lock = new();
@@ -118,8 +121,10 @@ public sealed partial class SpaceService(
         };
         lock (_lock)
         {
-            // Un titolo tenuto (o la serie di una stagione tenuta) non è più nelle liste (spec U §4.2).
-            if (Book.IsKept(key) || (kind == SpaceKinds.Season && Book.IsKept("series:" + key.Split(':')[1])))
+            // Un titolo tenuto (o la serie di una stagione tenuta, o una serie con una stagione tenuta) non è più nelle liste (spec U §4.2).
+            if (Book.IsKept(key)
+                || (kind == SpaceKinds.Season && Book.IsKept("series:" + key.Split(':')[1]))
+                || (kind == SpaceKinds.Series && Book.Kept.Any(k => k.Key.StartsWith("season:" + key.Split(':')[1] + ":", StringComparison.Ordinal))))
             {
                 return (StartOutcome.Unknown, null);
             }
@@ -203,7 +208,7 @@ public sealed partial class SpaceService(
     /// <summary>
     /// Il controllo orario dei torrent in attesa (spec U §6.3): quelli spariti da qBittorrent escono, quelli che la
     /// regola del seed ora permette si tolgono con i file e restano come operazione automatica. Se qBittorrent non
-    /// risponde si riprova al giro dopo.
+    /// risponde si riprova al giro dopo. Chi condivide un percorso con un torrent che resta va via senza file.
     /// </summary>
     public async Task CheckPendingAsync(CancellationToken cancellationToken)
     {
@@ -251,6 +256,10 @@ public sealed partial class SpaceService(
         {
             logger.LogWarning("Spazio: qBittorrent non risponde ({Error}), i torrent in attesa si ricontrollano al prossimo giro", ex.Error);
         }
+        catch (TimeoutException)
+        {
+            logger.LogWarning("Spazio: stat non risponde, i torrent in attesa si ricontrollano al prossimo giro");
+        }
     }
 
     private async Task RemovePendingAsync(PendingTorrent torrent, CancellationToken cancellationToken)
@@ -264,10 +273,13 @@ public sealed partial class SpaceService(
             }
         }
 
+        // Dal vivo: in 30 giorni un altro torrent può essere arrivato sullo stesso percorso, e i dati restano a lui.
+        var live = await ReadTorrentsAsync(cancellationToken).ConfigureAwait(false);
         var before = ReadQuota();
-        await qbit.DeleteAsync([torrent.Hash], cancellationToken).ConfigureAwait(false);
-        var after = ReadQuota();
+        var withFiles = await DeleteTorrentsAsync([torrent.Hash], live, cancellationToken).ConfigureAwait(false);
         var now = time.GetUtcNow();
+        var after = ReadQuota();
+        var afterBytes = QuotaAfter(after, now);
         lock (_lock)
         {
             Book.RemovePending(torrent.Hash);
@@ -281,9 +293,9 @@ public sealed partial class SpaceService(
                 Auto = true,
                 StartedAt = now,
                 EndedAt = now,
-                EstimatedFreedBytes = torrent.SizeBytes,
+                EstimatedFreedBytes = withFiles.Count > 0 ? torrent.SizeBytes : 0,
                 QuotaBeforeBytes = before?.UsedBytes,
-                QuotaAfterBytes = after?.UsedBytes,
+                QuotaAfterBytes = afterBytes,
                 Steps =
                 [
                     new SpaceStep { Name = SpaceSteps.RemoveTorrents, State = SpaceStepStates.Done, Done = 1, Waiting = 0 },
@@ -319,6 +331,13 @@ public sealed partial class SpaceService(
     /// <summary>La quota dal file del cron; null se non è configurato o non si legge.</summary>
     private Quota? ReadQuota() =>
         string.IsNullOrWhiteSpace(settings.QuotaFile) ? null : QuotaFile.Parse(probe.ReadText(settings.QuotaFile));
+
+    /// <summary>
+    /// I byte usati dopo un'operazione partita a <paramref name="startedAt"/>; null se il file della quota non è stato
+    /// riscritto da allora (il cron lo aggiorna ogni 10 minuti): l'app mostra la stima.
+    /// </summary>
+    private long? QuotaAfter(Quota? quota, DateTimeOffset startedAt) =>
+        quota is not null && probe.LastWriteTime(settings.QuotaFile) is { } written && written >= startedAt ? quota.UsedBytes : null;
 
     private SpaceStep QuotaStep(Quota? quota) => quota is not null
         ? new SpaceStep { Name = SpaceSteps.ReadQuota, State = SpaceStepStates.Done }
@@ -391,7 +410,7 @@ public sealed partial class SpaceService(
     {
         SpaceKinds.Movie or SpaceKinds.Series or SpaceKinds.Season => scan.Titles.GetValueOrDefault(key)?.Title,
         SpaceKinds.Torrent => scan.Torrents.GetValueOrDefault(key[TorrentPrefix.Length..])?.Name,
-        SpaceKinds.AllTorrents => "",
+        SpaceKinds.AllTorrents => AllTorrentsTitle,
         _ => scan.Files.TryGetValue(key, out var file) && file.Kind == kind ? file.Path[(file.Path.LastIndexOf('/') + 1)..] : null,
     };
 

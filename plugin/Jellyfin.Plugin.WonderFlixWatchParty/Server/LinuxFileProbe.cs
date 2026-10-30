@@ -102,6 +102,18 @@ public sealed class LinuxFileProbe : IFileProbe
         }
     }
 
+    public DateTimeOffset? LastWriteTime(string path)
+    {
+        try
+        {
+            return File.Exists(path) ? new DateTimeOffset(File.GetLastWriteTimeUtc(path), TimeSpan.Zero) : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
     private static async Task<IReadOnlyDictionary<string, FileStamp>> StatBatchAsync(string[] batch, CancellationToken ct)
     {
         var info = new ProcessStartInfo(StatPath)

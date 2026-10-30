@@ -20,6 +20,9 @@ internal sealed class FakeFileProbe : IFileProbe
     /// <summary>I testi leggibili, per percorso.</summary>
     public Dictionary<string, string> Texts { get; } = [];
 
+    /// <summary>L'ultima scrittura dei file, per percorso; un percorso che manca dà null.</summary>
+    public Dictionary<string, DateTimeOffset> WriteTimes { get; } = [];
+
     /// <summary>Se impostato, <see cref="StatAsync"/> lancia questo errore (come un gruppo che non risponde in tempo).</summary>
     public Exception? StatFails { get; set; }
 
@@ -48,4 +51,6 @@ internal sealed class FakeFileProbe : IFileProbe
     }
 
     public string? ReadText(string path) => Texts.GetValueOrDefault(path);
+
+    public DateTimeOffset? LastWriteTime(string path) => WriteTimes.TryGetValue(path, out var at) ? at : null;
 }

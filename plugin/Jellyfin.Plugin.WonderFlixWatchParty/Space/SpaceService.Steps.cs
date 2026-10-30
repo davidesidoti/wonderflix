@@ -128,7 +128,36 @@ public sealed partial class SpaceService
             .Select(g => g.Key)
             .ToHashSet();
         var byId = stamps.Values.DistinctBy(s => s.Id).ToDictionary(s => s.Id);
-        return new LiveTorrents(new TorrentIndex(facts, filesByHash), libraryFiles, byId, incomplete);
+        var pathsByHash = paths.ToDictionary(p => p.Key, p => (IReadOnlyList<string>)p.Value);
+        return new LiveTorrents(new TorrentIndex(facts, filesByHash), libraryFiles, byId, incomplete, pathsByHash);
+    }
+
+    /// <summary>
+    /// Gli hash dei download nelle code di Radarr e Sonarr (<c>downloadId</c>, senza badare a maiuscole): non ancora
+    /// importati, anche un'alternativa leggera che aspetta l'import a mano, quindi mai Pulizia. Un servizio non configurato
+    /// non ha coda; se una coda configurata non si legge gli hash sono null, con il codice dell'errore.
+    /// </summary>
+    private async Task<(HashSet<string>? Hashes, string? RadarrError, string? SonarrError)> QueuedHashesAsync(CancellationToken ct)
+    {
+        var hashes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var errors = new Dictionary<ArrKind, string>();
+        foreach (var kind in new[] { ArrKind.Radarr, ArrKind.Sonarr })
+        {
+            try
+            {
+                hashes.UnionWith((await arr.GetQueueAsync(kind, ct).ConfigureAwait(false)).Select(q => q?.DownloadId).OfType<string>());
+            }
+            catch (ArrException ex) when (ex.Error != ArrError.NotConfigured)
+            {
+                errors[kind] = UpcomingErrors.Code(ex.Error);
+            }
+            catch (ArrException)
+            {
+                // Non configurato: nessuna coda.
+            }
+        }
+
+        return (errors.Count == 0 ? hashes : null, errors.GetValueOrDefault(ArrKind.Radarr), errors.GetValueOrDefault(ArrKind.Sonarr));
     }
 
     // Il nome di un file di qBittorrent è relativo a save_path; i percorsi del seedbox sono Linux.
@@ -183,7 +212,10 @@ public sealed partial class SpaceService
         return StepResult.Ok(ids.Count);
     }
 
-    /// <summary>I torrent del titolo: quelli che si possono togliere ora vanno via con i file, gli altri in attesa di fine seed (spec U §6.3).</summary>
+    /// <summary>
+    /// I torrent del titolo: quelli che si possono togliere ora vanno via (con i file, se nessun torrent che resta ha i loro
+    /// percorsi), gli altri in attesa di fine seed (spec U §6.3).
+    /// </summary>
     private async Task<StepResult> RemoveTitleTorrentsAsync(Run run, CancellationToken ct)
     {
         if (run.Estimate is not { } estimate)
@@ -191,7 +223,8 @@ public sealed partial class SpaceService
             return StepResult.Skipped(SpaceDetails.NotConfigured);
         }
 
-        await qbit.DeleteAsync(estimate.RemoveNow, ct).ConfigureAwait(false);
+        // Dal vivo: un torrent apparso dopo FindTorrents sullo stesso percorso deve tenere i suoi dati.
+        await DeleteTorrentsAsync(estimate.RemoveNow, await ReadTorrentsAsync(ct).ConfigureAwait(false), ct).ConfigureAwait(false);
         var now = time.GetUtcNow();
         lock (_lock)
         {
@@ -214,16 +247,23 @@ public sealed partial class SpaceService
 
     /// <summary>
     /// Pulizia (spec U §6.2): un torrent, o tutti i torrent "solo torrent" del calcolo. Dal vivo devono essere ancora
-    /// senza copia in libreria, finiti, e la regola del seed deve lasciarli togliere.
+    /// senza copia in libreria, fuori dalle code di Radarr/Sonarr, finiti, e la regola del seed deve lasciarli togliere.
     /// </summary>
     private async Task<StepResult> RemoveCleanupTorrentsAsync(Run run, CancellationToken ct)
     {
         var wanted = run.Kind == SpaceKinds.Torrent ? new HashSet<string> { run.Key[TorrentPrefix.Length..] } : run.Scan.Torrents.Keys.ToHashSet();
+        var (queued, radarrError, sonarrError) = await QueuedHashesAsync(ct).ConfigureAwait(false);
+        if (queued is null)
+        {
+            // Senza le code non si sa quali download aspettano l'import: non si toglie nulla.
+            return StepResult.Failed(radarrError ?? sonarrError ?? SpaceDetails.Unreachable);
+        }
+
         var live = await ReadTorrentsAsync(ct).ConfigureAwait(false);
         var links = live.ById.ToDictionary(p => p.Key, p => p.Value.Links);
         var now = time.GetUtcNow();
         var torrentOnly = live.Index.Torrents
-            .Where(t => wanted.Contains(t.Hash) && SpaceMath.IsTorrentOnly(t.Hash, live.Index, links))
+            .Where(t => wanted.Contains(t.Hash) && !queued.Contains(t.Hash) && SpaceMath.IsTorrentOnly(t.Hash, live.Index, links))
             .ToList();
         var removable = torrentOnly.Where(t => t.Progress >= 1 && SeedRule.Check(t, settings.Seed, now).CanRemoveNow).ToList();
         if (run.Kind == SpaceKinds.Torrent && removable.Count == 0)
@@ -232,8 +272,9 @@ public sealed partial class SpaceService
             return StepResult.Skipped(torrentOnly.Count == 0 ? SpaceDetails.Gone : SpaceDetails.SeedRule);
         }
 
-        await qbit.DeleteAsync([.. removable.Select(t => t.Hash)], ct).ConfigureAwait(false);
-        run.Freed = removable.Sum(t => t.SizeBytes);
+        var withFiles = await DeleteTorrentsAsync([.. removable.Select(t => t.Hash)], live, ct).ConfigureAwait(false);
+        run.Removed = [.. removable.Select(t => t.Hash)];
+        run.Freed = FreedBy(withFiles, live);
         return StepResult.Ok(removable.Count);
     }
 
@@ -343,15 +384,41 @@ public sealed partial class SpaceService
     private StepResult ReadQuotaStep(Run run)
     {
         var quota = ReadQuota();
-        run.QuotaAfter = quota?.UsedBytes;
+        run.QuotaAfter = QuotaAfter(quota, run.StartedAt);
         var step = QuotaStep(quota);
         return new StepResult(step.State, step.Detail);
     }
 
     /// <summary>
-    /// I torrent letti dal vivo: indice, file in libreria, <c>stat</c> per id e il <c>content_path</c> dei torrent ancora
-    /// in download (spec U §5.3: i loro file, anche in una cartella temporanea, non sono orfani).
+    /// I torrent letti dal vivo: indice, file in libreria, <c>stat</c> per id, il <c>content_path</c> dei torrent ancora
+    /// in download (spec U §5.3: i loro file, anche in una cartella temporanea, non sono orfani) e tutti i percorsi di ogni
+    /// torrent, anche quelli che <c>stat</c> non vede.
     /// </summary>
     private sealed record LiveTorrents(
-        TorrentIndex Index, HashSet<FileId> LibraryFiles, IReadOnlyDictionary<FileId, FileStamp> ById, IReadOnlyList<string> IncompleteRoots);
+        TorrentIndex Index,
+        HashSet<FileId> LibraryFiles,
+        IReadOnlyDictionary<FileId, FileStamp> ById,
+        IReadOnlyList<string> IncompleteRoots,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> PathsByHash);
+
+    /// <summary>
+    /// Toglie i torrent da qBittorrent (spec U §6.3): con i file quelli i cui percorsi sono solo loro, senza file quelli che
+    /// condividono un percorso con un torrent che resta (cross-seed). Restituisce quelli tolti con i file.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> DeleteTorrentsAsync(IReadOnlyCollection<string> hashes, LiveTorrents live, CancellationToken ct)
+    {
+        var shared = SpaceMath.SharedWithStaying(hashes, live.PathsByHash);
+        List<string> withFiles = [.. hashes.Where(h => !shared.Contains(h))];
+        await qbit.DeleteAsync(withFiles, true, ct).ConfigureAwait(false);
+        await qbit.DeleteAsync([.. hashes.Where(shared.Contains)], false, ct).ConfigureAwait(false);
+        return withFiles;
+    }
+
+    /// <summary>I byte dei file (distinti) dei torrent tolti con i file: un file condiviso tra due di loro conta una volta.</summary>
+    private static long FreedBy(IEnumerable<string> withFiles, LiveTorrents live) =>
+        withFiles
+            .SelectMany(hash => live.Index.FilesByHash.GetValueOrDefault(hash) ?? [])
+            .Select(f => f.Id)
+            .Distinct()
+            .Sum(id => live.ById.TryGetValue(id, out var stamp) ? stamp.SizeBytes : 0);
 }

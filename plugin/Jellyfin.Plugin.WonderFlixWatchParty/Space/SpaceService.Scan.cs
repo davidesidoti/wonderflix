@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
 using Jellyfin.Plugin.WonderFlixWatchParty.Seerr;
@@ -24,11 +26,22 @@ public sealed partial class SpaceService
 
     private const double SecondsPerDay = 86_400;
 
+    /// <summary>Le cartelle degli extra di Jellyfin: i video lì dentro non sono doppioni del film (spec U §5.3).</summary>
+    private static readonly HashSet<string> ExtrasFolders = new(
+        ["extras", "featurettes", "behind the scenes", "deleted scenes", "interviews", "scenes", "shorts", "trailers", "other", "samples"],
+        StringComparer.OrdinalIgnoreCase);
+
     // 1 mentre un calcolo è in corso.
     private int _scanning;
 
-    /// <summary>Vero solo mentre un calcolo è in corso; prima del primo calcolo, o dopo uno fallito, è falso e <c>ScannedAt</c> resta com'era.</summary>
-    public bool Scanning => Volatile.Read(ref _scanning) != 0;
+    // 1 dopo il primo tentativo di calcolo, riuscito o no.
+    private int _attempted;
+
+    /// <summary>
+    /// Vero mentre un calcolo è in corso e dall'avvio fino al primo (spec U §7.3); dopo un primo tentativo fallito è falso
+    /// con <c>ScannedAt</c> null.
+    /// </summary>
+    public bool Scanning => Volatile.Read(ref _scanning) != 0 || (LastScan is null && Volatile.Read(ref _attempted) == 0);
 
     /// <summary>
     /// Calcola e sostituisce <see cref="LastScan"/> (spec U §7.3). Uno alla volta: una seconda chiamata durante un calcolo
@@ -61,6 +74,7 @@ public sealed partial class SpaceService
         }
         finally
         {
+            Volatile.Write(ref _attempted, 1);
             Volatile.Write(ref _scanning, 0);
         }
     }
@@ -76,16 +90,24 @@ public sealed partial class SpaceService
         List<SpaceKeptDto> kept;
         List<SpacePendingDto> pending;
         List<SpaceOperationDto> operations;
+        List<SpaceOperation> done;
         lock (_lock)
         {
+            // Le operazioni finite dopo il calcolo: le loro righe non valgono più fino al calcolo dopo.
+            done = [.. Book.Operations.Where(o => o.State == SpaceOperationStates.Done && !o.Auto && o.StartedAt > (scan?.ScannedAt ?? DateTimeOffset.MinValue))];
             keptKeys = [.. Book.Kept.Select(k => k.Key)];
             kept = [.. Book.Kept.Select(k => new SpaceKeptDto(k.Key, k.Title))];
             pending = [.. Book.Pending.Select(p => new SpacePendingDto(p.Hash, p.Name, p.Tracker, p.SizeBytes, p.ExpectedAt, p.Title))];
             operations = [.. Book.Operations.Take(OverviewOperations).Select(o => o.ToDto())];
         }
 
+        var doneKeys = done.Select(o => o.Key).ToHashSet();
+        var removedHashes = done.SelectMany(o => o.RemovedHashes).ToHashSet();
         bool Visible(IReadOnlyList<string> keys, IReadOnlyList<Guid> itemIds) =>
             !keys.Any(keptKeys.Contains) && !itemIds.Any(id => viewing.IsFavorite(callerId, id));
+
+        // Una riga fatta: la sua chiave, o la serie (per le stagioni); le altre chiavi di Keys servono solo ai tenuti.
+        bool Done(string key, string? seriesKey) => doneKeys.Contains(key) || (seriesKey is not null && doneKeys.Contains(seriesKey));
 
         IReadOnlyCollection<Guid> caller = [callerId];
         var highlyRated = (scan?.RatedItems ?? [])
@@ -97,9 +119,12 @@ public sealed partial class SpaceService
             Scanning,
             shown.Quota,
             shown.Breakdown,
-            [.. shown.Delete.Where(r => Visible(r.Keys, r.ItemIds)).Select(r => r.Dto)],
-            [.. shown.Lighten.Where(r => Visible(r.Keys, r.ItemIds)).Select(r => r.Dto)],
-            shown.Cleanup,
+            [.. shown.Delete.Where(r => Visible(r.Keys, r.ItemIds) && !Done(r.Dto.Key, r.Dto.SeriesKey)).Select(r => r.Dto)],
+            [.. shown.Lighten.Where(r => Visible(r.Keys, r.ItemIds) && !r.Keys.Any(doneKeys.Contains)).Select(r => r.Dto)],
+            new SpaceCleanupDto(
+                [.. shown.Cleanup.Torrents.Where(t => !removedHashes.Contains(t.Hash))],
+                [.. shown.Cleanup.Orphans.Where(f => !doneKeys.Contains(f.Key))],
+                [.. shown.Cleanup.Duplicates.Where(f => !doneKeys.Contains(f.Key))]),
             pending,
             kept,
             operations,
@@ -117,6 +142,12 @@ public sealed partial class SpaceService
         var (series, sonarrError) = await ReadSeriesAsync(ct).ConfigureAwait(false);
         var (live, qbitError) = await ReadScanTorrentsAsync(ct).ConfigureAwait(false);
         var (requests, seerrError) = await ReadRequestsAsync(ct).ConfigureAwait(false);
+        var (queued, radarrQueueError, sonarrQueueError) = live is null ? (null, null, null) : await QueuedHashesAsync(ct).ConfigureAwait(false);
+        if (live is not null && queued is null)
+        {
+            radarrError ??= radarrQueueError is null ? null : Unanswered("Radarr", radarrQueueError);
+            sonarrError ??= sonarrQueueError is null ? null : Unanswered("Sonarr", sonarrQueueError);
+        }
 
         // Senza i torrent non si sa quali file sono loro: niente orfani, si mostrerebbero file in seed.
         IReadOnlyList<string> scanVideos = live is null ? [] : [.. settings.ScanFolders.SelectMany(folder => probe.VideoFiles(folder)).Distinct()];
@@ -132,7 +163,7 @@ public sealed partial class SpaceService
         var now = time.GetUtcNow();
         var titles = BuildTitles(new ScanData(movies, series, requests, stamps, index, libraryFiles), now);
         var files = new Dictionary<string, ScanFile>();
-        var (cleanup, torrents) = BuildCleanup(live, scanVideos, duplicates, stamps, known, files, now);
+        var (cleanup, torrents) = BuildCleanup(live, queued, scanVideos, duplicates, stamps, known, files, now);
         var quota = ReadQuota();
         return new SpaceScan
         {
@@ -258,23 +289,45 @@ public sealed partial class SpaceService
     {
         var movieFiles = movies
             .Where(m => m.MovieFile?.Path is not null && !string.IsNullOrWhiteSpace(m.Path))
-            .SelectMany(m => probe.VideoFiles(m.Path!).Where(p => p != m.MovieFile!.Path).Select(p => (p, MovieKey(m.Id))));
+            .SelectMany(m => probe.VideoFiles(m.Path!)
+                .Where(p => p != m.MovieFile!.Path && !InExtras(p, m.Path!))
+                .Select(p => (p, MovieKey(m.Id))));
+
+        // Di una serie è doppione solo un video con lo stesso SxxEyy di un episodio che Sonarr conosce.
         var episodeFiles = series
             .Where(s => s.Files.Count > 0 && !string.IsNullOrWhiteSpace(s.Show.Path))
             .SelectMany(s =>
             {
-                var known = s.Files.Select(f => f.Path).ToHashSet();
-                return probe.VideoFiles(s.Show.Path!).Where(p => !known.Contains(p)).Select(p => (p, SeriesKey(s.Show.Id)));
+                var known = s.Files.Select(f => f.Path).OfType<string>().ToHashSet();
+                var codes = known.Select(EpisodeCode).OfType<(int, int)>().ToHashSet();
+                return probe.VideoFiles(s.Show.Path!)
+                    .Where(p => !known.Contains(p) && EpisodeCode(p) is { } code && codes.Contains(code))
+                    .Select(p => (p, SeriesKey(s.Show.Id)));
             });
         return [.. movieFiles.Concat(episodeFiles).DistinctBy(d => d.p)];
     }
 
+    /// <summary>Vero se tra la cartella del film e il file c'è una cartella di extra di Jellyfin.</summary>
+    private static bool InExtras(string path, string folder) =>
+        path[folder.TrimEnd('/').Length..].Split('/', StringSplitOptions.RemoveEmptyEntries).SkipLast(1).Any(ExtrasFolders.Contains);
+
+    /// <summary>Stagione ed episodio (<c>SxxEyy</c>) dal nome del file; null se non c'è.</summary>
+    private static (int Season, int Episode)? EpisodeCode(string path) =>
+        EpisodeCodeRegex().Match(Path.GetFileName(path)) is { Success: true } m
+            ? (int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture), int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture))
+            : null;
+
+    [GeneratedRegex(@"S(\d{1,2})E(\d{1,3})", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex EpisodeCodeRegex();
+
     /// <summary>
-    /// La Pulizia (spec U §5.3): i torrent finiti senza copia in libreria, i video delle cartelle di Pulizia che non sono di
-    /// nessun torrent e non hanno altri hardlink, e i doppioni. Riempie <paramref name="files"/> per le operazioni.
+    /// La Pulizia (spec U §5.3): i torrent finiti senza copia in libreria e fuori dalle code di Radarr/Sonarr (nessuno se
+    /// <paramref name="queued"/> è null), i video delle cartelle di Pulizia che non sono di nessun torrent e non hanno
+    /// altri hardlink, e i doppioni. Riempie <paramref name="files"/> per le operazioni.
     /// </summary>
     private (SpaceCleanupDto Cleanup, Dictionary<string, TorrentFacts> Torrents) BuildCleanup(
         LiveTorrents? live,
+        HashSet<string>? queued,
         IReadOnlyList<string> scanVideos,
         IReadOnlyList<(string Path, string Owner)> duplicates,
         IReadOnlyDictionary<string, FileStamp> stamps,
@@ -289,6 +342,8 @@ public sealed partial class SpaceService
         {
             var links = live.ById.ToDictionary(p => p.Key, p => p.Value.Links);
             foreach (var torrent in live.Index.Torrents.Where(t => t.Progress >= 1
+                && queued is not null
+                && !queued.Contains(t.Hash)
                 && live.Index.FilesByHash.GetValueOrDefault(t.Hash) is { Count: > 0 }
                 && SpaceMath.IsTorrentOnly(t.Hash, live.Index, links)))
             {
@@ -308,7 +363,18 @@ public sealed partial class SpaceService
 
             // Né di un torrent (anche con un altro percorso per lo stesso file), né di un download in corso, né della libreria.
             var torrentPaths = live.Index.FilesByHash.Values.SelectMany(f => f).Select(f => f.Path).ToHashSet();
-            orphans = [.. scanVideos
+
+            // Un torrent finito di cui stat non vede nessun file: save_path non è quello che vede Jellyfin, e il legame
+            // torrent -> file non è affidabile. Si mostrerebbero come orfani file in seed: niente orfani.
+            var unseen = live.Index.Torrents.Count(t => t.Progress >= 1
+                && live.PathsByHash.GetValueOrDefault(t.Hash) is { Count: > 0 }
+                && live.Index.FilesByHash.GetValueOrDefault(t.Hash) is not { Count: > 0 });
+            if (unseen > 0)
+            {
+                logger.LogWarning("Spazio: {Unseen} torrent finiti su {Total} senza file visibili, niente orfani in questo calcolo", unseen, live.Index.Torrents.Count);
+            }
+
+            orphans = unseen > 0 ? [] : [.. scanVideos
                 .Where(p => !torrentPaths.Contains(p)
                     && stamps.TryGetValue(p, out var stamp)
                     && stamp.Links == 1

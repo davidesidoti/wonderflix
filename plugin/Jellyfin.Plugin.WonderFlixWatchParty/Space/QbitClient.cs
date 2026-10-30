@@ -42,13 +42,13 @@ public sealed class QbitClient(
             HttpMethod.Get, "torrents/trackers?hash=" + Uri.EscapeDataString(hash), null, ReadListAsync<QbitTracker>, cancellationToken)
             .ConfigureAwait(false);
 
-    public Task DeleteAsync(IReadOnlyList<string> hashes, CancellationToken cancellationToken) =>
+    public Task DeleteAsync(IReadOnlyList<string> hashes, bool deleteFiles, CancellationToken cancellationToken) =>
         hashes.Count == 0
             ? Task.CompletedTask
             : SendAsync(
                 HttpMethod.Post,
                 "torrents/delete",
-                new Dictionary<string, string> { ["hashes"] = string.Join('|', hashes), ["deleteFiles"] = "true" },
+                new Dictionary<string, string> { ["hashes"] = string.Join('|', hashes), ["deleteFiles"] = deleteFiles ? "true" : "false" },
                 (_, _) => Task.FromResult(true),
                 cancellationToken);
 

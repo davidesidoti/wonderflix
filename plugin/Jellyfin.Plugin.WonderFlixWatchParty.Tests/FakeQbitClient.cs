@@ -14,6 +14,9 @@ internal sealed class FakeQbitClient : IQbitClient
     /// <summary>Gli elenchi di hash passati a <see cref="DeleteAsync"/>, uno per chiamata.</summary>
     public List<IReadOnlyList<string>> Deleted { get; } = [];
 
+    /// <summary>Per ogni hash tolto, se è andato via con i file.</summary>
+    public Dictionary<string, bool> DeleteFiles { get; } = [];
+
     /// <summary>Se impostato, ogni chiamata fallisce con questo errore.</summary>
     public QbitError? Fail { get; set; }
 
@@ -44,12 +47,19 @@ internal sealed class FakeQbitClient : IQbitClient
             Trackers.TryGetValue(hash, out var trackers) ? [.. trackers] : throw new QbitException(QbitError.NotFound));
     }
 
-    public Task DeleteAsync(IReadOnlyList<string> hashes, CancellationToken cancellationToken)
+    public Task DeleteAsync(IReadOnlyList<string> hashes, bool deleteFiles, CancellationToken cancellationToken)
     {
         Check();
         if (hashes.Count > 0)
         {
             Deleted.Add([.. hashes]);
+            foreach (var hash in hashes)
+            {
+                DeleteFiles[hash] = deleteFiles;
+            }
+
+            // Come qBittorrent: un torrent tolto non c'è più.
+            Torrents.RemoveAll(t => hashes.Contains(t.Hash));
             OnDelete?.Invoke(hashes);
         }
 

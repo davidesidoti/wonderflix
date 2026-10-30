@@ -141,6 +141,105 @@ public sealed class SpaceOperationsTests : IDisposable
         Assert.Equal(_time.GetUtcNow(), op.EndedAt);
         Assert.Equal(Size, op.EstimatedFreedBytes);
         Assert.Equal(1, Step(op, SpaceSteps.RemoveTorrents).Done);
+        Assert.True(_qbit.DeleteFiles[Hash]);
+    }
+
+    // Un altro torrent sullo stesso percorso del film (cross-seed), protetto o no.
+    private void CrossSeed(string hash, bool protect)
+    {
+        _qbit.Torrents.Add(new QbitTorrent
+        {
+            Hash = hash, Name = "Coco.cross", Size = Size, Progress = 1, SavePath = "/srv/downloads",
+            Ratio = protect ? 1 : 0.5,
+            SeedingTime = (long)(protect ? TimeSpan.FromDays(29) : TimeSpan.FromHours(1)).TotalSeconds,
+            Tracker = protect ? "https://itatorrents.xyz/announce/x" : "https://tracker.example/announce",
+        });
+        _qbit.Files[hash] = [new QbitFile { Name = "Coco.mkv", Size = Size }];
+    }
+
+    [Fact]
+    public async Task ACrossSeedWithAProtectedTorrentKeepsTheDataUntilItsSeedEnds()
+    {
+        CrossSeed("h2", protect: true);
+
+        var op = await RunAsync(SpaceKinds.Movie, "movie:12");
+
+        Assert.Equal([Hash], Assert.Single(_qbit.Deleted));
+        Assert.False(_qbit.DeleteFiles[Hash]);
+        Assert.Equal("h2", Assert.Single(_service.Read(b => b.Pending.ToList())).Hash);
+        Assert.Equal((0L, Size), (op.EstimatedFreedBytes, op.PendingBytes));
+
+        _time.Advance(TimeSpan.FromDays(1));
+        _qbit.Torrents.Single(t => t.Hash == "h2").SeedingTime = (long)TimeSpan.FromDays(30).TotalSeconds;
+        await _service.CheckPendingAsync(CancellationToken.None);
+
+        Assert.True(_qbit.DeleteFiles["h2"]);
+    }
+
+    [Fact]
+    public async Task APendingTorrentSharingItsPathWithOneThatStaysGoesWithoutFiles()
+    {
+        Protect(TimeSpan.FromDays(29));
+        await RunAsync(SpaceKinds.Movie, "movie:12");
+        CrossSeed("h3", protect: false);
+
+        _time.Advance(TimeSpan.FromDays(1));
+        _torrent.SeedingTime = (long)TimeSpan.FromDays(30).TotalSeconds;
+        await _service.CheckPendingAsync(CancellationToken.None);
+
+        Assert.False(_qbit.DeleteFiles[Hash]);
+        Assert.False(_qbit.DeleteFiles.ContainsKey("h3"));
+        Assert.Equal(0, Assert.Single(_service.Read(b => b.Operations.Where(o => o.Auto).ToList())).EstimatedFreedBytes);
+    }
+
+    private void ScanWithTorrent(string hash)
+    {
+        var scan = Scan();
+        _service.LastScan = scan with
+        {
+            Torrents = new Dictionary<string, TorrentFacts>(scan.Torrents) { [hash] = new(hash, "Coco.cross", "tracker.example", Size, 1, 0.5, 3600) },
+        };
+    }
+
+    [Fact]
+    public async Task RemovingOneCleanupTorrentOfACrossSeedLeavesTheData()
+    {
+        MakeTorrentOnly();
+        CrossSeed("h2", protect: false);
+
+        var op = await RunAsync(SpaceKinds.Torrent, "torrent:" + Hash);
+
+        Assert.False(_qbit.DeleteFiles[Hash]);
+        Assert.False(_qbit.DeleteFiles.ContainsKey("h2"));
+        Assert.Equal(0, op.EstimatedFreedBytes);
+    }
+
+    [Fact]
+    public async Task RemovingAllCleanupTorrentsOfACrossSeedTakesTheData()
+    {
+        MakeTorrentOnly();
+        CrossSeed("h2", protect: false);
+        ScanWithTorrent("h2");
+
+        var op = await RunAsync(SpaceKinds.AllTorrents, "all-torrents");
+
+        Assert.True(_qbit.DeleteFiles[Hash]);
+        Assert.True(_qbit.DeleteFiles["h2"]);
+        Assert.Equal(Size, op.EstimatedFreedBytes);
+    }
+
+    [Fact]
+    public async Task RemovingAllCleanupTorrentsLeavesTheDataToOneStillInSeed()
+    {
+        MakeTorrentOnly();
+        CrossSeed("h2", protect: true);
+        ScanWithTorrent("h2");
+
+        var op = await RunAsync(SpaceKinds.AllTorrents, "all-torrents");
+
+        Assert.False(_qbit.DeleteFiles[Hash]);
+        Assert.False(_qbit.DeleteFiles.ContainsKey("h2"));
+        Assert.Equal(0, op.EstimatedFreedBytes);
     }
 
     [Fact]
@@ -508,6 +607,7 @@ public sealed class SpaceOperationsTests : IDisposable
         _arr.DeleteMovie = _ =>
         {
             _probe.Texts[QuotaPath] = "/dev/sds1 1000 9000 9000";
+            _probe.WriteTimes[QuotaPath] = _time.GetUtcNow();
             return Task.CompletedTask;
         };
 
@@ -515,6 +615,57 @@ public sealed class SpaceOperationsTests : IDisposable
 
         Assert.Equal(3000L * 1024, op.QuotaBeforeBytes);
         Assert.Equal(1000L * 1024, op.QuotaAfterBytes);
+    }
+
+    [Fact]
+    public async Task AQuotaFileOlderThanTheOperationGivesNoAfter()
+    {
+        // Il cron riscrive il file ogni 10 minuti: letto subito dopo, è quello di prima.
+        _probe.WriteTimes[QuotaPath] = _time.GetUtcNow().AddMinutes(-3);
+
+        var op = await RunAsync(SpaceKinds.Movie, "movie:12");
+
+        Assert.Equal(3000L * 1024, op.QuotaBeforeBytes);
+        Assert.Null(op.QuotaAfterBytes);
+        Assert.Equal(SpaceStepStates.Done, Step(op, SpaceSteps.ReadQuota).State);
+
+        Protect(TimeSpan.FromDays(29));
+        _qbit.Torrents.Add(_torrent);
+        await RunAsync(SpaceKinds.Movie, "movie:12");
+        _time.Advance(TimeSpan.FromDays(1));
+        _torrent.SeedingTime = (long)TimeSpan.FromDays(30).TotalSeconds;
+        await _service.CheckPendingAsync(CancellationToken.None);
+
+        var auto = Assert.Single(_service.Read(b => b.Operations.Where(o => o.Auto).ToList()));
+        Assert.Equal(3000L * 1024, auto.QuotaBeforeBytes);
+        Assert.Null(auto.QuotaAfterBytes);
+    }
+
+    [Fact]
+    public async Task AQueuedDownloadIsNotRemovedByCleanup()
+    {
+        MakeTorrentOnly();
+        _arr.Queue = _ => Task.FromResult<IReadOnlyList<ArrQueueItem?>>([new ArrQueueItem { Id = 3, DownloadId = Hash.ToUpperInvariant() }]);
+
+        var single = await RunAsync(SpaceKinds.Torrent, "torrent:" + Hash);
+        var all = await RunAsync(SpaceKinds.AllTorrents, "all-torrents");
+
+        _arr.Queue = _ => Task.FromException<IReadOnlyList<ArrQueueItem?>>(new ArrException(ArrError.Unreachable));
+        var unreadable = await RunAsync(SpaceKinds.AllTorrents, "all-torrents");
+
+        Assert.Equal(SpaceDetails.Gone, Step(single, SpaceSteps.RemoveTorrents).Detail);
+        Assert.Equal(0, Step(all, SpaceSteps.RemoveTorrents).Done);
+        var step = Step(unreadable, SpaceSteps.RemoveTorrents);
+        Assert.Equal((SpaceStepStates.Failed, SpaceDetails.Unreachable), (step.State, step.Detail));
+        Assert.Empty(_qbit.Deleted);
+    }
+
+    [Fact]
+    public void AllTorrentsHasADescriptiveTitle()
+    {
+        var (_, id) = _service.Start(SpaceKinds.AllTorrents, AllTorrentsKey);
+
+        Assert.Equal("Pulizia: torrent senza libreria", _service.Operation(id!)!.Title);
     }
 
     [Fact]

@@ -69,7 +69,7 @@ public sealed partial class SpaceService
 
             operation.State = SpaceOperationStates.Running;
             operation.QuotaBeforeBytes = before?.UsedBytes;
-            run = new Run(operation.Kind, operation.Key, operation.Title, scan);
+            run = new Run(operation.Kind, operation.Key, operation.Title, scan) { StartedAt = operation.StartedAt };
             names = [.. operation.Steps.Select(s => s.Name)];
             Save();
         }
@@ -89,6 +89,7 @@ public sealed partial class SpaceService
                 var step = operation.Steps[i];
                 (step.State, step.Detail, step.Done, step.Waiting) = (result.State, result.Detail, result.Done, result.Waiting);
                 (operation.EstimatedFreedBytes, operation.PendingBytes, operation.QuotaAfterBytes) = (run.Freed, run.Pending, run.QuotaAfter);
+                operation.RemovedHashes = [.. run.Removed];
                 if (failed)
                 {
                     Abort(operation);
@@ -249,6 +250,8 @@ public sealed partial class SpaceService
 
         public SpaceScan Scan { get; }
 
+        public DateTimeOffset StartedAt { get; init; }
+
         /// <summary>Id di Radarr/Sonarr dalla chiave (<c>movie:12</c>, <c>series:5</c>, <c>season:5:2</c>); 0 per gli altri.</summary>
         public int ArrId { get; }
 
@@ -267,5 +270,8 @@ public sealed partial class SpaceService
         public long Pending { get; set; }
 
         public long? QuotaAfter { get; set; }
+
+        /// <summary>Gli hash che la Pulizia ha tolto davvero.</summary>
+        public IReadOnlyList<string> Removed { get; set; } = [];
     }
 }

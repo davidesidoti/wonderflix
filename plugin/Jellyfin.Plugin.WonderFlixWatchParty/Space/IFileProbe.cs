@@ -25,6 +25,9 @@ public interface IFileProbe
 
     /// <summary>Il testo del file, null se non si legge.</summary>
     string? ReadText(string path);
+
+    /// <summary>L'ultima scrittura del file (UTC), null se non c'è.</summary>
+    DateTimeOffset? LastWriteTime(string path);
 }
 
 /// <summary>Costanti e funzioni pure per i file del seedbox (spec U §12).</summary>

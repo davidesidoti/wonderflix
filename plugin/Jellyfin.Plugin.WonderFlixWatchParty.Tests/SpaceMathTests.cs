@@ -149,6 +149,27 @@ public class SpaceMathTests
         Assert.Equal(DateTimeOffset.Parse("2026-11-24T12:00:00Z"), result.FreeLaterAt);
         Assert.Equal(["a"], result.RemoveNow);
         Assert.Equal(["b"], result.RemoveLater);
+
+        // "a" va via ora ma senza file: il percorso resta a "b", che lo libera quando scade il seed.
+        var paths = new Dictionary<string, IReadOnlyList<string>> { ["a"] = ["/dl/1.mkv"], ["b"] = ["/dl/1.mkv"] };
+        Assert.Equal(["a"], SpaceMath.SharedWithStaying(result.RemoveNow, paths));
+        Assert.Empty(SpaceMath.SharedWithStaying(result.RemoveLater, new Dictionary<string, IReadOnlyList<string>> { ["b"] = ["/dl/1.mkv"] }));
+    }
+
+    [Fact]
+    public void TorrentsLeavingTogetherKeepTheirFilesOnlyForThoseThatStay()
+    {
+        var paths = new Dictionary<string, IReadOnlyList<string>>
+        {
+            ["a"] = ["/dl/1.mkv"],
+            ["b"] = ["/dl/1.mkv"],
+            ["c"] = ["/dl/2.mkv", "/dl/3.mkv"],
+            ["d"] = ["/dl/3.mkv"],
+            ["e"] = ["/dl/4.mkv"],
+        };
+
+        Assert.Empty(SpaceMath.SharedWithStaying(["a", "b", "e"], paths));
+        Assert.Equal(["c"], SpaceMath.SharedWithStaying(["c", "e", "gone"], paths));
     }
 
     [Fact]

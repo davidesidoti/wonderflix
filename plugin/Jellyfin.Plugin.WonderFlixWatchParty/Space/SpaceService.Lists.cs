@@ -123,7 +123,8 @@ public sealed partial class SpaceService
                 [.. files.Select(f => f.Path).OfType<string>()],
                 seriesView, seriesView?.Added ?? show.Added, [.. showRequests.Select(x => x.Fact!)],
                 seasonRatings.Count == 0 ? (null, 0) : (seasonRatings.Average(r => r.Avg!.Value), seasonRatings.Sum(r => r.Count)),
-                false, genres, show.TmdbId, show.Path));
+                false, genres, show.TmdbId, show.Path,
+                [.. (show.Seasons ?? []).OfType<SonarrSeason>().Select(season => SeasonKey(show.Id, season.SeasonNumber))]));
 
             // Di una serie in corso mai l'ultima stagione con episodi.
             var last = withFiles.Count == 0 ? 0 : withFiles.Max(s => s.SeasonNumber);
@@ -208,7 +209,8 @@ public sealed partial class SpaceService
             signals.LastOpened,
             t.Added,
             t.Genres);
-        IReadOnlyList<string> keys = t.SeriesKey is { } series ? [t.Key, series] : [t.Key];
+        // Una stagione si nasconde con la sua serie, una serie con una qualsiasi delle sue stagioni.
+        IReadOnlyList<string> keys = [t.Key, .. t.SeriesKey is { } series ? [series] : Array.Empty<string>(), .. t.SeasonKeys ?? []];
         return (new ScanRow<SpaceCandidateDto>(dto, keys, t.ItemIds), new ScanTitle(t.OperationTitle, t.TmdbId, t.Folder, files, hashes));
     }
 
@@ -307,7 +309,8 @@ public sealed partial class SpaceService
         bool SequelComing,
         IReadOnlyList<string> Genres,
         int TmdbId,
-        string? Folder);
+        string? Folder,
+        IReadOnlyList<string>? SeasonKeys = null);
 
     /// <summary>Le liste dei titoli, già in ordine, e i titoli che si possono avviare (spec U §5.1, §5.2 e §6.2).</summary>
     private sealed record TitleLists(

@@ -118,6 +118,17 @@ public static class SpaceMath
         return goes;
     }
 
+    /// <summary>
+    /// Dei torrent tolti insieme, quelli che devono andare via senza i file: hanno un percorso in comune con un torrent che
+    /// resta (cross-seed). I dati spariscono con l'ultimo torrent su quel percorso (spec U §6.3).
+    /// </summary>
+    public static IReadOnlySet<string> SharedWithStaying(
+        IReadOnlyCollection<string> removing, IReadOnlyDictionary<string, IReadOnlyList<string>> pathsByHash)
+    {
+        var staying = pathsByHash.Where(p => !removing.Contains(p.Key)).SelectMany(p => p.Value).ToHashSet();
+        return removing.Where(hash => pathsByHash.GetValueOrDefault(hash)?.Any(staying.Contains) == true).ToHashSet();
+    }
+
     /// <summary>Vero se ogni file del torrent ha tanti hardlink quanti sono i percorsi distinti di torrent: nessun hardlink fuori dai torrent.</summary>
     public static bool IsTorrentOnly(string hash, TorrentIndex index, IReadOnlyDictionary<FileId, int> links) =>
         index.FilesByHash.TryGetValue(hash, out var files)

@@ -134,6 +134,16 @@ public sealed class LinuxFileProbeTests : IDisposable
     }
 
     [Fact]
+    public void LastWriteTimeIsNullWhenMissing()
+    {
+        var file = Make("quota.txt");
+        File.SetLastWriteTimeUtc(file, new DateTime(2026, 10, 30, 12, 0, 0, DateTimeKind.Utc));
+
+        Assert.Equal(new DateTimeOffset(2026, 10, 30, 12, 0, 0, TimeSpan.Zero), probe.LastWriteTime(file));
+        Assert.Null(probe.LastWriteTime(Root("manca.txt")));
+    }
+
+    [Fact]
     public void IsUnderRejectsDotDot()
     {
         var root = Root("downloads");

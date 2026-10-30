@@ -161,6 +161,9 @@ public sealed class SpaceOperation
 
     public long? QuotaAfterBytes { get; set; }
 
+    /// <summary>Gli hash che un'operazione della Pulizia ha tolto davvero: la panoramica li nasconde fino al calcolo dopo (spec U §6.1).</summary>
+    public List<string> RemovedHashes { get; set; } = [];
+
     public List<SpaceStep> Steps { get; set; } = [];
 
     public SpaceOperationDto ToDto() => new(
