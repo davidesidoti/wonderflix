@@ -43,6 +43,7 @@ abstract final class PluginFeatures {
 
   /// I download automatici (spec T §8), solo admin.
   static const downloads = 'downloads';
+  static const space = 'space';
 
   /// I consigli tra amici (spec N §6.6).
   static const recommendations = 'recommendations';

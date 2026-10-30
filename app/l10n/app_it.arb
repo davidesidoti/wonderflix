@@ -1199,6 +1199,7 @@
   "downloadsNextSearchOn": "prossima ricerca il {date}",
   "@downloadsNextSearchOn": {"placeholders": {"date": {"type": "String"}}},
   "adminTabDownloads": "Download",
+  "adminTabSpace": "Spazio",
   "downloadsDisabledNote": "Download automatici spenti: WonderFlix non scarica da solo. Ricerca e Da ripassare funzionano.",
   "downloadsSectionNeedsYou": "Serve te",
   "downloadsSectionChosen": "Scelte automatiche",

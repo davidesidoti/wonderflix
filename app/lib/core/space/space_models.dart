@@ -467,6 +467,25 @@ class SpaceOverview {
   final List<String> topGenres;
   final SpaceErrors errors;
 
+  /// Per chi non e' admin o senza la funzione: niente da mostrare.
+  static const empty = SpaceOverview(
+    scanning: false,
+    breakdown: SpaceBreakdown(
+        moviesBytes: 0,
+        seriesBytes: 0,
+        animeBytes: 0,
+        torrentOnlyBytes: 0,
+        otherBytes: 0),
+    delete: [],
+    lighten: [],
+    cleanup: SpaceCleanup(),
+    pending: [],
+    kept: [],
+    operations: [],
+    topGenres: [],
+    errors: SpaceErrors(),
+  );
+
   static SpaceOverview? fromJson(Object? json) => _guard(
       json,
       (j) => SpaceOverview(

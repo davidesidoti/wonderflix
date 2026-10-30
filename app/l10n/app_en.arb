@@ -1043,6 +1043,7 @@
   "downloadsNextSearchOn": "next search on {date}",
   "@downloadsNextSearchOn": {"placeholders": {"date": {"type": "String"}}},
   "adminTabDownloads": "Downloads",
+  "adminTabSpace": "Storage",
   "downloadsDisabledNote": "Automatic downloads are off: WonderFlix does not download by itself. Search and To review still work.",
   "downloadsSectionNeedsYou": "Needs you",
   "downloadsSectionChosen": "Automatic picks",

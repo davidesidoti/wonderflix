@@ -9,6 +9,7 @@ import '../../ui/states.dart';
 import '../../ui/wf_tab_button.dart';
 import '../auth/session_controller.dart';
 import '../downloads/downloads_tab.dart';
+import '../space/space_tab.dart';
 import '../social/social_providers.dart';
 import 'activity_tab.dart';
 import 'admin_navigation.dart';
@@ -86,12 +87,14 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
           inbox: f.inbox,
           account: f.account,
           downloads: f.downloads,
+          space: f.space,
           known: f.known,
         )));
     final tabs = adminTabs(
         inbox: features.inbox,
         account: features.account,
-        downloads: features.downloads);
+        downloads: features.downloads,
+        space: features.space);
     final waitingForPlugin = !features.known && !tabs.contains(widget.tab);
     final tab = tabs.contains(widget.tab) || waitingForPlugin
         ? widget.tab
@@ -144,6 +147,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                   AdminTab.maintenance => MaintenanceTab(header: header),
                   AdminTab.activity => ActivityTab(header: header),
                   AdminTab.downloads => DownloadsTab(header: header),
+                  AdminTab.space => SpaceTab(header: header),
                   AdminTab.wonderflix => WonderflixTab(header: header),
                 },
         ),

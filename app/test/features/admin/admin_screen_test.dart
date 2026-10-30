@@ -244,6 +244,26 @@ void main() {
     expect(find.text('viviroby'), findsOneWidget);
   });
 
+  testWidgets('con la funzione spazio: la scheda Spazio si apre',
+      (tester) async {
+    await pumpScreen(tester,
+        session: FakeSessionController(const SessionSignedIn(testAdmin)),
+        location: '/admin?tab=space',
+        features: const SocialFeatures(inbox: true, space: true));
+
+    expect(find.byKey(const ValueKey('admin-tab-space')), findsOneWidget);
+  });
+
+  testWidgets('senza la funzione spazio: niente scheda, si mostra Sessioni',
+      (tester) async {
+    await pumpScreen(tester,
+        session: FakeSessionController(const SessionSignedIn(testAdmin)),
+        location: '/admin?tab=space');
+
+    expect(find.byKey(const ValueKey('admin-tab-space')), findsNothing);
+    expect(find.text('viviroby'), findsOneWidget);
+  });
+
   testWidgets('con i contatti del plugin: Utenti dopo Sessioni', (tester) async {
     final router = await pumpScreen(tester,
         session: FakeSessionController(const SessionSignedIn(testAdmin)),

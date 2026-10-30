@@ -10,6 +10,7 @@ enum AdminTab {
   maintenance,
   activity,
   downloads,
+  space,
   wonderflix;
 
   /// Dal parametro `tab` dell'indirizzo: senza, o con un valore
@@ -20,17 +21,19 @@ enum AdminTab {
 
 /// Le schede da mostrare: Utenti solo con i contatti per il recupero del
 /// plugin (`account`, spec L §9.5), WonderFlix solo con la cassetta
-/// (`inbox`, spec J §7), Download solo con la funzione `downloads` (spec T).
+/// (`inbox`, spec J §7), Download solo con la funzione `downloads` (spec T), Spazio solo con `space` (spec U).
 List<AdminTab> adminTabs({
   required bool inbox,
   required bool account,
   required bool downloads,
+  required bool space,
 }) =>
     [
       for (final tab in AdminTab.values)
         if ((tab != AdminTab.wonderflix || inbox) &&
             (tab != AdminTab.users || account) &&
-            (tab != AdminTab.downloads || downloads))
+            (tab != AdminTab.downloads || downloads) &&
+            (tab != AdminTab.space || space))
           tab,
     ];
 
@@ -40,6 +43,7 @@ String adminTabLabel(AppLocalizations l, AdminTab tab) => switch (tab) {
       AdminTab.maintenance => l.adminTabMaintenance,
       AdminTab.activity => l.adminTabActivity,
       AdminTab.downloads => l.adminTabDownloads,
+      AdminTab.space => l.adminTabSpace,
       AdminTab.wonderflix => l.adminTabWonderflix,
     };
 

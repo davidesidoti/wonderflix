@@ -30,6 +30,7 @@ class SocialFeatures {
     this.upcomingMovies = false,
     this.calendar = false,
     this.downloads = false,
+    this.space = false,
     this.recommendations = false,
     this.friendsActivity = false,
     this.match = false,
@@ -81,6 +82,7 @@ class SocialFeatures {
 
   /// I download automatici (spec T §8): non dipendono dai watch party.
   final bool downloads;
+  final bool space;
 
   /// I consigli tra amici (spec N §7.1): come gli amici, solo con l'accesso
   /// ai watch party (piano 20b, decisione 7).
@@ -122,6 +124,7 @@ class SocialFeatures {
       other.upcomingMovies == upcomingMovies &&
       other.calendar == calendar &&
       other.downloads == downloads &&
+      other.space == space &&
       other.recommendations == recommendations &&
       other.friendsActivity == friendsActivity &&
       other.match == match &&
@@ -143,6 +146,7 @@ class SocialFeatures {
       upcomingMovies,
       calendar,
       downloads,
+      space,
       recommendations,
       friendsActivity,
       match,
@@ -154,7 +158,7 @@ class SocialFeatures {
   String toString() => 'SocialFeatures(friends: $friends, parties: $parties, '
       'inbox: $inbox, requests: $requests, collections: $collections, '
       'avatars: $avatars, account: $account, home: $home, '
-      'upcomingSeries: $upcomingSeries, upcomingMovies: $upcomingMovies, calendar: $calendar, downloads: $downloads, '
+      'upcomingSeries: $upcomingSeries, upcomingMovies: $upcomingMovies, calendar: $calendar, downloads: $downloads, space: $space, '
       'recommendations: $recommendations, friendsActivity: $friendsActivity, match: $match, ratings: $ratings, reports: $reports, known: $known)';
 }
 
@@ -259,6 +263,7 @@ class SocialAvailability extends Notifier<SocialFeatures> {
         upcomingMovies: info.features.contains(PluginFeatures.upcomingMovies),
         calendar: info.features.contains(PluginFeatures.calendar),
         downloads: info.features.contains(PluginFeatures.downloads),
+        space: info.features.contains(PluginFeatures.space),
         recommendations:
             _canJoin && info.features.contains(PluginFeatures.recommendations),
         friendsActivity:
