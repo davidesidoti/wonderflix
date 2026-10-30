@@ -29,6 +29,7 @@ public sealed class SpaceOperationsTests : IDisposable
     private readonly FakeQbitClient _qbit = new();
     private readonly FakeFileProbe _probe = new();
     private readonly FakeLibraryRefresh _library = new();
+    private readonly FakeServer _server = new();
     private readonly FakeSpaceSettings _settings = new() { QbitUrl = "http://127.0.0.1:17541", QuotaFile = QuotaPath };
     private readonly List<string> _calls = [];
     private readonly QbitTorrent _torrent = new()
@@ -79,6 +80,10 @@ public sealed class SpaceOperationsTests : IDisposable
         _library,
         _settings,
         new SpaceStore(_folder.SpaceFile, NullLogger<SpaceStore>.Instance),
+        new FakeViewingFacts(),
+        new FakeSeriesIndex(),
+        TestRatings.Create(_server, _folder, _time, TestRecommendations.Friends(_server, _folder, _time)),
+        _server,
         _time,
         NullLogger<SpaceService>.Instance);
 

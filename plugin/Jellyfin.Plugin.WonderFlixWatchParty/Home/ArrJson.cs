@@ -37,6 +37,9 @@ public sealed class SonarrSeries
 
     public string? Title { get; set; }
 
+    /// <summary>L'anno della prima stagione; 0 se Sonarr non lo sa (spec U §5.1).</summary>
+    public int Year { get; set; }
+
     public int TvdbId { get; set; }
 
     public int TmdbId { get; set; }

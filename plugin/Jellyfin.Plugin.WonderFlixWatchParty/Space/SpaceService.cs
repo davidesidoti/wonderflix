@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Threading.Channels;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
+using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
 using Jellyfin.Plugin.WonderFlixWatchParty.Seerr;
 using Microsoft.Extensions.Logging;
@@ -8,8 +9,8 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Space;
 
 /// <summary>
-/// Lo spazio sul seedbox (spec U §6 e §7.3): tenuti, torrent in attesa di fine seed e le operazioni,
-/// una alla volta da una coda (SpaceService.Operations.cs). Stato in <see cref="SpaceBook"/>, su disco con
+/// Lo spazio sul seedbox (spec U §6 e §7.3): il calcolo e la panoramica (SpaceService.Scan.cs), tenuti, torrent in
+/// attesa di fine seed e le operazioni, una alla volta da una coda (SpaceService.Operations.cs). Stato in <see cref="SpaceBook"/>, su disco con
 /// <see cref="SpaceStore"/>. Sicuro tra thread: il libro sta sotto un lock che non resta mai preso durante un'attesa.
 /// </summary>
 public sealed partial class SpaceService(
@@ -21,6 +22,10 @@ public sealed partial class SpaceService(
     ILibraryRefresh library,
     ISpaceSettings settings,
     SpaceStore store,
+    IViewingFacts viewing,
+    ISeriesIndex jellyfin,
+    RatingService ratings,
+    IUserDirectory users,
     TimeProvider time,
     ILogger<SpaceService> logger)
 {

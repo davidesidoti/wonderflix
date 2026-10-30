@@ -1,0 +1,345 @@
+using System.Security.Cryptography;
+using System.Text;
+using Jellyfin.Plugin.WonderFlixWatchParty.Home;
+using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
+using Jellyfin.Plugin.WonderFlixWatchParty.Seerr;
+using Microsoft.Extensions.Logging;
+
+namespace Jellyfin.Plugin.WonderFlixWatchParty.Space;
+
+/// <summary>Il calcolo dello spazio e la panoramica per chi chiama (spec U §5 e §7.3).</summary>
+public sealed partial class SpaceService
+{
+    /// <summary>Richieste di Seerr per pagina (decisione 9).</summary>
+    private const int SeerrPageSize = 100;
+
+    /// <summary>L'utente Seerr con cui si leggono le richieste: l'admin (decisione 9).</summary>
+    private const int SeerrAdmin = 1;
+
+    /// <summary>Quanti "generi che guardi spesso" (spec U §4.4).</summary>
+    private const int TopGenreCount = 3;
+
+    /// <summary>Le operazioni nella panoramica, dalla più recente.</summary>
+    private const int OverviewOperations = 20;
+
+    private const double SecondsPerDay = 86_400;
+
+    // 1 mentre un calcolo è in corso.
+    private int _scanning;
+
+    /// <summary>Vero durante un calcolo e fino al primo risultato (decisione 1).</summary>
+    public bool Scanning => Volatile.Read(ref _scanning) != 0 || LastScan is null;
+
+    /// <summary>
+    /// Calcola e sostituisce <see cref="LastScan"/> (spec U §7.3). Uno alla volta: una seconda chiamata durante un calcolo
+    /// ritorna subito. Se il calcolo non riesce (<c>stat</c> che non risponde, Jellyfin che lancia) resta quello di prima:
+    /// file che non si sono potuti leggere non vanno trattati come mancanti.
+    /// </summary>
+    public async Task ScanAsync(CancellationToken ct)
+    {
+        if (Interlocked.Exchange(ref _scanning, 1) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var scan = await BuildScanAsync(ct).ConfigureAwait(false);
+            LastScan = scan;
+            logger.LogInformation(
+                "Spazio: calcolo finito, {Delete} da cancellare, {Lighten} da alleggerire, {Torrents} torrent, {Orphans} orfani, {Duplicates} doppioni",
+                scan.Delete.Count,
+                scan.Lighten.Count,
+                scan.Cleanup.Torrents.Count,
+                scan.Cleanup.Orphans.Count,
+                scan.Cleanup.Duplicates.Count);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            // Solo il tipo: il messaggio potrebbe contenere un percorso.
+            logger.LogWarning("Spazio: calcolo non riuscito ({Error}), resta quello di prima", ex.GetType().Name);
+        }
+        finally
+        {
+            Volatile.Write(ref _scanning, 0);
+        }
+    }
+
+    /// <summary>
+    /// <c>GET Space</c> (spec U §7.4): l'ultimo calcolo senza i titoli tenuti e senza i preferiti di chi chiama (spec U §4.2),
+    /// con i suoi generi (decisione 14), i torrent in attesa, i tenuti e le ultime operazioni.
+    /// </summary>
+    public SpaceOverviewDto Overview(Guid callerId)
+    {
+        var scan = LastScan;
+        HashSet<string> keptKeys;
+        List<SpaceKeptDto> kept;
+        List<SpacePendingDto> pending;
+        List<SpaceOperationDto> operations;
+        lock (_lock)
+        {
+            keptKeys = [.. Book.Kept.Select(k => k.Key)];
+            kept = [.. Book.Kept.Select(k => new SpaceKeptDto(k.Key, k.Title))];
+            pending = [.. Book.Pending.Select(p => new SpacePendingDto(p.Hash, p.Name, p.Tracker, p.SizeBytes, p.ExpectedAt, p.Title))];
+            operations = [.. Book.Operations.Take(OverviewOperations).Select(o => o.ToDto())];
+        }
+
+        bool Visible(IReadOnlyList<string> keys, IReadOnlyList<Guid> itemIds) =>
+            !keys.Any(keptKeys.Contains) && !itemIds.Any(id => viewing.IsFavorite(callerId, id));
+
+        var highScore = settings.HighRating * ScorePerStar;
+        IReadOnlyCollection<Guid> caller = [callerId];
+        var highlyRated = (scan?.RatedItems ?? [])
+            .Where(id => ratings.Of(id, caller).TryGetValue(callerId, out var rating) && rating.Score >= highScore)
+            .ToHashSet();
+        var shown = scan ?? new SpaceScan();
+        return new SpaceOverviewDto(
+            shown.ScannedAt,
+            Scanning,
+            shown.Quota,
+            shown.Breakdown,
+            [.. shown.Delete.Where(r => Visible(r.Keys, r.ItemIds)).Select(r => r.Dto)],
+            [.. shown.Lighten.Where(r => Visible(r.Keys, r.ItemIds)).Select(r => r.Dto)],
+            shown.Cleanup,
+            pending,
+            kept,
+            operations,
+            viewing.TopGenres(callerId, highlyRated, TopGenreCount),
+            shown.Errors);
+    }
+
+    /// <summary>La chiave di un file orfano o doppione: i primi 16 caratteri esadecimali dello SHA-256 del percorso (decisione 11).</summary>
+    internal static string FileKey(string path) =>
+        "file:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(path)))[..16];
+
+    private async Task<SpaceScan> BuildScanAsync(CancellationToken ct)
+    {
+        var (movies, radarrError) = await ReadMoviesAsync(ct).ConfigureAwait(false);
+        var (series, sonarrError) = await ReadSeriesAsync(ct).ConfigureAwait(false);
+        var (live, qbitError) = await ReadScanTorrentsAsync(ct).ConfigureAwait(false);
+        var (requests, seerrError) = await ReadRequestsAsync(ct).ConfigureAwait(false);
+
+        // Senza i torrent non si sa quali file sono loro: niente orfani, si mostrerebbero file in seed.
+        IReadOnlyList<string> scanVideos = live is null ? [] : [.. settings.ScanFolders.SelectMany(folder => probe.VideoFiles(folder)).Distinct()];
+        var duplicates = DuplicateCandidates(movies, series);
+        List<string> libraryPaths = [.. movies.Select(m => m.MovieFile?.Path).Concat(series.SelectMany(s => s.Files.Select(f => f.Path))).OfType<string>()];
+        var stamps = await probe.StatAsync(
+            [.. libraryPaths.Concat(duplicates.Select(d => d.Path)).Concat(scanVideos).Distinct()], ct).ConfigureAwait(false);
+
+        var index = live?.Index ?? new TorrentIndex([], new Dictionary<string, IReadOnlyList<TorrentFile>>());
+        var libraryFiles = libraryPaths.Where(stamps.ContainsKey).Select(p => stamps[p].Id).ToHashSet();
+        libraryFiles.UnionWith(live?.LibraryFiles ?? []);
+        var now = time.GetUtcNow();
+        var titles = BuildTitles(new ScanData(movies, series, requests, stamps, index, libraryFiles), now);
+        var files = new Dictionary<string, ScanFile>();
+        var (cleanup, torrents) = BuildCleanup(live, scanVideos, duplicates, stamps, files, now);
+        var quota = ReadQuota();
+        return new SpaceScan
+        {
+            ScannedAt = now,
+            Quota = quota is null ? null : new SpaceQuotaDto(quota.UsedBytes, quota.LimitBytes),
+            Breakdown = Breakdown(movies, series, cleanup, quota),
+            Delete = titles.Delete,
+            Lighten = titles.Lighten,
+            Cleanup = cleanup,
+            Errors = new SpaceErrorsDto(radarrError, sonarrError, qbitError, seerrError, quota is null ? SpaceDetails.NotConfigured : null),
+            RatedItems = titles.RatedItems,
+            Titles = titles.Titles,
+            Files = files,
+            Torrents = torrents,
+        };
+    }
+
+    private async Task<(IReadOnlyList<RadarrMovie> Movies, string? Error)> ReadMoviesAsync(CancellationToken ct)
+    {
+        try
+        {
+            return ([.. (await arr.GetLibraryMoviesAsync(ct).ConfigureAwait(false)).OfType<RadarrMovie>()], null);
+        }
+        catch (ArrException ex)
+        {
+            return ([], Unanswered("Radarr", UpcomingErrors.Code(ex.Error)));
+        }
+    }
+
+    /// <summary>Le serie di Sonarr con i file dei loro episodi; una serie tolta nel frattempo (404) si salta.</summary>
+    private async Task<(IReadOnlyList<ScanSeries> Series, string? Error)> ReadSeriesAsync(CancellationToken ct)
+    {
+        try
+        {
+            var found = new List<ScanSeries>();
+            foreach (var show in (await arr.GetSeriesAsync(ct).ConfigureAwait(false)).OfType<SonarrSeries>())
+            {
+                try
+                {
+                    found.Add(new ScanSeries(show, [.. (await arr.GetEpisodeFilesAsync(show.Id, ct).ConfigureAwait(false)).OfType<ArrFile>()]));
+                }
+                catch (ArrException ex) when (ex.Status == 404)
+                {
+                    // Tolta nel frattempo.
+                }
+            }
+
+            return (found, null);
+        }
+        catch (ArrException ex)
+        {
+            return ([], Unanswered("Sonarr", UpcomingErrors.Code(ex.Error)));
+        }
+    }
+
+    /// <summary>
+    /// I torrent con i loro file, con l'aiuto delle operazioni (<see cref="ReadTorrentsAsync"/>): <c>torrents/files</c> per
+    /// ognuno, perché <c>content_path</c> da solo non distingue un torrent di un file da una cartella.
+    /// </summary>
+    private async Task<(LiveTorrents? Live, string? Error)> ReadScanTorrentsAsync(CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(settings.QbitUrl))
+        {
+            return (null, SpaceDetails.NotConfigured);
+        }
+
+        try
+        {
+            return (await ReadTorrentsAsync(ct).ConfigureAwait(false), null);
+        }
+        catch (QbitException ex)
+        {
+            return (null, Unanswered("qBittorrent", CodeOf(ex.Error)));
+        }
+    }
+
+    /// <summary>Tutte le richieste di Seerr, pagina per pagina, come l'admin (decisione 9).</summary>
+    private async Task<(IReadOnlyList<SeerrRequest> Requests, string? Error)> ReadRequestsAsync(CancellationToken ct)
+    {
+        if (!seerrSettings.IsConfigured())
+        {
+            return ([], SpaceDetails.NotConfigured);
+        }
+
+        try
+        {
+            var all = new List<SeerrRequest>();
+            while (true)
+            {
+                var page = await seerr.GetRequestsAsync(SeerrAdmin, "all", SeerrPageSize, all.Count, null, ct).ConfigureAwait(false);
+                all.AddRange(page.Results);
+                if (page.Results.Count == 0 || all.Count >= (page.PageInfo?.Results ?? 0))
+                {
+                    return (all, null);
+                }
+            }
+        }
+        catch (SeerrException ex)
+        {
+            return ([], Unanswered("Seerr", CodeOf(ex.Error)));
+        }
+    }
+
+    // Il codice dell'errore, con un avviso nel registro se il servizio è configurato ma non risponde.
+    private string Unanswered(string service, string code)
+    {
+        if (code != SpaceDetails.NotConfigured)
+        {
+            logger.LogWarning("Spazio: {Service} non risponde ({Error}), le sue liste restano vuote", service, code);
+        }
+
+        return code;
+    }
+
+    /// <summary>
+    /// I video nelle cartelle dei titoli che Radarr/Sonarr non conoscono (spec U §5.3), con il titolo che li contiene.
+    /// Solo per i titoli con almeno un file: altrimenti il video in più sarebbe l'unica copia.
+    /// </summary>
+    private List<(string Path, string Owner)> DuplicateCandidates(IReadOnlyList<RadarrMovie> movies, IReadOnlyList<ScanSeries> series)
+    {
+        var movieFiles = movies
+            .Where(m => m.MovieFile?.Path is not null && !string.IsNullOrWhiteSpace(m.Path))
+            .SelectMany(m => probe.VideoFiles(m.Path!).Where(p => p != m.MovieFile!.Path).Select(p => (p, MovieKey(m.Id))));
+        var episodeFiles = series
+            .Where(s => s.Files.Count > 0 && !string.IsNullOrWhiteSpace(s.Show.Path))
+            .SelectMany(s =>
+            {
+                var known = s.Files.Select(f => f.Path).ToHashSet();
+                return probe.VideoFiles(s.Show.Path!).Where(p => !known.Contains(p)).Select(p => (p, SeriesKey(s.Show.Id)));
+            });
+        return [.. movieFiles.Concat(episodeFiles).DistinctBy(d => d.p)];
+    }
+
+    /// <summary>
+    /// La Pulizia (spec U §5.3): i torrent finiti senza copia in libreria, i video delle cartelle di Pulizia che non sono di
+    /// nessun torrent e non hanno altri hardlink, e i doppioni. Riempie <paramref name="files"/> per le operazioni.
+    /// </summary>
+    private (SpaceCleanupDto Cleanup, Dictionary<string, TorrentFacts> Torrents) BuildCleanup(
+        LiveTorrents? live,
+        IReadOnlyList<string> scanVideos,
+        IReadOnlyList<(string Path, string Owner)> duplicates,
+        IReadOnlyDictionary<string, FileStamp> stamps,
+        Dictionary<string, ScanFile> files,
+        DateTimeOffset now)
+    {
+        var torrents = new Dictionary<string, TorrentFacts>();
+        var torrentRows = new List<SpaceTorrentDto>();
+        var orphans = new List<SpaceFileDto>();
+        if (live is not null)
+        {
+            var links = live.ById.ToDictionary(p => p.Key, p => p.Value.Links);
+            foreach (var torrent in live.Index.Torrents.Where(t => t.Progress >= 1
+                && live.Index.FilesByHash.GetValueOrDefault(t.Hash) is { Count: > 0 }
+                && SpaceMath.IsTorrentOnly(t.Hash, live.Index, links)))
+            {
+                var verdict = SeedRule.Check(torrent, settings.Seed, now);
+                torrents[torrent.Hash] = torrent;
+                torrentRows.Add(new SpaceTorrentDto(
+                    TorrentPrefix + torrent.Hash,
+                    torrent.Hash,
+                    torrent.Name,
+                    torrent.TrackerHost,
+                    torrent.SizeBytes,
+                    torrent.Ratio,
+                    Math.Round(torrent.SeedingSeconds / SecondsPerDay, 1),
+                    verdict.CanRemoveNow,
+                    verdict.ExpectedAt));
+            }
+
+            var torrentPaths = live.Index.FilesByHash.Values.SelectMany(f => f).Select(f => f.Path).ToHashSet();
+            orphans = [.. scanVideos
+                .Where(p => !torrentPaths.Contains(p) && stamps.TryGetValue(p, out var stamp) && stamp.Links == 1)
+                .Select(p => FileRow(p, SpaceKinds.Orphan, null, stamps, files))
+                .OfType<SpaceFileDto>()];
+        }
+
+        List<SpaceFileDto> duplicateRows = [.. duplicates
+            .Where(d => stamps.ContainsKey(d.Path))
+            .Select(d => FileRow(d.Path, SpaceKinds.Duplicate, d.Owner, stamps, files))
+            .OfType<SpaceFileDto>()];
+        var cleanup = new SpaceCleanupDto(
+            [.. torrentRows.OrderByDescending(t => t.CanRemoveNow).ThenByDescending(t => t.SizeBytes)],
+            [.. orphans.OrderByDescending(f => f.SizeBytes)],
+            [.. duplicateRows.OrderByDescending(f => f.SizeBytes)]);
+        return (cleanup, torrents);
+    }
+
+    // La riga di un file, registrata anche per le operazioni; null se la chiave c'è già.
+    private static SpaceFileDto? FileRow(
+        string path, string kind, string? owner, IReadOnlyDictionary<string, FileStamp> stamps, Dictionary<string, ScanFile> files)
+    {
+        var key = FileKey(path);
+        var stamp = stamps[path];
+        return files.TryAdd(key, new ScanFile(path, kind, stamp.SizeBytes, owner))
+            ? new SpaceFileDto(key, path, stamp.SizeBytes, stamp.Links > 1)
+            : null;
+    }
+
+    /// <summary>Una serie di Sonarr con i file dei suoi episodi.</summary>
+    private sealed record ScanSeries(SonarrSeries Show, IReadOnlyList<ArrFile> Files);
+
+    /// <summary>Quello che il calcolo ha letto, per costruire le liste dei titoli.</summary>
+    private sealed record ScanData(
+        IReadOnlyList<RadarrMovie> Movies,
+        IReadOnlyList<ScanSeries> Series,
+        IReadOnlyList<SeerrRequest> Requests,
+        IReadOnlyDictionary<string, FileStamp> Stamps,
+        TorrentIndex Index,
+        HashSet<FileId> LibraryFiles);
+}

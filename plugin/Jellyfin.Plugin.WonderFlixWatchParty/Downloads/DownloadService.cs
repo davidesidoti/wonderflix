@@ -276,7 +276,7 @@ public sealed partial class DownloadService(
         SeriesId: e.SeriesId,
         EpisodeNumber: e.EpisodeNumber);
 
-    private static string SeasonTitleOf(string? series, int season) =>
+    internal static string SeasonTitleOf(string? series, int season) =>
         string.Create(CultureInfo.InvariantCulture, $"{series} · Stagione {season}");
 
     // Solo sotto _lock. Spento: niente voci nuove e niente download fermi da togliere (ruling 12).
@@ -527,7 +527,7 @@ public sealed partial class DownloadService(
     // Solo il codice, mai il messaggio: può contenere indirizzi o query.
     private static string ErrorOf(Exception ex) => ex is ArrException arrError ? arrError.Error.ToString() : ex.GetType().Name;
 
-    private static string? Poster(List<ArrImage?>? images) =>
+    internal static string? Poster(List<ArrImage?>? images) =>
         images?.FirstOrDefault(i => string.Equals(i?.CoverType, "poster", StringComparison.OrdinalIgnoreCase))?.RemoteUrl;
 
     // Il primo per chiave: un doppione nella risposta non deve far saltare il giro.

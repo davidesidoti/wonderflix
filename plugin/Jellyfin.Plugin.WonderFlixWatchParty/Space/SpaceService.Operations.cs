@@ -146,21 +146,11 @@ public sealed partial class SpaceService
         }
         catch (QbitException ex)
         {
-            return StepResult.Failed(ex.Error switch
-            {
-                QbitError.NotConfigured => SpaceDetails.NotConfigured,
-                QbitError.Unauthorized => SpaceDetails.Unauthorized,
-                _ => SpaceDetails.Unreachable,
-            });
+            return StepResult.Failed(CodeOf(ex.Error));
         }
         catch (SeerrException ex)
         {
-            return StepResult.Failed(ex.Error switch
-            {
-                SeerrError.NotConfigured => SpaceDetails.NotConfigured,
-                SeerrError.Auth => SpaceDetails.Unauthorized,
-                _ => SpaceDetails.Unreachable,
-            });
+            return StepResult.Failed(CodeOf(ex.Error));
         }
         catch (TimeoutException)
         {
@@ -168,6 +158,22 @@ public sealed partial class SpaceService
             return StepResult.Failed(SpaceDetails.Unreachable);
         }
     }
+
+    /// <summary>Il codice di un errore di qBittorrent (spec U §6.5).</summary>
+    private static string CodeOf(QbitError error) => error switch
+    {
+        QbitError.NotConfigured => SpaceDetails.NotConfigured,
+        QbitError.Unauthorized => SpaceDetails.Unauthorized,
+        _ => SpaceDetails.Unreachable,
+    };
+
+    /// <summary>Il codice di un errore di Seerr (spec U §6.5).</summary>
+    private static string CodeOf(SeerrError error) => error switch
+    {
+        SeerrError.NotConfigured => SpaceDetails.NotConfigured,
+        SeerrError.Auth => SpaceDetails.Unauthorized,
+        _ => SpaceDetails.Unreachable,
+    };
 
     /// <summary>I passi di ogni tipo, in ordine (spec U §6.2).</summary>
     private static string[] StepsOf(string kind) => kind switch
