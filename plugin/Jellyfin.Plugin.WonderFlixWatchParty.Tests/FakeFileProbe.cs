@@ -8,7 +8,13 @@ internal sealed class FakeFileProbe : IFileProbe
     /// <summary>I file che esistono, per percorso.</summary>
     public Dictionary<string, FileStamp> Files { get; } = [];
 
-    /// <summary>I percorsi cancellati con <see cref="Delete"/>, in ordine.</summary>
+    /// <summary>Ogni chiamata a <see cref="Delete"/>, sempre, con le radici passate: il finto non filtra, così un test prova che il servizio controlla da sé.</summary>
+    public List<(string Path, IReadOnlyList<string> Roots)> DeleteCalls { get; } = [];
+
+    /// <summary>Il risultato di <see cref="Delete"/>; se falso il file resta.</summary>
+    public bool DeleteResult { get; set; } = true;
+
+    /// <summary>I percorsi cancellati davvero (chiamate con risultato vero), in ordine.</summary>
     public List<string> Deleted { get; } = [];
 
     /// <summary>I testi leggibili, per percorso.</summary>
@@ -25,7 +31,8 @@ internal sealed class FakeFileProbe : IFileProbe
 
     public bool Delete(string path, IReadOnlyList<string> allowedRoots)
     {
-        if (!FileProbe.IsUnder(path, allowedRoots))
+        DeleteCalls.Add((path, allowedRoots));
+        if (!DeleteResult)
         {
             return false;
         }

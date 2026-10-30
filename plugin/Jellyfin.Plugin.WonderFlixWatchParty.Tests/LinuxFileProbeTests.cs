@@ -75,6 +75,42 @@ public sealed class LinuxFileProbeTests : IDisposable
     }
 
     [Fact]
+    public void DeleteStaysTrueWhenPruningAFolderFails()
+    {
+        var root = Root("downloads");
+        var film = Make(Path.Combine("downloads", "a", "film.mkv"));
+        var folder = new DirectoryInfo(Path.Combine(root, "a"));
+
+        // Su Windows una cartella di sola lettura non si cancella: la potatura fallisce dopo che il file è andato.
+        folder.Attributes |= FileAttributes.ReadOnly;
+        try
+        {
+            Assert.True(probe.Delete(film, [root]));
+            Assert.False(File.Exists(film));
+        }
+        finally
+        {
+            folder.Refresh();
+            folder.Attributes &= ~FileAttributes.ReadOnly;
+        }
+    }
+
+    [Fact]
+    public void TheFakeRecordsEveryDeleteCall()
+    {
+        var fake = new FakeFileProbe();
+        fake.Files["/x/film.mkv"] = new FileStamp(new FileId(1, 2), 1, 10);
+
+        Assert.True(fake.Delete("/altrove/film.mkv", ["/srv"]));
+        fake.DeleteResult = false;
+        Assert.False(fake.Delete("/x/film.mkv", ["/x"]));
+
+        Assert.Equal(["/altrove/film.mkv", "/x/film.mkv"], fake.DeleteCalls.Select(c => c.Path));
+        Assert.Equal(["/altrove/film.mkv"], fake.Deleted);
+        Assert.True(fake.Files.ContainsKey("/x/film.mkv"));
+    }
+
+    [Fact]
     public void VideoFilesSkipsSmallAndOtherExtensions()
     {
         var big = Make(Path.Combine("lib", "x", "Film.mkv"), 150_000_000);

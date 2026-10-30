@@ -62,7 +62,15 @@ public sealed class LinuxFileProbe : IFileProbe
         try
         {
             File.Delete(path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
 
+        // Il file è andato: se le cartelle vuote non si tolgono, il risultato resta vero.
+        try
+        {
             // Si risale finché la cartella è vuota; la radice stessa non si tocca mai.
             var dir = Path.GetDirectoryName(Path.GetFullPath(path));
             while (dir is not null
@@ -73,13 +81,13 @@ public sealed class LinuxFileProbe : IFileProbe
                 Directory.Delete(dir);
                 dir = Path.GetDirectoryName(dir);
             }
-
-            return true;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            return false;
+            // cartella non vuota all'ultimo istante o non cancellabile: resta lì
         }
+
+        return true;
     }
 
     public string? ReadText(string path)
@@ -114,20 +122,31 @@ public sealed class LinuxFileProbe : IFileProbe
         using var process = Process.Start(info) ?? throw new IOException("stat non parte");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(StatTimeout);
+
+        // Le letture dalle pipe non rispettano il token: partono senza e finiscono quando il processo chiude l'output.
+        var output = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+        var errors = process.StandardError.ReadToEndAsync(CancellationToken.None); // svuotato: stat si lamenta dei file mancanti
         try
         {
-            var output = process.StandardOutput.ReadToEndAsync(timeout.Token);
-            _ = process.StandardError.ReadToEndAsync(timeout.Token); // svuotato: stat si lamenta dei file mancanti
-            var text = await output;
             await process.WaitForExitAsync(timeout.Token); // il codice d'uscita 1 (file mancanti) non conta
-            return FileProbe.ParseStat(text);
         }
         catch (OperationCanceledException)
         {
-            // Si ferma solo questo processo. Scaduto il tempo il gruppo è perso; annullato dal chiamante, l'annullo si propaga.
-            process.Kill();
+            // Si ferma solo questo processo, mai per nome.
+            try
+            {
+                process.Kill();
+            }
+            catch (InvalidOperationException)
+            {
+                // già finito
+            }
+
             ct.ThrowIfCancellationRequested();
-            return new Dictionary<string, FileStamp>();
+            throw new TimeoutException("stat scaduto");
         }
+
+        await Task.WhenAll(output, errors);
+        return FileProbe.ParseStat(output.Result);
     }
 }

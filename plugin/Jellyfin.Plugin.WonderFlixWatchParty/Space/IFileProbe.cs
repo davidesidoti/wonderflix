@@ -8,7 +8,10 @@ public sealed record FileStamp(FileId Id, int Links, long SizeBytes);
 /// <summary>L'accesso al disco del seedbox: <c>stat</c>, elenco dei video, cancellazione sicura e lettura di un testo (spec U §12).</summary>
 public interface IFileProbe
 {
-    /// <summary>Id, hardlink e dimensione dei percorsi. I file che non ci sono mancano dal risultato.</summary>
+    /// <summary>
+    /// Id, hardlink e dimensione dei percorsi. I file che non ci sono mancano dal risultato.
+    /// Se un gruppo non risponde in tempo lancia <see cref="TimeoutException"/> (senza percorsi nel messaggio): i file non vanno trattati come mancanti.
+    /// </summary>
     Task<IReadOnlyDictionary<string, FileStamp>> StatAsync(IReadOnlyList<string> paths, CancellationToken ct);
 
     /// <summary>I file video sopra <see cref="FileProbe.MinVideoBytes"/> sotto <paramref name="root"/>, ricorsivo; le cartelle illeggibili si saltano.</summary>
@@ -59,6 +62,7 @@ public static class FileProbe
     /// Vero se il percorso, senza segmenti <c>..</c>, è una radice o sta sotto una di esse (confronto ordinale).
     /// Un percorso relativo e le radici vuote o a livello di disco (<c>/</c>) non contano. Da chiamare prima di ogni cancellazione.
     /// </summary>
+    // shortcut: symlinks are not resolved (text comparison only), upgrade if a root ever contains symlinked folders
     public static bool IsUnder(string path, IReadOnlyList<string> roots)
     {
         if (string.IsNullOrWhiteSpace(path)
