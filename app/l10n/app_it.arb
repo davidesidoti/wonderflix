@@ -1453,7 +1453,7 @@
   "@spaceKeepSelected": {"placeholders": {"n": {"type": "int"}}},
   "spaceKeptCount": "{n, plural, =1{1 titolo tenuto} other{{n} titoli tenuti}}",
   "@spaceKeptCount": {"placeholders": {"n": {"type": "int"}}},
-  "spaceKeepPartial": "{ok} tenuti, {ko} non riusciti: {reason}",
+  "spaceKeepPartial": "{ok, plural, =1{1 tenuto} other{{ok} tenuti}}, {ko, plural, =1{1 non riuscito} other{{ko} non riusciti}}: {reason}",
   "@spaceKeepPartial": {"placeholders": {"ok": {"type": "int"}, "ko": {"type": "int"}, "reason": {"type": "String"}}},
   "spaceTitles": "{n, plural, =1{1 titolo} other{{n} titoli}}",
   "@spaceTitles": {"placeholders": {"n": {"type": "int"}}},

@@ -495,7 +495,7 @@ void main() {
       await tester.tap(find.text('Tieni selezionati (2)'));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('1 tenuti, 1 non riusciti: '), findsOneWidget);
+      expect(find.textContaining('1 tenuto, 1 non riuscito: '), findsOneWidget);
     });
 
     testWidgets('KeepSelectedClearsTheSelection', (tester) async {
