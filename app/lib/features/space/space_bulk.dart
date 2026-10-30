@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -47,15 +49,7 @@ Future<void> startSpaceBulk(
   WidgetRef ref,
   List<SpaceCandidate> selected,
 ) async {
-  // Una stagione di una serie scelta intera è già dentro l'operazione della serie.
-  final series = {
-    for (final c in selected)
-      if (c.kind == 'Series') c.key,
-  };
-  final list = [
-    for (final c in selected)
-      if (c.kind == 'Series' || !series.contains(c.seriesKey)) c,
-  ];
+  final list = dedupeSpaceSelection(selected);
   final ok = await showWfDialog<bool>(
     context,
     maxWidth: 560,
@@ -78,6 +72,22 @@ Future<void> startSpaceBulk(
   if (!context.mounted) return;
   ref.read(spaceSelectionProvider.notifier).clear();
   await showSpaceBulkProgress(context, items);
+  // Chiusa la finestra, la panoramica si rilegge una volta, come in startSpaceOperation.
+  if (context.mounted) {
+    unawaited(ref.read(spaceControllerProvider.notifier).reload());
+  }
+}
+
+/// Una stagione di una serie scelta intera è già dentro l'operazione della serie.
+List<SpaceCandidate> dedupeSpaceSelection(List<SpaceCandidate> selected) {
+  final series = {
+    for (final c in selected)
+      if (c.kind == 'Series') c.key,
+  };
+  return [
+    for (final c in selected)
+      if (c.kind == 'Series' || !series.contains(c.seriesKey)) c,
+  ];
 }
 
 class _Summary extends StatelessWidget {

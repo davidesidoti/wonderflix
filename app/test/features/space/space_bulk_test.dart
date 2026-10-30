@@ -190,10 +190,7 @@ void main() {
 
     api.operationResults.add(_op('x', 'Done', const []));
     await confirm(tester);
-    expect(starts(), [
-      'start Season season:7:1',
-      'start Season season:7:2',
-    ]);
+    expect(starts(), ['start Season season:7:1', 'start Season season:7:2']);
   });
 
   testWidgets('TheSummaryListsTitlesAndTotals', (tester) async {
@@ -274,9 +271,7 @@ void main() {
 
     expect(starts(), hasLength(2));
     expect(
-      find.text(
-        "Non avviato: Su questo titolo c'è già un'operazione in corso",
-      ),
+      find.text("Non avviato: Su questo titolo c'è già un'operazione in corso"),
       findsOneWidget,
     );
     expect(find.text('Cerco i torrent'), findsOneWidget);
@@ -350,12 +345,53 @@ void main() {
     await confirm(tester);
     await tester.pump(const Duration(seconds: 1));
     final open = reads();
+    final before = overviews();
     expect(open, greaterThanOrEqualTo(2));
 
     await tester.tap(find.text('Chiudi'));
     await tester.pumpAndSettle();
     await tester.pump(const Duration(seconds: 3));
     expect(reads(), open);
+    // Chiusa la finestra la panoramica si rilegge una volta sola.
+    expect(overviews(), before + 1);
+  });
+
+  testWidgets('TheBarCountsASeriesWithoutItsSeasons', (tester) async {
+    await pumpTab(tester, [
+      _candidate(
+        'series:7',
+        title: 'Serie Lunga',
+        kind: 'Series',
+        now: 5 * _gb,
+      ),
+      _season(1),
+      _season(2),
+    ]);
+    await tester.tap(find.text('Seleziona'));
+    await tester.pump();
+    for (final cb in checkboxes().evaluate().toList()) {
+      await tester.tap(find.byWidget(cb.widget));
+    }
+    await tester.pump();
+    expect(find.text('Elimina selezionati (1 · 5,00 GB)'), findsOneWidget);
+  });
+
+  testWidgets('NoBarWhenTheDeleteListEmpties', (tester) async {
+    await pumpTab(tester, [_candidate('movie:1')]);
+    await tester.tap(find.text('Seleziona'));
+    await tester.pump();
+    expect(find.textContaining('Elimina selezionati'), findsOneWidget);
+
+    api.overviewValue = _overview(const []);
+    await tester.pump(const Duration(seconds: 61));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Elimina selezionati'), findsNothing);
+
+    api.overviewValue = _overview([_candidate('movie:2')]);
+    await tester.pump(const Duration(seconds: 61));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Elimina selezionati'), findsNothing);
+    expect(find.text('Seleziona'), findsOneWidget);
   });
 
   testWidgets('CancelSelectionClears', (tester) async {

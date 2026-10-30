@@ -224,6 +224,7 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
       for (final c in o.delete)
         if (keys.contains(c.key)) c,
     ];
+    final counted = dedupeSpaceSelection(chosen);
     return Material(
       color: WfColors.surface,
       child: Padding(
@@ -246,8 +247,8 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
             ),
             AdminActionButton(
               label: l.spaceDeleteSelected(
-                chosen.length,
-                spaceGb(l, chosen.fold(0, (s, c) => s + c.freeNowBytes)),
+                counted.length,
+                spaceGb(l, counted.fold(0, (s, c) => s + c.freeNowBytes)),
               ),
               icon: LucideIcons.trash2,
               onPressed: chosen.isEmpty
@@ -594,6 +595,13 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
       ],
     );
     if (!_selecting || !ready) return list;
+    if (o.delete.isEmpty) {
+      // Niente da scegliere: niente barra, e si esce dalla selezione.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _selecting = false);
+      });
+      return list;
+    }
     return Column(
       children: [
         Expanded(child: list),
