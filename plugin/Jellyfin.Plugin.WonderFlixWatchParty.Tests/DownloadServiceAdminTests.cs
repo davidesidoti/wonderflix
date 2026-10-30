@@ -186,6 +186,15 @@ public sealed class DownloadServiceAdminTests : IDisposable
     }
 
     [Fact]
+    public async Task ALightenGrabStaysOkWhenTheDiskDoesNotWrite()
+    {
+        Animals();
+        Directory.CreateDirectory(_folder.DownloadsFile + ".tmp");
+
+        Assert.Equal(GrabOutcome.Ok, await _service.GrabAsync("movie:12", "b", 3, CancellationToken.None, lighten: true));
+    }
+
+    [Fact]
     public async Task AnOrdinaryGrabIsNotAccepted()
     {
         Animals();

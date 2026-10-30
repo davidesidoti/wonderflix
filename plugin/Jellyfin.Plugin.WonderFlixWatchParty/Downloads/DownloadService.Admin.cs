@@ -122,7 +122,7 @@ public sealed partial class DownloadService
                 lock (_lock)
                 {
                     guarded.ForEach(k => Book.Accept(k));
-                    store.Save(Book);
+                    SaveAfterGrab();
                 }
             }
 
@@ -618,7 +618,20 @@ public sealed partial class DownloadService
             }
 
             // Subito su disco, come dopo un grab del giro.
+            SaveAfterGrab();
+        }
+    }
+
+    // Solo sotto _lock. Il grab in Radarr/Sonarr è già fatto: un disco che non scrive non deve farlo sembrare fallito (un 500).
+    private void SaveAfterGrab()
+    {
+        try
+        {
             store.Save(Book);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger.LogWarning("Download automatici: non riesco a salvare il file dopo un grab ({Error})", ex.GetType().Name);
         }
     }
 
