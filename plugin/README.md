@@ -242,7 +242,9 @@ uscite in arrivo.
     non ci sono torrent né orfani.
   - **Quota:** nel container di Jellyfin `quota` non c'è. Sul seedbox un cron
     scrive `quota -w` in un file (per esempio ogni 10 minuti
-    `quota -w > ~/quota.txt`), e `SpaceQuotaFile` ne dà il percorso. Se il
+    `quota -w > /home/hashvps/.config/wonderflix-quota.tmp && mv /home/hashvps/.config/wonderflix-quota.tmp /home/hashvps/.config/wonderflix-quota.txt`,
+    così il plugin non legge mai un file a metà), e `SpaceQuotaFile` ne dà il
+    percorso, assoluto e visibile al container di Jellyfin (non `~`). Se il
     file è vuoto o non c'è, la quota non si mostra (`Errors.Quota` =
     `NotConfigured`).
   - **Cartelle da analizzare** (`SpaceScanFolders`, una per riga):

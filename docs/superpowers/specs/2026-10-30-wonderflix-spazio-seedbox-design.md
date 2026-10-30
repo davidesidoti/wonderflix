@@ -37,7 +37,7 @@ Controllato via SSH il 2026-10-30, solo in lettura.
 - **Richieste:** arrivano da Seerr (`Hub/RequestsService.cs`, `MediaRequestDto`: `RequestedBy`, `CreatedAt`, `Status`, `JellyfinItemId`, `TmdbId`, `Seasons`).
 - **Voti:** `Hub/RatingBook.cs` (`ratings.json`), per film e per stagione, per utente.
 - **Visione:** nessun aiuto generale. Si usa `IUserDataManager.GetUserData` direttamente (`Played`, `PlaybackPositionTicks`, `LastPlayedDate`). Esempi in `Server/JellyfinRatingLibrary.cs` (`HasWatched`) e `Server/JellyfinRecommendationLibrary.cs` (`LastWatched`).
-- **Raccomandazioni:** sono consigli tra amici, non un punteggio. Il plugin non sa niente di saghe o seguiti, a parte le collezioni (BoxSet) di Jellyfin.
+- **Raccomandazioni:** sono consigli tra amici, non un punteggio. Il plugin non sa niente di saghe o seguiti, a parte le collezioni (BoxSet) di Jellyfin. Per "seguito in arrivo" la Spec U usa invece le collezioni di Radarr (§4.2).
 - **Admin:** `[Authorize(Policy = Policies.RequiresElevation)]`, come `DownloadsController`.
 - **Progresso:** nessun push dei progressi. La scheda Download ricarica ogni 60 s (`AdminPoller`).
 
@@ -105,13 +105,13 @@ Nella configurazione del plugin, nella sezione Spazio:
 
 ### 4.4 Etichetta "generi che guardi spesso"
 
-I 3 generi più frequenti tra i titoli che chi chiama ha visto o votato ≥ 4 (calcolati a ogni `GET Space` per chi chiama). Se un candidato ne ha almeno uno, mostra l'etichetta. Non cambia l'ordine.
+I 3 generi più frequenti tra i titoli che chi chiama ha visto o votato almeno quanto la soglia dei voti alti (8) (calcolati a ogni `GET Space` per chi chiama). Se un candidato ne ha almeno uno, mostra l'etichetta. Non cambia l'ordine.
 
 ## 5. Le liste
 
 ### 5.1 Cancellare
 
-Film, serie e stagioni con almeno un segnale "via". Ogni riga mostra locandina, titolo, GB, i segnali in frasi ("visto da tutti, ultima visione 8 mesi fa", "voto medio 3/10") e i segnali "tienilo" come etichette. Solo le righe di Cancellare si possono avviare come operazioni, i titoli tenuti no. Due numeri: **GB liberati subito** e **GB liberati dopo il seed** (§6.3), con la data prevista.
+Film, serie e stagioni con almeno un segnale "via". Ogni riga mostra locandina, titolo, GB, i segnali in frasi ("visto da tutti, ultima visione 8 mesi fa", "voto medio 3/10") e i segnali "tienilo" come etichette. Solo le righe di Cancellare si possono avviare come operazioni, i titoli tenuti no. Due numeri: **GB liberati subito** e **GB liberati dopo il seed** (§6.3), con la data prevista (senza data se un torrent che trattiene i file è ancora in download).
 
 Una serie compare una volta sola. Se è candidata tutta intera, la riga è la serie. Altrimenti la riga è la serie con le sole stagioni candidate, che si aprono sotto.
 
@@ -150,34 +150,35 @@ Le operazioni girano nel plugin. Se l'admin chiude il riquadro o l'app, l'operaz
 
 **Film:**
 1. trova i torrent del film in qBittorrent (vedi §12);
-1b. toglie dalla coda di Radarr/Sonarr i download del titolo, senza blocklist: le voci già complete si tolgono dalla coda senza toccarle in qBittorrent (decide la regola del seed), quelle ancora in download si tolgono anche dal client;
-2. rimuove il film da Radarr con i file (`DELETE movie/{id}?deleteFiles=true`, senza esclusione);
-3. per ogni torrent: se si può togliere ora lo toglie con i file, altrimenti lo mette in attesa di fine seed (§6.3);
-4. toglie il media da Seerr, così torna richiedibile e le vecchie richieste non contano più;
-5. aggiorna la libreria di Jellyfin;
-6. legge la quota.
+2. toglie dalla coda di Radarr/Sonarr i download del titolo, senza blocklist: le voci già complete si tolgono dalla coda senza toccarle in qBittorrent (decide la regola del seed), quelle ancora in download si tolgono anche dal client. Una voce già sparita (404) si salta e le altre continuano;
+3. rimuove il film da Radarr con i file (`DELETE movie/{id}?deleteFiles=true`, senza esclusione);
+4. per ogni torrent: se si può togliere ora lo toglie con i file, altrimenti lo mette in attesa di fine seed (§6.3);
+5. toglie il media da Seerr, così torna richiedibile e le vecchie richieste non contano più;
+6. aggiorna la libreria di Jellyfin;
+7. legge la quota.
 
-Se Seerr non è configurato, il passo 4 viene saltato con il motivo.
+Se Seerr non è configurato, il passo 5 viene saltato con il motivo.
 
 **Serie intera:** come il film, con Sonarr (`DELETE series/{id}?deleteFiles=true`).
 
 **Stagione:**
 1. trova i torrent degli episodi della stagione;
-2. smette di monitorare la stagione in Sonarr;
-3. cancella i file degli episodi della stagione (`DELETE episodefile/bulk`);
-4. torrent, libreria e quota come sopra. Su Seerr non si fa niente: la serie resta.
+2. toglie dalla coda di Sonarr i download della stagione (come sopra);
+3. smette di monitorare la stagione in Sonarr;
+4. cancella i file degli episodi della stagione (`DELETE episodefile/bulk`);
+5. torrent, libreria e quota come sopra. Su Seerr non si fa niente: la serie resta.
 
 **Torrent (Pulizia):** toglie il torrent con i file, poi legge la quota. Se in quel momento è ancora in seed obbligatorio, il passo viene saltato con il motivo.
 
-**File orfano (Pulizia):** cancella il file e la cartella se resta vuota, poi legge la quota.
+**File orfano (Pulizia):** cancella il file e la cartella se resta vuota, poi legge la quota. Si rifiuta se il file ora ha più di un collegamento o una dimensione diversa da quella del calcolo.
 
-**Doppione (Pulizia):** cancella il file che Radarr/Sonarr non conoscono.
+**Doppione (Pulizia):** cancella il file che Radarr/Sonarr non conoscono. La radice consentita è la cartella del film o della serie, letta in quel momento da Radarr/Sonarr.
 
 ### 6.3 Seed obbligatorio
 
 - Un torrent di un tracker della lista (§4.3) si può togliere solo se ha finito di scaricare **e** ha ratio ≥ 10 **oppure** almeno 30 giorni di seed (`seeding_time` di qBittorrent). Tag e categoria non contano. Il tracker si riconosce dal dominio degli annunci del torrent.
 - Gli altri torrent si possono togliere subito. Il tracker è il campo `tracker` di `torrents/info`; solo se è vuoto si chiama `torrents/trackers`. Il dominio è protetto se l'host coincide con uno della lista o ne è un sottodominio.
-- Un torrent in attesa resta in `space.json` (§7.3). Un servizio in background lo controlla ogni ora e lo toglie con i file quando la regola lo permette. Lo spazio si libera allora. La data prevista mostrata è la data in cui scadono i 30 giorni.
+- Un torrent in attesa resta in `space.json` (§7.3). Un servizio in background lo controlla ogni ora e lo toglie con i file quando la regola lo permette. Lo spazio si libera allora. La data prevista mostrata è la data in cui scadono i 30 giorni; se un torrent che trattiene i file è ancora in download la data non c'è, e l'app mostra "dopo il seed" senza data.
 - Nella scheda c'è un elenco "In attesa di fine seed", e ogni torrent può essere tolto dall'attesa (lo lascia in qBittorrent).
 - Se un torrent in attesa sparisce da qBittorrent per altri motivi, esce dall'elenco.
 
@@ -210,7 +211,7 @@ Sezione "Spazio" nella pagina di configurazione:
 - `IArrClient` aggiunge: `DELETE movie/{id}`, `DELETE series/{id}`, `PUT series` (monitoraggio della stagione), `DELETE episodefile/bulk`, e se serve la lettura di tutti i `moviefile`/`episodefile` con dimensioni e percorsi.
 - `ISeerrClient` aggiunge la rimozione di un media (oggi legge soltanto). Chi costruisce verifica la chiamata sulla versione del server.
 - Nuovo `IQbitClient`: login (cookie `SID`, nuovo login se scade), `torrents/info`, `torrents/files`, `torrents/trackers`, `torrents/delete?deleteFiles=true`.
-- Lettura della quota e del numero di collegamenti dei file: il plugin gira sul seedbox come l'utente, quindi legge il disco direttamente (§12).
+- Numero di collegamenti e inode dei file: il plugin li legge dal disco con `stat` (§12). La quota viene invece dal file del cron (§5.4).
 
 ### 7.3 Servizio e dati
 
