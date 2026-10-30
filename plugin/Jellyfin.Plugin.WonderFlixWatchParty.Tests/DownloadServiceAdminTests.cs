@@ -587,6 +587,28 @@ public sealed class DownloadServiceAdminTests : IDisposable
     }
 
     [Fact]
+    public async Task AWholeUnmonitoredSeasonUsesAllAiredEpisodes()
+    {
+        // Serie tolta dal monitoraggio in Sonarr: nessun episodio monitorato, contano tutti quelli usciti (il 3 non ancora).
+        SeasonOf(40, 40, 40);
+        var episodes = _arr.SeriesEpisodes;
+        _arr.SeriesEpisodes = async id =>
+        {
+            var list = await episodes(id);
+            foreach (var episode in list)
+            {
+                episode!.Monitored = false;
+            }
+
+            list[2]!.AirDateUtc = T0 + TimeSpan.FromDays(3);
+            return list;
+        };
+        _releases = [.. Enumerable.Range(1, 3).Select(n => Single("s" + n, n, 1, 150))];
+
+        Assert.Equal([1, 2], (await Search("season:7:2"))!.EpisodeChoices.Select(c => c.EpisodeNumber));
+    }
+
+    [Fact]
     public async Task TwoSingleGrabsFromTheSameSeasonSearchBothStart()
     {
         SeasonOf(null, null, null);
