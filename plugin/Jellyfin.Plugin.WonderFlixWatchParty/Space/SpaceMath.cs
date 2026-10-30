@@ -46,6 +46,7 @@ public static class SpaceMath
     {
         var titleIds = titleFiles.Select(f => f.Id).ToHashSet();
         var verdicts = index.Torrents.ToDictionary(t => t.Hash, t => SeedRule.Check(t, seed, now));
+        var goes = TorrentsGoingWithTitle(titleIds, index, libraryFiles, verdicts.Keys);
         var removeNow = new List<string>();
         var removeLater = new List<string>();
         long freeNow = 0, freeLater = 0, inPack = 0;
@@ -56,9 +57,7 @@ public static class SpaceMath
         {
             var holders = index.HashesByFile.TryGetValue(file.Id, out var found) ? found : [];
             var known = 1 + DistinctPaths(file.Id, index).Count;
-            var detachable = holders.All(hash => verdicts.ContainsKey(hash)
-                && index.FilesByHash[hash].All(f => titleIds.Contains(f.Id) || !libraryFiles.Contains(f.Id)));
-            if (file.Links > known || !detachable)
+            if (file.Links > known || !holders.All(goes.Contains))
             {
                 inPack += file.SizeBytes;
                 continue;
@@ -90,6 +89,33 @@ public static class SpaceMath
         }
 
         return new SpaceEstimate(freeNow, freeLater, laterUnknown ? null : laterAt, inPack, removeNow, removeLater);
+    }
+
+    /// <summary>
+    /// I torrent che si possono togliere con il titolo: contengono un suo file, tutti i loro file sono suoi o fuori libreria,
+    /// e nessun loro percorso è condiviso con un torrent che resta (si cancellerebbero i dati da sotto a quello).
+    /// </summary>
+    private static HashSet<string> TorrentsGoingWithTitle(
+        HashSet<FileId> titleIds, TorrentIndex index, IReadOnlySet<FileId> libraryFiles, IReadOnlyCollection<string> known)
+    {
+        var goes = index.FilesByHash
+            .Where(p => known.Contains(p.Key)
+                && p.Value.Any(f => titleIds.Contains(f.Id))
+                && p.Value.All(f => titleIds.Contains(f.Id) || !libraryFiles.Contains(f.Id)))
+            .Select(p => p.Key)
+            .ToHashSet();
+        var byPath = index.FilesByHash
+            .SelectMany(p => p.Value.Select(f => (f.Path, Hash: p.Key)))
+            .ToLookup(x => x.Path, x => x.Hash);
+
+        // Si toglie chi condivide un percorso con uno che resta, finché non cambia più nulla.
+        List<string> leaving;
+        while ((leaving = goes.Where(hash => index.FilesByHash[hash].Any(f => byPath[f.Path].Any(other => !goes.Contains(other)))).ToList()).Count > 0)
+        {
+            goes.ExceptWith(leaving);
+        }
+
+        return goes;
     }
 
     /// <summary>Vero se ogni file del torrent ha tanti hardlink quanti sono i percorsi distinti di torrent: nessun hardlink fuori dai torrent.</summary>

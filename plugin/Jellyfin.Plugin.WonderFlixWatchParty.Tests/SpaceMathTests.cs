@@ -118,6 +118,57 @@ public class SpaceMathTests
     }
 
     [Fact]
+    public void ASharedPathWithAKeptTorrentKeepsBoth()
+    {
+        // T1 contiene C e H; T3 contiene H (stesso percorso) e un altro file di libreria D.
+        var index = Index(
+            [Torrent("t1"), Torrent("t3")],
+            ("t1", "/dl/c.mkv", 1), ("t1", "/dl/h.mkv", 2), ("t3", "/dl/h.mkv", 2), ("t3", "/dl/d.mkv", 3));
+        var library = new HashSet<FileId> { Id(1), Id(2), Id(3) };
+
+        var result = SpaceMath.Estimate([Fact(1, 2), Fact(2, 2)], index, library, Settings, Now);
+
+        Assert.Equal(10 * Gb, result.InPackBytes);
+        Assert.Equal(0, result.FreeNowBytes);
+        Assert.Equal(0, result.FreeLaterBytes);
+        Assert.Empty(result.RemoveNow);
+        Assert.Empty(result.RemoveLater);
+    }
+
+    [Fact]
+    public void CrossSeedWithOneProtectedHolderFreesLater()
+    {
+        var index = Index(
+            [Torrent("a"), Torrent("b", "itatorrents.xyz", 1, 5 * 86_400)],
+            ("a", "/dl/1.mkv", 1), ("b", "/dl/1.mkv", 1));
+
+        var result = SpaceMath.Estimate([Fact(1, 2)], index, new HashSet<FileId> { Id(1) }, Settings, Now);
+
+        Assert.Equal(0, result.FreeNowBytes);
+        Assert.Equal(5 * Gb, result.FreeLaterBytes);
+        Assert.Equal(DateTimeOffset.Parse("2026-11-24T12:00:00Z"), result.FreeLaterAt);
+        Assert.Equal(["a"], result.RemoveNow);
+        Assert.Equal(["b"], result.RemoveLater);
+    }
+
+    [Fact]
+    public void AHolderMissingFromTheTorrentListKeepsTheBytes()
+    {
+        var index = Index([], ("ghost", "/dl/1.mkv", 1));
+
+        var result = SpaceMath.Estimate([Fact(1, 2)], index, new HashSet<FileId> { Id(1) }, Settings, Now);
+
+        Assert.Equal(5 * Gb, result.InPackBytes);
+        Assert.Empty(result.RemoveNow);
+    }
+
+    [Fact]
+    public void AnUnknownTorrentIsNeverTorrentOnly()
+    {
+        Assert.False(SpaceMath.IsTorrentOnly("nope", Index([]), new Dictionary<FileId, int>()));
+    }
+
+    [Fact]
     public void TorrentOnlyMeansNoLibraryLink()
     {
         var index = Index([Torrent("a")], ("a", "/dl/1.mkv", 1));
