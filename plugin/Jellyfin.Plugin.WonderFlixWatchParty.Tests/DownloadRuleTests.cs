@@ -37,6 +37,7 @@ public class DownloadRuleTests
         "WEBDL-1080p" => 3,
         "WEBRip-1080p" => 15,
         "Bluray-1080p" => 7,
+        "WEBDL-2160p" => 18,
         _ => 99,
     };
 
@@ -315,6 +316,26 @@ public class DownloadRuleTests
         Assert.False(DownloadRule.WouldImport(main, 1, 150, 7, 0));        // SDTV non ammessa
         Assert.False(DownloadRule.WouldImport(main, 99, 150, null, null)); // qualità nuova fuori dal profilo, anche senza file
         Assert.True(DownloadRule.WouldImport(main, 4, 0, 99, 0));          // file attuale fuori dal profilo: posizione -1
+    }
+
+    [Fact]
+    public void WouldImportCountsTheQualitiesThatAreNotAllowed()
+    {
+        // Come Sonarr: l'ordine è quello di tutte le voci del profilo, ammesse o no. Un 2160p sopra al solo gruppo ammesso
+        // non si rimpiazza con un 1080p (era il caso di Spider-Noir ed Euphoria).
+        var profile = new ArrQualityProfile
+        {
+            Items =
+            [
+                Group("WEB 1080p", "WEBDL-1080p", "WEBRip-1080p"),
+                new ArrQualityProfileItem { Allowed = false, Quality = new ArrQuality { Id = QualityId("WEBDL-2160p"), Name = "WEBDL-2160p" } },
+            ],
+        };
+
+        Assert.False(DownloadRule.WouldImport(profile, 15, 150, 18, 0));  // WEBRip-1080p su WEBDL-2160p
+        Assert.False(DownloadRule.WouldImport(profile, 18, 150, 15, 0));  // la nuova deve essere ammessa
+        Assert.True(DownloadRule.WouldImport(profile, 15, 150, 99, 0));   // file attuale fuori dal profilo: -1
+        Assert.False(DownloadRule.WouldImport(MainProfile(), 4, 150, 1, 0)); // HDTV-720p sotto a SDTV, anche se non ammessa
     }
 
     [Fact]

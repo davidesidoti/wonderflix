@@ -79,13 +79,14 @@ public static class DownloadRule
     }
 
     /// <summary>
-    /// Radarr/Sonarr importerebbero la release nuova al posto del file attuale? Conta la posizione della qualità nel profilo
-    /// (un gruppo è una posizione sola): importa se è più alta, o uguale con punteggio più alto (spec T §5).
+    /// Radarr/Sonarr importerebbero la release nuova al posto del file attuale? Conta la posizione della qualità tra TUTTE
+    /// le voci del profilo, ammesse o no, come fa Sonarr (un gruppo è una posizione sola): importa se è più alta, o uguale con
+    /// punteggio più alto. La qualità nuova deve essere ammessa; un file attuale fuori dal profilo vale -1 (spec T §5).
     /// </summary>
     public static bool WouldImport(ArrQualityProfile profile, int newQualityId, int newScore, int? currentQualityId, int? currentScore)
     {
         var newPosition = PositionOf(profile, newQualityId);
-        if (newPosition < 0)
+        if (newPosition < 0 || !profile.Items![newPosition].Allowed)
         {
             return false;
         }
@@ -95,7 +96,7 @@ public static class DownloadRule
             return true;
         }
 
-        // Un file attuale fuori dal profilo vale -1: qualsiasi qualità ammessa è più in alto.
+        // Un file attuale fuori dal profilo vale -1: qualsiasi qualità ammessa è più in alto. Una non ammessa conta (Spider-Noir).
         var currentPosition = PositionOf(profile, currentQualityId.Value);
         return newPosition > currentPosition || (newPosition == currentPosition && newScore > (currentScore ?? 0));
     }
@@ -107,25 +108,7 @@ public static class DownloadRule
     private static bool IsIgnored(string? text) =>
         text is not null && IgnoredRejectionPrefixes.Any(p => text.StartsWith(p, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>Posizione tra le voci ammesse (dal più basso); -1 se la qualità non c'è.</summary>
-    private static int PositionOf(ArrQualityProfile profile, int qualityId)
-    {
-        var position = 0;
-        foreach (var item in profile.Items ?? [])
-        {
-            if (!item.Allowed)
-            {
-                continue;
-            }
-
-            if (item.Quality?.Id == qualityId || (item.Items?.Any(member => member.Quality?.Id == qualityId) ?? false))
-            {
-                return position;
-            }
-
-            position++;
-        }
-
-        return -1;
-    }
+    /// <summary>Posizione tra tutte le voci, ammesse o no (dal più basso); -1 se la qualità non c'è.</summary>
+    private static int PositionOf(ArrQualityProfile profile, int qualityId) =>
+        profile.Items?.FindIndex(item => item.Quality?.Id == qualityId || (item.Items?.Any(member => member.Quality?.Id == qualityId) ?? false)) ?? -1;
 }
