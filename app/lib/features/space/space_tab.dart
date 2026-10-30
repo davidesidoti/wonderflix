@@ -13,10 +13,10 @@ class SpaceTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListView(
-        padding: EdgeInsets.symmetric(horizontal: adminSideMargin(context)),
-        children: [
-          ?header,
-          AdminSectionTitle(title: AppLocalizations.of(context).adminTabSpace),
-        ],
-      );
+    padding: EdgeInsets.symmetric(horizontal: adminSideMargin(context)),
+    children: [
+      ?header,
+      AdminSectionTitle(title: AppLocalizations.of(context).adminTabSpace),
+    ],
+  );
 }
