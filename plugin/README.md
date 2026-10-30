@@ -26,6 +26,7 @@ Dalla 1.10.0 c'è il match del film: gli amici in una sala votano sì o no su un
 Dalla 1.11.0 ci sono i voti degli amici: a fine film nel watch party ognuno vota da 1 a 10, i voti si scoprono tutti insieme, e nella scheda restano la media e i commenti degli amici (spec Q, `docs/superpowers/specs/2026-10-20-wonderflix-voti-amici-design.md`).
 Dalla 1.12.0 ci sono le segnalazioni: chi trova un problema su un titolo lo segnala, gli admin ricevono una notifica e la chiudono, e chi ha segnalato riceve l'esito; in più admin e utenti con la spunta sottotitoli di Jellyfin cercano, scaricano e caricano sottotitoli (spec R, `docs/superpowers/specs/2026-10-21-wonderflix-sistema-titoli-design.md`).
 Dalla 1.14.0 ci sono i download automatici: il plugin cerca i film e gli episodi che mancano in Radarr e Sonarr e scarica la release migliore con una regola sua, e gli admin vedono e correggono le scelte dalla scheda Download dell'app. Una release rifiutata dal client di download va in "Serve te" e si riprova al ritmo lento (spec T, `docs/superpowers/specs/2026-10-28-wonderflix-download-automatici-design.md`).
+Dalla 1.16.0 c'è la sezione Spazio: il plugin incrocia visioni, richieste, voti e torrent per proporre cosa cancellare sul seedbox, e fa il lavoro quando l'admin preme il pulsante (spec U, `docs/superpowers/specs/2026-10-30-wonderflix-spazio-seedbox-design.md`).
 Senza il plugin WonderFlix funziona lo stesso, con gli avvisi
 anonimi, senza saghe, con le iniziali al posto delle immagini, senza il
 recupero della password, con la Home nell'ordine predefinito e senza le
@@ -221,9 +222,50 @@ uscite in arrivo.
   per admin e spunta sottotitoli, con 502 `{Reason}` se il download o
   l'upload falliscono (la ricerca risponde 502 senza corpo se Jellyfin o il
   provider falliscono); i 409 hanno `{Reason}`.
+- **Spazio (dalla 1.16.0, solo admin):** il plugin calcola in memoria (il primo
+  2 minuti dopo l'avvio, poi ogni 24 ore e su `POST Space/Recalculate`) quali
+  film, serie e stagioni si possono cancellare (nessuno li guarda più, mai
+  aperti, voti bassi), quali sono troppo pesanti (Alleggerisci, per stagione) e
+  cosa si può pulire (torrent senza copia in libreria, file orfani, doppioni).
+  Le operazioni (`POST Space/Operations`, poi `GET Space/Operations/{id}`)
+  girano una alla volta nel plugin; si avviano solo le righe di Cancellare.
+  `space.json` tiene i titoli tenuti, i torrent in attesa di fine seed e le
+  operazioni degli ultimi 30 giorni. Endpoint: `GET Space`, `POST
+  Space/Recalculate`, `POST Space/Operations`, `GET Space/Operations/{id}`,
+  `POST`/`DELETE Space/Kept`, `DELETE Space/Pending/{hash}`. Voti sulla scala
+  1-10: bassi fino a 4, alti da 8, minimo 2 voti (configurabili).
+  Configurazione (sezione Spazio della pagina del plugin):
+  - **qBittorrent:** indirizzo (`http://127.0.0.1:17541`), utente e password
+    (`SpaceQbitUrl`, `SpaceQbitUser`, `SpaceQbitPassword`). Il WebUI ha
+    `LocalHostAuth` acceso, quindi serve il login anche da localhost. La
+    password non torna mai nelle risposte né nel registro. Senza qBittorrent
+    non ci sono torrent né orfani.
+  - **Quota:** nel container di Jellyfin `quota` non c'è. Sul seedbox un cron
+    scrive `quota -w` in un file (per esempio ogni 10 minuti
+    `quota -w > ~/quota.txt`), e `SpaceQuotaFile` ne dà il percorso. Se il
+    file è vuoto o non c'è, la quota non si mostra (`Errors.Quota` =
+    `NotConfigured`).
+  - **Cartelle da analizzare** (`SpaceScanFolders`, una per riga):
+    `/home/hashvps/downloads` e `/home/hashvps/seedings`. Il plugin cancella
+    file dal disco solo lì dentro o nei percorsi di Radarr/Sonarr.
+  - **Soglie:** mesi senza aperture (6), giorni di grazia di una richiesta
+    (60), voti bassi (4), alti (8), minimo voti (2), GB all'ora "pesante" (4),
+    tracker con seed obbligatorio (`itatorrents.xyz,shareisland.org`), ratio
+    (10) e giorni (30).
+  - **Il cestino di Radarr e Sonarr deve restare spento** (`recycleBin`
+    vuoto): altrimenti `deleteFiles=true` sposta i file nel cestino e la
+    cancellazione non libera spazio.
+  - **Regola in qui da correggere** (a mano, sul seedbox): "Stop old
+    ItaTorrents downloaded seedings" ha la condizione sullo stato in OR
+    (`STATE ≠ downloading` OR `STATE ≠ stalled_downloading`, sempre vera):
+    deve essere AND.
+  I torrent di ItaTorrents e ShareIsland si tolgono solo con ratio 10 o 30
+  giorni di seed e finiti di scaricare; fino ad allora restano in attesa e il
+  plugin li controlla ogni ora. Il collegamento titolo-torrent usa device e
+  inode di `stat` (Jellyfin vede gli stessi percorsi del seedbox).
 - **Funzioni:** `GET Info` annuncia quello che il plugin sa fare; dalla 1.5.0
   ci sono sempre anche `collections` e `avatars`, dalla 1.6.0 anche
-  `account`, dalla 1.7.0 anche `home`, dalla 1.8.0 anche `recommendations`, dalla 1.9.0 anche `friendsActivity`, dalla 1.10.0 anche `match`, dalla 1.11.0 anche `ratings`, dalla 1.12.0 anche `reports`, dalla 1.14.0 anche `downloads` (con almeno uno tra Sonarr e Radarr); `upcomingSeries` e `upcomingMovies`
+  `account`, dalla 1.7.0 anche `home`, dalla 1.8.0 anche `recommendations`, dalla 1.9.0 anche `friendsActivity`, dalla 1.10.0 anche `match`, dalla 1.11.0 anche `ratings`, dalla 1.12.0 anche `reports`, dalla 1.14.0 anche `downloads` (con almeno uno tra Sonarr e Radarr), dalla 1.16.0 anche `space` (subito dopo `downloads`, con le stesse condizioni); `upcomingSeries` e `upcomingMovies`
   solo con Sonarr e Radarr configurati, e `calendar` con almeno uno dei due. Gli endpoint delle saghe e delle
   immagini sono aperti a ogni utente che ha fatto l'accesso. Quelli di
   `account` dipendono dalla rotta: `Account/Contacts` per ogni utente che ha
@@ -231,7 +273,7 @@ uscite in arrivo.
   `Account/Recovery` senza accesso, `Account/Admin` solo per gli admin. Quelli
   di `Home` e `Upcoming` sono aperti a ogni utente che ha fatto l'accesso,
   tranne le scritture (`POST Home/Layout`, `POST Upcoming/Test`), solo per gli
-  admin. Quelli di `Recommendations` hanno la stessa policy degli amici. Quelli di `Activity` hanno la stessa policy degli amici. Quelli di `Match` hanno la stessa policy degli amici. Quelli di `Ratings` hanno la stessa policy degli amici, tranne `Ratings/Admin`, solo per l'admin. Quelli di `Downloads` sono solo per l'admin.
+  admin. Quelli di `Recommendations` hanno la stessa policy degli amici. Quelli di `Activity` hanno la stessa policy degli amici. Quelli di `Match` hanno la stessa policy degli amici. Quelli di `Ratings` hanno la stessa policy degli amici, tranne `Ratings/Admin`, solo per l'admin. Quelli di `Downloads` e di `Space` sono solo per l'admin.
 
 ## Installazione dal repository
 
