@@ -23,10 +23,20 @@ public sealed class JellyfinViewingFacts(
     IUserDirectory userDirectory) : IViewingFacts
 {
     public ItemViewing? Movie(Guid itemId) =>
-        Find(itemId) is Movie movie ? Viewing(movie, [movie], movie.Genres) : null;
+        Find(itemId) is Movie movie ? Viewing(movie, [movie], movie.Genres, ActiveUsers()) : null;
 
-    public ItemViewing? Series(Guid seriesId) =>
-        Find(seriesId) is Series series ? Viewing(series, Episodes(series.Id), series.Genres) : null;
+    public ItemViewing? Series(Guid seriesId)
+    {
+        if (Find(seriesId) is not Series series)
+        {
+            return null;
+        }
+
+        // Gli speciali (stagione 0) non sono mai candidati: uno speciale non visto non deve far sembrare
+        // abbandonata una serie vista tutta. Contano per "aperto" e per l'ultima visione, non per "finito" (spec U §4.1).
+        var episodes = Episodes(series.Id);
+        return Viewing(series, episodes, series.Genres, ActiveUsers(), episodes.Where(e => e.ParentIndexNumber != 0).ToList());
+    }
 
     public IReadOnlyDictionary<int, ItemViewing> Seasons(Guid seriesId)
     {
@@ -37,10 +47,13 @@ public sealed class JellyfinViewingFacts(
         }
 
         var bySeason = Episodes(series.Id).ToLookup(episode => episode.ParentIndexNumber);
+        var users = ActiveUsers();
+        // Senza IsVirtualItem = false una stagione solo "attesa" potrebbe prendersi il numero di una vera.
         var seasons = libraryManager.GetItemList(new InternalItemsQuery
         {
             AncestorIds = [series.Id],
             IncludeItemTypes = [BaseItemKind.Season],
+            IsVirtualItem = false,
         });
         foreach (var season in seasons)
         {
@@ -48,7 +61,7 @@ public sealed class JellyfinViewingFacts(
             if (season.IndexNumber is { } number)
             {
                 // I generi stanno sulla serie, la stagione non li ha.
-                result.TryAdd(number, Viewing(season, bySeason[number].ToList(), series.Genres));
+                result.TryAdd(number, Viewing(season, bySeason[number].ToList(), series.Genres, users));
             }
         }
 
@@ -85,11 +98,12 @@ public sealed class JellyfinViewingFacts(
             IncludeItemTypes = [BaseItemKind.Episode],
             IsVirtualItem = false,
             IsPlayed = true,
-        }).OfType<Episode>().Select(episode => episode.SeriesId);
+        }).OfType<Episode>().Select(episode => episode.SeriesId).Distinct();
         foreach (var id in seriesIds.Concat(highlyRated))
         {
             // Un voto alto è di solito su una stagione: il genere è quello della serie.
-            var item = Find(id) is Season season ? Find(season.SeriesId) : Find(id);
+            var found = Find(id);
+            var item = found is Season season ? Find(season.SeriesId) : found;
             if (item is MovieItem or SeriesItem)
             {
                 titles[item.Id] = item;
@@ -117,11 +131,19 @@ public sealed class JellyfinViewingFacts(
             IsVirtualItem = false,
         }).ToList();
 
-    private ItemViewing Viewing(BaseItem item, IReadOnlyList<BaseItem> watchable, IEnumerable<string> genres) =>
-        new(item.Id, item.DateCreated == default ? null : Utc(item.DateCreated), Usage(watchable), genres.ToList());
+    private ItemViewing Viewing(
+        BaseItem item,
+        IReadOnlyList<BaseItem> watchable,
+        IEnumerable<string> genres,
+        List<(User User, string Name)> users,
+        IReadOnlyList<BaseItem>? mustFinish = null) =>
+        new(item.Id, item.DateCreated == default ? null : Utc(item.DateCreated), Usage(watchable, mustFinish ?? watchable, users), genres.ToList());
 
-    /// <summary>Per ogni utente attivo che ha aperto qualcosa tra gli item: se li ha finiti tutti e l'ultima volta.</summary>
-    private List<UserUsage> Usage(IReadOnlyList<BaseItem> watchable)
+    /// <summary>
+    /// Per ogni utente attivo che ha aperto qualcosa tra gli item: se ha finito tutti quelli di <paramref name="mustFinish"/>
+    /// (un sottoinsieme di <paramref name="watchable"/>, vuoto = mai finito) e l'ultima volta.
+    /// </summary>
+    private List<UserUsage> Usage(IReadOnlyList<BaseItem> watchable, IReadOnlyList<BaseItem> mustFinish, List<(User User, string Name)> users)
     {
         var usage = new List<UserUsage>();
         if (watchable.Count == 0)
@@ -129,16 +151,17 @@ public sealed class JellyfinViewingFacts(
             return usage;
         }
 
-        foreach (var (user, name) in ActiveUsers())
+        foreach (var (user, name) in users)
         {
-            var data = watchable.Select(item => userDataManager.GetUserData(user, item)).ToList();
-            if (!data.Any(d => d is { Played: true } or { PlaybackPositionTicks: > 0 }))
+            var data = watchable.ToDictionary(item => item, item => userDataManager.GetUserData(user, item));
+            if (!data.Values.Any(d => d is { Played: true } or { PlaybackPositionTicks: > 0 }))
             {
                 continue;
             }
 
-            var last = data.Max(d => d?.LastPlayedDate);
-            usage.Add(new UserUsage(user.Id, name, true, data.All(d => d?.Played == true), last is { } date ? Utc(date) : null));
+            var last = data.Values.Max(d => d?.LastPlayedDate);
+            var finished = mustFinish.Count > 0 && mustFinish.All(item => data[item]?.Played == true);
+            usage.Add(new UserUsage(user.Id, name, true, finished, last is { } date ? Utc(date) : null));
         }
 
         return usage;
@@ -146,8 +169,10 @@ public sealed class JellyfinViewingFacts(
 
     private List<(User User, string Name)> ActiveUsers() =>
         userDirectory.GetUsers()
-            .Where(u => u.Enabled && userManager.GetUserById(u.Id) is not null)
-            .Select(u => (userManager.GetUserById(u.Id)!, u.Name))
+            .Where(u => u.Enabled)
+            .Select(u => (User: userManager.GetUserById(u.Id), u.Name))
+            .Where(u => u.User is not null)
+            .Select(u => (u.User!, u.Name))
             .ToList();
 
     // Jellyfin salva le date in UTC, a volte senza dirlo (Kind Unspecified).
