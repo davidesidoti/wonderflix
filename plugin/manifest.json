@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.15.1.0",
+        "changelog": "Migliori episodi anche per una stagione non monitorata: se Sonarr non monitora nessun episodio della stagione (serie tolta dal monitoraggio), il riquadro considera tutti gli episodi già usciti.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.15.1/wonderflix-watch-party_1.15.1.zip",
+        "checksum": "a650f6e6f98809d6fc0cfa4294fb3882",
+        "timestamp": "2026-10-30T11:16:38Z"
+      },
+      {
         "version": "1.15.0.0",
         "changelog": "Migliori episodi per WonderFlix 0.24.0: nella ricerca di una stagione senza un pack conveniente il plugin indica per ogni episodio (mancante, o sotto il punteggio obiettivo, solo monitorati e già usciti) il singolo migliore secondo la regola dell'admin, con il punteggio del file attuale; un download rifiutato dal client (Sonarr/Radarr con errore 5xx) dà 502 \"Refused\" e nel giro va in \"Serve te\" invece di riprovare ogni 15 minuti.",
         "targetAbi": "10.11.0.0",
