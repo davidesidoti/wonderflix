@@ -92,6 +92,47 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>Soglie di punteggio per profilo di qualità; un profilo senza riga usa quelle predefinite. Un array: XmlSerializer lo sa scrivere.</summary>
     public DownloadProfileRule[] DownloadProfileRules { get; set; } = [];
+
+    /// <summary>Indirizzo di qBittorrent visto dal server Jellyfin (spec U §7.1). Vuoto: niente torrent nella pagina Spazio.</summary>
+    public string SpaceQbitUrl { get; set; } = string.Empty;
+
+    public string SpaceQbitUser { get; set; } = string.Empty;
+
+    /// <summary>Password di qBittorrent. Il file lo leggono solo gli admin.</summary>
+    public string SpaceQbitPassword { get; set; } = string.Empty;
+
+    /// <summary>Mesi senza che nessuno apra un titolo perché sia fermo, da 1 a 60.</summary>
+    public int SpaceStaleMonths { get; set; } = 6;
+
+    /// <summary>Giorni in cui una richiesta recente protegge un titolo, da 0 a 365.</summary>
+    public int SpaceRequestGraceDays { get; set; } = 60;
+
+    /// <summary>Voto medio sotto il quale un titolo è poco gradito, da 1 a 5.</summary>
+    public int SpaceLowRating { get; set; } = 2;
+
+    /// <summary>Voto medio da cui un titolo si tiene, da 1 a 5.</summary>
+    public int SpaceHighRating { get; set; } = 4;
+
+    /// <summary>Voti minimi perché la media conti, da 1 a 20.</summary>
+    public int SpaceMinRatings { get; set; } = 2;
+
+    /// <summary>GB all'ora oltre i quali un file è pesante (da 0,5 a 50).</summary>
+    public double SpaceHeavyGbPerHour { get; set; } = 4.0;
+
+    /// <summary>Domini dei tracker privati con seed obbligatorio, separati da virgole.</summary>
+    public string SpaceSeedTrackers { get; set; } = "itatorrents.xyz,shareisland.org";
+
+    /// <summary>Rapporto di seed che sblocca la rimozione, da 0 a 100.</summary>
+    public double SpaceSeedRatio { get; set; } = 10.0;
+
+    /// <summary>Giorni di seed che sbloccano la rimozione, da 0 a 365.</summary>
+    public int SpaceSeedDays { get; set; } = 30;
+
+    /// <summary>Cartelle del server dove si cercano i file orfani, una per riga; il plugin cancella solo lì dentro.</summary>
+    public string SpaceScanFolders { get; set; } = "/home/hashvps/downloads\n/home/hashvps/seedings";
+
+    /// <summary>File dove un cron scrive la quota del seedbox. Vuoto: quota non configurata.</summary>
+    public string SpaceQuotaFile { get; set; } = string.Empty;
 }
 
 /// <summary>Le soglie di un profilo di qualità di Radarr o Sonarr (spec T). <c>TargetScore</c> null: nessun obiettivo.</summary>

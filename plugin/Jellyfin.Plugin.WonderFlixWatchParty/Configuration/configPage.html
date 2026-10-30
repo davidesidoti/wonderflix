@@ -147,6 +147,69 @@
                         <div id="WonderFlixDownloadsResult" class="fieldDescription" aria-live="polite"></div>
                     </div>
                 </form>
+                <form id="WonderFlixSpaceForm">
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Space</h3>
+                        <div class="fieldDescription">
+                            The Space page in the app shows what to delete or lighten to free disk space on the seedbox. Needs Sonarr or Radarr above.
+                        </div>
+                        <h4>qBittorrent</h4>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="url" id="WonderFlixSpaceQbitUrl" label="qBittorrent address" placeholder="http://127.0.0.1:17541" />
+                            <div class="fieldDescription">As seen from the Jellyfin server. Empty: torrents are not handled.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="text" id="WonderFlixSpaceQbitUser" label="qBittorrent user" autocomplete="off" />
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="password" id="WonderFlixSpaceQbitPassword" label="qBittorrent password" autocomplete="new-password" />
+                        </div>
+                        <h4>Candidates to delete</h4>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="number" id="WonderFlixSpaceStaleMonths" label="Months without anyone opening a title" min="1" max="60" step="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="number" id="WonderFlixSpaceRequestGraceDays" label="Days a new request protects a title" min="0" max="365" step="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="number" id="WonderFlixSpaceLowRating" label="Low rating (average below)" min="1" max="5" step="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="number" id="WonderFlixSpaceHighRating" label="High rating (average from, kept)" min="1" max="5" step="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="number" id="WonderFlixSpaceMinRatings" label="Ratings needed for the average to count" min="1" max="20" step="1" />
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="number" id="WonderFlixSpaceHeavyGbPerHour" label="Heavy file (GB per hour)" min="0.5" max="50" step="0.1" />
+                            <div class="fieldDescription">Files heavier than this for their length can be lightened.</div>
+                        </div>
+                        <h4>Required seeding</h4>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="text" id="WonderFlixSpaceSeedTrackers" label="Private trackers" placeholder="itatorrents.xyz,shareisland.org" />
+                            <div class="fieldDescription">Domains separated by commas. A torrent on these trackers is removed only after the ratio or the days below.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="number" id="WonderFlixSpaceSeedRatio" label="Seed ratio" min="0" max="100" step="0.5" />
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="number" id="WonderFlixSpaceSeedDays" label="Seed days" min="0" max="365" step="1" />
+                        </div>
+                        <h4>Files on the server</h4>
+                        <div class="inputContainer">
+                            <textarea is="emby-textarea" id="WonderFlixSpaceScanFolders" class="emby-textarea" rows="3" label="Folders to scan for orphan files"></textarea>
+                            <div class="fieldDescription">One absolute path per line. WonderFlix deletes files only inside these folders and the Radarr and Sonarr paths.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="text" id="WonderFlixSpaceQuotaFile" label="Quota file" placeholder="/home/user/quota.txt" />
+                            <div class="fieldDescription">A text file where a cron job writes the output of <code>quota -w</code>. Empty: the quota is not shown.</div>
+                        </div>
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span>Save</span>
+                        </button>
+                        <div id="WonderFlixSpaceResult" class="fieldDescription" aria-live="polite"></div>
+                    </div>
+                </form>
                 <form id="WonderFlixRecoveryForm">
                     <div class="verticalSection">
                         <h3 class="sectionTitle">Password recovery</h3>
@@ -785,6 +848,69 @@
                     }, function () {
                         Dashboard.hideLoadingMsg();
                         dlResult.textContent = 'Settings not saved.';
+                    });
+                    return false;
+                });
+                // Spazio (spec U): testo e numeri; Salva solo dopo aver letto la configurazione.
+                var spaceFields = {
+                    SpaceQbitUrl: 'text', SpaceQbitUser: 'text', SpaceQbitPassword: 'text',
+                    SpaceStaleMonths: 'int', SpaceRequestGraceDays: 'int', SpaceLowRating: 'int', SpaceHighRating: 'int',
+                    SpaceMinRatings: 'int', SpaceHeavyGbPerHour: 'float', SpaceSeedTrackers: 'text', SpaceSeedRatio: 'float',
+                    SpaceSeedDays: 'int', SpaceScanFolders: 'lines', SpaceQuotaFile: 'text'
+                };
+                var spaceInputs = {};
+                Object.keys(spaceFields).forEach(function (name) {
+                    spaceInputs[name] = page.querySelector('#WonderFlix' + name);
+                });
+                var spaceResult = page.querySelector('#WonderFlixSpaceResult');
+                var spaceLoaded = false;
+
+                function loadSpace() {
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        Object.keys(spaceFields).forEach(function (name) {
+                            var value = config[name];
+                            spaceInputs[name].value = value === undefined || value === null ? '' : value;
+                        });
+                        spaceLoaded = true;
+                        spaceResult.textContent = '';
+                    }, function () {
+                        spaceLoaded = false;
+                        spaceResult.textContent = 'Settings not loaded: reload the page.';
+                    });
+                }
+
+                page.addEventListener('pageshow', loadSpace);
+                loadSpace();
+
+                page.querySelector('#WonderFlixSpaceForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    spaceResult.textContent = '';
+                    if (!spaceLoaded) {
+                        spaceResult.textContent = 'Settings not loaded: reload the page.';
+                        return false;
+                    }
+
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        Object.keys(spaceFields).forEach(function (name) {
+                            var raw = spaceInputs[name].value;
+                            var kind = spaceFields[name];
+                            if (kind === 'int' || kind === 'float') {
+                                var number = kind === 'int' ? parseInt(raw, 10) : parseFloat(raw);
+                                config[name] = isNaN(number) ? config[name] : number;
+                            } else if (kind === 'lines') {
+                                config[name] = raw.replace(/\r/g, '').split('\n').map(function (l) { return l.trim(); }).filter(Boolean).join('\n');
+                            } else {
+                                config[name] = raw.trim();
+                            }
+                        });
+                        return ApiClient.updatePluginConfiguration(pluginId, config);
+                    }).then(function (saved) {
+                        Dashboard.processPluginConfigurationUpdateResult(saved);
+                        loadSpace();
+                    }, function () {
+                        Dashboard.hideLoadingMsg();
+                        spaceResult.textContent = 'Settings not saved.';
                     });
                     return false;
                 });
