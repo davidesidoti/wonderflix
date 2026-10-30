@@ -54,6 +54,20 @@ class SpaceController extends AsyncNotifier<SpaceOverview> {
   Future<SpaceFailure?> keep(String key, String title) =>
       _then(() => ref.read(spaceApiProvider).keep(key, title));
 
+  /// Tiene ciascuno in ordine e rilegge una volta sola; dà gli errori.
+  Future<List<SpaceFailure>> keepAll(List<(String, String)> items) async {
+    final failures = <SpaceFailure>[];
+    for (final (key, title) in items) {
+      try {
+        await ref.read(spaceApiProvider).keep(key, title);
+      } on SpaceException catch (error) {
+        failures.add(error.failure);
+      }
+    }
+    await reload();
+    return failures;
+  }
+
   Future<SpaceFailure?> unkeep(String key) =>
       _then(() => ref.read(spaceApiProvider).unkeep(key));
 

@@ -456,4 +456,73 @@ void main() {
     expect(find.text('Cerco i torrent'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  group('keep selected', () {
+    Future<void> select(WidgetTester tester, List<String> keys) async {
+      await tester.tap(find.text('Seleziona'));
+      await tester.pump();
+      for (final k in keys) {
+        await tester.tap(find.text(k));
+      }
+      await tester.pump();
+    }
+
+    testWidgets('KeepSelectedKeepsEachOnceAndReloadsOnce', (tester) async {
+      await pumpTab(tester, [_candidate('movie:1'), _season(3)]);
+      await select(tester, ['Titolo movie:1', 'Serie Lunga · Stagione 3']);
+      final before = overviews();
+      await tester.tap(find.text('Tieni selezionati (2)'));
+      await tester.pumpAndSettle();
+
+      expect(
+        [
+          for (final c in api.calls)
+            if (c.startsWith('keep')) c,
+        ],
+        [
+          'keep movie:1 Titolo movie:1',
+          'keep season:7:3 Serie Lunga · Stagione 3',
+        ],
+      );
+      expect(overviews() - before, 1);
+      expect(find.text('2 titoli tenuti'), findsOneWidget);
+    });
+
+    testWidgets('AFailedKeepIsReported', (tester) async {
+      await pumpTab(tester, [_candidate('movie:1'), _candidate('movie:2')]);
+      await select(tester, ['Titolo movie:1', 'Titolo movie:2']);
+      api.nextActionFailure = SpaceFailure.busy;
+      await tester.tap(find.text('Tieni selezionati (2)'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('1 tenuti, 1 non riusciti: '), findsOneWidget);
+    });
+
+    testWidgets('KeepSelectedClearsTheSelection', (tester) async {
+      await pumpTab(tester, [_candidate('movie:1')]);
+      await select(tester, ['Titolo movie:1']);
+      await tester.tap(find.text('Tieni selezionati (1)'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Seleziona'), findsOneWidget);
+      expect(find.textContaining('Tieni selezionati'), findsNothing);
+    });
+
+    testWidgets('TheDeleteButtonIsOffWhileKeeping', (tester) async {
+      await pumpTab(tester, [_candidate('movie:1')]);
+      await select(tester, ['Titolo movie:1']);
+      api.actionGate = Completer<void>();
+      await tester.tap(find.text('Tieni selezionati (1)'));
+      await tester.pump();
+
+      final del = find.ancestor(
+        of: find.textContaining('Elimina selezionati'),
+        matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+      );
+      expect(tester.widget<ButtonStyleButton>(del).onPressed, isNull);
+
+      api.actionGate!.complete();
+      await tester.pumpAndSettle();
+    });
+  });
 }

@@ -217,6 +217,43 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
     );
   }
 
+  /// "Tieni selezionati" in corso: spegne anche "Elimina selezionati".
+  bool _keepingBulk = false;
+
+  Future<void> _keepSelected(
+    AppLocalizations l,
+    List<SpaceCandidate> counted,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _keepingBulk = true);
+    final List<SpaceFailure> failures;
+    try {
+      failures = await ref.read(spaceControllerProvider.notifier).keepAll([
+        for (final c in counted)
+          (c.key, spaceTitleOf(l, c.title, c.seasonNumber)),
+      ]);
+    } finally {
+      if (mounted) setState(() => _keepingBulk = false);
+    }
+    if (!mounted) return;
+    ref.read(spaceSelectionProvider.notifier).clear();
+    setState(() => _selecting = false);
+    final ok = counted.length - failures.length;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          failures.isEmpty
+              ? l.spaceKeptCount(ok)
+              : l.spaceKeepPartial(
+                  ok,
+                  failures.length,
+                  spaceFailureLabel(l, failures.first),
+                ),
+        ),
+      ),
+    );
+  }
+
   /// La barra in fondo alla selezione, ferma mentre la lista scorre.
   Widget _selectionBar(AppLocalizations l, SpaceOverview o) {
     final keys = ref.watch(spaceSelectionProvider);
@@ -246,12 +283,19 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
               child: Text(l.spaceCancelSelection),
             ),
             AdminActionButton(
+              label: l.spaceKeepSelected(counted.length),
+              icon: LucideIcons.shield,
+              onPressed: chosen.isEmpty || _keepingBulk
+                  ? null
+                  : () => _keepSelected(l, counted),
+            ),
+            AdminActionButton(
               label: l.spaceDeleteSelected(
                 counted.length,
                 spaceGb(l, counted.fold(0, (s, c) => s + c.freeNowBytes)),
               ),
               icon: LucideIcons.trash2,
-              onPressed: chosen.isEmpty
+              onPressed: chosen.isEmpty || _keepingBulk
                   ? null
                   : () async {
                       await startSpaceBulk(context, ref, chosen);

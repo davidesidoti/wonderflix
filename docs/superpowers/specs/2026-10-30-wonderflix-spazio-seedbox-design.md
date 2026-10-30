@@ -218,6 +218,8 @@ Solo in Cancellare (film, serie, stagioni). "Seleziona" mette una casella su ogn
 
 **Finestra dei passi.** Mostra i passi di tutti i titoli uno sotto l'altro, ognuno con un'intestazione e il suo stato (in coda, in corso, finita, non riuscita). In fondo ci sono il totale liberato e quello in attesa del seed. Un titolo che fallisce non ferma gli altri, e chiudere la finestra non ferma niente: finita l'ultima operazione, o chiusa la finestra, la panoramica si rilegge una volta.
 
+**Tieni in blocco.** Accanto a "Elimina selezionati" la barra ha "Tieni selezionati ({n})": senza conferma (tenere è innocuo e si annulla da "Tenuti") chiama `keep` per ogni titolo scelto, con gli stessi conteggi senza doppioni, rilegge la panoramica una volta sola, esce dalla selezione e dice quanti sono stati tenuti e, se qualcuno è fallito, il motivo del primo.
+
 ## 7. Plugin
 
 ### 7.1 Configurazione
