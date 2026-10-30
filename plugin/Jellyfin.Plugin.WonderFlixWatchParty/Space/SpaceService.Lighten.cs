@@ -13,6 +13,9 @@ public static class SpaceLightenStates
     public const string Importing = "Importing";
 
     public const string Failed = "Failed";
+
+    /// <summary>Scaricato, ma Radarr/Sonarr non lo importano da soli (<c>importBlocked</c>).</summary>
+    public const string Blocked = "Blocked";
 }
 
 /// <summary>Lo stato dei download di "Alleggerisci" sulle righe di Alleggerire (piano 30d, Global Constraints).</summary>
@@ -169,7 +172,7 @@ public sealed partial class SpaceService
             return (true, null);
         }
 
-        return (false, new SpaceLightenDownloadDto(now - grabbedAt < LightenQueueGrace ? SpaceLightenStates.Downloading : SpaceLightenStates.Failed, 0, 0));
+        return (false, new SpaceLightenDownloadDto(now - grabbedAt < LightenQueueGrace ? SpaceLightenStates.Downloading : SpaceLightenStates.Failed, 0, 0, null));
     }
 
     // Una stagione può avere più voci (episodi singoli): scarica finché una scarica, il progresso è quello di tutte.
@@ -181,10 +184,17 @@ public sealed partial class SpaceService
         var size = downloads.Sum(i => i.Size);
         var left = downloads.Sum(i => i.Sizeleft);
         var progress = size > 0 ? Math.Round(Math.Clamp(1 - ((double)left / size), 0, 1), 2) : 0;
+        var blocked = items.Where(i => Is(i, "importBlocked")).ToList();
         var state = items.Any(i => Is(i, "downloading")) ? SpaceLightenStates.Downloading
+            : blocked.Count > 0 ? SpaceLightenStates.Blocked
             : items.Any(i => Is(i, "failed") || Is(i, "failedPending")) ? SpaceLightenStates.Failed
             : SpaceLightenStates.Importing;
-        return new SpaceLightenDownloadDto(state, progress, left);
+
+        // Il perché del blocco, per l'admin: i primi tre messaggi diversi.
+        var messages = state == SpaceLightenStates.Blocked
+            ? blocked.SelectMany(i => i.StatusMessages ?? []).SelectMany(m => m?.Messages ?? []).Where(m => !string.IsNullOrWhiteSpace(m)).Distinct().Take(3).ToList()
+            : [];
+        return new SpaceLightenDownloadDto(state, progress, left, messages.Count > 0 ? string.Join('\n', messages) : null);
 
         static bool Is(ArrQueueItem item, string state) => string.Equals(item.TrackedDownloadState, state, StringComparison.OrdinalIgnoreCase);
     }

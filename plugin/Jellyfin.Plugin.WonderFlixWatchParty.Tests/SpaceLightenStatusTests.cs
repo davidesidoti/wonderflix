@@ -81,8 +81,18 @@ public sealed class SpaceLightenStatusTests : IDisposable
         store.Save(book);
     }
 
-    private static ArrQueueItem Item(string state, long size, long left, int? movieId = null, int? seriesId = null, int? season = null, string? downloadId = null) =>
-        new() { MovieId = movieId, SeriesId = seriesId, SeasonNumber = season, Size = size, Sizeleft = left, TrackedDownloadState = state, DownloadId = downloadId };
+    private static ArrQueueItem Item(string state, long size, long left, int? movieId = null, int? seriesId = null, int? season = null, string? downloadId = null, string?[]? messages = null) =>
+        new()
+        {
+            MovieId = movieId,
+            SeriesId = seriesId,
+            SeasonNumber = season,
+            Size = size,
+            Sizeleft = left,
+            TrackedDownloadState = state,
+            DownloadId = downloadId,
+            StatusMessages = [new ArrStatusMessage { Title = "file.mkv", Messages = [.. messages ?? []] }, null],
+        };
 
     private async Task<SpaceLightenDownloadDto?> DownloadOf(string key) =>
         Assert.Single((await _service.OverviewAsync(_admin, CancellationToken.None)).Lighten, r => r.Key == key).Download;
@@ -93,7 +103,7 @@ public sealed class SpaceLightenStatusTests : IDisposable
         Lightened("movie:12", Now.AddHours(-1));
         _radarrQueue = [Item("downloading", 4 * Gb, 1 * Gb, movieId: 12), Item("downloading", 9 * Gb, 9 * Gb, movieId: 99)];
 
-        Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Downloading, 0.75, 1 * Gb), await DownloadOf("movie:12"));
+        Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Downloading, 0.75, 1 * Gb, null), await DownloadOf("movie:12"));
         Assert.Null(await DownloadOf("movie:13"));
     }
 
@@ -113,6 +123,49 @@ public sealed class SpaceLightenStatusTests : IDisposable
         _radarrQueue = [Item("failedPending", 4 * Gb, 2 * Gb, movieId: 12)];
 
         Assert.Equal(SpaceLightenStates.Failed, (await DownloadOf("movie:12"))!.State);
+    }
+
+    [Fact]
+    public async Task AnImportBlockedItemIsBlockedWithItsMessages()
+    {
+        Lightened("season:5:2", Now.AddHours(-1));
+        const string NotUpgrade = "Not an upgrade for existing episode file(s)";
+        _sonarrQueue =
+        [
+            Item("importBlocked", 6 * Gb, 0, seriesId: 5, season: 2, downloadId: "PACK", messages: [NotUpgrade, "", null]),
+            Item("importBlocked", 6 * Gb, 0, seriesId: 5, season: 2, downloadId: "PACK", messages: [NotUpgrade, "Sample"]),
+            Item("importBlocked", 1 * Gb, 0, seriesId: 5, season: 2, downloadId: "B", messages: ["Uno", "Due"]),
+            Item("importPending", 1 * Gb, 0, seriesId: 5, season: 2, downloadId: "C", messages: ["Non conta"]),
+        ];
+
+        // Al massimo tre messaggi, senza doppioni né vuoti, solo delle voci bloccate.
+        Assert.Equal(
+            new SpaceLightenDownloadDto(SpaceLightenStates.Blocked, 1, 0, NotUpgrade + "\nSample\nUno"),
+            await DownloadOf("season:5:2"));
+    }
+
+    [Fact]
+    public async Task ABlockedItemWithoutMessagesHasANullMessage()
+    {
+        Lightened("movie:12", Now.AddHours(-1));
+        _radarrQueue = [Item("importBlocked", 4 * Gb, 0, movieId: 12), Item("failed", 4 * Gb, 0, movieId: 12)];
+        var download = await DownloadOf("movie:12");
+
+        Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Blocked, 1, 0, null), download);
+        Assert.Contains("\"Message\":null", JsonSerializer.Serialize(download, JsonDefaults.PascalCaseOptions), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DownloadingComesBeforeBlocked()
+    {
+        Lightened("season:5:2", Now.AddHours(-1));
+        _sonarrQueue =
+        [
+            Item("importBlocked", 2 * Gb, 0, seriesId: 5, season: 2, downloadId: "A", messages: ["Bloccato"]),
+            Item("downloading", 2 * Gb, 2 * Gb, seriesId: 5, season: 2, downloadId: "B", messages: ["Lento"]),
+        ];
+
+        Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Downloading, 0.5, 2 * Gb, null), await DownloadOf("season:5:2"));
     }
 
     [Fact]
@@ -136,7 +189,7 @@ public sealed class SpaceLightenStatusTests : IDisposable
     {
         Lightened("movie:12", Now.AddMinutes(-5));
 
-        Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Downloading, 0, 0), await DownloadOf("movie:12"));
+        Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Downloading, 0, 0, null), await DownloadOf("movie:12"));
     }
 
     [Fact]
@@ -144,7 +197,7 @@ public sealed class SpaceLightenStatusTests : IDisposable
     {
         Lightened("movie:12", Now.AddMinutes(-20));
 
-        Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Failed, 0, 0), await DownloadOf("movie:12"));
+        Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Failed, 0, 0, null), await DownloadOf("movie:12"));
         Assert.True(_downloads.LightenedKeys().ContainsKey("movie:12"));
     }
 
@@ -159,7 +212,7 @@ public sealed class SpaceLightenStatusTests : IDisposable
             Item("downloading", 10 * Gb, 10 * Gb, seriesId: 5, season: 3),
         ];
 
-        Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Downloading, 0.75, 1 * Gb), await DownloadOf("season:5:2"));
+        Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Downloading, 0.75, 1 * Gb, null), await DownloadOf("season:5:2"));
         Assert.DoesNotContain(ArrKind.Radarr, _arr.QueueCalls);
     }
 
@@ -228,7 +281,7 @@ public sealed class SpaceLightenStatusTests : IDisposable
         Lightened("season:5:2", Now.AddHours(-1));
         _sonarrQueue = [.. Enumerable.Range(1, 3).Select(_ => Item("downloading", 6 * Gb, 3 * Gb, seriesId: 5, season: 2, downloadId: "PACK"))];
 
-        Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Downloading, 0.5, 3 * Gb), await DownloadOf("season:5:2"));
+        Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Downloading, 0.5, 3 * Gb, null), await DownloadOf("season:5:2"));
     }
 
     [Fact]
@@ -249,7 +302,7 @@ public sealed class SpaceLightenStatusTests : IDisposable
         _movieFileSize = 3 * Gb;
         _movieFileAdded = Now.AddDays(-30);
 
-        Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Failed, 0, 0), await DownloadOf("movie:12"));
+        Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Failed, 0, 0, null), await DownloadOf("movie:12"));
     }
 
     [Fact]

@@ -715,6 +715,22 @@ public class ArrClientTests
     }
 
     [Fact]
+    public async Task TheQueueReadsTheStatusMessages()
+    {
+        Answer(HttpStatusCode.OK, """{"totalRecords":2,"records":[{"id":1,"trackedDownloadState":"importBlocked","statusMessages":[{"title":"a.mkv","messages":["Not an upgrade",null]},null,{"title":null,"messages":null}]},{"id":2,"statusMessages":null}]}""");
+
+        var items = await Client().GetQueueAsync(ArrKind.Sonarr, CancellationToken.None);
+
+        var messages = items[0]!.StatusMessages!;
+        Assert.Equal(3, messages.Count);
+        Assert.Equal("a.mkv", messages[0]!.Title);
+        Assert.Equal(["Not an upgrade", null], messages[0]!.Messages!);
+        Assert.Null(messages[1]);
+        Assert.Null(messages[2]!.Messages);
+        Assert.Null(items[1]!.StatusMessages);
+    }
+
+    [Fact]
     public async Task TheNewCallsLogTheMethodAndThePathButNeverTheQueryOrTheRelease()
     {
         Answer(HttpStatusCode.Unauthorized, "{}");

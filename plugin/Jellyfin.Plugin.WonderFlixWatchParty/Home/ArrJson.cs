@@ -306,6 +306,17 @@ public sealed class ArrQueueItem
 
     /// <summary>Lo stato nel client: "downloading", "queued", "paused", "delay", "downloadClientUnavailable", "completed", "warning", ...</summary>
     public string? Status { get; set; }
+
+    /// <summary>Perché Radarr/Sonarr non importano o avvisano, per file.</summary>
+    public List<ArrStatusMessage?>? StatusMessages { get; set; }
+}
+
+/// <summary>Un gruppo di <c>statusMessages</c> di una voce della coda: il file e i suoi messaggi.</summary>
+public sealed class ArrStatusMessage
+{
+    public string? Title { get; set; }
+
+    public List<string?>? Messages { get; set; }
 }
 
 /// <summary>Un file di un film (Radarr <c>moviefile</c>) o di un episodio (Sonarr <c>episodefile</c>) (spec T §2).</summary>
