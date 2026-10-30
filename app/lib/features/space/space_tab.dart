@@ -19,6 +19,7 @@ import '../downloads/download_search_page.dart';
 import 'space_actions.dart';
 import 'space_controller.dart';
 import 'space_labels.dart';
+import 'space_operation_dialog.dart';
 import 'space_rows.dart';
 import 'space_title_dialog.dart';
 
@@ -506,6 +507,7 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
               key: ValueKey('op-${op.id}'),
               operation: op,
               now: now,
+              onOpen: () => unawaited(showSpaceOperation(context, op.id)),
             ),
           ),
         ],

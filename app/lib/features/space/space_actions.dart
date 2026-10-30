@@ -7,13 +7,14 @@ import '../../l10n/gen/app_localizations.dart';
 import '../admin/admin_confirm_dialog.dart';
 import 'space_controller.dart';
 import 'space_labels.dart';
+import 'space_operation_dialog.dart';
 import 'space_providers.dart';
 import 'space_rows.dart';
 
 /// Conferma (passi in parole, GB subito e dopo il seed, nota del pack), poi
 /// avvia l'operazione (spec U §6.1). `true` se è partita. [candidate] dà i GB
 /// di un titolo; senza, vale [sizeBytes] (torrent e file: tutto subito).
-/// Il Task 5 sostituisce l'avviso con il riquadro del progresso.
+/// Dopo l'avvio apre il riquadro del progresso e torna quando si chiude.
 Future<bool> startSpaceOperation(
   BuildContext context,
   WidgetRef ref, {
@@ -50,7 +51,7 @@ Future<bool> startSpaceOperation(
   if (!ok || !context.mounted) return false;
   try {
     final id = await ref.read(spaceApiProvider).start(kind, key);
-    messenger.showSnackBar(SnackBar(content: Text(l.spaceStarted(id))));
+    if (context.mounted) await showSpaceOperation(context, id);
   } on SpaceException catch (e) {
     messenger.showSnackBar(
       SnackBar(content: Text(spaceFailureLabel(l, e.failure))),

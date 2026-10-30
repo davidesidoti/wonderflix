@@ -34,10 +34,28 @@ class FakeSpaceApi implements SpaceApi {
     }
   }
 
+  /// Se valorizzato, [start] aspetta questo prima di rispondere.
+  Completer<void>? startGate;
+
+  /// Risposte di [operation] in ordine (un [SpaceOperation] o un errore da
+  /// lanciare); l'ultima si ripete.
+  final operationResults = <Object>[];
+
   @override
   Future<String> start(String kind, String key) async {
     await _action('start $kind $key');
+    await startGate?.future;
     return 'op1';
+  }
+
+  @override
+  Future<SpaceOperation> operation(String id) async {
+    calls.add('operation $id');
+    final r = operationResults.length > 1
+        ? operationResults.removeAt(0)
+        : operationResults.first;
+    if (r is SpaceOperation) return r;
+    throw r;
   }
 
   @override
