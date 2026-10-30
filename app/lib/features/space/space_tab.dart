@@ -17,6 +17,7 @@ import '../admin/admin_time.dart';
 import '../admin/admin_widgets.dart';
 import '../downloads/download_search_page.dart';
 import 'space_actions.dart';
+import 'space_bulk.dart';
 import 'space_controller.dart';
 import 'space_labels.dart';
 import 'space_operation_dialog.dart';
@@ -46,6 +47,9 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
 
   /// Le serie aperte (`seriesKey`); all'inizio sono tutte chiuse.
   final _open = <String>{};
+
+  /// In selezione: le righe di "Cancellare" hanno la casella (decisione 1).
+  var _selecting = false;
 
   @override
   void initState() {
@@ -157,6 +161,9 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
     return entries;
   }
 
+  void _toggle(Iterable<String> keys) =>
+      ref.read(spaceSelectionProvider.notifier).toggle(keys);
+
   Widget _candidate(
     SpaceOverview o,
     SpaceCandidate c,
@@ -168,21 +175,34 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
     topGenres: o.topGenres,
     now: now,
     showSeasonOnly: seasonOnly,
-    onOpen: () => unawaited(
-      showSpaceTitle(
-        context,
-        c,
-        favoriteGenre: c.genres.any(o.topGenres.contains),
-        canLighten: o.lighten.any((i) => i.key == c.key),
-      ),
-    ),
+    selected: _selecting
+        ? ref.watch(spaceSelectionProvider).contains(c.key)
+        : null,
+    onOpen: _selecting
+        ? () => _toggle([c.key])
+        : () => unawaited(
+            showSpaceTitle(
+              context,
+              c,
+              favoriteGenre: c.genres.any(o.topGenres.contains),
+              canLighten: o.lighten.any((i) => i.key == c.key),
+            ),
+          ),
   );
 
   Widget _entry(SpaceOverview o, Object entry, DateTime now) {
     if (entry is SpaceCandidate) return _candidate(o, entry, now);
     final group = entry as List<SpaceCandidate>;
     final series = group.first.seriesKey!;
+    final keys = [for (final c in group) c.key];
+    final chosen = keys.where(ref.watch(spaceSelectionProvider).contains);
     return SpaceSeriesGroup(
+      onSelect: _selecting ? () => _toggle(keys) : null,
+      selected: chosen.isEmpty
+          ? false
+          : chosen.length == keys.length
+          ? true
+          : null,
       key: ValueKey('series-$series'),
       title: group.first.title,
       posterUrl: group.first.posterUrl,
@@ -194,6 +214,54 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
       children: [
         for (final c in group) _candidate(o, c, now, seasonOnly: true),
       ],
+    );
+  }
+
+  /// La barra in fondo alla selezione, ferma mentre la lista scorre.
+  Widget _selectionBar(AppLocalizations l, SpaceOverview o) {
+    final keys = ref.watch(spaceSelectionProvider);
+    final chosen = [
+      for (final c in o.delete)
+        if (keys.contains(c.key)) c,
+    ];
+    return Material(
+      color: WfColors.surface,
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: adminSideMargin(context),
+          vertical: 8,
+        ),
+        child: Wrap(
+          alignment: WrapAlignment.end,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            TextButton(
+              onPressed: () {
+                ref.read(spaceSelectionProvider.notifier).clear();
+                setState(() => _selecting = false);
+              },
+              child: Text(l.spaceCancelSelection),
+            ),
+            AdminActionButton(
+              label: l.spaceDeleteSelected(
+                chosen.length,
+                spaceGb(l, chosen.fold(0, (s, c) => s + c.freeNowBytes)),
+              ),
+              icon: LucideIcons.trash2,
+              onPressed: chosen.isEmpty
+                  ? null
+                  : () async {
+                      await startSpaceBulk(context, ref, chosen);
+                      if (mounted && ref.read(spaceSelectionProvider).isEmpty) {
+                        setState(() => _selecting = false);
+                      }
+                    },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -415,7 +483,7 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
         ?spaceServiceError(l, service, code),
     ];
     final ready = o.scannedAt != null;
-    return ListView(
+    final list = ListView(
       controller: _scroll,
       padding: EdgeInsets.fromLTRB(
         adminSideMargin(context),
@@ -439,6 +507,15 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
               ),
             ),
           if (o.delete.isEmpty) AdminEmptyText(text: l.spaceEmptyDelete),
+          if (o.delete.isNotEmpty && !_selecting)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton.icon(
+                onPressed: () => setState(() => _selecting = true),
+                icon: const Icon(LucideIcons.squareCheck, size: 16),
+                label: Text(l.spaceSelect),
+              ),
+            ),
           ..._page('delete', _entries(o.delete), (x) => _entry(o, x, now)),
           AdminSectionTitle(title: l.spaceSectionLighten),
           if (o.lighten.isEmpty) AdminEmptyText(text: l.spaceEmptyLighten),
@@ -514,6 +591,13 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
             ),
           ),
         ],
+      ],
+    );
+    if (!_selecting || !ready) return list;
+    return Column(
+      children: [
+        Expanded(child: list),
+        _selectionBar(l, o),
       ],
     );
   }

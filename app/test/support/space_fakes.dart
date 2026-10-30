@@ -45,19 +45,28 @@ class FakeSpaceApi implements SpaceApi {
   /// lanciare); l'ultima si ripete.
   final operationResults = <Object>[];
 
+  /// Come [operationResults], per un id; senza, vale [operationResults].
+  final operationResultsById = <String, List<Object>>{};
+
+  /// Gli `start` di queste chiavi falliscono con il valore.
+  final startFailures = <String, SpaceFailure>{};
+
+  var _starts = 0;
+
+  /// Dà `op1`, `op2`, ... in ordine.
   @override
   Future<String> start(String kind, String key) async {
     await _action('start $kind $key');
     await startGate?.future;
-    return 'op1';
+    if (startFailures[key] case final f?) throw SpaceException(f);
+    return 'op${++_starts}';
   }
 
   @override
   Future<SpaceOperation> operation(String id) async {
     calls.add('operation $id');
-    final r = operationResults.length > 1
-        ? operationResults.removeAt(0)
-        : operationResults.first;
+    final results = operationResultsById[id] ?? operationResults;
+    final r = results.length > 1 ? results.removeAt(0) : results.first;
     if (r is SpaceOperation) return r;
     throw r;
   }

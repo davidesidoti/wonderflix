@@ -1288,5 +1288,15 @@
   "spaceImporting": "Importing",
   "spaceDownloadFailed": "Download failed",
   "spaceSizeLeft": "{gb} left",
-  "@spaceSizeLeft": {"placeholders": {"gb": {"type": "String"}}}
+  "@spaceSizeLeft": {"placeholders": {"gb": {"type": "String"}}},
+  "spaceSelect": "Select",
+  "spaceCancelSelection": "Cancel selection",
+  "spaceDeleteSelected": "Delete selected ({n} · {gb})",
+  "@spaceDeleteSelected": {"placeholders": {"n": {"type": "int"}, "gb": {"type": "String"}}},
+  "spaceTitles": "{n, plural, =1{1 title} other{{n} titles}}",
+  "@spaceTitles": {"placeholders": {"n": {"type": "int"}}},
+  "spaceStepsFor": "{kind, select, Movie{For movies} Series{For series} other{For seasons}}",
+  "@spaceStepsFor": {"placeholders": {"kind": {"type": "String"}}},
+  "spaceNotStarted": "Not started: {reason}",
+  "@spaceNotStarted": {"placeholders": {"reason": {"type": "String"}}}
 }

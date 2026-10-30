@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/space/space_api.dart';
 import '../../core/space/space_models.dart';
-import 'space_controller.dart';
 import 'space_providers.dart';
 
 /// Un'operazione sullo spazio, riletta ogni secondo finché è in coda o in
@@ -32,11 +31,8 @@ class SpaceOperationController extends AsyncNotifier<SpaceOperation> {
       final op = await ref.read(spaceApiProvider).operation(id);
       if (!ref.mounted) return;
       state = AsyncData(op);
-      if (op.running) {
-        _schedule();
-      } else {
-        await ref.read(spaceControllerProvider.notifier).reload();
-      }
+      // La panoramica la rilegge chi mostra l'operazione, una volta sola.
+      if (op.running) _schedule();
     } on SpaceException catch (e, stack) {
       if (!ref.mounted) return;
       // Una rete che cade riprova; un'operazione sparita no.

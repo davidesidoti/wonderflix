@@ -49,8 +49,26 @@ Widget _tappable(VoidCallback? onTap, RowShell row) => RowShell(
       onTap: onTap,
     );
 
+/// Una casella davanti a [row] (eliminazione in blocco); `null` vale "in
+/// parte" (un gruppo con alcune stagioni scelte).
+Widget _selectable(bool? value, VoidCallback onChanged, Widget row) => Row(
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+    Padding(
+      padding: const EdgeInsets.only(top: 12, right: 4),
+      child: Checkbox(
+        value: value,
+        tristate: value == null,
+        onChanged: (_) => onChanged(),
+      ),
+    ),
+    Expanded(child: row),
+  ],
+);
+
 /// Una riga di "Cancellare" (spec U §8). [showSeasonOnly]: dentro il gruppo
-/// di una serie, dove basta "Stagione N".
+/// di una serie, dove basta "Stagione N". Con [selected] la riga ha la
+/// casella e [onOpen] la sceglie.
 class SpaceCandidateRow extends StatelessWidget {
   const SpaceCandidateRow({
     super.key,
@@ -59,6 +77,7 @@ class SpaceCandidateRow extends StatelessWidget {
     required this.now,
     required this.onOpen,
     this.showSeasonOnly = false,
+    this.selected,
   });
 
   final SpaceCandidate candidate;
@@ -66,6 +85,7 @@ class SpaceCandidateRow extends StatelessWidget {
   final DateTime now;
   final VoidCallback onOpen;
   final bool showSeasonOnly;
+  final bool? selected;
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +103,7 @@ class SpaceCandidateRow extends StatelessWidget {
         : l.spaceFreeLater(spaceGb(l, c.freeLaterBytes), spaceDate(l, laterAt));
     final keeps = spaceKeepLabels(l, c);
     final favorite = c.genres.any(topGenres.contains);
-    return _tappable(
+    final row = _tappable(
       onOpen,
       RowShell(
         posterUrl: c.posterUrl,
@@ -119,6 +139,8 @@ class SpaceCandidateRow extends StatelessWidget {
         actions: const [],
       ),
     );
+    final value = selected;
+    return value == null ? row : _selectable(value, onOpen, row);
   }
 }
 
@@ -133,7 +155,15 @@ class SpaceSeriesGroup extends StatelessWidget {
     required this.expanded,
     required this.onToggle,
     required this.children,
+    this.onSelect,
+    this.selected,
   });
+
+  /// La casella del gruppo, in selezione: sceglie (o toglie) le stagioni.
+  final VoidCallback? onSelect;
+
+  /// Tutte scelte, nessuna, o `null` se alcune.
+  final bool? selected;
 
   final String title;
   final String? posterUrl;
@@ -145,23 +175,25 @@ class SpaceSeriesGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final header = _tappable(
+      onToggle,
+      RowShell(
+        posterUrl: posterUrl,
+        lines: [_heading(title), _line(spaceGb(l, sizeBytes), _small)],
+        actions: [
+          Icon(
+            expanded ? LucideIcons.chevronDown : LucideIcons.chevronRight,
+            size: 18,
+            color: WfColors.creamMuted,
+          ),
+        ],
+      ),
+    );
+    final select = onSelect;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _tappable(
-          onToggle,
-          RowShell(
-            posterUrl: posterUrl,
-            lines: [_heading(title), _line(spaceGb(l, sizeBytes), _small)],
-            actions: [
-              Icon(
-                expanded ? LucideIcons.chevronDown : LucideIcons.chevronRight,
-                size: 18,
-                color: WfColors.creamMuted,
-              ),
-            ],
-          ),
-        ),
+        if (select == null) header else _selectable(selected, select, header),
         if (expanded)
           Padding(
             padding: const EdgeInsets.only(left: 24),

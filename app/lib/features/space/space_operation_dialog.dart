@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -7,6 +9,7 @@ import '../../core/space/space_api.dart';
 import '../../core/space/space_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_dialog.dart';
+import 'space_controller.dart';
 import 'space_labels.dart';
 import 'space_operation_controller.dart';
 
@@ -27,6 +30,12 @@ class _OperationBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
+    // Alla fine dell'operazione la panoramica si rilegge.
+    ref.listen(spaceOperationProvider(id), (prev, next) {
+      if (prev?.value?.running == true && next.value?.running == false) {
+        unawaited(ref.read(spaceControllerProvider.notifier).reload());
+      }
+    });
     final op = ref.watch(spaceOperationProvider(id));
     final value = op.value;
     return Column(
@@ -39,7 +48,7 @@ class _OperationBody extends ConsumerWidget {
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 16),
-          for (final step in value.steps) _StepRow(step: step),
+          SpaceOperationSteps(operation: value),
           if (!value.running) ..._summary(l, value),
         ] else if (op.hasError)
           Text(
@@ -75,6 +84,19 @@ class _OperationBody extends ConsumerWidget {
         Text(l.spaceOpPendingSeed(spaceGb(l, o.pendingBytes))),
     ];
   }
+}
+
+/// I passi di un'operazione, uno per riga.
+class SpaceOperationSteps extends StatelessWidget {
+  const SpaceOperationSteps({super.key, required this.operation});
+
+  final SpaceOperation operation;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [for (final step in operation.steps) _StepRow(step: step)],
+  );
 }
 
 class _StepRow extends StatelessWidget {

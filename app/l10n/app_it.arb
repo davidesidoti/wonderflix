@@ -1444,5 +1444,15 @@
   "spaceImporting": "In importazione",
   "spaceDownloadFailed": "Download non riuscito",
   "spaceSizeLeft": "{gb} rimanenti",
-  "@spaceSizeLeft": {"placeholders": {"gb": {"type": "String"}}}
+  "@spaceSizeLeft": {"placeholders": {"gb": {"type": "String"}}},
+  "spaceSelect": "Seleziona",
+  "spaceCancelSelection": "Annulla selezione",
+  "spaceDeleteSelected": "Elimina selezionati ({n} · {gb})",
+  "@spaceDeleteSelected": {"placeholders": {"n": {"type": "int"}, "gb": {"type": "String"}}},
+  "spaceTitles": "{n, plural, =1{1 titolo} other{{n} titoli}}",
+  "@spaceTitles": {"placeholders": {"n": {"type": "int"}}},
+  "spaceStepsFor": "{kind, select, Movie{Per i film} Series{Per le serie} other{Per le stagioni}}",
+  "@spaceStepsFor": {"placeholders": {"kind": {"type": "String"}}},
+  "spaceNotStarted": "Non avviato: {reason}",
+  "@spaceNotStarted": {"placeholders": {"reason": {"type": "String"}}}
 }
