@@ -235,9 +235,11 @@ uscite in arrivo.
   `POST`/`DELETE Space/Kept`, `DELETE Space/Pending/{hash}`. Voti sulla scala
   1-10: bassi fino a 4, alti da 8, minimo 2 voti (configurabili).
   Configurazione (sezione Spazio della pagina del plugin):
-  - **qBittorrent:** indirizzo (`http://127.0.0.1:17541`), utente e password
-    (`SpaceQbitUrl`, `SpaceQbitUser`, `SpaceQbitPassword`). Il WebUI ha
-    `LocalHostAuth` acceso, quindi serve il login anche da localhost. La
+  - **qBittorrent:** indirizzo, utente e password (`SpaceQbitUrl`,
+    `SpaceQbitUser`, `SpaceQbitPassword`). L'indirizzo deve essere raggiungibile
+    dal container di Jellyfin: sul seedbox è quello pubblico,
+    `https://<tuo-host>/qbittorrent` (`127.0.0.1:17541` dal container è
+    rifiutato). Il WebUI ha `LocalHostAuth` acceso, quindi serve il login. La
     password non torna mai nelle risposte né nel registro. Senza qBittorrent
     non ci sono torrent né orfani.
   - **Quota:** nel container di Jellyfin `quota` non c'è. Sul seedbox un cron

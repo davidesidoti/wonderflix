@@ -125,9 +125,9 @@ Il file più leggero ha quasi sempre un punteggio o una qualità più bassi, qui
 
 Spazio che non serve a nessuno, senza decidere sul contenuto:
 
-- **Torrent senza copia in libreria.** Torrent in qBittorrent i cui file non hanno un hardlink in libreria. Si vede dal numero di collegamenti del file (1 = solo il torrent). Un torrent che condivide un percorso con un torrent che deve restare non si toglie mai insieme al titolo. Per ogni torrent: nome, tracker, GB, ratio, giorni di seed. Ci sono due gruppi: "si possono togliere ora" e "in seed obbligatorio fino al …" (§6.3).
-- **File fuori dai torrent e fuori da Radarr/Sonarr.** File video sopra i 100 MB in `downloads` o `seedings` che non appartengono a nessun torrent di qBittorrent. Non sono mai orfani né doppioni i file noti a Radarr/Sonarr (per percorso o inode), i file di un torrent (per percorso o inode) e quelli sotto i download incompleti. Senza i dati di qBittorrent non si mostra nessun orfano.
-- **Doppioni.** Lo stesso film o episodio con più file in libreria (Radarr/Sonarr ne conoscono uno, l'altro è in più nella cartella).
+- **Torrent senza copia in libreria.** Torrent in qBittorrent i cui file non hanno un hardlink in libreria. Si vede dal numero di collegamenti del file (1 = solo il torrent). Un torrent che condivide un percorso con un torrent che deve restare non si toglie mai insieme al titolo. Per ogni torrent: nome, tracker, GB, ratio, giorni di seed. Ci sono due gruppi: "si possono togliere ora" e "in seed obbligatorio fino al …" (§6.3). Un torrent il cui hash è un `downloadId` nella coda di Radarr o Sonarr (non ancora importato, anche un'alternativa leggera che aspetta l'import a mano) non è mai in Pulizia; se una coda non si legge, nessun torrent è in Pulizia e l'errore resta in `Errors`.
+- **File fuori dai torrent e fuori da Radarr/Sonarr.** File video sopra i 100 MB in `downloads` o `seedings` che non appartengono a nessun torrent di qBittorrent. Non sono mai orfani né doppioni i file noti a Radarr/Sonarr (per percorso o inode), i file di un torrent (per percorso o inode) e quelli sotto i download incompleti. Senza i dati di qBittorrent non si mostra nessun orfano, e nemmeno se un torrent finito non ha nessun file visibile su disco (il percorso di qBittorrent non è quello che vede Jellyfin): in quel caso il registro ha un avviso con i soli conteggi.
+- **Doppioni.** Lo stesso film o episodio con più file in libreria (Radarr/Sonarr ne conoscono uno, l'altro è in più nella cartella). Di una serie è doppione solo un video con lo stesso `SxxEyy` di un episodio che Sonarr conosce; di un film non lo sono i video nelle cartelle degli extra di Jellyfin (`extras`, `featurettes`, `behind the scenes`, `deleted scenes`, `interviews`, `scenes`, `shorts`, `trailers`, `other`, `samples`).
 
 C'è anche un pulsante "Togli tutti quelli possibili ora". Riguarda **solo i torrent** che si possono togliere ora, e la conferma dice quanti sono e quanti GB. File orfani e doppioni si cancellano uno alla volta, perché il plugin li toglie direttamente dal disco.
 
@@ -142,7 +142,7 @@ C'è anche un pulsante "Togli tutti quelli possibili ora". Riguarda **solo i tor
 
 ### 6.1 Come si vedono
 
-Ogni pulsante apre prima una **conferma** con i passi che verranno fatti e i GB attesi (subito e dopo il seed). Poi apre un **riquadro di progresso** con i passi. Ogni passo ha uno stato: in attesa, in corso, fatto, saltato con il motivo, fallito con il motivo. Al primo passo fallito l'operazione si ferma e i passi dopo restano "non fatti". Alla fine il riquadro mostra i GB liberati davvero (quota prima e dopo) e quelli in attesa del seed.
+Ogni pulsante apre prima una **conferma** con i passi che verranno fatti e i GB attesi (subito e dopo il seed). Poi apre un **riquadro di progresso** con i passi. Ogni passo ha uno stato: in attesa, in corso, fatto, saltato con il motivo, fallito con il motivo. Al primo passo fallito l'operazione si ferma e i passi dopo restano "non fatti". Alla fine il riquadro mostra i GB liberati davvero (quota prima e dopo) e quelli in attesa del seed. Il file della quota lo riscrive un cron ogni 10 minuti: se non è stato riscritto dopo l'inizio dell'operazione, la quota "dopo" resta vuota e l'app mostra la stima. I GB liberati non sono mai negativi. Fino al calcolo dopo, le righe di un'operazione finita (il titolo, i torrent tolti, il file) non si vedono più nelle liste.
 
 Le operazioni girano nel plugin. Se l'admin chiude il riquadro o l'app, l'operazione continua. Le ultime operazioni si rivedono in fondo alla scheda (sono conservate per 30 giorni).
 
@@ -152,14 +152,14 @@ Le operazioni girano nel plugin. Se l'admin chiude il riquadro o l'app, l'operaz
 1. trova i torrent del film in qBittorrent (vedi §12);
 2. toglie dalla coda di Radarr/Sonarr i download del titolo, senza blocklist: le voci già complete si tolgono dalla coda senza toccarle in qBittorrent (decide la regola del seed), quelle ancora in download si tolgono anche dal client. Una voce già sparita (404) si salta e le altre continuano;
 3. rimuove il film da Radarr con i file (`DELETE movie/{id}?deleteFiles=true`, senza esclusione);
-4. per ogni torrent: se si può togliere ora lo toglie con i file, altrimenti lo mette in attesa di fine seed (§6.3);
+4. per ogni torrent: se si può togliere ora lo toglie con i file, altrimenti lo mette in attesa di fine seed (§6.3). Un torrent che condivide un percorso con un torrent che resta (cross-seed, anche quello in attesa) va via **senza** file: i dati spariscono con l'ultimo torrent su quel percorso, e i loro GB contano solo "dopo il seed";
 5. toglie il media da Seerr, così torna richiedibile e le vecchie richieste non contano più;
 6. aggiorna la libreria di Jellyfin;
 7. legge la quota.
 
 Se Seerr non è configurato, il passo 5 viene saltato con il motivo.
 
-**Serie intera:** come il film, con Sonarr (`DELETE series/{id}?deleteFiles=true`).
+**Serie intera:** come il film, con Sonarr (`DELETE series/{id}?deleteFiles=true`). Se una sua stagione è tenuta, la serie intera non è nelle liste e non si può avviare.
 
 **Stagione:**
 1. trova i torrent degli episodi della stagione;
@@ -168,7 +168,7 @@ Se Seerr non è configurato, il passo 5 viene saltato con il motivo.
 4. cancella i file degli episodi della stagione (`DELETE episodefile/bulk`);
 5. torrent, libreria e quota come sopra. Su Seerr non si fa niente: la serie resta.
 
-**Torrent (Pulizia):** toglie il torrent con i file, poi legge la quota. Se in quel momento è ancora in seed obbligatorio, il passo viene saltato con il motivo.
+**Torrent (Pulizia):** toglie il torrent con i file, poi legge la quota. Se in quel momento è ancora in seed obbligatorio, il passo viene saltato con il motivo. Dal vivo si ricontrollano le code di Radarr/Sonarr, e un torrent che condivide un percorso con uno che resta va via senza file (vale anche per "togli tutti").
 
 **File orfano (Pulizia):** cancella il file e la cartella se resta vuota, poi legge la quota. Si rifiuta se il file ora ha più di un collegamento o una dimensione diversa da quella del calcolo.
 
@@ -178,7 +178,7 @@ Se Seerr non è configurato, il passo 5 viene saltato con il motivo.
 
 - Un torrent di un tracker della lista (§4.3) si può togliere solo se ha finito di scaricare **e** ha ratio ≥ 10 **oppure** almeno 30 giorni di seed (`seeding_time` di qBittorrent). Tag e categoria non contano. Il tracker si riconosce dal dominio degli annunci del torrent.
 - Gli altri torrent si possono togliere subito. Il tracker è il campo `tracker` di `torrents/info`; solo se è vuoto si chiama `torrents/trackers`. Il dominio è protetto se l'host coincide con uno della lista o ne è un sottodominio.
-- Un torrent in attesa resta in `space.json` (§7.3). Un servizio in background lo controlla ogni ora e lo toglie con i file quando la regola lo permette. Lo spazio si libera allora. La data prevista mostrata è la data in cui scadono i 30 giorni; se un torrent che trattiene i file è ancora in download la data non c'è, e l'app mostra "dopo il seed" senza data.
+- Un torrent in attesa resta in `space.json` (§7.3). Un servizio in background lo controlla ogni ora e lo toglie con i file quando la regola lo permette (senza file se, dal vivo, un altro torrent è sullo stesso percorso). Lo spazio si libera allora. La data prevista mostrata è la data in cui scadono i 30 giorni; se un torrent che trattiene i file è ancora in download la data non c'è, e l'app mostra "dopo il seed" senza data.
 - Nella scheda c'è un elenco "In attesa di fine seed", e ogni torrent può essere tolto dall'attesa (lo lascia in qBittorrent).
 - Se un torrent in attesa sparisce da qBittorrent per altri motivi, esce dall'elenco.
 
@@ -200,7 +200,7 @@ Se Seerr non è configurato, il passo 5 viene saltato con il motivo.
 
 Sezione "Spazio" nella pagina di configurazione:
 
-- qBittorrent: indirizzo (`http://127.0.0.1:17541`), utente, password. La password non torna mai nelle risposte e non finisce nel registro.
+- qBittorrent: indirizzo, utente, password. L'indirizzo deve essere raggiungibile dal container di Jellyfin: sul seedbox è quello pubblico, `https://<tuo-host>/qbittorrent`, perché dal container `127.0.0.1:17541` è rifiutato. La password non torna mai nelle risposte e non finisce nel registro.
 - Le soglie di §4.3.
 - Le cartelle da analizzare per Pulizia (`/home/hashvps/downloads`, `/home/hashvps/seedings`, una per riga: `SpaceScanFolders`).
 - Il file della quota (`SpaceQuotaFile`).
@@ -243,7 +243,7 @@ Sezione "Spazio" nella pagina di configurazione:
 
 ## 9. Attivazione sul server
 
-1. Inserire utente e password di qBittorrent nella configurazione del plugin.
+1. Inserire indirizzo (`https://<tuo-host>/qbittorrent`, raggiungibile dal container di Jellyfin), utente e password di qBittorrent nella configurazione del plugin.
 2. Correggere la regola in qui (§6.3, nota).
 3. Sul seedbox, un cron che scrive `quota -w` nel file indicato in `SpaceQuotaFile`.
 4. Tenere spento il cestino di Radarr e Sonarr.
