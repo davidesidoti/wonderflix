@@ -56,12 +56,13 @@ public class SpaceController(SpaceService space, IAuthorizationContext authoriza
     public ActionResult<SpaceOperationDto> Operation(string id) =>
         space.Operation(id) is { } operation ? operation : NotFound();
 
-    /// <summary>"Tienilo": 204. La chiave è un film o una serie.</summary>
+    /// <summary>"Tienilo": 204. La chiave è un film, una serie o una stagione (spec U §6.4).</summary>
     [HttpPost("Kept")]
     public ActionResult Keep([FromBody] KeepRequest? request)
     {
         if (request?.Key is not { } key
-            || !(SpaceService.IsValidKey(SpaceKinds.Movie, key) || SpaceService.IsValidKey(SpaceKinds.Series, key)))
+            || !(SpaceService.IsValidKey(SpaceKinds.Movie, key) || SpaceService.IsValidKey(SpaceKinds.Series, key)
+                || SpaceService.IsValidKey(SpaceKinds.Season, key)))
         {
             return BadRequest();
         }

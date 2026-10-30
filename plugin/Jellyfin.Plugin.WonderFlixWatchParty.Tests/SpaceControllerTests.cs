@@ -148,6 +148,20 @@ public sealed class SpaceControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task AKeptSeasonDisappearsFromTheOverview()
+    {
+        var row = new SpaceCandidateDto(
+            "season:5:2", "Season", "Serie - Stagione 2", null, 2, "series:5", null, null, 1, 1, 0, null, 0, [], [], [], [], null, 0, null, null, []);
+        _service.LastScan = new SpaceScan { Delete = [new ScanRow<SpaceCandidateDto>(row, ["season:5:2", "series:5"], [])] };
+        Assert.Single((await _controller.Overview()).Value!.Delete);
+
+        Assert.Equal(204, Status(_controller.Keep(new KeepRequest { Key = "season:5:2", Title = "Serie - Stagione 2" })));
+
+        Assert.Empty((await _controller.Overview()).Value!.Delete);
+        Assert.Equal("season:5:2", Assert.Single((await _controller.Overview()).Value!.Kept).Key);
+    }
+
+    [Fact]
     public void DroppingAPendingTorrentAnswers204Or404()
     {
         Assert.Equal(404, Status(_controller.DropPending("abc")));

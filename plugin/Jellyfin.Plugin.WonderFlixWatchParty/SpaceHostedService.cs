@@ -72,6 +72,11 @@ public sealed class SpaceHostedService(
         catch (OperationCanceledException) when (_stop.IsCancellationRequested)
         {
         }
+        catch (Exception ex)
+        {
+            // Solo il tipo: il messaggio potrebbe contenere un percorso.
+            logger.LogWarning("Spazio: calcolo non riuscito ({Error})", ex.GetType().Name);
+        }
     }
 
     private async Task RunOperationsAsync()

@@ -116,11 +116,12 @@ public sealed partial class DownloadService
             var outcome = await GrabGuardedAsync(parsed, guid, indexerId, guarded, cancellationToken).ConfigureAwait(false);
 
             // "Alleggerisci" (spec U): il titolo scelto non entra negli upgrade, come dopo "va bene così".
+            // Tutte le chiavi del grab: per un singolo da una ricerca di stagione anche quella dell'episodio.
             if (lighten && outcome == GrabOutcome.Ok)
             {
                 lock (_lock)
                 {
-                    Book.Accept(parsed.ToString());
+                    guarded.ForEach(k => Book.Accept(k));
                     store.Save(Book);
                 }
             }

@@ -362,6 +362,20 @@ public sealed class DownloadServiceSeasonTests : IDisposable
     }
 
     [Fact]
+    public async Task ALightenSingleFromASeasonSearchAcceptsTheSeasonAndTheEpisode()
+    {
+        PartlyDownloadedSeason();
+        await _service.SearchAsync("season:7:2", CancellationToken.None);
+
+        Assert.Equal(GrabOutcome.Ok, await _service.GrabAsync("season:7:2", "e5", 1, CancellationToken.None, lighten: true));
+
+        // L'episodio scaricato non torna negli upgrade all'import.
+        var book = Store().Load();
+        Assert.True(book.IsAccepted("episode:205"));
+        Assert.True(book.IsAccepted("season:7:2"));
+    }
+
+    [Fact]
     public async Task AnAdminSingleOnASeasonInUpgradeWatchKeepsItsDownload()
     {
         // La stagione tiene d'occhio gli upgrade con i tre file del pack (50 punti); la sua ricerca trova un singolo di e2 da 150.
