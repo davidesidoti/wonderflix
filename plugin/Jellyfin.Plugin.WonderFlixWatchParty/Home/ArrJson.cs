@@ -197,6 +197,9 @@ public sealed class ArrFileRef
 
     /// <summary>Solo per il file di un film (spec U).</summary>
     public long Size { get; set; }
+
+    /// <summary>Solo per il file di un film: quando Radarr l'ha importato (piano 30d).</summary>
+    public DateTimeOffset? DateAdded { get; set; }
 }
 
 /// <summary>Una qualità di Sonarr o Radarr; Resolution è l'altezza in pixel (spec T §2).</summary>
@@ -324,6 +327,9 @@ public sealed class ArrFile
 
     /// <summary>Il percorso del file sul disco (spec U).</summary>
     public string? Path { get; set; }
+
+    /// <summary>Quando Radarr o Sonarr l'ha importato (piano 30d).</summary>
+    public DateTimeOffset? DateAdded { get; set; }
 }
 
 /// <summary>

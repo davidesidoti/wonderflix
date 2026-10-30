@@ -21,16 +21,18 @@ public sealed class SpaceLightenStatusTests : IDisposable
     private readonly DownloadService _downloads;
     private readonly SpaceService _service;
     private readonly Guid _admin;
+    private readonly RecordingLogger<SpaceService> _log = new();
 
     private List<ArrQueueItem?> _radarrQueue = [];
     private List<ArrQueueItem?> _sonarrQueue = [];
     private long _movieFileSize = 12 * Gb;
+    private DateTimeOffset? _movieFileAdded;
 
     public SpaceLightenStatusTests()
     {
         _admin = _server.AddUser("Admin", isAdmin: true).Id;
         _arr.Queue = kind => Task.FromResult<IReadOnlyList<ArrQueueItem?>>(kind == ArrKind.Radarr ? _radarrQueue : _sonarrQueue);
-        _arr.MovieById = id => Task.FromResult(new RadarrMovie { Id = id, MovieFile = new ArrFileRef { Id = 1, Size = _movieFileSize } });
+        _arr.MovieById = id => Task.FromResult(new RadarrMovie { Id = id, MovieFile = new ArrFileRef { Id = 1, Size = _movieFileSize, DateAdded = _movieFileAdded } });
         _arr.EpisodeFiles = _ => Task.FromResult<IReadOnlyList<ArrFile?>>(
         [
             new ArrFile { Id = 21, SeasonNumber = 2, Size = 6 * Gb },
@@ -55,7 +57,7 @@ public sealed class SpaceLightenStatusTests : IDisposable
             _server,
             _downloads,
             _time,
-            NullLogger<SpaceService>.Instance)
+            _log)
         {
             LastScan = new SpaceScan
             {
@@ -79,8 +81,8 @@ public sealed class SpaceLightenStatusTests : IDisposable
         store.Save(book);
     }
 
-    private static ArrQueueItem Item(string state, long size, long left, int? movieId = null, int? seriesId = null, int? season = null) =>
-        new() { MovieId = movieId, SeriesId = seriesId, SeasonNumber = season, Size = size, Sizeleft = left, TrackedDownloadState = state };
+    private static ArrQueueItem Item(string state, long size, long left, int? movieId = null, int? seriesId = null, int? season = null, string? downloadId = null) =>
+        new() { MovieId = movieId, SeriesId = seriesId, SeasonNumber = season, Size = size, Sizeleft = left, TrackedDownloadState = state, DownloadId = downloadId };
 
     private async Task<SpaceLightenDownloadDto?> DownloadOf(string key) =>
         Assert.Single((await _service.OverviewAsync(_admin, CancellationToken.None)).Lighten, r => r.Key == key).Download;
@@ -217,5 +219,71 @@ public sealed class SpaceLightenStatusTests : IDisposable
         Assert.All(overview.Lighten, r => Assert.Null(r.Download));
         Assert.Empty(_arr.QueueCalls);
         Assert.Contains("\"Download\":null", JsonSerializer.Serialize(overview.Lighten[0], JsonDefaults.PascalCaseOptions), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ASeasonPackCountsItsDownloadOnce()
+    {
+        // Sonarr dà una voce per episodio, ognuna con il peso di tutto il pack.
+        Lightened("season:5:2", Now.AddHours(-1));
+        _sonarrQueue = [.. Enumerable.Range(1, 3).Select(_ => Item("downloading", 6 * Gb, 3 * Gb, seriesId: 5, season: 2, downloadId: "PACK"))];
+
+        Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Downloading, 0.5, 3 * Gb), await DownloadOf("season:5:2"));
+    }
+
+    [Fact]
+    public async Task AFileAddedAfterTheGrabIsImportedEvenIfBarelyLighter()
+    {
+        Lightened("movie:12", Now.AddHours(-1));
+        _movieFileSize = 114 * Gb / 10;
+        _movieFileAdded = Now.AddMinutes(-30);
+
+        Assert.DoesNotContain((await _service.OverviewAsync(_admin, CancellationToken.None)).Lighten, r => r.Key == "movie:12");
+        Assert.Empty(_downloads.LightenedKeys());
+    }
+
+    [Fact]
+    public async Task AFileAddedBeforeTheGrabIsNotImported()
+    {
+        Lightened("movie:12", Now.AddHours(-1));
+        _movieFileSize = 3 * Gb;
+        _movieFileAdded = Now.AddDays(-30);
+
+        Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Failed, 0, 0), await DownloadOf("movie:12"));
+    }
+
+    [Fact]
+    public async Task ASeasonEpisodeAddedAfterTheGrabIsImported()
+    {
+        Lightened("season:5:2", Now.AddHours(-1));
+        _arr.EpisodeFiles = _ => Task.FromResult<IReadOnlyList<ArrFile?>>(
+        [
+            new ArrFile { Id = 21, SeasonNumber = 2, Size = 6 * Gb, DateAdded = Now.AddDays(-30) },
+            new ArrFile { Id = 22, SeasonNumber = 2, Size = 6 * Gb, DateAdded = Now.AddMinutes(-10) },
+        ]);
+
+        Assert.DoesNotContain((await _service.OverviewAsync(_admin, CancellationToken.None)).Lighten, r => r.Key == "season:5:2");
+    }
+
+    [Fact]
+    public async Task AnOutageIsLoggedOnce()
+    {
+        Lightened("movie:12", Now.AddHours(-1));
+        var down = true;
+        _arr.Queue = kind => down
+            ? Task.FromException<IReadOnlyList<ArrQueueItem?>>(new ArrException(ArrError.Unreachable))
+            : Task.FromResult<IReadOnlyList<ArrQueueItem?>>(_radarrQueue);
+        int Warnings() => _log.Entries.Count(e => e.Level == Microsoft.Extensions.Logging.LogLevel.Warning && e.Message.Contains("non risponde", StringComparison.Ordinal));
+
+        await DownloadOf("movie:12");
+        await DownloadOf("movie:12");
+        Assert.Equal(1, Warnings());
+
+        down = false;
+        _radarrQueue = [Item("downloading", 4 * Gb, 1 * Gb, movieId: 12)];
+        await DownloadOf("movie:12");
+        down = true;
+        await DownloadOf("movie:12");
+        Assert.Equal(2, Warnings());
     }
 }
