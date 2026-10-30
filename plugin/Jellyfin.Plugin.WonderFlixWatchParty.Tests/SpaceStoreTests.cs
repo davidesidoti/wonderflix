@@ -60,6 +60,14 @@ public sealed class SpaceStoreTests : IDisposable
     [InlineData("""{"Version":2}""")]
     [InlineData("""{"Version":1,"Kept":null}""")]
     [InlineData("""{"Version":1,"Operations":[{"Id":"a","Steps":null}]}""")]
+    [InlineData("""{"Version":1,"Kept":[{"Key":null,"Title":"Coco"}]}""")]
+    [InlineData("""{"Version":1,"Kept":[{"Key":"movie:1","Title":null}]}""")]
+    [InlineData("""{"Version":1,"Pending":[{"Hash":null}]}""")]
+    [InlineData("""{"Version":1,"Pending":[{"Hash":"h1","Name":null}]}""")]
+    [InlineData("""{"Version":1,"Pending":[{"Hash":"h1","Title":null}]}""")]
+    [InlineData("""{"Version":1,"Operations":[{"Id":"a","Key":null,"Steps":[]}]}""")]
+    [InlineData("""{"Version":1,"Operations":[{"Id":"a","Title":null,"Steps":[]}]}""")]
+    [InlineData("""{"Version":1,"Operations":[{"Id":"a","Steps":[{"Name":null}]}]}""")]
     [InlineData("{nope")]
     public void ABrokenFileStartsEmpty(string json)
     {

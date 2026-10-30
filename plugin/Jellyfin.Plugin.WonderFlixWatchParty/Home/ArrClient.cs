@@ -142,11 +142,11 @@ public sealed class ArrClient(
         GetAllPagesAsync<ArrQueueItem>(
             kind, page => $"queue?page={page.ToString(CultureInfo.InvariantCulture)}&pageSize={PageSize}", cancellationToken);
 
-    public Task RemoveFromQueueAsync(ArrKind kind, int queueId, bool blocklist, CancellationToken cancellationToken) =>
+    public Task RemoveFromQueueAsync(ArrKind kind, int queueId, bool blocklist, bool removeFromClient, CancellationToken cancellationToken) =>
         SendWithoutResultAsync(
             kind,
             HttpMethod.Delete,
-            $"queue/{queueId.ToString(CultureInfo.InvariantCulture)}?removeFromClient=true&blocklist={(blocklist ? "true" : "false")}",
+            $"queue/{queueId.ToString(CultureInfo.InvariantCulture)}?removeFromClient={(removeFromClient ? "true" : "false")}&blocklist={(blocklist ? "true" : "false")}",
             null,
             cancellationToken);
 

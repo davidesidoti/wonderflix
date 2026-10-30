@@ -252,7 +252,7 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Assert.Equal(GrabOutcome.Ok, await Grab("movie:12", "a", 1));
 
         Assert.Equal(["remove 77", "grab a"], calls);
-        Assert.Equal((ArrKind.Radarr, 77, false), Assert.Single(_arr.RemoveFromQueueCalls));
+        Assert.Equal((ArrKind.Radarr, 77, false, true), Assert.Single(_arr.RemoveFromQueueCalls));
         var entry = Saved("movie:12")!;
         Assert.Equal((DownloadStates.Downloading, (int?)null, (int?)150, (int?)WebDl1080), (entry.State, entry.QueueId, entry.CurrentScore, entry.CurrentQualityId));
         Assert.Equal([("a", true), ("b", false)], Store().Load().Choices.Select(c => (c.Guid, c.ByAdmin)));
@@ -277,7 +277,7 @@ public sealed class DownloadServiceAdminTests : IDisposable
 
         Assert.Equal(GrabOutcome.Ok, await Grab("movie:12", "a", 1));
 
-        Assert.Equal((ArrKind.Radarr, 78, false), Assert.Single(_arr.RemoveFromQueueCalls));
+        Assert.Equal((ArrKind.Radarr, 78, false, true), Assert.Single(_arr.RemoveFromQueueCalls));
         Assert.Equal(["b", "a"], _arr.GrabCalls.Select(c => c.Guid));
     }
 
@@ -295,7 +295,7 @@ public sealed class DownloadServiceAdminTests : IDisposable
 
         Assert.Equal(GrabOutcome.Ok, await Grab("movie:12", "a", 1));
 
-        Assert.Equal((ArrKind.Radarr, 77, false), Assert.Single(_arr.RemoveFromQueueCalls));
+        Assert.Equal((ArrKind.Radarr, 77, false, true), Assert.Single(_arr.RemoveFromQueueCalls));
         Assert.Equal("a", Assert.Single(_arr.GrabCalls).Guid);
         Assert.Equal((DownloadStates.Downloading, (string?)null), (Saved("movie:12")!.State, Saved("movie:12")!.Reason));
     }
@@ -356,7 +356,7 @@ public sealed class DownloadServiceAdminTests : IDisposable
         // "cambia": si toglie l'elemento dell'episodio, non quello di un altro.
         _sonarrQueue = [EpisodeQueue(55, 42, 5_000), EpisodeQueue(56, 41, 5_000)];
         Assert.Equal(GrabOutcome.Ok, await Grab("episode:42", "e", 1));
-        Assert.Equal((ArrKind.Sonarr, 55, false), Assert.Single(_arr.RemoveFromQueueCalls));
+        Assert.Equal((ArrKind.Sonarr, 55, false, true), Assert.Single(_arr.RemoveFromQueueCalls));
 
         // Con la voce: sempre una chiamata, senza leggere le serie.
         await Search("episode:42");

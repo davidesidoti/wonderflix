@@ -235,6 +235,15 @@ public sealed partial class SpaceService(
 
     private async Task RemovePendingAsync(PendingTorrent torrent, CancellationToken cancellationToken)
     {
+        lock (_lock)
+        {
+            // Tolto dall'attesa mentre si leggeva qBittorrent (DropPending): resta in qBittorrent.
+            if (!Book.Pending.Any(p => p.Hash == torrent.Hash))
+            {
+                return;
+            }
+        }
+
         var before = ReadQuota();
         await qbit.DeleteAsync([torrent.Hash], cancellationToken).ConfigureAwait(false);
         var after = ReadQuota();

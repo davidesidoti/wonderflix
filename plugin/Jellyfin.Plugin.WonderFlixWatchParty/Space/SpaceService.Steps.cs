@@ -19,17 +19,46 @@ public sealed partial class SpaceService
         }
 
         var stamps = await probe.StatAsync(await TitlePathsAsync(run, ct).ConfigureAwait(false), ct).ConfigureAwait(false);
+        var live = await ReadTorrentsAsync(ct).ConfigureAwait(false);
+        var fallback = stamps.Count == 0;
+        IReadOnlyList<FileFact> files = fallback
+            ? FallbackFiles(run.Scanned, live)
+            : [.. stamps.Select(p => new FileFact(p.Key, p.Value.Id, p.Value.Links, p.Value.SizeBytes))];
+        var estimate = SpaceMath.Estimate(files, live.Index, live.LibraryFiles, settings.Seed, time.GetUtcNow());
+        if (fallback)
+        {
+            // Senza i file dal vivo vanno via solo i torrent che il calcolo aveva legato al titolo.
+            var linked = run.Scanned?.Hashes.ToHashSet() ?? [];
+            estimate = estimate with
+            {
+                RemoveNow = [.. estimate.RemoveNow.Where(linked.Contains)],
+                RemoveLater = [.. estimate.RemoveLater.Where(linked.Contains)],
+            };
+        }
 
-        // Nuovo tentativo dopo che Radarr/Sonarr hanno tolto i file: valgono gli id del calcolo, che i torrent tengono vivi.
-        IReadOnlyList<FileFact> files = stamps.Count > 0
-            ? [.. stamps.Select(p => new FileFact(p.Key, p.Value.Id, p.Value.Links, p.Value.SizeBytes))]
-            : run.Scanned?.Files ?? [];
-        var (index, libraryFiles) = await ReadTorrentsAsync(ct).ConfigureAwait(false);
-        var estimate = SpaceMath.Estimate(files, index, libraryFiles, settings.Seed, time.GetUtcNow());
         run.Estimate = estimate;
-        run.Facts = index.Torrents.ToDictionary(t => t.Hash);
+        run.Facts = live.Index.Torrents.ToDictionary(t => t.Hash);
         (run.Freed, run.Pending) = (estimate.FreeNowBytes, estimate.FreeLaterBytes);
         return StepResult.Ok(estimate.RemoveNow.Count, estimate.RemoveLater.Count);
+    }
+
+    /// <summary>
+    /// Nuovo tentativo dopo che Radarr/Sonarr hanno tolto i file: valgono gli id del calcolo, ma solo se un torrent che il
+    /// calcolo aveva legato al titolo ha ancora quel file, con la stessa dimensione. Un inode liberato può tornare in un
+    /// download nuovo che non c'entra.
+    /// </summary>
+    private static IReadOnlyList<FileFact> FallbackFiles(ScanTitle? title, LiveTorrents live)
+    {
+        if (title is null)
+        {
+            return [];
+        }
+
+        var held = title.Hashes
+            .SelectMany(hash => live.Index.FilesByHash.GetValueOrDefault(hash) ?? [])
+            .Select(f => f.Id)
+            .ToHashSet();
+        return [.. title.Files.Where(f => held.Contains(f.Id) && live.ById.TryGetValue(f.Id, out var now) && now.SizeBytes == f.SizeBytes)];
     }
 
     // I percorsi dei file del titolo da Radarr (moviefile) o Sonarr (episodefile); nessuno se il titolo non c'è più.
@@ -56,10 +85,10 @@ public sealed partial class SpaceService
     }
 
     /// <summary>
-    /// I torrent di qBittorrent con i loro file su disco, e i file che hanno un hardlink fuori dai torrent: quelli in libreria.
-    /// I file che non sono su disco restano fuori dall'indice.
+    /// I torrent di qBittorrent con i loro file su disco: l'indice, i file che hanno un hardlink fuori dai torrent
+    /// (quelli in libreria) e lo <c>stat</c> di ogni file per id. I file che non sono su disco restano fuori.
     /// </summary>
-    private async Task<(TorrentIndex Index, HashSet<FileId> LibraryFiles)> ReadTorrentsAsync(CancellationToken ct)
+    private async Task<LiveTorrents> ReadTorrentsAsync(CancellationToken ct)
     {
         var facts = new List<TorrentFacts>();
         var paths = new Dictionary<string, List<string>>();
@@ -92,13 +121,18 @@ public sealed partial class SpaceService
             .Where(g => stamps[g.First().Path].Links > g.Select(f => f.Path).Distinct().Count())
             .Select(g => g.Key)
             .ToHashSet();
-        return (new TorrentIndex(facts, filesByHash), libraryFiles);
+        var byId = stamps.Values.DistinctBy(s => s.Id).ToDictionary(s => s.Id);
+        return new LiveTorrents(new TorrentIndex(facts, filesByHash), libraryFiles, byId);
     }
 
     // Il nome di un file di qBittorrent è relativo a save_path; i percorsi del seedbox sono Linux.
     private static string PathOf(QbitTorrent torrent, string name) => (torrent.SavePath ?? "").TrimEnd('/') + "/" + name;
 
-    /// <summary>Toglie dalla coda di Radarr/Sonarr i download del titolo, senza blocklist (decisione 13).</summary>
+    /// <summary>
+    /// Toglie dalla coda di Radarr/Sonarr i download del titolo, senza blocklist (decisione 13). Uno ancora in download
+    /// va via anche da qBittorrent; uno finito resta, e lo toglie <c>RemoveTorrents</c> o lo mette in attesa secondo la
+    /// regola del seed. Una voce già uscita dalla coda (404) si salta.
+    /// </summary>
     private async Task<StepResult> RemoveFromQueueAsync(Run run, CancellationToken ct)
     {
         var kind = run.Kind == SpaceKinds.Movie ? ArrKind.Radarr : ArrKind.Sonarr;
@@ -111,12 +145,21 @@ public sealed partial class SpaceService
                 _ => q.SeriesId == run.ArrId && q.SeasonNumber == run.Season,
             })
             .ToList();
+        var removed = 0;
         foreach (var item in mine)
         {
-            await arr.RemoveFromQueueAsync(kind, item.Id, blocklist: false, ct).ConfigureAwait(false);
+            try
+            {
+                await arr.RemoveFromQueueAsync(kind, item.Id, blocklist: false, removeFromClient: item.Sizeleft > 0, ct).ConfigureAwait(false);
+                removed++;
+            }
+            catch (ArrException ex) when (ex.Status == 404)
+            {
+                // Uscita dalla coda nel frattempo.
+            }
         }
 
-        return StepResult.Ok(mine.Count);
+        return StepResult.Ok(removed);
     }
 
     private async Task<StepResult> DeleteEpisodeFilesAsync(Run run, CancellationToken ct)
@@ -164,33 +207,23 @@ public sealed partial class SpaceService
     }
 
     /// <summary>
-    /// Pulizia (spec U §6.2): un torrent, o tutti i torrent "solo torrent" del calcolo, se la regola del seed dal vivo
-    /// li lascia togliere. Un torrent singolo ancora in seed obbligatorio è saltato con <c>SeedRule</c>.
+    /// Pulizia (spec U §6.2): un torrent, o tutti i torrent "solo torrent" del calcolo. Dal vivo devono essere ancora
+    /// senza copia in libreria, finiti, e la regola del seed deve lasciarli togliere.
     /// </summary>
     private async Task<StepResult> RemoveCleanupTorrentsAsync(Run run, CancellationToken ct)
     {
         var wanted = run.Kind == SpaceKinds.Torrent ? new HashSet<string> { run.Key[TorrentPrefix.Length..] } : run.Scan.Torrents.Keys.ToHashSet();
+        var live = await ReadTorrentsAsync(ct).ConfigureAwait(false);
+        var links = live.ById.ToDictionary(p => p.Key, p => p.Value.Links);
         var now = time.GetUtcNow();
-        var found = 0;
-        var removable = new List<TorrentFacts>();
-        foreach (var torrent in await qbit.GetTorrentsAsync(ct).ConfigureAwait(false))
-        {
-            if (torrent.Hash is null || !wanted.Remove(torrent.Hash))
-            {
-                continue;
-            }
-
-            found++;
-            var facts = await FactsAsync(torrent, ct).ConfigureAwait(false);
-            if (SeedRule.Check(facts, settings.Seed, now).CanRemoveNow)
-            {
-                removable.Add(facts);
-            }
-        }
-
+        var torrentOnly = live.Index.Torrents
+            .Where(t => wanted.Contains(t.Hash) && SpaceMath.IsTorrentOnly(t.Hash, live.Index, links))
+            .ToList();
+        var removable = torrentOnly.Where(t => t.Progress >= 1 && SeedRule.Check(t, settings.Seed, now).CanRemoveNow).ToList();
         if (run.Kind == SpaceKinds.Torrent && removable.Count == 0)
         {
-            return StepResult.Skipped(found == 0 ? SpaceDetails.Gone : SpaceDetails.SeedRule);
+            // Sparito, o non più "solo torrent" (ora ha un hardlink in libreria): quello che la Pulizia mostrava non c'è più, quindi Gone.
+            return StepResult.Skipped(torrentOnly.Count == 0 ? SpaceDetails.Gone : SpaceDetails.SeedRule);
         }
 
         await qbit.DeleteAsync([.. removable.Select(t => t.Hash)], ct).ConfigureAwait(false);
@@ -226,8 +259,8 @@ public sealed partial class SpaceService
     }
 
     /// <summary>
-    /// Cancella un file orfano (sotto le cartelle di Pulizia) o un doppione (sotto la cartella del suo titolo) (spec U §6.2).
-    /// Il servizio controlla da sé che il percorso stia sotto le radici, prima di chiamare il disco.
+    /// Cancella un file orfano (sotto le cartelle di Pulizia) o un doppione (sotto la cartella del suo titolo, letta dal
+    /// vivo) (spec U §6.2). Il servizio controlla da sé che il percorso stia sotto le radici, prima di chiamare il disco.
     /// </summary>
     private async Task<StepResult> DeleteFileAsync(Run run, CancellationToken ct)
     {
@@ -235,21 +268,42 @@ public sealed partial class SpaceService
         IReadOnlyList<string> roots = settings.ScanFolders;
         if (run.Kind == SpaceKinds.Duplicate)
         {
-            if (file.OwnerKey is null || string.IsNullOrWhiteSpace(file.OwnerFolder))
+            if (file.OwnerKey is null)
             {
                 return StepResult.Failed(SpaceDetails.Failed);
             }
 
             // Dopo il calcolo Radarr/Sonarr possono averlo preso come file del titolo (un upgrade): non è più un doppione.
-            if (await KnownByArrAsync(file.OwnerKey, file.Path, ct).ConfigureAwait(false))
+            var (folder, known) = await OwnerAsync(file.OwnerKey, file.Path, ct).ConfigureAwait(false);
+            if (known || string.IsNullOrWhiteSpace(folder))
             {
                 return StepResult.Failed(SpaceDetails.Failed);
             }
 
-            roots = [file.OwnerFolder];
+            roots = [folder];
         }
 
-        if (!FileProbe.IsUnder(file.Path, roots) || !probe.Delete(file.Path, roots))
+        if (!FileProbe.IsUnder(file.Path, roots))
+        {
+            return StepResult.Failed(SpaceDetails.Failed);
+        }
+
+        if (run.Kind == SpaceKinds.Orphan)
+        {
+            var now = (await probe.StatAsync([file.Path], ct).ConfigureAwait(false)).GetValueOrDefault(file.Path);
+            if (now is null)
+            {
+                return StepResult.Skipped(SpaceDetails.Gone);
+            }
+
+            // Un altro hardlink (libreria o torrent) o un file diverso da quello del calcolo: non è più l'orfano mostrato.
+            if (now.Links > 1 || now.SizeBytes != file.SizeBytes)
+            {
+                return StepResult.Failed(SpaceDetails.Failed);
+            }
+        }
+
+        if (!probe.Delete(file.Path, roots))
         {
             return StepResult.Failed(SpaceDetails.Failed);
         }
@@ -258,18 +312,26 @@ public sealed partial class SpaceService
         return StepResult.Ok();
     }
 
-    // Vero se il percorso è oggi il file del film o un file di episodio della serie.
-    private async Task<bool> KnownByArrAsync(string ownerKey, string path, CancellationToken ct)
+    /// <summary>La cartella del titolo dal vivo, e se il percorso è oggi il file del film o un file di episodio della serie.</summary>
+    private async Task<(string? Folder, bool Known)> OwnerAsync(string ownerKey, string path, CancellationToken ct)
     {
         var parts = ownerKey.Split(':');
         if (parts.Length != 2 || !int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var id))
         {
-            return true;
+            return (null, true);
         }
 
-        return parts[0] == "movie"
-            ? (await arr.GetMovieAsync(id, ct).ConfigureAwait(false)).MovieFile?.Path == path
-            : (await arr.GetEpisodeFilesAsync(id, ct).ConfigureAwait(false)).Any(f => f?.Path == path);
+        if (parts[0] == "movie")
+        {
+            var movie = await arr.GetMovieAsync(id, ct).ConfigureAwait(false);
+            return (movie.Path, movie.MovieFile?.Path == path);
+        }
+
+        // Come Radarr per un film che non c'è: la serie è sparita, il passo è saltato con Gone.
+        var series = (await arr.GetSeriesAsync(ct).ConfigureAwait(false)).FirstOrDefault(s => s?.Id == id)
+            ?? throw new ArrException(ArrError.Unreachable, status: 404);
+        var files = await arr.GetEpisodeFilesAsync(id, ct).ConfigureAwait(false);
+        return (series.Path, files.Any(f => f?.Path == path));
     }
 
     private StepResult ReadQuotaStep(Run run)
@@ -279,4 +341,7 @@ public sealed partial class SpaceService
         var step = QuotaStep(quota);
         return new StepResult(step.State, step.Detail);
     }
+
+    /// <summary>I torrent letti dal vivo: indice, file in libreria e <c>stat</c> per id.</summary>
+    private sealed record LiveTorrents(TorrentIndex Index, HashSet<FileId> LibraryFiles, IReadOnlyDictionary<FileId, FileStamp> ById);
 }

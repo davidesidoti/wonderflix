@@ -17,6 +17,8 @@ public sealed class SpaceOperationsTests : IDisposable
     private const string OrphanKey = "file:0123456789abcdef";
     private const string DuplicateKey = "file:fedcba9876543210";
     private const string DuplicatePath = "/srv/media/Coco.old.mkv";
+    private const string LeftoverKey = "file:1111222233334444";
+    private const string LeftoverPath = "/srv/downloads/old/Leftover.mkv";
     private const long Size = 6_000_000_000;
     private static readonly FileId CocoId = new(16673, 31119496);
 
@@ -84,13 +86,14 @@ public sealed class SpaceOperationsTests : IDisposable
     {
         Titles = new Dictionary<string, ScanTitle>
         {
-            ["movie:12"] = new("Coco", 354912, "/srv/media", [new FileFact(MediaPath, CocoId, 2, Size)]),
-            ["season:5:2"] = new("Serie - Stagione 2", 1399, "/srv/tv/Serie", []),
+            ["movie:12"] = new("Coco", 354912, "/srv/media", [new FileFact(MediaPath, CocoId, 2, Size)], [Hash]),
+            ["season:5:2"] = new("Serie - Stagione 2", 1399, "/srv/tv/Serie", [], []),
         },
         Files = new Dictionary<string, ScanFile>
         {
             [OrphanKey] = new("/etc/passwd", SpaceKinds.Orphan, 1_000),
-            [DuplicateKey] = new(DuplicatePath, SpaceKinds.Duplicate, 2_000, "movie:12", "/srv/media"),
+            [DuplicateKey] = new(DuplicatePath, SpaceKinds.Duplicate, 2_000, "movie:12"),
+            [LeftoverKey] = new(LeftoverPath, SpaceKinds.Orphan, 2_000),
         },
         Torrents = new Dictionary<string, TorrentFacts>
         {
@@ -121,7 +124,7 @@ public sealed class SpaceOperationsTests : IDisposable
         var op = await RunAsync(SpaceKinds.Movie, "movie:12");
 
         Assert.Equal(["Queue:Radarr", "DeleteMovie:12", "QbitDelete:h1", "FindMediaId", "DeleteMedia", "Refresh"], _calls);
-        Assert.Equal((ArrKind.Radarr, 3, false), Assert.Single(_arr.RemoveFromQueueCalls));
+        Assert.Equal((ArrKind.Radarr, 3, false, false), Assert.Single(_arr.RemoveFromQueueCalls));
         Assert.Equal(("movie", 354912), Assert.Single(_seerr.FindMediaCalls));
         Assert.Equal(77, Assert.Single(_seerr.DeletedMedia));
         Assert.Equal(
@@ -262,20 +265,24 @@ public sealed class SpaceOperationsTests : IDisposable
         Assert.Equal(SpaceOperationStates.Failed, op.State);
     }
 
-    [Fact]
-    public async Task ADuplicateGoesOnlyFromItsTitleFolderAndOnlyIfRadarrDoesNotKnowIt()
-    {
+    private void Library(string? folder, string filePath) =>
         _arr.LibraryMovies = () => Task.FromResult<IReadOnlyList<RadarrMovie?>>(
-            [new RadarrMovie { Id = 12, MovieFile = new ArrFileRef { Path = DuplicatePath } }]);
+            [new RadarrMovie { Id = 12, Path = folder, MovieFile = new ArrFileRef { Path = filePath } }]);
 
+    [Fact]
+    public async Task ADuplicateGoesOnlyFromItsLiveTitleFolderAndOnlyIfRadarrDoesNotKnowIt()
+    {
+        Library("/srv/media", DuplicatePath);
         var known = await RunAsync(SpaceKinds.Duplicate, DuplicateKey);
 
+        Library("/srv/media/other", MediaPath);
+        var moved = await RunAsync(SpaceKinds.Duplicate, DuplicateKey);
+
         Assert.Equal(SpaceStepStates.Failed, Step(known, SpaceSteps.DeleteFile).State);
+        Assert.Equal(SpaceStepStates.Failed, Step(moved, SpaceSteps.DeleteFile).State);
         Assert.Empty(_probe.DeleteCalls);
 
-        _arr.LibraryMovies = () => Task.FromResult<IReadOnlyList<RadarrMovie?>>(
-            [new RadarrMovie { Id = 12, MovieFile = new ArrFileRef { Path = MediaPath } }]);
-
+        Library("/srv/media", MediaPath);
         var op = await RunAsync(SpaceKinds.Duplicate, DuplicateKey);
 
         Assert.Equal(SpaceOperationStates.Done, op.State);
@@ -285,9 +292,135 @@ public sealed class SpaceOperationsTests : IDisposable
         Assert.Equal(2_000, op.EstimatedFreedBytes);
     }
 
+    [Theory]
+    [InlineData(1, 2_000, true)]
+    [InlineData(2, 2_000, false)]
+    [InlineData(1, 3_000, false)]
+    public async Task AnOrphanGoesFromTheScanFoldersOnlyIfStillTheSameLoneFile(int links, long size, bool deleted)
+    {
+        _probe.Files[LeftoverPath] = new FileStamp(new FileId(1, 5), links, size);
+
+        var op = await RunAsync(SpaceKinds.Orphan, LeftoverKey);
+
+        Assert.Equal(deleted ? SpaceOperationStates.Done : SpaceOperationStates.Failed, op.State);
+        if (deleted)
+        {
+            var call = Assert.Single(_probe.DeleteCalls);
+            Assert.Equal(LeftoverPath, call.Path);
+            Assert.Equal(_settings.ScanFolders, call.Roots);
+        }
+        else
+        {
+            Assert.Equal(SpaceDetails.Failed, Step(op, SpaceSteps.DeleteFile).Detail);
+            Assert.Empty(_probe.DeleteCalls);
+        }
+    }
+
+    // Il titolo non c'è più: il file del torrent resta l'unico collegamento.
+    private void MakeTorrentOnly()
+    {
+        _probe.Files.Remove(MediaPath);
+        _probe.Files[TorrentPath] = new FileStamp(CocoId, 1, Size);
+    }
+
+    [Fact]
+    public async Task ACleanupTorrentNowInTheLibraryOrStillDownloadingStays()
+    {
+        // Il file del torrent ha di nuovo un hardlink in libreria (Radarr l'ha importato dopo il calcolo).
+        var single = await RunAsync(SpaceKinds.Torrent, "torrent:" + Hash);
+        var all = await RunAsync(SpaceKinds.AllTorrents, "all-torrents");
+
+        MakeTorrentOnly();
+        _torrent.Progress = 0.5;
+        var downloading = await RunAsync(SpaceKinds.Torrent, "torrent:" + Hash);
+
+        var step = Step(single, SpaceSteps.RemoveTorrents);
+        Assert.Equal((SpaceStepStates.Skipped, SpaceDetails.Gone), (step.State, step.Detail));
+        Assert.Equal(0, Step(all, SpaceSteps.RemoveTorrents).Done);
+        Assert.Equal(SpaceDetails.SeedRule, Step(downloading, SpaceSteps.RemoveTorrents).Detail);
+        Assert.Empty(_qbit.Deleted);
+    }
+
+    [Theory]
+    [InlineData("h9", Size)]
+    [InlineData(Hash, Size + 1)]
+    public async Task AReusedInodeIsNeverRemovedOnRetry(string hash, long size)
+    {
+        // Radarr ha già tolto il film (un file copiato, senza hardlink) e il torrent di prima non c'è più; quell'inode ora
+        // è di un download nuovo: in un altro torrent, o con una dimensione diversa.
+        _arr.LibraryMovies = () => Task.FromResult<IReadOnlyList<RadarrMovie?>>([]);
+        _probe.Files.Remove(MediaPath);
+        _probe.Files.Remove(TorrentPath);
+        _probe.Files["/srv/downloads/New.mkv"] = new FileStamp(CocoId, 1, size);
+        _qbit.Torrents.Clear();
+        _qbit.Torrents.Add(new QbitTorrent { Hash = hash, Name = "New", Size = size, Progress = 1, SavePath = "/srv/downloads", Tracker = "https://tracker.example/a" });
+        _qbit.Files[hash] = [new QbitFile { Name = "New.mkv", Size = size }];
+
+        var op = await RunAsync(SpaceKinds.Movie, "movie:12");
+
+        Assert.Empty(_qbit.Deleted);
+        Assert.Empty(_service.Read(b => b.Pending.ToList()));
+        var step = Step(op, SpaceSteps.RemoveTorrents);
+        Assert.Equal((0, 0), (step.Done, step.Waiting));
+    }
+
+    [Fact]
+    public async Task APackWithAnotherTitleInTheLibraryStays()
+    {
+        _qbit.Torrents.Clear();
+        _qbit.Torrents.Add(new QbitTorrent { Hash = "pack", Name = "Pack", Size = 2 * Size, Progress = 1, SavePath = "/srv/downloads", Tracker = "https://tracker.example/a" });
+        _qbit.Files["pack"] = [new QbitFile { Name = "Coco.mkv", Size = Size }, new QbitFile { Name = "Other.mkv", Size = Size }];
+        _probe.Files["/srv/downloads/Other.mkv"] = new FileStamp(new FileId(16673, 999), 2, Size);
+
+        var op = await RunAsync(SpaceKinds.Movie, "movie:12");
+
+        Assert.Empty(_qbit.Deleted);
+        Assert.Empty(_service.Read(b => b.Pending.ToList()));
+        var step = Step(op, SpaceSteps.RemoveTorrents);
+        Assert.Equal((SpaceStepStates.Done, 0, 0), (step.State, step.Done, step.Waiting));
+        Assert.Equal(0, op.EstimatedFreedBytes);
+    }
+
+    [Fact]
+    public async Task AStatTimeoutStopsBeforeRadarr()
+    {
+        _probe.StatFails = new TimeoutException();
+
+        var op = await RunAsync(SpaceKinds.Movie, "movie:12");
+
+        var step = Step(op, SpaceSteps.FindTorrents);
+        Assert.Equal((SpaceStepStates.Failed, SpaceDetails.Unreachable), (step.State, step.Detail));
+        Assert.Empty(_arr.DeleteMovieCalls);
+        Assert.Empty(_arr.RemoveFromQueueCalls);
+        Assert.Equal(SpaceStepStates.NotDone, Step(op, SpaceSteps.DeleteFromRadarr).State);
+        Assert.Equal(SpaceOperationStates.Failed, op.State);
+    }
+
+    [Fact]
+    public async Task TheQueueKeepsFinishedDownloadsInQbitAndSkipsWhatIsGone()
+    {
+        _arr.Queue = _ => Task.FromResult<IReadOnlyList<ArrQueueItem?>>(
+        [
+            new ArrQueueItem { Id = 3, MovieId = 12, Sizeleft = 0 },
+            new ArrQueueItem { Id = 5, MovieId = 12, Sizeleft = 100 },
+            new ArrQueueItem { Id = 6, MovieId = 12, Sizeleft = 100 },
+        ]);
+        _arr.RemoveFromQueue = (_, id, _) => id == 5 ? Task.FromException(new ArrException(ArrError.Unreachable, status: 404)) : Task.CompletedTask;
+
+        var op = await RunAsync(SpaceKinds.Movie, "movie:12");
+
+        Assert.Equal(
+            [(ArrKind.Radarr, 3, false, false), (ArrKind.Radarr, 5, false, true), (ArrKind.Radarr, 6, false, true)],
+            _arr.RemoveFromQueueCalls);
+        var step = Step(op, SpaceSteps.RemoveFromQueue);
+        Assert.Equal((SpaceStepStates.Done, 2), (step.State, step.Done));
+        Assert.Equal(SpaceOperationStates.Done, op.State);
+    }
+
     [Fact]
     public async Task ATorrentStillInMandatorySeedIsSkipped()
     {
+        MakeTorrentOnly();
         Protect(TimeSpan.FromDays(3));
 
         var op = await RunAsync(SpaceKinds.Torrent, "torrent:" + Hash);
@@ -301,7 +434,9 @@ public sealed class SpaceOperationsTests : IDisposable
     [Fact]
     public async Task AllTorrentsTakesTheOnesThatCanGoNow()
     {
-        var op = await RunAsync(SpaceKinds.AllTorrents, "all-torrents");
+        MakeTorrentOnly();
+
+        var op =await RunAsync(SpaceKinds.AllTorrents, "all-torrents");
 
         Assert.Equal([Hash], Assert.Single(_qbit.Deleted));
         Assert.Equal(1, Step(op, SpaceSteps.RemoveTorrents).Done);
@@ -346,6 +481,20 @@ public sealed class SpaceOperationsTests : IDisposable
 
         Assert.Empty(_service.Read(b => b.Pending.ToList()));
         Assert.Empty(_qbit.Deleted);
+    }
+
+    [Fact]
+    public async Task ADropWhileCheckingWins()
+    {
+        Protect(TimeSpan.FromDays(29));
+        await RunAsync(SpaceKinds.Movie, "movie:12");
+        _torrent.SeedingTime = (long)TimeSpan.FromDays(30).TotalSeconds;
+        _qbit.OnGetTorrents = () => _service.DropPending(Hash);
+
+        await _service.CheckPendingAsync(CancellationToken.None);
+
+        Assert.Empty(_qbit.Deleted);
+        Assert.Empty(_service.Read(b => b.Operations.Where(o => o.Auto).ToList()));
     }
 
     [Fact]

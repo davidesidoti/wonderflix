@@ -540,7 +540,7 @@ public sealed partial class DownloadService
             {
                 try
                 {
-                    await arr.RemoveFromQueueAsync(service, ids[i], blocklist: false, cancellationToken).ConfigureAwait(false);
+                    await arr.RemoveFromQueueAsync(service, ids[i], blocklist: false, removeFromClient: true, cancellationToken).ConfigureAwait(false);
                 }
                 catch (ArrException ex) when (ex.Status == 404)
                 {

@@ -57,8 +57,11 @@ public interface IArrClient
     /// <summary>La coda dei download; tutte le pagine (spec T §2).</summary>
     Task<IReadOnlyList<ArrQueueItem?>> GetQueueAsync(ArrKind kind, CancellationToken cancellationToken);
 
-    /// <summary>Toglie una voce dalla coda e dal client di download, con o senza blocklist (spec T §2).</summary>
-    Task RemoveFromQueueAsync(ArrKind kind, int queueId, bool blocklist, CancellationToken cancellationToken);
+    /// <summary>
+    /// Toglie una voce dalla coda, con o senza blocklist (spec T §2); con <paramref name="removeFromClient"/> anche dal client
+    /// di download, senza il torrent resta in qBittorrent (spec U §6.2).
+    /// </summary>
+    Task RemoveFromQueueAsync(ArrKind kind, int queueId, bool blocklist, bool removeFromClient, CancellationToken cancellationToken);
 
     /// <summary>Gli indexer, con la priorità (numero più basso = preferito) (spec T §2).</summary>
     Task<IReadOnlyList<ArrIndexer?>> GetIndexersAsync(ArrKind kind, CancellationToken cancellationToken);

@@ -20,9 +20,13 @@ internal sealed class FakeQbitClient : IQbitClient
     /// <summary>Chiamata a ogni cancellazione riuscita: i test la usano per l'ordine delle chiamate.</summary>
     public Action<IReadOnlyList<string>>? OnDelete { get; set; }
 
+    /// <summary>Chiamata a ogni lettura dei torrent, prima della risposta.</summary>
+    public Action? OnGetTorrents { get; set; }
+
     public Task<IReadOnlyList<QbitTorrent>> GetTorrentsAsync(CancellationToken cancellationToken)
     {
         Check();
+        OnGetTorrents?.Invoke();
         return Task.FromResult<IReadOnlyList<QbitTorrent>>([.. Torrents]);
     }
 

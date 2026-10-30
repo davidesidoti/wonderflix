@@ -193,7 +193,7 @@ internal sealed class FakeArrClient : IArrClient
 
     public List<ArrKind> QueueCalls { get; } = [];
 
-    public List<(ArrKind Kind, int QueueId, bool Blocklist)> RemoveFromQueueCalls { get; } = [];
+    public List<(ArrKind Kind, int QueueId, bool Blocklist, bool RemoveFromClient)> RemoveFromQueueCalls { get; } = [];
 
     public List<ArrKind> IndexerCalls { get; } = [];
 
@@ -280,11 +280,11 @@ internal sealed class FakeArrClient : IArrClient
         return Queue(kind);
     }
 
-    public Task RemoveFromQueueAsync(ArrKind kind, int queueId, bool blocklist, CancellationToken cancellationToken)
+    public Task RemoveFromQueueAsync(ArrKind kind, int queueId, bool blocklist, bool removeFromClient, CancellationToken cancellationToken)
     {
         lock (_lock)
         {
-            RemoveFromQueueCalls.Add((kind, queueId, blocklist));
+            RemoveFromQueueCalls.Add((kind, queueId, blocklist, removeFromClient));
         }
 
         return RemoveFromQueue(kind, queueId, blocklist);

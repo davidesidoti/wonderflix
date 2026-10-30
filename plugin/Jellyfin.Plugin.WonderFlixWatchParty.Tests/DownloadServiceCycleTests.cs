@@ -211,7 +211,7 @@ public sealed class DownloadServiceCycleTests : IDisposable
         _time.Advance(TimeSpan.FromMinutes(1));
         await _service.RunCycleAsync(CancellationToken.None);
 
-        Assert.Equal((ArrKind.Radarr, 90, true), Assert.Single(_arr.RemoveFromQueueCalls));
+        Assert.Equal((ArrKind.Radarr, 90, true, true), Assert.Single(_arr.RemoveFromQueueCalls));
         var entry = Saved("movie:12")!;
         Assert.Equal((DownloadStates.Waiting, (int?)null, (DateTimeOffset?)_time.GetUtcNow()), (entry.State, entry.QueueId, entry.LastSearchAt));
     }
@@ -227,7 +227,7 @@ public sealed class DownloadServiceCycleTests : IDisposable
         _time.Advance(DownloadSchedule.StalledAfter);
         await _service.RunCycleAsync(CancellationToken.None);
 
-        Assert.Equal((ArrKind.Radarr, 90, true), Assert.Single(_arr.RemoveFromQueueCalls));
+        Assert.Equal((ArrKind.Radarr, 90, true, true), Assert.Single(_arr.RemoveFromQueueCalls));
         Assert.Equal(DownloadStates.Waiting, Saved("movie:12")!.State);
     }
 

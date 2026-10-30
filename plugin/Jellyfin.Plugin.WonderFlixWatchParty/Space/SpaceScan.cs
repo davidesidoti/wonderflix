@@ -1,17 +1,18 @@
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Space;
 
 /// <summary>
-/// Un film, una serie o una stagione del calcolo (spec U §5.1). <c>Files</c> sono i file del titolo come
-/// li ha visti il calcolo: servono a ritrovare i torrent quando Radarr/Sonarr hanno già tolto i file.
+/// Un film, una serie o una stagione del calcolo (spec U §5.1). <c>Files</c> sono i file del titolo e <c>Hashes</c> i
+/// torrent che la stima del calcolo ha legato al titolo: servono a ritrovarli quando Radarr/Sonarr hanno già tolto i file,
+/// e solo quei torrent possono andare via così.
 /// </summary>
-public sealed record ScanTitle(string Title, int TmdbId, string? FolderPath, IReadOnlyList<FileFact> Files);
+public sealed record ScanTitle(string Title, int TmdbId, string? FolderPath, IReadOnlyList<FileFact> Files, IReadOnlyList<string> Hashes);
 
 /// <summary>
 /// Un file orfano o doppione del calcolo (spec U §5.3). <c>Kind</c> è <see cref="SpaceKinds.Orphan"/> o
-/// <see cref="SpaceKinds.Duplicate"/>; per un doppione <c>OwnerKey</c> è il titolo (<c>movie:12</c> o
-/// <c>series:5</c>) e <c>OwnerFolder</c> la sua cartella in Radarr/Sonarr, l'unica dove si può cancellare.
+/// <see cref="SpaceKinds.Duplicate"/>; per un doppione <c>OwnerKey</c> è il titolo (<c>movie:12</c> o <c>series:5</c>),
+/// la cui cartella, letta dal vivo da Radarr/Sonarr, è l'unica dove si può cancellare.
 /// </summary>
-public sealed record ScanFile(string Path, string Kind, long SizeBytes, string? OwnerKey = null, string? OwnerFolder = null);
+public sealed record ScanFile(string Path, string Kind, long SizeBytes, string? OwnerKey = null);
 
 /// <summary>L'ultimo calcolo, per quello che serve alle operazioni (spec U §6.2 e §7.3). Il Task 10 lo completa.</summary>
 public sealed record SpaceScan

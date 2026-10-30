@@ -235,7 +235,7 @@ public sealed class SpaceBook
     public void Prune(DateTimeOffset now) =>
         _operations.RemoveAll(o => (o.EndedAt ?? o.StartedAt) < now - OperationRetention);
 
-    /// <exception cref="FormatException">Versione diversa, o un elenco null o con voci null.</exception>
+    /// <exception cref="FormatException">Versione diversa, un elenco null o con voci null, o un campo di testo null.</exception>
     public static SpaceBook FromFile(SpaceFile file)
     {
         if (file.Version != SpaceFile.CurrentVersion)
@@ -243,12 +243,13 @@ public sealed class SpaceBook
             throw new FormatException("versione sconosciuta");
         }
 
+        // Il JSON può mettere null anche dove il tipo non lo ammette: un file così è rovinato.
         var book = new SpaceBook();
-        book._kept.AddRange(Required(file.Kept));
-        book._pending.AddRange(Required(file.Pending));
-        foreach (var operation in Required(file.Operations))
+        book._kept.AddRange(Required(file.Kept, k => [k.Key, k.Title]));
+        book._pending.AddRange(Required(file.Pending, p => [p.Hash, p.Name, p.Tracker, p.Title]));
+        foreach (var operation in Required(file.Operations, o => [o.Id, o.Kind, o.Key, o.Title, o.State]))
         {
-            Required(operation.Steps);
+            Required(operation.Steps, s => [s.Name, s.State]);
             book._operations.Add(operation);
         }
 
@@ -262,6 +263,8 @@ public sealed class SpaceBook
         Operations = [.. _operations],
     };
 
-    private static List<T> Required<T>(List<T>? list) =>
-        list is null || list.Contains(default!) ? throw new FormatException("elenco o voce null") : list;
+    private static List<T> Required<T>(List<T>? list, Func<T, string?[]> texts) =>
+        list is null || list.Exists(item => item is null || texts(item).Contains(null))
+            ? throw new FormatException("elenco, voce o campo null")
+            : list;
 }

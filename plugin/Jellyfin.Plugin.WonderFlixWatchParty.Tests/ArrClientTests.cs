@@ -628,12 +628,12 @@ public class ArrClientTests
     }
 
     [Fact]
-    public async Task RemovingFromTheQueueCanBlocklist()
+    public async Task RemovingFromTheQueueCanBlocklistAndKeepTheDownload()
     {
         Answer(HttpStatusCode.OK, "{}");
 
-        await Client().RemoveFromQueueAsync(ArrKind.Radarr, 77, blocklist: true, CancellationToken.None);
-        await Client().RemoveFromQueueAsync(ArrKind.Sonarr, 5, blocklist: false, CancellationToken.None);
+        await Client().RemoveFromQueueAsync(ArrKind.Radarr, 77, blocklist: true, removeFromClient: true, CancellationToken.None);
+        await Client().RemoveFromQueueAsync(ArrKind.Sonarr, 5, blocklist: false, removeFromClient: false, CancellationToken.None);
 
         Assert.Equal(HttpMethod.Delete, _http.Requests[0].Method);
         Assert.Equal(
@@ -641,7 +641,7 @@ public class ArrClientTests
             _http.Requests[0].Uri.OriginalString);
         Assert.Equal("radarr-key", _http.Requests[0].ApiKey);
         Assert.Equal(
-            "https://arr.example/sonarr/api/v3/queue/5?removeFromClient=true&blocklist=false",
+            "https://arr.example/sonarr/api/v3/queue/5?removeFromClient=false&blocklist=false",
             _http.Requests[1].Uri.OriginalString);
     }
 
@@ -650,7 +650,7 @@ public class ArrClientTests
     {
         _http.Respond = (_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
 
-        await Client().RemoveFromQueueAsync(ArrKind.Radarr, 1, blocklist: false, CancellationToken.None);
+        await Client().RemoveFromQueueAsync(ArrKind.Radarr, 1, blocklist: false, removeFromClient: true, CancellationToken.None);
     }
 
     [Fact]
@@ -724,7 +724,7 @@ public class ArrClientTests
         await Assert.ThrowsAsync<ArrException>(() => client.GrabReleaseAsync(ArrKind.Radarr, "secret-guid", 3, CancellationToken.None));
         await Assert.ThrowsAsync<ArrException>(() => client.GetMissingEpisodesAsync(CancellationToken.None));
         await Assert.ThrowsAsync<ArrException>(() => client.GetQueueAsync(ArrKind.Radarr, CancellationToken.None));
-        await Assert.ThrowsAsync<ArrException>(() => client.RemoveFromQueueAsync(ArrKind.Radarr, 77, true, CancellationToken.None));
+        await Assert.ThrowsAsync<ArrException>(() => client.RemoveFromQueueAsync(ArrKind.Radarr, 77, true, true, CancellationToken.None));
         await Assert.ThrowsAsync<ArrException>(() => client.GetMovieFilesAsync([1, 2], CancellationToken.None));
 
         Assert.Equal(6, _logger.Entries.Count);

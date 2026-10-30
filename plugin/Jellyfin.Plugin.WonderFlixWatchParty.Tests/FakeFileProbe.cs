@@ -20,9 +20,14 @@ internal sealed class FakeFileProbe : IFileProbe
     /// <summary>I testi leggibili, per percorso.</summary>
     public Dictionary<string, string> Texts { get; } = [];
 
+    /// <summary>Se impostato, <see cref="StatAsync"/> lancia questo errore (come un gruppo che non risponde in tempo).</summary>
+    public Exception? StatFails { get; set; }
+
     public Task<IReadOnlyDictionary<string, FileStamp>> StatAsync(IReadOnlyList<string> paths, CancellationToken ct) =>
-        Task.FromResult<IReadOnlyDictionary<string, FileStamp>>(
-            paths.Where(Files.ContainsKey).Distinct().ToDictionary(p => p, p => Files[p]));
+        StatFails is { } error
+            ? Task.FromException<IReadOnlyDictionary<string, FileStamp>>(error)
+            : Task.FromResult<IReadOnlyDictionary<string, FileStamp>>(
+                paths.Where(Files.ContainsKey).Distinct().ToDictionary(p => p, p => Files[p]));
 
     public IReadOnlyList<string> VideoFiles(string root) =>
         [.. Files.Where(f => FileProbe.IsUnder(f.Key, [root])

@@ -509,7 +509,7 @@ public sealed class DownloadServiceSearchTests : IDisposable
         _time.Advance(DownloadSchedule.StalledAfter);
         await Cycle();
 
-        Assert.Equal((ArrKind.Radarr, 91, true), Assert.Single(_arr.RemoveFromQueueCalls));
+        Assert.Equal((ArrKind.Radarr, 91, true, true), Assert.Single(_arr.RemoveFromQueueCalls));
         var entry = Saved("movie:12")!;
         Assert.Equal((DownloadStates.UpgradeWatch, (int?)50, (int?)null), (entry.State, entry.CurrentScore, entry.QueueId));
         Assert.Equal(T0 + DownloadSchedule.UpgradeWindow, entry.UpgradeUntil);
