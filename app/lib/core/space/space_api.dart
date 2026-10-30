@@ -54,41 +54,61 @@ class SpaceApi {
 
   final JellyfinHttp _http;
 
-  Future<SpaceOverview> overview() => _call(() async =>
-      SpaceOverview.fromJson(await _http.get(_base, quietStatuses: _quiet)) ??
-      (throw const ServerErrorException(null)));
+  Future<SpaceOverview> overview() => _call(
+    () async =>
+        SpaceOverview.fromJson(await _http.get(_base, quietStatuses: _quiet)) ??
+        (throw const ServerErrorException(null)),
+  );
 
   Future<void> recalculate() =>
       _call(() => _http.post('$_base/Recalculate', quietStatuses: _quiet));
 
   /// Mette in coda l'operazione e dà il suo id.
   Future<String> start(String kind, String key) => _call(() async {
-        final body = await _http.post('$_base/Operations',
-            body: {'Kind': kind, 'Key': key}, quietStatuses: _quiet);
-        final id = body is Map ? body['Id'] : null;
-        return id is String ? id : throw const ServerErrorException(null);
-      }, notFound: SpaceFailure.unknown);
+    final body = await _http.post(
+      '$_base/Operations',
+      body: {'Kind': kind, 'Key': key},
+      quietStatuses: _quiet,
+    );
+    final id = body is Map ? body['Id'] : null;
+    return id is String ? id : throw const ServerErrorException(null);
+  }, notFound: SpaceFailure.unknown);
 
-  Future<SpaceOperation> operation(String id) => _call(() async =>
-      SpaceOperation.fromJson(await _http.get(
-          '$_base/Operations/${Uri.encodeComponent(id)}',
-          quietStatuses: _quiet)) ??
-      (throw const ServerErrorException(null)));
+  Future<SpaceOperation> operation(String id) => _call(
+    () async =>
+        SpaceOperation.fromJson(
+          await _http.get(
+            '$_base/Operations/${Uri.encodeComponent(id)}',
+            quietStatuses: _quiet,
+          ),
+        ) ??
+        (throw const ServerErrorException(null)),
+  );
 
-  Future<void> keep(String key, String title) => _call(() => _http.post(
+  Future<void> keep(String key, String title) => _call(
+    () => _http.post(
       '$_base/Kept',
       body: {'Key': key, 'Title': title},
-      quietStatuses: _quiet));
+      quietStatuses: _quiet,
+    ),
+  );
 
-  Future<void> unkeep(String key) => _call(() =>
-      _http.delete('$_base/Kept', query: {'key': key}, quietStatuses: _quiet));
+  Future<void> unkeep(String key) => _call(
+    () =>
+        _http.delete('$_base/Kept', query: {'key': key}, quietStatuses: _quiet),
+  );
 
-  Future<void> dropPending(String hash) => _call(() => _http.delete(
+  Future<void> dropPending(String hash) => _call(
+    () => _http.delete(
       '$_base/Pending/${Uri.encodeComponent(hash)}',
-      quietStatuses: _quiet));
+      quietStatuses: _quiet,
+    ),
+  );
 
-  Future<T> _call<T>(Future<T> Function() request,
-      {SpaceFailure notFound = SpaceFailure.notFound}) async {
+  Future<T> _call<T>(
+    Future<T> Function() request, {
+    SpaceFailure notFound = SpaceFailure.notFound,
+  }) async {
     try {
       return await request();
     } on NotFoundException {

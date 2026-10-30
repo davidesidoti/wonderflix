@@ -1423,5 +1423,16 @@
   "spaceConfirmAction": "Elimina",
   "spaceStarted": "Operazione avviata ({id})",
   "@spaceStarted": {"placeholders": {"id": {"type": "String"}}},
-  "spaceRatingTitle": "Voti"
+  "spaceRatingTitle": "Voti",
+  "spaceAfterSeed": "dopo il seed",
+  "spaceGroupRemovableNow": "Si possono togliere ora",
+  "spaceGroupSeedRule": "In seed obbligatorio",
+  "spaceGroupOrphans": "File orfani",
+  "spaceGroupDuplicates": "Doppioni",
+  "spaceTotalsDelete": "subito {now} · dopo il seed {later}",
+  "@spaceTotalsDelete": {"placeholders": {"now": {"type": "String"}, "later": {"type": "String"}}},
+  "spaceTotalsCleanup": "{gb} liberabili ora",
+  "@spaceTotalsCleanup": {"placeholders": {"gb": {"type": "String"}}},
+  "spaceLightenFacts": "{excess} in più · {rate} GB/ora",
+  "@spaceLightenFacts": {"placeholders": {"excess": {"type": "String"}, "rate": {"type": "String"}}}
 }

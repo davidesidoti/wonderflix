@@ -9,7 +9,12 @@ import '../../support/admin_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/space_fakes.dart';
 
-SpaceCandidate _candidate({String? itemId}) => SpaceCandidate(
+SpaceCandidate _candidate({
+  String? itemId,
+  int later = 0,
+  DateTime? laterAt,
+  int pack = 0,
+}) => SpaceCandidate(
   key: 'movie:1',
   kind: 'Movie',
   title: 'Film Raro',
@@ -17,8 +22,9 @@ SpaceCandidate _candidate({String? itemId}) => SpaceCandidate(
   itemId: itemId,
   sizeBytes: 5000000000,
   freeNowBytes: 5000000000,
-  freeLaterBytes: 0,
-  inPackBytes: 0,
+  freeLaterBytes: later,
+  freeLaterAt: laterAt,
+  inPackBytes: pack,
   via: const ['LowRating'],
   keep: const [],
   viewers: [
@@ -98,5 +104,51 @@ void main() {
 
     expect(api.calls, contains('keep movie:1 Film Raro'));
     expect(find.text('Film Raro'), findsNothing);
+  });
+
+  testWidgets('ConfirmShowsTheDateWhenKnown', (tester) async {
+    await open(
+      tester,
+      _candidate(later: 2000000000, laterAt: DateTime.utc(2026, 5, 6)),
+    );
+    await tester.tap(find.text('Elimina'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Libera subito 5,00 GB.'), findsOneWidget);
+    expect(
+      find.textContaining('Altri 2,00 GB dopo il seed, dal 6 mag.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('ConfirmWithoutDateSaysAfterSeeding', (tester) async {
+    await open(tester, _candidate(later: 2000000000));
+    await tester.tap(find.text('Elimina'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Altri 2,00 GB dopo il seed.'), findsOneWidget);
+  });
+
+  testWidgets('ConfirmShowsThePackNote', (tester) async {
+    await open(tester, _candidate(pack: 1000000000));
+    await tester.tap(find.text('Elimina'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('1,00 GB restano: il pack contiene'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('DeleteIsDisabledWhileTheConfirmIsOpen', (tester) async {
+    await open(tester, _candidate());
+    await tester.tap(find.text('Elimina'));
+    await tester.pumpAndSettle();
+
+    final buttons = tester
+        .widgetList<FilledButton>(find.widgetWithText(FilledButton, 'Elimina'))
+        .toList();
+    expect(buttons, hasLength(2));
+    expect(buttons.any((b) => b.onPressed == null), isTrue);
   });
 }

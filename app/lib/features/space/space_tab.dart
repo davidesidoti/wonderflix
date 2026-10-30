@@ -138,6 +138,7 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
     final bySeries = <String, List<SpaceCandidate>>{};
     for (final c in delete) {
       final series = c.seriesKey;
+      // Una riga Series è sempre una riga a sé, anche con la stessa chiave.
       if (c.seasonNumber != null && series != null) {
         (bySeries[series] ??= []).add(c);
       }
@@ -145,7 +146,7 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
     final done = <String>{};
     final entries = <Object>[];
     for (final c in delete) {
-      final group = bySeries[c.seriesKey];
+      final group = c.seasonNumber == null ? null : bySeries[c.seriesKey];
       if (group == null || group.length < 2) {
         entries.add(c);
       } else if (done.add(c.seriesKey!)) {
@@ -272,6 +273,14 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
     );
   }
 
+  Widget _totals(String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(
+      text,
+      style: const TextStyle(color: WfColors.creamMuted, fontSize: 13),
+    ),
+  );
+
   Widget _group(String title) => Padding(
     padding: const EdgeInsets.only(top: 8, bottom: 8),
     child: Text(
@@ -283,6 +292,47 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
     ),
   );
 
+  List<Widget> _torrentGroup(
+    String id,
+    String title,
+    List<SpaceTorrent> list,
+  ) => list.isEmpty
+      ? const []
+      : [
+          _group(title),
+          ..._page(
+            id,
+            list,
+            (t) => SpaceTorrentRow(
+              key: ValueKey('torrent-${t.key}'),
+              torrent: t,
+              onRemove: () =>
+                  _start('Torrent', t.key, t.name, sizeBytes: t.sizeBytes),
+            ),
+          ),
+        ];
+
+  List<Widget> _fileGroup(
+    String id,
+    String title,
+    String kind,
+    List<SpaceFile> list,
+  ) => list.isEmpty
+      ? const []
+      : [
+          _group(title),
+          ..._page(
+            id,
+            list,
+            (f) => SpaceFileRow(
+              key: ValueKey('file-${f.key}'),
+              file: f,
+              onDelete: () =>
+                  _start(kind, f.key, f.path, sizeBytes: f.sizeBytes),
+            ),
+          ),
+        ];
+
   List<Widget> _cleanup(AppLocalizations l, SpaceOverview o) {
     final c = o.cleanup;
     final removable = [
@@ -290,11 +340,7 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
         if (t.canRemoveNow) t,
     ];
     final removableBytes = removable.fold(0, (sum, t) => sum + t.sizeBytes);
-    final files = [
-      for (final f in c.orphans) (f, 'Orphan'),
-      for (final f in c.duplicates) (f, 'Duplicate'),
-    ];
-    if (c.torrents.isEmpty && files.isEmpty) {
+    if (c.isEmpty) {
       return [AdminEmptyText(text: l.spaceEmptyCleanup)];
     }
     return [
@@ -315,32 +361,18 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
             ),
           ),
         ),
-      if (c.torrents.isNotEmpty) ...[
-        _group(l.spaceGroupTorrents),
-        ..._page(
-          'torrents',
-          c.torrents,
-          (t) => SpaceTorrentRow(
-            key: ValueKey('torrent-${t.key}'),
-            torrent: t,
-            onRemove: () =>
-                _start('Torrent', t.key, t.name, sizeBytes: t.sizeBytes),
-          ),
-        ),
-      ],
-      if (files.isNotEmpty) ...[
-        _group(l.spaceGroupFiles),
-        ..._page(
-          'files',
-          files,
-          (e) => SpaceFileRow(
-            key: ValueKey('file-${e.$1.key}'),
-            file: e.$1,
-            onDelete: () =>
-                _start(e.$2, e.$1.key, e.$1.path, sizeBytes: e.$1.sizeBytes),
-          ),
-        ),
-      ],
+      ..._torrentGroup('now', l.spaceGroupRemovableNow, removable),
+      ..._torrentGroup('seed', l.spaceGroupSeedRule, [
+        for (final t in c.torrents)
+          if (!t.canRemoveNow) t,
+      ]),
+      ..._fileGroup('orphans', l.spaceGroupOrphans, 'Orphan', c.orphans),
+      ..._fileGroup(
+        'duplicates',
+        l.spaceGroupDuplicates,
+        'Duplicate',
+        c.duplicates,
+      ),
     ];
   }
 
@@ -395,6 +427,13 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
         _quotaCard(l, o, now),
         if (ready) ...[
           AdminSectionTitle(title: l.spaceSectionDelete),
+          if (o.delete.isNotEmpty)
+            _totals(
+              l.spaceTotalsDelete(
+                spaceGb(l, o.delete.fold(0, (s, c) => s + c.freeNowBytes)),
+                spaceGb(l, o.delete.fold(0, (s, c) => s + c.freeLaterBytes)),
+              ),
+            ),
           if (o.delete.isEmpty) AdminEmptyText(text: l.spaceEmptyDelete),
           ..._page('delete', _entries(o.delete), (x) => _entry(o, x, now)),
           AdminSectionTitle(title: l.spaceSectionLighten),
@@ -405,11 +444,29 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
             (i) => SpaceLightenRow(
               key: ValueKey('lighten-${i.key}'),
               item: i,
+              onOpen: () => unawaited(showSpaceLighten(context, i)),
               onLighten: () =>
                   _lighten(i.key, spaceTitleOf(l, i.title, i.seasonNumber)),
             ),
           ),
           AdminSectionTitle(title: l.spaceSectionCleanup),
+          if (!o.cleanup.isEmpty)
+            _totals(
+              l.spaceTotalsCleanup(
+                spaceGb(
+                  l,
+                  [
+                    for (final t in o.cleanup.torrents)
+                      if (t.canRemoveNow) t.sizeBytes,
+                    for (final f in [
+                      ...o.cleanup.orphans,
+                      ...o.cleanup.duplicates,
+                    ])
+                      if (!f.linked) f.sizeBytes,
+                  ].fold(0, (s, b) => s + b),
+                ),
+              ),
+            ),
           ..._cleanup(l, o),
           AdminSectionTitle(title: l.spaceSectionPending),
           if (o.pending.isEmpty) AdminEmptyText(text: l.spaceEmptyPending),

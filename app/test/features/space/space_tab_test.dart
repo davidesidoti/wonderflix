@@ -266,4 +266,156 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('ALinkedFileShowsTheNoteAndNoDelete', (tester) async {
+    api.overviewValue = _overview(
+      scannedAt: _scanned,
+      cleanup: const SpaceCleanup(
+        orphans: [
+          SpaceFile(
+            key: 'file:a',
+            path: '/x/a.mkv',
+            sizeBytes: 1000000000,
+            linked: true,
+          ),
+          SpaceFile(
+            key: 'file:b',
+            path: '/x/b.mkv',
+            sizeBytes: 1000000000,
+            linked: false,
+          ),
+        ],
+      ),
+    );
+    await pumpTab(tester);
+
+    expect(
+      find.text('ha altri collegamenti, non libera spazio'),
+      findsOneWidget,
+    );
+    expect(find.text('Cancella'), findsOneWidget);
+    expect(find.text('1,00 GB liberabili ora'), findsOneWidget);
+  });
+
+  testWidgets('LightenRowOpensTheReducedCard', (tester) async {
+    api.overviewValue = _overview(
+      scannedAt: _scanned,
+      lighten: const [
+        SpaceLighten(
+          key: 'movie:1',
+          kind: 'Movie',
+          title: 'Film',
+          sizeBytes: 9000000000,
+          excessBytes: 5000000000,
+          gbPerHour: 6.5,
+        ),
+      ],
+    );
+    await pumpTab(tester);
+
+    await tester.tap(find.text('Film'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Tienilo'), findsOneWidget);
+    expect(find.text('Elimina'), findsNothing);
+    expect(find.text('Alleggerisci'), findsNWidgets(2));
+    await tester.tap(find.text('Tienilo'));
+    await tester.pumpAndSettle();
+    expect(api.calls, contains('keep movie:1 Film'));
+  });
+
+  testWidgets('CleanupGroupsAndTotals', (tester) async {
+    api.overviewValue = _overview(
+      scannedAt: _scanned,
+      delete: [_candidate('movie:1')],
+      cleanup: const SpaceCleanup(
+        torrents: [
+          SpaceTorrent(
+            key: 't:1',
+            hash: '1',
+            name: 'Uno',
+            tracker: 'x',
+            sizeBytes: 3000000000,
+            ratio: 1,
+            seedingDays: 3,
+            canRemoveNow: true,
+          ),
+          SpaceTorrent(
+            key: 't:2',
+            hash: '2',
+            name: 'Due',
+            tracker: 'x',
+            sizeBytes: 1000000000,
+            ratio: 1,
+            seedingDays: 3,
+            canRemoveNow: false,
+          ),
+        ],
+        orphans: [
+          SpaceFile(
+            key: 'f:1',
+            path: '/o',
+            sizeBytes: 1000000000,
+            linked: false,
+          ),
+        ],
+        duplicates: [
+          SpaceFile(
+            key: 'f:2',
+            path: '/d',
+            sizeBytes: 1000000000,
+            linked: false,
+          ),
+        ],
+      ),
+    );
+    await pumpTab(tester);
+
+    for (final s in [
+      'Si possono togliere ora',
+      'In seed obbligatorio',
+      'File orfani',
+      'Doppioni',
+      'dopo il seed',
+      'subito 2,00 GB · dopo il seed 0,00 GB',
+      '5,00 GB liberabili ora',
+    ]) {
+      expect(find.text(s), findsOneWidget, reason: s);
+    }
+  });
+
+  testWidgets('ASeriesRowIsNeverGrouped', (tester) async {
+    api.overviewValue = _overview(
+      scannedAt: _scanned,
+      delete: [
+        _candidate(
+          'series:7',
+          title: 'Serie Intera',
+          kind: 'Series',
+          seriesKey: 'series:7',
+        ),
+        _candidate(
+          'season:7:1',
+          title: 'Serie Lunga',
+          kind: 'Season',
+          season: 1,
+          seriesKey: 'series:7',
+        ),
+        _candidate(
+          'season:7:2',
+          title: 'Serie Lunga',
+          kind: 'Season',
+          season: 2,
+          seriesKey: 'series:7',
+        ),
+      ],
+    );
+    await pumpTab(tester);
+
+    expect(find.text('Serie Intera'), findsOneWidget);
+    expect(find.text('Serie Lunga'), findsOneWidget);
+    await tester.tap(find.text('Serie Lunga'));
+    await tester.pump();
+    expect(find.text('Stagione 2'), findsOneWidget);
+  });
 }

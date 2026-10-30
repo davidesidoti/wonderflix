@@ -176,33 +176,38 @@ class SpaceLightenRow extends StatelessWidget {
     super.key,
     required this.item,
     required this.onLighten,
+    required this.onOpen,
   });
 
   final SpaceLighten item;
   final Future<void> Function() onLighten;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    return RowShell(
-      posterUrl: item.posterUrl,
-      lines: [
-        _heading(spaceTitleOf(l, item.title, item.seasonNumber)),
-        _line(
-          l.spaceLightenLine(
-            spaceGb(l, item.sizeBytes),
-            NumberFormat('0.0', l.localeName).format(item.gbPerHour),
-            spaceGb(l, item.excessBytes),
+    return _tappable(
+      onOpen,
+      RowShell(
+        posterUrl: item.posterUrl,
+        lines: [
+          _heading(spaceTitleOf(l, item.title, item.seasonNumber)),
+          _line(
+            l.spaceLightenLine(
+              spaceGb(l, item.sizeBytes),
+              NumberFormat('0.0', l.localeName).format(item.gbPerHour),
+              spaceGb(l, item.excessBytes),
+            ),
           ),
-        ),
-      ],
-      actions: [
-        AdminActionButton(
-          label: l.spaceLightenAction,
-          icon: LucideIcons.minimize2,
-          onPressed: onLighten,
-        ),
-      ],
+        ],
+        actions: [
+          AdminActionButton(
+            label: l.spaceLightenAction,
+            icon: LucideIcons.minimize2,
+            onPressed: onLighten,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -238,7 +243,7 @@ class SpaceTorrentRow extends StatelessWidget {
         if (!t.canRemoveNow)
           _line(
             until == null
-                ? l.spaceDetailSeedRule
+                ? l.spaceAfterSeed
                 : l.spaceSeedUntil(spaceDate(l, until)),
             _gold,
           ),
@@ -273,11 +278,13 @@ class SpaceFileRow extends StatelessWidget {
         if (file.linked) _line(l.spaceLinkedNote, _gold),
       ],
       actions: [
-        AdminActionButton(
-          label: l.spaceDeleteFile,
-          icon: LucideIcons.trash2,
-          onPressed: onDelete,
-        ),
+        // Con altri collegamenti non si libera nulla (e il plugin rifiuta).
+        if (!file.linked)
+          AdminActionButton(
+            label: l.spaceDeleteFile,
+            icon: LucideIcons.trash2,
+            onPressed: onDelete,
+          ),
       ],
     );
   }

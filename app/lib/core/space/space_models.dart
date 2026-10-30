@@ -7,8 +7,12 @@ DateTime? _date(Object? v) =>
 int _int(Object? v) => (v as num).toInt();
 int? _intOrNull(Object? v) => (v as num?)?.toInt();
 double _double(Object? v) => (v as num).toDouble();
-List<String> _strings(Object? v) =>
-    v is List ? [for (final s in v) if (s is String) s] : const [];
+List<String> _strings(Object? v) => v is List
+    ? [
+        for (final s in v)
+          if (s is String) s,
+      ]
+    : const [];
 
 /// Legge una lista con [parse], saltando le righe non valide.
 List<T> _list<T>(Object? json, T? Function(Object?) parse) =>
@@ -31,9 +35,12 @@ class SpaceQuota {
   final int limitBytes;
 
   static SpaceQuota? fromJson(Object? json) => _guard(
-      json,
-      (j) => SpaceQuota(
-          usedBytes: _int(j['UsedBytes']), limitBytes: _int(j['LimitBytes'])));
+    json,
+    (j) => SpaceQuota(
+      usedBytes: _int(j['UsedBytes']),
+      limitBytes: _int(j['LimitBytes']),
+    ),
+  );
 }
 
 class SpaceBreakdown {
@@ -52,14 +59,15 @@ class SpaceBreakdown {
   final int otherBytes;
 
   static SpaceBreakdown? fromJson(Object? json) => _guard(
-      json,
-      (j) => SpaceBreakdown(
-            moviesBytes: _int(j['MoviesBytes']),
-            seriesBytes: _int(j['SeriesBytes']),
-            animeBytes: _int(j['AnimeBytes']),
-            torrentOnlyBytes: _int(j['TorrentOnlyBytes']),
-            otherBytes: _int(j['OtherBytes']),
-          ));
+    json,
+    (j) => SpaceBreakdown(
+      moviesBytes: _int(j['MoviesBytes']),
+      seriesBytes: _int(j['SeriesBytes']),
+      animeBytes: _int(j['AnimeBytes']),
+      torrentOnlyBytes: _int(j['TorrentOnlyBytes']),
+      otherBytes: _int(j['OtherBytes']),
+    ),
+  );
 }
 
 class SpaceViewer {
@@ -74,12 +82,13 @@ class SpaceViewer {
   final DateTime? lastPlayed;
 
   static SpaceViewer? fromJson(Object? json) => _guard(
-      json,
-      (j) => SpaceViewer(
-            name: j['Name'] as String,
-            finished: j['Finished'] as bool,
-            lastPlayed: _date(j['LastPlayed']),
-          ));
+    json,
+    (j) => SpaceViewer(
+      name: j['Name'] as String,
+      finished: j['Finished'] as bool,
+      lastPlayed: _date(j['LastPlayed']),
+    ),
+  );
 }
 
 class SpaceRequest {
@@ -89,7 +98,9 @@ class SpaceRequest {
   final DateTime at;
 
   static SpaceRequest? fromJson(Object? json) => _guard(
-      json, (j) => SpaceRequest(name: j['Name'] as String, at: _date(j['At'])!));
+    json,
+    (j) => SpaceRequest(name: j['Name'] as String, at: _date(j['At'])!),
+  );
 }
 
 /// Una riga di Cancellare: film, serie o stagione.
@@ -145,31 +156,32 @@ class SpaceCandidate {
   final List<String> genres;
 
   static SpaceCandidate? fromJson(Object? json) => _guard(
-      json,
-      (j) => SpaceCandidate(
-            key: j['Key'] as String,
-            kind: j['Kind'] as String,
-            title: j['Title'] as String,
-            year: _intOrNull(j['Year']),
-            seasonNumber: _intOrNull(j['SeasonNumber']),
-            seriesKey: j['SeriesKey'] as String?,
-            itemId: j['ItemId'] as String?,
-            posterUrl: j['PosterUrl'] as String?,
-            sizeBytes: _int(j['SizeBytes']),
-            freeNowBytes: _int(j['FreeNowBytes']),
-            freeLaterBytes: _int(j['FreeLaterBytes']),
-            freeLaterAt: _date(j['FreeLaterAt']),
-            inPackBytes: _int(j['InPackBytes']),
-            via: _strings(j['Via']),
-            keep: _strings(j['Keep']),
-            viewers: _list(j['Viewers'], SpaceViewer.fromJson),
-            requests: _list(j['Requests'], SpaceRequest.fromJson),
-            ratingAvg: (j['RatingAvg'] as num?)?.toDouble(),
-            ratingCount: _int(j['RatingCount']),
-            lastOpened: _date(j['LastOpened']),
-            added: _date(j['Added']),
-            genres: _strings(j['Genres']),
-          ));
+    json,
+    (j) => SpaceCandidate(
+      key: j['Key'] as String,
+      kind: j['Kind'] as String,
+      title: j['Title'] as String,
+      year: _intOrNull(j['Year']),
+      seasonNumber: _intOrNull(j['SeasonNumber']),
+      seriesKey: j['SeriesKey'] as String?,
+      itemId: j['ItemId'] as String?,
+      posterUrl: j['PosterUrl'] as String?,
+      sizeBytes: _int(j['SizeBytes']),
+      freeNowBytes: _int(j['FreeNowBytes']),
+      freeLaterBytes: _int(j['FreeLaterBytes']),
+      freeLaterAt: _date(j['FreeLaterAt']),
+      inPackBytes: _int(j['InPackBytes']),
+      via: _strings(j['Via']),
+      keep: _strings(j['Keep']),
+      viewers: _list(j['Viewers'], SpaceViewer.fromJson),
+      requests: _list(j['Requests'], SpaceRequest.fromJson),
+      ratingAvg: (j['RatingAvg'] as num?)?.toDouble(),
+      ratingCount: _int(j['RatingCount']),
+      lastOpened: _date(j['LastOpened']),
+      added: _date(j['Added']),
+      genres: _strings(j['Genres']),
+    ),
+  );
 }
 
 /// Una riga di Alleggerire: oltre la soglia di GB all'ora.
@@ -197,18 +209,19 @@ class SpaceLighten {
   final double gbPerHour;
 
   static SpaceLighten? fromJson(Object? json) => _guard(
-      json,
-      (j) => SpaceLighten(
-            key: j['Key'] as String,
-            kind: j['Kind'] as String,
-            title: j['Title'] as String,
-            seasonNumber: _intOrNull(j['SeasonNumber']),
-            itemId: j['ItemId'] as String?,
-            posterUrl: j['PosterUrl'] as String?,
-            sizeBytes: _int(j['SizeBytes']),
-            excessBytes: _int(j['ExcessBytes']),
-            gbPerHour: _double(j['GbPerHour']),
-          ));
+    json,
+    (j) => SpaceLighten(
+      key: j['Key'] as String,
+      kind: j['Kind'] as String,
+      title: j['Title'] as String,
+      seasonNumber: _intOrNull(j['SeasonNumber']),
+      itemId: j['ItemId'] as String?,
+      posterUrl: j['PosterUrl'] as String?,
+      sizeBytes: _int(j['SizeBytes']),
+      excessBytes: _int(j['ExcessBytes']),
+      gbPerHour: _double(j['GbPerHour']),
+    ),
+  );
 }
 
 /// Un torrent senza copia in libreria; [tracker] è l'host.
@@ -236,18 +249,19 @@ class SpaceTorrent {
   final DateTime? expectedAt;
 
   static SpaceTorrent? fromJson(Object? json) => _guard(
-      json,
-      (j) => SpaceTorrent(
-            key: j['Key'] as String,
-            hash: j['Hash'] as String,
-            name: j['Name'] as String,
-            tracker: j['Tracker'] as String,
-            sizeBytes: _int(j['SizeBytes']),
-            ratio: _double(j['Ratio']),
-            seedingDays: _double(j['SeedingDays']),
-            canRemoveNow: j['CanRemoveNow'] as bool,
-            expectedAt: _date(j['ExpectedAt']),
-          ));
+    json,
+    (j) => SpaceTorrent(
+      key: j['Key'] as String,
+      hash: j['Hash'] as String,
+      name: j['Name'] as String,
+      tracker: j['Tracker'] as String,
+      sizeBytes: _int(j['SizeBytes']),
+      ratio: _double(j['Ratio']),
+      seedingDays: _double(j['SeedingDays']),
+      canRemoveNow: j['CanRemoveNow'] as bool,
+      expectedAt: _date(j['ExpectedAt']),
+    ),
+  );
 }
 
 /// Un file orfano o doppione; [linked]: ha altri hardlink, cancellarlo non
@@ -266,13 +280,14 @@ class SpaceFile {
   final bool linked;
 
   static SpaceFile? fromJson(Object? json) => _guard(
-      json,
-      (j) => SpaceFile(
-            key: j['Key'] as String,
-            path: j['Path'] as String,
-            sizeBytes: _int(j['SizeBytes']),
-            linked: j['Linked'] as bool,
-          ));
+    json,
+    (j) => SpaceFile(
+      key: j['Key'] as String,
+      path: j['Path'] as String,
+      sizeBytes: _int(j['SizeBytes']),
+      linked: j['Linked'] as bool,
+    ),
+  );
 }
 
 class SpaceCleanup {
@@ -286,13 +301,16 @@ class SpaceCleanup {
   final List<SpaceFile> orphans;
   final List<SpaceFile> duplicates;
 
+  bool get isEmpty => torrents.isEmpty && orphans.isEmpty && duplicates.isEmpty;
+
   static SpaceCleanup? fromJson(Object? json) => _guard(
-      json,
-      (j) => SpaceCleanup(
-            torrents: _list(j['Torrents'], SpaceTorrent.fromJson),
-            orphans: _list(j['Orphans'], SpaceFile.fromJson),
-            duplicates: _list(j['Duplicates'], SpaceFile.fromJson),
-          ));
+    json,
+    (j) => SpaceCleanup(
+      torrents: _list(j['Torrents'], SpaceTorrent.fromJson),
+      orphans: _list(j['Orphans'], SpaceFile.fromJson),
+      duplicates: _list(j['Duplicates'], SpaceFile.fromJson),
+    ),
+  );
 }
 
 /// Un torrent in attesa della fine del seed obbligatorio.
@@ -314,15 +332,16 @@ class SpacePending {
   final String title;
 
   static SpacePending? fromJson(Object? json) => _guard(
-      json,
-      (j) => SpacePending(
-            hash: j['Hash'] as String,
-            name: j['Name'] as String,
-            tracker: j['Tracker'] as String,
-            sizeBytes: _int(j['SizeBytes']),
-            expectedAt: _date(j['ExpectedAt']),
-            title: j['Title'] as String,
-          ));
+    json,
+    (j) => SpacePending(
+      hash: j['Hash'] as String,
+      name: j['Name'] as String,
+      tracker: j['Tracker'] as String,
+      sizeBytes: _int(j['SizeBytes']),
+      expectedAt: _date(j['ExpectedAt']),
+      title: j['Title'] as String,
+    ),
+  );
 }
 
 /// Un titolo tenuto con "Tienilo".
@@ -333,8 +352,9 @@ class SpaceKept {
   final String title;
 
   static SpaceKept? fromJson(Object? json) => _guard(
-      json,
-      (j) => SpaceKept(key: j['Key'] as String, title: j['Title'] as String));
+    json,
+    (j) => SpaceKept(key: j['Key'] as String, title: j['Title'] as String),
+  );
 }
 
 class SpaceStep {
@@ -353,14 +373,15 @@ class SpaceStep {
   final int? waiting;
 
   static SpaceStep? fromJson(Object? json) => _guard(
-      json,
-      (j) => SpaceStep(
-            name: j['Name'] as String,
-            state: j['State'] as String,
-            detail: j['Detail'] as String?,
-            done: _intOrNull(j['Done']),
-            waiting: _intOrNull(j['Waiting']),
-          ));
+    json,
+    (j) => SpaceStep(
+      name: j['Name'] as String,
+      state: j['State'] as String,
+      detail: j['Detail'] as String?,
+      done: _intOrNull(j['Done']),
+      waiting: _intOrNull(j['Waiting']),
+    ),
+  );
 }
 
 class SpaceOperation {
@@ -398,28 +419,34 @@ class SpaceOperation {
   bool get running => state == 'Queued' || state == 'Running';
 
   static SpaceOperation? fromJson(Object? json) => _guard(
-      json,
-      (j) => SpaceOperation(
-            id: j['Id'] as String,
-            kind: j['Kind'] as String,
-            key: j['Key'] as String,
-            title: j['Title'] as String,
-            state: j['State'] as String,
-            auto: j['Auto'] as bool,
-            startedAt: _date(j['StartedAt'])!,
-            endedAt: _date(j['EndedAt']),
-            estimatedFreedBytes: _int(j['EstimatedFreedBytes']),
-            pendingBytes: _int(j['PendingBytes']),
-            quotaBeforeBytes: _intOrNull(j['QuotaBeforeBytes']),
-            quotaAfterBytes: _intOrNull(j['QuotaAfterBytes']),
-            steps: _list(j['Steps'], SpaceStep.fromJson),
-          ));
+    json,
+    (j) => SpaceOperation(
+      id: j['Id'] as String,
+      kind: j['Kind'] as String,
+      key: j['Key'] as String,
+      title: j['Title'] as String,
+      state: j['State'] as String,
+      auto: j['Auto'] as bool,
+      startedAt: _date(j['StartedAt'])!,
+      endedAt: _date(j['EndedAt']),
+      estimatedFreedBytes: _int(j['EstimatedFreedBytes']),
+      pendingBytes: _int(j['PendingBytes']),
+      quotaBeforeBytes: _intOrNull(j['QuotaBeforeBytes']),
+      quotaAfterBytes: _intOrNull(j['QuotaAfterBytes']),
+      steps: _list(j['Steps'], SpaceStep.fromJson),
+    ),
+  );
 }
 
 /// Per ogni servizio: `NotConfigured`, `Unauthorized`, `Unreachable` o null.
 class SpaceErrors {
-  const SpaceErrors(
-      {this.radarr, this.sonarr, this.qbit, this.seerr, this.quota});
+  const SpaceErrors({
+    this.radarr,
+    this.sonarr,
+    this.qbit,
+    this.seerr,
+    this.quota,
+  });
 
   final String? radarr;
   final String? sonarr;
@@ -428,14 +455,15 @@ class SpaceErrors {
   final String? quota;
 
   static SpaceErrors? fromJson(Object? json) => _guard(
-      json,
-      (j) => SpaceErrors(
-            radarr: j['Radarr'] as String?,
-            sonarr: j['Sonarr'] as String?,
-            qbit: j['Qbit'] as String?,
-            seerr: j['Seerr'] as String?,
-            quota: j['Quota'] as String?,
-          ));
+    json,
+    (j) => SpaceErrors(
+      radarr: j['Radarr'] as String?,
+      sonarr: j['Sonarr'] as String?,
+      qbit: j['Qbit'] as String?,
+      seerr: j['Seerr'] as String?,
+      quota: j['Quota'] as String?,
+    ),
+  );
 }
 
 class SpaceOverview {
@@ -471,11 +499,12 @@ class SpaceOverview {
   static const empty = SpaceOverview(
     scanning: false,
     breakdown: SpaceBreakdown(
-        moviesBytes: 0,
-        seriesBytes: 0,
-        animeBytes: 0,
-        torrentOnlyBytes: 0,
-        otherBytes: 0),
+      moviesBytes: 0,
+      seriesBytes: 0,
+      animeBytes: 0,
+      torrentOnlyBytes: 0,
+      otherBytes: 0,
+    ),
     delete: [],
     lighten: [],
     cleanup: SpaceCleanup(),
@@ -487,19 +516,20 @@ class SpaceOverview {
   );
 
   static SpaceOverview? fromJson(Object? json) => _guard(
-      json,
-      (j) => SpaceOverview(
-            scannedAt: _date(j['ScannedAt']),
-            scanning: j['Scanning'] as bool,
-            quota: SpaceQuota.fromJson(j['Quota']),
-            breakdown: SpaceBreakdown.fromJson(j['Breakdown'])!,
-            delete: _list(j['Delete'], SpaceCandidate.fromJson),
-            lighten: _list(j['Lighten'], SpaceLighten.fromJson),
-            cleanup: SpaceCleanup.fromJson(j['Cleanup'])!,
-            pending: _list(j['Pending'], SpacePending.fromJson),
-            kept: _list(j['Kept'], SpaceKept.fromJson),
-            operations: _list(j['Operations'], SpaceOperation.fromJson),
-            topGenres: _strings(j['TopGenres']),
-            errors: SpaceErrors.fromJson(j['Errors'])!,
-          ));
+    json,
+    (j) => SpaceOverview(
+      scannedAt: _date(j['ScannedAt']),
+      scanning: j['Scanning'] as bool,
+      quota: SpaceQuota.fromJson(j['Quota']),
+      breakdown: SpaceBreakdown.fromJson(j['Breakdown'])!,
+      delete: _list(j['Delete'], SpaceCandidate.fromJson),
+      lighten: _list(j['Lighten'], SpaceLighten.fromJson),
+      cleanup: SpaceCleanup.fromJson(j['Cleanup'])!,
+      pending: _list(j['Pending'], SpacePending.fromJson),
+      kept: _list(j['Kept'], SpaceKept.fromJson),
+      operations: _list(j['Operations'], SpaceOperation.fromJson),
+      topGenres: _strings(j['TopGenres']),
+      errors: SpaceErrors.fromJson(j['Errors'])!,
+    ),
+  );
 }

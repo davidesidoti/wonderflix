@@ -40,19 +40,68 @@ Future<void> showSpaceTitle(
   ),
 );
 
-class _TitleBody extends ConsumerWidget {
+/// La scheda ridotta di una riga di "Alleggerire" (spec U §8): stessa scheda,
+/// con peso, eccesso e GB/ora, e solo Alleggerisci e Tienilo.
+Future<void> showSpaceLighten(BuildContext context, SpaceLighten item) =>
+    showWfDialog<void>(
+      context,
+      semanticLabel: item.title,
+      maxWidth: 560,
+      builder: (_) => _TitleBody(
+        candidate: SpaceCandidate(
+          key: item.key,
+          kind: item.kind,
+          title: item.title,
+          seasonNumber: item.seasonNumber,
+          itemId: item.itemId,
+          posterUrl: item.posterUrl,
+          sizeBytes: item.sizeBytes,
+          freeNowBytes: 0,
+          freeLaterBytes: 0,
+          inPackBytes: 0,
+          via: const [],
+          keep: const [],
+          viewers: const [],
+          requests: const [],
+          ratingCount: 0,
+          genres: const [],
+        ),
+        favoriteGenre: false,
+        canLighten: true,
+        lighten: item,
+      ),
+    );
+
+class _TitleBody extends ConsumerStatefulWidget {
   const _TitleBody({
     required this.candidate,
     required this.favoriteGenre,
     required this.canLighten,
+    this.lighten,
   });
 
   final SpaceCandidate candidate;
   final bool favoriteGenre;
   final bool canLighten;
 
+  /// Valorizzato per la scheda ridotta di "Alleggerire".
+  final SpaceLighten? lighten;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_TitleBody> createState() => _TitleBodyState();
+}
+
+class _TitleBodyState extends ConsumerState<_TitleBody> {
+  /// Elimina in corso: una seconda pressione non fa ripartire la conferma.
+  bool _busy = false;
+
+  SpaceCandidate get candidate => widget.candidate;
+
+  @override
+  Widget build(BuildContext context) {
+    final favoriteGenre = widget.favoriteGenre;
+    final canLighten = widget.canLighten;
+    final lighten = widget.lighten;
     final l = AppLocalizations.of(context);
     final c = candidate;
     final title = spaceTitleOf(l, c.title, c.seasonNumber);
@@ -73,6 +122,11 @@ class _TitleBody extends ConsumerWidget {
     final facts = [
       if (c.year != null) '${c.year}',
       spaceGb(l, c.sizeBytes),
+      if (lighten != null)
+        l.spaceLightenFacts(
+          spaceGb(l, lighten.excessBytes),
+          NumberFormat('0.0', l.localeName).format(lighten.gbPerHour),
+        ),
     ].join(' · ');
     const muted = TextStyle(color: WfColors.creamMuted, fontSize: 13);
     Widget heading(String text) => Padding(
@@ -197,11 +251,14 @@ class _TitleBody extends ConsumerWidget {
                 icon: LucideIcons.shield,
                 onPressed: () => unawaited(_keep(context, ref, title)),
               ),
-              WfButton.primary(
-                label: l.spaceDialogDelete,
-                icon: LucideIcons.trash2,
-                onPressed: () => unawaited(_delete(context, ref, title)),
-              ),
+              if (lighten == null)
+                WfButton.primary(
+                  label: l.spaceDialogDelete,
+                  icon: LucideIcons.trash2,
+                  onPressed: _busy
+                      ? null
+                      : () => unawaited(_delete(context, ref, title)),
+                ),
             ],
           ),
         ],
@@ -214,6 +271,7 @@ class _TitleBody extends ConsumerWidget {
     WidgetRef ref,
     String title,
   ) async {
+    setState(() => _busy = true);
     final started = await startSpaceOperation(
       context,
       ref,
@@ -222,7 +280,12 @@ class _TitleBody extends ConsumerWidget {
       title: title,
       candidate: candidate,
     );
-    if (started && context.mounted) Navigator.of(context).pop();
+    if (!context.mounted) return;
+    if (started) {
+      Navigator.of(context).pop();
+    } else {
+      setState(() => _busy = false);
+    }
   }
 
   Future<void> _keep(BuildContext context, WidgetRef ref, String title) async {
