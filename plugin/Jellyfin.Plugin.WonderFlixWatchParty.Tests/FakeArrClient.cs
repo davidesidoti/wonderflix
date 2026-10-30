@@ -300,6 +300,63 @@ internal sealed class FakeArrClient : IArrClient
         return Indexers(kind);
     }
 
+    // La spec U (spazio): cancellare e smettere di monitorare; di base non fanno niente.
+    public Func<int, Task> DeleteMovie { get; set; } = _ => Task.CompletedTask;
+
+    public Func<int, Task> DeleteSeries { get; set; } = _ => Task.CompletedTask;
+
+    public Func<int, int, bool, Task> SetSeasonMonitored { get; set; } = (_, _, _) => Task.CompletedTask;
+
+    public Func<IReadOnlyList<int>, Task> DeleteEpisodeFiles { get; set; } = _ => Task.CompletedTask;
+
+    public List<int> DeleteMovieCalls { get; } = [];
+
+    public List<int> DeleteSeriesCalls { get; } = [];
+
+    public List<(int SeriesId, int SeasonNumber, bool Monitored)> SetSeasonMonitoredCalls { get; } = [];
+
+    public List<IReadOnlyList<int>> DeleteEpisodeFileCalls { get; } = [];
+
+    public Task DeleteMovieAsync(int movieId, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            DeleteMovieCalls.Add(movieId);
+        }
+
+        return DeleteMovie(movieId);
+    }
+
+    public Task DeleteSeriesAsync(int seriesId, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            DeleteSeriesCalls.Add(seriesId);
+        }
+
+        return DeleteSeries(seriesId);
+    }
+
+    public Task SetSeasonMonitoredAsync(int seriesId, int seasonNumber, bool monitored, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            SetSeasonMonitoredCalls.Add((seriesId, seasonNumber, monitored));
+        }
+
+        return SetSeasonMonitored(seriesId, seasonNumber, monitored);
+    }
+
+    public Task DeleteEpisodeFilesAsync(IReadOnlyList<int> episodeFileIds, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            DeleteEpisodeFileCalls.Add(episodeFileIds);
+        }
+
+        return DeleteEpisodeFiles(episodeFileIds);
+    }
+
     public Func<ArrKind, string, Task<IReadOnlyList<ArrManualImportItem?>>> ManualImportItems { get; set; } =
         (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>([]);
 

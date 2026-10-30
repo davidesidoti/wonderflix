@@ -103,6 +103,25 @@ public sealed class SeerrClient(
     public Task<SeerrServerDetails> GetServerDetailsAsync(string service, int serverId, CancellationToken cancellationToken) =>
         SendAsync<SeerrServerDetails>(HttpMethod.Get, $"service/{service}/{serverId}", null, null, cancellationToken);
 
+    public async Task<int?> FindMediaIdAsync(string mediaType, int tmdbId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var info = mediaType == "tv"
+                ? (await GetTvAsync(tmdbId, "en", cancellationToken).ConfigureAwait(false)).MediaInfo
+                : (await GetMovieAsync(tmdbId, "en", cancellationToken).ConfigureAwait(false)).MediaInfo;
+            return info?.Id;
+        }
+        catch (SeerrException ex) when (ex.Error == SeerrError.NotFound)
+        {
+            return null;
+        }
+    }
+
+    // Seerr risponde 204 senza corpo: il corpo non si legge.
+    public Task DeleteMediaAsync(int mediaId, CancellationToken cancellationToken) =>
+        SendCoreAsync(HttpMethod.Delete, $"media/{mediaId}", null, null, cancellationToken, (_, _) => Task.FromResult(true), null);
+
     /// <summary>
     /// Da stato e messaggio di Seerr all'errore. Una chiamata senza
     /// X-API-User agisce come l'utente 1 (admin): lì un 403 vuol dire chiave
@@ -123,13 +142,32 @@ public sealed class SeerrClient(
         _ => SeerrError.Unavailable,
     };
 
-    private async Task<T> SendAsync<T>(
+    private Task<T> SendAsync<T>(
         HttpMethod method,
         string path,
         int? asUser,
         object? body,
         CancellationToken cancellationToken,
-        SeerrError? acceptedMeans = null)
+        SeerrError? acceptedMeans = null) =>
+        SendCoreAsync(
+            method,
+            path,
+            asUser,
+            body,
+            cancellationToken,
+            async (response, token) =>
+                await response.Content.ReadFromJsonAsync<T>(SeerrJson.Options, token).ConfigureAwait(false)
+                ?? throw new JsonException("risposta vuota"),
+            acceptedMeans);
+
+    private async Task<T> SendCoreAsync<T>(
+        HttpMethod method,
+        string path,
+        int? asUser,
+        object? body,
+        CancellationToken cancellationToken,
+        Func<HttpResponseMessage, CancellationToken, Task<T>> read,
+        SeerrError? acceptedMeans)
     {
         var baseUrl = settings.Url;
         var key = settings.ApiKey;
@@ -170,8 +208,7 @@ public sealed class SeerrClient(
                 throw new SeerrException(Classify((int)response.StatusCode, message, asAdmin: asUser is null));
             }
 
-            return await response.Content.ReadFromJsonAsync<T>(SeerrJson.Options, timeout.Token).ConfigureAwait(false)
-                ?? throw new JsonException("risposta vuota");
+            return await read(response, timeout.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {

@@ -745,6 +745,167 @@ public class ArrClientTests
     }
 
     [Fact]
+    public async Task DeletingAMovieKeepsItRequestable()
+    {
+        Answer(HttpStatusCode.OK, "{}");
+
+        await Client().DeleteMovieAsync(12, CancellationToken.None);
+
+        var seen = Assert.Single(_http.Requests);
+        Assert.Equal(HttpMethod.Delete, seen.Method);
+        Assert.Equal(
+            "https://arr.example/radarr/api/v3/movie/12?deleteFiles=true&addImportExclusion=false", seen.Uri.OriginalString);
+        Assert.Equal("radarr-key", seen.ApiKey);
+    }
+
+    [Fact]
+    public async Task DeletingASeriesKeepsItRequestable()
+    {
+        Answer(HttpStatusCode.OK, "{}");
+
+        await Client().DeleteSeriesAsync(5, CancellationToken.None);
+
+        var seen = Assert.Single(_http.Requests);
+        Assert.Equal(HttpMethod.Delete, seen.Method);
+        Assert.Equal(
+            "https://arr.example/sonarr/api/v3/series/5?deleteFiles=true&addImportListExclusion=false", seen.Uri.OriginalString);
+        Assert.Equal("sonarr-key", seen.ApiKey);
+    }
+
+    [Fact]
+    public async Task UnmonitoringASeasonPutsTheWholeSeries()
+    {
+        _http.Respond = (request, _) => Task.FromResult(FakeSeerrHttp.Json(
+            HttpStatusCode.OK,
+            request.Method == HttpMethod.Get
+                ? """{"id":5,"title":"X","tags":[1],"seasons":[{"seasonNumber":1,"monitored":true},{"seasonNumber":2,"monitored":true}]}"""
+                : "{}"));
+
+        await Client().SetSeasonMonitoredAsync(5, 2, false, CancellationToken.None);
+
+        Assert.Equal(2, _http.Requests.Count);
+        Assert.Equal(HttpMethod.Get, _http.Requests[0].Method);
+        Assert.Equal("https://arr.example/sonarr/api/v3/series/5", _http.Requests[0].Uri.OriginalString);
+        var put = _http.Requests[1];
+        Assert.Equal(HttpMethod.Put, put.Method);
+        Assert.Equal("https://arr.example/sonarr/api/v3/series/5", put.Uri.OriginalString);
+        Assert.Equal(
+            """{"id":5,"title":"X","tags":[1],"seasons":[{"seasonNumber":1,"monitored":true},{"seasonNumber":2,"monitored":false}]}""",
+            put.Body);
+    }
+
+    [Fact]
+    public async Task UnmonitoringAMissingSeasonSendsNoPut()
+    {
+        Answer(HttpStatusCode.OK, """{"id":5,"seasons":[{"seasonNumber":1,"monitored":true}]}""");
+
+        var error = await Assert.ThrowsAsync<ArrException>(
+            () => Client().SetSeasonMonitoredAsync(5, 9, false, CancellationToken.None));
+
+        Assert.Equal((ArrError.Unreachable, 404), (error.Error, error.Status));
+        Assert.Equal(HttpMethod.Get, Assert.Single(_http.Requests).Method);
+    }
+
+    [Fact]
+    public async Task DeletingEpisodeFilesSendsTheIds()
+    {
+        Answer(HttpStatusCode.OK, "{}");
+        var client = Client();
+
+        await client.DeleteEpisodeFilesAsync([7, 8], CancellationToken.None);
+        await client.DeleteEpisodeFilesAsync([], CancellationToken.None);
+
+        var seen = Assert.Single(_http.Requests);
+        Assert.Equal(HttpMethod.Delete, seen.Method);
+        Assert.Equal("https://arr.example/sonarr/api/v3/episodefile/bulk", seen.Uri.OriginalString);
+        Assert.Equal("""{"episodeFileIds":[7,8]}""", seen.Body);
+    }
+
+    [Fact]
+    public async Task MoviesReadSizeCollectionAndPath()
+    {
+        Answer(
+            HttpStatusCode.OK,
+            """
+            [{"id":3,"title":"Coco","year":2017,"tmdbId":354912,"hasFile":true,"status":"released",
+              "sizeOnDisk":6374799956,"added":"2025-03-01T10:00:00Z","path":"/home/hashvps/media/movies/Coco (2017)",
+              "collection":{"title":"Coco Collection","tmdbId":1451578},
+              "movieFile":{"id":77,"path":"/home/hashvps/media/movies/Coco (2017)/Coco.mkv","size":6374799956}}]
+            """);
+
+        var coco = Assert.Single(await Client().GetLibraryMoviesAsync(CancellationToken.None))!;
+
+        Assert.Equal(6374799956, coco.SizeOnDisk);
+        Assert.Equal("released", coco.Status);
+        Assert.Equal("/home/hashvps/media/movies/Coco (2017)", coco.Path);
+        Assert.Equal(new DateTimeOffset(2025, 3, 1, 10, 0, 0, TimeSpan.Zero), coco.Added);
+        Assert.Equal(1451578, coco.Collection!.TmdbId);
+        Assert.Equal("Coco Collection", coco.Collection.Title);
+        Assert.Equal("/home/hashvps/media/movies/Coco (2017)/Coco.mkv", coco.MovieFile!.Path);
+        Assert.Equal(6374799956, coco.MovieFile.Size);
+    }
+
+    [Fact]
+    public async Task SeriesReadSeasonSizes()
+    {
+        Answer(
+            HttpStatusCode.OK,
+            """
+            [{"id":5,"title":"X","path":"/media/tv/X","added":"2025-04-02T00:00:00Z",
+              "statistics":{"episodeFileCount":10,"sizeOnDisk":9000000000},
+              "seasons":[{"seasonNumber":0,"monitored":false},
+                         {"seasonNumber":1,"monitored":true,"statistics":{"episodeFileCount":6,"sizeOnDisk":5000000000}}]}]
+            """);
+
+        var series = Assert.Single(await Client().GetSeriesAsync(CancellationToken.None))!;
+
+        Assert.Equal("/media/tv/X", series.Path);
+        Assert.Equal(9000000000, series.Statistics!.SizeOnDisk);
+        Assert.Equal(2, series.Seasons!.Count);
+        Assert.Null(series.Seasons[0]!.Statistics);
+        Assert.Equal((1, true, 6, 5000000000), (
+            series.Seasons[1]!.SeasonNumber,
+            series.Seasons[1]!.Monitored,
+            series.Seasons[1]!.Statistics!.EpisodeFileCount,
+            series.Seasons[1]!.Statistics!.SizeOnDisk));
+    }
+
+    [Fact]
+    public async Task EpisodeFilesReadThePath()
+    {
+        Answer(HttpStatusCode.OK, """[{"id":7,"seasonNumber":1,"path":"/media/tv/X/S01E01.mkv","size":5}]""");
+
+        var file = Assert.Single(await Client().GetEpisodeFilesAsync(5, CancellationToken.None))!;
+
+        Assert.Equal("/media/tv/X/S01E01.mkv", file.Path);
+    }
+
+    [Fact]
+    public async Task TheSpaceCallsLogOnlyThePath()
+    {
+        Answer(HttpStatusCode.Unauthorized, "{}");
+        var client = Client();
+
+        await Assert.ThrowsAsync<ArrException>(() => client.DeleteMovieAsync(12, CancellationToken.None));
+        await Assert.ThrowsAsync<ArrException>(() => client.DeleteSeriesAsync(5, CancellationToken.None));
+        await Assert.ThrowsAsync<ArrException>(() => client.SetSeasonMonitoredAsync(5, 2, false, CancellationToken.None));
+        await Assert.ThrowsAsync<ArrException>(() => client.DeleteEpisodeFilesAsync([7], CancellationToken.None));
+
+        Assert.Equal(4, _logger.Entries.Count);
+        Assert.Contains("DELETE movie/12", _logger.Entries[0].Message, StringComparison.Ordinal);
+        Assert.Contains("DELETE series/5", _logger.Entries[1].Message, StringComparison.Ordinal);
+        Assert.Contains("GET series/5", _logger.Entries[2].Message, StringComparison.Ordinal);
+        Assert.Contains("DELETE episodefile/bulk", _logger.Entries[3].Message, StringComparison.Ordinal);
+        Assert.All(_logger.Entries, e =>
+        {
+            Assert.DoesNotContain("deleteFiles", e.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("addImport", e.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("radarr-key", e.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("sonarr-key", e.Message, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
     public async Task ACancelledCallerGetsTheCancellation()
     {
         using var cancel = new CancellationTokenSource();

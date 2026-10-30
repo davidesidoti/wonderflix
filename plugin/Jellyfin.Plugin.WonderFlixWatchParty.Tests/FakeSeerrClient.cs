@@ -196,6 +196,27 @@ internal sealed class FakeSeerrClient : ISeerrClient
             : throw new SeerrException(SeerrError.Unavailable);
     }
 
+    /// <summary>L'id Seerr del media per (mediaType, tmdbId); chi non c'è dà null.</summary>
+    public Dictionary<(string MediaType, int TmdbId), int> MediaIds { get; } = [];
+
+    public List<(string MediaType, int TmdbId)> FindMediaCalls { get; } = [];
+
+    public List<int> DeletedMedia { get; } = [];
+
+    public Task<int?> FindMediaIdAsync(string mediaType, int tmdbId, CancellationToken cancellationToken)
+    {
+        Call("FindMediaId");
+        FindMediaCalls.Add((mediaType, tmdbId));
+        return Task.FromResult(MediaIds.TryGetValue((mediaType, tmdbId), out var id) ? id : (int?)null);
+    }
+
+    public Task DeleteMediaAsync(int mediaId, CancellationToken cancellationToken)
+    {
+        Call("DeleteMedia");
+        DeletedMedia.Add(mediaId);
+        return Task.CompletedTask;
+    }
+
     // Conta le chiamate di titolo in corso (e il massimo raggiunto) mentre
     // aspettano TitlesGate.
     private async Task HoldTitleAsync()

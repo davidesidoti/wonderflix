@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Home;
@@ -151,6 +152,43 @@ public sealed class ArrClient(
 
     public async Task<IReadOnlyList<ArrIndexer?>> GetIndexersAsync(ArrKind kind, CancellationToken cancellationToken) =>
         await GetAsync<List<ArrIndexer?>>(kind, "indexer", cancellationToken).ConfigureAwait(false);
+
+    public Task DeleteMovieAsync(int movieId, CancellationToken cancellationToken) =>
+        SendWithoutResultAsync(
+            ArrKind.Radarr,
+            HttpMethod.Delete,
+            $"movie/{movieId.ToString(CultureInfo.InvariantCulture)}?deleteFiles=true&addImportExclusion=false",
+            null,
+            cancellationToken);
+
+    public Task DeleteSeriesAsync(int seriesId, CancellationToken cancellationToken) =>
+        SendWithoutResultAsync(
+            ArrKind.Sonarr,
+            HttpMethod.Delete,
+            $"series/{seriesId.ToString(CultureInfo.InvariantCulture)}?deleteFiles=true&addImportListExclusion=false",
+            null,
+            cancellationToken);
+
+    public async Task SetSeasonMonitoredAsync(
+        int seriesId, int seasonNumber, bool monitored, CancellationToken cancellationToken)
+    {
+        // PUT series vuole l'oggetto intero: si rimanda quello letto, con un solo campo cambiato.
+        var path = $"series/{seriesId.ToString(CultureInfo.InvariantCulture)}";
+        var series = await GetAsync<JsonNode>(ArrKind.Sonarr, path, cancellationToken).ConfigureAwait(false);
+        var season = (series["seasons"] as JsonArray)?
+            .OfType<JsonObject>()
+            .FirstOrDefault(s => s["seasonNumber"]?.GetValueKind() == JsonValueKind.Number
+                && s["seasonNumber"]!.GetValue<int>() == seasonNumber)
+            ?? throw new ArrException(ArrError.Unreachable, status: 404);
+        season["monitored"] = monitored;
+        await SendWithoutResultAsync(ArrKind.Sonarr, HttpMethod.Put, path, series, cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task DeleteEpisodeFilesAsync(IReadOnlyList<int> episodeFileIds, CancellationToken cancellationToken) =>
+        episodeFileIds.Count == 0
+            ? Task.CompletedTask
+            : SendWithoutResultAsync(
+                ArrKind.Sonarr, HttpMethod.Delete, "episodefile/bulk", new { episodeFileIds }, cancellationToken);
 
     /// <summary>Data e ora UTC in ISO 8601, come le vuole il calendario, pronte per la query.</summary>
     internal static string Iso(DateTimeOffset value) =>

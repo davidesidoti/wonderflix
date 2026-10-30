@@ -68,4 +68,19 @@ public interface IArrClient
 
     /// <summary>Importa questi file al posto di quelli che ci sono, come l'import manuale di Radarr/Sonarr (decisione 9).</summary>
     Task ManualImportAsync(ArrKind kind, IReadOnlyList<ArrManualImportItem> items, CancellationToken cancellationToken);
+
+    /// <summary>Cancella un film e i suoi file, senza esclusione: si può richiedere di nuovo (spec U).</summary>
+    Task DeleteMovieAsync(int movieId, CancellationToken cancellationToken);
+
+    /// <summary>Cancella una serie e i suoi file, senza esclusione: si può richiedere di nuovo (spec U).</summary>
+    Task DeleteSeriesAsync(int seriesId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Monitora o smette di monitorare una stagione: legge la serie, cambia <c>monitored</c> della stagione e rimanda
+    /// l'oggetto intero. Una stagione che non c'è dà <see cref="ArrException"/> con stato 404, senza scrivere (spec U).
+    /// </summary>
+    Task SetSeasonMonitoredAsync(int seriesId, int seasonNumber, bool monitored, CancellationToken cancellationToken);
+
+    /// <summary>Cancella questi file di episodi in una chiamata sola; elenco vuoto: nessuna chiamata (spec U).</summary>
+    Task DeleteEpisodeFilesAsync(IReadOnlyList<int> episodeFileIds, CancellationToken cancellationToken);
 }

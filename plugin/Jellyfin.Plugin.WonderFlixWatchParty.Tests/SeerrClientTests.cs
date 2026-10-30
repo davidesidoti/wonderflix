@@ -206,6 +206,45 @@ public class SeerrClientTests
                 || e.Message.Contains("segreta", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("movie", "movie/603?language=en")]
+    [InlineData("tv", "tv/603?language=en")]
+    public async Task FindingAMediaIdReadsMediaInfo(string mediaType, string path)
+    {
+        Answer(HttpStatusCode.OK, """{"id":3,"mediaInfo":{"id":42,"status":5}}""");
+
+        var id = await Client().FindMediaIdAsync(mediaType, 603, CancellationToken.None);
+
+        Assert.Equal(42, id);
+        var seen = Assert.Single(_http.Requests);
+        Assert.Equal($"https://seerr.example/seerr/api/v1/{path}", seen.Uri.OriginalString);
+        Assert.Null(seen.ApiUser);
+    }
+
+    [Fact]
+    public async Task AMissingMediaIsNull()
+    {
+        Answer(HttpStatusCode.NotFound, "{}");
+        Assert.Null(await Client().FindMediaIdAsync("movie", 603, CancellationToken.None));
+
+        Answer(HttpStatusCode.OK, """{"id":3}""");
+        Assert.Null(await Client().FindMediaIdAsync("tv", 603, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task DeletingAMediaCallsDelete()
+    {
+        _http.Respond = (_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent));
+
+        await Client().DeleteMediaAsync(42, CancellationToken.None);
+
+        var seen = Assert.Single(_http.Requests);
+        Assert.Equal(HttpMethod.Delete, seen.Method);
+        Assert.Equal("https://seerr.example/seerr/api/v1/media/42", seen.Uri.OriginalString);
+        Assert.Equal("segreta", seen.ApiKey);
+        Assert.Null(seen.ApiUser);
+    }
+
     [Fact]
     public async Task ACancelledCallerGetsTheCancellation()
     {

@@ -57,6 +57,33 @@ public sealed class SonarrSeries
 
     /// <summary>I conteggi della serie; null se Sonarr non li manda (spec T §2).</summary>
     public SonarrSeriesStatistics? Statistics { get; set; }
+
+    /// <summary>La cartella della serie sul disco di Sonarr (spec U).</summary>
+    public string? Path { get; set; }
+
+    public DateTimeOffset? Added { get; set; }
+
+    /// <summary>Le stagioni, con monitoraggio e dimensione; gli elementi possono essere null (spec U).</summary>
+    public List<SonarrSeason?>? Seasons { get; set; }
+}
+
+/// <summary>Una stagione di una serie di Sonarr (spec U).</summary>
+public sealed class SonarrSeason
+{
+    public int SeasonNumber { get; set; }
+
+    public bool Monitored { get; set; }
+
+    /// <summary>Null per una stagione senza conteggi.</summary>
+    public SonarrSeasonStatistics? Statistics { get; set; }
+}
+
+/// <summary>I conteggi di una stagione di Sonarr (spec U).</summary>
+public sealed class SonarrSeasonStatistics
+{
+    public int EpisodeFileCount { get; set; }
+
+    public long SizeOnDisk { get; set; }
 }
 
 /// <summary>I conteggi di una serie di Sonarr (spec T §2).</summary>
@@ -64,6 +91,9 @@ public sealed class SonarrSeriesStatistics
 {
     /// <summary>Gli episodi che hanno un file.</summary>
     public int EpisodeFileCount { get; set; }
+
+    /// <summary>I byte occupati dai file della serie (spec U).</summary>
+    public long SizeOnDisk { get; set; }
 }
 
 /// <summary>Un episodio del calendario di Sonarr.</summary>
@@ -130,12 +160,40 @@ public sealed class RadarrMovie
 
     /// <summary>Il file del film; null se non c'è (spec T §2).</summary>
     public ArrFileRef? MovieFile { get; set; }
+
+    /// <summary>I byte occupati dal file del film (spec U).</summary>
+    public long SizeOnDisk { get; set; }
+
+    public DateTimeOffset? Added { get; set; }
+
+    /// <summary>La cartella del film sul disco di Radarr (spec U).</summary>
+    public string? Path { get; set; }
+
+    /// <summary>"announced", "inCinemas" o "released" (spec U).</summary>
+    public string? Status { get; set; }
+
+    /// <summary>La collezione del film; null se non ne ha una (spec U).</summary>
+    public ArrCollection? Collection { get; set; }
+}
+
+/// <summary>La collezione di un film di Radarr (spec U).</summary>
+public sealed class ArrCollection
+{
+    public int TmdbId { get; set; }
+
+    public string? Title { get; set; }
 }
 
 /// <summary>Un oggetto di cui serve solo l'id: il file di un film, il film, la serie o un episodio di <c>manualimport</c> (spec T §2).</summary>
 public sealed class ArrFileRef
 {
     public int Id { get; set; }
+
+    /// <summary>Solo per il file di un film (spec U).</summary>
+    public string? Path { get; set; }
+
+    /// <summary>Solo per il file di un film (spec U).</summary>
+    public long Size { get; set; }
 }
 
 /// <summary>Una qualità di Sonarr o Radarr; Resolution è l'altezza in pixel (spec T §2).</summary>
@@ -260,6 +318,9 @@ public sealed class ArrFile
     public long Size { get; set; }
 
     public ArrQualityModel? Quality { get; set; }
+
+    /// <summary>Il percorso del file sul disco (spec U).</summary>
+    public string? Path { get; set; }
 }
 
 /// <summary>

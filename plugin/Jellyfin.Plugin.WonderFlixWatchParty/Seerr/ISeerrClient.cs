@@ -43,4 +43,13 @@ public interface ISeerrClient
     Task<IReadOnlyList<SeerrServer>> GetServersAsync(string service, CancellationToken cancellationToken);
 
     Task<SeerrServerDetails> GetServerDetailsAsync(string service, int serverId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// L'id Seerr del media di un titolo (<paramref name="mediaType"/> "movie" o "tv"); null se Seerr non lo conosce
+    /// o non ha ancora un media (spec U).
+    /// </summary>
+    Task<int?> FindMediaIdAsync(string mediaType, int tmdbId, CancellationToken cancellationToken);
+
+    /// <summary>Toglie il media da Seerr, e con lui lo stato "disponibile": il titolo si può richiedere di nuovo (spec U).</summary>
+    Task DeleteMediaAsync(int mediaId, CancellationToken cancellationToken);
 }

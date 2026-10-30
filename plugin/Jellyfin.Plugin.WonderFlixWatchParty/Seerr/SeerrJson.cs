@@ -84,6 +84,9 @@ public sealed class SeerrSearchResult
 
 public sealed class SeerrMediaInfo
 {
+    /// <summary>L'id del media in Seerr (non quello TMDB): serve a cancellarlo (spec U).</summary>
+    public int Id { get; set; }
+
     public int Status { get; set; }
 
     public string? JellyfinMediaId { get; set; }
