@@ -2,10 +2,10 @@ using System.Globalization;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Space;
 
-/// <summary>La quota del seedbox in byte (spec U §6.1).</summary>
+/// <summary>La quota del seedbox in byte (spec U §5.4).</summary>
 public sealed record Quota(long UsedBytes, long LimitBytes);
 
-/// <summary>Legge il file che il cron del seedbox scrive con l'output di <c>quota -w</c> (spec U §6.1).</summary>
+/// <summary>Legge il file che il cron del seedbox scrive con l'output di <c>quota -w</c> (spec U §5.4).</summary>
 public static class QuotaFile
 {
     /// <summary>I blocchi di <c>quota</c> sono da 1 KB.</summary>

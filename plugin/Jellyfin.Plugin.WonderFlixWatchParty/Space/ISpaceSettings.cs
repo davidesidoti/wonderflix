@@ -1,6 +1,6 @@
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Space;
 
-/// <summary>Le impostazioni della pagina Spazio, lette a ogni uso (spec U §10).</summary>
+/// <summary>Le impostazioni della pagina Spazio, lette a ogni uso (spec U §7.1).</summary>
 public interface ISpaceSettings
 {
     /// <summary>Indirizzo di qBittorrent; vuoto se non è configurato.</summary>

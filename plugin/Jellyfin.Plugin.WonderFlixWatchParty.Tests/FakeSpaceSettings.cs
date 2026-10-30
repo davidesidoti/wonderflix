@@ -2,7 +2,7 @@ using Jellyfin.Plugin.WonderFlixWatchParty.Space;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
 
-/// <summary>Le impostazioni dello spazio con i valori iniziali (spec U §10), modificabili dai test.</summary>
+/// <summary>Le impostazioni dello spazio con i valori iniziali (spec U §7.1), modificabili dai test.</summary>
 internal sealed class FakeSpaceSettings : ISpaceSettings
 {
     public string QbitUrl { get; set; } = "";
