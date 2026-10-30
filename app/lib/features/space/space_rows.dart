@@ -374,11 +374,7 @@ class SpaceOperationRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final o = operation;
-    final before = o.quotaBeforeBytes;
-    final after = o.quotaAfterBytes;
-    final freed = before != null && after != null
-        ? before - after
-        : o.estimatedFreedBytes;
+    final freed = o.freedBytes;
     return _tappable(
       onOpen,
       RowShell(

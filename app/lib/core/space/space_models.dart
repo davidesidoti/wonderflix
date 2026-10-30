@@ -418,6 +418,18 @@ class SpaceOperation {
   /// In coda o in corso.
   bool get running => state == 'Queued' || state == 'Running';
 
+  /// Lo spazio liberato: la differenza della quota se il plugin l'ha riletta
+  /// dopo l'operazione, altrimenti la stima; mai sotto zero (altri download
+  /// possono riempire il disco nel frattempo).
+  int get freedBytes {
+    final before = quotaBeforeBytes;
+    final after = quotaAfterBytes;
+    final freed = before != null && after != null
+        ? before - after
+        : estimatedFreedBytes;
+    return freed < 0 ? 0 : freed;
+  }
+
   static SpaceOperation? fromJson(Object? json) => _guard(
     json,
     (j) => SpaceOperation(

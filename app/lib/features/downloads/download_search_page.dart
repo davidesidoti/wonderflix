@@ -16,7 +16,8 @@ import 'download_search_controller.dart';
 
 /// La pagina a tutto schermo con le release di un titolo (spec T §8.2).
 /// [reviewing]: aperta da "Da ripassare", con "Va bene così". [lighten]: da
-/// "Alleggerisci", ogni scarico toglie poi il file pesante.
+/// "Alleggerisci", il titolo scaricato resta "va bene così" (niente upgrade
+/// automatici).
 Future<void> showDownloadSearch(
   BuildContext context,
   String key,

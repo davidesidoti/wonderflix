@@ -187,4 +187,25 @@ void main() {
     expect(SpaceOverview.fromJson('boh'), isNull);
     expect(SpaceOverview.fromJson(_overview()..remove('Breakdown')), isNull);
   });
+
+  test('FreedIsTheQuotaDifferenceNeverNegative', () {
+    SpaceOperation op(int? before, int? after) => SpaceOperation(
+          id: 'op',
+          kind: 'Movie',
+          key: 'movie:1',
+          title: 'Film',
+          state: 'Done',
+          auto: false,
+          startedAt: DateTime.utc(2026, 10, 30),
+          estimatedFreedBytes: 70,
+          pendingBytes: 0,
+          quotaBeforeBytes: before,
+          quotaAfterBytes: after,
+          steps: const [],
+        );
+
+    expect(op(500, 300).freedBytes, 200);
+    expect(op(500, null).freedBytes, 70);
+    expect(op(500, 600).freedBytes, 0);
+  });
 }

@@ -64,11 +64,7 @@ class _OperationBody extends ConsumerWidget {
   }
 
   List<Widget> _summary(AppLocalizations l, SpaceOperation o) {
-    final before = o.quotaBeforeBytes;
-    final after = o.quotaAfterBytes;
-    final freed = before != null && after != null
-        ? before - after
-        : o.estimatedFreedBytes;
+    final freed = o.freedBytes;
     return [
       const SizedBox(height: 12),
       Text(

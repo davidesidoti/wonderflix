@@ -72,7 +72,8 @@ class DownloadsApi {
               quietStatuses: _quiet))) ??
           (throw const ServerErrorException(null)));
 
-  /// [lighten]: dopo il grab il plugin toglie il file pesante (spec U §6.1).
+  /// [lighten]: da "Alleggerisci" (spec U §6.1): il plugin segna il titolo
+  /// come "va bene così", niente upgrade automatici dopo questo grab.
   Future<void> grab(String key, String guid, int indexerId,
           {bool lighten = false}) =>
       _call(() => _http.post('$_base/Grab',
