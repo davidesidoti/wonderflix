@@ -121,6 +121,20 @@ Film e stagioni (non episodi singoli) il cui file supera la soglia di GB all'ora
 
 Il file più leggero ha quasi sempre un punteggio o una qualità più bassi, quindi per la Spec T sarebbe sotto l'obiettivo, e gli upgrade automatici o "Da ripassare" riporterebbero un file pesante. Per evitarlo, un download partito da "Alleggerisci" segna il titolo **"va bene così"** nella Spec T (`downloads.json`), come se l'admin l'avesse premuto in "Da ripassare". Gli upgrade automatici non lo toccano più. La chiamata `Downloads/Grab` della Spec T riceve per questo un campo in più, `Lighten` (bool, facoltativo, `false` se manca). Se la ricerca era di una stagione e la release scelta è di un episodio, si accettano tutte le chiavi coinvolte.
 
+### 5.2a Alleggerisci con progresso
+
+Una riga di Alleggerire con un download partito da "Alleggerisci" mostra lo stato del download e sparisce quando il file leggero è stato importato. Il plugin ricorda in `downloads.json` la chiave (`movie:{id}` o `season:{id}:{n}`) di ogni grab "Alleggerisci" riuscito, con l'ora. A ogni lettura della scheda legge la coda di Radarr e Sonarr e aggiunge alla riga un campo `Download` (`State`, `Progress` da 0 a 1, `SizeLeftBytes`), che è `null` se la riga non ha un download di Alleggerisci.
+
+Stato, per ogni chiave registrata presente in Alleggerire:
+
+- **In coda:** `downloading` dà `Downloading`, con avanzamento 1 meno quanto manca sul totale (0 se il totale è 0). `failed` e `failedPending` danno `Failed`. Gli altri stati (`importPending`, `importing`, `importBlocked`) danno `Importing`. Una stagione può avere più voci in coda con stati diversi: vale la priorità `Downloading`, poi `Failed`, poi `Importing`.
+- **Non in coda:** se la dimensione attuale del titolo (film: il file; stagione: la somma dei file della stagione) è sotto il 90% di quella della riga, il file leggero è importato: la riga sparisce e la chiave si dimentica. Altrimenti, se il grab ha meno di 10 minuti, la riga è `Downloading` a 0 (Radarr e Sonarr non l'hanno ancora messo in coda); se ne ha di più è `Failed`.
+- Le chiavi più vecchie di 7 giorni si dimenticano. Se Radarr o Sonarr non rispondono, la riga tiene lo stato della lettura precedente (cache in memoria), o `null` se non c'è.
+
+Costi: una lettura della coda per servizio a ogni lettura della scheda, solo se c'è almeno una chiave Alleggerisci. Il file attuale si legge solo per le chiavi non in coda. I log riportano chiavi e conteggi, mai titoli né percorsi.
+
+Nell'app la riga mostra "In download {p} %" con una barra e i GB rimanenti, poi "In importazione". Con `Failed` torna il pulsante "Alleggerisci", con l'etichetta "Download non riuscito". Finché una riga di Alleggerire è in download o in importazione la scheda si rilegge ogni 5 secondi, altrimenti ogni 60, come per il calcolo in corso.
+
 ### 5.3 Pulizia
 
 Spazio che non serve a nessuno, senza decidere sul contenuto:
@@ -193,6 +207,16 @@ Se Seerr non è configurato, il passo 5 viene saltato con il motivo.
 - Radarr, Sonarr o qBittorrent non rispondono: il passo fallisce con "non risponde" e l'operazione si ferma. I passi già fatti restano fatti. Il riquadro dice cosa è rimasto da fare, e il pulsante si può ripremere: i passi già fatti vengono saltati.
 - Un titolo già sparito (cancellato a mano nel frattempo): il passo viene saltato con il motivo e si va avanti.
 - Due operazioni sullo stesso titolo: la seconda risponde 409 `Busy`.
+
+### 6.6 Eliminazione in blocco
+
+Solo in Cancellare (film, serie, stagioni). "Seleziona" mette una casella su ogni riga, e un tocco sulla riga sceglie invece di aprire la scheda. Scegliere una serie sceglie le sue stagioni; una riga che sparisce dalla panoramica esce dalla selezione. In fondo, ferma mentre la lista scorre, c'è la barra "Elimina selezionati ({n} · {gb})" con "Annulla selezione". Il conteggio e i GB non contano due volte le stagioni di una serie scelta intera: la serie le comprende già. Se Cancellare resta vuota la barra sparisce e si esce dalla selezione.
+
+**Panoramica.** Prima di partire una finestra elenca i titoli scelti (locandina, titolo, GB subito e dopo il seed), i totali, la nota sui pack e i passi previsti per ogni tipo di titolo. Si conferma o si annulla, e annullando la selezione resta.
+
+**Esecuzione.** Non c'è un endpoint nuovo: l'app avvia un'operazione per titolo (§6.2), una chiamata `start` dopo l'altra. Un `start` che fallisce (occupato, sconosciuto) segna quel titolo "Non avviato" con il motivo e si passa al successivo. Le operazioni avviate si leggono ciascuna con il proprio id, come nella scheda di un singolo titolo.
+
+**Finestra dei passi.** Mostra i passi di tutti i titoli uno sotto l'altro, ognuno con un'intestazione e il suo stato (in coda, in corso, finita, non riuscita). In fondo ci sono il totale liberato e quello in attesa del seed. Un titolo che fallisce non ferma gli altri, e chiudere la finestra non ferma niente: finita l'ultima operazione, o chiusa la finestra, la panoramica si rilegge una volta.
 
 ## 7. Plugin
 
