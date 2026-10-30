@@ -7,5 +7,12 @@ internal sealed class FakeLibraryRefresh : ILibraryRefresh
 {
     public int Calls { get; private set; }
 
-    public void Refresh() => Calls++;
+    /// <summary>Chiamata a ogni richiesta: i test la usano per l'ordine delle chiamate.</summary>
+    public Action? OnRefresh { get; set; }
+
+    public void Refresh()
+    {
+        Calls++;
+        OnRefresh?.Invoke();
+    }
 }

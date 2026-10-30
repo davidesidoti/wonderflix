@@ -39,6 +39,9 @@ internal sealed class FakeSeerrClient : ISeerrClient
     /// <summary>Il nome di ogni chiamata, in ordine.</summary>
     public List<string> Calls { get; } = [];
 
+    /// <summary>Chiamata con il nome di ogni chiamata: i test la usano per l'ordine rispetto agli altri servizi.</summary>
+    public Action<string>? OnCall { get; set; }
+
     public List<(string Query, string Language)> Searches { get; } = [];
 
     public List<(int AsUser, SeerrCreateRequest Body)> Created { get; } = [];
@@ -252,6 +255,7 @@ internal sealed class FakeSeerrClient : ISeerrClient
             Calls.Add(name);
         }
 
+        OnCall?.Invoke(name);
         if (FailWith is { } error)
         {
             throw new SeerrException(error);

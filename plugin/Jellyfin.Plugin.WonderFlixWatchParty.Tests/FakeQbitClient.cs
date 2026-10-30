@@ -17,6 +17,9 @@ internal sealed class FakeQbitClient : IQbitClient
     /// <summary>Se impostato, ogni chiamata fallisce con questo errore.</summary>
     public QbitError? Fail { get; set; }
 
+    /// <summary>Chiamata a ogni cancellazione riuscita: i test la usano per l'ordine delle chiamate.</summary>
+    public Action<IReadOnlyList<string>>? OnDelete { get; set; }
+
     public Task<IReadOnlyList<QbitTorrent>> GetTorrentsAsync(CancellationToken cancellationToken)
     {
         Check();
@@ -43,6 +46,7 @@ internal sealed class FakeQbitClient : IQbitClient
         if (hashes.Count > 0)
         {
             Deleted.Add([.. hashes]);
+            OnDelete?.Invoke(hashes);
         }
 
         return Task.CompletedTask;
