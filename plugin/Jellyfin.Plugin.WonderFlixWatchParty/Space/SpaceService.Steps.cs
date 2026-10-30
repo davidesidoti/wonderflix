@@ -92,8 +92,14 @@ public sealed partial class SpaceService
     {
         var facts = new List<TorrentFacts>();
         var paths = new Dictionary<string, List<string>>();
+        var incomplete = new List<string>();
         foreach (var torrent in await qbit.GetTorrentsAsync(ct).ConfigureAwait(false))
         {
+            if (torrent.Progress < 1 && !string.IsNullOrEmpty(torrent.ContentPath))
+            {
+                incomplete.Add(torrent.ContentPath);
+            }
+
             if (string.IsNullOrEmpty(torrent.Hash) || paths.ContainsKey(torrent.Hash))
             {
                 continue;
@@ -122,7 +128,7 @@ public sealed partial class SpaceService
             .Select(g => g.Key)
             .ToHashSet();
         var byId = stamps.Values.DistinctBy(s => s.Id).ToDictionary(s => s.Id);
-        return new LiveTorrents(new TorrentIndex(facts, filesByHash), libraryFiles, byId);
+        return new LiveTorrents(new TorrentIndex(facts, filesByHash), libraryFiles, byId, incomplete);
     }
 
     // Il nome di un file di qBittorrent è relativo a save_path; i percorsi del seedbox sono Linux.
@@ -342,6 +348,10 @@ public sealed partial class SpaceService
         return new StepResult(step.State, step.Detail);
     }
 
-    /// <summary>I torrent letti dal vivo: indice, file in libreria e <c>stat</c> per id.</summary>
-    private sealed record LiveTorrents(TorrentIndex Index, HashSet<FileId> LibraryFiles, IReadOnlyDictionary<FileId, FileStamp> ById);
+    /// <summary>
+    /// I torrent letti dal vivo: indice, file in libreria, <c>stat</c> per id e il <c>content_path</c> dei torrent ancora
+    /// in download (spec U §5.3: i loro file, anche in una cartella temporanea, non sono orfani).
+    /// </summary>
+    private sealed record LiveTorrents(
+        TorrentIndex Index, HashSet<FileId> LibraryFiles, IReadOnlyDictionary<FileId, FileStamp> ById, IReadOnlyList<string> IncompleteRoots);
 }

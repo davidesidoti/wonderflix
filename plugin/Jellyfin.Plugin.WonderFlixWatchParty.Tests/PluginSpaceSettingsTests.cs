@@ -42,8 +42,8 @@ public class PluginSpaceSettingsTests
         var settings = new PluginSpaceSettings();
         Assert.Equal(6, settings.StaleMonths);
         Assert.Equal(60, settings.RequestGraceDays);
-        Assert.Equal(2, settings.LowRating);
-        Assert.Equal(4, settings.HighRating);
+        Assert.Equal(4, settings.LowRating);
+        Assert.Equal(8, settings.HighRating);
         Assert.Equal(2, settings.MinRatings);
         Assert.Equal(4.0, settings.HeavyGbPerHour);
         Assert.Equal(30, settings.Seed.Days);
@@ -61,6 +61,7 @@ public class PluginSpaceSettingsTests
         Assert.Equal(string.Empty, config.SpaceQbitPassword);
         Assert.Equal(6, config.SpaceStaleMonths);
         Assert.Equal(60, config.SpaceRequestGraceDays);
+        Assert.Equal((4, 8), (config.SpaceLowRating, config.SpaceHighRating));
         Assert.Equal("itatorrents.xyz,shareisland.org", config.SpaceSeedTrackers);
         Assert.Equal("/home/hashvps/downloads\n/home/hashvps/seedings", config.SpaceScanFolders);
     }

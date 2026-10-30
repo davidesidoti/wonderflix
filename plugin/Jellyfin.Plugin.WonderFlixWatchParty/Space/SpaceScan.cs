@@ -44,7 +44,10 @@ public sealed record SpaceScan
     /// <summary>Gli id Jellyfin di film e stagioni, per i voti alti di chi chiama (decisione 14).</summary>
     public IReadOnlyList<Guid> RatedItems { get; init; } = [];
 
-    /// <summary>Per chiave: <c>movie:{id}</c>, <c>series:{id}</c>, <c>season:{id}:{n}</c>.</summary>
+    /// <summary>
+    /// Le righe di Cancellare che si possono avviare, per chiave: <c>movie:{id}</c>, <c>series:{id}</c>, <c>season:{id}:{n}</c>.
+    /// Né i titoli senza segnali "via" né le righe di Alleggerire (aprono la ricerca della Spec T).
+    /// </summary>
     public IReadOnlyDictionary<string, ScanTitle> Titles { get; init; } = new Dictionary<string, ScanTitle>();
 
     /// <summary>Per chiave <c>file:{h}</c>.</summary>

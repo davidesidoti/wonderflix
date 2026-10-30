@@ -1,6 +1,7 @@
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
+using Jellyfin.Plugin.WonderFlixWatchParty.Seerr;
 using Jellyfin.Plugin.WonderFlixWatchParty.Space;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -296,7 +297,166 @@ public sealed class SpaceScanTests : IDisposable
 
         Assert.Equal(["movie:13", "movie:12", "movie:14"], overview.Delete.Select(r => r.Key));
         Assert.Equal([SpaceSignalCodes.HighRating], overview.Delete[2].Keep);
-        Assert.Equal((5.0, 2), (overview.Delete[2].RatingAvg, overview.Delete[2].RatingCount));
+        Assert.Equal((10.0, 2), (overview.Delete[2].RatingAvg, overview.Delete[2].RatingCount));
+    }
+
+    [Fact]
+    public async Task AFailedFirstScanLeavesNoResult()
+    {
+        _probe.StatFails = new TimeoutException();
+
+        var overview = await ScanAsync();
+
+        Assert.Null(overview.ScannedAt);
+        Assert.False(overview.Scanning);
+        Assert.Null(_service.LastScan);
+    }
+
+    [Fact]
+    public async Task OnlyDeleteRowsCanStart()
+    {
+        AddMovie(12, 6 * Gb, Now.AddMonths(-8));
+        AddMovie(13, 5 * Gb, Now.AddDays(-1));
+        await _service.ScanAsync(CancellationToken.None);
+
+        Assert.Equal(SpaceService.StartOutcome.Unknown, _service.Start(SpaceKinds.Movie, "movie:13").Outcome);
+        _service.Keep("movie:12", "Coco");
+        Assert.Equal(SpaceService.StartOutcome.Unknown, _service.Start(SpaceKinds.Movie, "movie:12").Outcome);
+        _service.Unkeep("movie:12");
+        Assert.Equal(SpaceService.StartOutcome.Started, _service.Start(SpaceKinds.Movie, "movie:12").Outcome);
+    }
+
+    [Fact]
+    public async Task AKeptSeriesHidesItsSeasons()
+    {
+        AddSeries("continuing");
+        await _service.ScanAsync(CancellationToken.None);
+
+        _service.Keep("series:5", "Serie");
+
+        Assert.Empty(_service.Overview(_admin.Id).Delete);
+        Assert.Equal(SpaceService.StartOutcome.Unknown, _service.Start(SpaceKinds.Season, "season:5:1").Outcome);
+    }
+
+    [Fact]
+    public async Task ASeasonHoldsOnlyItsFilesAndTorrents()
+    {
+        AddSeries("continuing");
+        for (var n = 1; n <= 2; n++)
+        {
+            var hash = $"s{n}";
+            _qbit.Torrents.Add(new QbitTorrent { Hash = hash, Name = hash, Size = 2 * Gb, Progress = 1, Tracker = "https://tracker.example/a", SavePath = "/srv/seedings" });
+            _qbit.Files[hash] = [.. Enumerable.Range(1, 2).Select(e => new QbitFile { Name = $"S0{n}/S0{n}E0{e}.mkv", Size = Gb })];
+            for (var e = 1; e <= 2; e++)
+            {
+                var id = new FileId(2, (n * 10) + e);
+                _probe.Files[$"{SeriesFolder}/S0{n}E0{e}.mkv"] = new FileStamp(id, 2, Gb);
+                _probe.Files[$"/srv/seedings/S0{n}/S0{n}E0{e}.mkv"] = new FileStamp(id, 2, Gb);
+            }
+        }
+
+        await _service.ScanAsync(CancellationToken.None);
+
+        var season = _service.LastScan!.Titles["season:5:1"];
+        Assert.Equal([$"{SeriesFolder}/S01E01.mkv", $"{SeriesFolder}/S01E02.mkv"], season.Files.Select(f => f.Path).Order());
+        Assert.Equal(["s1"], season.Hashes);
+    }
+
+    [Fact]
+    public async Task ARequestWithoutSeasonsCountsForEverySeason()
+    {
+        AddSeries("continuing");
+        _seerr.Requests.Add(new SeerrRequest
+        {
+            CreatedAt = Now.AddDays(-5),
+            Seasons = null!,
+            RequestedBy = new SeerrRequestUser { JellyfinUserId = _luca.Id.ToString("N") },
+            Media = new SeerrRequestMedia { MediaType = "tv", TvdbId = 81189 },
+        });
+
+        var overview = await ScanAsync();
+
+        Assert.All(overview.Delete, r => Assert.Equal("Luca", Assert.Single(r.Requests).Name));
+        Assert.All(overview.Delete, r => Assert.Contains(SpaceSignalCodes.RecentRequest, r.Keep));
+    }
+
+    // Un orfano vero accanto a quello che la guardia deve scartare.
+    private async Task AssertOnlyLostIsOrphanAsync()
+    {
+        _probe.Files["/srv/downloads/Lost.mkv"] = new FileStamp(new FileId(3, 2), 1, 2 * Gb);
+        var overview = await ScanAsync();
+        Assert.Equal("/srv/downloads/Lost.mkv", Assert.Single(overview.Cleanup.Orphans).Path);
+    }
+
+    [Fact]
+    public async Task ALibraryFileIsNeverAnOrphan()
+    {
+        _movies.Add(new RadarrMovie
+        {
+            Id = 20, TmdbId = 1020, Title = "Qui", HasFile = true, Path = "/srv/downloads/Qui",
+            MovieFile = new ArrFileRef { Id = 20, Path = "/srv/downloads/Qui/qui.mkv", Size = 3 * Gb },
+        });
+        _probe.Files["/srv/downloads/Qui/qui.mkv"] = new FileStamp(new FileId(4, 1), 1, 3 * Gb);
+
+        await AssertOnlyLostIsOrphanAsync();
+    }
+
+    [Fact]
+    public async Task AnAliasOfALibraryFileIsNeverAnOrphan()
+    {
+        AddMovie(12, 6 * Gb, lastPlayed: null);
+        _probe.Files["/srv/downloads/Alias.mkv"] = new FileStamp(new FileId(1, 12), 1, 6 * Gb);
+
+        await AssertOnlyLostIsOrphanAsync();
+    }
+
+    [Fact]
+    public async Task AnAliasOfATorrentFileIsNeverAnOrphan()
+    {
+        _qbit.Torrents.Add(new QbitTorrent { Hash = "t1", Name = "Old", Size = 3 * Gb, Progress = 1, Tracker = "https://tracker.example/a", SavePath = "/srv/seedings" });
+        _qbit.Files["t1"] = [new QbitFile { Name = "Old.mkv", Size = 3 * Gb }];
+        _probe.Files["/srv/seedings/Old.mkv"] = new FileStamp(new FileId(3, 1), 1, 3 * Gb);
+        _probe.Files["/srv/downloads/Old.mkv"] = new FileStamp(new FileId(3, 1), 1, 3 * Gb);
+
+        await AssertOnlyLostIsOrphanAsync();
+    }
+
+    [Fact]
+    public async Task AnIncompleteDownloadIsNeverAnOrphan()
+    {
+        _qbit.Torrents.Add(new QbitTorrent
+        {
+            Hash = "t2", Name = "Film", Size = 3 * Gb, Progress = 0.5, SavePath = "/srv/seedings", ContentPath = "/srv/downloads/incomplete/Film",
+        });
+        _qbit.Files["t2"] = [new QbitFile { Name = "Film/film.mkv", Size = 3 * Gb }];
+        _probe.Files["/srv/downloads/incomplete/Film/film.mkv"] = new FileStamp(new FileId(5, 1), 1, 3 * Gb);
+
+        await AssertOnlyLostIsOrphanAsync();
+    }
+
+    [Fact]
+    public async Task AFileOfAnotherTitleIsNeverADuplicate()
+    {
+        AddMovie(12, 6 * Gb, Now.AddMonths(-8));
+        AddMovie(13, 5 * Gb, Now.AddMonths(-8));
+        _movies[1].MovieFile!.Path = MovieFolder + "/Other.mkv";
+        _probe.Files.Remove("/srv/media/movies/Film 13/film.mkv");
+        _probe.Files[MovieFolder + "/Other.mkv"] = new FileStamp(new FileId(1, 13), 1, 5 * Gb);
+
+        var overview = await ScanAsync();
+
+        Assert.Empty(overview.Cleanup.Duplicates);
+    }
+
+    [Fact]
+    public async Task AHardlinkOfALibraryFileIsNeverADuplicate()
+    {
+        AddMovie(12, 6 * Gb, Now.AddMonths(-8), links: 2);
+        _probe.Files[MovieFolder + "/Coco.copy.mkv"] = new FileStamp(new FileId(1, 12), 2, 6 * Gb);
+
+        var overview = await ScanAsync();
+
+        Assert.Empty(overview.Cleanup.Duplicates);
     }
 
     [Fact]
@@ -317,12 +477,18 @@ public sealed class SpaceScanTests : IDisposable
     [Fact]
     public async Task OneScanAtATime()
     {
-        Assert.True(_service.Scanning);
+        Assert.False(_service.Scanning);
         Task? second = null;
-        _qbit.OnGetTorrents = () => second ??= _service.ScanAsync(CancellationToken.None);
+        var scanning = false;
+        _qbit.OnGetTorrents = () =>
+        {
+            scanning = _service.Scanning;
+            second ??= _service.ScanAsync(CancellationToken.None);
+        };
 
         await _service.ScanAsync(CancellationToken.None);
 
+        Assert.True(scanning);
         Assert.True(second!.IsCompleted);
         Assert.Single(_seerr.Listed);
         Assert.False(_service.Scanning);

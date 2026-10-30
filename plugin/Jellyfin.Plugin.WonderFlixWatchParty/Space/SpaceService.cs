@@ -118,6 +118,12 @@ public sealed partial class SpaceService(
         };
         lock (_lock)
         {
+            // Un titolo tenuto (o la serie di una stagione tenuta) non è più nelle liste (spec U §4.2).
+            if (Book.IsKept(key) || (kind == SpaceKinds.Season && Book.IsKept("series:" + key.Split(':')[1])))
+            {
+                return (StartOutcome.Unknown, null);
+            }
+
             if (Book.Operations.Any(o => o.Key == key && IsActive(o)))
             {
                 return (StartOutcome.Busy, null);

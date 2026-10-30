@@ -76,16 +76,16 @@ public class SpaceSignalsTests
     [Fact]
     public void LowRatingNeedsTwoVotes()
     {
-        Assert.Empty(Eval(Facts(ratingAvg: 1.5, ratingCount: 1)).Via);
-        Assert.Equal([SpaceSignalCodes.LowRating], Eval(Facts(ratingAvg: 1.5, ratingCount: 2)).Via);
+        Assert.Empty(Eval(Facts(ratingAvg: 3.0, ratingCount: 1)).Via);
+        Assert.Equal([SpaceSignalCodes.LowRating], Eval(Facts(ratingAvg: 3.0, ratingCount: 2)).Via);
         Assert.Empty(Eval(Facts(ratingAvg: null, ratingCount: 5)).Via);
     }
 
     [Fact]
     public void HighRatingKeeps()
     {
-        Assert.Empty(Eval(Facts(ratingAvg: 4.5, ratingCount: 1)).Keep);
-        Assert.Equal([SpaceSignalCodes.HighRating], Eval(Facts(ratingAvg: 4.0, ratingCount: 2)).Keep);
+        Assert.Empty(Eval(Facts(ratingAvg: 8.5, ratingCount: 1)).Keep);
+        Assert.Equal([SpaceSignalCodes.HighRating], Eval(Facts(ratingAvg: 8.0, ratingCount: 2)).Keep);
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public class SpaceSignalsTests
             [Anna(false, "2026-10-01"), Luca(true, "2026-01-01")],
             added: "2026-01-01",
             requests: [new RequestFact(null, "A", Day("2026-10-01")), new RequestFact(null, "B", Day("2026-10-02"))],
-            ratingAvg: 4.5,
+            ratingAvg: 8.5,
             ratingCount: 3,
             sequel: true));
 

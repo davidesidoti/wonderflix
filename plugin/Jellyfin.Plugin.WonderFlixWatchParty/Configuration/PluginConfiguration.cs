@@ -107,11 +107,11 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Giorni in cui una richiesta recente protegge un titolo, da 0 a 365.</summary>
     public int SpaceRequestGraceDays { get; set; } = 60;
 
-    /// <summary>Voto medio sotto il quale un titolo è poco gradito, da 1 a 5.</summary>
-    public int SpaceLowRating { get; set; } = 2;
+    /// <summary>Voto medio (da 1 a 10, come i voti) fino al quale un titolo è poco gradito.</summary>
+    public int SpaceLowRating { get; set; } = 4;
 
-    /// <summary>Voto medio da cui un titolo si tiene, da 1 a 5.</summary>
-    public int SpaceHighRating { get; set; } = 4;
+    /// <summary>Voto medio (da 1 a 10, come i voti) da cui un titolo si tiene.</summary>
+    public int SpaceHighRating { get; set; } = 8;
 
     /// <summary>Voti minimi perché la media conti, da 1 a 20.</summary>
     public int SpaceMinRatings { get; set; } = 2;

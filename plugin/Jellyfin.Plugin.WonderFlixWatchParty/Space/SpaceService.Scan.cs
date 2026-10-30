@@ -27,8 +27,8 @@ public sealed partial class SpaceService
     // 1 mentre un calcolo è in corso.
     private int _scanning;
 
-    /// <summary>Vero durante un calcolo e fino al primo risultato (decisione 1).</summary>
-    public bool Scanning => Volatile.Read(ref _scanning) != 0 || LastScan is null;
+    /// <summary>Vero solo mentre un calcolo è in corso; prima del primo calcolo, o dopo uno fallito, è falso e <c>ScannedAt</c> resta com'era.</summary>
+    public bool Scanning => Volatile.Read(ref _scanning) != 0;
 
     /// <summary>
     /// Calcola e sostituisce <see cref="LastScan"/> (spec U §7.3). Uno alla volta: una seconda chiamata durante un calcolo
@@ -87,10 +87,9 @@ public sealed partial class SpaceService
         bool Visible(IReadOnlyList<string> keys, IReadOnlyList<Guid> itemIds) =>
             !keys.Any(keptKeys.Contains) && !itemIds.Any(id => viewing.IsFavorite(callerId, id));
 
-        var highScore = settings.HighRating * ScorePerStar;
         IReadOnlyCollection<Guid> caller = [callerId];
         var highlyRated = (scan?.RatedItems ?? [])
-            .Where(id => ratings.Of(id, caller).TryGetValue(callerId, out var rating) && rating.Score >= highScore)
+            .Where(id => ratings.Of(id, caller).TryGetValue(callerId, out var rating) && rating.Score >= settings.HighRating)
             .ToHashSet();
         var shown = scan ?? new SpaceScan();
         return new SpaceOverviewDto(
@@ -122,17 +121,18 @@ public sealed partial class SpaceService
         // Senza i torrent non si sa quali file sono loro: niente orfani, si mostrerebbero file in seed.
         IReadOnlyList<string> scanVideos = live is null ? [] : [.. settings.ScanFolders.SelectMany(folder => probe.VideoFiles(folder)).Distinct()];
         var duplicates = DuplicateCandidates(movies, series);
-        List<string> libraryPaths = [.. movies.Select(m => m.MovieFile?.Path).Concat(series.SelectMany(s => s.Files.Select(f => f.Path))).OfType<string>()];
+        var libraryPaths = movies.Select(m => m.MovieFile?.Path).Concat(series.SelectMany(s => s.Files.Select(f => f.Path))).OfType<string>().ToHashSet();
         var stamps = await probe.StatAsync(
             [.. libraryPaths.Concat(duplicates.Select(d => d.Path)).Concat(scanVideos).Distinct()], ct).ConfigureAwait(false);
 
+        // I file che Radarr/Sonarr conoscono, per percorso e per id: mai orfani né doppioni.
+        var known = new KnownFiles(libraryPaths, libraryPaths.Where(stamps.ContainsKey).Select(p => stamps[p].Id).ToHashSet());
         var index = live?.Index ?? new TorrentIndex([], new Dictionary<string, IReadOnlyList<TorrentFile>>());
-        var libraryFiles = libraryPaths.Where(stamps.ContainsKey).Select(p => stamps[p].Id).ToHashSet();
-        libraryFiles.UnionWith(live?.LibraryFiles ?? []);
+        var libraryFiles = known.Ids.Union(live?.LibraryFiles ?? []).ToHashSet();
         var now = time.GetUtcNow();
         var titles = BuildTitles(new ScanData(movies, series, requests, stamps, index, libraryFiles), now);
         var files = new Dictionary<string, ScanFile>();
-        var (cleanup, torrents) = BuildCleanup(live, scanVideos, duplicates, stamps, files, now);
+        var (cleanup, torrents) = BuildCleanup(live, scanVideos, duplicates, stamps, known, files, now);
         var quota = ReadQuota();
         return new SpaceScan
         {
@@ -220,11 +220,14 @@ public sealed partial class SpaceService
         try
         {
             var all = new List<SeerrRequest>();
+            var skip = 0;
             while (true)
             {
-                var page = await seerr.GetRequestsAsync(SeerrAdmin, "all", SeerrPageSize, all.Count, null, ct).ConfigureAwait(false);
-                all.AddRange(page.Results);
-                if (page.Results.Count == 0 || all.Count >= (page.PageInfo?.Results ?? 0))
+                var page = await seerr.GetRequestsAsync(SeerrAdmin, "all", SeerrPageSize, skip, null, ct).ConfigureAwait(false);
+                var results = page.Results ?? [];
+                skip += results.Count;
+                all.AddRange(results.OfType<SeerrRequest>());
+                if (results.Count == 0 || skip >= (page.PageInfo?.Results ?? 0))
                 {
                     return (all, null);
                 }
@@ -275,6 +278,7 @@ public sealed partial class SpaceService
         IReadOnlyList<string> scanVideos,
         IReadOnlyList<(string Path, string Owner)> duplicates,
         IReadOnlyDictionary<string, FileStamp> stamps,
+        KnownFiles known,
         Dictionary<string, ScanFile> files,
         DateTimeOffset now)
     {
@@ -302,15 +306,22 @@ public sealed partial class SpaceService
                     verdict.ExpectedAt));
             }
 
+            // Né di un torrent (anche con un altro percorso per lo stesso file), né di un download in corso, né della libreria.
             var torrentPaths = live.Index.FilesByHash.Values.SelectMany(f => f).Select(f => f.Path).ToHashSet();
             orphans = [.. scanVideos
-                .Where(p => !torrentPaths.Contains(p) && stamps.TryGetValue(p, out var stamp) && stamp.Links == 1)
+                .Where(p => !torrentPaths.Contains(p)
+                    && stamps.TryGetValue(p, out var stamp)
+                    && stamp.Links == 1
+                    && !live.ById.ContainsKey(stamp.Id)
+                    && !known.Contains(p, stamp)
+                    && !FileProbe.IsUnder(p, live.IncompleteRoots))
                 .Select(p => FileRow(p, SpaceKinds.Orphan, null, stamps, files))
                 .OfType<SpaceFileDto>()];
         }
 
+        // Un file che un titolo qualsiasi conosce non è mai il doppione di un altro.
         List<SpaceFileDto> duplicateRows = [.. duplicates
-            .Where(d => stamps.ContainsKey(d.Path))
+            .Where(d => stamps.TryGetValue(d.Path, out var stamp) && !known.Contains(d.Path, stamp))
             .Select(d => FileRow(d.Path, SpaceKinds.Duplicate, d.Owner, stamps, files))
             .OfType<SpaceFileDto>()];
         var cleanup = new SpaceCleanupDto(
@@ -331,10 +342,16 @@ public sealed partial class SpaceService
             : null;
     }
 
-    /// <summary>Una serie di Sonarr con i file dei suoi episodi.</summary>
+    /// <summary>Una serie di Sonarr con i file dei suoi episodi (spec U §5.1 e decisione 4).</summary>
     private sealed record ScanSeries(SonarrSeries Show, IReadOnlyList<ArrFile> Files);
 
-    /// <summary>Quello che il calcolo ha letto, per costruire le liste dei titoli.</summary>
+    /// <summary>I file che Radarr/Sonarr conoscono, per percorso e per id: non sono "fuori da Radarr/Sonarr" (spec U §5.3).</summary>
+    private sealed record KnownFiles(HashSet<string> Paths, HashSet<FileId> Ids)
+    {
+        public bool Contains(string path, FileStamp stamp) => Paths.Contains(path) || Ids.Contains(stamp.Id);
+    }
+
+    /// <summary>Quello che il calcolo ha letto, per costruire le liste dei titoli (spec U §7.3).</summary>
     private sealed record ScanData(
         IReadOnlyList<RadarrMovie> Movies,
         IReadOnlyList<ScanSeries> Series,

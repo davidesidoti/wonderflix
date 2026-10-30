@@ -15,9 +15,9 @@ internal sealed class FakeSpaceSettings : ISpaceSettings
 
     public int RequestGraceDays { get; set; } = 60;
 
-    public int LowRating { get; set; } = 2;
+    public int LowRating { get; set; } = 4;
 
-    public int HighRating { get; set; } = 4;
+    public int HighRating { get; set; } = 8;
 
     public int MinRatings { get; set; } = 2;
 

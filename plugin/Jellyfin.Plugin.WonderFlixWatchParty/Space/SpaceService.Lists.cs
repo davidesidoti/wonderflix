@@ -10,9 +10,6 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Space;
 /// <summary>Le liste dei titoli del calcolo: Cancellare, Alleggerire e la divisione dello spazio (spec U §5.1, §5.2 e §5.4).</summary>
 public sealed partial class SpaceService
 {
-    /// <summary>I voti sono da 1 a 10; la media e le soglie dello spazio sono in stelle, da 1 a 5 (spec U §4.1 e §4.3).</summary>
-    private const double ScorePerStar = 2;
-
     /// <summary>GB = 10⁹ byte.</summary>
     private const double BytesPerGb = 1_000_000_000;
 
@@ -64,15 +61,16 @@ public sealed partial class SpaceService
         var lighten = new List<ScanRow<SpaceLightenDto>>();
         var rated = new List<Guid>();
 
+        // Solo le righe di Cancellare si possono avviare: entrano anche in Titles.
         bool Add(TitleSource source, bool listed = true)
         {
             var (row, title) = Evaluate(source, data, thresholds, now);
-            titles[source.Key] = title;
             if (!listed || row.Dto.Via.Count == 0)
             {
                 return false;
             }
 
+            titles[source.Key] = title;
             delete.Add(row);
             return true;
         }
@@ -145,7 +143,7 @@ public sealed partial class SpaceService
                             view?.ItemId, itemIds, poster, season.Statistics!.SizeOnDisk,
                             [.. seasonFiles.Select(f => f.Path).OfType<string>()],
                             view, view?.Added ?? show.Added,
-                            [.. showRequests.Where(x => x.Request.Seasons.Count == 0 || x.Request.Seasons.Any(r => r.SeasonNumber == n)).Select(x => x.Fact!)],
+                            [.. showRequests.Where(x => (x.Request.Seasons ?? []).Count == 0 || (x.Request.Seasons ?? []).Any(r => r?.SeasonNumber == n)).Select(x => x.Fact!)],
                             RatingOf(view?.ItemId, voters), false, genres, show.TmdbId, show.Path),
                         listed: !wholeListed);
                 }
@@ -230,7 +228,7 @@ public sealed partial class SpaceService
             : null;
     }
 
-    /// <summary>La media dei voti in stelle e quanti sono, tra gli utenti attivi (spec U §4.1).</summary>
+    /// <summary>La media dei voti (da 1 a 10, come le soglie) e quanti sono, tra gli utenti attivi (spec U §4.1).</summary>
     private (double? Avg, int Count) RatingOf(Guid? itemId, IReadOnlyCollection<Guid> voters)
     {
         if (itemId is not { } id)
@@ -239,7 +237,7 @@ public sealed partial class SpaceService
         }
 
         var scores = ratings.Of(id, voters).Values.Select(r => r.Score).ToList();
-        return (RatingService.Average(scores) / ScorePerStar, scores.Count);
+        return (RatingService.Average(scores), scores.Count);
     }
 
     /// <summary>
@@ -288,7 +286,7 @@ public sealed partial class SpaceService
             moviesBytes, seriesBytes, animeBytes, torrentOnlyBytes, quota is null ? 0 : Math.Max(0, quota.UsedBytes - known));
     }
 
-    /// <summary>Un titolo da valutare, con tutto quello che serve alla sua riga e alle operazioni.</summary>
+    /// <summary>Un titolo da valutare, con tutto quello che serve alla sua riga e alle operazioni (spec U §4 e §5.1).</summary>
     private sealed record TitleSource(
         string Key,
         string Kind,
@@ -311,7 +309,7 @@ public sealed partial class SpaceService
         int TmdbId,
         string? Folder);
 
-    /// <summary>Le liste dei titoli, già in ordine.</summary>
+    /// <summary>Le liste dei titoli, già in ordine, e i titoli che si possono avviare (spec U §5.1, §5.2 e §6.2).</summary>
     private sealed record TitleLists(
         IReadOnlyDictionary<string, ScanTitle> Titles,
         IReadOnlyList<ScanRow<SpaceCandidateDto>> Delete,

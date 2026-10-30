@@ -22,9 +22,9 @@ public sealed class PluginSpaceSettings : ISpaceSettings
 
     public int RequestGraceDays => Clamp(Config.SpaceRequestGraceDays, 0, 365, Defaults.SpaceRequestGraceDays);
 
-    public int LowRating => Clamp(Config.SpaceLowRating, 1, 5, Defaults.SpaceLowRating);
+    public int LowRating => Clamp(Config.SpaceLowRating, 1, 10, Defaults.SpaceLowRating);
 
-    public int HighRating => Clamp(Config.SpaceHighRating, 1, 5, Defaults.SpaceHighRating);
+    public int HighRating => Clamp(Config.SpaceHighRating, 1, 10, Defaults.SpaceHighRating);
 
     public int MinRatings => Clamp(Config.SpaceMinRatings, 1, 20, Defaults.SpaceMinRatings);
 
