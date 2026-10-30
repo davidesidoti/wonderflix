@@ -4,6 +4,7 @@ using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Seerr;
 using Jellyfin.Plugin.WonderFlixWatchParty.Server;
+using Jellyfin.Plugin.WonderFlixWatchParty.Space;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
@@ -75,6 +76,13 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false })
             .RedactLoggedHeaders(["X-Api-Key"]);
         serviceCollection.AddSingleton<IArrClient, ArrClient>();
+        // Spazio (spec U): qBittorrent. Il cookie SID lo gestisce il client: niente CookieContainer, niente redirect,
+        // e Cookie/Set-Cookie non vanno nei log del client HTTP.
+        serviceCollection.AddSingleton<ISpaceSettings, PluginSpaceSettings>();
+        serviceCollection.AddHttpClient(QbitClient.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false })
+            .RedactLoggedHeaders(["Cookie", "Set-Cookie"]);
+        serviceCollection.AddSingleton<IQbitClient, QbitClient>();
         serviceCollection.AddSingleton<ISeriesIndex, JellyfinSeriesIndex>();
         serviceCollection.AddSingleton<UpcomingService>();
         serviceCollection.AddSingleton<ReleaseDatesService>();
