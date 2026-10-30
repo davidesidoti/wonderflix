@@ -254,6 +254,32 @@ void main() {
     expect(starts(), ['start Movie movie:1', 'start Movie movie:3']);
   });
 
+  testWidgets('TheBarButtonIsOffWhileStartsRun', (tester) async {
+    await pumpTab(tester, [_candidate('movie:1'), _candidate('movie:2')]);
+    await tester.tap(find.text('Seleziona'));
+    await tester.pump();
+    await tester.tap(find.text('Titolo movie:1'));
+    await tester.tap(find.text('Titolo movie:2'));
+    await tester.pump();
+
+    api.startGate = Completer<void>();
+    api.operationResults.add(_op('x', 'Done', const []));
+    await confirm(tester);
+    expect(starts(), ['start Movie movie:1']);
+
+    // Una seconda pressione non apre una seconda panoramica.
+    await tester.tap(
+      find.textContaining('Elimina selezionati'),
+      warnIfMissed: false,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Eliminare 2 titoli?'), findsNothing);
+
+    api.startGate!.complete();
+    await tester.pumpAndSettle();
+    expect(starts(), hasLength(2));
+  });
+
   testWidgets('ABusyTitleDoesNotStopTheOthers', (tester) async {
     await pumpTab(tester, [_candidate('movie:1'), _candidate('movie:2')]);
     await tester.tap(find.text('Seleziona'));
