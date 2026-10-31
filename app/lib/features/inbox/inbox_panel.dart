@@ -25,6 +25,7 @@ import '../watch_party/watch_party_directory.dart';
 import '../watch_party/watch_party_providers.dart';
 import '../watch_party/watch_party_session.dart';
 import 'inbox_account_row.dart';
+import 'inbox_alert_rows.dart';
 import 'inbox_controller.dart';
 import 'inbox_request_rows.dart';
 import 'inbox_time.dart';
@@ -341,8 +342,8 @@ class _EntryTileState extends ConsumerState<_EntryTile> {
                   entry.outcome == ReportOutcome.fixed
                       ? LucideIcons.circleCheck
                       : LucideIcons.circleAlert),
-              // Provvisorio: la riga delle voci di spec V arriva nel Task 2.
-              AlertedEntry() => const SizedBox.shrink(),
+              AlertedEntry() => InboxRequestIcon(
+                  icon: alertIconOf(entry), size: InboxPanel.leadingSize),
             },
             const SizedBox(width: 12),
             Expanded(
@@ -414,7 +415,10 @@ class _EntryTileState extends ConsumerState<_EntryTile> {
                       null => null,
                     },
                     time: widget.time),
-                AlertedEntry() => const SizedBox.shrink(),
+                AlertedEntry() => InboxAlertContent(
+                    key: Key('inbox-alert-${entry.id}'),
+                    entry: entry,
+                    time: widget.time),
               },
             ),
             Focus(
