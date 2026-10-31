@@ -98,7 +98,8 @@ public class SpaceController(SpaceService space, IAuthorizationContext authoriza
             return BadRequest();
         }
 
-        return await space.ImportLightenAsync(key, HttpContext.RequestAborted).ConfigureAwait(false) switch
+        // Un import partito finisce anche se l'app smette di aspettare (la lettura di un pack può durare 2 minuti).
+        return await space.ImportLightenAsync(key, CancellationToken.None).ConfigureAwait(false) switch
         {
             (SpaceService.LightenImportOutcome.Imported, _) => NoContent(),
             (SpaceService.LightenImportOutcome.Unknown, _) => Error(StatusCodes.Status404NotFound, "Unknown"),

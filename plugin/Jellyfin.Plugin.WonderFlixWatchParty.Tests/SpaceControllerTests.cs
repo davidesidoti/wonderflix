@@ -20,13 +20,14 @@ public sealed class SpaceControllerTests : IDisposable
     private readonly TempFolder _folder = new();
     private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 30, 12, 0, 0, TimeSpan.Zero));
     private readonly FakeServer _server = new();
+    private readonly FakeArrClient _arr = new();
     private readonly SpaceService _service;
     private readonly SpaceController _controller;
 
     public SpaceControllerTests()
     {
         _service = new SpaceService(
-            new FakeArrClient(),
+            _arr,
             new FakeSeerrClient(),
             new FakeSeerrSettings(),
             new FakeQbitClient(),
@@ -38,7 +39,7 @@ public sealed class SpaceControllerTests : IDisposable
             new FakeSeriesIndex(),
             TestRatings.Create(_server, _folder, _time, TestRecommendations.Friends(_server, _folder, _time)),
             _server,
-            TestDownloads.Create(new FakeArrClient(), _time, _folder.DownloadsFile),
+            TestDownloads.Create(_arr, _time, _folder.DownloadsFile),
             _time,
             NullLogger<SpaceService>.Instance);
         var auth = new AuthorizationInfo { DeviceId = "d", Client = "WonderFlix", IsAuthenticated = true };
@@ -115,6 +116,26 @@ public sealed class SpaceControllerTests : IDisposable
         // Nessun "Alleggerisci" ricordato per la chiave.
         var unknown = await _controller.ImportLighten(new LightenImportRequest { Key = "season:5:2" });
         Assert.Equal((404, "Unknown"), (Status(unknown), Reason(unknown)));
+    }
+
+    [Fact]
+    public async Task ImportLightenIsNotCancelledWithTheRequest()
+    {
+        // Un import partito finisce anche se l'app smette di aspettare: con il token della richiesta l'errore non arriverebbe.
+        var store = new Downloads.DownloadStore(_folder.DownloadsFile, NullLogger<Downloads.DownloadStore>.Instance);
+        var book = store.Load();
+        book.MarkLightened("movie:12", _time.GetUtcNow());
+        store.Save(book);
+        _arr.Queue = _ => Task.FromResult<IReadOnlyList<Home.ArrQueueItem?>>(
+            [new Home.ArrQueueItem { MovieId = 12, TrackedDownloadState = "importBlocked", DownloadId = "D" }]);
+        _arr.ManualImportItems = (_, _) => Task.FromResult<IReadOnlyList<Home.ArrManualImportItem?>>(
+            [new Home.ArrManualImportItem { Path = "/dl/a.mkv", Movie = new Home.ArrFileRef { Id = 12 }, Quality = JsonDocument.Parse("{}").RootElement }]);
+        _arr.ManualImport = (_, _) => Task.FromException(new Home.ArrException(Home.ArrError.Unreachable));
+        _controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { RequestAborted = new CancellationToken(true) } };
+
+        var result = await _controller.ImportLighten(new LightenImportRequest { Key = "movie:12" });
+
+        Assert.Equal((502, "Unreachable"), (Status(result), Reason(result)));
     }
 
     [Fact]
