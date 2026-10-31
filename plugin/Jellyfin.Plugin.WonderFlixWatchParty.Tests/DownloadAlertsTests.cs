@@ -132,4 +132,35 @@ public sealed class DownloadAlertsTests : IDisposable
         var entry = Assert.Single(Entries());
         Assert.Equal(($"stalled:movie:12:{_time.GetUtcNow().Ticks}", InboxEntryTypes.DownloadStalled, "Dune (2021)"), (entry.AlertKey, entry.Type, entry.Title));
     }
+
+    [Fact]
+    public async Task Start_SyncsStaleAlerts()
+    {
+        // Una voce di prima del riavvio, per un titolo che non serve più.
+        await _inbox.SyncAlertsAsync([_admin.Id], "download:", [new InboxEntry { Type = InboxEntryTypes.DownloadNeedsYou, AlertKey = "download:movie:99", Title = "Old" }]);
+        Assert.Single(Entries());
+
+        await _hosted.StartAsync(CancellationToken.None);
+
+        Assert.Empty(Entries());
+    }
+
+    [Fact]
+    public async Task AdminGrab_NudgesACycle()
+    {
+        // Il titolo era in "serve te": dopo il grab l'avviso esce con un giro, non dopo 15 minuti.
+        _movies = [Movie(12)];
+        _queue = [MovieQueue(90, 12, 0, state: "importBlocked")];
+        _arr.Releases = (_, _) => Task.FromResult<IReadOnlyList<ArrRelease?>>([Release("a", WebDl1080, "WEBDL-1080p", 4, 150)]);
+        _arr.QualityProfiles = _ => Task.FromResult<IReadOnlyList<ArrQualityProfile?>>([MainProfile(4)]);
+        _arr.Indexers = _ => Task.FromResult<IReadOnlyList<ArrIndexer?>>([new ArrIndexer { Id = 1, Priority = 25 }]);
+        await _downloads.RunCycleAsync(CancellationToken.None);
+        await _downloads.SearchAsync("movie:12", CancellationToken.None);
+        var nudges = 0;
+        _downloads.Nudged += () => nudges++;
+
+        Assert.Equal(GrabOutcome.Ok, await _downloads.GrabAsync("movie:12", "a", 1, CancellationToken.None));
+
+        Assert.Equal(1, nudges);
+    }
 }

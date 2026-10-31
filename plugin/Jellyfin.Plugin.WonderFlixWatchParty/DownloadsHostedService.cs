@@ -44,6 +44,9 @@ public sealed class DownloadsHostedService(
         _reviewTimer = time.CreateTimer(_ => _ = ReviewAsync(), null, FirstReviewDelay, DownloadService.ReviewInterval);
         _nudgeTimer = time.CreateTimer(_ => OnNudgeTimer(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
 
+        // Gli avvisi di prima del riavvio si allineano subito, senza far aspettare l'avvio.
+        _ = SyncAlertsAsync();
+
         // Per ultimo: un nudge prima che i timer esistano lascerebbe _nudgeScheduled a 1 per sempre.
         downloads.Nudged += ScheduleNudge;
         return Task.CompletedTask;
@@ -130,8 +133,18 @@ public sealed class DownloadsHostedService(
         }
     }
 
-    // Gli avvisi agli admin seguono lo stato dopo ogni giro e ogni revisione (spec V); non lancia.
-    private Task SyncAlertsAsync() => alerts.SyncAsync("download:", downloads.NeedsYouAlerts());
+    // Gli avvisi agli admin seguono lo stato all'avvio, dopo ogni giro e ogni revisione (spec V); non lancia.
+    private async Task SyncAlertsAsync()
+    {
+        try
+        {
+            await alerts.SyncAsync("download:", downloads.NeedsYouAlerts()).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Avvisi dei download automatici non allineati");
+        }
+    }
 
     // L'elenco da ripassare ha la sua guardia: legge soltanto e non deve girare due volte insieme.
     private async Task ReviewAsync()

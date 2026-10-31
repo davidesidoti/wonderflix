@@ -293,6 +293,9 @@ public sealed partial class DownloadService
 
             logger.LogInformation("Download automatici: {Key} scaricato da {Kind} per l'admin", target.Title.Key, service);
             GrabbedByAdmin(search, target, release);
+
+            // Un giro presto: la voce "serve te" di questo titolo esce dalla cassetta degli admin (spec V).
+            Nudge();
             return GrabOutcome.Ok;
         }
     }
