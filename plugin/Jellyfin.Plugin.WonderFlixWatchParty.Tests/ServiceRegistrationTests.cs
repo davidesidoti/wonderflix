@@ -1,6 +1,7 @@
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller.Collections;
+using MediaBrowser.Controller.Devices;
 using MediaBrowser.Controller.Drawing;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Net;
@@ -33,6 +34,7 @@ public class ServiceRegistrationTests
         services.AddSingleton(InterfaceStub<ISubtitleManager>.Create().Proxy);
         services.AddSingleton(InterfaceStub<IProviderManager>.Create().Proxy);
         services.AddSingleton(InterfaceStub<IFileSystem>.Create().Proxy);
+        services.AddSingleton(InterfaceStub<IDeviceManager>.Create().Proxy);
         var (paths, stub) = InterfaceStub<IApplicationPaths>.Create();
         stub.Handlers["get_PluginConfigurationsPath"] = _ => Path.GetTempPath();
         services.AddSingleton(paths);
@@ -48,6 +50,7 @@ public class ServiceRegistrationTests
             Path.Combine("WonderFlixWatchParty", "friends.json"),
             provider.GetRequiredService<FriendStore>().FilePath);
         Assert.NotNull(provider.GetRequiredService<InboxService>());
+        Assert.NotNull(provider.GetRequiredService<Push.PushService>());
         Assert.EndsWith(
             Path.Combine("WonderFlixWatchParty", "inbox.json"),
             provider.GetRequiredService<InboxStore>().FilePath);

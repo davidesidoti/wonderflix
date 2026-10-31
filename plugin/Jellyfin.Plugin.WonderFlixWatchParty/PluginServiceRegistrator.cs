@@ -143,6 +143,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             provider.GetRequiredService<ILogger<NotificationStore>>()));
         serviceCollection.AddSingleton(_ => new VapidKeyProvider(
             () => Plugin.Instance?.Configuration, () => Plugin.Instance?.SaveConfiguration()));
+        serviceCollection.AddSingleton<PushService>();
         serviceCollection.AddSingleton<NewTitlesCollector>();
         serviceCollection.AddSingleton<PresenceTracker>();
         serviceCollection.AddSingleton<PartyDirectory>();
