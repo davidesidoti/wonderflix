@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/space/space_api.dart';
 import 'package:wonderflix/core/space/space_models.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/space/space_providers.dart';
@@ -354,6 +357,124 @@ void main() {
     );
     expect(find.text('Download non riuscito'), findsOneWidget);
     expect(find.text('Alleggerisci'), findsOneWidget);
+  });
+
+  testWidgets('ABlockedMovieShowsRadarrTheMessageAndImport', (tester) async {
+    await pumpLighten(
+      tester,
+      const SpaceLightenDownload(
+        state: 'Blocked',
+        progress: 1,
+        sizeLeftBytes: 0,
+        message: 'Not an upgrade for existing movie file',
+      ),
+    );
+    expect(find.text('Radarr non lo importa da solo'), findsOneWidget);
+    expect(find.text('Not an upgrade for existing movie file'), findsOneWidget);
+    expect(find.text('Importa'), findsOneWidget);
+    expect(find.text('Alleggerisci'), findsNothing);
+  });
+
+  testWidgets('ABlockedSeasonSaysSonarr', (tester) async {
+    api.overviewValue = _overview(
+      scannedAt: _scanned,
+      lighten: const [
+        SpaceLighten(
+          key: 'season:142:1',
+          kind: 'Season',
+          title: 'Serie',
+          seasonNumber: 1,
+          sizeBytes: 9000000000,
+          excessBytes: 5000000000,
+          gbPerHour: 6.5,
+          download: SpaceLightenDownload(
+            state: 'Blocked',
+            progress: 1,
+            sizeLeftBytes: 0,
+          ),
+        ),
+      ],
+    );
+    await pumpTab(tester);
+    expect(find.text('Sonarr non lo importa da solo'), findsOneWidget);
+    expect(find.text('Importa'), findsOneWidget);
+  });
+
+  testWidgets('ImportShowsTheSpinnerThenRereads', (tester) async {
+    await pumpLighten(
+      tester,
+      const SpaceLightenDownload(
+        state: 'Blocked',
+        progress: 1,
+        sizeLeftBytes: 0,
+      ),
+    );
+    final gate = api.actionGate = Completer<void>();
+    final reads = api.calls.where((c) => c == 'overview').length;
+    final button = find.byKey(const ValueKey('space-lighten-import'));
+    await tester.tap(button);
+    await tester.pump();
+
+    expect(api.calls, contains('import movie:1'));
+    expect(
+      find.descendant(
+        of: button,
+        matching: find.byType(CircularProgressIndicator),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<ButtonStyleButton>(
+            find.descendant(
+              of: button,
+              matching: find.bySubtype<ButtonStyleButton>(),
+            ),
+          )
+          .onPressed,
+      isNull,
+    );
+
+    api.overviewValue = _overview(
+      scannedAt: _scanned,
+      lighten: [
+        lightenWith(
+          const SpaceLightenDownload(
+            state: 'Importing',
+            progress: 1,
+            sizeLeftBytes: 0,
+          ),
+        ),
+      ],
+    );
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(api.calls.where((c) => c == 'overview').length, greaterThan(reads));
+    expect(find.text('In importazione'), findsOneWidget);
+    expect(button, findsNothing);
+  });
+
+  testWidgets('AFailedImportShowsTheCode', (tester) async {
+    await pumpLighten(
+      tester,
+      const SpaceLightenDownload(
+        state: 'Blocked',
+        progress: 1,
+        sizeLeftBytes: 0,
+      ),
+    );
+    api.nextImportError = const SpaceException(SpaceFailure.server, 'NoFiles');
+    await tester.tap(find.byKey(const ValueKey('space-lighten-import')));
+    await tester.pumpAndSettle();
+    expect(find.text('Import non riuscito (NoFiles)'), findsOneWidget);
+    // Il secondo avviso aspetta che il primo se ne vada.
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+
+    api.nextImportError = const SpaceException(SpaceFailure.unknown, 'Unknown');
+    await tester.tap(find.byKey(const ValueKey('space-lighten-import')));
+    await tester.pumpAndSettle();
+    expect(find.text("Non c'è più niente da importare"), findsOneWidget);
   });
 
   testWidgets('PollingIsFastWhileDownloading', (tester) async {

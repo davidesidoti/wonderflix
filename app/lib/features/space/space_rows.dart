@@ -41,13 +41,13 @@ Widget _chip(String text, Color color) => Container(
 
 // L'evidenziazione al passaggio del mouse la disegna RowShell, dentro la scheda.
 Widget _tappable(VoidCallback? onTap, RowShell row) => RowShell(
-      key: row.key,
-      posterUrl: row.posterUrl,
-      lines: row.lines,
-      actions: row.actions,
-      accent: row.accent,
-      onTap: onTap,
-    );
+  key: row.key,
+  posterUrl: row.posterUrl,
+  lines: row.lines,
+  actions: row.actions,
+  accent: row.accent,
+  onTap: onTap,
+);
 
 /// Una casella davanti a [row] (eliminazione in blocco); `null` vale "in
 /// parte" (un gruppo con alcune stagioni scelte).
@@ -204,7 +204,11 @@ class SpaceSeriesGroup extends StatelessWidget {
   }
 }
 
-List<Widget> _downloadLines(AppLocalizations l, SpaceLightenDownload d) {
+List<Widget> _downloadLines(
+  AppLocalizations l,
+  SpaceLightenDownload d,
+  String kind,
+) {
   switch (d.state) {
     case 'Downloading':
       return [
@@ -225,6 +229,21 @@ List<Widget> _downloadLines(AppLocalizations l, SpaceLightenDownload d) {
       ];
     case 'Importing':
       return [_line(l.spaceImporting, _gold)];
+    case 'Blocked':
+      final message = d.message;
+      return [
+        _line(l.spaceBlocked(kind == 'Movie' ? 'Radarr' : 'Sonarr'), _gold),
+        if (message != null && message.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              message,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: _muted,
+            ),
+          ),
+      ];
     default:
       return [_line(l.spaceDownloadFailed, _gold)];
   }
@@ -236,11 +255,15 @@ class SpaceLightenRow extends StatelessWidget {
     super.key,
     required this.item,
     required this.onLighten,
+    required this.onImport,
     required this.onOpen,
   });
 
   final SpaceLighten item;
   final Future<void> Function() onLighten;
+
+  /// L'import a mano, per un download `Blocked`.
+  final Future<void> Function() onImport;
   final VoidCallback onOpen;
 
   @override
@@ -261,15 +284,23 @@ class SpaceLightenRow extends StatelessWidget {
               spaceGb(l, item.excessBytes),
             ),
           ),
-          if (d != null) ..._downloadLines(l, d),
+          if (d != null) ..._downloadLines(l, d, item.kind),
         ],
         actions: [
-          if (!busy)
+          if (d?.state == 'Blocked')
             AdminActionButton(
-            label: l.spaceLightenAction,
-            icon: LucideIcons.minimize2,
-            onPressed: onLighten,
-          ),
+              key: const ValueKey('space-lighten-import'),
+              label: l.spaceImportAction,
+              icon: LucideIcons.download,
+              spinner: true,
+              onPressed: onImport,
+            )
+          else if (!busy)
+            AdminActionButton(
+              label: l.spaceLightenAction,
+              icon: LucideIcons.minimize2,
+              onPressed: onLighten,
+            ),
         ],
       ),
     );

@@ -21,6 +21,7 @@ import 'space_bulk.dart';
 import 'space_controller.dart';
 import 'space_labels.dart';
 import 'space_operation_dialog.dart';
+import 'space_providers.dart';
 import 'space_rows.dart';
 import 'space_title_dialog.dart';
 
@@ -83,6 +84,22 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
 
   Future<void> _lighten(String key, String title) async {
     await showDownloadSearch(context, key, title, lighten: true);
+    if (mounted) await _reload();
+  }
+
+  /// Import a mano di un download bloccato; poi rilegge, così la riga passa a
+  /// "In importazione".
+  Future<void> _import(String key) async {
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(spaceApiProvider).importLighten(key);
+    } on SpaceException catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(spaceImportFailureLabel(l, e))),
+      );
+      return;
+    }
     if (mounted) await _reload();
   }
 
@@ -511,8 +528,9 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
       );
     }
     // Decisione 9: 5 s mentre il plugin calcola o una riga scarica, poi 60 s.
+    // Un download bloccato aspetta l'admin, non il plugin.
     final downloading = o.lighten.any(
-      (i) => i.download != null && i.download!.state != 'Failed',
+      (i) => !const {null, 'Failed', 'Blocked'}.contains(i.download?.state),
     );
     _poller.interval = Duration(seconds: o.scanning || downloading ? 5 : 60);
     final now = clock.now();
@@ -573,6 +591,7 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
               onOpen: () => unawaited(showSpaceLighten(context, i)),
               onLighten: () =>
                   _lighten(i.key, spaceTitleOf(l, i.title, i.seasonNumber)),
+              onImport: () => _import(i.key),
             ),
           ),
           AdminSectionTitle(title: l.spaceSectionCleanup),

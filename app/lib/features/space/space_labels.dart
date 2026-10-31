@@ -147,6 +147,15 @@ String spaceFailureLabel(AppLocalizations l, SpaceFailure f) => switch (f) {
   SpaceFailure.server => l.spaceFailureServer,
 };
 
+/// L'errore dell'import a mano (Alleggerire): 404 non ha più niente da
+/// importare, 502 dice il codice di Radarr/Sonarr.
+String spaceImportFailureLabel(AppLocalizations l, SpaceException e) =>
+    switch ((e.failure, e.reason)) {
+      (SpaceFailure.unknown, _) => l.spaceImportNothing,
+      (SpaceFailure.server, final code?) => l.spaceImportFailed(code),
+      _ => spaceFailureLabel(l, e.failure),
+    };
+
 /// La nota in cima alla scheda per un servizio in errore; null senza errore.
 /// [service]: `radarr`, `sonarr`, `qbit`, `seerr` o `quota`.
 String? spaceServiceError(AppLocalizations l, String service, String? code) {

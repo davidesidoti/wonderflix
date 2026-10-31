@@ -20,7 +20,11 @@ class AdminActionButton extends StatefulWidget {
     required this.label,
     required this.icon,
     required this.onPressed,
+    this.spinner = false,
   });
+
+  /// Mentre l'azione è in corso, una rotellina sul pulsante.
+  final bool spinner;
 
   final String label;
   final IconData icon;
@@ -52,7 +56,9 @@ class _AdminActionButtonState extends State<AdminActionButton> {
       // posto dove mostrare l'avviso: il `ScaffoldMessenger` potrebbe non
       // avere più nessuna `Scaffold`.
       if (mounted) {
-        messenger.showSnackBar(SnackBar(content: Text(describeError(l, error))));
+        messenger.showSnackBar(
+          SnackBar(content: Text(describeError(l, error))),
+        );
       }
     } finally {
       if (mounted) setState(() => _running = false);
@@ -65,8 +71,17 @@ class _AdminActionButtonState extends State<AdminActionButton> {
     return WfButton.secondary(
       label: widget.label,
       icon: widget.icon,
-      onPressed:
-          action == null || _running ? null : () => unawaited(_run(action)),
+      overlay: widget.spinner && _running
+          ? const Center(
+              child: SizedBox.square(
+                dimension: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          : null,
+      onPressed: action == null || _running
+          ? null
+          : () => unawaited(_run(action)),
     );
   }
 }
