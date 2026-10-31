@@ -21,6 +21,7 @@ public sealed class SpaceAlertsTests : IDisposable
     private readonly FakeArrClient _arr = new();
     private readonly FakeFileProbe _probe = new();
     private readonly FakeSpaceSettings _settings = new() { QuotaFile = QuotaPath };
+    private readonly RecordingPush _push = new();
     private readonly InboxService _inbox;
     private readonly SpaceService _space;
     private readonly SpaceHostedService _hosted;
@@ -31,7 +32,7 @@ public sealed class SpaceAlertsTests : IDisposable
     {
         _admin = _server.AddUser("Anna", isAdmin: true).Id;
         _arr.Queue = kind => Task.FromResult<IReadOnlyList<ArrQueueItem?>>(kind == ArrKind.Radarr ? _radarrQueue : []);
-        _inbox = TestInbox.Create(_server, _folder, _time);
+        _inbox = TestInbox.Create(_server, _folder, _time, _push);
         var alerts = new AdminAlerts(_inbox, _server, _time, NullLogger<AdminAlerts>.Instance);
         _space = new SpaceService(
             _arr,
@@ -57,6 +58,13 @@ public sealed class SpaceAlertsTests : IDisposable
     {
         _hosted.Dispose();
         _folder.Dispose();
+    }
+
+    private sealed class RecordingPush : IInboxPush
+    {
+        public List<(Guid UserId, InboxEntry Entry)> Delivered { get; } = [];
+
+        public void Deliver(IReadOnlyList<(Guid UserId, InboxEntry Entry)> fresh) => Delivered.AddRange(fresh);
     }
 
     private IReadOnlyList<InboxEntry> Entries() => _inbox.Get(_admin).Entries;
@@ -165,8 +173,10 @@ public sealed class SpaceAlertsTests : IDisposable
     {
         // downloads.json si legge una volta sola, al primo uso.
         Lightened("movie:12");
-        Quota(950, 1000);
         await _hosted.StartAsync(CancellationToken.None);
+
+        // La quota arriva dopo l'avvio: la voce la crea il calcolo, non l'allineamento iniziale.
+        Quota(950, 1000);
 
         // Dopo il calcolo: la quota (le righe del calcolo finto non hanno download).
         await Task.Run(() => _time.Advance(SpaceHostedService.FirstScanDelay));
@@ -182,5 +192,29 @@ public sealed class SpaceAlertsTests : IDisposable
         Assert.True(await Eventually(() => Entries().Any(e => e.AlertKey == "lighten:movie:12")));
         Assert.True(await Eventually(() => !Entries().Any(e => e.AlertKey == "quota")));
         Assert.Equal(InboxEntryTypes.LightenBlocked, Assert.Single(Entries()).Type);
+    }
+
+    [Fact]
+    public async Task HostedService_QuotaRoundTrip_NotifiesAgain()
+    {
+        await _hosted.StartAsync(CancellationToken.None);
+
+        // Sopra la soglia: voce e push.
+        Quota(950, 1000);
+        await Task.Run(() => _time.Advance(SpaceHostedService.FirstScanDelay));
+        Assert.True(await Eventually(() => Entries().Any(e => e.AlertKey == "quota")));
+        Assert.Single(_push.Delivered);
+
+        // Sotto: la voce sparisce.
+        Quota(800, 1000);
+        await Task.Run(() => _time.Advance(SpaceService.PendingInterval - SpaceHostedService.FirstScanDelay));
+        Assert.True(await Eventually(() => Entries().Count == 0));
+
+        // Di nuovo sopra: una voce nuova e una seconda push (spec §4.4).
+        Quota(960, 1000);
+        await Task.Run(() => _time.Advance(SpaceService.PendingInterval));
+        Assert.True(await Eventually(() => _push.Delivered.Count == 2));
+        Assert.Equal(96, Assert.Single(Entries()).Percent);
+        Assert.All(_push.Delivered, d => Assert.Equal((_admin, "quota"), (d.UserId, d.Entry.AlertKey)));
     }
 }

@@ -205,7 +205,8 @@
                             <div class="fieldDescription">A text file where a cron job writes the output of <code>quota -w</code>. Empty: the quota is not shown.</div>
                         </div>
                         <div class="inputContainer">
-                            <input is="emby-input" type="number" id="WonderFlixQuotaAlertPercent" label="Avviso disco quasi pieno (% della quota)" min="50" max="99" step="1" />
+                            <input is="emby-input" type="number" id="WonderFlixQuotaAlertPercent" label="Disk almost full alert (% of quota)" min="50" max="99" step="1" />
+                            <div class="fieldDescription">Admins get a notification when the seedbox quota usage reaches this percentage (50-99).</div>
                         </div>
                         <button is="emby-button" type="submit" class="raised button-submit block emby-button">
                             <span>Save</span>

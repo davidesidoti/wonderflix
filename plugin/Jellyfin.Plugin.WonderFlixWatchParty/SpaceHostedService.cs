@@ -44,8 +44,8 @@ public sealed class SpaceHostedService(
         _pendingTimer = time.CreateTimer(_ => _ = CheckPendingAsync(), null, SpaceService.PendingInterval, SpaceService.PendingInterval);
         _operations = RunOperationsAsync();
 
-        // Gli avvisi di prima del riavvio si allineano subito, senza far aspettare l'avvio.
-        _ = SyncAlertsAsync();
+        // Gli avvisi di prima del riavvio si allineano subito, senza far aspettare l'avvio (nemmeno la lettura della quota).
+        _ = Task.Run(SyncAlertsAsync);
         return Task.CompletedTask;
     }
 
