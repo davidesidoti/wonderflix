@@ -1,7 +1,7 @@
 # WonderFlix — Spec V: notifiche push
 
 - **Data:** 2026-10-31
-- **Stato:** bozza, da approvare.
+- **Stato:** approvata il 2026-10-31.
 - **Ambito:** idea 15 di `docs/IDEE.md` ("Notifiche push sulla web app"), allargata al PC.
 - **Ricerca:** ricognizione del codice fatta in sessione. Le cose che servono sono riportate qui sotto.
 
