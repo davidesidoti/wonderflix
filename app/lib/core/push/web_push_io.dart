@@ -7,6 +7,9 @@ class _NoWebPush implements WebPush {
   const _NoWebPush();
 
   @override
+  String get scope => '/';
+
+  @override
   Future<PushAvailability> availability() async => PushAvailability.unsupported;
 
   @override

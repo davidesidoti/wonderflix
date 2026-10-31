@@ -17,10 +17,10 @@ final _log = Logger('push');
 
 final webPushProvider = Provider<WebPush>((ref) => createWebPush());
 
-/// L'endpoint con cui il profilo si è iscritto da questo browser. Più profili
+/// L'endpoint con cui il profilo si è iscritto da questo browser, per lo
+/// scope del service worker (`push.endpoint.<scope>.<userId>`). Più profili
 /// possono avere lo stesso (decisione 5 del 31a).
 const _endpointPrefix = 'push.endpoint.';
-String _endpointKey(String userId) => '$_endpointPrefix${jellyfinIdKey(userId)}';
 
 /// Le notifiche push su questo dispositivo, per il profilo aperto (spec V
 /// §4.3). Il riquadro c'è solo con la funzione `push`; all'uscita il
@@ -43,6 +43,14 @@ class DevicePushController extends AsyncNotifier<PushAvailability> {
 
   SharedPreferences get _prefs => ref.read(sharedPreferencesProvider);
 
+  /// Le chiavi di questo sito: `/wonderflix/` e `/wonderflix-prova/` hanno
+  /// la stessa origine (e le stesse preferenze) ma iscrizioni diverse.
+  String get _scopePrefix =>
+      '$_endpointPrefix${ref.read(webPushProvider).scope}.';
+
+  String _endpointKey(String userId) =>
+      '$_scopePrefix${jellyfinIdKey(userId)}';
+
   String? get _userId => ref.read(profilesProvider).activeUserId;
 
   /// La lingua dell'app (quella scelta, o quella del sistema risolta come fa
@@ -60,7 +68,11 @@ class DevicePushController extends AsyncNotifier<PushAvailability> {
     try {
       final keys = await ref.read(webPushProvider).subscribe(vapid ?? '');
       if (keys == null) {
-        state = const AsyncData(PushAvailability.denied);
+        // Richiesta chiusa senza scegliere: si può chiedere di nuovo.
+        final denied = await ref.read(webPushProvider).availability() ==
+            PushAvailability.denied;
+        state = AsyncData(
+            denied ? PushAvailability.denied : PushAvailability.ready);
         return true;
       }
       await _register(keys);
@@ -106,7 +118,7 @@ class DevicePushController extends AsyncNotifier<PushAvailability> {
   /// Il profilo esce o si toglie: il `DELETE` con le sue credenziali, prima
   /// che il token sparisca. Un errore non ferma l'uscita: il plugin terrebbe
   /// l'iscrizione di chi esce, quindi il browser si disiscrive e tutte le
-  /// chiavi si tolgono (gli altri profili tornano `ready`).
+  /// chiavi si tolgono, di ogni sito (gli altri profili tornano `ready`).
   Future<void> forgetUser(String userId) async {
     final endpoint = _prefs.getString(_endpointKey(userId));
     if (endpoint == null) return;
@@ -137,7 +149,7 @@ class DevicePushController extends AsyncNotifier<PushAvailability> {
   /// più.
   Future<void> _forgetEndpoint(String userId) async {
     await _prefs.remove(_endpointKey(userId));
-    if (_prefs.getKeys().any((k) => k.startsWith(_endpointPrefix))) return;
+    if (_prefs.getKeys().any((k) => k.startsWith(_scopePrefix))) return;
     await _unsubscribeBrowser();
   }
 

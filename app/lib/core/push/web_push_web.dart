@@ -15,6 +15,10 @@ class _BrowserPush implements WebPush {
 
   web.Navigator get _navigator => web.window.navigator;
 
+  /// Dal `<base href>`, come lo scope di `push_sw.js`.
+  @override
+  String get scope => Uri.parse(web.document.baseURI).path;
+
   /// iPhone/iPad: `navigator.standalone` c'è solo su iOS (un Mac non ha
   /// tocco).
   bool get _isIos =>

@@ -4,12 +4,14 @@ import 'package:go_router/go_router.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/navigation.dart';
 import 'package:wonderflix/app/router.dart';
+import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/calendar/calendar_screen.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 
+import '../support/fake_session_controller.dart';
 import '../support/home_fakes.dart';
 import '../support/library_fakes.dart';
 import '../support/pump_app.dart';
@@ -20,8 +22,45 @@ void main() {
   const signedIn = SessionSignedIn(testUser);
 
   test('avvio: tutto porta allo splash', () {
-    expect(sessionRedirect(const SessionStarting(), '/home'), '/splash');
+    expect(sessionRedirect(const SessionStarting(), '/home'),
+        '/splash?from=%2Fhome');
+    expect(sessionRedirect(signedIn, '/splash?from=%2Fhome'), '/home');
     expect(sessionRedirect(const SessionStarting(), '/splash'), isNull);
+  });
+
+  test("avvio da una pagina (tocco su una notifica): si apre dopo l'accesso",
+      () {
+    const target = '/admin?tab=downloads';
+    final splash = sessionRedirect(const SessionStarting(), target)!;
+    expect(Uri.parse(splash).path, '/splash');
+    expect(sessionRedirect(const SessionStarting(), splash), isNull);
+    expect(sessionRedirect(signedIn, splash), target);
+
+    // Senza sessione passa per il login e "Chi guarda?".
+    final login = sessionRedirect(const SessionSignedOut(), splash)!;
+    expect(Uri.parse(login).path, '/login');
+    final profiles = sessionRedirect(const SessionChoosingProfile(), login)!;
+    expect(Uri.parse(profiles).path, '/profiles');
+    expect(sessionRedirect(signedIn, profiles), target);
+  });
+
+  test('from non valido: Home', () {
+    for (final from in [
+      'https://evil.example/x',
+      '//evil.example/x',
+      r'/\evil.example',
+      'admin',
+      '/login',
+    ]) {
+      final splash = Uri(path: '/splash', queryParameters: {'from': from});
+      expect(sessionRedirect(signedIn, splash.toString()), '/home',
+          reason: from);
+    }
+  });
+
+  test("uscita da una pagina: dopo l'accesso la Home", () {
+    expect(sessionRedirect(const SessionSignedOut(), '/settings'), '/login');
+    expect(sessionRedirect(signedIn, '/login'), '/home');
   });
 
   test('non autenticato: tutto porta al login', () {
@@ -196,6 +235,33 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('player e5'), findsNothing);
     expect(find.text('home'), findsOneWidget);
+  });
+
+  testWidgets('avvio a freddo su /admin?tab=downloads con la sessione '
+      'salvata: resta lì', (tester) async {
+    tester.binding.platformDispatcher.defaultRouteNameTestValue =
+        '/admin?tab=downloads';
+    addTearDown(
+        tester.binding.platformDispatcher.clearDefaultRouteNameTestValue);
+    final session = FakeSessionController(const SessionStarting());
+    late GoRouter router;
+    await pumpAppRouterOf(tester, (ref) => router = ref.watch(routerProvider),
+        overrides: [
+          ...homeOverrides(library: FakeLibraryApi(), session: session),
+          watchPartyDirectoryProvider.overrideWith(FakeWatchPartyDirectory.new),
+          syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
+          watchPartyEventsProvider.overrideWithValue(const Stream.empty()),
+        ]);
+    String location() =>
+        router.routerDelegate.currentConfiguration.uri.toString();
+    expect(Uri.parse(location()).path, '/splash');
+
+    session.set(const SessionSignedIn(
+        JellyfinUser(id: 'u1', name: 'Mario', isAdministrator: true)));
+    await tester.pump();
+    expect(location(), '/admin?tab=downloads');
+    // Smonta l'app: l'amministrazione interroga il server di continuo.
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('/calendar?month=2026-11 apre il calendario di novembre',

@@ -60,6 +60,9 @@ class FakeWebPush implements WebPush {
 
   PushAvailability state;
   PushKeys? keys;
+
+  @override
+  String get scope => '/wonderflix/';
   final subscribeKeys = <String>[];
   int unsubscribeCalls = 0;
 

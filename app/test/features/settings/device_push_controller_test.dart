@@ -24,7 +24,11 @@ import '../../support/test_data.dart';
 
 class MockAuthService extends Mock implements AuthService {}
 
-const _key = 'push.endpoint.u1';
+const _key = 'push.endpoint./wonderflix/.u1';
+const _keyU2 = 'push.endpoint./wonderflix/.u2';
+
+/// La chiave dello stesso profilo nel sito di prova (stessa origine).
+const _keyProva = 'push.endpoint./wonderflix-prova/.u1';
 
 void main() {
   late FakeWebPush web;
@@ -78,6 +82,7 @@ void main() {
   test('activate senza permesso: denied, niente al plugin', () async {
     web.keys = null;
     final c = await ready();
+    web.state = PushAvailability.denied;
 
     await c.read(devicePushProvider.notifier).activate();
 
@@ -86,10 +91,39 @@ void main() {
     expect(prefs.getString(_key), isNull);
   });
 
+  test('richiesta del permesso chiusa senza scegliere: di nuovo ready',
+      () async {
+    web.keys = null;
+    final c = await ready();
+
+    await c.read(devicePushProvider.notifier).activate();
+
+    expect(c.read(devicePushProvider).value, PushAvailability.ready);
+  });
+
+  test("chiave dell'altro sito: per questo è ready", () async {
+    web.state = PushAvailability.active;
+    await prefs.setString(_keyProva, testPushKeys.endpoint);
+    final c = await ready();
+    expect(c.read(devicePushProvider).value, PushAvailability.ready);
+  });
+
+  test("deactivate: la chiave dell'altro sito non tiene il browser iscritto",
+      () async {
+    final c = await ready();
+    await c.read(devicePushProvider.notifier).activate();
+    await prefs.setString(_keyProva, 'https://push.example/prova');
+
+    await c.read(devicePushProvider.notifier).deactivate();
+
+    expect(web.unsubscribeCalls, 1);
+    expect(prefs.getString(_keyProva), 'https://push.example/prova');
+  });
+
   test('iscrizione del browser di un altro profilo: per questo è ready',
       () async {
     web.state = PushAvailability.active;
-    await prefs.setString('push.endpoint.u2', testPushKeys.endpoint);
+    await prefs.setString(_keyU2, testPushKeys.endpoint);
     final c = await ready();
     expect(c.read(devicePushProvider).value, PushAvailability.ready);
   });
@@ -116,7 +150,7 @@ void main() {
       'profilo', () async {
     final c = await ready();
     await c.read(devicePushProvider.notifier).activate();
-    await prefs.setString('push.endpoint.u2', testPushKeys.endpoint);
+    await prefs.setString(_keyU2, testPushKeys.endpoint);
 
     expect(await c.read(devicePushProvider.notifier).deactivate(), isTrue);
 
@@ -180,10 +214,13 @@ void main() {
     });
 
     test('logout: il DELETE prima di annullare il token', () async {
+      await prefs.setString(_keyProva, 'https://push.example/prova');
       await c.read(sessionControllerProvider.notifier).logout();
 
       expect(api.calls, ['unsubscribe ${testPushKeys.endpoint}', 'logout']);
       expect(prefs.getString(_key), isNull);
+      // La chiave dell'altro sito resta; questo browser si disiscrive.
+      expect(prefs.getString(_keyProva), 'https://push.example/prova');
       expect(web.unsubscribeCalls, 1);
     });
 
@@ -200,13 +237,15 @@ void main() {
     test('DELETE che fallisce con un altro profilo iscritto: browser '
         'disiscritto e tutte le chiavi tolte', () async {
       api.failure = const ServerUnreachableException();
-      await prefs.setString('push.endpoint.u2', testPushKeys.endpoint);
+      await prefs.setString(_keyU2, testPushKeys.endpoint);
+      await prefs.setString(_keyProva, 'https://push.example/prova');
 
       await c.read(sessionControllerProvider.notifier).logout();
 
       expect(web.unsubscribeCalls, 1);
       expect(prefs.getKeys().where((k) => k.startsWith('push.endpoint.')),
           isEmpty);
+      expect(prefs.getString(_keyProva), isNull);
       expect(c.read(sessionControllerProvider), isA<SessionSignedOut>());
     });
 

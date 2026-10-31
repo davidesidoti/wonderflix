@@ -34,6 +34,11 @@ class PushKeys {
 }
 
 abstract interface class WebPush {
+  /// Il percorso del service worker (la cartella del sito, es.
+  /// `/wonderflix/`): il sito pubblico e quello di prova hanno la stessa
+  /// origine ma iscrizioni diverse.
+  String get scope;
+
   /// `active` se il browser ha già un'iscrizione (di qualunque profilo).
   Future<PushAvailability> availability();
 

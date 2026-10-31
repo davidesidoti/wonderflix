@@ -40,16 +40,46 @@ import 'shell_panels.dart';
 const _entryRoutes = {'/splash', '/login', '/unreachable', '/profiles'};
 
 /// Dove deve stare l'utente in base allo stato di sessione.
-/// `null` = la posizione attuale va bene.
+/// `null` = la posizione attuale va bene. La pagina dell'avvio (es. dal tocco
+/// su una notifica ad app chiusa) passa per le schermate di ingresso in
+/// `from` e si apre dopo l'accesso, al posto della Home.
 String? sessionRedirect(SessionState session, String location) {
-  String? goTo(String target) => location == target ? null : target;
+  final uri = Uri.parse(location);
+  final entry = _entryRoutes.contains(uri.path);
+  final from = entry
+      ? _returnLocation(uri.queryParameters['from'])
+      : session is SessionStarting
+          ? _returnLocation(location)
+          : null;
+  String? goTo(String target) => uri.path == target
+      ? null
+      : Uri(path: target, queryParameters: from == null ? null : {'from': from})
+          .toString();
   return switch (session) {
     SessionStarting() => goTo('/splash'),
     SessionSignedOut() => goTo('/login'),
     SessionUnreachable() => goTo('/unreachable'),
     SessionChoosingProfile() => goTo('/profiles'),
-    SessionSignedIn() => _entryRoutes.contains(location) ? '/home' : null,
+    SessionSignedIn() => entry ? from ?? '/home' : null,
   };
+}
+
+/// Solo pagine di questa app (niente schema né host) e non di ingresso.
+String? _returnLocation(String? location) {
+  if (location == null ||
+      !location.startsWith('/') ||
+      location.startsWith('//') ||
+      location.contains(r'\')) {
+    return null;
+  }
+  final uri = Uri.tryParse(location);
+  if (uri == null ||
+      uri.hasScheme ||
+      uri.hasAuthority ||
+      _entryRoutes.contains(uri.path)) {
+    return null;
+  }
+  return location;
 }
 
 /// Pagina del player (spec D §6.3). Dalla scheda o dalla Home entra in
@@ -106,7 +136,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: '/splash',
     refreshListenable: session,
     redirect: (context, state) =>
-        sessionRedirect(session.value, state.matchedLocation),
+        sessionRedirect(session.value, state.uri.toString()),
     routes: [
       GoRoute(
           path: '/splash',

@@ -126,7 +126,7 @@ Ogni tag pubblica il sito per tutti, quindi la build di un ramo si prova su un p
 
 1. Build (da `app/`), con la base del percorso di prova:
    ```bash
-   flutter build web --wasm --base-href /wonderflix-prova/ --dart-define-from-file=config/wonderflix.json
+   flutter build web --wasm --base-href /wonderflix-prova/ --pwa-strategy=none --dart-define-from-file=config/wonderflix.json
    ```
 2. Copia (prima tutto tranne `index.html`, poi `index.html`; i file che non esistono più vengono tolti):
    ```bash
