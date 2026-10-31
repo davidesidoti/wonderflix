@@ -101,6 +101,61 @@ public static class DownloadRule
         return newPosition > currentPosition || (newPosition == currentPosition && newScore > (currentScore ?? 0));
     }
 
+    /// <summary>Il formato in cui una release si ricorda tra una ricerca e l'altra: <c>indexerId|guid</c>.</summary>
+    public static string ReleaseId(string guid, int indexerId) => $"{indexerId}|{guid}";
+
+    /// <summary>
+    /// Il tappabuchi quando non c'è una scelta: il migliore sotto il minimo di punteggio, oppure tra i troppo piccoli quello
+    /// più pesante (a parità di punteggio e risoluzione). I rifiutati da Arr non si scelgono mai.
+    /// </summary>
+    public static (ArrRelease? Release, string? Kind) ChooseStopgap(RuleResult rule)
+    {
+        if (rule.BelowMinScore)
+        {
+            return (rule.Candidates[0], DownloadStopgaps.Score);
+        }
+
+        var heaviest = rule.Rejected
+            .Where(r => r.Reason == "TooSmall")
+            .Select(r => r.Release)
+            .OrderByDescending(r => r.CustomFormatScore)
+            .ThenByDescending(r => r.Quality?.Quality?.Resolution ?? 0)
+            .ThenByDescending(r => r.Size)
+            .ThenByDescending(r => r.Seeders ?? 0)
+            .ThenBy(r => r.Guid, StringComparer.Ordinal)
+            .FirstOrDefault();
+        return heaviest is null ? (null, null) : (heaviest, DownloadStopgaps.Size);
+    }
+
+    /// <summary>Che tappabuchi sarebbe una release: "Size" se è troppo piccola, "Score" se pesa abbastanza ma è sotto il minimo, null se la regola la accetta.</summary>
+    public static string? StopgapKindOf(int score, long sizeBytes, int runtimeMinutes, bool isMovie, double minGbPerHour, int minScore)
+    {
+        var minutes = runtimeMinutes > 0 ? runtimeMinutes : isMovie ? FallbackMovieMinutes : FallbackEpisodeMinutes;
+        if (GbPerHour(sizeBytes, minutes) < minGbPerHour)
+        {
+            return DownloadStopgaps.Size;
+        }
+
+        return score < minScore ? DownloadStopgaps.Score : null;
+    }
+
+    /// <summary>Il riassunto di una ricerca: quante release, quante scartate e perché, e se c'è un tappabuchi.</summary>
+    public static DownloadSummary Summarize(RuleResult rule, int found, int minScore)
+    {
+        var arr = rule.Rejected.Where(r => r.Reason == "Arr").ToList();
+        return new DownloadSummary
+        {
+            Found = found,
+            BestScore = rule.Candidates.Count > 0 ? rule.Candidates[0].CustomFormatScore : null,
+            MinScore = minScore,
+            TooSmall = rule.Rejected.Count - arr.Count,
+            ArrRejected = arr.Count,
+            // GroupBy tiene l'ordine di comparsa e OrderBy è stabile: a parità vince il primo incontrato.
+            TopRejection = arr.Where(r => r.Detail is not null).GroupBy(r => r.Detail).OrderByDescending(g => g.Count()).Select(g => g.Key).FirstOrDefault(),
+            StopgapAvailable = ChooseStopgap(rule).Release is not null,
+        };
+    }
+
     /// <summary>GB (10^9 byte) all'ora; 0 se la durata non è positiva.</summary>
     public static double GbPerHour(long sizeBytes, int runtimeMinutes) =>
         runtimeMinutes > 0 ? sizeBytes / 1_000_000_000.0 / (runtimeMinutes / 60.0) : 0;

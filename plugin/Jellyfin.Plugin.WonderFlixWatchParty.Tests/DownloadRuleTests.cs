@@ -344,4 +344,88 @@ public class DownloadRuleTests
         Assert.Equal(1.0, DownloadRule.GbPerHour(Gb, 60), 5);
         Assert.Equal(0.0, DownloadRule.GbPerHour(Gb, 0), 5);
     }
+
+    [Fact]
+    public void AStopgapIsTheBestBelowMinimum()
+    {
+        var rule = DownloadRule.Choose([Release("a", "WEBDL-1080p", 1080, 3, 30), Release("b", "WEBDL-1080p", 1080, 3, 40)], Input(100, minScore: 100));
+
+        var (release, kind) = DownloadRule.ChooseStopgap(rule);
+
+        Assert.Equal("b", release!.Guid);
+        Assert.Equal(DownloadStopgaps.Score, kind);
+    }
+
+    [Fact]
+    public void AStopgapAmongTooSmallIsTheHeaviest()
+    {
+        // 0,5 e 0,7 GB/ora su 100 minuti; il rifiutato da Arr ha il punteggio più alto ma non si sceglie mai.
+        var rule = DownloadRule.Choose(
+        [
+            Release("s5", "WEBDL-1080p", 1080, 0.5 * 100 / 60, 10),
+            Release("s7", "WEBDL-1080p", 1080, 0.7 * 100 / 60, 10),
+            Release("arr", "WEBDL-1080p", 1080, 5, 90, rejections: "Not English"),
+        ], Input(100, minScore: 100));
+
+        var (release, kind) = DownloadRule.ChooseStopgap(rule);
+
+        Assert.Equal("s7", release!.Guid);
+        Assert.Equal(DownloadStopgaps.Size, kind);
+    }
+
+    [Fact]
+    public void NoStopgapWithOnlyArrRejections()
+    {
+        var rule = DownloadRule.Choose([Release("a", "WEBDL-1080p", 1080, 5, 90, rejections: "Not English")], Input(100));
+
+        Assert.Equal((null, null), DownloadRule.ChooseStopgap(rule));
+    }
+
+    [Fact]
+    public void StopgapKindFollowsTheRules()
+    {
+        // Minimo di peso su 100 minuti: 0,8 * 100 / 60 = 1,33 GB.
+        Assert.Equal("Size", DownloadRule.StopgapKindOf(10, Gb, 100, true, 0.8, 100));
+        Assert.Equal("Score", DownloadRule.StopgapKindOf(10, 3 * Gb, 100, true, 0.8, 100));
+        Assert.Null(DownloadRule.StopgapKindOf(100, 3 * Gb, 100, true, 0.8, 100));
+
+        // Durata sconosciuta: 100 minuti per un film, 40 per un episodio (0,53 GB).
+        Assert.Equal("Size", DownloadRule.StopgapKindOf(100, Gb, 0, true, 0.8, 100));
+        Assert.Null(DownloadRule.StopgapKindOf(100, Gb, 0, false, 0.8, 100));
+    }
+
+    [Fact]
+    public void TheSummaryCountsAndPicksTheCommonestRejection()
+    {
+        var rule = DownloadRule.Choose(
+        [
+            Release("r1", "WEBDL-1080p", 1080, 5, 90, rejections: "Quality not wanted"),
+            Release("r2", "WEBDL-1080p", 1080, 5, 90, rejections: "Not English"),
+            Release("r3", "WEBDL-1080p", 1080, 5, 90, rejections: "Not English"),
+            Release("small", "WEBDL-1080p", 1080, 0.5, 10),
+            Release("cand", "WEBDL-1080p", 1080, 5, 40),
+        ], Input(100, minScore: 100));
+
+        var summary = DownloadRule.Summarize(rule, 5, 100);
+
+        Assert.Equal(5, summary.Found);
+        Assert.Equal(40, summary.BestScore);
+        Assert.Equal(100, summary.MinScore);
+        Assert.Equal(1, summary.TooSmall);
+        Assert.Equal(3, summary.ArrRejected);
+        Assert.Equal("Not English", summary.TopRejection);
+        Assert.True(summary.StopgapAvailable);
+    }
+
+    [Fact]
+    public void TheSummaryTieGoesToTheFirstRejectionMet()
+    {
+        var rule = DownloadRule.Choose(
+        [
+            Release("r1", "WEBDL-1080p", 1080, 5, 90, rejections: "B"),
+            Release("r2", "WEBDL-1080p", 1080, 5, 90, rejections: "A"),
+        ], Input(100));
+
+        Assert.Equal("B", DownloadRule.Summarize(rule, 2, 50).TopRejection);
+    }
 }

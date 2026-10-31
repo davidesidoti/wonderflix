@@ -99,6 +99,58 @@ public sealed class DownloadEntry
 
     /// <summary>Solo stagioni: i numeri degli episodi del pack scaricato, per cercarne gli upgrade.</summary>
     public List<int>? EpisodeNumbers { get; set; }
+
+    /// <summary>Il tappabuchi proposto per questa voce: <see cref="DownloadStopgaps.Score"/>, <see cref="DownloadStopgaps.Size"/> o null.</summary>
+    public string? Stopgap { get; set; }
+
+    /// <summary>L'admin ha messo la voce in pausa: non si cerca più finché non cambia qualcosa.</summary>
+    public bool Snoozed { get; set; }
+
+    /// <summary>Il riassunto dell'ultima ricerca; null se non c'è ancora.</summary>
+    public DownloadSummary? Summary { get; set; }
+
+    /// <summary>Le release rifiutate dall'admin (<see cref="DownloadRule.ReleaseId"/>): la ricerca non le sceglie più.</summary>
+    public List<string>? RefusedReleases { get; set; }
+
+    /// <summary>L'id del download nel client, per ritrovarlo in coda.</summary>
+    public string? DownloadId { get; set; }
+
+    /// <summary>Il messaggio di Sonarr/Radarr per un import bloccato, così com'è.</summary>
+    public string? BlockedMessage { get; set; }
+}
+
+/// <summary>Il tipo di tappabuchi di una voce (<c>DownloadEntry.Stopgap</c>).</summary>
+public static class DownloadStopgaps
+{
+    /// <summary>Il migliore trovato, ma sotto il punteggio minimo.</summary>
+    public const string Score = "Score";
+
+    /// <summary>Il più pesante tra quelli troppo piccoli.</summary>
+    public const string Size = "Size";
+}
+
+/// <summary>Il riassunto dell'ultima ricerca di una voce: serve a spiegare perché è in "Serve te".</summary>
+public sealed class DownloadSummary
+{
+    /// <summary>Quante release ha trovato la ricerca.</summary>
+    public int Found { get; set; }
+
+    /// <summary>Il punteggio del miglior candidato che la regola accetta; null se non ce n'è.</summary>
+    public int? BestScore { get; set; }
+
+    public int MinScore { get; set; }
+
+    /// <summary>Quante release erano sotto il peso minimo.</summary>
+    public int TooSmall { get; set; }
+
+    /// <summary>Quante release ha rifiutato Radarr/Sonarr.</summary>
+    public int ArrRejected { get; set; }
+
+    /// <summary>Il rifiuto di Radarr/Sonarr più frequente (testo com'è).</summary>
+    public string? TopRejection { get; set; }
+
+    /// <summary>C'è un tappabuchi da proporre (vedi <see cref="DownloadEntry.Stopgap"/>).</summary>
+    public bool StopgapAvailable { get; set; }
 }
 
 /// <summary>Una scelta fatta (spec T §3): i campi della release sono piatti, come in <c>DownloadChoiceDto</c>.</summary>
