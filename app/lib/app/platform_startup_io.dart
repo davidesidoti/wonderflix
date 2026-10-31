@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
+import 'package:local_notifier/local_notifier.dart';
 import 'package:logging/logging.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,6 +23,19 @@ Future<bool> initPlatform(SharedPreferences prefs) async {
   // Carica libmpv: va fatto prima di creare qualunque Player.
   MediaKit.ensureInitialized();
   await setupWindow(prefs);
+
+  // Notifiche di Windows con l'identità del processo e dei collegamenti
+  // dell'installer (windows/runner/main.cpp, installer/wonderflix.iss):
+  // `local_notifier` usa appName come AppUserModelID. `ignore` perché il
+  // collegamento nel menu Start lo crea l'installer: con `requireCreate`
+  // la libreria riscriverebbe il suo AppUserModelID.
+  try {
+    await localNotifier.setup(
+        appName: 'it.wonderflix.WonderFlix',
+        shortcutPolicy: ShortcutPolicy.ignore);
+  } on Object catch (e) {
+    _log.warning('notifiche di Windows non disponibili: $e');
+  }
 
   // Pannello media di Windows: se non si avvia, il player funziona lo
   // stesso (senza pannello e con i tasti multimediali gestiti dal player).

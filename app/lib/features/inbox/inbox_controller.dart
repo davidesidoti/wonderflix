@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
@@ -68,11 +69,22 @@ class InboxController extends Notifier<InboxState> {
   /// L'utente collegato all'ultima `build`: `null` senza sessione.
   String? _userId;
 
+  /// Il `seq` più alto visto; `null` finché il primo caricamento non riesce.
+  int? _maxSeq;
+
+  final _arrivals = StreamController<InboxEntry>.broadcast();
+
+  /// Le voci nuove arrivate con un `InboxChanged`, per le notifiche di
+  /// Windows. Il primo caricamento, il cambio di profilo e le riconnessioni
+  /// aggiornano solo il massimo: le voci vecchie non suonano mai.
+  Stream<InboxEntry> get arrivals => _arrivals.stream;
+
   @override
   InboxState build() {
     final userId = ref.watch(sessionControllerProvider
         .select((s) => s is SessionSignedIn ? s.user.id : null));
     _loads++;
+    _maxSeq = null;
     // Utente nuovo o logout: il pannello di prima non c'è più. Con lo stesso
     // utente (es. la funzione che va e viene) il pannello resta com'è.
     if (userId != _userId) {
@@ -83,7 +95,7 @@ class InboxController extends Notifier<InboxState> {
       return const InboxState();
     }
     final notices = ref.watch(socialEventsProvider).listen((event) {
-      if (event is InboxChangedEvent) unawaited(reload());
+      if (event is InboxChangedEvent) unawaited(reload(announce: true));
     });
     final connections = ref.watch(watchPartyEventsProvider).listen((event) {
       // A ogni connessione, la prima compresa: un InboxChanged mandato tra la
@@ -99,13 +111,21 @@ class InboxController extends Notifier<InboxState> {
     return const InboxState();
   }
 
-  /// Rilegge la cassetta dal plugin.
-  Future<void> reload() async {
+  /// Rilegge la cassetta dal plugin; con [announce] le voci nuove escono da
+  /// [arrivals].
+  Future<void> reload({bool announce = false}) async {
     if (!ref.mounted || !ref.read(socialAvailabilityProvider).inbox) return;
     final load = ++_loads;
     try {
       final snapshot = await ref.read(socialApiProvider).inbox();
       if (!ref.mounted || load != _loads) return;
+      final seen = _maxSeq;
+      if (announce && seen != null) {
+        for (final entry in snapshot.entries) {
+          if (entry.seq > seen) _arrivals.add(entry);
+        }
+      }
+      _maxSeq = math.max(seen ?? 0, snapshot.maxSeq);
       state = _seenIfOpen(
           state.copyWith(snapshot: snapshot, loaded: true, failed: false));
     } on Object catch (error) {

@@ -16,6 +16,7 @@ import '../features/friends/friend_request_card.dart';
 import '../features/friends/friends_button.dart';
 import '../features/friends/friends_panel.dart';
 import '../features/inbox/inbox_button.dart';
+import '../features/inbox/inbox_toaster.dart';
 import '../features/library/server_events_binding.dart';
 import '../features/match/match_invites.dart';
 import '../features/profiles/profile_switch.dart';
@@ -81,6 +82,8 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget build(BuildContext context) {
     // Tiene aperto il WebSocket degli eventi finché si è autenticati.
     ref.watch(serverEventsBindingProvider);
+    // Le voci nuove della cassetta diventano notifiche di Windows.
+    ref.watch(inboxToasterProvider);
     final session = ref.watch(sessionControllerProvider);
     final user = session is SessionSignedIn ? session.user : null;
     final l = AppLocalizations.of(context);
