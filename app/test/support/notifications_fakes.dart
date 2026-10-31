@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/social/notifications_api.dart';
 import 'package:wonderflix/core/social/notifications_models.dart';
@@ -12,9 +14,15 @@ class FakeNotificationsApi implements NotificationsApi {
   ApiException? failure;
   final calls = <String>[];
 
+  /// Se c'è, [get] / [setEnabled] aspettano che si completi (la chiamata
+  /// resta in volo), dopo aver registrato la chiamata.
+  Completer<void>? getGate;
+  Completer<void>? setGate;
+
   @override
   Future<NotificationsInfo> get() async {
     calls.add('get');
+    if (getGate case final gate?) await gate.future;
     if (failure case final error?) throw error;
     return NotificationsInfo(vapidPublicKey: 'BKey', types: types);
   }
@@ -22,6 +30,7 @@ class FakeNotificationsApi implements NotificationsApi {
   @override
   Future<void> setEnabled(String type, bool enabled) async {
     calls.add('setEnabled $type $enabled');
+    if (setGate case final gate?) await gate.future;
     if (failure case final error?) throw error;
   }
 

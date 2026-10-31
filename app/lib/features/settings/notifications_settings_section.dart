@@ -58,7 +58,8 @@ String _label(AppLocalizations l, String type) => switch (type) {
       'DiskAlmostFull' => l.notifPrefDiskAlmostFull,
       'RecoveryStarted' => l.notifPrefRecoveryStarted,
       'RecoveryBlocked' => l.notifPrefRecoveryBlocked,
-      _ => l.notifPrefRestartPending,
+      'RestartPending' => l.notifPrefRestartPending,
+      _ => type,
     };
 
 /// Impostazioni → Notifiche (spec V §4.2): un interruttore per ogni tipo che
@@ -83,7 +84,11 @@ class NotificationsSettingsSection extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final prefs = ref.watch(notificationPrefsProvider);
     final Widget child;
-    if (prefs.hasError && !prefs.hasValue) {
+    // Rileggendo (es. dopo un cambio di profilo) il valore tenuto è di un
+    // altro utente: non si mostra.
+    if (prefs.isLoading) {
+      child = const SizedBox.shrink();
+    } else if (prefs.hasError && !prefs.hasValue) {
       child = Row(
         children: [
           Expanded(
