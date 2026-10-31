@@ -105,6 +105,27 @@ class RowShell extends StatelessWidget {
   }
 }
 
+/// La barra sottile di avanzamento, uguale nelle schede Download e Spazio.
+class RowProgressBar extends StatelessWidget {
+  const RowProgressBar({super.key, required this.value});
+
+  final double value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: value.clamp(0.0, 1.0),
+            minHeight: 4,
+            color: WfColors.gold,
+            backgroundColor: WfColors.border,
+          ),
+        ),
+      );
+}
+
 Widget _title(String text) => Text(text,
     maxLines: 2,
     overflow: TextOverflow.ellipsis,
@@ -204,6 +225,7 @@ class DownloadItemRow extends StatelessWidget {
     final service = item.kind == DownloadKind.movie ? 'Radarr' : 'Sonarr';
     final explanation = downloadExplanation(l, item, service);
     final blocked = item.blockedMessage;
+    final progress = item.progress;
     final legacy = item.actions.isEmpty;
     final actions = legacy
         ? [DownloadAction.pick, if (!needsYou) DownloadAction.searchNow]
@@ -224,6 +246,10 @@ class DownloadItemRow extends StatelessWidget {
             color: needsYou ? WfColors.error : WfColors.creamMuted),
         _muted([since, if (next.isNotEmpty) next].join(' · ')),
         if (why.isNotEmpty) _muted(why, color: WfColors.gold),
+        if (progress != null && item.state == DownloadState.downloading) ...[
+          RowProgressBar(value: progress.fraction),
+          _muted(downloadProgressLabel(l, progress, now)),
+        ],
         if (explanation.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 6),

@@ -223,6 +223,40 @@ class DownloadSummary {
   }
 }
 
+/// L'avanzamento di un download in corso (plugin 1.18.0+): il `Status` è
+/// quello di Sonarr/Radarr, com'è ("downloading", "paused", ...).
+class DownloadProgress {
+  const DownloadProgress({
+    required this.sizeBytes,
+    required this.sizeLeftBytes,
+    this.estimatedCompletion,
+    required this.status,
+  });
+
+  final int sizeBytes;
+  final int sizeLeftBytes;
+  final DateTime? estimatedCompletion;
+  final String status;
+
+  /// Da 0 a 1; 0 se la dimensione non è nota.
+  double get fraction =>
+      sizeBytes <= 0 ? 0 : ((sizeBytes - sizeLeftBytes) / sizeBytes).clamp(0, 1);
+
+  static DownloadProgress? fromJson(Object? json) {
+    if (json is! Map<String, dynamic>) return null;
+    try {
+      return DownloadProgress(
+        sizeBytes: (json['SizeBytes'] as num).toInt(),
+        sizeLeftBytes: (json['SizeLeftBytes'] as num).toInt(),
+        estimatedCompletion: _dateOrNull(json['EstimatedCompletion']),
+        status: json['Status'] as String,
+      );
+    } on Object {
+      return null;
+    }
+  }
+}
+
 /// Un titolo in attesa (include `NeedsYou`).
 class DownloadItem {
   const DownloadItem({
@@ -239,6 +273,7 @@ class DownloadItem {
     this.summary,
     this.blockedMessage,
     this.snoozed = false,
+    this.progress,
   });
 
   final String key;
@@ -258,6 +293,9 @@ class DownloadItem {
   /// Il messaggio di Sonarr/Radarr per un import bloccato, così com'è.
   final String? blockedMessage;
   final bool snoozed;
+
+  /// Solo per i titoli in download.
+  final DownloadProgress? progress;
 
   static DownloadItem? fromJson(Map<String, dynamic> json) {
     try {
@@ -281,6 +319,7 @@ class DownloadItem {
         summary: DownloadSummary.fromJson(json['Summary']),
         blockedMessage: json['BlockedMessage'] as String?,
         snoozed: json['Snoozed'] as bool? ?? false,
+        progress: DownloadProgress.fromJson(json['Progress']),
       );
     } on Object {
       return null;

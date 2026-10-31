@@ -11,6 +11,44 @@ String formatGb(AppLocalizations l, int bytes) => l.downloadsGb(
   NumberFormat('0.00', l.localeName).format(bytes / _bytesPerGb),
 );
 
+/// "62% · 1,20 GB di 3,10 GB · finisce tra 25 min". Lo stato di
+/// Sonarr/Radarr arriva com'è ("downloading", "downloadClientUnavailable"):
+/// si confronta senza badare alle maiuscole. Senza coda da dire, niente.
+String downloadProgressLabel(
+  AppLocalizations l,
+  DownloadProgress p,
+  DateTime now,
+) {
+  final line = l.downloadsProgressLine(
+    (p.fraction * 100).round(),
+    formatGb(l, (p.fraction * p.sizeBytes).round()),
+    formatGb(l, p.sizeBytes),
+  );
+  final eta = p.estimatedCompletion;
+  final tail = switch (p.status.toLowerCase()) {
+    'downloading' when eta != null => _etaLabel(l, eta, now),
+    'paused' => l.downloadsProgressPaused,
+    'queued' || 'delay' => l.downloadsProgressQueued,
+    'warning' => l.downloadsProgressStalled,
+    'downloadclientunavailable' => l.downloadsProgressClientDown,
+    _ => '',
+  };
+  return tail.isEmpty ? line : '$line · $tail';
+}
+
+String _etaLabel(AppLocalizations l, DateTime eta, DateTime now) {
+  final left = eta.difference(now);
+  if (left.inMinutes < 1) return l.downloadsEtaSoon;
+  if (left.inMinutes < 60) return l.downloadsEtaMinutes(left.inMinutes);
+  if (left.inHours < 24) {
+    final minutes = left.inMinutes % 60;
+    return minutes == 0
+        ? l.downloadsEtaHours(left.inHours)
+        : l.downloadsEtaHoursMinutes(left.inHours, minutes);
+  }
+  return l.downloadsEtaOn(DateFormat.MMMd(l.localeName).format(eta.toLocal()));
+}
+
 String downloadReasonLabel(AppLocalizations l, DownloadReason r) => switch (r) {
   DownloadReason.nothingFound => l.downloadReasonNothingFound,
   DownloadReason.belowMinScore => l.downloadReasonBelowMinScore,

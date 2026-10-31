@@ -214,18 +214,7 @@ List<Widget> _downloadLines(
       return [
         _line(l.spaceDownloading((d.progress * 100).round()), _gold),
         _line(l.spaceSizeLeft(spaceGb(l, d.sizeLeftBytes))),
-        Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: d.progress.clamp(0.0, 1.0),
-              minHeight: 4,
-              color: WfColors.gold,
-              backgroundColor: WfColors.border,
-            ),
-          ),
-        ),
+        RowProgressBar(value: d.progress),
       ];
     case 'Importing':
       return [_line(l.spaceImporting, _gold)];

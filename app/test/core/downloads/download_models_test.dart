@@ -232,4 +232,59 @@ void main() {
     expect(item.blockedMessage, isNull);
     expect(item.snoozed, isFalse);
   });
+
+  group('Progress', () {
+    Map<String, dynamic> json([Object? progress = _absent]) => {
+          'Key': 'movie:1',
+          'Kind': 'Movie',
+          'Title': 'Film',
+          'State': 'Downloading',
+          'AvailableSince': '2026-10-20T00:00:00Z',
+          if (!identical(progress, _absent)) 'Progress': progress,
+        };
+
+    test('AProgressIsParsed', () {
+      final p = DownloadItem.fromJson(json({
+        'SizeBytes': 3100000000,
+        'SizeLeftBytes': 1178000000,
+        'EstimatedCompletion': '2026-11-01T10:25:00Z',
+        'Status': 'downloading',
+      }))!
+          .progress!;
+      expect(p.sizeBytes, 3100000000);
+      expect(p.sizeLeftBytes, 1178000000);
+      expect(p.estimatedCompletion, DateTime.utc(2026, 11, 1, 10, 25));
+      expect(p.status, 'downloading');
+      expect(p.fraction, closeTo(0.62, 0.001));
+    });
+
+    test('AMalformedProgressIsNullAndTheItemSurvives', () {
+      for (final bad in [
+        {'SizeBytes': 'x', 'SizeLeftBytes': 1, 'Status': 'queued'},
+        {'SizeBytes': 10, 'SizeLeftBytes': 1},
+        {'SizeBytes': 10, 'SizeLeftBytes': 1, 'Status': 'queued',
+         'EstimatedCompletion': 'non una data'},
+        'testo',
+      ]) {
+        final item = DownloadItem.fromJson(json(bad));
+        expect(item, isNotNull);
+        expect(item!.progress, isNull);
+      }
+    });
+
+    test('MissingOrNullProgressIsNull', () {
+      expect(DownloadItem.fromJson(json())!.progress, isNull);
+      expect(DownloadItem.fromJson(json(null))!.progress, isNull);
+    });
+
+    test('TheFractionIsClamped', () {
+      DownloadProgress p(int size, int left) => DownloadProgress(
+          sizeBytes: size, sizeLeftBytes: left, status: 'downloading');
+      expect(p(0, 0).fraction, 0);
+      expect(p(100, 150).fraction, 0);
+      expect(p(100, -5).fraction, 1);
+    });
+  });
 }
+
+const _absent = Object();

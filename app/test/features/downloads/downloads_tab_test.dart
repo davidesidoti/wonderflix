@@ -40,6 +40,7 @@ DownloadItem _item(
   List<DownloadAction> actions = const [],
   String? blockedMessage,
   bool snoozed = false,
+  DownloadProgress? progress,
 }) =>
     DownloadItem(
       key: key,
@@ -51,6 +52,7 @@ DownloadItem _item(
       actions: actions,
       blockedMessage: blockedMessage,
       snoozed: snoozed,
+      progress: progress,
     );
 
 ReviewItem _review(int n) => ReviewItem(
@@ -350,6 +352,38 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.getSemantics(find.text('In attesa · 1')), header(false));
       handle.dispose();
+    });
+  });
+
+  group('Avanzamento', () {
+    testWidgets('un download in corso mostra barra e riga', (tester) async {
+      api.overviewValue = DownloadsOverview(enabled: true, waiting: [
+        _item('movie:2',
+            state: DownloadState.downloading,
+            progress: DownloadProgress(
+              sizeBytes: 3100000000,
+              sizeLeftBytes: 1178000000,
+              estimatedCompletion:
+                  DateTime.now().add(const Duration(minutes: 25, seconds: 30)),
+              status: 'downloading',
+            )),
+        _item('movie:3'),
+      ]);
+      await pumpTab(tester);
+
+      final bar = tester.widget<LinearProgressIndicator>(
+          find.byType(LinearProgressIndicator));
+      expect(bar.value, closeTo(0.62, 0.001));
+      expect(find.textContaining('62% · 1,92 GB di 3,10 GB · finisce tra '),
+          findsOneWidget);
+    });
+
+    testWidgets('una voce in attesa non ha la barra', (tester) async {
+      api.overviewValue =
+          DownloadsOverview(enabled: true, waiting: [_item('movie:3')]);
+      await pumpTab(tester);
+
+      expect(find.byType(LinearProgressIndicator), findsNothing);
     });
   });
 

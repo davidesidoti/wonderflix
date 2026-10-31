@@ -202,4 +202,59 @@ void main() {
           '');
     });
   });
+
+  group('downloadProgressLabel', () {
+    final now = DateTime.utc(2026, 11, 1, 10);
+    DownloadProgress p(String status, {Duration? eta, int left = 1178000000}) =>
+        DownloadProgress(
+          sizeBytes: 3100000000,
+          sizeLeftBytes: left,
+          estimatedCompletion: eta == null ? null : now.add(eta),
+          status: status,
+        );
+
+    test('ShowsPercentSizesAndMinutes', () {
+      expect(
+        downloadProgressLabel(
+            it, p('downloading', eta: const Duration(minutes: 25)), now),
+        '62% · 1,92 GB di 3,10 GB · finisce tra 25 min',
+      );
+      expect(
+        downloadProgressLabel(
+            en, p('Downloading', eta: const Duration(minutes: 25)), now),
+        '62% · 1.92 GB of 3.10 GB · done in 25 min',
+      );
+    });
+
+    test('EtaBuckets', () {
+      String at(Duration d) =>
+          downloadProgressLabel(it, p('downloading', eta: d), now);
+      expect(at(const Duration(seconds: 30)), endsWith('finisce a momenti'));
+      expect(at(const Duration(minutes: -3)), endsWith('finisce a momenti'));
+      expect(at(const Duration(hours: 2)), endsWith('finisce tra 2 h'));
+      expect(at(const Duration(hours: 2, minutes: 5)),
+          endsWith('finisce tra 2 h 5 min'));
+      // 26 h: mezzogiorno UTC del 2, lo stesso giorno in ogni fuso.
+      expect(at(const Duration(hours: 26)), endsWith('finisce il 2 nov'));
+    });
+
+    test('StatusTails', () {
+      String s(String status) => downloadProgressLabel(it, p(status), now);
+      expect(s('paused'), endsWith(' · in pausa'));
+      expect(s('queued'), endsWith(' · in coda'));
+      expect(s('delay'), endsWith(' · in coda'));
+      expect(s('warning'), endsWith(' · fermo (nessuna fonte)'));
+      expect(s('downloadClientUnavailable'),
+          endsWith(' · client non raggiungibile'));
+    });
+
+    test('NoEtaOrUnknownStatusHasNoTail', () {
+      expect(downloadProgressLabel(it, p('downloading'), now),
+          '62% · 1,92 GB di 3,10 GB');
+      expect(
+          downloadProgressLabel(
+              it, p('boh', eta: const Duration(minutes: 5)), now),
+          '62% · 1,92 GB di 3,10 GB');
+    });
+  });
 }
