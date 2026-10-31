@@ -23,7 +23,8 @@ public sealed class PasswordRecovery(
     RateLimiter limiter,
     AccountSender sender,
     IPasswordReset passwords,
-    ILogger<PasswordRecovery> logger)
+    ILogger<PasswordRecovery> logger,
+    AdminAlerts? alerts = null)
 {
     /// <summary>Lunghezza minima di una password nuova (spec L §8).</summary>
     public const int MinPasswordLength = 6;
@@ -60,6 +61,7 @@ public sealed class PasswordRecovery(
         }
 
         var key = Key(name);
+        bool nameBlocked, everyoneBlocked;
         lock (_startLock)
         {
             if (limiter.IsLimited(EveryoneKey, LimitTypes.RecoveryStartGlobal)
@@ -75,10 +77,20 @@ public sealed class PasswordRecovery(
             limiter.TryAcquire(key, LimitTypes.RecoveryStartMinute);
             limiter.TryAcquire(key, LimitTypes.RecoveryStartHour);
             limiter.TryAcquire(key, LimitTypes.RecoveryStartDay);
+
+            // Un limite fermo adesso è scattato con questa richiesta: le prossime si fermano
+            // al controllo qui sopra, quindi l'avviso parte una volta sola. Il limite del
+            // minuto no: scatta a ogni richiesta.
+            nameBlocked = limiter.IsLimited(key, LimitTypes.RecoveryStartHour) || limiter.IsLimited(key, LimitTypes.RecoveryStartDay);
+            everyoneBlocked = limiter.IsLimited(EveryoneKey, LimitTypes.RecoveryStartGlobal);
         }
 
         // Utente, contatti e invio non si vedono dal tempo di risposta.
-        return new RecoveryStartResult(null, Task.Run(() => SendCodeAsync(name, language)));
+        return new RecoveryStartResult(null, Task.Run(() =>
+        {
+            Blocked(nameBlocked ? name : null, everyoneBlocked);
+            return SendCodeAsync(name, language);
+        }));
     }
 
     /// <summary>
@@ -170,6 +182,7 @@ public sealed class PasswordRecovery(
     private Verdict Verify(string name, string? code, string? newPassword)
     {
         var key = Key(name);
+        bool nameBlocked, everyoneBlocked;
         lock (_completeLock)
         {
             if (limiter.IsLimited(EveryoneKey, LimitTypes.RecoveryFailGlobal)
@@ -200,20 +213,29 @@ public sealed class PasswordRecovery(
             // è solo del server, quindi dice di chi è il nome anche se è un admin o un utente
             // disattivato (per loro il recupero non vale, ma il nome è comunque di un utente).
             // Mai il testo scritto: potrebbe essere un'email o contenere a capo.
-            if (limiter.IsLimited(key, LimitTypes.RecoveryFail) || limiter.IsLimited(key, LimitTypes.RecoveryFailDay))
+            nameBlocked = limiter.IsLimited(key, LimitTypes.RecoveryFail) || limiter.IsLimited(key, LimitTypes.RecoveryFailDay);
+            if (nameBlocked)
             {
                 logger.LogWarning(
                     "Recupero della password fermato dai limiti per {Who}",
                     match?.Id.ToString("N") ?? "un nome che non è un utente");
             }
 
-            if (limiter.IsLimited(EveryoneKey, LimitTypes.RecoveryFailGlobal))
+            everyoneBlocked = limiter.IsLimited(EveryoneKey, LimitTypes.RecoveryFailGlobal);
+            if (everyoneBlocked)
             {
                 logger.LogWarning("Recupero della password fermato per tutti: troppi codici sbagliati oggi");
             }
-
-            return new Verdict(null, null, AccountError.InvalidCode);
         }
+
+        // Fuori dal lucchetto, con le stesse regole del log. In background: la voce scritta solo
+        // per un utente allungherebbe la risposta, e il tempo direbbe se il nome esiste.
+        if (nameBlocked || everyoneBlocked)
+        {
+            _ = Task.Run(() => Blocked(nameBlocked ? name : null, everyoneBlocked));
+        }
+
+        return new Verdict(null, null, AccountError.InvalidCode);
     }
 
     private async Task SendCodeAsync(string name, string? language)
@@ -224,6 +246,12 @@ public sealed class PasswordRecovery(
             if (user is null)
             {
                 return;
+            }
+
+            // Anche senza contatti: l'admin sa che qualcuno ci prova. Non si aspetta.
+            if (alerts is { } admin)
+            {
+                _ = admin.RaiseAsync(new AdminAlert(AlertKey(), InboxEntryTypes.RecoveryStarted, user.Name, UserName: user.Name));
             }
 
             var mine = contacts.Get(user.Id);
@@ -262,6 +290,38 @@ public sealed class PasswordRecovery(
             logger.LogWarning(ex, "Avviso del cambio password non mandato a {UserId}", user.Id.ToString("N"));
         }
     }
+
+    // Il recupero fermato dai limiti, agli admin: per un nome solo se è di un utente (anche admin o
+    // disattivato, come nel log), così chi inventa nomi non manda niente; per tutti senza nome.
+    // Mai il codice né i contatti. Le voci non si aspettano, e un errore finisce nel log.
+    private void Blocked(string? name, bool everyone)
+    {
+        if (alerts is not { } admin)
+        {
+            return;
+        }
+
+        try
+        {
+            if (name is not null && Find(name) is { } user)
+            {
+                _ = admin.RaiseAsync(new AdminAlert(
+                    AlertKey(), InboxEntryTypes.RecoveryBlocked, user.Name, UserName: user.Name, Scope: InboxScopes.User));
+            }
+
+            if (everyone)
+            {
+                _ = admin.RaiseAsync(new AdminAlert(AlertKey(), InboxEntryTypes.RecoveryBlocked, "WonderFlix", Scope: InboxScopes.Everyone));
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Avviso agli admin del recupero fermato non creato");
+        }
+    }
+
+    // Le voci del recupero sono storico: una chiave nuova ogni volta.
+    private static string AlertKey() => "recovery:" + Guid.NewGuid().ToString("N");
 
     // L'utente con questo nome, qualunque sia: il nome senza maiuscole, come Jellyfin.
     private UserRef? Find(string name) =>
