@@ -15,6 +15,7 @@ public sealed class PushServiceTests : IDisposable
     private readonly FakeServer _server = new();
     private readonly FakePushTransport _transport = new();
     private readonly FakeDeviceAccess _devices = new();
+    private readonly FailingUsers _users;
     private readonly PushService _push;
     private readonly UserRef _mario;
 
@@ -23,12 +24,13 @@ public sealed class PushServiceTests : IDisposable
 
     public PushServiceTests()
     {
+        _users = new FailingUsers(_server);
         _push = new PushService(
             new NotificationStore(_folder.NotificationsFile, NullLogger<NotificationStore>.Instance),
             new VapidKeyProvider(() => null, () => { }),
             _transport,
             _devices,
-            _server,
+            _users,
             TimeProvider.System,
             NullLogger<PushService>.Instance);
         _mario = _server.AddUser("Mario");
@@ -44,22 +46,33 @@ public sealed class PushServiceTests : IDisposable
         _folder.Dispose();
     }
 
+    /// <summary>Gli utenti di FakeServer, con una lettura che lancia per gli utenti in <see cref="Failing"/>.</summary>
+    private sealed class FailingUsers(FakeServer server) : IUserDirectory
+    {
+        public HashSet<Guid> Failing { get; } = [];
+
+        public IReadOnlyList<UserRef> GetUsers() => server.GetUsers();
+
+        public UserRef? GetUser(Guid userId) =>
+            Failing.Contains(userId) ? throw new InvalidOperationException("database non disponibile") : server.GetUser(userId);
+    }
+
     private static InboxEntry Entry(string type = InboxEntryTypes.Announcement) =>
         new() { Id = "voce-1", Type = type, Text = "Stasera si guarda Dune", Percent = 92 };
 
     /// <summary>Iscrive un browser finto con chiavi vere e dà accesso al suo dispositivo.</summary>
-    private string Subscribe(UserRef user, string name, string language = "it")
+    private string Subscribe(UserRef user, string name, string? language = "it", string? device = null)
     {
         var key = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
         var auth = RandomNumberGenerator.GetBytes(16);
-        var endpoint = $"https://push.example/{name}";
+        var endpoint = $"https://fcm.googleapis.com/fcm/send/{name}";
         _browsers[endpoint] = (key, auth);
         var request = new SubscribeRequest
         {
             Endpoint = endpoint, P256dh = Base64Url.Encode(Point(key)), Auth = Base64Url.Encode(auth), Language = language,
         };
-        Assert.Equal(HubStatus.Ok, _push.Subscribe(user.Id, $"dev-{name}", request));
-        _devices.Allow(user.Id, $"dev-{name}");
+        Assert.Equal(HubStatus.Ok, _push.Subscribe(user.Id, device ?? $"dev-{name}", request));
+        _devices.Allow(user.Id, device ?? $"dev-{name}");
         return endpoint;
     }
 
@@ -198,7 +211,7 @@ public sealed class PushServiceTests : IDisposable
         byte[] offCurve = [0x04, .. new byte[64]];
         Assert.Equal(HubStatus.Ok, _push.Subscribe(_mario.Id, "dev-rotto", new SubscribeRequest
         {
-            Endpoint = "https://push.example/rotto", P256dh = Base64Url.Encode(offCurve),
+            Endpoint = "https://fcm.googleapis.com/fcm/send/rotto", P256dh = Base64Url.Encode(offCurve),
             Auth = Base64Url.Encode(new byte[16]), Language = "it",
         }));
         _devices.Allow(_mario.Id, "dev-rotto");
@@ -247,10 +260,13 @@ public sealed class PushServiceTests : IDisposable
     }
 
     [Theory]
-    [InlineData("http://push.example/x", 65, 16)]
-    [InlineData("push.example/x", 65, 16)]
-    [InlineData("https://push.example/x", 33, 16)]
-    [InlineData("https://push.example/x", 65, 8)]
+    [InlineData("http://fcm.googleapis.com/x", 65, 16)]
+    [InlineData("fcm.googleapis.com/x", 65, 16)]
+    [InlineData("https://127.0.0.1/x", 65, 16)]
+    [InlineData("https://evil.example/x", 65, 16)]
+    [InlineData("https://evilgoogleapis.com/x", 65, 16)]
+    [InlineData("https://fcm.googleapis.com/x", 33, 16)]
+    [InlineData("https://fcm.googleapis.com/x", 65, 8)]
     public void Subscribe_RejectsBadEndpointOrKeys(string endpoint, int p256dhBytes, int authBytes)
     {
         var request = new SubscribeRequest
@@ -264,7 +280,7 @@ public sealed class PushServiceTests : IDisposable
     [Fact]
     public void Subscribe_RejectsKeysThatAreNotBase64Url()
     {
-        var request = new SubscribeRequest { Endpoint = "https://push.example/x", P256dh = "@@@@", Auth = "!!" };
+        var request = new SubscribeRequest { Endpoint = "https://fcm.googleapis.com/x", P256dh = "@@@@", Auth = "!!" };
 
         Assert.Equal(HubStatus.Invalid, _push.Subscribe(_mario.Id, "dev", request));
         Assert.Equal(HubStatus.Invalid, _push.Subscribe(_mario.Id, "dev", new SubscribeRequest()));
@@ -282,6 +298,122 @@ public sealed class PushServiceTests : IDisposable
         await Deliver(luigi, Entry());
 
         Assert.Equal(luigi.Id, Assert.Single(_transport.Sent).Sub.UserId);
+    }
+
+    [Theory]
+    [InlineData("https://web.push.apple.com/x")]
+    [InlineData("https://fcm.googleapis.com/fcm/send/x")]
+    [InlineData("https://wns2-par02p.notify.windows.com/w/?token=x")]
+    [InlineData("https://updates.push.services.mozilla.com/wpush/v2/x")]
+    [InlineData("https://FCM.GoogleAPIs.com/x")]
+    public void Subscribe_AcceptsKnownPushServices(string endpoint)
+    {
+        var request = new SubscribeRequest
+        {
+            Endpoint = endpoint, P256dh = Base64Url.Encode(new byte[65]), Auth = Base64Url.Encode(new byte[16]),
+        };
+
+        Assert.Equal(HubStatus.Ok, _push.Subscribe(_mario.Id, "dev", request));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public void Subscribe_WithoutDeviceIsInvalid(string? device)
+    {
+        var request = new SubscribeRequest
+        {
+            Endpoint = "https://fcm.googleapis.com/x", P256dh = Base64Url.Encode(new byte[65]), Auth = Base64Url.Encode(new byte[16]),
+        };
+
+        Assert.Equal(HubStatus.Invalid, _push.Subscribe(_mario.Id, device, request));
+    }
+
+    [Theory]
+    [InlineData("it", "Annuncio")]
+    [InlineData("it-IT", "Annuncio")]
+    [InlineData("IT", "Annuncio")]
+    [InlineData("it_CH", "Annuncio")]
+    [InlineData("en-US", "Announcement")]
+    [InlineData("ita", "Announcement")]
+    [InlineData(null, "Announcement")]
+    public async Task Subscribe_LanguageByPrefix(string? language, string title)
+    {
+        Subscribe(_mario, "telefono", language);
+
+        await Deliver(_mario, Entry());
+
+        Assert.Equal(title, Decrypt(Assert.Single(_transport.Sent)).GetProperty("title").GetString());
+    }
+
+    [Fact]
+    public async Task Deliver_AccessCheckThatThrowsDoesNotStopTheOthers()
+    {
+        Subscribe(_mario, "telefono");
+        var laptop = Subscribe(_mario, "portatile");
+        _devices.Failing.Add("dev-telefono");
+        var luigi = _server.AddUser("Luigi");
+        var luigiPhone = Subscribe(luigi, "luigi");
+
+        await _push.DeliverAsync([(_mario.Id, Entry()), (luigi.Id, Entry())]);
+
+        Assert.Equal([luigiPhone, laptop], _transport.Sent.Select(s => s.Sub.Endpoint).Order());
+    }
+
+    [Fact]
+    public async Task Deliver_UserLookupThatThrowsDoesNotStopTheOtherEntries()
+    {
+        var luigi = _server.AddUser("Luigi");
+        var luigiPhone = Subscribe(luigi, "luigi");
+        Subscribe(_mario, "telefono");
+        _users.Failing.Add(_mario.Id);
+
+        await _push.DeliverAsync([(_mario.Id, Entry()), (luigi.Id, Entry())]);
+
+        Assert.Equal(luigiPhone, Assert.Single(_transport.Sent).Sub.Endpoint);
+    }
+
+    [Fact]
+    public async Task Deliver_NoAccess_KeepsSubscriptionRecreatedMeanwhile()
+    {
+        var phone = Subscribe(_mario, "telefono", device: "vecchio");
+        _devices.Revoke(_mario.Id, "vecchio");
+        // Durante il controllo il browser si iscrive di nuovo da una sessione nuova.
+        _devices.BeforeCheck = (_, device) =>
+        {
+            if (device == "vecchio")
+            {
+                Subscribe(_mario, "telefono", device: "nuovo");
+            }
+        };
+
+        await Deliver(_mario, Entry());
+        _devices.BeforeCheck = null;
+        await Deliver(_mario, Entry());
+
+        var sent = Assert.Single(_transport.Sent);
+        Assert.Equal((phone, "nuovo"), (sent.Sub.Endpoint, sent.Sub.DeviceId));
+    }
+
+    [Fact]
+    public async Task Deliver_Gone_KeepsSubscriptionRecreatedMeanwhile()
+    {
+        var phone = Subscribe(_mario, "telefono");
+        _transport.ResultFor[phone] = PushResult.Gone;
+        // Mentre il servizio push risponde, il browser si iscrive di nuovo.
+        _transport.BeforeResult = _ =>
+        {
+            _transport.BeforeResult = null;
+            Subscribe(_mario, "telefono");
+        };
+
+        await Deliver(_mario, Entry());
+        _transport.ResultFor.Clear();
+        _transport.Sent.Clear();
+        await Deliver(_mario, Entry());
+
+        Assert.Equal(phone, Assert.Single(_transport.Sent).Sub.Endpoint);
     }
 
     [Fact]

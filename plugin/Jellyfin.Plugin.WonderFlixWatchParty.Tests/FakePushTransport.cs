@@ -14,9 +14,13 @@ internal sealed class FakePushTransport : IPushTransport
 
     public Dictionary<string, PushResult> ResultFor { get; } = [];
 
+    /// <summary>Chiamato a ogni invio prima di rispondere (per simulare cosa succede nel frattempo).</summary>
+    public Action<PushSubscription>? BeforeResult { get; set; }
+
     public Task<PushResult> SendAsync(PushSubscription sub, byte[] body, string authorization, CancellationToken ct)
     {
         Sent.Add(new SentPush(sub, body, authorization));
+        BeforeResult?.Invoke(sub);
         return Task.FromResult(ResultFor.TryGetValue(sub.Endpoint, out var result) ? result : Result);
     }
 }

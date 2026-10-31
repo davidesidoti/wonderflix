@@ -61,6 +61,9 @@ public sealed class NotificationBook
     public bool Remove(Guid userId, string endpoint) =>
         _subscriptions.RemoveAll(s => Same(s, userId, endpoint)) > 0;
 
+    /// <summary>Toglie proprio quella riga (letta prima con <see cref="For"/>); false se intanto è stata sostituita.</summary>
+    public bool Remove(PushSubscription subscription) => _subscriptions.Remove(subscription);
+
     /// <summary>Toglie l'endpoint per tutti gli utenti (il servizio push dice che non esiste più).</summary>
     public bool RemoveEndpoint(string endpoint) =>
         _subscriptions.RemoveAll(s => s.Endpoint == endpoint) > 0;

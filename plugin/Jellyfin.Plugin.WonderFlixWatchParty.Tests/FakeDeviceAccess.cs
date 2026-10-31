@@ -11,5 +11,17 @@ internal sealed class FakeDeviceAccess : IDeviceAccess
 
     public void Revoke(Guid userId, string deviceId) => _allowed.Remove((userId, deviceId));
 
-    public bool HasAccess(Guid userId, string deviceId) => _allowed.Contains((userId, deviceId));
+    /// <summary>Dispositivi per cui il controllo lancia, come un errore del database di Jellyfin.</summary>
+    public HashSet<string> Failing { get; } = [];
+
+    /// <summary>Chiamato prima di ogni controllo (per simulare cosa succede nel frattempo).</summary>
+    public Action<Guid, string>? BeforeCheck { get; set; }
+
+    public bool HasAccess(Guid userId, string deviceId)
+    {
+        BeforeCheck?.Invoke(userId, deviceId);
+        return Failing.Contains(deviceId)
+            ? throw new InvalidOperationException("database non disponibile")
+            : _allowed.Contains((userId, deviceId));
+    }
 }

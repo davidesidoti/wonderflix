@@ -25,6 +25,10 @@ public sealed class PushService(
     private const int P256dhBytes = 65;
     private const int AuthBytes = 16;
 
+    // Solo i servizi push dei browser: un endpoint qualsiasi farebbe fare al server POST verso la rete interna (SSRF).
+    private static readonly string[] PushHosts =
+        ["push.apple.com", "fcm.googleapis.com", "googleapis.com", "notify.windows.com", "push.services.mozilla.com"];
+
     private readonly Lock _lock = new();
     private NotificationBook? _book;
 
@@ -57,38 +61,20 @@ public sealed class PushService(
     {
         foreach (var (userId, entry) in fresh)
         {
-            if (!NotificationCatalog.Types.Contains(entry.Type))
-            {
-                continue;
-            }
-
             IReadOnlyList<PushSubscription> targets;
-            lock (_lock)
+            try
             {
-                targets = Book.IsEnabled(userId, entry.Type) ? Book.For(userId) : [];
+                targets = Targets(userId, entry);
             }
-
-            if (targets.Count == 0
-                || users.GetUser(userId) is not { Enabled: true } user
-                || (NotificationCatalog.AudienceOf(entry.Type) == NotificationAudience.Admins && !user.IsAdmin))
+            catch (Exception ex)
             {
+                logger.LogWarning("Push di {Type} per {UserId} non spedita: {Error}", entry.Type, userId.ToString("N"), ex.GetType().Name);
                 continue;
             }
 
             foreach (var sub in targets)
             {
-                if (!devices.HasAccess(userId, sub.DeviceId))
-                {
-                    // Logout o sessione revocata: quel dispositivo non deve più ricevere niente.
-                    Change(book => book.Remove(userId, sub.Endpoint));
-                    logger.LogInformation("Iscrizione push a {Host} tolta: il dispositivo non ha più accesso", Host(sub));
-                    continue;
-                }
-
-                if (await SendAsync(sub, entry).ConfigureAwait(false) == PushResult.Gone)
-                {
-                    Change(book => book.RemoveEndpoint(sub.Endpoint));
-                }
+                await DeliverOneAsync(sub, entry).ConfigureAwait(false);
             }
         }
     }
@@ -120,12 +106,18 @@ public sealed class PushService(
         return true;
     }
 
-    /// <summary>POST Notifications/Subscriptions: Invalid se l'endpoint non è https o le chiavi non sono quelle di un browser.</summary>
-    public HubStatus Subscribe(Guid userId, string deviceId, SubscribeRequest? request)
+    /// <summary>
+    /// POST Notifications/Subscriptions: Invalid senza dispositivo, se l'endpoint non è https su un servizio push
+    /// noto o se le chiavi non sono quelle di un browser.
+    /// </summary>
+    public HubStatus Subscribe(Guid userId, string? deviceId, SubscribeRequest? request)
     {
         if (request is null
+            || string.IsNullOrWhiteSpace(deviceId)
             || !Uri.TryCreate(request.Endpoint, UriKind.Absolute, out var uri)
             || uri.Scheme != Uri.UriSchemeHttps
+            || !PushHosts.Any(h => uri.Host.Equals(h, StringComparison.OrdinalIgnoreCase)
+                || uri.Host.EndsWith("." + h, StringComparison.OrdinalIgnoreCase))
             || !Base64Url.TryDecode(request.P256dh ?? "", out var p256dh) || p256dh.Length != P256dhBytes
             || !Base64Url.TryDecode(request.Auth ?? "", out var auth) || auth.Length != AuthBytes)
         {
@@ -139,7 +131,8 @@ public sealed class PushService(
             P256dh = request.P256dh!,
             Auth = request.Auth!,
             DeviceId = deviceId,
-            Language = request.Language == "it" ? "it" : "en",
+            // "it", "it-IT", "IT" valgono italiano; il resto inglese.
+            Language = string.Equals(request.Language?.Split('-', '_')[0], "it", StringComparison.OrdinalIgnoreCase) ? "it" : "en",
             CreatedAt = time.GetUtcNow(),
         };
         Change(book =>
@@ -164,12 +157,42 @@ public sealed class PushService(
     private static string Host(PushSubscription sub) =>
         Uri.TryCreate(sub.Endpoint, UriKind.Absolute, out var uri) ? uri.Host : "?";
 
-    // Un'iscrizione rotta (chiavi, firma, rete) non ferma le altre: nel log solo l'host e il tipo dell'errore.
-    private async Task<PushResult> SendAsync(PushSubscription sub, InboxEntry entry)
+    // Le iscrizioni a cui va la voce, dopo i controlli nell'ordine della spec: tipo, preferenza, utente attivo, ruolo.
+    private IReadOnlyList<PushSubscription> Targets(Guid userId, InboxEntry entry)
+    {
+        if (!NotificationCatalog.Types.Contains(entry.Type))
+        {
+            return [];
+        }
+
+        IReadOnlyList<PushSubscription> targets;
+        lock (_lock)
+        {
+            targets = Book.IsEnabled(userId, entry.Type) ? Book.For(userId) : [];
+        }
+
+        return targets.Count == 0
+            || users.GetUser(userId) is not { Enabled: true } user
+            || (NotificationCatalog.AudienceOf(entry.Type) == NotificationAudience.Admins && !user.IsAdmin)
+            ? []
+            : targets;
+    }
+
+    // Un'iscrizione rotta (accesso, chiavi, firma, rete, disco) non ferma le altre: nel log solo l'host e il tipo
+    // dell'errore. Si toglie solo la riga letta: se intanto il browser si è iscritto di nuovo, quella nuova resta.
+    private async Task DeliverOneAsync(PushSubscription sub, InboxEntry entry)
     {
         try
         {
-            // Il tipo è già controllato in DeliverAsync: il catalogo lo conosce.
+            if (!devices.HasAccess(sub.UserId, sub.DeviceId))
+            {
+                // Logout o sessione revocata: quel dispositivo non deve più ricevere niente.
+                Change(book => book.Remove(sub));
+                logger.LogInformation("Iscrizione push a {Host} tolta: il dispositivo non ha più accesso", Host(sub));
+                return;
+            }
+
+            // Il tipo è già controllato in Targets: il catalogo lo conosce.
             var message = NotificationCatalog.Message(entry, sub.Language)!;
 
             // Solo testo e rotta: niente chiavi, codici o percorsi (spec V §2). Il tag è la voce, così il browser non la ripete.
@@ -182,12 +205,14 @@ public sealed class PushService(
             });
             var body = WebPushCrypto.Encrypt(payload, Base64Url.Decode(sub.P256dh), Base64Url.Decode(sub.Auth));
             var authorization = VapidSigner.AuthorizationHeader(sub.Endpoint, vapid.Get(), VapidSubject, time.GetUtcNow());
-            return await transport.SendAsync(sub, body, authorization, CancellationToken.None).ConfigureAwait(false);
+            if (await transport.SendAsync(sub, body, authorization, CancellationToken.None).ConfigureAwait(false) == PushResult.Gone)
+            {
+                Change(book => book.Remove(sub));
+            }
         }
         catch (Exception ex)
         {
             logger.LogWarning("Push a {Host} non riuscito: {Error}", Host(sub), ex.GetType().Name);
-            return PushResult.Failed;
         }
     }
 
