@@ -31,6 +31,43 @@ public static class InboxEntryTypes
 
     /// <summary>Una segnalazione chiusa, a chi l'ha fatta (spec R §6.3).</summary>
     public const string ReportResolved = "ReportResolved";
+
+    /// <summary>Una richiesta accettata (spec V), a chi l'ha fatta.</summary>
+    public const string RequestApproved = "RequestApproved";
+
+    /// <summary>Una richiesta rifiutata (spec V), a chi l'ha fatta.</summary>
+    public const string RequestDeclined = "RequestDeclined";
+
+    /// <summary>Un download automatico che chiede l'intervento di un admin (spec V).</summary>
+    public const string DownloadNeedsYou = "DownloadNeedsYou";
+
+    /// <summary>Un download fermo, tolto dalla coda (spec V), agli admin.</summary>
+    public const string DownloadStalled = "DownloadStalled";
+
+    /// <summary>"Alleggerisci" bloccato su un import (spec V), agli admin.</summary>
+    public const string LightenBlocked = "LightenBlocked";
+
+    /// <summary>Un'operazione della pagina Spazio è fallita (spec V), agli admin.</summary>
+    public const string SpaceOperationFailed = "SpaceOperationFailed";
+
+    /// <summary>Il disco è quasi pieno (spec V), agli admin.</summary>
+    public const string DiskAlmostFull = "DiskAlmostFull";
+
+    /// <summary>Un recupero password è iniziato (spec V), agli admin.</summary>
+    public const string RecoveryStarted = "RecoveryStarted";
+
+    /// <summary>Un recupero password è stato bloccato dai troppi tentativi (spec V), agli admin.</summary>
+    public const string RecoveryBlocked = "RecoveryBlocked";
+
+    /// <summary>Jellyfin chiede un riavvio (spec V), agli admin.</summary>
+    public const string RestartPending = "RestartPending";
+}
+
+/// <summary>I valori di <see cref="InboxEntry.Scope"/>.</summary>
+public static class InboxScopes
+{
+    public const string User = "User";
+    public const string Everyone = "Everyone";
 }
 
 /// <summary>
@@ -171,6 +208,31 @@ public sealed class InboxEntry
     [JsonPropertyName("EpisodeNumber")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? EpisodeNumber { get; set; }
+
+    /// <summary>Gli avvisi agli admin che si ripetono: la chiave che li tiene uno per volta.</summary>
+    [JsonPropertyName("AlertKey")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AlertKey { get; set; }
+
+    /// <summary>DownloadNeedsYou: il motivo (NothingFound, BelowMinScore, GrabRefused, SearchFailed, ImportBlocked).</summary>
+    [JsonPropertyName("Reason")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Reason { get; set; }
+
+    /// <summary>DiskAlmostFull: la quota usata, in percentuale.</summary>
+    [JsonPropertyName("Percent")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Percent { get; set; }
+
+    /// <summary>RecoveryStarted, RecoveryBlocked: l'utente del recupero.</summary>
+    [JsonPropertyName("UserName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? UserName { get; set; }
+
+    /// <summary>RecoveryBlocked: <see cref="InboxScopes.User"/> o <see cref="InboxScopes.Everyone"/>.</summary>
+    [JsonPropertyName("Scope")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Scope { get; set; }
 
     /// <summary>Copia superficiale: le liste (NewTitles, Seasons, Channels) non si cambiano mai dopo la creazione.</summary>
     public InboxEntry Copy() => (InboxEntry)MemberwiseClone();

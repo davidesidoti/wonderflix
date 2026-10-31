@@ -133,6 +133,12 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>File dove un cron scrive la quota del seedbox. Vuoto: quota non configurata.</summary>
     public string SpaceQuotaFile { get; set; } = string.Empty;
+
+    /// <summary>Chiave pubblica VAPID (base64url) per le notifiche push (spec V). Vuota fino al primo uso: la genera il plugin.</summary>
+    public string VapidPublicKey { get; set; } = string.Empty;
+
+    /// <summary>Chiave privata VAPID (base64url). Il file lo leggono solo gli admin.</summary>
+    public string VapidPrivateKey { get; set; } = string.Empty;
 }
 
 /// <summary>Le soglie di un profilo di qualità di Radarr o Sonarr (spec T). <c>TargetScore</c> null: nessun obiettivo.</summary>

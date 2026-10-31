@@ -2,6 +2,7 @@ using Jellyfin.Plugin.WonderFlixWatchParty.Account;
 using Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
+using Jellyfin.Plugin.WonderFlixWatchParty.Push;
 using Jellyfin.Plugin.WonderFlixWatchParty.Seerr;
 using Jellyfin.Plugin.WonderFlixWatchParty.Server;
 using Jellyfin.Plugin.WonderFlixWatchParty.Space;
@@ -132,6 +133,12 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             SpaceStore.DefaultPath(provider.GetRequiredService<IApplicationPaths>()),
             provider.GetRequiredService<ILogger<SpaceStore>>()));
         serviceCollection.AddSingleton<SpaceService>();
+        // Notifiche push (spec V).
+        serviceCollection.AddSingleton(provider => new NotificationStore(
+            NotificationStore.DefaultPath(provider.GetRequiredService<IApplicationPaths>()),
+            provider.GetRequiredService<ILogger<NotificationStore>>()));
+        serviceCollection.AddSingleton(_ => new VapidKeyProvider(
+            () => Plugin.Instance?.Configuration, () => Plugin.Instance?.SaveConfiguration()));
         serviceCollection.AddSingleton<NewTitlesCollector>();
         serviceCollection.AddSingleton<PresenceTracker>();
         serviceCollection.AddSingleton<PartyDirectory>();
