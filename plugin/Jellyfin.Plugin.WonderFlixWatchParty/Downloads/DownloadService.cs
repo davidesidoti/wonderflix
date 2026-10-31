@@ -1,5 +1,7 @@
 using System.Globalization;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
+using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
+using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
@@ -19,7 +21,8 @@ public sealed partial class DownloadService(
     IDownloadSettings settings,
     DownloadStore store,
     TimeProvider time,
-    ILogger<DownloadService> logger)
+    ILogger<DownloadService> logger,
+    AdminAlerts? alerts = null)
 {
     /// <summary>Un giro ogni tanto (decisione 7).</summary>
     public static readonly TimeSpan CycleInterval = TimeSpan.FromMinutes(15);
@@ -461,10 +464,12 @@ public sealed partial class DownloadService(
         }
 
         logger.LogInformation("Download automatici: {Key} fermo da {Hours} ore, tolto dalla coda", key, DownloadSchedule.StalledAfter.TotalHours);
+        string? title = null;
         lock (_lock)
         {
             if (Book.Get(key) is { } entry && entry.QueueId == queueId)
             {
+                title = entry.Title;
                 // Un upgrade fermo torna a UpgradeWatch con il file di prima, un primo download in attesa.
                 if (entry.PreviousScore is not null)
                 {
@@ -475,6 +480,12 @@ public sealed partial class DownloadService(
                     BackToWaiting(entry, time.GetUtcNow());
                 }
             }
+        }
+
+        // Una voce di storico per ogni rimozione: la chiave con l'ora la rende unica.
+        if (alerts is not null && title is not null)
+        {
+            await alerts.RaiseAsync(new AdminAlert($"stalled:{key}:{time.GetUtcNow().Ticks}", InboxEntryTypes.DownloadStalled, title)).ConfigureAwait(false);
         }
     }
 

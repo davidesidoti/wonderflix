@@ -1,4 +1,5 @@
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
+using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
 using Microsoft.Extensions.Logging;
 
@@ -63,6 +64,17 @@ public sealed partial class DownloadService
 
     // Quello che scarica un grab dell'admin: la voce, il file di adesso e, per una stagione, gli episodi della release.
     private sealed record GrabTarget(ArrTitle Title, CurrentFile? Current, List<int>? EpisodeNumbers);
+
+    /// <summary>Un avviso agli admin per ogni voce che aspetta loro (stato <c>NeedsYou</c>).</summary>
+    public IReadOnlyList<AdminAlert> NeedsYouAlerts()
+    {
+        lock (_lock)
+        {
+            return [.. Book.Entries
+                .Where(e => e.State == DownloadStates.NeedsYou)
+                .Select(e => new AdminAlert("download:" + e.Key, InboxEntryTypes.DownloadNeedsYou, e.Title, Reason: e.Reason))];
+        }
+    }
 
     /// <summary>
     /// Cerca un titolo e applica la regola (spec T §8.2), anche senza una voce (per esempio da "Da ripassare"). Null per una

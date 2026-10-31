@@ -1,6 +1,8 @@
 using Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
+using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
@@ -15,6 +17,8 @@ public sealed class DownloadsHostedServiceTests : IDisposable
     private readonly FakeArrClient _arr = new();
     private readonly FakeTimeProvider _time = new(T0);
     private readonly RecordingLogger<DownloadsHostedService> _logger = new();
+    private readonly FakeServer _server = new();
+    private readonly AdminAlerts _alerts;
     private readonly DownloadService _downloads;
     private readonly DownloadsHostedService _hosted;
     private TaskCompletionSource<IReadOnlyList<SonarrEpisode?>>? _gate;
@@ -28,8 +32,9 @@ public sealed class DownloadsHostedServiceTests : IDisposable
             Interlocked.Increment(ref _cycles);
             return _gate?.Task ?? Task.FromResult<IReadOnlyList<SonarrEpisode?>>([]);
         };
+        _alerts = new AdminAlerts(TestInbox.Create(_server, _folder, _time), _server, _time, NullLogger<AdminAlerts>.Instance);
         _downloads = TestDownloads.Create(_arr, _time, _folder.DownloadsFile);
-        _hosted = new DownloadsHostedService(_downloads, _time, _logger);
+        _hosted = new DownloadsHostedService(_downloads, _alerts, _time, _logger);
     }
 
     public void Dispose()
@@ -113,7 +118,7 @@ public sealed class DownloadsHostedServiceTests : IDisposable
         Directory.CreateDirectory(_folder.Path);
         await File.WriteAllTextAsync(blocker, "x");
         using var hosted = new DownloadsHostedService(
-            TestDownloads.Create(_arr, _time, Path.Combine(blocker, "downloads.json")), _time, _logger);
+            TestDownloads.Create(_arr, _time, Path.Combine(blocker, "downloads.json")), _alerts, _time, _logger);
         await hosted.StartAsync(CancellationToken.None);
 
         await Advance(DownloadService.CycleInterval);

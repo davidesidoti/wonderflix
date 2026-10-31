@@ -1,4 +1,5 @@
 using Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
+using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -12,6 +13,7 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty;
 /// </summary>
 public sealed class DownloadsHostedService(
     DownloadService downloads,
+    AdminAlerts alerts,
     TimeProvider time,
     ILogger<DownloadsHostedService> logger) : IHostedService, IDisposable
 {
@@ -108,6 +110,7 @@ public sealed class DownloadsHostedService(
         try
         {
             await downloads.RunCycleAsync(_stop.Token).ConfigureAwait(false);
+            await SyncAlertsAsync().ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (_stop.IsCancellationRequested)
         {
@@ -127,6 +130,9 @@ public sealed class DownloadsHostedService(
         }
     }
 
+    // Gli avvisi agli admin seguono lo stato dopo ogni giro e ogni revisione (spec V); non lancia.
+    private Task SyncAlertsAsync() => alerts.SyncAsync("download:", downloads.NeedsYouAlerts());
+
     // L'elenco da ripassare ha la sua guardia: legge soltanto e non deve girare due volte insieme.
     private async Task ReviewAsync()
     {
@@ -138,6 +144,7 @@ public sealed class DownloadsHostedService(
         try
         {
             await downloads.BuildReviewAsync(_stop.Token).ConfigureAwait(false);
+            await SyncAlertsAsync().ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (_stop.IsCancellationRequested)
         {
