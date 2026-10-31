@@ -12,6 +12,17 @@ public sealed class DownloadBookTests
     private static DownloadChoice Choice(string key, DateTimeOffset at) => new() { Key = key, At = at, Title = key };
 
     [Fact]
+    public void AnOldEntryLoadsWithoutTheNewFields()
+    {
+        var entry = System.Text.Json.JsonSerializer.Deserialize<DownloadEntry>("""{"Key":"movie:1","Kind":"Movie","State":"NeedsYou","Reason":"NothingFound"}""")!;
+
+        Assert.Null(entry.Summary);
+        Assert.Null(entry.RefusedReleases);
+        Assert.Null(entry.Stopgap);
+        Assert.False(entry.Snoozed);
+    }
+
+    [Fact]
     public void ChoicesOlderThanNinetyDaysArePruned()
     {
         var book = new DownloadBook();

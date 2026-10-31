@@ -185,7 +185,7 @@ public sealed class DownloadsControllerTests : IDisposable
         {
             release,
             new DownloadChoiceDto("movie:1", "Movie", "T", null, T0, release, null, null, false),
-            new DownloadItemDto("movie:1", "Movie", "T", null, "Waiting", null, T0, null, null),
+            new DownloadItemDto("movie:1", "Movie", "T", null, "Waiting", null, T0, null, null, ["Pick"], null, null, false),
             new ReviewItemDto("movie:1", "Movie", "T", null, 1, 1, "q"),
             new DownloadRejectedDto(release, "Arr", null),
             new DownloadProfileDto("Radarr", 4, "Main", 50, null),

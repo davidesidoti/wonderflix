@@ -36,7 +36,21 @@ public sealed record DownloadItemDto(
     [property: JsonPropertyName("Reason")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? Reason,
     [property: JsonPropertyName("AvailableSince")] DateTimeOffset AvailableSince,
     [property: JsonPropertyName("LastSearchAt")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  DateTimeOffset? LastSearchAt,
-    [property: JsonPropertyName("NextSearchAt")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  DateTimeOffset? NextSearchAt);
+    [property: JsonPropertyName("NextSearchAt")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  DateTimeOffset? NextSearchAt,
+    [property: JsonPropertyName("Actions")] IReadOnlyList<string> Actions,
+    [property: JsonPropertyName("Summary")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  DownloadSummaryDto? Summary,
+    [property: JsonPropertyName("BlockedMessage")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? BlockedMessage,
+    [property: JsonPropertyName("Snoozed")] bool Snoozed);
+
+/// <summary>Il riassunto dell'ultima ricerca di una voce in "Serve te": numeri, nessun testo tranne il rifiuto di Sonarr/Radarr.</summary>
+public sealed record DownloadSummaryDto(
+    [property: JsonPropertyName("Found")] int Found,
+    [property: JsonPropertyName("BestScore")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  int? BestScore,
+    [property: JsonPropertyName("MinScore")] int MinScore,
+    [property: JsonPropertyName("TooSmall")] int TooSmall,
+    [property: JsonPropertyName("ArrRejected")] int ArrRejected,
+    [property: JsonPropertyName("TopRejection")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? TopRejection,
+    [property: JsonPropertyName("StopgapAvailable")] bool StopgapAvailable);
 
 /// <summary>Un titolo da ripassare con il file di adesso (spec T §6).</summary>
 public sealed record ReviewItemDto(

@@ -754,6 +754,28 @@ public sealed class DownloadServiceAdminTests : IDisposable
     private Task<GrabOutcome> GrabBest(string key = "movie:12") => _service.GrabBestAsync(key, CancellationToken.None);
 
     [Fact]
+    public void TheOverviewCarriesActionsAndSummary()
+    {
+        NeedsYou(DownloadReasons.NothingFound, e =>
+        {
+            e.Snoozed = true;
+            e.BlockedMessage = "vecchio messaggio";
+            e.Summary = new DownloadSummary { Found = 4, BestScore = 20, MinScore = 50, TooSmall = 1, ArrRejected = 2, TopRejection = "Not an upgrade", StopgapAvailable = true };
+        });
+
+        var item = Assert.Single(_service.Overview().Waiting);
+
+        Assert.True(item.Snoozed);
+        Assert.Equal(["GrabBest", "Pick", "SearchNow", "Snooze"], item.Actions);
+        Assert.Equal((4, (int?)20, 50, 1, 2, "Not an upgrade", true), (item.Summary!.Found, item.Summary.BestScore, item.Summary.MinScore, item.Summary.TooSmall, item.Summary.ArrRejected, item.Summary.TopRejection, item.Summary.StopgapAvailable));
+        Assert.Null(item.BlockedMessage); // il messaggio vecchio non esce se il motivo non è ImportBlocked
+        var json = System.Text.Json.JsonSerializer.Serialize(item, new System.Text.Json.JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull });
+        Assert.Contains("\"Actions\"", json);
+        Assert.Contains("\"Summary\"", json);
+        Assert.Contains("\"BlockedMessage\":null", json);
+    }
+
+    [Fact]
     public async Task GrabBestTakesTheBestBelowMinimumAndMarksAStopgap()
     {
         NeedsYou(DownloadReasons.BelowMinScore);

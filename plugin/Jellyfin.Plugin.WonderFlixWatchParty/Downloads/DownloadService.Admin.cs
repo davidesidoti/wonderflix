@@ -557,7 +557,7 @@ public sealed partial class DownloadService
                 [.. Book.Entries
                     .Where(e => e.State is DownloadStates.Waiting or DownloadStates.NeedsYou or DownloadStates.Downloading or DownloadStates.UpgradeWatch)
                     .OrderBy(e => e.NextSearchAt)
-                    .Select(e => new DownloadItemDto(e.Key, e.Kind, e.Title, e.PosterUrl, e.State, e.Reason, e.AvailableSince, e.LastSearchAt, e.NextSearchAt))],
+                    .Select(ItemDto)],
                 [.. Book.Review
                     .Where(r => !Book.IsAccepted(r.Key))
                     .Select(r => new ReviewItemDto(r.Key, r.Kind, r.Title, r.PosterUrl, r.Score, r.SizeBytes, r.Quality))],
@@ -566,6 +566,14 @@ public sealed partial class DownloadService
                 _lastErrors.Radarr);
         }
     }
+
+    // Il messaggio di Sonarr/Radarr esce solo per un import bloccato: su una voce passata ad altro può restarne uno vecchio.
+    private static DownloadItemDto ItemDto(DownloadEntry e) => new(
+        e.Key, e.Kind, e.Title, e.PosterUrl, e.State, e.Reason, e.AvailableSince, e.LastSearchAt, e.NextSearchAt,
+        DownloadActions.For(e),
+        e.Summary is { } s ? new DownloadSummaryDto(s.Found, s.BestScore, s.MinScore, s.TooSmall, s.ArrRejected, s.TopRejection, s.StopgapAvailable) : null,
+        e.Reason == DownloadReasons.ImportBlocked ? e.BlockedMessage : null,
+        e.Snoozed);
 
     /// <summary>
     /// I profili di qualità di Radarr e Sonarr con le loro soglie (spec T §7.1); un servizio in errore non c'è. Null se
