@@ -168,6 +168,8 @@ public class ServiceRegistrationTests
         // Le segnalazioni (spec R), oltre ai sette di prima.
         // I download automatici (spec T), oltre agli otto di prima.
         // Lo spazio (spec U), oltre ai nove di prima.
-        Assert.Equal(10, provider.GetServices<IHostedService>().Count());
+        // Gli avvisi del server (spec V), oltre ai dieci di prima.
+        Assert.Equal(11, provider.GetServices<IHostedService>().Count());
+        Assert.IsType<Server.JellyfinRestartState>(provider.GetRequiredService<IRestartState>());
     }
 }
