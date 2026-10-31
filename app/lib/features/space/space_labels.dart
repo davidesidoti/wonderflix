@@ -152,6 +152,7 @@ String spaceFailureLabel(AppLocalizations l, SpaceFailure f) => switch (f) {
 String spaceImportFailureLabel(AppLocalizations l, SpaceException e) =>
     switch ((e.failure, e.reason)) {
       (SpaceFailure.unknown, _) => l.spaceImportNothing,
+      (SpaceFailure.server, 'NoFiles') => l.spaceImportNoFiles,
       (SpaceFailure.server, final code?) => l.spaceImportFailed(code),
       _ => spaceFailureLabel(l, e.failure),
     };

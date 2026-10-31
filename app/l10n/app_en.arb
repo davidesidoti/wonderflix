@@ -1292,6 +1292,7 @@
   "spaceImportAction": "Import",
   "spaceImportNothing": "There's nothing left to import",
   "spaceImportFailed": "Import failed ({code})",
+  "spaceImportNoFiles": "Import failed: the download has no file to import",
   "@spaceImportFailed": {"placeholders": {"code": {"type": "String"}}},
   "spaceSizeLeft": "{gb} left",
   "@spaceSizeLeft": {"placeholders": {"gb": {"type": "String"}}},

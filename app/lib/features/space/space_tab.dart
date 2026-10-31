@@ -87,8 +87,8 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
     if (mounted) await _reload();
   }
 
-  /// Import a mano di un download bloccato; poi rilegge, così la riga passa a
-  /// "In importazione".
+  /// Import a mano di un download bloccato; poi rilegge sempre: la riga passa
+  /// a "In importazione", o non era più bloccata.
   Future<void> _import(String key) async {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
@@ -98,7 +98,6 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
       messenger.showSnackBar(
         SnackBar(content: Text(spaceImportFailureLabel(l, e))),
       );
-      return;
     }
     if (mounted) await _reload();
   }

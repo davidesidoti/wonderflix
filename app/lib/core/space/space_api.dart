@@ -1,5 +1,6 @@
 import 'package:logging/logging.dart';
 
+import '../downloads/downloads_api.dart';
 import '../jellyfin/api_exception.dart';
 import '../jellyfin/jellyfin_http.dart';
 import 'space_models.dart';
@@ -102,11 +103,13 @@ class SpaceApi {
   );
 
   /// Import a mano del download bloccato di una riga di Alleggerire; 404
-  /// (niente più da importare) vale [SpaceFailure.unknown].
+  /// (niente più da importare) vale [SpaceFailure.unknown]. Un pack grande
+  /// il server lo importa anche in 2 minuti: attesa come la ricerca.
   Future<void> importLighten(String key) => _call(
     () => _http.post(
       '$_base/Lighten/Import',
       body: {'Key': key},
+      receiveTimeout: DownloadsApi.searchTimeout,
       quietStatuses: _quiet,
     ),
     notFound: SpaceFailure.unknown,

@@ -1448,6 +1448,7 @@
   "spaceImportAction": "Importa",
   "spaceImportNothing": "Non c'è più niente da importare",
   "spaceImportFailed": "Import non riuscito ({code})",
+  "spaceImportNoFiles": "Import non riuscito: nel download non c'è un file da importare",
   "@spaceImportFailed": {"placeholders": {"code": {"type": "String"}}},
   "spaceSizeLeft": "{gb} rimanenti",
   "@spaceSizeLeft": {"placeholders": {"gb": {"type": "String"}}},

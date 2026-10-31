@@ -463,18 +463,38 @@ void main() {
         sizeLeftBytes: 0,
       ),
     );
-    api.nextImportError = const SpaceException(SpaceFailure.server, 'NoFiles');
-    await tester.tap(find.byKey(const ValueKey('space-lighten-import')));
-    await tester.pumpAndSettle();
-    expect(find.text('Import non riuscito (NoFiles)'), findsOneWidget);
-    // Il secondo avviso aspetta che il primo se ne vada.
-    await tester.pump(const Duration(seconds: 5));
-    await tester.pumpAndSettle();
+    Future<void> importFailing(SpaceException error) async {
+      api.nextImportError = error;
+      await tester.tap(find.byKey(const ValueKey('space-lighten-import')));
+      await tester.pumpAndSettle();
+    }
 
-    api.nextImportError = const SpaceException(SpaceFailure.unknown, 'Unknown');
-    await tester.tap(find.byKey(const ValueKey('space-lighten-import')));
-    await tester.pumpAndSettle();
+    // Il prossimo avviso aspetta che il precedente se ne vada.
+    Future<void> waitSnackBar() async {
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+    }
+
+    await importFailing(const SpaceException(SpaceFailure.server, 'NoFiles'));
+    expect(
+      find.text(
+        "Import non riuscito: nel download non c'è un file da importare",
+      ),
+      findsOneWidget,
+    );
+    await waitSnackBar();
+
+    await importFailing(
+      const SpaceException(SpaceFailure.server, 'Unreachable'),
+    );
+    expect(find.text('Import non riuscito (Unreachable)'), findsOneWidget);
+    await waitSnackBar();
+
+    // Niente più da importare: la riga è vecchia, si rilegge.
+    final reads = api.calls.where((c) => c == 'overview').length;
+    await importFailing(const SpaceException(SpaceFailure.unknown, 'Unknown'));
     expect(find.text("Non c'è più niente da importare"), findsOneWidget);
+    expect(api.calls.where((c) => c == 'overview').length, reads + 1);
   });
 
   testWidgets('PollingIsFastWhileDownloading', (tester) async {

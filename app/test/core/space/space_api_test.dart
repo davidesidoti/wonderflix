@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/downloads/downloads_api.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
 import 'package:wonderflix/core/space/space_api.dart';
 
@@ -82,6 +83,7 @@ void main() {
     expect((request.method, request.path),
         ('POST', '/WonderFlixWatchParty/Space/Lighten/Import'));
     expect(request.data, {'Key': 'season:142:1'});
+    expect(request.receiveTimeout, DownloadsApi.searchTimeout);
 
     adapter.handler = (_) => const FakeResponse(404, {'Reason': 'Unknown'});
     expect(await failure(() => api.importLighten('k')), SpaceFailure.unknown);
