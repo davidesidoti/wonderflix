@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Push;
@@ -13,18 +14,16 @@ public sealed class HttpPushTransport(IHttpClientFactory httpClientFactory, ILog
     /// <summary>Nome del client HTTP registrato nel DI.</summary>
     public const string HttpClientName = "WonderFlixPush";
 
+    /// <summary>Attesa massima di un invio.</summary>
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(10);
 
-    /// <summary>Attesa massima di un invio; i test la accorciano.</summary>
-    internal TimeSpan Timeout { get; init; } = DefaultTimeout;
-
-    /// <summary>Il tempo su cui scade <see cref="Timeout"/>; i test lo fanno avanzare a mano.</summary>
+    /// <summary>Il tempo su cui scade <see cref="DefaultTimeout"/>; i test lo fanno avanzare a mano.</summary>
     internal TimeProvider Time { get; init; } = TimeProvider.System;
 
     public async Task<PushResult> SendAsync(PushSubscription sub, byte[] body, string authorization, CancellationToken ct)
     {
         var host = Uri.TryCreate(sub.Endpoint, UriKind.Absolute, out var uri) ? uri.Host : "?";
-        using var deadline = new CancellationTokenSource(Timeout, Time);
+        using var deadline = new CancellationTokenSource(DefaultTimeout, Time);
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token, ct);
         try
         {
@@ -49,7 +48,7 @@ public sealed class HttpPushTransport(IHttpClientFactory httpClientFactory, ILog
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            logger.LogWarning("Push a {Host}: nessuna risposta in {Timeout}", host, Timeout);
+            logger.LogWarning("Push a {Host}: nessuna risposta in {Timeout}", host, DefaultTimeout);
             return PushResult.Failed;
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or FormatException)
@@ -59,4 +58,13 @@ public sealed class HttpPushTransport(IHttpClientFactory httpClientFactory, ILog
             return PushResult.Failed;
         }
     }
+
+    /// <summary>
+    /// Registra il client HTTP: senza redirect, e senza i registri automatici del client,
+    /// che scriverebbero l'URL intero (il segreto dell'iscrizione sta nel percorso).
+    /// </summary>
+    internal static void AddHttpClient(IServiceCollection services) =>
+        services.AddHttpClient(HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false })
+            .RemoveAllLoggers();
 }

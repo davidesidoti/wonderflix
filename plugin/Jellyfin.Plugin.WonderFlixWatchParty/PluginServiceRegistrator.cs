@@ -61,10 +61,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false })
             .RedactLoggedHeaders(["Authorization"]);
         serviceCollection.AddSingleton<IDiscordSender, DiscordBotClient>();
-        // Push web (spec V): l'intestazione VAPID non va nei log e l'endpoint non deve portarci altrove.
-        serviceCollection.AddHttpClient(HttpPushTransport.HttpClientName)
-            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false })
-            .RedactLoggedHeaders(["Authorization"]);
+        // Push web (spec V): l'URL dell'endpoint non va nei log e l'endpoint non deve portarci altrove.
+        HttpPushTransport.AddHttpClient(serviceCollection);
         serviceCollection.AddSingleton<IPushTransport, HttpPushTransport>();
         serviceCollection.AddSingleton<IDeviceAccess, JellyfinDeviceAccess>();
         serviceCollection.AddSingleton<IMailSender, SmtpMailSender>();

@@ -1,5 +1,7 @@
 using System.Net;
 using Jellyfin.Plugin.WonderFlixWatchParty.Push;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
@@ -89,5 +91,33 @@ public class HttpPushTransportTests
         };
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Transport().SendAsync(Sub(), [1], "x", cts.Token));
+    }
+
+    // Il client HTTP del DI, configurato come nel plugin, non deve scrivere l'URL dell'endpoint (il segreto sta nel percorso).
+    [Fact]
+    public async Task TheRegisteredClientDoesNotLogTheEndpointPath()
+    {
+        var logs = new RecordingLogger<object>();
+        var services = new ServiceCollection();
+        services.AddLogging(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(new SharedLoggerProvider(logs)));
+        HttpPushTransport.AddHttpClient(services);
+        _http.Respond = (_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Created));
+        // Il gestore finto prende il posto della rete; i registri del client restano quelli del plugin.
+        services.AddHttpClient(HttpPushTransport.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => _http);
+        using var provider = services.BuildServiceProvider();
+
+        var transport = new HttpPushTransport(provider.GetRequiredService<IHttpClientFactory>(), _logger);
+        Assert.Equal(PushResult.Sent, await transport.SendAsync(Sub(), [1], "x", Ct));
+
+        Assert.DoesNotContain(logs.Entries, e => e.Message.Contains("secret-token"));
+    }
+
+    private sealed class SharedLoggerProvider(ILogger logger) : ILoggerProvider
+    {
+        public ILogger CreateLogger(string categoryName) => logger;
+
+        public void Dispose()
+        {
+        }
     }
 }
