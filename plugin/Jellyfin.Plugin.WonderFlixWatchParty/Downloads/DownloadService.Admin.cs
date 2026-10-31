@@ -260,7 +260,8 @@ public sealed partial class DownloadService
         string downloadId;
         lock (_lock)
         {
-            if (Blocked(parsed) is not { DownloadId: { Length: > 0 } id })
+            // Un altro import, scarto o grab della stessa chiave (doppio clic, due admin): la voce sta cambiando.
+            if (Blocked(parsed) is not { DownloadId: { Length: > 0 } id } || !_grabbing.Add(parsed.ToString()))
             {
                 return (BlockedOutcome.Changed, null);
             }
@@ -268,18 +269,29 @@ public sealed partial class DownloadService
             downloadId = id;
         }
 
-        if (await ImportDownloadAsync(ServiceOf(parsed.Kind), downloadId, CancellationToken.None).ConfigureAwait(false) is { } error)
+        try
         {
-            return (BlockedOutcome.Failed, error);
-        }
-
-        lock (_lock)
-        {
-            if (Book.Get(parsed.ToString()) is { } entry)
+            if (await ImportDownloadAsync(ServiceOf(parsed.Kind), downloadId, CancellationToken.None).ConfigureAwait(false) is { } error)
             {
-                entry.State = DownloadStates.Downloading;
-                entry.Reason = null;
-                store.Save(Book);
+                return (BlockedOutcome.Failed, error);
+            }
+
+            lock (_lock)
+            {
+                // Il giro può averla cambiata intanto: si scrive solo se è ancora bloccata.
+                if (Blocked(parsed) is { } entry)
+                {
+                    entry.State = DownloadStates.Downloading;
+                    entry.Reason = null;
+                    store.Save(Book);
+                }
+            }
+        }
+        finally
+        {
+            lock (_lock)
+            {
+                _grabbing.Remove(parsed.ToString());
             }
         }
 
@@ -300,33 +312,46 @@ public sealed partial class DownloadService
 
         lock (_lock)
         {
-            if (Blocked(parsed) is null)
+            // Come per l'import: una seconda azione sulla stessa chiave trova la voce che cambia.
+            if (Blocked(parsed) is null || !_grabbing.Add(parsed.ToString()))
             {
                 return BlockedOutcome.Changed;
             }
         }
 
-        if (!await RemoveOldDownloadAsync(parsed, ServiceOf(parsed.Kind), CancellationToken.None, blocklist: true).ConfigureAwait(false))
+        try
         {
-            return BlockedOutcome.Unavailable;
-        }
-
-        lock (_lock)
-        {
-            if (Book.Get(parsed.ToString()) is { } entry)
+            if (!await RemoveOldDownloadAsync(parsed, ServiceOf(parsed.Kind), CancellationToken.None, blocklist: true).ConfigureAwait(false))
             {
-                var now = time.GetUtcNow();
-                if (entry.PreviousScore is not null)
-                {
-                    BackToUpgradeWatch(entry, now);
-                }
-                else
-                {
-                    BackToWaiting(entry, now);
-                }
+                return BlockedOutcome.Unavailable;
+            }
 
-                entry.NextSearchAt = now;
-                store.Save(Book);
+            lock (_lock)
+            {
+                if (Blocked(parsed) is { } entry)
+                {
+                    var now = time.GetUtcNow();
+                    if (entry.PreviousScore is not null)
+                    {
+                        BackToUpgradeWatch(entry, now);
+                    }
+                    else
+                    {
+                        BackToWaiting(entry, now);
+                    }
+
+                    entry.NextSearchAt = now;
+                    entry.DownloadId = null;
+                    entry.BlockedMessage = null;
+                    store.Save(Book);
+                }
+            }
+        }
+        finally
+        {
+            lock (_lock)
+            {
+                _grabbing.Remove(parsed.ToString());
             }
         }
 

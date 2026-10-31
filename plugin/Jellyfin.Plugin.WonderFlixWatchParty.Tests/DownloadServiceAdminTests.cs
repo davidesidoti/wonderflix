@@ -892,12 +892,40 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Assert.Equal(BlockedOutcome.Changed, (await _service.ImportBlockedAsync("movie:13")).Outcome);
         Assert.Equal(BlockedOutcome.Invalid, (await _service.ImportBlockedAsync("film:12")).Outcome);
         Assert.Equal(BlockedOutcome.Invalid, await _service.DiscardBlockedAsync("film:12"));
-
-        // Bloccato ma senza il download da importare.
-        Blocked(e => e.DownloadId = null);
-        Assert.Equal(BlockedOutcome.Changed, (await _service.ImportBlockedAsync("movie:12")).Outcome);
         Assert.Empty(_arr.ManualImportReadCalls);
         Assert.Empty(_arr.RemoveFromQueueCalls);
+    }
+
+    [Fact]
+    public async Task ImportBlockedWithoutADownloadIsChanged()
+    {
+        // Bloccato ma senza il download da importare (scritto prima che il servizio legga il file).
+        Blocked(e => e.DownloadId = null);
+
+        Assert.Equal(BlockedOutcome.Changed, (await _service.ImportBlockedAsync("movie:12")).Outcome);
+
+        Assert.Empty(_arr.ManualImportReadCalls);
+        Assert.Equal(DownloadStates.NeedsYou, Saved("movie:12")!.State);
+    }
+
+    [Fact]
+    public async Task DiscardWhileAnImportOfTheSameKeyRunsIsChanged()
+    {
+        Blocked();
+        _radarrQueue = [MovieQueue(77, 12, 0, state: "importBlocked", status: "completed")];
+        var gate = new TaskCompletionSource<IReadOnlyList<ArrManualImportItem?>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _arr.ManualImportItems = (_, _) => gate.Task;
+        var import = _service.ImportBlockedAsync("movie:12");
+
+        Assert.Equal(BlockedOutcome.Changed, await _service.DiscardBlockedAsync("movie:12"));
+        Assert.Equal(BlockedOutcome.Changed, (await _service.ImportBlockedAsync("movie:12")).Outcome);
+        Assert.Empty(_arr.RemoveFromQueueCalls);
+
+        // L'import non trova file: la chiave si libera e lo scarto ora passa.
+        gate.SetResult([]);
+        Assert.Equal((BlockedOutcome.Failed, (string?)"NoFiles"), await import);
+        Assert.Single(_arr.ManualImportReadCalls);
+        Assert.Equal(BlockedOutcome.Ok, await _service.DiscardBlockedAsync("movie:12"));
     }
 
     [Fact]
@@ -913,6 +941,7 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Assert.Equal((ArrKind.Radarr, 77, true, true), Assert.Single(_arr.RemoveFromQueueCalls));
         var entry = Saved("movie:12")!;
         Assert.Equal((DownloadStates.Waiting, (string?)null, T0, 1), (entry.State, entry.Reason, entry.NextSearchAt, nudges));
+        Assert.Equal(((string?)null, (string?)null), (entry.DownloadId, entry.BlockedMessage));
     }
 
     [Fact]
