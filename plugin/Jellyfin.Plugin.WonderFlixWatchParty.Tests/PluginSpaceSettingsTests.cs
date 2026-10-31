@@ -37,6 +37,16 @@ public class PluginSpaceSettingsTests
     }
 
     [Fact]
+    public void QuotaAlertPercent_OutOfRange_Is90()
+    {
+        Assert.Equal(90, PluginSpaceSettings.ClampQuotaAlertPercent(49));
+        Assert.Equal(90, PluginSpaceSettings.ClampQuotaAlertPercent(100));
+        Assert.Equal(50, PluginSpaceSettings.ClampQuotaAlertPercent(50));
+        Assert.Equal(99, PluginSpaceSettings.ClampQuotaAlertPercent(99));
+        Assert.Equal(90, new PluginSpaceSettings().QuotaAlertPercent);
+    }
+
+    [Fact]
     public void WithoutPluginDefaultsApply()
     {
         var settings = new PluginSpaceSettings();

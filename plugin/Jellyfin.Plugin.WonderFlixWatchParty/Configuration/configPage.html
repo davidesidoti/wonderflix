@@ -204,6 +204,9 @@
                             <input is="emby-input" type="text" id="WonderFlixSpaceQuotaFile" label="Quota file" placeholder="/home/user/quota.txt" />
                             <div class="fieldDescription">A text file where a cron job writes the output of <code>quota -w</code>. Empty: the quota is not shown.</div>
                         </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="number" id="WonderFlixQuotaAlertPercent" label="Avviso disco quasi pieno (% della quota)" min="50" max="99" step="1" />
+                        </div>
                         <button is="emby-button" type="submit" class="raised button-submit block emby-button">
                             <span>Save</span>
                         </button>
@@ -856,7 +859,8 @@
                     SpaceQbitUrl: 'text', SpaceQbitUser: 'text', SpaceQbitPassword: 'text',
                     SpaceStaleMonths: 'int', SpaceRequestGraceDays: 'int', SpaceLowRating: 'int', SpaceHighRating: 'int',
                     SpaceMinRatings: 'int', SpaceHeavyGbPerHour: 'float', SpaceSeedTrackers: 'text', SpaceSeedRatio: 'float',
-                    SpaceSeedDays: 'int', SpaceScanFolders: 'lines', SpaceQuotaFile: 'text'
+                    SpaceSeedDays: 'int', SpaceScanFolders: 'lines', SpaceQuotaFile: 'text',
+                    QuotaAlertPercent: 'int'
                 };
                 var spaceInputs = {};
                 Object.keys(spaceFields).forEach(function (name) {

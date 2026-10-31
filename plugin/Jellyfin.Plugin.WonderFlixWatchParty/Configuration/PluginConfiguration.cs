@@ -134,6 +134,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>File dove un cron scrive la quota del seedbox. Vuoto: quota non configurata.</summary>
     public string SpaceQuotaFile { get; set; } = string.Empty;
 
+    /// <summary>Quota usata (in percentuale, da 50 a 99) da cui gli admin ricevono l'avviso del disco quasi pieno.</summary>
+    public int QuotaAlertPercent { get; set; } = 90;
+
     /// <summary>Chiave pubblica VAPID (base64url) per le notifiche push (spec V). Vuota fino al primo uso: la genera il plugin.</summary>
     public string VapidPublicKey { get; set; } = string.Empty;
 

@@ -1,3 +1,4 @@
+using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Space;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -7,10 +8,12 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty;
 /// <summary>
 /// I timer dello spazio (spec U §6.3, §7.3): il calcolo dopo <see cref="FirstScanDelay"/> e poi ogni
 /// <see cref="ScanInterval"/>, il controllo dei torrent in attesa ogni <see cref="SpaceService.PendingInterval"/> e la
-/// coda delle operazioni per tutta la vita del servizio. Un calcolo alla volta lo garantisce il servizio.
+/// coda delle operazioni per tutta la vita del servizio. Un calcolo alla volta lo garantisce il servizio. Dopo ogni
+/// calcolo e ogni controllo si allineano gli avvisi agli admin del disco e di Alleggerisci (spec V).
 /// </summary>
 public sealed class SpaceHostedService(
     SpaceService space,
+    AdminAlerts alerts,
     TimeProvider time,
     ILogger<SpaceHostedService> logger) : IHostedService, IDisposable
 {
@@ -40,6 +43,9 @@ public sealed class SpaceHostedService(
         _scanTimer = time.CreateTimer(_ => _ = ScanAsync(), null, FirstScanDelay, ScanInterval);
         _pendingTimer = time.CreateTimer(_ => _ = CheckPendingAsync(), null, SpaceService.PendingInterval, SpaceService.PendingInterval);
         _operations = RunOperationsAsync();
+
+        // Gli avvisi di prima del riavvio si allineano subito, senza far aspettare l'avvio.
+        _ = SyncAlertsAsync();
         return Task.CompletedTask;
     }
 
@@ -68,6 +74,7 @@ public sealed class SpaceHostedService(
         try
         {
             await space.ScanAsync(_stop.Token).ConfigureAwait(false);
+            await SyncAlertsAsync().ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (_stop.IsCancellationRequested)
         {
@@ -76,6 +83,29 @@ public sealed class SpaceHostedService(
         {
             // Solo il tipo: il messaggio potrebbe contenere un percorso.
             logger.LogWarning("Spazio: calcolo non riuscito ({Error})", ex.GetType().Name);
+        }
+    }
+
+    // Gli avvisi del disco e di Alleggerisci seguono lo stato (spec V); non lancia.
+    private async Task SyncAlertsAsync()
+    {
+        try
+        {
+            await alerts.SyncAsync(SpaceService.QuotaAlertKey, space.QuotaAlert() is { } quota ? [quota] : []).ConfigureAwait(false);
+
+            // Senza calcolo (dopo un riavvio) le righe non si conoscono: le voci restano come sono fino al primo.
+            if (space.LastScan is not null)
+            {
+                await alerts.SyncAsync("lighten:", await space.LightenAlertsAsync(_stop.Token).ConfigureAwait(false)).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (_stop.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            // Solo il tipo: il messaggio potrebbe contenere un percorso.
+            logger.LogWarning("Spazio: avvisi agli admin non allineati ({Error})", ex.GetType().Name);
         }
     }
 
@@ -106,6 +136,7 @@ public sealed class SpaceHostedService(
         try
         {
             await space.CheckPendingAsync(_stop.Token).ConfigureAwait(false);
+            await SyncAlertsAsync().ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (_stop.IsCancellationRequested)
         {

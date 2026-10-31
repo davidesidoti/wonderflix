@@ -39,6 +39,8 @@ public sealed class PluginSpaceSettings : ISpaceSettings
 
     public string QuotaFile => Config.SpaceQuotaFile;
 
+    public int QuotaAlertPercent => ClampQuotaAlertPercent(Config.QuotaAlertPercent);
+
     /// <summary>I domini separati da virgole o spazi, in minuscolo, senza vuoti.</summary>
     internal static IReadOnlyList<string> SplitDomains(string? csv) =>
         (csv ?? string.Empty)
@@ -53,6 +55,9 @@ public sealed class PluginSpaceSettings : ISpaceSettings
             .Select(l => l.Trim().TrimEnd('/'))
             .Where(l => l.StartsWith('/'))
             .ToList();
+
+    /// <summary>La soglia del disco quasi pieno, da 50 a 99; fuori torna al predefinito.</summary>
+    internal static int ClampQuotaAlertPercent(int value) => Clamp(value, 50, 99, Defaults.QuotaAlertPercent);
 
     /// <summary>Un valore fuori dall'intervallo torna al predefinito.</summary>
     internal static int Clamp(int value, int min, int max, int fallback) =>

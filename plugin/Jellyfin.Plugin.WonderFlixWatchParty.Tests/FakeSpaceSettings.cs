@@ -28,4 +28,6 @@ internal sealed class FakeSpaceSettings : ISpaceSettings
     public IReadOnlyList<string> ScanFolders { get; set; } = ["/srv/downloads", "/srv/seedings"];
 
     public string QuotaFile { get; set; } = "";
+
+    public int QuotaAlertPercent { get; set; } = 90;
 }

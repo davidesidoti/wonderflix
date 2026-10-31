@@ -29,7 +29,8 @@ public sealed partial class SpaceService(
     IUserDirectory users,
     DownloadService downloads,
     TimeProvider time,
-    ILogger<SpaceService> logger)
+    ILogger<SpaceService> logger,
+    AdminAlerts? alerts = null)
 {
     /// <summary>Ogni quanto si controllano i torrent in attesa di fine seed (spec U §6.3).</summary>
     public static readonly TimeSpan PendingInterval = TimeSpan.FromHours(1);
@@ -41,6 +42,9 @@ public sealed partial class SpaceService(
     private const string AllTorrentsTitle = "Pulizia: torrent senza libreria";
 
     private const string TorrentPrefix = "torrent:";
+
+    /// <summary>La chiave dell'avviso del disco quasi pieno: nessun'altra chiave comincia così.</summary>
+    public const string QuotaAlertKey = "quota";
 
     private readonly Lock _lock = new();
     private readonly Channel<string> _queue = Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true });
@@ -80,9 +84,16 @@ public sealed partial class SpaceService(
                 _book = store.Load();
 
                 // Un'operazione in coda o in corso quando il server si è fermato non riparte: risulta fallita e si può ripremere.
-                foreach (var operation in _book.Operations.Where(IsActive))
+                var stuck = _book.Operations.Where(IsActive).ToList();
+                foreach (var operation in stuck)
                 {
                     Abort(operation);
+                }
+
+                // Salvato subito: a un altro riavvio l'operazione non fallisce (e non avvisa) di nuovo.
+                if (stuck.Count > 0)
+                {
+                    Save();
                 }
             }
 
@@ -335,6 +346,23 @@ public sealed partial class SpaceService(
         string.IsNullOrWhiteSpace(settings.QuotaFile) ? null : QuotaFile.Parse(probe.ReadText(settings.QuotaFile));
 
     /// <summary>
+    /// L'avviso del disco quasi pieno (spec V): la quota usata in percentuale (per difetto), da
+    /// <see cref="ISpaceSettings.QuotaAlertPercent"/> in su; null sotto la soglia o senza quota.
+    /// </summary>
+    public AdminAlert? QuotaAlert()
+    {
+        if (ReadQuota() is not { } quota)
+        {
+            return null;
+        }
+
+        var percent = (int)(quota.UsedBytes * 100 / quota.LimitBytes);
+        return percent >= settings.QuotaAlertPercent
+            ? new AdminAlert(QuotaAlertKey, InboxEntryTypes.DiskAlmostFull, "Spazio", Percent: percent)
+            : null;
+    }
+
+    /// <summary>
     /// I byte usati dopo un'operazione partita a <paramref name="startedAt"/>; null se il file della quota non è stato
     /// riscritto da allora (il cron lo aggiorna ogni 10 minuti): l'app mostra la stima.
     /// </summary>
@@ -385,6 +413,13 @@ public sealed partial class SpaceService(
 
         operation.State = SpaceOperationStates.Failed;
         operation.EndedAt = time.GetUtcNow();
+
+        // Abort gira sotto _lock: l'avviso parte fuori, e non lancia.
+        if (alerts is { } admin)
+        {
+            var alert = new AdminAlert("space-op:" + operation.Id, InboxEntryTypes.SpaceOperationFailed, operation.Title);
+            _ = Task.Run(() => admin.RaiseAsync(alert));
+        }
     }
 
     /// <summary>Il formato della chiave per il tipo (decisione 11).</summary>

@@ -1,3 +1,4 @@
+using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Space;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -31,7 +32,8 @@ public sealed class SpaceHostedServiceTests : IDisposable
             TestDownloads.Create(new FakeArrClient(), _time, _folder.DownloadsFile),
             _time,
             NullLogger<SpaceService>.Instance);
-        _hosted = new SpaceHostedService(_space, _time, NullLogger<SpaceHostedService>.Instance);
+        var alerts = new AdminAlerts(TestInbox.Create(_server, _folder, _time), _server, _time, NullLogger<AdminAlerts>.Instance);
+        _hosted = new SpaceHostedService(_space, alerts, _time, NullLogger<SpaceHostedService>.Instance);
     }
 
     public void Dispose()

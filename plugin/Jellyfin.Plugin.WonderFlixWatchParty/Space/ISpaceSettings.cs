@@ -38,4 +38,7 @@ public interface ISpaceSettings
 
     /// <summary>Percorso del file con la quota; vuoto se non è configurato.</summary>
     string QuotaFile { get; }
+
+    /// <summary>La quota usata, in percentuale, da cui gli admin ricevono l'avviso del disco quasi pieno (spec V).</summary>
+    int QuotaAlertPercent { get; }
 }

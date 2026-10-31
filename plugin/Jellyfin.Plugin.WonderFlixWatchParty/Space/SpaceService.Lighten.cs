@@ -1,5 +1,6 @@
 using System.Globalization;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
+using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
 using Microsoft.Extensions.Logging;
 
@@ -121,6 +122,23 @@ public sealed partial class SpaceService
 
             return [.. rows.Where(r => !_lightenImported.ContainsKey(r.Key)).Select(r => r with { Download = statuses.GetValueOrDefault(r.Key) })];
         }
+    }
+
+    /// <summary>
+    /// Gli avvisi agli admin degli "Alleggerisci" bloccati (spec V): gli stati si rinfrescano come in <c>GET Space</c>
+    /// sulle righe dell'ultimo calcolo, poi uno per riga in <see cref="SpaceLightenStates.Blocked"/>. Senza calcolo, nessuno.
+    /// </summary>
+    public async Task<IReadOnlyList<AdminAlert>> LightenAlertsAsync(CancellationToken ct)
+    {
+        if (LastScan is not { } scan)
+        {
+            return [];
+        }
+
+        var rows = await WithDownloadsAsync([.. scan.Lighten.Select(r => r.Dto)], scan.ScannedAt, ct).ConfigureAwait(false);
+        return [.. rows
+            .Where(r => r.Download?.State == SpaceLightenStates.Blocked)
+            .Select(r => new AdminAlert("lighten:" + r.Key, InboxEntryTypes.LightenBlocked, r.Title))];
     }
 
     /// <summary>L'esito di <see cref="ImportLightenAsync"/>.</summary>
