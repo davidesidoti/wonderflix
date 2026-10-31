@@ -27,3 +27,17 @@ public sealed class SubscribeRequest
     [JsonPropertyName("Language")]
     public string? Language { get; set; }
 }
+
+/// <summary>Corpo di PUT Notifications/Types/{type}.</summary>
+public sealed class NotificationTypeRequest
+{
+    [JsonPropertyName("Enabled")]
+    public bool Enabled { get; set; }
+}
+
+/// <summary>Corpo di DELETE Notifications/Subscriptions.</summary>
+public sealed class UnsubscribeRequest
+{
+    [JsonPropertyName("Endpoint")]
+    public string? Endpoint { get; set; }
+}

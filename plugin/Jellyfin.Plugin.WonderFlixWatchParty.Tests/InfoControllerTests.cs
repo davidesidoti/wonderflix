@@ -17,8 +17,14 @@ public class InfoControllerTests
         Assert.Equal("1.16.1", info.Version);
         Assert.Equal(1, info.Protocol);
         Assert.Equal(
-            new[] { "friends", "parties", "inbox", "queue", "collections", "avatars", "account", "home", "recommendations", "friendsActivity", "match", "ratings", "reports" },
+            new[] { "friends", "parties", "inbox", "queue", "collections", "avatars", "account", "home", "recommendations", "friendsActivity", "match", "ratings", "reports", "push" },
             info.Features);
+    }
+
+    [Fact]
+    public void Info_HasPushFeature()
+    {
+        Assert.Contains("push", new InfoController(new FakeSeerrSettings { Url = string.Empty }, NoArr()).GetInfo().Value!.Features);
     }
 
     [Fact]
@@ -27,7 +33,7 @@ public class InfoControllerTests
         Assert.Equal(
             new[]
             {
-                "friends", "parties", "inbox", "queue", "collections", "avatars", "account", "home", "recommendations", "friendsActivity", "match", "ratings", "reports",
+                "friends", "parties", "inbox", "queue", "collections", "avatars", "account", "home", "recommendations", "friendsActivity", "match", "ratings", "reports", "push",
                 "requests", "upcomingSeries", "upcomingMovies", "calendar", "downloads", "space",
             },
             new InfoController(new FakeSeerrSettings(), new FakeArrSettings()).GetInfo().Value!.Features);
@@ -48,7 +54,7 @@ public class InfoControllerTests
     {
         var onlySonarr = new InfoController(new FakeSeerrSettings(), new FakeArrSettings { Radarr = ArrEndpoint.None })
             .GetInfo().Value!.Features;
-        Assert.Equal(new[] { "requests", "upcomingSeries", "calendar", "downloads", "space" }, onlySonarr.Skip(13));
+        Assert.Equal(new[] { "requests", "upcomingSeries", "calendar", "downloads", "space" }, onlySonarr.Skip(14));
 
         var neither = new InfoController(new FakeSeerrSettings(), NoArr()).GetInfo().Value!.Features;
         Assert.DoesNotContain("calendar", neither);
