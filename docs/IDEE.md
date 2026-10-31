@@ -48,6 +48,8 @@ Rifare l'app perché si possa usare anche su Smart TV (Fire TV Stick e simili, c
   - **Discord Rich Presence** sulle altre piattaforme desktop (pipe Unix) e cosa fare sui dispositivi mobili;
   - pipeline di build e prove per ogni piattaforma.
 - **Da chiarire:** quali piattaforme prima (per esempio Fire TV e Android insieme, dato che sono quasi lo stesso codice); stessa app con implementazioni per piattaforma o app separata per la TV; se fare insieme alla versione web il lavoro di separazione dalle parti di Windows.
+- **iPhone, deciso il 2026-10-31: per ora niente app nativa.** Senza l'account sviluppatore a pagamento resta solo AltStore/SideStore con un Apple ID gratuito: firma da rinnovare ogni 7 giorni e niente notifiche push. Il MacBook Air 2015 dell'utente si ferma a Monterey (Xcode 14.2), troppo vecchio per Flutter 3.47 e per iOS 17+. Si usa il sito aggiunto alla Home come web app, che con il layout stretto della 1c fa già tutto.
+  - Su iOS 27.2 la web app sulla Home mostra l'iniziale del titolo invece dell'icona, anche per siti come github.com: l'iPhone scarica `apple-touch-icon` (risposta 200) ma non lo usa. Non dipende dal sito.
 
 ## 3. Funzioni escluse dallo Spec A
 
@@ -100,6 +102,13 @@ Tutto quello che si è visto, con la data, i filtri (film, serie, mese) e "segna
 - **Cosa c'è già:** `LastPlayedDate` e `PlayCount` di Jellyfin per ogni titolo.
 - **Da cercare:** con i soli dati del server ogni titolo compare una volta, all'ultima visione; per lo storico completo serve il registro del plugin dell'idea 13.
 - Piccolo/medio.
+
+## 15. Notifiche push sulla web app
+
+Il sito aggiunto alla Home dell'iPhone (o installato su Android) riceve notifiche anche ad app chiusa: per l'admin una richiesta da approvare, una segnalazione, un download finito o bloccato; per gli utenti un invito al party o un messaggio nella cassetta. È il motivo per cui l'app nativa gratuita (AltStore) rendeva meno della web app: lì le push non ci sono (idea 2).
+- **Cosa c'è già:** il manifest con `display: standalone`, la cassetta delle notifiche, gli eventi del plugin e il bot Discord.
+- **Da cercare:** service worker che riceve le push (Flutter web ne ha uno suo); pulsante "Attiva notifiche", perché iOS chiede il permesso solo dopo un tocco; chiavi VAPID, iscrizioni per utente e invio dal plugin (libreria .NET); quali eventi notificare e a chi, e le preferenze per spegnerli; doppioni con Discord.
+- Medio.
 
 ## Fatte
 
