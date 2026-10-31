@@ -71,6 +71,27 @@ public class NotificationCatalogTests
     }
 
     [Fact]
+    public void Message_WithoutItemOrRoomRoutesToTheInbox()
+    {
+        Assert.Equal("/item/abc", NotificationCatalog.Message(new InboxEntry { Type = InboxEntryTypes.Recommendation, ItemId = "abc" }, "it")!.Route);
+        Assert.Equal("/inbox", NotificationCatalog.Message(new InboxEntry { Type = InboxEntryTypes.Recommendation }, "it")!.Route);
+        Assert.Equal("/match/r1", NotificationCatalog.Message(new InboxEntry { Type = InboxEntryTypes.MatchInvite, RoomId = "r1" }, "it")!.Route);
+        Assert.Equal("/inbox", NotificationCatalog.Message(new InboxEntry { Type = InboxEntryTypes.MatchInvite }, "it")!.Route);
+    }
+
+    [Fact]
+    public void Message_LongBodyIsCutTo200TextElements()
+    {
+        // Le emoji contano come un carattere solo: il taglio non le spezza a metà.
+        var text = string.Concat(Enumerable.Repeat("a👍", 250));
+
+        var body = NotificationCatalog.Message(new InboxEntry { Type = InboxEntryTypes.Announcement, Text = text }, "it")!.Body;
+
+        Assert.Equal(string.Concat(Enumerable.Repeat("a👍", 99)) + "a…", body);
+        Assert.Equal("ciao", NotificationCatalog.Message(new InboxEntry { Type = InboxEntryTypes.Announcement, Text = "ciao" }, "it")!.Body);
+    }
+
+    [Fact]
     public void Message_NewTitlesListsTheFirstThreeNames()
     {
         var entry = new InboxEntry

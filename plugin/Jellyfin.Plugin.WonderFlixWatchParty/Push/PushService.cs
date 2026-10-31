@@ -19,8 +19,14 @@ public sealed class PushService(
     TimeProvider time,
     ILogger<PushService> logger) : IInboxPush
 {
-    /// <summary>Il contatto VAPID: i servizi push lo vogliono, nessuno lo legge.</summary>
-    public const string VapidSubject = "mailto:noreply@wonderflix.invalid";
+    /// <summary>
+    /// Il contatto VAPID: la pagina pubblica del progetto. Apple rifiuta un soggetto che non porta da nessuna parte
+    /// (403 BadJwtToken).
+    /// </summary>
+    public const string VapidSubject = "https://github.com/davidesidoti/wonderflix";
+
+    /// <summary>L'endpoint più lungo accettato.</summary>
+    public const int MaxEndpointLength = 2048;
 
     private const int P256dhBytes = 65;
     private const int AuthBytes = 16;
@@ -114,6 +120,7 @@ public sealed class PushService(
     {
         if (request is null
             || string.IsNullOrWhiteSpace(deviceId)
+            || request.Endpoint is not { Length: <= MaxEndpointLength }
             || !Uri.TryCreate(request.Endpoint, UriKind.Absolute, out var uri)
             || uri.Scheme != Uri.UriSchemeHttps
             || !PushHosts.Any(h => uri.Host.Equals(h, StringComparison.OrdinalIgnoreCase)
@@ -141,6 +148,18 @@ public sealed class PushService(
             return true;
         });
         return HubStatus.Ok;
+    }
+
+    /// <summary>Toglie iscrizioni e preferenze degli utenti cancellati da Jellyfin; restituisce le iscrizioni tolte.</summary>
+    public int Cleanup()
+    {
+        var removed = 0;
+        Change(book =>
+        {
+            removed = book.Prune(userId => users.GetUser(userId) is not null);
+            return removed > 0;
+        });
+        return removed;
     }
 
     /// <summary>DELETE Notifications/Subscriptions: solo l'iscrizione di chi chiama; niente se non c'è.</summary>

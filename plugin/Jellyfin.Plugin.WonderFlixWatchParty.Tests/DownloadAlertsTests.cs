@@ -142,6 +142,12 @@ public sealed class DownloadAlertsTests : IDisposable
 
         await _hosted.StartAsync(CancellationToken.None);
 
+        // L'allineamento iniziale gira in sottofondo.
+        for (var i = 0; i < 100 && Entries().Count > 0; i++)
+        {
+            await Task.Delay(50);
+        }
+
         Assert.Empty(Entries());
     }
 

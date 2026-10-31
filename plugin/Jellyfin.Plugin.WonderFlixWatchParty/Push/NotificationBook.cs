@@ -48,14 +48,25 @@ public sealed class NotificationFile
 /// </summary>
 public sealed class NotificationBook
 {
+    /// <summary>Iscrizioni al massimo per utente: oltre si toglie la più vecchia (CreatedAt).</summary>
+    public const int MaxPerUser = 20;
+
     private readonly List<PushSubscription> _subscriptions = [];
     private readonly Dictionary<Guid, HashSet<string>> _disabled = [];
 
-    /// <summary>Aggiunge l'iscrizione, o sostituisce quella con lo stesso utente e lo stesso endpoint.</summary>
+    /// <summary>
+    /// Aggiunge l'iscrizione, o sostituisce quella con lo stesso utente e lo stesso endpoint; oltre
+    /// <see cref="MaxPerUser"/> toglie la più vecchia dell'utente.
+    /// </summary>
     public void Upsert(PushSubscription subscription)
     {
         _subscriptions.RemoveAll(s => Same(s, subscription.UserId, subscription.Endpoint));
         _subscriptions.Add(subscription);
+        var mine = For(subscription.UserId);
+        if (mine.Count > MaxPerUser)
+        {
+            _subscriptions.Remove(mine.MinBy(s => s.CreatedAt)!);
+        }
     }
 
     public bool Remove(Guid userId, string endpoint) =>

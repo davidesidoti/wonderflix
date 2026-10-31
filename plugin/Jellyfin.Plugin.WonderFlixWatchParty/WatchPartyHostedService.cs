@@ -1,5 +1,6 @@
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
+using Jellyfin.Plugin.WonderFlixWatchParty.Push;
 using MediaBrowser.Controller.Session;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -11,7 +12,7 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty;
 /// sessione WonderFlix si apre o si chiude (spec F §6.3) e, ogni
 /// <see cref="CleanupInterval"/>, pulisce registro e storico dei gruppi
 /// finiti (spec E §6.5). Alla stessa pulizia toglie le notifiche scadute
-/// (spec G §6.1).
+/// (spec G §6.1) e le iscrizioni push degli utenti cancellati (spec V).
 /// </summary>
 public sealed class WatchPartyHostedService(
     ISessionManager sessionManager,
@@ -21,7 +22,8 @@ public sealed class WatchPartyHostedService(
     PartyService parties,
     InboxService inbox,
     TimeProvider time,
-    ILogger<WatchPartyHostedService> logger) : IHostedService, IDisposable
+    ILogger<WatchPartyHostedService> logger,
+    PushService? push = null) : IHostedService, IDisposable
 {
     /// <summary>Ogni quanto si puliscono i gruppi finiti.</summary>
     public static readonly TimeSpan CleanupInterval = TimeSpan.FromMinutes(5);
@@ -120,6 +122,19 @@ public sealed class WatchPartyHostedService(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Pulizia delle notifiche non riuscita");
+        }
+
+        try
+        {
+            var removedSubscriptions = push?.Cleanup() ?? 0;
+            if (removedSubscriptions > 0)
+            {
+                logger.LogDebug("Tolte {Count} iscrizioni push di utenti cancellati", removedSubscriptions);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Pulizia delle iscrizioni push non riuscita");
         }
     }
 }

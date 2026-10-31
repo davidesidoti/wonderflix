@@ -68,6 +68,26 @@ public class NotificationBookTests
     }
 
     [Fact]
+    public void Book_BeyondTheCapDropsTheUsersOldest()
+    {
+        var book = new NotificationBook();
+        var start = new DateTimeOffset(2026, 10, 31, 12, 0, 0, TimeSpan.Zero);
+        book.Upsert(Sub(Anna, "https://push/anna"));
+        for (var i = 0; i <= NotificationBook.MaxPerUser; i++)
+        {
+            var sub = Sub(Mario, $"https://push/{i}");
+            // La 0 è la più vecchia ma arriva per seconda: conta CreatedAt, non l'ordine.
+            sub.CreatedAt = start.AddMinutes(i == 0 ? -1 : i == 1 ? -2 : i);
+            book.Upsert(sub);
+        }
+
+        var mine = book.For(Mario);
+        Assert.Equal(NotificationBook.MaxPerUser, mine.Count);
+        Assert.DoesNotContain(mine, s => s.Endpoint == "https://push/1");
+        Assert.Single(book.For(Anna));
+    }
+
+    [Fact]
     public void Book_PruneDropsSubscriptionsAndPreferencesOfMissingUsers()
     {
         var book = new NotificationBook();

@@ -347,10 +347,17 @@ public sealed partial class SpaceService(
 
     /// <summary>
     /// L'avviso del disco quasi pieno (spec V): la quota usata in percentuale (per difetto), da
-    /// <see cref="ISpaceSettings.QuotaAlertPercent"/> in su; null sotto la soglia o senza quota.
+    /// <see cref="ISpaceSettings.QuotaAlertPercent"/> in su; vuoto sotto la soglia o senza quota configurata.
+    /// Null se il file c'è nelle impostazioni ma non si legge: l'avviso resta com'è, perché toglierlo vorrebbe
+    /// dire notificarlo di nuovo alla prossima lettura buona.
     /// </summary>
-    public AdminAlert? QuotaAlert()
+    public IReadOnlyList<AdminAlert>? QuotaAlerts()
     {
+        if (string.IsNullOrWhiteSpace(settings.QuotaFile))
+        {
+            return [];
+        }
+
         if (ReadQuota() is not { } quota)
         {
             return null;
@@ -358,8 +365,8 @@ public sealed partial class SpaceService(
 
         var percent = (int)(quota.UsedBytes * 100 / quota.LimitBytes);
         return percent >= settings.QuotaAlertPercent
-            ? new AdminAlert(QuotaAlertKey, InboxEntryTypes.DiskAlmostFull, "Spazio", Percent: percent)
-            : null;
+            ? [new AdminAlert(QuotaAlertKey, InboxEntryTypes.DiskAlmostFull, "Spazio", Percent: percent)]
+            : [];
     }
 
     /// <summary>

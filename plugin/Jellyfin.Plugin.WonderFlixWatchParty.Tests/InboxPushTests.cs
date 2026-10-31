@@ -137,6 +137,49 @@ public sealed class InboxPushTests : IDisposable
         Assert.Empty(book.TakeFresh());
     }
 
+    private static InboxEntry[] Alert(string key) =>
+        [new InboxEntry { Type = InboxEntryTypes.DownloadNeedsYou, AlertKey = key, Title = "Dune" }];
+
+    [Fact]
+    public async Task RemovedAlert_StaysClosedWhileActive_EvenAfterRestart()
+    {
+        await _inbox.SyncAlertsAsync([_mario.Id], "download:", Alert("download:movie:1"));
+        await _inbox.RemoveAsync(_mario.Id, Assert.Single(_inbox.Get(_mario.Id).Entries).Id);
+
+        await _inbox.SyncAlertsAsync([_mario.Id], "download:", Alert("download:movie:1"));
+        var restarted = TestInbox.Create(_server, _folder, _time, _push);
+        await restarted.SyncAlertsAsync([_mario.Id], "download:", Alert("download:movie:1"));
+
+        Assert.Empty(_inbox.Get(_mario.Id).Entries);
+        Assert.Empty(restarted.Get(_mario.Id).Entries);
+        Assert.Single(_push.Delivered);
+    }
+
+    [Fact]
+    public async Task ClearedAlerts_StayClosedWhileActive()
+    {
+        await _inbox.SyncAlertsAsync([_mario.Id], "download:", Alert("download:movie:1"));
+        await _inbox.ClearAsync(_mario.Id);
+
+        await _inbox.SyncAlertsAsync([_mario.Id], "download:", Alert("download:movie:1"));
+
+        Assert.Empty(_inbox.Get(_mario.Id).Entries);
+        Assert.Single(_push.Delivered);
+    }
+
+    [Fact]
+    public async Task ClosedAlert_ThatEndsAndComesBack_PushesAgain()
+    {
+        await _inbox.SyncAlertsAsync([_mario.Id], "download:", Alert("download:movie:1"));
+        await _inbox.ClearAsync(_mario.Id);
+        await _inbox.SyncAlertsAsync([_mario.Id], "download:", []);
+
+        await _inbox.SyncAlertsAsync([_mario.Id], "download:", Alert("download:movie:1"));
+
+        Assert.Single(_inbox.Get(_mario.Id).Entries);
+        Assert.Equal(2, _push.Delivered.Count);
+    }
+
     [Fact]
     public async Task ThrowingPush_DoesNotBreakTheInbox()
     {

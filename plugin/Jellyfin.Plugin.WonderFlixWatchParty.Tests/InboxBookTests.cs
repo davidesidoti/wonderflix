@@ -134,6 +134,18 @@ public class InboxBookTests
     }
 
     [Fact]
+    public void OnlyStateAlertsRemovedByHandAreRemembered()
+    {
+        var book = new InboxBook();
+        book.SyncAlerts(_mario, "quota", [new InboxEntry { Type = InboxEntryTypes.DiskAlmostFull, AlertKey = "quota" }]);
+        book.Add(_mario, new InboxEntry { Type = InboxEntryTypes.DownloadStalled, AlertKey = "stalled:movie:1:42" });
+
+        book.Clear(_mario);
+
+        Assert.Equal(new[] { "quota" }, book.ToFile().Users![_mario.ToString("N")]!.DismissedAlerts);
+    }
+
+    [Fact]
     public void ABadFileIsRefused()
     {
         var mario = _mario.ToString("N");

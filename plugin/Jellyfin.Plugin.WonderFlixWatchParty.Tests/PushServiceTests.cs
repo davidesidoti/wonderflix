@@ -278,6 +278,37 @@ public sealed class PushServiceTests : IDisposable
     }
 
     [Fact]
+    public void Subscribe_RejectsEndpointLongerThan2048()
+    {
+        SubscribeRequest Request(int length) => new()
+        {
+            Endpoint = "https://fcm.googleapis.com/" + new string('x', length - "https://fcm.googleapis.com/".Length),
+            P256dh = Base64Url.Encode(new byte[65]),
+            Auth = Base64Url.Encode(new byte[16]),
+        };
+
+        Assert.Equal(HubStatus.Ok, _push.Subscribe(_mario.Id, "dev", Request(PushService.MaxEndpointLength)));
+        Assert.Equal(HubStatus.Invalid, _push.Subscribe(_mario.Id, "dev", Request(PushService.MaxEndpointLength + 1)));
+    }
+
+    [Fact]
+    public async Task Cleanup_DropsSubscriptionsOfDeletedUsers()
+    {
+        var luigi = _server.AddUser("Luigi");
+        Subscribe(_mario, "telefono");
+        Subscribe(luigi, "telefono");
+        _server.Users.Remove(luigi.Id);
+
+        Assert.Equal(1, _push.Cleanup());
+        Assert.Equal(0, _push.Cleanup());
+
+        _server.Users[luigi.Id] = luigi;
+        await Deliver(luigi, Entry());
+        await Deliver(_mario, Entry());
+        Assert.Equal(_mario.Id, Assert.Single(_transport.Sent).Sub.UserId);
+    }
+
+    [Fact]
     public void Subscribe_RejectsKeysThatAreNotBase64Url()
     {
         var request = new SubscribeRequest { Endpoint = "https://fcm.googleapis.com/x", P256dh = "@@@@", Auth = "!!" };

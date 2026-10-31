@@ -45,7 +45,7 @@ public sealed class DownloadsHostedService(
         _nudgeTimer = time.CreateTimer(_ => OnNudgeTimer(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
 
         // Gli avvisi di prima del riavvio si allineano subito, senza far aspettare l'avvio.
-        _ = SyncAlertsAsync();
+        _ = Task.Run(SyncAlertsAsync);
 
         // Per ultimo: un nudge prima che i timer esistano lascerebbe _nudgeScheduled a 1 per sempre.
         downloads.Nudged += ScheduleNudge;

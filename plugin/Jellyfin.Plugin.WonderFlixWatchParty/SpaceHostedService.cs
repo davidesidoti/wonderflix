@@ -91,7 +91,10 @@ public sealed class SpaceHostedService(
     {
         try
         {
-            await alerts.SyncAsync(SpaceService.QuotaAlertKey, space.QuotaAlert() is { } quota ? [quota] : []).ConfigureAwait(false);
+            if (space.QuotaAlerts() is { } quota)
+            {
+                await alerts.SyncAsync(SpaceService.QuotaAlertKey, quota).ConfigureAwait(false);
+            }
 
             // Senza calcolo (dopo un riavvio) le righe non si conoscono: le voci restano come sono fino al primo.
             if (space.LastScan is not null)

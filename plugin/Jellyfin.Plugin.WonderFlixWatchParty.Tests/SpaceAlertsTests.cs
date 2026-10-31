@@ -108,23 +108,25 @@ public sealed class SpaceAlertsTests : IDisposable
     {
         Quota(900, 1000);
 
-        Assert.Equal(new AdminAlert("quota", InboxEntryTypes.DiskAlmostFull, "Spazio", Percent: 90), _space.QuotaAlert());
+        Assert.Equal([new AdminAlert("quota", InboxEntryTypes.DiskAlmostFull, "Spazio", Percent: 90)], _space.QuotaAlerts());
     }
 
     [Fact]
-    public void QuotaAlert_Below_Null()
+    public void QuotaAlert_Below_Empty()
     {
         Quota(899, 1000);
 
-        Assert.Null(_space.QuotaAlert());
+        Assert.Empty(_space.QuotaAlerts()!);
     }
 
     [Fact]
-    public void QuotaAlert_NoQuotaFile_Null()
+    public void QuotaAlert_UnreadableFileIsNull_NoQuotaConfiguredIsEmpty()
     {
-        Assert.Null(_space.QuotaAlert());
+        Assert.Null(_space.QuotaAlerts());
+        _probe.Texts[QuotaPath] = "Disk quotas for user: illeggibile";
+        Assert.Null(_space.QuotaAlerts());
         _settings.QuotaFile = "";
-        Assert.Null(_space.QuotaAlert());
+        Assert.Empty(_space.QuotaAlerts()!);
     }
 
     [Fact]
@@ -216,5 +218,31 @@ public sealed class SpaceAlertsTests : IDisposable
         Assert.True(await Eventually(() => _push.Delivered.Count == 2));
         Assert.Equal(96, Assert.Single(Entries()).Percent);
         Assert.All(_push.Delivered, d => Assert.Equal((_admin, "quota"), (d.UserId, d.Entry.AlertKey)));
+    }
+
+    [Fact]
+    public async Task HostedService_UnreadableQuota_KeepsTheAlertWithoutPushingAgain()
+    {
+        Lightened("movie:12");
+        await _hosted.StartAsync(CancellationToken.None);
+        Quota(950, 1000);
+        await Task.Run(() => _time.Advance(SpaceHostedService.FirstScanDelay));
+        Assert.True(await Eventually(() => Entries().Any(e => e.AlertKey == "quota")));
+
+        // Il file si rovina: il giro dopo non tocca l'avviso. L'Alleggerisci bloccato dice che il giro c'è stato.
+        _probe.Texts[QuotaPath] = "rovinato";
+        _radarrQueue = [Item(12, "importBlocked")];
+        _space.LastScan = Scan("movie:12");
+        await Task.Run(() => _time.Advance(SpaceService.PendingInterval - SpaceHostedService.FirstScanDelay));
+        Assert.True(await Eventually(() => Entries().Any(e => e.AlertKey == "lighten:movie:12")));
+        Assert.Equal(95, Assert.Single(Entries(), e => e.AlertKey == "quota").Percent);
+
+        // Torna leggibile e sempre sopra: niente push nuova per il disco.
+        Quota(950, 1000);
+        _space.LastScan = Scan();
+        await Task.Run(() => _time.Advance(SpaceService.PendingInterval));
+        Assert.True(await Eventually(() => !Entries().Any(e => e.AlertKey == "lighten:movie:12")));
+        Assert.Equal("quota", Assert.Single(Entries()).AlertKey);
+        Assert.Single(_push.Delivered, d => d.Entry.AlertKey == "quota");
     }
 }

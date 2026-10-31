@@ -12,6 +12,12 @@ public sealed class InboxBook
     /// <summary>Voci al massimo per utente: oltre si toglie quella con il Seq più basso.</summary>
     public const int MaxEntries = 100;
 
+    // Gli avvisi che seguono uno stato (spec §4.4b): tolti a mano restano chiusi. Lo storico ha chiavi uniche, non torna.
+    private static readonly HashSet<string> StateAlertTypes =
+    [
+        InboxEntryTypes.DownloadNeedsYou, InboxEntryTypes.LightenBlocked, InboxEntryTypes.DiskAlmostFull, InboxEntryTypes.RestartPending,
+    ];
+
     private readonly Dictionary<Guid, UserInbox> _users = [];
 
     // Le voci nuove (non aggiornamenti) da portare alla push, finché InboxService non le prende.
@@ -165,7 +171,10 @@ public sealed class InboxBook
     /// toglie quelli che non sono più in current; con la stessa AlertKey, lo
     /// stesso Type e la stessa Reason aggiorna i campi sul posto (niente Seq
     /// nuovo né push), altrimenti sostituisce con una voce nuova. Le voci di
-    /// current si copiano. True se qualcosa è cambiato.
+    /// current si copiano. Gli avvisi che l'admin ha tolto a mano (<see cref="Remove"/>,
+    /// <see cref="Clear"/>) non tornano finché restano in current; usciti, si
+    /// dimenticano, e se il problema torna notificano di nuovo (spec §4.4).
+    /// True se qualcosa è cambiato.
     /// </summary>
     public bool SyncAlerts(Guid userId, string keyPrefix, IReadOnlyList<InboxEntry> current)
     {
@@ -178,8 +187,15 @@ public sealed class InboxBook
         var keys = current.Select(a => a.AlertKey).ToHashSet(StringComparer.Ordinal);
         var changed = inbox.Entries.RemoveAll(e =>
             e.AlertKey is { } key && key.StartsWith(keyPrefix, StringComparison.Ordinal) && !keys.Contains(key)) > 0;
+        changed |= inbox.Dismissed.RemoveWhere(key =>
+            key.StartsWith(keyPrefix, StringComparison.Ordinal) && !keys.Contains(key)) > 0;
         foreach (var alert in current)
         {
+            if (alert.AlertKey is { } dismissed && inbox.Dismissed.Contains(dismissed))
+            {
+                continue;
+            }
+
             var existing = inbox.Entries.FirstOrDefault(e => e.AlertKey == alert.AlertKey);
             if (existing is not null && existing.Type == alert.Type && existing.Reason == alert.Reason)
             {
@@ -222,10 +238,10 @@ public sealed class InboxBook
         return changed;
     }
 
-    /// <summary>Toglie una voce; true se c'era.</summary>
+    /// <summary>Toglie una voce (un avviso admin resta chiuso, <see cref="SyncAlerts"/>); true se c'era.</summary>
     public bool Remove(Guid userId, string entryId) =>
         _users.TryGetValue(userId, out var inbox)
-        && inbox.Entries.RemoveAll(e => string.Equals(e.Id, entryId, StringComparison.OrdinalIgnoreCase)) > 0;
+        && inbox.Remove(e => string.Equals(e.Id, entryId, StringComparison.OrdinalIgnoreCase)) > 0;
 
     /// <summary>Toglie le voci di questo tipo; true se ce n'erano.</summary>
     public bool RemoveType(Guid userId, string type) =>
@@ -248,7 +264,10 @@ public sealed class InboxBook
         return touched;
     }
 
-    /// <summary>Svuota la cassetta (il Seq continua da dov'era); true se c'era qualcosa.</summary>
+    /// <summary>
+    /// Svuota la cassetta (il Seq continua da dov'era; gli avvisi admin restano
+    /// chiusi, <see cref="SyncAlerts"/>); true se c'era qualcosa.
+    /// </summary>
     public bool Clear(Guid userId)
     {
         if (!_users.TryGetValue(userId, out var inbox) || inbox.Entries.Count == 0)
@@ -256,7 +275,7 @@ public sealed class InboxBook
             return false;
         }
 
-        inbox.Entries.Clear();
+        inbox.Remove(_ => true);
         return true;
     }
 
@@ -304,6 +323,8 @@ public sealed class InboxBook
                 inbox.Entries.Add(entry);
             }
 
+            inbox.Dismissed.UnionWith(value.DismissedAlerts?.OfType<string>() ?? []);
+
             // Un NextSeq scritto a mano non deve ridare un Seq già usato.
             inbox.NextSeq = Math.Max(value.NextSeq, inbox.Entries.Select(e => e.Seq).DefaultIfEmpty(0).Max() + 1);
         }
@@ -319,6 +340,7 @@ public sealed class InboxBook
             {
                 NextSeq = pair.Value.NextSeq,
                 Entries = pair.Value.Entries.OrderBy(e => e.Seq).Select(e => (InboxEntry?)e.Copy()).ToList(),
+                DismissedAlerts = pair.Value.Dismissed.Order(StringComparer.Ordinal).Select(k => (string?)k).ToList(),
             }),
     };
 
@@ -338,5 +360,16 @@ public sealed class InboxBook
         public long NextSeq { get; set; } = 1;
 
         public List<InboxEntry> Entries { get; } = [];
+
+        /// <summary>Le AlertKey degli avvisi tolti a mano mentre il problema dura.</summary>
+        public HashSet<string> Dismissed { get; } = new(StringComparer.Ordinal);
+
+        /// <summary>Toglie le voci che corrispondono, ricordando gli avvisi chiusi a mano.</summary>
+        public int Remove(Predicate<InboxEntry> match)
+        {
+            Dismissed.UnionWith(Entries.Where(e => match(e) && e.AlertKey is not null && StateAlertTypes.Contains(e.Type))
+                .Select(e => e.AlertKey!));
+            return Entries.RemoveAll(match);
+        }
     }
 }

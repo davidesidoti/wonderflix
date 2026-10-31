@@ -66,7 +66,9 @@ uscite in arrivo.
   download da sistemare o fermi, Alleggerisci bloccato, pulizia fallita,
   **disco quasi pieno** (soglia `QuotaAlertPercent`, 90 di default, tra 50 e
   99), recupero password avviato o bloccato (quello bloccato tace per la
-  finestra del limite) e riavvio richiesto. Le chiavi VAPID si generano una
+  finestra del limite) e riavvio richiesto. Un avviso admin tolto a mano non
+  torna finché il problema dura. Un utente appena promosso admin riceve una
+  notifica per ogni avviso ancora attivo. Le chiavi VAPID si generano una
   volta sola al primo uso e restano nella configurazione del plugin
   (`Jellyfin.Plugin.WonderFlixWatchParty.xml`, leggibile solo dagli admin).
   Iscrizioni e preferenze stanno in

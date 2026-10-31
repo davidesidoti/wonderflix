@@ -29,4 +29,8 @@ public sealed class InboxFileUser
 
     [JsonPropertyName("Entries")]
     public List<InboxEntry?>? Entries { get; set; } = [];
+
+    /// <summary>Le AlertKey degli avvisi admin tolti a mano: non tornano finché il problema dura.</summary>
+    [JsonPropertyName("DismissedAlerts")]
+    public List<string?>? DismissedAlerts { get; set; } = [];
 }

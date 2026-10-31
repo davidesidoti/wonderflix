@@ -1,3 +1,4 @@
+using System.Globalization;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Push;
@@ -20,6 +21,12 @@ public sealed record PushMessage(string Title, string Body, string Route);
 /// </summary>
 public static class NotificationCatalog
 {
+    /// <summary>
+    /// Caratteri (text element) al massimo nel testo: un annuncio lungo non deve superare il limite del payload
+    /// cifrato né i 4096 byte di Apple.
+    /// </summary>
+    public const int MaxBodyLength = 200;
+
     // Sceglie il testo nella lingua della sottoscrizione.
     private delegate string Pick(string it, string en);
 
@@ -44,10 +51,12 @@ public static class NotificationCatalog
             new(t("Proteggi il tuo account", "Protect your account"),
                 t("Aggiungi un contatto per recuperare la password", "Add a contact to recover your password"), "/settings")),
         new(InboxEntryTypes.Recommendation, NotificationAudience.Everyone, (e, t) =>
-            new(t($"{e.FromName} ti consiglia un titolo", $"{e.FromName} recommends a title"), e.Title ?? "", $"/item/{e.ItemId}")),
+            new(t($"{e.FromName} ti consiglia un titolo", $"{e.FromName} recommends a title"), e.Title ?? "",
+                string.IsNullOrEmpty(e.ItemId) ? "/inbox" : $"/item/{e.ItemId}")),
         new(InboxEntryTypes.MatchInvite, NotificationAudience.Everyone, (e, t) =>
             new(t($"{e.FromName} ti invita a un match", $"{e.FromName} invited you to a match"),
-                t("Scegliete insieme cosa guardare", "Pick something to watch together"), $"/match/{e.RoomId}")),
+                t("Scegliete insieme cosa guardare", "Pick something to watch together"),
+                string.IsNullOrEmpty(e.RoomId) ? "/inbox" : $"/match/{e.RoomId}")),
         new(InboxEntryTypes.ReportResolved, NotificationAudience.Everyone, (e, t) =>
             new(t("Segnalazione chiusa", "Report closed"), e.Title ?? "", "/inbox")),
         new(InboxEntryTypes.RequestPending, NotificationAudience.Approvers, (e, t) =>
@@ -94,7 +103,8 @@ public static class NotificationCatalog
 
     /// <summary>
     /// Il testo della push per la voce; null per un tipo sconosciuto. Una
-    /// lingua diversa da "it" vale "en". Un campo mancante diventa vuoto.
+    /// lingua diversa da "it" vale "en". Un campo mancante diventa vuoto. Il
+    /// testo si taglia a <see cref="MaxBodyLength"/>, con "…" in fondo.
     /// </summary>
     public static PushMessage? Message(InboxEntry entry, string language)
     {
@@ -104,7 +114,11 @@ public static class NotificationCatalog
         }
 
         var italian = language == "it";
-        return spec.Build(entry, (it, en) => italian ? it : en);
+        var message = spec.Build(entry, (it, en) => italian ? it : en);
+        var body = new StringInfo(message.Body);
+        return body.LengthInTextElements <= MaxBodyLength
+            ? message
+            : message with { Body = body.SubstringByTextElements(0, MaxBodyLength - 1) + "…" };
     }
 
     // I primi 3 nomi, prima i film poi le serie.
