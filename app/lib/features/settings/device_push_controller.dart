@@ -104,8 +104,9 @@ class DevicePushController extends AsyncNotifier<PushAvailability> {
   }
 
   /// Il profilo esce o si toglie: il `DELETE` con le sue credenziali, prima
-  /// che il token sparisca. Un errore non ferma l'uscita: la chiave si toglie
-  /// lo stesso e, se era l'ultima, il browser si disiscrive.
+  /// che il token sparisca. Un errore non ferma l'uscita: il plugin terrebbe
+  /// l'iscrizione di chi esce, quindi il browser si disiscrive e tutte le
+  /// chiavi si tolgono (gli altri profili tornano `ready`).
   Future<void> forgetUser(String userId) async {
     final endpoint = _prefs.getString(_endpointKey(userId));
     if (endpoint == null) return;
@@ -113,6 +114,11 @@ class DevicePushController extends AsyncNotifier<PushAvailability> {
       await _apiFor(userId)?.unsubscribe(endpoint);
     } on Object catch (error) {
       _log.warning('iscrizione push non tolta: ${error.runtimeType}');
+      for (final key in _prefs.getKeys().toList()) {
+        if (key.startsWith(_endpointPrefix)) await _prefs.remove(key);
+      }
+      await _unsubscribeBrowser();
+      return;
     }
     await _forgetEndpoint(userId);
   }
@@ -132,6 +138,10 @@ class DevicePushController extends AsyncNotifier<PushAvailability> {
   Future<void> _forgetEndpoint(String userId) async {
     await _prefs.remove(_endpointKey(userId));
     if (_prefs.getKeys().any((k) => k.startsWith(_endpointPrefix))) return;
+    await _unsubscribeBrowser();
+  }
+
+  Future<void> _unsubscribeBrowser() async {
     try {
       await ref.read(webPushProvider).unsubscribeBrowser();
     } on Object catch (error) {

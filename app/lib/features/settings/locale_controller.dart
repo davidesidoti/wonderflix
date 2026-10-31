@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -24,8 +26,8 @@ class LocaleController extends Notifier<Locale?> {
       await prefs.setString(_key, locale.languageCode);
     }
     state = locale;
-    // Le push arrivano nella lingua dell'app.
-    await ref.read(devicePushProvider.notifier).languageChanged();
+    // Le push arrivano nella lingua dell'app; senza aspettare la rete.
+    unawaited(ref.read(devicePushProvider.notifier).languageChanged());
   }
 }
 

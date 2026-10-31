@@ -34,12 +34,13 @@ self.addEventListener('notificationclick', (event) => {
       const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       const open = windows.find((client) => client.url.startsWith(scope));
       if (open) {
-        await open.focus();
         try {
+          await open.focus();
           await open.navigate(url);
           return;
         } catch (_) {
-          // Una finestra non controllata non si sposta: se ne apre una.
+          // Una finestra non controllata (o che non prende il fuoco): se ne
+          // apre una.
         }
       }
       await self.clients.openWindow(url);

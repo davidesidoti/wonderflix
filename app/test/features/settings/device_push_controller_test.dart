@@ -197,6 +197,19 @@ void main() {
       expect(prefs.getString(_key), isNull);
     });
 
+    test('DELETE che fallisce con un altro profilo iscritto: browser '
+        'disiscritto e tutte le chiavi tolte', () async {
+      api.failure = const ServerUnreachableException();
+      await prefs.setString('push.endpoint.u2', testPushKeys.endpoint);
+
+      await c.read(sessionControllerProvider.notifier).logout();
+
+      expect(web.unsubscribeCalls, 1);
+      expect(prefs.getKeys().where((k) => k.startsWith('push.endpoint.')),
+          isEmpty);
+      expect(c.read(sessionControllerProvider), isA<SessionSignedOut>());
+    });
+
     test('rimozione del profilo aperto: il DELETE prima', () async {
       await c.read(sessionControllerProvider.notifier).removeProfile('u1');
       expect(api.calls,
