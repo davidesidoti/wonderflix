@@ -177,6 +177,13 @@ public sealed class StartOperationRequest
     public string? Key { get; set; }
 }
 
+/// <summary>Corpo di <c>POST Space/Lighten/Import</c>: la chiave di un film o di una stagione alleggeriti.</summary>
+public sealed class LightenImportRequest
+{
+    [JsonPropertyName("Key")]
+    public string? Key { get; set; }
+}
+
 /// <summary>Corpo di <c>POST Space/Kept</c> (spec U §7.4).</summary>
 public sealed class KeepRequest
 {

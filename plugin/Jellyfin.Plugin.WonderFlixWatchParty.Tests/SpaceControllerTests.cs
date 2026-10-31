@@ -106,6 +106,18 @@ public sealed class SpaceControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task ImportLightenChecksTheKey()
+    {
+        Assert.Equal(400, Status(await _controller.ImportLighten(null)));
+        Assert.Equal(400, Status(await _controller.ImportLighten(new LightenImportRequest())));
+        Assert.Equal(400, Status(await _controller.ImportLighten(new LightenImportRequest { Key = "series:5" })));
+
+        // Nessun "Alleggerisci" ricordato per la chiave.
+        var unknown = await _controller.ImportLighten(new LightenImportRequest { Key = "season:5:2" });
+        Assert.Equal((404, "Unknown"), (Status(unknown), Reason(unknown)));
+    }
+
+    [Fact]
     public void StartMapsTheOutcomes()
     {
         Assert.Equal(("NotReady", 409), (Reason((_controller.Start(Body())).Result!), Status((_controller.Start(Body())).Result)));

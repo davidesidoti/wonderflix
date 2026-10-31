@@ -86,6 +86,26 @@ public class SpaceController(SpaceService space, IAuthorizationContext authoriza
         return NoContent();
     }
 
+    /// <summary>
+    /// Importa a mano un "Alleggerisci" bloccato in Radarr/Sonarr: 204; 400 se la chiave manca o non è un film o una
+    /// stagione, 404 {Unknown} se non c'è niente di bloccato, 502 {Reason} con il codice dell'errore.
+    /// </summary>
+    [HttpPost("Lighten/Import")]
+    public async Task<ActionResult> ImportLighten([FromBody] LightenImportRequest? request)
+    {
+        if (request?.Key is not { } key || !(SpaceService.IsValidKey(SpaceKinds.Movie, key) || SpaceService.IsValidKey(SpaceKinds.Season, key)))
+        {
+            return BadRequest();
+        }
+
+        return await space.ImportLightenAsync(key, HttpContext.RequestAborted).ConfigureAwait(false) switch
+        {
+            (SpaceService.LightenImportOutcome.Imported, _) => NoContent(),
+            (SpaceService.LightenImportOutcome.Unknown, _) => Error(StatusCodes.Status404NotFound, "Unknown"),
+            (_, var error) => Error(StatusCodes.Status502BadGateway, error!),
+        };
+    }
+
     /// <summary>Toglie un torrent dall'attesa e lo lascia in qBittorrent: 204, 404 se non c'è.</summary>
     [HttpDelete("Pending/{hash}")]
     public ActionResult DropPending(string hash) => space.DropPending(hash) ? NoContent() : NotFound();

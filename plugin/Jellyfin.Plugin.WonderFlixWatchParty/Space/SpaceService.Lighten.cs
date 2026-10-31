@@ -108,6 +108,74 @@ public sealed partial class SpaceService
         }
     }
 
+    /// <summary>L'esito di <see cref="ImportLightenAsync"/>.</summary>
+    public enum LightenImportOutcome
+    {
+        Imported,
+
+        /// <summary>Chiave sbagliata, nessun "Alleggerisci" ricordato o niente di bloccato in coda.</summary>
+        Unknown,
+
+        /// <summary>La coda non si legge o un import non parte: <c>Error</c> è il codice.</summary>
+        Failed,
+    }
+
+    /// <summary>
+    /// Importa a mano i download bloccati (<c>importBlocked</c>) di un "Alleggerisci": un import per download. Se riesce la
+    /// riga passa a Importing.
+    /// </summary>
+    public async Task<(LightenImportOutcome Outcome, string? Error)> ImportLightenAsync(string key, CancellationToken ct)
+    {
+        var kind = IsValidKey(SpaceKinds.Movie, key) ? ArrKind.Radarr : IsValidKey(SpaceKinds.Season, key) ? ArrKind.Sonarr : (ArrKind?)null;
+        if (kind is not { } service || !downloads.LightenedKeys().ContainsKey(key))
+        {
+            return (LightenImportOutcome.Unknown, null);
+        }
+
+        List<ArrQueueItem> queue;
+        try
+        {
+            queue = [.. (await arr.GetQueueAsync(service, ct).ConfigureAwait(false)).OfType<ArrQueueItem>()];
+        }
+        catch (ArrException ex)
+        {
+            logger.LogWarning("Spazio: Alleggerisci {Key}, la coda di {Service} non si legge ({Error})", key, service, UpcomingErrors.Code(ex.Error));
+            return (LightenImportOutcome.Failed, UpcomingErrors.Code(ex.Error));
+        }
+
+        var blocked = ItemsOf(key, queue)
+            .Where(i => string.Equals(i.TrackedDownloadState, "importBlocked", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(i.DownloadId))
+            .Select(i => i.DownloadId!)
+            .Distinct()
+            .ToList();
+        if (blocked.Count == 0)
+        {
+            return (LightenImportOutcome.Unknown, null);
+        }
+
+        string? error = null;
+        foreach (var downloadId in blocked)
+        {
+            var result = await downloads.ImportDownloadAsync(service, downloadId, ct).ConfigureAwait(false);
+            error ??= result;
+        }
+
+        if (error is not null)
+        {
+            logger.LogWarning("Spazio: Alleggerisci {Key} non importato a mano ({Error})", key, error);
+            return (LightenImportOutcome.Failed, error);
+        }
+
+        lock (_lock)
+        {
+            // Il download è finito: fino alla prossima lettura della coda la riga è Importing.
+            _lightenStatus[key] = new SpaceLightenDownloadDto(SpaceLightenStates.Importing, 1, 0, null);
+        }
+
+        logger.LogInformation("Spazio: Alleggerisci {Key} importato a mano", key);
+        return (LightenImportOutcome.Imported, null);
+    }
+
     /// <summary>La coda del servizio; null se non risponde.</summary>
     private async Task<IReadOnlyList<ArrQueueItem>?> QueueAsync(ArrKind kind, CancellationToken ct)
     {
@@ -142,10 +210,8 @@ public sealed partial class SpaceService
     private async Task<(bool Imported, SpaceLightenDownloadDto? Status)> StatusAsync(
         SpaceLightenDto row, DateTimeOffset grabbedAt, IReadOnlyList<ArrQueueItem> queue, DateTimeOffset now, CancellationToken ct)
     {
-        var parts = row.Key.Split(':');
-        var id = int.Parse(parts[1], CultureInfo.InvariantCulture);
-        int? season = parts.Length == 3 ? int.Parse(parts[2], CultureInfo.InvariantCulture) : null;
-        var items = queue.Where(q => season is { } n ? q.SeriesId == id && q.SeasonNumber == n : q.MovieId == id).ToList();
+        var (id, season) = IdsOf(row.Key);
+        var items = ItemsOf(row.Key, queue);
         if (items.Count > 0)
         {
             return (false, FromQueue(items));
@@ -173,6 +239,20 @@ public sealed partial class SpaceService
         }
 
         return (false, new SpaceLightenDownloadDto(now - grabbedAt < LightenQueueGrace ? SpaceLightenStates.Downloading : SpaceLightenStates.Failed, 0, 0, null));
+    }
+
+    // Il film o la serie e la stagione di una chiave "movie:ID" o "season:ID:N".
+    private static (int Id, int? Season) IdsOf(string key)
+    {
+        var parts = key.Split(':');
+        return (int.Parse(parts[1], CultureInfo.InvariantCulture), parts.Length == 3 ? int.Parse(parts[2], CultureInfo.InvariantCulture) : null);
+    }
+
+    // Le voci della coda di una riga: quelle del film, o degli episodi della stagione.
+    private static List<ArrQueueItem> ItemsOf(string key, IEnumerable<ArrQueueItem> queue)
+    {
+        var (id, season) = IdsOf(key);
+        return [.. queue.Where(q => season is { } n ? q.SeriesId == id && q.SeasonNumber == n : q.MovieId == id)];
     }
 
     // Una stagione può avere più voci (episodi singoli): scarica finché una scarica, il progresso è quello di tutte.

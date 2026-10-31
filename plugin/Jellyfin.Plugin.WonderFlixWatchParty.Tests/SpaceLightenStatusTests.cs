@@ -168,6 +168,84 @@ public sealed class SpaceLightenStatusTests : IDisposable
         Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Downloading, 0.5, 2 * Gb, null), await DownloadOf("season:5:2"));
     }
 
+    private static ArrManualImportItem EpisodeFile(int episodeId) => new()
+    {
+        Path = $"/dl/e{episodeId}.mkv",
+        Series = new ArrFileRef { Id = 5 },
+        Episodes = [new ArrFileRef { Id = episodeId }],
+        Quality = JsonDocument.Parse("{}").RootElement,
+        Size = Gb,
+    };
+
+    [Fact]
+    public async Task ImportingByHandImportsEachBlockedDownloadOfTheRow()
+    {
+        Lightened("season:5:2", Now.AddHours(-1));
+        _sonarrQueue =
+        [
+            Item("importBlocked", 6 * Gb, 0, seriesId: 5, season: 2, downloadId: "PACK"),
+            Item("importBlocked", 6 * Gb, 0, seriesId: 5, season: 2, downloadId: "PACK"),
+            Item("importBlocked", 1 * Gb, 0, seriesId: 5, season: 2),
+            Item("importPending", 1 * Gb, 0, seriesId: 5, season: 2, downloadId: "PENDING"),
+            Item("importBlocked", 1 * Gb, 0, seriesId: 5, season: 3, downloadId: "OTHER"),
+        ];
+        _arr.ManualImportItems = (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>([EpisodeFile(201), EpisodeFile(202)]);
+
+        Assert.Equal((SpaceService.LightenImportOutcome.Imported, (string?)null), await _service.ImportLightenAsync("season:5:2", CancellationToken.None));
+
+        Assert.Equal([(ArrKind.Sonarr, "PACK")], _arr.ManualImportReadCalls);
+        Assert.Equal(2, Assert.Single(_arr.ManualImportCalls).Items.Count);
+        Assert.Contains(_log.Entries, e => e.Message.Contains("season:5:2 importato a mano", StringComparison.Ordinal));
+
+        // Finché la coda non risponde la riga resta Importing.
+        _arr.Queue = _ => Task.FromException<IReadOnlyList<ArrQueueItem?>>(new ArrException(ArrError.Unreachable));
+        Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Importing, 1, 0, null), await DownloadOf("season:5:2"));
+    }
+
+    [Fact]
+    public async Task ImportingByHandWithoutABlockedLightenIsUnknown()
+    {
+        Lightened("movie:13", Now.AddHours(-1));
+        Lightened("series:5", Now.AddHours(-1));
+        _radarrQueue =
+        [
+            Item("importBlocked", 4 * Gb, 0, movieId: 12, downloadId: "D"),
+            Item("importPending", 4 * Gb, 0, movieId: 13, downloadId: "E"),
+            Item("importBlocked", 4 * Gb, 0, movieId: 13),
+        ];
+
+        // Bloccato ma non alleggerito, chiave sbagliata, alleggerito ma niente di bloccato con un DownloadId.
+        foreach (var key in new[] { "movie:12", "series:5", "movie:x", "movie:13" })
+        {
+            Assert.Equal((SpaceService.LightenImportOutcome.Unknown, (string?)null), await _service.ImportLightenAsync(key, CancellationToken.None));
+        }
+
+        Assert.Empty(_arr.ManualImportReadCalls);
+    }
+
+    [Fact]
+    public async Task ImportingByHandReportsTheFailure()
+    {
+        Lightened("movie:12", Now.AddHours(-1));
+        _radarrQueue = [Item("importBlocked", 4 * Gb, 0, movieId: 12, downloadId: "D")];
+
+        // Nessun file importabile.
+        Assert.Equal((SpaceService.LightenImportOutcome.Failed, "NoFiles"), await _service.ImportLightenAsync("movie:12", CancellationToken.None));
+
+        // Il comando fallisce.
+        _arr.ManualImportItems = (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>(
+            [new ArrManualImportItem { Path = "/dl/a.mkv", Movie = new ArrFileRef { Id = 12 }, Quality = JsonDocument.Parse("{}").RootElement }]);
+        _arr.ManualImport = (_, _) => Task.FromException(new ArrException(ArrError.Unreachable));
+        Assert.Equal((SpaceService.LightenImportOutcome.Failed, "Unreachable"), await _service.ImportLightenAsync("movie:12", CancellationToken.None));
+
+        // La coda non si legge.
+        _arr.Queue = _ => Task.FromException<IReadOnlyList<ArrQueueItem?>>(new ArrException(ArrError.Unreachable));
+        Assert.Equal(
+            (SpaceService.LightenImportOutcome.Failed, UpcomingErrors.Code(ArrError.Unreachable)),
+            await _service.ImportLightenAsync("movie:12", CancellationToken.None));
+        Assert.Null(await DownloadOf("movie:12"));
+    }
+
     [Fact]
     public async Task AnImportedLighterFileHidesTheRow()
     {
