@@ -728,4 +728,207 @@ public sealed class DownloadServiceAdminTests : IDisposable
 
     private static (string, int, string, string, string, int, long, int, int?) Flat(DownloadReleaseDto r) =>
         (r.Guid, r.IndexerId, r.Indexer, r.Title, r.Quality, r.Resolution, r.SizeBytes, r.Score, r.Seeders);
+
+    // Animals in "Serve te" per un motivo; il film è in Radarr senza file.
+    private void NeedsYou(string reason, Action<DownloadEntry>? change = null)
+    {
+        _movies = [Movie(12, title: "Animals", year: 2025, runtime: 106)];
+        var entry = new DownloadEntry
+        {
+            Key = "movie:12",
+            Kind = DownloadKinds.Movie,
+            Title = "Animals (2025)",
+            State = DownloadStates.NeedsYou,
+            Reason = reason,
+            ProfileId = 4,
+            RuntimeMinutes = 106,
+            AvailableSince = T0 - TimeSpan.FromDays(10),
+            NextSearchAt = T0 + TimeSpan.FromDays(1),
+        };
+        change?.Invoke(entry);
+        var book = new DownloadBook();
+        book.Put(entry);
+        Store().Save(book);
+    }
+
+    private Task<GrabOutcome> GrabBest(string key = "movie:12") => _service.GrabBestAsync(key, CancellationToken.None);
+
+    [Fact]
+    public async Task GrabBestTakesTheBestBelowMinimumAndMarksAStopgap()
+    {
+        NeedsYou(DownloadReasons.BelowMinScore);
+        _releases = [Release("x30", WebRip1080, "WEBRip-1080p", 2, 30), Release("x40", WebRip1080, "WEBRip-1080p", 2, 40)];
+
+        Assert.Equal(GrabOutcome.Ok, await GrabBest());
+
+        Assert.Equal("x40", Assert.Single(_arr.GrabCalls).Guid);
+        Assert.Single(_arr.SearchReleaseCalls);
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.Downloading, DownloadStopgaps.Score), (entry.State, entry.Stopgap));
+    }
+
+    [Fact]
+    public async Task GrabBestTakesTheHeaviestTooSmall()
+    {
+        // Tutti sotto 0,8 GB all'ora (106 minuti): il più pesante.
+        NeedsYou(DownloadReasons.NothingFound);
+        _releases = [Release("s09", WebRip1080, "WEBRip-1080p", 0.9, 150), Release("s11", WebRip1080, "WEBRip-1080p", 1.1, 150), Release("arr", WebRip1080, "WEBRip-1080p", 5, 150)];
+        _releases[2]!.Rejections = ["Unknown language"];
+
+        Assert.Equal(GrabOutcome.Ok, await GrabBest());
+
+        Assert.Equal("s11", Assert.Single(_arr.GrabCalls).Guid);
+        Assert.Equal(DownloadStopgaps.Size, Saved("movie:12")!.Stopgap);
+    }
+
+    [Fact]
+    public async Task GrabBestSkipsRefusedReleases()
+    {
+        NeedsYou(DownloadReasons.BelowMinScore, e => e.RefusedReleases = [DownloadRule.ReleaseId("x40", 1)]);
+        _releases = [Release("x40", WebRip1080, "WEBRip-1080p", 2, 40), Release("x30", WebRip1080, "WEBRip-1080p", 2, 30)];
+
+        Assert.Equal(GrabOutcome.Ok, await GrabBest());
+
+        Assert.Equal("x30", Assert.Single(_arr.GrabCalls).Guid);
+    }
+
+    [Fact]
+    public async Task GrabBestWithNothingToTakeSaysSo()
+    {
+        NeedsYou(DownloadReasons.NothingFound);
+        _releases = [Release("arr", WebRip1080, "WEBRip-1080p", 5, 150)];
+        _releases[0]!.Rejections = ["Unknown language"];
+
+        Assert.Equal(GrabOutcome.NothingToGrab, await GrabBest());
+        Assert.Empty(_arr.GrabCalls);
+
+        // Una stagione o una chiave non valida: Invalid, senza cercare.
+        Assert.Equal(GrabOutcome.Invalid, await GrabBest("season:7:2"));
+        Assert.Equal(GrabOutcome.Invalid, await GrabBest("film:12"));
+        Assert.Single(_arr.SearchReleaseCalls);
+    }
+
+    [Fact]
+    public async Task GrabBestWhileTheCycleGrabsIsBusy()
+    {
+        // Un altro grab dello stesso titolo è in corso.
+        NeedsYou(DownloadReasons.BelowMinScore);
+        _releases = [Release("x40", WebRip1080, "WEBRip-1080p", 2, 40)];
+        var gate = new TaskCompletionSource();
+        _arr.Grab = (_, _, _) => gate.Task;
+        var first = Grab("movie:12", "x40", 1);
+
+        Assert.Equal(GrabOutcome.Busy, await GrabBest());
+
+        gate.SetResult();
+        Assert.Equal(GrabOutcome.Ok, await first);
+        Assert.Single(_arr.GrabCalls);
+        Assert.Null(Saved("movie:12")!.Stopgap);
+    }
+
+    [Fact]
+    public void SnoozeMovesNothingFoundToWaiting()
+    {
+        NeedsYou(DownloadReasons.NothingFound);
+
+        Assert.True(_service.Snooze("movie:12"));
+
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.Waiting, true, DownloadReasons.NothingFound, T0 + TimeSpan.FromDays(7)), (entry.State, entry.Snoozed, entry.Reason, entry.NextSearchAt));
+        Assert.Empty(_service.NeedsYouAlerts());
+    }
+
+    [Fact]
+    public void SnoozeRefusesOtherStates()
+    {
+        NeedsYou(DownloadReasons.BelowMinScore);
+
+        Assert.False(_service.Snooze("movie:12"));
+        Assert.False(_service.Snooze("movie:13"));
+        Assert.False(_service.Snooze("film:12"));
+        Assert.Equal((DownloadStates.NeedsYou, false), (Saved("movie:12")!.State, Saved("movie:12")!.Snoozed));
+    }
+
+    private void Blocked(Action<DownloadEntry>? change = null) =>
+        NeedsYou(DownloadReasons.ImportBlocked, e =>
+        {
+            (e.QueueId, e.DownloadId, e.BlockedMessage) = (77, "abc", "Not an upgrade");
+            change?.Invoke(e);
+        });
+
+    [Fact]
+    public async Task ImportBlockedStartsTheManualImport()
+    {
+        Blocked();
+        _arr.ManualImportItems = (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>(
+            [new ArrManualImportItem { Path = "/dl/a.mkv", DownloadId = "abc", Movie = new ArrFileRef { Id = 12 }, Quality = System.Text.Json.JsonDocument.Parse("""{"quality":{"id":15}}""").RootElement, Rejections = [] }]);
+        var nudges = 0;
+        _service.Nudged += () => nudges++;
+
+        Assert.Equal((BlockedOutcome.Ok, (string?)null), await _service.ImportBlockedAsync("movie:12"));
+
+        Assert.Equal((ArrKind.Radarr, "abc"), Assert.Single(_arr.ManualImportReadCalls));
+        Assert.Single(_arr.ManualImportCalls);
+        Assert.Equal((DownloadStates.Downloading, (string?)null, 1), (Saved("movie:12")!.State, Saved("movie:12")!.Reason, nudges));
+    }
+
+    [Fact]
+    public async Task ImportBlockedReportsNoFiles()
+    {
+        Blocked();
+
+        Assert.Equal((BlockedOutcome.Failed, (string?)"NoFiles"), await _service.ImportBlockedAsync("movie:12"));
+
+        Assert.Empty(_arr.ManualImportCalls);
+        Assert.Equal((DownloadStates.NeedsYou, (string?)DownloadReasons.ImportBlocked), (Saved("movie:12")!.State, Saved("movie:12")!.Reason));
+    }
+
+    [Fact]
+    public async Task ImportBlockedOnAnotherStateIsChanged()
+    {
+        NeedsYou(DownloadReasons.BelowMinScore);
+        Assert.Equal(BlockedOutcome.Changed, (await _service.ImportBlockedAsync("movie:12")).Outcome);
+        Assert.Equal(BlockedOutcome.Changed, await _service.DiscardBlockedAsync("movie:12"));
+        Assert.Equal(BlockedOutcome.Changed, (await _service.ImportBlockedAsync("movie:13")).Outcome);
+        Assert.Equal(BlockedOutcome.Invalid, (await _service.ImportBlockedAsync("film:12")).Outcome);
+        Assert.Equal(BlockedOutcome.Invalid, await _service.DiscardBlockedAsync("film:12"));
+
+        // Bloccato ma senza il download da importare.
+        Blocked(e => e.DownloadId = null);
+        Assert.Equal(BlockedOutcome.Changed, (await _service.ImportBlockedAsync("movie:12")).Outcome);
+        Assert.Empty(_arr.ManualImportReadCalls);
+        Assert.Empty(_arr.RemoveFromQueueCalls);
+    }
+
+    [Fact]
+    public async Task DiscardRemovesWithBlocklistAndSearchesAgain()
+    {
+        Blocked();
+        _radarrQueue = [MovieQueue(77, 12, 0, state: "importBlocked", status: "completed")];
+        var nudges = 0;
+        _service.Nudged += () => nudges++;
+
+        Assert.Equal(BlockedOutcome.Ok, await _service.DiscardBlockedAsync("movie:12"));
+
+        Assert.Equal((ArrKind.Radarr, 77, true, true), Assert.Single(_arr.RemoveFromQueueCalls));
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.Waiting, (string?)null, T0, 1), (entry.State, entry.Reason, entry.NextSearchAt, nudges));
+    }
+
+    [Fact]
+    public async Task DiscardOfAnUpgradeGoesBackToUpgradeWatch()
+    {
+        Blocked(e =>
+        {
+            (e.CurrentScore, e.CurrentQualityId, e.CurrentSizeBytes) = (150, WebRip1080, 2 * Gb);
+            (e.PreviousScore, e.PreviousQualityId, e.PreviousSizeBytes) = (0, Bluray1080, 12 * Gb);
+            e.UpgradeUntil = T0 + TimeSpan.FromDays(20);
+        });
+        _radarrQueue = [MovieQueue(77, 12, 0, state: "importBlocked", status: "completed")];
+
+        Assert.Equal(BlockedOutcome.Ok, await _service.DiscardBlockedAsync("movie:12"));
+
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.UpgradeWatch, (int?)0, (int?)Bluray1080, (long?)(12 * Gb), (int?)null, T0), (entry.State, entry.CurrentScore, entry.CurrentQualityId, entry.CurrentSizeBytes, entry.PreviousScore, entry.NextSearchAt));
+    }
 }

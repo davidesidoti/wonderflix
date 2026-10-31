@@ -365,6 +365,27 @@ public sealed class DownloadServiceCycleTests : IDisposable
     }
 
     [Fact]
+    public async Task ABlockedImportKeepsTheDownloadAndSonarrsMessage()
+    {
+        _movies = [Movie(12)];
+        var blocked = MovieQueue(90, 12, 0, state: "importBlocked");
+        blocked.DownloadId = "abc";
+        blocked.StatusMessages = [new ArrStatusMessage { Title = "a.mkv", Messages = ["Not an upgrade", "Not an upgrade", "Sample"] }];
+        _radarrQueue = [blocked];
+
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        var entry = Saved("movie:12")!;
+        Assert.Equal(("abc", "Not an upgrade\nSample"), (entry.DownloadId, entry.BlockedMessage));
+
+        // Non più bloccato: il messaggio non vale più.
+        _time.Advance(DownloadService.CycleInterval);
+        _radarrQueue = [MovieQueue(90, 12, 0)];
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Null(Saved("movie:12")!.BlockedMessage);
+    }
+
+    [Fact]
     public async Task ATitleDownloadedElsewhereLeaves()
     {
         _movies = [Movie(12), Movie(13), Movie(14)];

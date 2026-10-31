@@ -1,4 +1,5 @@
 using System.Globalization;
+using Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
@@ -331,10 +332,7 @@ public sealed partial class SpaceService
             : SpaceLightenStates.Importing;
 
         // Il perché del blocco, per l'admin: i primi tre messaggi diversi.
-        var messages = state == SpaceLightenStates.Blocked
-            ? blocked.SelectMany(i => i.StatusMessages ?? []).SelectMany(m => m?.Messages ?? []).Where(m => !string.IsNullOrWhiteSpace(m)).Distinct().Take(3).ToList()
-            : [];
-        return new SpaceLightenDownloadDto(state, progress, left, messages.Count > 0 ? string.Join('\n', messages) : null);
+        return new SpaceLightenDownloadDto(state, progress, left, state == SpaceLightenStates.Blocked ? DownloadService.StatusMessageOf(blocked) : null);
 
         static bool Is(ArrQueueItem item, string state) => string.Equals(item.TrackedDownloadState, state, StringComparison.OrdinalIgnoreCase);
     }

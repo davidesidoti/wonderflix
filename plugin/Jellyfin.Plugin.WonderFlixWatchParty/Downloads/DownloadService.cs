@@ -390,6 +390,8 @@ public sealed partial class DownloadService(
 
         entry.State = DownloadStates.Downloading;
         entry.Reason = null;
+        entry.DownloadId = item.DownloadId;
+        entry.BlockedMessage = null;
         if (string.Equals(item.TrackedDownloadState, ImportBlockedState, StringComparison.OrdinalIgnoreCase))
         {
             OnImportBlocked(entry, item, imports);
@@ -456,6 +458,14 @@ public sealed partial class DownloadService(
 
         entry.State = DownloadStates.NeedsYou;
         entry.Reason = DownloadReasons.ImportBlocked;
+        entry.BlockedMessage = StatusMessageOf([item]);
+    }
+
+    /// <summary>Il perché di Radarr/Sonarr, così com'è: i primi tre messaggi diversi, uno per riga; null senza messaggi.</summary>
+    internal static string? StatusMessageOf(IEnumerable<ArrQueueItem> items)
+    {
+        var messages = items.SelectMany(i => i.StatusMessages ?? []).SelectMany(m => m?.Messages ?? []).Where(m => !string.IsNullOrWhiteSpace(m)).Distinct().Take(3).ToList();
+        return messages.Count > 0 ? string.Join('\n', messages) : null;
     }
 
     private async Task RemoveStalledAsync(ArrKind kind, int queueId, string key, CancellationToken cancellationToken)

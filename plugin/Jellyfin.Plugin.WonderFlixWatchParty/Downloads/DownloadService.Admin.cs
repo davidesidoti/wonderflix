@@ -9,7 +9,8 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 /// Esito di un download scelto dall'admin (spec T §8.2): Invalid per una chiave o una release non valide, Expired se la
 /// release non c'è più nemmeno in una nuova ricerca, Unavailable se Radarr/Sonarr non rispondono (ruling 7), Busy se
 /// un download dello stesso titolo è già in corso, dal giro o da un altro admin (ruling 8), Refused se Radarr/Sonarr
-/// hanno risposto con un errore, per esempio il client di download ha rifiutato il torrent (spec T §8.2).
+/// hanno risposto con un errore, per esempio il client di download ha rifiutato il torrent (spec T §8.2). NothingToGrab
+/// se "Scarica il migliore intanto" non trova più niente da prendere (spec §5.5).
 /// </summary>
 public enum GrabOutcome
 {
@@ -19,6 +20,20 @@ public enum GrabOutcome
     Unavailable,
     Busy,
     Refused,
+    NothingToGrab,
+}
+
+/// <summary>
+/// Esito di "Importa comunque" e "Scarta e cerca un altro" (spec §4.4, §5.4): Invalid per una chiave non valida, Changed se la
+/// voce non è più in <c>ImportBlocked</c>, Failed se l'import non è partito, Unavailable se Radarr/Sonarr non rispondono.
+/// </summary>
+public enum BlockedOutcome
+{
+    Ok,
+    Invalid,
+    Changed,
+    Failed,
+    Unavailable,
 }
 
 /// <summary>
@@ -39,7 +54,7 @@ public sealed partial class DownloadService
     // Il file di adesso; per una stagione il peso di tutti i file, punteggio e qualità del peggiore.
     private sealed record CurrentFile(long SizeBytes, int Score, int? QualityId, string Quality);
 
-    // Una ricerca dell'admin: il titolo come lo vede il giro, il file, il profilo, le release e il risultato.
+    // Una ricerca dell'admin: il titolo come lo vede il giro, il file, il profilo, le release, il risultato e i dati della regola.
     // Solo stagioni: SeasonEpisodes i numeri di tutti i loro episodi (quelli di un pack intero), Episodes gli episodi
     // (con la serie) e Files i loro file.
     private sealed record AdminSearch(
@@ -51,7 +66,8 @@ public sealed partial class DownloadService
         DownloadSearchDto Result,
         DateTimeOffset At,
         IReadOnlyList<SonarrEpisode>? Episodes,
-        IReadOnlyList<ArrFile> Files);
+        IReadOnlyList<ArrFile> Files,
+        RuleInput Input);
 
     // Il titolo di una chiave in Radarr/Sonarr e il file da leggere. Solo stagioni: gli episodi su cui misurare il pack, i
     // numeri di tutti e gli episodi.
@@ -153,6 +169,174 @@ public sealed partial class DownloadService
             }
         }
     }
+
+    /// <summary>
+    /// "Scarica il migliore intanto" (spec §4.1, §4.2a, §5.5): una ricerca nuova (Radarr/Sonarr scaricano solo dalla loro cache
+    /// recente), la regola senza le release rifiutate dal client (§5.3), poi il tappabuchi: il migliore sotto il minimo o il più
+    /// pesante tra i troppo piccoli. Se nel frattempo c'è una scelta valida si scarica quella, senza tappabuchi. Solo film ed
+    /// episodi. Il grab va fino in fondo anche se l'admin chiude la richiesta.
+    /// </summary>
+    public async Task<GrabOutcome> GrabBestAsync(string key, CancellationToken cancellationToken)
+    {
+        if (!DownloadKey.TryParse(key, out var parsed) || parsed.Kind == DownloadKinds.Season)
+        {
+            return GrabOutcome.Invalid;
+        }
+
+        var (search, error) = await ReadAsync(ServiceOf(parsed.Kind), c => RunSearchAsync(parsed, c), cancellationToken).ConfigureAwait(false);
+        if (error is not null)
+        {
+            return GrabOutcome.Unavailable;
+        }
+
+        if (search is null)
+        {
+            return GrabOutcome.Invalid;
+        }
+
+        HashSet<string> refused;
+        lock (_lock)
+        {
+            refused = [.. Book.Get(parsed.ToString())?.RefusedReleases ?? []];
+        }
+
+        var rule = DownloadRule.Choose(search.Releases.Where(r => !refused.Contains(DownloadRule.ReleaseId(r.Guid ?? "", r.IndexerId))), search.Input);
+        var (release, stopgap) = rule.Choice is { } choice ? (choice, null) : DownloadRule.ChooseStopgap(rule);
+        if (release is null)
+        {
+            return GrabOutcome.NothingToGrab;
+        }
+
+        var outcome = await GrabAsync(parsed.ToString(), release.Guid!, release.IndexerId, CancellationToken.None).ConfigureAwait(false);
+        if (outcome == GrabOutcome.Ok)
+        {
+            lock (_lock)
+            {
+                if (Book.Get(parsed.ToString()) is { } entry)
+                {
+                    entry.Stopgap = stopgap;
+                    SaveAfterGrab();
+                }
+            }
+        }
+
+        return outcome;
+    }
+
+    /// <summary>
+    /// "Va bene, aspetto" (spec §4.3): la voce torna in attesa senza avvisi, cercata una volta alla settimana. Falso se non è in
+    /// <c>NeedsYou</c> per <c>NothingFound</c>.
+    /// </summary>
+    public bool Snooze(string key)
+    {
+        lock (_lock)
+        {
+            if (!DownloadKey.TryParse(key, out var parsed)
+                || Book.Get(parsed.ToString()) is not { State: DownloadStates.NeedsYou, Reason: DownloadReasons.NothingFound } entry)
+            {
+                return false;
+            }
+
+            entry.State = DownloadStates.Waiting;
+            entry.Snoozed = true;
+            entry.NextSearchAt = time.GetUtcNow() + DownloadSchedule.SnoozedPace;
+            store.Save(Book);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// "Importa comunque" (spec §4.4): lo stesso import a mano della scheda spazio. Se parte la voce torna "in download" finché
+    /// Radarr/Sonarr non importano; se no resta in "Serve te" e l'errore ("NoFiles" o un codice) va all'admin.
+    /// </summary>
+    public async Task<(BlockedOutcome Outcome, string? Error)> ImportBlockedAsync(string key)
+    {
+        if (!DownloadKey.TryParse(key, out var parsed))
+        {
+            return (BlockedOutcome.Invalid, null);
+        }
+
+        string downloadId;
+        lock (_lock)
+        {
+            if (Blocked(parsed) is not { DownloadId: { Length: > 0 } id })
+            {
+                return (BlockedOutcome.Changed, null);
+            }
+
+            downloadId = id;
+        }
+
+        if (await ImportDownloadAsync(ServiceOf(parsed.Kind), downloadId, CancellationToken.None).ConfigureAwait(false) is { } error)
+        {
+            return (BlockedOutcome.Failed, error);
+        }
+
+        lock (_lock)
+        {
+            if (Book.Get(parsed.ToString()) is { } entry)
+            {
+                entry.State = DownloadStates.Downloading;
+                entry.Reason = null;
+                store.Save(Book);
+            }
+        }
+
+        Nudge();
+        return (BlockedOutcome.Ok, null);
+    }
+
+    /// <summary>
+    /// "Scarta e cerca un altro" (spec §4.4): il download esce dalla coda e dal client con la blocklist, poi una ricerca subito.
+    /// La voce torna in attesa, o a tenere d'occhio l'upgrade con il file di prima.
+    /// </summary>
+    public async Task<BlockedOutcome> DiscardBlockedAsync(string key)
+    {
+        if (!DownloadKey.TryParse(key, out var parsed))
+        {
+            return BlockedOutcome.Invalid;
+        }
+
+        lock (_lock)
+        {
+            if (Blocked(parsed) is null)
+            {
+                return BlockedOutcome.Changed;
+            }
+        }
+
+        if (!await RemoveOldDownloadAsync(parsed, ServiceOf(parsed.Kind), CancellationToken.None, blocklist: true).ConfigureAwait(false))
+        {
+            return BlockedOutcome.Unavailable;
+        }
+
+        lock (_lock)
+        {
+            if (Book.Get(parsed.ToString()) is { } entry)
+            {
+                var now = time.GetUtcNow();
+                if (entry.PreviousScore is not null)
+                {
+                    BackToUpgradeWatch(entry, now);
+                }
+                else
+                {
+                    BackToWaiting(entry, now);
+                }
+
+                entry.NextSearchAt = now;
+                store.Save(Book);
+            }
+        }
+
+        Nudge();
+        return BlockedOutcome.Ok;
+    }
+
+    // Solo sotto _lock. La voce ferma perché Radarr/Sonarr non importano; null in un altro stato.
+    private DownloadEntry? Blocked(DownloadKey key) =>
+        Book.Get(key.ToString()) is { State: DownloadStates.NeedsYou, Reason: DownloadReasons.ImportBlocked } entry ? entry : null;
 
     /// <summary>I grab di "Alleggerisci" ancora ricordati, per la scheda spazio: una copia.</summary>
     public IReadOnlyDictionary<string, DateTimeOffset> LightenedKeys()
@@ -413,7 +597,7 @@ public sealed partial class DownloadService
             null,
             choice is null ? EpisodeChoicesOf(target, releases, files, input, thresholds.TargetScore, profile, time.GetUtcNow()) : []);
 
-        var search = new AdminSearch(title, current, profile, target.SeasonEpisodes, releases, result, time.GetUtcNow(), target.Episodes, files);
+        var search = new AdminSearch(title, current, profile, target.SeasonEpisodes, releases, result, time.GetUtcNow(), target.Episodes, files, input);
         lock (_lock)
         {
             _lastSearch[title.Key] = search;
@@ -593,9 +777,9 @@ public sealed partial class DownloadService
         profile is not null
         && DownloadRule.WouldImport(profile, release.Quality?.Quality?.Id ?? 0, release.CustomFormatScore, current?.QualityId, current?.Score);
 
-    // "cambia" (spec T §8.2): tutto quello che il titolo ha in coda si toglie, anche dal client, senza blocklist; anche un
-    // download fermo in "Serve te" o appena scelto (QueueId non ancora letto). Falso se non si è potuto.
-    private async Task<bool> RemoveOldDownloadAsync(DownloadKey key, ArrKind service, CancellationToken cancellationToken)
+    // "cambia" (spec T §8.2): tutto quello che il titolo ha in coda si toglie, anche dal client, senza blocklist ("Scarta" con);
+    // anche un download fermo in "Serve te" o appena scelto (QueueId non ancora letto). Falso se non si è potuto.
+    private async Task<bool> RemoveOldDownloadAsync(DownloadKey key, ArrKind service, CancellationToken cancellationToken, bool blocklist = false)
     {
         lock (_lock)
         {
@@ -621,7 +805,7 @@ public sealed partial class DownloadService
             {
                 try
                 {
-                    await arr.RemoveFromQueueAsync(service, ids[i], blocklist: false, removeFromClient: true, cancellationToken).ConfigureAwait(false);
+                    await arr.RemoveFromQueueAsync(service, ids[i], blocklist, removeFromClient: true, cancellationToken).ConfigureAwait(false);
                 }
                 catch (ArrException ex) when (ex.Status == 404)
                 {

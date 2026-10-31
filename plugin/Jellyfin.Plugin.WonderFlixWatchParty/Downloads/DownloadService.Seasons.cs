@@ -178,6 +178,7 @@ public sealed partial class DownloadService
             Sizeleft = records.Sum(r => r.Sizeleft),
             Status = downloading ? DownloadingState : null,
             TrackedDownloadState = blocked ? ImportBlockedState : downloading ? DownloadingState : null,
+            StatusMessages = [.. records.SelectMany(r => r.StatusMessages ?? [])],
         };
     }
 

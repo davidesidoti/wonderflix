@@ -39,17 +39,59 @@ public class DownloadsController(DownloadService downloads) : ControllerBase
             return BadRequest();
         }
 
-        return await downloads.GrabAsync(request.Key, request.Guid, request.IndexerId, HttpContext.RequestAborted, request.Lighten).ConfigureAwait(false) switch
-        {
-            GrabOutcome.Ok => NoContent(),
-            GrabOutcome.Expired => Error(StatusCodes.Status409Conflict, "Expired"),
-            GrabOutcome.Busy => Error(StatusCodes.Status409Conflict, "Busy"),
-            GrabOutcome.Refused => Error(StatusCodes.Status502BadGateway, "Refused"),
-            GrabOutcome.Unavailable => Error(StatusCodes.Status503ServiceUnavailable, "Unavailable"),
-            GrabOutcome.Invalid => BadRequest(),
-            _ => throw new InvalidOperationException("GrabOutcome sconosciuto"),
-        };
+        return Result(await downloads.GrabAsync(request.Key, request.Guid, request.IndexerId, HttpContext.RequestAborted, request.Lighten).ConfigureAwait(false));
     }
+
+    /// <summary>"Scarica il migliore intanto" (fino a 2 minuti): 204; 409 NothingToGrab, poi gli errori di Grab.</summary>
+    [HttpPost("GrabBest")]
+    public async Task<ActionResult> GrabBest([FromBody] KeyRequest? request) =>
+        request?.Key is { } key ? Result(await downloads.GrabBestAsync(key, HttpContext.RequestAborted).ConfigureAwait(false)) : BadRequest();
+
+    /// <summary>"Va bene, aspetto": 204; 400 se la voce non è in "Serve te" per "nessun file valido".</summary>
+    [HttpPost("Snooze")]
+    public ActionResult Snooze([FromBody] KeyRequest? request) =>
+        request?.Key is { } key && downloads.Snooze(key) ? NoContent() : BadRequest();
+
+    /// <summary>"Importa comunque": 204; 409 Changed se non è più bloccata; 502 NoFiles o ImportFailed.</summary>
+    [HttpPost("Import")]
+    public async Task<ActionResult> Import([FromBody] KeyRequest? request)
+    {
+        if (request?.Key is not { } key)
+        {
+            return BadRequest();
+        }
+
+        var (outcome, error) = await downloads.ImportBlockedAsync(key).ConfigureAwait(false);
+        return outcome == BlockedOutcome.Failed
+            ? Error(StatusCodes.Status502BadGateway, error == "NoFiles" ? error : "ImportFailed")
+            : Result(outcome);
+    }
+
+    /// <summary>"Scarta e cerca un altro": 204; 409 Changed se non è più bloccata; 503 se Radarr/Sonarr non rispondono.</summary>
+    [HttpPost("Discard")]
+    public async Task<ActionResult> Discard([FromBody] KeyRequest? request) =>
+        request?.Key is { } key ? Result(await downloads.DiscardBlockedAsync(key).ConfigureAwait(false)) : BadRequest();
+
+    private ActionResult Result(GrabOutcome outcome) => outcome switch
+    {
+        GrabOutcome.Ok => NoContent(),
+        GrabOutcome.Expired => Error(StatusCodes.Status409Conflict, "Expired"),
+        GrabOutcome.Busy => Error(StatusCodes.Status409Conflict, "Busy"),
+        GrabOutcome.NothingToGrab => Error(StatusCodes.Status409Conflict, "NothingToGrab"),
+        GrabOutcome.Refused => Error(StatusCodes.Status502BadGateway, "Refused"),
+        GrabOutcome.Unavailable => Error(StatusCodes.Status503ServiceUnavailable, "Unavailable"),
+        GrabOutcome.Invalid => BadRequest(),
+        _ => throw new InvalidOperationException("GrabOutcome sconosciuto"),
+    };
+
+    private ActionResult Result(BlockedOutcome outcome) => outcome switch
+    {
+        BlockedOutcome.Ok => NoContent(),
+        BlockedOutcome.Changed => Error(StatusCodes.Status409Conflict, "Changed"),
+        BlockedOutcome.Unavailable => Error(StatusCodes.Status503ServiceUnavailable, "Unavailable"),
+        BlockedOutcome.Invalid => BadRequest(),
+        _ => throw new InvalidOperationException("BlockedOutcome sconosciuto"),
+    };
 
     /// <summary>"Va bene così": 204.</summary>
     [HttpPost("Accept")]

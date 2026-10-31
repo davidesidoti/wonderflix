@@ -210,6 +210,89 @@ public sealed class DownloadsControllerTests : IDisposable
         Assert.All(profiles, p => Assert.Equal((4, "Main", 50, 150), (p.ProfileId, p.Name, p.MinScore, p.TargetScore)));
     }
 
+    // Animals in "Serve te" (scritto prima che il servizio legga il file).
+    private void NeedsYou(string reason)
+    {
+        var book = new DownloadBook();
+        book.Put(new DownloadEntry { Key = "movie:12", Kind = DownloadKinds.Movie, Title = "Animals (2025)", State = DownloadStates.NeedsYou, Reason = reason, QueueId = 77, DownloadId = "abc", AvailableSince = T0, NextSearchAt = T0 });
+        new DownloadStore(_folder.DownloadsFile, Microsoft.Extensions.Logging.Abstractions.NullLogger<DownloadStore>.Instance).Save(book);
+    }
+
+    private static KeyRequest Key(string? key = "movie:12") => new() { Key = key };
+
+    [Fact]
+    public async Task GrabBestMapsItsOutcomes()
+    {
+        // I due candidati sono validi: niente tappabuchi, si prende la scelta della regola.
+        Assert.Equal(StatusCodes.Status204NoContent, Status(await _controller.GrabBest(Key())));
+
+        _arr.Releases = (_, _) => Task.FromResult<IReadOnlyList<ArrRelease?>>([]);
+        var nothing = await _controller.GrabBest(Key());
+        Assert.Equal(StatusCodes.Status409Conflict, Status(nothing));
+        Assert.Equal("NothingToGrab", Reason(nothing));
+
+        Assert.Equal(StatusCodes.Status400BadRequest, Status(await _controller.GrabBest(Key("season:7:2"))));
+        Assert.Equal(StatusCodes.Status400BadRequest, Status(await _controller.GrabBest(null)));
+    }
+
+    [Fact]
+    public void SnoozeIsNoContentOrBadRequest()
+    {
+        NeedsYou(DownloadReasons.NothingFound);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, Status(_controller.Snooze(Key("movie:13"))));
+        Assert.Equal(StatusCodes.Status400BadRequest, Status(_controller.Snooze(null)));
+        Assert.Equal(StatusCodes.Status204NoContent, Status(_controller.Snooze(Key())));
+        Assert.Equal(StatusCodes.Status400BadRequest, Status(_controller.Snooze(Key())));
+    }
+
+    [Fact]
+    public async Task ImportMapsItsOutcomes()
+    {
+        NeedsYou(DownloadReasons.BelowMinScore);
+        var changed = await _controller.Import(Key());
+        Assert.Equal(StatusCodes.Status409Conflict, Status(changed));
+        Assert.Equal("Changed", Reason(changed));
+        Assert.Equal(StatusCodes.Status400BadRequest, Status(await _controller.Import(Key("nope"))));
+    }
+
+    [Fact]
+    public async Task AFailedImportIsBadGatewayWithItsCode()
+    {
+        NeedsYou(DownloadReasons.ImportBlocked);
+
+        var noFiles = await _controller.Import(Key());
+        Assert.Equal(StatusCodes.Status502BadGateway, Status(noFiles));
+        Assert.Equal("NoFiles", Reason(noFiles));
+
+        _arr.ManualImportItems = (_, _) => Task.FromException<IReadOnlyList<ArrManualImportItem?>>(new ArrException(ArrError.Unreachable, status: 500));
+        var failed = await _controller.Import(Key());
+        Assert.Equal(StatusCodes.Status502BadGateway, Status(failed));
+        Assert.Equal("ImportFailed", Reason(failed));
+
+        _arr.ManualImportItems = (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>(
+            [new ArrManualImportItem { Path = "/dl/a.mkv", Movie = new ArrFileRef { Id = 12 }, Quality = JsonDocument.Parse("{}").RootElement }]);
+        Assert.Equal(StatusCodes.Status204NoContent, Status(await _controller.Import(Key())));
+    }
+
+    [Fact]
+    public async Task DiscardMapsItsOutcomes()
+    {
+        NeedsYou(DownloadReasons.ImportBlocked);
+        _arr.Queue = _ => Task.FromException<IReadOnlyList<ArrQueueItem?>>(new ArrException(ArrError.Unreachable));
+        var unavailable = await _controller.Discard(Key());
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, Status(unavailable));
+        Assert.Equal("Unavailable", Reason(unavailable));
+
+        _arr.Queue = _ => Task.FromResult<IReadOnlyList<ArrQueueItem?>>([MovieQueue(77, 12, 0, state: "importBlocked", status: "completed")]);
+        Assert.Equal(StatusCodes.Status204NoContent, Status(await _controller.Discard(Key())));
+
+        var changed = await _controller.Discard(Key());
+        Assert.Equal(StatusCodes.Status409Conflict, Status(changed));
+        Assert.Equal("Changed", Reason(changed));
+        Assert.Equal(StatusCodes.Status400BadRequest, Status(await _controller.Discard(null)));
+    }
+
     [Fact]
     public async Task ProfilesWithEveryServiceDownAreUnavailable()
     {
