@@ -1,7 +1,7 @@
 # WonderFlix — Spec V: notifiche push
 
 - **Data:** 2026-10-31
-- **Stato:** approvata il 2026-10-31.
+- **Stato:** approvata il 2026-10-31; parte plugin realizzata con il piano 31a (plugin 1.17.0).
 - **Ambito:** idea 15 di `docs/IDEE.md` ("Notifiche push sulla web app"), allargata al PC.
 - **Ricerca:** ricognizione del codice fatta in sessione. Le cose che servono sono riportate qui sotto.
 
@@ -178,3 +178,20 @@ Stessa regola che c'è già per `ReportPending`, che sparisce da tutte le casset
 - Sul PC, la stessa cosa dal sito in Chrome o Edge, e dall'app Windows aperta.
 - Ogni tipo del §4.3 si può spegnere dalle impostazioni, e quando è spento non arriva.
 - Le prove del §5 passano e la checklist di `docs/RELEASING.md` è aggiornata.
+
+## 8. Decisioni dei piani
+
+Piano 31a (parte plugin, plugin 1.17.0):
+1. **Web Push scritto a mano** con le primitive di .NET, provato con il vettore di esempio di RFC 8291 §5. Niente librerie esterne: il plugin si distribuisce come dll singola.
+2. **I testi delle push nascono nel plugin**, in it/en, nella lingua salvata con l'iscrizione. Il service worker dell'app mostra solo quello che riceve.
+3. **"Download fermo" è uno storico** (§4.4b): è un evento, non uno stato in cui il download resta.
+4. **La soglia del disco sta nella configurazione del plugin** (`QuotaAlertPercent`), nella sezione Spazio di `configPage.html`, dove ci sono già le altre impostazioni dello spazio. Nell'app non c'è una pagina di impostazioni dello spazio.
+5. **Profili sullo stesso dispositivo:** l'iscrizione è per coppia (endpoint, utente). Ogni profilo attiva le sue; uscire da un profilo toglie solo le sue.
+
+Esito del Task 1 (prove dei due rischi):
+- il seedbox raggiunge i servizi push: `web.push.apple.com` risponde 405, `fcm.googleapis.com` 404, `wns2-par02p.notify.windows.com` 404 (la rete non è un ostacolo);
+- il gesto su iOS (il tocco su un pulsante Flutter basta a chiedere il permesso?) è ancora da provare dall'utente.
+
+Scelte fatte durante la costruzione:
+- le iscrizioni si accettano solo da host dei servizi push dei browser (Apple, `googleapis.com`, `notify.windows.com`, Mozilla);
+- l'avviso `RecoveryBlocked` tace per la finestra del limite dopo aver avvisato, perché la finestra del limitatore scorre.

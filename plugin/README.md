@@ -57,6 +57,27 @@ uscite in arrivo.
   Prima di spostare una libreria in un altro percorso spegni **Notify new
   titles**: ogni titolo sembrerebbe nuovo. L'impostazione sta in
   `plugins/configurations/Jellyfin.Plugin.WonderFlixWatchParty.xml`.
+- **Notifiche push:** oltre che nella cassetta, le voci arrivano come
+  notifica Web Push ai dispositivi iscritti (testi in it/en, nella lingua
+  salvata con l'iscrizione, senza dati sensibili). Per tutti: inviti, annunci,
+  nuovi titoli, richiesta disponibile, **accettata** o **rifiutata**,
+  promemoria dei contatti, consigli, inviti Match, segnalazione risolta. Per
+  chi approva: richiesta in attesa. Per gli admin: segnalazione nuova,
+  download da sistemare o fermi, Alleggerisci bloccato, pulizia fallita,
+  **disco quasi pieno** (soglia `QuotaAlertPercent`, 90 di default, tra 50 e
+  99), recupero password avviato o bloccato (quello bloccato tace per la
+  finestra del limite) e riavvio richiesto. Le chiavi VAPID si generano una
+  volta sola al primo uso e restano nella configurazione del plugin
+  (`Jellyfin.Plugin.WonderFlixWatchParty.xml`, leggibile solo dagli admin).
+  Iscrizioni e preferenze stanno in
+  `plugins/configurations/WonderFlixWatchParty/notifications.json`; un file
+  illeggibile diventa `notifications.json.bad`. Un'iscrizione è accettata
+  solo se l'endpoint è di un servizio push dei browser (Apple, Google,
+  Microsoft, Mozilla); se risponde 404 o 410 si cancella. Endpoint (stessa
+  policy degli amici): `GET Notifications` (chiave pubblica e tipi
+  visibili con il loro stato), `PUT Notifications/Types/{type}`
+  (`{"Enabled":bool}`), `POST Notifications/Subscriptions` e
+  `DELETE Notifications/Subscriptions`.
 - **Party:** l'app registra ogni gruppo con la sua modalità (pubblico, solo
   amici, privato con codice) e chiede al plugin l'elenco già filtrato
   (`GET Parties`). I party stanno in RAM e spariscono con i gruppi SyncPlay.
@@ -272,7 +293,7 @@ uscite in arrivo.
   inode di `stat` (Jellyfin vede gli stessi percorsi del seedbox).
 - **Funzioni:** `GET Info` annuncia quello che il plugin sa fare; dalla 1.5.0
   ci sono sempre anche `collections` e `avatars`, dalla 1.6.0 anche
-  `account`, dalla 1.7.0 anche `home`, dalla 1.8.0 anche `recommendations`, dalla 1.9.0 anche `friendsActivity`, dalla 1.10.0 anche `match`, dalla 1.11.0 anche `ratings`, dalla 1.12.0 anche `reports`, dalla 1.14.0 anche `downloads` (con almeno uno tra Sonarr e Radarr), dalla 1.16.0 anche `space` (subito dopo `downloads`, con le stesse condizioni); `upcomingSeries` e `upcomingMovies`
+  `account`, dalla 1.7.0 anche `home`, dalla 1.8.0 anche `recommendations`, dalla 1.9.0 anche `friendsActivity`, dalla 1.10.0 anche `match`, dalla 1.11.0 anche `ratings`, dalla 1.12.0 anche `reports`, dalla 1.14.0 anche `downloads` (con almeno uno tra Sonarr e Radarr), dalla 1.16.0 anche `space` (subito dopo `downloads`, con le stesse condizioni), dalla 1.17.0 anche `push`; `upcomingSeries` e `upcomingMovies`
   solo con Sonarr e Radarr configurati, e `calendar` con almeno uno dei due. Gli endpoint delle saghe e delle
   immagini sono aperti a ogni utente che ha fatto l'accesso. Quelli di
   `account` dipendono dalla rotta: `Account/Contacts` per ogni utente che ha
