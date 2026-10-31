@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../profiles/profile_preferences.dart';
+import 'device_push_controller.dart';
 
 /// Lingua scelta dall'utente; `null` = lingua di Windows. È una preferenza
 /// del profilo (spec K §9.6).
@@ -23,6 +24,8 @@ class LocaleController extends Notifier<Locale?> {
       await prefs.setString(_key, locale.languageCode);
     }
     state = locale;
+    // Le push arrivano nella lingua dell'app.
+    await ref.read(devicePushProvider.notifier).languageChanged();
   }
 }
 

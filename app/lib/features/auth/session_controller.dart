@@ -10,6 +10,7 @@ import '../../core/jellyfin/auth_models.dart';
 import '../../core/jellyfin/json_fields.dart';
 import '../../core/jellyfin/user_image_api.dart';
 import '../profiles/profile_preferences.dart';
+import '../settings/device_push_controller.dart';
 import 'auth_service.dart';
 import 'profiles_state.dart';
 
@@ -170,6 +171,8 @@ class SessionController extends Notifier<SessionState> {
     _leaving = true;
     final String? removed;
     try {
+      final active = _auth.activeUserId;
+      if (active != null) await _forgetPush(active);
       removed = await _auth.logout();
     } finally {
       _leaving = false;
@@ -194,6 +197,7 @@ class SessionController extends Notifier<SessionState> {
         jellyfinIdKey(current.user.id) != jellyfinIdKey(userId);
     if (leaving) _leaving = true;
     try {
+      await _forgetPush(userId);
       await _auth.removeProfile(userId);
     } finally {
       if (leaving) _leaving = false;
@@ -248,6 +252,17 @@ class SessionController extends Notifier<SessionState> {
         _publishProfiles();
       }
       rethrow;
+    }
+  }
+
+  /// Le push del profilo che esce si tolgono dal plugin finché il suo token
+  /// vale (spec V: nessuna notifica alla persona sbagliata). Un errore non
+  /// ferma l'uscita.
+  Future<void> _forgetPush(String userId) async {
+    try {
+      await ref.read(devicePushProvider.notifier).forgetUser(userId);
+    } on Object catch (error) {
+      _log.warning('push del profilo non tolte: ${error.runtimeType}');
     }
   }
 

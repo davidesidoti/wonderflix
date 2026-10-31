@@ -1372,5 +1372,11 @@
   "notifPrefDiskAlmostFull": "Disk almost full",
   "notifPrefRecoveryStarted": "Password recovery started",
   "notifPrefRecoveryBlocked": "Password recovery blocked",
-  "notifPrefRestartPending": "Jellyfin restart"
+  "notifPrefRestartPending": "Jellyfin restart",
+  "devicePushUnsupported": "Notifications aren't available in this browser",
+  "devicePushNeedsHomeScreen": "To get notifications, add WonderFlix to your Home Screen and open it from there",
+  "devicePushDenied": "Notifications are blocked: turn them back on in your phone or browser settings",
+  "devicePushActivate": "Turn on notifications on this device",
+  "devicePushActive": "Notifications are on for this device",
+  "devicePushDeactivate": "Turn off"
 }

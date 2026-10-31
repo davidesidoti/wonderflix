@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
+import 'device_push_tile.dart';
 import 'notification_prefs_controller.dart';
 
 /// Larghezza massima della sezione, come le altre impostazioni.
@@ -136,6 +137,7 @@ class NotificationsSettingsSection extends ConsumerWidget {
       child = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const DevicePushTile(),
           group(l.notifPrefsGroupForYou, _forYou),
           group(l.notifPrefsGroupRequests, _requests),
           group(l.notifPrefsGroupAdmin, _admin),
