@@ -528,6 +528,25 @@ void main() {
       }
     });
 
+    test('le voci delle richieste portano RequestId', () {
+      for (final type in [
+        'RequestAvailable',
+        'RequestPending',
+        'RequestApproved',
+        'RequestDeclined',
+      ]) {
+        final entry = inboxEntryFromJson(alert(type, {'RequestId': 42}))!;
+        final requestId = switch (entry) {
+          RequestAvailableEntry(:final requestId) => requestId,
+          RequestPendingEntry(:final requestId) => requestId,
+          RequestApprovedEntry(:final requestId) => requestId,
+          RequestDeclinedEntry(:final requestId) => requestId,
+          _ => null,
+        };
+        expect(requestId, 42, reason: type);
+      }
+    });
+
     test('campi: motivo, percentuale, utente, ambito; AlertKey può mancare', () {
       final needs = inboxEntryFromJson(alert('DownloadNeedsYou',
           {'Title': 'Severance S02', 'Reason': 'GrabRefused'}))!;

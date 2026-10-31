@@ -53,9 +53,13 @@ void _toast(Ref ref, Toasts toasts, InboxEntry entry) {
       );
   final text = notificationTextOf(entry, lookupAppLocalizations(locale));
   toasts.show(text.title, text.body, () async {
-    await windowManager.show();
-    await windowManager.focus();
-    if (ref.mounted) ref.read(routerProvider).go(text.route);
+    try {
+      await windowManager.show();
+      await windowManager.focus();
+      if (ref.mounted) ref.read(routerProvider).go(text.route);
+    } on Object catch (error) {
+      _log.info('notifica di Windows non aperta: ${error.runtimeType}');
+    }
   });
 }
 

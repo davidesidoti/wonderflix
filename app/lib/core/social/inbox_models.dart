@@ -187,6 +187,7 @@ final class RequestAvailableEntry extends InboxEntry {
     required this.title,
     this.seasons = const [],
     this.itemId,
+    this.requestId,
   });
 
   /// "Dune (2021)", dal webhook di Seerr.
@@ -197,6 +198,9 @@ final class RequestAvailableEntry extends InboxEntry {
 
   /// L'elemento della libreria, se Seerr lo conosce.
   final String? itemId;
+
+  /// La richiesta in Seerr: il plugin ne tiene una voce per tipo.
+  final int? requestId;
 }
 
 /// Una richiesta da approvare (spec I §9.6), a chi può approvare.
@@ -209,11 +213,15 @@ final class RequestPendingEntry extends InboxEntry {
     required this.title,
     required this.requesterName,
     this.seasons = const [],
+    this.requestId,
   });
 
   final String title;
   final String requesterName;
   final List<int> seasons;
+
+  /// La richiesta in Seerr: il plugin ne tiene una voce per tipo.
+  final int? requestId;
 }
 
 /// Il promemoria di collegare un contatto per il recupero (spec L §7.7): ce
@@ -371,11 +379,15 @@ final class RequestApprovedEntry extends AlertedEntry {
     required this.title,
     this.seasons = const [],
     this.itemId,
+    this.requestId,
   });
 
   final String title;
   final List<int> seasons;
   final String? itemId;
+
+  /// La richiesta in Seerr: il plugin ne tiene una voce per tipo.
+  final int? requestId;
 }
 
 /// Una richiesta rifiutata (spec V), a chi l'aveva chiesta.
@@ -389,11 +401,15 @@ final class RequestDeclinedEntry extends AlertedEntry {
     required this.title,
     this.seasons = const [],
     this.itemId,
+    this.requestId,
   });
 
   final String title;
   final List<int> seasons;
   final String? itemId;
+
+  /// La richiesta in Seerr: il plugin ne tiene una voce per tipo.
+  final int? requestId;
 }
 
 /// Un download che chiede l'intervento dell'admin; [reason] è il motivo
@@ -549,6 +565,7 @@ InboxEntry? inboxEntryFromJson(Map<String, dynamic> json) {
       ),
     'RequestAvailable' => RequestAvailableEntry(
         id: id,
+        requestId: (json['RequestId'] as num?)?.toInt(),
         seq: seq,
         createdAt: createdAt,
         read: read,
@@ -558,6 +575,7 @@ InboxEntry? inboxEntryFromJson(Map<String, dynamic> json) {
       ),
     'RequestPending' => RequestPendingEntry(
         id: id,
+        requestId: (json['RequestId'] as num?)?.toInt(),
         seq: seq,
         createdAt: createdAt,
         read: read,
@@ -641,6 +659,7 @@ InboxEntry? inboxEntryFromJson(Map<String, dynamic> json) {
       },
     'RequestApproved' => RequestApprovedEntry(
         id: id,
+        requestId: (json['RequestId'] as num?)?.toInt(),
         seq: seq,
         createdAt: createdAt,
         read: read,
@@ -651,6 +670,7 @@ InboxEntry? inboxEntryFromJson(Map<String, dynamic> json) {
       ),
     'RequestDeclined' => RequestDeclinedEntry(
         id: id,
+        requestId: (json['RequestId'] as num?)?.toInt(),
         seq: seq,
         createdAt: createdAt,
         read: read,

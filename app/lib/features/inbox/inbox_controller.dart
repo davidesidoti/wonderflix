@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
@@ -69,14 +68,23 @@ class InboxController extends Notifier<InboxState> {
   /// L'utente collegato all'ultima `build`: `null` senza sessione.
   String? _userId;
 
-  /// Il `seq` più alto visto; `null` finché il primo caricamento non riesce.
-  int? _maxSeq;
+  /// Le chiavi ([_keyOf]) delle voci dell'ultimo caricamento riuscito;
+  /// `null` finché il primo non riesce.
+  Set<String>? _keys;
+
+  /// Il caricamento da cui vengono [_keys]: uno partito prima non le tocca.
+  int _keysLoad = 0;
+
+  /// Caricamenti silenziosi in corso: chi parte mentre ce n'è uno non
+  /// annuncia niente (le voci perse a WebSocket giù non suonano).
+  int _quietLoads = 0;
 
   final _arrivals = StreamController<InboxEntry>.broadcast();
 
   /// Le voci nuove arrivate con un `InboxChanged`, per le notifiche di
-  /// Windows. Il primo caricamento, il cambio di profilo e le riconnessioni
-  /// aggiornano solo il massimo: le voci vecchie non suonano mai.
+  /// Windows: come le push del plugin, solo le voci nate, non quelle
+  /// aggiornate. Il primo caricamento, il cambio di profilo e le
+  /// riconnessioni aggiornano solo le chiavi: le voci vecchie non suonano.
   Stream<InboxEntry> get arrivals => _arrivals.stream;
 
   @override
@@ -84,7 +92,8 @@ class InboxController extends Notifier<InboxState> {
     final userId = ref.watch(sessionControllerProvider
         .select((s) => s is SessionSignedIn ? s.user.id : null));
     _loads++;
-    _maxSeq = null;
+    _keys = null;
+    _keysLoad = _loads;
     // Utente nuovo o logout: il pannello di prima non c'è più. Con lo stesso
     // utente (es. la funzione che va e viene) il pannello resta com'è.
     if (userId != _userId) {
@@ -116,16 +125,25 @@ class InboxController extends Notifier<InboxState> {
   Future<void> reload({bool announce = false}) async {
     if (!ref.mounted || !ref.read(socialAvailabilityProvider).inbox) return;
     final load = ++_loads;
+    final quiet = !announce || _quietLoads > 0;
+    if (quiet) _quietLoads++;
     try {
       final snapshot = await ref.read(socialApiProvider).inbox();
-      if (!ref.mounted || load != _loads) return;
-      final seen = _maxSeq;
-      if (announce && seen != null) {
-        for (final entry in snapshot.entries) {
-          if (entry.seq > seen) _arrivals.add(entry);
+      if (!ref.mounted) return;
+      final latest = load == _loads;
+      // Anche un caricamento silenzioso superato vale come visto; uno che
+      // annuncia, superato, lascia decidere al successivo.
+      if ((latest || quiet) && load > _keysLoad) {
+        final previous = _keys;
+        _keys = {for (final entry in snapshot.entries) _keyOf(entry)};
+        _keysLoad = load;
+        if (!quiet && previous != null) {
+          for (final entry in snapshot.entries) {
+            if (!previous.contains(_keyOf(entry))) _arrivals.add(entry);
+          }
         }
       }
-      _maxSeq = math.max(seen ?? 0, snapshot.maxSeq);
+      if (!latest) return;
       state = _seenIfOpen(
           state.copyWith(snapshot: snapshot, loaded: true, failed: false));
     } on Object catch (error) {
@@ -133,8 +151,22 @@ class InboxController extends Notifier<InboxState> {
           '${error is SocialException ? error.failure.name : error.runtimeType}');
       if (!ref.mounted || load != _loads) return;
       state = state.copyWith(failed: true);
+    } finally {
+      if (quiet) _quietLoads--;
     }
   }
+
+  /// Chi è la stessa voce per il plugin, che fa la push solo alla prima:
+  /// l'Id, ma il promemoria del contatto si riscrive ogni giorno con un Id
+  /// nuovo e le voci di una richiesta si sostituiscono per tipo e richiesta.
+  static String _keyOf(InboxEntry entry) => switch (entry) {
+        ContactReminderEntry() => 'ContactReminder',
+        RequestAvailableEntry(:final requestId) => 'RequestAvailable/$requestId',
+        RequestPendingEntry(:final requestId) => 'RequestPending/$requestId',
+        RequestApprovedEntry(:final requestId) => 'RequestApproved/$requestId',
+        RequestDeclinedEntry(:final requestId) => 'RequestDeclined/$requestId',
+        _ => entry.id,
+      };
 
   /// Il pannello si è aperto: le non lette diventano lette, e si rilegge.
   void panelOpened() {

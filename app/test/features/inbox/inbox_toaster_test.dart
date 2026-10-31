@@ -32,6 +32,26 @@ class _FakeToasts implements Toasts {
       shown.add((title: title, body: body, onClick: onClick));
 }
 
+/// Ogni lettura della cassetta aspetta il suo cancello: le risposte possono
+/// tornare in un ordine diverso da quello delle richieste.
+class _GatedSocialApi extends FakeSocialApi {
+  final gates = <Completer<void>>[];
+
+  /// Da `true` le letture restano in volo.
+  bool holding = false;
+
+  @override
+  Future<InboxSnapshot> inbox() async {
+    final result = inboxSnapshot;
+    if (holding) {
+      final gate = Completer<void>();
+      gates.add(gate);
+      await gate.future;
+    }
+    return result;
+  }
+}
+
 class _FakeRouter extends Fake implements GoRouter {
   final went = <String>[];
 
@@ -167,6 +187,122 @@ void main() {
     events.add(inboxChangedReceived());
     await pumpEventQueue();
     expect(toasts.shown.map((t) => t.title), ['Annuncio']);
+  });
+
+  test('voce aggiornata (stesso Id, seq più alto): niente notifica', () async {
+    api.inboxSnapshot = inbox([testInvite(id: 'i1', seq: 1)]);
+    container();
+    await pumpEventQueue();
+
+    api.inboxSnapshot = inbox([testInvite(id: 'i1', seq: 2)]);
+    events.add(inboxChangedReceived());
+    await pumpEventQueue();
+    expect(toasts.shown, isEmpty);
+  });
+
+  test(
+    'promemoria del contatto riscritto con un Id nuovo: niente notifica',
+    () async {
+      api.inboxSnapshot = inbox([testContactReminder(id: 'c1', seq: 1)]);
+      container();
+      await pumpEventQueue();
+
+      api.inboxSnapshot = inbox([testContactReminder(id: 'c2', seq: 2)]);
+      events.add(inboxChangedReceived());
+      await pumpEventQueue();
+      expect(toasts.shown, isEmpty);
+    },
+  );
+
+  test('voce di una richiesta sostituita (Id nuovo, stessa richiesta): niente '
+      "notifica; un'altra richiesta sì", () async {
+    RequestAvailableEntry request(String id, int seq, int requestId) =>
+        RequestAvailableEntry(
+          id: id,
+          seq: seq,
+          createdAt: DateTime.utc(2026, 10, 5),
+          read: false,
+          title: 'Dune (2021)',
+          requestId: requestId,
+        );
+    api.inboxSnapshot = inbox([request('r1', 1, 7)]);
+    container();
+    await pumpEventQueue();
+
+    api.inboxSnapshot = inbox([request('r3', 3, 8), request('r2', 2, 7)]);
+    events.add(inboxChangedReceived());
+    await pumpEventQueue();
+    expect(toasts.shown, hasLength(1));
+  });
+
+  test(
+    'riconnessione e InboxChanged insieme, con 5 voci nuove: niente notifica',
+    () async {
+      api.inboxSnapshot = inbox([testAnnouncement(id: 'a0', seq: 1)]);
+      container();
+      await pumpEventQueue();
+
+      api.inboxSnapshot = inbox([
+        for (var seq = 2; seq <= 6; seq++)
+          testAnnouncement(id: 'a$seq', seq: seq),
+        testAnnouncement(id: 'a0', seq: 1),
+      ]);
+      // Le due letture sono in volo insieme.
+      final gate = api.inboxGate = Completer<void>();
+      events
+        ..add(const ServerConnected(true))
+        ..add(inboxChangedReceived());
+      await pumpEventQueue();
+      gate.complete();
+      await pumpEventQueue();
+      expect(toasts.shown, isEmpty);
+    },
+  );
+
+  test('riconnessione e InboxChanged insieme, la risposta del secondo torna '
+      'prima: niente notifica', () async {
+    final gated = api = _GatedSocialApi();
+    gated.inboxSnapshot = inbox([testAnnouncement(id: 'a0', seq: 1)]);
+    container();
+    await pumpEventQueue();
+
+    gated
+      ..holding = true
+      ..inboxSnapshot = inbox([
+        for (var seq = 2; seq <= 6; seq++)
+          testAnnouncement(id: 'a$seq', seq: seq),
+        testAnnouncement(id: 'a0', seq: 1),
+      ]);
+    events
+      ..add(const ServerConnected(true))
+      ..add(inboxChangedReceived());
+    await pumpEventQueue();
+    expect(gated.gates, hasLength(2));
+    gated.gates[1].complete();
+    await pumpEventQueue();
+    gated.gates[0].complete();
+    await pumpEventQueue();
+    expect(toasts.shown, isEmpty);
+  });
+
+  test('InboxChanged e poi riconnessione insieme: niente notifica', () async {
+    api.inboxSnapshot = inbox([testAnnouncement(id: 'a0', seq: 1)]);
+    container();
+    await pumpEventQueue();
+
+    api.inboxSnapshot = inbox([
+      testAnnouncement(id: 'a2', seq: 2),
+      testAnnouncement(id: 'a0', seq: 1),
+    ]);
+    // Le due letture sono in volo insieme.
+    final gate = api.inboxGate = Completer<void>();
+    events
+      ..add(inboxChangedReceived())
+      ..add(const ServerConnected(true));
+    await pumpEventQueue();
+    gate.complete();
+    await pumpEventQueue();
+    expect(toasts.shown, isEmpty);
   });
 
   test('click_focusesWindowAndGoesToRoute', () async {
