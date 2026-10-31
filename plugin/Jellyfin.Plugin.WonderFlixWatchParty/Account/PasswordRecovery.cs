@@ -24,7 +24,8 @@ public sealed class PasswordRecovery(
     AccountSender sender,
     IPasswordReset passwords,
     ILogger<PasswordRecovery> logger,
-    AdminAlerts? alerts = null)
+    AdminAlerts? alerts = null,
+    TimeProvider? time = null)
 {
     /// <summary>Lunghezza minima di una password nuova (spec L §8).</summary>
     public const int MinPasswordLength = 6;
@@ -43,6 +44,15 @@ public sealed class PasswordRecovery(
     // per CompleteAsync, che toccano limiti diversi.
     private readonly Lock _startLock = new();
     private readonly Lock _completeLock = new();
+
+    // Fino a quando l'avviso del recupero fermato tace, per chiave e Scope (vedi AlertDue).
+    // Uno per lucchetto: _startQuiet sotto _startLock, _completeQuiet sotto _completeLock.
+    private readonly Dictionary<(string Key, string Scope), DateTimeOffset> _startQuiet = [];
+    private readonly Dictionary<(string Key, string Scope), DateTimeOffset> _completeQuiet = [];
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
+
+    /// <summary>L'ultimo avviso del recupero fermato partito in background (per i test).</summary>
+    internal Task LastBlocked { get; private set; } = Task.CompletedTask;
 
     /// <summary>
     /// Chiede un codice. Risponde subito, uguale per tutti (tranne i limiti,
@@ -79,10 +89,13 @@ public sealed class PasswordRecovery(
             limiter.TryAcquire(key, LimitTypes.RecoveryStartDay);
 
             // Un limite fermo adesso è scattato con questa richiesta: le prossime si fermano
-            // al controllo qui sopra, quindi l'avviso parte una volta sola. Il limite del
-            // minuto no: scatta a ogni richiesta.
-            nameBlocked = limiter.IsLimited(key, LimitTypes.RecoveryStartHour) || limiter.IsLimited(key, LimitTypes.RecoveryStartDay);
-            everyoneBlocked = limiter.IsLimited(EveryoneKey, LimitTypes.RecoveryStartGlobal);
+            // al controllo qui sopra. Il limite del minuto no: scatta a ogni richiesta.
+            var hour = limiter.IsLimited(key, LimitTypes.RecoveryStartHour);
+            var day = limiter.IsLimited(key, LimitTypes.RecoveryStartDay);
+            nameBlocked = (hour || day)
+                && AlertDue(_startQuiet, (key, InboxScopes.User), day ? LimitTypes.RecoveryStartDay : LimitTypes.RecoveryStartHour);
+            everyoneBlocked = limiter.IsLimited(EveryoneKey, LimitTypes.RecoveryStartGlobal)
+                && AlertDue(_startQuiet, (EveryoneKey, InboxScopes.Everyone), LimitTypes.RecoveryStartGlobal);
         }
 
         // Utente, contatti e invio non si vedono dal tempo di risposta.
@@ -182,7 +195,7 @@ public sealed class PasswordRecovery(
     private Verdict Verify(string name, string? code, string? newPassword)
     {
         var key = Key(name);
-        bool nameBlocked, everyoneBlocked;
+        bool nameBlocked = false, everyoneBlocked = false;
         lock (_completeLock)
         {
             if (limiter.IsLimited(EveryoneKey, LimitTypes.RecoveryFailGlobal)
@@ -213,18 +226,20 @@ public sealed class PasswordRecovery(
             // è solo del server, quindi dice di chi è il nome anche se è un admin o un utente
             // disattivato (per loro il recupero non vale, ma il nome è comunque di un utente).
             // Mai il testo scritto: potrebbe essere un'email o contenere a capo.
-            nameBlocked = limiter.IsLimited(key, LimitTypes.RecoveryFail) || limiter.IsLimited(key, LimitTypes.RecoveryFailDay);
-            if (nameBlocked)
+            var hour = limiter.IsLimited(key, LimitTypes.RecoveryFail);
+            var day = limiter.IsLimited(key, LimitTypes.RecoveryFailDay);
+            if (hour || day)
             {
                 logger.LogWarning(
                     "Recupero della password fermato dai limiti per {Who}",
                     match?.Id.ToString("N") ?? "un nome che non è un utente");
+                nameBlocked = AlertDue(_completeQuiet, (key, InboxScopes.User), day ? LimitTypes.RecoveryFailDay : LimitTypes.RecoveryFail);
             }
 
-            everyoneBlocked = limiter.IsLimited(EveryoneKey, LimitTypes.RecoveryFailGlobal);
-            if (everyoneBlocked)
+            if (limiter.IsLimited(EveryoneKey, LimitTypes.RecoveryFailGlobal))
             {
                 logger.LogWarning("Recupero della password fermato per tutti: troppi codici sbagliati oggi");
+                everyoneBlocked = AlertDue(_completeQuiet, (EveryoneKey, InboxScopes.Everyone), LimitTypes.RecoveryFailGlobal);
             }
         }
 
@@ -232,7 +247,7 @@ public sealed class PasswordRecovery(
         // per un utente allungherebbe la risposta, e il tempo direbbe se il nome esiste.
         if (nameBlocked || everyoneBlocked)
         {
-            _ = Task.Run(() => Blocked(nameBlocked ? name : null, everyoneBlocked));
+            LastBlocked = Task.Run(() => Blocked(nameBlocked ? name : null, everyoneBlocked));
         }
 
         return new Verdict(null, null, AccountError.InvalidCode);
@@ -318,6 +333,21 @@ public sealed class PasswordRecovery(
         {
             logger.LogWarning(ex, "Avviso agli admin del recupero fermato non creato");
         }
+    }
+
+    // Solo sotto il lucchetto di quiet. true se l'avviso per questa chiave può partire adesso; poi tace
+    // per la finestra del limite scattato. I limiti scorrono: dopo lo scatto ogni richiesta uscita dalla
+    // finestra ne lascia passare un'altra, che lo fa scattare di nuovo. Senza questo, chi le distribuisce
+    // nel tempo manderebbe agli admin un avviso a ogni scatto. Le chiavi scadute si tolgono qui.
+    private bool AlertDue(Dictionary<(string Key, string Scope), DateTimeOffset> quiet, (string Key, string Scope) key, string limitType)
+    {
+        var now = _time.GetUtcNow();
+        foreach (var expired in quiet.Where(p => p.Value <= now).Select(p => p.Key).ToList())
+        {
+            quiet.Remove(expired);
+        }
+
+        return quiet.TryAdd(key, now + RateLimiter.WindowOf(limitType));
     }
 
     // Le voci del recupero sono storico: una chiave nuova ogni volta.

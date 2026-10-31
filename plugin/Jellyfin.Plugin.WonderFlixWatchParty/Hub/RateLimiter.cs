@@ -57,6 +57,9 @@ public sealed class RateLimiter(TimeProvider time)
         }
     }
 
+    /// <summary>La finestra del limite di questo tipo (il tipo deve essere uno dei limiti).</summary>
+    internal static TimeSpan WindowOf(string type) => Limits[type].Window;
+
     /// <summary>true (e si conta) se la chiave può farne un altro di questo tipo adesso.</summary>
     public bool TryAcquire(string key, string type) => TryAcquire(key, type, 1);
 

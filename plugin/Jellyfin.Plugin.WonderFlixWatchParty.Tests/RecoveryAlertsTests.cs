@@ -21,7 +21,7 @@ public sealed class RecoveryAlertsTests : IDisposable
         _mario = _rig.UserWithContacts("Mario");
         var alerts = new AdminAlerts(_rig.Inbox, _rig.Server, _rig.Time, NullLogger<AdminAlerts>.Instance);
         _recovery = new PasswordRecovery(
-            _rig.Server, _rig.Contacts, _rig.Codes, _rig.Limiter, _rig.Sender, _rig.Passwords, NullLogger<PasswordRecovery>.Instance, alerts);
+            _rig.Server, _rig.Contacts, _rig.Codes, _rig.Limiter, _rig.Sender, _rig.Passwords, NullLogger<PasswordRecovery>.Instance, alerts, _rig.Time);
     }
 
     public void Dispose() => _rig.Dispose();
@@ -35,21 +35,15 @@ public sealed class RecoveryAlertsTests : IDisposable
         return start.Error;
     }
 
-    private async Task<AccountError?> WrongCode(string typed) =>
-        (await _recovery.CompleteAsync(typed, "000000", "nuova-password", "it")).Error;
-
-    // Le voci dei codici sbagliati partono in background: si aspetta che ce ne siano count, poi
-    // ancora un poco, così una voce in più (che non deve esserci) avrebbe il tempo di arrivare.
-    private async Task<IReadOnlyList<InboxEntry>> EventuallyBlocked(int count)
+    // Un codice sbagliato; aspetta anche l'avviso che parte in background, se è partito.
+    private async Task<AccountError?> WrongCode(string typed)
     {
-        for (var i = 0; i < 100 && Entries(InboxEntryTypes.RecoveryBlocked).Count < count; i++)
-        {
-            await Task.Delay(20);
-        }
-
-        await Task.Delay(100);
-        return Entries(InboxEntryTypes.RecoveryBlocked);
+        var error = (await _recovery.CompleteAsync(typed, "000000", "nuova-password", "it")).Error;
+        await _recovery.LastBlocked;
+        return error;
     }
+
+    private IReadOnlyList<InboxEntry> Blocked() => Entries(InboxEntryTypes.RecoveryBlocked);
 
     [Theory]
     [InlineData("Mario")]
@@ -160,7 +154,7 @@ public sealed class RecoveryAlertsTests : IDisposable
 
         Assert.Equal(AccountError.RateLimited, await WrongCode("mario"));
 
-        var entry = Assert.Single(await EventuallyBlocked(1));
+        var entry = Assert.Single(Blocked());
         Assert.Equal("Mario", entry.UserName);
         Assert.Equal(InboxScopes.User, entry.Scope);
     }
@@ -175,9 +169,125 @@ public sealed class RecoveryAlertsTests : IDisposable
 
         Assert.Equal(AccountError.RateLimited, await WrongCode("altro"));
 
-        var entry = Assert.Single(await EventuallyBlocked(1));
+        var entry = Assert.Single(Blocked());
         Assert.Equal(InboxScopes.Everyone, entry.Scope);
         Assert.Null(entry.UserName);
+    }
+
+    [Fact]
+    public async Task Start_NameLimitSlidesOpen_NoNewAlertUntilItsWindowPassed()
+    {
+        _rig.Server.AddUser("Luigi");
+        for (var i = 0; i < 5; i++)
+        {
+            Assert.Null(await StartAndWait("luigi"));
+            _rig.Time.Advance(TimeSpan.FromMinutes(1));
+        }
+
+        Assert.Single(Blocked());
+
+        // Al minuto 60 esce la prima richiesta: ne passa un'altra e il limite scatta di nuovo, in silenzio.
+        _rig.Time.Advance(TimeSpan.FromMinutes(55));
+        Assert.Null(await StartAndWait("luigi"));
+        Assert.Equal(AccountError.RateLimited, await StartAndWait("luigi"));
+        Assert.Single(Blocked());
+
+        // Passata l'ora dallo scatto, uno scatto nuovo avvisa.
+        _rig.Time.Advance(TimeSpan.FromMinutes(5));
+        for (var i = 0; i < 4; i++)
+        {
+            Assert.Null(await StartAndWait("luigi"));
+            _rig.Time.Advance(TimeSpan.FromMinutes(1));
+        }
+
+        Assert.Equal(2, Blocked().Count);
+    }
+
+    [Fact]
+    public async Task Start_GlobalLimitSlidesOpen_NoNewAlertUntilItsWindowPassed()
+    {
+        for (var i = 0; i < 30; i++)
+        {
+            Assert.Null(await StartAndWait("nome" + i));
+            _rig.Time.Advance(TimeSpan.FromMinutes(1));
+        }
+
+        Assert.Single(Blocked());
+
+        // Al minuto 60 esce la prima: ne passa una e il limite di tutti scatta di nuovo, in silenzio.
+        _rig.Time.Advance(TimeSpan.FromMinutes(30));
+        Assert.Null(await StartAndWait("dopo"));
+        Assert.Equal(AccountError.RateLimited, await StartAndWait("dopo2"));
+        Assert.Single(Blocked());
+
+        // Passata l'ora dallo scatto (minuto 29), uno scatto nuovo avvisa.
+        _rig.Time.Advance(TimeSpan.FromMinutes(30));
+        for (var i = 0; i < 29; i++)
+        {
+            Assert.Null(await StartAndWait("altro" + i));
+        }
+
+        var entries = Blocked();
+        Assert.Equal(2, entries.Count);
+        Assert.All(entries, e => Assert.Equal(InboxScopes.Everyone, e.Scope));
+    }
+
+    [Fact]
+    public async Task WrongCodes_NameLimitSlidesOpen_NoNewAlertUntilItsWindowPassed()
+    {
+        for (var i = 0; i < 10; i++)
+        {
+            Assert.Equal(AccountError.InvalidCode, await WrongCode("mario"));
+            _rig.Time.Advance(TimeSpan.FromMinutes(1));
+        }
+
+        Assert.Single(Blocked());
+
+        // Al minuto 60 esce il primo: ne passa un altro e il limite scatta di nuovo, in silenzio.
+        _rig.Time.Advance(TimeSpan.FromMinutes(50));
+        Assert.Equal(AccountError.InvalidCode, await WrongCode("mario"));
+        Assert.Equal(AccountError.RateLimited, await WrongCode("mario"));
+        Assert.Single(Blocked());
+
+        // Passata l'ora dallo scatto (minuto 9), uno scatto nuovo avvisa.
+        _rig.Time.Advance(TimeSpan.FromMinutes(10));
+        for (var i = 0; i < 9; i++)
+        {
+            Assert.Equal(AccountError.InvalidCode, await WrongCode("mario"));
+        }
+
+        var entries = Blocked();
+        Assert.Equal(2, entries.Count);
+        Assert.All(entries, e => Assert.Equal("Mario", e.UserName));
+    }
+
+    [Fact]
+    public async Task WrongCodes_GlobalLimitSlidesOpen_NoNewAlertUntilItsWindowPassed()
+    {
+        for (var i = 0; i < 100; i++)
+        {
+            Assert.Equal(AccountError.InvalidCode, await WrongCode("nome" + i));
+            _rig.Time.Advance(TimeSpan.FromMinutes(1));
+        }
+
+        Assert.Single(Blocked());
+
+        // Dopo un giorno esce il primo: ne passa un altro e il limite di tutti scatta di nuovo, in silenzio.
+        _rig.Time.Advance(TimeSpan.FromHours(24) - TimeSpan.FromMinutes(100));
+        Assert.Equal(AccountError.InvalidCode, await WrongCode("dopo"));
+        Assert.Equal(AccountError.RateLimited, await WrongCode("dopo2"));
+        Assert.Single(Blocked());
+
+        // Passato il giorno dallo scatto (minuto 99), uno scatto nuovo avvisa.
+        _rig.Time.Advance(TimeSpan.FromMinutes(100));
+        for (var i = 0; i < 99; i++)
+        {
+            Assert.Equal(AccountError.InvalidCode, await WrongCode("altro" + i));
+        }
+
+        var entries = Blocked();
+        Assert.Equal(2, entries.Count);
+        Assert.All(entries, e => Assert.Equal(InboxScopes.Everyone, e.Scope));
     }
 
     [Fact]
@@ -190,7 +300,7 @@ public sealed class RecoveryAlertsTests : IDisposable
             await WrongCode("mario");
         }
 
-        Assert.Single(await EventuallyBlocked(1));
+        Assert.Single(Blocked());
         var entries = _rig.Inbox.Get(_admin.Id).Entries;
         Assert.Equal(2, entries.Count);
         var json = JsonSerializer.Serialize(entries);
