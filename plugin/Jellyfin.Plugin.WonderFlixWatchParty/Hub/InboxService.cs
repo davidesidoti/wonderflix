@@ -18,7 +18,8 @@ public sealed class InboxService(
     IEventSender sender,
     ILibraryAccess library,
     TimeProvider time,
-    ILogger<InboxService> logger)
+    ILogger<InboxService> logger,
+    IInboxPush? push = null)
 {
     /// <summary>Quanto resta una voce (spec G §6.1).</summary>
     public static readonly TimeSpan MaxAge = TimeSpan.FromDays(30);
@@ -91,6 +92,7 @@ public sealed class InboxService(
 
         var recipients = users.GetUsers().Where(u => u.Enabled).Select(u => u.Id).ToList();
         var now = time.GetUtcNow();
+        IReadOnlyList<(Guid, InboxEntry)> fresh;
         lock (_lock)
         {
             foreach (var userId in recipients)
@@ -99,7 +101,10 @@ public sealed class InboxService(
             }
 
             Persist();
+            fresh = Book.TakeFresh();
         }
+
+        Deliver(fresh);
 
         logger.LogDebug("Annuncio a {Count} utenti", recipients.Count);
         await NotifyAsync(recipients).ConfigureAwait(false);
@@ -138,6 +143,7 @@ public sealed class InboxService(
             var title = PartyNames.TitleOf(group.Name);
             var image = playing.ImageItemId.ToString("N");
             var now = time.GetUtcNow();
+            IReadOnlyList<(Guid, InboxEntry)> fresh;
             lock (_lock)
             {
                 foreach (var userId in allowed)
@@ -149,7 +155,11 @@ public sealed class InboxService(
                 {
                     Persist();
                 }
+
+                fresh = Book.TakeFresh();
             }
+
+            Deliver(fresh);
 
             logger.LogDebug("Voci d'invito al watch party {GroupId}: {Count}", group.Id, allowed.Count);
             await NotifyAsync(allowed).ConfigureAwait(false);
@@ -177,6 +187,7 @@ public sealed class InboxService(
         {
             var room = roomId.ToString("N");
             var now = time.GetUtcNow();
+            IReadOnlyList<(Guid, InboxEntry)> fresh;
             lock (_lock)
             {
                 foreach (var userId in invitees)
@@ -185,7 +196,10 @@ public sealed class InboxService(
                 }
 
                 Persist();
+                fresh = Book.TakeFresh();
             }
+
+            Deliver(fresh);
 
             logger.LogDebug("Voci d'invito alla sala del match {RoomId}: {Count}", room, invitees.Count);
             await NotifyAsync(invitees).ConfigureAwait(false);
@@ -209,6 +223,7 @@ public sealed class InboxService(
 
         try
         {
+            IReadOnlyList<(Guid, InboxEntry)> fresh;
             lock (_lock)
             {
                 foreach (var (userId, entry) in entries)
@@ -217,7 +232,10 @@ public sealed class InboxService(
                 }
 
                 Persist();
+                fresh = Book.TakeFresh();
             }
+
+            Deliver(fresh);
 
             await NotifyAsync(entries.Keys.ToList()).ConfigureAwait(false);
         }
@@ -247,17 +265,26 @@ public sealed class InboxService(
         try
         {
             var now = time.GetUtcNow();
+            IReadOnlyList<(Guid, InboxEntry)> fresh;
             lock (_lock)
             {
+                // Riscritto a ogni giro: la push solo la prima volta.
+                var had = Book.HasType(userId, InboxEntryTypes.ContactReminder);
                 Book.RemoveType(userId, InboxEntryTypes.ContactReminder);
-                Book.Add(userId, new InboxEntry
-                {
-                    Type = InboxEntryTypes.ContactReminder,
-                    CreatedAt = now,
-                    Channels = channels.ToList(),
-                });
+                Book.Add(
+                    userId,
+                    new InboxEntry
+                    {
+                        Type = InboxEntryTypes.ContactReminder,
+                        CreatedAt = now,
+                        Channels = channels.ToList(),
+                    },
+                    fresh: !had);
                 Persist();
+                fresh = Book.TakeFresh();
             }
+
+            Deliver(fresh);
 
             written = true;
             await NotifyAsync([userId]).ConfigureAwait(false);
@@ -299,6 +326,7 @@ public sealed class InboxService(
         try
         {
             var now = time.GetUtcNow();
+            IReadOnlyList<(Guid, InboxEntry)> fresh;
             lock (_lock)
             {
                 foreach (var userId in recipients)
@@ -316,7 +344,10 @@ public sealed class InboxService(
                 }
 
                 Persist();
+                fresh = Book.TakeFresh();
             }
+
+            Deliver(fresh);
 
             logger.LogDebug("Voci del consiglio di {ItemId} a {Count} utenti", item.Id.ToString("N"), recipients.Count);
             await NotifyAsync(recipients).ConfigureAwait(false);
@@ -341,6 +372,7 @@ public sealed class InboxService(
         try
         {
             var now = time.GetUtcNow();
+            IReadOnlyList<(Guid, InboxEntry)> fresh;
             lock (_lock)
             {
                 foreach (var userId in userIds)
@@ -351,7 +383,10 @@ public sealed class InboxService(
                 }
 
                 Persist();
+                fresh = Book.TakeFresh();
             }
+
+            Deliver(fresh);
 
             logger.LogDebug("Voci della segnalazione {ReportId} a {Count} admin", report.Id.ToString("N"), userIds.Count);
             await NotifyAsync(userIds).ConfigureAwait(false);
@@ -371,13 +406,17 @@ public sealed class InboxService(
         try
         {
             var now = time.GetUtcNow();
+            IReadOnlyList<(Guid, InboxEntry)> fresh;
             lock (_lock)
             {
                 var entry = ReportEntry(InboxEntryTypes.ReportResolved, report, item, note, now);
                 entry.Outcome = outcome;
                 Book.Add(userId, entry);
                 Persist();
+                fresh = Book.TakeFresh();
             }
+
+            Deliver(fresh);
 
             logger.LogDebug("Voce di chiusura della segnalazione {ReportId}", report.Id.ToString("N"));
             await NotifyAsync([userId]).ConfigureAwait(false);
@@ -449,6 +488,7 @@ public sealed class InboxService(
         try
         {
             var now = time.GetUtcNow();
+            IReadOnlyList<(Guid, InboxEntry)> fresh;
             lock (_lock)
             {
                 foreach (var userId in userIds)
@@ -468,7 +508,10 @@ public sealed class InboxService(
                 }
 
                 Persist();
+                fresh = Book.TakeFresh();
             }
+
+            Deliver(fresh);
 
             logger.LogDebug(
                 "Voce {Type} della richiesta {RequestId} a {Count} utenti", type, request.RequestId, userIds.Count);
@@ -527,6 +570,15 @@ public sealed class InboxService(
         if (changed)
         {
             await NotifyAsync([userId]).ConfigureAwait(false);
+        }
+    }
+
+    // Fuori dal lock, dopo Persist: la push parte solo per le voci nuove.
+    private void Deliver(IReadOnlyList<(Guid, InboxEntry)> fresh)
+    {
+        if (fresh.Count > 0)
+        {
+            push?.Deliver(fresh);
         }
     }
 

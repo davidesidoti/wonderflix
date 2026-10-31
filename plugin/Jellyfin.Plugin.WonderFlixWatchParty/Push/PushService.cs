@@ -17,7 +17,7 @@ public sealed class PushService(
     IDeviceAccess devices,
     IUserDirectory users,
     TimeProvider time,
-    ILogger<PushService> logger)
+    ILogger<PushService> logger) : IInboxPush
 {
     /// <summary>Il contatto VAPID: i servizi push lo vogliono, nessuno lo legge.</summary>
     public const string VapidSubject = "mailto:noreply@wonderflix.invalid";

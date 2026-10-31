@@ -144,6 +144,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton(_ => new VapidKeyProvider(
             () => Plugin.Instance?.Configuration, () => Plugin.Instance?.SaveConfiguration()));
         serviceCollection.AddSingleton<PushService>();
+        serviceCollection.AddSingleton<IInboxPush>(provider => provider.GetRequiredService<PushService>());
         serviceCollection.AddSingleton<NewTitlesCollector>();
         serviceCollection.AddSingleton<PresenceTracker>();
         serviceCollection.AddSingleton<PartyDirectory>();

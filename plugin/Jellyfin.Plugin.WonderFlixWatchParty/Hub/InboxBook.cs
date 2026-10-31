@@ -14,14 +14,20 @@ public sealed class InboxBook
 
     private readonly Dictionary<Guid, UserInbox> _users = [];
 
+    // Le voci nuove (non aggiornamenti) da portare alla push, finché InboxService non le prende.
+    private readonly List<(Guid, InboxEntry)> _fresh = [];
+
     /// <summary>Le voci dell'utente dalla più recente (Seq più alto), come copie.</summary>
     public IReadOnlyList<InboxEntry> List(Guid userId) =>
         _users.TryGetValue(userId, out var inbox)
             ? inbox.Entries.OrderByDescending(e => e.Seq).Select(e => e.Copy()).ToList()
             : [];
 
-    /// <summary>Aggiunge una voce, che prende il Seq (e un Id se non l'ha); restituisce una copia.</summary>
-    public InboxEntry Add(Guid userId, InboxEntry entry)
+    /// <summary>
+    /// Aggiunge una voce, che prende il Seq (e un Id se non l'ha); restituisce una copia.
+    /// Con <paramref name="fresh"/> la voce è una novità per la push (<see cref="TakeFresh"/>).
+    /// </summary>
+    public InboxEntry Add(Guid userId, InboxEntry entry, bool fresh = true)
     {
         var inbox = Inbox(userId);
         if (string.IsNullOrEmpty(entry.Id))
@@ -36,8 +42,25 @@ public sealed class InboxBook
             inbox.Entries.Remove(inbox.Entries.MinBy(e => e.Seq)!);
         }
 
+        if (fresh)
+        {
+            _fresh.Add((userId, entry.Copy()));
+        }
+
         return entry.Copy();
     }
+
+    /// <summary>Le voci nuove dall'ultima volta, come copie; svuota la lista.</summary>
+    public IReadOnlyList<(Guid, InboxEntry)> TakeFresh()
+    {
+        var fresh = _fresh.ToList();
+        _fresh.Clear();
+        return fresh;
+    }
+
+    /// <summary>True se l'utente ha una voce di questo tipo.</summary>
+    public bool HasType(Guid userId, string type) =>
+        _users.TryGetValue(userId, out var inbox) && inbox.Entries.Any(e => e.Type == type);
 
     /// <summary>
     /// L'invito al gruppo (spec G §6.5): se l'utente ne ha già uno per lo
@@ -106,8 +129,8 @@ public sealed class InboxBook
     /// </summary>
     public InboxEntry UpsertRequest(Guid userId, InboxEntry entry)
     {
-        Inbox(userId).Entries.RemoveAll(e => e.Type == entry.Type && e.RequestId == entry.RequestId);
-        return Add(userId, entry);
+        var replaced = Inbox(userId).Entries.RemoveAll(e => e.Type == entry.Type && e.RequestId == entry.RequestId) > 0;
+        return Add(userId, entry, fresh: !replaced);
     }
 
     /// <summary>
