@@ -163,6 +163,33 @@ public sealed partial class DownloadService
         }
     }
 
+    /// <summary>
+    /// Prima di un import a mano dalla scheda spazio: il giro non manda un secondo ManualImport per lo stesso grab. Toglie
+    /// ManualImportPending alla chiave e alle altre segnate dallo stesso "Alleggerisci" (stessa ora, per esempio l'episodio).
+    /// </summary>
+    public void SkipManualImport(string key)
+    {
+        lock (_lock)
+        {
+            if (!Book.Lightened.TryGetValue(key, out var at))
+            {
+                return;
+            }
+
+            var changed = false;
+            foreach (var entry in Book.Lightened.Where(p => p.Value == at).Select(p => Book.Get(p.Key)).OfType<DownloadEntry>().Where(e => e.ManualImportPending))
+            {
+                entry.ManualImportPending = false;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                SaveAfterGrab();
+            }
+        }
+    }
+
     private async Task<GrabOutcome> GrabGuardedAsync(DownloadKey parsed, string guid, int indexerId, List<string> guarded, CancellationToken cancellationToken)
     {
         var service = ServiceOf(parsed.Kind);

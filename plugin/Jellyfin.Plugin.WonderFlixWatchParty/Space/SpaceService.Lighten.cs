@@ -39,8 +39,9 @@ public sealed partial class SpaceService
     // Solo sotto _lock. Le righe importate e quando: nascoste fino al calcolo dopo.
     private readonly Dictionary<string, DateTimeOffset> _lightenImported = [];
 
-    // Solo sotto _lock. Gli import a mano riusciti e quando: per HandImportGrace un Blocked è Importing.
-    private readonly Dictionary<string, DateTimeOffset> _lightenHandImported = [];
+    // Solo sotto _lock. Per chiave, i download importati a mano e quando: per HandImportGrace un Blocked è Importing e
+    // un nuovo tentativo non li rimanda.
+    private readonly Dictionary<string, Dictionary<string, DateTimeOffset>> _lightenHandImported = [];
 
     // Solo sotto _lock. I servizi la cui coda non risponde: il Warning una volta per guasto.
     private readonly HashSet<ArrKind> _queueDown = [];
@@ -98,7 +99,7 @@ public sealed partial class SpaceService
                 else if (status is not null)
                 {
                     // Subito dopo l'import a mano Radarr/Sonarr dicono ancora importBlocked; passata la finestra, il blocco è vero.
-                    if (status.State == SpaceLightenStates.Blocked && _lightenHandImported.TryGetValue(row.Key, out var handAt) && now - handAt < HandImportGrace)
+                    if (status.State == SpaceLightenStates.Blocked && _lightenHandImported.TryGetValue(row.Key, out var sent) && sent.Values.Any(at => now - at < HandImportGrace))
                     {
                         status = status with { State = SpaceLightenStates.Importing, Message = null };
                     }
@@ -167,24 +168,50 @@ public sealed partial class SpaceService
             return (LightenImportOutcome.Unknown, null);
         }
 
+        // Quelli già mandati nella finestra non si rimandano: Radarr/Sonarr li stanno importando.
+        var now = time.GetUtcNow();
+        List<string> todo;
+        lock (_lock)
+        {
+            var sent = _lightenHandImported.GetValueOrDefault(key);
+            todo = [.. blocked.Where(id => !(sent?.TryGetValue(id, out var at) == true && now - at < HandImportGrace))];
+        }
+
+        // Il giro dei download non deve mandare un secondo ManualImport per lo stesso grab.
+        downloads.SkipManualImport(key);
         string? error = null;
-        foreach (var downloadId in blocked)
+        var imported = new List<string>();
+        foreach (var downloadId in todo)
         {
             var result = await downloads.ImportDownloadAsync(service, downloadId, ct).ConfigureAwait(false);
+            if (result is null)
+            {
+                imported.Add(downloadId);
+            }
+
             error ??= result;
+        }
+
+        if (imported.Count > 0)
+        {
+            lock (_lock)
+            {
+                // Il download è finito: fino alla prossima lettura della coda la riga è Importing.
+                _lightenStatus[key] = new SpaceLightenDownloadDto(SpaceLightenStates.Importing, 1, 0, null);
+                var sent = _lightenHandImported.TryGetValue(key, out var old) ? old : _lightenHandImported[key] = [];
+                foreach (var stale in sent.Where(p => now - p.Value >= HandImportGrace).Select(p => p.Key).ToList())
+                {
+                    sent.Remove(stale);
+                }
+
+                imported.ForEach(id => sent[id] = now);
+            }
         }
 
         if (error is not null)
         {
             logger.LogWarning("Spazio: Alleggerisci {Key} non importato a mano ({Error})", key, error);
             return (LightenImportOutcome.Failed, error);
-        }
-
-        lock (_lock)
-        {
-            // Il download è finito: fino alla prossima lettura della coda la riga è Importing.
-            _lightenStatus[key] = new SpaceLightenDownloadDto(SpaceLightenStates.Importing, 1, 0, null);
-            _lightenHandImported[key] = time.GetUtcNow();
         }
 
         logger.LogInformation("Spazio: Alleggerisci {Key} importato a mano", key);

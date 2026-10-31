@@ -222,6 +222,60 @@ public sealed class SpaceLightenStatusTests : IDisposable
         Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Blocked, 1, 0, "Not an upgrade"), await DownloadOf("movie:12"));
     }
 
+    private static ArrManualImportItem MovieFile(string downloadId) =>
+        new() { Path = $"/dl/{downloadId}.mkv", DownloadId = downloadId, Movie = new ArrFileRef { Id = 12 }, Quality = JsonDocument.Parse("{}").RootElement };
+
+    private void PendingEntry(string key, string kind)
+    {
+        var store = new DownloadStore(_folder.DownloadsFile, NullLogger<DownloadStore>.Instance);
+        var book = store.Load();
+        book.Put(new DownloadEntry { Key = key, Kind = kind, State = DownloadStates.Downloading, ManualImportPending = true });
+        store.Save(book);
+    }
+
+    private DownloadEntry Saved(string key) => new DownloadStore(_folder.DownloadsFile, NullLogger<DownloadStore>.Instance).Load().Get(key)!;
+
+    [Fact]
+    public async Task AFailureAfterAnImportSentKeepsTheGraceAndARetrySkipsWhatWasSent()
+    {
+        Lightened("movie:12", Now.AddHours(-1));
+        _radarrQueue = [Item("importBlocked", 4 * Gb, 0, movieId: 12, downloadId: "A"), Item("importBlocked", 4 * Gb, 0, movieId: 12, downloadId: "B")];
+        _arr.ManualImportItems = (_, id) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>([MovieFile(id)]);
+        var failB = true;
+        _arr.ManualImport = (_, items) => failB && items[0].DownloadId == "B" ? Task.FromException(new ArrException(ArrError.Unreachable)) : Task.CompletedTask;
+
+        Assert.Equal((SpaceService.LightenImportOutcome.Failed, "Unreachable"), await _service.ImportLightenAsync("movie:12", CancellationToken.None));
+        Assert.Equal(SpaceLightenStates.Importing, (await DownloadOf("movie:12"))!.State);
+
+        // Il nuovo tentativo non rimanda A.
+        failB = false;
+        Assert.Equal(SpaceService.LightenImportOutcome.Imported, (await _service.ImportLightenAsync("movie:12", CancellationToken.None)).Outcome);
+        Assert.Equal(["A", "B", "B"], _arr.ManualImportReadCalls.Select(c => c.DownloadId));
+
+        // Tutto già mandato nella finestra: niente di nuovo, resta Importing.
+        Assert.Equal(SpaceService.LightenImportOutcome.Imported, (await _service.ImportLightenAsync("movie:12", CancellationToken.None)).Outcome);
+        Assert.Equal(3, _arr.ManualImportReadCalls.Count);
+    }
+
+    [Fact]
+    public async Task ImportingByHandStopsTheAutomaticManualImportOfTheSameGrab()
+    {
+        // Il grab di una stagione segna anche le chiavi che ha tenuto, con la stessa ora.
+        var at = Now.AddHours(-1);
+        Lightened("season:5:2", at);
+        Lightened("episode:201", at);
+        Lightened("movie:12", at.AddMinutes(-5));
+        PendingEntry("season:5:2", DownloadKinds.Season);
+        PendingEntry("episode:201", DownloadKinds.Episode);
+        PendingEntry("movie:12", DownloadKinds.Movie);
+        _sonarrQueue = [Item("importBlocked", 6 * Gb, 0, seriesId: 5, season: 2, downloadId: "PACK")];
+        _arr.ManualImportItems = (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>([EpisodeFile(201)]);
+
+        Assert.Equal(SpaceService.LightenImportOutcome.Imported, (await _service.ImportLightenAsync("season:5:2", CancellationToken.None)).Outcome);
+
+        Assert.Equal((false, false, true), (Saved("season:5:2").ManualImportPending, Saved("episode:201").ManualImportPending, Saved("movie:12").ManualImportPending));
+    }
+
     [Fact]
     public async Task ImportingByHandWithoutABlockedLightenIsUnknown()
     {
