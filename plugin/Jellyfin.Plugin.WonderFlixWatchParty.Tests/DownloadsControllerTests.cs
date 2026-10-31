@@ -223,6 +223,8 @@ public sealed class DownloadsControllerTests : IDisposable
     [Fact]
     public async Task GrabBestMapsItsOutcomes()
     {
+        NeedsYou(DownloadReasons.BelowMinScore);
+
         // I due candidati sono validi: niente tappabuchi, si prende la scelta della regola.
         Assert.Equal(StatusCodes.Status204NoContent, Status(await _controller.GrabBest(Key())));
 

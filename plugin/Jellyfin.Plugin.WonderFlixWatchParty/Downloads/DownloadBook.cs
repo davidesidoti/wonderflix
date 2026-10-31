@@ -89,6 +89,9 @@ public sealed class DownloadEntry
 
     public bool ManualImportPending { get; set; }
 
+    /// <summary>Quando l'admin ha premuto "Importa comunque": per un giro un import ancora bloccato in coda non torna in "Serve te".</summary>
+    public DateTimeOffset? AdminImportAt { get; set; }
+
     public int ProfileId { get; set; }
 
     /// <summary>Il nome del profilo all'ultima scelta: serve all'obiettivo quando il file arriva.</summary>

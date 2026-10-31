@@ -394,9 +394,12 @@ public sealed partial class DownloadService(
         entry.BlockedMessage = null;
         if (string.Equals(item.TrackedDownloadState, ImportBlockedState, StringComparison.OrdinalIgnoreCase))
         {
-            OnImportBlocked(entry, item, imports);
+            OnImportBlocked(entry, item, now, imports);
             return false;
         }
+
+        // Radarr/Sonarr non lo bloccano più: l'import dell'admin è andato avanti.
+        entry.AdminImportAt = null;
 
         return active
             && entry.LastProgressAt is { } since
@@ -440,13 +443,14 @@ public sealed partial class DownloadService(
         entry.PreviousScore = null;
         entry.PreviousQualityId = null;
         entry.PreviousSizeBytes = null;
+        entry.AdminImportAt = null;
         entry.UpgradeUntil = chosenAt + DownloadSchedule.UpgradeWindow;
         entry.NextSearchAt = DownloadSchedule.Next(chosenAt, now);
     }
 
     // Solo sotto _lock. Radarr/Sonarr non riescono a importare: serve l'admin. Una release scelta dall'admin che non
     // importerebbero si importa a mano, una volta sola: se al giro dopo è ancora bloccata, serve l'admin (decisione 9).
-    private static void OnImportBlocked(DownloadEntry entry, ArrQueueItem item, List<ManualImport> imports)
+    private static void OnImportBlocked(DownloadEntry entry, ArrQueueItem item, DateTimeOffset now, List<ManualImport> imports)
     {
         var pending = entry.ManualImportPending && !string.IsNullOrEmpty(item.DownloadId);
         entry.ManualImportPending = false;
@@ -455,6 +459,14 @@ public sealed partial class DownloadService(
             imports.Add(new ManualImport(entry.Key, ServiceOf(entry.Kind), item.DownloadId!, item.Id));
             return;
         }
+
+        // "Importa comunque" appena premuto: la coda può essere ancora quella di prima, per un giro resta in download.
+        if (entry.AdminImportAt is { } importedAt && now - importedAt < CycleInterval)
+        {
+            return;
+        }
+
+        entry.AdminImportAt = null;
 
         entry.State = DownloadStates.NeedsYou;
         entry.Reason = DownloadReasons.ImportBlocked;

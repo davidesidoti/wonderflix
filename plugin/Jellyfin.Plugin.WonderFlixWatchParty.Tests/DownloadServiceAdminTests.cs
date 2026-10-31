@@ -793,7 +793,7 @@ public sealed class DownloadServiceAdminTests : IDisposable
     public async Task GrabBestTakesTheHeaviestTooSmall()
     {
         // Tutti sotto 0,8 GB all'ora (106 minuti): il più pesante.
-        NeedsYou(DownloadReasons.NothingFound);
+        NeedsYou(DownloadReasons.NothingFound, e => e.Summary = new DownloadSummary { Found = 3, StopgapAvailable = true });
         _releases = [Release("s09", WebRip1080, "WEBRip-1080p", 0.9, 150), Release("s11", WebRip1080, "WEBRip-1080p", 1.1, 150), Release("arr", WebRip1080, "WEBRip-1080p", 5, 150)];
         _releases[2]!.Rejections = ["Unknown language"];
 
@@ -817,7 +817,7 @@ public sealed class DownloadServiceAdminTests : IDisposable
     [Fact]
     public async Task GrabBestWithNothingToTakeSaysSo()
     {
-        NeedsYou(DownloadReasons.NothingFound);
+        NeedsYou(DownloadReasons.NothingFound, e => e.Summary = new DownloadSummary { Found = 1, StopgapAvailable = true });
         _releases = [Release("arr", WebRip1080, "WEBRip-1080p", 5, 150)];
         _releases[0]!.Rejections = ["Unknown language"];
 
@@ -848,16 +848,53 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Assert.Null(Saved("movie:12")!.Stopgap);
     }
 
+    [Theory]
+    [InlineData(DownloadStates.Downloading)]
+    [InlineData(DownloadStates.UpgradeWatch)]
+    public async Task GrabBestLeavesADownloadOrAnUpgradeWatchAlone(string state)
+    {
+        // La panoramica era vecchia (o un altro admin ha già premuto): la voce non è più in "Serve te".
+        NeedsYou(DownloadReasons.BelowMinScore, e => (e.State, e.Reason, e.QueueId) = (state, null, 77));
+        _radarrQueue = [MovieQueue(77, 12, 5_000)];
+        _releases = [Release("x40", WebRip1080, "WEBRip-1080p", 2, 40), Release("ok", WebRip1080, "WEBRip-1080p", 4, 150)];
+
+        Assert.Equal(GrabOutcome.NothingToGrab, await GrabBest());
+
+        Assert.Empty(_arr.RemoveFromQueueCalls);
+        Assert.Empty(_arr.GrabCalls);
+        Assert.Equal(state, Saved("movie:12")!.State);
+    }
+
+    [Fact]
+    public async Task GrabBestRemembersARefusedRelease()
+    {
+        NeedsYou(DownloadReasons.BelowMinScore);
+        _releases = [Release("x40", WebRip1080, "WEBRip-1080p", 2, 40), Release("x30", WebRip1080, "WEBRip-1080p", 2, 30)];
+        _arr.Grab = (_, guid, _) => guid == "x40" ? Task.FromException(new ArrException(ArrError.Unreachable, status: 500)) : Task.CompletedTask;
+
+        Assert.Equal(GrabOutcome.Refused, await GrabBest());
+        Assert.Equal([DownloadRule.ReleaseId("x40", 1)], Saved("movie:12")!.RefusedReleases);
+
+        // Alla seconda pressione la release rifiutata non si riprova.
+        Assert.Equal(GrabOutcome.Ok, await GrabBest());
+        Assert.Equal(["x40", "x30"], _arr.GrabCalls.Select(c => c.Guid));
+    }
+
     [Fact]
     public void SnoozeMovesNothingFoundToWaiting()
     {
         NeedsYou(DownloadReasons.NothingFound);
+        var nudges = 0;
+        _service.Nudged += () => nudges++;
 
         Assert.True(_service.Snooze("movie:12"));
 
         var entry = Saved("movie:12")!;
         Assert.Equal((DownloadStates.Waiting, true, DownloadReasons.NothingFound, T0 + TimeSpan.FromDays(7)), (entry.State, entry.Snoozed, entry.Reason, entry.NextSearchAt));
         Assert.Empty(_service.NeedsYouAlerts());
+
+        // Un giro presto: l'avviso esce dalla cassetta degli admin (spec §4.3).
+        Assert.Equal(1, nudges);
     }
 
     [Fact]
@@ -892,6 +929,29 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Assert.Equal((ArrKind.Radarr, "abc"), Assert.Single(_arr.ManualImportReadCalls));
         Assert.Single(_arr.ManualImportCalls);
         Assert.Equal((DownloadStates.Downloading, (string?)null, 1), (Saved("movie:12")!.State, Saved("movie:12")!.Reason, nudges));
+    }
+
+    [Fact]
+    public async Task AnAdminImportIsNotBlockedAgainWithinACycle()
+    {
+        Blocked();
+        _arr.ManualImportItems = (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>(
+            [new ArrManualImportItem { Path = "/dl/a.mkv", DownloadId = "abc", Movie = new ArrFileRef { Id = 12 }, Quality = System.Text.Json.JsonDocument.Parse("""{"quality":{"id":15}}""").RootElement, Rejections = [] }]);
+        Assert.Equal(BlockedOutcome.Ok, (await _service.ImportBlockedAsync("movie:12")).Outcome);
+
+        // Il giro chiesto dopo l'import vede ancora la coda vecchia: la voce resta in download.
+        var blocked = MovieQueue(77, 12, 0, state: "importBlocked", status: "completed");
+        blocked.DownloadId = "abc";
+        _radarrQueue = [blocked];
+        _time.Advance(TimeSpan.FromMinutes(1));
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Equal(DownloadStates.Downloading, Saved("movie:12")!.State);
+
+        // Passato un giro intero ancora bloccato: serve di nuovo l'admin.
+        _time.Advance(DownloadService.CycleInterval);
+        await _service.RunCycleAsync(CancellationToken.None);
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.NeedsYou, (string?)DownloadReasons.ImportBlocked, (DateTimeOffset?)null), (entry.State, entry.Reason, entry.AdminImportAt));
     }
 
     [Fact]

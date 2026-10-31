@@ -735,6 +735,24 @@ public sealed class DownloadServiceSearchTests : IDisposable
     }
 
     [Fact]
+    public async Task AFailedUpgradeWithAHeavierOldFileIsStillFailed()
+    {
+        // PreviousSizeBytes è il peso della release scelta (4 GB), il file vero pesa 6 GB: senza tappabuchi conta solo il punteggio.
+        await GrabAndImport(Release("ita", WebRip1080, "WEBRip-1080p", 4, 50));
+        await StartUpgrade(Release("ita-eng", WebRip1080, "WEBRip-1080p", 5, 150));
+
+        var old = File(512, WebRip1080, 50);
+        old.Size = 6 * Gb;
+        _arr.MovieFiles = _ => Task.FromResult<IReadOnlyList<ArrFile?>>([old]);
+        _time.Advance(DownloadService.CycleInterval);
+        _radarrQueue = [];
+        await Cycle();
+
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.UpgradeWatch, (long?)(4 * Gb), T0 + DownloadSchedule.UpgradeWindow), (entry.State, entry.CurrentSizeBytes, entry.UpgradeUntil));
+    }
+
+    [Fact]
     public async Task AnImportedUpgradeIsConfirmedByTheFile()
     {
         await GrabAndImport(Release("ita", WebRip1080, "WEBRip-1080p", 4, 50));

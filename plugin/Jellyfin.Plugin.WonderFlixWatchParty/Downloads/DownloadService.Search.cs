@@ -257,6 +257,10 @@ public sealed partial class DownloadService
     }
 
     // Il grab della scelta del giro; true se ha scaricato. forceImport: un tappabuchi per peso che Radarr/Sonarr non importerebbero.
+    // Solo sotto _lock. Si ricorda la release rifiutata dal client (al massimo 20, via le più vecchie): la ricerca dopo ne sceglie un'altra.
+    private static void RememberRefused(DownloadEntry entry, ArrRelease release) =>
+        entry.RefusedReleases = [.. (entry.RefusedReleases ?? []).Append(DownloadRule.ReleaseId(release.Guid!, release.IndexerId)).TakeLast(MaxRefusedReleases)];
+
     private async Task<bool> GrabChoiceAsync(SearchItem item, ArrRelease choice, ArrQualityProfile? profile, bool forceImport, CancellationToken cancellationToken)
     {
         try
@@ -273,8 +277,7 @@ public sealed partial class DownloadService
                 entry.Reason = DownloadReasons.GrabRefused;
                 entry.NextSearchAt = now + CycleInterval;
 
-                // Si ricorda la release (al massimo 20, via le più vecchie): al giro dopo si sceglie un'altra.
-                entry.RefusedReleases = [.. (entry.RefusedReleases ?? []).Append(DownloadRule.ReleaseId(choice.Guid!, choice.IndexerId)).TakeLast(MaxRefusedReleases)];
+                RememberRefused(entry, choice);
                 if (entry.State != DownloadStates.UpgradeWatch)
                 {
                     entry.State = DownloadStates.NeedsYou;
@@ -455,10 +458,11 @@ public sealed partial class DownloadService
             var now = time.GetUtcNow();
 
             // Ancora il file di prima (per una stagione tutti i suoi file): l'upgrade è fallito (Radarr/Sonarr hanno già messo la release in blocklist).
-            // Più pesante del download di prima con la stessa qualità e lo stesso punteggio: è l'import forzato di un tappabuchi per peso.
+            // Solo per un tappabuchi per peso: più pesante del download di prima con la stessa qualità e lo stesso punteggio è il suo import forzato.
+            // Negli altri upgrade PreviousSizeBytes è spesso il peso della release, non del file: il peso non conta.
             if (files.Count > 0
                 && files.All(f => f.CustomFormatScore == previousScore && f.Quality?.Quality?.Id == entry.PreviousQualityId)
-                && files.Sum(f => f.Size) <= (entry.PreviousSizeBytes ?? long.MaxValue))
+                && (entry.Stopgap != DownloadStopgaps.Size || files.Sum(f => f.Size) <= (entry.PreviousSizeBytes ?? long.MaxValue)))
             {
                 BackToUpgradeWatch(entry, now);
                 return;

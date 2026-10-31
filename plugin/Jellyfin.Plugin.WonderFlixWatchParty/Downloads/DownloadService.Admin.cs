@@ -183,6 +183,11 @@ public sealed partial class DownloadService
             return GrabOutcome.Invalid;
         }
 
+        if (!CanGrabBest(parsed))
+        {
+            return GrabOutcome.NothingToGrab;
+        }
+
         var (search, error) = await ReadAsync(ServiceOf(parsed.Kind), c => RunSearchAsync(parsed, c), cancellationToken).ConfigureAwait(false);
         if (error is not null)
         {
@@ -202,25 +207,44 @@ public sealed partial class DownloadService
 
         var rule = DownloadRule.Choose(search.Releases.Where(r => !refused.Contains(DownloadRule.ReleaseId(r.Guid ?? "", r.IndexerId))), search.Input);
         var (release, stopgap) = rule.Choice is { } choice ? (choice, null) : DownloadRule.ChooseStopgap(rule);
-        if (release is null)
+        // Di nuovo dopo la ricerca: intanto il giro o un altro admin può aver fatto partire un download.
+        if (release is null || !CanGrabBest(parsed))
         {
             return GrabOutcome.NothingToGrab;
         }
 
         var outcome = await GrabAsync(parsed.ToString(), release.Guid!, release.IndexerId, CancellationToken.None).ConfigureAwait(false);
-        if (outcome == GrabOutcome.Ok)
+        if (outcome is GrabOutcome.Ok or GrabOutcome.Refused)
         {
             lock (_lock)
             {
                 if (Book.Get(parsed.ToString()) is { } entry)
                 {
-                    entry.Stopgap = stopgap;
+                    // Una release rifiutata dal client si ricorda (spec §5.3): alla pressione dopo si prende un'altra.
+                    if (outcome == GrabOutcome.Refused)
+                    {
+                        RememberRefused(entry, release);
+                    }
+                    else
+                    {
+                        entry.Stopgap = stopgap;
+                    }
+
                     SaveAfterGrab();
                 }
             }
         }
 
         return outcome;
+    }
+
+    // "Scarica il migliore intanto" vale solo dove la panoramica lo offre: mai su un download in corso o un upgrade.
+    private bool CanGrabBest(DownloadKey key)
+    {
+        lock (_lock)
+        {
+            return Book.Get(key.ToString()) is { } entry && DownloadActions.For(entry).Contains(DownloadActions.GrabBest);
+        }
     }
 
     /// <summary>
@@ -243,6 +267,8 @@ public sealed partial class DownloadService
             store.Save(Book);
         }
 
+        // Un giro presto: l'avviso esce dalla cassetta degli admin (spec §4.3).
+        Nudge();
         return true;
     }
 
@@ -283,6 +309,7 @@ public sealed partial class DownloadService
                 {
                     entry.State = DownloadStates.Downloading;
                     entry.Reason = null;
+                    entry.AdminImportAt = time.GetUtcNow();
                     store.Save(Book);
                 }
             }
