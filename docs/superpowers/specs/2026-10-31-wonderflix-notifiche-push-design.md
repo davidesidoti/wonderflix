@@ -1,7 +1,7 @@
 # WonderFlix — Spec V: notifiche push
 
 - **Data:** 2026-10-31
-- **Stato:** approvata il 2026-10-31; parte plugin realizzata con il piano 31a (plugin 1.17.0).
+- **Stato:** approvata il 2026-10-31; realizzata con i piani 31a (plugin 1.17.0) e 31b (app 0.26.0), da provare a mano.
 - **Ambito:** idea 15 di `docs/IDEE.md` ("Notifiche push sulla web app"), allargata al PC.
 - **Ricerca:** ricognizione del codice fatta in sessione. Le cose che servono sono riportate qui sotto.
 
@@ -190,8 +190,13 @@ Piano 31a (parte plugin, plugin 1.17.0):
 
 Esito del Task 1 (prove dei due rischi):
 - il seedbox raggiunge i servizi push: `web.push.apple.com` risponde 405, `fcm.googleapis.com` 404, `wns2-par02p.notify.windows.com` 404 (la rete non è un ostacolo);
-- il gesto su iOS (il tocco su un pulsante Flutter basta a chiedere il permesso?) è ancora da provare dall'utente.
+- la prova su iOS 27.2 è riuscita (il permesso è chiesto da un pulsante Flutter, risposta "granted", `PushManager` presente): l'app usa un normale pulsante Flutter.
 
 Scelte fatte durante la costruzione:
 - le iscrizioni si accettano solo da host dei servizi push dei browser (Apple, `googleapis.com`, `notify.windows.com`, Mozilla);
 - l'avviso `RecoveryBlocked` tace per la finestra del limite dopo aver avvisato, perché la finestra del limitatore scorre.
+
+Piano 31b (parte app, app 0.26.0):
+- un DELETE fallito all'uscita dall'account disiscrive comunque il browser e cancella tutte le chiavi salvate su quel dispositivo;
+- le notifiche di Windows usano l'AppUserModelID dell'installer `it.wonderflix.WonderFlix` (`ShortcutPolicy.ignore`);
+- le notifiche di Windows annunciano solo le voci nuove, come la push.
