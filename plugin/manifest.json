@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.16.1.0",
+        "changelog": "Alleggerisci per WonderFlix 0.25.1: quando Sonarr o Radarr non importano da soli la versione più leggera (non è un upgrade, anche con un file vecchio di qualità fuori dal profilo) il plugin la importa a mano; se resta bloccata, la riga di Alleggerire mostra il motivo e il pulsante Importa. I download automatici confrontano le qualità come Sonarr e Radarr.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.16.1/wonderflix-watch-party_1.16.1.zip",
+        "checksum": "ae5e0530e4a9eeb27eb16ce5576c37cb",
+        "timestamp": "2026-10-31T01:21:52Z"
+      },
+      {
         "version": "1.16.0.0",
         "changelog": "Spazio per WonderFlix 0.25.0: nella dashboard admin la quota del seedbox, i candidati da cancellare (nessuno li guarda più, mai aperti, voti bassi), i file da alleggerire con il progresso del download e la pulizia (torrent senza copia in libreria, file orfani, doppioni). Le eliminazioni, anche in blocco, partono solo da un pulsante e mostrano i passi; i torrent di ItaTorrents e ShareIsland si tolgono solo a fine seed obbligatorio (ratio 10 o 30 giorni). Serve qBittorrent configurato nella pagina del plugin.",
         "targetAbi": "10.11.0.0",
