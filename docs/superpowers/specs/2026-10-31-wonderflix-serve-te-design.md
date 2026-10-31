@@ -142,7 +142,7 @@ I campi nullable che devono esserci sempre vanno marcati `JsonIgnore(Condition =
 ## 6. App
 
 - `DownloadItemRow`: frase di spiegazione (§4) sotto le righe di oggi; pulsanti da `Actions`, con il consigliato in evidenza. Senza `Actions` (plugin vecchio) i pulsanti restano quelli di oggi.
-- Pulsante consigliato per caso: `GrabBest` dove c'è, altrimenti `Import`, `Pick` per `GrabRefused`, `Snooze` per "nessun risultato". **(Mia scelta:** la regola sta nell'app, è solo presentazione.)
+- Pulsante consigliato per caso: `GrabBest` dove c'è, altrimenti `Import`, `Pick` per `GrabRefused`, `Snooze` per "nessun risultato". **(Mia scelta, rivista nel piano:** il plugin mette il consigliato per primo in `Actions` e l'app evidenzia il primo nelle righe "Serve te".)
 - Ogni azione: pulsante occupato mentre lavora (come `AdminActionButton`), SnackBar con l'esito o l'errore, poi rilettura della panoramica. `GrabBest` mostra "Cerco e scarico…" perché può durare.
 - Riga "In attesa" silenziata: etichetta "senza avvisi" accanto al titolo.
 - Testi in italiano e inglese negli ARB. I numeri si formattano come nel resto della scheda.
