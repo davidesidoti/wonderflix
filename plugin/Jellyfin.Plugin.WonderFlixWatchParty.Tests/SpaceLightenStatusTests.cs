@@ -203,6 +203,26 @@ public sealed class SpaceLightenStatusTests : IDisposable
     }
 
     [Fact]
+    public async Task AfterAnImportByHandBlockedIsImportingForTwoMinutes()
+    {
+        Lightened("movie:12", Now.AddHours(-1));
+        _radarrQueue = [Item("importBlocked", 4 * Gb, 0, movieId: 12, downloadId: "D", messages: ["Not an upgrade"])];
+        _arr.ManualImportItems = (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>(
+            [new ArrManualImportItem { Path = "/dl/a.mkv", Movie = new ArrFileRef { Id = 12 }, Quality = JsonDocument.Parse("{}").RootElement }]);
+        Assert.Equal(SpaceLightenStates.Blocked, (await DownloadOf("movie:12"))!.State);
+
+        Assert.Equal(SpaceService.LightenImportOutcome.Imported, (await _service.ImportLightenAsync("movie:12", CancellationToken.None)).Outcome);
+
+        // Radarr dice ancora importBlocked: il comando non è finito.
+        _time.Advance(TimeSpan.FromMinutes(1));
+        Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Importing, 1, 0, null), await DownloadOf("movie:12"));
+
+        // Passata la finestra il blocco vero torna a vedersi.
+        _time.Advance(SpaceService.HandImportGrace);
+        Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Blocked, 1, 0, "Not an upgrade"), await DownloadOf("movie:12"));
+    }
+
+    [Fact]
     public async Task ImportingByHandWithoutABlockedLightenIsUnknown()
     {
         Lightened("movie:13", Now.AddHours(-1));

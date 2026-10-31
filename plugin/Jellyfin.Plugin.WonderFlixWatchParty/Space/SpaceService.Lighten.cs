@@ -27,6 +27,9 @@ public sealed partial class SpaceService
     /// <summary>Il tempo che Radarr/Sonarr mettano in coda un grab appena fatto.</summary>
     public static readonly TimeSpan LightenQueueGrace = TimeSpan.FromMinutes(10);
 
+    /// <summary>Dopo un import a mano, per così tanto un Blocked si mostra come Importing: il comando non è ancora finito.</summary>
+    public static readonly TimeSpan HandImportGrace = TimeSpan.FromMinutes(2);
+
     /// <summary>Senza date, sotto questa parte della riga il file nuovo è arrivato.</summary>
     private const double ImportedShare = 0.9;
 
@@ -35,6 +38,9 @@ public sealed partial class SpaceService
 
     // Solo sotto _lock. Le righe importate e quando: nascoste fino al calcolo dopo.
     private readonly Dictionary<string, DateTimeOffset> _lightenImported = [];
+
+    // Solo sotto _lock. Gli import a mano riusciti e quando: per HandImportGrace un Blocked è Importing.
+    private readonly Dictionary<string, DateTimeOffset> _lightenHandImported = [];
 
     // Solo sotto _lock. I servizi la cui coda non risponde: il Warning una volta per guasto.
     private readonly HashSet<ArrKind> _queueDown = [];
@@ -59,6 +65,7 @@ public sealed partial class SpaceService
             lock (_lock)
             {
                 _lightenStatus.Remove(key);
+                _lightenHandImported.Remove(key);
             }
 
             logger.LogInformation("Spazio: Alleggerisci {Key} dimenticato dopo 7 giorni", key);
@@ -86,9 +93,16 @@ public sealed partial class SpaceService
                 {
                     _lightenImported[row.Key] = now;
                     _lightenStatus.Remove(row.Key);
+                    _lightenHandImported.Remove(row.Key);
                 }
                 else if (status is not null)
                 {
+                    // Subito dopo l'import a mano Radarr/Sonarr dicono ancora importBlocked; passata la finestra, il blocco è vero.
+                    if (status.State == SpaceLightenStates.Blocked && _lightenHandImported.TryGetValue(row.Key, out var handAt) && now - handAt < HandImportGrace)
+                    {
+                        status = status with { State = SpaceLightenStates.Importing, Message = null };
+                    }
+
                     _lightenStatus[row.Key] = status;
                 }
             }
@@ -170,6 +184,7 @@ public sealed partial class SpaceService
         {
             // Il download è finito: fino alla prossima lettura della coda la riga è Importing.
             _lightenStatus[key] = new SpaceLightenDownloadDto(SpaceLightenStates.Importing, 1, 0, null);
+            _lightenHandImported[key] = time.GetUtcNow();
         }
 
         logger.LogInformation("Spazio: Alleggerisci {Key} importato a mano", key);
