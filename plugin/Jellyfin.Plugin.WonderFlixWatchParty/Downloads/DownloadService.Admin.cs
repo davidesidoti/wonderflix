@@ -571,14 +571,18 @@ public sealed partial class DownloadService
         return true;
     }
 
-    /// <summary>La panoramica (spec T §8.1), tutta dal libro: scelte dalla più recente, voci seguite, "Da ripassare", errori dell'ultimo giro.</summary>
-    public DownloadsOverviewDto Overview()
+    /// <summary>
+    /// La panoramica (spec T §8.1): scelte dalla più recente, voci seguite, "Da ripassare", errori dell'ultimo giro, tutto dal libro;
+    /// l'avanzamento di chi scarica viene dalla coda di Radarr/Sonarr (una lettura al minuto, mai bloccante: se fallisce resta vuoto).
+    /// </summary>
+    public async Task<DownloadsOverviewDto> OverviewAsync(CancellationToken cancellationToken)
     {
         var since = time.GetUtcNow() - DownloadBook.ChoiceRetention;
+        DownloadsOverviewDto overview;
         lock (_lock)
         {
             // Prune gira solo a fine giro: le scelte vecchie si filtrano anche qui.
-            return new DownloadsOverviewDto(
+            overview = new DownloadsOverviewDto(
                 settings.Enabled,
                 [.. Book.Choices.Where(c => c.At >= since).Select(ChoiceDto)],
                 [.. Book.Entries
@@ -592,6 +596,44 @@ public sealed partial class DownloadService
                 _lastErrors.Sonarr,
                 _lastErrors.Radarr);
         }
+
+        // Fuori dal lock: la coda solo dei servizi che hanno qualcuno in download.
+        var kinds = overview.Waiting.Where(i => i.State == DownloadStates.Downloading).Select(i => ServiceOf(i.Kind)).Distinct().ToList();
+        var queues = new Dictionary<ArrKind, IReadOnlyDictionary<string, DownloadProgressDto>>();
+        foreach (var kind in kinds)
+        {
+            var read = await _queues.GetAsync(kind.ToString(), () => ReadProgressAsync(kind)).WaitAsync(cancellationToken).ConfigureAwait(false);
+            if (read.Value is { } progress)
+            {
+                queues[kind] = progress;
+            }
+        }
+
+        return overview with
+        {
+            Waiting = [.. overview.Waiting.Select(i => i.State == DownloadStates.Downloading && queues.GetValueOrDefault(ServiceOf(i.Kind)) is { } p
+                ? i with { Progress = p.GetValueOrDefault(i.Key) }
+                : i)],
+        };
+    }
+
+    // La coda di un servizio come avanzamento per chiave, con le stesse regole del giro. Non ha il token di chi chiede: la lettura è condivisa dalla cache.
+    private async Task<IReadOnlyDictionary<string, DownloadProgressDto>> ReadProgressAsync(ArrKind kind)
+    {
+        var records = (await arr.GetQueueAsync(kind, CancellationToken.None).ConfigureAwait(false)).OfType<ArrQueueItem>().ToList();
+        var groups = kind == ArrKind.Radarr
+            ? ByKey(records.Where(q => q.MovieId > 0), q => Key(DownloadKinds.Movie, q.MovieId!.Value)).ToDictionary(p => p.Key, p => (IReadOnlyList<ArrQueueItem>)[p.Value])
+            : ByKey(records.Where(q => q.EpisodeId > 0), q => Key(DownloadKinds.Episode, q.EpisodeId!.Value)).ToDictionary(p => p.Key, p => (IReadOnlyList<ArrQueueItem>)[p.Value])
+                .Concat(SeasonQueueOf(records)).ToDictionary(p => p.Key, p => p.Value);
+        return groups.ToDictionary(p => p.Key, p => ProgressOf(p.Value));
+    }
+
+    // Un pack ha un elemento per episodio col peso di tutto il download: si conta una volta per DownloadId (come SpaceService.FromQueue).
+    private static DownloadProgressDto ProgressOf(IReadOnlyList<ArrQueueItem> items)
+    {
+        var downloads = items.Where(i => i.DownloadId is null).Concat(items.Where(i => i.DownloadId is not null).DistinctBy(i => i.DownloadId)).ToList();
+        var status = items.FirstOrDefault(i => string.Equals(i.Status, DownloadingState, StringComparison.OrdinalIgnoreCase))?.Status ?? items[0].Status;
+        return new DownloadProgressDto(downloads.Sum(i => i.Size), downloads.Sum(i => i.Sizeleft), items.Max(i => i.EstimatedCompletionTime), status ?? "unknown");
     }
 
     // Il messaggio di Sonarr/Radarr esce solo per un import bloccato: su una voce passata ad altro può restarne uno vecchio.
@@ -600,7 +642,8 @@ public sealed partial class DownloadService
         DownloadActions.For(e),
         e.Summary is { } s ? new DownloadSummaryDto(s.Found, s.BestScore, s.MinScore, s.TooSmall, s.ArrRejected, s.TopRejection, s.StopgapAvailable) : null,
         e.Reason == DownloadReasons.ImportBlocked ? e.BlockedMessage : null,
-        e.Snoozed);
+        e.Snoozed,
+        null);
 
     /// <summary>
     /// I profili di qualità di Radarr e Sonarr con le loro soglie (spec T §7.1); un servizio in errore non c'è. Null se

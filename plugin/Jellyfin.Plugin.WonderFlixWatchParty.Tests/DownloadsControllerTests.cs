@@ -155,7 +155,7 @@ public sealed class DownloadsControllerTests : IDisposable
             : Task.FromResult<IReadOnlyList<ArrQueueItem?>>([]);
         await _service.RunCycleAsync(CancellationToken.None);
 
-        var overview = _controller.Overview().Value!;
+        var overview = (await _controller.Overview()).Value!;
 
         Assert.Equal("Unauthorized", overview.RadarrError);
         Assert.Null(overview.SonarrError);
@@ -171,10 +171,20 @@ public sealed class DownloadsControllerTests : IDisposable
 
         Assert.Contains("\"Error\":null", json);
         Assert.Contains("\"Current\":null", json);
-        var overview = JsonSerializer.Serialize(_controller.Overview().Value, JsonDefaults.PascalCaseOptions);
+        var overview = JsonSerializer.Serialize((await _controller.Overview()).Value, JsonDefaults.PascalCaseOptions);
         Assert.Contains("\"SonarrError\":null", overview);
         Assert.Contains("\"RadarrError\":null", overview);
         Assert.Contains("\"ReviewAt\":null", overview);
+    }
+
+    [Fact]
+    public async Task AnItemThatIsNotDownloadingWritesProgressAsNull()
+    {
+        NeedsYou(DownloadReasons.NothingFound);
+
+        var json = JsonSerializer.Serialize((await _controller.Overview()).Value, JsonDefaults.PascalCaseOptions);
+
+        Assert.Contains("\"Progress\":null", json);
     }
 
     [Fact]
@@ -185,10 +195,11 @@ public sealed class DownloadsControllerTests : IDisposable
         {
             release,
             new DownloadChoiceDto("movie:1", "Movie", "T", null, T0, release, null, null, false),
-            new DownloadItemDto("movie:1", "Movie", "T", null, "Waiting", null, T0, null, null, ["Pick"], null, null, false),
+            new DownloadItemDto("movie:1", "Movie", "T", null, "Waiting", null, T0, null, null, ["Pick"], null, null, false, null),
             new ReviewItemDto("movie:1", "Movie", "T", null, 1, 1, "q"),
             new DownloadRejectedDto(release, "Arr", null),
             new DownloadProfileDto("Radarr", 4, "Main", 50, null),
+            new DownloadProgressDto(1, 1, null, "downloading"),
         };
 
         foreach (var dto in dtos)

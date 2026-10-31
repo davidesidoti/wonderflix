@@ -715,6 +715,17 @@ public class ArrClientTests
     }
 
     [Fact]
+    public async Task TheQueueReadsTheEstimatedCompletion()
+    {
+        Answer(HttpStatusCode.OK, """{"totalRecords":2,"records":[{"id":1,"estimatedCompletionTime":"2026-10-28T12:20:00Z"},{"id":2}]}""");
+
+        var items = await Client().GetQueueAsync(ArrKind.Radarr, CancellationToken.None);
+
+        Assert.Equal(new DateTimeOffset(2026, 10, 28, 12, 20, 0, TimeSpan.Zero), items[0]!.EstimatedCompletionTime);
+        Assert.Null(items[1]!.EstimatedCompletionTime);
+    }
+
+    [Fact]
     public async Task TheQueueReadsTheStatusMessages()
     {
         Answer(HttpStatusCode.OK, """{"totalRecords":2,"records":[{"id":1,"trackedDownloadState":"importBlocked","statusMessages":[{"title":"a.mkv","messages":["Not an upgrade",null]},null,{"title":null,"messages":null}]},{"id":2,"statusMessages":null}]}""");

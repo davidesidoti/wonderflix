@@ -10,10 +10,10 @@ public sealed record ArrRead<T>(T? Value, string? Error);
 /// Cache a chiavi delle letture di Sonarr e Radarr (spec S §6.1): come le slot
 /// di <see cref="UpcomingService"/> ma per più chiavi. Una lettura in corso
 /// vale sempre, una finita fino alla scadenza (<see cref="UpcomingService.CacheFor"/>,
-/// o <see cref="UpcomingService.ErrorCacheFor"/> se in errore). Le chiavi le
+/// o <see cref="UpcomingService.ErrorCacheFor"/> se in errore; <c>cacheFor</c> cambia la prima). Le chiavi le
 /// compone chi chiama, con indirizzo e chiave del servizio dentro: restano solo in memoria.
 /// </summary>
-public sealed class ArrReadCache<T>(TimeProvider time, int maxEntries, ILogger logger)
+public sealed class ArrReadCache<T>(TimeProvider time, int maxEntries, ILogger logger, TimeSpan? cacheFor = null)
 {
     private readonly Lock _lock = new();
     private readonly Dictionary<string, Entry> _entries = [];
@@ -77,7 +77,7 @@ public sealed class ArrReadCache<T>(TimeProvider time, int maxEntries, ILogger l
 
         lock (_lock)
         {
-            entry.ExpiresAt = time.GetUtcNow() + (result.Error is null ? UpcomingService.CacheFor : UpcomingService.ErrorCacheFor);
+            entry.ExpiresAt = time.GetUtcNow() + (result.Error is null ? cacheFor ?? UpcomingService.CacheFor : UpcomingService.ErrorCacheFor);
         }
 
         return result;

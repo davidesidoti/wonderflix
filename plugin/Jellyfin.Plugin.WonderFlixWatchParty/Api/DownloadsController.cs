@@ -20,7 +20,8 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Api;
 public class DownloadsController(DownloadService downloads) : ControllerBase
 {
     [HttpGet]
-    public ActionResult<DownloadsOverviewDto> Overview() => downloads.Overview();
+    public async Task<ActionResult<DownloadsOverviewDto>> Overview() =>
+        await downloads.OverviewAsync(HttpContext.RequestAborted).ConfigureAwait(false);
 
     /// <summary>Ricerca dal vivo (fino a 2 minuti); 400 per una chiave non valida o un titolo che non c'è.</summary>
     [HttpGet("Search")]

@@ -165,7 +165,7 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Assert.Equal(("b", true, (int?)null, (long?)null), (choice.Guid, choice.ByAdmin, choice.PreviousScore, choice.PreviousSizeBytes));
 
         // Esce da "Da ripassare" senza diventare "va bene così"; la panoramica la mostra.
-        var overview = _service.Overview();
+        var overview = await _service.OverviewAsync(CancellationToken.None);
         Assert.Equal(["movie:13"], overview.Review.Select(r => r.Key));
         Assert.Empty(Store().Load().ToFile().Accepted);
         var recent = Assert.Single(overview.Recent);
@@ -415,7 +415,7 @@ public sealed class DownloadServiceAdminTests : IDisposable
     }
 
     [Fact]
-    public void TheOverviewShowsTheLast90Days()
+    public async Task TheOverviewShowsTheLast90Days()
     {
         // Con i download spenti il giro non pota le scelte vecchie.
         _settings.Enabled = false;
@@ -424,7 +424,7 @@ public sealed class DownloadServiceAdminTests : IDisposable
         book.AddChoice(new DownloadChoice { Key = "movie:13", Kind = DownloadKinds.Movie, Guid = "new", At = T0 - TimeSpan.FromDays(1) });
         Store().Save(book);
 
-        Assert.Equal(["new"], _service.Overview().Recent.Select(c => c.Release.Guid));
+        Assert.Equal(["new"], (await _service.OverviewAsync(CancellationToken.None)).Recent.Select(c => c.Release.Guid));
     }
 
     [Fact]
@@ -674,14 +674,14 @@ public sealed class DownloadServiceAdminTests : IDisposable
     }
 
     [Fact]
-    public void AcceptHidesFromReview()
+    public async Task AcceptHidesFromReview()
     {
         ReviewOf("movie:12", "movie:13");
-        Assert.Equal(["movie:12", "movie:13"], _service.Overview().Review.Select(r => r.Key));
+        Assert.Equal(["movie:12", "movie:13"], (await _service.OverviewAsync(CancellationToken.None)).Review.Select(r => r.Key));
 
         Assert.True(_service.Accept("movie:12"));
 
-        Assert.Equal(["movie:13"], _service.Overview().Review.Select(r => r.Key));
+        Assert.Equal(["movie:13"], (await _service.OverviewAsync(CancellationToken.None)).Review.Select(r => r.Key));
         Assert.Equal(["movie:12"], Store().Load().ToFile().Accepted);
     }
 
@@ -754,7 +754,7 @@ public sealed class DownloadServiceAdminTests : IDisposable
     private Task<GrabOutcome> GrabBest(string key = "movie:12") => _service.GrabBestAsync(key, CancellationToken.None);
 
     [Fact]
-    public void TheOverviewCarriesActionsAndSummary()
+    public async Task TheOverviewCarriesActionsAndSummary()
     {
         NeedsYou(DownloadReasons.NothingFound, e =>
         {
@@ -763,7 +763,7 @@ public sealed class DownloadServiceAdminTests : IDisposable
             e.Summary = new DownloadSummary { Found = 4, BestScore = 20, MinScore = 50, TooSmall = 1, ArrRejected = 2, TopRejection = "Not an upgrade", StopgapAvailable = true };
         });
 
-        var item = Assert.Single(_service.Overview().Waiting);
+        var item = Assert.Single((await _service.OverviewAsync(CancellationToken.None)).Waiting);
 
         Assert.True(item.Snoozed);
         Assert.Equal(["GrabBest", "Pick", "SearchNow", "Snooze"], item.Actions);
@@ -1041,5 +1041,82 @@ public sealed class DownloadServiceAdminTests : IDisposable
 
         var entry = Saved("movie:12")!;
         Assert.Equal((DownloadStates.UpgradeWatch, (int?)0, (int?)Bluray1080, (long?)(12 * Gb), (int?)null, T0), (entry.State, entry.CurrentScore, entry.CurrentQualityId, entry.CurrentSizeBytes, entry.PreviousScore, entry.NextSearchAt));
+    }
+
+    // Una voce in download, scritta prima che il servizio legga il file.
+    private void Downloading(string key, string kind, string state = DownloadStates.Downloading)
+    {
+        var book = new DownloadBook();
+        book.Put(new DownloadEntry { Key = key, Kind = kind, Title = key, State = state, AvailableSince = T0, NextSearchAt = T0 + TimeSpan.FromDays(1) });
+        Store().Save(book);
+    }
+
+    [Fact]
+    public async Task TheOverviewCarriesDownloadProgress()
+    {
+        Downloading("movie:12", DownloadKinds.Movie);
+        var eta = T0 + TimeSpan.FromMinutes(20);
+        _radarrQueue = [new ArrQueueItem { Id = 1, MovieId = 12, DownloadId = "D", Size = 3_000_000_000, Sizeleft = 1_200_000_000, EstimatedCompletionTime = eta, Status = "downloading", TrackedDownloadState = "downloading" }];
+
+        var item = Assert.Single((await _service.OverviewAsync(CancellationToken.None)).Waiting);
+
+        Assert.Equal(new DownloadProgressDto(3_000_000_000, 1_200_000_000, eta, "downloading"), item.Progress);
+    }
+
+    [Fact]
+    public async Task AWaitingEntryHasNoProgress()
+    {
+        Downloading("movie:12", DownloadKinds.Movie, DownloadStates.Waiting);
+        _radarrQueue = [MovieQueue(1, 12, 100)];
+
+        var item = Assert.Single((await _service.OverviewAsync(CancellationToken.None)).Waiting);
+
+        Assert.Null(item.Progress);
+        Assert.Empty(_arr.QueueCalls);
+    }
+
+    [Fact]
+    public async Task ASeasonPackHasOneProgress()
+    {
+        Downloading("season:7:2", DownloadKinds.Season);
+        var (early, late) = (T0 + TimeSpan.FromMinutes(5), T0 + TimeSpan.FromMinutes(9));
+        _sonarrQueue =
+        [
+            new ArrQueueItem { Id = 1, EpisodeId = 1, SeriesId = 7, SeasonNumber = 2, DownloadId = "P", Size = 8_000, Sizeleft = 4_000, EstimatedCompletionTime = early, Status = "queued" },
+            new ArrQueueItem { Id = 2, EpisodeId = 2, SeriesId = 7, SeasonNumber = 2, DownloadId = "P", Size = 8_000, Sizeleft = 4_000, EstimatedCompletionTime = late, Status = "downloading" },
+        ];
+
+        var item = Assert.Single((await _service.OverviewAsync(CancellationToken.None)).Waiting);
+
+        Assert.Equal(new DownloadProgressDto(8_000, 4_000, late, "downloading"), item.Progress);
+    }
+
+    [Fact]
+    public async Task TheQueueIsReadAtMostOncePerMinute()
+    {
+        Downloading("movie:12", DownloadKinds.Movie);
+        _radarrQueue = [MovieQueue(1, 12, 100)];
+
+        await _service.OverviewAsync(CancellationToken.None);
+        _time.Advance(TimeSpan.FromSeconds(30));
+        await _service.OverviewAsync(CancellationToken.None);
+        Assert.Single(_arr.QueueCalls);
+
+        _time.Advance(TimeSpan.FromSeconds(31));
+        await _service.OverviewAsync(CancellationToken.None);
+        Assert.Equal(2, _arr.QueueCalls.Count);
+    }
+
+    [Fact]
+    public async Task AQueueErrorLeavesProgressEmpty()
+    {
+        Downloading("movie:12", DownloadKinds.Movie);
+        _arr.Queue = _ => Task.FromException<IReadOnlyList<ArrQueueItem?>>(new ArrException(ArrError.Unreachable));
+
+        var overview = await _service.OverviewAsync(CancellationToken.None);
+
+        var item = Assert.Single(overview.Waiting);
+        Assert.Equal(("movie:12", DownloadStates.Downloading), (item.Key, item.State));
+        Assert.Null(item.Progress);
     }
 }

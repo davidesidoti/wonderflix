@@ -52,6 +52,9 @@ public sealed partial class DownloadService(
     private DownloadBook? _book;
     private (string? Sonarr, string? Radarr) _lastErrors;
 
+    // L'avanzamento dalla coda per la panoramica: una lettura al minuto per servizio.
+    private readonly ArrReadCache<IReadOnlyDictionary<string, DownloadProgressDto>> _queues = new(time, 2, logger, TimeSpan.FromMinutes(1));
+
     /// <summary>Pausa tra le ricerche; i test la mettono a zero.</summary>
     internal TimeSpan Pause { get; init; } = PauseBetweenSearches;
 
