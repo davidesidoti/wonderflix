@@ -483,4 +483,77 @@ void main() {
             reportJson('ReportPending', {'FromName': 'L', 'ItemId': null})),
         isNull);
   });
+
+  group('voci di spec V', () {
+    Map<String, dynamic> alert(String type, [Map<String, dynamic>? extra]) => {
+          'Id': 'x1',
+          'Seq': 5,
+          'Type': type,
+          'CreatedAt': '2026-10-31T10:00:00+00:00',
+          'Read': false,
+          ...?extra,
+        };
+
+    test('ogni tipo nuovo dà la sua classe e porta AlertKey', () {
+      final entries = {
+        'RequestApproved': alert('RequestApproved', {'Title': 'Dune'}),
+        'RequestDeclined': alert('RequestDeclined', {'Title': 'Dune'}),
+        'DownloadNeedsYou': alert('DownloadNeedsYou',
+            {'Title': 'Severance S02', 'Reason': 'GrabRefused'}),
+        'DownloadStalled': alert('DownloadStalled', {'Title': 'Dune'}),
+        'LightenBlocked': alert('LightenBlocked', {'Title': 'Dune'}),
+        'SpaceOperationFailed': alert('SpaceOperationFailed'),
+        'DiskAlmostFull': alert('DiskAlmostFull', {'Percent': 93}),
+        'RecoveryStarted': alert('RecoveryStarted', {'UserName': 'Luigi'}),
+        'RecoveryBlocked': alert('RecoveryBlocked', {'Scope': 'Everyone'}),
+        'RestartPending': alert('RestartPending'),
+      };
+      final parsed = {
+        for (final MapEntry(:key, :value) in entries.entries)
+          key: inboxEntryFromJson({...value, 'AlertKey': 'k-$key'})!,
+      };
+      expect(parsed['RequestApproved'], isA<RequestApprovedEntry>());
+      expect(parsed['RequestDeclined'], isA<RequestDeclinedEntry>());
+      expect(parsed['DownloadNeedsYou'], isA<DownloadNeedsYouEntry>());
+      expect(parsed['DownloadStalled'], isA<DownloadStalledEntry>());
+      expect(parsed['LightenBlocked'], isA<LightenBlockedEntry>());
+      expect(parsed['SpaceOperationFailed'], isA<SpaceOperationFailedEntry>());
+      expect(parsed['DiskAlmostFull'], isA<DiskAlmostFullEntry>());
+      expect(parsed['RecoveryStarted'], isA<RecoveryStartedEntry>());
+      expect(parsed['RecoveryBlocked'], isA<RecoveryBlockedEntry>());
+      expect(parsed['RestartPending'], isA<RestartPendingEntry>());
+      for (final MapEntry(:key, :value) in parsed.entries) {
+        expect((value as AlertedEntry).alertKey, 'k-$key');
+        expect(value.seq, 5);
+      }
+    });
+
+    test('campi: motivo, percentuale, utente, ambito; AlertKey può mancare', () {
+      final needs = inboxEntryFromJson(alert('DownloadNeedsYou',
+          {'Title': 'Severance S02', 'Reason': 'GrabRefused'}))!;
+      needs as DownloadNeedsYouEntry;
+      expect((needs.title, needs.reason, needs.alertKey),
+          ('Severance S02', 'GrabRefused', null));
+      expect(
+          (inboxEntryFromJson(alert('DiskAlmostFull', {'Percent': 93}))!
+                  as DiskAlmostFullEntry)
+              .percent,
+          93);
+      final user = inboxEntryFromJson(
+              alert('RecoveryBlocked', {'Scope': 'User', 'UserName': 'Luigi'}))!
+          as RecoveryBlockedEntry;
+      expect((user.everyone, user.userName), (false, 'Luigi'));
+      final all = inboxEntryFromJson(alert('RecoveryBlocked',
+          {'Scope': 'Everyone', 'UserName': null}))! as RecoveryBlockedEntry;
+      expect((all.everyone, all.userName), (true, null));
+      final approved = inboxEntryFromJson(alert('RequestApproved',
+          {'Title': 'Dune (2021)', 'Seasons': [1, 2]}))! as RequestApprovedEntry;
+      expect(approved.title, 'Dune (2021)');
+      expect(approved.seasons, [1, 2]);
+    });
+
+    test('un tipo sconosciuto continua a saltarsi', () {
+      expect(inboxEntryFromJson(alert('Boh')), isNull);
+    });
+  });
 }

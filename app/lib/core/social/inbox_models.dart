@@ -346,6 +346,167 @@ final class ReportResolvedEntry extends InboxEntry {
   final String? text;
 }
 
+/// Le voci di spec V: portano `AlertKey` se il plugin lo scrive (gli avvisi
+/// admin che restano finché il problema c'è).
+sealed class AlertedEntry extends InboxEntry {
+  const AlertedEntry({
+    required super.id,
+    required super.seq,
+    required super.createdAt,
+    required super.read,
+    this.alertKey,
+  });
+
+  final String? alertKey;
+}
+
+/// Una richiesta accettata (spec V), a chi l'aveva chiesta.
+final class RequestApprovedEntry extends AlertedEntry {
+  const RequestApprovedEntry({
+    required super.id,
+    required super.seq,
+    required super.createdAt,
+    required super.read,
+    super.alertKey,
+    required this.title,
+    this.seasons = const [],
+    this.itemId,
+  });
+
+  final String title;
+  final List<int> seasons;
+  final String? itemId;
+}
+
+/// Una richiesta rifiutata (spec V), a chi l'aveva chiesta.
+final class RequestDeclinedEntry extends AlertedEntry {
+  const RequestDeclinedEntry({
+    required super.id,
+    required super.seq,
+    required super.createdAt,
+    required super.read,
+    super.alertKey,
+    required this.title,
+    this.seasons = const [],
+    this.itemId,
+  });
+
+  final String title;
+  final List<int> seasons;
+  final String? itemId;
+}
+
+/// Un download che chiede l'intervento dell'admin; [reason] è il motivo
+/// del plugin (`GrabRefused`, ...), anche uno che l'app non conosce.
+final class DownloadNeedsYouEntry extends AlertedEntry {
+  const DownloadNeedsYouEntry({
+    required super.id,
+    required super.seq,
+    required super.createdAt,
+    required super.read,
+    super.alertKey,
+    required this.title,
+    this.reason,
+  });
+
+  final String title;
+  final String? reason;
+}
+
+/// Un download fermo, tolto dalla coda.
+final class DownloadStalledEntry extends AlertedEntry {
+  const DownloadStalledEntry({
+    required super.id,
+    required super.seq,
+    required super.createdAt,
+    required super.read,
+    super.alertKey,
+    required this.title,
+  });
+
+  final String title;
+}
+
+/// "Alleggerisci" bloccato: l'import va fatto a mano.
+final class LightenBlockedEntry extends AlertedEntry {
+  const LightenBlockedEntry({
+    required super.id,
+    required super.seq,
+    required super.createdAt,
+    required super.read,
+    super.alertKey,
+    required this.title,
+  });
+
+  final String title;
+}
+
+/// Una pulizia dello spazio non riuscita.
+final class SpaceOperationFailedEntry extends AlertedEntry {
+  const SpaceOperationFailedEntry({
+    required super.id,
+    required super.seq,
+    required super.createdAt,
+    required super.read,
+    super.alertKey,
+  });
+}
+
+/// Il disco è quasi pieno: [percent] della quota usata.
+final class DiskAlmostFullEntry extends AlertedEntry {
+  const DiskAlmostFullEntry({
+    required super.id,
+    required super.seq,
+    required super.createdAt,
+    required super.read,
+    super.alertKey,
+    this.percent,
+  });
+
+  final int? percent;
+}
+
+/// Un utente ha avviato il recupero della password.
+final class RecoveryStartedEntry extends AlertedEntry {
+  const RecoveryStartedEntry({
+    required super.id,
+    required super.seq,
+    required super.createdAt,
+    required super.read,
+    super.alertKey,
+    this.userName,
+  });
+
+  final String? userName;
+}
+
+/// Troppi tentativi di recupero: per un utente o per tutti ([everyone]).
+final class RecoveryBlockedEntry extends AlertedEntry {
+  const RecoveryBlockedEntry({
+    required super.id,
+    required super.seq,
+    required super.createdAt,
+    required super.read,
+    super.alertKey,
+    this.userName,
+    this.everyone = false,
+  });
+
+  final String? userName;
+  final bool everyone;
+}
+
+/// Jellyfin chiede un riavvio.
+final class RestartPendingEntry extends AlertedEntry {
+  const RestartPendingEntry({
+    required super.id,
+    required super.seq,
+    required super.createdAt,
+    required super.read,
+    super.alertKey,
+  });
+}
+
 /// Una voce di `GET Inbox`; `null` se il tipo non lo conosciamo (es. le
 /// voci di una versione più nuova del plugin).
 InboxEntry? inboxEntryFromJson(Map<String, dynamic> json) {
@@ -478,6 +639,90 @@ InboxEntry? inboxEntryFromJson(Map<String, dynamic> json) {
           ),
         _ => null,
       },
+    'RequestApproved' => RequestApprovedEntry(
+        id: id,
+        seq: seq,
+        createdAt: createdAt,
+        read: read,
+        alertKey: json['AlertKey'] as String?,
+        title: json['Title'] as String? ?? '',
+        seasons: _seasons(json['Seasons']),
+        itemId: json['ItemId'] as String?,
+      ),
+    'RequestDeclined' => RequestDeclinedEntry(
+        id: id,
+        seq: seq,
+        createdAt: createdAt,
+        read: read,
+        alertKey: json['AlertKey'] as String?,
+        title: json['Title'] as String? ?? '',
+        seasons: _seasons(json['Seasons']),
+        itemId: json['ItemId'] as String?,
+      ),
+    'DownloadNeedsYou' => DownloadNeedsYouEntry(
+        id: id,
+        seq: seq,
+        createdAt: createdAt,
+        read: read,
+        alertKey: json['AlertKey'] as String?,
+        title: json['Title'] as String? ?? '',
+        reason: json['Reason'] as String?,
+      ),
+    'DownloadStalled' => DownloadStalledEntry(
+        id: id,
+        seq: seq,
+        createdAt: createdAt,
+        read: read,
+        alertKey: json['AlertKey'] as String?,
+        title: json['Title'] as String? ?? '',
+      ),
+    'LightenBlocked' => LightenBlockedEntry(
+        id: id,
+        seq: seq,
+        createdAt: createdAt,
+        read: read,
+        alertKey: json['AlertKey'] as String?,
+        title: json['Title'] as String? ?? '',
+      ),
+    'SpaceOperationFailed' => SpaceOperationFailedEntry(
+        id: id,
+        seq: seq,
+        createdAt: createdAt,
+        read: read,
+        alertKey: json['AlertKey'] as String?,
+      ),
+    'DiskAlmostFull' => DiskAlmostFullEntry(
+        id: id,
+        seq: seq,
+        createdAt: createdAt,
+        read: read,
+        alertKey: json['AlertKey'] as String?,
+        percent: (json['Percent'] as num?)?.toInt(),
+      ),
+    'RecoveryStarted' => RecoveryStartedEntry(
+        id: id,
+        seq: seq,
+        createdAt: createdAt,
+        read: read,
+        alertKey: json['AlertKey'] as String?,
+        userName: json['UserName'] as String?,
+      ),
+    'RecoveryBlocked' => RecoveryBlockedEntry(
+        id: id,
+        seq: seq,
+        createdAt: createdAt,
+        read: read,
+        alertKey: json['AlertKey'] as String?,
+        userName: json['UserName'] as String?,
+        everyone: json['Scope'] == 'Everyone',
+      ),
+    'RestartPending' => RestartPendingEntry(
+        id: id,
+        seq: seq,
+        createdAt: createdAt,
+        read: read,
+        alertKey: json['AlertKey'] as String?,
+      ),
     _ => null,
   };
 }
