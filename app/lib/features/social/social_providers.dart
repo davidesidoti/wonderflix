@@ -36,6 +36,7 @@ class SocialFeatures {
     this.match = false,
     this.ratings = false,
     this.reports = false,
+    this.push = false,
     this.known = true,
   });
 
@@ -104,6 +105,9 @@ class SocialFeatures {
   /// party.
   final bool reports;
 
+  /// Le notifiche push (spec V §4.1): non dipendono dai watch party.
+  final bool push;
+
   /// `false` finché `Info` non dà una risposta certa: le funzioni, oppure
   /// un 400/401/403/404. Un errore di rete non basta (vedi
   /// [SocialAvailability]).
@@ -130,6 +134,7 @@ class SocialFeatures {
       other.match == match &&
       other.ratings == ratings &&
       other.reports == reports &&
+      other.push == push &&
       other.known == known;
 
   @override
@@ -152,6 +157,7 @@ class SocialFeatures {
       match,
       ratings,
       reports,
+      push,
       known);
 
   @override
@@ -159,7 +165,7 @@ class SocialFeatures {
       'inbox: $inbox, requests: $requests, collections: $collections, '
       'avatars: $avatars, account: $account, home: $home, '
       'upcomingSeries: $upcomingSeries, upcomingMovies: $upcomingMovies, calendar: $calendar, downloads: $downloads, space: $space, '
-      'recommendations: $recommendations, friendsActivity: $friendsActivity, match: $match, ratings: $ratings, reports: $reports, known: $known)';
+      'recommendations: $recommendations, friendsActivity: $friendsActivity, match: $match, ratings: $ratings, reports: $reports, push: $push, known: $known)';
 }
 
 /// Chiede `Info` al plugin dopo il login e a ogni connessione del WebSocket,
@@ -272,6 +278,7 @@ class SocialAvailability extends Notifier<SocialFeatures> {
         ratings: _canJoin && info.features.contains(PluginFeatures.ratings),
         // Come inbox: non dipende dall'accesso ai watch party (piano 24b).
         reports: info.features.contains(PluginFeatures.reports),
+        push: info.features.contains(PluginFeatures.push),
       ));
     } on SocialException catch (error) {
       if (!_isCurrent(generation)) return;

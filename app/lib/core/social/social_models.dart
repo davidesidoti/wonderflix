@@ -59,6 +59,9 @@ abstract final class PluginFeatures {
 
   /// Le segnalazioni e i sottotitoli (spec R §7.1).
   static const reports = 'reports';
+
+  /// Le notifiche push e le preferenze per tipo (spec V §4.1).
+  static const push = 'push';
 }
 
 /// Risposta di `GET /WonderFlixWatchParty/Info`, con le funzioni.

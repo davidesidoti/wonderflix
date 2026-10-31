@@ -10,12 +10,14 @@ import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/staggered_entrance.dart';
+import '../social/social_providers.dart';
 import 'account_settings_section.dart';
 import 'appearance_settings_section.dart';
 import 'discord_settings_section.dart';
 import 'home_settings_section.dart';
 import 'language_settings_section.dart';
 import 'locale_controller.dart';
+import 'notifications_settings_section.dart';
 import 'player_settings_section.dart';
 import 'support_section.dart';
 
@@ -31,8 +33,8 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  /// Elementi dell'entrata: il titolo e le otto sezioni.
-  static const _sectionCount = 9;
+  /// Elementi dell'entrata: il titolo e le nove sezioni.
+  static const _sectionCount = 10;
 
   final _scroll = SmoothScrollController();
 
@@ -77,6 +79,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final l = AppLocalizations.of(context);
     final locale = ref.watch(localeProvider);
     final version = ref.watch(clientInfoProvider).version;
+    final push = ref.watch(socialAvailabilityProvider.select((f) => f.push));
 
     Widget section(String title, {Key? key}) => Padding(
           key: key,
@@ -114,7 +117,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               section(l.settingsAccount),
               const AccountSettingsSection(),
             ]),
-            item(2, [
+            // Solo con le notifiche push nel plugin (spec V §4.1).
+            if (push)
+              item(2, [
+                section(l.settingsNotifications),
+                const NotificationsSettingsSection(),
+              ]),
+            item(3, [
               section(l.settingsLanguage),
               Align(
                 alignment: Alignment.centerLeft,
@@ -136,29 +145,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ),
             ]),
-            item(3, [
+            item(4, [
               section(l.settingsAppearance),
               const AppearanceSettingsSection(),
             ]),
-            item(4, [
+            item(5, [
               section(l.settingsHome, key: _homeKey),
               const HomeSettingsSection(),
             ]),
-            item(5, [
+            item(6, [
               section(l.settingsPlayer),
               const PlayerSettingsSection(),
             ]),
-            item(6, [
+            item(7, [
               section(l.settingsLanguages),
               const LanguageSettingsSection(),
             ]),
             // Nel browser la Rich Presence è spenta (spec 1b §4.6).
             if (!kIsWeb)
-              item(7, [
+              item(8, [
                 section(l.settingsDiscord),
                 const DiscordSettingsSection(),
               ]),
-            item(8, [
+            item(9, [
               section(l.settingsSupport),
               const SupportSection(),
               const SizedBox(height: 40),
