@@ -236,6 +236,82 @@ public sealed class DownloadServiceSearchTests : IDisposable
         e.NextSearchAt = T0;
     });
 
+    // Il film 12 col file, tappabuchi in UpgradeWatch (minimo 100, obiettivo 150), ricerca scaduta.
+    private async Task SeedStopgap(string kind, int score, double gb)
+    {
+        _settings.Thresholds[(ArrKind.Radarr, 4)] = new ProfileThresholds(100, 150);
+        await Seed(e =>
+        {
+            e.State = DownloadStates.UpgradeWatch;
+            e.Stopgap = kind;
+            e.CurrentScore = score;
+            e.CurrentQualityId = WebRip1080;
+            e.CurrentSizeBytes = (long)(gb * Gb);
+            e.UpgradeUntil = T0 + DownloadSchedule.UpgradeWindow;
+        });
+        _movies = [Movie(12, hasFile: true)];
+    }
+
+    [Fact]
+    public async Task AScoreStopgapStepsUpBelowTheMinimum()
+    {
+        await SeedStopgap(DownloadStopgaps.Score, 40, 4);
+        _releases = [Release("70", WebRip1080, "WEBRip-1080p", 4, 70)];
+        await Cycle();
+        _releases = [];
+        Assert.Equal("70", _arr.GrabCalls[^1].Guid);
+        Assert.False(Saved("movie:12")!.ManualImportPending);
+
+        _time.Advance(DownloadService.CycleInterval);
+        _radarrQueue = [MovieQueue(91, 12, 5_000)];
+        await Cycle();
+
+        // Importato: ancora sotto il minimo, resta tappabuchi.
+        _arr.MovieFiles = ids => Task.FromResult<IReadOnlyList<ArrFile?>>([new ArrFile { Id = ids[0], CustomFormatScore = 70, Size = 4 * Gb, Quality = new ArrQualityModel { Quality = new ArrQuality { Id = WebRip1080 } } }]);
+        _time.Advance(DownloadService.CycleInterval);
+        _radarrQueue = [];
+        await Cycle();
+
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.UpgradeWatch, (int?)70, DownloadStopgaps.Score), (entry.State, entry.CurrentScore, entry.Stopgap));
+    }
+
+    [Fact]
+    public async Task AScoreStopgapIgnoresAnEqualScore()
+    {
+        await SeedStopgap(DownloadStopgaps.Score, 40, 4);
+        _releases = [Release("40", WebRip1080, "WEBRip-1080p", 5, 40)];
+
+        await Cycle();
+
+        Assert.Empty(_arr.GrabCalls);
+    }
+
+    [Fact]
+    public async Task ASizeStopgapTakesAnEqualScoreAndForcesTheImport()
+    {
+        // Stessa qualità e stesso punteggio: Radarr non la importerebbe, si importa a mano.
+        await SeedStopgap(DownloadStopgaps.Size, 150, 1);
+        _releases = [Release("heavy", WebRip1080, "WEBRip-1080p", 4, 150)];
+
+        await Cycle();
+
+        Assert.Equal("heavy", Assert.Single(_arr.GrabCalls).Guid);
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.Downloading, true), (entry.State, entry.ManualImportPending));
+    }
+
+    [Fact]
+    public async Task ASizeStopgapNeverTakesATooSmallRelease()
+    {
+        await SeedStopgap(DownloadStopgaps.Size, 150, 1);
+        _releases = [Release("small", WebRip1080, "WEBRip-1080p", 1, 200)];
+
+        await Cycle();
+
+        Assert.Empty(_arr.GrabCalls);
+    }
+
     [Fact]
     public async Task NothingChosenKeepsASummary()
     {

@@ -21,6 +21,7 @@ public sealed partial class DownloadService
         int? CurrentScore,
         int? CurrentQualityId,
         IReadOnlySet<string> Refused,
+        string? Stopgap,
         IReadOnlyList<int>? Episodes = null,
         IReadOnlyList<ArrTitle>? SplitInto = null);
 
@@ -133,7 +134,7 @@ public sealed partial class DownloadService
 
         var (service, query) = (ServiceOf(key.Kind), QueryOf(key));
         var upgrade = entry.State == DownloadStates.UpgradeWatch;
-        var item = new SearchItem(entry.Key, service, query, upgrade, entry.ProfileId, entry.RuntimeMinutes, entry.CurrentScore, entry.CurrentQualityId, (entry.RefusedReleases ?? []).ToHashSet());
+        var item = new SearchItem(entry.Key, service, query, upgrade, entry.ProfileId, entry.RuntimeMinutes, entry.CurrentScore, entry.CurrentQualityId, (entry.RefusedReleases ?? []).ToHashSet(), entry.Stopgap);
         if (key.Kind != DownloadKinds.Season)
         {
             return item;
@@ -183,6 +184,14 @@ public sealed partial class DownloadService
 
         var thresholds = settings.For(item.Service, item.ProfileId, profile?.Name);
         var input = new RuleInput(item.RuntimeMinutes, item.Service == ArrKind.Radarr, settings.MinGbPerHour, thresholds.MinScore, context.IndexerPriority);
+
+        // Un tappabuchi ignora solo il punteggio minimo di WonderFlix: peso e rifiuti di Radarr/Sonarr valgono (spec §5.1).
+        var stopgap = item.Upgrade ? item.Stopgap : null;
+        if (stopgap is not null)
+        {
+            input = input with { MinScore = int.MinValue };
+        }
+
         ArrRelease? choice;
         var belowMinScore = false;
         RuleResult? rule = null;
@@ -202,7 +211,17 @@ public sealed partial class DownloadService
             (choice, belowMinScore) = (rule.Choice, rule.BelowMinScore);
         }
 
-        if (choice is not null && item.Upgrade && !IsUpgrade(choice, item, profile))
+        var forceImport = false;
+        if (choice is not null && stopgap is not null)
+        {
+            // Per punteggio: più alto e importato da Radarr/Sonarr. Per peso: anche pari, e se non lo importerebbero si importa a mano.
+            var wouldImport = profile is not null
+                && DownloadRule.WouldImport(profile, choice.Quality?.Quality?.Id ?? 0, choice.CustomFormatScore, item.CurrentQualityId, item.CurrentScore);
+            var current = item.CurrentScore ?? 0;
+            var accepted = stopgap == DownloadStopgaps.Size ? choice.CustomFormatScore >= current : choice.CustomFormatScore > current && wouldImport;
+            (choice, forceImport) = accepted ? (choice, !wouldImport) : (null, false);
+        }
+        else if (choice is not null && item.Upgrade && !IsUpgrade(choice, item, profile))
         {
             choice = null;
         }
@@ -226,7 +245,7 @@ public sealed partial class DownloadService
 
         try
         {
-            return await GrabChoiceAsync(item, choice, profile, cancellationToken).ConfigureAwait(false);
+            return await GrabChoiceAsync(item, choice, profile, forceImport, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -237,8 +256,8 @@ public sealed partial class DownloadService
         }
     }
 
-    // Il grab della scelta del giro; true se ha scaricato.
-    private async Task<bool> GrabChoiceAsync(SearchItem item, ArrRelease choice, ArrQualityProfile? profile, CancellationToken cancellationToken)
+    // Il grab della scelta del giro; true se ha scaricato. forceImport: un tappabuchi per peso che Radarr/Sonarr non importerebbero.
+    private async Task<bool> GrabChoiceAsync(SearchItem item, ArrRelease choice, ArrQualityProfile? profile, bool forceImport, CancellationToken cancellationToken)
     {
         try
         {
@@ -283,6 +302,7 @@ public sealed partial class DownloadService
             {
                 Grabbed(entry, choice, item.Upgrade, profile?.Name, time.GetUtcNow());
                 entry.EpisodeNumbers = item.Episodes?.ToList();
+                entry.ManualImportPending = forceImport;
             }
 
             // Subito su disco: un riavvio prima della fine del giro non deve perdere il download.

@@ -16,7 +16,7 @@ public sealed class DownloadServiceCycleTests : IDisposable
     private readonly FakeArrSettings _arrSettings = new();
     private readonly FakeDownloadSettings _settings = new();
     private readonly FakeTimeProvider _time = new(T0);
-    private readonly DownloadService _service;
+    private DownloadService _service;
 
     private List<RadarrMovie?> _movies = [];
     private List<SonarrEpisode?> _missing = [];
@@ -408,6 +408,87 @@ public sealed class DownloadServiceCycleTests : IDisposable
         Assert.Equal(("Unreachable", "NotConfigured"), (report.SonarrError, report.RadarrError));
         Assert.Equal(0, _arr.LibraryMovieCalls);
         Assert.DoesNotContain(ArrKind.Radarr, _arr.QueueCalls);
+    }
+
+    // Il film 12 scritto a mano su disco (tappabuchi, coda, scelta), poi riletto da un servizio nuovo.
+    private void Seed(DownloadEntry entry, DateTimeOffset? chosenAt = null)
+    {
+        var book = Store().Load();
+        book.Put(entry);
+        if (chosenAt is { } at)
+        {
+            book.AddChoice(new DownloadChoice { Key = entry.Key, Kind = entry.Kind, At = at });
+        }
+
+        Store().Save(book);
+        _service = new DownloadService(
+            _arr, _arrSettings, _settings, Store(), _time, NullLogger<DownloadService>.Instance) { Pause = TimeSpan.Zero };
+        _service.Load();
+    }
+
+    private static DownloadEntry Stopgap(string kind, string state, int score, double gb) => new()
+    {
+        Key = "movie:12",
+        Kind = DownloadKinds.Movie,
+        Title = "Dune (2021)",
+        State = state,
+        AvailableSince = T0 - TimeSpan.FromDays(40),
+        ProfileId = 4,
+        RuntimeMinutes = 155,
+        CurrentScore = score,
+        CurrentQualityId = WebRip1080,
+        CurrentSizeBytes = (long)(gb * Gb),
+        Stopgap = kind,
+    };
+
+    [Fact]
+    public async Task AStopgapWatchesForUpgradesEvenAboveTarget()
+    {
+        // Già all'obiettivo (150) ma troppo piccolo: resta tappabuchi per peso.
+        var entry = Stopgap(DownloadStopgaps.Size, DownloadStates.Downloading, 150, 1);
+        entry.QueueId = 90;
+        Seed(entry, T0 - TimeSpan.FromDays(1));
+        _movies = [Movie(12, hasFile: true)];
+
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        var saved = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.UpgradeWatch, DownloadStopgaps.Size), (saved.State, saved.Stopgap));
+    }
+
+    [Fact]
+    public async Task AStopgapIsNotDroppedAfterThirtyDays()
+    {
+        var entry = Stopgap(DownloadStopgaps.Score, DownloadStates.UpgradeWatch, 40, 4);
+        entry.UpgradeUntil = T0 - TimeSpan.FromDays(1);
+        entry.NextSearchAt = T0;
+        Seed(entry);
+        _movies = [Movie(12, hasFile: true)];
+
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        // Cercato senza trovare niente: dopo il trentesimo giorno si riprova tra una settimana.
+        var saved = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.UpgradeWatch, DownloadStopgaps.Score), (saved.State, saved.Stopgap));
+        Assert.Equal(T0 + TimeSpan.FromDays(7), saved.NextSearchAt);
+    }
+
+    [Fact]
+    public async Task AnImportThatMeetsTheRulesEndsTheStopgap()
+    {
+        _settings.Thresholds[(ArrKind.Radarr, 4)] = new ProfileThresholds(100, 150);
+        var chosenAt = T0 - TimeSpan.FromDays(2);
+        var entry = Stopgap(DownloadStopgaps.Score, DownloadStates.Downloading, 120, 4);
+        entry.QueueId = 90;
+        Seed(entry, chosenAt);
+        _movies = [Movie(12, hasFile: true)];
+
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        // In regola ma sotto l'obiettivo: la regola normale, 30 giorni dalla scelta.
+        var saved = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.UpgradeWatch, (string?)null), (saved.State, saved.Stopgap));
+        Assert.Equal(chosenAt + DownloadSchedule.UpgradeWindow, saved.UpgradeUntil);
     }
 
     [Fact]

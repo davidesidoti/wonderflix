@@ -367,9 +367,9 @@ public sealed partial class DownloadService(
                 Book.Remove(entry.Key);
             }
             else if (entry.State == DownloadStates.UpgradeWatch
-                && (now >= entry.UpgradeUntil || (title is null ? !view.AbsentHasFile : !title.Monitored)))
+                && ((entry.Stopgap is null && now >= entry.UpgradeUntil) || (title is null ? !view.AbsentHasFile : !title.Monitored)))
             {
-                // Finestra chiusa (lo riprende "Da ripassare"), o titolo tolto o non monitorato.
+                // Finestra chiusa (lo riprende "Da ripassare"; un tappabuchi non ha finestra), o titolo tolto o non monitorato.
                 // Un episodio col file non è tra i mancanti: si segue fino a UpgradeUntil.
                 Book.Remove(entry.Key);
             }
@@ -411,11 +411,19 @@ public sealed partial class DownloadService(
     private void OnImported(DownloadEntry entry, DateTimeOffset now)
     {
         logger.LogInformation("Download automatici: {Key} importato", entry.Key);
-        var target = settings.For(ServiceOf(entry.Kind), entry.ProfileId, entry.ProfileName).TargetScore;
+        var service = ServiceOf(entry.Kind);
+        var thresholds = settings.For(service, entry.ProfileId, entry.ProfileName);
+
+        // Un tappabuchi resta tale finché il file non rispetta peso e punteggio minimi (spec §5.1).
+        if (entry.Stopgap is not null)
+        {
+            entry.Stopgap = DownloadRule.StopgapKindOf(
+                entry.CurrentScore ?? 0, entry.CurrentSizeBytes ?? 0, entry.RuntimeMinutes, service == ArrKind.Radarr, settings.MinGbPerHour, thresholds.MinScore);
+        }
 
         // CurrentScore c'è solo per una scelta di WonderFlix: gli altri download non hanno upgrade (spec T §11).
-        // Un titolo accettato ("va bene così" o "Alleggerisci") non ha upgrade.
-        if (entry.CurrentScore is not { } score || score >= target || Book.IsAccepted(entry.Key))
+        // Un titolo accettato ("va bene così" o "Alleggerisci") non ha upgrade; un tappabuchi sì, anche all'obiettivo.
+        if (entry.Stopgap is null && (entry.CurrentScore is not { } score || score >= thresholds.TargetScore || Book.IsAccepted(entry.Key)))
         {
             Book.Remove(entry.Key);
             return;
