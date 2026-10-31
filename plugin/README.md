@@ -66,9 +66,12 @@ uscite in arrivo.
   `requests` e l'app mostra le richieste. Il plugin agisce in Seerr per
   conto dell'utente (`X-API-User`) e crea l'account Seerr mancante alla
   prima richiesta. Il **webhook** di Seerr (indirizzo, modello JSON con il
-  segreto e i tipi "Request Pending Approval" e "Request Available"
-  sono nella stessa pagina) porta nella cassetta "Ora disponibile" a chi ha
-  chiesto il titolo e "Nuova richiesta" a chi può approvare. Indirizzo,
+  segreto e i tipi "Request Pending Approval", "Request Available",
+  "Request Approved", "Request Automatically Approved" e "Request Declined"
+  da accendere in Seerr → Impostazioni → Notifiche → Webhook sono nella
+  stessa pagina) porta nella cassetta "Ora disponibile", "Richiesta
+  accettata" e "Richiesta rifiutata" a chi ha chiesto il titolo e "Nuova
+  richiesta" a chi può approvare. Indirizzo,
   chiave e segreto stanno nella configurazione del plugin, leggibile solo
   dagli admin.
 - **Saghe (dalla 1.5.0):** `GET Collections` dà le collezioni di Jellyfin che

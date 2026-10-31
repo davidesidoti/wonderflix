@@ -252,6 +252,14 @@ public sealed class InboxService(
     public Task AddRequestAvailableAsync(Guid userId, RequestEvent request) =>
         AddRequestAsync(InboxEntryTypes.RequestAvailable, [userId], request, requesterName: null);
 
+    /// <summary>"Richiesta accettata" a chi ha chiesto il titolo. Non lancia.</summary>
+    public Task AddRequestApprovedAsync(Guid userId, RequestEvent request) =>
+        AddRequestAsync(InboxEntryTypes.RequestApproved, [userId], request, requesterName: null);
+
+    /// <summary>"Richiesta rifiutata" a chi ha chiesto il titolo. Non lancia.</summary>
+    public Task AddRequestDeclinedAsync(Guid userId, RequestEvent request) =>
+        AddRequestAsync(InboxEntryTypes.RequestDeclined, [userId], request, requesterName: null);
+
     /// <summary>"Nuova richiesta" a chi può approvare (spec I §7.5). Non lancia.</summary>
     public Task AddRequestPendingAsync(IReadOnlyList<Guid> userIds, RequestEvent request, string requesterName) =>
         AddRequestAsync(InboxEntryTypes.RequestPending, userIds, request, requesterName);

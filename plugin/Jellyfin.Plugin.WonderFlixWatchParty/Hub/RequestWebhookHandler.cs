@@ -16,7 +16,7 @@ public enum WebhookResult
 
 /// <summary>
 /// Il webhook di Seerr (spec I §7.5): controlla il segreto e trasforma
-/// "disponibile" e "in attesa" in voci della cassetta. Ricorda l'ultimo
+/// "disponibile", "accettata", "rifiutata" e "in attesa" in voci della cassetta. Ricorda l'ultimo
 /// evento per la pagina del plugin. Un evento incompleto si scarta con una
 /// riga nel registro e risponde comunque 200, così Seerr non insiste.
 /// </summary>
@@ -42,6 +42,9 @@ public sealed class RequestWebhookHandler(
 
     public const string MediaAvailable = "MEDIA_AVAILABLE";
     public const string MediaPending = "MEDIA_PENDING";
+    public const string MediaApproved = "MEDIA_APPROVED";
+    public const string MediaAutoApproved = "MEDIA_AUTO_APPROVED";
+    public const string MediaDeclined = "MEDIA_DECLINED";
 
     /// <summary>Il nome della voce di "extra" con le stagioni chieste.</summary>
     public const string RequestedSeasons = "Requested Seasons";
@@ -81,7 +84,14 @@ public sealed class RequestWebhookHandler(
         switch (payload.NotificationType)
         {
             case MediaAvailable:
-                await AvailableAsync(payload).ConfigureAwait(false);
+                await ToRequesterAsync(payload, inbox.AddRequestAvailableAsync).ConfigureAwait(false);
+                break;
+            case MediaApproved:
+            case MediaAutoApproved:
+                await ToRequesterAsync(payload, inbox.AddRequestApprovedAsync).ConfigureAwait(false);
+                break;
+            case MediaDeclined:
+                await ToRequesterAsync(payload, inbox.AddRequestDeclinedAsync).ConfigureAwait(false);
                 break;
             case MediaPending:
                 await PendingAsync(payload, cancellationToken).ConfigureAwait(false);
@@ -157,7 +167,8 @@ public sealed class RequestWebhookHandler(
         return char.IsHighSurrogate(text[maxLength - 1]) ? text[..(maxLength - 1)] : text[..maxLength];
     }
 
-    private async Task AvailableAsync(SeerrWebhookPayload payload)
+    /// <summary>La voce per chi ha chiesto il titolo (disponibile, accettata, rifiutata).</summary>
+    private async Task ToRequesterAsync(SeerrWebhookPayload payload, Func<Guid, RequestEvent, Task> add)
     {
         var request = Parse(payload);
         var requester = SeerrMapping.ParseGuid(payload.RequestedByJellyfinUserId);
@@ -168,7 +179,7 @@ public sealed class RequestWebhookHandler(
             return;
         }
 
-        await inbox.AddRequestAvailableAsync(userId, request).ConfigureAwait(false);
+        await add(userId, request).ConfigureAwait(false);
     }
 
     private async Task PendingAsync(SeerrWebhookPayload payload, CancellationToken cancellationToken)

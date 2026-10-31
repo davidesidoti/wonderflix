@@ -92,6 +92,60 @@ public sealed class RequestWebhookTests : IDisposable
     }
 
     [Fact]
+    public async Task Approved_AddsRequestApprovedToRequester()
+    {
+        _server.AddSession("s1", _mario);
+
+        Assert.Equal(WebhookResult.Accepted, await _handler.HandleAsync(Payload("MEDIA_APPROVED"), Ct));
+
+        var entry = Assert.Single(_inbox.Get(_mario.Id).Entries);
+        Assert.Equal(InboxEntryTypes.RequestApproved, entry.Type);
+        Assert.Equal(53, entry.RequestId);
+        Assert.Equal("movie", entry.MediaType);
+        Assert.Equal(438631, entry.TmdbId);
+        Assert.Equal("Dune (2021)", entry.Title);
+        Assert.Null(entry.ItemId);
+        Assert.Empty(_inbox.Get(_davide.Id).Entries);
+        Assert.Single(_server.SentTo("s1"));
+    }
+
+    [Fact]
+    public async Task AutoApproved_AddsRequestApproved()
+    {
+        await _handler.HandleAsync(Payload("MEDIA_AUTO_APPROVED"), Ct);
+
+        Assert.Equal(InboxEntryTypes.RequestApproved, Assert.Single(_inbox.Get(_mario.Id).Entries).Type);
+    }
+
+    [Fact]
+    public async Task Declined_AddsRequestDeclined()
+    {
+        var payload = Payload("MEDIA_DECLINED");
+        payload.MediaType = "tv";
+        payload.Extra = [new SeerrWebhookExtra { Name = RequestWebhookHandler.RequestedSeasons, Value = "2, 1" }];
+
+        await _handler.HandleAsync(payload, Ct);
+
+        var entry = Assert.Single(_inbox.Get(_mario.Id).Entries);
+        Assert.Equal(InboxEntryTypes.RequestDeclined, entry.Type);
+        Assert.Equal("tv", entry.MediaType);
+        Assert.Equal([1, 2], entry.Seasons);
+        Assert.Null(entry.ItemId);
+    }
+
+    [Fact]
+    public async Task Approved_RequesterUnknown_NoEntry()
+    {
+        var payload = Payload("MEDIA_APPROVED");
+        payload.RequestedByJellyfinUserId = Guid.NewGuid().ToString("N");
+
+        Assert.Equal(WebhookResult.Accepted, await _handler.HandleAsync(payload, Ct));
+
+        Assert.Empty(_inbox.Get(_mario.Id).Entries);
+        Assert.Empty(_inbox.Get(_davide.Id).Entries);
+    }
+
+    [Fact]
     public async Task AvailableIsNotForADisabledRequester()
     {
         var off = _server.AddUser("Spento", enabled: false);
@@ -187,7 +241,7 @@ public sealed class RequestWebhookTests : IDisposable
         var unknownUser = Payload("MEDIA_AVAILABLE");
         unknownUser.RequestedByJellyfinUserId = Guid.NewGuid().ToString("N");
 
-        foreach (var payload in new[] { noId, person, noSubject, unknownUser, Payload("MEDIA_APPROVED"), Payload("TEST_NOTIFICATION") })
+        foreach (var payload in new[] { noId, person, noSubject, unknownUser, Payload("MEDIA_FAILED"), Payload("TEST_NOTIFICATION") })
         {
             Assert.Equal(WebhookResult.Accepted, await _handler.HandleAsync(payload, Ct));
         }
