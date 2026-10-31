@@ -123,7 +123,7 @@ Visto che la release rifiutata non si riprova più, il ritmo lento di §5.5 dell
 
 | Endpoint | Cosa fa | Risposte |
 |---|---|---|
-| `POST Downloads/GrabBest` `{ key }` | ricerca subito, sceglie come in §4.1/§4.2a, scarica, segna il tappabuchi | 204; 404 `NothingToGrab` se nel frattempo non c'è più niente da prendere; poi gli stessi errori di `Grab` (`Busy`, `Refused`, `Unavailable`, ...) |
+| `POST Downloads/GrabBest` `{ key }` | ricerca subito, sceglie come in §4.1/§4.2a, scarica, segna il tappabuchi | 204; 409 `NothingToGrab` se nel frattempo non c'è più niente da prendere; poi gli stessi errori di `Grab` (`Busy`, `Refused`, `Unavailable`, ...) |
 | `POST Downloads/Snooze` `{ key }` | "Va bene, aspetto" | 204; 400 se la voce non è in `NeedsYou`/`NothingFound` |
 | `POST Downloads/Import` `{ key }` | "Importa comunque" | 204; 409 se non è `ImportBlocked`; 502 con il codice di `ImportDownloadAsync` (`NoFiles`, ...) |
 | `POST Downloads/Discard` `{ key }` | "Scarta e cerca un altro" | 204; 409 se non è `ImportBlocked`; 503 se Radarr/Sonarr non rispondono |
