@@ -34,9 +34,12 @@ enum SpaceFailure {
 }
 
 class SpaceException implements Exception {
-  const SpaceException(this.failure);
+  const SpaceException(this.failure, [this.reason]);
 
   final SpaceFailure failure;
+
+  /// Il `Reason` della risposta d'errore, se c'era (es. `NoFiles` per 502).
+  final String? reason;
 
   @override
   String toString() => 'SpaceException(${failure.name})';
@@ -98,6 +101,17 @@ class SpaceApi {
         _http.delete('$_base/Kept', query: {'key': key}, quietStatuses: _quiet),
   );
 
+  /// Import a mano del download bloccato di una riga di Alleggerire; 404
+  /// (niente più da importare) vale [SpaceFailure.unknown].
+  Future<void> importLighten(String key) => _call(
+    () => _http.post(
+      '$_base/Lighten/Import',
+      body: {'Key': key},
+      quietStatuses: _quiet,
+    ),
+    notFound: SpaceFailure.unknown,
+  );
+
   Future<void> dropPending(String hash) => _call(
     () => _http.delete(
       '$_base/Pending/${Uri.encodeComponent(hash)}',
@@ -126,7 +140,7 @@ class SpaceApi {
         // Risposta 200 di forma inattesa.
         null => SpaceFailure.invalid,
         _ => SpaceFailure.server,
-      });
+      }, reason is String ? reason : null);
     } on ApiException {
       throw const SpaceException(SpaceFailure.network);
     } on Object catch (error) {

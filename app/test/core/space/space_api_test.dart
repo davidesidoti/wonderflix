@@ -75,4 +75,22 @@ void main() {
         ]);
     expect(adapter.requests.first.data, {'Key': 'movie:1', 'Title': 'Film'});
   });
+
+  test('ImportLightenPostsTheKeyAndReadsTheReason', () async {
+    await api.importLighten('season:142:1');
+    final request = adapter.requests.single;
+    expect((request.method, request.path),
+        ('POST', '/WonderFlixWatchParty/Space/Lighten/Import'));
+    expect(request.data, {'Key': 'season:142:1'});
+
+    adapter.handler = (_) => const FakeResponse(404, {'Reason': 'Unknown'});
+    expect(await failure(() => api.importLighten('k')), SpaceFailure.unknown);
+    adapter.handler = (_) => const FakeResponse(502, {'Reason': 'NoFiles'});
+    try {
+      await api.importLighten('k');
+      fail('nessuna eccezione');
+    } on SpaceException catch (e) {
+      expect((e.failure, e.reason), (SpaceFailure.server, 'NoFiles'));
+    }
+  });
 }

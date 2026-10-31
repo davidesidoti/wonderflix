@@ -77,6 +77,18 @@ class FakeSpaceApi implements SpaceApi {
   @override
   Future<void> unkeep(String key) => _action('unkeep $key');
 
+  /// Se valorizzato, la prossima [importLighten] fallisce con questo.
+  SpaceException? nextImportError;
+
+  @override
+  Future<void> importLighten(String key) async {
+    await _action('import $key');
+    if (nextImportError case final e?) {
+      nextImportError = null;
+      throw e;
+    }
+  }
+
   @override
   Future<void> dropPending(String hash) => _action('drop $hash');
 

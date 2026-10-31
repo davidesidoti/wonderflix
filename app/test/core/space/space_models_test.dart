@@ -175,6 +175,20 @@ void main() {
     expect((o.errors.sonarr, o.errors.radarr), ('Unreachable', null));
   });
 
+  test('ABlockedDownloadKeepsItsMessage', () {
+    final d = SpaceLightenDownload.fromJson({
+      'State': 'Blocked',
+      'Progress': 1.0,
+      'SizeLeftBytes': 0,
+      'Message': 'Not an upgrade for existing episode file(s)',
+    })!;
+    expect((d.state, d.progress, d.message),
+        ('Blocked', 1.0, 'Not an upgrade for existing episode file(s)'));
+    final quiet = SpaceLightenDownload.fromJson(
+        {'State': 'Blocked', 'Progress': 1.0, 'SizeLeftBytes': 0})!;
+    expect(quiet.message, isNull);
+  });
+
   test('ABrokenRowIsSkipped', () {
     final o = SpaceOverview.fromJson(_overview(delete: [
       _candidate(size: 'tanto', key: 'movie:1'),

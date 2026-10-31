@@ -191,22 +191,29 @@ class SpaceLightenDownload {
     required this.state,
     required this.progress,
     required this.sizeLeftBytes,
+    this.message,
   });
 
+  /// `Downloading`, `Importing`, `Blocked` (Radarr/Sonarr non lo importano da
+  /// soli: serve l'import a mano) o `Failed`.
   final String state;
   final double progress;
   final int sizeLeftBytes;
 
+  /// Il perché di Radarr/Sonarr, anche su più righe; può mancare.
+  final String? message;
+
   /// Uno stato sconosciuto vale come nessun download.
   static SpaceLightenDownload? fromJson(Object? json) => _guard<SpaceLightenDownload?>(json, (j) {
     final state = j['State'] as String;
-    if (!const {'Downloading', 'Importing', 'Failed'}.contains(state)) {
+    if (!const {'Downloading', 'Importing', 'Blocked', 'Failed'}.contains(state)) {
       return null;
     }
     return SpaceLightenDownload(
       state: state,
       progress: _double(j['Progress']),
       sizeLeftBytes: _int(j['SizeLeftBytes']),
+      message: j['Message'] as String?,
     );
   });
 }
