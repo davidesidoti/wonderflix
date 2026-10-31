@@ -117,4 +117,89 @@ void main() {
       contains('2 nov'),
     );
   });
+
+  group('downloadExplanation', () {
+    DownloadItem item(
+      DownloadReason reason, {
+      DownloadState state = DownloadState.needsYou,
+      DownloadSummary? summary,
+    }) =>
+        DownloadItem(
+          key: 'movie:1',
+          kind: DownloadKind.movie,
+          title: 'Film',
+          state: state,
+          reason: reason,
+          availableSince: DateTime(2026, 10, 1),
+          summary: summary,
+        );
+
+    DownloadSummary summary(
+      int found, {
+      int? best,
+      int tooSmall = 0,
+      int arrRejected = 0,
+      String? top,
+      bool stopgap = false,
+    }) =>
+        DownloadSummary(
+          found: found,
+          bestScore: best,
+          minScore: 100,
+          tooSmall: tooSmall,
+          arrRejected: arrRejected,
+          topRejection: top,
+          stopgapAvailable: stopgap,
+        );
+
+    test('punteggio basso', () {
+      expect(
+        downloadExplanation(
+            it,
+            item(DownloadReason.belowMinScore,
+                summary: summary(6, best: 40)),
+            'Radarr'),
+        it.downloadsExplainLowScore(6, 40, 100),
+      );
+    });
+
+    test('tutti scartati, con il tappabuchi', () {
+      final text = downloadExplanation(
+          it,
+          item(DownloadReason.nothingFound,
+              summary: summary(14,
+                  tooSmall: 9, arrRejected: 5, top: 'Not English', stopgap: true)),
+          'Radarr');
+      expect(text, contains('9 troppo piccoli'));
+      expect(text, contains('5 rifiutati da Radarr (Not English)'));
+      expect(text, contains(it.downloadsExplainStopgapHint));
+    });
+
+    test('nessun risultato', () {
+      expect(
+        downloadExplanation(
+            it, item(DownloadReason.nothingFound, summary: summary(0)), 'Radarr'),
+        it.downloadsExplainNoResults,
+      );
+    });
+
+    test('import bloccato', () {
+      expect(downloadExplanation(it, item(DownloadReason.importBlocked), 'Sonarr'),
+          it.downloadsExplainBlocked('Sonarr'));
+    });
+
+    test('rifiutato dal client', () {
+      expect(downloadExplanation(it, item(DownloadReason.grabRefused), 'Radarr'),
+          it.downloadsExplainRefused);
+    });
+
+    test('in attesa: niente', () {
+      expect(
+          downloadExplanation(
+              it,
+              item(DownloadReason.searchFailed, state: DownloadState.waiting),
+              'Radarr'),
+          '');
+    });
+  });
 }

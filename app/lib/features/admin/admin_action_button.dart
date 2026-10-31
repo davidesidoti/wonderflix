@@ -21,7 +21,15 @@ class AdminActionButton extends StatefulWidget {
     required this.icon,
     required this.onPressed,
     this.spinner = false,
+    this.primary = false,
+    this.busyLabel,
   });
+
+  /// La variante piena, per l'azione consigliata.
+  final bool primary;
+
+  /// Mentre l'azione è in corso, questa etichetta al posto di [label].
+  final String? busyLabel;
 
   /// Mentre l'azione è in corso, una rotellina sul pulsante.
   final bool spinner;
@@ -68,20 +76,30 @@ class _AdminActionButtonState extends State<AdminActionButton> {
   @override
   Widget build(BuildContext context) {
     final action = widget.onPressed;
-    return WfButton.secondary(
-      label: widget.label,
-      icon: widget.icon,
-      overlay: widget.spinner && _running
-          ? const Center(
-              child: SizedBox.square(
-                dimension: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            )
-          : null,
-      onPressed: action == null || _running
-          ? null
-          : () => unawaited(_run(action)),
-    );
+    final label = _running ? widget.busyLabel ?? widget.label : widget.label;
+    final onPressed = action == null || _running
+        ? null
+        : () => unawaited(_run(action));
+    final overlay = widget.spinner && _running
+        ? const Center(
+            child: SizedBox.square(
+              dimension: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          )
+        : null;
+    return widget.primary
+        ? WfButton.primary(
+            label: label,
+            icon: widget.icon,
+            overlay: overlay,
+            onPressed: onPressed,
+          )
+        : WfButton.secondary(
+            label: label,
+            icon: widget.icon,
+            overlay: overlay,
+            onPressed: onPressed,
+          );
   }
 }

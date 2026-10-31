@@ -112,11 +112,30 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
     if (mounted) await _reload();
   }
 
-  Future<void> _searchNow(String key) async {
+  /// Un pulsante di una riga (spec "Serve te" §6): chiama il plugin, dice
+  /// l'esito e rilegge. "Scegli tu" apre la ricerca.
+  Future<void> _act(DownloadAction action, DownloadItem item) async {
+    final key = item.key;
+    if (action == DownloadAction.pick) {
+      unawaited(_open(key, item.title));
+      return;
+    }
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
+    final api = ref.read(downloadsApiProvider);
     try {
-      await ref.read(downloadsApiProvider).searchNow(key);
+      await switch (action) {
+        DownloadAction.grabBest => api.grabBest(key),
+        DownloadAction.snooze => api.snooze(key),
+        DownloadAction.import => api.importBlocked(key),
+        DownloadAction.discard => api.discard(key),
+        DownloadAction.searchNow || DownloadAction.pick => api.searchNow(key),
+      };
+      if (action != DownloadAction.searchNow) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(l.downloadsActionDone)),
+        );
+      }
     } on DownloadsException catch (e) {
       // Un errore del plugin è atteso: si mostra, non è un difetto da loggare.
       messenger.showSnackBar(
@@ -257,8 +276,7 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
     key: ValueKey('item-${item.key}'),
     item: item,
     now: now,
-    onWatch: () => unawaited(_open(item.key, item.title)),
-    onSearchNow: () => _searchNow(item.key),
+    onAction: (action) => _act(action, item),
   );
 }
 

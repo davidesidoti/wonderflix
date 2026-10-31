@@ -177,19 +177,19 @@ class DownloadChoiceRow extends StatelessWidget {
 }
 
 /// Un titolo in attesa, in download, in controllo upgrade o che "serve te".
+/// I pulsanti vengono da `item.actions` (spec "Serve te" §6); vuoti
+/// (plugin 1.17.0) restano quelli di prima.
 class DownloadItemRow extends StatelessWidget {
   const DownloadItemRow({
     super.key,
     required this.item,
     required this.now,
-    required this.onWatch,
-    required this.onSearchNow,
+    required this.onAction,
   });
 
   final DownloadItem item;
   final DateTime now;
-  final VoidCallback onWatch;
-  final Future<void> Function() onSearchNow;
+  final Future<void> Function(DownloadAction) onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -201,31 +201,106 @@ class DownloadItemRow extends StatelessWidget {
     final next = nextSearchLabel(l, item.nextSearchAt, now);
     final since = l.downloadsSince(
         DateFormat.MMMd(l.localeName).format(item.availableSince.toLocal()));
+    final service = item.kind == DownloadKind.movie ? 'Radarr' : 'Sonarr';
+    final explanation = downloadExplanation(l, item, service);
+    final blocked = item.blockedMessage;
+    final legacy = item.actions.isEmpty;
+    final actions = legacy
+        ? [DownloadAction.pick, if (!needsYou) DownloadAction.searchNow]
+        : item.actions;
     return RowShell(
       posterUrl: item.posterUrl,
       accent: needsYou ? WfColors.error : null,
       lines: [
-        _title(item.title),
+        if (item.snoozed)
+          Wrap(
+            spacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [_title(item.title), _Tag(l.downloadsSnoozedTag)],
+          )
+        else
+          _title(item.title),
         _muted(downloadStateLabel(l, item),
             color: needsYou ? WfColors.error : WfColors.creamMuted),
         _muted([since, if (next.isNotEmpty) next].join(' · ')),
         if (why.isNotEmpty) _muted(why, color: WfColors.gold),
+        if (explanation.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(explanation,
+                style: const TextStyle(color: WfColors.cream, fontSize: 13)),
+          ),
+        if (needsYou && blocked != null)
+          Container(
+            margin: const EdgeInsets.only(top: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            decoration: BoxDecoration(
+              color: WfColors.surfaceHigh,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(blocked,
+                style: const TextStyle(
+                    color: WfColors.creamMuted,
+                    fontSize: 12,
+                    fontFamily: 'monospace')),
+          ),
       ],
       actions: [
-        AdminActionButton(
-          label: l.downloadsWatch,
-          icon: LucideIcons.search,
-          onPressed: () async => onWatch(),
-        ),
-        if (!needsYou)
+        for (final (i, action) in actions.indexed)
           AdminActionButton(
-            label: l.downloadsSearchNow,
-            icon: LucideIcons.refreshCw,
-            onPressed: onSearchNow,
+            label: _actionLabel(l, action, needsYou: needsYou && !legacy),
+            icon: _actionIcon(action),
+            primary: i == 0 && needsYou && !legacy,
+            busyLabel: action == DownloadAction.grabBest
+                ? l.downloadsActionGrabBestBusy
+                : null,
+            onPressed: () => onAction(action),
           ),
       ],
     );
   }
+
+  /// [needsYou]: "Guarda" diventa "Scegli tu" (spec "Serve te" §4).
+  String _actionLabel(AppLocalizations l, DownloadAction a,
+          {required bool needsYou}) =>
+      switch (a) {
+        DownloadAction.grabBest => l.downloadsActionGrabBest,
+        DownloadAction.pick when !needsYou => l.downloadsWatch,
+        DownloadAction.pick when item.reason == DownloadReason.grabRefused =>
+          l.downloadsActionPickOther,
+        DownloadAction.pick => l.downloadsActionPick,
+        DownloadAction.searchNow => l.downloadsSearchNow,
+        DownloadAction.snooze => l.downloadsActionSnooze,
+        DownloadAction.import => l.downloadsActionImport,
+        DownloadAction.discard => l.downloadsActionDiscard,
+      };
+
+  static IconData _actionIcon(DownloadAction a) => switch (a) {
+        DownloadAction.grabBest => LucideIcons.download,
+        DownloadAction.pick => LucideIcons.search,
+        DownloadAction.searchNow => LucideIcons.refreshCw,
+        DownloadAction.snooze => LucideIcons.bellOff,
+        DownloadAction.import => LucideIcons.fileInput,
+        DownloadAction.discard => LucideIcons.trash2,
+      };
+}
+
+/// L'etichetta oro accanto al titolo ("senza avvisi").
+class _Tag extends StatelessWidget {
+  const _Tag(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+        decoration: BoxDecoration(
+          color: WfColors.gold.withValues(alpha: 0.16),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(text,
+            style: const TextStyle(color: WfColors.gold, fontSize: 11)),
+      );
 }
 
 /// Un file da ripassare: punteggio e peso di quello che c'è ora.

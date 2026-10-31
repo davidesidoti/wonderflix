@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
@@ -6,6 +8,7 @@ import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/downloads/downloads_api.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 import 'package:wonderflix/core/downloads/download_models.dart';
+import 'package:wonderflix/features/admin/admin_action_button.dart';
 import 'package:wonderflix/features/downloads/download_rows.dart';
 import 'package:wonderflix/features/downloads/downloads_tab.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
@@ -34,6 +37,9 @@ DownloadItem _item(
   String key, {
   DownloadState state = DownloadState.waiting,
   DownloadReason? reason,
+  List<DownloadAction> actions = const [],
+  String? blockedMessage,
+  bool snoozed = false,
 }) =>
     DownloadItem(
       key: key,
@@ -42,6 +48,9 @@ DownloadItem _item(
       state: state,
       reason: reason,
       availableSince: DateTime.now().subtract(const Duration(days: 3)),
+      actions: actions,
+      blockedMessage: blockedMessage,
+      snoozed: snoozed,
     );
 
 ReviewItem _review(int n) => ReviewItem(
@@ -341,6 +350,131 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.getSemantics(find.text('In attesa · 1')), header(false));
       handle.dispose();
+    });
+  });
+
+  group('Serve te', () {
+    DownloadItem needs(DownloadReason reason, List<DownloadAction> actions,
+            {String? blockedMessage}) =>
+        _item('movie:5',
+            state: DownloadState.needsYou,
+            reason: reason,
+            actions: actions,
+            blockedMessage: blockedMessage);
+
+    void fill(DownloadItem item) =>
+        api.overviewValue = DownloadsOverview(enabled: true, waiting: [item]);
+
+    Finder button(String label) => find.ancestor(
+        of: find.text(label),
+        matching: find.byWidgetPredicate((w) => w is ButtonStyleButton));
+
+    testWidgets('i pulsanti nell ordine, il primo in evidenza',
+        (tester) async {
+      fill(needs(DownloadReason.belowMinScore, [
+        DownloadAction.grabBest,
+        DownloadAction.pick,
+        DownloadAction.searchNow,
+      ]));
+      await pumpTab(tester);
+
+      final labels = ['Scarica il migliore intanto', 'Scegli tu', 'Cerca ora'];
+      expect(
+          tester
+              .widgetList<AdminActionButton>(find.byType(AdminActionButton))
+              .map((b) => b.label),
+          labels);
+      expect(tester.widget(button(labels[0])), isA<FilledButton>());
+      expect(tester.widget(button(labels[1])), isA<OutlinedButton>());
+      expect(tester.widget(button(labels[2])), isA<OutlinedButton>());
+      expect(find.text('Guarda'), findsNothing);
+    });
+
+    testWidgets('Scarica il migliore chiama il plugin e rilegge',
+        (tester) async {
+      fill(needs(DownloadReason.belowMinScore,
+          [DownloadAction.grabBest, DownloadAction.pick]));
+      await pumpTab(tester);
+      api.calls.clear();
+      api.actionGate = Completer<void>();
+
+      await tester.tap(find.text('Scarica il migliore intanto'));
+      await tester.pump();
+      expect(find.text('Cerco e scarico…'), findsOneWidget);
+
+      api.actionGate!.complete();
+      await tester.pumpAndSettle();
+      expect(api.calls, ['grabBest movie:5', 'overview']);
+      expect(find.text('Fatto'), findsOneWidget);
+    });
+
+    testWidgets('niente da prendere: avviso e rilettura', (tester) async {
+      fill(needs(DownloadReason.belowMinScore, [DownloadAction.grabBest]));
+      await pumpTab(tester);
+      api.calls.clear();
+      api.nextActionFailure = DownloadsFailure.nothingToGrab;
+
+      await tester.tap(find.text('Scarica il migliore intanto'));
+      await tester.pumpAndSettle();
+
+      expect(find.text("Non c'è più niente da scaricare: ricarico"),
+          findsOneWidget);
+      expect(api.calls, ['grabBest movie:5', 'overview']);
+    });
+
+    testWidgets('import bloccato: messaggio, Importa e Scarta', (tester) async {
+      fill(needs(DownloadReason.importBlocked,
+          [DownloadAction.import, DownloadAction.discard],
+          blockedMessage: 'Not an upgrade for existing movie file'));
+      await pumpTab(tester);
+
+      expect(find.text('Not an upgrade for existing movie file'),
+          findsOneWidget);
+      expect(find.textContaining('Radarr non lo importa'), findsOneWidget);
+      expect(tester.widget(button('Importa comunque')), isA<FilledButton>());
+      expect(find.text('Scarta e cerca un altro'), findsOneWidget);
+      expect(find.text('Cerca ora'), findsNothing);
+
+      api.calls.clear();
+      await tester.tap(find.text('Scarta e cerca un altro'));
+      await tester.pumpAndSettle();
+      expect(api.calls, ['discard movie:5', 'overview']);
+    });
+
+    testWidgets('client che rifiuta: Scegli un altro file', (tester) async {
+      fill(needs(DownloadReason.grabRefused,
+          [DownloadAction.pick, DownloadAction.searchNow]));
+      await pumpTab(tester);
+
+      expect(find.text('Scegli un altro file'), findsOneWidget);
+      api.calls.clear();
+      await tester.tap(find.text('Scegli un altro file'));
+      await tester.pumpAndSettle();
+      expect(api.calls, ['search movie:5']);
+    });
+
+    testWidgets('in attesa senza avvisi: l etichetta', (tester) async {
+      fill(_item('movie:6',
+          snoozed: true,
+          actions: [DownloadAction.pick, DownloadAction.searchNow]));
+      await pumpTab(tester);
+
+      expect(find.text('senza avvisi'), findsOneWidget);
+      expect(find.text('Guarda'), findsOneWidget);
+      expect(tester.widget(button('Guarda')), isA<OutlinedButton>());
+    });
+
+    testWidgets('plugin vecchio: i pulsanti di prima', (tester) async {
+      api.overviewValue = DownloadsOverview(enabled: true, waiting: [
+        _item('movie:2'),
+        _item('movie:3',
+            state: DownloadState.needsYou, reason: DownloadReason.nothingFound),
+      ]);
+      await pumpTab(tester);
+
+      expect(find.text('Guarda'), findsNWidgets(2));
+      expect(find.text('Cerca ora'), findsOneWidget);
+      expect(find.byType(FilledButton), findsNothing);
     });
   });
 }

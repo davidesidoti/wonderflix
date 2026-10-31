@@ -38,6 +38,48 @@ String downloadStateLabel(AppLocalizations l, DownloadItem item) {
   }
 }
 
+/// La frase sotto una riga "Serve te" (spec "Serve te" §4); vuota quando
+/// non c'è niente da spiegare. [service] è `Radarr` o `Sonarr`.
+String downloadExplanation(
+  AppLocalizations l,
+  DownloadItem item,
+  String service,
+) {
+  if (item.state != DownloadState.needsYou) return '';
+  final summary = item.summary;
+  switch (item.reason) {
+    case DownloadReason.belowMinScore:
+      final best = summary?.bestScore;
+      if (summary == null || best == null) return '';
+      return l.downloadsExplainLowScore(summary.found, best, summary.minScore);
+    case DownloadReason.nothingFound:
+      if (summary == null) return '';
+      if (summary.found == 0) return l.downloadsExplainNoResults;
+      final top = summary.topRejection;
+      final parts = [
+        if (summary.tooSmall > 0) l.downloadsExplainTooSmall(summary.tooSmall),
+        if (summary.arrRejected > 0)
+          l.downloadsExplainArrRejected(summary.arrRejected, service) +
+              (top == null ? '' : ' ($top)'),
+      ];
+      // Scartati per altri motivi (es. punteggio): niente da elencare.
+      if (parts.isEmpty) return '';
+      final text = l.downloadsExplainAllRejected(summary.found, parts.join(', '));
+      return summary.stopgapAvailable
+          ? '$text ${l.downloadsExplainStopgapHint}'
+          : text;
+    case DownloadReason.importBlocked:
+      final blocked = l.downloadsExplainBlocked(service);
+      return item.blockedMessage == null
+          ? blocked
+          : '$blocked ${l.downloadsExplainBlockedWhy(service)}';
+    case DownloadReason.grabRefused:
+      return l.downloadsExplainRefused;
+    case _:
+      return '';
+  }
+}
+
 String downloadsFailureLabel(AppLocalizations l, DownloadsFailure f) =>
     switch (f) {
       DownloadsFailure.unavailable => l.downloadsFailureUnavailable,
