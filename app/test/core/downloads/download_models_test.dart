@@ -182,4 +182,54 @@ void main() {
   test('GrabRefusedReason', () {
     expect(DownloadReason.fromWire('GrabRefused'), DownloadReason.grabRefused);
   });
+
+  test('ActionsSummaryAndBlockedMessageAreRead', () {
+    final item = DownloadItem.fromJson({
+      'Key': 'movie:1',
+      'Kind': 'Movie',
+      'Title': 'Film',
+      'State': 'NeedsYou',
+      'AvailableSince': '2026-10-20T00:00:00Z',
+      'Actions': ['GrabBest', 'Nuova', 'Pick', 'Import'],
+      'Summary': {
+        'Found': 5,
+        'BestScore': 90,
+        'MinScore': 100,
+        'TooSmall': 1,
+        'ArrRejected': 2,
+        'TopRejection': 'Not enough seeders',
+        'StopgapAvailable': true,
+      },
+      'BlockedMessage': 'Bloccato',
+      'Snoozed': true,
+    })!;
+    expect(item.actions, [
+      DownloadAction.grabBest,
+      DownloadAction.pick,
+      DownloadAction.import,
+    ]);
+    expect(item.summary!.found, 5);
+    expect(item.summary!.bestScore, 90);
+    expect(item.summary!.minScore, 100);
+    expect(item.summary!.tooSmall, 1);
+    expect(item.summary!.arrRejected, 2);
+    expect(item.summary!.topRejection, 'Not enough seeders');
+    expect(item.summary!.stopgapAvailable, isTrue);
+    expect(item.blockedMessage, 'Bloccato');
+    expect(item.snoozed, isTrue);
+  });
+
+  test('AnItemFromPlugin117HasNoActions', () {
+    final item = DownloadItem.fromJson({
+      'Key': 'movie:1',
+      'Kind': 'Movie',
+      'Title': 'Film',
+      'State': 'Waiting',
+      'AvailableSince': '2026-10-20T00:00:00Z',
+    })!;
+    expect(item.actions, isEmpty);
+    expect(item.summary, isNull);
+    expect(item.blockedMessage, isNull);
+    expect(item.snoozed, isFalse);
+  });
 }

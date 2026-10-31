@@ -47,6 +47,10 @@ String downloadsFailureLabel(AppLocalizations l, DownloadsFailure f) =>
       DownloadsFailure.busy => l.downloadsFailureBusy,
       DownloadsFailure.arrUnavailable => l.downloadsFailureArrUnavailable,
       DownloadsFailure.refused => l.downloadsFailureRefused,
+      DownloadsFailure.nothingToGrab => l.downloadsFailureNothingToGrab,
+      DownloadsFailure.changed => l.downloadsFailureChanged,
+      DownloadsFailure.noFiles => l.downloadsFailureNoFiles,
+      DownloadsFailure.importFailed => l.downloadsFailureImportFailed,
       DownloadsFailure.network => l.errorServerUnreachable,
     };
 

@@ -24,6 +24,18 @@ enum DownloadsFailure {
   /// 409 `Busy`: un altro download dello stesso titolo è in corso.
   busy,
 
+  /// 409 `NothingToGrab`: nessuna release adatta da prendere.
+  nothingToGrab,
+
+  /// 409 `Changed`: il titolo è cambiato nel frattempo.
+  changed,
+
+  /// 502 `NoFiles`: niente da importare.
+  noFiles,
+
+  /// 502 `ImportFailed`: l'import non è riuscito.
+  importFailed,
+
   /// 503 `Unavailable`: Radarr o Sonarr non rispondono.
   arrUnavailable,
 
@@ -93,6 +105,22 @@ class DownloadsApi {
   Future<void> searchNow(String key) => _call(() => _http
       .post('$_base/SearchNow', body: {'Key': key}, quietStatuses: _quiet));
 
+  /// Prende la migliore: il plugin può rifare la ricerca (fino a 2 minuti).
+  Future<void> grabBest(String key) => _call(() => _http.post(
+      '$_base/GrabBest',
+      body: {'Key': key},
+      receiveTimeout: searchTimeout,
+      quietStatuses: _quiet));
+
+  Future<void> snooze(String key) => _call(() =>
+      _http.post('$_base/Snooze', body: {'Key': key}, quietStatuses: _quiet));
+
+  Future<void> importBlocked(String key) => _call(() =>
+      _http.post('$_base/Import', body: {'Key': key}, quietStatuses: _quiet));
+
+  Future<void> discard(String key) => _call(() =>
+      _http.post('$_base/Discard', body: {'Key': key}, quietStatuses: _quiet));
+
   Future<T> _call<T>(Future<T> Function() request) async {
     try {
       return await request();
@@ -106,10 +134,15 @@ class DownloadsApi {
       final reason = error.body is Map ? (error.body as Map)['Reason'] : null;
       throw DownloadsException(switch (error.statusCode) {
         400 => DownloadsFailure.invalid,
-        409 => reason == 'Busy'
-            ? DownloadsFailure.busy
-            : DownloadsFailure.expired,
+        409 => switch (reason) {
+          'Busy' => DownloadsFailure.busy,
+          'NothingToGrab' => DownloadsFailure.nothingToGrab,
+          'Changed' => DownloadsFailure.changed,
+          _ => DownloadsFailure.expired,
+        },
         502 when reason == 'Refused' => DownloadsFailure.refused,
+        502 when reason == 'NoFiles' => DownloadsFailure.noFiles,
+        502 when reason == 'ImportFailed' => DownloadsFailure.importFailed,
         503 when reason == 'Unavailable' => DownloadsFailure.arrUnavailable,
         _ => DownloadsFailure.network,
       });

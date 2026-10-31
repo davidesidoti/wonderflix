@@ -142,4 +142,16 @@ class FakeDownloadsApi implements DownloadsApi {
 
   @override
   Future<void> searchNow(String key) => _action('searchNow $key');
+
+  @override
+  Future<void> grabBest(String key) => _action('grabBest $key');
+
+  @override
+  Future<void> snooze(String key) => _action('snooze $key');
+
+  @override
+  Future<void> importBlocked(String key) => _action('importBlocked $key');
+
+  @override
+  Future<void> discard(String key) => _action('discard $key');
 }

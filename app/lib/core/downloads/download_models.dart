@@ -45,6 +45,27 @@ enum DownloadReason {
       .firstWhere((v) => v.wire == value && v != unknown, orElse: () => unknown);
 }
 
+/// Un'azione offerta dal plugin su un titolo; la prima della lista è la
+/// consigliata. Un valore sconosciuto (plugin più nuovo) si salta.
+enum DownloadAction {
+  grabBest('GrabBest'),
+  pick('Pick'),
+  searchNow('SearchNow'),
+  snooze('Snooze'),
+  import('Import'),
+  discard('Discard');
+
+  const DownloadAction(this.wire);
+  final String wire;
+
+  static DownloadAction? fromWire(Object? value) {
+    for (final v in values) {
+      if (v.wire == value) return v;
+    }
+    return null;
+  }
+}
+
 enum RejectedReason {
   arr('Arr'),
   tooSmall('TooSmall'),
@@ -164,6 +185,44 @@ class DownloadChoice {
       _list(json, fromJson);
 }
 
+/// Il riassunto dell'ultima ricerca di un titolo da guardare (plugin 1.18.0).
+class DownloadSummary {
+  const DownloadSummary({
+    required this.found,
+    this.bestScore,
+    required this.minScore,
+    required this.tooSmall,
+    required this.arrRejected,
+    this.topRejection,
+    required this.stopgapAvailable,
+  });
+
+  final int found;
+  final int? bestScore;
+  final int minScore;
+  final int tooSmall;
+  final int arrRejected;
+  final String? topRejection;
+  final bool stopgapAvailable;
+
+  static DownloadSummary? fromJson(Object? json) {
+    if (json is! Map<String, dynamic>) return null;
+    try {
+      return DownloadSummary(
+        found: (json['Found'] as num).toInt(),
+        bestScore: _intOrNull(json['BestScore']),
+        minScore: (json['MinScore'] as num).toInt(),
+        tooSmall: (json['TooSmall'] as num).toInt(),
+        arrRejected: (json['ArrRejected'] as num).toInt(),
+        topRejection: json['TopRejection'] as String?,
+        stopgapAvailable: json['StopgapAvailable'] as bool,
+      );
+    } on Object {
+      return null;
+    }
+  }
+}
+
 /// Un titolo in attesa (include `NeedsYou`).
 class DownloadItem {
   const DownloadItem({
@@ -176,6 +235,10 @@ class DownloadItem {
     required this.availableSince,
     this.lastSearchAt,
     this.nextSearchAt,
+    this.actions = const [],
+    this.summary,
+    this.blockedMessage,
+    this.snoozed = false,
   });
 
   final String key;
@@ -187,6 +250,14 @@ class DownloadItem {
   final DateTime availableSince;
   final DateTime? lastSearchAt;
   final DateTime? nextSearchAt;
+
+  /// Dal plugin 1.18.0, la consigliata per prima; vuota con un plugin più vecchio.
+  final List<DownloadAction> actions;
+  final DownloadSummary? summary;
+
+  /// Il messaggio di Sonarr/Radarr per un import bloccato, così com'è.
+  final String? blockedMessage;
+  final bool snoozed;
 
   static DownloadItem? fromJson(Map<String, dynamic> json) {
     try {
@@ -201,6 +272,15 @@ class DownloadItem {
         availableSince: _date(json['AvailableSince']),
         lastSearchAt: _dateOrNull(json['LastSearchAt']),
         nextSearchAt: _dateOrNull(json['NextSearchAt']),
+        actions: switch (json['Actions']) {
+          final List list => [
+              for (final a in list) ?DownloadAction.fromWire(a),
+            ],
+          _ => const [],
+        },
+        summary: DownloadSummary.fromJson(json['Summary']),
+        blockedMessage: json['BlockedMessage'] as String?,
+        snoozed: json['Snoozed'] as bool? ?? false,
       );
     } on Object {
       return null;

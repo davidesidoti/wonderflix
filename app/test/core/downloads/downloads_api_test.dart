@@ -94,4 +94,41 @@ void main() {
     adapter.handler = (_) => const FakeResponse(200, {'Boh': 1});
     expect(await failure(() => api.overview()), DownloadsFailure.network);
   });
+
+  test('ActionsPostTheKey', () async {
+    for (final (call, name) in <(Future<void> Function(), String)>[
+      (() => api.grabBest('k'), 'GrabBest'),
+      (() => api.snooze('k'), 'Snooze'),
+      (() => api.importBlocked('k'), 'Import'),
+      (() => api.discard('k'), 'Discard'),
+    ]) {
+      adapter.requests.clear();
+      await call();
+      final request = adapter.requests.single;
+      expect((request.method, request.path),
+          ('POST', '/WonderFlixWatchParty/Downloads/$name'));
+      expect(request.data, {'Key': 'k'});
+    }
+  });
+
+  test('GrabBestWaitsForTheSearch', () async {
+    await api.grabBest('k');
+    expect(adapter.requests.single.receiveTimeout, DownloadsApi.searchTimeout);
+  });
+
+  test('NewReasonsAreMapped', () async {
+    adapter.handler = (_) => const FakeResponse(409, {'Reason': 'NothingToGrab'});
+    expect(await failure(() => api.grabBest('k')), DownloadsFailure.nothingToGrab);
+    adapter.handler = (_) => const FakeResponse(409, {'Reason': 'Changed'});
+    expect(await failure(() => api.discard('k')), DownloadsFailure.changed);
+    adapter.handler = (_) => const FakeResponse(502, {'Reason': 'NoFiles'});
+    expect(await failure(() => api.importBlocked('k')), DownloadsFailure.noFiles);
+    adapter.handler = (_) => const FakeResponse(502, {'Reason': 'ImportFailed'});
+    expect(await failure(() => api.importBlocked('k')),
+        DownloadsFailure.importFailed);
+    adapter.handler = (_) => const FakeResponse(409, {'Reason': 'Busy'});
+    expect(await failure(() => api.snooze('k')), DownloadsFailure.busy);
+    adapter.handler = (_) => const FakeResponse(409);
+    expect(await failure(() => api.snooze('k')), DownloadsFailure.expired);
+  });
 }
