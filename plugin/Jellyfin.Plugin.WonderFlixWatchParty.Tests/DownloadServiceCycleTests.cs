@@ -445,6 +445,7 @@ public sealed class DownloadServiceCycleTests : IDisposable
     public async Task AStopgapWatchesForUpgradesEvenAboveTarget()
     {
         // Già all'obiettivo (150) ma troppo piccolo: resta tappabuchi per peso.
+        _settings.Thresholds[(ArrKind.Radarr, 4)] = new ProfileThresholds(100, 150);
         var entry = Stopgap(DownloadStopgaps.Size, DownloadStates.Downloading, 150, 1);
         entry.QueueId = 90;
         Seed(entry, T0 - TimeSpan.FromDays(1));

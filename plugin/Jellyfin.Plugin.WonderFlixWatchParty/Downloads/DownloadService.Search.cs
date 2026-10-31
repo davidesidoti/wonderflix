@@ -455,7 +455,10 @@ public sealed partial class DownloadService
             var now = time.GetUtcNow();
 
             // Ancora il file di prima (per una stagione tutti i suoi file): l'upgrade è fallito (Radarr/Sonarr hanno già messo la release in blocklist).
-            if (files.Count > 0 && files.All(f => f.CustomFormatScore == previousScore && f.Quality?.Quality?.Id == entry.PreviousQualityId))
+            // Più pesante del download di prima con la stessa qualità e lo stesso punteggio: è l'import forzato di un tappabuchi per peso.
+            if (files.Count > 0
+                && files.All(f => f.CustomFormatScore == previousScore && f.Quality?.Quality?.Id == entry.PreviousQualityId)
+                && files.Sum(f => f.Size) <= (entry.PreviousSizeBytes ?? long.MaxValue))
             {
                 BackToUpgradeWatch(entry, now);
                 return;

@@ -290,15 +290,39 @@ public sealed class DownloadServiceSearchTests : IDisposable
     [Fact]
     public async Task ASizeStopgapTakesAnEqualScoreAndForcesTheImport()
     {
-        // Stessa qualità e stesso punteggio: Radarr non la importerebbe, si importa a mano.
-        await SeedStopgap(DownloadStopgaps.Size, 150, 1);
-        _releases = [Release("heavy", WebRip1080, "WEBRip-1080p", 4, 150)];
+        // Stessa qualità e stesso punteggio: Radarr non la importerebbe, si importa a mano. Sotto l'obiettivo, così la voce resta.
+        await SeedStopgap(DownloadStopgaps.Size, 120, 1);
+        _releases = [Release("heavy", WebRip1080, "WEBRip-1080p", 4, 120)];
 
         await Cycle();
 
         Assert.Equal("heavy", Assert.Single(_arr.GrabCalls).Guid);
         var entry = Saved("movie:12")!;
         Assert.Equal((DownloadStates.Downloading, true), (entry.State, entry.ManualImportPending));
+
+        // Radarr la blocca ("Not an upgrade"): il giro la importa a mano.
+        var blocked = MovieQueue(91, 12, 0, state: "importBlocked", status: "completed");
+        blocked.DownloadId = "D1";
+        _arr.ManualImportItems = (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>(
+            [new ArrManualImportItem { Path = "/dl/heavy.mkv", DownloadId = "D1", Movie = new ArrFileRef { Id = 12 }, Quality = System.Text.Json.JsonDocument.Parse("""{"quality":{"id":15}}""").RootElement, Rejections = [] }]);
+        _time.Advance(DownloadService.CycleInterval);
+        _radarrQueue = [blocked];
+        await Cycle();
+        Assert.Single(_arr.ManualImportCalls);
+
+        // Il file nuovo: stessa qualità e punteggio, ma pesante. È l'import riuscito, non un upgrade fallito.
+        _arr.MovieFiles = ids => Task.FromResult<IReadOnlyList<ArrFile?>>([new ArrFile { Id = ids[0], CustomFormatScore = 120, Size = 4 * Gb, Quality = new ArrQualityModel { Quality = new ArrQuality { Id = WebRip1080 } } }]);
+        _time.Advance(DownloadService.CycleInterval);
+        _radarrQueue = [];
+        await Cycle();
+
+        entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.UpgradeWatch, (string?)null, (long?)(4 * Gb)), (entry.State, entry.Stopgap, entry.CurrentSizeBytes));
+
+        // Alla ricerca dopo la stessa release non è un upgrade.
+        _time.Advance(TimeSpan.FromDays(1));
+        await Cycle();
+        Assert.Single(_arr.GrabCalls);
     }
 
     [Fact]
