@@ -37,6 +37,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             InboxStore.DefaultPath(provider.GetRequiredService<IApplicationPaths>()),
             provider.GetRequiredService<ILogger<InboxStore>>()));
         serviceCollection.AddSingleton<InboxService>();
+        serviceCollection.AddSingleton<AdminAlerts>();
         serviceCollection.AddSingleton<INewTitlesSettings, PluginNewTitlesSettings>();
         serviceCollection.AddSingleton<ISeerrSettings, PluginSeerrSettings>();
         // La chiave API non va nei log del client HTTP e non segue un

@@ -160,6 +160,50 @@ public sealed class InboxBook
         return existing.Copy();
     }
 
+    /// <summary>
+    /// Gli avvisi agli admin con le chiavi che cominciano con keyPrefix (spec V):
+    /// toglie quelli che non sono più in current; con la stessa AlertKey, lo
+    /// stesso Type e la stessa Reason aggiorna i campi sul posto (niente Seq
+    /// nuovo né push), altrimenti sostituisce con una voce nuova. Le voci di
+    /// current si copiano. True se qualcosa è cambiato.
+    /// </summary>
+    public bool SyncAlerts(Guid userId, string keyPrefix, IReadOnlyList<InboxEntry> current)
+    {
+        if (current.Count == 0 && !_users.ContainsKey(userId))
+        {
+            return false;
+        }
+
+        var inbox = Inbox(userId);
+        var keys = current.Select(a => a.AlertKey).ToHashSet(StringComparer.Ordinal);
+        var changed = inbox.Entries.RemoveAll(e =>
+            e.AlertKey is { } key && key.StartsWith(keyPrefix, StringComparison.Ordinal) && !keys.Contains(key)) > 0;
+        foreach (var alert in current)
+        {
+            var existing = inbox.Entries.FirstOrDefault(e => e.AlertKey == alert.AlertKey);
+            if (existing is not null && existing.Type == alert.Type && existing.Reason == alert.Reason)
+            {
+                if (existing.Title != alert.Title || existing.Percent != alert.Percent
+                    || existing.UserName != alert.UserName || existing.Scope != alert.Scope)
+                {
+                    existing.Title = alert.Title;
+                    existing.Percent = alert.Percent;
+                    existing.UserName = alert.UserName;
+                    existing.Scope = alert.Scope;
+                    changed = true;
+                }
+
+                continue;
+            }
+
+            inbox.Entries.RemoveAll(e => e.AlertKey == alert.AlertKey);
+            Add(userId, alert.Copy());
+            changed = true;
+        }
+
+        return changed;
+    }
+
     /// <summary>Segna lette le voci con Seq fino a upTo; true se qualcosa è cambiato.</summary>
     public bool MarkRead(Guid userId, long upTo)
     {

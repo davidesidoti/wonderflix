@@ -49,8 +49,9 @@ public class ServiceRegistrationTests
         Assert.EndsWith(
             Path.Combine("WonderFlixWatchParty", "friends.json"),
             provider.GetRequiredService<FriendStore>().FilePath);
-        Assert.NotNull(provider.GetRequiredService<InboxService>());
-        Assert.NotNull(provider.GetRequiredService<Push.PushService>());
+        // Senza IInboxPush nel DI la cassetta funziona ma non manda push: il test deve accorgersene.
+        Assert.Same(provider.GetRequiredService<Push.PushService>(), provider.GetRequiredService<InboxService>().Push);
+        Assert.Same(provider.GetRequiredService<AdminAlerts>(), provider.GetRequiredService<AdminAlerts>());
         Assert.EndsWith(
             Path.Combine("WonderFlixWatchParty", "inbox.json"),
             provider.GetRequiredService<InboxStore>().FilePath);

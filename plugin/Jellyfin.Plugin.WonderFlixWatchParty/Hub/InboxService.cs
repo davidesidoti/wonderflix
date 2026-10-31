@@ -30,6 +30,9 @@ public sealed class InboxService(
     private readonly Lock _lock = new();
     private InboxBook? _book;
 
+    /// <summary>La push avuta dal DI (per i test della registrazione).</summary>
+    internal IInboxPush? Push => push;
+
     // Solo sotto _lock. Il file si legge alla prima occasione.
     private InboxBook Book
     {
@@ -460,6 +463,54 @@ public sealed class InboxService(
         }
     }
 
+    /// <summary>
+    /// Allinea gli avvisi con le chiavi che cominciano con keyPrefix nelle cassette di questi admin
+    /// (<see cref="InboxBook.SyncAlerts"/>): scrive e avvisa solo chi è cambiato. Lancia: ci pensa
+    /// <see cref="AdminAlerts"/>.
+    /// </summary>
+    internal async Task SyncAlertsAsync(IReadOnlyList<Guid> admins, string keyPrefix, IReadOnlyList<InboxEntry> current)
+    {
+        List<Guid> touched = [];
+        IReadOnlyList<(Guid, InboxEntry)> fresh;
+        lock (_lock)
+        {
+            touched.AddRange(admins.Where(userId => Book.SyncAlerts(userId, keyPrefix, current)));
+            if (touched.Count > 0)
+            {
+                Persist();
+            }
+
+            fresh = Book.TakeFresh();
+        }
+
+        Deliver(fresh);
+
+        if (touched.Count > 0)
+        {
+            await NotifyAsync(touched).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Una voce nuova (una copia) a ciascuno di questi admin. Lancia: ci pensa <see cref="AdminAlerts"/>.</summary>
+    internal async Task AddAlertAsync(IReadOnlyList<Guid> admins, InboxEntry entry)
+    {
+        IReadOnlyList<(Guid, InboxEntry)> fresh;
+        lock (_lock)
+        {
+            foreach (var userId in admins)
+            {
+                Book.Add(userId, entry.Copy());
+            }
+
+            Persist();
+            fresh = Book.TakeFresh();
+        }
+
+        Deliver(fresh);
+
+        await NotifyAsync(admins).ConfigureAwait(false);
+    }
+
     // Titolo, locandina e livello dal titolo segnalato; se non c'è più, solo l'id della segnalazione.
     private static InboxEntry ReportEntry(string type, StoredReport report, ReportedItem? item, string? text, DateTimeOffset now) =>
         new()
@@ -574,11 +625,21 @@ public sealed class InboxService(
     }
 
     // Fuori dal lock, dopo Persist: la push parte solo per le voci nuove.
+    // Una push rotta non deve mai fermare la cassetta.
     private void Deliver(IReadOnlyList<(Guid, InboxEntry)> fresh)
     {
-        if (fresh.Count > 0)
+        if (fresh.Count == 0 || push is null)
         {
-            push?.Deliver(fresh);
+            return;
+        }
+
+        try
+        {
+            push.Deliver(fresh);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Push di {Count} voci della cassetta non partite", fresh.Count);
         }
     }
 

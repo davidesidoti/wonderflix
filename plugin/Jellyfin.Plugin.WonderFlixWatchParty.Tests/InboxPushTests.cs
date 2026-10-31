@@ -136,4 +136,20 @@ public sealed class InboxPushTests : IDisposable
         Assert.Equal(InboxEntryTypes.Announcement, Assert.Single(book.TakeFresh()).Item2.Type);
         Assert.Empty(book.TakeFresh());
     }
+
+    [Fact]
+    public async Task ThrowingPush_DoesNotBreakTheInbox()
+    {
+        var inbox = TestInbox.Create(_server, _folder, _time, new ThrowingPush());
+
+        var result = await inbox.AnnounceAsync("ciao");
+
+        Assert.Equal(HubStatus.Ok, result.Status);
+        Assert.Single(inbox.Get(_mario.Id).Entries);
+    }
+
+    private sealed class ThrowingPush : IInboxPush
+    {
+        public void Deliver(IReadOnlyList<(Guid UserId, InboxEntry Entry)> fresh) => throw new InvalidOperationException("push rotta");
+    }
 }
