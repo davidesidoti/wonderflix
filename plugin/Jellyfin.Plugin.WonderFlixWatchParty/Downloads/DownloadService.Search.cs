@@ -20,8 +20,12 @@ public sealed partial class DownloadService
         int RuntimeMinutes,
         int? CurrentScore,
         int? CurrentQualityId,
+        IReadOnlySet<string> Refused,
         IReadOnlyList<int>? Episodes = null,
         IReadOnlyList<ArrTitle>? SplitInto = null);
+
+    // Quante release rifiutate dal client si ricordano per voce.
+    private const int MaxRefusedReleases = 20;
 
     // Le voci con la ricerca scaduta, dalla più vecchia; al massimo MaxSearchesPerCycle ricerche, una alla volta.
     private async Task<(int Searched, int Grabbed)> SearchDueAsync(
@@ -129,7 +133,7 @@ public sealed partial class DownloadService
 
         var (service, query) = (ServiceOf(key.Kind), QueryOf(key));
         var upgrade = entry.State == DownloadStates.UpgradeWatch;
-        var item = new SearchItem(entry.Key, service, query, upgrade, entry.ProfileId, entry.RuntimeMinutes, entry.CurrentScore, entry.CurrentQualityId);
+        var item = new SearchItem(entry.Key, service, query, upgrade, entry.ProfileId, entry.RuntimeMinutes, entry.CurrentScore, entry.CurrentQualityId, (entry.RefusedReleases ?? []).ToHashSet());
         if (key.Kind != DownloadKinds.Season)
         {
             return item;
@@ -171,10 +175,17 @@ public sealed partial class DownloadService
             return false;
         }
 
+        // Le release che il client di download ha già rifiutato non si scelgono più, per nessuna regola.
+        if (item.Refused.Count > 0)
+        {
+            releases = [.. releases.Where(r => r is null || r.Guid is null || !item.Refused.Contains(DownloadRule.ReleaseId(r.Guid, r.IndexerId)))];
+        }
+
         var thresholds = settings.For(item.Service, item.ProfileId, profile?.Name);
         var input = new RuleInput(item.RuntimeMinutes, item.Service == ArrKind.Radarr, settings.MinGbPerHour, thresholds.MinScore, context.IndexerPriority);
         ArrRelease? choice;
         var belowMinScore = false;
+        RuleResult? rule = null;
         if (item.Episodes is { } episodes)
         {
             // Una stagione: il pack se conviene (spec T §5.4), altrimenti si divide; un upgrade resta com'è.
@@ -187,8 +198,8 @@ public sealed partial class DownloadService
         }
         else
         {
-            var result = DownloadRule.Choose(releases, input);
-            (choice, belowMinScore) = (result.Choice, result.BelowMinScore);
+            rule = DownloadRule.Choose(releases, input);
+            (choice, belowMinScore) = (rule.Choice, rule.BelowMinScore);
         }
 
         if (choice is not null && item.Upgrade && !IsUpgrade(choice, item, profile))
@@ -198,7 +209,9 @@ public sealed partial class DownloadService
 
         if (choice is null)
         {
-            Update(item.Key, (entry, now) => NothingChosen(entry, belowMinScore, now));
+            // Il riassunto solo per film ed episodi, e non per un upgrade che non conviene.
+            var found = releases.Count(r => !string.IsNullOrEmpty(r?.Guid));
+            Update(item.Key, (entry, now) => NothingChosen(entry, item.Upgrade ? null : rule, thresholds.MinScore, found, now));
             return false;
         }
 
@@ -239,7 +252,10 @@ public sealed partial class DownloadService
             {
                 entry.LastSearchAt = now;
                 entry.Reason = DownloadReasons.GrabRefused;
-                entry.NextSearchAt = DownloadSchedule.Next(SinceOf(entry), now);
+                entry.NextSearchAt = now + CycleInterval;
+
+                // Si ricorda la release (al massimo 20, via le più vecchie): al giro dopo si sceglie un'altra.
+                entry.RefusedReleases = [.. (entry.RefusedReleases ?? []).Append(DownloadRule.ReleaseId(choice.Guid!, choice.IndexerId)).TakeLast(MaxRefusedReleases)];
                 if (entry.State != DownloadStates.UpgradeWatch)
                 {
                     entry.State = DownloadStates.NeedsYou;
@@ -295,8 +311,9 @@ public sealed partial class DownloadService
     }
 
     // Solo sotto _lock (spec T §5.5).
-    private static void NothingChosen(DownloadEntry entry, bool belowMinScore, DateTimeOffset now)
+    private static void NothingChosen(DownloadEntry entry, RuleResult? rule, int minScore, int found, DateTimeOffset now)
     {
+        var belowMinScore = rule?.BelowMinScore == true;
         entry.LastSearchAt = now;
         entry.NextSearchAt = DownloadSchedule.Next(SinceOf(entry), now);
         if (entry.State == DownloadStates.UpgradeWatch)
@@ -304,6 +321,23 @@ public sealed partial class DownloadService
             // Il file c'è già: niente "Serve te".
             entry.Reason = null;
             return;
+        }
+
+        if (rule is not null)
+        {
+            entry.Summary = DownloadRule.Summarize(rule, found, minScore);
+        }
+
+        if (entry.Snoozed && !belowMinScore)
+        {
+            // Silenziato dall'admin: parla di nuovo solo se compare qualcosa sotto il minimo.
+            (entry.State, entry.Reason, entry.NextSearchAt) = (DownloadStates.Waiting, DownloadReasons.NothingFound, now + DownloadSchedule.SnoozedPace);
+            return;
+        }
+
+        if (belowMinScore)
+        {
+            entry.Snoozed = false;
         }
 
         (entry.State, entry.Reason) =
@@ -341,6 +375,8 @@ public sealed partial class DownloadService
         });
         entry.State = DownloadStates.Downloading;
         entry.Reason = null;
+        entry.Snoozed = false;
+        entry.Summary = null;
         entry.LastSearchAt = now;
         entry.PreviousScore = upgrade ? entry.CurrentScore : null;
         entry.PreviousQualityId = upgrade ? entry.CurrentQualityId : null;

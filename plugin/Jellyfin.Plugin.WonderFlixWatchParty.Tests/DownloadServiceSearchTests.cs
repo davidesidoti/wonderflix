@@ -16,7 +16,7 @@ public sealed class DownloadServiceSearchTests : IDisposable
     private readonly FakeArrSettings _arrSettings = new();
     private readonly FakeDownloadSettings _settings = new();
     private readonly FakeTimeProvider _time = new(T0);
-    private readonly DownloadService _service;
+    private DownloadService _service;
 
     private List<RadarrMovie?> _movies = [];
     private List<SonarrEpisode?> _missing = [];
@@ -33,9 +33,15 @@ public sealed class DownloadServiceSearchTests : IDisposable
         _arr.MovieFiles = ids => Task.FromResult<IReadOnlyList<ArrFile?>>([File(ids[0], WebRip1080, _fileScore)]);
         _arr.QualityProfiles = _ => Task.FromResult<IReadOnlyList<ArrQualityProfile?>>([MainProfile(4), MainProfile(6)]);
         _arr.Indexers = _ => Task.FromResult<IReadOnlyList<ArrIndexer?>>([new ArrIndexer { Id = 1, Priority = 25 }, new ArrIndexer { Id = 3, Priority = 10 }]);
-        _service = new DownloadService(
+        _service = NewService();
+    }
+
+    private DownloadService NewService()
+    {
+        var service = new DownloadService(
             _arr, _arrSettings, _settings, Store(), _time, NullLogger<DownloadService>.Instance) { Pause = TimeSpan.Zero };
-        _service.Load();
+        service.Load();
+        return service;
     }
 
     public void Dispose() => _folder.Dispose();
@@ -205,6 +211,113 @@ public sealed class DownloadServiceSearchTests : IDisposable
         Assert.Equal("ita", Assert.Single(_arr.GrabCalls).Guid);
         entry = Saved("movie:12")!;
         Assert.Equal((DownloadStates.Downloading, (string?)null), (entry.State, entry.Reason));
+    }
+
+    // Un film 12 già in elenco, cambiato dal test sul disco e riletto dal servizio.
+    private async Task Seed(Action<DownloadEntry> change)
+    {
+        _movies = [Movie(12)];
+        await Cycle();
+        var book = Store().Load();
+        var entry = book.Get("movie:12")!;
+        entry.NextSearchAt = T0;
+        change(entry);
+        Store().Save(book);
+        _service = NewService();
+    }
+
+    // Un titolo silenziato: Waiting/NothingFound, disponibile da 10 giorni, ricerca scaduta.
+    private Task SeedSnoozed() => Seed(e =>
+    {
+        e.State = DownloadStates.Waiting;
+        e.Reason = DownloadReasons.NothingFound;
+        e.Snoozed = true;
+        e.AvailableSince = T0 - TimeSpan.FromDays(10);
+        e.NextSearchAt = T0;
+    });
+
+    [Fact]
+    public async Task NothingChosenKeepsASummary()
+    {
+        _movies = [Movie(12)];
+        _releases = [Release("low", WebRip1080, "WEBRip-1080p", 4, 40), Release("small", WebRip1080, "WEBRip-1080p", 0.5, 150)];
+
+        await Cycle();
+
+        var summary = Saved("movie:12")!.Summary!;
+        Assert.Equal((2, (int?)40, 1, true), (summary.Found, summary.BestScore, summary.TooSmall, summary.StopgapAvailable));
+    }
+
+    [Fact]
+    public async Task ASnoozedTitleStaysQuietWhenNothingIsFound()
+    {
+        await SeedSnoozed();
+
+        await Cycle();
+
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.Waiting, DownloadReasons.NothingFound, true), (entry.State, entry.Reason, entry.Snoozed));
+        Assert.Equal(T0 + DownloadSchedule.SnoozedPace, entry.NextSearchAt);
+    }
+
+    [Fact]
+    public async Task ASnoozedTitleSpeaksAgainWhenSomethingLowIsFound()
+    {
+        await SeedSnoozed();
+        _releases = [Release("low", WebRip1080, "WEBRip-1080p", 4, 40)];
+
+        await Cycle();
+
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.NeedsYou, DownloadReasons.BelowMinScore, false), (entry.State, entry.Reason, entry.Snoozed));
+    }
+
+    [Fact]
+    public async Task AGrabClearsSnoozeAndSummary()
+    {
+        await SeedSnoozed();
+        _releases = [Release("ita", WebRip1080, "WEBRip-1080p", 4, 150)];
+
+        await Cycle();
+
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.Downloading, false, (DownloadSummary?)null), (entry.State, entry.Snoozed, entry.Summary));
+    }
+
+    [Fact]
+    public async Task ARefusedReleaseIsRememberedAndSkipped()
+    {
+        _movies = [Movie(12)];
+        _releases = [Release("a", WebRip1080, "WEBRip-1080p", 4, 150)];
+        _arr.Grab = (_, guid, _) => guid == "a" ? Task.FromException(new ArrException(ArrError.Unreachable, status: 500)) : Task.CompletedTask;
+
+        await Cycle();
+
+        var entry = Saved("movie:12")!;
+        Assert.Equal([DownloadRule.ReleaseId("a", 1)], entry.RefusedReleases);
+        Assert.Equal(T0 + DownloadService.CycleInterval, entry.NextSearchAt);
+
+        _time.Advance(DownloadService.CycleInterval);
+        _releases = [Release("a", WebRip1080, "WEBRip-1080p", 4, 150), Release("b", WebRip1080, "WEBRip-1080p", 4, 100)];
+        await Cycle();
+
+        Assert.Equal("b", _arr.GrabCalls.Last().Guid);
+        Assert.Equal(DownloadStates.Downloading, Saved("movie:12")!.State);
+    }
+
+    [Fact]
+    public async Task AtMostTwentyRefusedReleases()
+    {
+        await Seed(e => e.RefusedReleases = [.. Enumerable.Range(0, 20).Select(i => DownloadRule.ReleaseId($"x{i}", 1))]);
+        _releases = [Release("a", WebRip1080, "WEBRip-1080p", 4, 150)];
+        _arr.Grab = (_, _, _) => Task.FromException(new ArrException(ArrError.Unreachable, status: 500));
+
+        await Cycle();
+
+        var refused = Saved("movie:12")!.RefusedReleases!;
+        Assert.Equal(20, refused.Count);
+        Assert.DoesNotContain(DownloadRule.ReleaseId("x0", 1), refused);
+        Assert.Equal(DownloadRule.ReleaseId("a", 1), refused[^1]);
     }
 
     [Fact]
@@ -418,7 +531,7 @@ public sealed class DownloadServiceSearchTests : IDisposable
     }
 
     [Fact]
-    public async Task ARefusedGrabGoesToNeedsYouOnTheSlowSchedule()
+    public async Task ARefusedGrabGoesToNeedsYouAndIsNotGrabbedAgain()
     {
         _movies = [Movie(12)];
         _releases = [Release("ita", WebRip1080, "WEBRip-1080p", 4, 150)];
@@ -428,9 +541,9 @@ public sealed class DownloadServiceSearchTests : IDisposable
 
         var entry = Saved("movie:12")!;
         Assert.Equal((DownloadStates.NeedsYou, DownloadReasons.GrabRefused), (entry.State, entry.Reason));
-        Assert.Equal(T0 + TimeSpan.FromHours(6), entry.NextSearchAt);
+        Assert.Equal(T0 + DownloadService.CycleInterval, entry.NextSearchAt);
 
-        // Non si riprova al giro dopo.
+        // Al giro dopo si cerca, ma la release rifiutata non si sceglie più.
         _time.Advance(DownloadService.CycleInterval);
         await Cycle();
         Assert.Single(_arr.GrabCalls);
@@ -448,7 +561,7 @@ public sealed class DownloadServiceSearchTests : IDisposable
 
         var entry = Saved("movie:12")!;
         Assert.Equal((DownloadStates.UpgradeWatch, DownloadReasons.GrabRefused), (entry.State, entry.Reason));
-        Assert.True(entry.NextSearchAt > _time.GetUtcNow() + DownloadService.CycleInterval);
+        Assert.Equal(_time.GetUtcNow() + DownloadService.CycleInterval, entry.NextSearchAt);
     }
 
     [Fact]

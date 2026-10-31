@@ -12,6 +12,9 @@ public static class DownloadSchedule
     /// <summary>Un download il cui <c>sizeleft</c> non cambia da così tanto è fermo.</summary>
     public static readonly TimeSpan StalledAfter = TimeSpan.FromHours(24);
 
+    /// <summary>Ritmo di un titolo silenziato dall'admin ("Aspetta"): una ricerca a settimana finché non trova qualcosa.</summary>
+    public static readonly TimeSpan SnoozedPace = TimeSpan.FromDays(7);
+
     /// <summary>Ritmo della prima settimana.</summary>
     private static readonly TimeSpan FirstWeekPace = TimeSpan.FromHours(6);
 
