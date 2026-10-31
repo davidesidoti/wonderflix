@@ -107,28 +107,13 @@ public sealed partial class DownloadService
         };
     }
 
-    // Fuori dal lock: i file del download, poi il comando ManualImport. Se non riesce, serve l'admin.
+    // Fuori dal lock: importa a mano il download. Se non riesce, serve l'admin.
     private async Task ImportByHandAsync(ManualImport import, CancellationToken cancellationToken)
     {
-        string error;
-        try
+        if (await ImportDownloadAsync(import.Service, import.DownloadId, cancellationToken).ConfigureAwait(false) is not { } error)
         {
-            var files = OnePerTitle(
-                import.Service,
-                [.. (await arr.GetManualImportAsync(import.Service, import.DownloadId, cancellationToken).ConfigureAwait(false))
-                    .OfType<ArrManualImportItem>().Where(i => Importable(import.Service, i))]);
-            if (files.Count > 0)
-            {
-                await arr.ManualImportAsync(import.Service, files, cancellationToken).ConfigureAwait(false);
-                logger.LogInformation("Download automatici: {Key} importato a mano da {Kind}", import.Key, import.Service);
-                return;
-            }
-
-            error = "NoFiles";
-        }
-        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-        {
-            error = ErrorOf(ex);
+            logger.LogInformation("Download automatici: {Key} importato a mano da {Kind}", import.Key, import.Service);
+            return;
         }
 
         logger.LogWarning("Download automatici: {Key}, {Kind} non ha importato a mano ({Error})", import.Key, import.Service, error);
@@ -139,6 +124,32 @@ public sealed partial class DownloadService
                 entry.State = DownloadStates.NeedsYou;
                 entry.Reason = DownloadReasons.ImportBlocked;
             }
+        }
+    }
+
+    /// <summary>
+    /// Fuori dal lock: i file importabili del download (uno per titolo), poi il comando ManualImport. Null se è partito,
+    /// altrimenti "NoFiles" o il codice dell'errore. Lo usa anche la scheda spazio per un "Alleggerisci" bloccato.
+    /// </summary>
+    public async Task<string?> ImportDownloadAsync(ArrKind kind, string downloadId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var files = OnePerTitle(
+                kind,
+                [.. (await arr.GetManualImportAsync(kind, downloadId, cancellationToken).ConfigureAwait(false))
+                    .OfType<ArrManualImportItem>().Where(i => Importable(kind, i))]);
+            if (files.Count == 0)
+            {
+                return "NoFiles";
+            }
+
+            await arr.ManualImportAsync(kind, files, cancellationToken).ConfigureAwait(false);
+            return null;
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            return ErrorOf(ex);
         }
     }
 
