@@ -49,7 +49,7 @@ Rifare l'app perché si possa usare anche su Smart TV (Fire TV Stick e simili, c
   - pipeline di build e prove per ogni piattaforma.
 - **Da chiarire:** quali piattaforme prima (per esempio Fire TV e Android insieme, dato che sono quasi lo stesso codice); stessa app con implementazioni per piattaforma o app separata per la TV; se fare insieme alla versione web il lavoro di separazione dalle parti di Windows.
 - **iPhone, deciso il 2026-10-31: per ora niente app nativa.** Senza l'account sviluppatore a pagamento resta solo AltStore/SideStore con un Apple ID gratuito: firma da rinnovare ogni 7 giorni e niente notifiche push. Il MacBook Air 2015 dell'utente si ferma a Monterey (Xcode 14.2), troppo vecchio per Flutter 3.47 e per iOS 17+. Si usa il sito aggiunto alla Home come web app, che con il layout stretto della 1c fa già tutto.
-  - Su iOS 27.2 la web app sulla Home mostra l'iniziale del titolo invece dell'icona, anche per siti come github.com: l'iPhone scarica `apple-touch-icon` (risposta 200) ma non lo usa. Non dipende dal sito.
+  - Su iOS 27.2 (beta) l'aggiunta alla Home non usa un `apple-touch-icon` indicato con un indirizzo e mostra l'iniziale del titolo, anche per siti come github.com. Funziona con l'icona da 180 px incorporata nella pagina come `data:` (`app/web/index.html`, dal 2026-10-31).
 
 ## 3. Funzioni escluse dallo Spec A
 
