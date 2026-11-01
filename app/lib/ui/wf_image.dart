@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
@@ -28,6 +29,7 @@ Widget _networkImage(ImageRef image, BoxFit fit) => LayoutBuilder(
         final memWidth = width.isFinite && width > 0
             ? (width * MediaQuery.devicePixelRatioOf(context)).round()
             : null;
+        if (kIsWeb) return webNetworkImage(image, fit, memWidth);
         return CachedNetworkImage(
           imageUrl: image.url,
           cacheManager: wonderflixImageCache,
@@ -46,6 +48,27 @@ Widget _networkImage(ImageRef image, BoxFit fit) => LayoutBuilder(
           },
         );
       },
+    );
+
+// CanvasKit su iPhone: la via <img> del pacchetto non crea le texture con tante immagini; NetworkImage decodifica i byte alla misura.
+@visibleForTesting
+Widget webNetworkImage(ImageRef image, BoxFit fit, int? memWidth) => Image(
+      image: ResizeImage.resizeIfNeeded(
+          memWidth, null, NetworkImage(image.url)),
+      fit: fit,
+      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) =>
+          wasSynchronouslyLoaded
+              ? child
+              : Stack(fit: StackFit.expand, children: [
+                  ImagePlaceholder(blurHash: image.blurHash),
+                  AnimatedOpacity(
+                    opacity: frame == null ? 0 : 1,
+                    duration: WfMotion.fast,
+                    child: child,
+                  ),
+                ]),
+      errorBuilder: (context, error, stackTrace) =>
+          const ImagePlaceholder(icon: LucideIcons.imageOff),
     );
 
 /// Come si disegna un'immagine di rete (sostituito nei widget test).
