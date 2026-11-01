@@ -237,6 +237,20 @@ void main() {
         const SocialFeatures(calendar: true));
   });
 
+  test('Info con la ricerca in background: funzione downloadsSearchJobs',
+      () async {
+    api.install(features: const {PluginFeatures.downloadsSearchJobs});
+    final c = container(
+        session: const SessionSignedIn(JellyfinUser(
+            id: 'u1', name: 'Mario', syncPlayAccess: SyncPlayAccess.none)));
+    await pumpEventQueue();
+    expect(c.read(socialAvailabilityProvider),
+        const SocialFeatures(downloadsSearchJobs: true));
+    expect(const SocialFeatures(downloadsSearchJobs: true),
+        isNot(const SocialFeatures()));
+    expect(SocialFeatures.none.downloadsSearchJobs, isFalse);
+  });
+
   test('Info senza il calendario: calendar falso', () async {
     api.install(features: const {PluginFeatures.home});
     final c = container(

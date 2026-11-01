@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/downloads/download_models.dart';
 import 'package:wonderflix/core/downloads/downloads_api.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
 
@@ -39,6 +40,58 @@ void main() {
     expect(request.queryParameters, {'key': 'movie:1'});
     expect(request.receiveTimeout, const Duration(seconds: 150));
     expect(search.title, 'Film');
+  });
+
+  test('StartSearchPostsKeyAndAgain', () async {
+    adapter.handler = (_) => const FakeResponse(200, {
+          'Key': 'movie:1',
+          'State': 'Running',
+          'StartedAt': '2026-11-01T10:00:00+01:00',
+          'Service': 'Radarr',
+          'Result': null,
+        });
+    final status = await api.startSearch('movie:1');
+    var request = adapter.requests.single;
+    expect((request.method, request.path),
+        ('POST', '/WonderFlixWatchParty/Downloads/SearchStart'));
+    expect(request.data, {'Key': 'movie:1', 'Again': false});
+    // Parte e risponde subito: niente attesa lunga.
+    expect(request.receiveTimeout, isNot(DownloadsApi.searchTimeout));
+    expect(status.state, DownloadSearchJobState.running);
+
+    adapter.requests.clear();
+    await api.startSearch('movie:1', again: true);
+    request = adapter.requests.single;
+    expect(request.data, {'Key': 'movie:1', 'Again': true});
+  });
+
+  test('SearchStatusGetsTheKey', () async {
+    adapter.handler = (_) => const FakeResponse(200, {
+          'Key': 'movie:1',
+          'State': 'None',
+          'StartedAt': null,
+          'Service': 'Radarr',
+          'Result': null,
+        });
+    final status = await api.searchStatus('movie:1');
+    final request = adapter.requests.single;
+    expect((request.method, request.path),
+        ('GET', '/WonderFlixWatchParty/Downloads/SearchStatus'));
+    expect(request.queryParameters, {'key': 'movie:1'});
+    expect(request.receiveTimeout, isNot(DownloadsApi.searchTimeout));
+    expect(status.state, DownloadSearchJobState.none);
+  });
+
+  test('SearchJobCallsMapErrors', () async {
+    adapter.handler = (_) => const FakeResponse(400);
+    expect(await failure(() => api.startSearch('x')), DownloadsFailure.invalid);
+    expect(await failure(() => api.searchStatus('x')), DownloadsFailure.invalid);
+    adapter.handler = (_) => const FakeResponse(404);
+    expect(await failure(() => api.searchStatus('x')),
+        DownloadsFailure.unavailable);
+    // Stato sconosciuto: risposta di forma inattesa.
+    adapter.handler = (_) => const FakeResponse(200, {'Key': 'x', 'State': 'Boh'});
+    expect(await failure(() => api.searchStatus('x')), DownloadsFailure.network);
   });
 
   test('GrabPostsKeyGuidAndIndexer', () async {

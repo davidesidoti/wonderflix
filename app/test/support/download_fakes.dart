@@ -122,6 +122,34 @@ class FakeDownloadsApi implements DownloadsApi {
     return done.future;
   }
 
+  /// Le risposte di [startSearch] e [searchStatus], in ordine: un
+  /// [DownloadSearchStatus] o un [DownloadsException] da lanciare. Vuota:
+  /// `Done` con [testSearch].
+  final searchStatuses = <Object>[];
+
+  Future<DownloadSearchStatus> _status(String call, String key) async {
+    calls.add(call);
+    if (searchStatuses.isEmpty) {
+      return DownloadSearchStatus(
+        key: key,
+        state: DownloadSearchJobState.done,
+        service: 'Radarr',
+        result: searchValue ?? testSearch(key),
+      );
+    }
+    final next = searchStatuses.removeAt(0);
+    if (next is DownloadSearchStatus) return next;
+    throw next;
+  }
+
+  @override
+  Future<DownloadSearchStatus> startSearch(String key, {bool again = false}) =>
+      _status('start $key${again ? ' again' : ''}', key);
+
+  @override
+  Future<DownloadSearchStatus> searchStatus(String key) =>
+      _status('status $key', key);
+
   Future<void> _action(String call) async {
     calls.add(call);
     if (actionGates.isNotEmpty) await actionGates.removeAt(0).future;

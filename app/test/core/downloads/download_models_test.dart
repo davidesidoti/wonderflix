@@ -15,6 +15,58 @@ Map<String, dynamic> releaseJson({Object? size = 4000000000, String guid = 'g1'}
     };
 
 void main() {
+  group('DownloadSearchStatus', () {
+    Map<String, dynamic> statusJson(String state,
+            {Object? startedAt, Object? result}) =>
+        {
+          'Key': 'movie:1',
+          'State': state,
+          'StartedAt': startedAt,
+          'Service': 'Radarr',
+          'Result': result,
+        };
+
+    test('RunningKeepsTheStartTime', () {
+      final status = DownloadSearchStatus.fromJson(
+          statusJson('Running', startedAt: '2026-11-01T10:00:00+01:00'))!;
+      expect(status.key, 'movie:1');
+      expect(status.state, DownloadSearchJobState.running);
+      expect(status.startedAt, DateTime.parse('2026-11-01T10:00:00+01:00'));
+      expect(status.service, 'Radarr');
+      expect(status.result, isNull);
+    });
+
+    test('DoneCarriesTheSearch', () {
+      final status = DownloadSearchStatus.fromJson(statusJson('Done', result: {
+        'Key': 'movie:1',
+        'Kind': 'Movie',
+        'Title': 'Film',
+        'RuntimeMinutes': 100,
+        'ValidCount': 0,
+        'TotalCount': 0,
+      }))!;
+      expect(status.state, DownloadSearchJobState.done);
+      expect(status.result?.title, 'Film');
+    });
+
+    test('MissingAndNoneNeedNothingElse', () {
+      expect(DownloadSearchStatus.fromJson(statusJson('Missing'))?.state,
+          DownloadSearchJobState.missing);
+      expect(DownloadSearchStatus.fromJson(statusJson('None'))?.state,
+          DownloadSearchJobState.none);
+    });
+
+    test('UnknownStateOrBrokenDoneIsNull', () {
+      expect(DownloadSearchStatus.fromJson(statusJson('Boh')), isNull);
+      expect(DownloadSearchStatus.fromJson(statusJson('Done')), isNull);
+      expect(
+          DownloadSearchStatus.fromJson(
+              statusJson('Done', result: {'Key': 'movie:1'})),
+          isNull);
+      expect(DownloadSearchStatus.fromJson({'Boh': 1}), isNull);
+    });
+  });
+
   test('AnOverviewParses', () {
     final overview = DownloadsOverview.fromJson({
       'Enabled': true,

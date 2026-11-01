@@ -84,6 +84,23 @@ class DownloadsApi {
               quietStatuses: _quiet))) ??
           (throw const ServerErrorException(null)));
 
+  /// Avvia la ricerca in background (o ne dà lo stato se c'è già): risponde
+  /// subito. [again]: rifà la ricerca anche se c'è un risultato.
+  Future<DownloadSearchStatus> startSearch(String key, {bool again = false}) =>
+      _call(() async =>
+          DownloadSearchStatus.fromJson(asJsonMap(await _http.post(
+              '$_base/SearchStart',
+              body: {'Key': key, 'Again': again},
+              quietStatuses: _quiet))) ??
+          (throw const ServerErrorException(null)));
+
+  Future<DownloadSearchStatus> searchStatus(String key) => _call(() async =>
+      DownloadSearchStatus.fromJson(asJsonMap(await _http.get(
+          '$_base/SearchStatus',
+          query: {'key': key},
+          quietStatuses: _quiet))) ??
+      (throw const ServerErrorException(null)));
+
   /// [lighten]: da "Alleggerisci" (spec U §6.1): il plugin segna il titolo
   /// come "va bene così", niente upgrade automatici dopo questo grab.
   Future<void> grab(String key, String guid, int indexerId,

@@ -43,6 +43,9 @@ abstract final class PluginFeatures {
 
   /// I download automatici (spec T §8), solo admin.
   static const downloads = 'downloads';
+
+  /// La ricerca dei download in background (spec W).
+  static const downloadsSearchJobs = 'downloadsSearchJobs';
   static const space = 'space';
 
   /// I consigli tra amici (spec N §6.6).

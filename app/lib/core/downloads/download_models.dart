@@ -656,3 +656,67 @@ class DownloadSearch {
     }
   }
 }
+
+/// Stato del lavoro di ricerca in background di un titolo (spec W).
+enum DownloadSearchJobState {
+  running('Running'),
+  done('Done'),
+
+  /// Il plugin non ha più il lavoro (scaduto) ma la ricerca era partita.
+  missing('Missing'),
+
+  /// Nessun lavoro: mai partito, o plugin riavviato.
+  none('None');
+
+  const DownloadSearchJobState(this.wire);
+
+  final String wire;
+}
+
+/// Risposta di `SearchStart` e `SearchStatus`.
+class DownloadSearchStatus {
+  const DownloadSearchStatus({
+    required this.key,
+    required this.state,
+    this.startedAt,
+    required this.service,
+    this.result,
+  });
+
+  final String key;
+  final DownloadSearchJobState state;
+
+  /// Quando il plugin ha avviato la ricerca (ora del server).
+  final DateTime? startedAt;
+
+  /// `Radarr` o `Sonarr`.
+  final String service;
+
+  /// Il risultato, solo con [DownloadSearchJobState.done].
+  final DownloadSearch? result;
+
+  /// `null` con uno stato sconosciuto o un `Done` senza risultato valido.
+  static DownloadSearchStatus? fromJson(Map<String, dynamic> json) {
+    try {
+      final state = DownloadSearchJobState.values
+          .where((s) => s.wire == json['State'])
+          .firstOrNull;
+      if (state == null) return null;
+      final raw = json['Result'];
+      final result =
+          raw == null ? null : DownloadSearch.fromJson((raw as Map).cast());
+      if (state == DownloadSearchJobState.done && result == null) return null;
+      final startedAt = json['StartedAt'];
+      return DownloadSearchStatus(
+        key: json['Key'] as String,
+        state: state,
+        startedAt:
+            startedAt == null ? null : DateTime.parse(startedAt as String),
+        service: json['Service'] as String,
+        result: result,
+      );
+    } on Object {
+      return null;
+    }
+  }
+}

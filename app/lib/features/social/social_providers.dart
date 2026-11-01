@@ -30,6 +30,7 @@ class SocialFeatures {
     this.upcomingMovies = false,
     this.calendar = false,
     this.downloads = false,
+    this.downloadsSearchJobs = false,
     this.space = false,
     this.recommendations = false,
     this.friendsActivity = false,
@@ -83,6 +84,10 @@ class SocialFeatures {
 
   /// I download automatici (spec T §8): non dipendono dai watch party.
   final bool downloads;
+
+  /// La ricerca dei download in background (spec W): senza, l'app aspetta
+  /// la risposta di `Search` come prima.
+  final bool downloadsSearchJobs;
   final bool space;
 
   /// I consigli tra amici (spec N §7.1): come gli amici, solo con l'accesso
@@ -128,6 +133,7 @@ class SocialFeatures {
       other.upcomingMovies == upcomingMovies &&
       other.calendar == calendar &&
       other.downloads == downloads &&
+      other.downloadsSearchJobs == downloadsSearchJobs &&
       other.space == space &&
       other.recommendations == recommendations &&
       other.friendsActivity == friendsActivity &&
@@ -138,7 +144,7 @@ class SocialFeatures {
       other.known == known;
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
       friends,
       parties,
       inbox,
@@ -151,6 +157,7 @@ class SocialFeatures {
       upcomingMovies,
       calendar,
       downloads,
+      downloadsSearchJobs,
       space,
       recommendations,
       friendsActivity,
@@ -158,13 +165,13 @@ class SocialFeatures {
       ratings,
       reports,
       push,
-      known);
+      known]);
 
   @override
   String toString() => 'SocialFeatures(friends: $friends, parties: $parties, '
       'inbox: $inbox, requests: $requests, collections: $collections, '
       'avatars: $avatars, account: $account, home: $home, '
-      'upcomingSeries: $upcomingSeries, upcomingMovies: $upcomingMovies, calendar: $calendar, downloads: $downloads, space: $space, '
+      'upcomingSeries: $upcomingSeries, upcomingMovies: $upcomingMovies, calendar: $calendar, downloads: $downloads, downloadsSearchJobs: $downloadsSearchJobs, space: $space, '
       'recommendations: $recommendations, friendsActivity: $friendsActivity, match: $match, ratings: $ratings, reports: $reports, push: $push, known: $known)';
 }
 
@@ -269,6 +276,8 @@ class SocialAvailability extends Notifier<SocialFeatures> {
         upcomingMovies: info.features.contains(PluginFeatures.upcomingMovies),
         calendar: info.features.contains(PluginFeatures.calendar),
         downloads: info.features.contains(PluginFeatures.downloads),
+        downloadsSearchJobs:
+            info.features.contains(PluginFeatures.downloadsSearchJobs),
         space: info.features.contains(PluginFeatures.space),
         recommendations:
             _canJoin && info.features.contains(PluginFeatures.recommendations),
