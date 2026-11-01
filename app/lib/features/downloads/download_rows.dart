@@ -4,7 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/theme.dart';
 import '../../core/downloads/download_models.dart';
-import '../../core/jellyfin/image_urls.dart';
+import '../../core/requests/remote_images.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/wf_image.dart';
@@ -73,7 +73,7 @@ class RowShell extends StatelessWidget {
             height: 60,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: WfImage(image: url == null ? null : ImageRef(url)),
+              child: WfImage(image: url == null ? null : RemoteImages.poster(url)),
             ),
           ),
           const SizedBox(width: 12),

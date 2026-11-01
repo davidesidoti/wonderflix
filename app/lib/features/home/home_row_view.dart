@@ -6,9 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/navigation.dart';
-import '../../core/jellyfin/image_urls.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/json_fields.dart';
+import '../../core/requests/remote_images.dart';
 import '../../core/requests/requests_models.dart';
 import '../../core/requests/tmdb_images.dart';
 import '../../core/social/home_models.dart';
@@ -209,7 +209,7 @@ class HomeRowView extends ConsumerWidget {
             ? urls.backdropOf(seriesId)
             : remote == null
                 ? null
-                : ImageRef(remote),
+                : RemoteImages.backdrop(remote),
         title: episode.seriesName,
         subtitle: upcomingEpisodeLabel(episode, now, l),
         onTap: seriesId != null
@@ -232,7 +232,7 @@ class HomeRowView extends ConsumerWidget {
       return RemoteImageCard(
         shape: RemoteCardShape.poster,
         width: rowPosterSize(context).width,
-        image: poster == null ? null : ImageRef(poster),
+        image: poster == null ? null : RemoteImages.poster(poster),
         title: movie.title,
         subtitle: upcomingMovieLabel(movie, l),
         onTap: canRequest

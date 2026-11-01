@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/theme.dart';
-import '../../core/jellyfin/image_urls.dart';
+import '../../core/requests/remote_images.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_dialog.dart';
 import '../../ui/wf_image.dart';
@@ -117,7 +117,7 @@ class _DayRow extends StatelessWidget {
                 width: _posterWidth,
                 height: _posterHeight,
                 child: WfImage(
-                  image: poster == null ? null : ImageRef(poster),
+                  image: poster == null ? null : RemoteImages.poster(poster),
                   fallbackIcon: entry.kind == CalendarEntryKind.movie
                       ? LucideIcons.film
                       : LucideIcons.tv,

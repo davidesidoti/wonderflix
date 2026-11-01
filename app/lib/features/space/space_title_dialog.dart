@@ -7,7 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/theme.dart';
-import '../../core/jellyfin/image_urls.dart';
+import '../../core/requests/remote_images.dart';
 import '../../core/space/space_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_buttons.dart';
@@ -153,7 +153,7 @@ class _TitleBodyState extends ConsumerState<_TitleBody> {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(6),
                   child: WfImage(
-                    image: poster == null ? null : ImageRef(poster),
+                    image: poster == null ? null : RemoteImages.poster(poster),
                   ),
                 ),
               ),
