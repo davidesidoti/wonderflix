@@ -70,6 +70,9 @@ public sealed class DownloadEntry
 
     public DateTimeOffset? LastProgressAt { get; set; }
 
+    /// <summary>Da quando il torrent è fermo sul recupero dei metadati (il magnet non si risolve); null se non lo è.</summary>
+    public DateTimeOffset? MetadataSince { get; set; }
+
     public int? CurrentScore { get; set; }
 
     public int? CurrentQualityId { get; set; }

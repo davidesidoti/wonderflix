@@ -401,6 +401,7 @@ public sealed partial class DownloadService
         entry.Snoozed = false;
         entry.Summary = null;
         entry.LastSearchAt = now;
+        entry.MetadataSince = null;
         entry.PreviousScore = upgrade ? entry.CurrentScore : null;
         entry.PreviousQualityId = upgrade ? entry.CurrentQualityId : null;
         entry.PreviousSizeBytes = upgrade ? entry.CurrentSizeBytes : null;
@@ -514,6 +515,7 @@ public sealed partial class DownloadService
         entry.QueueId = null;
         entry.LastSizeLeft = null;
         entry.LastProgressAt = null;
+        entry.MetadataSince = null;
         entry.CurrentScore = entry.PreviousScore;
         entry.CurrentQualityId = entry.PreviousQualityId;
         entry.CurrentSizeBytes = entry.PreviousSizeBytes;

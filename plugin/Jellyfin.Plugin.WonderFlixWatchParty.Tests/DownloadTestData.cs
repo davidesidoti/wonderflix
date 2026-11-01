@@ -35,6 +35,10 @@ internal static class DownloadTestData
     public static ArrQueueItem MovieQueue(int queueId, int movieId, long sizeLeft, string state = "downloading", string status = "downloading") =>
         new() { Id = queueId, MovieId = movieId, Size = 10_000, Sizeleft = sizeLeft, TrackedDownloadState = state, Status = status };
 
+    // Il magnet non si risolve: in coda, ma per Radarr/Sonarr "downloading" con questo messaggio, peso 0.
+    public static ArrQueueItem MetadataQueue(int queueId, int movieId, string message = "qBittorrent is downloading metadata") =>
+        new() { Id = queueId, MovieId = movieId, Size = 0, Sizeleft = 0, TrackedDownloadState = "downloading", Status = "queued", ErrorMessage = message };
+
     public static ArrQueueItem EpisodeQueue(int queueId, int episodeId, long sizeLeft) =>
         new() { Id = queueId, EpisodeId = episodeId, SeriesId = 7, SeasonNumber = 2, Size = 10_000, Sizeleft = sizeLeft, TrackedDownloadState = "downloading", Status = "downloading" };
 

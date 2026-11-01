@@ -726,6 +726,17 @@ public class ArrClientTests
     }
 
     [Fact]
+    public async Task TheQueueReadsTheErrorMessage()
+    {
+        Answer(HttpStatusCode.OK, """{"totalRecords":2,"records":[{"id":1,"status":"queued","errorMessage":"qBittorrent is downloading metadata"},{"id":2}]}""");
+
+        var items = await Client().GetQueueAsync(ArrKind.Radarr, CancellationToken.None);
+
+        Assert.Equal("qBittorrent is downloading metadata", items[0]!.ErrorMessage);
+        Assert.Null(items[1]!.ErrorMessage);
+    }
+
+    [Fact]
     public async Task TheQueueReadsTheStatusMessages()
     {
         Answer(HttpStatusCode.OK, """{"totalRecords":2,"records":[{"id":1,"trackedDownloadState":"importBlocked","statusMessages":[{"title":"a.mkv","messages":["Not an upgrade",null]},null,{"title":null,"messages":null}]},{"id":2,"statusMessages":null}]}""");

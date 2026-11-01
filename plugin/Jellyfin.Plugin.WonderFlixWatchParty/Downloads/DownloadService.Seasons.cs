@@ -164,10 +164,11 @@ public sealed partial class DownloadService
     }
 
     // Gli elementi di un pack come un download solo: l'id più basso, la somma di sizeleft (che resta uguale solo se resta
-    // uguale ognuno); scarica solo se scaricano tutti (anche in "warning", ruling 11), ImportBlocked se lo è uno.
+    // uguale ognuno); scarica solo se scaricano tutti (anche in "warning", ruling 11), ImportBlocked se lo è uno, fermo sui metadati se lo è uno.
     private static ArrQueueItem PackQueueItem(IReadOnlyList<ArrQueueItem> records)
     {
         var downloading = records.All(IsActive);
+        var fetching = records.FirstOrDefault(IsFetchingMetadata);
         var blocked = records.Any(r => string.Equals(r.TrackedDownloadState, ImportBlockedState, StringComparison.OrdinalIgnoreCase));
         return new ArrQueueItem
         {
@@ -177,7 +178,8 @@ public sealed partial class DownloadService
             DownloadId = records[0].DownloadId,
             Sizeleft = records.Sum(r => r.Sizeleft),
             Status = downloading ? DownloadingState : null,
-            TrackedDownloadState = blocked ? ImportBlockedState : downloading ? DownloadingState : null,
+            TrackedDownloadState = blocked ? ImportBlockedState : downloading || fetching is not null ? DownloadingState : null,
+            ErrorMessage = fetching?.ErrorMessage,
             StatusMessages = [.. records.SelectMany(r => r.StatusMessages ?? [])],
         };
     }

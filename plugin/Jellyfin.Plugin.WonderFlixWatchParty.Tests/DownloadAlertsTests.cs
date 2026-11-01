@@ -134,6 +134,20 @@ public sealed class DownloadAlertsTests : IDisposable
     }
 
     [Fact]
+    public async Task RemoveStalled_AMetadataFetchRaisesHistory()
+    {
+        _movies = [Movie(12)];
+        _queue = [MetadataQueue(90, 12)];
+        await _downloads.RunCycleAsync(CancellationToken.None);
+
+        _time.Advance(DownloadSchedule.MetadataStalledAfter);
+        await _downloads.RunCycleAsync(CancellationToken.None);
+
+        var entry = Assert.Single(Entries());
+        Assert.Equal((InboxEntryTypes.DownloadStalled, "Dune (2021)"), (entry.Type, entry.Title));
+    }
+
+    [Fact]
     public async Task Start_SyncsStaleAlerts()
     {
         // Una voce di prima del riavvio, per un titolo che non serve più.

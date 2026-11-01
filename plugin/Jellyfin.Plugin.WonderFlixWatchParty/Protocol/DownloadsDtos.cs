@@ -43,12 +43,13 @@ public sealed record DownloadItemDto(
     [property: JsonPropertyName("Snoozed")] bool Snoozed,
     [property: JsonPropertyName("Progress")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  DownloadProgressDto? Progress);
 
-/// <summary>L'avanzamento di un download dalla coda di Radarr/Sonarr; Status è il codice della coda, in minuscolo come arriva ("downloading", "queued", "paused", ...).</summary>
+/// <summary>L'avanzamento di un download dalla coda di Radarr/Sonarr; Status è il codice della coda, in minuscolo come arriva ("downloading", "queued", "paused", ...), o "metadata" se il torrent è fermo sul recupero dei metadati: allora Since è da quando.</summary>
 public sealed record DownloadProgressDto(
     [property: JsonPropertyName("SizeBytes")] long SizeBytes,
     [property: JsonPropertyName("SizeLeftBytes")] long SizeLeftBytes,
     [property: JsonPropertyName("EstimatedCompletion")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  DateTimeOffset? EstimatedCompletion,
-    [property: JsonPropertyName("Status")] string Status);
+    [property: JsonPropertyName("Status")] string Status,
+    [property: JsonPropertyName("Since")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  DateTimeOffset? Since = null);
 
 /// <summary>Il riassunto dell'ultima ricerca di una voce in "Serve te": numeri, nessun testo tranne il rifiuto di Sonarr/Radarr.</summary>
 public sealed record DownloadSummaryDto(

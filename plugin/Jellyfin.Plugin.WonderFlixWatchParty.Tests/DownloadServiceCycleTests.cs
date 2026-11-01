@@ -217,6 +217,57 @@ public sealed class DownloadServiceCycleTests : IDisposable
     }
 
     [Fact]
+    public async Task AMetadataFetchIsRemembered()
+    {
+        _movies = [Movie(12)];
+        _radarrQueue = [MetadataQueue(90, 12)];
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Equal(T0, Saved("movie:12")!.MetadataSince);
+
+        _time.Advance(TimeSpan.FromHours(1));
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Equal(T0, Saved("movie:12")!.MetadataSince);
+
+        _radarrQueue = [MovieQueue(90, 12, 5_000)];
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Null(Saved("movie:12")!.MetadataSince);
+    }
+
+    [Fact]
+    public async Task AMetadataFetchIsReplacedAfterSixHours()
+    {
+        _movies = [Movie(12)];
+        _radarrQueue = [MetadataQueue(90, 12)];
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        _time.Advance(DownloadSchedule.MetadataStalledAfter - TimeSpan.FromMinutes(1));
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Empty(_arr.RemoveFromQueueCalls);
+
+        _time.Advance(TimeSpan.FromMinutes(1));
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Equal((ArrKind.Radarr, 90, true, true), Assert.Single(_arr.RemoveFromQueueCalls));
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.Waiting, (int?)null, (DateTimeOffset?)_time.GetUtcNow(), (DateTimeOffset?)null), (entry.State, entry.QueueId, entry.LastSearchAt, entry.MetadataSince));
+    }
+
+    [Fact]
+    public async Task AQueuedItemWithoutMetadataMessageIsNotStalled()
+    {
+        _movies = [Movie(12)];
+        _radarrQueue = [MovieQueue(90, 12, 5_000, status: "queued")];
+        for (var cycle = 0; cycle < 12 * 4; cycle++)
+        {
+            await _service.RunCycleAsync(CancellationToken.None);
+            _time.Advance(DownloadService.CycleInterval);
+        }
+
+        Assert.Empty(_arr.RemoveFromQueueCalls);
+        Assert.Null(Saved("movie:12")!.MetadataSince);
+    }
+
+    [Fact]
     public async Task AStalledTorrentInWarningIsRemoved()
     {
         // stalledDL di qBittorrent: status "warning" con trackedDownloadState "downloading" (visto su Sonarr, ruling 11).

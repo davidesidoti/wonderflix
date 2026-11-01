@@ -328,7 +328,8 @@ public sealed partial class DownloadService
 
     /// <summary>
     /// "Scarta e cerca un altro" (spec §4.4): il download esce dalla coda e dal client con la blocklist, poi una ricerca subito.
-    /// La voce torna in attesa, o a tenere d'occhio l'upgrade con il file di prima.
+    /// La voce torna in attesa, o a tenere d'occhio l'upgrade con il file di prima. Vale per un import bloccato e per un
+    /// download fermo sui metadati (<see cref="DownloadEntry.MetadataSince"/>), che si scarta senza aspettare le ore della soglia.
     /// </summary>
     public async Task<BlockedOutcome> DiscardBlockedAsync(string key)
     {
@@ -340,7 +341,7 @@ public sealed partial class DownloadService
         lock (_lock)
         {
             // Come per l'import: una seconda azione sulla stessa chiave trova la voce che cambia.
-            if (Blocked(parsed) is null || !_grabbing.Add(parsed.ToString()))
+            if (Discardable(parsed) is null || !_grabbing.Add(parsed.ToString()))
             {
                 return BlockedOutcome.Changed;
             }
@@ -355,7 +356,7 @@ public sealed partial class DownloadService
 
             lock (_lock)
             {
-                if (Blocked(parsed) is { } entry)
+                if (Discardable(parsed) is { } entry)
                 {
                     var now = time.GetUtcNow();
                     if (entry.PreviousScore is not null)
@@ -389,6 +390,10 @@ public sealed partial class DownloadService
     // Solo sotto _lock. La voce ferma perché Radarr/Sonarr non importano; null in un altro stato.
     private DownloadEntry? Blocked(DownloadKey key) =>
         Book.Get(key.ToString()) is { State: DownloadStates.NeedsYou, Reason: DownloadReasons.ImportBlocked } entry ? entry : null;
+
+    // Solo sotto _lock. La voce che "Scarta" può togliere: bloccata sull'import, o ferma sui metadati; null in un altro stato.
+    private DownloadEntry? Discardable(DownloadKey key) =>
+        Blocked(key) ?? (Book.Get(key.ToString()) is { State: DownloadStates.Downloading, MetadataSince: not null } entry ? entry : null);
 
     /// <summary>I grab di "Alleggerisci" ancora ricordati, per la scheda spazio: una copia.</summary>
     public IReadOnlyDictionary<string, DateTimeOffset> LightenedKeys()
@@ -579,8 +584,10 @@ public sealed partial class DownloadService
     {
         var since = time.GetUtcNow() - DownloadBook.ChoiceRetention;
         DownloadsOverviewDto overview;
+        Dictionary<string, DateTimeOffset> metadataSince;
         lock (_lock)
         {
+            metadataSince = Book.Entries.Where(e => e.MetadataSince is not null).ToDictionary(e => e.Key, e => e.MetadataSince!.Value);
             // Prune gira solo a fine giro: le scelte vecchie si filtrano anche qui.
             overview = new DownloadsOverviewDto(
                 settings.Enabled,
@@ -612,10 +619,14 @@ public sealed partial class DownloadService
         return overview with
         {
             Waiting = [.. overview.Waiting.Select(i => i.State == DownloadStates.Downloading && queues.GetValueOrDefault(ServiceOf(i.Kind)) is { } p
-                ? i with { Progress = p.GetValueOrDefault(i.Key) }
+                ? i with { Progress = WithSince(p.GetValueOrDefault(i.Key), metadataSince.GetValueOrDefault(i.Key)) }
                 : i)],
         };
     }
+
+    // "metadata" dice da quando lo è la voce (la lettura della coda in cache non lo sa); altrimenti l'avanzamento com'è.
+    private static DownloadProgressDto? WithSince(DownloadProgressDto? progress, DateTimeOffset since) =>
+        progress is { Status: MetadataStatus } ? progress with { Since = since == default ? null : since } : progress;
 
     // La coda di un servizio come avanzamento per chiave, con le stesse regole del giro. Non ha il token di chi chiede: la lettura è condivisa dalla cache.
     private async Task<IReadOnlyDictionary<string, DownloadProgressDto>> ReadProgressAsync(ArrKind kind)
@@ -632,7 +643,9 @@ public sealed partial class DownloadService
     private static DownloadProgressDto ProgressOf(IReadOnlyList<ArrQueueItem> items)
     {
         var downloads = items.Where(i => i.DownloadId is null).Concat(items.Where(i => i.DownloadId is not null).DistinctBy(i => i.DownloadId)).ToList();
-        var status = items.FirstOrDefault(i => string.Equals(i.Status, DownloadingState, StringComparison.OrdinalIgnoreCase))?.Status ?? items[0].Status;
+        var status = items.Any(IsFetchingMetadata)
+            ? MetadataStatus
+            : items.FirstOrDefault(i => string.Equals(i.Status, DownloadingState, StringComparison.OrdinalIgnoreCase))?.Status ?? items[0].Status;
         return new DownloadProgressDto(downloads.Sum(i => i.Size), downloads.Sum(i => i.Sizeleft), items.Max(i => i.EstimatedCompletionTime), status ?? "unknown");
     }
 

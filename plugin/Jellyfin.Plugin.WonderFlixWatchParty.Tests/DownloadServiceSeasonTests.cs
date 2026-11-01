@@ -275,6 +275,34 @@ public sealed class DownloadServiceSeasonTests : IDisposable
     }
 
     [Fact]
+    public async Task APackFetchingMetadataIsReplacedAfterSixHours()
+    {
+        WholeSeason();
+        _releases = [Pack("pack", 3, 50)];
+        await Cycle();
+        _releases = [];
+
+        // Un solo elemento porta il messaggio: basta perché il pack intero aspetti i metadati.
+        _time.Advance(DownloadService.CycleInterval);
+        _sonarrQueue = [EpisodeQueue(91, 201, 0), EpisodeQueue(92, 202, 0), EpisodeQueue(93, 203, 0)];
+        foreach (var item in _sonarrQueue)
+        {
+            item!.Status = "queued";
+        }
+
+        _sonarrQueue[1]!.ErrorMessage = "qBittorrent is downloading metadata";
+        await Cycle();
+        Assert.Equal(_time.GetUtcNow(), Saved("season:7:2")!.MetadataSince);
+
+        SearchesFail();
+        _time.Advance(DownloadSchedule.MetadataStalledAfter);
+        await Cycle();
+
+        Assert.Equal([91, 92, 93], _arr.RemoveFromQueueCalls.Select(c => c.QueueId));
+        Assert.Equal(DownloadStates.Waiting, Saved("season:7:2")!.State);
+    }
+
+    [Fact]
     public async Task AStalledPackInWarningIsRemoved()
     {
         WholeSeason();

@@ -307,6 +307,9 @@ public sealed class ArrQueueItem
     /// <summary>Lo stato nel client: "downloading", "queued", "paused", "delay", "downloadClientUnavailable", "completed", "warning", ...</summary>
     public string? Status { get; set; }
 
+    /// <summary>Il messaggio del client, per esempio "qBittorrent is downloading metadata" mentre il magnet non si risolve.</summary>
+    public string? ErrorMessage { get; set; }
+
     /// <summary>Quando Radarr/Sonarr stimano la fine del download; assente se non lo sanno.</summary>
     public DateTimeOffset? EstimatedCompletionTime { get; set; }
 

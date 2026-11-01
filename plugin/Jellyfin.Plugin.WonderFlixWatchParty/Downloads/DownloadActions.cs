@@ -19,7 +19,8 @@ public static class DownloadActions
     {
         if (entry.State != DownloadStates.NeedsYou)
         {
-            return [Pick, SearchNow];
+            // Fermo sui metadati: si può scartare a mano senza aspettare le ore della soglia.
+            return entry.State == DownloadStates.Downloading && entry.MetadataSince is not null ? [Pick, SearchNow, Discard] : [Pick, SearchNow];
         }
 
         var canGrab = entry.Kind != DownloadKinds.Season;

@@ -1043,6 +1043,59 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Assert.Equal((DownloadStates.UpgradeWatch, (int?)0, (int?)Bluray1080, (long?)(12 * Gb), (int?)null, T0), (entry.State, entry.CurrentScore, entry.CurrentQualityId, entry.CurrentSizeBytes, entry.PreviousScore, entry.NextSearchAt));
     }
 
+    // Un download fermo sui metadati: in coda da T0.
+    private void FetchingMetadata(Action<DownloadEntry>? change = null)
+    {
+        var book = new DownloadBook();
+        var entry = new DownloadEntry
+        {
+            Key = "movie:12", Kind = DownloadKinds.Movie, Title = "Dune", State = DownloadStates.Downloading, AvailableSince = T0,
+            NextSearchAt = T0 + TimeSpan.FromDays(1), QueueId = 77, MetadataSince = T0 - TimeSpan.FromHours(2),
+        };
+        change?.Invoke(entry);
+        book.Put(entry);
+        Store().Save(book);
+    }
+
+    [Fact]
+    public async Task DiscardWorksWhileFetchingMetadata()
+    {
+        FetchingMetadata();
+        _radarrQueue = [MetadataQueue(77, 12)];
+        var nudges = 0;
+        _service.Nudged += () => nudges++;
+
+        Assert.Equal(BlockedOutcome.Ok, await _service.DiscardBlockedAsync("movie:12"));
+
+        Assert.Equal((ArrKind.Radarr, 77, true, true), Assert.Single(_arr.RemoveFromQueueCalls));
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.Waiting, (int?)null, (DateTimeOffset?)null, T0, 1), (entry.State, entry.QueueId, entry.MetadataSince, entry.NextSearchAt, nudges));
+    }
+
+    [Fact]
+    public async Task DiscardOfAPlainDownloadIsChanged()
+    {
+        FetchingMetadata(e => e.MetadataSince = null);
+        _radarrQueue = [MovieQueue(77, 12, 5_000)];
+
+        Assert.Equal(BlockedOutcome.Changed, await _service.DiscardBlockedAsync("movie:12"));
+
+        Assert.Empty(_arr.RemoveFromQueueCalls);
+        Assert.Equal(DownloadStates.Downloading, Saved("movie:12")!.State);
+    }
+
+    [Fact]
+    public async Task TheOverviewMarksAMetadataFetch()
+    {
+        FetchingMetadata();
+        _radarrQueue = [MetadataQueue(77, 12)];
+
+        var item = Assert.Single((await _service.OverviewAsync(CancellationToken.None)).Waiting);
+
+        Assert.Equal(new DownloadProgressDto(0, 0, null, "metadata", T0 - TimeSpan.FromHours(2)), item.Progress);
+        Assert.Equal(["Pick", "SearchNow", "Discard"], item.Actions);
+    }
+
     // Una voce in download, scritta prima che il servizio legga il file.
     private void Downloading(string key, string kind, string state = DownloadStates.Downloading)
     {

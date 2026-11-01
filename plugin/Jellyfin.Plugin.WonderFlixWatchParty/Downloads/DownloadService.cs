@@ -48,6 +48,9 @@ public sealed partial class DownloadService(
     // Status di un torrent senza connessioni (stalledDL di qBittorrent, visto su Sonarr): scarica, ma niente (ruling 11).
     private const string WarningStatus = "warning";
 
+    // Lo stato che l'avanzamento mostra a un torrent fermo sui metadati (non esiste nella coda).
+    private const string MetadataStatus = "metadata";
+
     private readonly Lock _lock = new();
     private DownloadBook? _book;
     private (string? Sonarr, string? Radarr) _lastErrors;
@@ -391,6 +394,8 @@ public sealed partial class DownloadService(
             entry.LastProgressAt = now;
         }
 
+        // Il magnet non si risolve: l'orologio parte alla prima volta e resta finché dura.
+        entry.MetadataSince = IsFetchingMetadata(item) ? entry.MetadataSince ?? now : null;
         entry.State = DownloadStates.Downloading;
         entry.Reason = null;
         entry.DownloadId = item.DownloadId;
@@ -404,10 +409,14 @@ public sealed partial class DownloadService(
         // Radarr/Sonarr non lo bloccano più: l'import dell'admin è andato avanti.
         entry.AdminImportAt = null;
 
-        return active
-            && entry.LastProgressAt is { } since
-            && now - since >= DownloadSchedule.StalledAfter;
+        return (active && entry.LastProgressAt is { } since && now - since >= DownloadSchedule.StalledAfter)
+            || (entry.MetadataSince is { } metadata && now - metadata >= DownloadSchedule.MetadataStalledAfter);
     }
+
+    // In coda, ma il client sta ancora cercando i metadati del magnet ("qBittorrent is downloading metadata"): per Radarr/Sonarr "downloading" senza scaricare.
+    private static bool IsFetchingMetadata(ArrQueueItem item) =>
+        string.Equals(item.TrackedDownloadState, DownloadingState, StringComparison.OrdinalIgnoreCase)
+        && item.ErrorMessage?.Contains("metadata", StringComparison.OrdinalIgnoreCase) == true;
 
     // Scarica (anche senza connessioni, "warning"): solo così può essere fermo (ruling 11).
     private static bool IsActive(ArrQueueItem item) =>
@@ -443,6 +452,7 @@ public sealed partial class DownloadService(
         entry.QueueId = null;
         entry.LastSizeLeft = null;
         entry.LastProgressAt = null;
+        entry.MetadataSince = null;
         entry.PreviousScore = null;
         entry.PreviousQualityId = null;
         entry.PreviousSizeBytes = null;
@@ -554,6 +564,7 @@ public sealed partial class DownloadService(
         entry.QueueId = null;
         entry.LastSizeLeft = null;
         entry.LastProgressAt = null;
+        entry.MetadataSince = null;
         entry.NextSearchAt = now;
 
         // Il file non è arrivato: la scelta non conta più per gli upgrade.

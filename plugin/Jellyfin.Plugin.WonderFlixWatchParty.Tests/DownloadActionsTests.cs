@@ -49,6 +49,12 @@ public sealed class DownloadActionsTests
     public void GrabRefusedOffersPickAndSearch() =>
         Assert.Equal(["Pick", "SearchNow"], DownloadActions.For(NeedsYou(DownloadReasons.GrabRefused)));
 
+    [Fact]
+    public void DownloadingWhileFetchingMetadataCanBeDiscarded() =>
+        Assert.Equal(["Pick", "SearchNow", "Discard"], DownloadActions.For(new DownloadEntry { State = DownloadStates.Downloading, MetadataSince = T0 }));
+
+    private static readonly DateTimeOffset T0 = new(2026, 10, 28, 12, 0, 0, TimeSpan.Zero);
+
     [Theory]
     [InlineData(DownloadStates.Waiting)]
     [InlineData(DownloadStates.Downloading)]
