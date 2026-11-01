@@ -340,9 +340,15 @@ class _Tag extends StatelessWidget {
 
 /// Un file da ripassare: punteggio e peso di quello che c'è ora.
 class ReviewRow extends StatelessWidget {
-  const ReviewRow({super.key, required this.item, required this.onOpen});
+  const ReviewRow({
+    super.key,
+    required this.item,
+    required this.onHunt,
+    required this.onOpen,
+  });
 
   final ReviewItem item;
+  final Future<void> Function() onHunt;
   final VoidCallback onOpen;
 
   @override
@@ -367,6 +373,11 @@ class ReviewRow extends StatelessWidget {
         ),
       ],
       actions: [
+        AdminActionButton(
+          label: l.downloadsActionHunt,
+          icon: LucideIcons.refreshCw,
+          onPressed: onHunt,
+        ),
         AdminActionButton(
           label: l.downloadsOpen,
           icon: LucideIcons.search,

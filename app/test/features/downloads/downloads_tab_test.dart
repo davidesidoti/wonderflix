@@ -212,6 +212,33 @@ void main() {
     expect(find.text('Ricerca avviata'), findsOneWidget);
   });
 
+  testWidgets('Cerca un upgrade chiama il plugin e rilegge', (tester) async {
+    api.overviewValue = DownloadsOverview(enabled: true, review: [_review(4)]);
+    await pumpTab(tester);
+    api.calls.clear();
+
+    await tester.tap(find.text('Cerca un upgrade'));
+    await tester.pumpAndSettle();
+
+    expect(api.calls, ['hunt movie:4', 'overview']);
+    expect(find.text('Ricerca avviata'), findsOneWidget);
+  });
+
+  testWidgets('Cerca un upgrade su un titolo cambiato lo dice e rilegge',
+      (tester) async {
+    api.overviewValue = DownloadsOverview(enabled: true, review: [_review(4)]);
+    await pumpTab(tester);
+    api.calls.clear();
+    api.nextActionFailure = DownloadsFailure.changed;
+
+    await tester.tap(find.text('Cerca un upgrade'));
+    await tester.pumpAndSettle();
+
+    expect(api.calls, ['hunt movie:4', 'overview']);
+    expect(find.text('È cambiato qualcosa nel frattempo: ricarico'),
+        findsOneWidget);
+  });
+
   group('fasi della ricerca', () {
     LinearProgressIndicator bar(WidgetTester tester) =>
         tester.widget(find.byType(LinearProgressIndicator));

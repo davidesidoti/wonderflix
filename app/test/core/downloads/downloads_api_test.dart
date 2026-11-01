@@ -101,6 +101,7 @@ void main() {
       (() => api.snooze('k'), 'Snooze'),
       (() => api.importBlocked('k'), 'Import'),
       (() => api.discard('k'), 'Discard'),
+      (() => api.hunt('k'), 'Hunt'),
     ]) {
       adapter.requests.clear();
       await call();
@@ -121,6 +122,7 @@ void main() {
     expect(await failure(() => api.grabBest('k')), DownloadsFailure.nothingToGrab);
     adapter.handler = (_) => const FakeResponse(409, {'Reason': 'Changed'});
     expect(await failure(() => api.discard('k')), DownloadsFailure.changed);
+    expect(await failure(() => api.hunt('k')), DownloadsFailure.changed);
     adapter.handler = (_) => const FakeResponse(502, {'Reason': 'NoFiles'});
     expect(await failure(() => api.importBlocked('k')), DownloadsFailure.noFiles);
     adapter.handler = (_) => const FakeResponse(502, {'Reason': 'ImportFailed'});

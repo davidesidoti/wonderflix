@@ -121,6 +121,10 @@ class DownloadsApi {
   Future<void> discard(String key) => _call(() =>
       _http.post('$_base/Discard', body: {'Key': key}, quietStatuses: _quiet));
 
+  /// "Cerca un upgrade" da "Da ripassare": il plugin cerca al prossimo giro.
+  Future<void> hunt(String key) => _call(() =>
+      _http.post('$_base/Hunt', body: {'Key': key}, quietStatuses: _quiet));
+
   Future<T> _call<T>(Future<T> Function() request) async {
     try {
       return await request();

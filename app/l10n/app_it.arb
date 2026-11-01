@@ -1264,6 +1264,7 @@
   "downloadsWatch": "Guarda",
   "downloadsChange": "Cambia",
   "downloadsOpen": "Apri",
+  "downloadsActionHunt": "Cerca un upgrade",
   "downloadsSearchNow": "Cerca ora",
   "downloadsSearchQueued": "In coda per la ricerca…",
   "downloadsSearching": "Cerco tra gli indexer…",

@@ -130,22 +130,32 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
       unawaited(_open(key, item.title));
       return;
     }
+    final api = ref.read(downloadsApiProvider);
+    await _call(switch (action) {
+      DownloadAction.grabBest => () => api.grabBest(key),
+      DownloadAction.snooze => () => api.snooze(key),
+      DownloadAction.import => () => api.importBlocked(key),
+      DownloadAction.discard => () => api.discard(key),
+      DownloadAction.searchNow ||
+      DownloadAction.pick => () => api.searchNow(key),
+    }, started: action == DownloadAction.searchNow);
+  }
+
+  /// Chiama il plugin, dice l'esito ("Ricerca avviata" se [started]) e
+  /// rilegge.
+  Future<void> _call(
+    Future<void> Function() request, {
+    bool started = false,
+  }) async {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
-    final api = ref.read(downloadsApiProvider);
     try {
-      await switch (action) {
-        DownloadAction.grabBest => api.grabBest(key),
-        DownloadAction.snooze => api.snooze(key),
-        DownloadAction.import => api.importBlocked(key),
-        DownloadAction.discard => api.discard(key),
-        DownloadAction.searchNow || DownloadAction.pick => api.searchNow(key),
-      };
+      await request();
       messenger.showSnackBar(
         SnackBar(
-          content: Text(action == DownloadAction.searchNow
-              ? l.downloadsSearchStarted
-              : l.downloadsActionDone),
+          content: Text(
+            started ? l.downloadsSearchStarted : l.downloadsActionDone,
+          ),
         ),
       );
     } on DownloadsException catch (e) {
@@ -272,6 +282,10 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
             ReviewRow(
               key: ValueKey('review-${item.key}'),
               item: item,
+              onHunt: () => _call(
+                () => ref.read(downloadsApiProvider).hunt(item.key),
+                started: true,
+              ),
               onOpen: () =>
                   unawaited(_open(item.key, item.title, reviewing: true)),
             ),

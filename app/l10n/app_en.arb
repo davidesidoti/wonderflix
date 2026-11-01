@@ -1091,6 +1091,7 @@
   "downloadsWatch": "View",
   "downloadsChange": "Change",
   "downloadsOpen": "Open",
+  "downloadsActionHunt": "Find an upgrade",
   "downloadsSearchNow": "Search now",
   "downloadsSearchQueued": "Queued for search…",
   "downloadsSearching": "Searching the indexers…",
