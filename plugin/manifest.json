@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.18.0.0",
+        "changelog": "Download per WonderFlix 0.27.0: le voci \"Serve te\" spiegano cosa è successo e mandano i pulsanti per risolverlo (scarica il migliore intanto, va bene aspetto, importa comunque, scarta e cerca un altro); il tappabuchi cerca un file migliore senza limite di tempo; le release rifiutate dal client non si riprovano. Avanzamento e tempo stimato dei download dalla coda di Radarr/Sonarr; un torrent fermo sul recupero dei metadati si sostituisce dopo 6 ore. Fase della ricerca (in coda, in corso) e \"Cerca un upgrade\" dai titoli da ripassare, con 30 giorni di upgrade.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.18.0/wonderflix-watch-party_1.18.0.zip",
+        "checksum": "5fb3ef60c9b3ad6dd2daf7d5885f0c93",
+        "timestamp": "2026-11-01T03:10:00Z"
+      },
+      {
         "version": "1.17.0.0",
         "changelog": "Notifiche push per WonderFlix 0.26.0: ogni voce nuova della cassetta arriva anche come notifica sul telefono (web app sulla schermata Home) e nel browser del PC. Nuovi avvisi per gli admin: download da sistemare o fermi, Alleggerisci bloccato, pulizia fallita, disco quasi pieno (soglia nella pagina del plugin), recupero password avviato o bloccato, riavvio di Jellyfin richiesto; per tutti: richiesta accettata o rifiutata (in Seerr vanno spuntati i tipi del webhook Approvata, Approvata automaticamente e Rifiutata). Preferenze per tipo di notifica.",
         "targetAbi": "10.11.0.0",
