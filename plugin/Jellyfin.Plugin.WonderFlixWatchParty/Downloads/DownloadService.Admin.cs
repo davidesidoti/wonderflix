@@ -900,8 +900,8 @@ public sealed partial class DownloadService
             return new GrabTarget(search.Title, search.Current, null);
         }
 
-        var partial = !release.FullSeason && release.EpisodeNumbers is { Count: > 0 };
-        List<int> numbers = partial ? [.. release.EpisodeNumbers!] : [.. all];
+        var partial = !release.FullSeason && release.SeasonEpisodeNumbers is { Count: > 0 };
+        List<int> numbers = partial ? [.. release.SeasonEpisodeNumbers!] : [.. all];
         var covered = episodes.Where(e => numbers.Contains(e.EpisodeNumber)).ToList();
         var fileIds = covered.Select(e => e.EpisodeFileId).Where(id => id > 0).ToHashSet();
         var current = CurrentOf([.. search.Files.Where(f => fileIds.Contains(f.Id))]);
@@ -925,7 +925,7 @@ public sealed partial class DownloadService
         var rejected = new List<RuleRejected>();
         foreach (var release in releases)
         {
-            var episodes = release.FullSeason ? seasonEpisodes.Count : Math.Max(1, release.EpisodeNumbers?.Count ?? 0);
+            var episodes = release.FullSeason ? seasonEpisodes.Count : Math.Max(1, release.SeasonEpisodeNumbers?.Count ?? 0);
             var one = DownloadRule.Choose([release], input with { RuntimeMinutes = minutes * episodes });
             valid.AddRange(one.Candidates);
             rejected.AddRange(one.Rejected);
@@ -947,7 +947,7 @@ public sealed partial class DownloadService
     {
         var episodes = target.Episodes ?? [];
         var anyMonitored = episodes.Any(e => e.Monitored);
-        var singles = releases.Where(r => !r.FullSeason && r.EpisodeNumbers is { Count: 1 }).ToLookup(r => r.EpisodeNumbers![0]);
+        var singles = releases.Where(r => !r.FullSeason && r.SeasonEpisodeNumbers is { Count: 1 }).ToLookup(r => r.SeasonEpisodeNumbers![0]);
         var result = new List<DownloadEpisodeChoiceDto>();
         foreach (var number in target.RuleEpisodes ?? [])
         {

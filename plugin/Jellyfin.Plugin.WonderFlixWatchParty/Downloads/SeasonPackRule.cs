@@ -27,7 +27,7 @@ public static class SeasonPackRule
             return null;
         }
 
-        var singles = all.Where(r => !r.FullSeason && r.EpisodeNumbers is { Count: 1 }).ToLookup(r => r.EpisodeNumbers![0]);
+        var singles = all.Where(r => !r.FullSeason && r.SeasonEpisodeNumbers is { Count: 1 }).ToLookup(r => r.SeasonEpisodeNumbers![0]);
         long sum = 0;
         foreach (var episode in missingEpisodes)
         {

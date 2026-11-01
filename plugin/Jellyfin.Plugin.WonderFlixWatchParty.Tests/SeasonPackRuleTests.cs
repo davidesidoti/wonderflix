@@ -44,6 +44,15 @@ public class SeasonPackRuleTests
         Assert.Equal("pack", SeasonPackRule.ChoosePack(Singles(9).Append(Pack(14)), Missing, PerEpisode)?.Guid);
 
     [Fact]
+    public void AnAnimeSingleWithOnlyMappedNumbersCountsAsASingle()
+    {
+        var anime = Singles(9).Append(new ArrRelease { Guid = "ep10", Size = Gb, CustomFormatScore = 100, MappedEpisodeNumbers = [10] });
+
+        // Con tutti i singoli il pack pesante perde; senza quello dell'episodio 10 vincerebbe.
+        Assert.Null(SeasonPackRule.ChoosePack(anime.Append(Pack(14)), Missing, PerEpisode));
+    }
+
+    [Fact]
     public void NothingValidSplits()
     {
         Assert.Null(SeasonPackRule.ChoosePack(Singles(10).Append(Pack(11, "Unknown series")), Missing, PerEpisode));

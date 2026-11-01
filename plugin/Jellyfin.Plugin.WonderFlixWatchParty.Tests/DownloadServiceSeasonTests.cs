@@ -252,6 +252,19 @@ public sealed class DownloadServiceSeasonTests : IDisposable
     }
 
     [Fact]
+    public async Task AHeavyPackSplitsWhenTheSinglesCarryOnlyMappedNumbers()
+    {
+        WholeSeason();
+        var singles = Enumerable.Range(1, 3).Select(n => { var s = Single("e" + n, n, 1, 50); (s.EpisodeNumbers, s.MappedEpisodeNumbers) = ([], [n]); return s; });
+        _releases = [Pack("pack", 5, 50), .. singles];
+
+        await Cycle();
+
+        Assert.Empty(_arr.GrabCalls);
+        Assert.Equal(["episode:201", "episode:202", "episode:203"], SavedKeys());
+    }
+
+    [Fact]
     public async Task AStalledPackIsRemovedOnce()
     {
         WholeSeason();

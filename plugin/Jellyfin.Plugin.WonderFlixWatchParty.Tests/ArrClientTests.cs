@@ -346,6 +346,18 @@ public class ArrClientTests
         Assert.Null(release.Seeders);
     }
 
+    [Theory]
+    [InlineData("""[{"guid":"a1","title":"[Erai-raws] Show - 03","episodeNumbers":[],"absoluteEpisodeNumbers":[3],"mappedEpisodeNumbers":[3]}]""", 3)]
+    [InlineData("""[{"guid":"a2","title":"Show S01E02","episodeNumbers":[2]}]""", 2)]
+    public async Task SonarrReleasesTakeTheSeasonEpisodesFromMappedOrEpisodeNumbers(string json, int episode)
+    {
+        Answer(HttpStatusCode.OK, json);
+
+        var releases = await Client().SearchReleasesAsync(ArrKind.Sonarr, "seriesId=5&seasonNumber=1", CancellationToken.None);
+
+        Assert.Equal(new[] { episode }, Assert.Single(releases)!.SeasonEpisodeNumbers);
+    }
+
     [Fact]
     public async Task GrabbingPostsGuidAndIndexer()
     {

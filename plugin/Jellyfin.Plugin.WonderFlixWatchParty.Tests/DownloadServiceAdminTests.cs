@@ -555,6 +555,19 @@ public sealed class DownloadServiceAdminTests : IDisposable
     }
 
     [Fact]
+    public async Task AnAnimeSingleWithOnlyMappedNumbersIsTheEpisodeChoice()
+    {
+        SeasonOf(null, null, null);
+        var anime = Single("a3", 3, 1, 150);
+        (anime.EpisodeNumbers, anime.MappedEpisodeNumbers) = ([], [3]);
+        _releases = [anime];
+
+        var result = (await Search("season:7:2"))!;
+
+        Assert.Equal([(1, (string?)null, false), (2, (string?)null, false), (3, "a3", true)], Flat(result));
+    }
+
+    [Fact]
     public async Task APackTooHeavyForItsSinglesIsNotAChoice()
     {
         SeasonOf(null, null);

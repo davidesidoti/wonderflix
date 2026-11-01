@@ -252,6 +252,13 @@ public sealed class ArrRelease
     /// <summary>Solo Sonarr: gli episodi coperti dalla release.</summary>
     public List<int>? EpisodeNumbers { get; set; }
 
+    /// <summary>Solo Sonarr: gli episodi della stagione, anche per una release numerata in assoluto (anime).</summary>
+    public List<int>? MappedEpisodeNumbers { get; set; }
+
+    /// <summary>Gli episodi della stagione che la release copre: quelli mappati di Sonarr, se ci sono.</summary>
+    [JsonIgnore]
+    public List<int>? SeasonEpisodeNumbers => MappedEpisodeNumbers is { Count: > 0 } ? MappedEpisodeNumbers : EpisodeNumbers;
+
     public int SeasonNumber { get; set; }
 }
 
