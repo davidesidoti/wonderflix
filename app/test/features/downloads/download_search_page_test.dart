@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/downloads/download_models.dart';
 import 'package:wonderflix/core/downloads/downloads_api.dart';
+import 'package:wonderflix/features/downloads/download_search_controller.dart';
 import 'package:wonderflix/features/downloads/download_search_page.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 
@@ -46,6 +48,8 @@ void main() {
     bool reviewing = false,
     bool settle = true,
     Size size = const Size(1440, 900),
+    SocialFeatures features =
+        const SocialFeatures(inbox: true, downloads: true),
   }) async {
     await pumpApp(
       tester,
@@ -60,7 +64,7 @@ void main() {
       ),
       overrides: adminTestOverrides(FakeAdminApi(),
           downloads: api,
-          features: const SocialFeatures(inbox: true, downloads: true)),
+          features: features),
       surfaceSize: size,
     );
     await tester.tap(find.text('apri'));
@@ -507,6 +511,95 @@ void main() {
       expect(find.text('Migliori episodi'), findsOneWidget);
       expect(find.text('nessun file valido'), findsOneWidget);
       expect(grabAllButton('Scarica tutti (2)'), findsOneWidget);
+    });
+  });
+
+  group('background search', () {
+    const jobs = SocialFeatures(
+        inbox: true, downloads: true, downloadsSearchJobs: true, known: true);
+
+    DownloadSearchStatus running(DateTime startedAt) => DownloadSearchStatus(
+        key: 'movie:1',
+        state: DownloadSearchJobState.running,
+        startedAt: startedAt,
+        service: 'Sonarr');
+
+    final t0 = DateTime.utc(2026, 11, 1, 12);
+
+    testWidgets('showsTheBarAndTheElapsedTime', (tester) async {
+      var now = t0;
+      await withClock(Clock(() => now), () async {
+        api.searchStatuses.add(running(t0.subtract(const Duration(minutes: 2, seconds: 15))));
+        await open(tester, settle: false, features: jobs);
+
+        expect(find.byType(LinearProgressIndicator), findsOneWidget);
+        expect(find.text('Ricerca su Sonarr in corso · 2:15'), findsOneWidget);
+        expect(
+            find.text(
+                'Le stagioni anime possono richiedere qualche minuto: puoi chiudere, i risultati restano pronti.'),
+            findsOneWidget);
+        expect(find.text('Connessione persa, riprovo…'), findsNothing);
+
+        now = now.add(const Duration(seconds: 1));
+        await tester.pump(const Duration(seconds: 1));
+        expect(find.text('Ricerca su Sonarr in corso · 2:16'), findsOneWidget);
+      });
+    });
+
+    testWidgets('aFutureStartedAtShowsZero', (tester) async {
+      await withClock(Clock(() => t0), () async {
+        api.searchStatuses.add(running(t0.add(const Duration(minutes: 5))));
+        await open(tester, settle: false, features: jobs);
+
+        expect(find.text('Ricerca su Sonarr in corso · 0:00'), findsOneWidget);
+      });
+    });
+
+    testWidgets('showsReconnecting', (tester) async {
+      await withClock(Clock(() => t0), () async {
+        api.searchStatuses
+          ..add(running(t0))
+          ..add(const DownloadsException(DownloadsFailure.network));
+        await open(tester, settle: false, features: jobs);
+        await tester.pump(DownloadSearchController.pollInterval);
+        await tester.pump();
+
+        expect(find.text('Connessione persa, riprovo…'), findsOneWidget);
+        expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      });
+    });
+
+    testWidgets('aPollingErrorOffersRetry', (tester) async {
+      await withClock(Clock(() => t0), () async {
+        api.searchStatuses
+          ..add(running(t0))
+          ..add(const DownloadsException(DownloadsFailure.network))
+          ..add(const DownloadsException(DownloadsFailure.network))
+          ..add(const DownloadsException(DownloadsFailure.network));
+        await open(tester, settle: false, features: jobs);
+        for (var i = 0; i < 3; i++) {
+          await tester.pump(DownloadSearchController.pollInterval);
+          await tester.pump();
+        }
+        expect(find.text('Riprova'), findsOneWidget);
+
+        await tester.tap(find.text('Riprova'));
+        await tester.pump();
+        await tester.pump();
+
+        expect(api.calls.where((c) => c.startsWith('start')),
+            ['start movie:1', 'start movie:1']);
+        expect(api.calls.any((c) => c.contains('again')), isFalse);
+      });
+    });
+
+    testWidgets('without the feature the old waiting screen stays',
+        (tester) async {
+      api.searchGate = Completer<DownloadSearch>();
+      await open(tester, settle: false);
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
     });
   });
 

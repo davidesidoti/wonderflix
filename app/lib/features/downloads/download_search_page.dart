@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -11,6 +12,7 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../admin/admin_confirm_dialog.dart';
 import '../admin/admin_widgets.dart';
+import '../social/social_providers.dart';
 import 'download_labels.dart';
 import 'download_search_controller.dart';
 
@@ -147,17 +149,25 @@ class _SearchPage extends ConsumerWidget {
     final margin = adminSideMargin(context);
     final search = state.value;
     void again() => unawaited(ref.read(provider.notifier).searchAgain());
+    final running = ref.watch(downloadSearchRunningProvider(dlKey));
+    // Con la ricerca in background, tre errori di rete di fila: "Riprova"
+    // riprende a chiedere lo stato senza rilanciare la ricerca.
+    final pollingFailed = ref.watch(socialAvailabilityProvider).downloadsSearchJobs &&
+        state.error is DownloadsException &&
+        (state.error! as DownloadsException).failure == DownloadsFailure.network;
 
     Widget body;
     if (state.isLoading) {
-      body = Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: 16),
-          Text(l.downloadsSearchWaiting,
-              style: const TextStyle(color: WfColors.creamMuted)),
-        ]),
-      );
+      body = running != null
+          ? _SearchRunning(running: running)
+          : Center(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text(l.downloadsSearchWaiting,
+                    style: const TextStyle(color: WfColors.creamMuted)),
+              ]),
+            );
     } else if (search == null || search.error != null) {
       body = Center(
         child: Padding(
@@ -168,7 +178,12 @@ class _SearchPage extends ConsumerWidget {
                   style: const TextStyle(color: WfColors.creamMuted)),
             ),
             const SizedBox(width: 8),
-            TextButton(onPressed: again, child: Text(l.retry)),
+            if (pollingFailed)
+              TextButton(
+                  onPressed: () => unawaited(ref.read(provider.notifier).retry()),
+                  child: Text(l.downloadsSearchRetry))
+            else
+              TextButton(onPressed: again, child: Text(l.retry)),
           ]),
         ),
       );
@@ -238,6 +253,67 @@ class _SearchPage extends ConsumerWidget {
     return error is DownloadsException
         ? downloadsFailureLabel(l, error.failure)
         : describeError(l, error ?? '');
+  }
+}
+
+/// La ricerca in background in corso: barra indeterminata e tempo che scorre
+/// (spec W §5.3).
+class _SearchRunning extends StatefulWidget {
+  const _SearchRunning({required this.running});
+
+  final DownloadSearchRunning running;
+
+  @override
+  State<_SearchRunning> createState() => _SearchRunningState();
+}
+
+class _SearchRunningState extends State<_SearchRunning> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  /// m:ss, i minuti oltre 59 senza ore. Un `startedAt` nel futuro (orologio
+  /// avanti rispetto al server) dà 0:00.
+  String _elapsed() {
+    final seconds = clock.now().difference(widget.running.startedAt).inSeconds;
+    final s = seconds < 0 ? 0 : seconds;
+    return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    const muted = TextStyle(color: WfColors.creamMuted);
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const LinearProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(l.downloadsSearchRunning(widget.running.service, _elapsed())),
+            if (widget.running.reconnecting) ...[
+              const SizedBox(height: 8),
+              Text(l.downloadsSearchReconnecting, style: muted),
+            ],
+            const SizedBox(height: 8),
+            Text(l.downloadsSearchRunningHint,
+                textAlign: TextAlign.center, style: muted),
+          ]),
+        ),
+      ),
+    );
   }
 }
 
