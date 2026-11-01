@@ -275,6 +275,30 @@ public sealed class DownloadServiceSeasonTests : IDisposable
     }
 
     [Fact]
+    public async Task APackFetchingMetadataCountsFromTheEarliestAddedTime()
+    {
+        WholeSeason();
+        _releases = [Pack("pack", 3, 50)];
+        await Cycle();
+        _releases = [];
+
+        _time.Advance(DownloadService.CycleInterval);
+        _sonarrQueue = [EpisodeQueue(91, 201, 0), EpisodeQueue(92, 202, 0), EpisodeQueue(93, 203, 0)];
+        foreach (var item in _sonarrQueue)
+        {
+            item!.Status = "queued";
+        }
+
+        var earliest = _time.GetUtcNow() - TimeSpan.FromHours(2);
+        _sonarrQueue[0]!.Added = earliest + TimeSpan.FromMinutes(30);
+        _sonarrQueue[1]!.Added = earliest;
+        _sonarrQueue[1]!.ErrorMessage = "qBittorrent is downloading metadata";
+        await Cycle();
+
+        Assert.Equal(earliest, Saved("season:7:2")!.MetadataSince);
+    }
+
+    [Fact]
     public async Task APackFetchingMetadataIsReplacedAfterSixHours()
     {
         WholeSeason();

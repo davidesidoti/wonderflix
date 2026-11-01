@@ -394,8 +394,9 @@ public sealed partial class DownloadService(
             entry.LastProgressAt = now;
         }
 
-        // Il magnet non si risolve: l'orologio parte alla prima volta e resta finché dura.
-        entry.MetadataSince = IsFetchingMetadata(item) ? entry.MetadataSince ?? now : null;
+        // Il magnet non si risolve: l'orologio parte da quando Radarr/Sonarr hanno preso il download (stabile, e corregge anche
+        // un valore salvato più tardi da una versione precedente); se manca o è nel futuro, dalla prima volta che lo vediamo.
+        entry.MetadataSince = IsFetchingMetadata(item) ? item.Added is { } added && added <= now ? added : entry.MetadataSince ?? now : null;
         entry.State = DownloadStates.Downloading;
         entry.Reason = null;
         entry.DownloadId = item.DownloadId;

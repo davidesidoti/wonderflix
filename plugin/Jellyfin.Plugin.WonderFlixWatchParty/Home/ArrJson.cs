@@ -313,6 +313,9 @@ public sealed class ArrQueueItem
     /// <summary>Quando Radarr/Sonarr stimano la fine del download; assente se non lo sanno.</summary>
     public DateTimeOffset? EstimatedCompletionTime { get; set; }
 
+    /// <summary>Quando il download è stato preso (<c>added</c>); da lì il client cerca i metadati del magnet.</summary>
+    public DateTimeOffset? Added { get; set; }
+
     /// <summary>Perché Radarr/Sonarr non importano o avvisano, per file.</summary>
     public List<ArrStatusMessage?>? StatusMessages { get; set; }
 }

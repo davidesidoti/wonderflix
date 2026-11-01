@@ -234,6 +234,69 @@ public sealed class DownloadServiceCycleTests : IDisposable
     }
 
     [Fact]
+    public async Task AMetadataFetchCountsFromWhenItWasAdded()
+    {
+        // Dopo un aggiornamento del plugin un torrent fermo da giorni non riparte da zero: conta "added" di Radarr.
+        var added = T0 - TimeSpan.FromDays(2);
+        _movies = [Movie(12)];
+        var item = MetadataQueue(90, 12);
+        item.Added = added;
+        _radarrQueue = [item];
+
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Equal((ArrKind.Radarr, 90, true, true), Assert.Single(_arr.RemoveFromQueueCalls));
+        Assert.Equal(DownloadStates.Waiting, Saved("movie:12")!.State);
+    }
+
+    [Fact]
+    public async Task AMetadataFetchTakesTheAddedTimeAsItsStart()
+    {
+        var added = T0 - TimeSpan.FromHours(1);
+        _movies = [Movie(12)];
+        var item = MetadataQueue(90, 12);
+        item.Added = added;
+        _radarrQueue = [item];
+
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Empty(_arr.RemoveFromQueueCalls);
+        Assert.Equal(added, Saved("movie:12")!.MetadataSince);
+    }
+
+    [Fact]
+    public async Task AnEarlierAddedTimeCorrectsAStoredMetadataSince()
+    {
+        // La voce l'ha salvata una versione che non leggeva "added": il valore giusto sostituisce quello tardivo.
+        _movies = [Movie(12)];
+        _radarrQueue = [MetadataQueue(90, 12)];
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Equal(T0, Saved("movie:12")!.MetadataSince);
+
+        _time.Advance(TimeSpan.FromHours(1));
+        var added = T0 - TimeSpan.FromHours(1);
+        var item = MetadataQueue(90, 12);
+        item.Added = added;
+        _radarrQueue = [item];
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Equal(added, Saved("movie:12")!.MetadataSince);
+    }
+
+    [Fact]
+    public async Task AnAddedTimeInTheFutureIsIgnored()
+    {
+        _movies = [Movie(12)];
+        var item = MetadataQueue(90, 12);
+        item.Added = T0 + TimeSpan.FromHours(3);
+        _radarrQueue = [item];
+
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Equal(T0, Saved("movie:12")!.MetadataSince);
+    }
+
+    [Fact]
     public async Task AMetadataFetchIsReplacedAfterSixHours()
     {
         _movies = [Movie(12)];

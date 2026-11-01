@@ -726,6 +726,17 @@ public class ArrClientTests
     }
 
     [Fact]
+    public async Task TheQueueReadsWhenTheDownloadWasAdded()
+    {
+        Answer(HttpStatusCode.OK, """{"totalRecords":2,"records":[{"id":1,"added":"2026-10-29T12:25:47Z"},{"id":2}]}""");
+
+        var items = await Client().GetQueueAsync(ArrKind.Radarr, CancellationToken.None);
+
+        Assert.Equal(new DateTimeOffset(2026, 10, 29, 12, 25, 47, TimeSpan.Zero), items[0]!.Added);
+        Assert.Null(items[1]!.Added);
+    }
+
+    [Fact]
     public async Task TheQueueReadsTheErrorMessage()
     {
         Answer(HttpStatusCode.OK, """{"totalRecords":2,"records":[{"id":1,"status":"queued","errorMessage":"qBittorrent is downloading metadata"},{"id":2}]}""");

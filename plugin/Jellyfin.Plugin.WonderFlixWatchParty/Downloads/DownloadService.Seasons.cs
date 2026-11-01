@@ -180,6 +180,7 @@ public sealed partial class DownloadService
             Status = downloading ? DownloadingState : null,
             TrackedDownloadState = blocked ? ImportBlockedState : downloading || fetching is not null ? DownloadingState : null,
             ErrorMessage = fetching?.ErrorMessage,
+            Added = records.Min(r => r.Added),
             StatusMessages = [.. records.SelectMany(r => r.StatusMessages ?? [])],
         };
     }
