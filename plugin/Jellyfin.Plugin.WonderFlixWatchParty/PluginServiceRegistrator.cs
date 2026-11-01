@@ -78,7 +78,9 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IHomeLayoutStore, PluginHomeLayoutStore>();
         serviceCollection.AddSingleton<IArrSettings, PluginArrSettings>();
         // La chiave API non va nei log del client HTTP e non segue un redirect.
+        // ArrClient applica il suo limite a ogni chiamata: quello di default (100 s) taglierebbe le ricerche lunghe.
         serviceCollection.AddHttpClient(ArrClient.HttpClientName)
+            .ConfigureHttpClient(c => c.Timeout = Timeout.InfiniteTimeSpan)
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false })
             .RedactLoggedHeaders(["X-Api-Key"]);
         serviceCollection.AddSingleton<IArrClient, ArrClient>();

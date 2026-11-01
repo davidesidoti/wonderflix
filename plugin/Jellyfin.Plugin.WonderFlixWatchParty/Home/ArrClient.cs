@@ -81,7 +81,7 @@ public sealed class ArrClient(
 
     public async Task<IReadOnlyList<ArrRelease?>> SearchReleasesAsync(
         ArrKind kind, string query, CancellationToken cancellationToken) =>
-        await SendAsync<List<ArrRelease?>>(kind, HttpMethod.Get, $"release?{query}", null, ReleaseSearchTimeout,cancellationToken)
+        await SendAsync<List<ArrRelease?>>(kind, HttpMethod.Get, $"release?{query}", null, ReleaseSearchTimeout, cancellationToken)
             .ConfigureAwait(false);
 
     public Task GrabReleaseAsync(ArrKind kind, string guid, int indexerId, CancellationToken cancellationToken) =>
