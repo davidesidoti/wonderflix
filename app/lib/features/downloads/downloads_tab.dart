@@ -41,6 +41,8 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
   /// Le scelte si vedono per 7 giorni, poi tutte (decisione 3 del piano 29b).
   static const _recentWindow = Duration(days: 7);
   static const _reviewPage = 50;
+  static const _slowPoll = Duration(seconds: 60);
+  static const _fastPoll = Duration(seconds: 5);
 
   final _scroll = SmoothScrollController();
   late final AdminPoller _poller;
@@ -63,11 +65,19 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
     } on TypeError {
       // Valore di un altro tipo sotto la chiave: tutte aperte.
     }
-    // Decisione 4: si rilegge ogni minuto finché la scheda è aperta.
+    // Decisione 4: si rilegge ogni minuto finché la scheda è aperta; ogni 5
+    // secondi se una voce è in coda per la ricerca o ci sta cercando.
     _poller = AdminPoller(
       read: () => ref.read(downloadsControllerProvider.notifier).reload(),
-      interval: const Duration(seconds: 60),
+      interval: _slowPoll,
     )..start();
+    ref.listenManual(downloadsControllerProvider, (_, next) {
+      final overview = next.value;
+      if (overview == null) return;
+      _poller.interval = overview.waiting.any((i) => i.searchPhase != null)
+          ? _fastPoll
+          : _slowPoll;
+    });
   }
 
   @override
@@ -131,11 +141,13 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
         DownloadAction.discard => api.discard(key),
         DownloadAction.searchNow || DownloadAction.pick => api.searchNow(key),
       };
-      if (action != DownloadAction.searchNow) {
-        messenger.showSnackBar(
-          SnackBar(content: Text(l.downloadsActionDone)),
-        );
-      }
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(action == DownloadAction.searchNow
+              ? l.downloadsSearchStarted
+              : l.downloadsActionDone),
+        ),
+      );
     } on DownloadsException catch (e) {
       // Un errore del plugin è atteso: si mostra, non è un difetto da loggare.
       messenger.showSnackBar(

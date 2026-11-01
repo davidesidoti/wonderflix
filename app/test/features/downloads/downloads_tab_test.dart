@@ -42,6 +42,7 @@ DownloadItem _item(
   String? blockedMessage,
   bool snoozed = false,
   DownloadProgress? progress,
+  DownloadSearchPhase? searchPhase,
 }) =>
     DownloadItem(
       key: key,
@@ -54,6 +55,7 @@ DownloadItem _item(
       blockedMessage: blockedMessage,
       snoozed: snoozed,
       progress: progress,
+      searchPhase: searchPhase,
     );
 
 ReviewItem _review(int n) => ReviewItem(
@@ -75,7 +77,8 @@ void main() {
     prefs = await SharedPreferences.getInstance();
   });
 
-  Future<void> pumpTab(WidgetTester tester) async {
+  /// [settle] falso con una barra indeterminata: anima per sempre.
+  Future<void> pumpTab(WidgetTester tester, {bool settle = true}) async {
     await pumpApp(tester, const Scaffold(body: DownloadsTab()),
         overrides: [
           ...adminTestOverrides(FakeAdminApi(),
@@ -84,7 +87,12 @@ void main() {
           sharedPreferencesProvider.overrideWithValue(prefs),
         ],
         surfaceSize: const Size(1440, 20000));
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+      await tester.pump();
+    }
   }
 
   double y(WidgetTester tester, String text) =>
@@ -201,6 +209,75 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(api.calls, ['searchNow movie:2', 'overview']);
+    expect(find.text('Ricerca avviata'), findsOneWidget);
+  });
+
+  group('fasi della ricerca', () {
+    LinearProgressIndicator bar(WidgetTester tester) =>
+        tester.widget(find.byType(LinearProgressIndicator));
+
+    testWidgets('in coda: il testo e la barra indeterminata', (tester) async {
+      api.overviewValue = DownloadsOverview(enabled: true, waiting: [
+        _item('movie:2', searchPhase: DownloadSearchPhase.queued),
+      ]);
+      await pumpTab(tester, settle: false);
+
+      expect(find.textContaining('In coda per la ricerca…'), findsOneWidget);
+      expect(bar(tester).value, isNull);
+    });
+
+    testWidgets('in ricerca: il testo e la barra indeterminata',
+        (tester) async {
+      api.overviewValue = DownloadsOverview(enabled: true, waiting: [
+        _item('movie:3',
+            state: DownloadState.needsYou,
+            searchPhase: DownloadSearchPhase.searching),
+      ]);
+      await pumpTab(tester, settle: false);
+
+      expect(find.textContaining('Cerco tra gli indexer…'), findsOneWidget);
+      expect(bar(tester).value, isNull);
+    });
+
+    testWidgets('senza fase: niente barra', (tester) async {
+      api.overviewValue =
+          DownloadsOverview(enabled: true, waiting: [_item('movie:2')]);
+      await pumpTab(tester);
+
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+    });
+
+    testWidgets('con una fase si rilegge ogni 5 secondi, senza ogni 60',
+        (tester) async {
+      api.overviewValue = DownloadsOverview(enabled: true, waiting: [
+        _item('movie:2', searchPhase: DownloadSearchPhase.searching),
+      ]);
+      await pumpTab(tester, settle: false);
+
+      // La prima lettura del poller parte subito; il conto riparte da lì.
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump();
+      api.calls.clear();
+
+      await tester.pump(const Duration(seconds: 4));
+      expect(api.calls, isEmpty);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+      expect(api.calls, ['overview']);
+
+      // La ricerca è finita: la lettura dopo non ha più fasi.
+      api.overviewValue =
+          DownloadsOverview(enabled: true, waiting: [_item('movie:2')]);
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pump();
+      expect(api.calls, ['overview', 'overview']);
+
+      await tester.pump(const Duration(seconds: 55));
+      expect(api.calls.length, 2);
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pump();
+      expect(api.calls.length, 3);
+    });
   });
 
   testWidgets('Cerca ora che fallisce dice il motivo e non logga',

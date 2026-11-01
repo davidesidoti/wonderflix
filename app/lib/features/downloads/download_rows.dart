@@ -109,7 +109,8 @@ class RowShell extends StatelessWidget {
 class RowProgressBar extends StatelessWidget {
   const RowProgressBar({super.key, required this.value});
 
-  final double value;
+  /// `null`: barra indeterminata (ricerca in corso).
+  final double? value;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -117,7 +118,7 @@ class RowProgressBar extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
-            value: value.clamp(0.0, 1.0),
+            value: value?.clamp(0.0, 1.0),
             minHeight: 4,
             color: WfColors.gold,
             backgroundColor: WfColors.border,
@@ -219,7 +220,13 @@ class DownloadItemRow extends StatelessWidget {
     final reason = item.reason;
     // Per "Serve te" il motivo è già nello stato.
     final why = needsYou || reason == null ? '' : downloadReasonLabel(l, reason);
-    final next = nextSearchLabel(l, item.nextSearchAt, now);
+    final phase = item.searchPhase;
+    // In coda o in ricerca il testo della fase prende il posto della prossima ricerca.
+    final next = switch (phase) {
+      DownloadSearchPhase.queued => l.downloadsSearchQueued,
+      DownloadSearchPhase.searching => l.downloadsSearching,
+      null => nextSearchLabel(l, item.nextSearchAt, now),
+    };
     final since = l.downloadsSince(
         DateFormat.MMMd(l.localeName).format(item.availableSince.toLocal()));
     final service = item.kind == DownloadKind.movie ? 'Radarr' : 'Sonarr';
@@ -245,6 +252,7 @@ class DownloadItemRow extends StatelessWidget {
         _muted(downloadStateLabel(l, item),
             color: needsYou ? WfColors.error : WfColors.creamMuted),
         _muted([since, if (next.isNotEmpty) next].join(' · ')),
+        if (phase != null) const RowProgressBar(value: null),
         if (why.isNotEmpty) _muted(why, color: WfColors.gold),
         if (progress != null && item.state == DownloadState.downloading) ...[
           if (!progress.isFetchingMetadata)

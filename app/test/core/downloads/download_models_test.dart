@@ -233,6 +233,30 @@ void main() {
     expect(item.snoozed, isFalse);
   });
 
+  group('SearchPhase', () {
+    Map<String, dynamic> json([Object? phase = _absent]) => {
+          'Key': 'movie:1',
+          'Kind': 'Movie',
+          'Title': 'Film',
+          'State': 'Waiting',
+          'AvailableSince': '2026-10-20T00:00:00Z',
+          if (!identical(phase, _absent)) 'SearchPhase': phase,
+        };
+
+    test('KnownPhasesAreParsed', () {
+      expect(DownloadItem.fromJson(json('Queued'))!.searchPhase,
+          DownloadSearchPhase.queued);
+      expect(DownloadItem.fromJson(json('Searching'))!.searchPhase,
+          DownloadSearchPhase.searching);
+    });
+
+    test('UnknownNullOrAbsentIsNull', () {
+      expect(DownloadItem.fromJson(json('Boh'))!.searchPhase, isNull);
+      expect(DownloadItem.fromJson(json(null))!.searchPhase, isNull);
+      expect(DownloadItem.fromJson(json())!.searchPhase, isNull);
+    });
+  });
+
   group('Progress', () {
     Map<String, dynamic> json([Object? progress = _absent]) => {
           'Key': 'movie:1',

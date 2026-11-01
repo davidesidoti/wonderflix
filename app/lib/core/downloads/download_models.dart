@@ -66,6 +66,23 @@ enum DownloadAction {
   }
 }
 
+/// La fase della ricerca di una voce (plugin 1.18.0): in coda per il prossimo
+/// giro o cercata adesso. Assente o sconosciuta (plugin più nuovo) è `null`.
+enum DownloadSearchPhase {
+  queued('Queued'),
+  searching('Searching');
+
+  const DownloadSearchPhase(this.wire);
+  final String wire;
+
+  static DownloadSearchPhase? fromWire(Object? value) {
+    for (final v in values) {
+      if (v.wire == value) return v;
+    }
+    return null;
+  }
+}
+
 enum RejectedReason {
   arr('Arr'),
   tooSmall('TooSmall'),
@@ -282,6 +299,7 @@ class DownloadItem {
     this.blockedMessage,
     this.snoozed = false,
     this.progress,
+    this.searchPhase,
   });
 
   final String key;
@@ -304,6 +322,9 @@ class DownloadItem {
 
   /// Solo per i titoli in download.
   final DownloadProgress? progress;
+
+  /// Dal plugin 1.18.0: la ricerca in coda o in corso; `null` altrimenti.
+  final DownloadSearchPhase? searchPhase;
 
   static DownloadItem? fromJson(Map<String, dynamic> json) {
     try {
@@ -328,6 +349,7 @@ class DownloadItem {
         blockedMessage: json['BlockedMessage'] as String?,
         snoozed: json['Snoozed'] as bool? ?? false,
         progress: DownloadProgress.fromJson(json['Progress']),
+        searchPhase: DownloadSearchPhase.fromWire(json['SearchPhase']),
       );
     } on Object {
       return null;
