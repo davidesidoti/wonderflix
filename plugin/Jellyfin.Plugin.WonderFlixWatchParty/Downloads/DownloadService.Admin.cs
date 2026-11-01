@@ -109,6 +109,8 @@ public sealed partial class DownloadService
     /// <summary>
     /// Cerca un titolo e applica la regola (spec T §8.2), anche senza una voce (per esempio da "Da ripassare"). Null per una
     /// chiave non valida o un titolo che Radarr/Sonarr non hanno; un loro errore va in <c>Error</c>, con le liste vuote.
+    /// Per le app 0.27.x (spec W §4.4): avvia una ricerca nuova in background, o aggancia quella in corso, e la aspetta;
+    /// <paramref name="cancellationToken"/> annulla solo l'attesa, non la ricerca.
     /// </summary>
     public async Task<DownloadSearchDto?> SearchAsync(string key, CancellationToken cancellationToken)
     {
@@ -117,19 +119,13 @@ public sealed partial class DownloadService
             return null;
         }
 
-        var (search, error) = await ReadAsync(ServiceOf(parsed.Kind), c => RunSearchAsync(parsed, c), cancellationToken).ConfigureAwait(false);
-        if (error is null)
-        {
-            return search?.Result;
-        }
-
-        string title;
+        Task<SearchOutcome> work;
         lock (_lock)
         {
-            title = Book.Get(parsed.ToString())?.Title ?? "";
+            work = JobFor(parsed, again: true).Work;
         }
 
-        return new DownloadSearchDto(parsed.ToString(), parsed.Kind, title, 0, null, [], [], 0, 0, error, []);
+        return (await work.WaitAsync(cancellationToken).ConfigureAwait(false)).Result;
     }
 
     /// <summary>
@@ -740,7 +736,7 @@ public sealed partial class DownloadService
         e.Reason == DownloadReasons.ImportBlocked ? e.BlockedMessage : null,
         e.Snoozed,
         null,
-        _searching.Contains(e.Key) ? DownloadSearchPhases.Searching
+        _searching.Contains(e.Key) || AdminSearching(e.Key) ? DownloadSearchPhases.Searching
             : settings.Enabled && e.NextSearchAt <= now && SearchesByState(e) ? DownloadSearchPhases.Queued
             : null);
 

@@ -130,6 +130,17 @@ public sealed record DownloadSearchDto(
     [property: JsonPropertyName("Error")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? Error,
     [property: JsonPropertyName("EpisodeChoices")] IReadOnlyList<DownloadEpisodeChoiceDto> EpisodeChoices);
 
+/// <summary>
+/// Risposta di POST Downloads/SearchStart e GET Downloads/SearchStatus (spec W §4.4). State: uno di DownloadSearchStates.
+/// StartedAt: l'inizio del job, con Done l'ora della ricerca. Service: "Radarr" o "Sonarr". Result solo con Done.
+/// </summary>
+public sealed record DownloadSearchStatusDto(
+    [property: JsonPropertyName("Key")] string Key,
+    [property: JsonPropertyName("State")] string State,
+    [property: JsonPropertyName("StartedAt")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] DateTimeOffset? StartedAt,
+    [property: JsonPropertyName("Service")] string Service,
+    [property: JsonPropertyName("Result")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] DownloadSearchDto? Result);
+
 /// <summary>Un profilo di qualità con le sue soglie (spec T §7.1). Service: "Radarr" o "Sonarr".</summary>
 public sealed record DownloadProfileDto(
     [property: JsonPropertyName("Service")] string Service,

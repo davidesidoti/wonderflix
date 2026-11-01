@@ -54,6 +54,7 @@ public sealed class DownloadsHostedService(
 
     public Task StopAsync(CancellationToken cancellationToken)
     {
+        downloads.StopSearches();
         Dispose();
         return Task.CompletedTask;
     }

@@ -179,6 +179,9 @@ internal sealed class FakeArrClient : IArrClient
 
     public List<(ArrKind Kind, string Query)> SearchReleaseCalls { get; } = [];
 
+    /// <summary>Il token dell'ultima ricerca di release.</summary>
+    public CancellationToken LastReleaseToken { get; private set; }
+
     public List<(ArrKind Kind, string Guid, int IndexerId)> GrabCalls { get; } = [];
 
     public int LibraryMovieCalls { get; private set; }
@@ -203,6 +206,7 @@ internal sealed class FakeArrClient : IArrClient
         lock (_lock)
         {
             SearchReleaseCalls.Add((kind, query));
+            LastReleaseToken = cancellationToken;
         }
 
         return Releases(kind, query);
