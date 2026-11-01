@@ -53,7 +53,10 @@ enum DownloadAction {
   searchNow('SearchNow'),
   snooze('Snooze'),
   import('Import'),
-  discard('Discard');
+  discard('Discard'),
+
+  /// Apre la ricerca sul tracker esterno (MIRCrew) nel browser.
+  externalSearch('ExternalSearch');
 
   const DownloadAction(this.wire);
   final String wire;
@@ -300,6 +303,7 @@ class DownloadItem {
     this.snoozed = false,
     this.progress,
     this.searchPhase,
+    this.externalSearchUrl,
   });
 
   final String key;
@@ -326,6 +330,10 @@ class DownloadItem {
   /// Dal plugin 1.18.0: la ricerca in coda o in corso; `null` altrimenti.
   final DownloadSearchPhase? searchPhase;
 
+  /// La pagina di ricerca del tracker esterno, già col titolo; `null` senza
+  /// (o con un plugin più vecchio).
+  final String? externalSearchUrl;
+
   static DownloadItem? fromJson(Map<String, dynamic> json) {
     try {
       final reason = json['Reason'] as String?;
@@ -350,6 +358,7 @@ class DownloadItem {
         snoozed: json['Snoozed'] as bool? ?? false,
         progress: DownloadProgress.fromJson(json['Progress']),
         searchPhase: DownloadSearchPhase.fromWire(json['SearchPhase']),
+        externalSearchUrl: json['ExternalSearchUrl'] as String?,
       );
     } on Object {
       return null;
@@ -597,6 +606,7 @@ class DownloadSearch {
     required this.totalCount,
     this.error,
     this.episodeChoices = const [],
+    this.externalSearchUrl,
   });
 
   final String key;
@@ -616,6 +626,10 @@ class DownloadSearch {
   /// senza un pack scelto); vuota altrimenti e con un plugin più vecchio.
   final List<DownloadEpisodeChoice> episodeChoices;
 
+  /// La pagina di ricerca del tracker esterno, già col titolo; `null` senza
+  /// (o con un plugin più vecchio).
+  final String? externalSearchUrl;
+
   /// La stessa ricerca con altri [episodeChoices].
   DownloadSearch withEpisodeChoices(List<DownloadEpisodeChoice> choices) =>
       DownloadSearch(
@@ -630,6 +644,7 @@ class DownloadSearch {
         totalCount: totalCount,
         error: error,
         episodeChoices: choices,
+        externalSearchUrl: externalSearchUrl,
       );
 
   static DownloadSearch? fromJson(Map<String, dynamic> json) {
@@ -650,6 +665,7 @@ class DownloadSearch {
         error: json['Error'] as String?,
         episodeChoices: DownloadEpisodeChoice.listFromJson(
             json['EpisodeChoices']),
+        externalSearchUrl: json['ExternalSearchUrl'] as String?,
       );
     } on Object {
       return null;

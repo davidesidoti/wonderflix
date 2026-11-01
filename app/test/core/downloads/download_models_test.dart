@@ -161,8 +161,10 @@ void main() {
       'ValidCount': 1,
       'TotalCount': 3,
       'Error': null,
+      'ExternalSearchUrl': 'https://mircrew.example/search?q=Film',
     })!;
     expect(search.current!.score, 80);
+    expect(search.externalSearchUrl, 'https://mircrew.example/search?q=Film');
     expect(search.candidates.single.isChoice, isTrue);
     expect(search.rejected.first.reason, RejectedReason.tooSmall);
     expect(search.rejected.first.detail, '0.57');
@@ -187,6 +189,8 @@ void main() {
 
     // Plugin 1.14.0: il campo manca.
     expect(DownloadSearch.fromJson(base())!.episodeChoices, isEmpty);
+    // Plugin più vecchio: niente ExternalSearchUrl, è null.
+    expect(DownloadSearch.fromJson(base())!.externalSearchUrl, isNull);
 
     final choices = DownloadSearch.fromJson(base([
       {'EpisodeNumber': 1, 'Release': releaseJson(guid: 'a'), 'WouldImport': true, 'CurrentScore': 90},
@@ -254,7 +258,8 @@ void main() {
       'Title': 'Film',
       'State': 'NeedsYou',
       'AvailableSince': '2026-10-20T00:00:00Z',
-      'Actions': ['GrabBest', 'Nuova', 'Pick', 'Import'],
+      'Actions': ['GrabBest', 'Nuova', 'Pick', 'Import', 'ExternalSearch'],
+      'ExternalSearchUrl': 'https://mircrew.example/search?q=Film',
       'Summary': {
         'Found': 5,
         'BestScore': 90,
@@ -271,7 +276,9 @@ void main() {
       DownloadAction.grabBest,
       DownloadAction.pick,
       DownloadAction.import,
+      DownloadAction.externalSearch,
     ]);
+    expect(item.externalSearchUrl, 'https://mircrew.example/search?q=Film');
     expect(item.summary!.found, 5);
     expect(item.summary!.bestScore, 90);
     expect(item.summary!.minScore, 100);
@@ -295,6 +302,7 @@ void main() {
     expect(item.summary, isNull);
     expect(item.blockedMessage, isNull);
     expect(item.snoozed, isFalse);
+    expect(item.externalSearchUrl, isNull);
   });
 
   group('SearchPhase', () {

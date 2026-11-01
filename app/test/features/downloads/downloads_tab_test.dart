@@ -43,6 +43,7 @@ DownloadItem _item(
   bool snoozed = false,
   DownloadProgress? progress,
   DownloadSearchPhase? searchPhase,
+  String? externalSearchUrl,
 }) =>
     DownloadItem(
       key: key,
@@ -56,6 +57,7 @@ DownloadItem _item(
       snoozed: snoozed,
       progress: progress,
       searchPhase: searchPhase,
+      externalSearchUrl: externalSearchUrl,
     );
 
 ReviewItem _review(int n, {bool canHunt = true}) => ReviewItem(
@@ -649,6 +651,22 @@ void main() {
       expect(find.text('senza avvisi'), findsOneWidget);
       expect(find.text('Guarda'), findsOneWidget);
       expect(tester.widget(button('Guarda')), isA<OutlinedButton>());
+    });
+
+    testWidgets('Cerca su MIRCrew: il pulsante apre il browser, non il plugin',
+        (tester) async {
+      fill(_item('movie:5',
+          state: DownloadState.needsYou,
+          reason: DownloadReason.nothingFound,
+          actions: [DownloadAction.searchNow, DownloadAction.externalSearch],
+          externalSearchUrl: 'https://mircrew.example/search?q=Film'));
+      await pumpTab(tester);
+
+      expect(tester.widget(button('Cerca su MIRCrew')), isA<OutlinedButton>());
+      api.calls.clear();
+      await tester.tap(find.text('Cerca su MIRCrew'));
+      await tester.pumpAndSettle();
+      expect(api.calls, isEmpty);
     });
 
     testWidgets('plugin vecchio: i pulsanti di prima', (tester) async {

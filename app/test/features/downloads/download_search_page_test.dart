@@ -18,6 +18,7 @@ DownloadSearch _search({
   List<DownloadCandidate>? candidates,
   List<DownloadRejected> rejected = const [],
   String? error,
+  String? externalSearchUrl,
 }) =>
     DownloadSearch(
       key: 'movie:1',
@@ -30,6 +31,7 @@ DownloadSearch _search({
       validCount: 1,
       totalCount: 2,
       error: error,
+      externalSearchUrl: externalSearchUrl,
     );
 
 const _confirmTitle = 'Scaricare questa release?';
@@ -113,6 +115,44 @@ void main() {
     expect(find.text('Scartati · 2'), findsOneWidget);
     expect(find.textContaining('Già nel catalogo'), findsOneWidget);
     expect(find.textContaining('0,62 GB/ora, sotto la soglia'), findsOneWidget);
+  });
+
+  group('ExternalSearch', () {
+    const url = 'https://mircrew.example/search?q=Film';
+
+    testWidgets('without candidates and with a URL the button is there, '
+        'with the rejected below', (tester) async {
+      api.searchValue = _search(
+          candidates: const [],
+          externalSearchUrl: url,
+          rejected: [
+            DownloadRejected(
+                release: testRelease(guid: 'r1'),
+                reason: RejectedReason.arr,
+                detail: 'Già nel catalogo'),
+          ]);
+      await open(tester);
+
+      expect(find.text('Niente da mostrare'), findsOneWidget);
+      expect(find.widgetWithText(OutlinedButton, 'Cerca su MIRCrew'),
+          findsOneWidget);
+      expect(find.text('Scartati · 1'), findsOneWidget);
+    });
+
+    testWidgets('without a URL there is no button', (tester) async {
+      api.searchValue = _search(candidates: const []);
+      await open(tester);
+
+      expect(find.text('Niente da mostrare'), findsOneWidget);
+      expect(find.text('Cerca su MIRCrew'), findsNothing);
+    });
+
+    testWidgets('with candidates there is no button', (tester) async {
+      api.searchValue = _search(externalSearchUrl: url);
+      await open(tester);
+
+      expect(find.text('Cerca su MIRCrew'), findsNothing);
+    });
   });
 
   testWidgets('ALowerScoreAsksFirst', (tester) async {

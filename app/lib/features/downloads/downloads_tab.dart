@@ -130,6 +130,12 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
       unawaited(_open(key, item.title));
       return;
     }
+    if (action == DownloadAction.externalSearch) {
+      if (item.externalSearchUrl case final url?) {
+        await openExternalSearch(context, url);
+      }
+      return;
+    }
     final api = ref.read(downloadsApiProvider);
     await _call(switch (action) {
       DownloadAction.grabBest => () => api.grabBest(key),
@@ -137,7 +143,8 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
       DownloadAction.import => () => api.importBlocked(key),
       DownloadAction.discard => () => api.discard(key),
       DownloadAction.searchNow ||
-      DownloadAction.pick => () => api.searchNow(key),
+      DownloadAction.pick ||
+      DownloadAction.externalSearch => () => api.searchNow(key),
     }, started: action == DownloadAction.searchNow);
   }
 

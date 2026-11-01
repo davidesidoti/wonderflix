@@ -1280,6 +1280,8 @@
   "downloadsArrError": "{service}: {detail}",
   "@downloadsArrError": {"placeholders": {"service": {"type": "String"}, "detail": {"type": "String"}}},
   "downloadsNothingYet": "Niente da mostrare",
+  "downloadsExternalSearch": "Cerca su MIRCrew",
+  "downloadsExternalSearchFailed": "Non riesco ad aprire il browser",
   "downloadsSearchWaiting": "Cerco su Radarr/Sonarr, può volerci un minuto",
   "downloadsSearchRunning": "Ricerca su {service} in corso · {elapsed}",
   "@downloadsSearchRunning": {"placeholders": {"service": {"type": "String"}, "elapsed": {"type": "String"}}},

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/error_text.dart';
 import '../../app/theme.dart';
@@ -35,6 +36,23 @@ Future<void> showDownloadSearch(
             dlKey: key, title: title, reviewing: reviewing, lighten: lighten),
       ),
     );
+
+/// Apre nel browser la ricerca sul tracker esterno; se non parte lo dice.
+Future<void> openExternalSearch(BuildContext context, String url) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final failed = AppLocalizations.of(context).downloadsExternalSearchFailed;
+  final uri = Uri.tryParse(url);
+  var opened = false;
+  // L'URL viene dal plugin: solo pagine web.
+  if (uri != null && (uri.isScheme('https') || uri.isScheme('http'))) {
+    try {
+      opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } on Object {
+      opened = false;
+    }
+  }
+  if (!opened) messenger.showSnackBar(SnackBar(content: Text(failed)));
+}
 
 class _SearchPage extends ConsumerWidget {
   const _SearchPage({
@@ -208,6 +226,18 @@ class _SearchPage extends ConsumerWidget {
               onGrabAll: (withRelease) => _grabAll(context, ref, withRelease),
             ),
           if (search.candidates.isEmpty) AdminEmptyText(text: l.downloadsNothingYet),
+          if (search.candidates.isEmpty && search.externalSearchUrl != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: OutlinedButton(
+                  onPressed: () =>
+                      openExternalSearch(context, search.externalSearchUrl!),
+                  child: Text(l.downloadsExternalSearch),
+                ),
+              ),
+            ),
           if (search.candidates.isNotEmpty &&
               !FormFactor.of(context).compact)
             const _TableHead(),

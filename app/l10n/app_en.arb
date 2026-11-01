@@ -1107,6 +1107,8 @@
   "downloadsArrError": "{service}: {detail}",
   "@downloadsArrError": {"placeholders": {"service": {"type": "String"}, "detail": {"type": "String"}}},
   "downloadsNothingYet": "Nothing to show",
+  "downloadsExternalSearch": "Search on MIRCrew",
+  "downloadsExternalSearchFailed": "Couldn't open the browser",
   "downloadsSearchWaiting": "Searching Radarr/Sonarr, it can take a minute",
   "downloadsSearchRunning": "Searching {service} · {elapsed}",
   "@downloadsSearchRunning": {"placeholders": {"service": {"type": "String"}, "elapsed": {"type": "String"}}},

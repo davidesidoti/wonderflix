@@ -308,6 +308,7 @@ class DownloadItemRow extends StatelessWidget {
         DownloadAction.snooze => l.downloadsActionSnooze,
         DownloadAction.import => l.downloadsActionImport,
         DownloadAction.discard => l.downloadsActionDiscard,
+        DownloadAction.externalSearch => l.downloadsExternalSearch,
       };
 
   static IconData _actionIcon(DownloadAction a) => switch (a) {
@@ -317,6 +318,7 @@ class DownloadItemRow extends StatelessWidget {
         DownloadAction.snooze => LucideIcons.bellOff,
         DownloadAction.import => LucideIcons.fileInput,
         DownloadAction.discard => LucideIcons.trash2,
+        DownloadAction.externalSearch => LucideIcons.externalLink,
       };
 }
 
