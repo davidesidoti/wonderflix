@@ -23,7 +23,7 @@ String downloadProgressLabel(
     final since = p.since;
     return since == null
         ? l.downloadsProgressMetadataNow
-        : l.downloadsProgressMetadata(_durationLabel(l, now.difference(since)));
+        : l.downloadsProgressMetadata(_durationLabel(l, _atLeastZero(now.difference(since))));
   }
   final line = l.downloadsProgressLine(
     (p.fraction * 100).round(),
@@ -41,6 +41,9 @@ String downloadProgressLabel(
   };
   return tail.isEmpty ? line : '$line · $tail';
 }
+
+// Un orologio indietro rispetto al server darebbe una durata negativa.
+Duration _atLeastZero(Duration d) => d.isNegative ? Duration.zero : d;
 
 /// "45 min", "2 h 5 min", "2 g 12 h": la parte piccola sparisce se è 0.
 String _durationLabel(AppLocalizations l, Duration d) {

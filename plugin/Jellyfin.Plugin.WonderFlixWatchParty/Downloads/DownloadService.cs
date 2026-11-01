@@ -506,13 +506,20 @@ public sealed partial class DownloadService(
             return;
         }
 
-        logger.LogInformation("Download automatici: {Key} fermo da {Hours} ore, tolto dalla coda", key, DownloadSchedule.StalledAfter.TotalHours);
         string? title = null;
+        var after = DownloadSchedule.StalledAfter;
         lock (_lock)
         {
             if (Book.Get(key) is { } entry && entry.QueueId == queueId)
             {
                 title = entry.Title;
+
+                // Fermo sui metadati: la soglia è un'altra (BackToWaiting e BackToUpgradeWatch azzerano MetadataSince).
+                if (entry.MetadataSince is not null)
+                {
+                    after = DownloadSchedule.MetadataStalledAfter;
+                }
+
                 // Un upgrade fermo torna a UpgradeWatch con il file di prima, un primo download in attesa.
                 if (entry.PreviousScore is not null)
                 {
@@ -524,6 +531,8 @@ public sealed partial class DownloadService(
                 }
             }
         }
+
+        logger.LogInformation("Download automatici: {Key} fermo da {Hours} ore, tolto dalla coda", key, after.TotalHours);
 
         // Una voce di storico per ogni rimozione: la chiave con l'ora la rende unica.
         if (alerts is not null && title is not null)

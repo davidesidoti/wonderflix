@@ -268,6 +268,7 @@ void main() {
         expect(label(const Duration(hours: 3, minutes: 5)),
             'Recupero i metadati da 3 h 5 min');
         expect(label(null), 'Recupero i metadati');
+        expect(label(const Duration(minutes: -5)), 'Recupero i metadati da 0 min');
         expect(
             downloadProgressLabel(en, m(const Duration(hours: 60)), now),
             'Fetching metadata for 2 d 12 h');
