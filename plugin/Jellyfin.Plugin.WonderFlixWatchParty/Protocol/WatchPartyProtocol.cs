@@ -45,6 +45,9 @@ public static class WatchPartyProtocol
     /// <summary>Lo spazio del seedbox (spec U §7.4): con Sonarr o Radarr configurato, come i download.</summary>
     public const string SpaceFeature = "space";
 
+    /// <summary>La ricerca di release in background (spec W): con Sonarr o Radarr configurato, come i download.</summary>
+    public const string DownloadsSearchJobsFeature = "downloadsSearchJobs";
+
     /// <summary>Le funzioni di GET Info, con quelle che dipendono dalla configurazione.</summary>
     public static IReadOnlyList<string> FeaturesWith(bool requests, bool upcomingSeries, bool upcomingMovies)
     {
@@ -69,6 +72,7 @@ public static class WatchPartyProtocol
             features.Add(CalendarFeature);
             features.Add(DownloadsFeature);
             features.Add(SpaceFeature);
+            features.Add(DownloadsSearchJobsFeature);
         }
 
         return features;

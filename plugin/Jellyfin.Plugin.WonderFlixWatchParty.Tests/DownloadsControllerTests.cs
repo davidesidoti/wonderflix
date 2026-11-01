@@ -129,6 +129,41 @@ public sealed class DownloadsControllerTests : IDisposable
     }
 
     [Fact]
+    public void SearchStartReturnsTheStatus()
+    {
+        var started = _controller.SearchStart(new SearchStartRequest { Key = "movie:12" });
+
+        Assert.Null(started.Result);
+        Assert.Equal("movie:12", started.Value!.Key);
+        Assert.Equal("Radarr", started.Value.Service);
+        Assert.Equal("movie:12", _controller.SearchStatus("movie:12").Value!.Key);
+    }
+
+    [Fact]
+    public void SearchStartWithoutAKeyIsBadRequest()
+    {
+        Assert.Equal(StatusCodes.Status400BadRequest, Status(_controller.SearchStart(null).Result));
+        Assert.Equal(StatusCodes.Status400BadRequest, Status(_controller.SearchStart(new SearchStartRequest()).Result));
+        Assert.Equal(StatusCodes.Status400BadRequest, Status(_controller.SearchStart(new SearchStartRequest { Key = "nope" }).Result));
+    }
+
+    [Fact]
+    public void SearchStatusOfAnInvalidKeyIsBadRequest()
+    {
+        Assert.Equal(StatusCodes.Status400BadRequest, Status(_controller.SearchStatus("nope").Result));
+        Assert.Equal(StatusCodes.Status400BadRequest, Status(_controller.SearchStatus(null).Result));
+    }
+
+    [Fact]
+    public void TheSearchStartBodyReadsAgain()
+    {
+        var body = JsonSerializer.Deserialize<SearchStartRequest>("""{"Key":"movie:12","Again":true}""");
+
+        Assert.True(body!.Again);
+        Assert.Equal("movie:12", body.Key);
+    }
+
+    [Fact]
     public async Task TheGrabBodyReadsLighten()
     {
         var body = JsonSerializer.Deserialize<GrabRequest>("""{"Key":"movie:12","Guid":"b","IndexerId":3,"Lighten":true}""");

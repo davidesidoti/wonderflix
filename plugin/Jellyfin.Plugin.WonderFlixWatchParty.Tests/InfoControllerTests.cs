@@ -14,7 +14,7 @@ public class InfoControllerTests
     public void InfoReportsVersionProtocolAndFeatures()
     {
         var info = new InfoController(new FakeSeerrSettings { Url = string.Empty }, NoArr()).GetInfo().Value!;
-        Assert.Equal("1.18.0", info.Version);
+        Assert.Equal("1.19.0", info.Version);
         Assert.Equal(1, info.Protocol);
         Assert.Equal(
             new[] { "friends", "parties", "inbox", "queue", "collections", "avatars", "account", "home", "recommendations", "friendsActivity", "match", "ratings", "reports", "push" },
@@ -34,7 +34,7 @@ public class InfoControllerTests
             new[]
             {
                 "friends", "parties", "inbox", "queue", "collections", "avatars", "account", "home", "recommendations", "friendsActivity", "match", "ratings", "reports", "push",
-                "requests", "upcomingSeries", "upcomingMovies", "calendar", "downloads", "space",
+                "requests", "upcomingSeries", "upcomingMovies", "calendar", "downloads", "space", "downloadsSearchJobs",
             },
             new InfoController(new FakeSeerrSettings(), new FakeArrSettings()).GetInfo().Value!.Features);
 
@@ -47,6 +47,7 @@ public class InfoControllerTests
         Assert.Contains("calendar", features);
         Assert.Contains("downloads", features);
         Assert.Contains("space", features);
+        Assert.Contains("downloadsSearchJobs", features);
     }
 
     [Fact]
@@ -54,12 +55,13 @@ public class InfoControllerTests
     {
         var onlySonarr = new InfoController(new FakeSeerrSettings(), new FakeArrSettings { Radarr = ArrEndpoint.None })
             .GetInfo().Value!.Features;
-        Assert.Equal(new[] { "requests", "upcomingSeries", "calendar", "downloads", "space" }, onlySonarr.Skip(14));
+        Assert.Equal(new[] { "requests", "upcomingSeries", "calendar", "downloads", "space", "downloadsSearchJobs" }, onlySonarr.Skip(14));
 
         var neither = new InfoController(new FakeSeerrSettings(), NoArr()).GetInfo().Value!.Features;
         Assert.DoesNotContain("calendar", neither);
         Assert.DoesNotContain("downloads", neither);
         Assert.DoesNotContain("space", neither);
+        Assert.DoesNotContain("downloadsSearchJobs", neither);
     }
 
     [Fact]

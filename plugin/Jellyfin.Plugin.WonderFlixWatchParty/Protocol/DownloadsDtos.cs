@@ -173,5 +173,15 @@ public sealed class KeyRequest
     public string? Key { get; set; }
 }
 
+/// <summary>Corpo di POST Downloads/SearchStart (spec W §4.4): Again = true cerca di nuovo anche se c'è un risultato recente.</summary>
+public sealed class SearchStartRequest
+{
+    [JsonPropertyName("Key")]
+    public string? Key { get; set; }
+
+    [JsonPropertyName("Again")]
+    public bool Again { get; set; }
+}
+
 /// <summary>Errore dei download: "Expired" (409) o "Unavailable" (503) (spec T §7.4).</summary>
 public sealed record DownloadsErrorDto([property: JsonPropertyName("Reason")] string Reason);

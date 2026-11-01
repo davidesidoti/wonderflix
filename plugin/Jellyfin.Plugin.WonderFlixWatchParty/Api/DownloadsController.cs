@@ -23,13 +23,29 @@ public class DownloadsController(DownloadService downloads) : ControllerBase
     public async Task<ActionResult<DownloadsOverviewDto>> Overview() =>
         await downloads.OverviewAsync(HttpContext.RequestAborted).ConfigureAwait(false);
 
-    /// <summary>Ricerca dal vivo (fino a 2 minuti); 400 per una chiave non valida o un titolo che non c'è.</summary>
+    /// <summary>
+    /// Ricerca dal vivo: avvia o raggiunge il job del titolo e ne aspetta la fine (fino a 15 minuti), per le app 0.27 e prima
+    /// (le nuove usano SearchStart e SearchStatus); 400 per una chiave non valida o un titolo che non c'è.
+    /// </summary>
     [HttpGet("Search")]
     public async Task<ActionResult<DownloadSearchDto>> Search([FromQuery] string? key)
     {
         var result = await downloads.SearchAsync(key ?? string.Empty, HttpContext.RequestAborted).ConfigureAwait(false);
         return result is null ? BadRequest() : result;
     }
+
+    /// <summary>
+    /// Avvia (o riprende) la ricerca in background del titolo e risponde subito con lo stato (spec W §4.4);
+    /// Again=false lascia stare un job in corso o finito da meno di 30 minuti. 400 per una chiave mancante o non valida.
+    /// </summary>
+    [HttpPost("SearchStart")]
+    public ActionResult<DownloadSearchStatusDto> SearchStart([FromBody] SearchStartRequest? request) =>
+        request?.Key is { } key && downloads.StartSearch(key, request.Again) is { } status ? status : BadRequest();
+
+    /// <summary>Lo stato della ricerca in background del titolo (spec W §4.4); 400 per una chiave non valida.</summary>
+    [HttpGet("SearchStatus")]
+    public ActionResult<DownloadSearchStatusDto> SearchStatus([FromQuery] string? key) =>
+        downloads.SearchStatus(key ?? string.Empty) is { } status ? status : BadRequest();
 
     /// <summary>Scarica una release della ricerca; 204.</summary>
     [HttpPost("Grab")]
