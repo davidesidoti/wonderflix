@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.20.0.0",
+        "changelog": "Ricerca su MIRCrew per WonderFlix 0.29.0: quando la ricerca di un titolo non trova release valide, la ricerca e le voci \"Serve te\" (nessuna release trovata, sotto il punteggio minimo) mandano il link della ricerca di MIRCrew col titolo già scritto. Il link si cambia (o si spegne lasciandolo vuoto) nella pagina del plugin, in \"Automatic downloads\".",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.20.0/wonderflix-watch-party_1.20.0.zip",
+        "checksum": "d0d6803db302783ba342c9c30d127415",
+        "timestamp": "2026-11-01T22:30:00Z"
+      },
+      {
         "version": "1.19.0.0",
         "changelog": "Ricerca dei download in background per WonderFlix 0.28.0: la ricerca manuale gira sul server e l'app ne segue l'avanzamento, i risultati restano 30 minuti. Le ricerche su Sonarr/Radarr possono durare fino a 15 minuti (anche nel giro automatico), così le stagioni anime non falliscono più. Le release anime numerate in assoluto contano per il loro episodio nei \"Migliori episodi\".",
         "targetAbi": "10.11.0.0",
