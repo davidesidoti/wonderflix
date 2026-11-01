@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:logging/logging.dart';
 
 import 'api_exception.dart';
@@ -24,7 +25,9 @@ class JellyfinHttp {
         _clientInfo = clientInfo,
         dio = Dio(BaseOptions(
           baseUrl: baseUrl.toString(),
-          connectTimeout: const Duration(seconds: 10),
+          // Nel browser dio conta il connectTimeout fino agli header della
+          // risposta: una ricerca dei download lunga oltre 10 s finirebbe lì.
+          connectTimeout: kIsWeb ? null : const Duration(seconds: 10),
           receiveTimeout: const Duration(seconds: 30),
           responseType: ResponseType.json,
         )) {
