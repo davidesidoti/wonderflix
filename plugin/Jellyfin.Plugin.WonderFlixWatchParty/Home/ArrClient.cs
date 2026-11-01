@@ -24,6 +24,9 @@ public sealed class ArrClient(
     /// <summary>Attesa massima di una ricerca dal vivo: gli indexer rispondono piano (spec T §2).</summary>
     public static readonly TimeSpan SearchTimeout = TimeSpan.FromMinutes(2);
 
+    /// <summary>Attesa massima di una ricerca di release: le stagioni anime, Sonarr cerca un episodio alla volta (spec W §4.1).</summary>
+    public static readonly TimeSpan ReleaseSearchTimeout = TimeSpan.FromMinutes(15);
+
     /// <summary>
     /// Attesa massima di un grab: Radarr/Sonarr scaricano il .torrent tramite Prowlarr e lo passano al client; con 10 s
     /// un grab lento sembra fallito mentre il download parte, e l'admin riproverebbe (doppione).
@@ -78,7 +81,7 @@ public sealed class ArrClient(
 
     public async Task<IReadOnlyList<ArrRelease?>> SearchReleasesAsync(
         ArrKind kind, string query, CancellationToken cancellationToken) =>
-        await SendAsync<List<ArrRelease?>>(kind, HttpMethod.Get, $"release?{query}", null, SearchTimeout, cancellationToken)
+        await SendAsync<List<ArrRelease?>>(kind, HttpMethod.Get, $"release?{query}", null, ReleaseSearchTimeout,cancellationToken)
             .ConfigureAwait(false);
 
     public Task GrabReleaseAsync(ArrKind kind, string guid, int indexerId, CancellationToken cancellationToken) =>
