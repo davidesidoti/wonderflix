@@ -247,7 +247,8 @@ class DownloadItemRow extends StatelessWidget {
         _muted([since, if (next.isNotEmpty) next].join(' · ')),
         if (why.isNotEmpty) _muted(why, color: WfColors.gold),
         if (progress != null && item.state == DownloadState.downloading) ...[
-          RowProgressBar(value: progress.fraction),
+          if (!progress.isFetchingMetadata)
+            RowProgressBar(value: progress.fraction),
           _muted(downloadProgressLabel(l, progress, now)),
         ],
         if (explanation.isNotEmpty)

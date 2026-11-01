@@ -224,19 +224,26 @@ class DownloadSummary {
 }
 
 /// L'avanzamento di un download in corso (plugin 1.18.0+): il `Status` è
-/// quello di Sonarr/Radarr, com'è ("downloading", "paused", ...).
+/// quello di Sonarr/Radarr, com'è ("downloading", "paused", ...), oppure
+/// "metadata" se il torrent è fermo sul recupero dei metadati: allora [since]
+/// dice da quando (la dimensione è 0).
 class DownloadProgress {
   const DownloadProgress({
     required this.sizeBytes,
     required this.sizeLeftBytes,
     this.estimatedCompletion,
     required this.status,
+    this.since,
   });
 
   final int sizeBytes;
   final int sizeLeftBytes;
   final DateTime? estimatedCompletion;
   final String status;
+  final DateTime? since;
+
+  /// Torrent fermo sul recupero dei metadati: niente percentuale né barra.
+  bool get isFetchingMetadata => status.toLowerCase() == 'metadata';
 
   /// Da 0 a 1; 0 se la dimensione non è nota.
   double get fraction =>
@@ -250,6 +257,7 @@ class DownloadProgress {
         sizeLeftBytes: (json['SizeLeftBytes'] as num).toInt(),
         estimatedCompletion: _dateOrNull(json['EstimatedCompletion']),
         status: json['Status'] as String,
+        since: _dateOrNull(json['Since']),
       );
     } on Object {
       return null;

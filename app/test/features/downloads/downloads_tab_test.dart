@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
@@ -376,6 +377,36 @@ void main() {
       expect(bar.value, closeTo(0.62, 0.001));
       expect(find.textContaining('62% · 1,92 GB di 3,10 GB · finisce tra '),
           findsOneWidget);
+    });
+
+    testWidgets('fermo sui metadati: riga con la durata, niente barra, Scarta',
+        (tester) async {
+      api.overviewValue = DownloadsOverview(enabled: true, waiting: [
+        _item('movie:2',
+            state: DownloadState.downloading,
+            actions: [
+              DownloadAction.pick,
+              DownloadAction.searchNow,
+              DownloadAction.discard
+            ],
+            progress: DownloadProgress(
+              sizeBytes: 0,
+              sizeLeftBytes: 0,
+              status: 'metadata',
+              since: clock.now().subtract(const Duration(hours: 3)),
+            )),
+      ]);
+      await pumpTab(tester);
+
+      expect(find.textContaining('Recupero i metadati da 3 h'), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      expect(find.textContaining('%'), findsNothing);
+      expect(find.text('Scarta e cerca un altro'), findsOneWidget);
+
+      api.calls.clear();
+      await tester.tap(find.text('Scarta e cerca un altro'));
+      await tester.pumpAndSettle();
+      expect(api.calls, ['discard movie:2', 'overview']);
     });
 
     testWidgets('una voce in attesa non ha la barra', (tester) async {

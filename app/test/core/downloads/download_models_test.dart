@@ -277,6 +277,19 @@ void main() {
       expect(DownloadItem.fromJson(json(null))!.progress, isNull);
     });
 
+    test('SinceIsParsedAndTolerant', () {
+      Map<String, dynamic> raw(Object? since) => {
+            'SizeBytes': 0,
+            'SizeLeftBytes': 0,
+            'Status': 'metadata',
+            'Since': since,
+          };
+      expect(DownloadProgress.fromJson(raw('2026-11-01T08:00:00Z'))!.since,
+          DateTime.utc(2026, 11, 1, 8));
+      expect(DownloadProgress.fromJson(raw(null))!.since, isNull);
+      expect(DownloadProgress.fromJson(raw('boh')), isNull);
+    });
+
     test('TheFractionIsClamped', () {
       DownloadProgress p(int size, int left) => DownloadProgress(
           sizeBytes: size, sizeLeftBytes: left, status: 'downloading');

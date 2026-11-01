@@ -19,6 +19,12 @@ String downloadProgressLabel(
   DownloadProgress p,
   DateTime now,
 ) {
+  if (p.isFetchingMetadata) {
+    final since = p.since;
+    return since == null
+        ? l.downloadsProgressMetadataNow
+        : l.downloadsProgressMetadata(_durationLabel(l, now.difference(since)));
+  }
   final line = l.downloadsProgressLine(
     (p.fraction * 100).round(),
     formatGb(l, (p.fraction * p.sizeBytes).round()),
@@ -34,6 +40,21 @@ String downloadProgressLabel(
     _ => '',
   };
   return tail.isEmpty ? line : '$line · $tail';
+}
+
+/// "45 min", "2 h 5 min", "2 g 12 h": la parte piccola sparisce se è 0.
+String _durationLabel(AppLocalizations l, Duration d) {
+  if (d.inMinutes < 60) return l.downloadsDurationMinutes(d.inMinutes);
+  if (d.inHours < 24) {
+    final minutes = d.inMinutes % 60;
+    return minutes == 0
+        ? l.downloadsDurationHours(d.inHours)
+        : l.downloadsDurationHoursMinutes(d.inHours, minutes);
+  }
+  final hours = d.inHours % 24;
+  return hours == 0
+      ? l.downloadsDurationDays(d.inDays)
+      : l.downloadsDurationDaysHours(d.inDays, hours);
 }
 
 String _etaLabel(AppLocalizations l, DateTime eta, DateTime now) {

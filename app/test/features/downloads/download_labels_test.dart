@@ -248,6 +248,32 @@ void main() {
           endsWith(' · client non raggiungibile'));
     });
 
+    group('metadata', () {
+      DownloadProgress m(Duration? fetching) => DownloadProgress(
+            sizeBytes: 0,
+            sizeLeftBytes: 0,
+            status: 'Metadata',
+            since: fetching == null ? null : now.subtract(fetching),
+          );
+
+      test('TheWholeLineIsTheDuration', () {
+        String label(Duration? d) => downloadProgressLabel(it, m(d), now);
+        expect(label(const Duration(hours: 60)),
+            'Recupero i metadati da 2 g 12 h');
+        expect(label(const Duration(hours: 48)),
+            'Recupero i metadati da 2 g');
+        expect(label(const Duration(minutes: 45)),
+            'Recupero i metadati da 45 min');
+        expect(label(const Duration(hours: 3)), 'Recupero i metadati da 3 h');
+        expect(label(const Duration(hours: 3, minutes: 5)),
+            'Recupero i metadati da 3 h 5 min');
+        expect(label(null), 'Recupero i metadati');
+        expect(
+            downloadProgressLabel(en, m(const Duration(hours: 60)), now),
+            'Fetching metadata for 2 d 12 h');
+      });
+    });
+
     test('NoEtaOrUnknownStatusHasNoTail', () {
       expect(downloadProgressLabel(it, p('downloading'), now),
           '62% · 1,92 GB di 3,10 GB');
