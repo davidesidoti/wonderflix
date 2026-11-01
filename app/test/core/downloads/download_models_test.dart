@@ -53,6 +53,16 @@ void main() {
           'Score': 40,
           'SizeBytes': 500000000,
           'Quality': 'SDTV',
+        },
+        {
+          'Key': 'movie:3',
+          'Kind': 'Movie',
+          'Title': 'Film',
+          'PosterUrl': null,
+          'Score': 40,
+          'SizeBytes': 500000000,
+          'Quality': 'SDTV',
+          'CanHunt': true,
         }
       ],
       'ReviewAt': null,
@@ -70,7 +80,9 @@ void main() {
     expect((item.kind, item.state, item.reason),
         (DownloadKind.season, DownloadState.needsYou, DownloadReason.belowMinScore));
     expect(item.nextSearchAt, isNull);
-    expect(overview.review.single.quality, 'SDTV');
+    expect(overview.review.first.quality, 'SDTV');
+    // Senza CanHunt (plugin vecchio) niente "Cerca un upgrade".
+    expect(overview.review.map((r) => r.canHunt), [false, true]);
     expect((overview.sonarrError, overview.radarrError), (null, 'Unreachable'));
     expect(DownloadsOverview.empty.waiting, isEmpty);
   });

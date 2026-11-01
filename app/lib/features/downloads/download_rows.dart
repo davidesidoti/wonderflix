@@ -343,12 +343,14 @@ class ReviewRow extends StatelessWidget {
   const ReviewRow({
     super.key,
     required this.item,
-    required this.onHunt,
+    this.onHunt,
     required this.onOpen,
   });
 
   final ReviewItem item;
-  final Future<void> Function() onHunt;
+
+  /// "Cerca un upgrade"; senza, il pulsante non c'è.
+  final Future<void> Function()? onHunt;
   final VoidCallback onOpen;
 
   @override
@@ -373,11 +375,12 @@ class ReviewRow extends StatelessWidget {
         ),
       ],
       actions: [
-        AdminActionButton(
-          label: l.downloadsActionHunt,
-          icon: LucideIcons.refreshCw,
-          onPressed: onHunt,
-        ),
+        if (onHunt case final hunt?)
+          AdminActionButton(
+            label: l.downloadsActionHunt,
+            icon: LucideIcons.refreshCw,
+            onPressed: hunt,
+          ),
         AdminActionButton(
           label: l.downloadsOpen,
           icon: LucideIcons.search,

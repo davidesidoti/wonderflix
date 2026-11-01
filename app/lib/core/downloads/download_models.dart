@@ -369,6 +369,7 @@ class ReviewItem {
     required this.score,
     required this.sizeBytes,
     required this.quality,
+    this.canHunt = false,
   });
 
   final String key;
@@ -378,6 +379,9 @@ class ReviewItem {
   final int score;
   final int sizeBytes;
   final String quality;
+
+  /// "Cerca un upgrade" può partire; falso da un plugin che non lo manda.
+  final bool canHunt;
 
   static ReviewItem? fromJson(Map<String, dynamic> json) {
     try {
@@ -389,6 +393,7 @@ class ReviewItem {
         score: (json['Score'] as num).toInt(),
         sizeBytes: (json['SizeBytes'] as num).toInt(),
         quality: json['Quality'] as String,
+        canHunt: json['CanHunt'] == true,
       );
     } on Object {
       return null;

@@ -282,10 +282,13 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
             ReviewRow(
               key: ValueKey('review-${item.key}'),
               item: item,
-              onHunt: () => _call(
-                () => ref.read(downloadsApiProvider).hunt(item.key),
-                started: true,
-              ),
+              // Spenti, il giro non cerca: niente pulsante.
+              onHunt: item.canHunt && overview.enabled
+                  ? () => _call(
+                        () => ref.read(downloadsApiProvider).hunt(item.key),
+                        started: true,
+                      )
+                  : null,
               onOpen: () =>
                   unawaited(_open(item.key, item.title, reviewing: true)),
             ),

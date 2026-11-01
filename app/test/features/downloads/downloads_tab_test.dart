@@ -58,13 +58,14 @@ DownloadItem _item(
       searchPhase: searchPhase,
     );
 
-ReviewItem _review(int n) => ReviewItem(
+ReviewItem _review(int n, {bool canHunt = true}) => ReviewItem(
       key: 'movie:$n',
       kind: DownloadKind.movie,
       title: 'Da ripassare $n',
       score: 90,
       sizeBytes: 2000000000,
       quality: 'WEBRip-720p',
+      canHunt: canHunt,
     );
 
 void main() {
@@ -237,6 +238,23 @@ void main() {
     expect(api.calls, ['hunt movie:4', 'overview']);
     expect(find.text('È cambiato qualcosa nel frattempo: ricarico'),
         findsOneWidget);
+  });
+
+  testWidgets("Cerca un upgrade non c'è se non può partire", (tester) async {
+    api.overviewValue = DownloadsOverview(
+        enabled: true, review: [_review(4, canHunt: false), _review(5)]);
+    await pumpTab(tester);
+    expect(find.text('Cerca un upgrade'), findsOneWidget);
+    expect(find.text('Apri'), findsNWidgets(2));
+  });
+
+  testWidgets("Cerca un upgrade non c'è con i download spenti",
+      (tester) async {
+    api.overviewValue =
+        DownloadsOverview(enabled: false, review: [_review(4), _review(5)]);
+    await pumpTab(tester);
+    expect(find.text('Apri'), findsNWidgets(2));
+    expect(find.text('Cerca un upgrade'), findsNothing);
   });
 
   group('fasi della ricerca', () {
