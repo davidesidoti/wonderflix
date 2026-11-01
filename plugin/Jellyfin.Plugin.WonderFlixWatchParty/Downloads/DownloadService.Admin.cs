@@ -37,6 +37,17 @@ public enum BlockedOutcome
 }
 
 /// <summary>
+/// Esito di "Cerca un upgrade" da "Da ripassare": Invalid per una chiave non valida, Changed se il titolo non è più da
+/// ripassare né ha una voce da cercare (o è una riga salvata da una versione precedente, senza qualità).
+/// </summary>
+public enum HuntOutcome
+{
+    Ok,
+    Invalid,
+    Changed,
+}
+
+/// <summary>
 /// Le azioni dell'admin (spec T §7.4, §8): la ricerca con la regola, "scarica" e "cambia", "va bene così",
 /// "cerca adesso", la panoramica e i profili. Le letture di Radarr/Sonarr sono fuori dal lock, come nel giro.
 /// </summary>
@@ -577,6 +588,67 @@ public sealed partial class DownloadService
 
         Nudge();
         return true;
+    }
+
+    /// <summary>
+    /// "Cerca un upgrade" da "Da ripassare": il titolo torna in UpgradeWatch per <see cref="DownloadSchedule.UpgradeWindow"/>,
+    /// cercato al prossimo giro, chiesto subito. Con una voce che si cerca già è "Cerca adesso".
+    /// </summary>
+    public HuntOutcome Hunt(string key)
+    {
+        if (!DownloadKey.TryParse(key, out var parsed))
+        {
+            return HuntOutcome.Invalid;
+        }
+
+        var normalized = parsed.ToString();
+        lock (_lock)
+        {
+            var now = time.GetUtcNow();
+            if (Book.Get(normalized) is { } existing)
+            {
+                if (!SearchesByState(existing))
+                {
+                    return HuntOutcome.Changed;
+                }
+
+                existing.NextSearchAt = now;
+            }
+            else
+            {
+                // Senza qualità WouldImport accetterebbe una qualità più bassa; senza episodi una stagione non si cerca.
+                var item = Book.Review.FirstOrDefault(r => r.Key == normalized);
+                if (item?.QualityId is null || Book.IsAccepted(normalized) || (parsed.Kind == DownloadKinds.Season && item.EpisodeNumbers is not { Count: > 0 }))
+                {
+                    return HuntOutcome.Changed;
+                }
+
+                Book.Put(new DownloadEntry
+                {
+                    Key = normalized,
+                    Kind = item.Kind,
+                    Title = item.Title,
+                    PosterUrl = item.PosterUrl,
+                    State = DownloadStates.UpgradeWatch,
+                    AvailableSince = now,
+                    NextSearchAt = now,
+                    UpgradeUntil = now + DownloadSchedule.UpgradeWindow,
+                    CurrentScore = item.Score,
+                    CurrentQualityId = item.QualityId,
+                    CurrentSizeBytes = item.SizeBytes,
+                    ProfileId = item.ProfileId,
+                    RuntimeMinutes = item.RuntimeMinutes,
+                    SeriesId = parsed.Kind == DownloadKinds.Season ? parsed.Id : 0,
+                    EpisodeNumbers = item.EpisodeNumbers is { } numbers ? [.. numbers] : null,
+                });
+                Book.RemoveFromReview(normalized);
+            }
+
+            store.Save(Book);
+        }
+
+        Nudge();
+        return HuntOutcome.Ok;
     }
 
     /// <summary>

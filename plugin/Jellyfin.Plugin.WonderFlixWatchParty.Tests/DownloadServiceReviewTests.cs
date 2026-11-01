@@ -311,4 +311,146 @@ public sealed class DownloadServiceReviewTests : IDisposable
         Assert.Equal((ArrKind.Sonarr, "P"), Assert.Single(_arr.ManualImportReadCalls));
         Assert.Equal(["/dl/e201.mkv", "/dl/e202.mkv"], Assert.Single(_arr.ManualImportCalls).Items.Select(i => i.Path));
     }
+
+    // Amistad (film 12, 155 minuti) su un Bluray-1080p da 0 punti e 12,4 GB: è da ripassare.
+    private async Task AmistadToReview()
+    {
+        _movies = [Movie(12, hasFile: true, title: "Amistad", year: 1997)];
+        _movieFiles = [MovieFile(12, Bluray1080, "Bluray-1080p", 0, 12.4)];
+        _arr.Indexers = _ => Task.FromResult<IReadOnlyList<ArrIndexer?>>([new ArrIndexer { Id = 1, Priority = 25 }]);
+        await Build();
+    }
+
+    [Fact]
+    public async Task HuntTurnsAReviewItemIntoAnUpgradeWatch()
+    {
+        await AmistadToReview();
+        var nudges = 0;
+        _service.Nudged += () => nudges++;
+        _time.Advance(TimeSpan.FromHours(1));
+        var now = _time.GetUtcNow();
+
+        Assert.Equal(HuntOutcome.Ok, _service.Hunt("movie:12"));
+
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadKinds.Movie, "Amistad (1997)", "https://img.example/poster.jpg", DownloadStates.UpgradeWatch), (entry.Kind, entry.Title, entry.PosterUrl, entry.State));
+        Assert.Equal(((int?)0, (int?)Bluray1080, (long?)(long)(12.4 * Gb)), (entry.CurrentScore, entry.CurrentQualityId, entry.CurrentSizeBytes));
+        Assert.Equal((4, 155), (entry.ProfileId, entry.RuntimeMinutes));
+        Assert.Equal((now + DownloadSchedule.UpgradeWindow, now), (entry.UpgradeUntil, entry.NextSearchAt));
+        Assert.Empty(Store().Load().Review);
+        Assert.Equal(1, nudges);
+
+        var overview = await _service.OverviewAsync(CancellationToken.None);
+        Assert.Empty(overview.Review);
+        Assert.Equal(("movie:12", DownloadSearchPhases.Queued), (Assert.Single(overview.Waiting).Key, overview.Waiting[0].SearchPhase));
+    }
+
+    [Fact]
+    public async Task AHuntedTitleIsSearchedWithTheUpgradeRule()
+    {
+        await AmistadToReview();
+        _service.Hunt("movie:12");
+
+        // Più punti ma una qualità più bassa del Bluray: Radarr non lo importerebbe.
+        _arr.Releases = (_, _) => Task.FromResult<IReadOnlyList<ArrRelease?>>([Release("web", WebRip1080, "WEBRip-1080p", 5, 150)]);
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Equal((ArrKind.Radarr, "movieId=12"), Assert.Single(_arr.SearchReleaseCalls));
+        Assert.Empty(_arr.GrabCalls);
+        Assert.Equal(DownloadStates.UpgradeWatch, Saved("movie:12")!.State);
+
+        // Più punti e la stessa qualità: si scarica come upgrade del file di prima.
+        Assert.Equal(HuntOutcome.Ok, _service.Hunt("movie:12"));
+        _arr.Releases = (_, _) => Task.FromResult<IReadOnlyList<ArrRelease?>>([Release("bd", Bluray1080, "Bluray-1080p", 14, 150)]);
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Equal("bd", Assert.Single(_arr.GrabCalls).Guid);
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.Downloading, (int?)0, (int?)Bluray1080, (int?)150), (entry.State, entry.PreviousScore, entry.PreviousQualityId, entry.CurrentScore));
+
+        // Importato: il file nuovo è all'obiettivo e la voce esce.
+        _movieFiles = [MovieFile(12, Bluray1080, "Bluray-1080p", 150, 14)];
+        _time.Advance(DownloadService.CycleInterval);
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Equal([512], _arr.MovieFileCalls[^1]);
+        Assert.Null(Saved("movie:12"));
+    }
+
+    [Fact]
+    public async Task HuntOnASeasonUsesItsEpisodes()
+    {
+        _arr.Series = () => Task.FromResult<IReadOnlyList<SonarrSeries?>>(
+            [new SonarrSeries { Id = 7, Title = "Severance", QualityProfileId = 6, Runtime = 50, Statistics = new SonarrSeriesStatistics { EpisodeFileCount = 3 } }]);
+        var files = new List<ArrFile?> { EpisodeFile(2, WebRip1080, "WEBRip-1080p", 30, 2), EpisodeFile(2, WebDl1080, "WEBDL-1080p", 10, 3), EpisodeFile(1, Bluray1080, "Bluray-1080p", 10, 1) };
+        (files[0]!.Id, files[1]!.Id, files[2]!.Id) = (71, 72, 70);
+        _arr.EpisodeFiles = _ => Task.FromResult<IReadOnlyList<ArrFile?>>(files);
+        _arr.SeriesEpisodes = _ => Task.FromResult<IReadOnlyList<SonarrEpisode?>>(
+        [
+            new SonarrEpisode { Id = 205, SeriesId = 7, SeasonNumber = 2, EpisodeNumber = 5, EpisodeFileId = 72 },
+            new SonarrEpisode { Id = 203, SeriesId = 7, SeasonNumber = 2, EpisodeNumber = 3, EpisodeFileId = 71 },
+            new SonarrEpisode { Id = 206, SeriesId = 7, SeasonNumber = 2, EpisodeNumber = 6 },
+            new SonarrEpisode { Id = 101, SeriesId = 7, SeasonNumber = 1, EpisodeNumber = 1, EpisodeFileId = 70 },
+        ]);
+        _arr.Indexers = _ => Task.FromResult<IReadOnlyList<ArrIndexer?>>([new ArrIndexer { Id = 1, Priority = 25 }]);
+        await Build();
+
+        Assert.Equal(HuntOutcome.Ok, _service.Hunt("season:7:2"));
+
+        // Gli episodi dei file della stagione, il peggiore come file di adesso.
+        var entry = Saved("season:7:2")!;
+        Assert.Equal([3, 5], entry.EpisodeNumbers!);
+        Assert.Equal((7, 6, 50, (int?)10, (int?)WebDl1080, (long?)(5 * Gb)), (entry.SeriesId, entry.ProfileId, entry.RuntimeMinutes, entry.CurrentScore, entry.CurrentQualityId, entry.CurrentSizeBytes));
+
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Contains((ArrKind.Sonarr, "seriesId=7&seasonNumber=2"), _arr.SearchReleaseCalls);
+    }
+
+    [Fact]
+    public void HuntOnAnExistingEntryIsSearchNow()
+    {
+        var later = T0 + TimeSpan.FromHours(6);
+        var book = new DownloadBook();
+        book.Put(new DownloadEntry { Key = "movie:12", Kind = DownloadKinds.Movie, State = DownloadStates.Waiting, AvailableSince = T0, NextSearchAt = later });
+        book.Put(new DownloadEntry { Key = "movie:13", Kind = DownloadKinds.Movie, State = DownloadStates.NeedsYou, Reason = DownloadReasons.ImportBlocked, AvailableSince = T0, NextSearchAt = later });
+        book.Put(new DownloadEntry { Key = "movie:14", Kind = DownloadKinds.Movie, State = DownloadStates.Downloading, AvailableSince = T0, NextSearchAt = later });
+        Store().Save(book);
+        var nudges = 0;
+        _service.Nudged += () => nudges++;
+
+        Assert.Equal(HuntOutcome.Ok, _service.Hunt("movie:12"));
+        Assert.Equal((T0, 1), (Saved("movie:12")!.NextSearchAt, nudges));
+
+        // Un import bloccato o un download in corso non si cercano.
+        Assert.Equal(HuntOutcome.Changed, _service.Hunt("movie:13"));
+        Assert.Equal(HuntOutcome.Changed, _service.Hunt("movie:14"));
+        Assert.Equal(later, Saved("movie:13")!.NextSearchAt);
+        Assert.Equal(1, nudges);
+    }
+
+    [Fact]
+    public void HuntWithoutReviewOrEntryIsChanged()
+    {
+        Assert.Equal(HuntOutcome.Invalid, _service.Hunt("nope"));
+        Assert.Equal(HuntOutcome.Changed, _service.Hunt("movie:12"));
+        Assert.Null(SavedBook()?.Get("movie:12"));
+    }
+
+    [Fact]
+    public void HuntOnAnOldReviewItemWithoutQualityIsChanged()
+    {
+        // Salvati da una versione senza QualityId (né episodi): il prossimo elenco li rifà.
+        var book = new DownloadBook();
+        book.SetReview(
+        [
+            new ReviewItem { Key = "movie:12", Kind = DownloadKinds.Movie, Score = 0, ProfileId = 4 },
+            new ReviewItem { Key = "season:7:2", Kind = DownloadKinds.Season, Score = 0, ProfileId = 6, QualityId = WebDl1080 },
+        ], T0);
+        Store().Save(book);
+
+        Assert.Equal(HuntOutcome.Changed, _service.Hunt("movie:12"));
+        Assert.Equal(HuntOutcome.Changed, _service.Hunt("season:7:2"));
+        Assert.Equal(2, Store().Load().Review.Count);
+        Assert.Empty(Store().Load().Entries);
+    }
 }

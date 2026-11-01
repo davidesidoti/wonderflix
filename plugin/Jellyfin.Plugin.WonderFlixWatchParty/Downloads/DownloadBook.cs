@@ -215,6 +215,17 @@ public sealed class ReviewItem
     public long SizeBytes { get; set; }
 
     public string Quality { get; set; } = "";
+
+    /// <summary>La qualità del file peggiore, per WouldImport di "Cerca un upgrade"; null negli elenchi salvati da versioni precedenti.</summary>
+    public int? QualityId { get; set; }
+
+    public int ProfileId { get; set; }
+
+    /// <summary>Durata del film o di un episodio, per il peso minimo della ricerca.</summary>
+    public int RuntimeMinutes { get; set; }
+
+    /// <summary>Solo stagioni: i numeri degli episodi dei file, per cercarne gli upgrade.</summary>
+    public List<int>? EpisodeNumbers { get; set; }
 }
 
 /// <summary>Contenuto di downloads.json (spec T §3).</summary>

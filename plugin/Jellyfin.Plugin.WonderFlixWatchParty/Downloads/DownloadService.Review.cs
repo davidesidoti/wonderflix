@@ -53,7 +53,7 @@ public sealed partial class DownloadService
         {
             var title = MovieTitleOf(movie);
             if (files.GetValueOrDefault(movie.Id) is { } file
-                && BelowTarget(ArrKind.Radarr, movie.QualityProfileId, profiles, [file], title.Key, title.Kind, title.Title, title.PosterUrl) is { } row)
+                && BelowTarget(ArrKind.Radarr, movie.QualityProfileId, movie.Runtime, profiles, [file], title.Key, title.Kind, title.Title, title.PosterUrl) is { } row)
             {
                 rows.Add(row);
             }
@@ -62,7 +62,8 @@ public sealed partial class DownloadService
         return rows;
     }
 
-    // Fuori dal lock: le serie con file, una lettura dei file per serie, una riga per stagione (> 0).
+    // Fuori dal lock: le serie con file, una lettura dei file per serie, una riga per stagione (> 0); gli episodi solo
+    // delle serie con una riga, per sapere quali episodi sono nei file (il file di Sonarr non lo dice).
     private async Task<List<ReviewItem>> ReadSeasonReviewAsync(CancellationToken cancellationToken)
     {
         var series = (await arr.GetSeriesAsync(cancellationToken).ConfigureAwait(false))
@@ -72,13 +73,26 @@ public sealed partial class DownloadService
         foreach (var show in series)
         {
             var files = (await arr.GetEpisodeFilesAsync(show.Id, cancellationToken).ConfigureAwait(false)).OfType<ArrFile>();
+            var below = new List<(ReviewItem Row, HashSet<int> FileIds)>();
             foreach (var season in files.Where(f => f.SeasonNumber > 0).GroupBy(f => f.SeasonNumber))
             {
                 var key = new DownloadKey(DownloadKinds.Season, show.Id, season.Key).ToString();
-                if (BelowTarget(ArrKind.Sonarr, show.QualityProfileId, profiles, [.. season], key, DownloadKinds.Season, SeasonTitleOf(show.Title, season.Key), Poster(show.Images)) is { } row)
+                if (BelowTarget(ArrKind.Sonarr, show.QualityProfileId, show.Runtime, profiles, [.. season], key, DownloadKinds.Season, SeasonTitleOf(show.Title, season.Key), Poster(show.Images)) is { } row)
                 {
-                    rows.Add(row);
+                    below.Add((row, [.. season.Select(f => f.Id)]));
                 }
+            }
+
+            if (below.Count == 0)
+            {
+                continue;
+            }
+
+            var episodes = (await arr.GetSeriesEpisodesAsync(show.Id, cancellationToken).ConfigureAwait(false)).OfType<SonarrEpisode>().ToList();
+            foreach (var (row, fileIds) in below)
+            {
+                row.EpisodeNumbers = [.. episodes.Where(e => e.EpisodeFileId > 0 && fileIds.Contains(e.EpisodeFileId)).Select(e => e.EpisodeNumber).Distinct().Order()];
+                rows.Add(row);
             }
         }
 
@@ -91,7 +105,7 @@ public sealed partial class DownloadService
 
     // La riga se il file peggiore è sotto l'obiettivo; senza obiettivo (anime) mai (ruling 2). Peso: tutti i file.
     private ReviewItem? BelowTarget(
-        ArrKind kind, int profileId, IReadOnlyDictionary<int, string?> profiles, IReadOnlyList<ArrFile> files, string key, string itemKind, string title, string? poster)
+        ArrKind kind, int profileId, int runtime, IReadOnlyDictionary<int, string?> profiles, IReadOnlyList<ArrFile> files, string key, string itemKind, string title, string? poster)
     {
         var worst = files.MinBy(f => f.CustomFormatScore);
         var target = settings.For(kind, profileId, profiles.GetValueOrDefault(profileId)).TargetScore;
@@ -104,6 +118,9 @@ public sealed partial class DownloadService
             Score = worst.CustomFormatScore,
             SizeBytes = files.Sum(f => f.Size),
             Quality = worst.Quality?.Quality?.Name ?? "",
+            QualityId = worst.Quality?.Quality?.Id,
+            ProfileId = profileId,
+            RuntimeMinutes = runtime,
         };
     }
 

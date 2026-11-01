@@ -317,6 +317,21 @@ public sealed class DownloadsControllerTests : IDisposable
     }
 
     [Fact]
+    public void HuntMapsItsOutcomes()
+    {
+        var book = new DownloadBook();
+        book.SetReview([new ReviewItem { Key = "movie:12", Kind = DownloadKinds.Movie, Title = "Animals (2025)", Score = 0, QualityId = Bluray1080, ProfileId = 4 }], T0);
+        new DownloadStore(_folder.DownloadsFile, Microsoft.Extensions.Logging.Abstractions.NullLogger<DownloadStore>.Instance).Save(book);
+
+        Assert.Equal(StatusCodes.Status204NoContent, Status(_controller.Hunt(Key())));
+        var changed = _controller.Hunt(Key("movie:13"));
+        Assert.Equal(StatusCodes.Status409Conflict, Status(changed));
+        Assert.Equal("Changed", Reason(changed));
+        Assert.Equal(StatusCodes.Status400BadRequest, Status(_controller.Hunt(Key("nope"))));
+        Assert.Equal(StatusCodes.Status400BadRequest, Status(_controller.Hunt(null)));
+    }
+
+    [Fact]
     public async Task ProfilesWithEveryServiceDownAreUnavailable()
     {
         _arr.QualityProfiles = _ => Task.FromException<IReadOnlyList<ArrQualityProfile?>>(new ArrException(ArrError.Unreachable));

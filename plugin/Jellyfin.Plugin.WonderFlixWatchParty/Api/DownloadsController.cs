@@ -104,6 +104,15 @@ public class DownloadsController(DownloadService downloads) : ControllerBase
     public ActionResult SearchNow([FromBody] KeyRequest? request) =>
         request?.Key is { } key && downloads.SearchNow(key) ? Accepted() : BadRequest();
 
+    /// <summary>"Cerca un upgrade" da "Da ripassare": 204; 409 Changed se non è più da ripassare né da cercare.</summary>
+    [HttpPost("Hunt")]
+    public ActionResult Hunt([FromBody] KeyRequest? request) => (request?.Key is { } key ? downloads.Hunt(key) : HuntOutcome.Invalid) switch
+    {
+        HuntOutcome.Ok => NoContent(),
+        HuntOutcome.Changed => Error(StatusCodes.Status409Conflict, "Changed"),
+        _ => BadRequest(),
+    };
+
     /// <summary>I profili di qualità con le loro soglie, per la pagina di configurazione; 503 se nessun servizio configurato risponde.</summary>
     [HttpGet("Profiles")]
     public async Task<ActionResult<IReadOnlyList<DownloadProfileDto>>> Profiles() =>
