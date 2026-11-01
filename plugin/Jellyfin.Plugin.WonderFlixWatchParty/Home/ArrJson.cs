@@ -58,6 +58,9 @@ public sealed class SonarrSeries
     /// <summary>Lo stato della serie ("continuing", "ended", ...) (spec T §2).</summary>
     public string? Status { get; set; }
 
+    /// <summary>La serie è monitorata: senza, "Cerca un upgrade" non vale per le sue stagioni.</summary>
+    public bool Monitored { get; set; }
+
     /// <summary>I conteggi della serie; null se Sonarr non li manda (spec T §2).</summary>
     public SonarrSeriesStatistics? Statistics { get; set; }
 

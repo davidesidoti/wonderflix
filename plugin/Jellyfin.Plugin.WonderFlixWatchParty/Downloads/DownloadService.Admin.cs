@@ -616,9 +616,7 @@ public sealed partial class DownloadService
             }
             else
             {
-                // Senza qualità WouldImport accetterebbe una qualità più bassa; senza episodi una stagione non si cerca.
-                var item = Book.Review.FirstOrDefault(r => r.Key == normalized);
-                if (item?.QualityId is null || Book.IsAccepted(normalized) || (parsed.Kind == DownloadKinds.Season && item.EpisodeNumbers is not { Count: > 0 }))
+                if (Book.Review.FirstOrDefault(r => r.Key == normalized) is not { } item || !CanHunt(item))
                 {
                     return HuntOutcome.Changed;
                 }
@@ -651,6 +649,14 @@ public sealed partial class DownloadService
         return HuntOutcome.Ok;
     }
 
+    // Solo sotto _lock. Senza qualità WouldImport accetterebbe una qualità più bassa; senza episodi una stagione non si cerca;
+    // un titolo non monitorato il giro lo toglie prima di cercarlo; uno accettato non ha upgrade.
+    private bool CanHunt(ReviewItem item) =>
+        item.Monitored
+        && item.QualityId is not null
+        && (item.Kind != DownloadKinds.Season || item.EpisodeNumbers is { Count: > 0 })
+        && !Book.IsAccepted(item.Key);
+
     /// <summary>
     /// La panoramica (spec T §8.1): scelte dalla più recente, voci seguite, "Da ripassare", errori dell'ultimo giro, tutto dal libro;
     /// l'avanzamento di chi scarica viene dalla coda di Radarr/Sonarr (una lettura al minuto, mai bloccante: se fallisce resta vuoto).
@@ -674,7 +680,7 @@ public sealed partial class DownloadService
                     .Select(e => ItemDto(e, now))],
                 [.. Book.Review
                     .Where(r => !Book.IsAccepted(r.Key))
-                    .Select(r => new ReviewItemDto(r.Key, r.Kind, r.Title, r.PosterUrl, r.Score, r.SizeBytes, r.Quality))],
+                    .Select(r => new ReviewItemDto(r.Key, r.Kind, r.Title, r.PosterUrl, r.Score, r.SizeBytes, r.Quality, CanHunt(r)))],
                 Book.ReviewAt,
                 _lastErrors.Sonarr,
                 _lastErrors.Radarr);

@@ -206,7 +206,7 @@ public sealed class DownloadsControllerTests : IDisposable
             release,
             new DownloadChoiceDto("movie:1", "Movie", "T", null, T0, release, null, null, false),
             new DownloadItemDto("movie:1", "Movie", "T", null, "Waiting", null, T0, null, null, ["Pick"], null, null, false, null),
-            new ReviewItemDto("movie:1", "Movie", "T", null, 1, 1, "q"),
+            new ReviewItemDto("movie:1", "Movie", "T", null, 1, 1, "q", false),
             new DownloadRejectedDto(release, "Arr", null),
             new DownloadProfileDto("Radarr", 4, "Main", 50, null),
             new DownloadProgressDto(1, 1, null, "downloading"),
@@ -320,7 +320,7 @@ public sealed class DownloadsControllerTests : IDisposable
     public void HuntMapsItsOutcomes()
     {
         var book = new DownloadBook();
-        book.SetReview([new ReviewItem { Key = "movie:12", Kind = DownloadKinds.Movie, Title = "Animals (2025)", Score = 0, QualityId = Bluray1080, ProfileId = 4 }], T0);
+        book.SetReview([new ReviewItem { Key = "movie:12", Kind = DownloadKinds.Movie, Title = "Animals (2025)", Score = 0, QualityId = Bluray1080, ProfileId = 4, Monitored = true }], T0);
         new DownloadStore(_folder.DownloadsFile, Microsoft.Extensions.Logging.Abstractions.NullLogger<DownloadStore>.Instance).Save(book);
 
         Assert.Equal(StatusCodes.Status204NoContent, Status(_controller.Hunt(Key())));

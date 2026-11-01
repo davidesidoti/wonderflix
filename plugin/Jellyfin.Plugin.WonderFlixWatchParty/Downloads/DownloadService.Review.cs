@@ -55,6 +55,7 @@ public sealed partial class DownloadService
             if (files.GetValueOrDefault(movie.Id) is { } file
                 && BelowTarget(ArrKind.Radarr, movie.QualityProfileId, movie.Runtime, profiles, [file], title.Key, title.Kind, title.Title, title.PosterUrl) is { } row)
             {
+                row.Monitored = movie.Monitored;
                 rows.Add(row);
             }
         }
@@ -79,6 +80,8 @@ public sealed partial class DownloadService
                 var key = new DownloadKey(DownloadKinds.Season, show.Id, season.Key).ToString();
                 if (BelowTarget(ArrKind.Sonarr, show.QualityProfileId, show.Runtime, profiles, [.. season], key, DownloadKinds.Season, SeasonTitleOf(show.Title, season.Key), Poster(show.Images)) is { } row)
                 {
+                    // Una stagione che manca in Seasons segue la serie.
+                    row.Monitored = show.Monitored && show.Seasons?.FirstOrDefault(s => s?.SeasonNumber == season.Key)?.Monitored != false;
                     below.Add((row, [.. season.Select(f => f.Id)]));
                 }
             }
@@ -88,10 +91,20 @@ public sealed partial class DownloadService
                 continue;
             }
 
-            var episodes = (await arr.GetSeriesEpisodesAsync(show.Id, cancellationToken).ConfigureAwait(false)).OfType<SonarrEpisode>().ToList();
+            List<SonarrEpisode>? episodes = null;
+            try
+            {
+                episodes = [.. (await arr.GetSeriesEpisodesAsync(show.Id, cancellationToken).ConfigureAwait(false)).OfType<SonarrEpisode>()];
+            }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Le righe restano, senza episodi: "Cerca un upgrade" non vale per loro fino al prossimo elenco.
+                logger.LogWarning("Download automatici: Sonarr non ha dato gli episodi della serie {SeriesId} per Da ripassare ({Error})", show.Id, ErrorOf(ex));
+            }
+
             foreach (var (row, fileIds) in below)
             {
-                row.EpisodeNumbers = [.. episodes.Where(e => e.EpisodeFileId > 0 && fileIds.Contains(e.EpisodeFileId)).Select(e => e.EpisodeNumber).Distinct().Order()];
+                row.EpisodeNumbers = episodes is null ? null : [.. episodes.Where(e => e.EpisodeFileId > 0 && fileIds.Contains(e.EpisodeFileId)).Select(e => e.EpisodeNumber).Distinct().Order()];
                 rows.Add(row);
             }
         }

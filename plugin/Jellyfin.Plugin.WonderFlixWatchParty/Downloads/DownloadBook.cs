@@ -221,6 +221,9 @@ public sealed class ReviewItem
 
     public int ProfileId { get; set; }
 
+    /// <summary>Film monitorato, o serie e stagione monitorate: senza, il giro toglierebbe la voce prima di cercarla.</summary>
+    public bool Monitored { get; set; }
+
     /// <summary>Durata del film o di un episodio, per il peso minimo della ricerca.</summary>
     public int RuntimeMinutes { get; set; }
 

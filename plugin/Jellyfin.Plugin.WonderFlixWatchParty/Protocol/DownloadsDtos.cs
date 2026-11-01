@@ -70,7 +70,8 @@ public sealed record ReviewItemDto(
     [property: JsonPropertyName("PosterUrl")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? PosterUrl,
     [property: JsonPropertyName("Score")] int Score,
     [property: JsonPropertyName("SizeBytes")] long SizeBytes,
-    [property: JsonPropertyName("Quality")] string Quality);
+    [property: JsonPropertyName("Quality")] string Quality,
+    [property: JsonPropertyName("CanHunt")] bool CanHunt);
 
 /// <summary>Risposta di GET Downloads (spec T §8.1). Recent dalla più recente; gli errori sono quelli dell'ultimo giro.</summary>
 public sealed record DownloadsOverviewDto(

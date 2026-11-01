@@ -381,7 +381,7 @@ public sealed class DownloadServiceReviewTests : IDisposable
     public async Task HuntOnASeasonUsesItsEpisodes()
     {
         _arr.Series = () => Task.FromResult<IReadOnlyList<SonarrSeries?>>(
-            [new SonarrSeries { Id = 7, Title = "Severance", QualityProfileId = 6, Runtime = 50, Statistics = new SonarrSeriesStatistics { EpisodeFileCount = 3 } }]);
+            [new SonarrSeries { Id = 7, Title = "Severance", QualityProfileId = 6, Runtime = 50, Monitored = true, Statistics = new SonarrSeriesStatistics { EpisodeFileCount = 3 } }]);
         var files = new List<ArrFile?> { EpisodeFile(2, WebRip1080, "WEBRip-1080p", 30, 2), EpisodeFile(2, WebDl1080, "WEBDL-1080p", 10, 3), EpisodeFile(1, Bluray1080, "Bluray-1080p", 10, 1) };
         (files[0]!.Id, files[1]!.Id, files[2]!.Id) = (71, 72, 70);
         _arr.EpisodeFiles = _ => Task.FromResult<IReadOnlyList<ArrFile?>>(files);
@@ -452,5 +452,74 @@ public sealed class DownloadServiceReviewTests : IDisposable
         Assert.Equal(HuntOutcome.Changed, _service.Hunt("season:7:2"));
         Assert.Equal(2, Store().Load().Review.Count);
         Assert.Empty(Store().Load().Entries);
+    }
+
+    [Fact]
+    public async Task HuntOnAnUnmonitoredMovieIsChanged()
+    {
+        await AmistadToReview();
+        _movies = [Movie(12, monitored: false, hasFile: true, title: "Amistad", year: 1997)];
+        await Build();
+
+        // Il giro toglierebbe la voce prima di cercarla: niente pulsante e niente voce.
+        Assert.False(Assert.Single((await _service.OverviewAsync(CancellationToken.None)).Review).CanHunt);
+        Assert.Equal(HuntOutcome.Changed, _service.Hunt("movie:12"));
+        Assert.Null(Saved("movie:12"));
+    }
+
+    [Fact]
+    public async Task CanHuntNeedsMonitoringQualityAndEpisodes()
+    {
+        var book = new DownloadBook();
+        book.SetReview(
+        [
+            new ReviewItem { Key = "movie:1", Kind = DownloadKinds.Movie, Monitored = true, QualityId = Bluray1080 },
+            new ReviewItem { Key = "movie:2", Kind = DownloadKinds.Movie, Monitored = true },
+            new ReviewItem { Key = "movie:3", Kind = DownloadKinds.Movie, QualityId = Bluray1080 },
+            new ReviewItem { Key = "season:7:1", Kind = DownloadKinds.Season, Monitored = true, QualityId = WebDl1080, EpisodeNumbers = [1, 2] },
+            new ReviewItem { Key = "season:7:2", Kind = DownloadKinds.Season, Monitored = true, QualityId = WebDl1080, EpisodeNumbers = [] },
+            new ReviewItem { Key = "season:7:3", Kind = DownloadKinds.Season, Monitored = true, QualityId = WebDl1080 },
+        ], T0);
+        Store().Save(book);
+
+        var review = (await _service.OverviewAsync(CancellationToken.None)).Review;
+
+        Assert.Equal([true, false, false, true, false, false], review.Select(r => r.CanHunt));
+    }
+
+    [Fact]
+    public async Task ASeriesWithoutEpisodesKeepsTheOtherSeasons()
+    {
+        _arr.Series = () => Task.FromResult<IReadOnlyList<SonarrSeries?>>(
+        [
+            new SonarrSeries { Id = 7, Title = "Severance", QualityProfileId = 6, Monitored = true, Statistics = new SonarrSeriesStatistics { EpisodeFileCount = 1 } },
+            new SonarrSeries
+            {
+                Id = 8, Title = "Andor", QualityProfileId = 6, Monitored = true, Statistics = new SonarrSeriesStatistics { EpisodeFileCount = 2 },
+                Seasons = [new SonarrSeason { SeasonNumber = 1, Monitored = true }, new SonarrSeason { SeasonNumber = 2, Monitored = false }, null],
+            },
+        ]);
+        _arr.EpisodeFiles = id =>
+        {
+            var first = EpisodeFile(1, WebRip1080, "WEBRip-1080p", 30, 2);
+            var second = EpisodeFile(2, WebRip1080, "WEBRip-1080p", 30, 2);
+            (first.Id, second.Id) = (id * 10, (id * 10) + 1);
+            return Task.FromResult<IReadOnlyList<ArrFile?>>(id == 7 ? [first] : [first, second]);
+        };
+        _arr.SeriesEpisodes = id => id == 7
+            ? Task.FromException<IReadOnlyList<SonarrEpisode?>>(new ArrException(ArrError.Unreachable))
+            : Task.FromResult<IReadOnlyList<SonarrEpisode?>>(
+                [new SonarrEpisode { Id = 801, SeasonNumber = 1, EpisodeNumber = 1, EpisodeFileId = 80 }, new SonarrEpisode { Id = 802, SeasonNumber = 2, EpisodeNumber = 1, EpisodeFileId = 81 }]);
+
+        await Build();
+
+        // Severance senza episodi resta una riga, senza pulsante; Andor si rifà, la stagione 2 non monitorata senza pulsante.
+        var saved = Store().Load();
+        Assert.Equal(T0, saved.ReviewAt);
+        Assert.Equal(["season:7:1", "season:8:1", "season:8:2"], saved.Review.Select(r => r.Key).Order());
+        Assert.Null(saved.Review.Single(r => r.Key == "season:7:1").EpisodeNumbers);
+        Assert.Equal([1], saved.Review.Single(r => r.Key == "season:8:1").EpisodeNumbers!);
+        var review = (await _service.OverviewAsync(CancellationToken.None)).Review.ToDictionary(r => r.Key, r => r.CanHunt);
+        Assert.Equal((false, true, false), (review["season:7:1"], review["season:8:1"], review["season:8:2"]));
     }
 }
