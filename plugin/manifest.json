@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.19.0.0",
+        "changelog": "Ricerca dei download in background per WonderFlix 0.28.0: la ricerca manuale gira sul server e l'app ne segue l'avanzamento, i risultati restano 30 minuti. Le ricerche su Sonarr/Radarr possono durare fino a 15 minuti (anche nel giro automatico), così le stagioni anime non falliscono più. Le release anime numerate in assoluto contano per il loro episodio nei \"Migliori episodi\".",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.19.0/wonderflix-watch-party_1.19.0.zip",
+        "checksum": "7ef06ad1fc79581825578f9c02850cd1",
+        "timestamp": "2026-11-01T18:31:25Z"
+      },
+      {
         "version": "1.18.0.0",
         "changelog": "Download per WonderFlix 0.27.0: le voci \"Serve te\" spiegano cosa è successo e mandano i pulsanti per risolverlo (scarica il migliore intanto, va bene aspetto, importa comunque, scarta e cerca un altro); il tappabuchi cerca un file migliore senza limite di tempo; le release rifiutate dal client non si riprovano. Avanzamento e tempo stimato dei download dalla coda di Radarr/Sonarr; un torrent fermo sul recupero dei metadati si sostituisce dopo 6 ore. Fase della ricerca (in coda, in corso) e \"Cerca un upgrade\" dai titoli da ripassare, con 30 giorni di upgrade.",
         "targetAbi": "10.11.0.0",
