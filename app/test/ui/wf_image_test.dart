@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -51,6 +55,64 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.byIcon(LucideIcons.imageOff), findsOneWidget);
   });
+
+  testWidgets('web: a immagine caricata non resta nessun segnaposto',
+      (tester) async {
+    debugNetworkImageHttpClientProvider = () => _PngClient();
+    await tester.pumpWidget(web());
+    await tester.runAsync(() => Future<void>.delayed(
+        const Duration(milliseconds: 200)));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(Image), findsOneWidget);
+    expect(find.byType(BlurHash), findsNothing);
+    expect(find.byType(ImagePlaceholder), findsNothing);
+    // Le invarianti del binding girano prima dei tearDown.
+    debugNetworkImageHttpClientProvider = null;
+  });
+}
+
+// PNG 1x1 trasparente.
+final _png = base64Decode(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
+
+class _PngClient extends Fake implements HttpClient {
+  @override
+  bool autoUncompress = true;
+
+  @override
+  Future<HttpClientRequest> getUrl(Uri url) async => _PngRequest();
+}
+
+class _PngRequest extends Fake implements HttpClientRequest {
+  @override
+  final headers = _Headers();
+
+  @override
+  Future<HttpClientResponse> close() async => _PngResponse();
+}
+
+class _Headers extends Fake implements HttpHeaders {
+  @override
+  void add(String name, Object value, {bool preserveHeaderCase = false}) {}
+}
+
+class _PngResponse extends Fake implements HttpClientResponse {
+  @override
+  int get statusCode => 200;
+
+  @override
+  int get contentLength => _png.length;
+
+  @override
+  HttpClientResponseCompressionState get compressionState =>
+      HttpClientResponseCompressionState.notCompressed;
+
+  @override
+  StreamSubscription<List<int>> listen(void Function(List<int>)? onData,
+          {Function? onError, void Function()? onDone, bool? cancelOnError}) =>
+      Stream.value(_png).listen(onData,
+          onError: onError, onDone: onDone, cancelOnError: cancelOnError);
 }
 
 class _Web extends StatelessWidget {

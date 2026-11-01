@@ -59,14 +59,15 @@ Widget webNetworkImage(ImageRef image, BoxFit fit, int? memWidth) => Image(
       frameBuilder: (context, child, frame, wasSynchronouslyLoaded) =>
           wasSynchronouslyLoaded
               ? child
-              : Stack(fit: StackFit.expand, children: [
-                  ImagePlaceholder(blurHash: image.blurHash),
-                  AnimatedOpacity(
-                    opacity: frame == null ? 0 : 1,
-                    duration: WfMotion.fast,
-                    child: child,
-                  ),
-                ]),
+              : frame == null
+                  ? ImagePlaceholder(blurHash: image.blurHash)
+                  : TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: 1),
+                      duration: WfMotion.fast,
+                      builder: (_, o, child) =>
+                          Opacity(opacity: o, child: child),
+                      child: child,
+                    ),
       errorBuilder: (context, error, stackTrace) =>
           const ImagePlaceholder(icon: LucideIcons.imageOff),
     );
