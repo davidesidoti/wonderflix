@@ -88,9 +88,24 @@ public sealed partial class DownloadService
             }
 
             searched++;
-            if (await SearchOneAsync(item, context, cancellationToken).ConfigureAwait(false))
+            lock (_lock)
             {
-                grabbed++;
+                _searching.Add(item.Key);
+            }
+
+            try
+            {
+                if (await SearchOneAsync(item, context, cancellationToken).ConfigureAwait(false))
+                {
+                    grabbed++;
+                }
+            }
+            finally
+            {
+                lock (_lock)
+                {
+                    _searching.Remove(item.Key);
+                }
             }
         }
 
@@ -117,13 +132,17 @@ public sealed partial class DownloadService
     private bool IsDue(DownloadEntry entry, IReadOnlyDictionary<ArrKind, ArrView> views, DateTimeOffset now) =>
         entry.NextSearchAt <= now
         && views.TryGetValue(ServiceOf(entry.Kind), out var view)
-        && entry.State switch
-        {
-            DownloadStates.UpgradeWatch => !Book.IsAccepted(entry.Key),
-            DownloadStates.Waiting => view.Titles.GetValueOrDefault(entry.Key)?.Wanted == true,
-            DownloadStates.NeedsYou => entry.Reason != DownloadReasons.ImportBlocked && view.Titles.GetValueOrDefault(entry.Key)?.Wanted == true,
-            _ => false,
-        };
+        && SearchesByState(entry)
+        && (entry.State == DownloadStates.UpgradeWatch || view.Titles.GetValueOrDefault(entry.Key)?.Wanted == true);
+
+    // Solo sotto _lock. La parte di IsDue che dipende dallo stato (senza le viste di Radarr/Sonarr): lo usa anche la fase "Queued" della panoramica.
+    private bool SearchesByState(DownloadEntry entry) => entry.State switch
+    {
+        DownloadStates.UpgradeWatch => !Book.IsAccepted(entry.Key),
+        DownloadStates.Waiting => true,
+        DownloadStates.NeedsYou => entry.Reason != DownloadReasons.ImportBlocked,
+        _ => false,
+    };
 
     private static SearchItem? ToSearchItem(DownloadEntry entry, ArrView view)
     {

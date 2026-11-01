@@ -701,6 +701,58 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Assert.Equal((T0 + TimeSpan.FromMinutes(1), 1), (Saved("movie:12")!.NextSearchAt, nudges));
     }
 
+    private async Task<string?> PhaseOf(string key) => (await _service.OverviewAsync(CancellationToken.None)).Waiting.Single(i => i.Key == key).SearchPhase;
+
+    [Fact]
+    public async Task SearchNowShowsQueued()
+    {
+        Animals();
+        _arr.Releases = (_, _) => Task.FromResult<IReadOnlyList<ArrRelease?>>([]);
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Null(await PhaseOf("movie:12"));
+
+        Assert.True(_service.SearchNow("movie:12"));
+
+        Assert.Equal(DownloadSearchPhases.Queued, await PhaseOf("movie:12"));
+    }
+
+    [Fact]
+    public async Task ASearchInProgressShowsSearching()
+    {
+        Animals();
+        var gate = new TaskCompletionSource<IReadOnlyList<ArrRelease?>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _arr.Releases = (_, _) => gate.Task;
+
+        var cycle = _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Equal(DownloadSearchPhases.Searching, await PhaseOf("movie:12"));
+        gate.SetResult([]);
+        await cycle;
+        Assert.Null(await PhaseOf("movie:12"));
+    }
+
+    [Fact]
+    public async Task NoPhaseWhenDisabled()
+    {
+        Animals();
+        _arr.Releases = (_, _) => Task.FromResult<IReadOnlyList<ArrRelease?>>([]);
+        await _service.RunCycleAsync(CancellationToken.None);
+        _service.SearchNow("movie:12");
+        _settings.Enabled = false;
+
+        Assert.Null(await PhaseOf("movie:12"));
+    }
+
+    [Fact]
+    public async Task ImportBlockedIsNeverQueued()
+    {
+        var book = new DownloadBook();
+        book.Put(new DownloadEntry { Key = "movie:12", Kind = DownloadKinds.Movie, Title = "Animals (2025)", State = DownloadStates.NeedsYou, Reason = DownloadReasons.ImportBlocked, QueueId = 77, AvailableSince = T0, NextSearchAt = T0 });
+        Store().Save(book);
+
+        Assert.Null(await PhaseOf("movie:12"));
+    }
+
     [Fact]
     public async Task ProfilesHaveTheirThresholds()
     {

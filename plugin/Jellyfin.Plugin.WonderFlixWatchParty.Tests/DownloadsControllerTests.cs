@@ -178,6 +178,16 @@ public sealed class DownloadsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task AnItemWithoutAPhaseWritesItAsNull()
+    {
+        NeedsYou(DownloadReasons.ImportBlocked);
+
+        var json = JsonSerializer.Serialize((await _controller.Overview()).Value, JsonDefaults.PascalCaseOptions);
+
+        Assert.Contains("\"SearchPhase\":null", json);
+    }
+
+    [Fact]
     public async Task AnItemThatIsNotDownloadingWritesProgressAsNull()
     {
         NeedsYou(DownloadReasons.NothingFound);

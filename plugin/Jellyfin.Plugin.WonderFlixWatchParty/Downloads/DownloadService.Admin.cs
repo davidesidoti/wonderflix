@@ -51,6 +51,9 @@ public sealed partial class DownloadService
     // Solo sotto _lock. Le chiavi con un download in corso (giro o admin): un secondo si salta (ruling 8).
     private readonly HashSet<string> _grabbing = [];
 
+    // Solo sotto _lock. Le chiavi che il giro sta cercando adesso: la panoramica le mostra come "Searching".
+    private readonly HashSet<string> _searching = [];
+
     // Il file di adesso; per una stagione il peso di tutti i file, punteggio e qualità del peggiore.
     private sealed record CurrentFile(long SizeBytes, int Score, int? QualityId, string Quality);
 
@@ -582,7 +585,8 @@ public sealed partial class DownloadService
     /// </summary>
     public async Task<DownloadsOverviewDto> OverviewAsync(CancellationToken cancellationToken)
     {
-        var since = time.GetUtcNow() - DownloadBook.ChoiceRetention;
+        var now = time.GetUtcNow();
+        var since = now - DownloadBook.ChoiceRetention;
         DownloadsOverviewDto overview;
         Dictionary<string, DateTimeOffset> metadataSince;
         lock (_lock)
@@ -595,7 +599,7 @@ public sealed partial class DownloadService
                 [.. Book.Entries
                     .Where(e => e.State is DownloadStates.Waiting or DownloadStates.NeedsYou or DownloadStates.Downloading or DownloadStates.UpgradeWatch)
                     .OrderBy(e => e.NextSearchAt)
-                    .Select(ItemDto)],
+                    .Select(e => ItemDto(e, now))],
                 [.. Book.Review
                     .Where(r => !Book.IsAccepted(r.Key))
                     .Select(r => new ReviewItemDto(r.Key, r.Kind, r.Title, r.PosterUrl, r.Score, r.SizeBytes, r.Quality))],
@@ -650,13 +654,17 @@ public sealed partial class DownloadService
     }
 
     // Il messaggio di Sonarr/Radarr esce solo per un import bloccato: su una voce passata ad altro può restarne uno vecchio.
-    private static DownloadItemDto ItemDto(DownloadEntry e) => new(
+    // La fase solo sotto _lock (come ItemDto): in ricerca adesso, o in coda per il prossimo giro.
+    private DownloadItemDto ItemDto(DownloadEntry e, DateTimeOffset now) => new(
         e.Key, e.Kind, e.Title, e.PosterUrl, e.State, e.Reason, e.AvailableSince, e.LastSearchAt, e.NextSearchAt,
         DownloadActions.For(e),
         e.Summary is { } s ? new DownloadSummaryDto(s.Found, s.BestScore, s.MinScore, s.TooSmall, s.ArrRejected, s.TopRejection, s.StopgapAvailable) : null,
         e.Reason == DownloadReasons.ImportBlocked ? e.BlockedMessage : null,
         e.Snoozed,
-        null);
+        null,
+        _searching.Contains(e.Key) ? DownloadSearchPhases.Searching
+            : settings.Enabled && e.NextSearchAt <= now && SearchesByState(e) ? DownloadSearchPhases.Queued
+            : null);
 
     /// <summary>
     /// I profili di qualità di Radarr e Sonarr con le loro soglie (spec T §7.1); un servizio in errore non c'è. Null se
