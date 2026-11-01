@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -125,7 +126,7 @@ class DownloadSearchController extends AsyncNotifier<DownloadSearch> {
             throw const DownloadsException(DownloadsFailure.invalid);
           case DownloadSearchJobState.running:
             running.set((
-              startedAt: status.startedAt ?? DateTime.now(),
+              startedAt: status.startedAt ?? clock.now(),
               service: status.service,
               reconnecting: false,
             ));

@@ -662,7 +662,8 @@ enum DownloadSearchJobState {
   running('Running'),
   done('Done'),
 
-  /// Il plugin non ha più il lavoro (scaduto) ma la ricerca era partita.
+  /// Radarr/Sonarr non hanno il titolo, o la chiave non è valida (400 nella
+  /// vecchia `Search`). Un lavoro scaduto invece è `none`.
   missing('Missing'),
 
   /// Nessun lavoro: mai partito, o plugin riavviato.

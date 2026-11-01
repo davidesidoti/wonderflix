@@ -78,7 +78,7 @@ Risposta di entrambi, `DownloadSearchStatusDto`:
 
 I campi nullable che l'app legge sempre vanno con `[property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]` (nota del CLAUDE.md sulle DTO).
 
-`GET Downloads/Search` (il vecchio) resta per le app 0.27.x: avvia o aggancia il job come `SearchStart` **con `Again` true** e **aspetta** il suo esito. *(Mia: le app vecchie chiamano lo stesso endpoint anche per "Ricerca di nuovo", quindi deve fare una ricerca nuova come oggi; se ce n'è una in corso la aggancia.)* `RequestAborted` annulla solo l'attesa, non il job. Così un'app vecchia, riprovando dopo che Sonarr ha finito, trova il risultato pronto. Le risposte restano quelle di oggi: 400 per "Missing", il DTO altrimenti.
+`GET Downloads/Search` (il vecchio) resta per le app 0.27.x: avvia o aggancia il job come `SearchStart` **con `Again` true** e **aspetta** il suo esito. *(Mia: le app vecchie chiamano lo stesso endpoint anche per "Ricerca di nuovo", quindi deve fare una ricerca nuova come oggi; se ce n'è una in corso la aggancia.)* `RequestAborted` annulla solo l'attesa, non il job. Così un'app vecchia che riprova mentre la ricerca è ancora in corso si aggancia a quella e riceve il suo esito quando finisce. Le risposte restano quelle di oggi: 400 per "Missing", il DTO altrimenti.
 
 ### 4.5 Funzione in GET Info
 
