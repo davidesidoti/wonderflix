@@ -14,6 +14,8 @@ public sealed class PluginDownloadSettings : IDownloadSettings
 
     public double MinGbPerHour => ClampMinGbPerHour(Config?.DownloadsMinGbPerHour ?? DownloadDefaults.MinGbPerHour);
 
+    public string ExternalSearchUrl => Config?.ExternalSearchUrl ?? DownloadDefaults.ExternalSearchUrl;
+
     public ProfileThresholds For(ArrKind kind, int profileId, string? profileName) =>
         Thresholds(Config?.DownloadProfileRules, kind, profileId, profileName);
 

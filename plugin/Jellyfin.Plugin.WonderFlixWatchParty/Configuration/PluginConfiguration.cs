@@ -93,6 +93,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Soglie di punteggio per profilo di qualità; un profilo senza riga usa quelle predefinite. Un array: XmlSerializer lo sa scrivere.</summary>
     public DownloadProfileRule[] DownloadProfileRules { get; set; } = [];
 
+    /// <summary>Il link di ricerca esterna (MIRCrew) per "Serve te"; {query} diventa il titolo. Vuoto: nessun pulsante.</summary>
+    public string ExternalSearchUrl { get; set; } = Downloads.DownloadDefaults.ExternalSearchUrl;
+
     /// <summary>Indirizzo di qBittorrent visto dal server Jellyfin (spec U §7.1). Vuoto: niente torrent nella pagina Spazio.</summary>
     public string SpaceQbitUrl { get; set; } = string.Empty;
 

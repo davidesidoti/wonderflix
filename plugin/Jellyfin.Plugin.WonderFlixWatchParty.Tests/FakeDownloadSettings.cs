@@ -10,6 +10,9 @@ internal sealed class FakeDownloadSettings : IDownloadSettings
 
     public double MinGbPerHour { get; set; } = DownloadDefaults.MinGbPerHour;
 
+    // Vuoto: i test che non lo guardano vedono le azioni di sempre.
+    public string ExternalSearchUrl { get; set; } = "";
+
     public Dictionary<(ArrKind Kind, int ProfileId), ProfileThresholds> Thresholds { get; } = [];
 
     public ProfileThresholds For(ArrKind kind, int profileId, string? profileName) =>

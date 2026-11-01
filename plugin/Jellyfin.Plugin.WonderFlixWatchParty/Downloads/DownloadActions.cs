@@ -15,6 +15,16 @@ public static class DownloadActions
 
     public const string Discard = "Discard";
 
+    /// <summary>Apre la ricerca sul tracker esterno; sempre l'ultima, con il link nella voce.</summary>
+    public const string ExternalSearch = "ExternalSearch";
+
+    /// <summary>Le azioni di For, più ExternalSearch se la ricerca non ha trovato niente di buono e c'è un link.</summary>
+    public static IReadOnlyList<string> For(DownloadEntry entry, string? externalSearchUrl) =>
+        externalSearchUrl is not null && OffersExternalSearch(entry) ? [.. For(entry), ExternalSearch] : For(entry);
+
+    internal static bool OffersExternalSearch(DownloadEntry entry) =>
+        entry is { State: DownloadStates.NeedsYou, Reason: DownloadReasons.NothingFound or DownloadReasons.BelowMinScore };
+
     public static IReadOnlyList<string> For(DownloadEntry entry)
     {
         if (entry.State != DownloadStates.NeedsYou)

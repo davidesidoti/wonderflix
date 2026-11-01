@@ -13,6 +13,9 @@ public interface IDownloadSettings
     /// <summary>GB all'ora minimi, già fra 0,1 e 20.</summary>
     double MinGbPerHour { get; }
 
+    /// <summary>Il link di ricerca esterna con {query} al posto del titolo; vuoto: nessun pulsante.</summary>
+    string ExternalSearchUrl { get; }
+
     /// <summary>Le soglie del profilo: la riga dell'admin, altrimenti quelle predefinite.</summary>
     ProfileThresholds For(ArrKind kind, int profileId, string? profileName);
 }
@@ -31,6 +34,9 @@ public static class DownloadDefaults
     public const int DefaultTargetScore = 150;
 
     public const int AnimeMinScore = 1;
+
+    /// <summary>La ricerca di MIRCrew, che Prowlarr non può più usare: solo nei titoli dei post.</summary>
+    public const string ExternalSearchUrl = "https://mircrew-releases.org/search.php?keywords={query}&terms=all&sf=titleonly&sr=topics&sk=t&sd=d";
 
     /// <summary>Con "anime" nel nome (senza badare alle maiuscole): minimo 1 e nessun obiettivo; altrimenti 50 e 150.</summary>
     public static ProfileThresholds For(string? profileName) =>

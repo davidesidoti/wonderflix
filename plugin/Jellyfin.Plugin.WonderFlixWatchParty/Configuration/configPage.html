@@ -138,6 +138,10 @@
                             <input is="emby-input" type="number" id="WonderFlixDownloadsMinGbPerHour" label="Minimum size (GB per hour)" min="0.1" max="20" step="0.1" />
                             <div class="fieldDescription">Releases smaller than this for their length are skipped.</div>
                         </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="text" id="WonderFlixDownloadsExternalSearchUrl" label="External search link" />
+                            <div class="fieldDescription">Shown in WonderFlix when a search finds nothing usable. {query} becomes the title. Empty: no button.</div>
+                        </div>
                         <h4>Quality profiles</h4>
                         <div class="fieldDescription">Minimum and target score per profile. A release below the minimum is never taken; a file at or above the target is good enough. Empty target: no target.</div>
                         <div id="WonderFlixDownloadsProfiles"></div>
@@ -731,6 +735,7 @@
                 // Download automatici (spec T): come Sonarr e Radarr, Salva solo dopo aver letto la configurazione.
                 var dlEnabled = page.querySelector('#WonderFlixDownloadsEnabled');
                 var dlMinGb = page.querySelector('#WonderFlixDownloadsMinGbPerHour');
+                var dlExternal = page.querySelector('#WonderFlixDownloadsExternalSearchUrl');
                 var dlProfiles = page.querySelector('#WonderFlixDownloadsProfiles');
                 var dlResult = page.querySelector('#WonderFlixDownloadsResult');
                 var dlLoaded = false;
@@ -792,6 +797,7 @@
                     ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                         dlEnabled.checked = config.DownloadsEnabled === true;
                         dlMinGb.value = config.DownloadsMinGbPerHour === undefined || config.DownloadsMinGbPerHour === null ? 0.8 : config.DownloadsMinGbPerHour;
+                        dlExternal.value = config.ExternalSearchUrl || '';
                         dlLoaded = true;
                         dlResult.textContent = '';
                         ApiClient.getJSON(ApiClient.getUrl('WonderFlixWatchParty/Downloads/Profiles')).then(function (profiles) {
@@ -826,6 +832,7 @@
                         config.DownloadsEnabled = dlEnabled.checked;
                         var gb = parseFloat(dlMinGb.value);
                         config.DownloadsMinGbPerHour = isNaN(gb) ? config.DownloadsMinGbPerHour : gb;
+                        config.ExternalSearchUrl = dlExternal.value.trim();
                         if (dlRows !== null) {
                             // Si parte dalle regole salvate: quelle di un profilo senza riga (l'altro servizio non risponde) restano.
                             // Una riga si scrive solo se il profilo aveva gia' una regola o l'admin ha cambiato i valori:

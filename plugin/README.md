@@ -163,13 +163,20 @@ uscite in arrivo.
   esempio il client di download ha rifiutato il torrent);
   `POST Downloads/Accept` `{Key}` è "va bene così" (204, 400);
   `POST Downloads/SearchNow` `{Key}` ricerca subito (202, 400);
+  dalla 1.20.0 la ricerca e le voci in "Serve te" per `NothingFound` o
+  `BelowMinScore` hanno `ExternalSearchUrl`, il link di ricerca esterna
+  (predefinito MIRCrew, che Prowlarr non può più usare) con il titolo senza
+  anno, episodio o stagione al posto di `{query}`; la voce ha allora
+  l'azione `ExternalSearch` per ultima. Null se il link nelle impostazioni è
+  vuoto o senza `{query}`. Il magnet si aggiunge a mano in qBittorrent con
+  la categoria di Radarr/Sonarr e la coda lo segue come gli altri;
   `GET Downloads/Profiles` dà i profili di qualità di Radarr e Sonarr con le
   soglie per la pagina del plugin. Le chiavi dei titoli sono `movie:{id}`,
   `episode:{id}` e `season:{idSerie}:{numero}`. Lo stato sta in
   `plugins/configurations/WonderFlixWatchParty/downloads.json` (un file
   illeggibile diventa `downloads.json.bad` e si riparte da vuoto). Nella
-  pagina del plugin: l'interruttore, i GB all'ora minimi e il punteggio
-  minimo e obiettivo di ogni profilo. Funzione `downloads`, presente con
+  pagina del plugin: l'interruttore, i GB all'ora minimi, il link di ricerca
+  esterna e il punteggio minimo e obiettivo di ogni profilo. Funzione `downloads`, presente con
   almeno uno tra Sonarr e Radarr.
   Con l'interruttore spento WonderFlix segue ancora i download già partiti
   (dalla scheda Download o prima di spegnerlo), ma non cerca e non ne avvia

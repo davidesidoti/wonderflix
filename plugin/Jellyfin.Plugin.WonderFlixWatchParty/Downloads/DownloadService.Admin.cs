@@ -729,16 +729,22 @@ public sealed partial class DownloadService
 
     // Il messaggio di Sonarr/Radarr esce solo per un import bloccato: su una voce passata ad altro può restarne uno vecchio.
     // La fase solo sotto _lock (come ItemDto): in ricerca adesso, o in coda per il prossimo giro.
-    private DownloadItemDto ItemDto(DownloadEntry e, DateTimeOffset now) => new(
-        e.Key, e.Kind, e.Title, e.PosterUrl, e.State, e.Reason, e.AvailableSince, e.LastSearchAt, e.NextSearchAt,
-        DownloadActions.For(e),
-        e.Summary is { } s ? new DownloadSummaryDto(s.Found, s.BestScore, s.MinScore, s.TooSmall, s.ArrRejected, s.TopRejection, s.StopgapAvailable) : null,
-        e.Reason == DownloadReasons.ImportBlocked ? e.BlockedMessage : null,
-        e.Snoozed,
-        null,
-        _searching.Contains(e.Key) || AdminSearching(e.Key) ? DownloadSearchPhases.Searching
-            : settings.Enabled && e.NextSearchAt <= now && SearchesByState(e) ? DownloadSearchPhases.Queued
-            : null);
+    // Il link esterno solo con l'azione ExternalSearch.
+    private DownloadItemDto ItemDto(DownloadEntry e, DateTimeOffset now)
+    {
+        var external = DownloadActions.OffersExternalSearch(e) ? ExternalSearch.UrlFor(settings.ExternalSearchUrl, e.Title) : null;
+        return new(
+            e.Key, e.Kind, e.Title, e.PosterUrl, e.State, e.Reason, e.AvailableSince, e.LastSearchAt, e.NextSearchAt,
+            DownloadActions.For(e, external),
+            e.Summary is { } s ? new DownloadSummaryDto(s.Found, s.BestScore, s.MinScore, s.TooSmall, s.ArrRejected, s.TopRejection, s.StopgapAvailable) : null,
+            e.Reason == DownloadReasons.ImportBlocked ? e.BlockedMessage : null,
+            e.Snoozed,
+            null,
+            _searching.Contains(e.Key) || AdminSearching(e.Key) ? DownloadSearchPhases.Searching
+                : settings.Enabled && e.NextSearchAt <= now && SearchesByState(e) ? DownloadSearchPhases.Queued
+                : null,
+            external);
+    }
 
     /// <summary>
     /// I profili di qualità di Radarr e Sonarr con le loro soglie (spec T §7.1); un servizio in errore non c'è. Null se
@@ -793,7 +799,8 @@ public sealed partial class DownloadService
             rule.Candidates.Count,
             releases.Count(r => !string.IsNullOrEmpty(r.Guid)),
             null,
-            choice is null ? EpisodeChoicesOf(target, releases, files, input, thresholds.TargetScore, profile, time.GetUtcNow()) : []);
+            choice is null ? EpisodeChoicesOf(target, releases, files, input, thresholds.TargetScore, profile, time.GetUtcNow()) : [],
+            ExternalSearch.UrlFor(settings.ExternalSearchUrl, title.Title));
 
         var search = new AdminSearch(title, current, profile, target.SeasonEpisodes, releases, result, time.GetUtcNow(), target.Episodes, files, input);
         lock (_lock)

@@ -840,6 +840,56 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Assert.Contains("\"BlockedMessage\":null", json);
     }
 
+    private const string External = "https://t.example/?q={query}";
+
+    [Theory]
+    [InlineData(DownloadReasons.NothingFound)]
+    [InlineData(DownloadReasons.BelowMinScore)]
+    public async Task NothingUsableOffersTheExternalSearchLast(string reason)
+    {
+        _settings.ExternalSearchUrl = External;
+        NeedsYou(reason);
+
+        var item = Assert.Single((await _service.OverviewAsync(CancellationToken.None)).Waiting);
+
+        Assert.Equal("ExternalSearch", item.Actions[^1]);
+        Assert.Equal("https://t.example/?q=Animals", item.ExternalSearchUrl);
+    }
+
+    [Fact]
+    public async Task AnotherReasonHasNoExternalSearch()
+    {
+        _settings.ExternalSearchUrl = External;
+        NeedsYou(DownloadReasons.SearchFailed);
+
+        var item = Assert.Single((await _service.OverviewAsync(CancellationToken.None)).Waiting);
+
+        Assert.DoesNotContain("ExternalSearch", item.Actions);
+        Assert.Null(item.ExternalSearchUrl);
+        var json = System.Text.Json.JsonSerializer.Serialize(item, new System.Text.Json.JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull });
+        Assert.Contains("\"ExternalSearchUrl\":null", json);
+    }
+
+    [Fact]
+    public async Task AnEmptyLinkHasNoExternalSearch()
+    {
+        NeedsYou(DownloadReasons.NothingFound);
+
+        var item = Assert.Single((await _service.OverviewAsync(CancellationToken.None)).Waiting);
+
+        Assert.DoesNotContain("ExternalSearch", item.Actions);
+        Assert.Null(item.ExternalSearchUrl);
+    }
+
+    [Fact]
+    public async Task TheSearchCarriesTheExternalLink()
+    {
+        _settings.ExternalSearchUrl = External;
+        Animals();
+
+        Assert.Equal("https://t.example/?q=Animals", (await Search("movie:12"))!.ExternalSearchUrl);
+    }
+
     [Fact]
     public async Task GrabBestTakesTheBestBelowMinimumAndMarksAStopgap()
     {

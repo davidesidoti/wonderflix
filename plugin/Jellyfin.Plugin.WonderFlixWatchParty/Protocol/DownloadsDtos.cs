@@ -42,7 +42,8 @@ public sealed record DownloadItemDto(
     [property: JsonPropertyName("BlockedMessage")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? BlockedMessage,
     [property: JsonPropertyName("Snoozed")] bool Snoozed,
     [property: JsonPropertyName("Progress")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  DownloadProgressDto? Progress,
-    [property: JsonPropertyName("SearchPhase")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? SearchPhase = null);
+    [property: JsonPropertyName("SearchPhase")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? SearchPhase = null,
+    [property: JsonPropertyName("ExternalSearchUrl")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? ExternalSearchUrl = null);
 
 /// <summary>L'avanzamento di un download dalla coda di Radarr/Sonarr; Status è il codice della coda, in minuscolo come arriva ("downloading", "queued", "paused", ...), o "metadata" se il torrent è fermo sul recupero dei metadati: allora Since è da quando.</summary>
 public sealed record DownloadProgressDto(
@@ -116,6 +117,7 @@ public sealed record DownloadEpisodeChoiceDto(
 /// <summary>
 /// Risposta di GET Downloads/Search (spec T §8.2). Con Error (un codice di UpcomingErrors) le liste sono vuote.
 /// EpisodeChoices (dalla 1.15.0): i migliori singoli per episodio, solo per una stagione senza un pack scelto; altrimenti vuota.
+/// ExternalSearchUrl: la ricerca sul tracker esterno per questo titolo, null senza link nelle impostazioni.
 /// </summary>
 public sealed record DownloadSearchDto(
     [property: JsonPropertyName("Key")] string Key,
@@ -128,7 +130,8 @@ public sealed record DownloadSearchDto(
     [property: JsonPropertyName("ValidCount")] int ValidCount,
     [property: JsonPropertyName("TotalCount")] int TotalCount,
     [property: JsonPropertyName("Error")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? Error,
-    [property: JsonPropertyName("EpisodeChoices")] IReadOnlyList<DownloadEpisodeChoiceDto> EpisodeChoices);
+    [property: JsonPropertyName("EpisodeChoices")] IReadOnlyList<DownloadEpisodeChoiceDto> EpisodeChoices,
+    [property: JsonPropertyName("ExternalSearchUrl")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? ExternalSearchUrl);
 
 /// <summary>
 /// Risposta di POST Downloads/SearchStart e GET Downloads/SearchStatus (spec W §4.4). State: uno di DownloadSearchStates.

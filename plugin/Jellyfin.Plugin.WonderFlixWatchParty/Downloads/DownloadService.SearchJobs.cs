@@ -123,7 +123,7 @@ public sealed partial class DownloadService
             title = Book.Get(key.ToString())?.Title ?? "";
         }
 
-        return new SearchOutcome(time.GetUtcNow(), new DownloadSearchDto(key.ToString(), key.Kind, title, 0, null, [], [], 0, 0, error, []));
+        return new SearchOutcome(time.GetUtcNow(), new DownloadSearchDto(key.ToString(), key.Kind, title, 0, null, [], [], 0, 0, error, [], null));
     }
 
     // Solo sotto _lock. Un job dell'admin in corso sulla chiave, per la panoramica.
