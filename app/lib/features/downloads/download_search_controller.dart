@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/downloads/download_models.dart';
 import '../../core/downloads/downloads_api.dart';
+import '../social/social_providers.dart';
 import 'downloads_controller.dart';
 import 'downloads_providers.dart';
 
@@ -42,22 +43,127 @@ final downloadGrabProgressProvider = NotifierProvider.autoDispose
       DownloadGrabProgress.new,
     );
 
+/// Una ricerca in background in corso: quando è partita (ora del server), su
+/// quale servizio, e se l'ultima richiesta dello stato è fallita per la rete.
+typedef DownloadSearchRunning = ({
+  DateTime startedAt,
+  String service,
+  bool reconnecting,
+});
+
+/// La ricerca in background di un titolo (la chiave) mentre è in corso; null
+/// altrimenti (spec W §5.2).
+class DownloadSearchRunningNotifier extends Notifier<DownloadSearchRunning?> {
+  DownloadSearchRunningNotifier(this.key);
+
+  final String key;
+
+  @override
+  DownloadSearchRunning? build() => null;
+
+  void set(DownloadSearchRunning? value) => state = value;
+}
+
+final downloadSearchRunningProvider = NotifierProvider.autoDispose
+    .family<DownloadSearchRunningNotifier, DownloadSearchRunning?, String>(
+      DownloadSearchRunningNotifier.new,
+    );
+
 /// La ricerca delle release di un titolo (la chiave, opaca) e le scelte
 /// dell'admin (spec T §8.2). Smontando il provider la ricerca in corso viene
-/// annullata.
+/// annullata. Con `downloadsSearchJobs` la ricerca gira sul plugin e il
+/// controller ne chiede lo stato (spec W §5.2): smontando si ferma solo il
+/// polling.
 class DownloadSearchController extends AsyncNotifier<DownloadSearch> {
   DownloadSearchController(this.key);
 
+  static const pollInterval = Duration(seconds: 3);
+
+  /// Errori di rete di fila durante il polling prima di mostrare l'errore.
+  static const maxPollFailures = 3;
+
   final String key;
   CancelToken? _token;
+  Timer? _timer;
+
+  /// Cresce a ogni ricerca: un polling vecchio vede che non è più il suo.
+  var _run = 0;
 
   @override
   Future<DownloadSearch> build() {
     // Tiene vivo il flag finché vive la ricerca.
     ref.listen(downloadGrabbingProvider(key), (_, _) {});
     ref.listen(downloadGrabProgressProvider(key), (_, _) {});
-    ref.onDispose(() => _token?.cancel());
-    return _search();
+    ref.listen(downloadSearchRunningProvider(key), (_, _) {});
+    ref.onDispose(() {
+      _token?.cancel();
+      _timer?.cancel();
+    });
+    return _jobs ? _job() : _search();
+  }
+
+  bool get _jobs => ref.read(socialAvailabilityProvider).downloadsSearchJobs;
+
+  /// Avvia (o riprende) la ricerca sul plugin e ne chiede lo stato finché non
+  /// è finita.
+  Future<DownloadSearch> _job({bool again = false}) async {
+    final run = ++_run;
+    _timer?.cancel();
+    final api = ref.read(downloadsApiProvider);
+    final running = ref.read(downloadSearchRunningProvider(key).notifier);
+    // Provider smontato o ricerca nuova: la risposta non serve a nessuno.
+    final stale = Completer<DownloadSearch>().future;
+    var failures = 0;
+    try {
+      var status = await api.startSearch(key, again: again);
+      while (true) {
+        if (!ref.mounted || run != _run) return await stale;
+        switch (status.state) {
+          case DownloadSearchJobState.done:
+            return status.result!;
+          case DownloadSearchJobState.missing:
+            throw const DownloadsException(DownloadsFailure.invalid);
+          case DownloadSearchJobState.running:
+            running.set((
+              startedAt: status.startedAt ?? DateTime.now(),
+              service: status.service,
+              reconnecting: false,
+            ));
+          case DownloadSearchJobState.none:
+            break;
+        }
+        // None: il plugin è stato riavviato e non ha più il lavoro.
+        final restart = status.state == DownloadSearchJobState.none;
+        while (true) {
+          final tick = Completer<void>();
+          _timer = Timer(pollInterval, tick.complete);
+          await tick.future;
+          if (!ref.mounted || run != _run) return await stale;
+          try {
+            status = restart
+                ? await api.startSearch(key)
+                : await api.searchStatus(key);
+            failures = 0;
+            break;
+          } on DownloadsException catch (error) {
+            if (!ref.mounted || run != _run) return await stale;
+            if (error.failure != DownloadsFailure.network ||
+                ++failures >= maxPollFailures) {
+              rethrow;
+            }
+            if (ref.read(downloadSearchRunningProvider(key)) case final r?) {
+              running.set((
+                startedAt: r.startedAt,
+                service: r.service,
+                reconnecting: true,
+              ));
+            }
+          }
+        }
+      }
+    } finally {
+      if (ref.mounted && run == _run) running.set(null);
+    }
   }
 
   Future<DownloadSearch> _search() async {
@@ -76,11 +182,18 @@ class DownloadSearchController extends AsyncNotifier<DownloadSearch> {
 
   bool get grabbing => ref.read(downloadGrabbingProvider(key));
 
-  Future<void> searchAgain() async {
+  /// Rilancia la ricerca (sul plugin: `again`, anche se ha già un risultato).
+  Future<void> searchAgain() => _restart(again: true);
+
+  /// Dopo un errore: riprende a chiedere lo stato senza rilanciare la ricerca
+  /// sul plugin.
+  Future<void> retry() => _restart(again: false);
+
+  Future<void> _restart({required bool again}) async {
     _token?.cancel();
     state = const AsyncLoading();
     try {
-      final search = await _search();
+      final search = await (_jobs ? _job(again: again) : _search());
       if (ref.mounted) state = AsyncData(search);
     } on Object catch (error, stack) {
       if (ref.mounted) state = AsyncError(error, stack);

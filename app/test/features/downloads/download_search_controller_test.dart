@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/downloads/download_models.dart';
 import 'package:wonderflix/core/downloads/downloads_api.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/downloads/download_search_controller.dart';
@@ -21,7 +23,7 @@ void main() {
 
   setUp(() => api = FakeDownloadsApi());
 
-  ProviderContainer container() {
+  ProviderContainer container({bool jobs = false}) {
     final c = ProviderContainer.test(
       retry: (_, _) => null,
       overrides: [
@@ -31,7 +33,11 @@ void main() {
         ),
         socialAvailabilityProvider.overrideWith(
           () => FakeSocialAvailability(
-            const SocialFeatures(downloads: true, known: true),
+            SocialFeatures(
+              downloads: true,
+              downloadsSearchJobs: jobs,
+              known: true,
+            ),
           ),
         ),
       ],
@@ -227,5 +233,195 @@ void main() {
     sub.close();
     await Future<void>.delayed(Duration.zero);
     expect(token.isCancelled, isTrue);
+  });
+
+  test('usesTheOldSearch', () async {
+    final c = container();
+    final sub = c.listen(downloadSearchControllerProvider(_key), (_, _) {});
+    await c.read(downloadSearchControllerProvider(_key).future);
+    await c.read(downloadSearchControllerProvider(_key).notifier).searchAgain();
+
+    expect(api.calls.where((x) => x.contains(_key)),
+        ['search movie:1', 'search movie:1']);
+    sub.close();
+  });
+
+  // Con `downloadsSearchJobs`: start, poi lo stato ogni 3 s (spec W §5.2).
+  group('SearchJobs', () {
+    final startedAt = DateTime.utc(2026, 11, 1, 10);
+    DownloadSearchStatus status(
+      DownloadSearchJobState state, {
+      DownloadSearch? result,
+    }) =>
+        DownloadSearchStatus(
+          key: _key,
+          state: state,
+          startedAt: startedAt,
+          service: 'Radarr',
+          result: result,
+        );
+    final running = status(DownloadSearchJobState.running);
+    final done = status(DownloadSearchJobState.done, result: testSearch());
+    const network = DownloadsException(DownloadsFailure.network);
+    const poll = DownloadSearchController.pollInterval;
+
+    // Apre la pagina: ascolta il controller.
+    (ProviderContainer, ProviderSubscription<AsyncValue<DownloadSearch>>)
+        open() {
+      final c = container(jobs: true);
+      return (c, c.listen(downloadSearchControllerProvider(_key), (_, _) {}));
+    }
+
+    AsyncValue<DownloadSearch> stateOf(ProviderContainer c) =>
+        c.read(downloadSearchControllerProvider(_key));
+    DownloadSearchRunning? runningOf(ProviderContainer c) =>
+        c.read(downloadSearchRunningProvider(_key));
+    Iterable<String> callsOf(String key) =>
+        api.calls.where((x) => x.contains(key));
+
+    test('startsThenPollsUntilDone', () {
+      fakeAsync((async) {
+        api.searchStatuses.addAll([running, running, done]);
+        final (c, sub) = open();
+        async.elapse(const Duration(seconds: 6));
+
+        expect(stateOf(c).value?.title, testSearch().title);
+        expect(runningOf(c), isNull);
+        expect(callsOf(_key),
+            ['start movie:1', 'status movie:1', 'status movie:1']);
+        sub.close();
+      });
+    });
+
+    test('exposesStartedAtAndServiceWhileRunning', () {
+      fakeAsync((async) {
+        api.searchStatuses.addAll([running, done]);
+        final (c, sub) = open();
+        async.elapse(Duration.zero);
+
+        expect(stateOf(c).isLoading, isTrue);
+        expect(runningOf(c),
+            (startedAt: startedAt, service: 'Radarr', reconnecting: false));
+        async.elapse(poll);
+        expect(runningOf(c), isNull);
+        sub.close();
+      });
+    });
+
+    test('aFinishedErrorIsShownWithoutSearchingAgain', () {
+      fakeAsync((async) {
+        const failed = DownloadSearch(
+          key: _key,
+          kind: DownloadKind.movie,
+          title: 'Film',
+          runtimeMinutes: 100,
+          validCount: 0,
+          totalCount: 0,
+          error: 'Unreachable',
+        );
+        api.searchStatuses
+            .add(status(DownloadSearchJobState.done, result: failed));
+        final (c, sub) = open();
+        async.elapse(const Duration(seconds: 10));
+
+        expect(stateOf(c).value?.error, 'Unreachable');
+        expect(callsOf(_key), ['start movie:1']);
+        sub.close();
+      });
+    });
+
+    test('aRestartedPluginStartsAgain', () {
+      fakeAsync((async) {
+        api.searchStatuses
+            .addAll([running, status(DownloadSearchJobState.none), done]);
+        final (c, sub) = open();
+        async.elapse(poll * 2);
+
+        expect(callsOf(_key),
+            ['start movie:1', 'status movie:1', 'start movie:1']);
+        expect(stateOf(c).hasValue, isTrue);
+        sub.close();
+      });
+    });
+
+    test('transientNetworkErrorsKeepPolling', () {
+      fakeAsync((async) {
+        api.searchStatuses.addAll([running, network, done]);
+        final (c, sub) = open();
+        async.elapse(poll);
+
+        expect(runningOf(c)?.reconnecting, isTrue);
+        expect(stateOf(c).isLoading, isTrue);
+        async.elapse(poll);
+        expect(stateOf(c).hasValue, isTrue);
+        sub.close();
+      });
+    });
+
+    test('threeNetworkErrorsShowTheError', () {
+      fakeAsync((async) {
+        api.searchStatuses.addAll([running, network, network, network]);
+        final (c, sub) = open();
+        async.elapse(poll * 2);
+        expect(stateOf(c).isLoading, isTrue);
+        async.elapse(poll);
+
+        expect(stateOf(c).error, network);
+        expect(runningOf(c), isNull);
+
+        api.calls.clear();
+        api.searchStatuses.add(done);
+        c.read(downloadSearchControllerProvider(_key).notifier).retry();
+        async.elapse(Duration.zero);
+        expect(callsOf(_key), ['start movie:1']);
+        expect(stateOf(c).hasValue, isTrue);
+        sub.close();
+      });
+    });
+
+    test('closingThePageStopsPolling', () {
+      fakeAsync((async) {
+        api.searchStatuses.addAll([running, running, running, running]);
+        final (c, sub) = open();
+        async.elapse(poll);
+        final before = callsOf(_key).length;
+
+        sub.close();
+        c.dispose();
+        async.elapse(const Duration(seconds: 10));
+        expect(callsOf(_key), hasLength(before));
+      });
+    });
+
+    test('searchAgainSendsAgain', () {
+      fakeAsync((async) {
+        final (c, sub) = open();
+        async.elapse(Duration.zero);
+        api.calls.clear();
+
+        c.read(downloadSearchControllerProvider(_key).notifier).searchAgain();
+        async.elapse(Duration.zero);
+        expect(callsOf(_key), ['start movie:1 again']);
+        expect(stateOf(c).hasValue, isTrue);
+        sub.close();
+      });
+    });
+
+    test('missingIsInvalid', () {
+      fakeAsync((async) {
+        api.searchStatuses
+            .addAll([running, status(DownloadSearchJobState.missing)]);
+        final (c, sub) = open();
+        async.elapse(poll);
+
+        expect(
+          stateOf(c).error,
+          isA<DownloadsException>()
+              .having((e) => e.failure, 'failure', DownloadsFailure.invalid),
+        );
+        expect(runningOf(c), isNull);
+        sub.close();
+      });
+    });
   });
 }
