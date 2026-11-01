@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -33,7 +35,15 @@ Widget _networkImage(ImageRef image, BoxFit fit) => LayoutBuilder(
           fit: fit,
           fadeInDuration: WfMotion.fast,
           placeholder: (context, url) => ImagePlaceholder(blurHash: image.blurHash),
-          errorWidget: (context, url, error) => const ImagePlaceholder(),
+          errorWidget: (context, url, error) {
+            // Sul web il pacchetto lascia l'errore nella cache di Flutter:
+            // senza evict l'immagine resta vuota a ogni ritorno sulla pagina.
+            scheduleMicrotask(() => ResizeImage.resizeIfNeeded(memWidth, null,
+                    CachedNetworkImageProvider(url,
+                        cacheManager: wonderflixImageCache))
+                .evict());
+            return const ImagePlaceholder(icon: LucideIcons.imageOff);
+          },
         );
       },
     );
