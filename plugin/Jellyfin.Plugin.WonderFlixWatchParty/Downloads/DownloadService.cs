@@ -27,6 +27,9 @@ public sealed partial class DownloadService(
     /// <summary>Un giro ogni tanto (decisione 7).</summary>
     public static readonly TimeSpan CycleInterval = TimeSpan.FromMinutes(15);
 
+    /// <summary>Quanto la panoramica aspetta i download senza titolo: dopo, la sezione arriva al poll seguente.</summary>
+    public static readonly TimeSpan UnknownReadLimit = TimeSpan.FromSeconds(3);
+
     /// <summary>Ricerche al massimo in un giro (decisione 7).</summary>
     public const int MaxSearchesPerCycle = 10;
 

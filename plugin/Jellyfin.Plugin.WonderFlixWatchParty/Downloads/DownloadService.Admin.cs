@@ -698,14 +698,7 @@ public sealed partial class DownloadService
             }
         }
 
-        // Se un servizio non risponde lo dicono già gli errori del giro: qui resta vuoto.
-        var unknown = new List<UnknownDownloadDto>();
-        foreach (var kind in Enum.GetValues<ArrKind>().Where(k => arrSettings.Endpoint(k).IsConfigured))
-        {
-            var read = await _unknown.GetAsync(kind.ToString(), () => ReadUnknownAsync(kind)).WaitAsync(cancellationToken).ConfigureAwait(false);
-            unknown.AddRange(read.Value ?? []);
-        }
-
+        var unknown = await UnknownAsync(cancellationToken).ConfigureAwait(false);
         return overview with
         {
             Waiting = [.. overview.Waiting.Select(i => i.State == DownloadStates.Downloading && queues.GetValueOrDefault(ServiceOf(i.Kind)) is { } p
@@ -713,6 +706,25 @@ public sealed partial class DownloadService
                 : i)],
             Unknown = unknown,
         };
+    }
+
+    // Un servizio che non risponde lo dicono già gli errori del giro: qui resta vuoto. Uno lento non ferma la panoramica:
+    // allo scadere la sezione è vuota e la lettura, che non si cancella, finisce in cache per il poll dopo.
+    private async Task<IReadOnlyList<UnknownDownloadDto>> UnknownAsync(CancellationToken cancellationToken)
+    {
+        var reads = Enum.GetValues<ArrKind>()
+            .Where(k => arrSettings.Endpoint(k).IsConfigured)
+            .Select(k => _unknown.GetAsync(k.ToString(), () => ReadUnknownAsync(k)))
+            .ToList();
+        try
+        {
+            var done = await Task.WhenAll(reads).WaitAsync(UnknownReadLimit, time, cancellationToken).ConfigureAwait(false);
+            return [.. done.SelectMany(r => r.Value ?? [])];
+        }
+        catch (TimeoutException)
+        {
+            return [];
+        }
     }
 
     private async Task<IReadOnlyList<UnknownDownloadDto>> ReadUnknownAsync(ArrKind kind)
@@ -727,11 +739,14 @@ public sealed partial class DownloadService
         queue.OfType<ArrQueueItem>()
             .Where(q => !string.IsNullOrEmpty(q.DownloadId))
             .GroupBy(q => q.DownloadId!)
-            .Where(d => d.All(q => q.SeriesId is not > 0 && q.EpisodeId is not > 0 && q.MovieId is not > 0 && IsImportBlocked(q)));
+            .Where(d => d.All(q => q.Id > 0 && !HasTitle(q) && IsImportBlocked(q)));
+
+    private static bool HasTitle(ArrQueueItem item) => item.SeriesId > 0 || item.EpisodeId > 0 || item.MovieId > 0;
 
     /// <summary>
     /// "Rimuovi" su un download senza titolo: rilegge la coda dal vivo e toglie il download dal client, file compresi, senza blocklist.
-    /// Invalid per una richiesta non valida, Changed se non è più senza titolo e fermo, Unavailable se Radarr/Sonarr non rispondono.
+    /// Invalid per una richiesta non valida, Changed se non è più senza titolo e fermo o se ha un titolo nell'altro servizio,
+    /// Unavailable se Radarr/Sonarr non rispondono (anche solo l'altro, se è configurato).
     /// </summary>
     public async Task<BlockedOutcome> RemoveUnknownAsync(string? service, string? downloadId)
     {
@@ -749,24 +764,33 @@ public sealed partial class DownloadService
                 return BlockedOutcome.Changed;
             }
 
-            var first = true;
+            // Con una categoria di qBittorrent condivisa, un film legato in Radarr compare in Sonarr senza serie: stessi file.
+            var other = kind == ArrKind.Radarr ? ArrKind.Sonarr : ArrKind.Radarr;
+            if (arrSettings.Endpoint(other).IsConfigured
+                && (await arr.GetQueueAsync(other, CancellationToken.None).ConfigureAwait(false))
+                    .OfType<ArrQueueItem>()
+                    .Any(q => HasTitle(q) && string.Equals(q.DownloadId, downloadId, StringComparison.OrdinalIgnoreCase)))
+            {
+                return BlockedOutcome.Changed;
+            }
+
+            var removed = false;
             foreach (var item in download)
             {
                 try
                 {
                     await arr.RemoveFromQueueAsync(kind, item.Id, blocklist: false, removeFromClient: true, CancellationToken.None).ConfigureAwait(false);
+                    removed = true;
                 }
                 catch (ArrException ex) when (ex.Status == 404)
                 {
-                    // Già tolto, o insieme al torrent del primo elemento.
+                    // Già tolto, o insieme al torrent di un altro elemento.
                 }
-                catch (Exception ex) when (!first)
+                catch (Exception ex) when (removed)
                 {
-                    // Il primo toglie il torrent: gli altri elementi possono non esserci più.
+                    // Il primo tolto si porta via il torrent: gli altri elementi possono non esserci più.
                     logger.LogWarning("Download senza titolo: {Kind} non ha tolto un elemento ({Error})", kind, ErrorOf(ex));
                 }
-
-                first = false;
             }
 
             logger.LogInformation("Download senza titolo: {Title} tolto da {Kind}", download.First().Title, kind);

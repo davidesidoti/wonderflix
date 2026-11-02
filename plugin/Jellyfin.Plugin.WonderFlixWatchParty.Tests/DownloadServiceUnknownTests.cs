@@ -1,6 +1,7 @@
 using Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
@@ -197,6 +198,149 @@ public sealed class DownloadServiceUnknownTests : IDisposable
         _arr.UnknownQueue = _ => Task.FromResult<IReadOnlyList<ArrQueueItem?>>([Unknown(1)]);
         _arr.RemoveFromQueue = (_, _, _) => Task.FromException(new ArrException(ArrError.Unreachable));
         Assert.Equal(BlockedOutcome.Unavailable, await _service.RemoveUnknownAsync("Sonarr", "D1"));
+    }
+
+    [Fact]
+    public async Task RemoveRefusesADownloadThatHasATitleInTheOtherService()
+    {
+        // Categoria qBittorrent condivisa: il film legato in Radarr compare in Sonarr senza serie.
+        _sonarr = [Unknown(1, "ABC")];
+        _arr.Queue = kind => Task.FromResult<IReadOnlyList<ArrQueueItem?>>(
+            kind == ArrKind.Radarr ? [new ArrQueueItem { Id = 9, MovieId = 12, DownloadId = "abc" }] : []);
+
+        Assert.Equal(BlockedOutcome.Changed, await _service.RemoveUnknownAsync("Sonarr", "ABC"));
+        Assert.Empty(_arr.RemoveFromQueueCalls);
+    }
+
+    [Fact]
+    public async Task RemoveChecksTheOtherServiceAlsoFromRadarr()
+    {
+        _radarr = [Unknown(1)];
+        _arr.Queue = kind => Task.FromResult<IReadOnlyList<ArrQueueItem?>>(
+            kind == ArrKind.Sonarr ? [new ArrQueueItem { Id = 9, SeriesId = 7, EpisodeId = 3, DownloadId = "D1" }] : []);
+
+        Assert.Equal(BlockedOutcome.Changed, await _service.RemoveUnknownAsync("Radarr", "D1"));
+        Assert.Empty(_arr.RemoveFromQueueCalls);
+    }
+
+    [Fact]
+    public async Task RemoveProceedsIfTheOtherServiceDoesNotHaveThatDownloadWithATitle()
+    {
+        _sonarr = [Unknown(1)];
+        _arr.Queue = _ => Task.FromResult<IReadOnlyList<ArrQueueItem?>>(
+            [new ArrQueueItem { Id = 9, MovieId = 12, DownloadId = "Other" }, new ArrQueueItem { Id = 10, DownloadId = "D1" }, null]);
+
+        Assert.Equal(BlockedOutcome.Ok, await _service.RemoveUnknownAsync("Sonarr", "D1"));
+        Assert.Equal(ArrKind.Radarr, Assert.Single(_arr.QueueCalls));
+        Assert.Single(_arr.RemoveFromQueueCalls);
+    }
+
+    [Fact]
+    public async Task RemoveIsUnavailableIfTheOtherServiceDoesNotAnswer()
+    {
+        _sonarr = [Unknown(1)];
+        _arr.Queue = _ => Task.FromException<IReadOnlyList<ArrQueueItem?>>(new ArrException(ArrError.Unreachable));
+
+        Assert.Equal(BlockedOutcome.Unavailable, await _service.RemoveUnknownAsync("Sonarr", "D1"));
+        Assert.Empty(_arr.RemoveFromQueueCalls);
+    }
+
+    [Fact]
+    public async Task RemoveProceedsIfTheOtherServiceIsNotConfigured()
+    {
+        _sonarr = [Unknown(1)];
+        _arr.Queue = _ => Task.FromException<IReadOnlyList<ArrQueueItem?>>(new ArrException(ArrError.NotConfigured));
+        var service = new DownloadService(
+            _arr,
+            new FakeArrSettings { Radarr = new ArrEndpoint(string.Empty, string.Empty) },
+            new FakeDownloadSettings(),
+            new DownloadStore(_folder.DownloadsFile, NullLogger<DownloadStore>.Instance),
+            _time,
+            NullLogger<DownloadService>.Instance,
+            null);
+
+        Assert.Equal(BlockedOutcome.Ok, await service.RemoveUnknownAsync("Sonarr", "D1"));
+        Assert.Empty(_arr.QueueCalls);
+        Assert.Single(_arr.RemoveFromQueueCalls);
+    }
+
+    [Fact]
+    public async Task AHungServiceDoesNotHoldTheOverviewPastTheLimit()
+    {
+        var hung = new TaskCompletionSource<IReadOnlyList<ArrQueueItem?>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _radarr = [Unknown(2, "R1")];
+        _arr.UnknownQueue = kind => kind == ArrKind.Sonarr ? hung.Task : Task.FromResult(_radarr);
+
+        var pending = _service.OverviewAsync(CancellationToken.None);
+        _time.Advance(DownloadService.UnknownReadLimit - TimeSpan.FromSeconds(1));
+        await Task.Delay(50);
+        Assert.False(pending.IsCompleted);
+
+        _time.Advance(TimeSpan.FromSeconds(1));
+        var overview = await pending.WaitAsync(TimeSpan.FromSeconds(30));
+        Assert.Empty(overview.Unknown);
+        Assert.True(overview.Enabled);
+
+        // La lettura non è stata cancellata: finisce in cache per il poll dopo, senza rileggere.
+        var calls = _arr.UnknownQueueCalls.Count;
+        hung.SetResult([Unknown(1)]);
+        Assert.Equal(["D1", "R1"], (await Listed()).Select(u => u.DownloadId));
+        Assert.Equal(calls, _arr.UnknownQueueCalls.Count);
+    }
+
+    [Fact]
+    public async Task TheOverviewStartsTheReadsTogether()
+    {
+        var sonarr = new TaskCompletionSource<IReadOnlyList<ArrQueueItem?>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var radarrAsked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _arr.UnknownQueue = kind =>
+        {
+            if (kind == ArrKind.Sonarr)
+            {
+                return sonarr.Task;
+            }
+
+            radarrAsked.SetResult();
+            return Task.FromResult<IReadOnlyList<ArrQueueItem?>>([]);
+        };
+
+        var pending = _service.OverviewAsync(CancellationToken.None);
+
+        // In sequenza Radarr aspetterebbe la fine di Sonarr.
+        await radarrAsked.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        sonarr.SetResult([]);
+        Assert.Empty((await pending.WaitAsync(TimeSpan.FromSeconds(30))).Unknown);
+    }
+
+    [Fact]
+    public async Task A404ThenAFailureIsNotOk()
+    {
+        _sonarr = [Unknown(1), Unknown(2)];
+        _arr.RemoveFromQueue = (_, id, _) => Task.FromException(id == 1 ? new ArrException(ArrError.Unreachable, status: 404) : new ArrException(ArrError.Unreachable, status: 500));
+
+        Assert.Equal(BlockedOutcome.Unavailable, await _service.RemoveUnknownAsync("Sonarr", "D1"));
+    }
+
+    [Fact]
+    public async Task AFailureAfterTheTorrentIsGoneIsOk()
+    {
+        // Il primo elemento toglie il torrent: gli altri possono non esserci più.
+        _sonarr = [Unknown(1), Unknown(2)];
+        _arr.RemoveFromQueue = (_, id, _) => id == 1 ? Task.CompletedTask : Task.FromException(new ArrException(ArrError.Unreachable, status: 500));
+
+        Assert.Equal(BlockedOutcome.Ok, await _service.RemoveUnknownAsync("Sonarr", "D1"));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task AnItemWithoutARealIdIsNeitherListedNorRemoved(int id)
+    {
+        _sonarr = [Unknown(id), Unknown(1)];
+
+        Assert.Empty(await Listed());
+        Assert.Equal(BlockedOutcome.Changed, await _service.RemoveUnknownAsync("Sonarr", "D1"));
+        Assert.Empty(_arr.RemoveFromQueueCalls);
     }
 
     [Fact]
