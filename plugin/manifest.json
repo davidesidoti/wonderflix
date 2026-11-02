@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.21.0.0",
+        "changelog": "Download senza titolo nella panoramica, con la rimozione dal client (la sezione nell'app arriva con la prossima versione di WonderFlix). La ricerca manuale su Sonarr/Radarr aspetta fino a 60 minuti; il giro automatico al massimo 15, poi una stagione da scaricare si divide in episodi, film ed episodi si riprovano dopo 24 ore e gli upgrade dopo 7 giorni. Un import rifiutato in coda chiede l'intervento dell'admin. Con Sonarr/Radarr dietro nginx il proxy_read_timeout consigliato è 3600 s.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.21.0/wonderflix-watch-party_1.21.0.zip",
+        "checksum": "8f56a2dd679a6f33a5f89ef97181c203",
+        "timestamp": "2026-11-02T19:52:00Z"
+      },
+      {
         "version": "1.20.0.0",
         "changelog": "Ricerca su MIRCrew per WonderFlix 0.29.0: quando la ricerca di un titolo non trova release valide, la ricerca e le voci \"Serve te\" (nessuna release trovata, sotto il punteggio minimo) mandano il link della ricerca di MIRCrew col titolo già scritto. Il link si cambia (o si spegne lasciandolo vuoto) nella pagina del plugin, in \"Automatic downloads\".",
         "targetAbi": "10.11.0.0",
