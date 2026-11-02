@@ -347,14 +347,97 @@ public sealed class DownloadServiceSeasonTests : IDisposable
         await Cycle();
         _releases = [];
 
-        var rejected = EpisodeQueue(92, 202, 0);
-        (rejected.TrackedDownloadState, rejected.TrackedDownloadStatus, rejected.Status) = ("importPending", "warning", "completed");
-        _sonarrQueue = [EpisodeQueue(91, 201, 0), rejected, EpisodeQueue(93, 203, 0)];
+        var healthy = EpisodeQueue(91, 201, 0);
+        healthy.DownloadId = "HEALTHY";
+        healthy.StatusMessages = [new ArrStatusMessage { Messages = ["The download is stalled with no connections"] }];
+        _sonarrQueue = [healthy, RejectedEpisode(92, 202, "REJECTED", "Not a Custom Format upgrade"), EpisodeQueue(93, 203, 0)];
+        _time.Advance(DownloadService.CycleInterval);
+        await Cycle();
+
+        // Come un episodio: per un giro può essere un avviso passeggero.
+        Assert.Equal(DownloadStates.Downloading, Saved("season:7:2")!.State);
+
         _time.Advance(DownloadService.CycleInterval);
         await Cycle();
 
         var entry = Saved("season:7:2")!;
         Assert.Equal((DownloadStates.NeedsYou, DownloadReasons.ImportBlocked), (entry.State, entry.Reason));
+        Assert.Equal(("REJECTED", "Not a Custom Format upgrade"), (entry.DownloadId, entry.BlockedMessage));
+    }
+
+    private static ArrQueueItem RejectedEpisode(int queueId, int episodeId, string downloadId, string message)
+    {
+        var item = EpisodeQueue(queueId, episodeId, 0);
+        (item.TrackedDownloadState, item.TrackedDownloadStatus, item.Status, item.DownloadId) = ("importPending", "warning", "completed", downloadId);
+        item.StatusMessages = [new ArrStatusMessage { Messages = [message] }];
+        return item;
+    }
+
+    private static ArrQueueItem BlockedEpisode(int queueId, int episodeId, string downloadId, string message)
+    {
+        var item = RejectedEpisode(queueId, episodeId, downloadId, message);
+        (item.TrackedDownloadState, item.TrackedDownloadStatus) = ("importBlocked", "warning");
+        return item;
+    }
+
+    [Fact]
+    public async Task APackWithABlockedItemIsBlockedAtOnceEvenWithARejectedOne()
+    {
+        WholeSeason();
+        _releases = [Pack("pack", 3, 50)];
+        await Cycle();
+        _releases = [];
+
+        _sonarrQueue = [RejectedEpisode(91, 201, "REJECTED", "Not a Custom Format upgrade"), BlockedEpisode(92, 202, "BLOCKED", "Series title mismatch"), EpisodeQueue(93, 203, 5_000)];
+        _time.Advance(DownloadService.CycleInterval);
+        await Cycle();
+
+        var entry = Saved("season:7:2")!;
+        Assert.Equal((DownloadStates.NeedsYou, DownloadReasons.ImportBlocked), (entry.State, entry.Reason));
+        Assert.Equal(("REJECTED", "Not a Custom Format upgrade\nSeries title mismatch"), (entry.DownloadId, entry.BlockedMessage));
+    }
+
+    [Fact]
+    public async Task DiscardingABlockedPackLeavesTheHealthyDownload()
+    {
+        WholeSeason();
+        _releases = [Pack("pack", 3, 50)];
+        await Cycle();
+        _releases = [];
+
+        var healthy = EpisodeQueue(91, 201, 5_000);
+        healthy.DownloadId = "HEALTHY";
+        _sonarrQueue = [healthy, BlockedEpisode(92, 202, "BLOCKED", "Series title mismatch"), BlockedEpisode(93, 203, "BLOCKED", "Series title mismatch")];
+        _time.Advance(DownloadService.CycleInterval);
+        await Cycle();
+        Assert.Equal(DownloadStates.NeedsYou, Saved("season:7:2")!.State);
+
+        Assert.Equal(BlockedOutcome.Ok, await _service.DiscardBlockedAsync("season:7:2"));
+
+        Assert.Equal([92, 93], _arr.RemoveFromQueueCalls.Select(c => c.QueueId));
+        Assert.All(_arr.RemoveFromQueueCalls, c => Assert.True(c.Blocklist));
+    }
+
+    [Fact]
+    public async Task DiscardingAPackFetchingMetadataRemovesThatDownload()
+    {
+        WholeSeason();
+        _releases = [Pack("pack", 3, 50)];
+        await Cycle();
+        _releases = [];
+
+        var healthy = EpisodeQueue(91, 201, 5_000);
+        healthy.DownloadId = "HEALTHY";
+        var fetching = EpisodeQueue(92, 202, 0);
+        (fetching.DownloadId, fetching.Status, fetching.ErrorMessage) = ("MAGNET", "queued", "qBittorrent is downloading metadata");
+        _sonarrQueue = [healthy, fetching];
+        _time.Advance(DownloadService.CycleInterval);
+        await Cycle();
+        Assert.NotNull(Saved("season:7:2")!.MetadataSince);
+
+        Assert.Equal(BlockedOutcome.Ok, await _service.DiscardBlockedAsync("season:7:2"));
+
+        Assert.Equal(92, Assert.Single(_arr.RemoveFromQueueCalls).QueueId);
     }
 
     [Fact]

@@ -164,24 +164,27 @@ public sealed partial class DownloadService
     }
 
     // Gli elementi di un pack come un download solo: l'id più basso, la somma di sizeleft (che resta uguale solo se resta
-    // uguale ognuno); scarica solo se scaricano tutti (anche in "warning", ruling 11), ImportBlocked se lo è uno, fermo sui metadati se lo è uno.
+    // uguale ognuno); scarica solo se scaricano tutti (anche in "warning", ruling 11), ImportBlocked se lo è uno, rifiutato se lo è uno
+    // (con la tolleranza di Track), fermo sui metadati se lo è uno. Il download e i messaggi sono quelli che servono all'admin.
     private static ArrQueueItem PackQueueItem(IReadOnlyList<ArrQueueItem> records)
     {
         var downloading = records.All(IsActive);
         var fetching = records.FirstOrDefault(IsFetchingMetadata);
-        var blocked = records.Any(IsImportBlocked);
+        var stuck = records.Where(IsImportBlocked).ToList();
+        var rejected = stuck.Count > 0 && stuck.All(IsImportRejected);
         return new ArrQueueItem
         {
             Id = records[0].Id,
             SeriesId = records[0].SeriesId,
             SeasonNumber = records[0].SeasonNumber,
-            DownloadId = records[0].DownloadId,
+            DownloadId = (stuck.FirstOrDefault() ?? fetching ?? records[0]).DownloadId,
             Sizeleft = records.Sum(r => r.Sizeleft),
             Status = downloading ? DownloadingState : null,
-            TrackedDownloadState = blocked ? ImportBlockedState : downloading || fetching is not null ? DownloadingState : null,
+            TrackedDownloadState = rejected ? ImportPendingState : stuck.Count > 0 ? ImportBlockedState : downloading || fetching is not null ? DownloadingState : null,
+            TrackedDownloadStatus = rejected ? WarningStatus : null,
             ErrorMessage = fetching?.ErrorMessage,
             Added = records.Min(r => r.Added),
-            StatusMessages = [.. records.SelectMany(r => r.StatusMessages ?? [])],
+            StatusMessages = [.. (stuck.Count > 0 ? stuck : records).SelectMany(r => r.StatusMessages ?? [])],
         };
     }
 

@@ -493,10 +493,57 @@ public sealed class DownloadServiceCycleTests : IDisposable
         _movies = [Movie(12)];
         _radarrQueue = [RejectedQueue(MovieQueue(90, 12, 0))];
 
+        // Radarr/Sonarr ritentano: per un giro resta in download.
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Equal((DownloadStates.Downloading, (DateTimeOffset?)T0), (Saved("movie:12")!.State, Saved("movie:12")!.ImportWarningSince));
+
+        _time.Advance(DownloadService.CycleInterval - TimeSpan.FromMinutes(1));
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Equal((DownloadStates.Downloading, (DateTimeOffset?)T0), (Saved("movie:12")!.State, Saved("movie:12")!.ImportWarningSince));
+
+        _time.Advance(TimeSpan.FromMinutes(1));
         await _service.RunCycleAsync(CancellationToken.None);
 
         var entry = Saved("movie:12")!;
         Assert.Equal((DownloadStates.NeedsYou, DownloadReasons.ImportBlocked, "Not a Custom Format upgrade for existing episode file(s)"), (entry.State, entry.Reason, entry.BlockedMessage));
+
+        // Resta così ai giri dopo.
+        _time.Advance(DownloadService.CycleInterval);
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Equal(DownloadStates.NeedsYou, Saved("movie:12")!.State);
+    }
+
+    [Fact]
+    public async Task AnImportWarningThatGoesAwayStartsOver()
+    {
+        _movies = [Movie(12)];
+        _radarrQueue = [RejectedQueue(MovieQueue(90, 12, 0))];
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        // Il tentativo dopo non ha l'avviso: l'orologio si azzera.
+        _time.Advance(TimeSpan.FromMinutes(10));
+        _radarrQueue = [MovieQueue(90, 12, 0, state: "importPending", status: "completed")];
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Null(Saved("movie:12")!.ImportWarningSince);
+
+        _time.Advance(TimeSpan.FromMinutes(10));
+        _radarrQueue = [RejectedQueue(MovieQueue(90, 12, 0))];
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Equal((DownloadStates.Downloading, (DateTimeOffset?)_time.GetUtcNow()), (Saved("movie:12")!.State, Saved("movie:12")!.ImportWarningSince));
+    }
+
+    [Fact]
+    public async Task AnotherQueueItemIsAnotherImportWarning()
+    {
+        _movies = [Movie(12)];
+        _radarrQueue = [RejectedQueue(MovieQueue(90, 12, 0))];
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        _time.Advance(DownloadService.CycleInterval);
+        _radarrQueue = [RejectedQueue(MovieQueue(91, 12, 0))];
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Equal((DownloadStates.Downloading, (DateTimeOffset?)_time.GetUtcNow(), (int?)91), (Saved("movie:12")!.State, Saved("movie:12")!.ImportWarningSince, Saved("movie:12")!.QueueId));
     }
 
     [Fact]
@@ -523,6 +570,8 @@ public sealed class DownloadServiceCycleTests : IDisposable
         _service.Load();
         _sonarrQueue = [RejectedQueue(EpisodeQueue(90, 42, 0))];
 
+        await _service.RunCycleAsync(CancellationToken.None);
+        _time.Advance(DownloadService.CycleInterval);
         await _service.RunCycleAsync(CancellationToken.None);
         Assert.Equal((DownloadStates.NeedsYou, DownloadReasons.ImportBlocked), (Saved("episode:42")!.State, Saved("episode:42")!.Reason));
         Assert.Equal(["Discard", "Import"], DownloadActions.For(Saved("episode:42")!));

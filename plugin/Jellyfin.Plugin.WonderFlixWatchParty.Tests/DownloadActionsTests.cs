@@ -52,6 +52,15 @@ public sealed class DownloadActionsTests
     }
 
     [Fact]
+    public void ImportBlockedOfAChosenUpgradeRecommendsImport()
+    {
+        // Con PreviousScore il file è stato scelto apposta, anche se per Radarr/Sonarr non è un upgrade.
+        var entry = NeedsYou(DownloadReasons.ImportBlocked, downloadId: "abc");
+        (entry.BlockedMessage, entry.PreviousScore) = ("Not a Custom Format upgrade for existing episode file(s)", 170);
+        Assert.Equal(["Import", "Discard"], DownloadActions.For(entry));
+    }
+
+    [Fact]
     public void ImportBlockedForAnotherReasonRecommendsImport()
     {
         var entry = NeedsYou(DownloadReasons.ImportBlocked, downloadId: "abc");

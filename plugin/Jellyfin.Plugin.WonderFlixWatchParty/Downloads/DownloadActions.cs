@@ -46,10 +46,10 @@ public static class DownloadActions
                     _ => [Pick, SearchNow, Snooze],
                 };
             case DownloadReasons.ImportBlocked:
-                // Non è un upgrade: il file che c'è è migliore, importando si perderebbe.
+                // Non è un upgrade e nessuno l'ha scelto apposta (PreviousScore): il file che c'è è migliore, importando si perderebbe.
                 // shortcut: legge il testo di Radarr/Sonarr, se lo cambiano si torna a consigliare Import; usare il punteggio del file se succede.
                 return entry.DownloadId is null ? [Discard]
-                    : entry.BlockedMessage?.Contains("upgrade", StringComparison.OrdinalIgnoreCase) == true ? [Discard, Import]
+                    : entry.PreviousScore is null && entry.BlockedMessage?.Contains("upgrade", StringComparison.OrdinalIgnoreCase) == true ? [Discard, Import]
                     : [Import, Discard];
             default:
                 return [Pick, SearchNow];

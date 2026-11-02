@@ -95,6 +95,9 @@ public sealed class DownloadEntry
     /// <summary>Quando l'admin ha premuto "Importa comunque": per un giro un import ancora bloccato in coda non torna in "Serve te".</summary>
     public DateTimeOffset? AdminImportAt { get; set; }
 
+    /// <summary>Da quando l'elemento della coda è in "importPending" con un avviso (<c>IsImportRejected</c>); null se non lo è.</summary>
+    public DateTimeOffset? ImportWarningSince { get; set; }
+
     public int ProfileId { get; set; }
 
     /// <summary>Il nome del profilo all'ultima scelta: serve all'obiettivo quando il file arriva.</summary>

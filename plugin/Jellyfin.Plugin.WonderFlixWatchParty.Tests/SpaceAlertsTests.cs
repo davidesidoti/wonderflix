@@ -171,6 +171,19 @@ public sealed class SpaceAlertsTests : IDisposable
     }
 
     [Fact]
+    public async Task LightenAlerts_ARejectedImportAlertsAtTheFirstRead()
+    {
+        // Senza tolleranza, a differenza dei download automatici: anche un avviso passeggero avvisa subito.
+        Lightened("movie:12");
+        var rejected = Item(12, "importPending");
+        rejected.TrackedDownloadStatus = "warning";
+        _radarrQueue = [rejected];
+        _space.LastScan = Scan("movie:12");
+
+        Assert.Single(await _space.LightenAlertsAsync(CancellationToken.None));
+    }
+
+    [Fact]
     public async Task HostedService_PendingTimer_SyncsQuotaAndLighten()
     {
         // downloads.json si legge una volta sola, al primo uso.

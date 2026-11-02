@@ -268,15 +268,41 @@ public sealed class DownloadServiceReviewTests : IDisposable
         (item.TrackedDownloadState, item.TrackedDownloadStatus) = ("importPending", "warning");
         _arr.ManualImportItems = (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>([ImportItem("/dl/a.mkv", 12)]);
 
+        // Può essere un avviso passeggero: niente import e il flag resta.
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Empty(_arr.ManualImportCalls);
+        Assert.Equal((DownloadStates.Downloading, true), (Saved("movie:12")!.State, Saved("movie:12")!.ManualImportPending));
+
+        _time.Advance(DownloadService.CycleInterval);
         await _service.RunCycleAsync(CancellationToken.None);
         Assert.Single(_arr.ManualImportCalls);
-        Assert.Equal(DownloadStates.Downloading, Saved("movie:12")!.State);
+        Assert.Equal((DownloadStates.Downloading, false), (Saved("movie:12")!.State, Saved("movie:12")!.ManualImportPending));
 
         _time.Advance(DownloadService.CycleInterval);
         await _service.RunCycleAsync(CancellationToken.None);
 
         Assert.Single(_arr.ManualImportCalls);
         Assert.Equal((DownloadStates.NeedsYou, DownloadReasons.ImportBlocked), (Saved("movie:12")!.State, Saved("movie:12")!.Reason));
+    }
+
+    [Fact]
+    public async Task ACloseCycleAfterAnImportByHandIsNotBlocked()
+    {
+        AdminGrabBlocked(12, 90, "D1");
+        _arr.ManualImportItems = (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>([ImportItem("/dl/a.mkv", 12)]);
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Equal((DateTimeOffset?)T0, Saved("movie:12")!.AdminImportAt);
+
+        // Il giro chiesto subito dopo (Nudge) vede ancora la coda vecchia.
+        _time.Advance(TimeSpan.FromMinutes(1));
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Equal(DownloadStates.Downloading, Saved("movie:12")!.State);
+
+        // Passato un giro intero è un blocco vero.
+        _time.Advance(DownloadService.CycleInterval);
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Equal((DownloadStates.NeedsYou, DownloadReasons.ImportBlocked), (Saved("movie:12")!.State, Saved("movie:12")!.Reason));
+        Assert.Single(_arr.ManualImportCalls);
     }
 
     [Fact]
@@ -293,7 +319,7 @@ public sealed class DownloadServiceReviewTests : IDisposable
         foreach (var key in new[] { "movie:12", "movie:13" })
         {
             var entry = Saved(key)!;
-            Assert.Equal((DownloadStates.NeedsYou, DownloadReasons.ImportBlocked, false), (entry.State, entry.Reason, entry.ManualImportPending));
+            Assert.Equal((DownloadStates.NeedsYou, DownloadReasons.ImportBlocked, false, (DateTimeOffset?)null), (entry.State, entry.Reason, entry.ManualImportPending, entry.AdminImportAt));
         }
 
         Assert.Single(_arr.ManualImportCalls);

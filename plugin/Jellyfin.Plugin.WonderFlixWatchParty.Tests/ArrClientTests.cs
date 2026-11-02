@@ -761,6 +761,17 @@ public class ArrClientTests
     }
 
     [Fact]
+    public async Task TheQueueReadsTheTrackedDownloadStatus()
+    {
+        Answer(HttpStatusCode.OK, """{"totalRecords":2,"records":[{"id":1,"trackedDownloadState":"importPending","trackedDownloadStatus":"warning"},{"id":2}]}""");
+
+        var items = await Client().GetQueueAsync(ArrKind.Sonarr, CancellationToken.None);
+
+        Assert.Equal(("importPending", "warning"), (items[0]!.TrackedDownloadState, items[0]!.TrackedDownloadStatus));
+        Assert.Null(items[1]!.TrackedDownloadStatus);
+    }
+
+    [Fact]
     public async Task TheQueueReadsTheStatusMessages()
     {
         Answer(HttpStatusCode.OK, """{"totalRecords":2,"records":[{"id":1,"trackedDownloadState":"importBlocked","statusMessages":[{"title":"a.mkv","messages":["Not an upgrade",null]},null,{"title":null,"messages":null}]},{"id":2,"statusMessages":null}]}""");

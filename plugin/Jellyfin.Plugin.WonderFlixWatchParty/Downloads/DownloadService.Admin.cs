@@ -348,18 +348,21 @@ public sealed partial class DownloadService
             return BlockedOutcome.Invalid;
         }
 
+        string? downloadId;
         lock (_lock)
         {
             // Come per l'import: una seconda azione sulla stessa chiave trova la voce che cambia.
-            if (Discardable(parsed) is null || !_grabbing.Add(parsed.ToString()))
+            if (Discardable(parsed) is not { } discarded || !_grabbing.Add(parsed.ToString()))
             {
                 return BlockedOutcome.Changed;
             }
+
+            downloadId = discarded.DownloadId;
         }
 
         try
         {
-            if (!await RemoveOldDownloadAsync(parsed, ServiceOf(parsed.Kind), CancellationToken.None, blocklist: true).ConfigureAwait(false))
+            if (!await RemoveOldDownloadAsync(parsed, ServiceOf(parsed.Kind), CancellationToken.None, blocklist: true, downloadId).ConfigureAwait(false))
             {
                 return BlockedOutcome.Unavailable;
             }
@@ -984,7 +987,8 @@ public sealed partial class DownloadService
 
     // "cambia" (spec T §8.2): tutto quello che il titolo ha in coda si toglie, anche dal client, senza blocklist ("Scarta" con);
     // anche un download fermo in "Serve te" o appena scelto (QueueId non ancora letto). Falso se non si è potuto.
-    private async Task<bool> RemoveOldDownloadAsync(DownloadKey key, ArrKind service, CancellationToken cancellationToken, bool blocklist = false)
+    // Con downloadId si toglie solo quel download: una stagione può averne altri sani ("Scarta").
+    private async Task<bool> RemoveOldDownloadAsync(DownloadKey key, ArrKind service, CancellationToken cancellationToken, bool blocklist = false, string? downloadId = null)
     {
         lock (_lock)
         {
@@ -996,7 +1000,8 @@ public sealed partial class DownloadService
 
         try
         {
-            var queue = (await arr.GetQueueAsync(service, cancellationToken).ConfigureAwait(false)).OfType<ArrQueueItem>();
+            var queue = (await arr.GetQueueAsync(service, cancellationToken).ConfigureAwait(false)).OfType<ArrQueueItem>()
+                .Where(q => downloadId is null || q.DownloadId == downloadId);
             List<int> ids = key.Kind switch
             {
                 DownloadKinds.Movie => [.. queue.Where(q => q.MovieId == key.Id).Select(q => q.Id)],

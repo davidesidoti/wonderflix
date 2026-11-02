@@ -1129,7 +1129,9 @@ public sealed class DownloadServiceAdminTests : IDisposable
     public async Task DiscardRemovesWithBlocklistAndSearchesAgain()
     {
         Blocked();
-        _radarrQueue = [MovieQueue(77, 12, 0, state: "importBlocked", status: "completed")];
+        var blocked = MovieQueue(77, 12, 0, state: "importBlocked", status: "completed");
+        blocked.DownloadId = "abc";
+        _radarrQueue = [blocked];
         var nudges = 0;
         _service.Nudged += () => nudges++;
 

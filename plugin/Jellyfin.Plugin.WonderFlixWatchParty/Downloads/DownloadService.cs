@@ -389,6 +389,11 @@ public sealed partial class DownloadService(
     {
         // Fermo solo se scarica davvero: in coda, in pausa o col client giù l'orologio riparte (decisione 3).
         var active = IsActive(item);
+
+        // Prima che QueueId cambi: un altro elemento è un altro rifiuto, con il suo orologio.
+        entry.ImportWarningSince = !IsImportRejected(item) ? null
+            : entry.QueueId == item.Id && entry.ImportWarningSince is { } warned ? warned
+            : now;
         if (!active || entry.QueueId != item.Id || entry.LastSizeLeft != item.Sizeleft)
         {
             entry.QueueId = item.Id;
@@ -416,11 +421,14 @@ public sealed partial class DownloadService(
             || (entry.MetadataSince is { } metadata && now - metadata >= DownloadSchedule.MetadataStalledAfter);
     }
 
-    // Sonarr lascia così anche un file rifiutato ("Not a Custom Format upgrade"), in "importPending" con un avviso: non si sblocca da solo.
-    private static bool IsImportBlocked(ArrQueueItem item) =>
-        string.Equals(item.TrackedDownloadState, ImportBlockedState, StringComparison.OrdinalIgnoreCase)
-        || (string.Equals(item.TrackedDownloadState, ImportPendingState, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(item.TrackedDownloadStatus, WarningStatus, StringComparison.OrdinalIgnoreCase));
+    // Un import fallito ("Not a Custom Format upgrade", ma anche "No files found are eligible"): Radarr/Sonarr ritentano,
+    // quindi può passare da solo. Per questo serve l'admin solo se dura un giro intero (OnImportBlocked).
+    private static bool IsImportRejected(ArrQueueItem item) =>
+        string.Equals(item.TrackedDownloadState, ImportPendingState, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(item.TrackedDownloadStatus, WarningStatus, StringComparison.OrdinalIgnoreCase);
+
+    internal static bool IsImportBlocked(ArrQueueItem item) =>
+        string.Equals(item.TrackedDownloadState, ImportBlockedState, StringComparison.OrdinalIgnoreCase) || IsImportRejected(item);
 
     // In coda, ma il client sta ancora cercando i metadati del magnet ("qBittorrent is downloading metadata"): per Radarr/Sonarr "downloading" senza scaricare.
     private static bool IsFetchingMetadata(ArrQueueItem item) =>
@@ -474,11 +482,19 @@ public sealed partial class DownloadService(
     // importerebbero si importa a mano, una volta sola: se al giro dopo è ancora bloccata, serve l'admin (decisione 9).
     private static void OnImportBlocked(DownloadEntry entry, ArrQueueItem item, DateTimeOffset now, List<ManualImport> imports)
     {
+        if (IsImportRejected(item) && now - entry.ImportWarningSince < CycleInterval)
+        {
+            return;
+        }
+
         var pending = entry.ManualImportPending && !string.IsNullOrEmpty(item.DownloadId);
         entry.ManualImportPending = false;
         if (pending)
         {
             imports.Add(new ManualImport(entry.Key, ServiceOf(entry.Kind), item.DownloadId!, item.Id));
+
+            // Un giro subito dopo vede ancora la coda vecchia: non è un blocco.
+            entry.AdminImportAt = now;
             return;
         }
 

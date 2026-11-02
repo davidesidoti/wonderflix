@@ -222,6 +222,33 @@ public sealed class SpaceLightenStatusTests : IDisposable
         Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Blocked, 1, 0, "Not an upgrade"), await DownloadOf("movie:12"));
     }
 
+    [Fact]
+    public async Task ALightenRejectedByTheQueueIsBlockedAndImportsByHand()
+    {
+        Lightened("movie:12", Now.AddHours(-1));
+        var rejected = Item("importPending", 4 * Gb, 0, movieId: 12, downloadId: "D", messages: ["Not a Custom Format upgrade"]);
+        rejected.TrackedDownloadStatus = "warning";
+        _radarrQueue = [rejected];
+        _arr.ManualImportItems = (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>([MovieFile("D")]);
+
+        Assert.Equal(new SpaceLightenDownloadDto(SpaceLightenStates.Blocked, 1, 0, "Not a Custom Format upgrade"), await DownloadOf("movie:12"));
+
+        Assert.Equal(SpaceService.LightenImportOutcome.Imported, (await _service.ImportLightenAsync("movie:12", CancellationToken.None)).Outcome);
+        Assert.Equal((ArrKind.Radarr, "D"), Assert.Single(_arr.ManualImportReadCalls));
+        Assert.Single(_arr.ManualImportCalls);
+    }
+
+    [Fact]
+    public async Task ALightenImportPendingWithoutAWarningIsImporting()
+    {
+        Lightened("movie:12", Now.AddHours(-1));
+        var pending = Item("importPending", 4 * Gb, 0, movieId: 12, downloadId: "D");
+        pending.TrackedDownloadStatus = "ok";
+        _radarrQueue = [pending];
+
+        Assert.Equal(SpaceLightenStates.Importing, (await DownloadOf("movie:12"))!.State);
+    }
+
     private static ArrManualImportItem MovieFile(string downloadId) =>
         new() { Path = $"/dl/{downloadId}.mkv", DownloadId = downloadId, Movie = new ArrFileRef { Id = 12 }, Quality = JsonDocument.Parse("{}").RootElement };
 

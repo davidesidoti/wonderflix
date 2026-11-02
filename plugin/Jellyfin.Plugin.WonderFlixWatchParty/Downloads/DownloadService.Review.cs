@@ -153,6 +153,7 @@ public sealed partial class DownloadService
             {
                 entry.State = DownloadStates.NeedsYou;
                 entry.Reason = DownloadReasons.ImportBlocked;
+                entry.AdminImportAt = null;
             }
         }
     }

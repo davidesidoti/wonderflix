@@ -16,7 +16,7 @@ public static class SpaceLightenStates
 
     public const string Failed = "Failed";
 
-    /// <summary>Scaricato, ma Radarr/Sonarr non lo importano da soli (<c>importBlocked</c>).</summary>
+    /// <summary>Scaricato, ma Radarr/Sonarr non lo importano da soli (<c>importBlocked</c>, o <c>importPending</c> con un avviso).</summary>
     public const string Blocked = "Blocked";
 }
 
@@ -178,7 +178,7 @@ public sealed partial class SpaceService
         }
 
         var blocked = ItemsOf(key, queue)
-            .Where(i => string.Equals(i.TrackedDownloadState, "importBlocked", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(i.DownloadId))
+            .Where(i => DownloadService.IsImportBlocked(i) && !string.IsNullOrEmpty(i.DownloadId))
             .Select(i => i.DownloadId!)
             .Distinct()
             .ToList();
@@ -325,7 +325,7 @@ public sealed partial class SpaceService
         var size = downloads.Sum(i => i.Size);
         var left = downloads.Sum(i => i.Sizeleft);
         var progress = size > 0 ? Math.Round(Math.Clamp(1 - ((double)left / size), 0, 1), 2) : 0;
-        var blocked = items.Where(i => Is(i, "importBlocked")).ToList();
+        var blocked = items.Where(DownloadService.IsImportBlocked).ToList();
         var state = items.Any(i => Is(i, "downloading")) ? SpaceLightenStates.Downloading
             : blocked.Count > 0 ? SpaceLightenStates.Blocked
             : items.Any(i => Is(i, "failed") || Is(i, "failedPending")) ? SpaceLightenStates.Failed
