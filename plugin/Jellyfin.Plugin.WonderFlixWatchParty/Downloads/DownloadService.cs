@@ -60,6 +60,9 @@ public sealed partial class DownloadService(
     // L'avanzamento dalla coda per la panoramica: una lettura al minuto per servizio.
     private readonly ArrReadCache<IReadOnlyDictionary<string, DownloadProgressDto>> _queues = new(time, 2, logger, TimeSpan.FromMinutes(1));
 
+    // I download senza titolo per la panoramica: una lettura al minuto per servizio.
+    private readonly ArrReadCache<IReadOnlyList<UnknownDownloadDto>> _unknown = new(time, 2, logger, TimeSpan.FromMinutes(1));
+
     /// <summary>Pausa tra le ricerche; i test la mettono a zero.</summary>
     internal TimeSpan Pause { get; init; } = PauseBetweenSearches;
 

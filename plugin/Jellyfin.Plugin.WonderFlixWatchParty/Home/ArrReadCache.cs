@@ -57,6 +57,18 @@ public sealed class ArrReadCache<T>(TimeProvider time, int maxEntries, ILogger l
         }
     }
 
+    /// <summary>Dimentica la lettura: la prossima è nuova.</summary>
+    public void Forget(string key)
+    {
+        lock (_lock)
+        {
+            if (_entries.Remove(key))
+            {
+                _order.Remove(key);
+            }
+        }
+    }
+
     private async Task<ArrRead<T>> ReadAndExpireAsync(Entry entry, Func<Task<T>> read)
     {
         ArrRead<T> result;

@@ -289,6 +289,9 @@ public sealed class ArrQueueItem
 {
     public int Id { get; set; }
 
+    /// <summary>Il nome del download.</summary>
+    public string? Title { get; set; }
+
     /// <summary>Solo Radarr.</summary>
     public int? MovieId { get; set; }
 

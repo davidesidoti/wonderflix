@@ -760,6 +760,19 @@ public class ArrClientTests
         Assert.Null(items[1]!.ErrorMessage);
     }
 
+    [Theory]
+    [InlineData(ArrKind.Sonarr, "sonarr", "includeUnknownSeriesItems")]
+    [InlineData(ArrKind.Radarr, "radarr", "includeUnknownMovieItems")]
+    public async Task TheUnknownQueueAsksForTheItemsWithoutATitle(ArrKind kind, string path, string parameter)
+    {
+        Answer(HttpStatusCode.OK, """{"totalRecords":1,"records":[{"id":1,"title":"Outlander 2015 S01","downloadId":"D1"}]}""");
+
+        var item = Assert.Single(await Client().GetUnknownQueueAsync(kind, CancellationToken.None))!;
+
+        Assert.Equal(("Outlander 2015 S01", "D1"), (item.Title, item.DownloadId));
+        Assert.Equal($"https://arr.example/{path}/api/v3/queue?page=1&pageSize=250&{parameter}=true", _http.Requests[0].Uri.OriginalString);
+    }
+
     [Fact]
     public async Task TheQueueReadsTheTrackedDownloadStatus()
     {

@@ -172,6 +172,9 @@ internal sealed class FakeArrClient : IArrClient
     public Func<ArrKind, Task<IReadOnlyList<ArrQueueItem?>>> Queue { get; set; } =
         _ => Task.FromResult<IReadOnlyList<ArrQueueItem?>>([]);
 
+    public Func<ArrKind, Task<IReadOnlyList<ArrQueueItem?>>> UnknownQueue { get; set; } =
+        _ => Task.FromResult<IReadOnlyList<ArrQueueItem?>>([]);
+
     public Func<ArrKind, int, bool, Task> RemoveFromQueue { get; set; } = (_, _, _) => Task.CompletedTask;
 
     public Func<ArrKind, Task<IReadOnlyList<ArrIndexer?>>> Indexers { get; set; } =
@@ -195,6 +198,8 @@ internal sealed class FakeArrClient : IArrClient
     public List<ArrKind> QualityProfileCalls { get; } = [];
 
     public List<ArrKind> QueueCalls { get; } = [];
+
+    public List<ArrKind> UnknownQueueCalls { get; } = [];
 
     public List<(ArrKind Kind, int QueueId, bool Blocklist, bool RemoveFromClient)> RemoveFromQueueCalls { get; } = [];
 
@@ -282,6 +287,16 @@ internal sealed class FakeArrClient : IArrClient
         }
 
         return Queue(kind);
+    }
+
+    public Task<IReadOnlyList<ArrQueueItem?>> GetUnknownQueueAsync(ArrKind kind, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            UnknownQueueCalls.Add(kind);
+        }
+
+        return UnknownQueue(kind);
     }
 
     public Task RemoveFromQueueAsync(ArrKind kind, int queueId, bool blocklist, bool removeFromClient, CancellationToken cancellationToken)

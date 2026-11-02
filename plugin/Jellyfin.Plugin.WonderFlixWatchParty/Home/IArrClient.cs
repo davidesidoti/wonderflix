@@ -57,6 +57,9 @@ public interface IArrClient
     /// <summary>La coda dei download; tutte le pagine (spec T §2).</summary>
     Task<IReadOnlyList<ArrQueueItem?>> GetQueueAsync(ArrKind kind, CancellationToken cancellationToken);
 
+    /// <summary>La coda con anche gli elementi senza serie né film; il giro e la scheda spazio usano <see cref="GetQueueAsync"/>.</summary>
+    Task<IReadOnlyList<ArrQueueItem?>> GetUnknownQueueAsync(ArrKind kind, CancellationToken cancellationToken);
+
     /// <summary>
     /// Toglie una voce dalla coda, con o senza blocklist (spec T §2); con <paramref name="removeFromClient"/> anche dal client
     /// di download, senza il torrent resta in qBittorrent (spec U §6.2).

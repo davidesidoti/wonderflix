@@ -352,6 +352,27 @@ public sealed class DownloadsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task RemoveUnknownMapsItsOutcomes()
+    {
+        var body = new RemoveUnknownRequest { Service = "Sonarr", DownloadId = "D1" };
+        _arr.UnknownQueue = _ => Task.FromException<IReadOnlyList<ArrQueueItem?>>(new ArrException(ArrError.Unreachable));
+        var unavailable = await _controller.RemoveUnknown(body);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, Status(unavailable));
+        Assert.Equal("Unavailable", Reason(unavailable));
+
+        _arr.UnknownQueue = _ => Task.FromResult<IReadOnlyList<ArrQueueItem?>>([new ArrQueueItem { Id = 1, DownloadId = "D1", TrackedDownloadState = "importBlocked" }]);
+        Assert.Equal(StatusCodes.Status204NoContent, Status(await _controller.RemoveUnknown(body)));
+
+        _arr.UnknownQueue = _ => Task.FromResult<IReadOnlyList<ArrQueueItem?>>([]);
+        var changed = await _controller.RemoveUnknown(body);
+        Assert.Equal(StatusCodes.Status409Conflict, Status(changed));
+        Assert.Equal("Changed", Reason(changed));
+
+        Assert.Equal(StatusCodes.Status400BadRequest, Status(await _controller.RemoveUnknown(null)));
+        Assert.Equal(StatusCodes.Status400BadRequest, Status(await _controller.RemoveUnknown(new RemoveUnknownRequest { Service = "Lidarr", DownloadId = "D1" })));
+    }
+
+    [Fact]
     public void HuntMapsItsOutcomes()
     {
         var book = new DownloadBook();

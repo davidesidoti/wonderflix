@@ -89,6 +89,11 @@ public class DownloadsController(DownloadService downloads) : ControllerBase
     public async Task<ActionResult> Discard([FromBody] KeyRequest? request) =>
         request?.Key is { } key ? Result(await downloads.DiscardBlockedAsync(key).ConfigureAwait(false)) : BadRequest();
 
+    /// <summary>"Rimuovi" un download senza titolo, file compresi: 204; 409 Changed se non è più senza titolo e fermo; 503 se Radarr/Sonarr non rispondono.</summary>
+    [HttpPost("RemoveUnknown")]
+    public async Task<ActionResult> RemoveUnknown([FromBody] RemoveUnknownRequest? request) =>
+        Result(await downloads.RemoveUnknownAsync(request?.Service, request?.DownloadId).ConfigureAwait(false));
+
     private ActionResult Result(GrabOutcome outcome) => outcome switch
     {
         GrabOutcome.Ok => NoContent(),

@@ -682,7 +682,8 @@ public sealed partial class DownloadService
                     .Select(r => new ReviewItemDto(r.Key, r.Kind, r.Title, r.PosterUrl, r.Score, r.SizeBytes, r.Quality, CanHunt(r)))],
                 Book.ReviewAt,
                 _lastErrors.Sonarr,
-                _lastErrors.Radarr);
+                _lastErrors.Radarr,
+                []);
         }
 
         // Fuori dal lock: la coda solo dei servizi che hanno qualcuno in download.
@@ -697,12 +698,91 @@ public sealed partial class DownloadService
             }
         }
 
+        // Se un servizio non risponde lo dicono già gli errori del giro: qui resta vuoto.
+        var unknown = new List<UnknownDownloadDto>();
+        foreach (var kind in Enum.GetValues<ArrKind>().Where(k => arrSettings.Endpoint(k).IsConfigured))
+        {
+            var read = await _unknown.GetAsync(kind.ToString(), () => ReadUnknownAsync(kind)).WaitAsync(cancellationToken).ConfigureAwait(false);
+            unknown.AddRange(read.Value ?? []);
+        }
+
         return overview with
         {
             Waiting = [.. overview.Waiting.Select(i => i.State == DownloadStates.Downloading && queues.GetValueOrDefault(ServiceOf(i.Kind)) is { } p
                 ? i with { Progress = WithSince(p.GetValueOrDefault(i.Key), metadataSince.GetValueOrDefault(i.Key)) }
                 : i)],
+            Unknown = unknown,
         };
+    }
+
+    private async Task<IReadOnlyList<UnknownDownloadDto>> ReadUnknownAsync(ArrKind kind)
+    {
+        var queue = await arr.GetUnknownQueueAsync(kind, CancellationToken.None).ConfigureAwait(false);
+        return [.. UnknownDownloads(queue).Select(d => new UnknownDownloadDto(kind.ToString(), d.Key, d.First().Title ?? d.Key, d.First().Size, StatusMessageOf(d)))];
+    }
+
+    // Per DownloadId i download senza titolo e fermi all'import. Togliendone uno si cancellano i file: se anche un solo elemento
+    // dello stesso torrent è legato a un titolo, o non è fermo, il download non è di questi.
+    private static IEnumerable<IGrouping<string, ArrQueueItem>> UnknownDownloads(IEnumerable<ArrQueueItem?> queue) =>
+        queue.OfType<ArrQueueItem>()
+            .Where(q => !string.IsNullOrEmpty(q.DownloadId))
+            .GroupBy(q => q.DownloadId!)
+            .Where(d => d.All(q => q.SeriesId is not > 0 && q.EpisodeId is not > 0 && q.MovieId is not > 0 && IsImportBlocked(q)));
+
+    /// <summary>
+    /// "Rimuovi" su un download senza titolo: rilegge la coda dal vivo e toglie il download dal client, file compresi, senza blocklist.
+    /// Invalid per una richiesta non valida, Changed se non è più senza titolo e fermo, Unavailable se Radarr/Sonarr non rispondono.
+    /// </summary>
+    public async Task<BlockedOutcome> RemoveUnknownAsync(string? service, string? downloadId)
+    {
+        if (service is not (nameof(ArrKind.Sonarr) or nameof(ArrKind.Radarr)) || string.IsNullOrWhiteSpace(downloadId))
+        {
+            return BlockedOutcome.Invalid;
+        }
+
+        var kind = service == nameof(ArrKind.Radarr) ? ArrKind.Radarr : ArrKind.Sonarr;
+        try
+        {
+            var queue = await arr.GetUnknownQueueAsync(kind, CancellationToken.None).ConfigureAwait(false);
+            if (UnknownDownloads(queue).FirstOrDefault(d => d.Key == downloadId) is not { } download)
+            {
+                return BlockedOutcome.Changed;
+            }
+
+            var first = true;
+            foreach (var item in download)
+            {
+                try
+                {
+                    await arr.RemoveFromQueueAsync(kind, item.Id, blocklist: false, removeFromClient: true, CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (ArrException ex) when (ex.Status == 404)
+                {
+                    // Già tolto, o insieme al torrent del primo elemento.
+                }
+                catch (Exception ex) when (!first)
+                {
+                    // Il primo toglie il torrent: gli altri elementi possono non esserci più.
+                    logger.LogWarning("Download senza titolo: {Kind} non ha tolto un elemento ({Error})", kind, ErrorOf(ex));
+                }
+
+                first = false;
+            }
+
+            logger.LogInformation("Download senza titolo: {Title} tolto da {Kind}", download.First().Title, kind);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning("Download senza titolo: {Kind} non ha tolto il download ({Error})", kind, ErrorOf(ex));
+            return BlockedOutcome.Unavailable;
+        }
+        finally
+        {
+            // Anche se è cambiato: la riga vecchia non deve restare in elenco per un minuto.
+            _unknown.Forget(kind.ToString());
+        }
+
+        return BlockedOutcome.Ok;
     }
 
     // "metadata" dice da quando lo è la voce (la lettura della coda in cache non lo sa); altrimenti l'avanzamento com'è.

@@ -82,7 +82,16 @@ public sealed record DownloadsOverviewDto(
     [property: JsonPropertyName("Review")] IReadOnlyList<ReviewItemDto> Review,
     [property: JsonPropertyName("ReviewAt")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  DateTimeOffset? ReviewAt,
     [property: JsonPropertyName("SonarrError")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? SonarrError,
-    [property: JsonPropertyName("RadarrError")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? RadarrError);
+    [property: JsonPropertyName("RadarrError")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? RadarrError,
+    [property: JsonPropertyName("Unknown")] IReadOnlyList<UnknownDownloadDto> Unknown);
+
+/// <summary>Un download fermo all'import senza serie né film: Service "Sonarr" o "Radarr".</summary>
+public sealed record UnknownDownloadDto(
+    [property: JsonPropertyName("Service")] string Service,
+    [property: JsonPropertyName("DownloadId")] string DownloadId,
+    [property: JsonPropertyName("Title")] string Title,
+    [property: JsonPropertyName("SizeBytes")] long SizeBytes,
+    [property: JsonPropertyName("Message")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? Message);
 
 /// <summary>Una release valida, nell'ordine della regola (Rank da 1) (spec T §8.2).</summary>
 public sealed record DownloadCandidateDto(
@@ -174,6 +183,16 @@ public sealed class KeyRequest
 {
     [JsonPropertyName("Key")]
     public string? Key { get; set; }
+}
+
+/// <summary>Corpo di POST Downloads/RemoveUnknown.</summary>
+public sealed class RemoveUnknownRequest
+{
+    [JsonPropertyName("Service")]
+    public string? Service { get; set; }
+
+    [JsonPropertyName("DownloadId")]
+    public string? DownloadId { get; set; }
 }
 
 /// <summary>Corpo di POST Downloads/SearchStart (spec W §4.4): Again = true cerca di nuovo anche se c'è un risultato recente.</summary>

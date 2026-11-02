@@ -145,6 +145,12 @@ public sealed class ArrClient(
         GetAllPagesAsync<ArrQueueItem>(
             kind, page => $"queue?page={page.ToString(CultureInfo.InvariantCulture)}&pageSize={PageSize}", cancellationToken);
 
+    public Task<IReadOnlyList<ArrQueueItem?>> GetUnknownQueueAsync(ArrKind kind, CancellationToken cancellationToken) =>
+        GetAllPagesAsync<ArrQueueItem>(
+            kind,
+            page => $"queue?page={page.ToString(CultureInfo.InvariantCulture)}&pageSize={PageSize}&{(kind == ArrKind.Radarr ? "includeUnknownMovieItems" : "includeUnknownSeriesItems")}=true",
+            cancellationToken);
+
     public Task RemoveFromQueueAsync(ArrKind kind, int queueId, bool blocklist, bool removeFromClient, CancellationToken cancellationToken) =>
         SendWithoutResultAsync(
             kind,
