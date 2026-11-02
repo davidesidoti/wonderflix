@@ -138,6 +138,13 @@ class DownloadsApi {
   Future<void> discard(String key) => _call(() =>
       _http.post('$_base/Discard', body: {'Key': key}, quietStatuses: _quiet));
 
+  /// Toglie un download senza titolo dal client, file compresi.
+  Future<void> removeUnknown(String service, String downloadId) =>
+      _call(() => _http.post('$_base/RemoveUnknown',
+          body: {'Service': service, 'DownloadId': downloadId},
+          receiveTimeout: searchTimeout,
+          quietStatuses: _quiet));
+
   /// "Cerca un upgrade" da "Da ripassare": il plugin cerca al prossimo giro.
   Future<void> hunt(String key) => _call(() =>
       _http.post('$_base/Hunt', body: {'Key': key}, quietStatuses: _quiet));

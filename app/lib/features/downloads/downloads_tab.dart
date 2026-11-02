@@ -14,6 +14,7 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
+import '../admin/admin_confirm_dialog.dart';
 import '../admin/admin_poller.dart';
 import '../admin/admin_time.dart';
 import '../admin/admin_widgets.dart';
@@ -175,6 +176,26 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
     await _reload();
   }
 
+  /// "Rimuovi" cancella torrent e file per sempre: prima si chiede.
+  Future<void> _removeUnknown(UnknownDownload item) async {
+    final l = AppLocalizations.of(context);
+    final confirmed = await showAdminConfirmDialog(
+      context,
+      title: l.downloadsUnknownConfirmTitle,
+      message: l.downloadsUnknownConfirmMessage(
+        item.title,
+        formatGb(l, item.sizeBytes),
+      ),
+      confirmLabel: l.downloadsUnknownRemove,
+    );
+    if (!confirmed || !mounted) return;
+    await _call(
+      () => ref
+          .read(downloadsApiProvider)
+          .removeUnknown(item.service, item.downloadId),
+    );
+  }
+
   /// Il testo di un errore di Sonarr o Radarr, con le etichette di Home e
   /// calendario.
   String _arrError(AppLocalizations l, String service, String code) {
@@ -250,6 +271,19 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
           ),
           if (!_collapsed.contains('needsYou'))
             for (final item in needsYou) _itemRow(item, now),
+        ],
+        if (overview.unknown.isNotEmpty) ...[
+          _header(
+            'unknown',
+            '${l.downloadsSectionUnknown} · ${overview.unknown.length}',
+          ),
+          if (!_collapsed.contains('unknown'))
+            for (final item in overview.unknown)
+              UnknownDownloadRow(
+                key: ValueKey('unknown-${item.service}-${item.downloadId}'),
+                item: item,
+                onRemove: () => _removeUnknown(item),
+              ),
         ],
         _header('chosen', '${l.downloadsSectionChosen} · ${recent.length}'),
         if (!_collapsed.contains('chosen')) ...[

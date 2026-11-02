@@ -137,6 +137,32 @@ void main() {
     expect(overview.review.map((r) => r.canHunt), [false, true]);
     expect((overview.sonarrError, overview.radarrError), (null, 'Unreachable'));
     expect(DownloadsOverview.empty.waiting, isEmpty);
+    // Senza Unknown (plugin vecchio) niente sezione.
+    expect(overview.unknown, isEmpty);
+  });
+
+  test('UnknownDownloadsParse', () {
+    final overview = DownloadsOverview.fromJson({
+      'Enabled': true,
+      'Recent': <Object>[],
+      'Waiting': <Object>[],
+      'Review': <Object>[],
+      'Unknown': [
+        {
+          'Service': 'Sonarr',
+          'DownloadId': 'D1',
+          'Title': 'Outlander 2015 S01',
+          'SizeBytes': 27000000000,
+          'Message': 'Series title mismatch',
+        },
+        {'Service': 'Radarr', 'DownloadId': 'D2', 'Title': 'Film', 'SizeBytes': 1, 'Message': null},
+        {'Service': 'Sonarr'},
+      ],
+    })!;
+    expect(overview.unknown.map((u) => (u.service, u.downloadId, u.title, u.sizeBytes, u.message)), [
+      ('Sonarr', 'D1', 'Outlander 2015 S01', 27000000000, 'Series title mismatch'),
+      ('Radarr', 'D2', 'Film', 1, null),
+    ]);
   });
 
   test('ASearchParses', () {

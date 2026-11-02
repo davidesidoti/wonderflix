@@ -140,6 +140,21 @@ Widget _muted(String text, {Color color = WfColors.creamMuted}) => Padding(
 const _small = TextStyle(fontSize: 13);
 const _smallMuted = TextStyle(color: WfColors.creamMuted, fontSize: 13);
 
+/// Il messaggio di Sonarr/Radarr, così com'è.
+Widget _serviceMessage(String text) => Container(
+      margin: const EdgeInsets.only(top: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(
+        color: WfColors.surfaceHigh,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(text,
+          style: const TextStyle(
+              color: WfColors.creamMuted,
+              fontSize: 12,
+              fontFamily: 'monospace')),
+    );
+
 /// Una scelta automatica recente (spec T §8.1): release, peso, punteggio,
 /// indexer e quando; "upgrade" con prima → dopo, "scelta tua" se dell'admin.
 class DownloadChoiceRow extends StatelessWidget {
@@ -265,20 +280,7 @@ class DownloadItemRow extends StatelessWidget {
             child: Text(explanation,
                 style: const TextStyle(color: WfColors.cream, fontSize: 13)),
           ),
-        if (needsYou && blocked != null)
-          Container(
-            margin: const EdgeInsets.only(top: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            decoration: BoxDecoration(
-              color: WfColors.surfaceHigh,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(blocked,
-                style: const TextStyle(
-                    color: WfColors.creamMuted,
-                    fontSize: 12,
-                    fontFamily: 'monospace')),
-          ),
+        if (needsYou && blocked != null) _serviceMessage(blocked),
       ],
       actions: [
         for (final (i, action) in actions.indexed)
@@ -387,6 +389,51 @@ class ReviewRow extends StatelessWidget {
           label: l.downloadsOpen,
           icon: LucideIcons.search,
           onPressed: () async => onOpen(),
+        ),
+      ],
+    );
+  }
+}
+
+/// Un download senza serie né film: nome, servizio, peso, perché è fermo.
+class UnknownDownloadRow extends StatelessWidget {
+  const UnknownDownloadRow({
+    super.key,
+    required this.item,
+    required this.onRemove,
+  });
+
+  final UnknownDownload item;
+  final Future<void> Function() onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final message = item.message;
+    return RowShell(
+      posterUrl: null,
+      accent: WfColors.error,
+      lines: [
+        _title(item.title),
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(formatGb(l, item.sizeBytes), style: _small),
+              Text(item.service, style: _smallMuted),
+            ],
+          ),
+        ),
+        if (message != null) _serviceMessage(message),
+      ],
+      actions: [
+        AdminActionButton(
+          label: l.downloadsUnknownRemove,
+          icon: LucideIcons.trash2,
+          onPressed: onRemove,
         ),
       ],
     );

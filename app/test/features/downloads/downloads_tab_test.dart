@@ -124,6 +124,85 @@ void main() {
     }
   });
 
+  group('Senza titolo', () {
+    const pack = UnknownDownload(
+      service: 'Sonarr',
+      downloadId: 'D1',
+      title: 'Outlander 2015 S01',
+      sizeBytes: 27000000000,
+      message: 'Series title mismatch',
+    );
+
+    testWidgets('sta sotto Serve te, senza contarci, e dice tutto',
+        (tester) async {
+      api.overviewValue = DownloadsOverview(
+        enabled: true,
+        waiting: [_item('movie:3', state: DownloadState.needsYou)],
+        unknown: const [pack],
+      );
+      await pumpTab(tester);
+
+      expect(y(tester, 'Senza titolo · 1'), greaterThan(y(tester, 'Serve te · 1')));
+      expect(y(tester, 'Scelte automatiche · 0'), greaterThan(y(tester, 'Senza titolo · 1')));
+      expect(find.text('Outlander 2015 S01'), findsOneWidget);
+      expect(find.text('Sonarr'), findsOneWidget);
+      expect(find.text('27,00 GB'), findsOneWidget);
+      expect(find.text('Series title mismatch'), findsOneWidget);
+    });
+
+    testWidgets('non c\'è se è vuota', (tester) async {
+      await pumpTab(tester);
+
+      expect(find.textContaining('Senza titolo'), findsNothing);
+    });
+
+    testWidgets('si chiude come le altre', (tester) async {
+      api.overviewValue = const DownloadsOverview(enabled: true, unknown: [pack]);
+      await pumpTab(tester);
+
+      await tester.tap(find.text('Senza titolo · 1'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Outlander 2015 S01'), findsNothing);
+    });
+
+    testWidgets('Rimuovi chiede conferma: annullando non chiama il plugin',
+        (tester) async {
+      api.overviewValue = const DownloadsOverview(enabled: true, unknown: [pack]);
+      await pumpTab(tester);
+      api.calls.clear();
+
+      await tester.tap(find.text('Rimuovi'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Outlander 2015 S01 (27,00 GB): torrent e file vengono cancellati per sempre.',
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Annulla'));
+      await tester.pumpAndSettle();
+
+      expect(api.calls, isEmpty);
+    });
+
+    testWidgets('confermando toglie il download e rilegge', (tester) async {
+      api.overviewValue = const DownloadsOverview(enabled: true, unknown: [pack]);
+      await pumpTab(tester);
+      api.calls.clear();
+
+      await tester.tap(find.text('Rimuovi'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Rimuovi').last);
+      await tester.pumpAndSettle();
+
+      expect(api.calls, ['removeUnknown Sonarr D1', 'overview']);
+      expect(find.text('Fatto'), findsOneWidget);
+    });
+  });
+
   testWidgets('Serve te sparisce se è vuota', (tester) async {
     api.overviewValue =
         DownloadsOverview(enabled: true, waiting: [_item('movie:2')]);

@@ -165,6 +165,15 @@ void main() {
     }
   });
 
+  test('RemoveUnknownPostsTheDownload', () async {
+    await api.removeUnknown('Sonarr', 'D1');
+    final request = adapter.requests.single;
+    expect((request.method, request.path),
+        ('POST', '/WonderFlixWatchParty/Downloads/RemoveUnknown'));
+    expect(request.data, {'Service': 'Sonarr', 'DownloadId': 'D1'});
+    expect(request.receiveTimeout, DownloadsApi.searchTimeout);
+  });
+
   test('GrabBestWaitsForTheSearch', () async {
     await api.grabBest('k');
     expect(adapter.requests.single.receiveTimeout, DownloadsApi.searchTimeout);

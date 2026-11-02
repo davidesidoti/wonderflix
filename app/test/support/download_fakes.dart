@@ -184,5 +184,9 @@ class FakeDownloadsApi implements DownloadsApi {
   Future<void> discard(String key) => _action('discard $key');
 
   @override
+  Future<void> removeUnknown(String service, String downloadId) =>
+      _action('removeUnknown $service $downloadId');
+
+  @override
   Future<void> hunt(String key) => _action('hunt $key');
 }

@@ -412,6 +412,42 @@ class ReviewItem {
   static List<ReviewItem> listFromJson(Object? json) => _list(json, fromJson);
 }
 
+/// Un download fermo all'import senza serie né film: l'import si fa da Sonarr
+/// o Radarr, da qui si può solo togliere.
+class UnknownDownload {
+  const UnknownDownload({
+    required this.service,
+    required this.downloadId,
+    required this.title,
+    required this.sizeBytes,
+    this.message,
+  });
+
+  /// "Sonarr" o "Radarr".
+  final String service;
+  final String downloadId;
+  final String title;
+  final int sizeBytes;
+  final String? message;
+
+  static UnknownDownload? fromJson(Map<String, dynamic> json) {
+    try {
+      return UnknownDownload(
+        service: json['Service'] as String,
+        downloadId: json['DownloadId'] as String,
+        title: json['Title'] as String,
+        sizeBytes: (json['SizeBytes'] as num).toInt(),
+        message: json['Message'] as String?,
+      );
+    } on Object {
+      return null;
+    }
+  }
+
+  static List<UnknownDownload> listFromJson(Object? json) =>
+      _list(json, fromJson);
+}
+
 class DownloadsOverview {
   const DownloadsOverview({
     required this.enabled,
@@ -421,6 +457,7 @@ class DownloadsOverview {
     this.reviewAt,
     this.sonarrError,
     this.radarrError,
+    this.unknown = const [],
   });
 
   /// Per chi non è admin: niente da mostrare.
@@ -434,6 +471,9 @@ class DownloadsOverview {
   final String? sonarrError;
   final String? radarrError;
 
+  /// Vuoto con un plugin che non lo manda.
+  final List<UnknownDownload> unknown;
+
   static DownloadsOverview? fromJson(Map<String, dynamic> json) {
     try {
       return DownloadsOverview(
@@ -444,6 +484,7 @@ class DownloadsOverview {
         reviewAt: _dateOrNull(json['ReviewAt']),
         sonarrError: json['SonarrError'] as String?,
         radarrError: json['RadarrError'] as String?,
+        unknown: UnknownDownload.listFromJson(json['Unknown']),
       );
     } on Object {
       return null;
