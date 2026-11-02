@@ -184,9 +184,9 @@ public sealed partial class DownloadService
     /// "Scarica il migliore intanto" (spec §4.1, §4.2a, §5.5): una ricerca nuova (Radarr/Sonarr scaricano solo dalla loro cache
     /// recente), la regola senza le release rifiutate dal client (§5.3), poi il tappabuchi: il migliore sotto il minimo o il più
     /// pesante tra i troppo piccoli. Se nel frattempo c'è una scelta valida si scarica quella, senza tappabuchi. Solo film ed
-    /// episodi. Il grab va fino in fondo anche se l'admin chiude la richiesta.
+    /// episodi. Ricerca e grab vanno fino in fondo anche se l'admin chiude la richiesta.
     /// </summary>
-    public async Task<GrabOutcome> GrabBestAsync(string key, CancellationToken cancellationToken)
+    public async Task<GrabOutcome> GrabBestAsync(string key)
     {
         if (!DownloadKey.TryParse(key, out var parsed) || parsed.Kind == DownloadKinds.Season)
         {
@@ -198,7 +198,7 @@ public sealed partial class DownloadService
             return GrabOutcome.NothingToGrab;
         }
 
-        var (search, error) = await ReadAsync(ServiceOf(parsed.Kind), c => RunSearchAsync(parsed, c), cancellationToken).ConfigureAwait(false);
+        var (search, error) = await ReadAsync(ServiceOf(parsed.Kind), c => RunSearchAsync(parsed, c), CancellationToken.None).ConfigureAwait(false);
         if (error is not null)
         {
             return GrabOutcome.Unavailable;

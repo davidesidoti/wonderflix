@@ -819,7 +819,7 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Store().Save(book);
     }
 
-    private Task<GrabOutcome> GrabBest(string key = "movie:12") => _service.GrabBestAsync(key, CancellationToken.None);
+    private Task<GrabOutcome> GrabBest(string key = "movie:12") => _service.GrabBestAsync(key);
 
     [Fact]
     public async Task TheOverviewCarriesActionsAndSummary()
@@ -946,6 +946,18 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Assert.Equal(GrabOutcome.Invalid, await GrabBest("season:7:2"));
         Assert.Equal(GrabOutcome.Invalid, await GrabBest("film:12"));
         Assert.Single(_arr.SearchReleaseCalls);
+    }
+
+    [Fact]
+    public async Task GrabBestSearchesWithoutTheRequestToken()
+    {
+        // L'app chiusa o la rete caduta durante la ricerca: il download deve partire lo stesso.
+        NeedsYou(DownloadReasons.BelowMinScore);
+        _releases = [Release("x40", WebRip1080, "WEBRip-1080p", 2, 40)];
+
+        Assert.Equal(GrabOutcome.Ok, await GrabBest());
+
+        Assert.False(_arr.LastReleaseToken.CanBeCanceled);
     }
 
     [Fact]

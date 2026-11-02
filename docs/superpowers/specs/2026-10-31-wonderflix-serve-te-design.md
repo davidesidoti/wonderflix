@@ -128,7 +128,7 @@ Visto che la release rifiutata non si riprova più, il ritmo lento di §5.5 dell
 | `POST Downloads/Import` `{ key }` | "Importa comunque" | 204; 409 se non è `ImportBlocked`; 502 con il codice di `ImportDownloadAsync` (`NoFiles`, ...) |
 | `POST Downloads/Discard` `{ key }` | "Scarta e cerca un altro" | 204; 409 se non è `ImportBlocked`; 503 se Radarr/Sonarr non rispondono |
 
-`GrabBest` rifà la ricerca invece di riusare una release salvata, perché Radarr/Sonarr accettano il grab solo di release della loro cache recente. Può durare fino a 2 minuti: lato app ci vuole `receiveTimeout: DownloadsApi.searchTimeout`, lato plugin `CancellationToken.None` per il grab (vedi CLAUDE.md).
+`GrabBest` rifà la ricerca invece di riusare una release salvata, perché Radarr/Sonarr accettano il grab solo di release della loro cache recente. Può durare fino a 2 minuti: lato app ci vuole `receiveTimeout: DownloadsApi.searchTimeout`, lato plugin `CancellationToken.None` per la ricerca e il grab (vedi CLAUDE.md): se l'app si chiude, perde la rete o supera il suo limite, il download parte lo stesso.
 
 ### 5.6 Dati nella panoramica
 

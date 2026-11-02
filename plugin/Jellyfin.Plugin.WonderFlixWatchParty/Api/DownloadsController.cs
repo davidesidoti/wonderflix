@@ -62,7 +62,7 @@ public class DownloadsController(DownloadService downloads) : ControllerBase
     /// <summary>"Scarica il migliore intanto" (fino a 2 minuti): 204; 409 NothingToGrab, poi gli errori di Grab.</summary>
     [HttpPost("GrabBest")]
     public async Task<ActionResult> GrabBest([FromBody] KeyRequest? request) =>
-        request?.Key is { } key ? Result(await downloads.GrabBestAsync(key, HttpContext.RequestAborted).ConfigureAwait(false)) : BadRequest();
+        request?.Key is { } key ? Result(await downloads.GrabBestAsync(key).ConfigureAwait(false)) : BadRequest();
 
     /// <summary>"Va bene, aspetto": 204; 400 se la voce non è in "Serve te" per "nessun file valido".</summary>
     [HttpPost("Snooze")]
