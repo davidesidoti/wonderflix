@@ -29,9 +29,9 @@ public interface IArrClient
     /// <summary>
     /// Le release trovate da una ricerca dal vivo (spec T §2). <paramref name="query"/> è la query di
     /// <c>release</c>: <c>movieId=12</c>, <c>episodeId=34</c> o <c>seriesId=5&amp;seasonNumber=2</c>.
-    /// Può durare fino a <see cref="ArrClient.ReleaseSearchTimeout"/>.
+    /// Può durare fino a <paramref name="timeout"/>; senza, fino a <see cref="ArrClient.ReleaseSearchTimeout"/>.
     /// </summary>
-    Task<IReadOnlyList<ArrRelease?>> SearchReleasesAsync(ArrKind kind, string query, CancellationToken cancellationToken);
+    Task<IReadOnlyList<ArrRelease?>> SearchReleasesAsync(ArrKind kind, string query, CancellationToken cancellationToken, TimeSpan? timeout = null);
 
     /// <summary>Fa scaricare una release trovata da <see cref="SearchReleasesAsync"/> (spec T §2).</summary>
     Task GrabReleaseAsync(ArrKind kind, string guid, int indexerId, CancellationToken cancellationToken);

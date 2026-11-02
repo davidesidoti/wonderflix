@@ -93,6 +93,9 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Assert.Null(result.Current);
         Assert.Equal((ArrKind.Radarr, "movieId=12"), Assert.Single(_arr.SearchReleaseCalls));
 
+        // Il limite lungo dell'admin, non quello del giro.
+        Assert.Null(_arr.LastReleaseTimeout);
+
         // Solo il film, non tutta la libreria di Radarr (ruling 14).
         Assert.Equal([12], _arr.MovieByIdCalls);
         Assert.Equal(0, _arr.LibraryMovieCalls);

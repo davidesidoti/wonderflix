@@ -615,6 +615,28 @@ public sealed class DownloadServiceSearchTests : IDisposable
     }
 
     [Fact]
+    public async Task ASearchWithoutAnAnswerIsRetriedAfterADay()
+    {
+        _movies = [Movie(12)];
+        _arr.Releases = (_, _) => Task.FromException<IReadOnlyList<ArrRelease?>>(new ArrException(ArrError.Unreachable) { TimedOut = true });
+
+        await Cycle();
+
+        Assert.Equal(ArrClient.CycleSearchTimeout, _arr.LastReleaseTimeout);
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.Waiting, DownloadReasons.SearchFailed, (DateTimeOffset?)(T0 + DownloadSchedule.TimedOutPace)), (entry.State, entry.Reason, entry.NextSearchAt));
+
+        // Al giro dopo non si ripete: Sonarr la sta ancora portando avanti.
+        _time.Advance(DownloadService.CycleInterval);
+        await Cycle();
+        Assert.Single(_arr.SearchReleaseCalls);
+
+        _time.Advance(DownloadSchedule.TimedOutPace - DownloadService.CycleInterval);
+        await Cycle();
+        Assert.Equal(2, _arr.SearchReleaseCalls.Count);
+    }
+
+    [Fact]
     public async Task AGrabErrorKeepsTheEntryWaiting()
     {
         _movies = [Movie(12)];

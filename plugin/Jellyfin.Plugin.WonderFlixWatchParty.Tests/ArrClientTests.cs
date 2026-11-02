@@ -681,7 +681,33 @@ public class ArrClientTests
         var error = await Assert.ThrowsAsync<ArrException>(() => client.GetLibraryMoviesAsync(CancellationToken.None));
         Assert.Equal(ArrError.Unreachable, error.Error);
         Assert.Equal(TimeSpan.FromMinutes(60), ArrClient.ReleaseSearchTimeout);
+        Assert.Equal(TimeSpan.FromMinutes(15), ArrClient.CycleSearchTimeout);
         Assert.Equal(TimeSpan.FromMinutes(2), ArrClient.SearchTimeout);
+    }
+
+    [Fact]
+    public async Task ASearchWithItsOwnLimitStopsThereAndSaysItTimedOut()
+    {
+        _http.Respond = async (_, ct) =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(30), ct);
+            return FakeSeerrHttp.Json(HttpStatusCode.OK, "[]");
+        };
+
+        var error = await Assert.ThrowsAsync<ArrException>(
+            () => Client().SearchReleasesAsync(ArrKind.Radarr, "movieId=1", CancellationToken.None, TimeSpan.FromMilliseconds(50)));
+
+        Assert.Equal((ArrError.Unreachable, true, (int?)null), (error.Error, error.TimedOut, error.Status));
+    }
+
+    [Fact]
+    public async Task AFailedAnswerIsNotATimeout()
+    {
+        Answer(HttpStatusCode.InternalServerError, "{}");
+
+        var error = await Assert.ThrowsAsync<ArrException>(() => Client().SearchReleasesAsync(ArrKind.Radarr, "movieId=1", CancellationToken.None));
+
+        Assert.Equal((ArrError.Unreachable, false, (int?)500), (error.Error, error.TimedOut, error.Status));
     }
 
     [Fact]

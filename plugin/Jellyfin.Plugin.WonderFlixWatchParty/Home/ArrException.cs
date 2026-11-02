@@ -27,6 +27,9 @@ public sealed class ArrException : Exception
 
     /// <summary>Lo stato HTTP di una risposta non riuscita; null per rete e timeout (spec T §6).</summary>
     public int? Status { get; }
+
+    /// <summary>Nessuna risposta entro l'attesa massima: Radarr/Sonarr possono stare ancora lavorando.</summary>
+    public bool TimedOut { get; init; }
 }
 
 /// <summary>I codici di "Error" nelle risposte di Upcoming (spec M §7.4; decisione 1 del piano 19a).</summary>

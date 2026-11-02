@@ -185,6 +185,8 @@ internal sealed class FakeArrClient : IArrClient
     /// <summary>Il token dell'ultima ricerca di release.</summary>
     public CancellationToken LastReleaseToken { get; private set; }
 
+    public TimeSpan? LastReleaseTimeout { get; private set; }
+
     public List<(ArrKind Kind, string Guid, int IndexerId)> GrabCalls { get; } = [];
 
     public int LibraryMovieCalls { get; private set; }
@@ -206,12 +208,13 @@ internal sealed class FakeArrClient : IArrClient
     public List<ArrKind> IndexerCalls { get; } = [];
 
     public Task<IReadOnlyList<ArrRelease?>> SearchReleasesAsync(
-        ArrKind kind, string query, CancellationToken cancellationToken)
+        ArrKind kind, string query, CancellationToken cancellationToken, TimeSpan? timeout = null)
     {
         lock (_lock)
         {
             SearchReleaseCalls.Add((kind, query));
             LastReleaseToken = cancellationToken;
+            LastReleaseTimeout = timeout;
         }
 
         return Releases(kind, query);

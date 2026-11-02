@@ -24,8 +24,11 @@ public sealed class ArrClient(
     /// <summary>Attesa massima di una ricerca dal vivo: gli indexer rispondono piano (spec T §2).</summary>
     public static readonly TimeSpan SearchTimeout = TimeSpan.FromMinutes(2);
 
-    /// <summary>Attesa massima di una ricerca di release: le stagioni anime, Sonarr cerca un episodio alla volta (spec W §4.1).</summary>
+    /// <summary>Attesa massima di una ricerca di release dell'admin: le stagioni anime, Sonarr cerca un episodio alla volta (spec W §4.1).</summary>
     public static readonly TimeSpan ReleaseSearchTimeout = TimeSpan.FromMinutes(60);
+
+    /// <summary>Attesa massima di una ricerca del giro automatico: si cerca un titolo alla volta, una ricerca lunga fermerebbe gli altri (spec W §4.1).</summary>
+    public static readonly TimeSpan CycleSearchTimeout = TimeSpan.FromMinutes(15);
 
     /// <summary>
     /// Attesa massima di un grab: Radarr/Sonarr scaricano il .torrent tramite Prowlarr e lo passano al client; con 10 s
@@ -80,8 +83,8 @@ public sealed class ArrClient(
         GetAsync<ArrStatus>(kind, "system/status", cancellationToken);
 
     public async Task<IReadOnlyList<ArrRelease?>> SearchReleasesAsync(
-        ArrKind kind, string query, CancellationToken cancellationToken) =>
-        await SendAsync<List<ArrRelease?>>(kind, HttpMethod.Get, $"release?{query}", null, ReleaseSearchTimeout, cancellationToken)
+        ArrKind kind, string query, CancellationToken cancellationToken, TimeSpan? timeout = null) =>
+        await SendAsync<List<ArrRelease?>>(kind, HttpMethod.Get, $"release?{query}", null, timeout ?? ReleaseSearchTimeout, cancellationToken)
             .ConfigureAwait(false);
 
     public Task GrabReleaseAsync(ArrKind kind, string guid, int indexerId, CancellationToken cancellationToken) =>
@@ -285,7 +288,7 @@ public sealed class ArrClient(
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             logger.LogWarning("{Service} {Method} {Path}: nessuna risposta in {Timeout}", kind, method, logPath, timeout);
-            throw new ArrException(ArrError.Unreachable);
+            throw new ArrException(ArrError.Unreachable) { TimedOut = true };
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or NotSupportedException
                                        or InvalidOperationException or FormatException)

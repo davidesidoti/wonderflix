@@ -252,6 +252,44 @@ public sealed class DownloadServiceSeasonTests : IDisposable
     }
 
     [Fact]
+    public async Task ASeasonSearchWithoutAnAnswerSplitsIntoEpisodes()
+    {
+        WholeSeason();
+        _arr.Releases = (_, _) => Task.FromException<IReadOnlyList<ArrRelease?>>(new ArrException(ArrError.Unreachable) { TimedOut = true });
+
+        await Cycle();
+
+        Assert.Equal(["episode:201", "episode:202", "episode:203"], SavedKeys());
+        Assert.Equal((DownloadStates.Waiting, (DateTimeOffset?)T0), (Saved("episode:201")!.State, Saved("episode:201")!.NextSearchAt));
+    }
+
+    [Fact]
+    public async Task ASeasonSearchThatFailsOtherwiseStaysASeason()
+    {
+        WholeSeason();
+        SearchesFail();
+
+        await Cycle();
+
+        Assert.Equal(["season:7:2"], SavedKeys());
+        Assert.Equal(DownloadReasons.SearchFailed, Saved("season:7:2")!.Reason);
+    }
+
+    [Fact]
+    public async Task ASeasonUpgradeSearchWithoutAnAnswerStaysASeason()
+    {
+        await GrabAndImportPack();
+        _arr.Releases = (_, _) => Task.FromException<IReadOnlyList<ArrRelease?>>(new ArrException(ArrError.Unreachable) { TimedOut = true });
+        var next = Saved("season:7:2")!.NextSearchAt!.Value;
+        _time.Advance(next - _time.GetUtcNow());
+
+        await Cycle();
+
+        var entry = Saved("season:7:2")!;
+        Assert.Equal((DownloadStates.UpgradeWatch, DownloadReasons.SearchFailed, (DateTimeOffset?)(next + DownloadSchedule.TimedOutPace)), (entry.State, entry.Reason, entry.NextSearchAt));
+    }
+
+    [Fact]
     public async Task AHeavyPackSplitsWhenTheSinglesCarryOnlyMappedNumbers()
     {
         WholeSeason();

@@ -117,6 +117,23 @@ public sealed class DownloadServiceSearchJobTests : IDisposable
     }
 
     [Fact]
+    public async Task TheCycleLeavesAloneAnEntryTheAdminIsSearching()
+    {
+        // Solo la prima ricerca, quella dell'admin, resta al cancello.
+        _arr.Releases = (kind, query) => _arr.SearchReleaseCalls.Count == 1 ? Gated(kind, query) : Task.FromResult<IReadOnlyList<ArrRelease?>>(_releases);
+        _service.StartSearch("movie:12", false);
+        await SearchedTimes(1);
+
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Single(_arr.SearchReleaseCalls);
+
+        OpenGate();
+        await Finished("movie:12");
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Equal(2, _arr.SearchReleaseCalls.Count);
+    }
+
+    [Fact]
     public async Task ASecondStartJoinsTheRunningSearch()
     {
         _service.StartSearch("movie:12", false);

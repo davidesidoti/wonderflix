@@ -128,9 +128,10 @@ public sealed partial class DownloadService
     };
 
     // Solo sotto _lock. Waiting e NeedsYou (non ImportBlocked) di un titolo ancora da scaricare, o UpgradeWatch;
-    // solo per i servizi letti in questo giro: degli altri non si sa se il titolo è in coda.
+    // solo per i servizi letti in questo giro: degli altri non si sa se il titolo è in coda. Se l'admin lo sta già cercando non si fa un doppione.
     private bool IsDue(DownloadEntry entry, IReadOnlyDictionary<ArrKind, ArrView> views, DateTimeOffset now) =>
         entry.NextSearchAt <= now
+        && !AdminSearching(entry.Key)
         && views.TryGetValue(ServiceOf(entry.Kind), out var view)
         && SearchesByState(entry)
         && (entry.State == DownloadStates.UpgradeWatch || view.Titles.GetValueOrDefault(entry.Key)?.Wanted == true);
@@ -180,17 +181,25 @@ public sealed partial class DownloadService
         IReadOnlyList<ArrRelease?> releases;
         try
         {
-            releases = await arr.SearchReleasesAsync(item.Service, item.Query, cancellationToken).ConfigureAwait(false);
+            releases = await arr.SearchReleasesAsync(item.Service, item.Query, cancellationToken, ArrClient.CycleSearchTimeout).ConfigureAwait(false);
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             logger.LogWarning("Download automatici: ricerca di {Key} su {Kind} non riuscita ({Error})", item.Key, item.Service, ErrorOf(ex));
+
+            // Una stagione troppo lunga per il giro non finirebbe mai: un episodio alla volta ci sta. Un upgrade resta com'è.
+            if (ex is ArrException { TimedOut: true } && item.Episodes is not null && !item.Upgrade)
+            {
+                Split(item);
+                return false;
+            }
+
             Update(item.Key, (entry, now) =>
             {
-                // Si riprova al giro dopo, ma dietro alle voci che aspettano già.
+                // Si riprova al giro dopo, ma dietro alle voci che aspettano già. Dopo un timeout molto più tardi.
                 entry.LastSearchAt = now;
                 entry.Reason = DownloadReasons.SearchFailed;
-                entry.NextSearchAt = now + CycleInterval;
+                entry.NextSearchAt = now + (ex is ArrException { TimedOut: true } ? DownloadSchedule.TimedOutPace : CycleInterval);
             });
             return false;
         }

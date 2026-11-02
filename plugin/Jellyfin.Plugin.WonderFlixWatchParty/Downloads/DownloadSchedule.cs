@@ -18,6 +18,9 @@ public static class DownloadSchedule
     /// <summary>Ritmo di un titolo silenziato dall'admin ("Aspetta"): una ricerca a settimana finché non trova qualcosa.</summary>
     public static readonly TimeSpan SnoozedPace = TimeSpan.FromDays(7);
 
+    /// <summary>Dopo una ricerca senza risposta entro il limite: Sonarr la porta comunque a termine, ritentare presto ne sovrapporrebbe un'altra e consumerebbe gli indexer.</summary>
+    public static readonly TimeSpan TimedOutPace = TimeSpan.FromHours(24);
+
     /// <summary>Ritmo della prima settimana.</summary>
     private static readonly TimeSpan FirstWeekPace = TimeSpan.FromHours(6);
 

@@ -36,7 +36,7 @@ Su iPhone (web app dalla Home) una richiesta aperta per minuti si perde appena i
 
 ### 4.1 Limite verso Radarr/Sonarr
 
-- Nuova costante `ArrClient.ReleaseSearchTimeout` = **60 minuti** *(mia; erano 15: una stagione anime di 14 episodi dura ~30 minuti, nginx aspetta 3600 s)*, solo per `SearchReleasesAsync` (`GET release`). Vale per il giro automatico, per la ricerca dell'admin e per le ricerche dentro grab e grabBest.
+- Nuova costante `ArrClient.ReleaseSearchTimeout` = **60 minuti** *(mia; erano 15: una stagione anime di 14 episodi dura ~30 minuti, nginx aspetta 3600 s)*, solo per `SearchReleasesAsync` (`GET release`). Vale per la ricerca dell'admin e per le ricerche dentro grab e grabBest. Il giro automatico cerca un titolo alla volta e ha un limite suo, `ArrClient.CycleSearchTimeout` = **15 minuti**: una ricerca lunga non deve fermare gli altri titoli.
 - `SearchTimeout` (2 minuti) resta per `manualimport`, che non è una ricerca sugli indexer.
 - Effetto voluto: un giro con diverse stagioni anime può durare fino a un'ora (10 ricerche in fila). Intanto i tick del timer si saltano e un `Nudge()` aspetta la fine del giro. *(Mia: meglio un giro lungo che ricerche che falliscono a ogni giro; non serve un limite diverso per il giro.)*
 - Aggiornare `ArrClientTests.ASlowSearchUsesTheSearchTimeout` (o un test nuovo) per il limite delle release. Il test è già noto come instabile: va rieseguito prima di indagare.
