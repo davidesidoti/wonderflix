@@ -680,7 +680,7 @@ public class ArrClientTests
         Assert.Empty(releases);
         var error = await Assert.ThrowsAsync<ArrException>(() => client.GetLibraryMoviesAsync(CancellationToken.None));
         Assert.Equal(ArrError.Unreachable, error.Error);
-        Assert.Equal(TimeSpan.FromMinutes(15), ArrClient.ReleaseSearchTimeout);
+        Assert.Equal(TimeSpan.FromMinutes(60), ArrClient.ReleaseSearchTimeout);
         Assert.Equal(TimeSpan.FromMinutes(2), ArrClient.SearchTimeout);
     }
 

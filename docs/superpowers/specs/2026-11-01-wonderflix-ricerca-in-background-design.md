@@ -36,7 +36,7 @@ Su iPhone (web app dalla Home) una richiesta aperta per minuti si perde appena i
 
 ### 4.1 Limite verso Radarr/Sonarr
 
-- Nuova costante `ArrClient.ReleaseSearchTimeout` = **15 minuti** *(mia)*, solo per `SearchReleasesAsync` (`GET release`). Vale per il giro automatico, per la ricerca dell'admin e per le ricerche dentro grab e grabBest.
+- Nuova costante `ArrClient.ReleaseSearchTimeout` = **60 minuti** *(mia; erano 15: una stagione anime di 14 episodi dura ~30 minuti, nginx aspetta 3600 s)*, solo per `SearchReleasesAsync` (`GET release`). Vale per il giro automatico, per la ricerca dell'admin e per le ricerche dentro grab e grabBest.
 - `SearchTimeout` (2 minuti) resta per `manualimport`, che non è una ricerca sugli indexer.
 - Effetto voluto: un giro con diverse stagioni anime può durare fino a un'ora (10 ricerche in fila). Intanto i tick del timer si saltano e un `Nudge()` aspetta la fine del giro. *(Mia: meglio un giro lungo che ricerche che falliscono a ogni giro; non serve un limite diverso per il giro.)*
 - Aggiornare `ArrClientTests.ASlowSearchUsesTheSearchTimeout` (o un test nuovo) per il limite delle release. Il test è già noto come instabile: va rieseguito prima di indagare.
@@ -52,7 +52,7 @@ Su iPhone (web app dalla Home) una richiesta aperta per minuti si perde appena i
 ### 4.3 Quanto restano i risultati
 
 - Il risultato di una ricerca riuscita resta in `_lastSearch` (come oggi, con `MaxRememberedSearches` = 20) e si mostra all'app per **30 minuti** da `At` *(mia: circa quanto Radarr/Sonarr ricordano le release)*. Dopo, `Status` dice "None" e l'app ne lancia una nuova.
-- Anche l'esito con `Error` (Sonarr giù, limite di 15 minuti superato) resta per **30 minuti**, come un risultato: riaprendo la pagina si vede l'errore e la ricerca **non** riparte da sola, così non si consumano gli indexer. Il pulsante "Ricerca di nuovo" della schermata d'errore manda `Again`. L'errore non va in `_lastSearch`, che serve a grab: basta un campo del job. *(Mia; il come è lasciato al builder.)*
+- Anche l'esito con `Error` (Sonarr giù, limite di 60 minuti superato) resta per **30 minuti**, come un risultato: riaprendo la pagina si vede l'errore e la ricerca **non** riparte da sola, così non si consumano gli indexer. Il pulsante "Ricerca di nuovo" della schermata d'errore manda `Again`. L'errore non va in `_lastSearch`, che serve a grab: basta un campo del job. *(Mia; il come è lasciato al builder.)*
 - Le chiavi dei job dell'admin stanno in un insieme a parte da `_searching`, così la fine di una ricerca del giro non toglie "Searching" a un job dell'admin (la panoramica guarda tutti e due).
 
 ### 4.4 Protocollo

@@ -25,7 +25,7 @@ public sealed class ArrClient(
     public static readonly TimeSpan SearchTimeout = TimeSpan.FromMinutes(2);
 
     /// <summary>Attesa massima di una ricerca di release: le stagioni anime, Sonarr cerca un episodio alla volta (spec W §4.1).</summary>
-    public static readonly TimeSpan ReleaseSearchTimeout = TimeSpan.FromMinutes(15);
+    public static readonly TimeSpan ReleaseSearchTimeout = TimeSpan.FromMinutes(60);
 
     /// <summary>
     /// Attesa massima di un grab: Radarr/Sonarr scaricano il .torrent tramite Prowlarr e lo passano al client; con 10 s
