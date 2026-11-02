@@ -199,7 +199,7 @@ public sealed partial class DownloadService
                 // Si riprova al giro dopo, ma dietro alle voci che aspettano già. Dopo un timeout molto più tardi.
                 entry.LastSearchAt = now;
                 entry.Reason = DownloadReasons.SearchFailed;
-                entry.NextSearchAt = now + (ex is ArrException { TimedOut: true } ? DownloadSchedule.TimedOutPace : CycleInterval);
+                entry.NextSearchAt = now + (ex is not ArrException { TimedOut: true } ? CycleInterval : item.Upgrade ? DownloadSchedule.TimedOutUpgradePace : DownloadSchedule.TimedOutPace);
             });
             return false;
         }

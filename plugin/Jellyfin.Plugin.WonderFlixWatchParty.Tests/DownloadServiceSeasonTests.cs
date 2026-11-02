@@ -276,7 +276,7 @@ public sealed class DownloadServiceSeasonTests : IDisposable
     }
 
     [Fact]
-    public async Task ASeasonUpgradeSearchWithoutAnAnswerStaysASeason()
+    public async Task ASeasonUpgradeSearchWithoutAnAnswerStaysASeasonForAWeek()
     {
         await GrabAndImportPack();
         _arr.Releases = (_, _) => Task.FromException<IReadOnlyList<ArrRelease?>>(new ArrException(ArrError.Unreachable) { TimedOut = true });
@@ -286,7 +286,7 @@ public sealed class DownloadServiceSeasonTests : IDisposable
         await Cycle();
 
         var entry = Saved("season:7:2")!;
-        Assert.Equal((DownloadStates.UpgradeWatch, DownloadReasons.SearchFailed, (DateTimeOffset?)(next + DownloadSchedule.TimedOutPace)), (entry.State, entry.Reason, entry.NextSearchAt));
+        Assert.Equal((DownloadStates.UpgradeWatch, DownloadReasons.SearchFailed, (DateTimeOffset?)(next + DownloadSchedule.TimedOutUpgradePace)), (entry.State, entry.Reason, entry.NextSearchAt));
     }
 
     [Fact]

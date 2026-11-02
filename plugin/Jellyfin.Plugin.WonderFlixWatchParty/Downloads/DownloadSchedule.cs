@@ -21,6 +21,9 @@ public static class DownloadSchedule
     /// <summary>Dopo una ricerca senza risposta entro il limite: Sonarr la porta comunque a termine, ritentare presto ne sovrapporrebbe un'altra e consumerebbe gli indexer.</summary>
     public static readonly TimeSpan TimedOutPace = TimeSpan.FromHours(24);
 
+    /// <summary>Lo stesso per un upgrade: non si divide, quindi ogni tentativo finirebbe di nuovo oltre il limite.</summary>
+    public static readonly TimeSpan TimedOutUpgradePace = TimeSpan.FromDays(7);
+
     /// <summary>Ritmo della prima settimana.</summary>
     private static readonly TimeSpan FirstWeekPace = TimeSpan.FromHours(6);
 
