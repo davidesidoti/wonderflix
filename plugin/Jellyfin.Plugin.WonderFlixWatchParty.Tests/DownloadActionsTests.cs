@@ -41,6 +41,24 @@ public sealed class DownloadActionsTests
     public void ImportBlockedWithDownloadIdCanImportOrDiscard() =>
         Assert.Equal(["Import", "Discard"], DownloadActions.For(NeedsYou(DownloadReasons.ImportBlocked, downloadId: "abc")));
 
+    [Theory]
+    [InlineData("Not a Custom Format upgrade for existing episode file(s)")]
+    [InlineData("Not an Upgrade for existing movie file")]
+    public void ImportBlockedThatIsNotAnUpgradeRecommendsDiscard(string message)
+    {
+        var entry = NeedsYou(DownloadReasons.ImportBlocked, downloadId: "abc");
+        entry.BlockedMessage = message;
+        Assert.Equal(["Discard", "Import"], DownloadActions.For(entry));
+    }
+
+    [Fact]
+    public void ImportBlockedForAnotherReasonRecommendsImport()
+    {
+        var entry = NeedsYou(DownloadReasons.ImportBlocked, downloadId: "abc");
+        entry.BlockedMessage = "Series title mismatch";
+        Assert.Equal(["Import", "Discard"], DownloadActions.For(entry));
+    }
+
     [Fact]
     public void ImportBlockedWithoutDownloadIdCanOnlyDiscard() =>
         Assert.Equal(["Discard"], DownloadActions.For(NeedsYou(DownloadReasons.ImportBlocked)));

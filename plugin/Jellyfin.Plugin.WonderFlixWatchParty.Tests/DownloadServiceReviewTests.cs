@@ -261,6 +261,25 @@ public sealed class DownloadServiceReviewTests : IDisposable
     }
 
     [Fact]
+    public async Task ARejectedImportPendingIsImportedByHandOnce()
+    {
+        AdminGrabBlocked(12, 90, "D1");
+        var item = _radarrQueue.Single()!;
+        (item.TrackedDownloadState, item.TrackedDownloadStatus) = ("importPending", "warning");
+        _arr.ManualImportItems = (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>([ImportItem("/dl/a.mkv", 12)]);
+
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Single(_arr.ManualImportCalls);
+        Assert.Equal(DownloadStates.Downloading, Saved("movie:12")!.State);
+
+        _time.Advance(DownloadService.CycleInterval);
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Single(_arr.ManualImportCalls);
+        Assert.Equal((DownloadStates.NeedsYou, DownloadReasons.ImportBlocked), (Saved("movie:12")!.State, Saved("movie:12")!.Reason));
+    }
+
+    [Fact]
     public async Task AFailedManualImportNeedsYou()
     {
         // 12: Radarr non accetta il comando; 13: nessun file da importare.

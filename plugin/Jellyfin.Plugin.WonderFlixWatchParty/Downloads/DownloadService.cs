@@ -42,6 +42,8 @@ public sealed partial class DownloadService(
     // Lo stato di un elemento della coda che aspetta l'admin (spec T §2).
     private const string ImportBlockedState = "importBlocked";
 
+    private const string ImportPendingState = "importPending";
+
     // Status e trackedDownloadState di un elemento che sta scaricando: solo lui può essere fermo.
     private const string DownloadingState = "downloading";
 
@@ -401,7 +403,7 @@ public sealed partial class DownloadService(
         entry.Reason = null;
         entry.DownloadId = item.DownloadId;
         entry.BlockedMessage = null;
-        if (string.Equals(item.TrackedDownloadState, ImportBlockedState, StringComparison.OrdinalIgnoreCase))
+        if (IsImportBlocked(item))
         {
             OnImportBlocked(entry, item, now, imports);
             return false;
@@ -413,6 +415,12 @@ public sealed partial class DownloadService(
         return (active && entry.LastProgressAt is { } since && now - since >= DownloadSchedule.StalledAfter)
             || (entry.MetadataSince is { } metadata && now - metadata >= DownloadSchedule.MetadataStalledAfter);
     }
+
+    // Sonarr lascia così anche un file rifiutato ("Not a Custom Format upgrade"), in "importPending" con un avviso: non si sblocca da solo.
+    private static bool IsImportBlocked(ArrQueueItem item) =>
+        string.Equals(item.TrackedDownloadState, ImportBlockedState, StringComparison.OrdinalIgnoreCase)
+        || (string.Equals(item.TrackedDownloadState, ImportPendingState, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(item.TrackedDownloadStatus, WarningStatus, StringComparison.OrdinalIgnoreCase));
 
     // In coda, ma il client sta ancora cercando i metadati del magnet ("qBittorrent is downloading metadata"): per Radarr/Sonarr "downloading" senza scaricare.
     private static bool IsFetchingMetadata(ArrQueueItem item) =>

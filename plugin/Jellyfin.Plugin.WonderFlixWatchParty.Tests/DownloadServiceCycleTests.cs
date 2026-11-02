@@ -478,6 +478,67 @@ public sealed class DownloadServiceCycleTests : IDisposable
         Assert.Empty(_arr.RemoveFromQueueCalls);
     }
 
+    // Il file rifiutato che Sonarr lascia in coda: non si sblocca da solo.
+    private static ArrQueueItem RejectedQueue(ArrQueueItem item)
+    {
+        (item.TrackedDownloadState, item.TrackedDownloadStatus, item.Status) = ("importPending", "warning", "completed");
+        item.DownloadId = "abc";
+        item.StatusMessages = [new ArrStatusMessage { Title = "a.mkv", Messages = ["Not a Custom Format upgrade for existing episode file(s)"] }];
+        return item;
+    }
+
+    [Fact]
+    public async Task AnImportPendingWithAWarningNeedsYou()
+    {
+        _movies = [Movie(12)];
+        _radarrQueue = [RejectedQueue(MovieQueue(90, 12, 0))];
+
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.NeedsYou, DownloadReasons.ImportBlocked, "Not a Custom Format upgrade for existing episode file(s)"), (entry.State, entry.Reason, entry.BlockedMessage));
+    }
+
+    [Fact]
+    public async Task AnImportPendingWithoutAWarningIsNotBlocked()
+    {
+        _movies = [Movie(12)];
+        var pending = MovieQueue(90, 12, 0, state: "importPending", status: "completed");
+        pending.TrackedDownloadStatus = "ok";
+        _radarrQueue = [pending];
+
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Equal(DownloadStates.Downloading, Saved("movie:12")!.State);
+    }
+
+    [Fact]
+    public async Task ADiscardedReleaseOfAnEpisodeWithAFileLeavesNoEntry()
+    {
+        // L'episodio ha già il file (non è tra i mancanti) e la voce viene dal grab della release rifiutata.
+        var book = new DownloadBook();
+        book.Put(new DownloadEntry { Key = "episode:42", Kind = DownloadKinds.Episode, State = DownloadStates.Downloading, AvailableSince = T0, QueueId = 90, CurrentScore = 0, SeriesId = 7 });
+        Store().Save(book);
+        _service = new DownloadService(_arr, _arrSettings, _settings, Store(), _time, NullLogger<DownloadService>.Instance) { Pause = TimeSpan.Zero };
+        _service.Load();
+        _sonarrQueue = [RejectedQueue(EpisodeQueue(90, 42, 0))];
+
+        await _service.RunCycleAsync(CancellationToken.None);
+        Assert.Equal((DownloadStates.NeedsYou, DownloadReasons.ImportBlocked), (Saved("episode:42")!.State, Saved("episode:42")!.Reason));
+        Assert.Equal(["Discard", "Import"], DownloadActions.For(Saved("episode:42")!));
+
+        Assert.Equal(BlockedOutcome.Ok, await _service.DiscardBlockedAsync("episode:42"));
+        Assert.Equal((ArrKind.Sonarr, 90, true, true), Assert.Single(_arr.RemoveFromQueueCalls));
+
+        _sonarrQueue = [];
+        _time.Advance(DownloadService.CycleInterval);
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Null(Saved("episode:42"));
+        Assert.Empty(_arr.SearchReleaseCalls);
+        Assert.Empty(_arr.GrabCalls);
+    }
+
     [Fact]
     public async Task ABlockedImportKeepsTheDownloadAndSonarrsMessage()
     {

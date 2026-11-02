@@ -169,7 +169,7 @@ public sealed partial class DownloadService
     {
         var downloading = records.All(IsActive);
         var fetching = records.FirstOrDefault(IsFetchingMetadata);
-        var blocked = records.Any(r => string.Equals(r.TrackedDownloadState, ImportBlockedState, StringComparison.OrdinalIgnoreCase));
+        var blocked = records.Any(IsImportBlocked);
         return new ArrQueueItem
         {
             Id = records[0].Id,

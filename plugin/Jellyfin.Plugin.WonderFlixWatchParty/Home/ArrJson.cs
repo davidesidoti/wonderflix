@@ -314,6 +314,9 @@ public sealed class ArrQueueItem
     /// <summary>"downloading", "importBlocked", "importPending", "failed", ...</summary>
     public string? TrackedDownloadState { get; set; }
 
+    /// <summary>"ok", "warning", "error".</summary>
+    public string? TrackedDownloadStatus { get; set; }
+
     /// <summary>Lo stato nel client: "downloading", "queued", "paused", "delay", "downloadClientUnavailable", "completed", "warning", ...</summary>
     public string? Status { get; set; }
 

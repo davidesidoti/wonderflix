@@ -340,6 +340,24 @@ public sealed class DownloadServiceSeasonTests : IDisposable
     }
 
     [Fact]
+    public async Task APackWithARejectedImportIsBlocked()
+    {
+        WholeSeason();
+        _releases = [Pack("pack", 3, 50)];
+        await Cycle();
+        _releases = [];
+
+        var rejected = EpisodeQueue(92, 202, 0);
+        (rejected.TrackedDownloadState, rejected.TrackedDownloadStatus, rejected.Status) = ("importPending", "warning", "completed");
+        _sonarrQueue = [EpisodeQueue(91, 201, 0), rejected, EpisodeQueue(93, 203, 0)];
+        _time.Advance(DownloadService.CycleInterval);
+        await Cycle();
+
+        var entry = Saved("season:7:2")!;
+        Assert.Equal((DownloadStates.NeedsYou, DownloadReasons.ImportBlocked), (entry.State, entry.Reason));
+    }
+
+    [Fact]
     public async Task AStalledPackInWarningIsRemoved()
     {
         WholeSeason();
