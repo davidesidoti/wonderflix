@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -55,6 +56,9 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
   /// In selezione degli orfani: le chiavi scelte; `null` fuori selezione.
   /// Esclude [_selecting], e viceversa.
   Set<String>? _orphanKeys;
+
+  /// L'ultimo orfano toccato: da qui parte l'intervallo con Maiusc.
+  String? _orphanAnchor;
 
   @override
   void initState() {
@@ -337,6 +341,26 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
       if (!f.linked) f,
   ];
 
+  /// Un tocco su un orfano lo sceglie o lo toglie; con Maiusc sceglie tutti
+  /// quelli tra l'ultimo toccato e questo.
+  void _tapOrphan(List<SpaceFile> list, String key, Set<String> chosen) {
+    final free = [
+      for (final f in list)
+        if (!f.linked) f.key,
+    ];
+    final from = free.indexOf(_orphanAnchor ?? '');
+    final to = free.indexOf(key);
+    setState(() {
+      if (HardwareKeyboard.instance.isShiftPressed && from >= 0) {
+        final (first, last) = from < to ? (from, to) : (to, from);
+        chosen.addAll(free.sublist(first, last + 1));
+      } else if (!chosen.remove(key)) {
+        chosen.add(key);
+      }
+      _orphanAnchor = key;
+    });
+  }
+
   Widget _orphanBar(AppLocalizations l, SpaceOverview o) {
     final keys = _orphanKeys ?? const {};
     // Filtrati dalla panoramica: una chiave sparita non conta.
@@ -380,6 +404,7 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
           setState(() {
             _selecting = false;
             _orphanKeys = keys == null || keys.containsAll(all) ? {} : all;
+            _orphanAnchor = null;
           });
         },
         icon: const Icon(LucideIcons.squareCheck, size: 16),
@@ -530,11 +555,7 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
               selected: chosen?.contains(f.key) ?? false,
               onSelect: chosen == null || f.linked
                   ? null
-                  : () => setState(
-                      () => chosen.contains(f.key)
-                          ? chosen.remove(f.key)
-                          : chosen.add(f.key),
-                    ),
+                  : () => _tapOrphan(list, f.key, chosen),
               onDelete: () =>
                   _start(kind, f.key, f.path, sizeBytes: f.sizeBytes),
             ),

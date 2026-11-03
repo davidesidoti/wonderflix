@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/space/space_api.dart';
 import 'package:wonderflix/core/space/space_models.dart';
@@ -458,6 +459,45 @@ void main() {
       await tester.pump();
       expect(find.byType(Checkbox), findsNothing);
       expect(find.text('Cancella'), findsNWidgets(3));
+    });
+
+    testWidgets('ShiftSelectsTheRangeFromTheLastTapInBothDirections', (
+      tester,
+    ) async {
+      api.overviewValue = withOrphans([
+        orphan('a'),
+        orphan('b'),
+        orphan('linked', linked: true),
+        orphan('c'),
+        orphan('d'),
+      ]);
+      await pumpTab(tester);
+      await selectOrphans(tester);
+
+      Future<void> tap(String name, {bool shift = false}) async {
+        if (shift) await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.tap(find.text('/x/$name.mkv'));
+        if (shift) await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.pump();
+      }
+
+      // Senza un tocco prima, Maiusc sceglie solo la riga.
+      await tap('b', shift: true);
+      expect(find.text('Elimina selezionati (1 · 1,00 GB)'), findsOneWidget);
+
+      // In avanti: la riga collegata in mezzo resta fuori.
+      await tap('c', shift: true);
+      expect(find.text('Elimina selezionati (2 · 2,00 GB)'), findsOneWidget);
+      await tap('d', shift: true);
+      expect(find.text('Elimina selezionati (3 · 3,00 GB)'), findsOneWidget);
+
+      // All'indietro, da "d".
+      await tap('a', shift: true);
+      expect(find.text('Elimina selezionati (4 · 4,00 GB)'), findsOneWidget);
+
+      // Senza Maiusc un tocco toglie solo la sua riga.
+      await tap('b');
+      expect(find.text('Elimina selezionati (3 · 3,00 GB)'), findsOneWidget);
     });
 
     testWidgets('SelectAllTakesHiddenRowsAndSkipsLinked', (tester) async {
