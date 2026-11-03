@@ -213,11 +213,29 @@ class DownloadSearchController extends AsyncNotifier<DownloadSearch> {
   Future<DownloadsFailure?> grabRelease(
     DownloadRelease release, {
     bool lighten = false,
-  }) => _act(
-    () => ref
-        .read(downloadsApiProvider)
-        .grab(key, release.guid, release.indexerId, lighten: lighten),
-  );
+  }) async => (await grabOrExisting(release, lighten: lighten)).failure;
+
+  /// Come [grabRelease], ma dice anche se il torrent è già in qBittorrent
+  /// (`existing`): la pagina può chiedere di importarne i file.
+  Future<({DownloadsFailure? failure, ExistingTorrent? existing})>
+  grabOrExisting(DownloadRelease release, {bool lighten = false}) async {
+    ExistingTorrent? existing;
+    final failure = await _act(() async {
+      try {
+        await ref
+            .read(downloadsApiProvider)
+            .grab(key, release.guid, release.indexerId, lighten: lighten);
+      } on DownloadsException catch (error) {
+        existing = error.existing;
+        rethrow;
+      }
+    });
+    return (failure: failure, existing: existing);
+  }
+
+  /// Importa i file del torrent [hash], già in qBittorrent.
+  Future<DownloadsFailure?> importExisting(String hash) =>
+      _act(() => ref.read(downloadsApiProvider).importExisting(key, hash));
 
   /// Scarica [releases] una dopo l'altra (il plugin le segue come voci degli
   /// episodi, ruling 13). `grabbing` resta vero per tutta la serie; un

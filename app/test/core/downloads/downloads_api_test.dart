@@ -148,6 +148,57 @@ void main() {
     expect(await failure(() => api.overview()), DownloadsFailure.network);
   });
 
+  test('AGrabRefusedForAnExistingTorrentCarriesIt', () async {
+    adapter.handler = (_) => const FakeResponse(
+        502, {'Reason': 'Refused', 'Hash': 'abc', 'Name': 'Film.2024'});
+    try {
+      await api.grab('k', 'g', 1);
+      fail('nessuna eccezione');
+    } on DownloadsException catch (e) {
+      expect(e.failure, DownloadsFailure.refused);
+      expect(e.existing?.hash, 'abc');
+      expect(e.existing?.name, 'Film.2024');
+    }
+  });
+
+  test('ARefusedWithoutHashOrNameHasNoExistingTorrent', () async {
+    for (final body in <Map<String, Object?>>[
+      {'Reason': 'Refused'},
+      {'Reason': 'Refused', 'Name': 'Film'},
+      {'Reason': 'Refused', 'Hash': '', 'Name': 'Film'},
+      {'Reason': 'Refused', 'Hash': 'abc', 'Name': ''},
+      {'Reason': 'Refused', 'Hash': 1, 'Name': 'Film'},
+    ]) {
+      adapter.handler = (_) => FakeResponse(502, body);
+      try {
+        await api.grab('k', 'g', 1);
+        fail('nessuna eccezione');
+      } on DownloadsException catch (e) {
+        expect(e.failure, DownloadsFailure.refused);
+        expect(e.existing, isNull);
+      }
+    }
+  });
+
+  test('ImportExistingPostsKeyAndHashAndMapsErrors', () async {
+    await api.importExisting('k', 'abc');
+    final request = adapter.requests.single;
+    expect((request.method, request.path),
+        ('POST', '/WonderFlixWatchParty/Downloads/ImportExisting'));
+    expect(request.data, {'Key': 'k', 'Hash': 'abc'});
+    expect(request.receiveTimeout, DownloadsApi.searchTimeout);
+
+    for (final (status, reason, expected) in <(int, String, DownloadsFailure)>[
+      (409, 'Changed', DownloadsFailure.changed),
+      (502, 'NoFiles', DownloadsFailure.noFiles),
+      (502, 'ImportFailed', DownloadsFailure.importFailed),
+      (503, 'Unavailable', DownloadsFailure.arrUnavailable),
+    ]) {
+      adapter.handler = (_) => FakeResponse(status, {'Reason': reason});
+      expect(await failure(() => api.importExisting('k', 'abc')), expected);
+    }
+  });
+
   test('ActionsPostTheKey', () async {
     for (final (call, name) in <(Future<void> Function(), String)>[
       (() => api.grabBest('k'), 'GrabBest'),

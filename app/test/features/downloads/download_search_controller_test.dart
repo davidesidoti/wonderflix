@@ -83,6 +83,30 @@ void main() {
     sub.close();
   });
 
+  test('AGrabOfAnExistingTorrentReturnsIt', () async {
+    final c = container();
+    final sub = c.listen(downloadSearchControllerProvider(_key), (_, _) {});
+    await c.read(downloadSearchControllerProvider(_key).future);
+    final notifier = c.read(downloadSearchControllerProvider(_key).notifier);
+    api.nextActionFailure = DownloadsFailure.refused;
+    api.nextActionExisting = const ExistingTorrent(hash: 'abc', name: 'Film');
+
+    final result = await notifier.grabOrExisting(testCandidate().release);
+
+    expect(result.failure, DownloadsFailure.refused);
+    expect(result.existing?.hash, 'abc');
+    expect(c.read(downloadGrabbingProvider(_key)), isFalse);
+
+    api.calls.clear();
+    expect(await notifier.importExisting('abc'), isNull);
+    await c.read(downloadsControllerProvider.future);
+    expect(api.calls, ['importExisting movie:1 abc', 'overview']);
+
+    api.nextActionFailure = DownloadsFailure.noFiles;
+    expect(await notifier.importExisting('abc'), DownloadsFailure.noFiles);
+    sub.close();
+  });
+
   test('GrabIsDisabledUntilItAnswers', () async {
     final c = container();
     final sub = c.listen(downloadSearchControllerProvider(_key), (_, _) {});

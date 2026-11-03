@@ -46,10 +46,22 @@ enum DownloadsFailure {
   network,
 }
 
+/// Il torrent della release scelta è già in qBittorrent (502 `Refused` con
+/// `Hash` e `Name`): si possono importare i suoi file.
+class ExistingTorrent {
+  const ExistingTorrent({required this.hash, required this.name});
+
+  final String hash;
+  final String name;
+}
+
 class DownloadsException implements Exception {
-  const DownloadsException(this.failure);
+  const DownloadsException(this.failure, {this.existing});
 
   final DownloadsFailure failure;
+
+  /// Solo con `refused` dopo un grab il cui torrent è già nel client.
+  final ExistingTorrent? existing;
 
   @override
   String toString() => 'DownloadsException(${failure.name})';
@@ -116,6 +128,13 @@ class DownloadsApi {
           receiveTimeout: searchTimeout,
           quietStatuses: _quiet));
 
+  /// Importa i file del torrent già in qBittorrent al posto di un nuovo grab.
+  Future<void> importExisting(String key, String hash) => _call(() =>
+      _http.post('$_base/ImportExisting',
+          body: {'Key': key, 'Hash': hash},
+          receiveTimeout: searchTimeout,
+          quietStatuses: _quiet));
+
   Future<void> accept(String key) => _call(() =>
       _http.post('$_base/Accept', body: {'Key': key}, quietStatuses: _quiet));
 
@@ -159,8 +178,19 @@ class DownloadsApi {
     } on ForbiddenException {
       throw const DownloadsException(DownloadsFailure.forbidden);
     } on ServerErrorException catch (error) {
-      final reason = error.body is Map ? (error.body as Map)['Reason'] : null;
-      throw DownloadsException(switch (error.statusCode) {
+      final body = error.body is Map ? error.body as Map : null;
+      final reason = body?['Reason'];
+      final hash = body?['Hash'];
+      final name = body?['Name'];
+      final existing = error.statusCode == 502 &&
+              reason == 'Refused' &&
+              hash is String &&
+              hash.isNotEmpty &&
+              name is String &&
+              name.isNotEmpty
+          ? ExistingTorrent(hash: hash, name: name)
+          : null;
+      throw DownloadsException(existing: existing, switch (error.statusCode) {
         400 => DownloadsFailure.invalid,
         409 => switch (reason) {
           'Busy' => DownloadsFailure.busy,

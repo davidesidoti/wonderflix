@@ -91,6 +91,9 @@ class FakeDownloadsApi implements DownloadsApi {
   /// Errore della prossima [grab] o [accept], una volta sola.
   DownloadsFailure? nextActionFailure;
 
+  /// Il torrent già in qBittorrent che accompagna [nextActionFailure].
+  ExistingTorrent? nextActionExisting;
+
   /// Se valorizzato, [overview] fallisce con questo.
   Object? overviewError;
 
@@ -157,13 +160,19 @@ class FakeDownloadsApi implements DownloadsApi {
     final failure = nextActionFailure;
     if (failure == null) return;
     nextActionFailure = null;
-    throw DownloadsException(failure);
+    final existing = nextActionExisting;
+    nextActionExisting = null;
+    throw DownloadsException(failure, existing: existing);
   }
 
   @override
   Future<void> grab(String key, String guid, int indexerId,
           {bool lighten = false}) =>
       _action('grab $key $guid $indexerId${lighten ? ' lighten' : ''}');
+
+  @override
+  Future<void> importExisting(String key, String hash) =>
+      _action('importExisting $key $hash');
 
   @override
   Future<void> accept(String key) => _action('accept $key');

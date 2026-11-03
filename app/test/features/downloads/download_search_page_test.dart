@@ -259,6 +259,80 @@ void main() {
     });
   }
 
+  group('ExistingTorrent', () {
+    const existingMessage =
+        'Il torrent "Film.2024.1080p" è già in qBittorrent. Importo i suoi file? Sostituiranno quelli in libreria.';
+
+    List<String> imports() =>
+        api.calls.where((c) => c.startsWith('importExisting')).toList();
+
+    Future<void> grabExisting(WidgetTester tester) async {
+      api.nextActionFailure = DownloadsFailure.refused;
+      api.nextActionExisting =
+          const ExistingTorrent(hash: 'abc', name: 'Film.2024.1080p');
+      await open(tester);
+      await tapGrab(tester);
+    }
+
+    testWidgets('asks whether to import, with the torrent name',
+        (tester) async {
+      await grabExisting(tester);
+
+      expect(find.text('Già in qBittorrent'), findsOneWidget);
+      expect(find.text(existingMessage), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Importa'), findsOneWidget);
+      expect(imports(), isEmpty);
+    });
+
+    testWidgets('cancel imports nothing and shows no error', (tester) async {
+      await grabExisting(tester);
+
+      await tester.tap(find.text('Annulla'));
+      await tester.pumpAndSettle();
+
+      expect(imports(), isEmpty);
+      expect(find.text('Già in qBittorrent'), findsNothing);
+      expect(find.textContaining('per esempio il torrent'), findsNothing);
+      // La pagina resta.
+      expect(find.widgetWithText(FilledButton, 'Scarica'), findsOneWidget);
+    });
+
+    testWidgets('confirm imports and closes the page', (tester) async {
+      await grabExisting(tester);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Importa'));
+      await tester.pumpAndSettle();
+
+      expect(imports(), ['importExisting movie:1 abc']);
+      expect(find.text('Import avviato'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Scarica'), findsNothing);
+    });
+
+    testWidgets('an import error keeps the page open', (tester) async {
+      await grabExisting(tester);
+      api.nextActionFailure = DownloadsFailure.noFiles;
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Importa'));
+      await tester.pumpAndSettle();
+
+      expect(imports(), ['importExisting movie:1 abc']);
+      expect(find.text('Import avviato'), findsNothing);
+      expect(find.text("Nel download non c'è un file da importare"), findsWidgets);
+      expect(find.widgetWithText(FilledButton, 'Scarica'), findsOneWidget);
+    });
+
+    testWidgets('a refusal without an existing torrent shows the error',
+        (tester) async {
+      api.nextActionFailure = DownloadsFailure.refused;
+      await open(tester);
+      await tapGrab(tester);
+
+      expect(find.text('Già in qBittorrent'), findsNothing);
+      expect(find.textContaining('per esempio il torrent'), findsWidgets);
+      expect(find.widgetWithText(FilledButton, 'Scarica'), findsOneWidget);
+    });
+  });
+
   testWidgets('AcceptOnlyWhenReviewing', (tester) async {
     await open(tester);
     expect(find.text('Va bene così'), findsNothing);

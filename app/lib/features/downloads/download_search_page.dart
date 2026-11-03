@@ -99,10 +99,28 @@ class _SearchPage extends ConsumerWidget {
       );
       if (!ok || !context.mounted) return;
     }
-    final failure = await controller.grabRelease(release, lighten: lighten);
+    final (:failure, :existing) =
+        await controller.grabOrExisting(release, lighten: lighten);
     if (!context.mounted) return;
-    if (failure != null) return _fail(context, failure);
-    messenger.showSnackBar(SnackBar(content: Text(l.downloadsStarted)));
+    if (failure == null) {
+      messenger.showSnackBar(SnackBar(content: Text(l.downloadsStarted)));
+      navigator.pop();
+      return;
+    }
+    if (existing == null) return _fail(context, failure);
+    // Il torrent è già in qBittorrent: si offre di importarne i file.
+    final ok = await showAdminConfirmDialog(
+      context,
+      title: l.downloadsExistingTorrentTitle,
+      message: l.downloadsExistingTorrentMessage(existing.name),
+      confirmLabel: l.downloadsExistingTorrentImport,
+    );
+    if (!ok || !context.mounted) return;
+    final importFailure = await controller.importExisting(existing.hash);
+    if (!context.mounted) return;
+    if (importFailure != null) return _fail(context, importFailure);
+    messenger
+        .showSnackBar(SnackBar(content: Text(l.downloadsExistingTorrentStarted)));
     navigator.pop();
   }
 
