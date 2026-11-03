@@ -402,6 +402,21 @@ public class ArrClientTests
     }
 
     [Fact]
+    public async Task ManualImportByFolderReadsTheFolderWithoutASeriesAndCanCopy()
+    {
+        const string Quality = """{"quality":{"id":7,"name":"WEBDL-1080p"}}""";
+        Answer(HttpStatusCode.OK, $$"""[{"path":"/dl/Pack [S03]/e1.mkv","series":{"id":7},"episodes":[{"id":201}],"seasonNumber":3,"quality":{{Quality}},"languages":[],"rejections":[]}]""");
+
+        var items = await Client().GetManualImportByFolderAsync(ArrKind.Sonarr, "/dl/Pack [S03]", CancellationToken.None);
+        await Client().ManualImportAsync(ArrKind.Sonarr, [items[0]!], CancellationToken.None, copy: true);
+
+        // Niente seriesId: con quello Sonarr ignora la cartella e dà i file già in libreria.
+        Assert.Equal("https://arr.example/sonarr/api/v3/manualimport?folder=%2Fdl%2FPack%20%5BS03%5D&filterExistingFiles=false", _http.Requests[0].Uri.OriginalString);
+        Assert.Equal(3, items[0]!.SeasonNumber);
+        Assert.StartsWith("""{"name":"ManualImport","importMode":"copy","files":[""", _http.Requests[1].Body);
+    }
+
+    [Fact]
     public async Task AFailedGrabCarriesTheHttpStatus()
     {
         Answer(HttpStatusCode.NotFound, "{}");

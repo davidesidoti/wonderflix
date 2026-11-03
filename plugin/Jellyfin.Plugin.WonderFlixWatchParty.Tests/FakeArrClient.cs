@@ -388,6 +388,24 @@ internal sealed class FakeArrClient : IArrClient
 
     public List<(ArrKind Kind, IReadOnlyList<ArrManualImportItem> Items)> ManualImportCalls { get; } = [];
 
+    /// <summary>Per ogni comando di <see cref="ManualImportCalls"/>, se era una copia.</summary>
+    public List<bool> ManualImportCopies { get; } = [];
+
+    public Func<ArrKind, string, Task<IReadOnlyList<ArrManualImportItem?>>> ManualImportFolderItems { get; set; } =
+        (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>([]);
+
+    public List<(ArrKind Kind, string Folder)> ManualImportFolderReadCalls { get; } = [];
+
+    public Task<IReadOnlyList<ArrManualImportItem?>> GetManualImportByFolderAsync(ArrKind kind, string folder, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            ManualImportFolderReadCalls.Add((kind, folder));
+        }
+
+        return ManualImportFolderItems(kind, folder);
+    }
+
     public Task<IReadOnlyList<ArrManualImportItem?>> GetManualImportAsync(ArrKind kind, string downloadId, CancellationToken cancellationToken)
     {
         lock (_lock)
@@ -398,11 +416,12 @@ internal sealed class FakeArrClient : IArrClient
         return ManualImportItems(kind, downloadId);
     }
 
-    public Task ManualImportAsync(ArrKind kind, IReadOnlyList<ArrManualImportItem> items, CancellationToken cancellationToken)
+    public Task ManualImportAsync(ArrKind kind, IReadOnlyList<ArrManualImportItem> items, CancellationToken cancellationToken, bool copy = false)
     {
         lock (_lock)
         {
             ManualImportCalls.Add((kind, items));
+            ManualImportCopies.Add(copy);
         }
 
         return ManualImport(kind, items);

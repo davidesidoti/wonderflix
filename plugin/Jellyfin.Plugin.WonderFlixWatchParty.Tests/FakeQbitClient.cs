@@ -47,6 +47,19 @@ internal sealed class FakeQbitClient : IQbitClient
             Trackers.TryGetValue(hash, out var trackers) ? [.. trackers] : throw new QbitException(QbitError.NotFound));
     }
 
+    /// <summary>Le righe del registro di qBittorrent.</summary>
+    public List<QbitLogEntry> Log { get; } = [];
+
+    /// <summary>Quante volte si è letto il registro.</summary>
+    public int LogReads { get; private set; }
+
+    public Task<IReadOnlyList<QbitLogEntry>> GetLogAsync(CancellationToken cancellationToken)
+    {
+        Check();
+        LogReads++;
+        return Task.FromResult<IReadOnlyList<QbitLogEntry>>([.. Log]);
+    }
+
     public Task DeleteAsync(IReadOnlyList<string> hashes, bool deleteFiles, CancellationToken cancellationToken)
     {
         Check();

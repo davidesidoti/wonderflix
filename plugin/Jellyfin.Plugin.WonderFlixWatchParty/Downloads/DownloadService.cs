@@ -2,6 +2,7 @@ using System.Globalization;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
+using Jellyfin.Plugin.WonderFlixWatchParty.Space;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
@@ -22,7 +23,8 @@ public sealed partial class DownloadService(
     DownloadStore store,
     TimeProvider time,
     ILogger<DownloadService> logger,
-    AdminAlerts? alerts = null)
+    AdminAlerts? alerts = null,
+    IQbitClient? qbit = null)
 {
     /// <summary>Un giro ogni tanto (decisione 7).</summary>
     public static readonly TimeSpan CycleInterval = TimeSpan.FromMinutes(15);

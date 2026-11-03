@@ -47,7 +47,10 @@ public class DownloadsController(DownloadService downloads) : ControllerBase
     public ActionResult<DownloadSearchStatusDto> SearchStatus([FromQuery] string? key) =>
         downloads.SearchStatus(key ?? string.Empty) is { } status ? status : BadRequest();
 
-    /// <summary>Scarica una release della ricerca; 204.</summary>
+    /// <summary>
+    /// Scarica una release della ricerca; 204. Il 502 "Refused" per un torrent già in qBittorrent porta anche Hash e Name
+    /// (<see cref="DownloadsRefusedDto"/>).
+    /// </summary>
     [HttpPost("Grab")]
     public async Task<ActionResult> Grab([FromBody] GrabRequest? request)
     {
@@ -56,7 +59,10 @@ public class DownloadsController(DownloadService downloads) : ControllerBase
             return BadRequest();
         }
 
-        return Result(await downloads.GrabAsync(request.Key, request.Guid, request.IndexerId, HttpContext.RequestAborted, request.Lighten).ConfigureAwait(false));
+        var (outcome, existing) = await downloads.GrabOrFindExistingAsync(request.Key, request.Guid, request.IndexerId, HttpContext.RequestAborted, request.Lighten).ConfigureAwait(false);
+        return existing is null
+            ? Result(outcome)
+            : new ObjectResult(new DownloadsRefusedDto("Refused", existing.Hash, existing.Name)) { StatusCode = StatusCodes.Status502BadGateway };
     }
 
     /// <summary>"Scarica il migliore intanto" (fino a 2 minuti): 204; 409 NothingToGrab, poi gli errori di Grab.</summary>
@@ -78,11 +84,15 @@ public class DownloadsController(DownloadService downloads) : ControllerBase
             return BadRequest();
         }
 
-        var (outcome, error) = await downloads.ImportBlockedAsync(key).ConfigureAwait(false);
-        return outcome == BlockedOutcome.Failed
-            ? Error(StatusCodes.Status502BadGateway, error == "NoFiles" ? error : "ImportFailed")
-            : Result(outcome);
+        return Result(await downloads.ImportBlockedAsync(key).ConfigureAwait(false));
     }
+
+    /// <summary>"Importa dal torrent già presente": 204; 409 Changed; 502 NoFiles o ImportFailed; 503 Unavailable (qBittorrent o Radarr/Sonarr).</summary>
+    [HttpPost("ImportExisting")]
+    public async Task<ActionResult> ImportExisting([FromBody] ImportExistingRequest? request) =>
+        request?.Key is { } key && !string.IsNullOrEmpty(request.Hash)
+            ? Result(await downloads.ImportExistingAsync(key, request.Hash).ConfigureAwait(false))
+            : BadRequest();
 
     /// <summary>"Scarta e cerca un altro": 204; 409 Changed se non è più bloccata; 503 se Radarr/Sonarr non rispondono.</summary>
     [HttpPost("Discard")]
@@ -105,6 +115,11 @@ public class DownloadsController(DownloadService downloads) : ControllerBase
         GrabOutcome.Invalid => BadRequest(),
         _ => throw new InvalidOperationException("GrabOutcome sconosciuto"),
     };
+
+    // Failed è l'import che non è partito: NoFiles o un errore generico.
+    private ActionResult Result((BlockedOutcome Outcome, string? Error) result) => result.Outcome == BlockedOutcome.Failed
+        ? Error(StatusCodes.Status502BadGateway, result.Error == "NoFiles" ? result.Error : "ImportFailed")
+        : Result(result.Outcome);
 
     private ActionResult Result(BlockedOutcome outcome) => outcome switch
     {

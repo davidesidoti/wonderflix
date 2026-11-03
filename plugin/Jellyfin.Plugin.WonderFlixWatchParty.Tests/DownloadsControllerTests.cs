@@ -334,6 +334,57 @@ public sealed class DownloadsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task ARefusedGrabOfAnExistingTorrentCarriesItsHashAndName()
+    {
+        var qbit = new FakeQbitClient();
+        qbit.Log.Add(new Space.QbitLogEntry { Id = 1, Message = "Detected an attempt to add a duplicate torrent. Existing torrent: Animals 2025. Result: Trackers cannot be merged", Timestamp = T0.ToUnixTimeSeconds() });
+        qbit.Torrents.Add(new Space.QbitTorrent { Hash = "ABC123", Name = "Animals 2025", Progress = 1, ContentPath = "/dl/Animals 2025" });
+        var controller = new DownloadsController(TestDownloads.Create(_arr, _time, _folder.DownloadsFile, qbit: qbit)) { ControllerContext = _controller.ControllerContext };
+        _arr.Grab = (_, _, _) => Task.FromException(new ArrException(ArrError.Unreachable, status: 500));
+
+        var refused = (ObjectResult)await controller.Grab(Body());
+
+        Assert.Equal(StatusCodes.Status502BadGateway, Status(refused));
+        Assert.Equal("""{"Reason":"Refused","Hash":"ABC123","Name":"Animals 2025"}""", JsonSerializer.Serialize(refused.Value));
+
+        // Senza torrent trovato resta l'errore di sempre.
+        qbit.Torrents.Clear();
+        var plain = await controller.Grab(Body());
+        Assert.Equal((StatusCodes.Status502BadGateway, "Refused"), (Status(plain), Reason(plain)));
+    }
+
+    [Fact]
+    public async Task ImportExistingMapsItsOutcomes()
+    {
+        var qbit = new FakeQbitClient();
+        var controller = new DownloadsController(TestDownloads.Create(_arr, _time, _folder.DownloadsFile, qbit: qbit)) { ControllerContext = _controller.ControllerContext };
+
+        Assert.Equal(StatusCodes.Status400BadRequest, Status(await controller.ImportExisting(null)));
+        Assert.Equal(StatusCodes.Status400BadRequest, Status(await controller.ImportExisting(new ImportExistingRequest { Key = "movie:12" })));
+        Assert.Equal(StatusCodes.Status400BadRequest, Status(await controller.ImportExisting(new ImportExistingRequest { Key = "nope", Hash = "ABC123" })));
+
+        var body = new ImportExistingRequest { Key = "movie:12", Hash = "ABC123" };
+        var changed = await controller.ImportExisting(body);
+        Assert.Equal((StatusCodes.Status409Conflict, "Changed"), (Status(changed), Reason(changed)));
+
+        qbit.Torrents.Add(new Space.QbitTorrent { Hash = "ABC123", Name = "Animals 2025", Progress = 1, ContentPath = "/dl/Animals 2025" });
+        var noFiles = await controller.ImportExisting(body);
+        Assert.Equal((StatusCodes.Status502BadGateway, "NoFiles"), (Status(noFiles), Reason(noFiles)));
+
+        _arr.ManualImportFolderItems = (_, _) => Task.FromException<IReadOnlyList<ArrManualImportItem?>>(new ArrException(ArrError.Unreachable, status: 500));
+        var failed = await controller.ImportExisting(body);
+        Assert.Equal((StatusCodes.Status502BadGateway, "ImportFailed"), (Status(failed), Reason(failed)));
+
+        _arr.ManualImportFolderItems = (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>(
+            [new ArrManualImportItem { Path = "/dl/a.mkv", Movie = new ArrFileRef { Id = 12 }, Quality = JsonDocument.Parse("{}").RootElement }]);
+        Assert.Equal(StatusCodes.Status204NoContent, Status(await controller.ImportExisting(body)));
+
+        qbit.Fail = Space.QbitError.Unreachable;
+        var unavailable = await controller.ImportExisting(body);
+        Assert.Equal((StatusCodes.Status503ServiceUnavailable, "Unavailable"), (Status(unavailable), Reason(unavailable)));
+    }
+
+    [Fact]
     public async Task DiscardMapsItsOutcomes()
     {
         NeedsYou(DownloadReasons.ImportBlocked);

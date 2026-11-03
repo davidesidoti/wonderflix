@@ -49,6 +49,22 @@ public class QbitClientTests
     private int Logins => _http.Requests.Count(r => r.Uri.AbsolutePath.EndsWith("/login", StringComparison.Ordinal));
 
     [Fact]
+    public async Task TheLogIsReadWithTheNormalFilterOnly()
+    {
+        Script(new()
+        {
+            ["/api/v2/auth/login"] = Seq(() => Login()),
+            ["/api/v2/log/main"] = Seq(() => JsonOk("""[{"id":7,"message":"Detected an attempt","timestamp":1762171200,"type":1}]""")),
+        });
+
+        var entries = await Client().GetLogAsync(CancellationToken.None);
+
+        var entry = Assert.Single(entries);
+        Assert.Equal((7, "Detected an attempt", 1762171200), (entry.Id, entry.Message, entry.Timestamp));
+        Assert.Equal("?normal=true&info=false&warning=false&critical=false", _http.Requests.Last().Uri.Query);
+    }
+
+    [Fact]
     public async Task LoginThenListTorrents()
     {
         Script(new()

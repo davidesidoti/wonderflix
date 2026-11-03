@@ -72,8 +72,14 @@ public interface IArrClient
     /// <summary>I file di un download come li vede la schermata di import manuale, anche già importati (decisione 9).</summary>
     Task<IReadOnlyList<ArrManualImportItem?>> GetManualImportAsync(ArrKind kind, string downloadId, CancellationToken cancellationToken);
 
-    /// <summary>Importa questi file al posto di quelli che ci sono, come l'import manuale di Radarr/Sonarr (decisione 9).</summary>
-    Task ManualImportAsync(ArrKind kind, IReadOnlyList<ArrManualImportItem> items, CancellationToken cancellationToken);
+    /// <summary>I file di una cartella come li vede la schermata di import manuale, anche già importati.</summary>
+    Task<IReadOnlyList<ArrManualImportItem?>> GetManualImportByFolderAsync(ArrKind kind, string folder, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Importa questi file al posto di quelli che ci sono, come l'import manuale di Radarr/Sonarr (decisione 9). Con
+    /// <paramref name="copy"/> li copia invece di spostarli, così il torrent continua a seminare.
+    /// </summary>
+    Task ManualImportAsync(ArrKind kind, IReadOnlyList<ArrManualImportItem> items, CancellationToken cancellationToken, bool copy = false);
 
     /// <summary>Cancella un film e i suoi file, senza esclusione: si può richiedere di nuovo (spec U).</summary>
     Task DeleteMovieAsync(int movieId, CancellationToken cancellationToken);

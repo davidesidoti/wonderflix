@@ -1,6 +1,7 @@
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
+using Jellyfin.Plugin.WonderFlixWatchParty.Space;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
@@ -22,6 +23,9 @@ public enum GrabOutcome
     Refused,
     NothingToGrab,
 }
+
+/// <summary>Il torrent già in qBittorrent che ha fatto rifiutare una release: da qui si possono importare i suoi file.</summary>
+public sealed record ExistingTorrent(string Hash, string Name);
 
 /// <summary>
 /// Esito di "Importa comunque" e "Scarta e cerca un altro" (spec §4.4, §5.4): Invalid per una chiave non valida, Changed se la
@@ -181,6 +185,45 @@ public sealed partial class DownloadService
     }
 
     /// <summary>
+    /// Come <see cref="GrabAsync"/>; se la release è rifiutata perché il torrent è già in qBittorrent, dà anche quel torrent
+    /// (finito e unico con quel nome), così l'admin può importarne i file. Senza qBittorrent o senza torrent trovato è solo il rifiuto.
+    /// </summary>
+    public async Task<(GrabOutcome Outcome, ExistingTorrent? Existing)> GrabOrFindExistingAsync(
+        string key, string guid, int indexerId, CancellationToken cancellationToken, bool lighten = false)
+    {
+        var started = time.GetUtcNow();
+        var outcome = await GrabAsync(key, guid, indexerId, cancellationToken, lighten).ConfigureAwait(false);
+        return (outcome, outcome == GrabOutcome.Refused && qbit is not null ? await FindExistingAsync(qbit, started, cancellationToken).ConfigureAwait(false) : null);
+    }
+
+    // Il torrent della riga di duplicato più recente scritta da started in poi. Un errore di qBittorrent non deve nascondere il rifiuto.
+    private async Task<ExistingTorrent?> FindExistingAsync(IQbitClient client, DateTimeOffset started, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Il registro ha la precisione del secondo e l'orologio di qBittorrent può essere un po' indietro.
+            var from = started.ToUnixTimeSeconds() - 2;
+            var name = (await client.GetLogAsync(cancellationToken).ConfigureAwait(false))
+                .Where(e => e.Timestamp >= from)
+                .OrderByDescending(e => e.Timestamp).ThenByDescending(e => e.Id)
+                .Select(e => QbitDuplicate.NameOf(e.Message))
+                .FirstOrDefault(n => n is not null);
+            if (name is null)
+            {
+                return null;
+            }
+
+            var same = (await client.GetTorrentsAsync(cancellationToken).ConfigureAwait(false)).Where(t => t.Name == name).ToList();
+            return same is [{ Progress: >= 1, Hash: { Length: > 0 } hash, ContentPath: { Length: > 0 } }] ? new ExistingTorrent(hash, name) : null;
+        }
+        catch (QbitException ex)
+        {
+            logger.LogInformation("Download automatici: qBittorrent non ha dato il torrent già presente ({Error})", ex.Error);
+            return null;
+        }
+    }
+
+    /// <summary>
     /// "Scarica il migliore intanto" (spec §4.1, §4.2a, §5.5): una ricerca nuova (Radarr/Sonarr scaricano solo dalla loro cache
     /// recente), la regola senza le release rifiutate dal client (§5.3), poi il tappabuchi: il migliore sotto il minimo o il più
     /// pesante tra i troppo piccoli. Se nel frattempo c'è una scelta valida si scarica quella, senza tappabuchi. Solo film ed
@@ -335,6 +378,108 @@ public sealed partial class DownloadService
         Nudge();
         return (BlockedOutcome.Ok, null);
     }
+
+    /// <summary>
+    /// Importa i file del titolo da un torrent già finito in qBittorrent (<paramref name="hash"/>), in copia: il torrent resta
+    /// a seminare. Vale anche dove Sonarr li giudica peggiori di quelli in libreria. Poi la voce esce dal libro ed è accettata,
+    /// così il giro non cerca un upgrade. "NoFiles" se nel torrent non c'è niente di quel titolo.
+    /// </summary>
+    public async Task<(BlockedOutcome Outcome, string? Error)> ImportExistingAsync(string key, string hash)
+    {
+        if (!DownloadKey.TryParse(key, out var parsed) || string.IsNullOrWhiteSpace(hash))
+        {
+            return (BlockedOutcome.Invalid, null);
+        }
+
+        lock (_lock)
+        {
+            if (!_grabbing.Add(parsed.ToString()))
+            {
+                return (BlockedOutcome.Changed, null);
+            }
+        }
+
+        try
+        {
+            if (qbit is null)
+            {
+                return (BlockedOutcome.Unavailable, null);
+            }
+
+            QbitTorrent? torrent;
+            try
+            {
+                torrent = (await qbit.GetTorrentsAsync(CancellationToken.None).ConfigureAwait(false))
+                    .FirstOrDefault(t => string.Equals(t.Hash, hash, StringComparison.OrdinalIgnoreCase));
+            }
+            catch (QbitException)
+            {
+                return (BlockedOutcome.Unavailable, null);
+            }
+
+            if (torrent is not { Progress: >= 1, ContentPath: { Length: > 0 } folder })
+            {
+                return (BlockedOutcome.Changed, null);
+            }
+
+            var service = ServiceOf(parsed.Kind);
+            List<ArrManualImportItem> files;
+            try
+            {
+                files = OnePerTitle(
+                    service,
+                    [.. (await arr.GetManualImportByFolderAsync(service, folder, CancellationToken.None).ConfigureAwait(false))
+                        .OfType<ArrManualImportItem>().Where(i => Importable(service, i) && IsOfTitle(parsed, i))]);
+                if (files.Count == 0)
+                {
+                    return (BlockedOutcome.Failed, "NoFiles");
+                }
+
+                // Token mai annullato: il lavoro deve finire anche se l'app si chiude. Copia: il torrent deve restare a seminare.
+                await arr.ManualImportAsync(service, files, CancellationToken.None, copy: true).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                return (BlockedOutcome.Failed, ErrorOf(ex));
+            }
+
+            var keys = files
+                .SelectMany(f => f.Episodes?.OfType<ArrFileRef>().Where(e => e.Id > 0).Select(e => Key(DownloadKinds.Episode, e.Id)) ?? [])
+                .Append(parsed.ToString())
+                .Distinct()
+                .ToList();
+            lock (_lock)
+            {
+                // Quale che sia lo stato della voce: i file sono questi, non c'è altro da cercare.
+                keys.ForEach(k =>
+                {
+                    Book.Accept(k);
+                    Book.Remove(k);
+                });
+                SaveAfterGrab();
+            }
+
+            logger.LogInformation("Download automatici: {Key} importato da un torrent già presente, {Files} file", parsed, files.Count);
+        }
+        finally
+        {
+            lock (_lock)
+            {
+                _grabbing.Remove(parsed.ToString());
+            }
+        }
+
+        Nudge();
+        return (BlockedOutcome.Ok, null);
+    }
+
+    // Un file del titolo della chiave: il film; l'episodio tra quelli del file; la serie e la stagione.
+    private static bool IsOfTitle(DownloadKey key, ArrManualImportItem item) => key.Kind switch
+    {
+        DownloadKinds.Movie => item.Movie?.Id == key.Id,
+        DownloadKinds.Episode => item.Episodes?.Any(e => e?.Id == key.Id) == true,
+        _ => item.Series?.Id == key.Id && item.SeasonNumber == key.Season,
+    };
 
     /// <summary>
     /// "Scarta e cerca un altro" (spec §4.4): il download esce dalla coda e dal client con la blocklist, poi una ricerca subito.

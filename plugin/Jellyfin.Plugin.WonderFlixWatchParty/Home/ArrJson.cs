@@ -396,6 +396,9 @@ public sealed class ArrManualImportItem
     /// <summary>Solo Sonarr: gli episodi del file.</summary>
     public List<ArrFileRef?>? Episodes { get; set; }
 
+    /// <summary>Solo Sonarr: la stagione del file, per scegliere quelli di una stagione in un pack.</summary>
+    public int? SeasonNumber { get; set; }
+
     public List<ArrRejection?>? Rejections { get; set; }
 }
 

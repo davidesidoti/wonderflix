@@ -56,3 +56,16 @@ public sealed class QbitTracker
     [JsonPropertyName("url")]
     public string? Url { get; set; }
 }
+
+/// <summary>Una riga del registro di qBittorrent (<c>log/main</c>); <see cref="Timestamp"/> è in secondi.</summary>
+public sealed class QbitLogEntry
+{
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+
+    [JsonPropertyName("timestamp")]
+    public long Timestamp { get; set; }
+}

@@ -42,6 +42,11 @@ public sealed class QbitClient(
             HttpMethod.Get, "torrents/trackers?hash=" + Uri.EscapeDataString(hash), null, ReadListAsync<QbitTracker>, cancellationToken)
             .ConfigureAwait(false);
 
+    public async Task<IReadOnlyList<QbitLogEntry>> GetLogAsync(CancellationToken cancellationToken) =>
+        await SendAsync(
+            HttpMethod.Get, "log/main?normal=true&info=false&warning=false&critical=false", null, ReadListAsync<QbitLogEntry>, cancellationToken)
+            .ConfigureAwait(false);
+
     public Task DeleteAsync(IReadOnlyList<string> hashes, bool deleteFiles, CancellationToken cancellationToken) =>
         hashes.Count == 0
             ? Task.CompletedTask

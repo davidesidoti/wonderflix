@@ -185,6 +185,16 @@ public sealed class KeyRequest
     public string? Key { get; set; }
 }
 
+/// <summary>Corpo di POST Downloads/ImportExisting: il titolo e il torrent già in qBittorrent da cui importare.</summary>
+public sealed class ImportExistingRequest
+{
+    [JsonPropertyName("Key")]
+    public string? Key { get; set; }
+
+    [JsonPropertyName("Hash")]
+    public string? Hash { get; set; }
+}
+
 /// <summary>Corpo di POST Downloads/RemoveUnknown.</summary>
 public sealed class RemoveUnknownRequest
 {
@@ -207,3 +217,12 @@ public sealed class SearchStartRequest
 
 /// <summary>Errore dei download: "Expired" (409) o "Unavailable" (503) (spec T §7.4).</summary>
 public sealed record DownloadsErrorDto([property: JsonPropertyName("Reason")] string Reason);
+
+/// <summary>
+/// 502 di Downloads/Grab quando il torrent è già in qBittorrent: Reason resta "Refused" (le app vecchie vedono l'errore di
+/// sempre), Hash e Name dicono quale torrent offrire per Downloads/ImportExisting.
+/// </summary>
+public sealed record DownloadsRefusedDto(
+    [property: JsonPropertyName("Reason")] string Reason,
+    [property: JsonPropertyName("Hash")] string Hash,
+    [property: JsonPropertyName("Name")] string Name);

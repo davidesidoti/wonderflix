@@ -134,14 +134,21 @@ public sealed class ArrClient(
             kind, HttpMethod.Get, $"manualimport?downloadId={Uri.EscapeDataString(downloadId)}&filterExistingFiles=false", null, SearchTimeout, cancellationToken)
             .ConfigureAwait(false);
 
-    public Task ManualImportAsync(ArrKind kind, IReadOnlyList<ArrManualImportItem> items, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<ArrManualImportItem?>> GetManualImportByFolderAsync(
+        ArrKind kind, string folder, CancellationToken cancellationToken) =>
+        // Mai seriesId: con quello Sonarr ignora la cartella e dà i file già in libreria.
+        await SendAsync<List<ArrManualImportItem?>>(
+            kind, HttpMethod.Get, $"manualimport?folder={Uri.EscapeDataString(folder)}&filterExistingFiles=false", null, SearchTimeout, cancellationToken)
+            .ConfigureAwait(false);
+
+    public Task ManualImportAsync(ArrKind kind, IReadOnlyList<ArrManualImportItem> items, CancellationToken cancellationToken, bool copy = false)
     {
         // Come la schermata di import manuale: i campi della GET, con gli id al posto degli oggetti.
         var files = items.Select(i => kind == ArrKind.Radarr
             ? (object)new { i.Path, MovieId = i.Movie?.Id, i.Quality, i.Languages, i.ReleaseGroup, i.DownloadId }
             : new { i.Path, SeriesId = i.Series?.Id, EpisodeIds = i.Episodes?.OfType<ArrFileRef>().Select(e => e.Id), i.Quality, i.Languages, i.ReleaseGroup, i.DownloadId });
         return SendWithoutResultAsync(
-            kind, HttpMethod.Post, "command", new { name = "ManualImport", importMode = "auto", files }, cancellationToken);
+            kind, HttpMethod.Post, "command", new { name = "ManualImport", importMode = copy ? "copy" : "auto", files }, cancellationToken);
     }
 
     public Task<IReadOnlyList<ArrQueueItem?>> GetQueueAsync(ArrKind kind, CancellationToken cancellationToken) =>
