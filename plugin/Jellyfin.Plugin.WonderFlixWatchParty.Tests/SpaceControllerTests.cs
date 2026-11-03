@@ -182,6 +182,29 @@ public sealed class SpaceControllerTests : IDisposable
     }
 
     [Fact]
+    public void MarkAndUnmarkAtMinimum()
+    {
+        var row = new SpaceLightenDto("movie:12", SpaceKinds.Movie, "Coco", null, null, null, 12, 6, 6.5, null);
+        _service.LastScan = new SpaceScan { Lighten = [new ScanRow<SpaceLightenDto>(row, ["movie:12"], [])] };
+
+        Assert.Equal(204, Status(_controller.MarkAtMinimum(new KeepRequest { Key = "movie:12", Title = "Coco" })));
+        var mark = Assert.Single(_service.Read(b => b.AtMinimum));
+        Assert.Equal(("movie:12", "Coco", 12L), (mark.Key, mark.Title, mark.SizeBytes));
+        Assert.Equal(204, Status(_controller.UnmarkAtMinimum("movie:12")));
+        Assert.Empty(_service.Read(b => b.AtMinimum));
+
+        var unknown = _controller.MarkAtMinimum(new KeepRequest { Key = "season:5:2", Title = "x" });
+        Assert.Equal((404, "Unknown"), (Status(unknown), Reason(unknown)));
+        Assert.Empty(_service.Read(b => b.AtMinimum));
+
+        Assert.Equal(400, Status(_controller.MarkAtMinimum(new KeepRequest { Key = "file:x", Title = "x" })));
+        Assert.Equal(400, Status(_controller.MarkAtMinimum(new KeepRequest { Key = "series:5", Title = "x" })));
+        Assert.Equal(400, Status(_controller.MarkAtMinimum(new KeepRequest { Title = "x" })));
+        Assert.Equal(400, Status(_controller.MarkAtMinimum(null)));
+        Assert.Equal(400, Status(_controller.UnmarkAtMinimum(null)));
+    }
+
+    [Fact]
     public async Task AKeptSeasonDisappearsFromTheOverview()
     {
         var row = new SpaceCandidateDto(

@@ -101,6 +101,19 @@ public sealed class KeptTitle
     public string Title { get; set; } = "";
 }
 
+/// <summary>
+/// Una riga di Alleggerire segnata "Già al minimo": niente di più leggero da cercare. Vale per il file di quel peso:
+/// se <c>SizeBytes</c> cambia il segno decade.
+/// </summary>
+public sealed class AtMinimumTitle
+{
+    public string Key { get; set; } = "";
+
+    public string Title { get; set; } = "";
+
+    public long SizeBytes { get; set; }
+}
+
 /// <summary>Un torrent in attesa di fine seed obbligatorio (spec U §6.3). <c>Tracker</c> è l'host.</summary>
 public sealed class PendingTorrent
 {
@@ -171,7 +184,7 @@ public sealed class SpaceOperation
         [.. Steps.Select(s => new SpaceStepDto(s.Name, s.State, s.Detail, s.Done, s.Waiting))]);
 }
 
-/// <summary><c>space.json</c> (spec U §7.3): tenuti, torrent in attesa e operazioni, dalla più recente.</summary>
+/// <summary><c>space.json</c> (spec U §7.3): tenuti, segni "Già al minimo", torrent in attesa e operazioni, dalla più recente.</summary>
 public sealed class SpaceFile
 {
     public const int CurrentVersion = 1;
@@ -179,6 +192,9 @@ public sealed class SpaceFile
     public int Version { get; set; } = CurrentVersion;
 
     public List<KeptTitle> Kept { get; set; } = [];
+
+    /// <summary>Manca nei file scritti prima di "Già al minimo": resta vuoto.</summary>
+    public List<AtMinimumTitle> AtMinimum { get; set; } = [];
 
     public List<PendingTorrent> Pending { get; set; } = [];
 
@@ -195,12 +211,15 @@ public sealed class SpaceBook
     public static readonly TimeSpan OperationRetention = TimeSpan.FromDays(30);
 
     private readonly List<KeptTitle> _kept = [];
+    private readonly List<AtMinimumTitle> _atMinimum = [];
     private readonly List<PendingTorrent> _pending = [];
 
     // Dalla più recente.
     private readonly List<SpaceOperation> _operations = [];
 
     public IReadOnlyList<KeptTitle> Kept => _kept;
+
+    public IReadOnlyList<AtMinimumTitle> AtMinimum => _atMinimum;
 
     public IReadOnlyList<PendingTorrent> Pending => _pending;
 
@@ -217,6 +236,15 @@ public sealed class SpaceBook
     public void Unkeep(string key) => _kept.RemoveAll(k => k.Key == key);
 
     public bool IsKept(string key) => _kept.Exists(k => k.Key == key);
+
+    /// <summary>Segna la riga "Già al minimo"; se c'è già ne aggiorna nome e peso.</summary>
+    public void MarkAtMinimum(string key, string title, long sizeBytes)
+    {
+        UnmarkAtMinimum(key);
+        _atMinimum.Add(new AtMinimumTitle { Key = key, Title = title, SizeBytes = sizeBytes });
+    }
+
+    public void UnmarkAtMinimum(string key) => _atMinimum.RemoveAll(a => a.Key == key);
 
     /// <summary>Aggiunge il torrent in attesa; uno con lo stesso hash resta com'è.</summary>
     public void AddPending(PendingTorrent torrent)
@@ -249,6 +277,7 @@ public sealed class SpaceBook
         // Il JSON può mettere null anche dove il tipo non lo ammette: un file così è rovinato.
         var book = new SpaceBook();
         book._kept.AddRange(Required(file.Kept, k => [k.Key, k.Title]));
+        book._atMinimum.AddRange(Required(file.AtMinimum, a => [a.Key, a.Title]));
         book._pending.AddRange(Required(file.Pending, p => [p.Hash, p.Name, p.Tracker, p.Title]));
         foreach (var operation in Required(file.Operations, o => [o.Id, o.Kind, o.Key, o.Title, o.State]))
         {
@@ -262,6 +291,7 @@ public sealed class SpaceBook
     public SpaceFile ToFile() => new()
     {
         Kept = [.. _kept],
+        AtMinimum = [.. _atMinimum],
         Pending = [.. _pending],
         Operations = [.. _operations],
     };

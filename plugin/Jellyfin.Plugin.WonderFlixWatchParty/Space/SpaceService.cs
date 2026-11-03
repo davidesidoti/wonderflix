@@ -194,6 +194,32 @@ public sealed partial class SpaceService(
         }
     }
 
+    /// <summary>"Già al minimo": segna la riga di Alleggerire con il peso dell'ultimo calcolo; falso se lì non c'è.</summary>
+    public bool MarkAtMinimum(string key, string title)
+    {
+        if (LastScan?.Lighten.FirstOrDefault(r => r.Dto.Key == key) is not { } row)
+        {
+            return false;
+        }
+
+        lock (_lock)
+        {
+            Book.MarkAtMinimum(key, title, row.Dto.SizeBytes);
+            Save();
+        }
+
+        return true;
+    }
+
+    public void UnmarkAtMinimum(string key)
+    {
+        lock (_lock)
+        {
+            Book.UnmarkAtMinimum(key);
+            Save();
+        }
+    }
+
     /// <summary>Toglie un torrent dall'attesa e lo lascia in qBittorrent (spec U §6.3); falso se non c'era.</summary>
     public bool DropPending(string hash)
     {

@@ -146,7 +146,7 @@ public sealed record SpaceErrorsDto(
     [property: JsonPropertyName("Seerr")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? Seerr,
     [property: JsonPropertyName("Quota")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? Quota);
 
-/// <summary><c>GET Space</c> (spec U §7.4): l'ultimo calcolo per chi chiama, con attese, tenuti e ultime operazioni.</summary>
+/// <summary><c>GET Space</c> (spec U §7.4): l'ultimo calcolo per chi chiama, con attese, tenuti, segni "Già al minimo" e ultime operazioni.</summary>
 public sealed record SpaceOverviewDto(
     [property: JsonPropertyName("ScannedAt")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] DateTimeOffset? ScannedAt,
     [property: JsonPropertyName("Scanning")] bool Scanning,
@@ -157,6 +157,7 @@ public sealed record SpaceOverviewDto(
     [property: JsonPropertyName("Cleanup")] SpaceCleanupDto Cleanup,
     [property: JsonPropertyName("Pending")] IReadOnlyList<SpacePendingDto> Pending,
     [property: JsonPropertyName("Kept")] IReadOnlyList<SpaceKeptDto> Kept,
+    [property: JsonPropertyName("AtMinimum")] IReadOnlyList<SpaceKeptDto> AtMinimum,
     [property: JsonPropertyName("Operations")] IReadOnlyList<SpaceOperationDto> Operations,
     [property: JsonPropertyName("TopGenres")] IReadOnlyList<string> TopGenres,
     [property: JsonPropertyName("Errors")] SpaceErrorsDto Errors);
@@ -184,7 +185,7 @@ public sealed class LightenImportRequest
     public string? Key { get; set; }
 }
 
-/// <summary>Corpo di <c>POST Space/Kept</c> (spec U §7.4).</summary>
+/// <summary>Corpo di <c>POST Space/Kept</c> (spec U §7.4) e di <c>POST Space/AtMinimum</c>.</summary>
 public sealed class KeepRequest
 {
     [JsonPropertyName("Key")]

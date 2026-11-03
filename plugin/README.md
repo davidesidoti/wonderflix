@@ -262,10 +262,12 @@ uscite in arrivo.
   cosa si può pulire (torrent senza copia in libreria, file orfani, doppioni).
   Le operazioni (`POST Space/Operations`, poi `GET Space/Operations/{id}`)
   girano una alla volta nel plugin; si avviano solo le righe di Cancellare.
-  `space.json` tiene i titoli tenuti, i torrent in attesa di fine seed e le
-  operazioni degli ultimi 30 giorni. Endpoint: `GET Space`, `POST
+  `space.json` tiene i titoli tenuti, i segni "Già al minimo" (`AtMinimum`: righe
+  tolte solo da Alleggerire finché il file non cambia peso), i torrent in attesa
+  di fine seed e le operazioni degli ultimi 30 giorni. Endpoint: `GET Space`, `POST
   Space/Recalculate`, `POST Space/Operations`, `GET Space/Operations/{id}`,
-  `POST`/`DELETE Space/Kept`, `DELETE Space/Pending/{hash}`. Voti sulla scala
+  `POST`/`DELETE Space/Kept`, `POST`/`DELETE Space/AtMinimum`,
+  `DELETE Space/Pending/{hash}`. Voti sulla scala
   1-10: bassi fino a 4, alti da 8, minimo 2 voti (configurabili).
   Configurazione (sezione Spazio della pagina del plugin):
   - **qBittorrent:** indirizzo, utente e password (`SpaceQbitUrl`,

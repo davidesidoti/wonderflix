@@ -59,6 +59,7 @@ public sealed partial class SpaceService
         {
             var scan = await BuildScanAsync(ct).ConfigureAwait(false);
             LastScan = scan;
+            DropStaleAtMinimum(scan);
             logger.LogInformation(
                 "Spazio: calcolo finito, {Delete} da cancellare, {Lighten} da alleggerire, {Torrents} torrent, {Orphans} orfani, {Duplicates} doppioni",
                 scan.Delete.Count,
@@ -82,13 +83,15 @@ public sealed partial class SpaceService
     /// <summary>
     /// <c>GET Space</c> (spec U §7.4): l'ultimo calcolo senza i titoli tenuti e senza i preferiti di chi chiama (spec U §4.2),
     /// con i suoi generi (decisione 14), i torrent in attesa, i tenuti e le ultime operazioni. Le righe di Alleggerire hanno
-    /// lo stato del loro download di "Alleggerisci" (piano 30d).
+    /// lo stato del loro download di "Alleggerisci" (piano 30d); quelle "Già al minimo" si nascondono, ma non con un download in corso.
     /// </summary>
     public async Task<SpaceOverviewDto> OverviewAsync(Guid callerId, CancellationToken ct)
     {
         var scan = LastScan;
         HashSet<string> keptKeys;
         List<SpaceKeptDto> kept;
+        List<SpaceKeptDto> atMinimum;
+        HashSet<(string Key, long SizeBytes)> atMinimumMarks;
         List<SpacePendingDto> pending;
         List<SpaceOperationDto> operations;
         List<SpaceOperation> done;
@@ -98,6 +101,8 @@ public sealed partial class SpaceService
             done = [.. Book.Operations.Where(o => o.State == SpaceOperationStates.Done && !o.Auto && o.StartedAt > (scan?.ScannedAt ?? DateTimeOffset.MinValue))];
             keptKeys = [.. Book.Kept.Select(k => k.Key)];
             kept = [.. Book.Kept.Select(k => new SpaceKeptDto(k.Key, k.Title))];
+            atMinimum = [.. Book.AtMinimum.Select(a => new SpaceKeptDto(a.Key, a.Title))];
+            atMinimumMarks = [.. Book.AtMinimum.Select(a => (a.Key, a.SizeBytes))];
             pending = [.. Book.Pending.Select(p => new SpacePendingDto(p.Hash, p.Name, p.Tracker, p.SizeBytes, p.ExpectedAt, p.Title))];
             operations = [.. Book.Operations.Take(OverviewOperations).Select(o => o.ToDto())];
         }
@@ -125,16 +130,41 @@ public sealed partial class SpaceService
             shown.Quota,
             shown.Breakdown,
             [.. shown.Delete.Where(r => Visible(r.Keys, r.ItemIds) && !Done(r.Dto.Key, r.Dto.SeriesKey)).Select(r => r.Dto)],
-            lighten,
+            [.. lighten.Where(r => r.Download is not null || !atMinimumMarks.Contains((r.Key, r.SizeBytes)))],
             new SpaceCleanupDto(
                 [.. shown.Cleanup.Torrents.Where(t => !removedHashes.Contains(t.Hash))],
                 [.. shown.Cleanup.Orphans.Where(f => !doneKeys.Contains(f.Key))],
                 [.. shown.Cleanup.Duplicates.Where(f => !doneKeys.Contains(f.Key))]),
             pending,
             kept,
+            atMinimum,
             operations,
             viewing.TopGenres(callerId, highlyRated, TopGenreCount),
             shown.Errors);
+    }
+
+    /// <summary>
+    /// Toglie i segni "Già al minimo" la cui riga non è più in Alleggerire o ha un altro peso. Con Radarr o Sonarr che non
+    /// risponde (o non configurato) le sue liste sono vuote, e non vuol dire che il file è cambiato: i suoi segni restano.
+    /// </summary>
+    private void DropStaleAtMinimum(SpaceScan scan)
+    {
+        lock (_lock)
+        {
+            var stale = Book.AtMinimum
+                .Where(a => (a.Key.StartsWith("movie:", StringComparison.Ordinal) ? scan.Errors.Radarr : scan.Errors.Sonarr) is null
+                    && !scan.Lighten.Any(r => r.Dto.Key == a.Key && r.Dto.SizeBytes == a.SizeBytes))
+                .ToList();
+            foreach (var mark in stale)
+            {
+                Book.UnmarkAtMinimum(mark.Key);
+            }
+
+            if (stale.Count > 0)
+            {
+                Save();
+            }
+        }
     }
 
     /// <summary>La chiave di un file orfano o doppione: i primi 16 caratteri esadecimali dello SHA-256 del percorso (decisione 11).</summary>

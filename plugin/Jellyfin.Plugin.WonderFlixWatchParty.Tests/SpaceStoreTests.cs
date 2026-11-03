@@ -56,9 +56,37 @@ public sealed class SpaceStoreTests : IDisposable
         Assert.Equal(2, Assert.Single(loaded.Operations).Steps.Count);
     }
 
+    [Fact]
+    public void AnAtMinimumMarkRoundTrips()
+    {
+        var book = new SpaceBook();
+        book.MarkAtMinimum("movie:12", "Coco", 1_000);
+        book.MarkAtMinimum("movie:12", "Coco", 2_000);
+
+        Store().Save(book);
+
+        var mark = Assert.Single(Store().Load().AtMinimum);
+        Assert.Equal(("movie:12", "Coco", 2_000L), (mark.Key, mark.Title, mark.SizeBytes));
+    }
+
+    [Fact]
+    public void AFileWithoutAtMinimumLoads()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_folder.SpaceFile)!);
+        File.WriteAllText(_folder.SpaceFile, """{"Version":1,"Kept":[{"Key":"movie:1","Title":"Coco"}]}""");
+
+        var book = Store().Load();
+
+        Assert.True(book.IsKept("movie:1"));
+        Assert.Empty(book.AtMinimum);
+        Assert.False(File.Exists(_folder.SpaceFile + ".bad"));
+    }
+
     [Theory]
     [InlineData("""{"Version":2}""")]
     [InlineData("""{"Version":1,"Kept":null}""")]
+    [InlineData("""{"Version":1,"AtMinimum":null}""")]
+    [InlineData("""{"Version":1,"AtMinimum":[{"Key":null,"Title":"Coco"}]}""")]
     [InlineData("""{"Version":1,"Operations":[{"Id":"a","Steps":null}]}""")]
     [InlineData("""{"Version":1,"Kept":[{"Key":null,"Title":"Coco"}]}""")]
     [InlineData("""{"Version":1,"Kept":[{"Key":"movie:1","Title":null}]}""")]

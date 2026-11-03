@@ -209,6 +209,149 @@ public sealed class SpaceScanTests : IDisposable
         Assert.Equal(("movie:12", SpaceKinds.Movie, 6.00, 4_000_000_000L), (row.Key, row.Kind, row.GbPerHour, row.ExcessBytes));
     }
 
+    /// <summary>Un film da 6 GB all'ora appena aggiunto: sta in Alleggerire e non in Cancellare.</summary>
+    private void AddHeavyMovie()
+    {
+        AddMovie(12, 12 * Gb, lastPlayed: null);
+        _movies[0].Runtime = 120;
+        _movies[0].Added = Now.AddDays(-10);
+        _viewing.Movies[_index.Movies[0].Id] = _viewing.Movies[_index.Movies[0].Id] with { Added = Now.AddDays(-10) };
+    }
+
+    // Il file del film 12 ora pesa così.
+    private void ResizeMovie(long size)
+    {
+        _movies[0].SizeOnDisk = size;
+        _movies[0].MovieFile!.Size = size;
+        _probe.Files[MoviePath] = new FileStamp(new FileId(1, 12), 1, size);
+    }
+
+    [Fact]
+    public async Task AnAtMinimumRowLeavesOnlyLighten()
+    {
+        AddHeavyMovie();
+        Assert.Equal("movie:12", Assert.Single((await ScanAsync()).Lighten).Key);
+
+        Assert.True(_service.MarkAtMinimum("movie:12", "Coco"));
+
+        var marked = await _service.OverviewAsync(_admin.Id, CancellationToken.None);
+        Assert.Empty(marked.Lighten);
+        Assert.Equal(new SpaceKeptDto("movie:12", "Coco"), Assert.Single(marked.AtMinimum));
+
+        // Lo stesso file al calcolo dopo: il segno resta.
+        Assert.Empty((await ScanAsync()).Lighten);
+
+        _service.UnmarkAtMinimum("movie:12");
+        var unmarked = await _service.OverviewAsync(_admin.Id, CancellationToken.None);
+        Assert.Single(unmarked.Lighten);
+        Assert.Empty(unmarked.AtMinimum);
+    }
+
+    [Fact]
+    public async Task AnAtMinimumMarkLeavesDeleteAlone()
+    {
+        // Il calcolo non mette mai lo stesso titolo nelle due liste: la riga di Cancellare è scritta a mano.
+        var delete = new SpaceCandidateDto(
+            "movie:12", "Movie", "Coco", null, null, null, null, null, 12 * Gb, 12 * Gb, 0, null, 0, [], [], [], [], null, 0, null, null, []);
+        var lighten = new SpaceLightenDto("movie:12", SpaceKinds.Movie, "Coco", null, null, null, 12 * Gb, 4 * Gb, 6, null);
+        _service.LastScan = new SpaceScan
+        {
+            Delete = [new ScanRow<SpaceCandidateDto>(delete, ["movie:12"], [])],
+            Lighten = [new ScanRow<SpaceLightenDto>(lighten, ["movie:12"], [])],
+        };
+
+        _service.MarkAtMinimum("movie:12", "Coco");
+
+        var overview = await _service.OverviewAsync(_admin.Id, CancellationToken.None);
+        Assert.Empty(overview.Lighten);
+        Assert.Equal("movie:12", Assert.Single(overview.Delete).Key);
+    }
+
+    [Fact]
+    public async Task AFileOfAnotherSizeDropsTheMark()
+    {
+        AddHeavyMovie();
+        await ScanAsync();
+        _service.MarkAtMinimum("movie:12", "Coco");
+
+        ResizeMovie(11 * Gb);
+        var overview = await ScanAsync();
+
+        Assert.Equal(11 * Gb, Assert.Single(overview.Lighten).SizeBytes);
+        Assert.Empty(overview.AtMinimum);
+        Assert.Empty(new SpaceStore(_folder.SpaceFile, NullLogger<SpaceStore>.Instance).Load().AtMinimum);
+    }
+
+    [Fact]
+    public async Task ATitleBelowTheThresholdDropsTheMark()
+    {
+        AddHeavyMovie();
+        await ScanAsync();
+        _service.MarkAtMinimum("movie:12", "Coco");
+
+        // Lo stesso file con una durata più lunga: non è più pesante.
+        _movies[0].Runtime = 600;
+        var below = await ScanAsync();
+
+        Assert.Empty(below.Lighten);
+        Assert.Empty(below.AtMinimum);
+    }
+
+    [Theory]
+    [InlineData(ArrError.Unreachable, "Unreachable")]
+    [InlineData(ArrError.NotConfigured, "NotConfigured")]
+    public async Task RadarrDownKeepsTheMark(ArrError error, string code)
+    {
+        AddHeavyMovie();
+        await ScanAsync();
+        _service.MarkAtMinimum("movie:12", "Coco");
+
+        _arr.LibraryMovies = () => throw new ArrException(error);
+        var down = await ScanAsync();
+
+        Assert.Equal(code, down.Errors.Radarr);
+        Assert.Equal("movie:12", Assert.Single(down.AtMinimum).Key);
+
+        // Radarr torna con lo stesso file: la riga resta nascosta.
+        _arr.LibraryMovies = () => Task.FromResult<IReadOnlyList<RadarrMovie?>>([.. _movies]);
+        Assert.Empty((await ScanAsync()).Lighten);
+    }
+
+    [Fact]
+    public async Task SonarrDownKeepsASeasonMarkButNotAMovieMark()
+    {
+        AddHeavyMovie();
+        await ScanAsync();
+        _service.MarkAtMinimum("movie:12", "Coco");
+        var season = new ScanRow<SpaceLightenDto>(new SpaceLightenDto("season:5:2", SpaceKinds.Season, "Serie", 2, null, null, 12 * Gb, 6 * Gb, 6.5, null), ["season:5:2"], []);
+        _service.LastScan = _service.LastScan! with { Lighten = [.. _service.LastScan!.Lighten, season] };
+        _service.MarkAtMinimum("season:5:2", "Serie");
+
+        _arr.Series = () => throw new ArrException(ArrError.Unreachable);
+        ResizeMovie(2 * Gb);
+        var overview = await ScanAsync();
+
+        Assert.Equal("season:5:2", Assert.Single(overview.AtMinimum).Key);
+    }
+
+    [Fact]
+    public async Task ARowWithALightenDownloadStaysVisible()
+    {
+        AddHeavyMovie();
+        var store = new Downloads.DownloadStore(_folder.DownloadsFile, NullLogger<Downloads.DownloadStore>.Instance);
+        var book = store.Load();
+        book.MarkLightened("movie:12", Now.AddHours(-1));
+        store.Save(book);
+        _arr.Queue = _ => Task.FromResult<IReadOnlyList<ArrQueueItem?>>(
+            [new ArrQueueItem { MovieId = 12, Size = 4 * Gb, Sizeleft = Gb, TrackedDownloadState = "downloading" }]);
+        await ScanAsync();
+
+        _service.MarkAtMinimum("movie:12", "Coco");
+
+        var row = Assert.Single((await _service.OverviewAsync(_admin.Id, CancellationToken.None)).Lighten);
+        Assert.Equal(SpaceLightenStates.Downloading, row.Download!.State);
+    }
+
     [Fact]
     public async Task TorrentOnlyAndOrphansAreInCleanup()
     {

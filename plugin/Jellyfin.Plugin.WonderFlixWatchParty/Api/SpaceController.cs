@@ -87,6 +87,34 @@ public class SpaceController(SpaceService space, IAuthorizationContext authoriza
     }
 
     /// <summary>
+    /// "Già al minimo": toglie una riga da Alleggerire finché il file non cambia. 204; 400 se la chiave manca o non è un
+    /// film o una stagione, 404 {Unknown} se la riga non è nell'ultimo calcolo.
+    /// </summary>
+    [HttpPost("AtMinimum")]
+    public ActionResult MarkAtMinimum([FromBody] KeepRequest? request)
+    {
+        if (request?.Key is not { } key || !(SpaceService.IsValidKey(SpaceKinds.Movie, key) || SpaceService.IsValidKey(SpaceKinds.Season, key)))
+        {
+            return BadRequest();
+        }
+
+        return space.MarkAtMinimum(key, request.Title ?? string.Empty) ? NoContent() : Error(StatusCodes.Status404NotFound, "Unknown");
+    }
+
+    /// <summary>Toglie il segno "Già al minimo": 204.</summary>
+    [HttpDelete("AtMinimum")]
+    public ActionResult UnmarkAtMinimum([FromQuery] string? key)
+    {
+        if (string.IsNullOrEmpty(key))
+        {
+            return BadRequest();
+        }
+
+        space.UnmarkAtMinimum(key);
+        return NoContent();
+    }
+
+    /// <summary>
     /// Importa a mano un "Alleggerisci" bloccato in Radarr/Sonarr: 204; 400 se la chiave manca o non è un film o una
     /// stagione, 404 {Unknown} se non c'è niente di bloccato, 502 {Reason} con il codice dell'errore.
     /// </summary>
