@@ -344,33 +344,47 @@ class SpaceTorrentRow extends StatelessWidget {
   }
 }
 
-/// Un file orfano o un doppione.
+/// Un file orfano o un doppione. Con [onSelect] la riga ha la casella, un
+/// tocco la sceglie e "Cancella" sparisce.
 class SpaceFileRow extends StatelessWidget {
-  const SpaceFileRow({super.key, required this.file, required this.onDelete});
+  const SpaceFileRow({
+    super.key,
+    required this.file,
+    required this.onDelete,
+    this.onSelect,
+    this.selected = false,
+  });
 
   final SpaceFile file;
   final Future<void> Function() onDelete;
+  final VoidCallback? onSelect;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    return RowShell(
-      posterUrl: null,
-      lines: [
-        _heading(file.path),
-        _line(spaceGb(l, file.sizeBytes), _small),
-        if (file.linked) _line(l.spaceLinkedNote, _gold),
-      ],
-      actions: [
-        // Con altri collegamenti non si libera nulla (e il plugin rifiuta).
-        if (!file.linked)
-          AdminActionButton(
-            label: l.spaceDeleteFile,
-            icon: LucideIcons.trash2,
-            onPressed: onDelete,
-          ),
-      ],
+    final select = onSelect;
+    final row = _tappable(
+      select,
+      RowShell(
+        posterUrl: null,
+        lines: [
+          _heading(file.path),
+          _line(spaceGb(l, file.sizeBytes), _small),
+          if (file.linked) _line(l.spaceLinkedNote, _gold),
+        ],
+        actions: [
+          // Con altri collegamenti non si libera nulla (e il plugin rifiuta).
+          if (!file.linked && select == null)
+            AdminActionButton(
+              label: l.spaceDeleteFile,
+              icon: LucideIcons.trash2,
+              onPressed: onDelete,
+            ),
+        ],
+      ),
     );
+    return select == null ? row : _selectable(selected, select, row);
   }
 }
 

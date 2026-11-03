@@ -58,19 +58,52 @@ Future<void> startSpaceBulk(
   );
   if (ok != true || !context.mounted) return;
   final l = AppLocalizations.of(context);
+  await _startAll(context, ref, [
+    for (final c in list)
+      (c.kind, c.key, spaceTitleOf(l, c.title, c.seasonNumber)),
+  ], onStarted: ref.read(spaceSelectionProvider.notifier).clear);
+}
+
+/// Conferma con l'elenco dei file, poi come [startSpaceBulk]. [onStarted]:
+/// avviati tutti, prima della finestra dei passi.
+Future<void> startSpaceOrphans(
+  BuildContext context,
+  WidgetRef ref,
+  List<SpaceFile> files, {
+  required VoidCallback onStarted,
+}) async {
+  final ok = await showWfDialog<bool>(
+    context,
+    maxWidth: 560,
+    fullPageWhenCompact: false,
+    builder: (_) => _OrphanSummary(files: files),
+  );
+  if (ok != true || !context.mounted) return;
+  await _startAll(context, ref, [
+    for (final f in files) ('Orphan', f.key, f.path),
+  ], onStarted: onStarted);
+}
+
+/// Un `start` alla volta; uno che fallisce resta "non avviato" e si passa al
+/// successivo. Poi la finestra dei passi di tutti.
+Future<void> _startAll(
+  BuildContext context,
+  WidgetRef ref,
+  List<(String kind, String key, String title)> targets, {
+  required VoidCallback onStarted,
+}) async {
   final api = ref.read(spaceApiProvider);
   final items = <SpaceBulkItem>[];
-  for (final c in list) {
-    final title = spaceTitleOf(l, c.title, c.seasonNumber);
+  for (final (kind, key, title) in targets) {
     try {
-      final id = await api.start(c.kind, c.key);
-      items.add(SpaceBulkItem(title: title, kind: c.kind, operationId: id));
+      final id = await api.start(kind, key);
+      items.add(SpaceBulkItem(title: title, kind: kind, operationId: id));
     } on SpaceException catch (e) {
-      items.add(SpaceBulkItem(title: title, kind: c.kind, failure: e.failure));
+      items.add(SpaceBulkItem(title: title, kind: kind, failure: e.failure));
     }
   }
   if (!context.mounted) return;
-  ref.read(spaceSelectionProvider.notifier).clear();
+  onStarted();
   await showSpaceBulkProgress(context, items);
   // Chiusa la finestra, la panoramica si rilegge una volta, come in startSpaceOperation.
   if (context.mounted) {
@@ -104,78 +137,109 @@ class _Summary extends StatelessWidget {
     final later = sum((c) => c.freeLaterBytes);
     final pack = sum((c) => c.inPackBytes);
     final kinds = {for (final c in list) c.kind};
-    const bold = TextStyle(fontWeight: FontWeight.w600);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          l.spaceConfirmTitle(l.spaceTitles(list.length)),
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 16),
-        Flexible(
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final c in list)
-                  RowShell(
-                    posterUrl: c.posterUrl,
-                    lines: [
-                      Text(
-                        spaceTitleOf(l, c.title, c.seasonNumber),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: bold,
-                      ),
-                      Text(
-                        l.spaceTotalsDelete(
-                          spaceGb(l, c.freeNowBytes),
-                          spaceGb(l, c.freeLaterBytes),
-                        ),
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                    ],
-                    actions: const [],
-                  ),
-                const SizedBox(height: 8),
-                Text(l.spaceConfirmFreeNow(spaceGb(l, now)), style: bold),
-                if (later > 0)
-                  Text(l.spaceConfirmFreeLaterNoDate(spaceGb(l, later))),
-                if (pack > 0) Text(l.spaceConfirmPack(spaceGb(l, pack))),
-                for (final kind in kinds) ...[
-                  const SizedBox(height: 12),
-                  Text(l.spaceStepsFor(kind), style: bold),
-                  Text(
-                    [
-                      for (final s in spacePlannedSteps(l, kind)) '• $s',
-                    ].join('\n'),
-                  ),
-                ],
-              ],
+    return _confirmBody(context, l, l.spaceTitles(list.length), [
+      for (final c in list)
+        RowShell(
+          posterUrl: c.posterUrl,
+          lines: [
+            Text(
+              spaceTitleOf(l, c.title, c.seasonNumber),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: _bold,
             ),
-          ),
-        ),
-        const SizedBox(height: 24),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(l.adminCancel),
-            ),
-            const SizedBox(width: 12),
-            Flexible(
-              child: FilledButton(
-                style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
-                onPressed: () => Navigator.of(context).pop(true),
-                child: Text(l.spaceConfirmAction),
+            Text(
+              l.spaceTotalsDelete(
+                spaceGb(l, c.freeNowBytes),
+                spaceGb(l, c.freeLaterBytes),
               ),
+              style: const TextStyle(fontSize: 13),
             ),
           ],
+          actions: const [],
         ),
+      const SizedBox(height: 8),
+      Text(l.spaceConfirmFreeNow(spaceGb(l, now)), style: _bold),
+      if (later > 0) Text(l.spaceConfirmFreeLaterNoDate(spaceGb(l, later))),
+      if (pack > 0) Text(l.spaceConfirmPack(spaceGb(l, pack))),
+      for (final kind in kinds) ...[
+        const SizedBox(height: 12),
+        Text(l.spaceStepsFor(kind), style: _bold),
+        Text([for (final s in spacePlannedSteps(l, kind)) '• $s'].join('\n')),
       ],
-    );
+    ]);
   }
 }
+
+class _OrphanSummary extends StatelessWidget {
+  const _OrphanSummary({required this.files});
+
+  final List<SpaceFile> files;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final total = files.fold(0, (s, f) => s + f.sizeBytes);
+    return _confirmBody(context, l, l.spaceFiles(files.length), [
+      for (final f in files)
+        RowShell(
+          posterUrl: null,
+          // Il percorso intero: è quello che sparisce dal disco.
+          lines: [
+            Text(f.path, style: _bold),
+            Text(spaceGb(l, f.sizeBytes), style: const TextStyle(fontSize: 13)),
+          ],
+          actions: const [],
+        ),
+      const SizedBox(height: 8),
+      Text(l.spaceConfirmFreeNow(spaceGb(l, total)), style: _bold),
+      Text(l.spaceFilesDeleteNote),
+    ]);
+  }
+}
+
+const _bold = TextStyle(fontWeight: FontWeight.w600);
+
+/// "Eliminare [what]?", [body] che scorre, e i due pulsanti.
+Widget _confirmBody(
+  BuildContext context,
+  AppLocalizations l,
+  String what,
+  List<Widget> body,
+) => Column(
+  mainAxisSize: MainAxisSize.min,
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+    Text(
+      l.spaceConfirmTitle(what),
+      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+    ),
+    const SizedBox(height: 16),
+    Flexible(
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: body,
+        ),
+      ),
+    ),
+    const SizedBox(height: 24),
+    Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(l.adminCancel),
+        ),
+        const SizedBox(width: 12),
+        Flexible(
+          child: FilledButton(
+            style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l.spaceConfirmAction),
+          ),
+        ),
+      ],
+    ),
+  ],
+);

@@ -52,6 +52,10 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
   /// In selezione: le righe di "Cancellare" hanno la casella (decisione 1).
   var _selecting = false;
 
+  /// In selezione degli orfani: le chiavi scelte; `null` fuori selezione.
+  /// Esclude [_selecting], e viceversa.
+  Set<String>? _orphanKeys;
+
   @override
   void initState() {
     super.initState();
@@ -271,6 +275,23 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
   }
 
   /// La barra in fondo alla selezione, ferma mentre la lista scorre.
+  Widget _bar(List<Widget> children) => Material(
+    color: WfColors.surface,
+    child: Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: adminSideMargin(context),
+        vertical: 8,
+      ),
+      child: Wrap(
+        alignment: WrapAlignment.end,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 12,
+        runSpacing: 8,
+        children: children,
+      ),
+    ),
+  );
+
   Widget _selectionBar(AppLocalizations l, SpaceOverview o) {
     final keys = ref.watch(spaceSelectionProvider);
     final chosen = [
@@ -278,50 +299,91 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
         if (keys.contains(c.key)) c,
     ];
     final counted = dedupeSpaceSelection(chosen);
-    return Material(
-      color: WfColors.surface,
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: adminSideMargin(context),
-          vertical: 8,
+    return _bar([
+      TextButton(
+        onPressed: () {
+          ref.read(spaceSelectionProvider.notifier).clear();
+          setState(() => _selecting = false);
+        },
+        child: Text(l.spaceCancelSelection),
+      ),
+      AdminActionButton(
+        label: l.spaceKeepSelected(counted.length),
+        icon: LucideIcons.shield,
+        onPressed: chosen.isEmpty || _keepingBulk
+            ? null
+            : () => _keepSelected(l, counted),
+      ),
+      AdminActionButton(
+        label: l.spaceDeleteSelected(
+          counted.length,
+          spaceGb(l, counted.fold(0, (s, c) => s + c.freeNowBytes)),
         ),
-        child: Wrap(
-          alignment: WrapAlignment.end,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 12,
-          runSpacing: 8,
-          children: [
-            TextButton(
-              onPressed: () {
-                ref.read(spaceSelectionProvider.notifier).clear();
-                setState(() => _selecting = false);
+        icon: LucideIcons.trash2,
+        onPressed: chosen.isEmpty || _keepingBulk
+            ? null
+            : () async {
+                await startSpaceBulk(context, ref, chosen);
+                if (mounted && ref.read(spaceSelectionProvider).isEmpty) {
+                  setState(() => _selecting = false);
+                }
               },
-              child: Text(l.spaceCancelSelection),
-            ),
-            AdminActionButton(
-              label: l.spaceKeepSelected(counted.length),
-              icon: LucideIcons.shield,
-              onPressed: chosen.isEmpty || _keepingBulk
-                  ? null
-                  : () => _keepSelected(l, counted),
-            ),
-            AdminActionButton(
-              label: l.spaceDeleteSelected(
-                counted.length,
-                spaceGb(l, counted.fold(0, (s, c) => s + c.freeNowBytes)),
-              ),
-              icon: LucideIcons.trash2,
-              onPressed: chosen.isEmpty || _keepingBulk
-                  ? null
-                  : () async {
-                      await startSpaceBulk(context, ref, chosen);
-                      if (mounted && ref.read(spaceSelectionProvider).isEmpty) {
-                        setState(() => _selecting = false);
-                      }
-                    },
-            ),
-          ],
+      ),
+    ]);
+  }
+
+  List<SpaceFile> _freeOrphans(SpaceOverview o) => [
+    for (final f in o.cleanup.orphans)
+      if (!f.linked) f,
+  ];
+
+  Widget _orphanBar(AppLocalizations l, SpaceOverview o) {
+    final keys = _orphanKeys ?? const {};
+    // Filtrati dalla panoramica: una chiave sparita non conta.
+    final chosen = [
+      for (final f in _freeOrphans(o))
+        if (keys.contains(f.key)) f,
+    ];
+    return _bar([
+      TextButton(
+        onPressed: () => setState(() => _orphanKeys = null),
+        child: Text(l.spaceCancelSelection),
+      ),
+      AdminActionButton(
+        label: l.spaceDeleteSelected(
+          chosen.length,
+          spaceGb(l, chosen.fold(0, (s, f) => s + f.sizeBytes)),
         ),
+        icon: LucideIcons.trash2,
+        onPressed: chosen.isEmpty
+            ? null
+            : () => startSpaceOrphans(
+                context,
+                ref,
+                chosen,
+                onStarted: () => setState(() => _orphanKeys = null),
+              ),
+      ),
+    ]);
+  }
+
+  /// "Seleziona" sotto il titolo degli orfani; in selezione "Seleziona tutti",
+  /// anche quelli oltre "Mostra altri" (se lo sono già tutti li toglie).
+  Widget _orphanSelectButton(AppLocalizations l, SpaceOverview o) {
+    final keys = _orphanKeys;
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: TextButton.icon(
+        onPressed: () {
+          final all = {for (final f in _freeOrphans(o)) f.key};
+          ref.read(spaceSelectionProvider.notifier).clear();
+          setState(() {
+            _selecting = false;
+            _orphanKeys = keys == null || keys.containsAll(all) ? {} : all;
+          });
+        },
+        icon: const Icon(LucideIcons.squareCheck, size: 16),
+        label: Text(keys == null ? l.spaceSelect : l.spaceSelectAll),
       ),
     );
   }
@@ -451,17 +513,28 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
     String id,
     String title,
     String kind,
-    List<SpaceFile> list,
-  ) => list.isEmpty
+    List<SpaceFile> list, {
+    Widget? tools,
+    Set<String>? chosen,
+  }) => list.isEmpty
       ? const []
       : [
           _group(title),
+          ?tools,
           ..._page(
             id,
             list,
             (f) => SpaceFileRow(
               key: ValueKey('file-${f.key}'),
               file: f,
+              selected: chosen?.contains(f.key) ?? false,
+              onSelect: chosen == null || f.linked
+                  ? null
+                  : () => setState(
+                      () => chosen.contains(f.key)
+                          ? chosen.remove(f.key)
+                          : chosen.add(f.key),
+                    ),
               onDelete: () =>
                   _start(kind, f.key, f.path, sizeBytes: f.sizeBytes),
             ),
@@ -501,7 +574,14 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
         for (final t in c.torrents)
           if (!t.canRemoveNow) t,
       ]),
-      ..._fileGroup('orphans', l.spaceGroupOrphans, 'Orphan', c.orphans),
+      ..._fileGroup(
+        'orphans',
+        l.spaceGroupOrphans,
+        'Orphan',
+        c.orphans,
+        tools: _freeOrphans(o).isEmpty ? null : _orphanSelectButton(l, o),
+        chosen: _orphanKeys,
+      ),
       ..._fileGroup(
         'duplicates',
         l.spaceGroupDuplicates,
@@ -578,7 +658,10 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
             Align(
               alignment: AlignmentDirectional.centerStart,
               child: TextButton.icon(
-                onPressed: () => setState(() => _selecting = true),
+                onPressed: () => setState(() {
+                  _selecting = true;
+                  _orphanKeys = null;
+                }),
                 icon: const Icon(LucideIcons.squareCheck, size: 16),
                 label: Text(l.spaceSelect),
               ),
@@ -678,18 +761,26 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
         ],
       ],
     );
-    if (!_selecting || !ready) return list;
-    if (o.delete.isEmpty) {
+    final selecting = ready && (_selecting || _orphanKeys != null);
+    final empty = _selecting ? o.delete.isEmpty : _freeOrphans(o).isEmpty;
+    if (selecting && empty) {
       // Niente da scegliere: niente barra, e si esce dalla selezione.
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _selecting = false);
+        if (mounted) {
+          setState(() {
+            _selecting = false;
+            _orphanKeys = null;
+          });
+        }
       });
-      return list;
     }
     return Column(
       children: [
+        // Sempre qui: la barra che compare non ricrea la lista, che tornerebbe
+        // in cima (gli orfani sono in fondo alla pagina).
         Expanded(child: list),
-        _selectionBar(l, o),
+        if (selecting && !empty)
+          _selecting ? _selectionBar(l, o) : _orphanBar(l, o),
       ],
     );
   }

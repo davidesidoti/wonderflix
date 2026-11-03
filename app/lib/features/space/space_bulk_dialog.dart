@@ -14,8 +14,8 @@ import 'space_operation_controller.dart';
 import 'space_operation_dialog.dart';
 import 'space_rows.dart';
 
-/// Un titolo dell'eliminazione in blocco: avviato ([operationId]) o no
-/// ([failure]).
+/// Un titolo (o un file orfano) dell'eliminazione in blocco: avviato
+/// ([operationId]) o no ([failure]).
 class SpaceBulkItem {
   const SpaceBulkItem({
     required this.title,
@@ -77,7 +77,9 @@ class _BulkBodyState extends ConsumerState<_BulkBody> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          l.spaceTitles(widget.items.length),
+          widget.items.any((i) => i.kind == 'Orphan')
+              ? l.spaceFiles(widget.items.length)
+              : l.spaceTitles(widget.items.length),
           style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),

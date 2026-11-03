@@ -385,6 +385,262 @@ void main() {
     expect(find.text('1,00 GB liberabili ora'), findsOneWidget);
   });
 
+  group('Selezione degli orfani', () {
+    SpaceFile orphan(String name, {bool linked = false}) => SpaceFile(
+      key: 'file:$name',
+      path: '/x/$name.mkv',
+      sizeBytes: 1000000000,
+      linked: linked,
+    );
+
+    SpaceOverview withOrphans(
+      List<SpaceFile> orphans, {
+      List<SpaceCandidate> delete = const [],
+      List<SpaceFile> duplicates = const [],
+    }) => _overview(
+      scannedAt: _scanned,
+      delete: delete,
+      cleanup: SpaceCleanup(orphans: orphans, duplicates: duplicates),
+    );
+
+    List<String> starts() => [
+      for (final c in api.calls)
+        if (c.startsWith('start')) c,
+    ];
+
+    /// "Seleziona" del gruppo orfani: "Cancellare" viene prima.
+    Future<void> selectOrphans(WidgetTester tester) async {
+      await tester.tap(find.text('Seleziona').last);
+      await tester.pump();
+    }
+
+    testWidgets('NoSelectWithOnlyLinkedOrphans', (tester) async {
+      api.overviewValue = withOrphans([orphan('a', linked: true)]);
+      await pumpTab(tester);
+      expect(find.text('Seleziona'), findsNothing);
+    });
+
+    testWidgets('CheckboxesOnlyInSelectionAndNotOnLinked', (tester) async {
+      api.overviewValue = withOrphans(
+        [orphan('a', linked: true), orphan('b'), orphan('c')],
+        duplicates: [orphan('d')],
+      );
+      await pumpTab(tester);
+      expect(find.byType(Checkbox), findsNothing);
+      expect(find.text('Cancella'), findsNWidgets(3));
+
+      await selectOrphans(tester);
+      expect(find.byType(Checkbox), findsNWidgets(2));
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('file-file:a')),
+          matching: find.byType(Checkbox),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.text('ha altri collegamenti, non libera spazio'),
+        findsOneWidget,
+      );
+      // Resta solo il "Cancella" del doppione.
+      expect(find.text('Cancella'), findsOneWidget);
+
+      // Un tocco sulla riga sceglie, e il totale somma i GB.
+      await tester.tap(find.text('/x/b.mkv'));
+      await tester.pump();
+      expect(find.text('Elimina selezionati (1 · 1,00 GB)'), findsOneWidget);
+      // La riga collegata non si sceglie.
+      await tester.tap(find.text('/x/a.mkv'));
+      await tester.pump();
+      expect(find.text('Elimina selezionati (1 · 1,00 GB)'), findsOneWidget);
+
+      await tester.tap(find.text('Annulla selezione'));
+      await tester.pump();
+      expect(find.byType(Checkbox), findsNothing);
+      expect(find.text('Cancella'), findsNWidgets(3));
+    });
+
+    testWidgets('SelectAllTakesHiddenRowsAndSkipsLinked', (tester) async {
+      api.overviewValue = withOrphans([
+        orphan('linked', linked: true),
+        for (var i = 0; i < 25; i++) orphan('f$i'),
+      ]);
+      await pumpTab(tester);
+      await selectOrphans(tester);
+      expect(find.text('Elimina selezionati (0 · 0,00 GB)'), findsOneWidget);
+
+      await tester.tap(find.text('Seleziona tutti'));
+      await tester.pump();
+      expect(find.text('Elimina selezionati (25 · 25,00 GB)'), findsOneWidget);
+      // Sullo schermo la prima pagina: 20 righe, una collegata.
+      expect(find.byType(Checkbox), findsNWidgets(19));
+
+      await tester.tap(find.text('Seleziona tutti'));
+      await tester.pump();
+      expect(find.text('Elimina selezionati (0 · 0,00 GB)'), findsOneWidget);
+    });
+
+    testWidgets('ConfirmStartsEachAndAFailureDoesNotStopTheOthers', (
+      tester,
+    ) async {
+      api.overviewValue = withOrphans([
+        orphan('a'),
+        orphan('b'),
+        orphan('c'),
+        orphan('skip'),
+      ]);
+      await pumpTab(tester);
+      await selectOrphans(tester);
+      for (final name in ['a', 'b', 'c']) {
+        await tester.tap(find.text('/x/$name.mkv'));
+      }
+      await tester.pump();
+
+      api.startFailures['file:a'] = SpaceFailure.busy;
+      api.operationResults.add(
+        SpaceOperation(
+          id: 'op',
+          kind: 'Orphan',
+          key: 'file:b',
+          title: '/x/b.mkv',
+          state: 'Running',
+          auto: false,
+          startedAt: DateTime.utc(2026, 11, 3),
+          estimatedFreedBytes: 0,
+          pendingBytes: 0,
+          steps: const [SpaceStep(name: 'DeleteFile', state: 'Running')],
+        ),
+      );
+      await tester.tap(find.text('Elimina selezionati (3 · 3,00 GB)'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Eliminare 3 file?'), findsOneWidget);
+      expect(find.text('Libera subito 3,00 GB.'), findsOneWidget);
+      expect(
+        find.text('I file si cancellano dal disco: non si torna indietro.'),
+        findsOneWidget,
+      );
+      expect(starts(), isEmpty);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Elimina'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(starts(), [
+        'start Orphan file:a',
+        'start Orphan file:b',
+        'start Orphan file:c',
+      ]);
+      expect(find.text('3 file'), findsOneWidget);
+      expect(find.textContaining('Non avviato:'), findsOneWidget);
+
+      // Si esce dalla selezione; chiusa la finestra, si rilegge una volta.
+      final reads = api.calls.where((c) => c == 'overview').length;
+      await tester.tap(find.text('Chiudi'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byType(Checkbox), findsNothing);
+      expect(find.textContaining('Elimina selezionati'), findsNothing);
+      expect(api.calls.where((c) => c == 'overview').length, reads + 1);
+    });
+
+    testWidgets('CancellingTheConfirmStartsNothing', (tester) async {
+      api.overviewValue = withOrphans([orphan('a')]);
+      await pumpTab(tester);
+      await selectOrphans(tester);
+      await tester.tap(find.text('/x/a.mkv'));
+      await tester.pump();
+      await tester.tap(find.text('Elimina selezionati (1 · 1,00 GB)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Annulla'));
+      await tester.pumpAndSettle();
+
+      expect(starts(), isEmpty);
+      expect(find.text('Elimina selezionati (1 · 1,00 GB)'), findsOneWidget);
+    });
+
+    testWidgets('TheTwoSelectionsExcludeEachOther', (tester) async {
+      api.overviewValue = withOrphans(
+        [orphan('a')],
+        delete: [_candidate('movie:1')],
+      );
+      await pumpTab(tester);
+
+      await tester.tap(find.text('Seleziona').first);
+      await tester.pump();
+      await tester.tap(find.text('Titolo movie:1'));
+      await tester.pump();
+      expect(find.text('Elimina selezionati (1 · 2,00 GB)'), findsOneWidget);
+      expect(find.text('Tieni selezionati (1)'), findsOneWidget);
+
+      // Dentro gli orfani: "Cancellare" esce e perde le chiavi.
+      await selectOrphans(tester);
+      expect(find.text('Tieni selezionati (1)'), findsNothing);
+      expect(find.text('Seleziona tutti'), findsOneWidget);
+      expect(find.text('Elimina selezionati (0 · 0,00 GB)'), findsOneWidget);
+      await tester.tap(find.text('/x/a.mkv'));
+      await tester.pump();
+
+      // E viceversa.
+      await tester.tap(find.text('Seleziona').first);
+      await tester.pump();
+      expect(find.text('Seleziona tutti'), findsNothing);
+      expect(find.text('Tieni selezionati (0)'), findsOneWidget);
+      expect(find.text('Elimina selezionati (0 · 0,00 GB)'), findsOneWidget);
+
+      // Rientrando negli orfani si riparte da zero.
+      await selectOrphans(tester);
+      expect(find.text('Elimina selezionati (0 · 0,00 GB)'), findsOneWidget);
+    });
+
+    testWidgets('AVanishedKeyDoesNotCountAndNoneLeftExits', (tester) async {
+      api.overviewValue = withOrphans([orphan('a'), orphan('b')]);
+      await pumpTab(tester);
+      await selectOrphans(tester);
+      await tester.tap(find.text('Seleziona tutti'));
+      await tester.pump();
+      expect(find.text('Elimina selezionati (2 · 2,00 GB)'), findsOneWidget);
+
+      api.overviewValue = withOrphans([orphan('b')]);
+      await tester.tap(find.text('Aggiorna'));
+      await tester.pumpAndSettle();
+      expect(find.text('Elimina selezionati (1 · 1,00 GB)'), findsOneWidget);
+
+      api.overviewValue = withOrphans([orphan('b', linked: true)]);
+      await tester.tap(find.text('Aggiorna'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Elimina selezionati'), findsNothing);
+      expect(find.byType(Checkbox), findsNothing);
+      expect(find.text('Seleziona'), findsNothing);
+    });
+
+    testWidgets('EnteringTheSelectionKeepsTheScroll', (tester) async {
+      api.overviewValue = withOrphans(
+        [for (var i = 0; i < 15; i++) orphan('f$i')],
+        delete: [for (var i = 0; i < 20; i++) _candidate('movie:$i')],
+      );
+      await pumpTab(tester, size: const Size(1440, 800));
+
+      double pixels() => tester
+          .state<ScrollableState>(find.byType(Scrollable).first)
+          .position
+          .pixels;
+      await tester.dragUntilVisible(
+        find.text('File orfani'),
+        find.byType(ListView).first,
+        const Offset(0, -300),
+      );
+      await tester.pumpAndSettle();
+      final before = pixels();
+      expect(before, greaterThan(0));
+
+      await tester.tap(find.text('Seleziona').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Seleziona tutti'), findsOneWidget);
+      expect(pixels(), before);
+    });
+  });
+
   SpaceLighten lightenWith(SpaceLightenDownload? d) => SpaceLighten(
     key: 'movie:1',
     kind: 'Movie',
