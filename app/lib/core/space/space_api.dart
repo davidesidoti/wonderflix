@@ -12,7 +12,7 @@ enum SpaceFailure {
   /// 400, o risposta di forma inattesa.
   invalid,
 
-  /// 404 di `start`: il titolo non c'è più nell'ultimo calcolo.
+  /// 404 di `start` o `markAtMinimum`: il titolo non c'è più nell'ultimo calcolo.
   unknown,
 
   /// 409 `Busy`: un'altra operazione sullo stesso titolo.
@@ -100,6 +100,24 @@ class SpaceApi {
   Future<void> unkeep(String key) => _call(
     () =>
         _http.delete('$_base/Kept', query: {'key': key}, quietStatuses: _quiet),
+  );
+
+  /// Segna il titolo "Già al minimo": esce da Alleggerire.
+  Future<void> markAtMinimum(String key, String title) => _call(
+    () => _http.post(
+      '$_base/AtMinimum',
+      body: {'Key': key, 'Title': title},
+      quietStatuses: _quiet,
+    ),
+    notFound: SpaceFailure.unknown,
+  );
+
+  Future<void> unmarkAtMinimum(String key) => _call(
+    () => _http.delete(
+      '$_base/AtMinimum',
+      query: {'key': key},
+      quietStatuses: _quiet,
+    ),
   );
 
   /// Import a mano del download bloccato di una riga di Alleggerire; 404

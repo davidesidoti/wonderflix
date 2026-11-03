@@ -71,6 +71,9 @@ class SpaceController extends AsyncNotifier<SpaceOverview> {
   Future<SpaceFailure?> unkeep(String key) =>
       _then(() => ref.read(spaceApiProvider).unkeep(key));
 
+  Future<SpaceFailure?> unmarkAtMinimum(String key) =>
+      _then(() => ref.read(spaceApiProvider).unmarkAtMinimum(key));
+
   Future<SpaceFailure?> dropPending(String hash) =>
       _then(() => ref.read(spaceApiProvider).dropPending(hash));
 

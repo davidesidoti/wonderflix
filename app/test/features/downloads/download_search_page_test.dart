@@ -5,13 +5,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/downloads/download_models.dart';
 import 'package:wonderflix/core/downloads/downloads_api.dart';
+import 'package:wonderflix/core/space/space_api.dart';
 import 'package:wonderflix/features/downloads/download_search_controller.dart';
 import 'package:wonderflix/features/downloads/download_search_page.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
+import 'package:wonderflix/features/space/space_providers.dart';
 
 import '../../support/admin_fakes.dart';
 import '../../support/download_fakes.dart';
 import '../../support/pump_app.dart';
+import '../../support/space_fakes.dart';
 
 DownloadSearch _search({
   DownloadCurrentFile? current,
@@ -19,6 +22,7 @@ DownloadSearch _search({
   List<DownloadRejected> rejected = const [],
   String? error,
   String? externalSearchUrl,
+  List<DownloadEpisodeChoice> episodeChoices = const [],
 }) =>
     DownloadSearch(
       key: 'movie:1',
@@ -32,6 +36,25 @@ DownloadSearch _search({
       totalCount: 2,
       error: error,
       externalSearchUrl: externalSearchUrl,
+      episodeChoices: episodeChoices,
+    );
+
+/// Una riga con questo peso e punteggio; `g1` è la scelta della regola.
+DownloadCandidate _row(String guid, int sizeBytes, {int score = 120}) =>
+    DownloadCandidate(
+      rank: guid == 'g1' ? 1 : 2,
+      release: DownloadRelease(
+        guid: guid,
+        indexerId: 3,
+        indexer: 'Idx',
+        title: 'Film.$guid',
+        quality: 'x',
+        resolution: 1080,
+        sizeBytes: sizeBytes,
+        score: score,
+      ),
+      isChoice: guid == 'g1',
+      wouldImport: true,
     );
 
 const _confirmTitle = 'Scaricare questa release?';
@@ -40,8 +63,12 @@ const _current120 =
 
 void main() {
   late FakeDownloadsApi api;
+  late FakeSpaceApi space;
 
-  setUp(() => api = FakeDownloadsApi());
+  setUp(() {
+    api = FakeDownloadsApi();
+    space = FakeSpaceApi();
+  });
 
   /// Una pagina con un pulsante che apre la ricerca. Con [settle] falso si
   /// ferma durante l'attesa (lo spinner non si assesta mai).
@@ -65,9 +92,12 @@ void main() {
           ),
         ),
       ),
-      overrides: adminTestOverrides(FakeAdminApi(),
-          downloads: api,
-          features: features),
+      overrides: [
+        ...adminTestOverrides(FakeAdminApi(),
+            downloads: api,
+            features: features),
+        spaceApiProvider.overrideWithValue(space),
+      ],
       surfaceSize: size,
     );
     await tester.tap(find.text('apri'));
@@ -725,6 +755,170 @@ void main() {
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       expect(find.byType(LinearProgressIndicator), findsNothing);
+    });
+  });
+
+  group('lighten', () {
+    const atMinimum = 'Già al minimo';
+    const isCurrent = 'È il file che hai già';
+    const nothingLighter = 'Niente di più leggero con punteggio 120 o più';
+    const why = 'Il più leggero tra quelli con punteggio 120 in 1080p';
+
+    Finder inRow(String guid, Finder matching) => find.descendant(
+        of: find.byKey(ValueKey('candidate-$guid')), matching: matching);
+
+    test('the size limits are inclusive for the file, exclusive for lighter',
+        () {
+      final file = _search(current: _current120);
+      expect(file.isCurrentFile(_row('a', 1020000000).release), isTrue);
+      expect(file.isCurrentFile(_row('a', 980000000).release), isTrue);
+      expect(file.isCurrentFile(_row('a', 1020000001).release), isFalse);
+      expect(file.isCurrentFile(_row('a', 1000000000, score: 119).release),
+          isFalse);
+      expect(_search().isCurrentFile(_row('a', 1000000000).release), isFalse);
+
+      bool lighter(DownloadCandidate c) =>
+          _search(current: _current120, candidates: [c]).hasLighter;
+      expect(lighter(_row('a', 900000000)), isFalse);
+      expect(lighter(_row('a', 899999999)), isTrue);
+      expect(lighter(_row('a', 899999999, score: 119)), isFalse);
+      expect(lighter(_row('a', 899999999, score: 121)), isTrue);
+      expect(_search(candidates: const []).hasLighter, isTrue);
+    });
+
+    testWidgets('the row equal to the file has no grab, the others do',
+        (tester) async {
+      api.searchValue = _search(current: _current120, candidates: [
+        _row('g1', 1010000000),
+        _row('heavier', 1030000000),
+        _row('other', 1000000000, score: 100),
+      ]);
+      await open(tester, lighten: true);
+
+      expect(inRow('g1', find.text(isCurrent)), findsOneWidget);
+      expect(inRow('g1', find.byType(FilledButton)), findsNothing);
+      // È la scelta della regola, ma niente oro né motivo.
+      expect(find.text(why), findsNothing);
+      final box = tester.widget<Container>(find
+          .descendant(
+              of: find.byKey(const ValueKey('candidate-g1')),
+              matching: find.byType(Container))
+          .first);
+      expect((box.decoration! as BoxDecoration).color,
+          isNot(const Color(0xFF2B2418)));
+      for (final guid in ['heavier', 'other']) {
+        expect(inRow(guid, find.text(isCurrent)), findsNothing);
+        expect(inRow(guid, find.widgetWithText(FilledButton, 'Scarica')),
+            findsOneWidget);
+      }
+    });
+
+    testWidgets('narrow layout hides the grab too', (tester) async {
+      api.searchValue =
+          _search(current: _current120, candidates: [_row('g1', 1000000000)]);
+      await open(tester, lighten: true, size: const Size(375, 800));
+
+      expect(tester.takeException(), isNull);
+      expect(find.text(isCurrent), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Scarica'), findsNothing);
+    });
+
+    testWidgets('warns when nothing is lighter', (tester) async {
+      api.searchValue =
+          _search(current: _current120, candidates: [_row('g1', 1000000000)]);
+      await open(tester, lighten: true);
+
+      expect(find.text(nothingLighter), findsOneWidget);
+    });
+
+    testWidgets('no warning with a lighter candidate of equal score',
+        (tester) async {
+      api.searchValue = _search(current: _current120, candidates: [
+        _row('g1', 1000000000),
+        _row('lighter', 800000000),
+      ]);
+      await open(tester, lighten: true);
+
+      expect(find.text(nothingLighter), findsNothing);
+      // Il pulsante c'è comunque: l'admin può scartare le alternative.
+      expect(find.widgetWithText(OutlinedButton, atMinimum), findsOneWidget);
+    });
+
+    testWidgets('no warning with episode choices', (tester) async {
+      api.searchValue = _search(
+          current: _current120,
+          candidates: [_row('g1', 1000000000)],
+          episodeChoices: [testEpisodeChoice(1)]);
+      await open(tester, lighten: true);
+
+      expect(find.text(nothingLighter), findsNothing);
+    });
+
+    testWidgets('without a current file: no button and no warning',
+        (tester) async {
+      await open(tester, lighten: true);
+
+      expect(find.text(atMinimum), findsNothing);
+      expect(find.textContaining('Niente di più leggero'), findsNothing);
+    });
+
+    testWidgets('the button marks the title and closes the page',
+        (tester) async {
+      api.searchValue = _search(current: _current120);
+      await open(tester, lighten: true);
+
+      await tester.tap(find.widgetWithText(OutlinedButton, atMinimum));
+      await tester.pumpAndSettle();
+
+      expect(space.calls, ['markAtMinimum movie:1 Film']);
+      expect(find.byType(Dialog), findsNothing);
+    });
+
+    testWidgets('an error keeps the page and shows the message',
+        (tester) async {
+      api.searchValue = _search(current: _current120);
+      space.nextActionFailure = SpaceFailure.unknown;
+      await open(tester, lighten: true);
+
+      await tester.tap(find.widgetWithText(OutlinedButton, atMinimum));
+      await tester.pumpAndSettle();
+
+      expect(find.text("Questo titolo non c'è più: ricalcola"), findsWidgets);
+      expect(find.byType(Dialog), findsOneWidget);
+    });
+
+    testWidgets('the button is off during a grab', (tester) async {
+      api.searchValue = _search(current: _current120, candidates: [
+        _row('g1', 1000000000),
+        _row('other', 3000000000, score: 200),
+      ]);
+      await open(tester, lighten: true);
+      api.actionGate = Completer<void>();
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Scarica'));
+      await tester.pump();
+
+      expect(
+          tester
+              .widget<OutlinedButton>(
+                  find.widgetWithText(OutlinedButton, atMinimum))
+              .onPressed,
+          isNull);
+
+      api.actionGate!.complete();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('without lighten the page does not change', (tester) async {
+      api.searchValue =
+          _search(current: _current120, candidates: [_row('g1', 1000000000)]);
+      await open(tester);
+
+      expect(find.text(atMinimum), findsNothing);
+      expect(find.text(isCurrent), findsNothing);
+      expect(find.text(nothingLighter), findsNothing);
+      expect(inRow('g1', find.widgetWithText(FilledButton, 'Scarica')),
+          findsOneWidget);
     });
   });
 

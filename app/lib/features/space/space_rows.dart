@@ -411,17 +411,26 @@ class SpacePendingRow extends StatelessWidget {
   }
 }
 
-/// Un titolo tenuto.
+/// Un titolo tenuto; [label] dice perché, se non è un semplice "Tienilo".
 class SpaceKeptRow extends StatelessWidget {
-  const SpaceKeptRow({super.key, required this.kept, required this.onUnkeep});
+  const SpaceKeptRow({
+    super.key,
+    required this.kept,
+    required this.onUnkeep,
+    this.label,
+  });
 
   final SpaceKept kept;
   final Future<void> Function() onUnkeep;
+  final String? label;
 
   @override
   Widget build(BuildContext context) => RowShell(
     posterUrl: null,
-    lines: [_heading(kept.title)],
+    lines: [
+      _heading(kept.title),
+      if (label case final text?) _line(text),
+    ],
     actions: [
       AdminActionButton(
         label: AppLocalizations.of(context).spaceRemove,

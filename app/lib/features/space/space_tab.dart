@@ -633,17 +633,34 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
             ),
           ),
           AdminSectionTitle(title: l.spaceSectionKept),
-          if (o.kept.isEmpty) AdminEmptyText(text: l.spaceEmptyKept),
+          if (o.kept.isEmpty && o.atMinimum.isEmpty)
+            AdminEmptyText(text: l.spaceEmptyKept),
           ..._page(
             'kept',
-            o.kept,
-            (k) => SpaceKeptRow(
-              key: ValueKey('kept-${k.key}'),
-              kept: k,
-              onUnkeep: () => _run(
-                () => ref.read(spaceControllerProvider.notifier).unkeep(k.key),
-              ),
-            ),
+            [
+              for (final k in o.kept)
+                SpaceKeptRow(
+                  key: ValueKey('kept-${k.key}'),
+                  kept: k,
+                  onUnkeep: () => _run(
+                    () => ref
+                        .read(spaceControllerProvider.notifier)
+                        .unkeep(k.key),
+                  ),
+                ),
+              for (final k in o.atMinimum)
+                SpaceKeptRow(
+                  key: ValueKey('at-minimum-${k.key}'),
+                  kept: k,
+                  label: l.downloadsAtMinimum,
+                  onUnkeep: () => _run(
+                    () => ref
+                        .read(spaceControllerProvider.notifier)
+                        .unmarkAtMinimum(k.key),
+                  ),
+                ),
+            ],
+            (row) => row,
           ),
           AdminSectionTitle(title: l.spaceSectionOperations),
           if (o.operations.isEmpty)

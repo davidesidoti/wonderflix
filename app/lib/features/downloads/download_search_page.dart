@@ -9,11 +9,14 @@ import '../../app/error_text.dart';
 import '../../app/theme.dart';
 import '../../core/downloads/download_models.dart';
 import '../../core/downloads/downloads_api.dart';
+import '../../core/space/space_api.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../admin/admin_confirm_dialog.dart';
 import '../admin/admin_widgets.dart';
 import '../social/social_providers.dart';
+import '../space/space_labels.dart';
+import '../space/space_providers.dart';
 import 'download_labels.dart';
 import 'download_search_controller.dart';
 
@@ -176,6 +179,20 @@ class _SearchPage extends ConsumerWidget {
     Navigator.of(context).pop();
   }
 
+  /// "Già al minimo": il titolo esce da Alleggerire; si annulla dai Tenuti.
+  Future<void> _markAtMinimum(BuildContext context, WidgetRef ref) async {
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(spaceApiProvider).markAtMinimum(dlKey, title);
+    } on SpaceException catch (e) {
+      messenger.showSnackBar(
+          SnackBar(content: Text(spaceFailureLabel(l, e.failure))));
+      return;
+    }
+    if (context.mounted) Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
@@ -232,8 +249,16 @@ class _SearchPage extends ConsumerWidget {
             onAgain: busy ? null : again,
             onAccept: reviewing && !busy ? () => _accept(context, ref) : null,
             reviewing: reviewing,
+            onAtMinimum: busy ? null : () => _markAtMinimum(context, ref),
+            lighten: lighten,
           ),
           const SizedBox(height: 16),
+          if (lighten && search.current != null && !search.hasLighter)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Text(l.downloadsNothingLighter(search.current!.score),
+                  style: const TextStyle(color: WfColors.creamMuted)),
+            ),
           if (search.episodeChoices.isNotEmpty)
             _BestEpisodes(
               choices: search.episodeChoices,
@@ -263,6 +288,7 @@ class _SearchPage extends ConsumerWidget {
             _CandidateRow(
               key: ValueKey('candidate-${c.release.guid}'),
               candidate: c,
+              isCurrent: lighten && search.isCurrentFile(c.release),
               onGrab: busy
                   ? null
                   : () => _grab(context, ref, search.current?.score, c.release,
@@ -371,12 +397,16 @@ class _Header extends StatelessWidget {
     required this.onAgain,
     required this.onAccept,
     required this.reviewing,
+    required this.onAtMinimum,
+    required this.lighten,
   });
 
   final DownloadSearch search;
   final VoidCallback? onAgain;
   final VoidCallback? onAccept;
   final bool reviewing;
+  final VoidCallback? onAtMinimum;
+  final bool lighten;
 
   @override
   Widget build(BuildContext context) {
@@ -400,6 +430,9 @@ class _Header extends StatelessWidget {
         Text(l.downloadsValidOf(search.validCount, search.totalCount),
             style: muted),
         OutlinedButton(onPressed: onAgain, child: Text(l.downloadsSearchAgain)),
+        if (lighten && current != null)
+          OutlinedButton(
+              onPressed: onAtMinimum, child: Text(l.downloadsAtMinimum)),
         if (reviewing)
           FilledButton(
               style: _compactButton,
@@ -550,10 +583,14 @@ class _CandidateRow extends StatelessWidget {
     required this.candidate,
     required this.onGrab,
     this.rankText,
+    this.isCurrent = false,
   });
 
   final DownloadCandidate candidate;
   final VoidCallback? onGrab;
+
+  /// È il file che c'è già: niente da scaricare, anche se è la scelta.
+  final bool isCurrent;
 
   /// Al posto del rango (per "E12" nel riquadro dei migliori episodi).
   final String? rankText;
@@ -563,8 +600,13 @@ class _CandidateRow extends StatelessWidget {
     final l = AppLocalizations.of(context);
     final r = candidate.release;
     final compact = FormFactor.of(context).compact;
-    final button = FilledButton(
-        style: _compactButton, onPressed: onGrab, child: Text(l.downloadsGrab));
+    final highlight = candidate.isChoice && !isCurrent;
+    final button = isCurrent
+        ? null
+        : FilledButton(
+            style: _compactButton,
+            onPressed: onGrab,
+            child: Text(l.downloadsGrab));
     final size = formatGb(l, r.sizeBytes);
     final seeders = r.seeders?.toString() ?? '-';
     final name = Text(r.title, maxLines: 2, overflow: TextOverflow.ellipsis);
@@ -579,8 +621,10 @@ class _CandidateRow extends StatelessWidget {
                   '${l.downloadsColSeeders} $seeders · ${r.indexer}',
                   style: const TextStyle(
                       color: WfColors.creamMuted, fontSize: 13)),
-              const SizedBox(height: 8),
-              Align(alignment: AlignmentDirectional.centerEnd, child: button),
+              if (button != null) ...[
+                const SizedBox(height: 8),
+                Align(alignment: AlignmentDirectional.centerEnd, child: button),
+              ],
             ],
           )
         : Row(children: [
@@ -593,24 +637,33 @@ class _CandidateRow extends StatelessWidget {
             Expanded(flex: 2, child: Text(r.indexer)),
             SizedBox(
                 width: _colButton,
-                child: Align(
-                    alignment: AlignmentDirectional.centerEnd, child: button)),
+                child: button == null
+                    ? null
+                    : Align(
+                        alignment: AlignmentDirectional.centerEnd,
+                        child: button)),
           ]);
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         // Come la bozza: la scelta della regola ha lo sfondo del film.
-        color: candidate.isChoice ? WfColors.calendarMovie : WfColors.surface,
-        border: Border.all(
-            color: candidate.isChoice ? WfColors.gold : WfColors.border),
+        color: highlight ? WfColors.calendarMovie : WfColors.surface,
+        border: Border.all(color: highlight ? WfColors.gold : WfColors.border),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           main,
-          if (candidate.isChoice)
+          if (isCurrent)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(l.downloadsIsCurrentFile,
+                  style:
+                      const TextStyle(color: WfColors.creamMuted, fontSize: 13)),
+            )
+          else if (candidate.isChoice)
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(choiceWhy(l, candidate),

@@ -671,6 +671,34 @@ class DownloadSearch {
   /// (o con un plugin più vecchio).
   final String? externalSearchUrl;
 
+  /// Scarto di peso entro cui una release con lo stesso punteggio è il file
+  /// attuale: la stessa release può pesare poco diverso sull'indexer.
+  static const currentFileSizeTolerance = 0.02;
+
+  /// Sotto questa frazione del file attuale, una release è davvero più leggera.
+  static const lighterSizeRatio = 0.9;
+
+  /// [r] è il file che c'è già.
+  bool isCurrentFile(DownloadRelease r) {
+    final file = current;
+    return file != null &&
+        r.score == file.score &&
+        (r.sizeBytes - file.sizeBytes).abs() <=
+            file.sizeBytes * currentFileSizeTolerance;
+  }
+
+  /// C'è qualcosa di più leggero senza perdere punteggio. I singoli episodio
+  /// potrebbero far risparmiare: con quelli non si può dire di no.
+  bool get hasLighter {
+    final file = current;
+    if (file == null || episodeChoices.isNotEmpty) return true;
+    return candidates.any(
+      (c) =>
+          c.release.score >= file.score &&
+          c.release.sizeBytes < file.sizeBytes * lighterSizeRatio,
+    );
+  }
+
   /// La stessa ricerca con altri [episodeChoices].
   DownloadSearch withEpisodeChoices(List<DownloadEpisodeChoice> choices) =>
       DownloadSearch(

@@ -77,6 +77,25 @@ void main() {
     expect(adapter.requests.first.data, {'Key': 'movie:1', 'Title': 'Film'});
   });
 
+  test('AtMinimumHitsItsEndpointAndAMissingRowIsUnknown', () async {
+    await api.markAtMinimum('movie:1', 'Film');
+    await api.unmarkAtMinimum('movie:1');
+    final [mark, unmark] = adapter.requests;
+    expect((mark.method, mark.path),
+        ('POST', '/WonderFlixWatchParty/Space/AtMinimum'));
+    expect(mark.data, {'Key': 'movie:1', 'Title': 'Film'});
+    expect((unmark.method, unmark.path),
+        ('DELETE', '/WonderFlixWatchParty/Space/AtMinimum'));
+    expect(unmark.queryParameters, {'key': 'movie:1'});
+
+    adapter.handler = (_) => const FakeResponse(404, {'Reason': 'Unknown'});
+    await expectLater(
+      api.markAtMinimum('k', 't'),
+      throwsA(isA<SpaceException>()
+          .having((e) => e.failure, 'failure', SpaceFailure.unknown)),
+    );
+  });
+
   test('ImportLightenPostsTheKeyAndReadsTheReason', () async {
     await api.importLighten('season:142:1');
     final request = adapter.requests.single;

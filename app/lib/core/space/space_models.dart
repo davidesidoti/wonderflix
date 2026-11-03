@@ -526,6 +526,7 @@ class SpaceOverview {
     required this.cleanup,
     required this.pending,
     required this.kept,
+    this.atMinimum = const [],
     required this.operations,
     required this.topGenres,
     required this.errors,
@@ -540,6 +541,9 @@ class SpaceOverview {
   final SpaceCleanup cleanup;
   final List<SpacePending> pending;
   final List<SpaceKept> kept;
+
+  /// I titoli segnati "Già al minimo"; vuota con un plugin più vecchio.
+  final List<SpaceKept> atMinimum;
   final List<SpaceOperation> operations;
   final List<String> topGenres;
   final SpaceErrors errors;
@@ -576,6 +580,7 @@ class SpaceOverview {
       cleanup: SpaceCleanup.fromJson(j['Cleanup'])!,
       pending: _list(j['Pending'], SpacePending.fromJson),
       kept: _list(j['Kept'], SpaceKept.fromJson),
+      atMinimum: _list(j['AtMinimum'], SpaceKept.fromJson),
       operations: _list(j['Operations'], SpaceOperation.fromJson),
       topGenres: _strings(j['TopGenres']),
       errors: SpaceErrors.fromJson(j['Errors'])!,

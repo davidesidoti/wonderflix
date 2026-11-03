@@ -77,6 +77,14 @@ class FakeSpaceApi implements SpaceApi {
   @override
   Future<void> unkeep(String key) => _action('unkeep $key');
 
+  @override
+  Future<void> markAtMinimum(String key, String title) =>
+      _action('markAtMinimum $key $title');
+
+  @override
+  Future<void> unmarkAtMinimum(String key) =>
+      _action('unmarkAtMinimum $key');
+
   /// Se valorizzato, la prossima [importLighten] fallisce con questo.
   SpaceException? nextImportError;
 

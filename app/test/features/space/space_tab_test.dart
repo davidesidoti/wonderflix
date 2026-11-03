@@ -48,6 +48,8 @@ SpaceOverview _overview({
   SpaceCleanup cleanup = const SpaceCleanup(),
   SpaceErrors errors = const SpaceErrors(),
   List<String> topGenres = const [],
+  List<SpaceKept> kept = const [],
+  List<SpaceKept> atMinimum = const [],
 }) => SpaceOverview(
   scannedAt: scannedAt,
   scanning: scanning,
@@ -57,7 +59,8 @@ SpaceOverview _overview({
   lighten: lighten,
   cleanup: cleanup,
   pending: const [],
-  kept: const [],
+  kept: kept,
+  atMinimum: atMinimum,
   operations: const [],
   topGenres: topGenres,
   errors: errors,
@@ -196,6 +199,77 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(downloads.calls, contains('grab movie:1 g1 3 lighten'));
+  });
+
+  group('AtMinimum in Tenuti', () {
+    const emptyText = 'Nessun titolo tenuto';
+
+    testWidgets('both lists empty shows the empty text', (tester) async {
+      api.overviewValue = _overview(scannedAt: _scanned);
+      await pumpTab(tester);
+
+      expect(find.text(emptyText), findsOneWidget);
+    });
+
+    testWidgets('shows its label and the removal unmarks it', (tester) async {
+      api.overviewValue = _overview(
+        scannedAt: _scanned,
+        kept: const [SpaceKept(key: 'movie:1', title: 'Tenuto')],
+        atMinimum: const [SpaceKept(key: 'movie:1', title: 'Minimo')],
+      );
+      await pumpTab(tester);
+
+      expect(find.text(emptyText), findsNothing);
+      final row = find.byKey(const ValueKey('at-minimum-movie:1'));
+      expect(
+        find.descendant(of: row, matching: find.text('Già al minimo')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('kept-movie:1')),
+          matching: find.text('Già al minimo'),
+        ),
+        findsNothing,
+      );
+
+      await tester.tap(find.descendant(of: row, matching: find.text('Togli')));
+      await tester.pumpAndSettle();
+
+      expect(api.calls, contains('unmarkAtMinimum movie:1'));
+      expect(api.calls, isNot(contains('unkeep movie:1')));
+    });
+
+    testWidgets('only at minimum hides the empty text', (tester) async {
+      api.overviewValue = _overview(
+        scannedAt: _scanned,
+        atMinimum: const [SpaceKept(key: 'movie:1', title: 'Minimo')],
+      );
+      await pumpTab(tester);
+
+      expect(find.text(emptyText), findsNothing);
+    });
+
+    testWidgets('both lists share one page of rows', (tester) async {
+      api.overviewValue = _overview(
+        scannedAt: _scanned,
+        kept: [
+          for (var i = 0; i < 15; i++)
+            SpaceKept(key: 'movie:$i', title: 'Tenuto $i'),
+        ],
+        atMinimum: [
+          for (var i = 0; i < 10; i++)
+            SpaceKept(key: 'movie:$i', title: 'Minimo $i'),
+        ],
+      );
+      await pumpTab(tester);
+
+      expect(find.textContaining('Tenuto '), findsNWidgets(15));
+      expect(find.textContaining('Minimo '), findsNWidgets(5));
+      await tester.tap(find.text('Mostra altri'));
+      await tester.pump();
+      expect(find.textContaining('Minimo '), findsNWidgets(10));
+    });
   });
 
   testWidgets('ServiceErrorsAreNotes', (tester) async {

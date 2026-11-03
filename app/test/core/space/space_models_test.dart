@@ -175,6 +175,15 @@ void main() {
     expect((o.errors.sonarr, o.errors.radarr), ('Unreachable', null));
   });
 
+  test('AtMinimumIsReadAndAnOldPluginLeavesItEmpty', () {
+    expect(SpaceOverview.fromJson(_overview())!.atMinimum, isEmpty);
+    final o = SpaceOverview.fromJson(_overview()
+      ..['AtMinimum'] = [
+        {'Key': 'movie:3', 'Title': 'Minimo'},
+      ])!;
+    expect(o.atMinimum.single.title, 'Minimo');
+  });
+
   test('ABlockedDownloadKeepsItsMessage', () {
     final d = SpaceLightenDownload.fromJson({
       'State': 'Blocked',
