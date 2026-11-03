@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.22.0.0",
+        "changelog": "Un torrent già in qBittorrent non è più solo \"rifiutato\": l'app chiede se importare i suoi file, che sostituiscono quelli in libreria e restano in seed. Da Alleggerisci la riga di Spazio sparisce quando il file arriva. Serve l'app 0.30.0.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.22.0/wonderflix-watch-party_1.22.0.zip",
+        "checksum": "209157c5ca44f8122a9b07c83fa9bad1",
+        "timestamp": "2026-11-03T12:00:00Z"
+      },
+      {
         "version": "1.21.1.0",
         "changelog": "\"Scarica il migliore intanto\" va fino in fondo anche se l'app si chiude o perde la rete durante la ricerca: prima il download non partiva, senza dire niente.",
         "targetAbi": "10.11.0.0",
