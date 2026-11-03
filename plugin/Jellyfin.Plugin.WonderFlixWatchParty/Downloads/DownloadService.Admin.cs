@@ -473,6 +473,9 @@ public sealed partial class DownloadService
                     entry.MetadataSince = null;
                     entry.AdminImportAt = null;
                     entry.ManualImportPending = false;
+
+                    // Numeri di un pack di prima: la stagione non intera lascerebbe agli altri episodi dei file la loro voce.
+                    entry.EpisodeNumbers = null;
                     entry.Stopgap = null;
                     (entry.PreviousScore, entry.PreviousQualityId, entry.PreviousSizeBytes) = (null, null, null);
                     (entry.CurrentScore, entry.CurrentQualityId, entry.CurrentSizeBytes) = (null, null, null);

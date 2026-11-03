@@ -244,6 +244,41 @@ public sealed class DownloadServiceExistingTorrentTests : IDisposable
     }
 
     [Fact]
+    public async Task AnImportedSeasonWithStaleEpisodeNumbersIsNotDownloadedAgain()
+    {
+        _arr.LibraryMovies = () => Task.FromResult<IReadOnlyList<RadarrMovie?>>([]);
+        var aired = T0 - TimeSpan.FromDays(30);
+        var episodes = new[] { 201, 202, 203 }.Select((id, i) => { var e = Episode(id, aired); e.EpisodeNumber = i + 1; return e; }).ToList();
+        var done = Episode(204, aired);
+        done.EpisodeNumber = 4;
+
+        // Non intera (il quarto ha il file): senza numeri la voce di stagione prende tutti i mancanti.
+        _arr.MissingEpisodes = () => Task.FromResult<IReadOnlyList<SonarrEpisode?>>([.. episodes]);
+        _arr.SeriesEpisodes = _ => Task.FromResult<IReadOnlyList<SonarrEpisode?>>([.. episodes, done]);
+        _qbit.Torrents.Add(Torrent("Pack"));
+        Pack(PackFile(7, 2, 201), PackFile(7, 2, 202), PackFile(7, 2, 203));
+        Save(new DownloadEntry
+        {
+            Key = "season:7:2",
+            Kind = DownloadKinds.Season,
+            Title = "Severance · Stagione 2",
+            State = DownloadStates.NeedsYou,
+            AvailableSince = T0,
+            NextSearchAt = T0,
+            SeriesId = 7,
+            EpisodeNumbers = [1, 2],
+        });
+
+        Assert.Equal(BlockedOutcome.Ok, (await _service.ImportExistingAsync("season:7:2", "ABC123")).Outcome);
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Empty(_arr.GrabCalls);
+        var saved = Store().Load();
+        Assert.Equal(DownloadStates.Downloading, saved.Get("season:7:2")!.State);
+        Assert.Null(saved.Get("episode:203"));
+    }
+
+    [Fact]
     public async Task AnImportedTitleWithoutItsFileYetIsNotDownloadedAgain()
     {
         _qbit.Torrents.Add(Torrent("Film", contentPath: "/dl/Film"));
