@@ -14,6 +14,7 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
+import '../admin/admin_action_button.dart';
 import '../admin/admin_confirm_dialog.dart';
 import '../admin/admin_poller.dart';
 import '../admin/admin_time.dart';
@@ -260,6 +261,17 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
       children: [
         if (widget.header case final header?)
           Padding(padding: const EdgeInsets.only(bottom: 8), child: header),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: AdminActionButton(
+              label: l.adminActivityRefresh,
+              icon: LucideIcons.rotateCw,
+              onPressed: _reload,
+            ),
+          ),
+        ),
         if (!overview.enabled)
           _Note(text: l.downloadsDisabledNote, icon: LucideIcons.info),
         for (final text in errors)

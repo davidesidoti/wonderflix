@@ -388,6 +388,11 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
             children: [
               Text(status, style: muted),
               AdminActionButton(
+                label: l.adminActivityRefresh,
+                icon: LucideIcons.rotateCw,
+                onPressed: _reload,
+              ),
+              AdminActionButton(
                 label: l.spaceRecalculate,
                 icon: LucideIcons.refreshCw,
                 onPressed: o.scanning

@@ -281,6 +281,17 @@ void main() {
     expect(find.textContaining('ricerca non riuscita'), findsOneWidget);
   });
 
+  testWidgets('Aggiorna rilegge i download', (tester) async {
+    api.overviewValue = DownloadsOverview(enabled: true);
+    await pumpTab(tester);
+    api.calls.clear();
+
+    await tester.tap(find.text('Aggiorna'));
+    await tester.pumpAndSettle();
+
+    expect(api.calls, ['overview']);
+  });
+
   testWidgets('Cerca ora chiama il plugin e rilegge', (tester) async {
     api.overviewValue =
         DownloadsOverview(enabled: true, waiting: [_item('movie:2')]);
@@ -650,7 +661,8 @@ void main() {
       expect(
           tester
               .widgetList<AdminActionButton>(find.byType(AdminActionButton))
-              .map((b) => b.label),
+              .map((b) => b.label)
+              .where((label) => label != 'Aggiorna'),
           labels);
       expect(tester.widget(button(labels[0])), isA<FilledButton>());
       expect(tester.widget(button(labels[1])), isA<OutlinedButton>());

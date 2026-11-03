@@ -117,6 +117,17 @@ void main() {
     expect(api.calls, contains('recalculate'));
   });
 
+  testWidgets('AggiornaRereadsWithoutRecalculating', (tester) async {
+    api.overviewValue = _overview();
+    await pumpTab(tester);
+    api.calls.clear();
+
+    await tester.tap(find.text('Aggiorna'));
+    await tester.pumpAndSettle();
+
+    expect(api.calls, ['overview']);
+  });
+
   testWidgets('SeasonsAreGroupedUnderTheSeries', (tester) async {
     api.overviewValue = _overview(
       scannedAt: _scanned,
