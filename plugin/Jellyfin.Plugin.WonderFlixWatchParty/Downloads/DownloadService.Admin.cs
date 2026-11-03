@@ -381,8 +381,8 @@ public sealed partial class DownloadService
 
     /// <summary>
     /// Importa i file del titolo da un torrent già finito in qBittorrent (<paramref name="hash"/>), in copia: il torrent resta
-    /// a seminare. Vale anche dove Sonarr li giudica peggiori di quelli in libreria. Poi la voce esce dal libro ed è accettata,
-    /// così il giro non cerca un upgrade. "NoFiles" se nel torrent non c'è niente di quel titolo.
+    /// a seminare. Vale anche dove Sonarr li giudica peggiori di quelli in libreria. Poi la voce è accettata (il giro non cerca
+    /// un upgrade) e "in download" finché il file non arriva, così il giro non lo cerca di nuovo. "NoFiles" se nel torrent non c'è niente di quel titolo.
     /// </summary>
     public async Task<(BlockedOutcome Outcome, string? Error)> ImportExistingAsync(string key, string hash)
     {
@@ -443,19 +443,57 @@ public sealed partial class DownloadService
                 return (BlockedOutcome.Failed, ErrorOf(ex));
             }
 
-            var keys = files
+            var episodes = files
                 .SelectMany(f => f.Episodes?.OfType<ArrFileRef>().Where(e => e.Id > 0).Select(e => Key(DownloadKinds.Episode, e.Id)) ?? [])
-                .Append(parsed.ToString())
                 .Distinct()
+                .Where(k => k != parsed.ToString())
                 .ToList();
             lock (_lock)
             {
-                // Quale che sia lo stato della voce: i file sono questi, non c'è altro da cercare.
-                keys.ForEach(k =>
+                // L'import è un comando asincrono: finché il file non c'è il titolo è ancora da scaricare, e il giro lo
+                // cercherebbe di nuovo. La voce resta "in download" come dopo la scelta di un admin (GrabbedByAdmin): con il
+                // file il giro la toglie (accettata), senza torna in attesa dopo lo stesso tempo di un download sparito.
+                var now = time.GetUtcNow();
+                var title = _lastSearch.GetValueOrDefault(parsed.ToString())?.Title;
+                var entry = Book.Get(parsed.ToString()) ?? (title is null ? null : Create(title, now));
+                if (entry is null)
+                {
+                    logger.LogWarning("Download automatici: {Key} importato senza voce né ricerca ricordata, il giro non lo segue", parsed);
+                }
+                else
+                {
+                    entry.State = DownloadStates.Downloading;
+                    entry.Reason = null;
+                    entry.Snoozed = false;
+                    entry.Summary = null;
+                    entry.LastSearchAt = now;
+                    entry.QueueId = null;
+                    entry.LastSizeLeft = null;
+                    entry.LastProgressAt = null;
+                    entry.MetadataSince = null;
+                    entry.AdminImportAt = null;
+                    entry.ManualImportPending = false;
+                    entry.Stopgap = null;
+                    (entry.PreviousScore, entry.PreviousQualityId, entry.PreviousSizeBytes) = (null, null, null);
+                    (entry.CurrentScore, entry.CurrentQualityId, entry.CurrentSizeBytes) = (null, null, null);
+                }
+
+                // Gli episodi dei file che aspettano o tengono d'occhio un upgrade escono (l'admin non vuole upgrade);
+                // quelli che scaricano restano, così se ne continua a seguire il download.
+                foreach (var episode in episodes)
+                {
+                    if (Book.Get(episode) is { State: DownloadStates.Waiting or DownloadStates.NeedsYou or DownloadStates.UpgradeWatch })
+                    {
+                        Book.Remove(episode);
+                    }
+                }
+
+                // Accettati, perché il giro non cerchi un upgrade dei file importati.
+                foreach (var k in episodes.Append(parsed.ToString()))
                 {
                     Book.Accept(k);
-                    Book.Remove(k);
-                });
+                }
+
                 SaveAfterGrab();
             }
 

@@ -165,12 +165,16 @@ public sealed class DownloadServiceExistingTorrentTests : IDisposable
     private void Pack(params ArrManualImportItem[] files) =>
         _arr.ManualImportFolderItems = (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>(files);
 
-    private void Preexisting(params (string Key, string Kind, string State)[] entries)
+    // Voci già nel libro, tutte da cercare subito: se il giro le ritrova in attesa le cerca e le scarica.
+    private void Preexisting(params (string Key, string Kind, string State)[] entries) =>
+        Save([.. entries.Select(e => new DownloadEntry { Key = e.Key, Kind = e.Kind, Title = e.Key, State = e.State, AvailableSince = T0, NextSearchAt = T0 })]);
+
+    private void Save(params DownloadEntry[] entries)
     {
         var book = new DownloadBook();
-        foreach (var (key, kind, state) in entries)
+        foreach (var entry in entries)
         {
-            book.Put(new DownloadEntry { Key = key, Kind = kind, Title = key, State = state, AvailableSince = T0 });
+            book.Put(entry);
         }
 
         Store().Save(book);
@@ -198,19 +202,117 @@ public sealed class DownloadServiceExistingTorrentTests : IDisposable
         Assert.Equal(["/dl/Pack/S3E301.mkv", "/dl/Pack/S3E302.mkv"], items.Select(i => i.Path));
         Assert.Equal([true], _arr.ManualImportCopies);
 
-        // La voce e i suoi episodi escono dal libro e sono accettati; l'episodio di un'altra stagione resta.
+        // Gli episodi dei file escono dal libro; la stagione resta in download finché non arriva il file. Sono tutti accettati;
+        // l'episodio di un'altra stagione resta.
         var saved = Store().Load();
-        foreach (var gone in new[] { "season:7:3", "episode:301", "episode:302" })
+        foreach (var gone in new[] { "episode:301", "episode:302" })
         {
             Assert.Null(saved.Get(gone));
-            Assert.True(saved.IsAccepted(gone), gone);
         }
 
+        foreach (var accepted in new[] { "season:7:3", "episode:301", "episode:302" })
+        {
+            Assert.True(saved.IsAccepted(accepted), accepted);
+        }
+
+        Assert.Equal(DownloadStates.Downloading, saved.Get("season:7:3")!.State);
         Assert.NotNull(saved.Get("episode:201"));
         Assert.False(saved.IsAccepted("episode:201"));
         Assert.Empty(saved.Lightened);
         Assert.Equal(1, nudges);
     }
+
+    [Fact]
+    public async Task ASeasonImportKeepsTheEpisodesThatDownloadAndDropsTheOthers()
+    {
+        _qbit.Torrents.Add(Torrent("Pack"));
+        Pack(PackFile(7, 3, 301), PackFile(7, 3, 302), PackFile(7, 3, 303));
+        Preexisting(
+            ("season:7:3", DownloadKinds.Season, DownloadStates.NeedsYou),
+            ("episode:301", DownloadKinds.Episode, DownloadStates.Downloading),
+            ("episode:302", DownloadKinds.Episode, DownloadStates.Waiting),
+            ("episode:303", DownloadKinds.Episode, DownloadStates.UpgradeWatch));
+
+        Assert.Equal(BlockedOutcome.Ok, (await _service.ImportExistingAsync("season:7:3", "ABC123")).Outcome);
+
+        var saved = Store().Load();
+        Assert.Equal(DownloadStates.Downloading, saved.Get("episode:301")!.State);
+        Assert.Null(saved.Get("episode:302"));
+        Assert.Null(saved.Get("episode:303"));
+        Assert.Equal(DownloadStates.Downloading, saved.Get("season:7:3")!.State);
+        Assert.All(new[] { "season:7:3", "episode:301", "episode:302", "episode:303" }, k => Assert.True(saved.IsAccepted(k), k));
+    }
+
+    [Fact]
+    public async Task AnImportedTitleWithoutItsFileYetIsNotDownloadedAgain()
+    {
+        _qbit.Torrents.Add(Torrent("Film", contentPath: "/dl/Film"));
+        MovieFile();
+        Preexisting(("movie:12", DownloadKinds.Movie, DownloadStates.NeedsYou));
+
+        Assert.Equal(BlockedOutcome.Ok, (await _service.ImportExistingAsync("movie:12", "ABC123")).Outcome);
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Empty(_arr.SearchReleaseCalls);
+        Assert.Empty(_arr.GrabCalls);
+        Assert.Equal(DownloadStates.Downloading, Store().Load().Get("movie:12")!.State);
+    }
+
+    [Fact]
+    public async Task AnImportedTitleWithItsFileLeavesTheBookAndSkipsTheUpgradeWatch()
+    {
+        _qbit.Torrents.Add(Torrent("Film", contentPath: "/dl/Film"));
+        MovieFile();
+
+        // Un tappabuchi con una scelta di prima: senza l'import, col file andrebbe in UpgradeWatch.
+        Save(new DownloadEntry
+        {
+            Key = "movie:12",
+            Kind = DownloadKinds.Movie,
+            Title = "Animals (2025)",
+            State = DownloadStates.NeedsYou,
+            AvailableSince = T0,
+            NextSearchAt = T0,
+            Stopgap = DownloadStopgaps.Score,
+            CurrentScore = 10,
+            CurrentSizeBytes = Gb,
+            PreviousScore = 5,
+            ManualImportPending = true,
+        });
+        Assert.Equal(BlockedOutcome.Ok, (await _service.ImportExistingAsync("movie:12", "ABC123")).Outcome);
+
+        var held = Store().Load().Get("movie:12")!;
+        Assert.Equal(DownloadStates.Downloading, held.State);
+        Assert.Null(held.Stopgap);
+        Assert.Null(held.CurrentScore);
+        Assert.Null(held.PreviousScore);
+        Assert.False(held.ManualImportPending);
+
+        // Il file è arrivato.
+        _arr.LibraryMovies = () => Task.FromResult<IReadOnlyList<RadarrMovie?>>([Movie(12, title: "Animals", year: 2025, runtime: 106, hasFile: true)]);
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Null(Store().Load().Get("movie:12"));
+        Assert.Empty(_arr.GrabCalls);
+    }
+
+    [Fact]
+    public async Task AnImportWithoutAnEntryCreatesItFromTheRememberedSearch()
+    {
+        _qbit.Torrents.Add(Torrent("Film", contentPath: "/dl/Film"));
+        MovieFile();
+        await _service.SearchAsync("movie:12", CancellationToken.None);
+        Assert.Null(Store().Load().Get("movie:12"));
+
+        Assert.Equal(BlockedOutcome.Ok, (await _service.ImportExistingAsync("movie:12", "ABC123")).Outcome);
+
+        var created = Store().Load().Get("movie:12")!;
+        Assert.Equal((DownloadStates.Downloading, "Animals (2025)", T0), (created.State, created.Title, created.LastSearchAt));
+    }
+
+    private void MovieFile() =>
+        _arr.ManualImportFolderItems = (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>(
+            [new ArrManualImportItem { Path = "/dl/Film/a.mkv", Movie = new ArrFileRef { Id = 12 }, Quality = JsonDocument.Parse("{}").RootElement, Size = 5 * Gb }]);
 
     [Fact]
     public async Task AnEpisodeIsImportedAloneFromAPack()
@@ -222,10 +324,11 @@ public sealed class DownloadServiceExistingTorrentTests : IDisposable
         Assert.Equal(BlockedOutcome.Ok, (await _service.ImportExistingAsync("episode:301", "ABC123")).Outcome);
 
         Assert.Equal(["/dl/Pack/S3E301.mkv"], Assert.Single(_arr.ManualImportCalls).Items.Select(i => i.Path));
+        // La voce dell'episodio resta in download finché non arriva il file; l'altro episodio non si tocca.
         var saved = Store().Load();
-        Assert.Null(saved.Get("episode:301"));
+        Assert.Equal(DownloadStates.Downloading, saved.Get("episode:301")!.State);
         Assert.True(saved.IsAccepted("episode:301"));
-        Assert.NotNull(saved.Get("episode:302"));
+        Assert.Equal(DownloadStates.NeedsYou, saved.Get("episode:302")!.State);
     }
 
     [Fact]

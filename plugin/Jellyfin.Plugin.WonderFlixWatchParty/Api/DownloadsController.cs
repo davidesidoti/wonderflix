@@ -87,7 +87,7 @@ public class DownloadsController(DownloadService downloads) : ControllerBase
         return Result(await downloads.ImportBlockedAsync(key).ConfigureAwait(false));
     }
 
-    /// <summary>"Importa dal torrent già presente": 204; 409 Changed; 502 NoFiles o ImportFailed; 503 Unavailable (qBittorrent o Radarr/Sonarr).</summary>
+    /// <summary>"Importa dal torrent già presente": 204; 409 Changed; 502 NoFiles o ImportFailed; 503 Unavailable (qBittorrent).</summary>
     [HttpPost("ImportExisting")]
     public async Task<ActionResult> ImportExisting([FromBody] ImportExistingRequest? request) =>
         request?.Key is { } key && !string.IsNullOrEmpty(request.Hash)
