@@ -153,7 +153,9 @@ public sealed partial class SpaceService
         {
             var stale = Book.AtMinimum
                 .Where(a => (a.Key.StartsWith("movie:", StringComparison.Ordinal) ? scan.Errors.Radarr : scan.Errors.Sonarr) is null
-                    && !scan.Lighten.Any(r => r.Dto.Key == a.Key && r.Dto.SizeBytes == a.SizeBytes))
+                    && !scan.Lighten.Any(r => r.Dto.Key == a.Key && r.Dto.SizeBytes == a.SizeBytes)
+                    // Chi è in Cancellare non sta in Alleggerire: la riga manca, ma il file non è cambiato.
+                    && !scan.Delete.Any(r => r.Keys.Contains(a.Key)))
                 .ToList();
             foreach (var mark in stale)
             {

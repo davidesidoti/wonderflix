@@ -268,6 +268,32 @@ public sealed class SpaceScanTests : IDisposable
     }
 
     [Fact]
+    public async Task AMarkSurvivesATurnInDelete()
+    {
+        AddHeavyMovie();
+        await ScanAsync();
+        _service.MarkAtMinimum("movie:12", "Coco");
+
+        void AddedAt(DateTimeOffset at)
+        {
+            _movies[0].Added = at;
+            _viewing.Movies[_index.Movies[0].Id] = _viewing.Movies[_index.Movies[0].Id] with { Added = at };
+        }
+
+        AddedAt(Now.AddMonths(-8));
+        var inDelete = await ScanAsync();
+        Assert.Equal("movie:12", Assert.Single(inDelete.Delete).Key);
+        Assert.Equal("movie:12", Assert.Single(inDelete.AtMinimum).Key);
+
+        // Fuori da Cancellare con lo stesso file: non torna in Alleggerire.
+        AddedAt(Now.AddDays(-10));
+        var back = await ScanAsync();
+        Assert.Empty(back.Delete);
+        Assert.Empty(back.Lighten);
+        Assert.Equal("movie:12", Assert.Single(back.AtMinimum).Key);
+    }
+
+    [Fact]
     public async Task AFileOfAnotherSizeDropsTheMark()
     {
         AddHeavyMovie();
