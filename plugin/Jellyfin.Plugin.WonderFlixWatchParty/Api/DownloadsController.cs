@@ -91,7 +91,7 @@ public class DownloadsController(DownloadService downloads) : ControllerBase
     [HttpPost("ImportExisting")]
     public async Task<ActionResult> ImportExisting([FromBody] ImportExistingRequest? request) =>
         request?.Key is { } key && !string.IsNullOrEmpty(request.Hash)
-            ? Result(await downloads.ImportExistingAsync(key, request.Hash).ConfigureAwait(false))
+            ? Result(await downloads.ImportExistingAsync(key, request.Hash, request.Lighten).ConfigureAwait(false))
             : BadRequest();
 
     /// <summary>"Scarta e cerca un altro": 204; 409 Changed se non è più bloccata; 503 se Radarr/Sonarr non rispondono.</summary>

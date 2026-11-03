@@ -234,8 +234,11 @@ class DownloadSearchController extends AsyncNotifier<DownloadSearch> {
   }
 
   /// Importa i file del torrent [hash], già in qBittorrent.
-  Future<DownloadsFailure?> importExisting(String hash) =>
-      _act(() => ref.read(downloadsApiProvider).importExisting(key, hash));
+  Future<DownloadsFailure?> importExisting(String hash,
+          {bool lighten = false}) =>
+      _act(() => ref
+          .read(downloadsApiProvider)
+          .importExisting(key, hash, lighten: lighten));
 
   /// Scarica [releases] una dopo l'altra (il plugin le segue come voci degli
   /// episodi, ruling 13). `grabbing` resta vero per tutta la serie; un

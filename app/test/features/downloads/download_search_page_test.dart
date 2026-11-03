@@ -48,6 +48,7 @@ void main() {
   Future<void> open(
     WidgetTester tester, {
     bool reviewing = false,
+    bool lighten = false,
     bool settle = true,
     Size size = const Size(1440, 900),
     SocialFeatures features =
@@ -59,7 +60,7 @@ void main() {
         body: Builder(
           builder: (context) => TextButton(
             onPressed: () => showDownloadSearch(context, 'movie:1', 'Film',
-                reviewing: reviewing),
+                reviewing: reviewing, lighten: lighten),
             child: const Text('apri'),
           ),
         ),
@@ -266,11 +267,12 @@ void main() {
     List<String> imports() =>
         api.calls.where((c) => c.startsWith('importExisting')).toList();
 
-    Future<void> grabExisting(WidgetTester tester) async {
+    Future<void> grabExisting(WidgetTester tester,
+        {bool lighten = false}) async {
       api.nextActionFailure = DownloadsFailure.refused;
       api.nextActionExisting =
           const ExistingTorrent(hash: 'abc', name: 'Film.2024.1080p');
-      await open(tester);
+      await open(tester, lighten: lighten);
       await tapGrab(tester);
     }
 
@@ -306,6 +308,15 @@ void main() {
       expect(imports(), ['importExisting movie:1 abc']);
       expect(find.text('Import avviato'), findsOneWidget);
       expect(find.widgetWithText(FilledButton, 'Scarica'), findsNothing);
+    });
+
+    testWidgets('an import from Alleggerisci tells the plugin', (tester) async {
+      await grabExisting(tester, lighten: true);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Importa'));
+      await tester.pumpAndSettle();
+
+      expect(imports(), ['importExisting movie:1 abc lighten']);
     });
 
     testWidgets('an import error keeps the page open', (tester) async {

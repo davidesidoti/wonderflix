@@ -129,9 +129,11 @@ class DownloadsApi {
           quietStatuses: _quiet));
 
   /// Importa i file del torrent già in qBittorrent al posto di un nuovo grab.
-  Future<void> importExisting(String key, String hash) => _call(() =>
-      _http.post('$_base/ImportExisting',
-          body: {'Key': key, 'Hash': hash},
+  /// [lighten]: come in [grab], da "Alleggerisci".
+  Future<void> importExisting(String key, String hash,
+          {bool lighten = false}) =>
+      _call(() => _http.post('$_base/ImportExisting',
+          body: {'Key': key, 'Hash': hash, if (lighten) 'Lighten': true},
           receiveTimeout: searchTimeout,
           quietStatuses: _quiet));
 

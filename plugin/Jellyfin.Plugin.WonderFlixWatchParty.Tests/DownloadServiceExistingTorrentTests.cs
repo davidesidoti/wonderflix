@@ -279,6 +279,31 @@ public sealed class DownloadServiceExistingTorrentTests : IDisposable
     }
 
     [Fact]
+    public async Task ALightenImportMarksOnlyTheKeyItself()
+    {
+        _qbit.Torrents.Add(Torrent("Film", contentPath: "/dl/Film"));
+        MovieFile();
+        Preexisting(("movie:12", DownloadKinds.Movie, DownloadStates.NeedsYou));
+
+        Assert.Equal(BlockedOutcome.Ok, (await _service.ImportExistingAsync("movie:12", "ABC123", lighten: true)).Outcome);
+
+        Assert.Equal(T0, Assert.Single(_service.LightenedKeys()).Value);
+        Assert.True(_service.LightenedKeys().ContainsKey("movie:12"));
+    }
+
+    [Fact]
+    public async Task AnImportWithoutLightenMarksNothing()
+    {
+        _qbit.Torrents.Add(Torrent("Film", contentPath: "/dl/Film"));
+        MovieFile();
+        Preexisting(("movie:12", DownloadKinds.Movie, DownloadStates.NeedsYou));
+
+        Assert.Equal(BlockedOutcome.Ok, (await _service.ImportExistingAsync("movie:12", "ABC123")).Outcome);
+
+        Assert.Empty(_service.LightenedKeys());
+    }
+
+    [Fact]
     public async Task AnImportedTitleWithoutItsFileYetIsNotDownloadedAgain()
     {
         _qbit.Torrents.Add(Torrent("Film", contentPath: "/dl/Film"));

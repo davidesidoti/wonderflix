@@ -102,6 +102,9 @@ void main() {
     await c.read(downloadsControllerProvider.future);
     expect(api.calls, ['importExisting movie:1 abc', 'overview']);
 
+    await notifier.importExisting('abc', lighten: true);
+    expect(api.calls, contains('importExisting movie:1 abc lighten'));
+
     api.nextActionFailure = DownloadsFailure.noFiles;
     expect(await notifier.importExisting('abc'), DownloadsFailure.noFiles);
     sub.close();

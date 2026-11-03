@@ -116,7 +116,7 @@ class _SearchPage extends ConsumerWidget {
       confirmLabel: l.downloadsExistingTorrentImport,
     );
     if (!ok || !context.mounted) return;
-    final importFailure = await controller.importExisting(existing.hash);
+    final importFailure = await controller.importExisting(existing.hash, lighten: lighten);
     if (!context.mounted) return;
     if (importFailure != null) return _fail(context, importFailure);
     messenger

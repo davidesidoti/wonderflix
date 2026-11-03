@@ -193,6 +193,10 @@ public sealed class ImportExistingRequest
 
     [JsonPropertyName("Hash")]
     public string? Hash { get; set; }
+
+    /// <summary>Come in <see cref="GrabRequest.Lighten"/>: l'import parte da "Alleggerisci".</summary>
+    [JsonPropertyName("Lighten")]
+    public bool Lighten { get; set; }
 }
 
 /// <summary>Corpo di POST Downloads/RemoveUnknown.</summary>

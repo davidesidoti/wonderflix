@@ -171,8 +171,9 @@ class FakeDownloadsApi implements DownloadsApi {
       _action('grab $key $guid $indexerId${lighten ? ' lighten' : ''}');
 
   @override
-  Future<void> importExisting(String key, String hash) =>
-      _action('importExisting $key $hash');
+  Future<void> importExisting(String key, String hash,
+          {bool lighten = false}) =>
+      _action('importExisting $key $hash${lighten ? ' lighten' : ''}');
 
   @override
   Future<void> accept(String key) => _action('accept $key');

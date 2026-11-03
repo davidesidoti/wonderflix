@@ -188,6 +188,11 @@ void main() {
     expect(request.data, {'Key': 'k', 'Hash': 'abc'});
     expect(request.receiveTimeout, DownloadsApi.searchTimeout);
 
+    adapter.requests.clear();
+    await api.importExisting('k', 'abc', lighten: true);
+    expect(adapter.requests.single.data,
+        {'Key': 'k', 'Hash': 'abc', 'Lighten': true});
+
     for (final (status, reason, expected) in <(int, String, DownloadsFailure)>[
       (409, 'Changed', DownloadsFailure.changed),
       (502, 'NoFiles', DownloadsFailure.noFiles),

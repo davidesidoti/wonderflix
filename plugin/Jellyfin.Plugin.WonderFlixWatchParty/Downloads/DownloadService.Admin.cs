@@ -384,7 +384,7 @@ public sealed partial class DownloadService
     /// a seminare. Vale anche dove Sonarr li giudica peggiori di quelli in libreria. Poi la voce è accettata (il giro non cerca
     /// un upgrade) e "in download" finché il file non arriva, così il giro non lo cerca di nuovo. "NoFiles" se nel torrent non c'è niente di quel titolo.
     /// </summary>
-    public async Task<(BlockedOutcome Outcome, string? Error)> ImportExistingAsync(string key, string hash)
+    public async Task<(BlockedOutcome Outcome, string? Error)> ImportExistingAsync(string key, string hash, bool lighten = false)
     {
         if (!DownloadKey.TryParse(key, out var parsed) || string.IsNullOrWhiteSpace(hash))
         {
@@ -423,6 +423,9 @@ public sealed partial class DownloadService
             }
 
             var service = ServiceOf(parsed.Kind);
+
+            // Prima del comando: un file importato subito risulta più nuovo del segno di "Alleggerisci".
+            var lightenedAt = time.GetUtcNow();
             List<ArrManualImportItem> files;
             try
             {
@@ -495,6 +498,12 @@ public sealed partial class DownloadService
                 foreach (var k in episodes.Append(parsed.ToString()))
                 {
                     Book.Accept(k);
+                }
+
+                // "Alleggerisci": solo la chiave del titolo, come il grab; la riga di Spazio sparisce a file importato.
+                if (lighten)
+                {
+                    Book.MarkLightened(parsed.ToString(), lightenedAt);
                 }
 
                 SaveAfterGrab();
