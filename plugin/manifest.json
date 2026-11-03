@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.23.0.0",
+        "changelog": "Alleggerire: un titolo si può segnare \"Già al minimo\" per toglierlo solo da quella lista; si annulla dai Tenuti e decade se il file cambia peso. Le release di una ricerca dicono se coprono tutta la stagione.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.23.0/wonderflix-watch-party_1.23.0.zip",
+        "checksum": "2e1eea83c384ead88d54e69a5f125255",
+        "timestamp": "2026-11-03T14:13:00Z"
+      },
+      {
         "version": "1.22.0.0",
         "changelog": "Un torrent già in qBittorrent non è più solo \"rifiutato\": l'app chiede se importare i suoi file, che sostituiscono quelli in libreria e restano in seed. Da Alleggerisci la riga di Spazio sparisce quando il file arriva. Serve l'app 0.30.0.",
         "targetAbi": "10.11.0.0",
