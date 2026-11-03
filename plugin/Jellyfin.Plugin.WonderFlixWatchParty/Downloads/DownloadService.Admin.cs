@@ -1397,7 +1397,7 @@ public sealed partial class DownloadService
     }
 
     private static DownloadReleaseDto ReleaseDto(ArrRelease r) =>
-        new(r.Guid ?? "", r.IndexerId, r.Indexer ?? "", r.Title ?? "", r.Quality?.Quality?.Name ?? "", r.Quality?.Quality?.Resolution ?? 0, r.Size, r.CustomFormatScore, r.Seeders);
+        new(r.Guid ?? "", r.IndexerId, r.Indexer ?? "", r.Title ?? "", r.Quality?.Quality?.Name ?? "", r.Quality?.Quality?.Resolution ?? 0, r.Size, r.CustomFormatScore, r.Seeders, r.FullSeason);
 
     private static DownloadChoiceDto ChoiceDto(DownloadChoice c) => new(
         c.Key,

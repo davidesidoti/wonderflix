@@ -122,6 +122,7 @@ class DownloadRelease {
     required this.sizeBytes,
     required this.score,
     this.seeders,
+    this.fullSeason,
   });
 
   final String guid;
@@ -133,6 +134,9 @@ class DownloadRelease {
   final int sizeBytes;
   final int score;
   final int? seeders;
+
+  /// Copre tutta la stagione; null con un plugin che non lo manda.
+  final bool? fullSeason;
 
   static DownloadRelease? fromJson(Map<String, dynamic> json) {
     try {
@@ -146,6 +150,7 @@ class DownloadRelease {
         sizeBytes: (json['SizeBytes'] as num).toInt(),
         score: (json['Score'] as num).toInt(),
         seeders: _intOrNull(json['Seeders']),
+        fullSeason: json['FullSeason'] as bool?,
       );
     } on Object {
       return null;
@@ -687,13 +692,18 @@ class DownloadSearch {
             file.sizeBytes * currentFileSizeTolerance;
   }
 
-  /// C'è qualcosa di più leggero senza perdere punteggio. I singoli episodio
-  /// potrebbero far risparmiare: con quelli non si può dire di no.
+  /// C'è qualcosa di più leggero senza perdere punteggio. Con i singoli
+  /// migliori di una stagione si può risparmiare episodio per episodio; a parte
+  /// loro, di una stagione contano solo i pack interi: il peso del file è la
+  /// somma della stagione, un singolo pesa sempre meno.
   bool get hasLighter {
     final file = current;
-    if (file == null || episodeChoices.isNotEmpty) return true;
+    if (file == null || episodeChoices.any((c) => c.release != null)) {
+      return true;
+    }
     return candidates.any(
       (c) =>
+          (kind != DownloadKind.season || c.release.fullSeason != false) &&
           c.release.score >= file.score &&
           c.release.sizeBytes < file.sizeBytes * lighterSizeRatio,
     );

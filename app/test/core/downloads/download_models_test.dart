@@ -15,6 +15,49 @@ Map<String, dynamic> releaseJson({Object? size = 4000000000, String guid = 'g1'}
     };
 
 void main() {
+  group('DownloadSearch.hasLighter on a season', () {
+    DownloadSearch season(int sizeBytes, bool? fullSeason) => DownloadSearch(
+          key: 'season:1:1',
+          kind: DownloadKind.season,
+          title: 'Serie',
+          runtimeMinutes: 45,
+          current: const DownloadCurrentFile(
+              sizeBytes: 20000000000, score: 100, quality: 'x'),
+          candidates: [
+            DownloadCandidate(
+              rank: 1,
+              release: DownloadRelease(
+                guid: 'g',
+                indexerId: 1,
+                indexer: 'i',
+                title: 't',
+                quality: 'q',
+                resolution: 1080,
+                sizeBytes: sizeBytes,
+                score: 100,
+                fullSeason: fullSeason,
+              ),
+              isChoice: false,
+              wouldImport: true,
+            ),
+          ],
+          validCount: 1,
+          totalCount: 1,
+        );
+
+    test('a single episode does not count', () {
+      expect(season(2000000000, false).hasLighter, isFalse);
+    });
+
+    test('a lighter whole pack counts', () {
+      expect(season(10000000000, true).hasLighter, isTrue);
+    });
+
+    test('with a plugin that does not say, it counts', () {
+      expect(season(2000000000, null).hasLighter, isTrue);
+    });
+  });
+
   group('DownloadSearchStatus', () {
     Map<String, dynamic> statusJson(String state,
             {Object? startedAt, Object? result}) =>

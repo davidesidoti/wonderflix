@@ -854,6 +854,17 @@ void main() {
       expect(find.text(nothingLighter), findsNothing);
     });
 
+    testWidgets('episodes without a release do not hide the warning',
+        (tester) async {
+      api.searchValue = _search(
+          current: _current120,
+          candidates: [_row('g1', 1000000000)],
+          episodeChoices: [testEpisodeChoice(1, hasRelease: false)]);
+      await open(tester, lighten: true);
+
+      expect(find.text(nothingLighter), findsOneWidget);
+    });
+
     testWidgets('without a current file: no button and no warning',
         (tester) async {
       await open(tester, lighten: true);

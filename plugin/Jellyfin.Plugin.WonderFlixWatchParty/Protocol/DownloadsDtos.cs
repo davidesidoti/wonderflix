@@ -12,7 +12,8 @@ public sealed record DownloadReleaseDto(
     [property: JsonPropertyName("Resolution")] int Resolution,
     [property: JsonPropertyName("SizeBytes")] long SizeBytes,
     [property: JsonPropertyName("Score")] int Score,
-    [property: JsonPropertyName("Seeders")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  int? Seeders);
+    [property: JsonPropertyName("Seeders")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  int? Seeders,
+    [property: JsonPropertyName("FullSeason")] bool FullSeason = false);
 
 /// <summary>Una scelta fatta, da WonderFlix o dall'admin (spec T §8.1). Previous*: il file di prima, per un upgrade.</summary>
 public sealed record DownloadChoiceDto(

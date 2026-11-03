@@ -379,6 +379,23 @@ public sealed class SpaceScanTests : IDisposable
     }
 
     [Fact]
+    public async Task AFailedLightenDownloadDoesNotKeepTheRowVisible()
+    {
+        AddHeavyMovie();
+        var store = new Downloads.DownloadStore(_folder.DownloadsFile, NullLogger<Downloads.DownloadStore>.Instance);
+        var book = store.Load();
+        book.MarkLightened("movie:12", Now.AddHours(-1));
+        store.Save(book);
+        _arr.Queue = _ => Task.FromResult<IReadOnlyList<ArrQueueItem?>>(
+            [new ArrQueueItem { MovieId = 12, Size = 4 * Gb, Sizeleft = Gb, TrackedDownloadState = "failed" }]);
+        Assert.Equal(SpaceLightenStates.Failed, Assert.Single((await ScanAsync()).Lighten).Download!.State);
+
+        _service.MarkAtMinimum("movie:12", "Coco");
+
+        Assert.Empty((await _service.OverviewAsync(_admin.Id, CancellationToken.None)).Lighten);
+    }
+
+    [Fact]
     public async Task TorrentOnlyAndOrphansAreInCleanup()
     {
         _qbit.Torrents.Add(new QbitTorrent { Hash = "t1", Name = "Old", Size = 3 * Gb, Progress = 1, Tracker = "https://tracker.example/a", SavePath = "/srv/seedings" });

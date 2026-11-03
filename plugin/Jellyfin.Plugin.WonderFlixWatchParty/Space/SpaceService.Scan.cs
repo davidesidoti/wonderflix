@@ -83,7 +83,7 @@ public sealed partial class SpaceService
     /// <summary>
     /// <c>GET Space</c> (spec U §7.4): l'ultimo calcolo senza i titoli tenuti e senza i preferiti di chi chiama (spec U §4.2),
     /// con i suoi generi (decisione 14), i torrent in attesa, i tenuti e le ultime operazioni. Le righe di Alleggerire hanno
-    /// lo stato del loro download di "Alleggerisci" (piano 30d); quelle "Già al minimo" si nascondono, ma non con un download in corso.
+    /// lo stato del loro download di "Alleggerisci" (piano 30d); quelle "Già al minimo" si nascondono, ma non con un download ancora vivo (uno fallito non conta).
     /// </summary>
     public async Task<SpaceOverviewDto> OverviewAsync(Guid callerId, CancellationToken ct)
     {
@@ -130,7 +130,7 @@ public sealed partial class SpaceService
             shown.Quota,
             shown.Breakdown,
             [.. shown.Delete.Where(r => Visible(r.Keys, r.ItemIds) && !Done(r.Dto.Key, r.Dto.SeriesKey)).Select(r => r.Dto)],
-            [.. lighten.Where(r => r.Download is not null || !atMinimumMarks.Contains((r.Key, r.SizeBytes)))],
+            [.. lighten.Where(r => r.Download is { State: not SpaceLightenStates.Failed } || !atMinimumMarks.Contains((r.Key, r.SizeBytes)))],
             new SpaceCleanupDto(
                 [.. shown.Cleanup.Torrents.Where(t => !removedHashes.Contains(t.Hash))],
                 [.. shown.Cleanup.Orphans.Where(f => !doneKeys.Contains(f.Key))],
