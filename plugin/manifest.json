@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.21.1.0",
+        "changelog": "\"Scarica il migliore intanto\" va fino in fondo anche se l'app si chiude o perde la rete durante la ricerca: prima il download non partiva, senza dire niente.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.21.1/wonderflix-watch-party_1.21.1.zip",
+        "checksum": "bee025deb50338cc88335c4003262086",
+        "timestamp": "2026-11-03T00:24:00Z"
+      },
+      {
         "version": "1.21.0.0",
         "changelog": "Download senza titolo nella panoramica, con la rimozione dal client (la sezione nell'app arriva con la prossima versione di WonderFlix). La ricerca manuale su Sonarr/Radarr aspetta fino a 60 minuti; il giro automatico al massimo 15, poi una stagione da scaricare si divide in episodi, film ed episodi si riprovano dopo 24 ore e gli upgrade dopo 7 giorni. Un import rifiutato in coda chiede l'intervento dell'admin. Con Sonarr/Radarr dietro nginx il proxy_read_timeout consigliato è 3600 s.",
         "targetAbi": "10.11.0.0",
