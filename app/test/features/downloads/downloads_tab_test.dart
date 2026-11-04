@@ -281,6 +281,24 @@ void main() {
     expect(find.textContaining('ricerca non riuscita'), findsOneWidget);
   });
 
+  testWidgets('In attesa: prima ciò che è in corso, il resto nel suo ordine',
+      (tester) async {
+    api.overviewValue = DownloadsOverview(enabled: true, waiting: [
+      _item('movie:1'),
+      _item('movie:2', searchPhase: DownloadSearchPhase.queued),
+      _item('movie:3', state: DownloadState.upgradeWatch),
+      _item('movie:4', searchPhase: DownloadSearchPhase.searching),
+      _item('movie:5', state: DownloadState.downloading),
+    ]);
+    await pumpTab(tester, settle: false);
+
+    final order = ['movie:5', 'movie:4', 'movie:2', 'movie:1', 'movie:3'];
+    for (var i = 1; i < order.length; i++) {
+      expect(y(tester, 'Voce ${order[i]}'),
+          greaterThan(y(tester, 'Voce ${order[i - 1]}')));
+    }
+  });
+
   testWidgets('Aggiorna rilegge i download', (tester) async {
     api.overviewValue = DownloadsOverview(enabled: true);
     await pumpTab(tester);

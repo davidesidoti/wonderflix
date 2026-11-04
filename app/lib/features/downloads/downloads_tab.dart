@@ -235,8 +235,9 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
         if (i.state == DownloadState.needsYou) i,
     ];
     final waiting = [
-      for (final i in overview.waiting)
-        if (i.state != DownloadState.needsYou) i,
+      for (var rank = 0; rank <= 3; rank++)
+        for (final i in overview.waiting)
+          if (i.state != DownloadState.needsYou && _waitingRank(i) == rank) i,
     ];
     final recent = _allRecent
         ? overview.recent
@@ -352,6 +353,17 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
         ],
       ],
     );
+  }
+
+  /// "In attesa": prima ciò che è in corso; a pari grado resta l'ordine del
+  /// plugin, così le righe non saltano tra un giro e l'altro.
+  static int _waitingRank(DownloadItem item) {
+    if (item.state == DownloadState.downloading) return 0;
+    return switch (item.searchPhase) {
+      DownloadSearchPhase.searching => 1,
+      DownloadSearchPhase.queued => 2,
+      null => 3,
+    };
   }
 
   Widget _itemRow(DownloadItem item, DateTime now) => DownloadItemRow(
