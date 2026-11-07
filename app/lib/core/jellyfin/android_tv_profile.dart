@@ -133,7 +133,11 @@ Map<String, dynamic> buildAndroidTvDeviceProfile(
         'Container': 'ts',
         'Protocol': 'hls',
         'Context': 'Streaming',
-        'VideoCodec': 'h264',
+        // Se serve convertire solo l'audio, il server copia l'HEVC invece di
+        // ricodificare in 4K senza GPU; senza decoder HEVC resta H.264.
+        'VideoCodec': video.any((v) => v.mime == 'video/hevc')
+            ? 'h264,hevc'
+            : 'h264',
         'AudioCodec': 'aac,mp3,ac3,eac3',
         'MaxAudioChannels': '6',
         'MinSegments': 1,
@@ -149,7 +153,8 @@ Map<String, dynamic> buildAndroidTvDeviceProfile(
           'Conditions': [
             condition('Width', v.maxWidth),
             condition('Height', v.maxHeight),
-            if (v.mime == 'video/hevc' && !v.tenBit)
+            // H.264 Hi10P (comune negli anime) non ha decoder hardware.
+            if (v.mime == 'video/avc' || (v.mime == 'video/hevc' && !v.tenBit))
               condition('VideoBitDepth', 8),
           ],
         },

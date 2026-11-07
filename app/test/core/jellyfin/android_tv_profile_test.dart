@@ -90,14 +90,17 @@ void main() {
     expect(conditions(eight, 'VideoBitDepth').single['Value'], '8');
     final ten = codec(buildAndroidTvDeviceProfile(caps(tenBit: true)), 'hevc');
     expect(conditions(ten, 'VideoBitDepth'), isEmpty);
-    // H.264 non ha mai il limite sulla profondità.
-    expect(
-      conditions(
-        codec(buildAndroidTvDeviceProfile(caps()), 'h264'),
+    // H.264: sempre 8 bit (Hi10P non ha decoder hardware sulle TV), anche
+    // se HEVC fa 10 bit.
+    for (final c in [caps(), caps(tenBit: true)]) {
+      final h264 = conditions(
+        codec(buildAndroidTvDeviceProfile(c), 'h264'),
         'VideoBitDepth',
-      ),
-      isEmpty,
-    );
+      ).single;
+      expect(h264['Condition'], 'LessThanEqual');
+      expect(h264['Value'], '8');
+      expect(h264['IsRequired'], false);
+    }
   });
 
   test('limiti di risoluzione per codec', () {
@@ -153,10 +156,33 @@ void main() {
     expect(p['DirectPlayProfiles'], isEmpty);
   });
 
-  test('transcodifica e sottotitoli come il profilo di mpv', () {
+  test('transcodifica come mpv ma copia anche HEVC; sottotitoli uguali', () {
     final p = buildAndroidTvDeviceProfile(caps());
     final mpv = buildDeviceProfile();
-    expect(p['TranscodingProfiles'], mpv['TranscodingProfiles']);
+    final tv = (p['TranscodingProfiles'] as List).single as Map;
+    final mpvProfile = (mpv['TranscodingProfiles'] as List).single as Map;
+    expect(tv['VideoCodec'], 'h264,hevc');
+    expect(
+      {...tv}..remove('VideoCodec'),
+      {...mpvProfile}..remove('VideoCodec'),
+    );
+    // Senza decoder HEVC il server non deve produrre HEVC.
+    final noHevc = buildAndroidTvDeviceProfile(
+      caps(
+        video: [
+          {
+            'mime': 'video/avc',
+            'maxWidth': 1920,
+            'maxHeight': 1080,
+            'tenBit': false,
+          },
+        ],
+      ),
+    );
+    expect(
+      ((noHevc['TranscodingProfiles'] as List).single as Map)['VideoCodec'],
+      'h264',
+    );
     expect(p['SubtitleProfiles'], mpv['SubtitleProfiles']);
   });
 }
