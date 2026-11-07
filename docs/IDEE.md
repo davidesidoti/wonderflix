@@ -110,6 +110,13 @@ Il sito aggiunto alla Home dell'iPhone (o installato su Android) riceve notifich
 - **Da cercare:** service worker che riceve le push (Flutter web ne ha uno suo); pulsante "Attiva notifiche", perché iOS chiede il permesso solo dopo un tocco; chiavi VAPID, iscrizioni per utente e invio dal plugin (libreria .NET); quali eventi notificare e a chi, e le preferenze per spegnerli; doppioni con Discord.
 - Medio.
 
+## 16. Confermare Quick Connect da WonderFlix
+
+Oggi per far entrare un dispositivo con Quick Connect (la TV mostra un codice) il codice si conferma solo dal client web di Jellyfin (`/jellyfin/`, Impostazioni → Quick Connect): WonderFlix sa usare Quick Connect ma non confermarlo. L'utente vuole poterlo fare da WonderFlix, su PC, web e telefono (richiesta del 2026-11-07, dopo il primo accesso sul Fire Stick).
+- **Cosa c'è già:** `core/jellyfin/auth_api.dart` (`Initiate`, `Connect`, `Enabled`); la schermata di login della TV mostra già il suggerimento "Impostazioni → Quick Connect".
+- **Da fare:** schermata "Autorizza un dispositivo" per l'utente già entrato, con l'endpoint Jellyfin `POST /QuickConnect/Authorize?code=…`. È già prevista nel design TV (`docs/superpowers/specs/2026-11-07-wonderflix-tv-design.md`, sezione Accesso) e avrà un piano suo.
+- Piccolo.
+
 ## Fatte
 
 - Spec D — rinnovo del player (app 0.4.0).
