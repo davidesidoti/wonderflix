@@ -124,6 +124,24 @@ void main() {
     expect(submitText('Cerca'), findsOneWidget);
   });
 
+  testWidgets('Discord: nome cambiato durante la ricerca: niente errore',
+      (tester) async {
+    plugin.lookupValue = null;
+    final gate = plugin.lookupGate = Completer<void>();
+    await pumpTab(tester);
+    await open(tester, 'Associa Discord');
+
+    await tester.enterText(field, 'mario');
+    await tapSubmit(tester);
+    await tester.enterText(field, 'mario2');
+    gate.complete();
+    await pumpBusy(tester);
+
+    expect(plugin.calls, contains('lookup:mario'));
+    expect(find.text('Nome non trovato nel server Discord'), findsNothing);
+    expect(submitText('Cerca'), findsOneWidget);
+  });
+
   testWidgets('Discord: Cerca con il campo vuoto non fa niente',
       (tester) async {
     await pumpTab(tester);

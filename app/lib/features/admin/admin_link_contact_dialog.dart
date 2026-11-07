@@ -106,6 +106,7 @@ class _AdminLinkDialogState extends ConsumerState<_AdminLinkDialog> {
       _busy = true;
       _error = null;
     });
+    final lookup = widget.discord && member == null;
     try {
       if (!widget.discord) {
         await users.setEmail(widget.userId, text);
@@ -123,7 +124,11 @@ class _AdminLinkDialogState extends ConsumerState<_AdminLinkDialog> {
       }
       if (mounted) Navigator.of(context).pop(true);
     } on Object catch (error) {
-      if (mounted) setState(() => _error = _errorText(l, error));
+      // Come per l'esito: l'errore di una ricerca per un nome ormai cambiato
+      // non va sotto il nome nuovo.
+      if (mounted && (!lookup || _field.text.trim() == text)) {
+        setState(() => _error = _errorText(l, error));
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
