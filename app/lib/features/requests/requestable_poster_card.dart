@@ -6,6 +6,7 @@ import '../../core/requests/requests_models.dart';
 import '../../core/requests/tmdb_images.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
+import '../../ui/tv_focusable.dart';
 import '../../ui/wf_image.dart';
 
 /// L'etichetta di una card "Da richiedere" (spec I §9.1).
@@ -29,11 +30,15 @@ class RequestablePosterCard extends StatefulWidget {
     required this.title,
     required this.onTap,
     this.width = 150,
+    this.autofocus = false,
   });
 
   final RequestableTitle title;
   final VoidCallback onTap;
   final double width;
+
+  /// Sulla TV la card prende il focus all'apertura della pagina.
+  final bool autofocus;
 
   @override
   State<RequestablePosterCard> createState() => _RequestablePosterCardState();
@@ -59,7 +64,10 @@ class _RequestablePosterCardState extends State<RequestablePosterCard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              AspectRatio(
+              TvFocusable(
+                onActivate: widget.onTap,
+                autofocus: widget.autofocus,
+                child: AspectRatio(
                 aspectRatio: 2 / 3,
                 child: AnimatedContainer(
                   duration: WfMotion.fast,
@@ -86,6 +94,7 @@ class _RequestablePosterCardState extends State<RequestablePosterCard> {
                       ],
                     ),
                   ),
+                ),
                 ),
               ),
               const SizedBox(height: 8),

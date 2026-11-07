@@ -12,6 +12,7 @@ import '../features/library/user_data.dart';
 import 'card_preview.dart';
 import 'card_preview_host.dart';
 import 'form_factor.dart';
+import 'tv_focusable.dart';
 import 'wf_image.dart';
 
 /// Locandina 2:3 con titolo, anno, avanzamento e badge "visto".
@@ -28,6 +29,7 @@ class PosterCard extends ConsumerStatefulWidget {
     this.openable = true,
     this.subtitle,
     this.previewExtra,
+    this.autofocus = false,
   });
 
   final JellyfinItem item;
@@ -44,6 +46,9 @@ class PosterCard extends ConsumerStatefulWidget {
   /// Senza [onTap], il clic apre la scheda con il volo da qui.
   final String? heroSource;
   final double? width;
+
+  /// Sulla TV la card prende il focus all'apertura della pagina.
+  final bool autofocus;
 
   /// Etichetta fissa sulla locandina, con il bordo oro sempre acceso: il
   /// titolo aperto nella riga della sua saga ("Questo film", spec K §8.3).
@@ -74,6 +79,10 @@ class _PosterCardState extends ConsumerState<PosterCard> {
         source == null ? null : WfHeroScope.source(context, source);
     final mark = widget.markLabel;
     final openable = widget.openable;
+    final VoidCallback? activate = !openable
+        ? null
+        : widget.onTap ??
+            () => openItem(context, widget.item, heroSource: heroSource);
 
     final card = SizedBox(
       width: widget.width,
@@ -82,15 +91,15 @@ class _PosterCardState extends ConsumerState<PosterCard> {
         onEnter: (_) => setState(() => _hover = !FormFactor.of(context).touch),
         onExit: (_) => setState(() => _hover = false),
         child: GestureDetector(
-          onTap: !openable
-              ? null
-              : widget.onTap ??
-                  () => openItem(context, widget.item, heroSource: heroSource),
+          onTap: activate,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              AspectRatio(
+              TvFocusable(
+                onActivate: activate,
+                autofocus: widget.autofocus,
+                child: AspectRatio(
                 aspectRatio: 2 / 3,
                 child: AnimatedContainer(
                   duration: WfMotion.fast,
@@ -126,6 +135,7 @@ class _PosterCardState extends ConsumerState<PosterCard> {
                       ],
                     ),
                   ),
+                ),
                 ),
               ),
               const SizedBox(height: 8),

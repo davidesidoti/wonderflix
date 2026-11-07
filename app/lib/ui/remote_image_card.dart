@@ -4,6 +4,7 @@ import '../app/motion.dart';
 import '../app/theme.dart';
 import '../core/jellyfin/image_urls.dart';
 import 'form_factor.dart';
+import 'tv_focusable.dart';
 import 'wf_image.dart';
 
 /// Forma di una [RemoteImageCard], uguale alle card della libreria.
@@ -34,6 +35,7 @@ class RemoteImageCard extends StatefulWidget {
     this.badge,
     this.onTap,
     this.width,
+    this.autofocus = false,
   });
 
   final RemoteCardShape shape;
@@ -45,6 +47,9 @@ class RemoteImageCard extends StatefulWidget {
 
   /// Al posto della larghezza di [shape] (card più piccole nello stretto).
   final double? width;
+
+  /// Sulla TV la card prende il focus all'apertura della pagina.
+  final bool autofocus;
 
   @override
   State<RemoteImageCard> createState() => _RemoteImageCardState();
@@ -71,7 +76,10 @@ class _RemoteImageCardState extends State<RemoteImageCard> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        AspectRatio(
+        TvFocusable(
+          onActivate: onTap,
+          autofocus: widget.autofocus,
+          child: AspectRatio(
           aspectRatio: widget.shape.aspectRatio,
           child: AnimatedContainer(
             duration: WfMotion.fast,
@@ -91,6 +99,7 @@ class _RemoteImageCardState extends State<RemoteImageCard> {
                 ],
               ),
             ),
+          ),
           ),
         ),
         const SizedBox(height: 8),

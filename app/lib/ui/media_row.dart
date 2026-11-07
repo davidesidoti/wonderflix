@@ -10,6 +10,9 @@ import 'staggered_entrance.dart';
 /// Card di una riga che entrano volando (le prime visibili).
 const rowEntranceCount = 8;
 
+/// Aria sopra e sotto le card di una riga sulla TV, per il focus ingrandito.
+const tvRowFocusPadding = 12.0;
+
 /// Passo tra una card e l'altra nell'entrata di una riga.
 const rowEntranceStagger = Duration(milliseconds: 40);
 
@@ -106,11 +109,15 @@ class _MediaRowState extends State<MediaRow> {
   @override
   Widget build(BuildContext context) {
     final animate = widget.animateEntrance;
-    final side = FormFactor.of(context).compact ? 16.0 : 32.0;
+    final form = FormFactor.of(context);
+    final side = form.compact ? 16.0 : 32.0;
     Widget list = ListView.separated(
       controller: _controller,
       scrollDirection: Axis.horizontal,
-      padding: EdgeInsets.symmetric(horizontal: side),
+      // Sulla TV un po' d'aria sopra e sotto: l'ingrandimento del focus non
+      // viene tagliato dalla lista.
+      padding: EdgeInsets.symmetric(
+          horizontal: side, vertical: form.tv ? tvRowFocusPadding : 0),
       itemCount: widget.itemCount,
       separatorBuilder: (context, index) => const SizedBox(width: 16),
       // Senza entrata le card non si avvolgono: uno StaggerItem cercherebbe
@@ -143,6 +150,7 @@ class _MediaRowState extends State<MediaRow> {
                 Flexible(child: _title()),
                 const Spacer(),
                 ?widget.trailing,
+                if (!form.tv) ...[
                 IconButton(
                   key: const Key('row-previous'),
                   onPressed: () => _scroll(-1),
@@ -153,12 +161,13 @@ class _MediaRowState extends State<MediaRow> {
                   onPressed: () => _scroll(1),
                   icon: const Icon(LucideIcons.chevronRight, color: WfColors.cream),
                 ),
+                ],
               ],
             ),
           ),
           const SizedBox(height: 8),
           SizedBox(
-            height: widget.height,
+            height: widget.height + (form.tv ? 2 * tvRowFocusPadding : 0),
             child: list,
           ),
         ],

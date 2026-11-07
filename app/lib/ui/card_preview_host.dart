@@ -387,6 +387,8 @@ class _CardPreviewHostState extends ConsumerState<CardPreviewHost>
 
   @override
   Widget build(BuildContext context) {
+    // Sulla TV non c'è il mouse: niente anteprima.
+    if (FormFactor.of(context).tv) return widget.child;
     // Un'altra card ha aperto la sua anteprima: questa si chiude. La
     // chiusura di questa (openId nullo) non conta: troncherebbe la sua
     // dissolvenza.

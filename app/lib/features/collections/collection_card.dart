@@ -8,6 +8,7 @@ import '../../app/theme.dart';
 import '../../core/social/collections_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
+import '../../ui/tv_focusable.dart';
 import '../../ui/wf_image.dart';
 import '../library/library_providers.dart';
 
@@ -15,12 +16,20 @@ import '../library/library_providers.dart';
 /// film (spec K §8.4). Il clic apre la pagina della saga. Senza anteprima al
 /// passaggio del mouse: l'anteprima è dei titoli.
 class CollectionCard extends ConsumerStatefulWidget {
-  const CollectionCard({super.key, required this.collection, this.width});
+  const CollectionCard({
+    super.key,
+    required this.collection,
+    this.width,
+    this.autofocus = false,
+  });
 
   final CollectionSummary collection;
 
   /// `null`: la larghezza disponibile (griglie).
   final double? width;
+
+  /// Sulla TV la card prende il focus all'apertura della pagina.
+  final bool autofocus;
 
   @override
   ConsumerState<CollectionCard> createState() => _CollectionCardState();
@@ -49,7 +58,10 @@ class _CollectionCardState extends ConsumerState<CollectionCard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              AspectRatio(
+              TvFocusable(
+                onActivate: () => openCollection(context, collection.id),
+                autofocus: widget.autofocus,
+                child: AspectRatio(
                 aspectRatio: 2 / 3,
                 child: AnimatedContainer(
                   duration: WfMotion.fast,
@@ -64,6 +76,7 @@ class _CollectionCardState extends ConsumerState<CollectionCard> {
                     child:
                         WfImage(image: image, fallbackIcon: LucideIcons.layers),
                   ),
+                ),
                 ),
               ),
               const SizedBox(height: 8),

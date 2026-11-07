@@ -11,6 +11,7 @@ import '../features/library/library_providers.dart';
 import '../features/library/user_data.dart';
 import 'card_preview_host.dart';
 import 'form_factor.dart';
+import 'tv_focusable.dart';
 import 'poster_card.dart';
 import 'wf_image.dart';
 
@@ -24,6 +25,7 @@ class LandscapeCard extends ConsumerStatefulWidget {
     this.heroSource,
     this.subtitle,
     this.width = 300,
+    this.autofocus = false,
   });
 
   final JellyfinItem item;
@@ -38,6 +40,9 @@ class LandscapeCard extends ConsumerStatefulWidget {
   /// punto di una saga (spec M §8.3).
   final String? subtitle;
   final double width;
+
+  /// Sulla TV la card prende il focus all'apertura della pagina.
+  final bool autofocus;
 
   @override
   ConsumerState<LandscapeCard> createState() => _LandscapeCardState();
@@ -57,6 +62,9 @@ class _LandscapeCardState extends ConsumerState<LandscapeCard> {
     final heroSource =
         source == null ? null : WfHeroScope.source(context, source);
 
+    void activate() => (widget.onTap ??
+        () => openItem(context, widget.item, heroSource: heroSource))();
+
     final card = SizedBox(
       width: widget.width,
       child: MouseRegion(
@@ -64,13 +72,15 @@ class _LandscapeCardState extends ConsumerState<LandscapeCard> {
         onEnter: (_) => setState(() => _hover = !FormFactor.of(context).touch),
         onExit: (_) => setState(() => _hover = false),
         child: GestureDetector(
-          onTap: widget.onTap ??
-              () => openItem(context, widget.item, heroSource: heroSource),
+          onTap: activate,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              AspectRatio(
+              TvFocusable(
+                onActivate: activate,
+                autofocus: widget.autofocus,
+                child: AspectRatio(
                 aspectRatio: 16 / 9,
                 child: AnimatedContainer(
                   duration: WfMotion.fast,
@@ -98,6 +108,7 @@ class _LandscapeCardState extends ConsumerState<LandscapeCard> {
                       ],
                     ),
                   ),
+                ),
                 ),
               ),
               const SizedBox(height: 8),

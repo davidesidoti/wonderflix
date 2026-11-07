@@ -12,6 +12,7 @@ import '../../ui/skeletons.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/staggered_entrance.dart';
 import '../../ui/states.dart';
+import '../../ui/tv_focusable.dart';
 import '../../ui/wf_image.dart';
 import '../../ui/wf_switcher.dart';
 import '../collections/collections_logic.dart';
@@ -189,7 +190,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           runSpacing: 16,
           children: [
             for (final person in people)
-              GestureDetector(
+              TvFocusable(
+                onActivate: () => openItem(context, person),
+                child: GestureDetector(
                 onTap: () => openItem(context, person),
                 child: MouseRegion(
                   cursor: SystemMouseCursors.click,
@@ -215,6 +218,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       ],
                     ),
                   ),
+                ),
                 ),
               ),
           ],
