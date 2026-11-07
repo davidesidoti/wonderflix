@@ -52,6 +52,43 @@ public class DiscordBotClientTests
     }
 
     [Fact]
+    public async Task TheDisplayNameIsTheServerNickname()
+    {
+        _http.Respond = (_, _) => Task.FromResult(Json(
+            HttpStatusCode.OK,
+            """[{"nick":"Super Mario","user":{"id":"222222222222222222","username":"Mario","global_name":"Mario Rossi"}}]"""));
+
+        var lookup = await Client().FindMemberAsync("mario", Ct);
+
+        Assert.Equal(new DiscordMember("222222222222222222", "Mario", "Super Mario"), lookup.Member);
+    }
+
+    [Theory]
+    [InlineData("""[{"user":{"id":"222222222222222222","username":"Mario","global_name":"Mario Rossi"}}]""")]
+    [InlineData("""[{"nick":null,"user":{"id":"222222222222222222","username":"Mario","global_name":"Mario Rossi"}}]""")]
+    [InlineData("""[{"nick":"  ","user":{"id":"222222222222222222","username":"Mario","global_name":"Mario Rossi"}}]""")]
+    public async Task WithoutNicknameTheDisplayNameIsTheGlobalName(string body)
+    {
+        _http.Respond = (_, _) => Task.FromResult(Json(HttpStatusCode.OK, body));
+
+        var lookup = await Client().FindMemberAsync("mario", Ct);
+
+        Assert.Equal("Mario Rossi", lookup.Member!.DisplayName);
+    }
+
+    [Theory]
+    [InlineData("""[{"user":{"id":"222222222222222222","username":"Mario"}}]""")]
+    [InlineData("""[{"nick":null,"user":{"id":"222222222222222222","username":"Mario","global_name":null}}]""")]
+    public async Task WithoutNamesThereIsNoDisplayName(string body)
+    {
+        _http.Respond = (_, _) => Task.FromResult(Json(HttpStatusCode.OK, body));
+
+        var lookup = await Client().FindMemberAsync("mario", Ct);
+
+        Assert.Null(lookup.Member!.DisplayName);
+    }
+
+    [Fact]
     public async Task OnlyPrefixMatchesIsNotFound()
     {
         _http.Respond = (_, _) => Task.FromResult(Json(

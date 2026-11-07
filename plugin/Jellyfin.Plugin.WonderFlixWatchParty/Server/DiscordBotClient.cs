@@ -83,7 +83,9 @@ public sealed class DiscordBotClient(
                     && id.GetString() is { } memberId
                     && DiscordIds.IsSnowflake(memberId))
                 {
-                    return DiscordLookup.Found(new DiscordMember(memberId, found));
+                    // Come lo mostra Discord: prima il soprannome nel server, poi il nome globale.
+                    var display = Text(member, "nick") ?? Text(user, "global_name");
+                    return DiscordLookup.Found(new DiscordMember(memberId, found, display));
                 }
             }
 
@@ -95,6 +97,14 @@ public sealed class DiscordBotClient(
             return DiscordLookup.Error;
         }
     }
+
+    // Il testo di una proprietà, se è una stringa non vuota (Discord manda anche null).
+    private static string? Text(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value)
+        && value.ValueKind == JsonValueKind.String
+        && value.GetString()?.Trim() is { Length: > 0 } text
+            ? text
+            : null;
 
     public async Task<SendOutcome> SendDmAsync(string userId, string text, CancellationToken cancellationToken)
     {

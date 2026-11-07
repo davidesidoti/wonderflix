@@ -12,7 +12,7 @@ public enum SendOutcome
 }
 
 /// <summary>Un membro del server Discord.</summary>
-public sealed record DiscordMember(string Id, string Username);
+public sealed record DiscordMember(string Id, string Username, string? DisplayName = null);
 
 /// <summary>Esito della ricerca di un membro: trovato, non trovato, oppure errore di Discord.</summary>
 public sealed record DiscordLookup(DiscordMember? Member, bool Failed)
