@@ -92,8 +92,20 @@ class _TvShellState extends ConsumerState<TvShell> {
         event.logicalKey != LogicalKeyboardKey.arrowLeft) {
       return KeyEventResult.ignored;
     }
+    // In un campo di testo (e con Maiusc, Ctrl, Alt o Meta) Sinistra è del
+    // campo: muove il cursore o la selezione.
+    if (HardwareKeyboard.instance.isShiftPressed ||
+        HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isAltPressed ||
+        HardwareKeyboard.instance.isMetaPressed) {
+      return KeyEventResult.ignored;
+    }
     final primary = FocusManager.instance.primaryFocus;
-    if (primary == null) return KeyEventResult.ignored;
+    if (primary == null ||
+        primary.context?.findAncestorWidgetOfExactType<EditableText>() !=
+            null) {
+      return KeyEventResult.ignored;
+    }
     if (!primary.focusInDirection(TraversalDirection.left)) {
       _sidebar.currentState?.focusEntryFor(GoRouterState.of(context).uri.path);
     }

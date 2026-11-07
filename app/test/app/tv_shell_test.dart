@@ -35,6 +35,7 @@ void main() {
   var tonightCalls = 0;
   var exitCalls = 0;
   late FakeSessionController session;
+  final searchText = TextEditingController(text: 'abc');
 
   GoRouter router() {
     GoRoute page(String path, {Widget? child}) => GoRoute(
@@ -85,7 +86,18 @@ void main() {
             ),
             page('/mylist'),
             page('/requests'),
-            page('/search'),
+            page(
+              '/search',
+              child: Center(
+                child: SizedBox(
+                  width: 200,
+                  child: TextField(
+                    key: const Key('search-field'),
+                    controller: searchText,
+                  ),
+                ),
+              ),
+            ),
             page('/settings'),
             page('/item/:id'),
           ],
@@ -227,6 +239,36 @@ void main() {
       expect(content.hasPrimaryFocus, isTrue);
     },
   );
+
+  testWidgets('OK su Stasera apre la finestra di Stasera', (tester) async {
+    await pumpShell(tester);
+
+    await focusNav(tester, 'tonight');
+    await select(tester);
+
+    expect(tonightCalls, 1);
+  });
+
+  testWidgets('Sinistra in un campo di testo muove il cursore, non il focus', (
+    tester,
+  ) async {
+    final r = await pumpShell(tester);
+    r.go('/search');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('search-field')));
+    await tester.pump();
+    searchText.selection = const TextSelection.collapsed(offset: 3);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pump();
+
+    expect(searchText.selection.baseOffset, 2);
+    final field = FocusManager.instance.primaryFocus!;
+    expect(
+      field.context!.findAncestorWidgetOfExactType<EditableText>(),
+      isNotNull,
+    );
+  });
 
   testWidgets('l\'avatar apre il menu dell\'account', (tester) async {
     final r = await pumpShell(tester);
