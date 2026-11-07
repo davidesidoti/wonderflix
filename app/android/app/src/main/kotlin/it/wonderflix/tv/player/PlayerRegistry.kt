@@ -3,6 +3,7 @@ package it.wonderflix.tv.player
 import android.app.Activity
 import android.media.MediaCodecInfo
 import android.media.MediaCodecList
+import android.media.MediaFormat
 import android.os.Build
 import android.view.Display
 import io.flutter.plugin.common.BinaryMessenger
@@ -96,8 +97,10 @@ class PlayerRegistry(private val activity: Activity, messenger: BinaryMessenger)
                     if (caps.audioCapabilities != null) audio += mime
                     continue
                 }
-                if (!isHardware(info)) continue
-                val tenBit = caps.profileLevels.any {
+                // image/heic e simili hanno videoCapabilities ma non sono video.
+                if (!mime.startsWith("video/") || !isHardware(info)) continue
+                // Il valore 2 è HEVCProfileMain10 ma anche AVCProfileMain, VP9Profile1, ...
+                val tenBit = mime.equals(MediaFormat.MIMETYPE_VIDEO_HEVC, ignoreCase = true) && caps.profileLevels.any {
                     it.profile == MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10
                 }
                 // Più decoder per lo stesso mime (es. `.secure`): vale il migliore.
@@ -120,6 +123,7 @@ class PlayerRegistry(private val activity: Activity, messenger: BinaryMessenger)
         }
 
     private fun hdrTypes(): List<String> {
+        if (Build.VERSION.SDK_INT < 24) return emptyList() // getHdrCapabilities è API 24
         @Suppress("DEPRECATION")
         val types = activity.windowManager.defaultDisplay.hdrCapabilities?.supportedHdrTypes
         return types?.toList()?.mapNotNull {

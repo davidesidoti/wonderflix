@@ -201,6 +201,21 @@ class TvPlayer(context: Context, private val id: Int, private val emit: (String,
         pending.done(trackId)
     }
 
+    /**
+     * Il sottotitolo in attesa non è arrivato (errore o 10 s): toglie il suo
+     * SubtitleConfiguration, così non torna nei prossimi addSubtitle, e riprepara
+     * alla posizione attuale mantenendo play/pausa. Con la stessa struttura di prima
+     * i gruppi tornano uguali e le scelte di tracce precedenti valgono di nuovo.
+     */
+    private fun dropPendingSubtitle() {
+        val item = mediaItem
+        finishPendingSubtitle(null)
+        if (item == null) return
+        val configs = item.localConfiguration!!.subtitleConfigurations
+        mediaItem = item.buildUpon().setSubtitleConfigurations(configs.dropLast(1)).build()
+        prepare(player.currentPosition)
+    }
+
     fun setSubtitleDelay(ms: Long) {
         Log.w(TAG, "setSubtitleDelay($ms ms) ignorato: Media3 non ha un ritardo dei sottotitoli")
     }
@@ -267,8 +282,11 @@ class TvPlayer(context: Context, private val id: Int, private val emit: (String,
 
     override fun onPlayerError(error: PlaybackException) {
         Log.e(TAG, "player $id", error)
+        // Durante addSubtitle l'errore è (quasi certamente) del sottotitolo: il film continua
+        // senza. Se invece era del file, la nuova preparazione fallisce di nuovo e arriva qui.
+        if (pendingSubtitle != null) return dropPendingSubtitle()
         awaitingLoad = false
-        emit("error", "${error.errorCodeName}: ${error.message}")
+        emit("error", error.message?.let { "${error.errorCodeName}: $it" } ?: error.errorCodeName)
     }
 
     override fun onRenderedFirstFrame() = emit("firstFrame", null)
@@ -304,7 +322,7 @@ class TvPlayer(context: Context, private val id: Int, private val emit: (String,
         val audioFormatId: String?,
         val done: (String?) -> Unit,
     ) {
-        val timeout = Runnable { if (pendingSubtitle === this) finishPendingSubtitle(null) }
+        val timeout = Runnable { if (pendingSubtitle === this) dropPendingSubtitle() }
     }
 
     private companion object {
