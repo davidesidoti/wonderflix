@@ -8,6 +8,7 @@ import '../../app/motion.dart';
 import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/staggered_entrance.dart';
 import '../social/social_providers.dart';
@@ -80,6 +81,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final locale = ref.watch(localeProvider);
     final version = ref.watch(clientInfoProvider).version;
     final push = ref.watch(socialAvailabilityProvider.select((f) => f.push));
+    // Sulla TV solo lingua dell'app, player e lingue di riproduzione: il
+    // resto si imposta dal PC o dal telefono.
+    final tv = FormFactor.of(context).tv;
 
     Widget section(String title, {Key? key}) => Padding(
           key: key,
@@ -113,12 +117,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               child: Text(l.menuSettings.toUpperCase(),
                   style: WfText.display(40)),
             ),
-            item(1, [
-              section(l.settingsAccount),
-              const AccountSettingsSection(),
-            ]),
+            if (!tv)
+              item(1, [
+                section(l.settingsAccount),
+                const AccountSettingsSection(),
+              ]),
             // Solo con le notifiche push nel plugin (spec V §4.1).
-            if (push)
+            if (push && !tv)
               item(2, [
                 section(l.settingsNotifications),
                 const NotificationsSettingsSection(),
@@ -145,14 +150,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ),
             ]),
-            item(4, [
-              section(l.settingsAppearance),
-              const AppearanceSettingsSection(),
-            ]),
-            item(5, [
-              section(l.settingsHome, key: _homeKey),
-              const HomeSettingsSection(),
-            ]),
+            if (!tv) ...[
+              item(4, [
+                section(l.settingsAppearance),
+                const AppearanceSettingsSection(),
+              ]),
+              item(5, [
+                section(l.settingsHome, key: _homeKey),
+                const HomeSettingsSection(),
+              ]),
+            ],
             item(6, [
               section(l.settingsPlayer),
               const PlayerSettingsSection(),
@@ -162,14 +169,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               const LanguageSettingsSection(),
             ]),
             // Nel browser la Rich Presence è spenta (spec 1b §4.6).
-            if (!kIsWeb)
+            if (!kIsWeb && !tv)
               item(8, [
                 section(l.settingsDiscord),
                 const DiscordSettingsSection(),
               ]),
             item(9, [
-              section(l.settingsSupport),
-              const SupportSection(),
+              if (!tv) ...[
+                section(l.settingsSupport),
+                const SupportSection(),
+              ],
               const SizedBox(height: 40),
               Text(l.settingsVersion(version),
                   style: const TextStyle(

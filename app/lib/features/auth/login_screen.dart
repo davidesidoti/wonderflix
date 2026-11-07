@@ -135,6 +135,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           else if (quickConnectAsync.value ?? false)
                             DefaultTabController(
                               length: 2,
+                              // Sulla TV si parte da Quick Connect: con il
+                              // telecomando la password è scomoda.
+                              initialIndex:
+                                  FormFactor.of(context).tv ? 1 : 0,
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.stretch,

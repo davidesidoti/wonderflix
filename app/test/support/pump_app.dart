@@ -67,6 +67,7 @@ Future<void> pumpApp(
   MotionLevel motion = MotionLevel.reduced,
   bool carouselAutoplay = false,
   bool touch = false,
+  bool tv = false,
 }) async {
   await _setSurface(tester, surfaceSize);
   await tester.pumpWidget(ProviderScope(
@@ -80,6 +81,7 @@ Future<void> pumpApp(
       supportedLocales: AppLocalizations.supportedLocales,
       builder: (context, child) => FormFactorScope(
           touchOverride: touch,
+          tv: tv,
           child: WfMotionScope(motion: WfMotion(motion), child: child!)),
       home: child,
     ),

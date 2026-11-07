@@ -5,6 +5,7 @@ import '../../core/requests/requests_models.dart';
 import '../../core/requests/tmdb_images.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
+import '../../ui/tv_focusable.dart';
 import '../../ui/wf_image.dart';
 import '../inbox/inbox_time.dart';
 import 'request_labels.dart';
@@ -113,20 +114,25 @@ class RequestRow extends StatelessWidget {
             ],
           ],
         );
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: stacked
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  row,
-                  const SizedBox(height: 8),
-                  Align(alignment: Alignment.centerRight, child: trailing),
-                ],
-              )
-            : row,
+    // Sulla TV la riga è una tappa sola, con la cornice del telecomando.
+    return TvFocusable(
+      onActivate: onTap,
+      child: InkWell(
+        onTap: onTap,
+        canRequestFocus: !FormFactor.of(context).tv,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: stacked
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    row,
+                    const SizedBox(height: 8),
+                    Align(alignment: Alignment.centerRight, child: trailing),
+                  ],
+                )
+              : row,
+        ),
       ),
     );
   }

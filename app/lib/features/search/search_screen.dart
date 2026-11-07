@@ -7,6 +7,7 @@ import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/social/collections_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/poster_card.dart';
 import '../../ui/skeletons.dart';
 import '../../ui/smooth_scroll.dart';
@@ -34,8 +35,23 @@ class SearchScreen extends ConsumerStatefulWidget {
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _scroll = SmoothScrollController();
 
+  /// Il campo sulla TV: prende il focus solo con OK (vedi [_searchField]).
+  final _fieldFocus = FocusNode(debugLabel: 'search-field');
+
+  /// Sulla TV: OK ha attivato il campo (fino a che perde il focus).
+  bool _typing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fieldFocus.addListener(() {
+      if (!_fieldFocus.hasFocus && _typing) setState(() => _typing = false);
+    });
+  }
+
   @override
   void dispose() {
+    _fieldFocus.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -72,25 +88,46 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       controller: _scroll,
       padding: const EdgeInsets.all(32),
       children: [
-        TextField(
-          autofocus: true,
-          onChanged: (value) {
-            controller.setTerm(value);
-            ref.read(requestablesControllerProvider.notifier).setTerm(value,
-                language: Localizations.localeOf(context).languageCode);
-          },
-          style: const TextStyle(fontSize: 18),
-          decoration: InputDecoration(
-            hintText: l.searchHint,
-            prefixIcon: const Icon(LucideIcons.search, color: WfColors.creamMuted),
-          ),
-        ),
+        _searchField(context, l, controller),
         const SizedBox(height: 24),
         SagasSearchSection(sagas: sagas),
         WfSwitcher(
             child: _results(context, l, state, hasSagas: sagas.isNotEmpty)),
         RequestablesSection(library: _libraryMatches(state)),
       ],
+    );
+  }
+
+  /// Il campo di ricerca. Sulla TV il focus iniziale aprirebbe subito la
+  /// tastiera: il campo non lo prende da solo (né col fuoco di ripiego della
+  /// barra), lo raggiunge il telecomando con la cornice e OK lo attiva.
+  Widget _searchField(
+      BuildContext context, AppLocalizations l, SearchController controller) {
+    final tv = FormFactor.of(context).tv;
+    final field = TextField(
+      autofocus: !tv,
+      focusNode: tv ? _fieldFocus : null,
+      onChanged: (value) {
+        controller.setTerm(value);
+        ref.read(requestablesControllerProvider.notifier).setTerm(value,
+            language: Localizations.localeOf(context).languageCode);
+      },
+      style: const TextStyle(fontSize: 18),
+      decoration: InputDecoration(
+        hintText: l.searchHint,
+        prefixIcon: const Icon(LucideIcons.search, color: WfColors.creamMuted),
+      ),
+    );
+    if (!tv) return field;
+    // Il campo non è raggiungibile finché non è attivo: la cornice
+    // (`TvFocusable`) è l'unica tappa del telecomando.
+    return TvFocusable(
+      onActivate: () {
+        setState(() => _typing = true);
+        WidgetsBinding.instance
+            .addPostFrameCallback((_) => _fieldFocus.requestFocus());
+      },
+      child: ExcludeFocus(excluding: !_typing, child: field),
     );
   }
 

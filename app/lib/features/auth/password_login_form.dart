@@ -8,6 +8,7 @@ import '../../app/error_text.dart';
 import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import 'session_controller.dart';
 
 class PasswordLoginForm extends ConsumerStatefulWidget {
@@ -61,6 +62,9 @@ class _PasswordLoginFormState extends ConsumerState<PasswordLoginForm> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final supportUrl = ref.watch(appConfigProvider).supportUrl;
+    // Sulla TV il fuoco parte dal telecomando: un campo con `autofocus`
+    // aprirebbe subito la tastiera.
+    final tv = FormFactor.of(context).tv;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -72,7 +76,7 @@ class _PasswordLoginFormState extends ConsumerState<PasswordLoginForm> {
         TextField(
           key: const Key('login-username'),
           controller: _username,
-          autofocus: widget.initialUsername == null,
+          autofocus: !tv && widget.initialUsername == null,
           textInputAction: TextInputAction.next,
           decoration: InputDecoration(hintText: l.loginUsername),
         ),
@@ -80,7 +84,7 @@ class _PasswordLoginFormState extends ConsumerState<PasswordLoginForm> {
         TextField(
           key: const Key('login-password'),
           controller: _password,
-          autofocus: widget.initialUsername != null,
+          autofocus: !tv && widget.initialUsername != null,
           obscureText: true,
           onSubmitted: (_) => unawaited(_submit()),
           decoration: InputDecoration(hintText: l.loginPassword),

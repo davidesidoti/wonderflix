@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pub_semver/pub_semver.dart';
 
 import '../../app/motion.dart';
+import '../../ui/form_factor.dart';
 import '../player/player_active.dart';
 import 'mandatory_update_screen.dart';
 import 'update_banner.dart';
@@ -44,7 +45,10 @@ class _UpdateGateState extends ConsumerState<UpdateGate> {
     final controller = ref.read(updateControllerProvider.notifier);
     final release = update.release;
 
-    final showBanner = release != null &&
+    // Sulla TV niente banner: l'aggiornamento arriva col piano di
+    // distribuzione.
+    final showBanner = !FormFactor.of(context).tv &&
+        release != null &&
         update.ready &&
         !update.mandatory &&
         !playing &&

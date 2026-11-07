@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/jellyfin/item_models.dart';
+import '../core/platform/platform_info.dart';
 import '../features/admin/admin_navigation.dart';
 import '../features/admin/admin_screen.dart';
 import '../features/auth/login_screen.dart';
@@ -64,6 +65,19 @@ String? sessionRedirect(SessionState session, String location) {
     SessionChoosingProfile() => goTo('/profiles'),
     SessionSignedIn() => entry ? from ?? '/home' : null,
   };
+}
+
+/// Pagine che sulla TV non esistono (si guarda e basta): portano alla Home.
+const _tvExcluded = {'/calendar', '/admin', '/friends', '/inbox'};
+
+/// Sulla TV `/home` per le pagine escluse, altrimenti `null`. Qui non c'è un
+/// `BuildContext` con `FormFactorScope`: [tv] vale `isAndroidTv` (lo stesso
+/// valore che `app.dart` dà allo scope), salvo nei test.
+String? tvRedirect(String path, {bool? tv}) {
+  if (!(tv ?? isAndroidTv)) return null;
+  return _tvExcluded.contains(path) || path.startsWith('/match/')
+      ? '/home'
+      : null;
 }
 
 /// Solo pagine di questa app (niente schema né host) e non di ingresso.
@@ -141,7 +155,8 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: '/splash',
     refreshListenable: session,
     redirect: (context, state) =>
-        sessionRedirect(session.value, state.uri.toString()),
+        sessionRedirect(session.value, state.uri.toString()) ??
+        tvRedirect(state.uri.path),
     routes: [
       GoRoute(
           path: '/splash',
