@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/video/default_video_engine.dart';
 import 'package:wonderflix/core/video/media3_engine.dart';
@@ -282,6 +284,150 @@ void main() {
       expect(tracks[1].external, isTrue);
       expect(tracks[2].type, EngineTrackType.video);
       expect(tracks[2].ffIndex, isNull);
+    });
+  });
+
+  group('create e dispose', () {
+    test(
+      'dispose con create in corso: nessun ascolto, dispose nativo dopo',
+      () async {
+        final created = Completer<int>();
+        handlers['create'] = (_) => created.future;
+        final playing = engine.play();
+        await flush();
+        final disposing = engine.dispose();
+        created.complete(playerId);
+        await disposing;
+        await playing;
+        expect(events.hasListener, isFalse);
+        expect(called('dispose').single.arguments, {'id': playerId});
+        expect(called('play'), isEmpty);
+      },
+    );
+
+    test('create fallita: dispose termina e chiude gli stream', () async {
+      final created = Completer<int>();
+      handlers['create'] = (_) => created.future;
+      final opening = engine.open(const VideoSource(url: 'u'));
+      final failure = expectLater(opening, throwsA(isA<PlatformException>()));
+      await flush();
+      final disposing = engine.dispose();
+      created.completeError(PlatformException(code: 'boom'));
+      await disposing;
+      await failure;
+      expect(engine.positionStream, emitsDone);
+      expect(events.hasListener, isFalse);
+    });
+
+    test(
+      'create fallita non resta in cache: la chiamata dopo riprova',
+      () async {
+        var attempts = 0;
+        handlers['create'] = (_) {
+          if (attempts++ == 0) throw PlatformException(code: 'boom');
+          return playerId;
+        };
+        await expectLater(engine.play(), throwsA(isA<PlatformException>()));
+        await engine.play();
+        expect(called('create'), hasLength(2));
+        expect(called('play'), hasLength(1));
+      },
+    );
+
+    test('dopo dispose buildView non crea un player', () async {
+      await engine.dispose();
+      engine.buildView();
+      await flush();
+      expect(called('create'), isEmpty);
+    });
+  });
+
+  group('due motori su un solo flusso', () {
+    test('ognuno riceve solo gli eventi del proprio id', () async {
+      var next = playerId;
+      handlers['create'] = (_) => next++;
+      final second = Media3Engine(channel: channel, events: events.stream);
+      addTearDown(second.dispose);
+      await engine.play();
+      await second.play();
+      final first = <Duration>[];
+      final other = <Duration>[];
+      engine.positionStream.listen(first.add);
+      second.positionStream.listen(other.add);
+
+      emit('position', 1000);
+      emit('position', 2000, playerId + 1);
+      emit('playing', true, playerId + 1);
+      await flush();
+
+      expect(first, [const Duration(seconds: 1)]);
+      expect(other, [const Duration(seconds: 2)]);
+      expect(engine.playing, isFalse);
+      expect(second.playing, isTrue);
+    });
+
+    test('un valore malformato viene ignorato', () async {
+      await engine.play();
+      final positions = <Duration>[];
+      engine.positionStream.listen(positions.add);
+      emit('position', 'tanto');
+      emit('playing', 1);
+      emit('position', 500);
+      await flush();
+      expect(positions, [const Duration(milliseconds: 500)]);
+      expect(engine.playing, isFalse);
+    });
+  });
+
+  group('buildView', () {
+    setUp(() {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform_views, (
+            call,
+          ) async {
+            if (call.method == 'create') return 1;
+            return null;
+          });
+    });
+
+    tearDown(() {
+      debugDefaultTargetPlatformOverride = null;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform_views, null);
+    });
+
+    testWidgets('i tocchi vanno al GestureDetector sopra il video', (
+      tester,
+    ) async {
+      var taps = 0;
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => taps++,
+            child: engine.buildView(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(PlatformViewLink), findsOneWidget);
+      expect(
+        find.ancestor(
+          of: find.byType(PlatformViewLink),
+          matching: find.byType(IgnorePointer),
+        ),
+        findsWidgets,
+      );
+      await tester.tap(find.byType(GestureDetector));
+      expect(taps, 1);
+      // Prima della fine del test: il controllo delle variabili debug è prima di tearDown.
+      debugDefaultTargetPlatformOverride = null;
+      unawaited(engine.dispose());
+      await tester.pump();
     });
   });
 

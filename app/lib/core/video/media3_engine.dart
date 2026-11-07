@@ -69,15 +69,29 @@ class Media3Engine implements VideoEngine {
   final _completedController = StreamController<bool>.broadcast();
   final _errorController = StreamController<String>.broadcast();
 
-  Future<int> _ensureId() => _idFuture ??= () async {
-    final id = await _channel.invokeMethod<int>('create');
-    if (id == null) throw StateError('create senza id');
-    _subscription = _events.listen((event) => _onEvent(id, event));
-    return id;
-  }();
+  Future<int> _ensureId() => _idFuture ??= _create();
+
+  Future<int> _create() async {
+    try {
+      final id = await _channel.invokeMethod<int>('create');
+      if (id == null) throw StateError('create senza id');
+      // Già eliminato mentre create era in corso: nessun ascolto (nessuno lo
+      // cancellerebbe); il player nativo lo libera dispose().
+      if (!_disposed) {
+        _subscription = _events.listen((event) => _onEvent(id, event));
+      }
+      return id;
+    } on Object {
+      // Una creazione fallita non resta in cache: la prossima chiamata riprova.
+      _idFuture = null;
+      rethrow;
+    }
+  }
 
   Future<T?> _call<T>(String method, [Map<String, Object?>? arguments]) async {
+    if (_disposed) return null;
     final id = await _ensureId();
+    if (_disposed) return null;
     return _channel.invokeMethod<T>(method, {'id': id, ...?arguments});
   }
 
@@ -96,18 +110,19 @@ class Media3Engine implements VideoEngine {
         } else {
           _errorController.add('$value');
         }
-      case 'position':
+      // Un valore del tipo sbagliato viene ignorato, non lancia nel listener.
+      case 'position' when value is num:
         _positionController.add(_position = ms());
-      case 'duration':
+      case 'duration' when value is num:
         _durationController.add(_duration = ms());
-      case 'buffer':
+      case 'buffer' when value is num:
         _bufferController.add(_buffer = ms());
-      case 'playing':
-        _playingController.add(_playing = value as bool);
-      case 'buffering':
-        _bufferingController.add(value as bool);
-      case 'completed':
-        _completedController.add(value as bool);
+      case 'playing' when value is bool:
+        _playingController.add(_playing = value);
+      case 'buffering' when value is bool:
+        _bufferingController.add(value);
+      case 'completed' when value is bool:
+        _completedController.add(value);
       case 'firstFrame':
         if (!_firstFrame.isCompleted) _firstFrame.complete();
     }
@@ -115,6 +130,7 @@ class Media3Engine implements VideoEngine {
 
   @override
   Future<void> open(VideoSource source) async {
+    if (_disposed) throw const EngineOpenException('disposed');
     final id = await _ensureId();
     if (_disposed) throw const EngineOpenException('disposed');
     // Azzera lo stato del file precedente (durata compresa) prima di aprire.
@@ -230,7 +246,13 @@ class Media3Engine implements VideoEngine {
     await _subscription?.cancel();
     final idFuture = _idFuture;
     if (idFuture != null) {
-      await _channel.invokeMethod<void>('dispose', {'id': await idFuture});
+      try {
+        await _channel.invokeMethod<void>('dispose', {'id': await idFuture});
+      } on Object catch (error) {
+        // create fallita o dispose nativo non riuscito: i controller si
+        // chiudono comunque.
+        _log.warning('dispose del player non riuscito: $error');
+      }
     }
     for (final controller in [
       _positionController,
@@ -285,33 +307,44 @@ class Media3Engine implements VideoEngine {
   Future<void> get firstFrame => _firstFrame.future;
 
   @override
-  Widget buildView() => FutureBuilder<int>(
-    future: _ensureId(),
-    builder: (context, snapshot) {
-      final id = snapshot.data;
-      if (id == null) return const ColoredBox(color: Colors.black);
-      const viewType = 'wonderflix/player_view';
-      // Hybrid Composition: la SurfaceView di Media3 non regge il Virtual
-      // Display.
-      return PlatformViewLink(
-        viewType: viewType,
-        surfaceFactory: (context, controller) => AndroidViewSurface(
-          controller: controller as AndroidViewController,
-          gestureRecognizers: const {},
-          hitTestBehavior: PlatformViewHitTestBehavior.opaque,
-        ),
-        onCreatePlatformView: (params) =>
-            PlatformViewsService.initExpensiveAndroidView(
-                id: params.id,
-                viewType: viewType,
-                layoutDirection: TextDirection.ltr,
-                creationParams: {'id': id},
-                creationParamsCodec: const StandardMessageCodec(),
-                onFocus: () => params.onFocusChanged(true),
-              )
-              ..addOnPlatformViewCreatedListener(params.onPlatformViewCreated)
-              ..create(),
-      );
-    },
-  );
+  Widget buildView() {
+    const black = ColoredBox(color: Colors.black);
+    // Dopo dispose non si crea un altro player nativo.
+    if (_disposed) return black;
+    return FutureBuilder<int>(
+      future: _ensureId(),
+      builder: (context, snapshot) {
+        final id = snapshot.data;
+        if (id == null) return black;
+        const viewType = 'wonderflix/player_view';
+        // IgnorePointer: i tocchi spettano al GestureDetector del player, che
+        // sta sopra il video (come per il motore web).
+        // Hybrid Composition: la SurfaceView di Media3 non regge il Virtual
+        // Display.
+        return IgnorePointer(
+          child: PlatformViewLink(
+            viewType: viewType,
+            surfaceFactory: (context, controller) => AndroidViewSurface(
+              controller: controller as AndroidViewController,
+              gestureRecognizers: const {},
+              hitTestBehavior: PlatformViewHitTestBehavior.transparent,
+            ),
+            onCreatePlatformView: (params) =>
+                PlatformViewsService.initExpensiveAndroidView(
+                    id: params.id,
+                    viewType: viewType,
+                    layoutDirection: TextDirection.ltr,
+                    creationParams: {'id': id},
+                    creationParamsCodec: const StandardMessageCodec(),
+                    onFocus: () => params.onFocusChanged(true),
+                  )
+                  ..addOnPlatformViewCreatedListener(
+                    params.onPlatformViewCreated,
+                  )
+                  ..create(),
+          ),
+        );
+      },
+    );
+  }
 }
