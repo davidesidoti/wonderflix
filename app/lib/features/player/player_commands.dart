@@ -52,6 +52,19 @@ final _commands = <LogicalKeyboardKey, PlayerCommand>{
   LogicalKeyboardKey.mediaStop: PlayerCommand.exit,
 };
 
+/// Tasti del telecomando sulla TV, prima di [playerCommandFor]: Su/Giù
+/// (`null`) non cambiano il volume, mostrano solo i controlli.
+final tvCommands = <LogicalKeyboardKey, PlayerCommand?>{
+  LogicalKeyboardKey.select: PlayerCommand.togglePlay,
+  LogicalKeyboardKey.enter: PlayerCommand.togglePlay,
+  LogicalKeyboardKey.arrowLeft: PlayerCommand.seekBack,
+  LogicalKeyboardKey.mediaRewind: PlayerCommand.seekBack,
+  LogicalKeyboardKey.arrowRight: PlayerCommand.seekForward,
+  LogicalKeyboardKey.mediaFastForward: PlayerCommand.seekForward,
+  LogicalKeyboardKey.arrowUp: null,
+  LogicalKeyboardKey.arrowDown: null,
+};
+
 /// Comandi che si ripetono tenendo premuto il tasto.
 const _repeatable = {
   PlayerCommand.seekBack,

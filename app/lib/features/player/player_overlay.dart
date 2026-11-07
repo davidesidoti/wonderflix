@@ -38,6 +38,7 @@ class PlayerOverlay extends StatelessWidget {
     this.partyQueue = false,
     this.chapters = const [],
     this.preview,
+    this.previewAt,
     this.partyBadge,
     this.onWatchTogether,
     this.onToggleChat,
@@ -74,6 +75,10 @@ class PlayerOverlay extends StatelessWidget {
   final bool partyQueue;
   final List<ChapterMark> chapters;
   final Widget? Function(Duration position)? preview;
+
+  /// Anteprima mostrata senza mouse, a questa posizione (salto da
+  /// telecomando); vedi [SeekBar.previewAt].
+  final Duration? previewAt;
 
   /// Distintivo del watch party, in alto a destra; `null` fuori dal gruppo.
   final Widget? partyBadge;
@@ -319,6 +324,7 @@ class PlayerOverlay extends StatelessWidget {
                         chapters: chapters,
                         zones: seekZones(view.segments),
                         preview: preview,
+                        previewAt: previewAt,
                       ),
                       if (compact)
                         Row(

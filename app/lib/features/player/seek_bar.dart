@@ -184,6 +184,7 @@ class SeekBar extends StatefulWidget {
     this.chapters = const [],
     this.zones = const [],
     this.preview,
+    this.previewAt,
   });
 
   final VideoEngine engine;
@@ -196,6 +197,10 @@ class SeekBar extends StatefulWidget {
   /// Immagine di anteprima per una posizione (trickplay); `null` = solo il
   /// tempo.
   final Widget? Function(Duration position)? preview;
+
+  /// Anteprima a questa posizione anche senza mouse (salto col telecomando
+  /// sulla TV); il mouse sulla barra ha la precedenza.
+  final Duration? previewAt;
 
   /// Margine orizzontale della traccia: il cursore (raggio 7) non esce dalla
   /// barra.
@@ -353,7 +358,15 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
       _segments = seekSegments(widget.chapters, _duration, _track);
       final drag = _dragX;
       final shown = drag == null ? _position : _positionAt(drag);
-      final previewX = _previewX;
+      final keyAt = widget.previewAt;
+      final keyX = keyAt == null || _duration <= Duration.zero
+          ? null
+          : SeekBar.trackInset +
+              _track *
+                  (keyAt.inMilliseconds / _duration.inMilliseconds)
+                      .clamp(0.0, 1.0);
+      final previewX = _previewX ?? keyX;
+      final previewShown = _previewShown || keyX != null;
       // Con la durata ancora ignota non si può avanzare né tornare indietro.
       final canStep = _duration > Duration.zero;
       return Semantics(
@@ -446,10 +459,10 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
                       width: SeekBar.previewWidth,
                       child: IgnorePointer(
                         child: TweenAnimationBuilder<double>(
-                          tween: Tween(begin: 0, end: _previewShown ? 1 : 0),
+                          tween: Tween(begin: 0, end: previewShown ? 1 : 0),
                           duration: WfMotion.fast,
                           // Entra con l'enfatizzata, esce accelerando.
-                          curve: _previewShown
+                          curve: previewShown
                               ? WfMotion.emphasized
                               : WfMotion.accelerate,
                           builder: (context, t, child) => Opacity(

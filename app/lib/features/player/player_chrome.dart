@@ -151,6 +151,20 @@ class PlayerChromeController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Tasto del telecomando (TV): come il mouse, i controlli compaiono e il
+  /// conto dei 3 s riparte.
+  void showForKey() => pointerActivity();
+
+  /// Indietro sulla TV: controlli e schermata di pausa spariscono; in pausa
+  /// il conto della schermata di pausa riparte.
+  void hideControls() {
+    if (!_controlsVisible && !_pauseScreen) return;
+    _controlsVisible = false;
+    _pauseScreen = false;
+    notifyListeners();
+    _scheduleHide();
+  }
+
   /// Un tasto o la rotella: chiude la schermata di pausa e fa ripartire il
   /// conto, senza mostrare i controlli (spec D §9.1).
   void keyActivity() {

@@ -1061,11 +1061,36 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     } else if ((_postPlayShown(view) && (!view.finished || _inParty)) ||
         _cardShown(view)) {
       _dismissNext();
+    } else if (FormFactor.of(context).tv &&
+        (_chrome.controlsVisible || _chrome.pauseScreen)) {
+      _chrome.hideControls();
     } else if (_fullscreen) {
       unawaited(_toggleFullscreen());
     } else {
       _exit();
     }
+  }
+
+  /// Telecomando (TV): OK = pausa/play, Sinistra/Destra e i tasti media =
+  /// ±10 s, Su/Giù = solo i controlli; tutti li mostrano. Con i controlli
+  /// visibili e il focus su un pulsante, OK e frecce restano al pulsante e
+  /// allo spostamento del focus. `null` = tasto da gestire come fuori dalla
+  /// TV.
+  KeyEventResult? _onTvKey(KeyEvent event) {
+    final key = event.logicalKey;
+    if (!tvCommands.containsKey(key)) return null;
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+    final command = tvCommands[key];
+    final onControl = _chrome.controlsVisible && !_focusNode.hasPrimaryFocus;
+    final media = key == LogicalKeyboardKey.mediaRewind ||
+        key == LogicalKeyboardKey.mediaFastForward;
+    _chrome.showForKey();
+    if (onControl && !media) return KeyEventResult.ignored;
+    final repeatable = command != PlayerCommand.togglePlay;
+    if (command != null && (event is KeyDownEvent || repeatable)) {
+      _run(command);
+    }
+    return KeyEventResult.handled;
   }
 
   /// Chat aperta: i tasti vanno al suo campo (lettere, Spazio, frecce,
@@ -1260,6 +1285,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (event is KeyDownEvent) _sendReaction(reaction);
       if (event is! KeyUpEvent) _chrome.keyActivity();
       return KeyEventResult.handled;
+    }
+    if (FormFactor.of(context).tv) {
+      final result = _onTvKey(event);
+      if (result != null) return result;
     }
     final command = _commandFor(event);
     // Qualsiasi tasto premuto (anche senza comando) chiude "Stai guardando"
@@ -1645,7 +1674,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return true;
     }
 
-    return Scaffold(
+    // Sulla TV l'Indietro di sistema passa da Esc: chiude prima pannelli e
+    // controlli, poi esce da `_exit()`.
+    return PopScope(
+      canPop: !formFactor.tv,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _escape();
+      },
+      child: Scaffold(
       backgroundColor: Colors.black,
       body: Focus(
         focusNode: _focusNode,
@@ -1806,6 +1842,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         partyQueue: _inParty,
                         chapters: view.item?.chapters ?? const [],
                         preview: _previewFor(view),
+                        // Sulla TV il salto col telecomando mostra l'anteprima.
+                        previewAt: switch (_chrome.feedback) {
+                          SeekFeedback(:final target) when formFactor.tv =>
+                            target,
+                          _ => null,
+                        },
                         partyBadge: party != null && party.inGroup
                             ? PartyBadge(onLeave: _exit)
                             : null,
@@ -2198,6 +2240,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
           ),
         ),
+      ),
       ),
     );
   }
