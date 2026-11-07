@@ -5,6 +5,7 @@ import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/navigation.dart';
 import 'package:wonderflix/app/router.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
+import 'package:wonderflix/core/platform/tv_provider.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/calendar/calendar_screen.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
@@ -283,5 +284,27 @@ void main() {
     expect(
         tester.widget<CalendarScreen>(find.byType(CalendarScreen)).month,
         DateTime(2026, 11));
+  });
+
+  testWidgets('sulla TV /calendar porta a /home', (tester) async {
+    late GoRouter router;
+    await pumpAppRouterOf(tester, (ref) => router = ref.watch(routerProvider),
+        tv: true,
+        overrides: [
+          androidTvProvider.overrideWithValue(true),
+          ...homeOverrides(
+            library: FakeLibraryApi(),
+            features: const SocialFeatures(calendar: true),
+          ),
+          watchPartyDirectoryProvider.overrideWith(FakeWatchPartyDirectory.new),
+          syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
+          watchPartyEventsProvider.overrideWithValue(const Stream.empty()),
+        ]);
+    router.go('/calendar');
+    await tester.pumpAndSettle();
+
+    expect(router.routerDelegate.currentConfiguration.uri.path, '/home');
+    expect(find.byType(CalendarScreen), findsNothing);
+    await tester.pumpWidget(const SizedBox());
   });
 }

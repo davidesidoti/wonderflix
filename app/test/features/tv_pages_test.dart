@@ -2,10 +2,12 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/app/router.dart';
+import 'package:wonderflix/core/platform/tv_provider.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/storage/profile_store.dart';
 import 'package:wonderflix/features/account/account_providers.dart';
@@ -220,6 +222,29 @@ void main() {
         ]);
     expect(find.text('app'), findsOneWidget);
     expect(find.text('Riavvia ora'), findsNothing);
+  });
+
+  test('sulla TV nessun controllo né download, anche con min-version', () async {
+    final api = FakeGitHubReleasesApi()
+      ..latest = latestJson('9.0.0',
+          body: 'x <!-- wonderflix:min-version=9.0.0 -->');
+    final downloads = Directory.systemTemp.createTempSync('wf_update_tv_');
+    addTearDown(() => downloads.deleteSync(recursive: true));
+    final container = ProviderContainer.test(overrides: [
+      appConfigProvider.overrideWithValue(testAppConfig),
+      clientInfoProvider.overrideWithValue(testClientInfo),
+      updateDownloadDirectoryProvider.overrideWithValue(downloads),
+      githubReleasesApiProvider.overrideWithValue(api),
+      updateChecksEnabledProvider.overrideWithValue(true),
+      androidTvProvider.overrideWithValue(true),
+    ]);
+    container.read(updateControllerProvider);
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(api.latestCalls, 0);
+    expect(api.downloads, 0);
+    expect(container.read(updateBlockedProvider), isFalse);
   });
 
   test('sulla TV le pagine escluse portano a /home', () {

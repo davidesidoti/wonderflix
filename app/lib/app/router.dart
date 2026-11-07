@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../core/jellyfin/item_models.dart';
 import '../core/platform/platform_info.dart';
+import '../core/platform/tv_provider.dart';
 import '../features/admin/admin_navigation.dart';
 import '../features/admin/admin_screen.dart';
 import '../features/auth/login_screen.dart';
@@ -156,7 +157,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: session,
     redirect: (context, state) =>
         sessionRedirect(session.value, state.uri.toString()) ??
-        tvRedirect(state.uri.path),
+        tvRedirect(state.uri.path, tv: ref.read(androidTvProvider)),
     routes: [
       GoRoute(
           path: '/splash',

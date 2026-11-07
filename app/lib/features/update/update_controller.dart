@@ -7,6 +7,7 @@ import 'package:logging/logging.dart';
 import 'package:pub_semver/pub_semver.dart';
 
 import '../../app/providers.dart';
+import '../../core/platform/tv_provider.dart';
 import 'github_releases_api.dart';
 import 'release_info.dart';
 
@@ -80,7 +81,12 @@ class UpdateController extends Notifier<UpdateState> {
 
   @override
   UpdateState build() {
-    if (!ref.watch(updateChecksEnabledProvider)) return const UpdateState();
+    // Sulla TV l'aggiornamento è fuori (l'installer è per Windows): niente
+    // controlli né download.
+    if (!ref.watch(updateChecksEnabledProvider) ||
+        ref.watch(androidTvProvider)) {
+      return const UpdateState();
+    }
     final timer = Timer.periodic(checkInterval, (_) => unawaited(check()));
     ref.onDispose(timer.cancel);
     scheduleMicrotask(() => unawaited(check()));
