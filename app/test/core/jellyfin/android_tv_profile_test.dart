@@ -2,7 +2,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/android_tv_profile.dart';
 import 'package:wonderflix/core/jellyfin/device_profile.dart';
 
-DecoderCaps caps({bool tenBit = false, List<Map<String, Object>>? video}) =>
+DecoderCaps caps({
+  bool tenBit = false,
+  List<Map<String, Object>>? video,
+  List<String>? audio,
+}) =>
     DecoderCaps.fromMap({
       'video':
           video ??
@@ -20,13 +24,15 @@ DecoderCaps caps({bool tenBit = false, List<Map<String, Object>>? video}) =>
               'tenBit': tenBit,
             },
           ],
-      'audio': [
-        'audio/mp4a-latm',
-        'audio/mpeg',
-        'audio/ac3',
-        'audio/eac3',
-        'audio/unknown',
-      ],
+      'audio':
+          audio ??
+          [
+            'audio/mp4a-latm',
+            'audio/mpeg',
+            'audio/ac3',
+            'audio/eac3',
+            'audio/unknown',
+          ],
       'hdrTypes': <String>[],
     });
 
@@ -184,5 +190,19 @@ void main() {
       'h264',
     );
     expect(p['SubtitleProfiles'], mpv['SubtitleProfiles']);
+  });
+
+  test('transcodifica: audio solo tra i decoder, AAC sempre primo', () {
+    String audioOf(DecoderCaps c) =>
+        ((buildAndroidTvDeviceProfile(c)['TranscodingProfiles'] as List).single
+                as Map)['AudioCodec']
+            as String;
+    expect(audioOf(caps()), 'aac,mp3,ac3,eac3');
+    expect(
+      audioOf(caps(audio: ['audio/mp4a-latm', 'audio/mpeg'])),
+      'aac,mp3',
+    );
+    expect(audioOf(caps(audio: ['audio/ac3'])), 'aac,ac3');
+    expect(audioOf(caps(audio: [])), 'aac');
   });
 }

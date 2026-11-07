@@ -136,7 +136,12 @@ class TvPlayer(context: Context, private val id: Int, private val emit: (String,
         mediaItem = null
     }
 
-    fun play() = player.play()
+    fun play() {
+        // Ogni errore di Media3 è fatale (il player va in IDLE e play() non fa nulla):
+        // riprepara, riparte dalla posizione attuale.
+        if (player.playbackState == Player.STATE_IDLE && player.mediaItemCount > 0) player.prepare()
+        player.play()
+    }
 
     fun pause() = player.pause()
 

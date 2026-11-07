@@ -31,6 +31,9 @@ class PlayerRegistry(private val activity: Activity, messenger: BinaryMessenger)
         players.clear()
     }
 
+    /** Pausa tutti i player (l'emissione di `playing=false` la fa il listener). */
+    fun pauseAll() = players.values.forEach { it.pause() }
+
     override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
         sink = events
     }

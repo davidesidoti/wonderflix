@@ -16,6 +16,12 @@ class MainActivity : FlutterActivity() {
             .registerViewFactory("wonderflix/player_view", PlayerViewFactory(registry))
     }
 
+    // Home durante un film: niente audio, download e punto di ripresa che avanzano in background.
+    override fun onStop() {
+        players?.pauseAll()
+        super.onStop()
+    }
+
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         players?.disposeAll()
         players = null

@@ -138,7 +138,12 @@ Map<String, dynamic> buildAndroidTvDeviceProfile(
         'VideoCodec': video.any((v) => v.mime == 'video/hevc')
             ? 'h264,hevc'
             : 'h264',
-        'AudioCodec': 'aac,mp3,ac3,eac3',
+        // Solo ciò che il dispositivo decodifica; l'AAC è sempre il primo.
+        'AudioCodec': [
+          'aac',
+          for (final c in ['mp3', 'ac3', 'eac3'])
+            if (audio.contains(c)) c,
+        ].join(','),
         'MaxAudioChannels': '6',
         'MinSegments': 1,
         'BreakOnNonKeyFrames': true,
