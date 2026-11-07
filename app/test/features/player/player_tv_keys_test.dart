@@ -12,6 +12,7 @@ import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/player/playback_service.dart';
+import 'package:wonderflix/features/player/player_chrome.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
@@ -30,6 +31,7 @@ import '../../support/test_data.dart';
 void main() {
   late FakeVideoEngine engine;
   late FakeLibraryApi library;
+  late FakePlaybackApi playback;
   late List<String> authImageUrls;
   late GoRouter router;
 
@@ -46,11 +48,15 @@ void main() {
         seasonIndex: 1,
       );
     authImageUrls = [];
+    playback = FakePlaybackApi();
   });
 
   /// Home ('/') con il player aperto sopra; [tv] come sul telecomando.
-  Future<void> pumpPlayer(WidgetTester tester, {bool tv = true}) async {
-    final playback = FakePlaybackApi();
+  Future<void> pumpPlayer(
+    WidgetTester tester, {
+    bool tv = true,
+    bool settle = true,
+  }) async {
     router = GoRouter(
       routes: [
         GoRoute(
@@ -118,6 +124,17 @@ void main() {
       ),
     );
     unawaited(router.push('/play/e4'));
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      for (var i = 0; i < 5; i++) {
+        await tester.pump();
+      }
+    }
+  }
+
+  Future<void> back(WidgetTester tester) async {
+    await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
   }
 
@@ -249,6 +266,48 @@ void main() {
     expect(engine.disposed, isTrue);
     expect(router.state.uri.path, '/');
     expect(find.text('home'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('Indietro con "Stai guardando": la chiude, poi esce', (
+    tester,
+  ) async {
+    await pumpPlayer(tester);
+    await press(tester, LogicalKeyboardKey.select);
+    await tester.pump(PlayerChromeController.pauseScreenDelay);
+    await tester.pumpAndSettle();
+    expect(find.text('STAI GUARDANDO'), findsOneWidget);
+
+    // Su Android il Back arriva prima come tasto, poi come pop di sistema.
+    await tester.sendKeyEvent(LogicalKeyboardKey.goBack,
+        physicalKey: PhysicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    await back(tester);
+    expect(find.text('STAI GUARDANDO'), findsNothing);
+    expect(router.state.uri.path, '/play/e4');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.goBack,
+        physicalKey: PhysicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    await back(tester);
+    expect(router.state.uri.path, '/');
+    await unmount(tester);
+  });
+
+  testWidgets('Indietro durante il caricamento esce subito', (tester) async {
+    playback.delay = const Duration(seconds: 1);
+    await pumpPlayer(tester, settle: false);
+    await back(tester);
+    expect(router.state.uri.path, '/');
+    await unmount(tester);
+  });
+
+  testWidgets("Indietro sull'errore esce subito", (tester) async {
+    engine.failOpens = 2;
+    await pumpPlayer(tester);
+    expect(find.text('Impossibile riprodurre il video'), findsOneWidget);
+    await back(tester);
+    expect(router.state.uri.path, '/');
     await unmount(tester);
   });
 

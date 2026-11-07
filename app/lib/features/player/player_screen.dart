@@ -503,6 +503,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         (ModalRoute.isCurrentOf(context) ?? true)) {
       _focusNode.requestFocus();
     }
+    // Sulla TV, spariti i controlli, il focus torna al player: la freccia
+    // dopo non deve partire da un pulsante nascosto.
+    if (!_chrome.controlsVisible &&
+        _focusNode.hasFocus &&
+        !_focusNode.hasPrimaryFocus &&
+        FormFactor.of(context).tv &&
+        (ModalRoute.isCurrentOf(context) ?? true)) {
+      _focusNode.requestFocus();
+    }
     setState(() {});
   }
 
@@ -1062,7 +1071,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _cardShown(view)) {
       _dismissNext();
     } else if (FormFactor.of(context).tv &&
-        (_chrome.controlsVisible || _chrome.pauseScreen)) {
+        (_controlsShown(view) || _chrome.pauseScreen)) {
       _chrome.hideControls();
     } else if (_fullscreen) {
       unawaited(_toggleFullscreen());
@@ -1071,6 +1080,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
+  /// I controlli si vedono davvero: la stessa condizione dello strato dei
+  /// controlli (né caricamento, né errore, né post-play).
+  bool _controlsShown(PlayerViewState view) =>
+      _chrome.controlsVisible &&
+      view.status == PlayerStatus.ready &&
+      _firstFrame &&
+      !_postPlayShown(view);
+
   /// Telecomando (TV): OK = pausa/play, Sinistra/Destra e i tasti media =
   /// ±10 s, Su/Giù = solo i controlli; tutti li mostrano. Con i controlli
   /// visibili e il focus su un pulsante, OK e frecce restano al pulsante e
@@ -1078,6 +1095,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// TV.
   KeyEventResult? _onTvKey(KeyEvent event) {
     final key = event.logicalKey;
+    // Su Android il Back arriva prima come tasto e poi come pop di sistema:
+    // il tasto non deve contare come attività (chiuderebbe "Stai guardando"
+    // e il pop poi uscirebbe), decide tutto `_escape`.
+    if (key == LogicalKeyboardKey.goBack) return KeyEventResult.ignored;
     if (!tvCommands.containsKey(key)) return null;
     if (event is KeyUpEvent) return KeyEventResult.ignored;
     final command = tvCommands[key];
