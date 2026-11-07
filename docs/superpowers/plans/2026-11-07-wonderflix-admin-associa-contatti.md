@@ -189,3 +189,38 @@ Comportamento del dialogo Discord: "Cerca" con il campo vuoto non fa niente; dur
 - [ ] Build del plugin in Release e deploy della dll sul seedbox, seguendo le regole di CLAUDE.md (nessuno che guarda, data/md5 della dll, le altre sessioni con `ListAgents`).
 - [ ] Build di rilascio dell'app (`flutter build windows --release --dart-define-from-file=config/wonderflix.json`) e avvio di `build\windows\x64\runner\Release\wonderflix.exe` con `Start-Process`; chiudere solo la propria istanza precedente, per PID.
 - [ ] Chiedere all'utente di provare la riga nuova della checklist. Niente merge su `main` né push prima del suo ok.
+
+### Task 7: ricerca Discord in più server (prima del Task 6)
+
+Chiesto dall'utente il 2026-11-07 durante l'esecuzione: il bot sta nel server di WonderFlix, gli amici in un altro. Oggi `FindMemberAsync` cerca solo in `DiscordGuildId`, quindi gli amici risultano "non trovati" sia quando collegano Discord da soli sia con "Associa Discord". I DM funzionano già con un server in comune: non cambiano.
+
+**Files:**
+- Modify: `plugin/Jellyfin.Plugin.WonderFlixWatchParty/Configuration/PluginConfiguration.cs` (`DiscordExtraGuildIds`)
+- Modify: `plugin/Jellyfin.Plugin.WonderFlixWatchParty/Account/IAccountSettings.cs` (`DiscordExtraGuildIds` + estensione `DiscordGuildIds()`)
+- Modify: `plugin/Jellyfin.Plugin.WonderFlixWatchParty/Server/PluginAccountSettings.cs`
+- Modify: `plugin/Jellyfin.Plugin.WonderFlixWatchParty/Server/DiscordBotClient.cs` (`FindMemberAsync`, `CheckAsync`)
+- Modify: `plugin/Jellyfin.Plugin.WonderFlixWatchParty/Configuration/configPage.html` (campo sotto "Discord server ID")
+- Modify: `plugin/README.md` se descrive i campi della configurazione del recupero
+- Modify: `docs/RELEASING.md` (checklist del plugin)
+- Test: `DiscordBotClientTests.cs`, `AccountSettingsTests.cs`, `FakeAccountSettings.cs`
+
+**Interfaces:**
+- `PluginConfiguration.DiscordExtraGuildIds`: `string`, default `string.Empty`. Gli id degli altri server, separati da virgole, spazi o a capo.
+- `IAccountSettings.DiscordExtraGuildIds { get; }` (`string`, trim come `DiscordGuildId`); `FakeAccountSettings` lo prende con default `string.Empty`.
+- `AccountSettingsExtensions.DiscordGuildIds(this IAccountSettings settings) → IReadOnlyList<string>`: prima `DiscordGuildId`, poi gli id in più nell'ordine scritto; solo snowflake (`DiscordIds.IsSnowflake`), senza doppioni (anche il principale ripetuto). Un id non valido si salta.
+- `IsDiscordConfigured()` non cambia: serve sempre il principale. `DiscordGuildId` resta il server di `supportUrl` / "Unisciti al server".
+
+- [ ] **Step 1: test che falliscono.**
+  - `AccountSettingsTests`: default vuoto del campo nuovo; il valore si legge e si salva come gli altri; `DiscordGuildIds()` con `"222222222222222222, 333333333333333333\n123456789012345678 abc"` e principale `123456789012345678` → `["123456789012345678", "222222222222222222", "333333333333333333"]`; con il campo vuoto → solo il principale.
+  - `DiscordBotClientTests`, con due server (`DiscordExtraGuildIds = "222222222222222222"` nel finto delle impostazioni) e `_http.Respond` che risponde per percorso:
+    - `FindsTheMemberInTheSecondServer`: il primo server non ha il nome, il secondo sì → trovato; due richieste, nell'ordine principale poi secondo.
+    - `StopsAtTheFirstServerThatHasTheMember`: il primo lo trova → una sola richiesta.
+    - `AnErrorInOneServerDoesNotHideAMemberInAnother`: il primo dà 500, il secondo lo trova → trovato.
+    - `NotFoundAnywhereIsNotFound`: nessuno dei due → `DiscordLookup.NotFound`.
+    - `AnErrorAndNoMemberIsAnError`: il primo 500, il secondo vuoto → `DiscordLookup.Error` (non si sa se c'era).
+    - `CheckLooksAtEveryServer`: il secondo server dà 404 su `guilds/{id}` → `Invalid`; 403 sulla sua ricerca dei membri → `Invalid`; 502 → `Failed`; tutti 200 → `Ok`.
+  - I test di oggi con un server solo restano uguali.
+- [ ] **Step 2:** i nuovi falliscono.
+- [ ] **Step 3: implementare.** `FindMemberAsync` prova `settings.DiscordGuildIds()` in ordine con la ricerca di oggi (stesso filtro su bot, nome esatto e snowflake). Il primo trovato vince. Alla fine `Error` se almeno un server ha dato errore, altrimenti `NotFound`. Ogni richiesta ha il suo `Timeout`, come oggi, con il commento `// shortcut: un Timeout per server; con più di 2-3 server l'attesa supera i 30 s dell'app, passare a un budget unico.`. `CheckAsync`: `users/@me` una volta, poi `guilds/{id}` e la ricerca di prova per ogni server, con gli stessi esiti di oggi. Il primo `Invalid` o `Failed` si rende subito. Dashboard: un campo di testo `WonderFlixDiscordExtraGuildIds` con l'etichetta "Other Discord server IDs" e la descrizione "Optional. Servers where the bot also looks for members (for example your friends' server), separated by commas. Invite the bot there the same way.", letto e salvato come `DiscordGuildId`.
+- [ ] **Step 4:** tutti i test del plugin verdi.
+- [ ] **Step 5:** nella checklist del plugin in `docs/RELEASING.md` la riga `- [ ] Dashboard → "Other Discord server IDs" con il server degli amici (bot invitato lì): un utente che è solo in quel server collega Discord da Impostazioni, e "Associa Discord" lo trova.`. Commit `feat(plugin): ricerca Discord anche negli altri server`.
