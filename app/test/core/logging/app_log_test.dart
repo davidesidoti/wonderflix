@@ -56,4 +56,13 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(log.recentErrors.single, contains('[discord] non collegato'));
   });
+
+  test('cartella dei log: separatore della piattaforma, temporanea senza '
+      'LOCALAPPDATA', () {
+    final sep = Platform.pathSeparator;
+    expect(logsDirectory(env: const {}).path,
+        '${Directory.systemTemp.path}${sep}WonderFlix${sep}logs');
+    expect(logsDirectory(env: const {'LOCALAPPDATA': 'base'}).path,
+        'base${sep}WonderFlix${sep}logs');
+  });
 }

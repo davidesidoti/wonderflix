@@ -81,11 +81,12 @@ String formatLogRecord(LogRecord record) {
 }
 
 /// `%LocalAppData%\WonderFlix\logs`, oppure `logs-<profilo>` per un profilo
-/// di sviluppo (la cartella temporanea, se la variabile manca).
-Directory logsDirectory() {
-  final base = Platform.environment['LOCALAPPDATA'];
+/// di sviluppo (la cartella temporanea, se la variabile manca: Android).
+Directory logsDirectory({Map<String, String>? env}) {
+  final base = (env ?? Platform.environment)['LOCALAPPDATA'];
   final root = base == null || base.isEmpty ? Directory.systemTemp.path : base;
-  return Directory('$root\\WonderFlix\\${logsFolderFor(devProfile())}');
+  final sep = Platform.pathSeparator;
+  return Directory('$root${sep}WonderFlix$sep${logsFolderFor(devProfile())}');
 }
 
 /// Sovrascritto in `main()` con il registro collegato al file. Di default

@@ -12,3 +12,5 @@ String hostName() => describeBrowser(_userAgent);
 Map<String, String> environment() => const {};
 
 String systemDescription() => _userAgent;
+
+bool get isAndroidTv => false;

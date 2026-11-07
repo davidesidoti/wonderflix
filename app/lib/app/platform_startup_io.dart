@@ -12,6 +12,7 @@ import 'package:window_manager/window_manager.dart';
 import '../core/logging/app_log.dart';
 import '../core/logging/rotating_file_sink.dart';
 import '../core/media_session/smtc_media_session.dart';
+import '../core/platform/platform_info.dart';
 import '../features/discord/discord_providers.dart';
 import '../features/player/player_providers.dart';
 import 'window_setup.dart';
@@ -20,6 +21,9 @@ final _log = Logger('startup');
 
 /// Restituisce `true` se il pannello media di Windows (SMTC) è pronto.
 Future<bool> initPlatform(SharedPreferences prefs) async {
+  // Android TV: niente libmpv, finestra, notifiche né SMTC (il player usa
+  // Media3).
+  if (isAndroidTv) return false;
   // Carica libmpv: va fatto prima di creare qualunque Player.
   MediaKit.ensureInitialized();
   await setupWindow(prefs);
@@ -55,7 +59,7 @@ List<Override> platformOverrides({required bool smtcReady}) => [
       ref.onDispose(() => unawaited(session.dispose()));
       return session;
     }),
-  discordSessionProvider.overrideWith(createDiscordPresence),
+  if (!isAndroidTv) discordSessionProvider.overrideWith(createDiscordPresence),
 ];
 
 RotatingFileSink? createLogSink() => RotatingFileSink(logsDirectory());
@@ -64,11 +68,14 @@ RotatingFileSink? createLogSink() => RotatingFileSink(logsDirectory());
 const void Function(Level level, String text)? logToConsole = null;
 
 /// Nessun errore di avvio deve lasciare una finestra nascosta in giro.
-Future<void> showWindowAfterStartupError() => windowManager.show();
+Future<void> showWindowAfterStartupError() async {
+  if (!isAndroidTv) await windowManager.show();
+}
 
 /// Chiama [onFocus] quando la finestra torna in primo piano; restituisce la
 /// funzione che smette di ascoltare.
 VoidCallback watchWindowFocus(VoidCallback onFocus) {
+  if (isAndroidTv) return () {};
   final listener = _FocusListener(onFocus);
   windowManager.addListener(listener);
   return () => windowManager.removeListener(listener);
