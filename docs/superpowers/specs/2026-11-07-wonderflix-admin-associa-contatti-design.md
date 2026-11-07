@@ -1,7 +1,7 @@
 # WonderFlix — l'admin associa Discord ed email
 
 - **Data:** 2026-11-07
-- **Stato:** design da approvare. Branch `associa-contatti` (worktree `.claude/worktrees/associa-contatti`).
+- **Stato:** design approvato il 2026-11-07; piano `docs/superpowers/plans/2026-11-07-wonderflix-admin-associa-contatti.md`. Branch `associa-contatti` (worktree `.claude/worktrees/associa-contatti`).
 - **Ambito:** estende la Spec L (recupero password, `2026-10-09-wonderflix-recupero-password-design.md`), §7.4 (funzioni dell'admin) e la tab Utenti dell'app. Plugin + app.
 
 ## 1. Perché
