@@ -23,7 +23,7 @@ L'admin spesso sa già il nome Discord (o l'email) delle persone. Vuole associar
 - **Nessun avviso** all'utente (né DM né email) quando l'admin associa un contatto. Deciso dall'utente.
 - Nessuna conferma da parte dell'utente (codice o pulsante): il contatto vale subito. Deciso dall'utente.
 - Nessuna scelta da un elenco dei membri del server Discord: l'admin scrive il nome.
-- Nessun cambio alla Dashboard di Jellyfin (`configPage.html`).
+- Nessun cambio alla Dashboard di Jellyfin (`configPage.html`), salvo il campo `DiscordExtraGuildIds` aggiunto durante l'esecuzione (§9).
 - Nessun avviso se lo stesso Discord o la stessa email è già di un altro utente: oggi è permesso anche all'utente.
 
 **Anti-obiettivo:** associare un contatto non deve aprire una strada a chi non è admin. Gli endpoint nuovi sono solo per admin, come quelli di `AccountAdminController`.
@@ -119,3 +119,7 @@ Prima il plugin 1.24.0, poi l'app 0.33.0 (ordine di `docs/RELEASING.md`). Una ri
 - Le voci ci sono anche per gli admin e anche quando il contatto esiste già (§5.1).
 - Nome visualizzato: soprannome nel server, poi nome globale (§4.3).
 - La funzione `accountAdminLink` in `Info` nasconde le voci con un plugin vecchio (§4.4).
+
+## 9. Aggiunta durante l'esecuzione
+
+Il 2026-11-07 l'utente ha chiesto che la ricerca dei membri Discord guardi anche in altri server (quello degli amici). Il campo `DiscordExtraGuildIds` sta nella configurazione del plugin e nella Dashboard (`configPage.html`, l'eccezione ai non obiettivi di §2). Vedi il Task 7 del piano `docs/superpowers/plans/2026-11-07-wonderflix-admin-associa-contatti.md`.

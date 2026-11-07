@@ -117,7 +117,8 @@ uscite in arrivo.
   esiste) e sceglie la password nuova; tutte le sue sessioni si chiudono.
   Gli admin non possono usarlo (possono collegare i contatti, per la
   prova). Nella pagina del plugin: token del bot e id
-  del server Discord, server SMTP (STARTTLS, di solito 587), mittente, ogni
+  del server Discord e, facoltativi, gli id di altri server dove cercare i
+  membri (il bot va invitato anche lì), server SMTP (STARTTLS, di solito 587), mittente, ogni
   quanti giorni il promemoria nella cassetta a chi non ha contatti (0:
   spento) e **Send a test**. Il bot: Discord Developer Portal → l'app →
   Bot (il token, "Server Members Intent" acceso), poi l'invito nel server
