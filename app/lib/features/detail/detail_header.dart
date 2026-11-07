@@ -57,9 +57,15 @@ class DetailHeader extends ConsumerWidget {
     required this.item,
     required this.primary,
     this.controller,
+    this.rated,
   });
 
   final JellyfinItem item;
+
+  /// Cosa vota "Vota" sulla TV in una serie: la stagione mostrata (il plugin
+  /// accetta solo film e stagioni). `null` finché la stagione non c'è; per i
+  /// film è il film stesso.
+  final ({JellyfinItem item, String title})? rated;
 
   /// `null` finché non si sa cosa riprodurre (serie ancora in caricamento).
   final PrimaryAction? primary;
@@ -119,15 +125,23 @@ class DetailHeader extends ConsumerWidget {
     // Sulla TV la riga ha anche Vota e Consiglia (icone), senza Insieme,
     // Trailer e stagioni da richiedere; il voto attuale è quello che legge
     // anche `FriendRatingsRow`.
+    final target = switch (item.kind) {
+      ItemKind.movie => (item: item, title: item.name),
+      ItemKind.series => rated,
+      _ => null,
+    };
     final ratingsOn =
         tv &&
-        const {ItemKind.movie, ItemKind.series}.contains(item.kind) &&
+        target != null &&
         ref.watch(socialAvailabilityProvider.select((f) => f.ratings));
-    final ratings = ratingsOn
-        ? ref.watch(itemRatingsProvider(item.id)).value
+    final ratingsState = ratingsOn
+        ? ref.watch(itemRatingsProvider(target.item.id))
         : null;
+    final ratings = ratingsState?.value;
+    // In errore (o non votabile senza un voto) il pulsante non c'è.
     final canVote =
         ratingsOn &&
+        !ratingsState!.hasError &&
         (ratings == null || ratings.canRate || ratings.mine != null);
     final compact = FormFactor.of(context).compact && !tv;
     // Le azioni, `null` quando non ci sono: sul PC pulsanti con il testo,
@@ -316,8 +330,8 @@ class DetailHeader extends ConsumerWidget {
                           context,
                           ref,
                           RateSubject(
-                            item: item,
-                            title: item.name,
+                            item: target.item,
+                            title: target.title,
                             mine: ratings?.mine,
                           ),
                         ),

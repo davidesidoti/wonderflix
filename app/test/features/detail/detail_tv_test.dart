@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
@@ -10,6 +11,7 @@ import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/detail/item_detail_screen.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/features/ratings/friend_ratings_row.dart';
 import 'package:wonderflix/features/ratings/rate_panel.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 
@@ -91,7 +93,11 @@ void main() {
     );
   });
 
-  Future<void> pumpDetail(WidgetTester tester, String id) async {
+  Future<void> pumpDetail(
+    WidgetTester tester,
+    String id, {
+    List<Override> extra = const [],
+  }) async {
     await pumpAppRouter(
       tester,
       GoRouter(
@@ -110,6 +116,7 @@ void main() {
       ),
       tv: true,
       overrides: [
+        ...extra,
         libraryApiProvider.overrideWithValue(library),
         ...reportTestOverrides(),
         ...socialTestOverrides(
@@ -232,5 +239,54 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.select);
     await tester.pumpAndSettle();
     expect(find.text('player e21'), findsOneWidget);
+  });
+
+  testWidgets('serie: Vota vota la stagione mostrata e segue le schede', (
+    tester,
+  ) async {
+    social.itemRatingsById['se1'] = const ItemRatings(
+      canRate: true,
+      count: 0,
+      friends: [],
+      mine: MyRating(score: 7),
+    );
+    social.itemRatingsById['se2'] = const ItemRatings(
+      canRate: true,
+      count: 0,
+      friends: [],
+    );
+    await pumpDetail(tester, 's1');
+    RateSubject? subject() => ProviderScope.containerOf(
+      tester.element(find.byType(ItemDetailScreen)),
+    ).read(rateSubjectProvider);
+
+    await tester.tap(find.byTooltip('Vota'));
+    await tester.pump();
+    expect(subject()?.item.id, 'se1');
+    expect(subject()?.title, 'The Last of Us · Stagione 1');
+    expect(subject()?.mine?.score, 7);
+
+    await tester.tap(find.text('Stagione 2'));
+    for (var i = 0; i < 4; i++) {
+      await tester.pump();
+    }
+    await tester.tap(find.byTooltip('Vota'));
+    await tester.pump();
+    expect(subject()?.item.id, 'se2');
+    expect(subject()?.title, 'The Last of Us · Stagione 2');
+    expect(subject()?.mine, isNull);
+  });
+
+  testWidgets('serie: con i voti in errore Vota non c\'è', (tester) async {
+    await pumpDetail(
+      tester,
+      's1',
+      extra: [
+        itemRatingsProvider.overrideWith(
+          (ref, id) async => throw StateError('voti'),
+        ),
+      ],
+    );
+    expect(find.byTooltip('Vota'), findsNothing);
   });
 }

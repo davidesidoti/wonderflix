@@ -104,6 +104,12 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
             item: series,
             primary: primary,
             controller: widget.controller,
+            rated: shownSeason == null
+                ? null
+                : (
+                    item: shownSeason,
+                    title: '${series.name} · ${shownSeason.name}',
+                  ),
           ),
           ReportsBanner(titleId: series.id),
           if (shownSeason != null)
