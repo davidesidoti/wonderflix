@@ -270,6 +270,17 @@ final testAccountStatus = AccountAdminStatus(
   reminderDays: 14,
 );
 
+/// Lo stato del recupero con i canali [discord] ed [email] accesi o spenti.
+AccountAdminStatus testChannelsStatus(
+        {required bool discord, required bool email}) =>
+    AccountAdminStatus(
+      discord: AccountChannelStatus(configured: discord),
+      email: AccountChannelStatus(configured: email),
+      withContacts: 0,
+      users: 0,
+      reminderDays: 14,
+    );
+
 /// Il plugin finto per la scheda WonderFlix.
 class FakePluginAdminApi implements PluginAdminApi {
   NewTitlesStatus newTitlesValue = const NewTitlesStatus(enabled: true, pending: 3);
