@@ -3,6 +3,7 @@ import 'package:logging/logging.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
 import 'package:wonderflix/core/social/account_models.dart';
+import 'package:wonderflix/core/social/plugin_admin_models.dart';
 import 'package:wonderflix/core/social/plugin_admin_api.dart';
 
 import '../../support/fake_adapter.dart';
@@ -120,6 +121,73 @@ void main() {
     expect(adapter.requests.single.method, 'DELETE');
     expect(adapter.requests.single.path,
         '/WonderFlixWatchParty/Account/Admin/Users/a1/Contacts');
+  });
+
+  test('ricerca Discord: POST con il nome, legge Id, Username e DisplayName',
+      () async {
+    adapter.handler = (_) => const FakeResponse(
+        200, {'Id': '42', 'Username': 'garg', 'DisplayName': 'Garg Gamer'});
+
+    final member = await api.lookupDiscordMember('garg');
+
+    expect(adapter.requests.single.method, 'POST');
+    expect(adapter.requests.single.path,
+        '/WonderFlixWatchParty/Account/Admin/Discord/Lookup');
+    expect(adapter.requests.single.data, {'Name': 'garg'});
+    expect(member.id, '42');
+    expect(member.username, 'garg');
+    expect(member.displayName, 'Garg Gamer');
+  });
+
+  test('ricerca Discord: DisplayName null, e senza Id o Username non vale',
+      () async {
+    adapter.handler = (_) => const FakeResponse(
+        200, {'Id': '42', 'Username': 'garg', 'DisplayName': null});
+    expect((await api.lookupDiscordMember('garg')).displayName, isNull);
+
+    for (final body in [
+      {'Username': 'garg', 'DisplayName': null},
+      {'Id': '42', 'DisplayName': null},
+    ]) {
+      adapter.handler = (_) => FakeResponse(200, body);
+      await expectLater(api.lookupDiscordMember('garg'),
+          throwsA(isA<ServerErrorException>()),
+          reason: '$body');
+    }
+  });
+
+  test('ricerca Discord: un 400 MemberNotFound, il Code si legge', () async {
+    adapter.handler =
+        (_) => const FakeResponse(400, {'Code': 'MemberNotFound'});
+
+    Object? caught;
+    try {
+      await api.lookupDiscordMember('nessuno');
+    } on Object catch (error) {
+      caught = error;
+    }
+
+    expect(caught, isA<ServerErrorException>());
+    expect(pluginErrorCode(caught!), 'MemberNotFound');
+  });
+
+  test('associa Discord: PUT con Id e Username', () async {
+    await api.setUserDiscord(
+        'a1', const AdminDiscordMember(id: '42', username: 'garg'));
+
+    expect(adapter.requests.single.method, 'PUT');
+    expect(adapter.requests.single.path,
+        '/WonderFlixWatchParty/Account/Admin/Users/a1/Discord');
+    expect(adapter.requests.single.data, {'Id': '42', 'Username': 'garg'});
+  });
+
+  test('associa email: PUT con l indirizzo', () async {
+    await api.setUserEmail('a1', 'g@example.com');
+
+    expect(adapter.requests.single.method, 'PUT');
+    expect(adapter.requests.single.path,
+        '/WonderFlixWatchParty/Account/Admin/Users/a1/Email');
+    expect(adapter.requests.single.data, {'Address': 'g@example.com'});
   });
 
   test('stato: canali, ultimo errore, conteggi, promemoria', () async {

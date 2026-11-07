@@ -134,6 +134,27 @@ class PluginAdminApi {
         quietStatuses: _accountQuiet);
   }
 
+  /// Cerca un membro del server Discord per nome. Errori col `{Code}` del
+  /// plugin (`MemberNotFound`, `ChannelOff`, ...).
+  Future<AdminDiscordMember> lookupDiscordMember(String name) async =>
+      parseJson(
+          await _http.post('$_account/Discord/Lookup',
+              body: {'Name': name}, quietStatuses: _accountQuiet),
+          AdminDiscordMember.fromJson);
+
+  /// Associa il membro Discord trovato all'utente, senza avvisarlo.
+  Future<void> setUserDiscord(String userId, AdminDiscordMember member) async {
+    await _http.put('$_account/Users/$userId/Discord',
+        body: {'Id': member.id, 'Username': member.username},
+        quietStatuses: _accountQuiet);
+  }
+
+  /// Associa l'indirizzo email all'utente, senza avvisarlo.
+  Future<void> setUserEmail(String userId, String address) async {
+    await _http.put('$_account/Users/$userId/Email',
+        body: {'Address': address}, quietStatuses: _accountQuiet);
+  }
+
   Future<AccountAdminStatus> accountStatus() async => parseJson(
       await _http.get('$_account/Status', quietStatuses: _quiet),
       AccountAdminStatus.fromJson);
