@@ -17,6 +17,8 @@ public sealed class PluginAccountSettings : IAccountSettings
 
     public string DiscordGuildId => (Config.DiscordGuildId ?? string.Empty).Trim();
 
+    public string DiscordExtraGuildIds => (Config.DiscordExtraGuildIds ?? string.Empty).Trim();
+
     public string SmtpHost => (Config.SmtpHost ?? string.Empty).Trim();
 
     public int SmtpPort => Config.SmtpPort;

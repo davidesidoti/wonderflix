@@ -10,6 +10,9 @@ public interface IAccountSettings
 
     string DiscordGuildId { get; }
 
+    /// <summary>Id di altri server dove cercare i membri, separati da virgole, spazi o a capo.</summary>
+    string DiscordExtraGuildIds { get; }
+
     string SmtpHost { get; }
 
     int SmtpPort { get; }
@@ -41,6 +44,17 @@ public static class AccountSettingsExtensions
     /// <summary>Token (nella forma di un token) e id numerico del server.</summary>
     public static bool IsDiscordConfigured(this IAccountSettings settings) =>
         IsTokenShaped(settings.DiscordBotToken) && DiscordIds.IsSnowflake(settings.DiscordGuildId);
+
+    /// <summary>
+    /// Gli id dei server dove cercare i membri: prima il principale, poi gli
+    /// altri nell'ordine scritto. Solo id validi, senza doppioni.
+    /// </summary>
+    public static IReadOnlyList<string> DiscordGuildIds(this IAccountSettings settings) =>
+        new[] { settings.DiscordGuildId }
+            .Concat(settings.DiscordExtraGuildIds.Split([',', ' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+            .Where(DiscordIds.IsSnowflake)
+            .Distinct()
+            .ToList();
 
     // Un token di Discord è fatto di segmenti base64url uniti da punti, e va in un'intestazione HTTP:
     // con spazi o a capo non è un token, e non deve poter aggiungere altre intestazioni.

@@ -109,6 +109,7 @@ Prima di ogni release, su un utente di prova:
 - [ ] Aggiornamento da una versione precedente; aggiornamento obbligatorio.
 - [ ] Discord Rich Presence attiva e disattivata.
 - [ ] Admin → Utenti → ⋮ → "Associa Discord": cerca, anteprima, associa; poi il recupero di quell'utente arriva su quel Discord. "Associa email": lo stesso con l'indirizzo.
+- [ ] Dashboard → "Other Discord server IDs" con il server degli amici (bot invitato lì): un utente che è solo in quel server collega Discord da Impostazioni, e "Associa Discord" lo trova.
 - [ ] Pannello media di Windows con il nome "WonderFlix" (app installata).
 - [ ] "Copia diagnostica" e cartella dei log.
 

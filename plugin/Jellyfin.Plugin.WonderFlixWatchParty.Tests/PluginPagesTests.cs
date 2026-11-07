@@ -35,6 +35,7 @@ public class PluginPagesTests
         // Recupero della password (spec L §7.1).
         Assert.Contains("DiscordBotToken", html);
         Assert.Contains("DiscordGuildId", html);
+        Assert.Contains("DiscordExtraGuildIds", html);
         Assert.Contains("SmtpHost", html);
         Assert.Contains("SmtpPort", html);
         Assert.Contains("SmtpUser", html);
