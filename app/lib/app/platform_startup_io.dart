@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:local_notifier/local_notifier.dart';
 import 'package:logging/logging.dart';
@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smtc_windows/smtc_windows.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../core/jellyfin/android_tv_profile.dart';
 import '../core/logging/app_log.dart';
 import '../core/logging/rotating_file_sink.dart';
 import '../core/media_session/smtc_media_session.dart';
@@ -19,11 +20,27 @@ import 'window_setup.dart';
 
 final _log = Logger('startup');
 
+/// Letti all'avvio su Android; `platformOverrides` li passa al provider.
+DecoderCaps? _decoderCaps;
+
 /// Restituisce `true` se il pannello media di Windows (SMTC) è pronto.
 Future<bool> initPlatform(SharedPreferences prefs) async {
   // Android TV: niente libmpv, finestra, notifiche né SMTC (il player usa
-  // Media3).
-  if (isAndroidTv) return false;
+  // Media3); si leggono i decoder per il profilo del dispositivo.
+  if (isAndroidTv) {
+    try {
+      final map = await const MethodChannel(
+        'wonderflix/player',
+      ).invokeMapMethod<String, dynamic>('decoderCapabilities');
+      _decoderCaps = DecoderCaps.fromMap(map ?? const {});
+    } on Object catch (e) {
+      // Senza decoder noti il profilo non ha direct play: tutto si transcodifica.
+      _log.warning('decoder non leggibili: $e');
+      _decoderCaps = DecoderCaps.fromMap(const {});
+    }
+    _log.info('capacità dei decoder: $_decoderCaps');
+    return false;
+  }
   // Carica libmpv: va fatto prima di creare qualunque Player.
   MediaKit.ensureInitialized();
   await setupWindow(prefs);
@@ -53,6 +70,7 @@ Future<bool> initPlatform(SharedPreferences prefs) async {
 }
 
 List<Override> platformOverrides({required bool smtcReady}) => [
+  if (_decoderCaps != null) decoderCapsProvider.overrideWithValue(_decoderCaps),
   if (smtcReady)
     systemMediaSessionProvider.overrideWith((ref) {
       final session = SmtcMediaSession();

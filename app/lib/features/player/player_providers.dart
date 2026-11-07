@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
 import '../../app/providers.dart';
+import '../../core/jellyfin/android_tv_profile.dart';
 import '../../core/jellyfin/browser_probe.dart';
 import '../../core/jellyfin/browser_profile.dart';
 import '../../core/jellyfin/media_url.dart';
@@ -24,6 +25,11 @@ import 'player_window.dart';
 
 final playbackApiProvider = Provider<PlaybackApi>((ref) {
   final http = ref.watch(jellyfinHttpProvider);
+  final tvCaps = ref.watch(decoderCapsProvider);
+  if (tvCaps != null) {
+    return PlaybackApi(http,
+        profile: (b) => buildAndroidTvDeviceProfile(tvCaps, maxBitrate: b));
+  }
   if (!kIsWeb) return PlaybackApi(http);
   final caps = probeBrowser();
   _log.info('capacità del browser: $caps');
