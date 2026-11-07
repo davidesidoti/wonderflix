@@ -237,4 +237,14 @@ Prova del 2026-11-07 sul Fire Stick dell'utente (AFTMA08C15, TV 1080p senza HDR)
 
 **Visti durante la prova, per il piano 2 (interfaccia TV):** il telecomando non naviga l'interfaccia da telefono; ogni tocco nel player fa play/pausa; Indietro dalla radice esce dall'app senza conferma; il login funziona solo con Quick Connect confermato da Jellyfin web (idea 16 in `docs/IDEE.md`).
 
+**Da riprendere (dalla revisione finale e dai task):**
+- job `android` della CI mai eseguito: vederlo verde al primo push;
+- passaggio all'episodio successivo non provato sul dispositivo (due ExoPlayer vivi insieme sui decoder del Fire Stick);
+- la TV si registra in Jellyfin come "localhost" (`Platform.localHostname`): usare il modello del dispositivo;
+- il controllo "Ritardo sottotitoli" va nascosto sulla TV finché non funziona; le notifiche della cassetta passano da `local_notifier` (eccezione gestita);
+- Dolby Vision profilo 5 non escluso dal Direct Play; VP9/AV1 senza limite di profondità;
+- `ass-kt` va aggiornato insieme ad `ass-media`; la regola proguard dipende dai nomi privati di Media3 (ricontrollare a ogni aggiornamento);
+- APK `x86_64` inutile in `--split-per-abi`; firma di rilascio da fare nel piano di distribuzione;
+- dopo un errore fatale a film caricato il player resta fermo finché non si preme Play (ora riparte); valutare un messaggio all'utente.
+
 **Account dell'utente:** "Il cavaliere oscuro" e Fondazione rimessi come visti (verificato su `jellyfin.db`); restano i punti di ripresa di "2012" (~12 min) e di "A Sign of Affection" S1E1 (~8 min).
