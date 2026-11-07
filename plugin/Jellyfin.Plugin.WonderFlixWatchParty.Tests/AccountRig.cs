@@ -66,7 +66,7 @@ internal sealed class AccountRig : IDisposable
         new(Server, Contacts, Codes, Limiter, Sender, Passwords, NullLogger<PasswordRecovery>.Instance);
 
     public AccountAdmin Admin() =>
-        new(Server, Contacts, Codes, Sender, Discord, Settings, NullLogger<AccountAdmin>.Instance);
+        new(Server, Contacts, Codes, Sender, Discord, Settings, Inbox, Time, NullLogger<AccountAdmin>.Instance);
 
     public ContactReminders Reminders() =>
         new(Server, Contacts, Inbox, Settings, Time, NullLogger<ContactReminders>.Instance);

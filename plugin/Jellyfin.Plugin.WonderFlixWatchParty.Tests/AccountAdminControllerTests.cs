@@ -79,7 +79,7 @@ public sealed class AccountAdminControllerTests : IDisposable
         var adminLogger = new RecordingLogger<AccountAdmin>();
         var recoveryLogger = new RecordingLogger<PasswordRecovery>();
         var controller = Controller(
-            new AccountAdmin(_rig.Server, _rig.Contacts, _rig.Codes, _rig.Sender, _rig.Discord, _rig.Settings, adminLogger),
+            new AccountAdmin(_rig.Server, _rig.Contacts, _rig.Codes, _rig.Sender, _rig.Discord, _rig.Settings, _rig.Inbox, _rig.Time, adminLogger),
             new PasswordRecovery(_rig.Server, _rig.Contacts, _rig.Codes, _rig.Limiter, _rig.Sender, _rig.Passwords, recoveryLogger));
 
         await controller.SendRecovery(mario.Id.ToString("N"), null);
