@@ -60,6 +60,48 @@ public class AccountAdminController(
             : NoContent();
     }
 
+    /// <summary>Cerca un membro del server Discord per nome; l'app poi lo associa con PUT Users/{id}/Discord.</summary>
+    [HttpPost("Discord/Lookup")]
+    public async Task<ActionResult<AdminDiscordMemberDto>> LookupDiscord([FromBody] AdminDiscordLookupRequest? request)
+    {
+        var result = await admin.LookupDiscordAsync(request?.Name, HttpContext.RequestAborted).ConfigureAwait(false);
+        if (result.Error is { } error)
+        {
+            return AccountErrors.Result(error);
+        }
+
+        var member = result.Value!;
+        return new AdminDiscordMemberDto(member.Id, member.Username, member.DisplayName);
+    }
+
+    /// <summary>Associa all'utente il Discord scelto dall'admin, già verificato; 204.</summary>
+    [HttpPut("Users/{userId}/Discord")]
+    public async Task<ActionResult> SetDiscord([FromRoute] string userId, [FromBody] AdminSetDiscordRequest? request)
+    {
+        if (!Guid.TryParse(userId, out var id))
+        {
+            return AccountErrors.Result(AccountError.UnknownUser);
+        }
+
+        return await admin.SetDiscordAsync(id, request?.Id, request?.Username, await CallerAsync().ConfigureAwait(false)).ConfigureAwait(false) is { } error
+            ? AccountErrors.Result(error)
+            : NoContent();
+    }
+
+    /// <summary>Associa all'utente l'email scritta dall'admin, già verificata; 204.</summary>
+    [HttpPut("Users/{userId}/Email")]
+    public async Task<ActionResult> SetEmail([FromRoute] string userId, [FromBody] AdminSetEmailRequest? request)
+    {
+        if (!Guid.TryParse(userId, out var id))
+        {
+            return AccountErrors.Result(AccountError.UnknownUser);
+        }
+
+        return await admin.SetEmailAsync(id, request?.Address, await CallerAsync().ConfigureAwait(false)).ConfigureAwait(false) is { } error
+            ? AccountErrors.Result(error)
+            : NoContent();
+    }
+
     [HttpGet("Status")]
     public ActionResult<AccountStatusResponse> Status() => admin.Status();
 

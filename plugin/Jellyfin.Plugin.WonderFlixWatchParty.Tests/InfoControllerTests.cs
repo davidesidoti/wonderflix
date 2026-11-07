@@ -14,10 +14,10 @@ public class InfoControllerTests
     public void InfoReportsVersionProtocolAndFeatures()
     {
         var info = new InfoController(new FakeSeerrSettings { Url = string.Empty }, NoArr()).GetInfo().Value!;
-        Assert.Equal("1.23.0", info.Version);
+        Assert.Equal("1.24.0", info.Version);
         Assert.Equal(1, info.Protocol);
         Assert.Equal(
-            new[] { "friends", "parties", "inbox", "queue", "collections", "avatars", "account", "home", "recommendations", "friendsActivity", "match", "ratings", "reports", "push" },
+            new[] { "friends", "parties", "inbox", "queue", "collections", "avatars", "account", "home", "recommendations", "friendsActivity", "match", "ratings", "reports", "push", "accountAdminLink" },
             info.Features);
     }
 
@@ -33,7 +33,7 @@ public class InfoControllerTests
         Assert.Equal(
             new[]
             {
-                "friends", "parties", "inbox", "queue", "collections", "avatars", "account", "home", "recommendations", "friendsActivity", "match", "ratings", "reports", "push",
+                "friends", "parties", "inbox", "queue", "collections", "avatars", "account", "home", "recommendations", "friendsActivity", "match", "ratings", "reports", "push", "accountAdminLink",
                 "requests", "upcomingSeries", "upcomingMovies", "calendar", "downloads", "space", "downloadsSearchJobs",
             },
             new InfoController(new FakeSeerrSettings(), new FakeArrSettings()).GetInfo().Value!.Features);
@@ -55,7 +55,7 @@ public class InfoControllerTests
     {
         var onlySonarr = new InfoController(new FakeSeerrSettings(), new FakeArrSettings { Radarr = ArrEndpoint.None })
             .GetInfo().Value!.Features;
-        Assert.Equal(new[] { "requests", "upcomingSeries", "calendar", "downloads", "space", "downloadsSearchJobs" }, onlySonarr.Skip(14));
+        Assert.Equal(new[] { "requests", "upcomingSeries", "calendar", "downloads", "space", "downloadsSearchJobs" }, onlySonarr.Skip(15));
 
         var neither = new InfoController(new FakeSeerrSettings(), NoArr()).GetInfo().Value!.Features;
         Assert.DoesNotContain("calendar", neither);

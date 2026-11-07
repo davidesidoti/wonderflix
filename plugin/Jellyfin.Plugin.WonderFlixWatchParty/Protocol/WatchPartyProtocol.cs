@@ -25,7 +25,10 @@ public static class WatchPartyProtocol
     /// protocollo resta 1: le app 0.5.x accettano solo quello.
     /// </summary>
     public static readonly IReadOnlyList<string> Features =
-        ["friends", "parties", "inbox", "queue", "collections", "avatars", "account", "home", "recommendations", "friendsActivity", "match", "ratings", "reports", "push"];
+        ["friends", "parties", "inbox", "queue", "collections", "avatars", "account", "home", "recommendations", "friendsActivity", "match", "ratings", "reports", "push", AccountAdminLinkFeature];
+
+    /// <summary>L'admin associa Discord ed email a un utente (spec admin-associa-contatti §4.4): sempre presente.</summary>
+    public const string AccountAdminLinkFeature = "accountAdminLink";
 
     /// <summary>Le richieste con Seerr (spec I §7.1): in GET Info solo con Seerr configurato.</summary>
     public const string RequestsFeature = "requests";
