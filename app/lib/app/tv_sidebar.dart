@@ -1,0 +1,182 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+
+import '../features/auth/session_controller.dart';
+import '../features/requests/requests_providers.dart';
+import '../l10n/gen/app_localizations.dart';
+import '../ui/tv_focusable.dart';
+import '../ui/user_avatar.dart';
+import 'theme.dart';
+
+/// Larghezza della barra laterale chiusa: solo le icone.
+const tvSidebarCollapsedWidth = 72.0;
+
+/// Larghezza della barra laterale col focus: icone e nomi.
+const tvSidebarExpandedWidth = 220.0;
+
+/// Rotta della voce "Stasera", che non cambia pagina ma apre una finestra.
+const tvTonightEntry = 'tonight';
+
+const _entryHeight = 48.0;
+
+/// Larghezza della riga di una voce a barra aperta (barra meno i margini).
+const _rowWidth = tvSidebarExpandedWidth - 16 - 32;
+
+/// Barra laterale della TV: Cerca, Home, Film, Serie, Stasera, La mia lista,
+/// Richieste (solo con Seerr) e in fondo l'avatar. Chiusa mostra le icone; si
+/// allarga con i nomi quando una voce ha il focus. Sta sopra il contenuto
+/// (lo allarga senza spostarlo).
+///
+/// [onSelect] riceve la rotta della voce o [tvTonightEntry].
+class TvSidebar extends ConsumerStatefulWidget {
+  const TvSidebar({
+    super.key,
+    required this.location,
+    required this.onSelect,
+    required this.onAccount,
+  });
+
+  /// Percorso della pagina corrente: la sua voce è in oro.
+  final String location;
+  final ValueChanged<String> onSelect;
+  final VoidCallback onAccount;
+
+  @override
+  ConsumerState<TvSidebar> createState() => _TvSidebarState();
+}
+
+class _TvSidebarState extends ConsumerState<TvSidebar> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final user = ref.watch(
+      sessionControllerProvider.select(
+        (s) => s is SessionSignedIn ? s.user : null,
+      ),
+    );
+    final entries = [
+      (route: '/search', label: l.navSearch, icon: LucideIcons.search),
+      (route: '/home', label: l.navHome, icon: LucideIcons.house),
+      (route: '/movies', label: l.navMovies, icon: LucideIcons.film),
+      (route: '/series', label: l.navSeries, icon: LucideIcons.tv),
+      (route: tvTonightEntry, label: l.navTonight, icon: LucideIcons.dices),
+      (route: '/mylist', label: l.navMyList, icon: LucideIcons.bookmark),
+      // Solo con le richieste con Seerr.
+      if (ref.watch(requestsAvailableProvider))
+        (
+          route: '/requests',
+          label: l.navRequests,
+          icon: LucideIcons.messageSquarePlus,
+        ),
+    ];
+
+    Widget item({
+      required Key key,
+      required String label,
+      required VoidCallback onActivate,
+      required Widget Function(Color color) icon,
+      bool selected = false,
+    }) {
+      final color = selected ? WfColors.gold : WfColors.cream;
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: TvFocusable(
+          onActivate: onActivate,
+          child: SizedBox(
+            key: key,
+            height: _entryHeight,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              // Dà alla riga la larghezza piena anche mentre la barra si allarga:
+              // il resto lo taglia la barra.
+              child: ClipRect(
+                child: OverflowBox(
+                  alignment: Alignment.centerLeft,
+                  minWidth: _rowWidth,
+                  maxWidth: _rowWidth,
+                  child: Row(
+                    children: [
+                      icon(color),
+                      // Chiusa non ci sono testi (e mentre si allarga si
+                      // accorciano da soli).
+                      if (_expanded) ...[
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: color,
+                              fontWeight: selected
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Focus(
+      // Non prende il focus: sente solo se ce l'ha una delle voci.
+      canRequestFocus: false,
+      skipTraversal: true,
+      onFocusChange: (focused) => setState(() => _expanded = focused),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        width: _expanded ? tvSidebarExpandedWidth : tvSidebarCollapsedWidth,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              WfColors.bg,
+              WfColors.bg.withValues(alpha: _expanded ? 0.96 : 0.6),
+            ],
+          ),
+        ),
+        child: FocusTraversalGroup(
+          child: Column(
+            children: [
+              const Spacer(),
+              for (final e in entries)
+                item(
+                  key: Key('tv-nav-${e.route}'),
+                  label: e.label,
+                  selected:
+                      e.route != tvTonightEntry &&
+                      widget.location.startsWith(e.route),
+                  onActivate: () => widget.onSelect(e.route),
+                  icon: (color) => Icon(e.icon, size: 24, color: color),
+                ),
+              const Spacer(),
+              if (user != null)
+                item(
+                  key: const Key('tv-account'),
+                  label: user.name,
+                  onActivate: widget.onAccount,
+                  icon: (_) => UserAvatar(
+                    userId: user.id,
+                    name: user.name,
+                    size: 24,
+                    imageTag: user.primaryImageTag,
+                  ),
+                ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

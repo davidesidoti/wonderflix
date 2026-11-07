@@ -178,7 +178,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 bottom: 0,
                 child: ShellBottomBar(
                   location: widget.location,
-                  onMenu: (value) => _runMenuAction(context, ref, value),
+                  onMenu: (value) => runUserMenuAction(context, ref, value),
                 ),
               ),
             // Invito a un watch party appena nato (spec B §5.8), invito a una sala
@@ -419,7 +419,7 @@ class _NavItem extends StatelessWidget {
 
 /// Esegue una voce del menu del profilo o di "Altro": una rotta (`/movies`)
 /// o `settings`, `admin`, `switch`, `add`, `logout`.
-void _runMenuAction(BuildContext context, WidgetRef ref, String value) {
+void runUserMenuAction(BuildContext context, WidgetRef ref, String value) {
   switch (value) {
     case 'settings':
       context.go('/settings');
@@ -460,7 +460,7 @@ class _UserMenu extends ConsumerWidget {
       tooltip: user.name,
       position: PopupMenuPosition.under,
       popUpAnimationStyle: wfPopUpAnimation(context),
-      onSelected: (value) => _runMenuAction(context, ref, value),
+      onSelected: (value) => runUserMenuAction(context, ref, value),
       itemBuilder: (context) => [
         PopupMenuItem(
           value: 'settings',

@@ -1446,5 +1446,9 @@
   "devicePushDenied": "Notifications are blocked: turn them back on in your phone or browser settings",
   "devicePushActivate": "Turn on notifications on this device",
   "devicePushActive": "Notifications are on for this device",
-  "devicePushDeactivate": "Turn off"
+  "devicePushDeactivate": "Turn off",
+  "navTonight": "Tonight",
+  "tvAccountSwitch": "Switch account",
+  "tvAccountAdd": "Add account",
+  "tvExitHint": "Press Back again to exit"
 }

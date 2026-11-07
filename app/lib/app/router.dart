@@ -30,12 +30,14 @@ import '../features/search/search_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/startup/splash_screen.dart';
 import '../features/startup/unreachable_screen.dart';
+import '../ui/form_factor.dart';
 import 'app_shell.dart';
 import 'hero_launch.dart';
 import 'motion.dart';
 import 'navigation.dart';
 import 'page_transitions.dart';
 import 'shell_panels.dart';
+import 'tv_shell.dart';
 
 const _entryRoutes = {'/splash', '/login', '/unreachable', '/profiles'};
 
@@ -126,7 +128,10 @@ HeroLaunch? _heroLaunch(GoRouterState state) =>
 /// della pagina in cima (senza la query, es. `?season=`).
 Widget appShellBuilder(
         BuildContext context, GoRouterState state, Widget child) =>
-    AppShell(location: state.uri.path, child: child);
+    // Sulla TV la barra laterale al posto di quella in alto.
+    FormFactor.of(context).tv
+        ? TvShell(child: child)
+        : AppShell(location: state.uri.path, child: child);
 
 final routerProvider = Provider<GoRouter>((ref) {
   final session = ValueNotifier<SessionState>(ref.read(sessionControllerProvider));

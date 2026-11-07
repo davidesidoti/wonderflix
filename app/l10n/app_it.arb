@@ -1629,5 +1629,9 @@
   "devicePushDenied": "Notifiche bloccate: riattivale dalle impostazioni del telefono o del browser",
   "devicePushActivate": "Attiva notifiche su questo dispositivo",
   "devicePushActive": "Notifiche attive su questo dispositivo",
-  "devicePushDeactivate": "Disattiva"
+  "devicePushDeactivate": "Disattiva",
+  "navTonight": "Stasera",
+  "tvAccountSwitch": "Cambia account",
+  "tvAccountAdd": "Aggiungi account",
+  "tvExitHint": "Premi di nuovo Indietro per uscire"
 }

@@ -94,10 +94,11 @@ Future<void> pumpAppRouter(
   List<Override> overrides = const [],
   Size surfaceSize = const Size(1440, 900),
   bool touch = false,
+  bool tv = false,
 }) {
   addTearDown(router.dispose);
   return pumpAppRouterOf(tester, (_) => router,
-      overrides: overrides, surfaceSize: surfaceSize, touch: touch);
+      overrides: overrides, surfaceSize: surfaceSize, touch: touch, tv: tv);
 }
 
 /// Come [pumpAppRouter], ma il router si legge con [router] dallo stesso
@@ -109,6 +110,7 @@ Future<void> pumpAppRouterOf(
   List<Override> overrides = const [],
   Size surfaceSize = const Size(1440, 900),
   bool touch = false,
+  bool tv = false,
 }) async {
   await _setSurface(tester, surfaceSize);
   await tester.pumpWidget(ProviderScope(
@@ -123,6 +125,7 @@ Future<void> pumpAppRouterOf(
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, child) => FormFactorScope(
             touchOverride: touch,
+            tv: tv,
             child: WfMotionScope(
                 motion: const WfMotion(MotionLevel.reduced), child: child!)),
       ),
