@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:local_notifier/local_notifier.dart';
@@ -82,8 +83,12 @@ List<Override> platformOverrides({required bool smtcReady}) => [
 
 RotatingFileSink? createLogSink() => RotatingFileSink(logsDirectory());
 
-/// Su Windows i log vanno solo nel file (e, in debug, nella console).
-const void Function(Level level, String text)? logToConsole = null;
+/// Su Windows i log vanno solo nel file (e, in debug, nella console). Su
+/// Android TV anche in logcat (`adb logcat | grep flutter`): nel file, nella
+/// cache dell'app, non si arriva senza root.
+final void Function(Level level, String text)? logToConsole = isAndroidTv
+    ? (level, text) => debugPrint(text)
+    : null;
 
 /// Nessun errore di avvio deve lasciare una finestra nascosta in giro.
 Future<void> showWindowAfterStartupError() async {
