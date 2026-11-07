@@ -112,7 +112,11 @@ class _AdminLinkDialogState extends ConsumerState<_AdminLinkDialog> {
       } else if (member == null) {
         final found =
             await ref.read(pluginAdminApiProvider).lookupDiscordMember(text);
-        if (mounted) setState(() => _member = found);
+        // Il nome cambiato durante la ricerca: il membro trovato è di un
+        // altro nome, e si torna a "Cerca".
+        if (mounted && _field.text.trim() == text) {
+          setState(() => _member = found);
+        }
         return;
       } else {
         await users.setDiscord(widget.userId, member);

@@ -421,9 +421,14 @@ class FakePluginAdminApi implements PluginAdminApi {
   /// Errore di `lookupDiscordMember`, prima di [lookupValue].
   Object? lookupError;
 
+  /// Se c'è, `lookupDiscordMember` resta in corso finché il test non lo
+  /// completa (la chiamata si registra prima).
+  Completer<void>? lookupGate;
+
   @override
   Future<AdminDiscordMember> lookupDiscordMember(String name) async {
     calls.add('lookup:$name');
+    await lookupGate?.future;
     final error = lookupError;
     if (error != null) throw error;
     return lookupValue ??
