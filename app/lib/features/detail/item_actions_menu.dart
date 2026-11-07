@@ -72,14 +72,14 @@ List<List<ItemAction>> itemActionGroups({
 }
 
 String _label(AppLocalizations l, ItemAction action) => switch (action) {
-      ItemAction.report => l.itemActionReport,
-      ItemAction.mediaInfo => l.itemActionMediaInfo,
-      ItemAction.subtitles => l.itemActionSubtitles,
-      ItemAction.editMetadata => l.itemActionEditMetadata,
-      ItemAction.identify => l.itemActionIdentify,
-      ItemAction.refresh => l.itemActionRefresh,
-      ItemAction.images => l.itemActionImages,
-    };
+  ItemAction.report => l.itemActionReport,
+  ItemAction.mediaInfo => l.itemActionMediaInfo,
+  ItemAction.subtitles => l.itemActionSubtitles,
+  ItemAction.editMetadata => l.itemActionEditMetadata,
+  ItemAction.identify => l.itemActionIdentify,
+  ItemAction.refresh => l.itemActionRefresh,
+  ItemAction.images => l.itemActionImages,
+};
 
 /// Voce in più del menu "⋯", in cima: un'azione della testata che nel
 /// layout stretto non ha un pulsante suo.
@@ -88,19 +88,27 @@ typedef ExtraItemAction = ({String label, VoidCallback onSelected});
 /// Il bottone "⋯" di un titolo: film, serie, stagione o episodio. Senza voci
 /// da mostrare non c'è.
 class ItemActionsButton extends ConsumerWidget {
-  const ItemActionsButton(
-      {super.key, required this.item, this.extra = const []});
+  const ItemActionsButton({
+    super.key,
+    required this.item,
+    this.extra = const [],
+    this.tvOnly = false,
+  });
 
   final JellyfinItem item;
   final List<ExtraItemAction> extra;
+
+  /// Sulla TV: solo "Segnala un problema" e "Info tecniche", senza sottotitoli
+  /// né strumenti dei metadati.
+  final bool tvOnly;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final groups = itemActionGroups(
       kind: item.kind,
       reports: ref.watch(socialAvailabilityProvider.select((f) => f.reports)),
-      canManageSubtitles: ref.watch(canManageSubtitlesProvider),
-      isAdmin: ref.watch(isAdminProvider),
+      canManageSubtitles: !tvOnly && ref.watch(canManageSubtitlesProvider),
+      isAdmin: !tvOnly && ref.watch(isAdminProvider),
     );
     if (groups.isEmpty && extra.isEmpty) return const SizedBox.shrink();
     final l = AppLocalizations.of(context);
@@ -112,8 +120,11 @@ class ItemActionsButton extends ConsumerWidget {
         useRootNavigator: true,
         tooltip: l.itemActionsMenu,
         padding: EdgeInsets.zero,
-        icon: const Icon(LucideIcons.ellipsis,
-            size: _iconSize, color: WfColors.cream),
+        icon: const Icon(
+          LucideIcons.ellipsis,
+          size: _iconSize,
+          color: WfColors.cream,
+        ),
         popUpAnimationStyle: wfPopUpAnimation(context),
         onSelected: (value) {
           switch (value) {
@@ -130,7 +141,9 @@ class ItemActionsButton extends ConsumerWidget {
             if (i > 0 || extra.isNotEmpty) const PopupMenuDivider(),
             for (final action in group)
               PopupMenuItem<Object>(
-                  value: action, child: Text(_label(l, action))),
+                value: action,
+                child: Text(_label(l, action)),
+              ),
           ],
         ],
       ),
@@ -145,13 +158,16 @@ class ItemActionsButton extends ConsumerWidget {
         showMediaInfoDialog(context, item);
       case ItemAction.subtitles:
         unawaited(
-            showSubtitlesDialog(context, itemId: item.id, title: item.name));
+          showSubtitlesDialog(context, itemId: item.id, title: item.name),
+        );
       case ItemAction.editMetadata:
         unawaited(
-            showEditMetadataDialog(context, itemId: item.id, kind: item.kind));
+          showEditMetadataDialog(context, itemId: item.id, kind: item.kind),
+        );
       case ItemAction.identify:
         unawaited(
-            showIdentifyDialog(context, itemId: item.id, kind: item.kind));
+          showIdentifyDialog(context, itemId: item.id, kind: item.kind),
+        );
       case ItemAction.refresh:
         unawaited(showRefreshMetadataDialog(context, itemId: item.id));
       case ItemAction.images:

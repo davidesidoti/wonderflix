@@ -1,0 +1,236 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:wonderflix/core/jellyfin/auth_models.dart';
+import 'package:wonderflix/core/jellyfin/item_models.dart';
+import 'package:wonderflix/core/social/rating_models.dart';
+import 'package:wonderflix/core/social/social_models.dart';
+import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/detail/item_detail_screen.dart';
+import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/features/ratings/rate_panel.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
+
+import '../../support/fake_session_controller.dart';
+import '../../support/library_fakes.dart';
+import '../../support/pump_app.dart';
+import '../../support/report_fakes.dart';
+import '../../support/social_fakes.dart';
+
+JellyfinItem _ep(
+  String id,
+  String season,
+  int seasonIndex,
+  int index, {
+  int position = 0,
+  double? pct,
+}) => testItem(
+  id: id,
+  name: 'Episodio $index',
+  kind: ItemKind.episode,
+  seriesId: 's1',
+  seriesName: 'The Last of Us',
+  seasonId: season,
+  seasonIndex: seasonIndex,
+  index: index,
+  runtimeMinutes: 45,
+  positionTicks: position,
+  playedPercentage: pct,
+);
+
+void main() {
+  late FakeLibraryApi library;
+  late FakeSocialApi social;
+
+  setUp(() {
+    library = FakeLibraryApi()
+      ..itemsById['m1'] = testItem(
+        id: 'm1',
+        name: 'Dune: Parte Due',
+        positionTicks: 13940000000,
+        playedPercentage: 20,
+        trailers: [
+          {'Url': 'https://youtube.com/watch?v=x'},
+        ],
+      )
+      ..itemsById['s1'] = testItem(
+        id: 's1',
+        name: 'The Last of Us',
+        kind: ItemKind.series,
+        childCount: 2,
+      )
+      ..seasonsBySeries['s1'] = [
+        testItem(
+          id: 'se1',
+          name: 'Stagione 1',
+          kind: ItemKind.season,
+          index: 1,
+        ),
+        testItem(
+          id: 'se2',
+          name: 'Stagione 2',
+          kind: ItemKind.season,
+          index: 2,
+        ),
+      ]
+      ..episodesBySeason['se1'] = [
+        _ep('e3', 'se1', 1, 3),
+        _ep('e4', 'se1', 1, 4, position: 13940000000, pct: 50),
+      ]
+      ..episodesBySeason['se2'] = [_ep('e21', 'se2', 2, 1)]
+      ..nextUpItems = [_ep('e4', 'se1', 1, 4, position: 13940000000, pct: 50)];
+    social = FakeSocialApi()..install(features: const {});
+    social.snapshot = FriendsSnapshot(friends: [testFriend('u2', 'Luigi')]);
+    social.itemRatingsById['m1'] = const ItemRatings(
+      canRate: true,
+      count: 0,
+      friends: [],
+      mine: MyRating(score: 8),
+    );
+  });
+
+  Future<void> pumpDetail(WidgetTester tester, String id) async {
+    await pumpAppRouter(
+      tester,
+      GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) =>
+                Scaffold(body: ItemDetailScreen(itemId: id)),
+          ),
+          GoRoute(
+            path: '/play/:id',
+            builder: (context, state) =>
+                Text('player ${state.pathParameters['id']}'),
+          ),
+        ],
+      ),
+      tv: true,
+      overrides: [
+        libraryApiProvider.overrideWithValue(library),
+        ...reportTestOverrides(),
+        ...socialTestOverrides(
+          social,
+          features: const SocialFeatures(
+            friends: true,
+            recommendations: true,
+            ratings: true,
+            reports: true,
+          ),
+          session: false,
+        ),
+        sessionControllerProvider.overrideWith(
+          () => FakeSessionController(
+            const SessionSignedIn(
+              JellyfinUser(
+                id: 'u1',
+                name: 'Mario',
+                isAdministrator: true,
+                enableSubtitleManagement: true,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+    for (var i = 0; i < 6; i++) {
+      await tester.pump();
+    }
+  }
+
+  /// Il centro di [finder] sta dentro l'elemento col focus.
+  bool hasFocus(WidgetTester tester, Finder finder) =>
+      FocusManager.instance.primaryFocus?.rect.contains(
+        tester.getCenter(finder.first),
+      ) ??
+      false;
+
+  testWidgets("film: il pulsante principale ha il focus all'apertura", (
+    tester,
+  ) async {
+    await pumpDetail(tester, 'm1');
+    expect(hasFocus(tester, find.text('Riprendi da 23:14')), isTrue);
+  });
+
+  testWidgets(
+    'film: la riga delle azioni, in ordine, senza Insieme e Trailer',
+    (tester) async {
+      await pumpDetail(tester, 'm1');
+      final xs = [
+        for (final tooltip in [
+          'Aggiungi a La mia lista',
+          'Vota',
+          'Consiglia a…',
+          'Segna come visto',
+          'Altre azioni',
+        ])
+          tester.getCenter(find.byTooltip(tooltip).first).dx,
+      ];
+      expect(xs, orderedEquals([...xs]..sort()));
+      expect(xs.toSet(), hasLength(5));
+      expect(find.text('Ricomincia'), findsOneWidget);
+      expect(find.text('Trailer'), findsNothing);
+      expect(find.text('Guarda insieme'), findsNothing);
+    },
+  );
+
+  testWidgets('film: "Vota" apre il pannello col voto attuale', (tester) async {
+    await pumpDetail(tester, 'm1');
+    await tester.tap(find.byTooltip('Vota'));
+    await tester.pump();
+    final subject = ProviderScope.containerOf(
+      tester.element(find.byType(ItemDetailScreen)),
+    ).read(rateSubjectProvider);
+    expect(subject?.item.id, 'm1');
+    expect(subject?.title, 'Dune: Parte Due');
+    expect(subject?.mine?.score, 8);
+  });
+
+  testWidgets('film: il menu Altro ha solo Info tecniche e Segnala', (
+    tester,
+  ) async {
+    await pumpDetail(tester, 'm1');
+    await tester.tap(find.byTooltip('Altre azioni'));
+    await tester.pumpAndSettle();
+    expect(find.text('Info tecniche'), findsOneWidget);
+    expect(find.text('Segnala un problema'), findsOneWidget);
+    expect(find.text('Sottotitoli…'), findsNothing);
+    expect(find.text('Modifica metadati'), findsNothing);
+    expect(find.text('Identifica'), findsNothing);
+  });
+
+  testWidgets('serie: focus sul principale, Giù alle stagioni, OK le sceglie, '
+      'OK su un episodio lo riproduce', (tester) async {
+    await pumpDetail(tester, 's1');
+    expect(hasFocus(tester, find.text('Riprendi S1:E4 · 23:14')), isTrue);
+    // Niente "⋯" né sulla stagione né sugli episodi: resta quello della testata.
+    expect(find.byTooltip('Altre azioni'), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    // Giù cade sulla scheda sotto il pulsante (la geometria decide quale):
+    // con Sinistra e Destra si arriva a "Stagione 2".
+    final tab1 = hasFocus(tester, find.text('Stagione 1'));
+    expect(tab1 || hasFocus(tester, find.text('Stagione 2')), isTrue);
+    if (tab1) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+    }
+    expect(hasFocus(tester, find.text('Stagione 2')), isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.select);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('1. Episodio 1'), findsOneWidget);
+    expect(find.text('3. Episodio 3'), findsNothing);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    expect(hasFocus(tester, find.text('1. Episodio 1')), isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.select);
+    await tester.pumpAndSettle();
+    expect(find.text('player e21'), findsOneWidget);
+  });
+}

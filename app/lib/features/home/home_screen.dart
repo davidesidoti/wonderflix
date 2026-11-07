@@ -8,6 +8,7 @@ import '../../app/app_shell.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/shimmer.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/staggered_entrance.dart';
@@ -32,8 +33,9 @@ class HomeEntrancePlayed extends Notifier<bool> {
   void markPlayed() => state = true;
 }
 
-final homeEntrancePlayedProvider =
-    NotifierProvider<HomeEntrancePlayed, bool>(HomeEntrancePlayed.new);
+final homeEntrancePlayedProvider = NotifierProvider<HomeEntrancePlayed, bool>(
+  HomeEntrancePlayed.new,
+);
 
 /// Ritardo tra una riga e l'altra nell'entrata della Home.
 const homeRowStagger = Duration(milliseconds: 80);
@@ -155,8 +157,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  (String, Widget) _content(AppLocalizations l, HomeLayout layout,
-      AsyncValue<List<JellyfinItem>> featured) {
+  (String, Widget) _content(
+    AppLocalizations l,
+    HomeLayout layout,
+    AsyncValue<List<JellyfinItem>> featured,
+  ) {
     final rows = <HomeRowKind, AsyncValue<HomeRowContent>>{
       for (final kind in layout.visible)
         kind: ref.watch(homeRowProvider((kind: kind, language: _language))),
@@ -194,12 +199,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(l.homeEmpty,
-                  style: const TextStyle(color: WfColors.creamMuted)),
+              Text(
+                l.homeEmpty,
+                style: const TextStyle(color: WfColors.creamMuted),
+              ),
               Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: _EntryButtons(
-                      onTonight: _openTonight, onMatch: _openMatch)),
+                padding: const EdgeInsets.only(top: 16),
+                child: _EntryButtons(
+                  onTonight: _openTonight,
+                  onMatch: _openMatch,
+                ),
+              ),
               const _CustomizeLink(),
             ],
           ),
@@ -220,17 +230,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           // Il carosello parte dal bordo della finestra, sotto la barra;
           // senza carosello la prima riga inizia sotto la barra.
           padding: EdgeInsets.only(
-              top: featuredItems.isEmpty ? shellBarHeight : 0, bottom: 40),
+            top: featuredItems.isEmpty ? shellBarHeight : 0,
+            bottom: 40,
+          ),
           children: [
             if (featuredItems.isNotEmpty)
               HeroCarousel(
-                  items: featuredItems,
-                  corner: _EntryButtons(
-                      onTonight: _openTonight, onMatch: _openMatch)),
-            if (featuredItems.isEmpty) _TonightCorner(onTonight: _openTonight, onMatch: _openMatch),
+                items: featuredItems,
+                corner: _EntryButtons(
+                  onTonight: _openTonight,
+                  onMatch: _openMatch,
+                ),
+              ),
+            if (featuredItems.isEmpty)
+              _TonightCorner(onTonight: _openTonight, onMatch: _openMatch),
             ...shown,
             const Align(
-                alignment: Alignment.centerLeft, child: _CustomizeLink()),
+              alignment: Alignment.centerLeft,
+              child: _CustomizeLink(),
+            ),
           ],
         ),
       ),
@@ -257,7 +275,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return StaggerItem(
       key: ValueKey('home-row-${kind.id}'),
       index: index,
-      child: HomeRowView(kind: kind, content: content, animateEntrance: _animate),
+      child: HomeRowView(
+        kind: kind,
+        content: content,
+        animateEntrance: _animate,
+      ),
     );
   }
 }
@@ -283,14 +305,14 @@ class _LateRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => StaggerGroup(
-        count: 1,
-        play: !entered.contains(kind),
-        onPlayed: onPlayed,
-        child: StaggerItem(
-          index: 0,
-          child: HomeRowView(kind: kind, content: content, animateEntrance: true),
-        ),
-      );
+    count: 1,
+    play: !entered.contains(kind),
+    onPlayed: onPlayed,
+    child: StaggerItem(
+      index: 0,
+      child: HomeRowView(kind: kind, content: content, animateEntrance: true),
+    ),
+  );
 }
 
 class _HomeSkeleton extends StatelessWidget {
@@ -341,14 +363,14 @@ class _CustomizeLink extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-        child: TextButton.icon(
-          key: const Key('home-customize'),
-          onPressed: () => openHomeSettings(context),
-          icon: const Icon(LucideIcons.slidersHorizontal, size: 16),
-          label: Text(AppLocalizations.of(context).homeCustomize),
-        ),
-      );
+    padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+    child: TextButton.icon(
+      key: const Key('home-customize'),
+      onPressed: () => openHomeSettings(context),
+      icon: const Icon(LucideIcons.slidersHorizontal, size: 16),
+      label: Text(AppLocalizations.of(context).homeCustomize),
+    ),
+  );
 }
 
 /// Senza carosello il dado sta in cima alle righe, a destra (spec M §8.4).
@@ -360,11 +382,12 @@ class _TonightCorner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(32, 16, 32, 0),
-        child: Align(
-            alignment: Alignment.centerRight,
-            child: _EntryButtons(onTonight: onTonight, onMatch: onMatch)),
-      );
+    padding: const EdgeInsets.fromLTRB(32, 16, 32, 0),
+    child: Align(
+      alignment: Alignment.centerRight,
+      child: _EntryButtons(onTonight: onTonight, onMatch: onMatch),
+    ),
+  );
 }
 
 /// "Match" e "Cosa guardo stasera?" uno accanto all'altro (spec P §7.2).
@@ -377,11 +400,12 @@ class _EntryButtons extends StatelessWidget {
   @override
   // Wrap: in una finestra stretta il secondo va a capo invece di sbordare.
   Widget build(BuildContext context) => Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        children: [
-          MatchButton(onPressed: onMatch),
-          TonightButton(onPressed: onTonight),
-        ],
-      );
+    spacing: 12,
+    runSpacing: 12,
+    children: [
+      // Match è fuori dalla TV.
+      if (!FormFactor.of(context).tv) MatchButton(onPressed: onMatch),
+      TonightButton(onPressed: onTonight),
+    ],
+  );
 }

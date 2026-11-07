@@ -19,6 +19,8 @@ import '../library/item_labels.dart';
 import '../library/library_providers.dart';
 import '../library/user_data.dart';
 import '../playback/play_launcher.dart';
+import '../ratings/friend_ratings_row.dart';
+import '../ratings/rate_panel.dart';
 import '../recommendations/recommend_panel.dart';
 import '../requests/request_seasons.dart';
 import '../social/social_providers.dart';
@@ -35,8 +37,8 @@ const detailHeaderHeight = 560.0;
 /// 16:9 sopra i testi.
 double detailBackdropHeight(BuildContext context) =>
     FormFactor.of(context).compact
-        ? MediaQuery.sizeOf(context).width * 9 / 16
-        : detailHeaderHeight;
+    ? MediaQuery.sizeOf(context).width * 9 / 16
+    : detailHeaderHeight;
 
 /// Margine tra il blocco dei testi (fino alla riga dei pulsanti) e il fondo
 /// della testata.
@@ -50,8 +52,12 @@ const detailEntranceCount = 9;
 /// è un livello a parte dietro alla pagina (`DetailBackdrop`). I testi sono
 /// elementi 0–4 dello `StaggerGroup` della scheda.
 class DetailHeader extends ConsumerWidget {
-  const DetailHeader(
-      {super.key, required this.item, required this.primary, this.controller});
+  const DetailHeader({
+    super.key,
+    required this.item,
+    required this.primary,
+    this.controller,
+  });
 
   final JellyfinItem item;
 
@@ -61,7 +67,10 @@ class DetailHeader extends ConsumerWidget {
   /// Scroll della pagina: il testo sfuma salendo (spec C §9.1).
   final ScrollController? controller;
 
-  Future<void> _toggle(BuildContext context, Future<void> Function() action) async {
+  Future<void> _toggle(
+    BuildContext context,
+    Future<void> Function() action,
+  ) async {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -97,11 +106,30 @@ class DetailHeader extends ConsumerWidget {
     // e almeno un amico.
     final canRecommend =
         const {ItemKind.movie, ItemKind.series}.contains(item.kind) &&
-            ref.watch(socialAvailabilityProvider.select((f) => f.recommendations)) &&
-            ref.watch(friendsControllerProvider
-                .select((s) => s.snapshot.friends.isNotEmpty));
+        ref.watch(
+          socialAvailabilityProvider.select((f) => f.recommendations),
+        ) &&
+        ref.watch(
+          friendsControllerProvider.select(
+            (s) => s.snapshot.friends.isNotEmpty,
+          ),
+        );
 
-    final compact = FormFactor.of(context).compact;
+    final tv = FormFactor.of(context).tv;
+    // Sulla TV la riga ha anche Vota e Consiglia (icone), senza Insieme,
+    // Trailer e stagioni da richiedere; il voto attuale è quello che legge
+    // anche `FriendRatingsRow`.
+    final ratingsOn =
+        tv &&
+        const {ItemKind.movie, ItemKind.series}.contains(item.kind) &&
+        ref.watch(socialAvailabilityProvider.select((f) => f.ratings));
+    final ratings = ratingsOn
+        ? ref.watch(itemRatingsProvider(item.id)).value
+        : null;
+    final canVote =
+        ratingsOn &&
+        (ratings == null || ratings.canRate || ratings.mine != null);
+    final compact = FormFactor.of(context).compact && !tv;
     // Le azioni, `null` quando non ci sono: sul PC pulsanti con il testo,
     // nello stretto icone e menu "⋯".
     final play = action == null
@@ -109,42 +137,52 @@ class DetailHeader extends ConsumerWidget {
         : WfButton.primary(
             label: primaryActionLabel(l, action),
             icon: LucideIcons.play,
+            autofocus: tv,
             onPressed: () => unawaited(playItem(context, ref, action.target)),
           );
     final VoidCallback? restart = action is ResumeAction
-        ? () => unawaited(
-            playItem(context, ref, action.target, fromStart: true))
+        ? () =>
+              unawaited(playItem(context, ref, action.target, fromStart: true))
         : null;
     // Film ed episodi; per una serie l'azione riproduce il prossimo
     // episodio da vedere, e la coda parte da lì. Il contesto è quello del
     // pulsante: il menu delle modalità si apre sotto.
-    final void Function(BuildContext)? together = canCreateParty &&
+    final void Function(BuildContext)? together =
+        canCreateParty &&
             action != null &&
-            const {ItemKind.movie, ItemKind.episode, ItemKind.series}
-                .contains(item.kind)
-        ? (buttonContext) => unawaited(watchTogether(
+            const {
+              ItemKind.movie,
+              ItemKind.episode,
+              ItemKind.series,
+            }.contains(item.kind)
+        ? (buttonContext) => unawaited(
+            watchTogether(
               buttonContext,
               ref,
               action.target,
-              start:
-                  action is ResumeAction ? action.position : Duration.zero,
-            ))
+              start: action is ResumeAction ? action.position : Duration.zero,
+            ),
+          )
         : null;
-    final VoidCallback? trailer =
-        hasTrailer ? () => unawaited(playTrailer(context, ref, item)) : null;
+    final VoidCallback? trailer = hasTrailer
+        ? () => unawaited(playTrailer(context, ref, item))
+        : null;
     final VoidCallback? recommend = canRecommend
         ? () => openRecommendPanel(
-            context, ref, RecommendSubject(itemId: item.id, name: item.name))
+            context,
+            ref,
+            RecommendSubject(itemId: item.id, name: item.name),
+          )
         : null;
     final VoidCallback? requestSeasons = seasonsKey != null && canRequestSeasons
         ? () => unawaited(
-            showRequestSeasonsDialog(context, ref, seasonsKey, item.name))
+            showRequestSeasonsDialog(context, ref, seasonsKey, item.name),
+          )
         : null;
     final favorite = WfIconToggle(
       icon: LucideIcons.heart,
       selected: userData.isFavorite,
-      tooltip:
-          userData.isFavorite ? l.actionRemoveFromList : l.actionAddToList,
+      tooltip: userData.isFavorite ? l.actionRemoveFromList : l.actionAddToList,
       onPressed: () =>
           unawaited(_toggle(context, () => overrides.toggleFavorite(item))),
     );
@@ -166,8 +204,10 @@ class DetailHeader extends ConsumerWidget {
           const SizedBox(height: 6),
           StaggerItem(
             index: 2,
-            child: Text(item.genres.join(' · '),
-                style: const TextStyle(color: WfColors.creamMuted)),
+            child: Text(
+              item.genres.join(' · '),
+              style: const TextStyle(color: WfColors.creamMuted),
+            ),
           ),
         ],
         if (overview != null) ...[
@@ -176,10 +216,12 @@ class DetailHeader extends ConsumerWidget {
             index: 3,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 680),
-              child: Text(overview,
-                  maxLines: 4,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(height: 1.45)),
+              child: Text(
+                overview,
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(height: 1.45),
+              ),
             ),
           ),
         ],
@@ -200,32 +242,38 @@ class DetailHeader extends ConsumerWidget {
                       children: [
                         if (restart != null)
                           _ActionIcon(
-                              icon: LucideIcons.rotateCcw,
-                              label: l.actionRestart,
-                              onPressed: restart),
+                            icon: LucideIcons.rotateCcw,
+                            label: l.actionRestart,
+                            onPressed: restart,
+                          ),
                         if (together != null)
                           Builder(
                             builder: (buttonContext) => _ActionIcon(
-                                icon: LucideIcons.users,
-                                label: l.watchPartyWatchTogether,
-                                onPressed: () => together(buttonContext)),
+                              icon: LucideIcons.users,
+                              label: l.watchPartyWatchTogether,
+                              onPressed: () => together(buttonContext),
+                            ),
                           ),
                         if (trailer != null)
                           _ActionIcon(
-                              icon: LucideIcons.clapperboard,
-                              label: l.actionTrailer,
-                              onPressed: trailer),
+                            icon: LucideIcons.clapperboard,
+                            label: l.actionTrailer,
+                            onPressed: trailer,
+                          ),
                         favorite,
                         played,
-                        ItemActionsButton(item: item, extra: [
-                          if (recommend != null)
-                            (label: l.recommendButton, onSelected: recommend),
-                          if (requestSeasons != null)
-                            (
-                              label: l.requestsMoreSeasons,
-                              onSelected: requestSeasons
-                            ),
-                        ]),
+                        ItemActionsButton(
+                          item: item,
+                          extra: [
+                            if (recommend != null)
+                              (label: l.recommendButton, onSelected: recommend),
+                            if (requestSeasons != null)
+                              (
+                                label: l.requestsMoreSeasons,
+                                onSelected: requestSeasons,
+                              ),
+                          ],
+                        ),
                       ],
                     ),
                   ],
@@ -242,7 +290,7 @@ class DetailHeader extends ConsumerWidget {
                         icon: LucideIcons.rotateCcw,
                         onPressed: restart,
                       ),
-                    if (together != null)
+                    if (together != null && !tv)
                       Builder(
                         // Il menu delle modalità si apre sotto il
                         // pulsante (spec F §9.1).
@@ -252,16 +300,37 @@ class DetailHeader extends ConsumerWidget {
                           onPressed: () => together(buttonContext),
                         ),
                       ),
-                    if (trailer != null)
+                    if (trailer != null && !tv)
                       WfButton.secondary(
                         label: l.actionTrailer,
                         icon: LucideIcons.clapperboard,
                         onPressed: trailer,
                       ),
                     favorite,
+                    if (canVote)
+                      _ActionIcon(
+                        icon: LucideIcons.star,
+                        label: l.ratingVote,
+                        selected: ratings?.mine != null,
+                        onPressed: () => openRatePanel(
+                          context,
+                          ref,
+                          RateSubject(
+                            item: item,
+                            title: item.name,
+                            mine: ratings?.mine,
+                          ),
+                        ),
+                      ),
+                    if (tv && recommend != null)
+                      _ActionIcon(
+                        icon: LucideIcons.send,
+                        label: l.recommendButton,
+                        onPressed: recommend,
+                      ),
                     played,
-                    ItemActionsButton(item: item),
-                    if (recommend != null)
+                    ItemActionsButton(item: item, tvOnly: tv),
+                    if (!tv && recommend != null)
                       WfButton.secondary(
                         label: l.recommendButton,
                         icon: LucideIcons.send,
@@ -269,7 +338,7 @@ class DetailHeader extends ConsumerWidget {
                       ),
                     // Dopo i toggle: la scheda di Seerr arriva dopo due
                     // richieste, e prima dei toggle li farebbe saltare.
-                    if (requestSeasons != null)
+                    if (requestSeasons != null && !tv)
                       WfButton.secondary(
                         label: l.requestsMoreSeasons,
                         icon: LucideIcons.plus,
@@ -289,8 +358,11 @@ class DetailHeader extends ConsumerWidget {
 /// (spec C §9.1). Lo sfondo è un livello a parte dietro alla pagina
 /// (`DetailBackdrop`).
 class DetailHeaderFrame extends StatelessWidget {
-  const DetailHeaderFrame(
-      {super.key, required this.controller, required this.children});
+  const DetailHeaderFrame({
+    super.key,
+    required this.controller,
+    required this.children,
+  });
 
   /// Scroll della pagina; senza, il testo non sfuma.
   final ScrollController? controller;
@@ -386,25 +458,36 @@ class HeaderTitle extends ConsumerWidget {
               child: WfImage(image: logo, fit: BoxFit.contain),
             ),
           )
-        : Text(item.name.toUpperCase(),
+        : Text(
+            item.name.toUpperCase(),
             maxLines: 2,
-            style: WfText.display(FormFactor.of(context).compact ? 36 : 56));
+            style: WfText.display(FormFactor.of(context).compact ? 36 : 56),
+          );
   }
 }
 
 /// Azione secondaria della testata nello stretto: icona tonda con il nome
 /// nel tooltip, come i toggle accanto.
 class _ActionIcon extends StatelessWidget {
-  const _ActionIcon(
-      {required this.icon, required this.label, required this.onPressed});
+  const _ActionIcon({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.selected = false,
+  });
 
   final IconData icon;
   final String label;
   final VoidCallback onPressed;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) => WfIconToggle(
-      icon: icon, selected: false, tooltip: label, onPressed: onPressed);
+    icon: icon,
+    selected: selected,
+    tooltip: label,
+    onPressed: onPressed,
+  );
 }
 
 /// Opacità e salita del testo della testata con lo scroll.
@@ -424,14 +507,18 @@ class _ScrollFade extends StatelessWidget {
       child: child,
       builder: (context, child) {
         final p = headerParallax(
-            scroll.hasClients ? scroll.offset : 0, reduced: reduced);
+          scroll.hasClients ? scroll.offset : 0,
+          reduced: reduced,
+        );
         // Sparito del tutto non riceve più clic (i pulsanti sono invisibili).
         return IgnorePointer(
           ignoring: p.textOpacity == 0,
           child: Opacity(
             opacity: p.textOpacity,
             child: Transform.translate(
-                offset: Offset(0, p.textShift), child: child),
+              offset: Offset(0, p.textShift),
+              child: child,
+            ),
           ),
         );
       },
@@ -455,8 +542,10 @@ class MetaLine extends StatelessWidget {
     const muted = TextStyle(color: WfColors.creamMuted);
     final parts = [
       if (item.productionYear != null) '${item.productionYear}',
-      if (item.kind != ItemKind.series && runtime != null) formatRuntime(runtime),
-      if (item.kind == ItemKind.series && seasons != null) l.detailSeasons(seasons),
+      if (item.kind != ItemKind.series && runtime != null)
+        formatRuntime(runtime),
+      if (item.kind == ItemKind.series && seasons != null)
+        l.detailSeasons(seasons),
     ];
     return Wrap(
       spacing: 10,
@@ -469,9 +558,13 @@ class MetaLine extends StatelessWidget {
             children: [
               const Icon(LucideIcons.star, size: 14, color: WfColors.gold),
               const SizedBox(width: 4),
-              Text(rating.toStringAsFixed(1),
-                  style: const TextStyle(
-                      color: WfColors.gold, fontWeight: FontWeight.w600)),
+              Text(
+                rating.toStringAsFixed(1),
+                style: const TextStyle(
+                  color: WfColors.gold,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
         if (official != null)

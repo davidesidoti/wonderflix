@@ -15,6 +15,7 @@ import '../../ui/skeletons.dart';
 import '../../ui/sliding_underline.dart';
 import '../../ui/staggered_entrance.dart';
 import '../../ui/states.dart';
+import '../../ui/tv_focusable.dart';
 import '../../ui/wf_image.dart';
 import '../../ui/wf_switcher.dart';
 import '../library/item_labels.dart';
@@ -63,7 +64,11 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
 
   String? _seasonToShow(List<JellyfinItem> seasons, JellyfinItem? next) {
     final ids = seasons.map((s) => s.id).toSet();
-    for (final candidate in [_selectedSeasonId, widget.initialSeasonId, next?.seasonId]) {
+    for (final candidate in [
+      _selectedSeasonId,
+      widget.initialSeasonId,
+      next?.seasonId,
+    ]) {
       if (candidate != null && ids.contains(candidate)) return candidate;
     }
     final regular = seasons.where((s) => (s.indexNumber ?? 0) > 0);
@@ -74,13 +79,17 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
   Widget build(BuildContext context) {
     final series = widget.series;
     final next = ref.watch(seriesNextEpisodeProvider(series.id)).value;
-    final primary = next == null ? null : primaryActionFor(next, watchUserData(ref, next));
+    final primary = next == null
+        ? null
+        : primaryActionFor(next, watchUserData(ref, next));
     final seasons = ref.watch(seasonsProvider(series.id));
     final seasonList = seasons.value;
-    final shownSeasonId =
-        seasonList == null ? null : _seasonToShow(seasonList, next);
-    final shownSeason =
-        seasonList?.where((s) => s.id == shownSeasonId).firstOrNull;
+    final shownSeasonId = seasonList == null
+        ? null
+        : _seasonToShow(seasonList, next);
+    final shownSeason = seasonList
+        ?.where((s) => s.id == shownSeasonId)
+        .firstOrNull;
     final l = AppLocalizations.of(context);
 
     final page = StaggerGroup(
@@ -91,10 +100,11 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
         padding: const EdgeInsets.only(bottom: 40),
         children: [
           DetailHeader(
-              key: widget.headerKey,
-              item: series,
-              primary: primary,
-              controller: widget.controller),
+            key: widget.headerKey,
+            item: series,
+            primary: primary,
+            controller: widget.controller,
+          ),
           ReportsBanner(titleId: series.id),
           if (shownSeason != null)
             StaggerItem(
@@ -104,12 +114,14 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
                 item: shownSeason,
                 title: l.ratingFriendsRowSeason(shownSeason.name),
                 onRate: (r) => openRatePanel(
-                    context,
-                    ref,
-                    RateSubject(
-                        item: shownSeason,
-                        title: '${series.name} · ${shownSeason.name}',
-                        mine: r.mine)),
+                  context,
+                  ref,
+                  RateSubject(
+                    item: shownSeason,
+                    title: '${series.name} · ${shownSeason.name}',
+                    mine: r.mine,
+                  ),
+                ),
               ),
             ),
           StaggerItem(
@@ -117,11 +129,14 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
             child: WfSwitcher(
               child: seasons.when(
                 loading: () => const EpisodeListSkeleton(
-                    key: ValueKey('loading'), count: 2),
+                  key: ValueKey('loading'),
+                  count: 2,
+                ),
                 error: (error, _) => ErrorView(
-                    key: const ValueKey('error'),
-                    error: error,
-                    onRetry: () => ref.invalidate(seasonsProvider(series.id))),
+                  key: const ValueKey('error'),
+                  error: error,
+                  onRetry: () => ref.invalidate(seasonsProvider(series.id)),
+                ),
                 data: (list) {
                   final seasonId = _seasonToShow(list, next);
                   if (seasonId == null) {
@@ -142,8 +157,10 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
                             ),
                           ),
                           // Il menu della stagione scelta (segnalazioni).
+                          // Sulla TV non c'è: la serie ha il suo "Altro".
                           if (list.where((s) => s.id == seasonId).firstOrNull
-                              case final season?)
+                              case final season?
+                              when !FormFactor.of(context).tv)
                             Padding(
                               padding: const EdgeInsets.only(right: 24),
                               child: ItemActionsButton(item: season),
@@ -154,10 +171,11 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
                       // scheda (elemento 5): scaglionati solo cambiando
                       // stagione (spec C §9.3).
                       _EpisodeList(
-                          seriesId: series.id,
-                          seasonId: seasonId,
-                          highlightId: next?.id,
-                          animate: _selectedSeasonId != null),
+                        seriesId: series.id,
+                        seasonId: seasonId,
+                        highlightId: next?.id,
+                        animate: _selectedSeasonId != null,
+                      ),
                     ],
                   );
                 },
@@ -176,12 +194,16 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
     if (scroll == null) return page;
     final action = primary;
     final reduced = WfMotion.of(context).isReduced;
-    final compactHeader =
-        FormFactor.of(context).compact ? widget.headerKey : null;
+    final compactHeader = FormFactor.of(context).compact
+        ? widget.headerKey
+        : null;
     return ShellHeaderPublisher(
       controller: scroll,
-      visibleAt: (offset) => barTitleVisible(offset,
-          reduced: reduced, compactHeader: compactHeader),
+      visibleAt: (offset) => barTitleVisible(
+        offset,
+        reduced: reduced,
+        compactHeader: compactHeader,
+      ),
       header: ShellHeader(
         title: series.name,
         actionLabel: action == null ? null : primaryActionLabel(l, action),
@@ -216,6 +238,7 @@ class _SeasonTabsState extends State<_SeasonTabs> {
   @override
   Widget build(BuildContext context) {
     final selectedId = widget.selectedId;
+    final tv = FormFactor.of(context).tv;
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
       child: SlidingUnderline(
@@ -225,19 +248,26 @@ class _SeasonTabsState extends State<_SeasonTabs> {
         child: Wrap(
           children: [
             for (final season in widget.seasons)
-              InkWell(
-                onTap: () => widget.onSelect(season.id),
-                child: Container(
-                  key: _keys.putIfAbsent(season.id, GlobalKey.new),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                  child: Text(
-                    season.name,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: season.id == selectedId
-                          ? WfColors.gold
-                          : WfColors.cream,
+              // Sulla TV il focus è del TvFocusable, non dell'InkWell.
+              TvFocusable(
+                onActivate: () => widget.onSelect(season.id),
+                child: InkWell(
+                  canRequestFocus: !tv,
+                  onTap: () => widget.onSelect(season.id),
+                  child: Container(
+                    key: _keys.putIfAbsent(season.id, GlobalKey.new),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ),
+                    child: Text(
+                      season.name,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: season.id == selectedId
+                            ? WfColors.gold
+                            : WfColors.cream,
+                      ),
                     ),
                   ),
                 ),
@@ -273,13 +303,16 @@ class _EpisodeList extends ConsumerWidget {
     final key = (seriesId: seriesId, seasonId: seasonId);
     // Chiavi per stagione: al cambio di stagione c'è una dissolvenza
     // incrociata e poi gli episodi entrano scaglionati.
-    final (state, content) = ref.watch(episodesProvider(key)).when(
+    final (state, content) = ref
+        .watch(episodesProvider(key))
+        .when(
           loading: () => ('loading', const EpisodeListSkeleton()),
           error: (error, _) => (
             'error',
             ErrorView(
-                error: error,
-                onRetry: () => ref.invalidate(episodesProvider(key))),
+              error: error,
+              onRetry: () => ref.invalidate(episodesProvider(key)),
+            ),
           ),
           data: (episodes) {
             if (episodes.isEmpty) {
@@ -287,8 +320,10 @@ class _EpisodeList extends ConsumerWidget {
                 'empty',
                 Padding(
                   padding: const EdgeInsets.all(32),
-                  child: Text(AppLocalizations.of(context).detailNoEpisodes,
-                      style: const TextStyle(color: WfColors.creamMuted)),
+                  child: Text(
+                    AppLocalizations.of(context).detailNoEpisodes,
+                    style: const TextStyle(color: WfColors.creamMuted),
+                  ),
                 ),
               );
             }
@@ -298,15 +333,18 @@ class _EpisodeList extends ConsumerWidget {
                 key: ValueKey('episodes-$seasonId'),
                 play: animate,
                 count: math.min(episodes.length, _episodeEntranceCount),
-                child: Column(children: [
-                  for (final (i, episode) in episodes.indexed)
-                    StaggerItem(
-                      index: i,
-                      child: EpisodeTile(
+                child: Column(
+                  children: [
+                    for (final (i, episode) in episodes.indexed)
+                      StaggerItem(
+                        index: i,
+                        child: EpisodeTile(
                           episode: episode,
-                          highlighted: episode.id == highlightId),
-                    ),
-                ]),
+                          highlighted: episode.id == highlightId,
+                        ),
+                      ),
+                  ],
+                ),
               ),
             );
           },
@@ -318,7 +356,11 @@ class _EpisodeList extends ConsumerWidget {
 }
 
 class EpisodeTile extends ConsumerWidget {
-  const EpisodeTile({super.key, required this.episode, this.highlighted = false});
+  const EpisodeTile({
+    super.key,
+    required this.episode,
+    this.highlighted = false,
+  });
 
   final JellyfinItem episode;
   final bool highlighted;
@@ -336,13 +378,21 @@ class EpisodeTile extends ConsumerWidget {
         l.detailRemaining(formatRuntime(runtime - userData.playbackPosition)),
     ].join(' · ');
     final overview = episode.overview;
-    final compact = FormFactor.of(context).compact;
+    final form = FormFactor.of(context);
+    final compact = form.compact;
+    final tv = form.tv;
+    void play() => unawaited(playItem(context, ref, episode));
 
-    return InkWell(
-      onTap: () => unawaited(playItem(context, ref, episode)),
+    final tile = InkWell(
+      // Sulla TV il focus è del TvFocusable, non dell'InkWell.
+      canRequestFocus: !tv,
+      onTap: play,
       child: Container(
         color: highlighted ? WfColors.surface : null,
-        padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 32, vertical: 10),
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 16 : 32,
+          vertical: 10,
+        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -355,7 +405,9 @@ class EpisodeTile extends ConsumerWidget {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      WfImage(image: ref.watch(imageUrlsProvider).landscape(episode)),
+                      WfImage(
+                        image: ref.watch(imageUrlsProvider).landscape(episode),
+                      ),
                       if (progress != null) ProgressStrip(progress: progress),
                     ],
                   ),
@@ -367,28 +419,39 @@ class EpisodeTile extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(index == null ? episode.name : '$index. ${episode.name}',
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text(
+                    index == null ? episode.name : '$index. ${episode.name}',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   if (details.isNotEmpty) ...[
                     const SizedBox(height: 4),
-                    Text(details,
-                        style: const TextStyle(
-                            color: WfColors.creamMuted, fontSize: 12.5)),
+                    Text(
+                      details,
+                      style: const TextStyle(
+                        color: WfColors.creamMuted,
+                        fontSize: 12.5,
+                      ),
+                    ),
                   ],
                   if (overview != null) ...[
                     const SizedBox(height: 6),
-                    Text(overview,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            color: WfColors.creamMuted, fontSize: 12.5, height: 1.4)),
+                    Text(
+                      overview,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: WfColors.creamMuted,
+                        fontSize: 12.5,
+                        height: 1.4,
+                      ),
+                    ),
                   ],
                 ],
               ),
             ),
             // Il bottone sta dentro l'InkWell, ma il tocco non ne attiva
             // l'onTap: vince il riconoscitore del bottone nell'arena.
-            ItemActionsButton(item: episode),
+            if (!tv) ItemActionsButton(item: episode),
             if (userData.played)
               const Padding(
                 padding: EdgeInsets.only(left: 12),
@@ -398,5 +461,6 @@ class EpisodeTile extends ConsumerWidget {
         ),
       ),
     );
+    return TvFocusable(onActivate: play, child: tile);
   }
 }

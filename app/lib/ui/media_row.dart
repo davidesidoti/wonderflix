@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../app/motion.dart';
 import '../app/theme.dart';
 import 'form_factor.dart';
+import 'tv_focusable.dart';
 import 'smooth_scroll.dart';
 import 'staggered_entrance.dart';
 
@@ -22,13 +23,13 @@ typedef RowCardSize = ({double width, double rowHeight});
 
 RowCardSize rowPosterSize(BuildContext context) =>
     FormFactor.of(context).compact
-        ? (width: 112, rowHeight: 230)
-        : (width: 160, rowHeight: 300);
+    ? (width: 112, rowHeight: 230)
+    : (width: 160, rowHeight: 300);
 
 RowCardSize rowLandscapeSize(BuildContext context) =>
     FormFactor.of(context).compact
-        ? (width: 220, rowHeight: 190)
-        : (width: 300, rowHeight: 230);
+    ? (width: 220, rowHeight: 190)
+    : (width: 300, rowHeight: 230);
 
 /// Riga orizzontale con titolo e frecce (per chi usa il mouse).
 class MediaRow extends StatefulWidget {
@@ -76,31 +77,48 @@ class _MediaRowState extends State<MediaRow> {
   void _scroll(int direction) {
     if (!_controller.hasClients) return;
     final position = _controller.position;
-    final target = (position.pixels + direction * position.viewportDimension * 0.8)
-        .clamp(0.0, position.maxScrollExtent);
-    _controller.animateTo(target,
-        duration: WfMotion.medium, curve: WfMotion.decelerate);
+    final target =
+        (position.pixels + direction * position.viewportDimension * 0.8).clamp(
+          0.0,
+          position.maxScrollExtent,
+        );
+    _controller.animateTo(
+      target,
+      duration: WfMotion.medium,
+      curve: WfMotion.decelerate,
+    );
   }
 
   Widget _title() {
-    final title = Text(widget.title,
-        overflow: TextOverflow.ellipsis, style: WfText.display(24));
+    final title = Text(
+      widget.title,
+      overflow: TextOverflow.ellipsis,
+      style: WfText.display(24),
+    );
     final onTap = widget.onTitleTap;
     if (onTap == null) return title;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        key: const Key('row-title-link'),
-        // Anche lo spazio tra il titolo e la freccia è parte del link.
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(child: title),
-            const SizedBox(width: 8),
-            const Icon(LucideIcons.arrowRight, size: 20, color: WfColors.gold),
-          ],
+    // Sulla TV il link si raggiunge col telecomando.
+    return TvFocusable(
+      onActivate: onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          key: const Key('row-title-link'),
+          // Anche lo spazio tra il titolo e la freccia è parte del link.
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(child: title),
+              const SizedBox(width: 8),
+              const Icon(
+                LucideIcons.arrowRight,
+                size: 20,
+                color: WfColors.gold,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -117,7 +135,9 @@ class _MediaRowState extends State<MediaRow> {
       // Sulla TV un po' d'aria sopra e sotto: l'ingrandimento del focus non
       // viene tagliato dalla lista.
       padding: EdgeInsets.symmetric(
-          horizontal: side, vertical: form.tv ? tvRowFocusPadding : 0),
+        horizontal: side,
+        vertical: form.tv ? tvRowFocusPadding : 0,
+      ),
       itemCount: widget.itemCount,
       separatorBuilder: (context, index) => const SizedBox(width: 16),
       // Senza entrata le card non si avvolgono: uno StaggerItem cercherebbe
@@ -125,10 +145,10 @@ class _MediaRowState extends State<MediaRow> {
       itemBuilder: !animate
           ? widget.itemBuilder
           : (context, i) => StaggerItem(
-                index: i,
-                effect: EntranceEffect.fly,
-                child: widget.itemBuilder(context, i),
-              ),
+              index: i,
+              effect: EntranceEffect.fly,
+              child: widget.itemBuilder(context, i),
+            ),
     );
     if (animate) {
       list = StaggerGroup(
@@ -151,16 +171,22 @@ class _MediaRowState extends State<MediaRow> {
                 const Spacer(),
                 ?widget.trailing,
                 if (!form.tv) ...[
-                IconButton(
-                  key: const Key('row-previous'),
-                  onPressed: () => _scroll(-1),
-                  icon: const Icon(LucideIcons.chevronLeft, color: WfColors.cream),
-                ),
-                IconButton(
-                  key: const Key('row-next'),
-                  onPressed: () => _scroll(1),
-                  icon: const Icon(LucideIcons.chevronRight, color: WfColors.cream),
-                ),
+                  IconButton(
+                    key: const Key('row-previous'),
+                    onPressed: () => _scroll(-1),
+                    icon: const Icon(
+                      LucideIcons.chevronLeft,
+                      color: WfColors.cream,
+                    ),
+                  ),
+                  IconButton(
+                    key: const Key('row-next'),
+                    onPressed: () => _scroll(1),
+                    icon: const Icon(
+                      LucideIcons.chevronRight,
+                      color: WfColors.cream,
+                    ),
+                  ),
                 ],
               ],
             ),

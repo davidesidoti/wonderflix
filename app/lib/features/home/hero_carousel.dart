@@ -83,17 +83,20 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
 
   /// Dissolvenza della diapositiva che entra (anche i testi).
   late final AnimationController _fade =
-      AnimationController(vsync: this, value: 1)
-        ..addStatusListener((status) {
-          if (status == AnimationStatus.completed && _previous != null) {
-            setState(() => _previous = null);
-          }
-        });
+      AnimationController(vsync: this, value: 1)..addStatusListener((status) {
+        if (status == AnimationStatus.completed && _previous != null) {
+          setState(() => _previous = null);
+        }
+      });
 
   int _index = 0;
   int? _previous;
   double _previousProgress = 0;
   bool _hovered = false;
+
+  /// Sulla TV il focus è su un pulsante del carosello: conta come il mouse
+  /// sopra, altrimenti la diapositiva cambierebbe sotto il telecomando.
+  bool _focusInside = false;
 
   /// Un'anteprima di una card è aperta (spec C §7): conta come il mouse
   /// sopra.
@@ -137,7 +140,11 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
 
   /// Fa scorrere il tempo della diapositiva solo se nulla lo mette in pausa.
   void _syncProgress() {
-    if (_autoplay && !_hovered && !_previewOpen && _tickersEnabled) {
+    if (_autoplay &&
+        !_hovered &&
+        !_focusInside &&
+        !_previewOpen &&
+        _tickersEnabled) {
       if (!_progress.isAnimating) unawaited(_progress.forward());
     } else {
       _progress.stop();
@@ -181,22 +188,25 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
   /// [heroTextExit] della dissolvenza. Con le animazioni ridotte la
   /// dissolvenza dura `fast` e i testi sfumano insieme alla diapositiva.
   Animation<double> _textExit(WfMotion motion) => ReverseAnimation(
-        _fade.drive(CurveTween(
-          curve: motion.isReduced
-              ? WfMotion.standard
-              : Interval(
-                  0,
-                  heroTextExit.inMicroseconds /
-                      WfMotion.crossfade.inMicroseconds,
-                  curve: WfMotion.standard,
-                ),
-        )),
-      );
+    _fade.drive(
+      CurveTween(
+        curve: motion.isReduced
+            ? WfMotion.standard
+            : Interval(
+                0,
+                heroTextExit.inMicroseconds / WfMotion.crossfade.inMicroseconds,
+                curve: WfMotion.standard,
+              ),
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(cardPreviewProvider.select((s) => s.openId != null),
-        (previous, open) {
+    ref.listen(cardPreviewProvider.select((s) => s.openId != null), (
+      previous,
+      open,
+    ) {
       _previewOpen = open;
       _syncProgress();
     });
@@ -252,91 +262,116 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
                   child: IgnorePointer(
                     ignoring: false,
                     child: FadeTransition(
-                      opacity: _fade.drive(CurveTween(curve: WfMotion.standard)),
+                      opacity: _fade.drive(
+                        CurveTween(curve: WfMotion.standard),
+                      ),
                       child: _HeroSlide(
                         item: current,
+                        autofocus: form.tv,
                         kenBurns: motion.isReduced ? null : _progress,
-                        entrance:
-                            motion.isReduced ? kAlwaysCompleteAnimation : _fade,
+                        entrance: motion.isReduced
+                            ? kAlwaysCompleteAnimation
+                            : _fade,
                         textOpacity: kAlwaysCompleteAnimation,
                       ),
                     ),
                   ),
                 ),
                 Positioned(
-                    right: form.compact ? 16 : 32,
-                    bottom: form.touch ? 0 : 20,
-                    child: _dots(motion, touch: form.touch)),
+                  right: form.compact ? 16 : 32,
+                  bottom: form.touch ? 0 : 20,
+                  child: _dots(motion, touch: form.touch),
+                ),
                 if (corner != null && !form.compact)
-                  Positioned(right: 32, bottom: heroCornerBottom, child: corner),
+                  Positioned(
+                    right: 32,
+                    bottom: heroCornerBottom,
+                    child: corner,
+                  ),
               ],
             ),
           ),
         ),
       ),
     );
-    if (corner == null || !form.compact) return carousel;
+    // Sulla TV il focus dentro il carosello ferma il tempo (vedi
+    // `_focusInside`).
+    final body = !form.tv
+        ? carousel
+        : Focus(
+            canRequestFocus: false,
+            skipTraversal: true,
+            onFocusChange: (focused) {
+              _focusInside = focused;
+              _syncProgress();
+            },
+            child: carousel,
+          );
+    if (corner == null || !form.compact) return body;
     // Nello stretto l'angolo coprirebbe il testo: va sotto il carosello.
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        carousel,
+        body,
         Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: corner),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: corner,
+        ),
       ],
     );
   }
 
   /// Col dito ogni puntino si tocca su almeno [minTouchTarget] di lato.
   Widget _dots(WfMotion motion, {required bool touch}) => Row(
-        children: [
-          for (var i = 0; i < widget.items.length; i++)
-            MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: GestureDetector(
-                key: ValueKey('hero-dot-$i'),
-                behavior: HitTestBehavior.opaque,
-                onTap: () => _goTo(i),
-                child: Container(
-                  constraints: touch
-                      ? const BoxConstraints(
-                          minWidth: minTouchTarget, minHeight: minTouchTarget)
-                      : null,
-                  alignment: touch ? Alignment.center : null,
-                  padding: const EdgeInsets.fromLTRB(3, 8, 3, 8),
-                  child: AnimatedContainer(
-                    duration: motion.duration(WfMotion.medium),
-                    curve: WfMotion.emphasized,
-                    width: i == _index ? 26 : 6,
-                    height: 6,
-                    clipBehavior: Clip.antiAlias,
-                    decoration: BoxDecoration(
-                      color: i == _index
-                          ? WfColors.cream.withValues(alpha: 0.3)
-                          : WfColors.creamMuted,
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                    // Il puntino attivo si riempie d'oro con il tempo della
-                    // diapositiva (anche con le animazioni ridotte).
-                    child: i == _index
-                        ? AnimatedBuilder(
-                            animation: _progress,
-                            builder: (context, _) => FractionallySizedBox(
-                              key: const Key('hero-dot-fill'),
-                              alignment: Alignment.centerLeft,
-                              widthFactor: _progress.value,
-                              child: const ColoredBox(color: WfColors.gold),
-                            ),
-                          )
-                        : null,
-                  ),
+    children: [
+      for (var i = 0; i < widget.items.length; i++)
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            key: ValueKey('hero-dot-$i'),
+            behavior: HitTestBehavior.opaque,
+            onTap: () => _goTo(i),
+            child: Container(
+              constraints: touch
+                  ? const BoxConstraints(
+                      minWidth: minTouchTarget,
+                      minHeight: minTouchTarget,
+                    )
+                  : null,
+              alignment: touch ? Alignment.center : null,
+              padding: const EdgeInsets.fromLTRB(3, 8, 3, 8),
+              child: AnimatedContainer(
+                duration: motion.duration(WfMotion.medium),
+                curve: WfMotion.emphasized,
+                width: i == _index ? 26 : 6,
+                height: 6,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: i == _index
+                      ? WfColors.cream.withValues(alpha: 0.3)
+                      : WfColors.creamMuted,
+                  borderRadius: BorderRadius.circular(3),
                 ),
+                // Il puntino attivo si riempie d'oro con il tempo della
+                // diapositiva (anche con le animazioni ridotte).
+                child: i == _index
+                    ? AnimatedBuilder(
+                        animation: _progress,
+                        builder: (context, _) => FractionallySizedBox(
+                          key: const Key('hero-dot-fill'),
+                          alignment: Alignment.centerLeft,
+                          widthFactor: _progress.value,
+                          child: const ColoredBox(color: WfColors.gold),
+                        ),
+                      )
+                    : null,
               ),
             ),
-        ],
-      );
+          ),
+        ),
+    ],
+  );
 }
 
 /// Elemento [index] dei testi della diapositiva che entra: sale di 10 px in
@@ -352,11 +387,14 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
 Widget _enter(Animation<double> entrance, int index, Widget child) {
   final total = WfMotion.crossfade.inMicroseconds;
   final begin =
-      ((heroTextDelay + heroTextStagger * index).inMicroseconds / total)
-          .clamp(0.0, 1.0);
+      ((heroTextDelay + heroTextStagger * index).inMicroseconds / total).clamp(
+        0.0,
+        1.0,
+      );
   final end = (begin + WfMotion.medium.inMicroseconds / total).clamp(0.0, 1.0);
   final t = entrance.drive(
-      CurveTween(curve: Interval(begin, end, curve: WfMotion.emphasized)));
+    CurveTween(curve: Interval(begin, end, curve: WfMotion.emphasized)),
+  );
   return AnimatedBuilder(
     animation: t,
     child: child,
@@ -365,7 +403,9 @@ Widget _enter(Animation<double> entrance, int index, Widget child) {
       child: Opacity(
         opacity: t.value.clamp(0.0, 1.0),
         child: Transform.translate(
-            offset: Offset(0, 10 * (1 - t.value)), child: child),
+          offset: Offset(0, 10 * (1 - t.value)),
+          child: child,
+        ),
       ),
     ),
   );
@@ -377,9 +417,13 @@ class _HeroSlide extends ConsumerWidget {
     required this.kenBurns,
     required this.entrance,
     required this.textOpacity,
+    this.autofocus = false,
   });
 
   final JellyfinItem item;
+
+  /// Il pulsante "Riproduci" prende il focus (sulla TV, diapositiva attuale).
+  final bool autofocus;
 
   /// Tempo della diapositiva per il Ken Burns; `null` = sfondo fermo.
   final Animation<double>? kenBurns;
@@ -400,8 +444,10 @@ class _HeroSlide extends ConsumerWidget {
     final seasons = item.childCount;
     final meta = [
       if (item.productionYear != null) '${item.productionYear}',
-      if (item.kind == ItemKind.movie && runtime != null) formatRuntime(runtime),
-      if (item.kind == ItemKind.series && seasons != null) l.detailSeasons(seasons),
+      if (item.kind == ItemKind.movie && runtime != null)
+        formatRuntime(runtime),
+      if (item.kind == ItemKind.series && seasons != null)
+        l.detailSeasons(seasons),
       ...item.genres.take(2),
     ].join(' · ');
     final backdrop = WfImage(image: urls.backdrop(item));
@@ -425,10 +471,11 @@ class _HeroSlide extends ConsumerWidget {
                   alignment: Alignment.center,
                   transform: Matrix4.identity()
                     ..translateByDouble(
-                        -kenBurnsDrift * t * MediaQuery.sizeOf(context).width,
-                        0,
-                        0,
-                        1)
+                      -kenBurnsDrift * t * MediaQuery.sizeOf(context).width,
+                      0,
+                      0,
+                      1,
+                    )
                     ..scaleByDouble(scale, scale, 1, 1),
                   child: child,
                 );
@@ -477,22 +524,32 @@ class _HeroSlide extends ConsumerWidget {
                             child: WfImage(image: logo, fit: BoxFit.contain),
                           ),
                         )
-                      : Text(item.name.toUpperCase(),
+                      : Text(
+                          item.name.toUpperCase(),
                           maxLines: 2,
-                          style: WfText.display(compact ? 40 : 56)),
+                          style: WfText.display(compact ? 40 : 56),
+                        ),
                 ),
                 const SizedBox(height: 10),
-                _enter(entrance, 1,
-                    Text(meta, style: const TextStyle(color: WfColors.creamMuted))),
+                _enter(
+                  entrance,
+                  1,
+                  Text(
+                    meta,
+                    style: const TextStyle(color: WfColors.creamMuted),
+                  ),
+                ),
                 if (item.overview != null) ...[
                   const SizedBox(height: 10),
                   _enter(
                     entrance,
                     2,
-                    Text(item.overview!,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(height: 1.45)),
+                    Text(
+                      item.overview!,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(height: 1.45),
+                    ),
                   ),
                 ],
                 const SizedBox(height: 18),
@@ -506,7 +563,9 @@ class _HeroSlide extends ConsumerWidget {
                       WfButton.primary(
                         label: l.actionPlay,
                         icon: LucideIcons.play,
-                        onPressed: () => unawaited(playItem(context, ref, item)),
+                        autofocus: autofocus,
+                        onPressed: () =>
+                            unawaited(playItem(context, ref, item)),
                       ),
                       WfButton.secondary(
                         label: l.actionDetails,
