@@ -217,4 +217,24 @@ Platform view: `viewType` `'wonderflix/player_view'`, `creationParams` `{id: int
 
 ## Esito della prova
 
-_Da compilare in Task 6._
+Prova del 2026-11-07 sul Fire Stick dell'utente (AFTMA08C15, TV 1080p senza HDR), build release da `746dc2de`. Giudizio a occhio dell'utente; CPU e memoria da `adb shell top`; modo di riproduzione dal log di Jellyfin.
+
+| Caso | Esito | Cosa ha visto l'utente | CPU / RAM app | Server |
+|---|---|---|---|---|
+| Il cavaliere oscuro (4K HEVC 10 bit HDR10) | **passato** | fluido, colori naturali, proporzioni giuste | 34% / 124 MB | DirectPlay |
+| Fondazione S3E1 (4K 3840×1600, ~30 Mbps) | **passato** | fluido, proporzioni giuste, niente banda verde | 49% / 77 MB | DirectPlay |
+| A Sign of Affection S1E1 (HEVC 10 bit, ASS) | **passato** | sottotitoli "Italian - ASS" visibili con il loro stile, fluido | 38% / 158 MB | DirectPlay |
+| 2012 (1080p H.264) | **passato** | fluido | 16% / 134 MB | DirectPlay |
+
+- Indietro dal player: in tutti e quattro i casi torna alla scheda, `Input event dispatching timed out` 0 volte.
+- Cambio traccia: il passaggio a "Italian - ASS" è confermato dal log di libass (`Format(10, Italian …)`); il passaggio all'inglese era già stato verificato in Task 4.
+- Per confronto, con mpv (prova di inizio giornata) l'HEVC 10 bit dava immagine nera o ferma e l'app si bloccava; ora l'app usa meno CPU e memoria.
+
+**Non coperto da questa prova:**
+- ritardo dei sottotitoli: non ha effetto (Media3 non ha un offset, Task 3);
+- scala dei sottotitoli ASS (`AssRender.setFontScale`, Task 4) e sottotitoli ASS esterni: implementati, non provati sul dispositivo;
+- file con audio DTS (il Fire Stick non ha il decoder): non provato.
+
+**Visti durante la prova, per il piano 2 (interfaccia TV):** il telecomando non naviga l'interfaccia da telefono; ogni tocco nel player fa play/pausa; Indietro dalla radice esce dall'app senza conferma; il login funziona solo con Quick Connect confermato da Jellyfin web (idea 16 in `docs/IDEE.md`).
+
+**Account dell'utente:** "Il cavaliere oscuro" e Fondazione rimessi come visti (verificato su `jellyfin.db`); restano i punti di ripresa di "2012" (~12 min) e di "A Sign of Affection" S1E1 (~8 min).
