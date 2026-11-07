@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.ViewGroup
 import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.Format
@@ -18,17 +19,32 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.SubtitleView
+import io.github.peerless2012.ass.media.AssHandler
+import io.github.peerless2012.ass.media.AssHandlerConfig
+import io.github.peerless2012.ass.media.factory.AssRenderersFactory
+import io.github.peerless2012.ass.media.kt.withAssMkvSupport
+import io.github.peerless2012.ass.media.parser.AssSubtitleParserFactory
+import io.github.peerless2012.ass.media.type.AssRenderType
+import io.github.peerless2012.ass.media.widget.AssSubtitleView
 
 /** Un `ExoPlayer` dietro il contratto del canale; gli eventi escono da [emit]. */
 @OptIn(UnstableApi::class)
 class TvPlayer(context: Context, private val id: Int, private val emit: (String, Any?) -> Unit) :
     Player.Listener {
 
-    private val player = ExoPlayer.Builder(context.applicationContext).build()
+    // ASS/SSA disegnati da libass come nell'app Jellyfin per Android TV: interni (MKV) ed esterni.
+    private val assHandler = AssHandler(AssRenderType.OVERLAY_OPEN_GL, AssHandlerConfig(maxRenderPixels = 1920 * 1080))
+    private val assParserFactory = AssSubtitleParserFactory(assHandler)
+    private val extractorsFactory = DefaultExtractorsFactory().withAssMkvSupport(assParserFactory, assHandler)
+    private val player = ExoPlayer.Builder(context.applicationContext)
+        .setRenderersFactory(AssRenderersFactory(assHandler, DefaultRenderersFactory(context.applicationContext)))
+        .build()
     private val handler = Handler(Looper.getMainLooper())
     private val tick = object : Runnable {
         override fun run() {
@@ -38,7 +54,8 @@ class TvPlayer(context: Context, private val id: Int, private val emit: (String,
     }
 
     private var view: PlayerView? = null
-    private var subtitleScale = 1f
+    private var assView: AssSubtitleView? = null
+    @Volatile private var subtitleScale = 1f
     private var dataSourceFactory: DefaultHttpDataSource.Factory? = null
     private var mediaItem: MediaItem? = null
     private var awaitingLoad = false
@@ -49,13 +66,18 @@ class TvPlayer(context: Context, private val id: Int, private val emit: (String,
 
     init {
         player.addListener(this)
+        assHandler.init(player)
+        // Il render di libass nasce (sul thread del loader) alla prima traccia ASS.
+        assHandler.renderCallback = { it?.setFontScale(subtitleScale) }
     }
 
     fun attach(view: PlayerView) {
         if (released) return
         this.view?.player = null
+        removeAssView()
         this.view = view
         view.player = player
+        assView = AssSubtitleView(view.context, assHandler).also { view.subtitleView?.addView(it) }
         view.keepScreenOn = player.isPlaying
         applySubtitleScale()
     }
@@ -63,8 +85,14 @@ class TvPlayer(context: Context, private val id: Int, private val emit: (String,
     fun detach(view: PlayerView) {
         if (this.view !== view) return
         view.player = null
+        removeAssView()
         view.keepScreenOn = false
         this.view = null
+    }
+
+    private fun removeAssView() {
+        assView?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        assView = null
     }
 
     fun open(url: String, headers: Map<String, String>, startMs: Long) {
@@ -93,7 +121,9 @@ class TvPlayer(context: Context, private val id: Int, private val emit: (String,
     // DefaultMediaSourceFactory sceglie HlsMediaSource (mime M3U8) o ProgressiveMediaSource
     // e unisce i SubtitleConfiguration, che le due factory da sole ignorerebbero.
     private fun prepare(startMs: Long) {
-        val source = DefaultMediaSourceFactory(dataSourceFactory!!).createMediaSource(mediaItem!!)
+        val source = DefaultMediaSourceFactory(dataSourceFactory!!, extractorsFactory)
+            .setSubtitleParserFactory(assParserFactory) // anche i sottotitoli esterni
+            .createMediaSource(mediaItem!!)
         player.setMediaSource(source, startMs)
         player.prepare()
     }
@@ -166,12 +196,15 @@ class TvPlayer(context: Context, private val id: Int, private val emit: (String,
     fun addSubtitle(url: String, title: String?, language: String?, done: (String?) -> Unit) {
         val item = mediaItem ?: return done(null)
         finishPendingSubtitle(null)
+        val previous = item.localConfiguration!!.subtitleConfigurations
         val config = MediaItem.SubtitleConfiguration.Builder(Uri.parse(url))
+            // libass trova la traccia dall'id dopo i ":"; i TrackNumber MKV stanno sotto 128.
+            .setId("${EXTERNAL_SUBTITLE_ID + previous.size}")
             .setMimeType(subtitleMime(url))
             .setLabel(title)
             .setLanguage(language)
             .build()
-        val configs = item.localConfiguration!!.subtitleConfigurations + config
+        val configs = previous + config
         mediaItem = item.buildUpon().setSubtitleConfigurations(configs).build()
         // Dopo la nuova preparazione i gruppi sono altri: la scelta dell'audio va rifatta.
         val audio = player.trackSelectionParameters.overrides.values
@@ -227,6 +260,7 @@ class TvPlayer(context: Context, private val id: Int, private val emit: (String,
 
     private fun applySubtitleScale() {
         view?.subtitleView?.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * subtitleScale)
+        assHandler.render?.setFontScale(subtitleScale)
     }
 
     fun dispose() {
@@ -237,6 +271,7 @@ class TvPlayer(context: Context, private val id: Int, private val emit: (String,
         view?.let { detach(it) }
         player.removeListener(this)
         player.release()
+        assHandler.release()
     }
 
     private fun emitPosition() {
@@ -330,5 +365,6 @@ class TvPlayer(context: Context, private val id: Int, private val emit: (String,
         const val TICK_MS = 250L
         const val HTTP_TIMEOUT_MS = 60_000
         const val SUBTITLE_TIMEOUT_MS = 10_000L
+        const val EXTERNAL_SUBTITLE_ID = 128
     }
 }
