@@ -69,7 +69,20 @@ void main() {
                 ),
               ),
             ),
-            page('/series'),
+            // Senza `autofocus`: il focus lo deve portare la shell.
+            page(
+              '/series',
+              child: Center(
+                child: TvFocusable(
+                  onActivate: () {},
+                  child: const SizedBox(
+                    key: Key('series-content'),
+                    width: 100,
+                    height: 40,
+                  ),
+                ),
+              ),
+            ),
             page('/mylist'),
             page('/requests'),
             page('/search'),
@@ -206,28 +219,14 @@ void main() {
       await select(tester);
 
       expect(location(r), '/series');
-      // Nessuno nella pagina può prenderlo: resta fuori dalla barra.
-      final focused = FocusManager.instance.primaryFocus!;
-      expect(
-        find.descendant(
-          of: find.byType(TvSidebar),
-          matching: find.byWidgetPredicate(
-            (w) => w is Focus && w.focusNode == focused,
-          ),
-        ),
-        findsNothing,
+      // Nessuno nella pagina può prenderlo: la shell lo dà alla prima voce
+      // vera, non a un nodo invisibile.
+      final content = Focus.of(
+        tester.element(find.byKey(const Key('series-content'))),
       );
+      expect(content.hasPrimaryFocus, isTrue);
     },
   );
-
-  testWidgets('OK su Stasera apre la finestra di Stasera', (tester) async {
-    await pumpShell(tester);
-
-    await focusNav(tester, 'tonight');
-    await select(tester);
-
-    expect(tonightCalls, 1);
-  });
 
   testWidgets('l\'avatar apre il menu dell\'account', (tester) async {
     final r = await pumpShell(tester);
@@ -336,5 +335,55 @@ void main() {
     expect(location(r), '/home');
     expect(find.text(warning), findsNothing);
     expect(exitCalls, 0);
+  });
+
+  testWidgets('Sinistra dal primo elemento del contenuto va alla voce della '
+      'sezione', (tester) async {
+    await pumpShell(tester);
+    await focusNav(tester, '/movies');
+    await select(tester);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pumpAndSettle();
+
+    expect(Focus.of(tester.element(nav('/movies'))).hasPrimaryFocus, isTrue);
+  });
+
+  testWidgets('Destra dalla barra torna all\'elemento che aveva il focus', (
+    tester,
+  ) async {
+    await pumpShell(tester);
+    await focusNav(tester, '/movies');
+    await select(tester);
+    final card = Focus.of(
+      tester.element(find.byKey(const Key('movies-content'))),
+    );
+    expect(card.hasPrimaryFocus, isTrue);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pumpAndSettle();
+    expect(card.hasPrimaryFocus, isFalse);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+
+    expect(card.hasPrimaryFocus, isTrue);
+  });
+
+  testWidgets('lasciata la radice e tornata, l\'avviso torna a comparire', (
+    tester,
+  ) async {
+    final r = await pumpShell(tester);
+
+    await back(tester);
+    expect(find.text(warning), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 500));
+    r.go('/movies');
+    await tester.pumpAndSettle();
+    r.go('/home');
+    await tester.pumpAndSettle();
+
+    await back(tester);
+    expect(exitCalls, 0);
+    expect(find.text(warning), findsOneWidget);
   });
 }

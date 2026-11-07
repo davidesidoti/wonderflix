@@ -48,6 +48,12 @@ class _TvShellState extends ConsumerState<TvShell> {
   /// Timer della finestra del doppio Indietro; attivo = il primo c'è già stato.
   Timer? _exitTimer;
 
+  final _sidebar = GlobalKey<TvSidebarState>();
+
+  /// Pagina dell'ultima costruzione: cambiando, la finestra del doppio
+  /// Indietro non vale più.
+  String? _location;
+
   @override
   void dispose() {
     _exitTimer?.cancel();
@@ -64,8 +70,34 @@ class _TvShellState extends ConsumerState<TvShell> {
     // La pagina nuova ha le sue voci con `autofocus`; se nessuna prende il
     // focus (o la pagina è la stessa) lo si porta al primo del contenuto.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && !_content.hasFocus) _content.requestFocus();
+      if (mounted && !_content.hasFocus) _focusContent();
     });
+  }
+
+  /// Porta il focus nel contenuto: all'elemento che lo aveva, alla voce con
+  /// `autofocus` o alla prima. Mai su un nodo invisibile (lo scope stesso).
+  void _focusContent() {
+    _content.requestFocus();
+    // Il focus cambia a fine microtask: solo allora si vede dove è finito.
+    scheduleMicrotask(() {
+      final primary = FocusManager.instance.primaryFocus;
+      if (primary is FocusScopeNode) primary.nextFocus();
+    });
+  }
+
+  /// Sinistra dal bordo sinistro del contenuto: la ricerca nel navigatore si
+  /// ferma lì (ogni pagina è uno scope a sé), quindi si passa alla barra.
+  KeyEventResult _onContentKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent ||
+        event.logicalKey != LogicalKeyboardKey.arrowLeft) {
+      return KeyEventResult.ignored;
+    }
+    final primary = FocusManager.instance.primaryFocus;
+    if (primary == null) return KeyEventResult.ignored;
+    if (!primary.focusInDirection(TraversalDirection.left)) {
+      _sidebar.currentState?.focusEntryFor(GoRouterState.of(context).uri.path);
+    }
+    return KeyEventResult.handled;
   }
 
   void _onBack(bool didPop, Object? result) {
@@ -98,6 +130,11 @@ class _TvShellState extends ConsumerState<TvShell> {
 
   @override
   Widget build(BuildContext context) {
+    final location = GoRouterState.of(context).uri.path;
+    if (location != _location) {
+      _location = location;
+      _exitTimer?.cancel();
+    }
     return PopScope(
       // Indietro lo gestiamo noi (`_onBack`): una pagina profonda la chiude
       // il navigatore prima di arrivare qui.
@@ -110,7 +147,12 @@ class _TvShellState extends ConsumerState<TvShell> {
               left: tvSidebarCollapsedWidth,
               child: FocusScope(
                 node: _content,
-                child: BackNavigationHandler(child: widget.child),
+                child: Focus(
+                  canRequestFocus: false,
+                  skipTraversal: true,
+                  onKeyEvent: _onContentKey,
+                  child: BackNavigationHandler(child: widget.child),
+                ),
               ),
             ),
             Positioned(
@@ -118,7 +160,9 @@ class _TvShellState extends ConsumerState<TvShell> {
               top: 0,
               bottom: 0,
               child: TvSidebar(
-                location: GoRouterState.of(context).uri.path,
+                key: _sidebar,
+                location: location,
+                onFocusContent: _focusContent,
                 onSelect: _select,
                 onAccount: () => unawaited(showTvAccountMenu(context, ref)),
               ),

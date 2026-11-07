@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -35,6 +36,7 @@ class TvSidebar extends ConsumerStatefulWidget {
     required this.location,
     required this.onSelect,
     required this.onAccount,
+    required this.onFocusContent,
   });
 
   /// Percorso della pagina corrente: la sua voce è in oro.
@@ -42,12 +44,41 @@ class TvSidebar extends ConsumerStatefulWidget {
   final ValueChanged<String> onSelect;
   final VoidCallback onAccount;
 
+  /// Destra dalla barra: il focus torna al contenuto.
+  final VoidCallback onFocusContent;
+
   @override
-  ConsumerState<TvSidebar> createState() => _TvSidebarState();
+  ConsumerState<TvSidebar> createState() => TvSidebarState();
 }
 
-class _TvSidebarState extends ConsumerState<TvSidebar> {
+class TvSidebarState extends ConsumerState<TvSidebar> {
   bool _expanded = false;
+
+  /// Un nodo per voce, così il contenuto può riportare qui il focus.
+  final _nodes = <String, FocusNode>{};
+
+  FocusNode _node(String route) =>
+      _nodes.putIfAbsent(route, () => FocusNode(debugLabel: 'tv-nav-$route'));
+
+  @override
+  void dispose() {
+    for (final node in _nodes.values) {
+      node.dispose();
+    }
+    super.dispose();
+  }
+
+  /// Dà il focus alla voce della pagina [location], o alla prima.
+  void focusEntryFor(String location) {
+    final routes = [
+      '/search', '/home', '/movies', '/series', '/mylist', '/requests', //
+    ];
+    final route = routes.firstWhere(
+      location.startsWith,
+      orElse: () => routes.first,
+    );
+    _node(route).requestFocus();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,6 +109,7 @@ class _TvSidebarState extends ConsumerState<TvSidebar> {
       required String label,
       required VoidCallback onActivate,
       required Widget Function(Color color) icon,
+      FocusNode? focusNode,
       bool selected = false,
     }) {
       final color = selected ? WfColors.gold : WfColors.cream;
@@ -85,6 +117,7 @@ class _TvSidebarState extends ConsumerState<TvSidebar> {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: TvFocusable(
           onActivate: onActivate,
+          focusNode: focusNode,
           child: SizedBox(
             key: key,
             height: _entryHeight,
@@ -133,6 +166,16 @@ class _TvSidebarState extends ConsumerState<TvSidebar> {
       canRequestFocus: false,
       skipTraversal: true,
       onFocusChange: (focused) => setState(() => _expanded = focused),
+      // La barra copre l'inizio del contenuto: la ricerca geometrica lo
+      // salterebbe, quindi Destra torna all'elemento che aveva il focus.
+      onKeyEvent: (node, event) {
+        if (event is KeyUpEvent ||
+            event.logicalKey != LogicalKeyboardKey.arrowRight) {
+          return KeyEventResult.ignored;
+        }
+        widget.onFocusContent();
+        return KeyEventResult.handled;
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,
@@ -152,6 +195,7 @@ class _TvSidebarState extends ConsumerState<TvSidebar> {
               for (final e in entries)
                 item(
                   key: Key('tv-nav-${e.route}'),
+                  focusNode: e.route == tvTonightEntry ? null : _node(e.route),
                   label: e.label,
                   selected:
                       e.route != tvTonightEntry &&
