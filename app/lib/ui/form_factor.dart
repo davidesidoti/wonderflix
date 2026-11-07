@@ -13,14 +13,16 @@ const minTouchTarget = 44.0;
 
 /// Come va disegnata l'interfaccia: larghezza, dito o mouse, telefono.
 ///
-/// Viene solo da `MediaQuery` e dal tipo di puntatore, mai da `kIsWeb`,
-/// dallo user agent o da `Platform`.
+/// Viene da `MediaQuery` e dal tipo di puntatore, mai da `kIsWeb`, dallo user
+/// agent o da `Platform`. Fa eccezione [tv]: lo decide `app.dart` (con
+/// `isAndroidTv`) e lo passa a [FormFactorScope].
 @immutable
 class FormFactor {
   const FormFactor({
     required this.compact,
     required this.touch,
     required this.phone,
+    required this.tv,
   });
 
   /// Finestra più stretta di [compactLayoutWidth].
@@ -32,16 +34,19 @@ class FormFactor {
   /// [touch] e lato corto sotto [phoneShortestSide].
   final bool phone;
 
+  /// Android TV con il telecomando: [touch] e [phone] sono sempre falsi.
+  final bool tv;
+
   /// Senza [FormFactorScope] il modo tocco è spento.
   static FormFactor of(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    final touch =
-        context.dependOnInheritedWidgetOfExactType<_FormFactorTouch>()?.touch ??
-        false;
+    final scope = context.dependOnInheritedWidgetOfExactType<_FormFactorTouch>();
+    final touch = scope?.touch ?? false;
     return FormFactor(
       compact: size.width < compactLayoutWidth,
       touch: touch,
       phone: touch && size.shortestSide < phoneShortestSide,
+      tv: scope?.tv ?? false,
     );
   }
 }
@@ -49,12 +54,19 @@ class FormFactor {
 /// Segue l'ultimo puntatore e lo pubblica per [FormFactor.of].
 ///
 /// Parte in modo tocco su Android e iOS. Con [touchOverride] il modo tocco è
-/// fisso (nei test, dove `tester.tap` è sempre un tocco).
+/// fisso (nei test, dove `tester.tap` è sempre un tocco). Con [tv] il modo
+/// tocco è spento e i puntatori sono ignorati.
 class FormFactorScope extends StatefulWidget {
-  const FormFactorScope({super.key, required this.child, this.touchOverride});
+  const FormFactorScope({
+    super.key,
+    required this.child,
+    this.touchOverride,
+    this.tv = false,
+  });
 
   final Widget child;
   final bool? touchOverride;
+  final bool tv;
 
   @override
   State<FormFactorScope> createState() => _FormFactorScopeState();
@@ -66,6 +78,7 @@ class _FormFactorScopeState extends State<FormFactorScope> {
       defaultTargetPlatform == TargetPlatform.iOS;
 
   void _onPointer(PointerEvent event) {
+    if (widget.tv) return;
     final touch =
         event.kind == PointerDeviceKind.touch ||
         event.kind == PointerDeviceKind.stylus ||
@@ -79,17 +92,24 @@ class _FormFactorScopeState extends State<FormFactorScope> {
     onPointerDown: _onPointer,
     onPointerHover: _onPointer,
     child: _FormFactorTouch(
-      touch: widget.touchOverride ?? _touch,
+      touch: !widget.tv && (widget.touchOverride ?? _touch),
+      tv: widget.tv,
       child: widget.child,
     ),
   );
 }
 
 class _FormFactorTouch extends InheritedWidget {
-  const _FormFactorTouch({required this.touch, required super.child});
+  const _FormFactorTouch({
+    required this.touch,
+    required this.tv,
+    required super.child,
+  });
 
   final bool touch;
+  final bool tv;
 
   @override
-  bool updateShouldNotify(_FormFactorTouch old) => touch != old.touch;
+  bool updateShouldNotify(_FormFactorTouch old) =>
+      touch != old.touch || tv != old.tv;
 }

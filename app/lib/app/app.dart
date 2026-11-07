@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/platform/platform_info.dart';
 import '../features/auth/session_controller.dart';
 import '../features/settings/appearance_settings.dart';
 import '../features/settings/locale_controller.dart';
@@ -11,6 +12,7 @@ import '../features/update/update_gate.dart';
 import '../features/watch_party/watch_party_routing.dart';
 import '../l10n/gen/app_localizations.dart';
 import '../ui/form_factor.dart';
+import '../ui/tv_focusable.dart';
 import 'motion.dart';
 import 'platform_startup.dart';
 import 'router.dart';
@@ -59,12 +61,17 @@ class _WonderflixAppState extends ConsumerState<WonderflixApp> {
       // servono: il sito è sempre all'ultima versione.
       builder: (context, child) {
         final page = child ?? const SizedBox.shrink();
-        return FormFactorScope(
+        final scoped = FormFactorScope(
+          tv: isAndroidTv,
           child: WfMotionScope(
             motion: motion,
             child: kIsWeb ? page : UpdateGate(child: page),
           ),
         );
+        // Il tasto OK del telecomando (select) vale come Invio.
+        return isAndroidTv
+            ? Shortcuts(shortcuts: tvActivateShortcuts, child: scoped)
+            : scoped;
       },
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       // Italiano per primo: è la lingua di ripiego se Windows usa altre lingue.

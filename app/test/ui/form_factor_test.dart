@@ -33,6 +33,7 @@ Future<FormFactor Function()> _pump(
 }
 
 void main() {
+  tvTests();
   for (final (w, h, compact) in [
     (1023.0, 800.0, true),
     (1024.0, 800.0, false),
@@ -96,4 +97,55 @@ void main() {
       expect(seen.phone, touch);
     });
   }
+}
+
+/// Monta lo scope con [tv] e registra il [FormFactor] che vede.
+Future<FormFactor Function()> _pumpTv(WidgetTester tester, {bool? tv}) async {
+  late FormFactor seen;
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = const Size(960, 540);
+  addTearDown(tester.view.reset);
+  final probe = Builder(
+    builder: (context) {
+      seen = FormFactor.of(context);
+      return const SizedBox();
+    },
+  );
+  await tester.pumpWidget(
+    MaterialApp(
+      home: tv == null
+          ? probe
+          : FormFactorScope(tv: tv, touchOverride: true, child: probe),
+    ),
+  );
+  return () => seen;
+}
+
+void tvTests() {
+  testWidgets('tv: niente tocco ne telefono, compatto', (tester) async {
+    final ff = await _pumpTv(tester, tv: true);
+    expect(ff().tv, isTrue);
+    expect(ff().touch, isFalse);
+    expect(ff().phone, isFalse);
+    expect(ff().compact, isTrue);
+  });
+
+  testWidgets('tv: ignora i puntatori', (tester) async {
+    final ff = await _pumpTv(tester, tv: true);
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pump();
+    expect(ff().touch, isFalse);
+  });
+
+  testWidgets('senza tv tutto come prima', (tester) async {
+    final ff = await _pumpTv(tester, tv: false);
+    expect(ff().tv, isFalse);
+    expect(ff().touch, isTrue);
+    expect(ff().phone, isTrue); // 960x540: tocco e lato corto 540 < 600
+  });
+
+  testWidgets('senza scope: tv falso', (tester) async {
+    final ff = await _pumpTv(tester);
+    expect(ff().tv, isFalse);
+  });
 }
