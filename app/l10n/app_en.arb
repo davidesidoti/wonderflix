@@ -1473,5 +1473,10 @@
   "navTonight": "Tonight",
   "tvAccountSwitch": "Switch account",
   "tvAccountAdd": "Add account",
-  "tvExitHint": "Press Back again to exit"
+  "tvExitHint": "Press Back again to exit",
+  "actionUndo": "Undo",
+  "nextUpHide": "Remove from Next up",
+  "nextUpShow": "Put back in Next up",
+  "nextUpHidden": "Removed from Next up",
+  "nextUpChangeFailed": "Couldn't update Next up: try again"
 }

@@ -31,6 +31,10 @@ class DisplayPreferencesApi {
   static const rowsKey = 'homeRows';
   static const hiddenKey = 'homeHidden';
 
+  /// Le serie tolte da "Prossimi episodi": `serieId:episodioId` separati da
+  /// virgole, con l'episodio proposto quando si è tolta.
+  static const nextUpHiddenKey = 'nextUpHidden';
+
   static const _path = '/DisplayPreferences/$homeId';
 
   /// Jellyfin che si riavvia: nel log come info.
@@ -55,6 +59,31 @@ class DisplayPreferencesApi {
         custom
           ..remove(rowsKey)
           ..remove(hiddenKey);
+      });
+
+  /// Serie → episodio tolti da "Prossimi episodi", chiavi e valori
+  /// `jellyfinIdKey`; le coppie storte si saltano.
+  Future<Map<String, String>> readNextUpHidden(String userId) async {
+    final custom = jsonMap((await _read(userId))['CustomPrefs']) ?? const {};
+    return {
+      for (final pair in _ids(custom[nextUpHiddenKey]))
+        if (pair.split(':') case [final series, final episode]
+            when series.isNotEmpty && episode.isNotEmpty)
+          jellyfinIdKey(series): jellyfinIdKey(episode),
+    };
+  }
+
+  /// Salva le serie tolte; senza nessuna la voce sparisce. Le altre voci
+  /// restano.
+  Future<void> writeNextUpHidden(String userId, Map<String, String> hidden) =>
+      _update(userId, (custom) {
+        if (hidden.isEmpty) {
+          custom.remove(nextUpHiddenKey);
+        } else {
+          custom[nextUpHiddenKey] = [
+            for (final MapEntry(:key, :value) in hidden.entries) '$key:$value',
+          ].join(',');
+        }
       });
 
   Future<Map<String, dynamic>> _read(String userId) async => asJsonMap(

@@ -84,6 +84,49 @@ void main() {
     expect(body['CustomPrefs'], {'chromecastVersion': 'stable', 'tvhome': null});
   });
 
+  test('Prossimi episodi tolti: serie → episodio, id normalizzati', () async {
+    adapter.handler = (_) => FakeResponse(
+        200,
+        serverPrefs({
+          'nextUpHidden': 'AB-CD:EF12, s2:e2,storta,:e3',
+          'homeRows': 'resume',
+        }));
+    expect(await api.readNextUpHidden('u1'), {'abcd': 'ef12', 's2': 'e2'});
+    expect(adapter.requests.single.queryParameters,
+        {'userId': 'u1', 'client': 'wonderflix'});
+  });
+
+  test('Prossimi episodi tolti: senza voce, mappa vuota', () async {
+    expect(await api.readNextUpHidden('u1'), isEmpty);
+  });
+
+  test('scrivere i tolti lascia le altre voci', () async {
+    adapter.handler = (options) => options.method == 'GET'
+        ? FakeResponse(200, serverPrefs({'homeRows': 'myList'}))
+        : const FakeResponse(204);
+    await api.writeNextUpHidden('u1', {'s1': 'e1', 's2': 'e2'});
+    final post = adapter.requests.last;
+    expect(post.method, 'POST');
+    expect(post.queryParameters, {'userId': 'u1', 'client': 'wonderflix'});
+    final body = post.data as Map<String, dynamic>;
+    expect(body['SortBy'], 'SortName');
+    expect(body['CustomPrefs'], {
+      'chromecastVersion': 'stable',
+      'tvhome': null,
+      'homeRows': 'myList',
+      'nextUpHidden': 's1:e1,s2:e2',
+    });
+  });
+
+  test('nessuna serie tolta: la voce sparisce', () async {
+    adapter.handler = (options) => options.method == 'GET'
+        ? FakeResponse(200, serverPrefs({'nextUpHidden': 's1:e1'}))
+        : const FakeResponse(204);
+    await api.writeNextUpHidden('u1', const {});
+    final body = adapter.requests.last.data as Map<String, dynamic>;
+    expect(body['CustomPrefs'], {'chromecastVersion': 'stable', 'tvhome': null});
+  });
+
   test('un errore di Jellyfin arriva a chi chiama', () async {
     adapter.handler = (_) => const FakeResponse(401);
     await expectLater(api.readHome('u1'), throwsA(isA<ApiException>()));

@@ -1662,5 +1662,10 @@
   "navTonight": "Stasera",
   "tvAccountSwitch": "Cambia account",
   "tvAccountAdd": "Aggiungi account",
-  "tvExitHint": "Premi di nuovo Indietro per uscire"
+  "tvExitHint": "Premi di nuovo Indietro per uscire",
+  "actionUndo": "Annulla",
+  "nextUpHide": "Togli da Prossimi episodi",
+  "nextUpShow": "Rimetti in Prossimi episodi",
+  "nextUpHidden": "Tolto da Prossimi episodi",
+  "nextUpChangeFailed": "Prossimi episodi non aggiornati: riprova"
 }

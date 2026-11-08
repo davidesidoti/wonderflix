@@ -9,6 +9,7 @@ import '../core/jellyfin/item_models.dart';
 import '../features/library/item_labels.dart';
 import '../features/library/library_providers.dart';
 import '../features/library/user_data.dart';
+import 'card_preview.dart';
 import 'card_preview_host.dart';
 import 'form_factor.dart';
 import 'tv_focusable.dart';
@@ -26,9 +27,13 @@ class LandscapeCard extends ConsumerStatefulWidget {
     this.subtitle,
     this.width = 300,
     this.autofocus = false,
+    this.previewExtra,
   });
 
   final JellyfinItem item;
+
+  /// Note e × dell'anteprima (per esempio "Togli da Prossimi episodi").
+  final CardPreviewExtra? previewExtra;
   final VoidCallback? onTap;
 
   /// Card da cui parte il volo Hero (per esempio `home.latestMovies.3`),
@@ -127,6 +132,10 @@ class _LandscapeCardState extends ConsumerState<LandscapeCard> {
         ),
       ),
     );
-    return CardPreviewHost(item: item, heroSource: heroSource, child: card);
+    return CardPreviewHost(
+        item: item,
+        heroSource: heroSource,
+        extra: widget.previewExtra,
+        child: card);
   }
 }

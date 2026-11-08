@@ -3,11 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/detail/item_actions_menu.dart';
 import 'package:wonderflix/features/detail/item_detail_screen.dart';
+import 'package:wonderflix/features/home/home_providers.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/ui/staggered_entrance.dart';
 
 import '../../support/fake_session_controller.dart';
+import '../../support/home_fakes.dart';
 import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/test_data.dart';
@@ -31,8 +34,10 @@ JellyfinItem ep(String id, String season, int seasonIndex, int index,
 
 void main() {
   late FakeLibraryApi api;
+  late FakeDisplayPreferencesApi prefs;
 
   setUp(() {
+    prefs = FakeDisplayPreferencesApi();
     api = FakeLibraryApi()
       ..itemsById['s1'] =
           testItem(id: 's1', name: 'The Last of Us', kind: ItemKind.series, childCount: 2)
@@ -54,6 +59,7 @@ void main() {
         tester, Scaffold(body: ItemDetailScreen(itemId: 's1', seasonId: seasonId)),
         overrides: [
           libraryApiProvider.overrideWithValue(api),
+          displayPreferencesApiProvider.overrideWithValue(prefs),
           sessionControllerProvider.overrideWith(
               () => FakeSessionController(const SessionSignedIn(testUser))),
         ],
@@ -124,5 +130,44 @@ void main() {
     api.nextUpItems = [];
     await pumpSeries(tester);
     expect(find.text('Riproduci S1:E3'), findsOneWidget);
+  });
+
+  testWidgets('menu "⋯": Togli da Prossimi episodi, poi Rimetti',
+      (tester) async {
+    await pumpSeries(tester);
+    await tester.tap(find.byTooltip('Altre azioni').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Rimetti in Prossimi episodi'), findsNothing);
+    await tester.tap(find.text('Togli da Prossimi episodi'));
+    await tester.pumpAndSettle();
+    expect(prefs.nextUpHidden, {'s1': 'e4'});
+    expect(api.nextUpCalls.where((id) => id == 's1'), isNotEmpty);
+    expect(find.text('Tolto da Prossimi episodi'), findsOneWidget);
+    await tester.tap(find.byTooltip('Altre azioni').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rimetti in Prossimi episodi'));
+    await tester.pumpAndSettle();
+    expect(prefs.nextUpHidden, isEmpty);
+  });
+
+  testWidgets('menu "⋯": tolta con un altro episodio, la voce è Togli',
+      (tester) async {
+    prefs.nextUpHidden = {'s1': 'e3'};
+    await pumpSeries(tester);
+    await tester.tap(find.byTooltip('Altre azioni').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Togli da Prossimi episodi'), findsOneWidget);
+    expect(find.text('Rimetti in Prossimi episodi'), findsNothing);
+  });
+
+  testWidgets('menu "⋯": senza episodio in Prossimi episodi nessuna voce',
+      (tester) async {
+    api.nextUpItems = [];
+    await pumpSeries(tester);
+    final header = tester
+        .widgetList<ItemActionsButton>(find.byType(ItemActionsButton))
+        .where((button) => button.item.id == 's1');
+    expect(header, isNotEmpty);
+    expect(header.every((button) => button.extra.isEmpty), isTrue);
   });
 }

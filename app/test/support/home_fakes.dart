@@ -159,6 +159,34 @@ class FakeDisplayPreferencesApi implements DisplayPreferencesApi {
     if (error != null) throw error;
     prefs = HomeUserPrefs.none;
   }
+
+  /// Le serie tolte da "Prossimi episodi".
+  Map<String, String> nextUpHidden = {};
+  Object? nextUpReadError;
+  Object? nextUpWriteError;
+  final nextUpWritten = <(String, Map<String, String>)>[];
+
+  /// Se valorizzato, [writeNextUpHidden] aspetta che si completi (dopo aver
+  /// registrato la chiamata).
+  Completer<void>? nextUpWriteGate;
+
+  @override
+  Future<Map<String, String>> readNextUpHidden(String userId) async {
+    final error = nextUpReadError;
+    if (error != null) throw error;
+    return {...nextUpHidden};
+  }
+
+  @override
+  Future<void> writeNextUpHidden(
+      String userId, Map<String, String> hidden) async {
+    nextUpWritten.add((userId, {...hidden}));
+    final gate = nextUpWriteGate;
+    if (gate != null) await gate.future;
+    final error = nextUpWriteError;
+    if (error != null) throw error;
+    nextUpHidden = {...hidden};
+  }
 }
 
 UpcomingEpisode testEpisode({

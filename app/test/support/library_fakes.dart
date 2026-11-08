@@ -103,6 +103,7 @@ class FakeLibraryApi implements LibraryApi {
   final filtersByKind = <ItemKind, LibraryFilters>{};
   final nextUpCutoffs = <DateTime?>[];
   final nextUpCalls = <String?>[];
+  final nextUpLimits = <int>[];
   final favoriteCalls = <(String, bool)>[];
   final playedCalls = <(String, bool)>[];
 
@@ -153,6 +154,7 @@ class FakeLibraryApi implements LibraryApi {
       bool enableResumable = false,
       DateTime? dateCutoff}) {
     nextUpCalls.add(seriesId);
+    nextUpLimits.add(limit);
     nextUpCutoffs.add(dateCutoff);
     return _answer(() => nextUpItems);
   }

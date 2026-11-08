@@ -22,6 +22,7 @@ import 'home_data.dart';
 import 'home_layout.dart';
 import 'home_row_content.dart';
 import 'home_rows_logic.dart';
+import 'next_up_hidden.dart';
 
 final _log = Logger('home');
 
@@ -247,8 +248,15 @@ Future<HomeRowContent> _libraryRow(Ref ref, HomeRowKind kind) async {
     case HomeRowKind.resume:
       return ItemsRowContent(await api.resume(userId, limit: homeRowLimit));
     case HomeRowKind.nextUp:
-      return ItemsRowContent(await api.nextUp(userId,
-          limit: homeRowLimit, dateCutoff: nextUpCutoff(clock.now())));
+      // La riga toglie le serie nascoste (`HomeRowView`): la lista va letta
+      // prima, se no le nascoste si vedono per un attimo.
+      final hidden = ref.read(nextUpHiddenProvider.future);
+      // shortcut: con più di homeRowLimit serie tolte la riga si accorcia;
+      // chiedere altre pagine se succede.
+      final items = await api.nextUp(userId,
+          limit: homeRowLimit * 2, dateCutoff: nextUpCutoff(clock.now()));
+      await hidden;
+      return ItemsRowContent(items);
     case HomeRowKind.myList:
       final page = await api.items(
           const ItemQuery(

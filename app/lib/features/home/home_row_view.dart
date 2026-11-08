@@ -29,6 +29,7 @@ import '../requests/requests_providers.dart';
 import 'home_layout.dart';
 import 'home_row_content.dart';
 import 'home_rows_logic.dart';
+import 'next_up_hidden.dart';
 
 /// Una riga della Home (spec M §6.1, §8.3): il titolo e le card del suo
 /// tipo.
@@ -50,10 +51,11 @@ class HomeRowView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     return switch (content) {
-      ItemsRowContent(:final items) => kind == HomeRowKind.resume ||
-              kind == HomeRowKind.nextUp
-          ? _landscapes(_title(l), items)
-          : _posters(_title(l), items),
+      ItemsRowContent(:final items) => kind == HomeRowKind.nextUp
+          ? _nextUp(ref, l, items)
+          : kind == HomeRowKind.resume
+              ? _landscapes(_title(l), items)
+              : _posters(_title(l), items),
       BecauseYouWatchedContent(:final sourceName, :final items) =>
         _posters(l.homeBecauseYouWatched(sourceName), items),
       RequestsRowContent(:final requests) => _row(
@@ -188,6 +190,29 @@ class HomeRowView extends ConsumerWidget {
           item: items[i],
           width: rowLandscapeSize(context).width,
           heroSource: 'home.${kind.id}.$i'));
+
+  /// "Prossimi episodi" senza le serie tolte, con la × nell'anteprima.
+  Widget _nextUp(WidgetRef ref, AppLocalizations l, List<JellyfinItem> items) {
+    final hidden = ref.watch(nextUpHiddenProvider).value ?? const {};
+    final shown = [
+      for (final episode in items)
+        if (!hiddenFromNextUp(hidden, episode)) episode,
+    ].take(homeRowLimit).toList();
+    if (shown.isEmpty) return const SizedBox.shrink();
+    return _row(l.homeNextUp, false, shown.length, (context, i) {
+      final episode = shown[i];
+      return LandscapeCard(
+        key: ValueKey('next-up-${episode.id}'),
+        item: episode,
+        width: rowLandscapeSize(context).width,
+        heroSource: 'home.${kind.id}.$i',
+        previewExtra: CardPreviewExtra(
+          dismissTooltip: l.nextUpHide,
+          onDismiss: () => unawaited(hideFromNextUp(context, ref, episode)),
+        ),
+      );
+    });
+  }
 
   /// Sfondo: quello di Jellyfin se la serie c'è, poi quello di Sonarr, poi la
   /// locandina; clic: la scheda, poi Seerr, poi niente (spec M §8.3).

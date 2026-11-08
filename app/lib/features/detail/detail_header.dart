@@ -15,6 +15,7 @@ import '../../ui/staggered_entrance.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_image.dart';
 import '../friends/friends_controller.dart';
+import '../home/next_up_hidden.dart';
 import '../library/item_labels.dart';
 import '../library/library_providers.dart';
 import '../library/user_data.dart';
@@ -107,6 +108,29 @@ class DetailHeader extends ConsumerWidget {
     } on Object catch (error) {
       messenger.showSnackBar(SnackBar(content: Text(describeError(l, error))));
     }
+  }
+
+  /// Per una serie nella riga "Prossimi episodi": "Togli da Prossimi
+  /// episodi", o "Rimetti" se è tolta con l'episodio di adesso. Nessuna voce
+  /// se Jellyfin non propone un episodio.
+  ExtraItemAction? _nextUpAction(
+    BuildContext context,
+    WidgetRef ref,
+    AppLocalizations l,
+  ) {
+    if (item.kind != ItemKind.series) return null;
+    final episode = ref.watch(seriesNextUpProvider(item.id)).value;
+    if (episode == null) return null;
+    final hidden = ref.watch(nextUpHiddenProvider).value ?? const {};
+    return hiddenFromNextUp(hidden, episode)
+        ? (
+            label: l.nextUpShow,
+            onSelected: () => unawaited(showInNextUp(context, ref, item.id)),
+          )
+        : (
+            label: l.nextUpHide,
+            onSelected: () => unawaited(hideFromNextUp(context, ref, episode)),
+          );
   }
 
   @override
@@ -230,6 +254,7 @@ class DetailHeader extends ConsumerWidget {
       onPressed: () =>
           unawaited(_toggle(context, () => overrides.togglePlayed(item))),
     );
+    final nextUp = _nextUpAction(context, ref, l);
 
     return DetailHeaderFrame(
       controller: controller,
@@ -320,6 +345,7 @@ class DetailHeader extends ConsumerWidget {
                           ItemActionsButton(
                             item: item,
                             extra: [
+                              ?nextUp,
                               if (recommend != null)
                                 (
                                   label: l.recommendButton,
@@ -387,7 +413,11 @@ class DetailHeader extends ConsumerWidget {
                           onPressed: recommend,
                         ),
                       played,
-                      ItemActionsButton(item: item, tvOnly: tv),
+                      ItemActionsButton(
+                        item: item,
+                        tvOnly: tv,
+                        extra: [?nextUp],
+                      ),
                       if (!tv && recommend != null)
                         WfButton.secondary(
                           label: l.recommendButton,

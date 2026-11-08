@@ -12,12 +12,14 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/detail/item_detail_screen.dart';
 import 'package:wonderflix/features/detail/detail_header.dart';
 import 'package:wonderflix/ui/form_factor.dart';
+import 'package:wonderflix/features/home/home_providers.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/ratings/friend_ratings_row.dart';
 import 'package:wonderflix/features/ratings/rate_panel.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 
 import '../../support/fake_session_controller.dart';
+import '../../support/home_fakes.dart';
 import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/report_fakes.dart';
@@ -302,6 +304,23 @@ void main() {
     expect(subject?.title, 'Dune: Parte Due');
     expect(subject?.mine?.score, 8);
   });
+
+  testWidgets('serie: il menu Altro ha Togli da Prossimi episodi', (
+    tester,
+  ) async {
+    final prefs = FakeDisplayPreferencesApi();
+    await pumpDetail(
+      tester,
+      's1',
+      extra: [displayPreferencesApiProvider.overrideWithValue(prefs)],
+    );
+    await tester.tap(find.byTooltip('Altre azioni').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Togli da Prossimi episodi'));
+    await tester.pumpAndSettle();
+    expect(prefs.nextUpHidden, {'s1': 'e4'});
+  });
+
 
   testWidgets('film: il menu Altro ha solo Info tecniche e Segnala', (
     tester,
