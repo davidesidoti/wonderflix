@@ -246,6 +246,10 @@ void main() {
       await key(LogicalKeyboardKey.arrowUp);
     }
     expect(hasFocus(tester, find.text('Riproduci')), isTrue);
+    // Tornati ai pulsanti la scheda torna in cima, alla prima schermata
+    // (scorsa, la testata sfuma e i pulsanti non si vedrebbero).
+    final list = tester.widget<Scrollable>(find.byType(Scrollable).first);
+    expect(list.controller?.offset, 0);
   });
 
   testWidgets("film: il pulsante principale ha il focus all'apertura", (

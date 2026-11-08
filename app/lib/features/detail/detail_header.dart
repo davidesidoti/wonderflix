@@ -248,124 +248,146 @@ class DetailHeader extends ConsumerWidget {
         const SizedBox(height: 20),
         StaggerItem(
           index: 4,
-          child: compact
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    ?play,
-                    if (play != null) const SizedBox(height: 12),
-                    // Le azioni secondarie come icone; quelle che non ci
-                    // stanno finiscono nel menu "⋯".
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        if (restart != null)
-                          _ActionIcon(
-                            icon: LucideIcons.rotateCcw,
-                            label: l.actionRestart,
-                            onPressed: restart,
+          child: Focus(
+            canRequestFocus: false,
+            skipTraversal: true,
+            // Sulla TV, tornando ai pulsanti dalle righe sotto, la scheda
+            // torna in cima: scorsa, la testata sfuma e non si vedrebbero.
+            onFocusChange: (focused) {
+              final scroll = controller;
+              if (!tv || !focused || scroll == null || !scroll.hasClients) {
+                return;
+              }
+              unawaited(
+                scroll.animateTo(
+                  0,
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOutCubic,
+                ),
+              );
+            },
+            child: compact
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ?play,
+                      if (play != null) const SizedBox(height: 12),
+                      // Le azioni secondarie come icone; quelle che non ci
+                      // stanno finiscono nel menu "⋯".
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          if (restart != null)
+                            _ActionIcon(
+                              icon: LucideIcons.rotateCcw,
+                              label: l.actionRestart,
+                              onPressed: restart,
+                            ),
+                          if (together != null)
+                            Builder(
+                              builder: (buttonContext) => _ActionIcon(
+                                icon: LucideIcons.users,
+                                label: l.watchPartyWatchTogether,
+                                onPressed: () => together(buttonContext),
+                              ),
+                            ),
+                          if (trailer != null)
+                            _ActionIcon(
+                              icon: LucideIcons.clapperboard,
+                              label: l.actionTrailer,
+                              onPressed: trailer,
+                            ),
+                          favorite,
+                          played,
+                          ItemActionsButton(
+                            item: item,
+                            extra: [
+                              if (recommend != null)
+                                (
+                                  label: l.recommendButton,
+                                  onSelected: recommend,
+                                ),
+                              if (requestSeasons != null)
+                                (
+                                  label: l.requestsMoreSeasons,
+                                  onSelected: requestSeasons,
+                                ),
+                            ],
                           ),
-                        if (together != null)
-                          Builder(
-                            builder: (buttonContext) => _ActionIcon(
-                              icon: LucideIcons.users,
-                              label: l.watchPartyWatchTogether,
-                              onPressed: () => together(buttonContext),
+                        ],
+                      ),
+                    ],
+                  )
+                : Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      ?play,
+                      if (restart != null)
+                        WfButton.secondary(
+                          label: l.actionRestart,
+                          icon: LucideIcons.rotateCcw,
+                          onPressed: restart,
+                        ),
+                      if (together != null && !tv)
+                        Builder(
+                          // Il menu delle modalità si apre sotto il
+                          // pulsante (spec F §9.1).
+                          builder: (buttonContext) => WfButton.secondary(
+                            label: l.watchPartyWatchTogether,
+                            icon: LucideIcons.users,
+                            onPressed: () => together(buttonContext),
+                          ),
+                        ),
+                      if (trailer != null && !tv)
+                        WfButton.secondary(
+                          label: l.actionTrailer,
+                          icon: LucideIcons.clapperboard,
+                          onPressed: trailer,
+                        ),
+                      favorite,
+                      if (canVote)
+                        _ActionIcon(
+                          icon: LucideIcons.star,
+                          label: l.ratingVote,
+                          selected: ratings?.mine != null,
+                          onPressed: () => openRatePanel(
+                            context,
+                            ref,
+                            RateSubject(
+                              item: target.item,
+                              title: target.title,
+                              mine: ratings?.mine,
                             ),
                           ),
-                        if (trailer != null)
-                          _ActionIcon(
-                            icon: LucideIcons.clapperboard,
-                            label: l.actionTrailer,
-                            onPressed: trailer,
-                          ),
-                        favorite,
-                        played,
-                        ItemActionsButton(
-                          item: item,
-                          extra: [
-                            if (recommend != null)
-                              (label: l.recommendButton, onSelected: recommend),
-                            if (requestSeasons != null)
-                              (
-                                label: l.requestsMoreSeasons,
-                                onSelected: requestSeasons,
-                              ),
-                          ],
                         ),
-                      ],
-                    ),
-                  ],
-                )
-              : Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    ?play,
-                    if (restart != null)
-                      WfButton.secondary(
-                        label: l.actionRestart,
-                        icon: LucideIcons.rotateCcw,
-                        onPressed: restart,
-                      ),
-                    if (together != null && !tv)
-                      Builder(
-                        // Il menu delle modalità si apre sotto il
-                        // pulsante (spec F §9.1).
-                        builder: (buttonContext) => WfButton.secondary(
-                          label: l.watchPartyWatchTogether,
-                          icon: LucideIcons.users,
-                          onPressed: () => together(buttonContext),
+                      if (tv && recommend != null)
+                        _ActionIcon(
+                          icon: LucideIcons.send,
+                          label: l.recommendButton,
+                          onPressed: recommend,
                         ),
-                      ),
-                    if (trailer != null && !tv)
-                      WfButton.secondary(
-                        label: l.actionTrailer,
-                        icon: LucideIcons.clapperboard,
-                        onPressed: trailer,
-                      ),
-                    favorite,
-                    if (canVote)
-                      _ActionIcon(
-                        icon: LucideIcons.star,
-                        label: l.ratingVote,
-                        selected: ratings?.mine != null,
-                        onPressed: () => openRatePanel(
-                          context,
-                          ref,
-                          RateSubject(
-                            item: target.item,
-                            title: target.title,
-                            mine: ratings?.mine,
-                          ),
+                      played,
+                      ItemActionsButton(item: item, tvOnly: tv),
+                      if (!tv && recommend != null)
+                        WfButton.secondary(
+                          label: l.recommendButton,
+                          icon: LucideIcons.send,
+                          onPressed: recommend,
                         ),
-                      ),
-                    if (tv && recommend != null)
-                      _ActionIcon(
-                        icon: LucideIcons.send,
-                        label: l.recommendButton,
-                        onPressed: recommend,
-                      ),
-                    played,
-                    ItemActionsButton(item: item, tvOnly: tv),
-                    if (!tv && recommend != null)
-                      WfButton.secondary(
-                        label: l.recommendButton,
-                        icon: LucideIcons.send,
-                        onPressed: recommend,
-                      ),
-                    // Dopo i toggle: la scheda di Seerr arriva dopo due
-                    // richieste, e prima dei toggle li farebbe saltare.
-                    if (requestSeasons != null && !tv)
-                      WfButton.secondary(
-                        label: l.requestsMoreSeasons,
-                        icon: LucideIcons.plus,
-                        onPressed: requestSeasons,
-                      ),
-                  ],
-                ),
+                      // Dopo i toggle: la scheda di Seerr arriva dopo due
+                      // richieste, e prima dei toggle li farebbe saltare.
+                      if (requestSeasons != null && !tv)
+                        WfButton.secondary(
+                          label: l.requestsMoreSeasons,
+                          icon: LucideIcons.plus,
+                          onPressed: requestSeasons,
+                        ),
+                    ],
+                  ),
+          ),
         ),
       ],
     );
