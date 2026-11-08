@@ -134,10 +134,12 @@ class _ShellPageFrameState extends State<ShellPageFrame> {
 
   @override
   Widget build(BuildContext context) {
-    final compact = FormFactor.of(context).compact;
+    final form = FormFactor.of(context);
+    final compact = form.compact;
     final bar = compact ? shellCompactBarHeight : shellBarHeight;
     return Padding(
-      padding: EdgeInsets.only(
+      // Sulla TV non c'è né la barra in alto né quella in basso.
+      padding: form.tv ? EdgeInsets.zero : EdgeInsets.only(
         top: widget.underBar ? bar + MediaQuery.paddingOf(context).top : 0,
         // Nel layout stretto la pagina finisce sopra la barra in basso.
         // (con la tastiera aperta la barra non c'è).

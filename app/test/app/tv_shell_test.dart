@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wonderflix/app/app_shell.dart';
 import 'package:wonderflix/app/tv_shell.dart';
 import 'package:wonderflix/app/tv_sidebar.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
@@ -149,6 +150,24 @@ void main() {
   }
 
   const warning = 'Premi di nuovo Indietro per uscire';
+
+  testWidgets('le pagine non lasciano il posto alle barre del PC e del '
+      'telefono', (tester) async {
+    await pumpApp(
+      tester,
+      const ShellPageFrame(
+        underBar: true,
+        child: SizedBox.expand(key: Key('page')),
+      ),
+      tv: true,
+      surfaceSize: _tvSize,
+    );
+
+    expect(
+      tester.getRect(find.byKey(const Key('page'))),
+      Offset.zero & _tvSize,
+    );
+  });
 
   testWidgets('la barra ha le voci in ordine, con Richieste solo se c\'è', (
     tester,
