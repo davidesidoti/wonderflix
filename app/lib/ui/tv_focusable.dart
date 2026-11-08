@@ -90,3 +90,41 @@ class _TvFocusableState extends State<TvFocusable> {
     );
   }
 }
+
+/// Sulla TV il bordo oro largo 2 attorno a [child] quando il focus è su un
+/// suo discendente (menu dei filtri, schede): per i controlli che non hanno
+/// un `ButtonStyle` da cui prenderlo. Fuori dalla TV restituisce [child].
+class TvFocusBorder extends StatelessWidget {
+  const TvFocusBorder({
+    super.key,
+    required this.child,
+    this.borderRadius = const BorderRadius.all(Radius.circular(6)),
+  });
+
+  final Widget child;
+  final BorderRadius borderRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!FormFactor.of(context).tv) return child;
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      child: Builder(
+        builder: (context) => DecoratedBox(
+          position: DecorationPosition.foreground,
+          decoration: BoxDecoration(
+            borderRadius: borderRadius,
+            border: Border.all(
+              color: Focus.of(context).hasFocus
+                  ? tvFocusColor
+                  : Colors.transparent,
+              width: 2,
+            ),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}

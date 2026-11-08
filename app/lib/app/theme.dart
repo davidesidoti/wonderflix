@@ -35,7 +35,28 @@ abstract final class WfText {
       );
 }
 
-ThemeData buildWonderflixTheme() {
+/// Sulla TV il bordo del controllo col focus (spec: "elemento con il focus
+/// sempre ben visibile").
+const tvFocusSide = BorderSide(color: WfColors.gold, width: 2);
+
+/// Lo stesso sui pulsanti oro, dove un bordo oro non si vedrebbe.
+const tvFocusSideOnGold = BorderSide(color: WfColors.cream, width: 2);
+
+/// Sulla TV: [base] in ogni stato e [focus] col focus. Fuori dalla TV `null`,
+/// così `ButtonStyle.copyWith` lascia lo stile com'è.
+WidgetStateBorderSide? tvButtonSide(
+  bool tv,
+  BorderSide? base, [
+  BorderSide focus = tvFocusSide,
+]) => tv
+    ? WidgetStateBorderSide.resolveWith(
+        (states) => states.contains(WidgetState.focused) ? focus : base,
+      )
+    : null;
+
+/// Il tema dell'app. Con [tv] ogni controllo col focus ha un bordo largo 2
+/// ([tvFocusSide]) e un velo oro; fuori dalla TV non cambia nulla.
+ThemeData buildWonderflixTheme({bool tv = false}) {
   const scheme = ColorScheme.dark(
     primary: WfColors.gold,
     onPrimary: WfColors.bg,
@@ -61,7 +82,11 @@ ThemeData buildWonderflixTheme() {
         borderSide: BorderSide(color: color),
       );
 
+  // Velo dell'elemento col focus (InkWell, voci di elenco, menu) sulla TV.
+  final focusColor = tv ? WfColors.gold.withValues(alpha: 0.24) : null;
+
   return base.copyWith(
+    focusColor: focusColor,
     // Avvisi flottanti nei colori dell'app (spec C §11.4).
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
@@ -95,25 +120,47 @@ ThemeData buildWonderflixTheme() {
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
         textStyle: const TextStyle(
             fontWeight: FontWeight.w700, letterSpacing: 0.5),
-      ),
+      ).copyWith(side: tvButtonSide(tv, null, tvFocusSideOnGold)),
     ),
+    elevatedButtonTheme: tv
+        ? ElevatedButtonThemeData(
+            style: ButtonStyle(side: tvButtonSide(tv, null)))
+        : null,
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: WfColors.gold,
         side: const BorderSide(color: WfColors.gold),
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-      ),
+      ).copyWith(
+          side: tvButtonSide(tv, const BorderSide(color: WfColors.gold))),
     ),
     textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(foregroundColor: WfColors.gold),
+      style: TextButton.styleFrom(foregroundColor: WfColors.gold)
+          .copyWith(side: tvButtonSide(tv, null)),
     ),
-    tabBarTheme: const TabBarThemeData(
+    iconButtonTheme: tv
+        ? IconButtonThemeData(style: ButtonStyle(side: tvButtonSide(tv, null)))
+        : null,
+    segmentedButtonTheme: tv
+        ? SegmentedButtonThemeData(
+            // Il contorno è del gruppo: il velo dice quale segmento.
+            style: ButtonStyle(
+              side: tvButtonSide(tv, BorderSide(color: scheme.outline)),
+              overlayColor: WidgetStateProperty.resolveWith((states) =>
+                  states.contains(WidgetState.focused) ? focusColor : null),
+            ))
+        : null,
+    tabBarTheme: TabBarThemeData(
       labelColor: WfColors.gold,
       unselectedLabelColor: WfColors.creamMuted,
       indicatorColor: WfColors.gold,
       dividerColor: Colors.transparent,
-      labelStyle: TextStyle(fontWeight: FontWeight.w600),
+      labelStyle: const TextStyle(fontWeight: FontWeight.w600),
+      overlayColor: tv
+          ? WidgetStateProperty.resolveWith((states) =>
+              states.contains(WidgetState.focused) ? focusColor : null)
+          : null,
     ),
     popupMenuTheme: const PopupMenuThemeData(
       color: WfColors.surface,

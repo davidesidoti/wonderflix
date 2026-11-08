@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../app/motion.dart';
 import '../app/theme.dart';
+import 'form_factor.dart';
 
 /// Pulsante con etichetta e icona. Larghezza adatta al contenuto (il tema
 /// globale rende i FilledButton larghi quanto il contenitore, qui no).
@@ -37,7 +38,8 @@ class WfButton extends StatelessWidget {
   /// prende i clic.
   final Widget? overlay;
 
-  Widget _button() {
+  /// Il primario prende dal tema il bordo col focus della TV.
+  Widget _button(bool tv) {
     const size = Size(0, 44);
     const padding = EdgeInsets.symmetric(horizontal: 20);
     final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(6));
@@ -60,7 +62,8 @@ class WfButton extends StatelessWidget {
         shape: shape,
         foregroundColor: WfColors.cream,
         side: const BorderSide(color: WfColors.border),
-      ),
+      ).copyWith(
+          side: tvButtonSide(tv, const BorderSide(color: WfColors.border))),
       icon: Icon(icon, size: 18),
       label: Text(label),
     );
@@ -69,7 +72,7 @@ class WfButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final overlay = this.overlay;
-    final button = _button();
+    final button = _button(FormFactor.of(context).tv);
     return WfButtonFeedback(
       enabled: onPressed != null,
       child: overlay == null
@@ -213,6 +216,7 @@ class _WfIconToggleState extends State<WfIconToggle>
   @override
   Widget build(BuildContext context) {
     final selected = widget.selected;
+    final side = BorderSide(color: selected ? WfColors.gold : WfColors.border);
     return ScaleTransition(
       scale: _scale,
       child: IconButton(
@@ -230,8 +234,8 @@ class _WfIconToggleState extends State<WfIconToggle>
           backgroundColor: selected
               ? WfColors.gold.withValues(alpha: 0.15)
               : Colors.transparent,
-          side: BorderSide(color: selected ? WfColors.gold : WfColors.border),
-        ),
+          side: side,
+        ).copyWith(side: tvButtonSide(FormFactor.of(context).tv, side)),
         icon: Icon(widget.icon, size: widget.iconSize),
       ),
     );

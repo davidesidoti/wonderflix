@@ -75,7 +75,7 @@ Future<void> pumpApp(
         carouselAutoplay: carouselAutoplay, overrides: overrides),
     retry: (_, _) => null,
     child: MaterialApp(
-      theme: buildWonderflixTheme(),
+      theme: buildWonderflixTheme(tv: tv),
       locale: const Locale('it'),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
@@ -121,7 +121,7 @@ Future<void> pumpAppRouterOf(
     child: Consumer(
       builder: (context, ref, _) => MaterialApp.router(
         routerConfig: router(ref),
-        theme: buildWonderflixTheme(),
+        theme: buildWonderflixTheme(tv: tv),
         locale: const Locale('it'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,

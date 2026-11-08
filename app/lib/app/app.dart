@@ -54,7 +54,7 @@ class _WonderflixAppState extends ConsumerState<WonderflixApp> {
     return MaterialApp.router(
       title: 'WonderFlix',
       debugShowCheckedModeBanner: false,
-      theme: buildWonderflixTheme(),
+      theme: buildWonderflixTheme(tv: isAndroidTv),
       locale: ref.watch(localeProvider),
       routerConfig: ref.watch(routerProvider),
       // Avvisi di aggiornamento sopra tutte le schermate. Nel browser non

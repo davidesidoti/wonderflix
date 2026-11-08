@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../app/theme.dart';
 import 'form_factor.dart';
+import 'tv_focusable.dart';
 
 /// Il pulsante di una scheda (pagine Richieste e Amministrazione, vista
 /// Film|Saghe del catalogo): testo, con la riga oro sotto quella scelta.
@@ -21,24 +22,26 @@ class WfTabButton extends StatelessWidget {
   Widget build(BuildContext context) {
     // Nel layout stretto si tocca con il dito: almeno 44 di altezza.
     final compact = FormFactor.of(context).compact;
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        constraints:
-            BoxConstraints(minHeight: compact ? minTouchTarget : 0),
-        alignment: compact ? Alignment.center : null,
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-                color: selected ? WfColors.gold : Colors.transparent, width: 2),
+    return TvFocusBorder(
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          constraints:
+              BoxConstraints(minHeight: compact ? minTouchTarget : 0),
+          alignment: compact ? Alignment.center : null,
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                  color: selected ? WfColors.gold : Colors.transparent, width: 2),
+            ),
           ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? WfColors.cream : WfColors.creamMuted,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? WfColors.cream : WfColors.creamMuted,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+            ),
           ),
         ),
       ),

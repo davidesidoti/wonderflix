@@ -5,6 +5,7 @@ import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/item_query.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
+import '../../ui/tv_focusable.dart';
 
 /// Altezza di una riga di menu della barra dei filtri.
 const filtersBarHeight = 40.0;
@@ -107,31 +108,33 @@ class FilterPicker<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: filtersBarHeight,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: WfColors.surfaceHigh,
-        border: Border.all(color: WfColors.border),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<T>(
-          // Nello stretto riempie la riga: col testo lungo non sfora. Sulla
-          // TV (larga 960) no: i filtri stanno in una riga sopra la griglia.
-          isExpanded:
-              FormFactor.of(context).compact && !FormFactor.of(context).tv,
-          value: items.containsKey(value) ? value : null,
-          dropdownColor: WfColors.surface,
-          style: const TextStyle(color: WfColors.cream, fontSize: 13.5),
-          items: [
-            for (final entry in items.entries)
-              DropdownMenuItem<T>(value: entry.key, child: Text(entry.value)),
-          ],
-          onChanged: (v) {
-            // DropdownButton avvisa anche se si riscegli la stessa voce.
-            if (v != value) onChanged(v as T);
-          },
+    return TvFocusBorder(
+      child: Container(
+        height: filtersBarHeight,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: WfColors.surfaceHigh,
+          border: Border.all(color: WfColors.border),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<T>(
+            // Nello stretto riempie la riga: col testo lungo non sfora. Sulla
+            // TV (larga 960) no: i filtri stanno in una riga sopra la griglia.
+            isExpanded:
+                FormFactor.of(context).compact && !FormFactor.of(context).tv,
+            value: items.containsKey(value) ? value : null,
+            dropdownColor: WfColors.surface,
+            style: const TextStyle(color: WfColors.cream, fontSize: 13.5),
+            items: [
+              for (final entry in items.entries)
+                DropdownMenuItem<T>(value: entry.key, child: Text(entry.value)),
+            ],
+            onChanged: (v) {
+              // DropdownButton avvisa anche se si riscegli la stessa voce.
+              if (v != value) onChanged(v as T);
+            },
+          ),
         ),
       ),
     );
