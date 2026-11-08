@@ -41,6 +41,7 @@ void main() {
     Size surfaceSize = const Size(1440, 900),
     MotionLevel motion = MotionLevel.reduced,
     List<Override> overrides = const [],
+    bool tv = false,
   }) async {
     session =
         controller ?? FakeSessionController(const SessionChoosingProfile());
@@ -49,6 +50,7 @@ void main() {
     await pumpApp(tester, const ProfilesScreen(),
         surfaceSize: surfaceSize,
         motion: motion,
+        tv: tv,
         overrides: [
           sessionControllerProvider.overrideWith(() => session),
           profilesProvider
@@ -371,5 +373,41 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('profile-image-u1')));
     await tester.pumpAndSettle();
     expect(find.text('Immagine del profilo'), findsOneWidget);
+  });
+
+  testWidgets('TV: doppio Indietro per uscire, il primo avvisa',
+      (tester) async {
+    var exits = 0;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform, (call) async {
+      if (call.method == 'SystemNavigator.pop') exits++;
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null));
+    await pumpProfiles(tester, [mario, luigi], tv: true);
+
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    expect(exits, 0);
+    expect(find.text('Premi di nuovo Indietro per uscire'), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    expect(exits, 1);
+  });
+
+  testWidgets('TV: in "Gestisci profili" Indietro fa come "Fine"',
+      (tester) async {
+    await pumpProfiles(tester, [mario, luigi], tv: true);
+    await tester.tap(find.text('Gestisci profili'));
+    await tester.pump();
+    expect(find.text('Fine'), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+
+    expect(find.text('Gestisci profili'), findsOneWidget);
+    expect(find.text('Premi di nuovo Indietro per uscire'), findsNothing);
   });
 }

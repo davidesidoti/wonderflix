@@ -113,6 +113,11 @@ void main() {
             builder: (context, state) =>
                 Text('player ${state.pathParameters['id']}'),
           ),
+          // Sulla TV Vota apre sempre la pagina, non il pannello laterale.
+          GoRoute(
+            path: '/rate',
+            builder: (context, state) => const Text('pagina Vota'),
+          ),
         ],
       ),
       tv: true,
@@ -287,8 +292,9 @@ void main() {
     await pumpDetail(tester, 'm1');
     await tester.tap(find.byTooltip('Vota'));
     await tester.pump();
+    expect(find.text('pagina Vota'), findsOneWidget);
     final subject = ProviderScope.containerOf(
-      tester.element(find.byType(ItemDetailScreen)),
+      tester.element(find.byType(ItemDetailScreen, skipOffstage: false)),
     ).read(rateSubjectProvider);
     expect(subject?.item.id, 'm1');
     expect(subject?.title, 'Dune: Parte Due');
@@ -356,14 +362,17 @@ void main() {
     );
     await pumpDetail(tester, 's1');
     RateSubject? subject() => ProviderScope.containerOf(
-      tester.element(find.byType(ItemDetailScreen)),
+      tester.element(find.byType(ItemDetailScreen, skipOffstage: false)),
     ).read(rateSubjectProvider);
 
     await tester.tap(find.byTooltip('Vota'));
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(subject()?.item.id, 'se1');
     expect(subject()?.title, 'The Last of Us · Stagione 1');
     expect(subject()?.mine?.score, 7);
+    // Torna alla scheda, come con Indietro.
+    Navigator.of(tester.element(find.text('pagina Vota'))).pop();
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Stagione 2'));
     for (var i = 0; i < 4; i++) {

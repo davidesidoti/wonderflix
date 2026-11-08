@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
@@ -39,10 +40,11 @@ void main() {
     bool quickConnect = false,
     MotionLevel motion = MotionLevel.reduced,
     List<StoredProfile> profiles = const [],
+    bool tv = false,
   }) async {
     final fake = FakeSessionController(initial, loginError: loginError);
     final book = profiles.fold(const ProfileBook(), (b, p) => b.upsert(p));
-    await pumpApp(tester, const LoginScreen(), motion: motion, overrides: [
+    await pumpApp(tester, const LoginScreen(), motion: motion, tv: tv, overrides: [
       sessionControllerProvider.overrideWith(() => fake),
       quickConnectEnabledProvider.overrideWith((ref) async => quickConnect),
       profilesProvider
@@ -214,5 +216,53 @@ void main() {
     await tester.tap(find.byKey(const Key('login-submit')));
     await tester.pump();
     expect(find.text('Massimo 5 profili'), findsOneWidget);
+  });
+
+  /// Quante volte l'app ha chiesto di uscire (`SystemNavigator.pop`).
+  int Function() countExits(WidgetTester tester) {
+    var exits = 0;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform, (call) async {
+      if (call.method == 'SystemNavigator.pop') exits++;
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null));
+    return () => exits;
+  }
+
+  testWidgets('TV, aggiungere un profilo: Indietro torna a "Chi guarda?"',
+      (tester) async {
+    final exits = countExits(tester);
+    final fake = await pumpLogin(tester,
+        initial: const SessionSignedOut(adding: true),
+        profiles: [testProfile(userId: 'u1')],
+        tv: true);
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    expect(fake.cancelLoginCalls, 1);
+    expect(exits(), 0);
+  });
+
+  testWidgets('TV, senza profili: doppio Indietro per uscire', (tester) async {
+    final exits = countExits(tester);
+    final fake = await pumpLogin(tester, tv: true);
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    expect(exits(), 0);
+    expect(find.text('Premi di nuovo Indietro per uscire'), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    expect(exits(), 1);
+    expect(fake.cancelLoginCalls, 0);
+  });
+
+  testWidgets('fuori dalla TV Indietro non è intercettato', (tester) async {
+    final fake = await pumpLogin(tester,
+        initial: const SessionSignedOut(adding: true),
+        profiles: [testProfile(userId: 'u1')]);
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    expect(fake.cancelLoginCalls, 0);
   });
 }

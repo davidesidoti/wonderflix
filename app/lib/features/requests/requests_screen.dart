@@ -63,7 +63,8 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen> {
     final l = AppLocalizations.of(context);
     final language = Localizations.localeOf(context).languageCode;
     final me = ref.watch(requestsMeProvider);
-    final canManage = me.value?.canManage ?? false;
+    // Sulla TV si guarda e si chiede: approvare è del PC.
+    final canManage = !FormFactor.of(context).tv && (me.value?.canManage ?? false);
     final count = canManage ? ref.watch(pendingRequestsCountProvider(language)) : null;
     final explicit = widget.initialTab;
     // Per scegliere da sola la scheda la pagina aspetta i permessi e, per

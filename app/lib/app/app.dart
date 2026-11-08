@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../core/platform/platform_info.dart';
+import '../core/platform/tv_provider.dart';
 import '../features/auth/session_controller.dart';
 import '../features/settings/appearance_settings.dart';
 import '../features/settings/locale_controller.dart';
@@ -51,10 +51,12 @@ class _WonderflixAppState extends ConsumerState<WonderflixApp> {
     // Il watch party apre il player quando il gruppo sceglie cosa guardare.
     ref.watch(watchPartyRoutingProvider);
     final motion = WfMotion(ref.watch(motionLevelProvider));
+    // Un'unica fonte per la TV (anche il router e gli aggiornamenti la usano).
+    final tv = ref.watch(androidTvProvider);
     return MaterialApp.router(
       title: 'WonderFlix',
       debugShowCheckedModeBanner: false,
-      theme: buildWonderflixTheme(tv: isAndroidTv),
+      theme: buildWonderflixTheme(tv: tv),
       locale: ref.watch(localeProvider),
       routerConfig: ref.watch(routerProvider),
       // Avvisi di aggiornamento sopra tutte le schermate. Nel browser non
@@ -62,14 +64,14 @@ class _WonderflixAppState extends ConsumerState<WonderflixApp> {
       builder: (context, child) {
         final page = child ?? const SizedBox.shrink();
         final scoped = FormFactorScope(
-          tv: isAndroidTv,
+          tv: tv,
           child: WfMotionScope(
             motion: motion,
             child: kIsWeb ? page : UpdateGate(child: page),
           ),
         );
         // Il tasto OK del telecomando (select) vale come Invio.
-        return isAndroidTv
+        return tv
             ? Shortcuts(shortcuts: tvActivateShortcuts, child: scoped)
             : scoped;
       },

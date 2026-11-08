@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/theme.dart';
+import '../../app/tv_back.dart';
 import '../../core/storage/profile_store.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/staggered_entrance.dart';
@@ -111,7 +112,7 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
     // Esc in "Gestisci profili" fa come "Fine". Un tasto, non `DismissIntent`:
     // le `Actions` dello `Scaffold` lo fermerebbero con il fuoco su "Fine" o
     // su Rimuovi.
-    return CallbackShortcuts(
+    final page = CallbackShortcuts(
       bindings: {
         if (_managing)
           const SingleActivator(LogicalKeyboardKey.escape): () =>
@@ -191,6 +192,12 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
           ),
         ),
       ),
+    );
+    // Sulla TV Indietro non chiude l'app: fa come "Fine" in "Gestisci
+    // profili", altrimenti serve il doppio Indietro.
+    return TvBackGuard(
+      onBack: _managing ? () => _setManaging(false) : null,
+      child: page,
     );
   }
 }

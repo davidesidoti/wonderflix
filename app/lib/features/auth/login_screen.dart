@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
+import '../../app/tv_back.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/staggered_entrance.dart';
@@ -70,7 +71,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // larghezza: affiancati servirebbero 716 punti.
     final compact = FormFactor.of(context).compact;
 
-    return Scaffold(
+    final page = Scaffold(
       body: Center(
         child: SingleChildScrollView(
           padding: EdgeInsets.all(compact ? 16 : 32),
@@ -203,6 +204,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         ),
       ),
+    );
+    // Sulla TV Indietro non chiude l'app: aggiungendo un account torna a
+    // "Chi guarda?", altrimenti serve il doppio Indietro.
+    return TvBackGuard(
+      onBack: canCancel
+          ? ref.read(sessionControllerProvider.notifier).cancelLogin
+          : null,
+      child: page,
     );
   }
 }

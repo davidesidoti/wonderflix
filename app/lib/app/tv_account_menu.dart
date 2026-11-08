@@ -11,8 +11,13 @@ import 'app_shell.dart';
 /// Il menu dell'avatar sulla TV: Cambia account, Aggiungi account,
 /// Impostazioni, Esci. La voce scelta la esegue [runUserMenuAction] con
 /// [context], che dev'essere quello della shell (resta montato a finestra
-/// chiusa).
-Future<void> showTvAccountMenu(BuildContext context, WidgetRef ref) async {
+/// chiusa). [onSettings] sostituisce l'apertura delle Impostazioni (la shell
+/// vi porta anche il focus).
+Future<void> showTvAccountMenu(
+  BuildContext context,
+  WidgetRef ref, {
+  VoidCallback? onSettings,
+}) async {
   final l = AppLocalizations.of(context);
   // Come nel menu del PC: al massimo 5 profili.
   final canAdd = !ref.read(profilesProvider).book.isFull;
@@ -59,7 +64,9 @@ Future<void> showTvAccountMenu(BuildContext context, WidgetRef ref) async {
       );
     },
   );
-  if (choice != null && context.mounted) {
+  if (choice == 'settings' && onSettings != null) {
+    onSettings();
+  } else if (choice != null && context.mounted) {
     runUserMenuAction(context, ref, choice);
   }
 }

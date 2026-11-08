@@ -6,15 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/tonight/tonight_dialog.dart';
-import '../l10n/gen/app_localizations.dart';
 import 'back_navigation.dart';
 import 'tv_account_menu.dart';
+import 'tv_back.dart';
 import 'tv_sidebar.dart';
 
+export 'tv_back.dart' show tvExitWindow;
 export 'tv_sidebar.dart' show tvSidebarCollapsedWidth, tvSidebarExpandedWidth;
-
-/// Entro questo tempo dal primo Indietro dalla radice, il secondo esce.
-const tvExitWindow = Duration(seconds: 2);
 
 /// Struttura delle schermate autenticate sulla TV: la barra laterale a
 /// sinistra, il contenuto accanto. Niente barra in alto né pulsanti del PC.
@@ -45,8 +43,7 @@ class TvShell extends ConsumerStatefulWidget {
 class _TvShellState extends ConsumerState<TvShell> {
   final _content = FocusScopeNode(debugLabel: 'tv-content');
 
-  /// Timer della finestra del doppio Indietro; attivo = il primo c'è già stato.
-  Timer? _exitTimer;
+  final _exit = TvDoubleBackExit();
 
   final _sidebar = GlobalKey<TvSidebarState>();
 
@@ -56,7 +53,7 @@ class _TvShellState extends ConsumerState<TvShell> {
 
   @override
   void dispose() {
-    _exitTimer?.cancel();
+    _exit.cancel();
     _content.dispose();
     super.dispose();
   }
@@ -123,21 +120,7 @@ class _TvShellState extends ConsumerState<TvShell> {
       router.go('/home');
       return;
     }
-    if (_exitTimer?.isActive ?? false) {
-      _exitTimer!.cancel();
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      (widget.onExit ?? () => unawaited(SystemNavigator.pop()))();
-      return;
-    }
-    _exitTimer = Timer(tvExitWindow, () {});
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context).tvExitHint),
-          duration: tvExitWindow,
-        ),
-      );
+    _exit.press(context, onExit: widget.onExit);
   }
 
   @override
@@ -145,7 +128,7 @@ class _TvShellState extends ConsumerState<TvShell> {
     final location = GoRouterState.of(context).uri.path;
     if (location != _location) {
       _location = location;
-      _exitTimer?.cancel();
+      _exit.cancel();
     }
     return PopScope(
       // Indietro lo gestiamo noi (`_onBack`): una pagina profonda la chiude
@@ -176,7 +159,13 @@ class _TvShellState extends ConsumerState<TvShell> {
                 location: location,
                 onFocusContent: _focusContent,
                 onSelect: _select,
-                onAccount: () => unawaited(showTvAccountMenu(context, ref)),
+                onAccount: () => unawaited(
+                  showTvAccountMenu(
+                    context,
+                    ref,
+                    onSettings: () => _select('/settings'),
+                  ),
+                ),
               ),
             ),
           ],

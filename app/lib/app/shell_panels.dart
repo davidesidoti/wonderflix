@@ -88,7 +88,10 @@ String shellPanelRoute(ShellPanel panel) {
 /// nel layout stretto pagina intera con la freccia indietro (spec 1c §4.2).
 void openShellPanel(BuildContext context, WidgetRef ref, ShellPanel panel) {
   final panels = ref.read(shellPanelProvider.notifier);
-  if (!FormFactor.of(context).compact) {
+  // Sulla TV il pannello laterale non c'è (sta solo nella shell del PC): sempre
+  // la pagina intera.
+  final form = FormFactor.of(context);
+  if (!form.compact && !form.tv) {
     panels.toggle(panel);
     return;
   }

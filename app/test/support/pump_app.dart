@@ -7,6 +7,7 @@ import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/config/app_config.dart';
+import 'package:wonderflix/core/platform/tv_provider.dart';
 import 'package:wonderflix/features/home/hero_carousel.dart';
 import 'package:wonderflix/features/library/server_events_binding.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
@@ -23,8 +24,14 @@ final testAppConfig = AppConfig(
 /// I provider di base di ogni widget test, seguiti da [overrides]: per
 /// [pumpApp] e [pumpAppRouter].
 List<Override> _baseOverrides(
-        {required bool carouselAutoplay, required List<Override> overrides}) =>
+        {required bool carouselAutoplay,
+        required bool tv,
+        required List<Override> overrides}) =>
     [
+      // Una sola fonte per la TV: il router e gli aggiornamenti leggono questo
+      // provider, la `FormFactorScope` il parametro `tv`.
+      if (!overrides.any((override) => override.origin == androidTvProvider))
+        androidTvProvider.overrideWithValue(tv),
       // La configurazione di prova. Un test può sostituirla negli [overrides]
       // (per esempio senza `supportUrl`): due override dello stesso provider
       // farebbero lanciare il container.
@@ -72,7 +79,7 @@ Future<void> pumpApp(
   await _setSurface(tester, surfaceSize);
   await tester.pumpWidget(ProviderScope(
     overrides: _baseOverrides(
-        carouselAutoplay: carouselAutoplay, overrides: overrides),
+        carouselAutoplay: carouselAutoplay, tv: tv, overrides: overrides),
     retry: (_, _) => null,
     child: MaterialApp(
       theme: buildWonderflixTheme(tv: tv),
@@ -116,7 +123,8 @@ Future<void> pumpAppRouterOf(
 }) async {
   await _setSurface(tester, surfaceSize);
   await tester.pumpWidget(ProviderScope(
-    overrides: _baseOverrides(carouselAutoplay: false, overrides: overrides),
+    overrides:
+        _baseOverrides(carouselAutoplay: false, tv: tv, overrides: overrides),
     retry: (_, _) => null,
     child: Consumer(
       builder: (context, ref, _) => MaterialApp.router(

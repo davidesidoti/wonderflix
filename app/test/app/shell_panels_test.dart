@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:wonderflix/app/shell_panels.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/social/inbox_models.dart';
@@ -10,9 +12,35 @@ import 'package:wonderflix/features/inbox/inbox_controller.dart';
 import 'package:wonderflix/features/player/player_active.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 
+import '../support/pump_app.dart';
 import '../support/social_fakes.dart';
 
 void main() {
+  testWidgets('sulla TV un pannello è sempre la pagina intera, anche se larga',
+      (tester) async {
+    final router = GoRouter(routes: [
+      GoRoute(
+        path: '/',
+        builder: (context, state) => Consumer(
+          builder: (context, ref, _) => TextButton(
+            onPressed: () => openShellPanel(context, ref, ShellPanel.rate),
+            child: const Text('apri'),
+          ),
+        ),
+      ),
+      GoRoute(
+          path: '/rate',
+          builder: (context, state) => const Text('pagina Vota')),
+    ]);
+    await pumpAppRouter(tester, router,
+        tv: true, surfaceSize: const Size(1920, 1080));
+
+    await tester.tap(find.text('apri'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('pagina Vota'), findsOneWidget);
+  });
+
   test('un pannello alla volta: aprirne uno chiude l\'altro', () async {
     final api = FakeSocialApi()
       ..inboxSnapshot =

@@ -16,6 +16,7 @@ import 'package:wonderflix/features/requests/requests_navigation.dart';
 import 'package:wonderflix/features/requests/requests_screen.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
+import 'package:wonderflix/ui/form_factor.dart';
 import 'package:wonderflix/ui/wf_image.dart';
 
 import '../../support/pump_app.dart';
@@ -46,6 +47,7 @@ void main() {
     WidgetTester tester, {
     String location = '/requests',
     Size surfaceSize = const Size(1440, 900),
+    bool tv = false,
   }) async {
     await tester.binding.setSurfaceSize(surfaceSize);
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -91,8 +93,10 @@ void main() {
         locale: const Locale('it'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        builder: (context, child) => WfMotionScope(
-            motion: const WfMotion(MotionLevel.reduced), child: child!),
+        builder: (context, child) => FormFactorScope(
+            tv: tv,
+            child: WfMotionScope(
+                motion: const WfMotion(MotionLevel.reduced), child: child!)),
         routerConfig: router,
       ),
     ));
@@ -111,6 +115,25 @@ void main() {
     expect(find.text('Approvata'), findsOneWidget);
     expect(find.text('Le mie'), findsNothing);
     expect(find.textContaining('chiesto da'), findsNothing);
+    expect(api.calls.where((c) => c.startsWith('list:pending')), isEmpty);
+  });
+
+  testWidgets('TV: chi gestisce vede solo le sue richieste, senza approvare',
+      (tester) async {
+    api
+      ..meValue = manager
+      ..lists[RequestsFilter.pending] = [
+        testMediaRequest(id: 1, title: 'Dune', requester: 'Garg'),
+      ]
+      ..lists[RequestsFilter.mine] = [testMediaRequest(id: 3, title: 'Mia')];
+    await pumpScreen(tester, location: '/requests?tab=pending', tv: true);
+
+    expect(find.text('Mia (2024)'), findsOneWidget);
+    expect(find.text('Dune (2021)'), findsNothing);
+    expect(find.text('Le mie'), findsNothing);
+    expect(find.text('Tutte'), findsNothing);
+    expect(find.text('Approva'), findsNothing);
+    expect(find.text('Rifiuta'), findsNothing);
     expect(api.calls.where((c) => c.startsWith('list:pending')), isEmpty);
   });
 

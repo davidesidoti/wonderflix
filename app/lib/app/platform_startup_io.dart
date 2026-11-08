@@ -54,7 +54,7 @@ Future<bool> initPlatform(SharedPreferences prefs) async {
     try {
       final map = await const MethodChannel(
         'wonderflix/device',
-      ).invokeMapMethod<String, String>('name');
+      ).invokeMapMethod<String, String?>('name');
       _tvDeviceName = tvDeviceNameFrom(
         map?['settingsName'],
         map?['model'] ?? '',

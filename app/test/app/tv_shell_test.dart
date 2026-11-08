@@ -99,7 +99,19 @@ void main() {
                 ),
               ),
             ),
-            page('/settings'),
+            page(
+              '/settings',
+              child: Center(
+                child: TvFocusable(
+                  onActivate: () {},
+                  child: const SizedBox(
+                    key: Key('settings-content'),
+                    width: 100,
+                    height: 40,
+                  ),
+                ),
+              ),
+            ),
             page('/item/:id'),
           ],
         ),
@@ -345,6 +357,30 @@ void main() {
     await tester.tap(find.text('Impostazioni'));
     await tester.pumpAndSettle();
     expect(location(r), '/settings');
+  });
+
+  testWidgets('Impostazioni dal menu porta il focus nel contenuto', (
+    tester,
+  ) async {
+    final r = await pumpShell(tester);
+
+    Focus.of(
+      tester.element(find.byKey(const Key('tv-account'))),
+    ).requestFocus();
+    await tester.pumpAndSettle();
+    await select(tester);
+    await tester.tap(find.text('Impostazioni'));
+    await tester.pumpAndSettle();
+
+    expect(location(r), '/settings');
+    final content = Focus.of(
+      tester.element(find.byKey(const Key('settings-content'))),
+    );
+    expect(content.hasPrimaryFocus, isTrue);
+    expect(
+      tester.getSize(find.byType(TvSidebar)).width,
+      tvSidebarCollapsedWidth,
+    );
   });
 
   testWidgets('Esci dal menu dell\'account chiude la sessione', (tester) async {
