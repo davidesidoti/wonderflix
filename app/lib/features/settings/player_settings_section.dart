@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
+import '../../ui/tv_focusable.dart';
 import '../player/player_settings.dart';
 
 /// "Massima (originale)", "Alta (20 Mbps)", "Media (8 Mbps)", "Bassa (4 Mbps)".
@@ -45,19 +46,21 @@ class PlayerSettingsSection extends ConsumerWidget {
             const SizedBox(height: 16),
             Text(l.settingsQuality),
             const SizedBox(height: 6),
-            DropdownButton<StreamQuality>(
-              // Nello stretto riempie la riga: col testo lungo non sfora.
-              isExpanded: FormFactor.of(context).compact,
-              key: const Key('player-quality'),
-              value: settings.quality,
-              items: [
-                for (final quality in StreamQuality.values)
-                  DropdownMenuItem(
-                      value: quality, child: Text(qualityLabel(l, quality))),
-              ],
-              onChanged: (quality) {
-                if (quality != null) save(settings.copyWith(quality: quality));
-              },
+            TvFocusBorder(
+              child: DropdownButton<StreamQuality>(
+                // Nello stretto riempie la riga: col testo lungo non sfora.
+                isExpanded: FormFactor.of(context).compact,
+                key: const Key('player-quality'),
+                value: settings.quality,
+                items: [
+                  for (final quality in StreamQuality.values)
+                    DropdownMenuItem(
+                        value: quality, child: Text(qualityLabel(l, quality))),
+                ],
+                onChanged: (quality) {
+                  if (quality != null) save(settings.copyWith(quality: quality));
+                },
+              ),
             ),
             const SizedBox(height: 16),
             Text(l.settingsSubtitleSize),
@@ -76,24 +79,30 @@ class PlayerSettingsSection extends ConsumerWidget {
             const SizedBox(height: 8),
             // Nel browser la decodifica la sceglie il browser.
             if (!kIsWeb)
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(l.settingsHardwareDecoding),
-                value: settings.hardwareDecoding,
-                onChanged: (value) =>
-                    save(settings.copyWith(hardwareDecoding: value)),
+              TvFocusBorder(
+                child: SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l.settingsHardwareDecoding),
+                  value: settings.hardwareDecoding,
+                  onChanged: (value) =>
+                      save(settings.copyWith(hardwareDecoding: value)),
+                ),
               ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(l.settingsAutoSkipIntro),
-              value: settings.autoSkipIntro,
-              onChanged: (value) => save(settings.copyWith(autoSkipIntro: value)),
+            TvFocusBorder(
+              child: SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(l.settingsAutoSkipIntro),
+                value: settings.autoSkipIntro,
+                onChanged: (value) => save(settings.copyWith(autoSkipIntro: value)),
+              ),
             ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(l.settingsAutoplayNext),
-              value: settings.autoplayNext,
-              onChanged: (value) => save(settings.copyWith(autoplayNext: value)),
+            TvFocusBorder(
+              child: SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(l.settingsAutoplayNext),
+                value: settings.autoplayNext,
+                onChanged: (value) => save(settings.copyWith(autoplayNext: value)),
+              ),
             ),
           ],
         ),

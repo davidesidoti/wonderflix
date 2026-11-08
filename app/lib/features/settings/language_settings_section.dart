@@ -8,6 +8,7 @@ import '../../app/theme.dart';
 import '../../core/jellyfin/user_config_api.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
+import '../../ui/tv_focusable.dart';
 import 'language_preferences.dart';
 
 /// Lingue di audio e sottotitoli e quando mostrare i sottotitoli: sono
@@ -102,38 +103,44 @@ class _LanguageForm extends ConsumerWidget {
             const SizedBox(height: 16),
             labeled(
               l.settingsAudioLanguage,
-              DropdownButton<String>(
-                isExpanded: fill,
-                key: const Key('audio-language'),
-                value: preferences.audioLanguage,
-                items: languages(preferences.audioLanguage),
-                onChanged: (value) => unawaited(_save(context, ref,
-                    preferences.copyWith(audioLanguage: value ?? ''))),
+              TvFocusBorder(
+                child: DropdownButton<String>(
+                  isExpanded: fill,
+                  key: const Key('audio-language'),
+                  value: preferences.audioLanguage,
+                  items: languages(preferences.audioLanguage),
+                  onChanged: (value) => unawaited(_save(context, ref,
+                      preferences.copyWith(audioLanguage: value ?? ''))),
+                ),
               ),
             ),
             labeled(
               l.settingsSubtitleLanguage,
-              DropdownButton<String>(
-                isExpanded: fill,
-                key: const Key('subtitle-language'),
-                value: preferences.subtitleLanguage,
-                items: languages(preferences.subtitleLanguage),
-                onChanged: (value) => unawaited(_save(context, ref,
-                    preferences.copyWith(subtitleLanguage: value ?? ''))),
+              TvFocusBorder(
+                child: DropdownButton<String>(
+                  isExpanded: fill,
+                  key: const Key('subtitle-language'),
+                  value: preferences.subtitleLanguage,
+                  items: languages(preferences.subtitleLanguage),
+                  onChanged: (value) => unawaited(_save(context, ref,
+                      preferences.copyWith(subtitleLanguage: value ?? ''))),
+                ),
               ),
             ),
             labeled(
               l.settingsSubtitleMode,
-              DropdownButton<String>(
-                isExpanded: fill,
-                key: const Key('subtitle-mode'),
-                value: mode,
-                items: [
-                  for (final entry in modes.entries)
-                    DropdownMenuItem(value: entry.key, child: Text(entry.value)),
-                ],
-                onChanged: (value) => unawaited(_save(
-                    context, ref, preferences.copyWith(subtitleMode: value))),
+              TvFocusBorder(
+                child: DropdownButton<String>(
+                  isExpanded: fill,
+                  key: const Key('subtitle-mode'),
+                  value: mode,
+                  items: [
+                    for (final entry in modes.entries)
+                      DropdownMenuItem(value: entry.key, child: Text(entry.value)),
+                  ],
+                  onChanged: (value) => unawaited(_save(
+                      context, ref, preferences.copyWith(subtitleMode: value))),
+                ),
               ),
             ),
           ],

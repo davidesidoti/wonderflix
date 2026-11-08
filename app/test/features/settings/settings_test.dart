@@ -17,6 +17,7 @@ import 'package:wonderflix/features/settings/language_preferences.dart';
 import 'package:wonderflix/features/settings/locale_controller.dart';
 import 'package:wonderflix/features/settings/settings_screen.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
+import 'package:wonderflix/ui/tv_focusable.dart';
 import 'package:wonderflix/ui/user_avatar.dart';
 
 import '../../support/fake_session_controller.dart';
@@ -88,6 +89,53 @@ void main() {
     await tester.tap(find.text('Esci'));
     await tester.pump();
     expect(session.logoutCalls, 1);
+  });
+
+  testWidgets('TV: menu e interruttori col focus hanno il bordo oro', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await pumpApp(tester, const Scaffold(body: SettingsScreen()),
+        tv: true,
+        surfaceSize: const Size(1440, 2400),
+        overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      accountAvailableProvider.overrideWithValue(false),
+      clientInfoProvider.overrideWithValue(testClientInfo),
+      sessionControllerProvider.overrideWith(
+          () => FakeSessionController(const SessionSignedIn(testUser))),
+      userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
+      ...homeSettingsOverrides(),
+    ]);
+    await tester.pumpAndSettle();
+
+    Color? ring(Finder inner) {
+      for (final box in tester.widgetList<DecoratedBox>(
+          find.ancestor(of: inner, matching: find.byType(DecoratedBox)))) {
+        final d = box.decoration;
+        if (d is BoxDecoration && d.border is Border) {
+          final top = (d.border! as Border).top;
+          if (top.width == 2) return top.color;
+        }
+      }
+      return null;
+    }
+
+    final quality = find.byKey(const Key('player-quality'));
+    final decoding = find.text('Decodifica hardware');
+    expect(ring(decoding), isNot(tvFocusColor));
+    Focus.of(tester.element(decoding)).requestFocus();
+    await tester.pumpAndSettle();
+    expect(ring(decoding), tvFocusColor);
+    // Su: le dimensioni dei sottotitoli, poi il menu della qualità.
+    expect(ring(quality), isNot(tvFocusColor));
+    for (var i = 0; i < 2; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pumpAndSettle();
+    }
+    expect(ring(quality), tvFocusColor);
+    expect(ring(decoding), isNot(tvFocusColor));
   });
 
   testWidgets('sezione Player: qualità, sottotitoli, interruttori',

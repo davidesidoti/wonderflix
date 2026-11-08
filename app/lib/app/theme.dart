@@ -144,11 +144,14 @@ ThemeData buildWonderflixTheme({bool tv = false}) {
         : null,
     segmentedButtonTheme: tv
         ? SegmentedButtonThemeData(
-            // Il contorno è del gruppo: il velo dice quale segmento.
+            // Il contorno è del gruppo: il velo crema (visibile anche sul
+            // segmento oro scelto) dice quale segmento.
             style: ButtonStyle(
               side: tvButtonSide(tv, BorderSide(color: scheme.outline)),
               overlayColor: WidgetStateProperty.resolveWith((states) =>
-                  states.contains(WidgetState.focused) ? focusColor : null),
+                  states.contains(WidgetState.focused)
+                      ? WfColors.cream.withValues(alpha: 0.22)
+                      : null),
             ))
         : null,
     tabBarTheme: TabBarThemeData(
