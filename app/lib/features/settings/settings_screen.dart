@@ -12,6 +12,7 @@ import '../../ui/form_factor.dart';
 import '../update/tv_update_tile.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/staggered_entrance.dart';
+import '../../ui/tv_focusable.dart';
 import '../social/social_providers.dart';
 import 'account_settings_section.dart';
 import 'appearance_settings_section.dart';
@@ -181,9 +182,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const SupportSection(),
               ],
               const SizedBox(height: 40),
-              Text(l.settingsVersion(version),
-                  style: const TextStyle(
-                      color: WfColors.creamMuted, fontSize: 12.5)),
+              // Sulla TV si scorre solo col focus: senza, la versione e
+              // l'aggiornamento sotto i sottotitoli restano fuori schermo.
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TvFocusable(
+                  onActivate: () {},
+                  child: Padding(
+                    padding: EdgeInsets.all(tv ? 6 : 0),
+                    child: Text(l.settingsVersion(version),
+                        style: const TextStyle(
+                            color: WfColors.creamMuted, fontSize: 12.5)),
+                  ),
+                ),
+              ),
               const TvUpdateTile(),
             ]),
           ],

@@ -138,6 +138,43 @@ void main() {
     expect(ring(decoding), isNot(tvFocusColor));
   });
 
+  testWidgets('TV: da "Quando mostrare i sottotitoli" Giù arriva alla versione',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await pumpApp(tester, const Scaffold(body: SettingsScreen()),
+        tv: true,
+        surfaceSize: const Size(1280, 720),
+        overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      accountAvailableProvider.overrideWithValue(false),
+      clientInfoProvider.overrideWithValue(testClientInfo),
+      sessionControllerProvider.overrideWith(
+          () => FakeSessionController(const SessionSignedIn(testUser))),
+      userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
+      ...homeSettingsOverrides(),
+    ]);
+    await tester.pumpAndSettle();
+
+    final mode = find.byKey(const Key('subtitle-mode'));
+    await tester.ensureVisible(mode);
+    await tester.pumpAndSettle();
+    // Il FocusNode del menu è sotto la chiave (il testo scelto ne ha uno
+    // non focalizzabile): il primo che lo è.
+    tester
+        .widgetList<Focus>(find.descendant(of: mode, matching: find.byType(Focus)))
+        .map((f) => f.focusNode)
+        .firstWhere((n) => n != null && n.canRequestFocus)!
+        .requestFocus();
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+
+    final version = find.text('Versione 0.0.1');
+    expect(Focus.of(tester.element(version)).hasFocus, isTrue);
+    expect(tester.getBottomLeft(version).dy, lessThanOrEqualTo(720));
+  });
+
   testWidgets('sezione Player: qualità, sottotitoli, interruttori',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
