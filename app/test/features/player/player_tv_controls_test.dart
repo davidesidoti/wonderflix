@@ -59,6 +59,7 @@ void main() {
     WidgetTester tester, {
     bool tv = true,
     bool settle = true,
+    Size size = const Size(1440, 900),
   }) async {
     router = GoRouter(
       routes: [
@@ -79,10 +80,10 @@ void main() {
       ],
     );
     addTearDown(router.dispose);
-    await tester.binding.setSurfaceSize(const Size(1440, 900));
+    await tester.binding.setSurfaceSize(size);
     addTearDown(() => tester.binding.setSurfaceSize(null));
     tester.view.physicalSize =
-        const Size(1440, 900) * tester.view.devicePixelRatio;
+        size * tester.view.devicePixelRatio;
     addTearDown(tester.view.resetPhysicalSize);
     await tester.pumpWidget(
       ProviderScope(
@@ -330,6 +331,135 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Salta intro'), findsNothing);
     expect(focusOnPlayer(), isTrue);
+    await unmount(tester);
+  });
+
+  testWidgets('"Salta intro" a fuoco: ←/→ saltano di 10 s, il focus resta', (
+    tester,
+  ) async {
+    playback.segments = const [
+      MediaSegment(
+        type: MediaSegmentType.intro,
+        start: Duration(seconds: 10),
+        end: Duration(seconds: 90),
+      ),
+    ];
+    await pumpPlayer(tester);
+    engine.emitPosition(const Duration(seconds: 20));
+    await tester.pumpAndSettle();
+    expect(focusedOn(find.text('Salta intro')), isTrue);
+
+    await press(tester, LogicalKeyboardKey.arrowRight);
+    expect(engine.seeks.last, const Duration(seconds: 30));
+    expect(focusedOn(find.text('Salta intro')), isTrue);
+    await tester.pump(const Duration(seconds: 2));
+    await press(tester, LogicalKeyboardKey.arrowLeft);
+    expect(engine.seeks.last, const Duration(seconds: 20));
+    expect(focusedOn(find.text('Salta intro')), isTrue);
+    await unmount(tester);
+  });
+
+  testWidgets('"Salta intro" sotto il pannello non prende il focus; chiuso il '
+      'pannello sì', (tester) async {
+    playback.segments = const [
+      MediaSegment(
+        type: MediaSegmentType.intro,
+        start: Duration(seconds: 10),
+        end: Duration(seconds: 90),
+      ),
+    ];
+    await pumpPlayer(tester);
+    await press(tester, LogicalKeyboardKey.arrowDown);
+    for (var i = 0; i < 3; i++) {
+      await press(tester, LogicalKeyboardKey.arrowRight);
+    }
+    await press(tester, LogicalKeyboardKey.select);
+    expect(focusedOn(find.byIcon(LucideIcons.check)), isTrue);
+
+    engine.emitPosition(const Duration(seconds: 20));
+    await tester.pumpAndSettle();
+    expect(focusedOn(find.byIcon(LucideIcons.check)), isTrue);
+    expect(find.text('Salta intro'), findsNothing);
+
+    await back(tester);
+    expect(find.byType(TracksPanel), findsNothing);
+    expect(focusedOn(find.text('Salta intro')), isTrue);
+    await unmount(tester);
+  });
+
+  testWidgets('scheda "Prossimo episodio" sotto il pannello: non compare', (
+    tester,
+  ) async {
+    withNextEpisode();
+    await pumpPlayer(tester);
+    await tester.tap(find.byTooltip('Audio e sottotitoli'));
+    await tester.pumpAndSettle();
+    engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('PROSSIMO EPISODIO'), findsNothing);
+    expect(focusOnPlayNow(), isFalse);
+
+    await back(tester);
+    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+    expect(focusOnPlayNow(), isTrue);
+    await unmount(tester);
+  });
+
+  testWidgets('960×540: pannello, "Salta intro", scheda e post-play senza '
+      'overflow e raggiungibili', (tester) async {
+    const small = Size(960, 540);
+    withNextEpisode();
+    playback.segments = const [
+      MediaSegment(
+        type: MediaSegmentType.intro,
+        start: Duration(seconds: 10),
+        end: Duration(seconds: 90),
+      ),
+      MediaSegment(
+        type: MediaSegmentType.outro,
+        start: Duration(hours: 1, minutes: 55),
+        end: Duration(hours: 2),
+      ),
+    ];
+    await pumpPlayer(tester, size: small);
+    // Fila completa.
+    await press(tester, LogicalKeyboardKey.arrowDown);
+    for (var i = 0; i < 3; i++) {
+      await press(tester, LogicalKeyboardKey.arrowRight);
+    }
+    await press(tester, LogicalKeyboardKey.select);
+    expect(find.byType(TracksPanel), findsOneWidget);
+    // In fondo al pannello: le dimensioni dei sottotitoli.
+    for (var i = 0; i < 12; i++) {
+      await press(tester, LogicalKeyboardKey.arrowDown);
+    }
+    // Le dimensioni vanno a capo: si arriva a "Molto grandi" con ←/→/↓.
+    var reached = false;
+    for (final key in [
+      for (var i = 0; i < 4; i++) LogicalKeyboardKey.arrowRight,
+      LogicalKeyboardKey.arrowDown,
+      for (var i = 0; i < 4; i++) LogicalKeyboardKey.arrowRight,
+    ]) {
+      reached = reached || focusedOn(find.text('Molto grandi'));
+      await press(tester, key);
+    }
+    expect(reached || focusedOn(find.text('Molto grandi')), isTrue);
+    await back(tester);
+
+    engine.emitPosition(const Duration(seconds: 20));
+    await tester.pumpAndSettle();
+    expect(focusedOn(find.text('Salta intro')), isTrue);
+
+    engine.emitPosition(const Duration(hours: 1, minutes: 55, seconds: 10));
+    await tester.pump();
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('Guarda i titoli'), findsOneWidget);
+    expect(focusOnPlayNow(), isTrue);
+    await press(tester, LogicalKeyboardKey.arrowRight);
+    expect(focusedOn(find.text('Guarda i titoli')), isTrue);
+    expect(tester.takeException(), isNull);
     await unmount(tester);
   });
 

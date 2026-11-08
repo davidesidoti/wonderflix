@@ -1152,7 +1152,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         return KeyEventResult.handled;
       }
     }
-    if (onControl && !media) return KeyEventResult.ignored;
+    // Con "Salta intro" a fuoco ←/→ saltano lo stesso; il focus resta lì.
+    final seekOnSkip = _skipScope.hasFocus &&
+        (key == LogicalKeyboardKey.arrowLeft ||
+            key == LogicalKeyboardKey.arrowRight);
+    if (onControl && !media && !seekOnSkip) return KeyEventResult.ignored;
     final repeatable = command != PlayerCommand.togglePlay;
     if (command != null && (event is KeyDownEvent || repeatable)) {
       _run(command);
@@ -1700,6 +1704,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final ratingPanelOpen =
         rating != null && _chrome.popup == PlayerPopup.rating;
     final sidePanelOpen = tracksPanelOpen || queuePanelOpen || ratingPanelOpen;
+    // Sulla TV "Salta intro" e la scheda prendono il focus appena montati:
+    // sotto il pannello delle tracce non ci sono, compaiono quando si chiude.
+    final tvPanelCovers = FormFactor.of(context).tv && tracksPanelOpen;
     final motion = WfMotion.of(context);
     // Il post-play compare o sparisce anche senza un cambio di zona (la coda
     // del gruppo, l'uscita dal gruppo, l'episodio successivo arrivato tardi,
@@ -1991,12 +1998,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     bottom: 150,
                     child: focusLayer(
                       _skipScope,
-                      SkipSegmentButton(
-                        engine: controller.engine,
-                        segments: view.segments,
-                        onSkip: () =>
-                            unawaited(controller.skipCurrentSegment()),
-                      ),
+                      tvPanelCovers
+                          ? const SizedBox.shrink()
+                          : SkipSegmentButton(
+                              engine: controller.engine,
+                              segments: view.segments,
+                              onSkip: () =>
+                                  unawaited(controller.skipCurrentSegment()),
+                            ),
                     ),
                   ),
                   // Scheda piccola negli ultimi 30 s senza titoli noti
@@ -2011,7 +2020,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         duration: WfMotion.fast,
                         switchInCurve: _offerSwitchInCurve,
                         switchOutCurve: WfMotion.accelerateReverse,
-                        child: card && offer != null
+                        child: card && offer != null && !tvPanelCovers
                             ? NextEpisodeCard(
                                 key: ValueKey(offer.id),
                                 episode: offer,
