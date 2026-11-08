@@ -7,7 +7,9 @@ import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/playback_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/staggered_entrance.dart';
+import '../../ui/tv_focusable.dart';
 import '../../ui/wf_buttons.dart';
 import 'player_commands.dart';
 import 'player_settings.dart';
@@ -83,6 +85,7 @@ class TracksPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final tv = FormFactor.of(context).tv;
     final items = <Widget>[
       Row(
         children: [
@@ -130,10 +133,12 @@ class TracksPanel extends StatelessWidget {
             ),
           ),
         ),
-      Padding(
-        padding: const EdgeInsets.only(top: 12),
-        child: _DelayRow(delay: subtitleDelay, onDelayStep: onDelayStep),
-      ),
+      // Sulla TV il ritardo non funziona (piano 1).
+      if (!tv)
+        Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: _DelayRow(delay: subtitleDelay, onDelayStep: onDelayStep),
+        ),
       Padding(
         padding: const EdgeInsets.only(top: 16, bottom: 8),
         child: Text(l.playerSubtitleSize,
@@ -203,34 +208,41 @@ class _TrackTile extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
+  // Sulla TV il focus è del TvFocusable, non dell'InkWell; quello della
+  // traccia scelta lo prende all'apertura (vale il primo, l'audio).
   @override
-  Widget build(BuildContext context) => InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 24,
-                child: selected
-                    ? const _PopIn(
-                        child: Icon(LucideIcons.check,
-                            size: 16, color: WfColors.gold))
-                    : null,
-              ),
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: selected ? WfColors.cream : WfColors.creamMuted,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+  Widget build(BuildContext context) => TvFocusable(
+        autofocus: selected,
+        onActivate: onTap,
+        child: InkWell(
+          onTap: onTap,
+          canRequestFocus: !FormFactor.of(context).tv,
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 24,
+                  child: selected
+                      ? const _PopIn(
+                          child: Icon(LucideIcons.check,
+                              size: 16, color: WfColors.gold))
+                      : null,
+                ),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected ? WfColors.cream : WfColors.creamMuted,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       );
@@ -312,22 +324,26 @@ class _ScaleChip extends StatelessWidget {
   Widget build(BuildContext context) => Semantics(
         button: true,
         selected: selected,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(6),
-          child: AnimatedContainer(
-            duration: WfMotion.fast,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                  color: selected ? WfColors.gold : WfColors.border),
-            ),
-            child: Text(
-              label,
-              style: TextStyle(
-                color: selected ? WfColors.gold : WfColors.creamMuted,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+        child: TvFocusable(
+          onActivate: onTap,
+          child: InkWell(
+            onTap: onTap,
+            canRequestFocus: !FormFactor.of(context).tv,
+            borderRadius: BorderRadius.circular(6),
+            child: AnimatedContainer(
+              duration: WfMotion.fast,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                    color: selected ? WfColors.gold : WfColors.border),
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: selected ? WfColors.gold : WfColors.creamMuted,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                ),
               ),
             ),
           ),

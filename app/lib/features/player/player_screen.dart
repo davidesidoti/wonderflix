@@ -116,6 +116,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   final _focusNode = FocusNode(debugLabel: 'player');
   bool _chatWasOpen = false;
 
+  /// Sulla TV gli strati coi pulsanti hanno ognuno il suo scope: così
+  /// `autofocus` vale anche col focus già al player (vedi [_layerScope]).
+  late final _controlsScope = _layerScope('player-controls');
+  late final _skipScope = _layerScope('player-skip');
+  late final _nextCardScope = _layerScope('player-next-card');
+  late final _postPlayScope = _layerScope('player-post-play');
+  late final _tracksScope = _layerScope('player-tracks');
+  final _layerScopes = <FocusScopeNode>[];
+
+  /// Il pulsante play/pausa: sulla TV Giù ci porta il focus.
+  final _playFocusNode = FocusNode(debugLabel: 'player-play');
+
+  /// Sparito il pulsante col focus, lo scope resta col focus a sé: lo rende
+  /// a chi l'aveva prima (il player, o il pulsante che ha aperto il
+  /// pannello).
+  FocusScopeNode _layerScope(String label) {
+    final scope = FocusScopeNode(debugLabel: label);
+    scope.addListener(() {
+      if (scope.hasPrimaryFocus) {
+        scope.unfocus(disposition: UnfocusDisposition.previouslyFocusedChild);
+      }
+    });
+    _layerScopes.add(scope);
+    return scope;
+  }
+
   /// Focus del campo della chat del watch party: è del player, che glielo
   /// rimette se un tasto arriva a chat aperta mentre il campo non ce l'ha.
   final _chatFocusNode = FocusNode(debugLabel: 'party-chat');
@@ -415,6 +441,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ..removeListener(_onChromeChanged)
       ..dispose();
     _focusNode.dispose();
+    for (final scope in _layerScopes) {
+      scope.dispose();
+    }
+    _playFocusNode.dispose();
     _chatFocusNode.dispose();
     _queuePanelFocusNode.dispose();
     _ratingPanelFocusNode.dispose();
@@ -506,8 +536,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // Sulla TV, spariti i controlli, il focus torna al player: la freccia
     // dopo non deve partire da un pulsante nascosto.
     if (!_chrome.controlsVisible &&
-        _focusNode.hasFocus &&
-        !_focusNode.hasPrimaryFocus &&
+        _controlsScope.hasFocus &&
         FormFactor.of(context).tv &&
         (ModalRoute.isCurrentOf(context) ?? true)) {
       _focusNode.requestFocus();
@@ -1102,10 +1131,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (!tvCommands.containsKey(key)) return null;
     if (event is KeyUpEvent) return KeyEventResult.ignored;
     final command = tvCommands[key];
-    final onControl = _chrome.controlsVisible && !_focusNode.hasPrimaryFocus;
+    // Un pulsante ha il focus ("Salta intro" anche a controlli nascosti); un
+    // pulsante dei controlli nascosti non conta.
+    final onControl = !_focusNode.hasPrimaryFocus &&
+        (_chrome.controlsVisible || !_controlsScope.hasFocus);
     final media = key == LogicalKeyboardKey.mediaRewind ||
         key == LogicalKeyboardKey.mediaFastForward;
     _chrome.showForKey();
+    if (event is KeyDownEvent) {
+      // Su dalla fila dei pulsanti torna alla barra (il player: ←/→ saltano).
+      if (key == LogicalKeyboardKey.arrowUp && _controlsScope.hasFocus) {
+        _focusNode.requestFocus();
+        return KeyEventResult.handled;
+      }
+      // Giù dalla barra porta il focus su play/pausa.
+      if (key == LogicalKeyboardKey.arrowDown &&
+          _focusNode.hasPrimaryFocus &&
+          _controlsShown(ref.read(playerControllerProvider(widget.args)))) {
+        _playFocusNode.requestFocus();
+        return KeyEventResult.handled;
+      }
+    }
     if (onControl && !media) return KeyEventResult.ignored;
     final repeatable = command != PlayerCommand.togglePlay;
     if (command != null && (event is KeyDownEvent || repeatable)) {
@@ -1695,6 +1741,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return true;
     }
 
+    // Fuori dalla TV questi strati non prendono il focus (le scorciatoie
+    // restano sempre attive); sulla TV i loro pulsanti sì.
+    Widget focusLayer(FocusScopeNode node, Widget child, {Key? key}) =>
+        formFactor.tv
+            ? FocusScope(key: key, node: node, child: child)
+            : ExcludeFocus(key: key, child: child);
+
     // Sulla TV l'Indietro di sistema passa da Esc: chiude prima pannelli e
     // controlli, poi esce da `_exit()`.
     return PopScope(
@@ -1821,10 +1874,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   )
                 else
                   // I controlli non prendono il focus della tastiera: le
-                  // scorciatoie restano sempre attive.
-                  ExcludeFocus(
+                  // scorciatoie restano sempre attive (non sulla TV).
+                  focusLayer(
                     key: const ValueKey('player-controls'),
-                    child: IgnorePointer(
+                    _controlsScope,
+                    IgnorePointer(
                       ignoring: !_chrome.controlsVisible || loading || postPlay,
                       child: PlayerOverlay(
                         // Durante il caricamento la freccia per uscire sta
@@ -1834,6 +1888,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             _chrome.controlsVisible && !loading && !postPlay,
                         view: view,
                         engine: controller.engine,
+                        playFocusNode: _playFocusNode,
                         fullscreen: _fullscreen,
                         onBack: _exit,
                         onTogglePlay: () => unawaited(controller.togglePlay()),
@@ -1934,8 +1989,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     key: const ValueKey('player-skip'),
                     right: compact ? 16 : 32,
                     bottom: 150,
-                    child: ExcludeFocus(
-                      child: SkipSegmentButton(
+                    child: focusLayer(
+                      _skipScope,
+                      SkipSegmentButton(
                         engine: controller.engine,
                         segments: view.segments,
                         onSkip: () =>
@@ -1949,8 +2005,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     key: const ValueKey('player-next-card'),
                     right: compact ? 16 : 32,
                     bottom: 150,
-                    child: ExcludeFocus(
-                      child: AnimatedSwitcher(
+                    child: focusLayer(
+                      _nextCardScope,
+                      AnimatedSwitcher(
                         duration: WfMotion.fast,
                         switchInCurve: _offerSwitchInCurve,
                         switchOutCurve: WfMotion.accelerateReverse,
@@ -1979,8 +2036,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 // (spec D §12.1); sempre presente, il contenuto cambia.
                 Positioned.fill(
                   key: const ValueKey('player-post-play'),
-                  child: ExcludeFocus(
-                    child: AnimatedSwitcher(
+                  child: focusLayer(
+                    _postPlayScope,
+                    AnimatedSwitcher(
                       duration: WfMotion.fast,
                       switchInCurve: _offerSwitchInCurve,
                       switchOutCurve: WfMotion.accelerateReverse,
@@ -2192,8 +2250,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 // altezza sopra i controlli (spec D §14).
                 Positioned.fill(
                   key: const ValueKey('player-tracks-panel'),
-                  child: ExcludeFocus(
-                    child: PlayerSidePanelHost(
+                  child: focusLayer(
+                    _tracksScope,
+                    PlayerSidePanelHost(
                       open: tracksPanelOpen,
                       panel: TracksPanel(
                         audio: view.audioStreams,
@@ -2211,8 +2270,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         onSubtitleScale: (scale) =>
                             unawaited(controller.setSubtitleScale(scale)),
                         onClose: _chrome.closePanel,
-                        onSearchSubtitles:
-                            ref.watch(canManageSubtitlesProvider)
+                        // Sulla TV si guarda e basta (niente gestione).
+                        onSearchSubtitles: !formFactor.tv &&
+                                ref.watch(canManageSubtitlesProvider)
                                 ? () => unawaited(_searchSubtitles(controller, view))
                                 : null,
                       ),

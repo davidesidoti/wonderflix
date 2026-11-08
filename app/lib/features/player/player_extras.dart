@@ -9,6 +9,7 @@ import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_image.dart';
 import '../library/item_labels.dart';
@@ -267,8 +268,11 @@ class _PlayNowButtonState extends State<PlayNowButton> {
                 Positioned.fill(
                   child: Material(
                     type: MaterialType.transparency,
-                    child:
-                        InkWell(onTap: widget.onPressed, overlayColor: _veil),
+                    // Sulla TV il pulsante principale prende il focus.
+                    child: InkWell(
+                        onTap: widget.onPressed,
+                        autofocus: FormFactor.of(context).tv,
+                        overlayColor: _veil),
                   ),
                 ),
               ],

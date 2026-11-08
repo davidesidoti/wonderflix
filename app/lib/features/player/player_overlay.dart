@@ -9,6 +9,7 @@ import '../../core/jellyfin/item_models.dart';
 import '../../core/video/video_engine.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
+import '../../ui/tv_focusable.dart';
 import '../library/item_labels.dart';
 import 'player_commands.dart';
 import 'player_controller.dart';
@@ -46,6 +47,7 @@ class PlayerOverlay extends StatelessWidget {
     this.onToggleReactions,
     this.reactionsLink,
     this.onToggleQueue,
+    this.playFocusNode,
   });
 
   final PlayerViewState view;
@@ -108,6 +110,9 @@ class PlayerOverlay extends StatelessWidget {
   /// = nessun pulsante.
   final VoidCallback? onToggleQueue;
 
+  /// Nodo del pulsante play/pausa: sulla TV Giù ci porta il focus.
+  final FocusNode? playFocusNode;
+
   /// Di quanto la parte alta sale e la bassa scende a controlli nascosti.
   static const hiddenShift = 24.0;
 
@@ -152,7 +157,10 @@ class PlayerOverlay extends StatelessWidget {
     final volume = view.muted ? 0.0 : view.volume;
     // Layout stretto (spec §4.5): titolo più piccolo, -10/play/+10 al centro,
     // in basso le icone che entrano e le altre nel menu ⋯.
-    final compact = FormFactor.of(context).compact;
+    // Sulla TV la fila larga anche su uno schermo stretto, senza volume,
+    // schermo intero, guarda insieme e indietro (c'è il tasto Indietro).
+    final tv = FormFactor.of(context).tv;
+    final compact = FormFactor.of(context).compact && !tv;
     final rewind = PlayerIconButton(
       icon: const Icon(LucideIcons.rewind),
       tooltip: l.playerRewind,
@@ -164,6 +172,7 @@ class PlayerOverlay extends StatelessWidget {
       icon: PlayPauseIcon(playing: view.playing),
       tooltip: view.playing ? l.playerPause : l.actionPlay,
       size: compact ? centerPlaySize : null,
+      focusNode: playFocusNode,
       onPressed: onTogglePlay,
     );
     final forward = PlayerIconButton(
@@ -178,9 +187,16 @@ class PlayerOverlay extends StatelessWidget {
       size: compact ? minTouchTarget : null,
       onPressed: onToggleMute,
     );
+    final next = onNextEpisode == null
+        ? null
+        : PlayerIconButton(
+            icon: const Icon(LucideIcons.skipForward),
+            tooltip: partyQueue ? l.playerNextInQueue : l.playerNextEpisode,
+            onPressed: onNextEpisode,
+          );
     // Col dito il volume è quello del telefono (su iOS il video non lo
     // cambia): resta il muto.
-    final slider = FormFactor.of(context).touch
+    final slider = FormFactor.of(context).touch || tv
         ? null
         : SliderTheme(
             data: SliderTheme.of(context).copyWith(
@@ -230,12 +246,13 @@ class PlayerOverlay extends StatelessWidget {
                       : const EdgeInsets.fromLTRB(16, 16, 24, 48),
                   child: Row(
                     children: [
-                      PlayerIconButton(
-                        icon: const Icon(LucideIcons.arrowLeft),
-                        tooltip: l.navBack,
-                        size: compact ? minTouchTarget : null,
-                        onPressed: onBack,
-                      ),
+                      if (!tv)
+                        PlayerIconButton(
+                          icon: const Icon(LucideIcons.arrowLeft),
+                          tooltip: l.navBack,
+                          size: compact ? minTouchTarget : null,
+                          onPressed: onBack,
+                        ),
                       const SizedBox(width: 8),
                       if (item != null)
                         Expanded(
@@ -346,17 +363,17 @@ class PlayerOverlay extends StatelessWidget {
                       else
                       Row(
                         children: [
-                          rewind,
-                          playPause,
-                          forward,
+                          // Sulla TV come nella bozza: pausa, −10 s, +10 s.
+                          if (tv) ...[playPause, rewind, forward]
+                          else ...[rewind, playPause, forward],
                           const SizedBox(width: 8),
-                          mute,
+                          if (!tv) mute,
                           if (slider != null)
                             SizedBox(width: 120, child: slider),
                           const SizedBox(width: 12),
                           RepaintBoundary(child: TimeLabel(engine: engine)),
                           const Spacer(),
-                          if (onPrevious != null)
+                          if (onPrevious != null && !tv)
                             PlayerIconButton(
                               icon: const Icon(LucideIcons.skipBack),
                               tooltip: partyQueue
@@ -364,15 +381,8 @@ class PlayerOverlay extends StatelessWidget {
                                   : l.playerPreviousEpisode,
                               onPressed: onPrevious,
                             ),
-                          if (onNextEpisode != null)
-                            PlayerIconButton(
-                              icon: const Icon(LucideIcons.skipForward),
-                              tooltip: partyQueue
-                                  ? l.playerNextInQueue
-                                  : l.playerNextEpisode,
-                              onPressed: onNextEpisode,
-                            ),
-                          if (onWatchTogether != null)
+                          if (next != null && !tv) next,
+                          if (onWatchTogether != null && !tv)
                             Builder(
                               builder: (buttonContext) => PlayerIconButton(
                                 icon: const Icon(LucideIcons.users),
@@ -413,7 +423,9 @@ class PlayerOverlay extends StatelessWidget {
                             tooltip: l.playerAudioAndSubtitles,
                             onPressed: onToggleTracks,
                           ),
-                          if (onToggleFullscreen case final toggle?)
+                          // Sulla TV come nella bozza: dopo le tracce.
+                          if (next != null && tv) next,
+                          if (onToggleFullscreen case final toggle? when !tv)
                             PlayerIconButton(
                               icon: Icon(fullscreen
                                   ? LucideIcons.minimize
@@ -585,6 +597,7 @@ class PlayerIconButton extends StatefulWidget {
     required this.onPressed,
     this.iconSize = 24,
     this.size,
+    this.focusNode,
   });
 
   /// Di solito un `Icon`; play/pausa passa un [PlayPauseIcon].
@@ -595,6 +608,13 @@ class PlayerIconButton extends StatefulWidget {
 
   /// Lato fisso del pulsante (layout stretto); `null` = misura del tema.
   final double? size;
+  final FocusNode? focusNode;
+
+  /// Sulla TV il bordo oro del focus.
+  static final _tvFocusSide = WidgetStateBorderSide.resolveWith((states) =>
+      states.contains(WidgetState.focused)
+          ? const BorderSide(color: tvFocusColor, width: 2)
+          : null);
 
   @override
   State<PlayerIconButton> createState() => _PlayerIconButtonState();
@@ -648,7 +668,13 @@ class _PlayerIconButtonState extends State<PlayerIconButton> {
               iconSize: widget.iconSize,
               tooltip: widget.tooltip,
               onPressed: widget.onPressed,
-              style: widget.size == null ? null : _sizedStyle(widget.size!),
+              focusNode: widget.focusNode,
+              style: !FormFactor.of(context).tv
+                  ? (widget.size == null ? null : _sizedStyle(widget.size!))
+                  : (widget.size == null
+                          ? const ButtonStyle()
+                          : _sizedStyle(widget.size!))
+                      .copyWith(side: PlayerIconButton._tvFocusSide),
               color: WfColors.cream,
               // Spec D §7.2: fondo crema al 12% al passaggio.
               hoverColor: WfColors.cream.withValues(alpha: 0.12),

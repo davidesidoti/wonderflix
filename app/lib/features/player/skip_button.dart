@@ -8,6 +8,7 @@ import '../../app/theme.dart';
 import '../../core/jellyfin/playback_models.dart';
 import '../../core/video/video_engine.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/wf_buttons.dart';
 import 'segments.dart';
 
@@ -146,6 +147,8 @@ class _SkipSegmentButtonState extends State<SkipSegmentButton> {
                   ? l.playerSkipIntro
                   : l.playerSkipRecap,
               icon: LucideIcons.skipForward,
+              // Sulla TV prende il focus finché si vede.
+              autofocus: FormFactor.of(context).tv,
               onPressed: widget.onSkip,
               // Dentro il pulsante: segue la sua scala al passaggio e al clic.
               overlay: Align(
