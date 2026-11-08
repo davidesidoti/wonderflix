@@ -7,10 +7,13 @@ import 'package:wonderflix/core/jellyfin/item_query.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/catalog/catalog_screen.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
+import 'package:wonderflix/ui/poster_card.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
+import '../../support/social_fakes.dart';
 import '../../support/test_data.dart';
 
 void main() {
@@ -39,6 +42,41 @@ void main() {
     await tester.pump();
     await tester.pump();
   }
+
+  testWidgets('TV a 960×540: filtri in una riga, la griglia riempie lo schermo',
+      (tester) async {
+    await pumpApp(
+      tester,
+      const Scaffold(body: CatalogScreen(kind: ItemKind.movie)),
+      tv: true,
+      surfaceSize: const Size(960, 540),
+      overrides: [
+        libraryApiProvider.overrideWithValue(api),
+        // Con le saghe: anche la riga Film / Saghe.
+        ...socialTestOverrides(
+          FakeSocialApi(),
+          features: const SocialFeatures(collections: true),
+        ),
+      ],
+    );
+    await tester.pump();
+    await tester.pump();
+
+    double top(Finder f) => tester.getTopLeft(f).dy;
+    final filters = [
+      find.text('Ordina per: Titolo'),
+      find.text('Tutti i generi'),
+      find.text('Tutti gli anni'),
+      find.text('Visti'),
+    ];
+    // Una riga sola: i centri dei controlli stanno alla stessa altezza.
+    final centers = {
+      for (final f in filters) tester.getCenter(f).dy.round(),
+    };
+    expect(centers, hasLength(1));
+    // La griglia parte nel terzo alto dello schermo.
+    expect(top(find.byType(PosterCard).first), lessThan(540 / 3));
+  });
 
   testWidgets('titolo, conteggio e griglia', (tester) async {
     await pumpCatalog(tester);

@@ -79,6 +79,24 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
     } else {
       count = titlesState.total > 0 ? l.catalogCount(titlesState.total) : null;
     }
+    final tabs = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        WfTabButton(
+            key: ValueKey('catalog-view-${CatalogView.titles.name}'),
+            label: l.navMovies,
+            selected: !sagas,
+            onTap: () => openMovies(context)),
+        const SizedBox(width: 20),
+        WfTabButton(
+            key: ValueKey('catalog-view-${CatalogView.sagas.name}'),
+            label: l.collectionsTab,
+            selected: sagas,
+            onTap: () => openMovies(context, view: CatalogView.sagas)),
+      ],
+    );
+    // Sulla TV le schede stanno accanto al titolo: la griglia resta alta.
+    final tv = FormFactor.of(context).tv;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -100,28 +118,14 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                   child: Text(count,
                       style: const TextStyle(color: WfColors.creamMuted)),
                 ),
+              if (sagasAvailable && tv) ...[const SizedBox(width: 32), tabs],
             ],
           ),
         ),
-        if (sagasAvailable)
+        if (sagasAvailable && !tv)
           Padding(
             padding: const EdgeInsets.fromLTRB(32, 0, 32, 12),
-            child: Row(
-              children: [
-                WfTabButton(
-                    key: ValueKey('catalog-view-${CatalogView.titles.name}'),
-                    label: l.navMovies,
-                    selected: !sagas,
-                    onTap: () => openMovies(context)),
-                const SizedBox(width: 20),
-                WfTabButton(
-                    key: ValueKey('catalog-view-${CatalogView.sagas.name}'),
-                    label: l.collectionsTab,
-                    selected: sagas,
-                    onTap: () =>
-                        openMovies(context, view: CatalogView.sagas)),
-              ],
-            ),
+            child: tabs,
           ),
         if (titlesState == null)
           const Expanded(child: CollectionsGrid())

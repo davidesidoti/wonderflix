@@ -29,11 +29,7 @@ class CatalogFiltersBar extends StatelessWidget {
     final l = AppLocalizations.of(context);
     final genre = query.genres.isEmpty ? null : query.genres.first;
 
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
+    final children = <Widget>[
         FilterPicker<CatalogSort>(
           value: query.sort,
           items: {
@@ -79,7 +75,20 @@ class CatalogFiltersBar extends StatelessWidget {
             onPressed: () => onChanged(query.clearFilters()),
             child: Text(l.catalogClearFilters),
           ),
-      ],
+    ];
+    // Sulla TV una riga sola, che scorre di lato se non basta: la griglia
+    // sotto resta alta.
+    if (FormFactor.of(context).tv) {
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(spacing: 12, children: children),
+      );
+    }
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: children,
     );
   }
 }
@@ -108,8 +117,10 @@ class FilterPicker<T> extends StatelessWidget {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<T>(
-          // Nello stretto riempie la riga: col testo lungo non sfora.
-          isExpanded: FormFactor.of(context).compact,
+          // Nello stretto riempie la riga: col testo lungo non sfora. Sulla
+          // TV (larga 960) no: i filtri stanno in una riga sopra la griglia.
+          isExpanded:
+              FormFactor.of(context).compact && !FormFactor.of(context).tv,
           value: items.containsKey(value) ? value : null,
           dropdownColor: WfColors.surface,
           style: const TextStyle(color: WfColors.cream, fontSize: 13.5),
