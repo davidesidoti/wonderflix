@@ -57,7 +57,11 @@ Future<void> main() async {
       return;
     }
 
-    final identity = await DeviceIdentity.load(prefs, profile: profile);
+    final identity = await DeviceIdentity.load(
+      prefs,
+      profile: profile,
+      hostName: tvDeviceName == null ? null : () => tvDeviceName!,
+    );
     final package = await PackageInfo.fromPlatform();
     _log.info('WonderFlix ${package.version} su ${systemDescription()}');
 

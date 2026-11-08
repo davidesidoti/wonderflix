@@ -24,6 +24,17 @@ final _log = Logger('startup');
 /// Letti all'avvio su Android; `platformOverrides` li passa al provider.
 DecoderCaps? _decoderCaps;
 
+/// Nome del dispositivo scelto sulla TV; `null` altrove o se non leggibile.
+String? _tvDeviceName;
+
+String? get tvDeviceName => _tvDeviceName;
+
+/// Il nome dato dall'utente al Fire TV, se c'è, altrimenti il modello.
+String tvDeviceNameFrom(String? settingsName, String model) {
+  final name = settingsName?.trim();
+  return name == null || name.isEmpty ? model : name;
+}
+
 /// Restituisce `true` se il pannello media di Windows (SMTC) è pronto.
 Future<bool> initPlatform(SharedPreferences prefs) async {
   // Android TV: niente libmpv, finestra, notifiche né SMTC (il player usa
@@ -40,6 +51,18 @@ Future<bool> initPlatform(SharedPreferences prefs) async {
       _decoderCaps = DecoderCaps.fromMap(const {});
     }
     _log.info('capacità dei decoder: $_decoderCaps');
+    try {
+      final map = await const MethodChannel(
+        'wonderflix/device',
+      ).invokeMapMethod<String, String>('name');
+      _tvDeviceName = tvDeviceNameFrom(
+        map?['settingsName'],
+        map?['model'] ?? '',
+      );
+    } on Object catch (e) {
+      // Si resta sul nome di rete (`hostName()`).
+      _log.warning('nome del dispositivo non leggibile: $e');
+    }
     return false;
   }
   // Carica libmpv: va fatto prima di creare qualunque Player.

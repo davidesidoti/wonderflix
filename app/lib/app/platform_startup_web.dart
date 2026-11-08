@@ -8,6 +8,9 @@ import 'package:web/web.dart' as web;
 
 import '../core/logging/rotating_file_sink.dart';
 
+/// Il nome lo dà il browser (`hostName()`).
+String? get tvDeviceName => null;
+
 /// Nel browser niente SMTC né finestra da preparare.
 Future<bool> initPlatform(SharedPreferences prefs) async => false;
 
