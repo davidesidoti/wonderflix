@@ -219,4 +219,86 @@ void main() {
     expect(find.text('HEAT'), findsOneWidget);
     expect(_focusIn(play), isFalse);
   });
+
+  group('diapositive col telecomando', () {
+    final items = [
+      for (final n in ['Dune', 'Alien', 'Heat']) testItem(id: n, name: n),
+    ];
+
+    Future<void> pumpCarousel(WidgetTester tester, {required bool tv}) =>
+        pumpApp(
+          tester,
+          Scaffold(
+            body: FormFactorScope(tv: tv, child: HeroCarousel(items: items)),
+          ),
+          overrides: [
+            libraryApiProvider.overrideWithValue(FakeLibraryApi()),
+            sessionControllerProvider.overrideWith(
+              () => FakeSessionController(const SessionSignedIn(testUser)),
+            ),
+          ],
+          carouselAutoplay: true,
+        );
+
+    Future<void> press(WidgetTester tester, LogicalKeyboardKey key) async {
+      await tester.sendKeyEvent(key);
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(WfMotion.fast);
+      }
+    }
+
+    final play = find.ancestor(
+      of: find.text('Riproduci'),
+      matching: find.byType(FilledButton),
+    );
+    final details = find.ancestor(
+      of: find.text('Dettagli'),
+      matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+    );
+
+    testWidgets(
+        'TV: Destra sull\'ultimo pulsante passa alla successiva, in giro, '
+        'con il focus sul primo pulsante', (tester) async {
+      await pumpCarousel(tester, tv: true);
+      await tester.pump();
+      expect(_focusIn(play), isTrue);
+      for (final next in ['ALIEN', 'HEAT', 'DUNE']) {
+        // Riproduci → Dettagli, poi Dettagli → diapositiva successiva.
+        await press(tester, LogicalKeyboardKey.arrowRight);
+        expect(_focusIn(details), isTrue);
+        await press(tester, LogicalKeyboardKey.arrowRight);
+        expect(find.text(next), findsOneWidget);
+        expect(_focusIn(play), isTrue, reason: next);
+      }
+      // Col focus dentro la rotazione resta ferma.
+      await tester.pump(HeroCarousel.interval * 2);
+      await tester.pump(WfMotion.fast);
+      expect(find.text('DUNE'), findsOneWidget);
+    });
+
+    testWidgets('TV: ⏩ e ⏪ cambiano diapositiva', (tester) async {
+      await pumpCarousel(tester, tv: true);
+      await tester.pump();
+      await press(tester, LogicalKeyboardKey.mediaFastForward);
+      expect(find.text('ALIEN'), findsOneWidget);
+      expect(_focusIn(play), isTrue);
+      await press(tester, LogicalKeyboardKey.mediaRewind);
+      expect(find.text('DUNE'), findsOneWidget);
+      await press(tester, LogicalKeyboardKey.mediaRewind);
+      expect(find.text('HEAT'), findsOneWidget);
+      expect(_focusIn(play), isTrue);
+    });
+
+    testWidgets('fuori dalla TV Destra e ⏩ non cambiano diapositiva', (
+      tester,
+    ) async {
+      await pumpCarousel(tester, tv: false);
+      await tester.pump();
+      Focus.of(tester.element(find.text('Dettagli'))).requestFocus();
+      await tester.pump();
+      await press(tester, LogicalKeyboardKey.arrowRight);
+      await press(tester, LogicalKeyboardKey.mediaFastForward);
+      expect(find.text('DUNE'), findsOneWidget);
+    });
+  });
 }

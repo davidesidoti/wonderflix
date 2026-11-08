@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -138,6 +139,7 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
 
   @override
   void dispose() {
+    _tvFocus.dispose();
     _progress.dispose();
     _fade.dispose();
     super.dispose();
@@ -171,6 +173,41 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
     unawaited(_fade.forward(from: 0));
     _progress.value = 0;
     _syncProgress();
+  }
+
+  /// Sulla TV, il nodo attorno al carosello (vedi `_focusInside`).
+  final _tvFocus = FocusNode(canRequestFocus: false, skipTraversal: true);
+
+  /// Diapositiva accanto col telecomando: il focus va sul suo primo pulsante
+  /// (quelli della diapositiva che esce non sono focalizzabili).
+  void _step(int delta) {
+    _goTo(_index + delta);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _tvFocus.traversalDescendants
+          .where(
+            (node) =>
+                node.context?.findAncestorWidgetOfExactType<_HeroSlide>() !=
+                null,
+          )
+          .firstOrNull
+          ?.requestFocus();
+    });
+  }
+
+  /// ⏪/⏩ del telecomando col focus nel carosello.
+  KeyEventResult _onTvKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent || widget.items.length < 2) {
+      return KeyEventResult.ignored;
+    }
+    final delta = switch (event.logicalKey) {
+      LogicalKeyboardKey.mediaFastForward => 1,
+      LogicalKeyboardKey.mediaRewind => -1,
+      _ => 0,
+    };
+    if (delta == 0) return KeyEventResult.ignored;
+    _step(delta);
+    return KeyEventResult.handled;
   }
 
   /// Fine di un trascinamento: a sinistra la successiva, a destra la
@@ -224,6 +261,9 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
     final corner = widget.corner;
     final autofocus = form.tv && _autofocusPending;
     _autofocusPending = false;
+    // Sulla TV i pulsanti della diapositiva che esce non prendono il focus.
+    Widget exclude(bool exiting, Widget slide) =>
+        form.tv ? ExcludeFocus(excluding: exiting, child: slide) : slide;
     // Diapositive con chiave per titolo: quella che esce conserva il suo
     // elemento (e l'immagine già caricata) passando sotto.
     final carousel = MouseRegion(
@@ -253,13 +293,16 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
                     child: IgnorePointer(
                       child: FadeTransition(
                         opacity: kAlwaysCompleteAnimation,
-                        child: _HeroSlide(
-                          item: widget.items[previous],
-                          kenBurns: motion.isReduced
-                              ? null
-                              : AlwaysStoppedAnimation(_previousProgress),
-                          entrance: kAlwaysCompleteAnimation,
-                          textOpacity: _textExit(motion),
+                        child: exclude(
+                          true,
+                          _HeroSlide(
+                            item: widget.items[previous],
+                            kenBurns: motion.isReduced
+                                ? null
+                                : AlwaysStoppedAnimation(_previousProgress),
+                            entrance: kAlwaysCompleteAnimation,
+                            textOpacity: _textExit(motion),
+                          ),
                         ),
                       ),
                     ),
@@ -272,14 +315,20 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
                       opacity: _fade.drive(
                         CurveTween(curve: WfMotion.standard),
                       ),
-                      child: _HeroSlide(
-                        item: current,
-                        autofocus: autofocus,
-                        kenBurns: motion.isReduced ? null : _progress,
-                        entrance: motion.isReduced
-                            ? kAlwaysCompleteAnimation
-                            : _fade,
-                        textOpacity: kAlwaysCompleteAnimation,
+                      child: exclude(
+                        false,
+                        _HeroSlide(
+                          item: current,
+                          autofocus: autofocus,
+                          onNext: form.tv && widget.items.length > 1
+                              ? () => _step(1)
+                              : null,
+                          kenBurns: motion.isReduced ? null : _progress,
+                          entrance: motion.isReduced
+                              ? kAlwaysCompleteAnimation
+                              : _fade,
+                          textOpacity: kAlwaysCompleteAnimation,
+                        ),
                       ),
                     ),
                   ),
@@ -302,12 +351,14 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
       ),
     );
     // Sulla TV il focus dentro il carosello ferma il tempo (vedi
-    // `_focusInside`).
+    // `_focusInside`) e ⏪/⏩ cambiano diapositiva.
     final body = !form.tv
         ? carousel
         : Focus(
+            focusNode: _tvFocus,
             canRequestFocus: false,
             skipTraversal: true,
+            onKeyEvent: _onTvKey,
             onFocusChange: (focused) {
               _focusInside = focused;
               _syncProgress();
@@ -425,12 +476,27 @@ class _HeroSlide extends ConsumerWidget {
     required this.entrance,
     required this.textOpacity,
     this.autofocus = false,
+    this.onNext,
   });
 
   final JellyfinItem item;
 
   /// Il pulsante "Riproduci" prende il focus (sulla TV, la prima diapositiva).
   final bool autofocus;
+
+  /// Sulla TV, diapositiva attuale: Destra sull'ultimo pulsante la chiama.
+  final VoidCallback? onNext;
+
+  KeyEventResult _onButtonsKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent ||
+        event.logicalKey != LogicalKeyboardKey.arrowRight ||
+        FocusManager.instance.primaryFocus !=
+            node.traversalDescendants.lastOrNull) {
+      return KeyEventResult.ignored;
+    }
+    onNext?.call();
+    return KeyEventResult.handled;
+  }
 
   /// Tempo della diapositiva per il Ken Burns; `null` = sfondo fermo.
   final Animation<double>? kenBurns;
@@ -563,23 +629,29 @@ class _HeroSlide extends ConsumerWidget {
                 _enter(
                   entrance,
                   3,
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      WfButton.primary(
-                        label: l.actionPlay,
-                        icon: LucideIcons.play,
-                        autofocus: autofocus,
-                        onPressed: () =>
-                            unawaited(playItem(context, ref, item)),
-                      ),
-                      WfButton.secondary(
-                        label: l.actionDetails,
-                        icon: LucideIcons.info,
-                        onPressed: () => openItem(context, item),
-                      ),
-                    ],
+                  // Destra sull'ultimo pulsante: la diapositiva successiva.
+                  Focus(
+                    canRequestFocus: false,
+                    skipTraversal: true,
+                    onKeyEvent: onNext == null ? null : _onButtonsKey,
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        WfButton.primary(
+                          label: l.actionPlay,
+                          icon: LucideIcons.play,
+                          autofocus: autofocus,
+                          onPressed: () =>
+                              unawaited(playItem(context, ref, item)),
+                        ),
+                        WfButton.secondary(
+                          label: l.actionDetails,
+                          icon: LucideIcons.info,
+                          onPressed: () => openItem(context, item),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
