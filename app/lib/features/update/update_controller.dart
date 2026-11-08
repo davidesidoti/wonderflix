@@ -108,7 +108,9 @@ class UpdateController extends Notifier<UpdateState> {
       if (!_repoPattern.hasMatch(repo)) return;
       final api = ref.read(githubReleasesApiProvider);
       final json = await api.latestRelease(repo);
-      final release = json == null ? null : parseRelease(json);
+      final release = json == null
+          ? null
+          : parseRelease(json, tv: ref.read(androidTvProvider));
       // Nessun aggiornamento: si azzera lo stato (anche quello di "Riprova").
       if (release == null) {
         _log.info('nessuna release utilizzabile su $repo');
@@ -210,7 +212,7 @@ class UpdateController extends Notifier<UpdateState> {
   }
 
   static final _installerFile =
-      RegExp(r'^WonderFlix-Setup-(.+)\.exe(\.part)?$');
+      RegExp(r'^WonderFlix-(?:Setup-(.+)\.exe|TV-(.+)\.apk)(\.part)?$');
 
   /// Installer (anche parziali) di versioni già installate o precedenti:
   /// l'aggiornamento è riuscito, non servono più. Sincrona: la cartella
@@ -226,7 +228,7 @@ class UpdateController extends Notifier<UpdateState> {
         if (match == null) continue;
         final Version version;
         try {
-          version = Version.parse(match[1]!);
+          version = Version.parse(match[1] ?? match[2]!);
         } on FormatException {
           continue;
         }
@@ -247,7 +249,8 @@ class UpdateController extends Notifier<UpdateState> {
     await for (final entity in directory.list()) {
       final name = entity.uri.pathSegments.last;
       if (entity is File &&
-          name.startsWith('WonderFlix-Setup-') &&
+          (name.startsWith('WonderFlix-Setup-') ||
+              name.startsWith('WonderFlix-TV-')) &&
           entity.path != keep.path) {
         try {
           await entity.delete();

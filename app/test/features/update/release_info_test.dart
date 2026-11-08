@@ -60,6 +60,31 @@ void main() {
         isNull);
   });
 
+  test('parseRelease sulla TV: l\'APK al posto dell\'installer', () {
+    final both = releaseJson(assets: [
+      'WonderFlix-Setup-0.2.0.exe',
+      'WonderFlix-Setup-0.2.0.exe.sha256',
+      'WonderFlix-TV-0.2.0.apk',
+      'WonderFlix-TV-0.2.0.apk.sha256',
+    ]);
+    final tv = parseRelease(both, tv: true)!;
+    expect(tv.installerName, 'WonderFlix-TV-0.2.0.apk');
+    expect(tv.installerUrl.path, endsWith('WonderFlix-TV-0.2.0.apk'));
+    expect(tv.checksumUrl.path, endsWith('WonderFlix-TV-0.2.0.apk.sha256'));
+    expect(parseRelease(both)!.installerName, 'WonderFlix-Setup-0.2.0.exe');
+  });
+
+  test('parseRelease sulla TV: release senza APK, nessun aggiornamento', () {
+    expect(parseRelease(releaseJson(), tv: true), isNull);
+    expect(
+        parseRelease(
+            releaseJson(assets: [
+              'WonderFlix-TV-0.2.0.apk',
+            ]),
+            tv: true),
+        isNull);
+  });
+
   test('marcatore min-version: letto e tolto dalle note', () {
     const body = 'Correzione importante.\n\n<!-- wonderflix:min-version=0.2.0 -->';
     final release = parseRelease(releaseJson(body: body))!;

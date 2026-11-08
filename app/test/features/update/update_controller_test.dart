@@ -7,6 +7,7 @@ import 'package:logging/logging.dart';
 import 'package:pub_semver/pub_semver.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/jellyfin/client_info.dart';
+import 'package:wonderflix/core/platform/tv_provider.dart';
 import 'package:wonderflix/features/update/update_controller.dart';
 
 import '../../support/pump_app.dart';
@@ -27,8 +28,10 @@ void main() {
     if (downloads.existsSync()) downloads.deleteSync(recursive: true);
   });
 
-  ProviderContainer container({String version = '0.1.0', bool enabled = true}) =>
+  ProviderContainer container(
+          {String version = '0.1.0', bool enabled = true, bool tv = false}) =>
       ProviderContainer.test(overrides: [
+        androidTvProvider.overrideWithValue(tv),
         appConfigProvider.overrideWithValue(testAppConfig),
         clientInfoProvider.overrideWithValue(ClientInfo(
             client: 'WonderFlix', device: 'PC', deviceId: 'd', version: version)),
@@ -142,6 +145,18 @@ void main() {
     expect(older.existsSync(), isFalse);
     expect(newer.existsSync(), isTrue);
     expect(unknown.existsSync(), isTrue);
+  });
+
+  test('sulla TV toglie anche gli APK delle versioni già installate', () async {
+    api.latest = null;
+    String path(String name) => '${downloads.path}${Platform.pathSeparator}$name';
+    final oldApk = File(path('WonderFlix-TV-0.32.0.apk'))
+      ..writeAsBytesSync(const [0]);
+    final newerApk = File(path('WonderFlix-TV-0.34.0.apk.part'))
+      ..writeAsBytesSync(const [0]);
+    await checked(container(version: '0.33.0', tv: true));
+    expect(oldApk.existsSync(), isFalse);
+    expect(newerApk.existsSync(), isTrue);
   });
 
   test('cartella dei download assente: nessun errore', () async {
