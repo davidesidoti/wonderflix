@@ -139,14 +139,18 @@ class _ShellPageFrameState extends State<ShellPageFrame> {
     final bar = compact ? shellCompactBarHeight : shellBarHeight;
     return Padding(
       // Sulla TV non c'è né la barra in alto né quella in basso.
-      padding: form.tv ? EdgeInsets.zero : EdgeInsets.only(
-        top: widget.underBar ? bar + MediaQuery.paddingOf(context).top : 0,
-        // Nel layout stretto la pagina finisce sopra la barra in basso.
-        // (con la tastiera aperta la barra non c'è).
-        bottom: compact && !_ShellBarScope.keyboardOf(context)
-            ? shellBottomBarHeight + MediaQuery.paddingOf(context).bottom
-            : 0,
-      ),
+      padding: form.tv
+          ? EdgeInsets.zero
+          : EdgeInsets.only(
+              top: widget.underBar
+                  ? bar + MediaQuery.paddingOf(context).top
+                  : 0,
+              // Nel layout stretto la pagina finisce sopra la barra in basso.
+              // (con la tastiera aperta la barra non c'è).
+              bottom: compact && !_ShellBarScope.keyboardOf(context)
+                  ? shellBottomBarHeight + MediaQuery.paddingOf(context).bottom
+                  : 0,
+            ),
       child: NotificationListener<ScrollNotification>(
         onNotification: _onScroll,
         child: widget.child,

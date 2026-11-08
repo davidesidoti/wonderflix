@@ -200,9 +200,7 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
     if (scroll == null) return page;
     final action = primary;
     final reduced = WfMotion.of(context).isReduced;
-    final compactHeader = detailCompact(context)
-        ? widget.headerKey
-        : null;
+    final compactHeader = detailCompact(context) ? widget.headerKey : null;
     return ShellHeaderPublisher(
       controller: scroll,
       visibleAt: (offset) => barTitleVisible(
