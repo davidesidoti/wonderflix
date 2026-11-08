@@ -32,6 +32,12 @@ class AccountUsersController
   Future<void> unlinkContacts(String userId) =>
       act(() => ref.read(pluginAdminApiProvider).unlinkContacts(userId));
 
+  Future<void> setDiscord(String userId, AdminDiscordMember member) => act(
+      () => ref.read(pluginAdminApiProvider).setUserDiscord(userId, member));
+
+  Future<void> setEmail(String userId, String address) =>
+      act(() => ref.read(pluginAdminApiProvider).setUserEmail(userId, address));
+
   /// "Imposta password": Jellyfin, senza la password attuale; chiude le
   /// sessioni dell'utente.
   Future<void> setPassword(String userId, String password) => act(() =>

@@ -14,6 +14,7 @@ public class AccountSettingsTests
         var config = new PluginConfiguration();
         Assert.Equal(string.Empty, config.DiscordBotToken);
         Assert.Equal(string.Empty, config.DiscordGuildId);
+        Assert.Equal(string.Empty, config.DiscordExtraGuildIds);
         Assert.Equal(string.Empty, config.SmtpHost);
         Assert.Equal(587, config.SmtpPort);
         Assert.Equal(string.Empty, config.SmtpUser);
@@ -49,6 +50,7 @@ public class AccountSettingsTests
         {
             DiscordBotToken = "token",
             DiscordGuildId = "123456789012345678",
+            DiscordExtraGuildIds = "222222222222222222, 333333333333333333",
             SmtpHost = "smtp.example.com",
             SmtpPort = 2525,
             SmtpUser = "user",
@@ -62,6 +64,7 @@ public class AccountSettingsTests
 
         Assert.Equal("token", read.DiscordBotToken);
         Assert.Equal("123456789012345678", read.DiscordGuildId);
+        Assert.Equal("222222222222222222, 333333333333333333", read.DiscordExtraGuildIds);
         Assert.Equal("smtp.example.com", read.SmtpHost);
         Assert.Equal(2525, read.SmtpPort);
         Assert.Equal("user", read.SmtpUser);
@@ -189,6 +192,25 @@ public class AccountSettingsTests
     [InlineData("token", "1234")]
     public void DiscordNeedsATokenAndANumericServerId(string token, string guild) =>
         Assert.False(new FakeAccountSettings { DiscordBotToken = token, DiscordGuildId = guild }.IsDiscordConfigured());
+
+    [Fact]
+    public void TheGuildIdsAreThePrimaryThenTheExtraOnesWithoutInvalidOrRepeated()
+    {
+        var settings = new FakeAccountSettings
+        {
+            DiscordExtraGuildIds = "222222222222222222, 333333333333333333\n123456789012345678 abc",
+        };
+        Assert.Equal(
+            new[] { "123456789012345678", "222222222222222222", "333333333333333333" },
+            settings.DiscordGuildIds());
+
+        settings.DiscordExtraGuildIds = string.Empty;
+        Assert.Equal(new[] { "123456789012345678" }, settings.DiscordGuildIds());
+    }
+
+    [Fact]
+    public void ExtraServersAloneDoNotConfigureDiscord() =>
+        Assert.False(new FakeAccountSettings { DiscordGuildId = string.Empty, DiscordExtraGuildIds = "222222222222222222" }.IsDiscordConfigured());
 
     // Il token va in un'intestazione HTTP: spazi, a capo o altri simboli non sono un token.
     [Theory]

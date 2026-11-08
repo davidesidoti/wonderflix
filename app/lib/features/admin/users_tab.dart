@@ -14,9 +14,11 @@ import '../../ui/states.dart';
 import '../../ui/user_avatar.dart';
 import '../../ui/wf_menus.dart';
 import '../auth/session_controller.dart';
+import '../social/social_providers.dart';
 import 'account_admin_controllers.dart';
 import 'account_admin_labels.dart';
 import 'admin_confirm_dialog.dart';
+import 'admin_link_contact_dialog.dart';
 import 'admin_widgets.dart';
 import 'set_password_dialog.dart';
 
@@ -98,16 +100,24 @@ class _UsersTabState extends ConsumerState<UsersTab> {
 }
 
 /// Le azioni del menu di una riga.
-enum UserAction { setPassword, sendRecovery, unlink }
+enum UserAction { setPassword, sendRecovery, linkDiscord, linkEmail, unlink }
 
 /// Le azioni per [user] (spec L §9.5): "Imposta password" non sulla propria
 /// riga (per la propria Jellyfin vuole la password attuale, e c'è "Cambia
 /// password" in Impostazioni); il codice non agli admin né ai disattivati, e
-/// solo con un contatto; lo scollegamento solo con un contatto.
-List<UserAction> userActions(AdminAccountUser user, {required bool isMe}) => [
+/// solo con un contatto; lo scollegamento solo con un contatto. Le
+/// associazioni per tutti, con il canale acceso (spec §5.1): sostituiscono
+/// il contatto che c'è.
+List<UserAction> userActions(AdminAccountUser user,
+        {required bool isMe,
+        bool canLinkDiscord = false,
+        bool canLinkEmail = false}) =>
+    [
       if (!isMe) UserAction.setPassword,
       if (!user.isAdmin && user.enabled && user.hasContacts)
         UserAction.sendRecovery,
+      if (canLinkDiscord) UserAction.linkDiscord,
+      if (canLinkEmail) UserAction.linkEmail,
       if (user.hasContacts) UserAction.unlink,
     ];
 
@@ -164,6 +174,22 @@ class _AccountUserRowState extends ConsumerState<AccountUserRow>
     }
   }
 
+  Future<void> _link({required bool discord}) async {
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final done = discord
+        ? await showAdminLinkDiscordDialog(context,
+            userId: _user.id, name: _user.name)
+        : await showAdminLinkEmailDialog(context,
+            userId: _user.id, name: _user.name);
+    if (done && mounted) {
+      messenger.showSnackBar(SnackBar(
+          content: Text(discord
+              ? l.adminUsersDiscordLinkedTo(_user.name)
+              : l.adminUsersEmailLinkedTo(_user.name))));
+    }
+  }
+
   Future<void> _sendRecovery() async {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
@@ -216,6 +242,8 @@ class _AccountUserRowState extends ConsumerState<AccountUserRow>
   void _select(UserAction action) => unawaited(_run(switch (action) {
         UserAction.setPassword => _setPassword,
         UserAction.sendRecovery => _sendRecovery,
+        UserAction.linkDiscord => () => _link(discord: true),
+        UserAction.linkEmail => () => _link(discord: false),
         UserAction.unlink => _unlink,
       }));
 
@@ -223,6 +251,8 @@ class _AccountUserRowState extends ConsumerState<AccountUserRow>
       switch (action) {
         UserAction.setPassword => l.adminUsersSetPassword,
         UserAction.sendRecovery => l.adminUsersSendRecovery,
+        UserAction.linkDiscord => l.adminUsersLinkDiscord,
+        UserAction.linkEmail => l.adminUsersLinkEmail,
         UserAction.unlink => l.adminUsersUnlink,
       };
 
@@ -231,7 +261,16 @@ class _AccountUserRowState extends ConsumerState<AccountUserRow>
     super.build(context);
     final l = AppLocalizations.of(context);
     final user = _user;
-    final actions = userActions(user, isMe: widget.isMe);
+    // Lo stato dei canali si legge solo con un plugin che sa associare; finché
+    // non c'è (in lettura o in errore) le voci mancano.
+    final canLink = ref.watch(
+        socialAvailabilityProvider.select((f) => f.accountAdminLink));
+    final status =
+        canLink ? ref.watch(accountAdminControllerProvider).value : null;
+    final actions = userActions(user,
+        isMe: widget.isMe,
+        canLinkDiscord: status?.discord.configured == true,
+        canLinkEmail: status?.email.configured == true);
     final discord = user.discordName;
     final email = user.maskedEmail;
     return Padding(

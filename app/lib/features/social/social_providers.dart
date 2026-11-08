@@ -32,6 +32,7 @@ class SocialFeatures {
     this.downloads = false,
     this.downloadsSearchJobs = false,
     this.space = false,
+    this.accountAdminLink = false,
     this.recommendations = false,
     this.friendsActivity = false,
     this.match = false,
@@ -90,6 +91,9 @@ class SocialFeatures {
   final bool downloadsSearchJobs;
   final bool space;
 
+  /// L'admin associa Discord ed email di un utente (menu della lista utenti).
+  final bool accountAdminLink;
+
   /// I consigli tra amici (spec N §7.1): come gli amici, solo con l'accesso
   /// ai watch party (piano 20b, decisione 7).
   final bool recommendations;
@@ -135,6 +139,7 @@ class SocialFeatures {
       other.downloads == downloads &&
       other.downloadsSearchJobs == downloadsSearchJobs &&
       other.space == space &&
+      other.accountAdminLink == accountAdminLink &&
       other.recommendations == recommendations &&
       other.friendsActivity == friendsActivity &&
       other.match == match &&
@@ -159,6 +164,7 @@ class SocialFeatures {
       downloads,
       downloadsSearchJobs,
       space,
+      accountAdminLink,
       recommendations,
       friendsActivity,
       match,
@@ -172,7 +178,7 @@ class SocialFeatures {
       'inbox: $inbox, requests: $requests, collections: $collections, '
       'avatars: $avatars, account: $account, home: $home, '
       'upcomingSeries: $upcomingSeries, upcomingMovies: $upcomingMovies, calendar: $calendar, downloads: $downloads, downloadsSearchJobs: $downloadsSearchJobs, space: $space, '
-      'recommendations: $recommendations, friendsActivity: $friendsActivity, match: $match, ratings: $ratings, reports: $reports, push: $push, known: $known)';
+      'accountAdminLink: $accountAdminLink, recommendations: $recommendations, friendsActivity: $friendsActivity, match: $match, ratings: $ratings, reports: $reports, push: $push, known: $known)';
 }
 
 /// Chiede `Info` al plugin dopo il login e a ogni connessione del WebSocket,
@@ -279,6 +285,8 @@ class SocialAvailability extends Notifier<SocialFeatures> {
         downloadsSearchJobs:
             info.features.contains(PluginFeatures.downloadsSearchJobs),
         space: info.features.contains(PluginFeatures.space),
+        accountAdminLink:
+            info.features.contains(PluginFeatures.accountAdminLink),
         recommendations:
             _canJoin && info.features.contains(PluginFeatures.recommendations),
         friendsActivity:

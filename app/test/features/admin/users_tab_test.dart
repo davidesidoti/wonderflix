@@ -34,6 +34,7 @@ void main() {
     WidgetTester tester, {
     FakeSessionController? session,
     Size surfaceSize = const Size(1440, 900),
+    SocialFeatures features = const SocialFeatures(inbox: true, account: true),
   }) async {
     await pumpApp(
       tester,
@@ -43,7 +44,7 @@ void main() {
             plugin: plugin,
             session: session ??
                 FakeSessionController(const SessionSignedIn(testAdmin)),
-            features: const SocialFeatures(inbox: true, account: true)),
+            features: features),
         authApiProvider.overrideWithValue(AuthApi(JellyfinHttp(
             baseUrl: testServerUrl,
             clientInfo: testClientInfo,
@@ -147,6 +148,88 @@ void main() {
           [UserAction.setPassword, UserAction.unlink]);
       expect(userActions(disabled, isMe: false),
           [UserAction.setPassword, UserAction.unlink]);
+    });
+
+    test('con i canali: le due associazioni prima dello scollegamento', () {
+      expect(
+          userActions(garg,
+              isMe: false, canLinkDiscord: true, canLinkEmail: true),
+          [
+            UserAction.setPassword,
+            UserAction.sendRecovery,
+            UserAction.linkDiscord,
+            UserAction.linkEmail,
+            UserAction.unlink,
+          ]);
+      const lucia = AdminAccountUser(
+          id: 'u3', name: 'lucia', isAdmin: false, enabled: true);
+      expect(userActions(lucia, isMe: true, canLinkEmail: true),
+          [UserAction.linkEmail]);
+    });
+  });
+
+  group('Associa Discord ed email nel menu', () {
+    const linkFeatures =
+        SocialFeatures(inbox: true, account: true, accountAdminLink: true);
+
+    Future<void> openMenu(WidgetTester tester, String userId) async {
+      await tester.tap(find.byKey(Key('user-menu-$userId')));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> closeMenu(WidgetTester tester) async {
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('per tutti, anche la propria riga e un altro admin',
+        (tester) async {
+      plugin.accountStatusValue =
+          testChannelsStatus(discord: true, email: true);
+      plugin.accountUsersValue = [
+        ...testAccountUsers(),
+        const AdminAccountUser(
+            id: 'u5', name: 'altro', isAdmin: true, enabled: true),
+      ];
+      await pumpTab(tester, features: linkFeatures);
+
+      // lucia senza contatti, Mario (chi guarda), altro (un altro admin).
+      for (final id in ['u3', 'u1', 'u5']) {
+        await openMenu(tester, id);
+        expect(find.text('Associa Discord'), findsOneWidget, reason: id);
+        expect(find.text('Associa email'), findsOneWidget, reason: id);
+        await closeMenu(tester);
+      }
+    });
+
+    testWidgets('senza la funzione del plugin: niente voci', (tester) async {
+      plugin.accountStatusValue =
+          testChannelsStatus(discord: true, email: true);
+      await pumpTab(tester);
+
+      await openMenu(tester, 'u3');
+      expect(find.text('Associa Discord'), findsNothing);
+      expect(find.text('Associa email'), findsNothing);
+    });
+
+    testWidgets('Discord spento: solo "Associa email"', (tester) async {
+      plugin.accountStatusValue =
+          testChannelsStatus(discord: false, email: true);
+      await pumpTab(tester, features: linkFeatures);
+
+      await openMenu(tester, 'u3');
+      expect(find.text('Associa Discord'), findsNothing);
+      expect(find.text('Associa email'), findsOneWidget);
+    });
+
+    testWidgets('stato non letto: niente voci', (tester) async {
+      plugin.accountStatusError = const ServerUnreachableException();
+      await pumpTab(tester, features: linkFeatures);
+
+      await openMenu(tester, 'u3');
+      expect(find.text('Imposta password'), findsOneWidget);
+      expect(find.text('Associa Discord'), findsNothing);
+      expect(find.text('Associa email'), findsNothing);
     });
   });
 

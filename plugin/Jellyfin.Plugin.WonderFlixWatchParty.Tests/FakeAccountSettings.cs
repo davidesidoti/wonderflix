@@ -9,6 +9,8 @@ internal sealed class FakeAccountSettings : IAccountSettings
 
     public string DiscordGuildId { get; set; } = "123456789012345678";
 
+    public string DiscordExtraGuildIds { get; set; } = string.Empty;
+
     public string SmtpHost { get; set; } = "smtp.example.com";
 
     public int SmtpPort { get; set; } = 587;

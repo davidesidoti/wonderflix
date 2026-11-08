@@ -55,11 +55,30 @@ public sealed class DiscordBotClient(
             return DiscordLookup.Error;
         }
 
+        // Il primo server che ha il membro vince; un errore non nasconde un membro trovato altrove.
+        var failed = false;
+        foreach (var guildId in settings.DiscordGuildIds())
+        {
+            var lookup = await FindMemberInAsync(guildId, username, cancellationToken).ConfigureAwait(false);
+            if (lookup.Member is not null)
+            {
+                return lookup;
+            }
+
+            failed |= lookup.Failed;
+        }
+
+        return failed ? DiscordLookup.Error : DiscordLookup.NotFound;
+    }
+
+    private async Task<DiscordLookup> FindMemberInAsync(string guildId, string username, CancellationToken cancellationToken)
+    {
+        // shortcut: un Timeout per server; con più di 2-3 server l'attesa supera i 30 s dell'app, passare a un budget unico.
         using var deadline = new CancellationTokenSource(Timeout, Time);
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token, cancellationToken);
         var reply = await SendAsync(
             HttpMethod.Get,
-            $"guilds/{settings.DiscordGuildId}/members/search?query={Uri.EscapeDataString(username)}&limit={SearchLimit}",
+            $"guilds/{guildId}/members/search?query={Uri.EscapeDataString(username)}&limit={SearchLimit}",
             null,
             budget.Token,
             cancellationToken).ConfigureAwait(false);
@@ -83,7 +102,9 @@ public sealed class DiscordBotClient(
                     && id.GetString() is { } memberId
                     && DiscordIds.IsSnowflake(memberId))
                 {
-                    return DiscordLookup.Found(new DiscordMember(memberId, found));
+                    // Come lo mostra Discord: prima il soprannome nel server, poi il nome globale.
+                    var display = Text(member, "nick") ?? Text(user, "global_name");
+                    return DiscordLookup.Found(new DiscordMember(memberId, found, display));
                 }
             }
 
@@ -95,6 +116,14 @@ public sealed class DiscordBotClient(
             return DiscordLookup.Error;
         }
     }
+
+    // Il testo di una proprietà, se è una stringa non vuota (Discord manda anche null).
+    private static string? Text(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value)
+        && value.ValueKind == JsonValueKind.String
+        && value.GetString()?.Trim() is { Length: > 0 } text
+            ? text
+            : null;
 
     public async Task<SendOutcome> SendDmAsync(string userId, string text, CancellationToken cancellationToken)
     {
@@ -152,35 +181,45 @@ public sealed class DiscordBotClient(
             return DiscordCheck.Failed;
         }
 
-        var guild = await SendAsync(HttpMethod.Get, $"guilds/{settings.DiscordGuildId}", null, budget.Token, cancellationToken)
-            .ConfigureAwait(false);
-        if (guild is null)
+        // Ogni server deve rispondere: il primo Invalid o Failed si rende subito.
+        foreach (var guildId in settings.DiscordGuildIds())
         {
-            return DiscordCheck.Failed;
+            var guild = await SendAsync(HttpMethod.Get, $"guilds/{guildId}", null, budget.Token, cancellationToken)
+                .ConfigureAwait(false);
+            if (guild is null)
+            {
+                return DiscordCheck.Failed;
+            }
+
+            if (guild.Status is 401 or 403 or 404)
+            {
+                return DiscordCheck.Invalid;
+            }
+
+            if (guild.Status != 200)
+            {
+                return DiscordCheck.Failed;
+            }
+
+            // Senza l'intent "Server Members" o senza accesso la ricerca dei membri non funziona,
+            // e il collegamento fallirebbe per tutti: meglio scoprirlo qui.
+            var search = await SendAsync(
+                HttpMethod.Get, $"guilds/{guildId}/members/search?query=a&limit=1", null, budget.Token, cancellationToken)
+                .ConfigureAwait(false);
+            switch (search)
+            {
+                case null:
+                    return DiscordCheck.Failed;
+                case { Status: 200 }:
+                    break;
+                case { Status: 401 or 403 }:
+                    return DiscordCheck.Invalid;
+                default:
+                    return DiscordCheck.Failed;
+            }
         }
 
-        if (guild.Status is 401 or 403 or 404)
-        {
-            return DiscordCheck.Invalid;
-        }
-
-        if (guild.Status != 200)
-        {
-            return DiscordCheck.Failed;
-        }
-
-        // Senza l'intent "Server Members" o senza accesso la ricerca dei membri non funziona,
-        // e il collegamento fallirebbe per tutti: meglio scoprirlo qui.
-        var search = await SendAsync(
-            HttpMethod.Get, $"guilds/{settings.DiscordGuildId}/members/search?query=a&limit=1", null, budget.Token, cancellationToken)
-            .ConfigureAwait(false);
-        return search switch
-        {
-            null => DiscordCheck.Failed,
-            { Status: 200 } => DiscordCheck.Ok,
-            { Status: 401 or 403 } => DiscordCheck.Invalid,
-            _ => DiscordCheck.Failed,
-        };
+        return DiscordCheck.Ok;
     }
 
     // 403 con il codice 50007: messaggi diretti chiusi. Ogni altro errore (429 compreso): Failed.

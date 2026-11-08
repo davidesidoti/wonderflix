@@ -31,6 +31,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Id del server Discord dove si cercano i membri.</summary>
     public string DiscordGuildId { get; set; } = string.Empty;
 
+    /// <summary>Id degli altri server Discord dove si cercano i membri, separati da virgole, spazi o a capo.</summary>
+    public string DiscordExtraGuildIds { get; set; } = string.Empty;
+
     /// <summary>Server SMTP delle email di recupero.</summary>
     public string SmtpHost { get; set; } = string.Empty;
 

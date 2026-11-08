@@ -129,6 +129,24 @@ class AdminAccountUser {
   bool get hasContacts => discordName != null || maskedEmail != null;
 }
 
+/// Il membro Discord trovato dal plugin per nome (`Discord/Lookup`).
+class AdminDiscordMember {
+  const AdminDiscordMember(
+      {required this.id, required this.username, this.displayName});
+
+  /// `Id` e `Username` ci devono essere; il nome visualizzato no.
+  factory AdminDiscordMember.fromJson(Map<String, dynamic> json) =>
+      AdminDiscordMember(
+        id: _required<String>(json, 'Id'),
+        username: _required<String>(json, 'Username'),
+        displayName: jsonString(json, 'DisplayName'),
+      );
+
+  final String id;
+  final String username;
+  final String? displayName;
+}
+
 /// L'ultimo errore d'invio di un canale.
 class AccountSendError {
   const AccountSendError({required this.at, required this.code});

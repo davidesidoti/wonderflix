@@ -33,6 +33,102 @@ public class DiscordBotClientTests
             ? Json(HttpStatusCode.OK, """{"id":"333333333333333333"}""")
             : Json(status, body));
 
+    private const string FirstGuild = "123456789012345678";
+    private const string SecondGuild = "222222222222222222";
+
+    // Con due server: users/@me e guilds/{id} rispondono 200, la ricerca dei membri di ogni server come dice `search`.
+    private void TwoServers(Func<string, HttpResponseMessage> search)
+    {
+        _settings.DiscordExtraGuildIds = SecondGuild;
+        _http.Respond = (request, _) =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            const string guilds = "/api/v10/guilds/";
+            if (path.StartsWith(guilds, StringComparison.Ordinal) && path.EndsWith("/members/search", StringComparison.Ordinal))
+            {
+                return Task.FromResult(search(path[guilds.Length..].Split('/')[0]));
+            }
+
+            return Task.FromResult(Json(HttpStatusCode.OK, "{}"));
+        };
+    }
+
+    private const string MarioBody = """[{"user":{"id":"222222222222222222","username":"Mario"}}]""";
+
+    [Fact]
+    public async Task FindsTheMemberInTheSecondServer()
+    {
+        TwoServers(guild => guild == FirstGuild ? Json(HttpStatusCode.OK, "[]") : Json(HttpStatusCode.OK, MarioBody));
+
+        var lookup = await Client().FindMemberAsync("mario", Ct);
+
+        Assert.Equal(new DiscordMember("222222222222222222", "Mario"), lookup.Member);
+        Assert.Equal(
+            new[]
+            {
+                $"/api/v10/guilds/{FirstGuild}/members/search?query=mario&limit=100",
+                $"/api/v10/guilds/{SecondGuild}/members/search?query=mario&limit=100",
+            },
+            _http.Requests.Select(r => r.PathAndQuery));
+    }
+
+    [Fact]
+    public async Task StopsAtTheFirstServerThatHasTheMember()
+    {
+        TwoServers(_ => Json(HttpStatusCode.OK, MarioBody));
+
+        var lookup = await Client().FindMemberAsync("mario", Ct);
+
+        Assert.NotNull(lookup.Member);
+        Assert.Single(_http.Requests);
+    }
+
+    [Fact]
+    public async Task AnErrorInOneServerDoesNotHideAMemberInAnother()
+    {
+        TwoServers(guild => guild == FirstGuild ? Json(HttpStatusCode.InternalServerError, "") : Json(HttpStatusCode.OK, MarioBody));
+
+        var lookup = await Client().FindMemberAsync("mario", Ct);
+
+        Assert.NotNull(lookup.Member);
+    }
+
+    [Fact]
+    public async Task NotFoundAnywhereIsNotFound()
+    {
+        TwoServers(_ => Json(HttpStatusCode.OK, "[]"));
+
+        var lookup = await Client().FindMemberAsync("mario", Ct);
+
+        Assert.Equal(DiscordLookup.NotFound, lookup);
+        Assert.Equal(2, _http.Requests.Count);
+    }
+
+    [Fact]
+    public async Task AnErrorAndNoMemberIsAnError()
+    {
+        TwoServers(guild => guild == FirstGuild ? Json(HttpStatusCode.InternalServerError, "") : Json(HttpStatusCode.OK, "[]"));
+
+        Assert.Equal(DiscordLookup.Error, await Client().FindMemberAsync("mario", Ct));
+    }
+
+    [Theory]
+    [InlineData("guilds/222222222222222222", 404, DiscordCheck.Invalid)]
+    [InlineData("guilds/222222222222222222/members/search", 403, DiscordCheck.Invalid)]
+    [InlineData("guilds/222222222222222222", 502, DiscordCheck.Failed)]
+    [InlineData("guilds/222222222222222222/members/search", 502, DiscordCheck.Failed)]
+    [InlineData("none", 200, DiscordCheck.Ok)]
+    public async Task CheckLooksAtEveryServer(string failingPath, int status, DiscordCheck expected)
+    {
+        _settings.DiscordExtraGuildIds = SecondGuild;
+        _http.Respond = (request, _) => Task.FromResult(
+            request.RequestUri!.AbsolutePath == $"/api/v10/{failingPath}"
+                ? Json((HttpStatusCode)status, "{}")
+                : Json(HttpStatusCode.OK, "{}"));
+
+        Assert.Equal(expected, await Client().CheckAsync(Ct));
+    }
+
     [Fact]
     public async Task FindsTheExactNameAmongThePrefixMatches()
     {
@@ -49,6 +145,43 @@ public class DiscordBotClientTests
         Assert.Equal("Bot bot-token", request.Authorization);
         Assert.StartsWith("DiscordBot (https://github.com/davidesidoti/wonderflix, ", request.UserAgent);
         Assert.Equal(DiscordBotClient.HttpClientName, _http.LastClientName);
+    }
+
+    [Fact]
+    public async Task TheDisplayNameIsTheServerNickname()
+    {
+        _http.Respond = (_, _) => Task.FromResult(Json(
+            HttpStatusCode.OK,
+            """[{"nick":"Super Mario","user":{"id":"222222222222222222","username":"Mario","global_name":"Mario Rossi"}}]"""));
+
+        var lookup = await Client().FindMemberAsync("mario", Ct);
+
+        Assert.Equal(new DiscordMember("222222222222222222", "Mario", "Super Mario"), lookup.Member);
+    }
+
+    [Theory]
+    [InlineData("""[{"user":{"id":"222222222222222222","username":"Mario","global_name":"Mario Rossi"}}]""")]
+    [InlineData("""[{"nick":null,"user":{"id":"222222222222222222","username":"Mario","global_name":"Mario Rossi"}}]""")]
+    [InlineData("""[{"nick":"  ","user":{"id":"222222222222222222","username":"Mario","global_name":"Mario Rossi"}}]""")]
+    public async Task WithoutNicknameTheDisplayNameIsTheGlobalName(string body)
+    {
+        _http.Respond = (_, _) => Task.FromResult(Json(HttpStatusCode.OK, body));
+
+        var lookup = await Client().FindMemberAsync("mario", Ct);
+
+        Assert.Equal("Mario Rossi", lookup.Member!.DisplayName);
+    }
+
+    [Theory]
+    [InlineData("""[{"user":{"id":"222222222222222222","username":"Mario"}}]""")]
+    [InlineData("""[{"nick":null,"user":{"id":"222222222222222222","username":"Mario","global_name":null}}]""")]
+    public async Task WithoutNamesThereIsNoDisplayName(string body)
+    {
+        _http.Respond = (_, _) => Task.FromResult(Json(HttpStatusCode.OK, body));
+
+        var lookup = await Client().FindMemberAsync("mario", Ct);
+
+        Assert.Null(lookup.Member!.DisplayName);
     }
 
     [Fact]

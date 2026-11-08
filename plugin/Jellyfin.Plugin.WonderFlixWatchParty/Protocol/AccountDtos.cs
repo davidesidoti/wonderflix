@@ -110,6 +110,36 @@ public sealed class AccountTestRequest
     public string? Email { get; set; }
 }
 
+/// <summary>Corpo di POST Account/Admin/Discord/Lookup: il nome Discord da cercare.</summary>
+public sealed class AdminDiscordLookupRequest
+{
+    [JsonPropertyName("Name")]
+    public string? Name { get; set; }
+}
+
+/// <summary>Corpo di PUT Account/Admin/Users/{id}/Discord: il membro trovato con la ricerca.</summary>
+public sealed class AdminSetDiscordRequest
+{
+    [JsonPropertyName("Id")]
+    public string? Id { get; set; }
+
+    [JsonPropertyName("Username")]
+    public string? Username { get; set; }
+}
+
+/// <summary>Corpo di PUT Account/Admin/Users/{id}/Email.</summary>
+public sealed class AdminSetEmailRequest
+{
+    [JsonPropertyName("Address")]
+    public string? Address { get; set; }
+}
+
+/// <summary>Il membro Discord trovato da POST Account/Admin/Discord/Lookup.</summary>
+public sealed record AdminDiscordMemberDto(
+    [property: JsonPropertyName("Id")] string Id,
+    [property: JsonPropertyName("Username")] string Username,
+    [property: JsonPropertyName("DisplayName"), JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? DisplayName);
+
 /// <summary>Il Discord di un utente nell'elenco dell'admin.</summary>
 public sealed record AdminDiscordDto(
     [property: JsonPropertyName("Name")] string Name);

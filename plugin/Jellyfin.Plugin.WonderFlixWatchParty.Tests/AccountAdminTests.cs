@@ -105,7 +105,7 @@ public sealed class AccountAdminTests : IDisposable
     {
         var mario = _rig.UserWithContacts("Mario");
         var logger = new RecordingLogger<AccountAdmin>();
-        var admin = new AccountAdmin(_rig.Server, _rig.Contacts, _rig.Codes, _rig.Sender, _rig.Discord, _rig.Settings, logger);
+        var admin = new AccountAdmin(_rig.Server, _rig.Contacts, _rig.Codes, _rig.Sender, _rig.Discord, _rig.Settings, _rig.Inbox, _rig.Time, logger);
 
         Assert.Equal(AccountError.UnknownUser, admin.Unlink(Guid.NewGuid(), AdminId));
         Assert.Empty(logger.Entries);
@@ -129,7 +129,7 @@ public sealed class AccountAdminTests : IDisposable
     {
         var mario = _rig.UserWithContacts("Mario");
         var logger = new RecordingLogger<AccountAdmin>();
-        var admin = new AccountAdmin(_rig.Server, _rig.Contacts, _rig.Codes, _rig.Sender, _rig.Discord, _rig.Settings, logger);
+        var admin = new AccountAdmin(_rig.Server, _rig.Contacts, _rig.Codes, _rig.Sender, _rig.Discord, _rig.Settings, _rig.Inbox, _rig.Time, logger);
 
         Assert.Null(admin.Unlink(mario.Id, Guid.Empty));
 
@@ -241,5 +241,162 @@ public sealed class AccountAdminTests : IDisposable
         _rig.Settings.DiscordBotToken = string.Empty;
         _rig.Settings.MailFrom = string.Empty;
         Assert.Equal(new AccountTestResponse("NotConfigured", "NotConfigured"), await _admin.TestAsync(peach.Id, "it", null, null, Ct));
+    }
+    [Fact]
+    public async Task LookupFindsTheMember()
+    {
+        var member = new DiscordMember("444444444444444444", "mario", "Mario Rossi");
+        _rig.Discord.Members["Mario"] = member;
+
+        var result = await _admin.LookupDiscordAsync(" @Mario ", Ct);
+
+        Assert.Null(result.Error);
+        Assert.Equal(member, result.Value);
+        Assert.Equal("Mario", Assert.Single(_rig.Discord.Searches));
+    }
+
+    [Fact]
+    public async Task LookupWithDiscordOffIsChannelOff()
+    {
+        _rig.Settings.DiscordBotToken = string.Empty;
+
+        Assert.Equal(AccountError.ChannelOff, (await _admin.LookupDiscordAsync("mario", Ct)).Error);
+        Assert.Empty(_rig.Discord.Searches);
+    }
+
+    [Fact]
+    public async Task LookupOfABadNameIsInvalidTarget()
+    {
+        Assert.Equal(AccountError.InvalidTarget, (await _admin.LookupDiscordAsync("a", Ct)).Error);
+        Assert.Equal(AccountError.InvalidTarget, (await _admin.LookupDiscordAsync(null, Ct)).Error);
+        Assert.Empty(_rig.Discord.Searches);
+    }
+
+    [Fact]
+    public async Task LookupOfAMissingMemberIsMemberNotFound() =>
+        Assert.Equal(AccountError.MemberNotFound, (await _admin.LookupDiscordAsync("luigi", Ct)).Error);
+
+    [Fact]
+    public async Task AFailedLookupIsSendFailedAndRecorded()
+    {
+        _rig.Discord.SearchFails = true;
+
+        Assert.Equal(AccountError.SendFailed, (await _admin.LookupDiscordAsync("mario", Ct)).Error);
+        Assert.NotNull(_rig.Sender.LastError(AccountChannel.Discord));
+    }
+
+    [Fact]
+    public async Task SetDiscordSavesAVerifiedContact()
+    {
+        var mario = _rig.Server.AddUser("Mario");
+
+        Assert.Null(await _admin.SetDiscordAsync(mario.Id, "444444444444444444", " mario ", AdminId));
+
+        var saved = _rig.Contacts.Get(mario.Id).Discord!;
+        Assert.Equal("444444444444444444", saved.Id);
+        Assert.Equal("mario", saved.Name);
+        Assert.Equal(_rig.Time.GetUtcNow(), saved.VerifiedAt);
+    }
+
+    [Fact]
+    public async Task SetDiscordReplacesTheContactAndCancelsTheCodes()
+    {
+        var mario = _rig.UserWithContacts("Mario");
+        var (recovery, _) = _rig.Codes.Issue(mario.Id, CodePurpose.Recovery);
+        var (verify, _) = _rig.Codes.Issue(mario.Id, CodePurpose.VerifyDiscord, new PendingContact("333333333333333333", "intruso"));
+
+        Assert.Null(await _admin.SetDiscordAsync(mario.Id, "444444444444444444", "nuovo", AdminId));
+
+        Assert.Equal("444444444444444444", _rig.Contacts.Get(mario.Id).Discord!.Id);
+        Assert.Equal("nuovo", _rig.Contacts.Get(mario.Id).Discord!.Name);
+        Assert.False(_rig.Codes.Check(mario.Id, CodePurpose.Recovery, recovery).Ok);
+        Assert.False(_rig.Codes.Check(mario.Id, CodePurpose.VerifyDiscord, verify).Ok);
+    }
+
+    [Fact]
+    public async Task SetDiscordRemovesTheContactReminders()
+    {
+        var mario = _rig.Server.AddUser("Mario");
+        await _rig.Inbox.AddContactReminderAsync(mario.Id, ["Discord", "Email"]);
+
+        await _admin.SetDiscordAsync(mario.Id, "444444444444444444", "mario", AdminId);
+
+        Assert.Empty(_rig.Inbox.Get(mario.Id).Entries);
+    }
+
+    [Fact]
+    public async Task SetDiscordErrorsLeaveTheContactAlone()
+    {
+        var mario = _rig.UserWithContacts("Mario");
+        var before = _rig.Contacts.Get(mario.Id).Discord!;
+
+        Assert.Equal(AccountError.UnknownUser, await _admin.SetDiscordAsync(Guid.NewGuid(), "444444444444444444", "x", AdminId));
+        Assert.Equal(AccountError.InvalidTarget, await _admin.SetDiscordAsync(mario.Id, "123", "nuovo", AdminId));
+        Assert.Equal(AccountError.InvalidTarget, await _admin.SetDiscordAsync(mario.Id, "444444444444444444", " ", AdminId));
+        Assert.Equal(AccountError.InvalidTarget, await _admin.SetDiscordAsync(mario.Id, null, "nuovo", AdminId));
+        _rig.Settings.DiscordBotToken = string.Empty;
+        Assert.Equal(AccountError.ChannelOff, await _admin.SetDiscordAsync(mario.Id, "444444444444444444", "nuovo", AdminId));
+
+        Assert.Equal(before.Id, _rig.Contacts.Get(mario.Id).Discord!.Id);
+        Assert.Equal(before.Name, _rig.Contacts.Get(mario.Id).Discord!.Name);
+    }
+
+    [Fact]
+    public async Task SetEmailSavesAVerifiedContact()
+    {
+        var mario = _rig.Server.AddUser("Mario");
+
+        Assert.Null(await _admin.SetEmailAsync(mario.Id, " Nuovo@Example.com ", AdminId));
+
+        var saved = _rig.Contacts.Get(mario.Id).Email!;
+        Assert.Equal(ContactLinking.CleanEmail(" Nuovo@Example.com "), saved.Address);
+        Assert.Equal(_rig.Time.GetUtcNow(), saved.VerifiedAt);
+    }
+
+    [Fact]
+    public async Task SetEmailErrorsLeaveTheContactAlone()
+    {
+        var mario = _rig.UserWithContacts("Mario");
+
+        Assert.Equal(AccountError.UnknownUser, await _admin.SetEmailAsync(Guid.NewGuid(), "nuovo@example.com", AdminId));
+        Assert.Equal(AccountError.InvalidTarget, await _admin.SetEmailAsync(mario.Id, "non-email", AdminId));
+        _rig.Settings.SmtpHost = string.Empty;
+        Assert.Equal(AccountError.ChannelOff, await _admin.SetEmailAsync(mario.Id, "nuovo@example.com", AdminId));
+
+        Assert.Equal("mario@example.com", _rig.Contacts.Get(mario.Id).Email!.Address);
+    }
+
+    [Fact]
+    public async Task SetEmailCancelsTheRecoveryAndTheVerifyCodes()
+    {
+        var mario = _rig.UserWithContacts("Mario");
+        var (recovery, _) = _rig.Codes.Issue(mario.Id, CodePurpose.Recovery);
+        var (verify, _) = _rig.Codes.Issue(mario.Id, CodePurpose.VerifyEmail, new PendingContact("intruso@example.com", null));
+
+        Assert.Null(await _admin.SetEmailAsync(mario.Id, "nuovo@example.com", AdminId));
+
+        Assert.Equal("nuovo@example.com", _rig.Contacts.Get(mario.Id).Email!.Address);
+        Assert.False(_rig.Codes.Check(mario.Id, CodePurpose.Recovery, recovery).Ok);
+        Assert.False(_rig.Codes.Check(mario.Id, CodePurpose.VerifyEmail, verify).Ok);
+    }
+
+    [Fact]
+    public async Task SettingAContactIsInTheLogWithTheAdminButWithoutTheContact()
+    {
+        var mario = _rig.Server.AddUser("Mario");
+        var logger = new RecordingLogger<AccountAdmin>();
+        var admin = new AccountAdmin(_rig.Server, _rig.Contacts, _rig.Codes, _rig.Sender, _rig.Discord, _rig.Settings, _rig.Inbox, _rig.Time, logger);
+
+        Assert.Null(await admin.SetDiscordAsync(mario.Id, "444444444444444444", "mario-segreto", AdminId));
+        Assert.Null(await admin.SetEmailAsync(mario.Id, "segreto@example.com", AdminId));
+
+        Assert.Equal(2, logger.Entries.Count);
+        foreach (var entry in logger.Entries)
+        {
+            Assert.Equal(LogLevel.Information, entry.Level);
+            Assert.Contains(mario.Id.ToString("N"), entry.Message, StringComparison.Ordinal);
+            Assert.Contains(AdminId.ToString("N"), entry.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("segreto", entry.Message, StringComparison.Ordinal);
+        }
     }
 }

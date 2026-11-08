@@ -71,6 +71,47 @@ public sealed class AccountAdminControllerTests : IDisposable
         ActionResults.AssertError(400, "UnknownUser", await controller.Unlink("non-un-id"));
     }
 
+    [Fact]
+    public async Task LookupFindsTheDiscordMember()
+    {
+        _rig.Discord.Members["Mario"] = new DiscordMember("444444444444444444", "mario", "Mario Rossi");
+        var controller = Controller();
+
+        var found = (await controller.LookupDiscord(new AdminDiscordLookupRequest { Name = "Mario" })).Value;
+        Assert.Equal(new AdminDiscordMemberDto("444444444444444444", "mario", "Mario Rossi"), found);
+
+        ActionResults.AssertError(400, "MemberNotFound", (await controller.LookupDiscord(new AdminDiscordLookupRequest { Name = "luigi" })).Result);
+        ActionResults.AssertError(400, "InvalidTarget", (await controller.LookupDiscord(null)).Result);
+        _rig.Settings.DiscordBotToken = string.Empty;
+        ActionResults.AssertError(503, "ChannelOff", (await controller.LookupDiscord(new AdminDiscordLookupRequest { Name = "Mario" })).Result);
+    }
+
+    [Fact]
+    public async Task SetDiscordAndEmailByUserId()
+    {
+        var mario = _rig.Server.AddUser("Mario");
+        var controller = Controller();
+
+        Assert.Equal(204, ActionResults.Status(await controller.SetDiscord(
+            mario.Id.ToString("N"), new AdminSetDiscordRequest { Id = "444444444444444444", Username = "mario" })));
+        Assert.Equal("444444444444444444", _rig.Contacts.Get(mario.Id).Discord!.Id);
+        Assert.Equal(204, ActionResults.Status(await controller.SetEmail(
+            mario.Id.ToString("N"), new AdminSetEmailRequest { Address = "nuovo@example.com" })));
+        Assert.Equal("nuovo@example.com", _rig.Contacts.Get(mario.Id).Email!.Address);
+    }
+
+    [Fact]
+    public async Task SetContactErrors()
+    {
+        var mario = _rig.Server.AddUser("Mario");
+        var controller = Controller();
+
+        ActionResults.AssertError(400, "UnknownUser", await controller.SetDiscord("non-guid", new AdminSetDiscordRequest { Id = "444444444444444444", Username = "m" }));
+        ActionResults.AssertError(400, "UnknownUser", await controller.SetEmail("non-guid", new AdminSetEmailRequest { Address = "a@example.com" }));
+        ActionResults.AssertError(400, "InvalidTarget", await controller.SetDiscord(mario.Id.ToString(), null));
+        ActionResults.AssertError(400, "InvalidTarget", await controller.SetEmail(mario.Id.ToString(), null));
+    }
+
     // Chi ha mandato il codice o scollegato i contatti finisce nel registro del server: è l'admin che chiama.
     [Fact]
     public async Task TheLogHasTheAdminWhoCalled()
@@ -79,7 +120,7 @@ public sealed class AccountAdminControllerTests : IDisposable
         var adminLogger = new RecordingLogger<AccountAdmin>();
         var recoveryLogger = new RecordingLogger<PasswordRecovery>();
         var controller = Controller(
-            new AccountAdmin(_rig.Server, _rig.Contacts, _rig.Codes, _rig.Sender, _rig.Discord, _rig.Settings, adminLogger),
+            new AccountAdmin(_rig.Server, _rig.Contacts, _rig.Codes, _rig.Sender, _rig.Discord, _rig.Settings, _rig.Inbox, _rig.Time, adminLogger),
             new PasswordRecovery(_rig.Server, _rig.Contacts, _rig.Codes, _rig.Limiter, _rig.Sender, _rig.Passwords, recoveryLogger));
 
         await controller.SendRecovery(mario.Id.ToString("N"), null);

@@ -78,6 +78,28 @@ void main() {
     expect(plugin.count('accountStatus'), greaterThanOrEqualTo(2));
   });
 
+  test('associare Discord ed email: la rilettura mostra i nuovi contatti',
+      () async {
+    final container = makeContainer();
+    await pumpEventQueue();
+    AdminAccountUser lucia() => container
+        .read(accountUsersControllerProvider)
+        .value!
+        .singleWhere((u) => u.name == 'lucia');
+    final users = container.read(accountUsersControllerProvider.notifier);
+
+    await users.setDiscord(
+        lucia().id, const AdminDiscordMember(id: '42', username: 'lucy'));
+    await users.setEmail(lucia().id, 'lucia@example.com');
+
+    expect(lucia().discordName, 'lucy');
+    expect(lucia().maskedEmail, 'l•••@example.com');
+    expect(plugin.calls, containsAllInOrder([
+      'setDiscord:${lucia().id}:42',
+      'setEmail:${lucia().id}:lucia@example.com',
+    ]));
+  });
+
   test('scollegare i contatti: la rilettura mostra la riga senza contatti',
       () async {
     final container = makeContainer();

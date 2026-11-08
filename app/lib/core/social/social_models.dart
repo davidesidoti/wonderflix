@@ -48,6 +48,9 @@ abstract final class PluginFeatures {
   static const downloadsSearchJobs = 'downloadsSearchJobs';
   static const space = 'space';
 
+  /// L'admin associa Discord ed email di un utente dalla lista utenti.
+  static const accountAdminLink = 'accountAdminLink';
+
   /// I consigli tra amici (spec N §6.6).
   static const recommendations = 'recommendations';
 

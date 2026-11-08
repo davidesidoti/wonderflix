@@ -24,8 +24,9 @@ public static class AccountTestCodes
 
 /// <summary>
 /// Le funzioni dell'admin sul recupero (spec L §7.4): gli utenti con i loro
-/// contatti (email mascherate), lo scollegamento, lo stato dei canali e la
-/// prova d'invio. Il codice mandato dall'admin sta in PasswordRecovery.
+/// contatti (email mascherate), lo scollegamento, l'associazione diretta di un
+/// contatto (senza password né codice: l'admin non è l'utente), lo stato dei
+/// canali e la prova d'invio. Il codice mandato dall'admin sta in PasswordRecovery.
 /// </summary>
 public sealed class AccountAdmin(
     IUserDirectory users,
@@ -34,6 +35,8 @@ public sealed class AccountAdmin(
     AccountSender sender,
     IDiscordSender discord,
     IAccountSettings settings,
+    InboxService inbox,
+    TimeProvider time,
     ILogger<AccountAdmin> logger)
 {
     /// <summary>Tutti gli utenti per nome, con i loro contatti.</summary>
@@ -78,6 +81,81 @@ public sealed class AccountAdmin(
         codes.Discard(userId, CodePurpose.VerifyEmail);
         logger.LogInformation(
             "Contatti di {UserId} scollegati dall'admin {AdminId}", userId.ToString("N"), AdminCaller.Describe(adminId));
+        return null;
+    }
+
+    /// <summary>Cerca un membro del server Discord per nome (come "@mario"); l'admin lo vede prima di associarlo.</summary>
+    public async Task<AccountResult<DiscordMember>> LookupDiscordAsync(string? name, CancellationToken cancellationToken)
+    {
+        if (!settings.IsDiscordConfigured())
+        {
+            return AccountResult<DiscordMember>.Fail(AccountError.ChannelOff);
+        }
+
+        if (ContactLinking.CleanDiscordName(name) is not { } cleaned)
+        {
+            return AccountResult<DiscordMember>.Fail(AccountError.InvalidTarget);
+        }
+
+        var lookup = await discord.FindMemberAsync(cleaned, cancellationToken).ConfigureAwait(false);
+        if (lookup.Failed)
+        {
+            // Come quando si collega un contatto: una ricerca che fallisce è un errore del canale.
+            sender.Record(AccountChannel.Discord, SendOutcome.Failed);
+            return AccountResult<DiscordMember>.Fail(AccountError.SendFailed);
+        }
+
+        return lookup.Member is { } member
+            ? AccountResult<DiscordMember>.Ok(member)
+            : AccountResult<DiscordMember>.Fail(AccountError.MemberNotFound);
+    }
+
+    /// <summary>
+    /// Salva il Discord di un utente, già verificato, al posto di quello che c'era. Annulla i
+    /// codici di recupero e di collegamento Discord già partiti (come lo scollegamento).
+    /// </summary>
+    public async Task<AccountError?> SetDiscordAsync(Guid userId, string? id, string? username, Guid adminId)
+    {
+        if (users.GetUser(userId) is null)
+        {
+            return AccountError.UnknownUser;
+        }
+
+        if (!settings.IsDiscordConfigured())
+        {
+            return AccountError.ChannelOff;
+        }
+
+        if (!DiscordIds.IsSnowflake(id) || string.IsNullOrWhiteSpace(username))
+        {
+            return AccountError.InvalidTarget;
+        }
+
+        contacts.SetDiscord(userId, new DiscordContact { Id = id!, Name = username.Trim(), VerifiedAt = time.GetUtcNow() });
+        await AfterSetAsync(userId, AccountChannel.Discord, CodePurpose.VerifyDiscord, adminId).ConfigureAwait(false);
+        return null;
+    }
+
+    /// <summary>Come <see cref="SetDiscordAsync"/>, per l'email.</summary>
+    public async Task<AccountError?> SetEmailAsync(Guid userId, string? address, Guid adminId)
+    {
+        if (users.GetUser(userId) is null)
+        {
+            return AccountError.UnknownUser;
+        }
+
+        if (!settings.IsEmailConfigured())
+        {
+            return AccountError.ChannelOff;
+        }
+
+        if (ContactLinking.CleanEmail(address) is not { } cleaned)
+        {
+            return AccountError.InvalidTarget;
+        }
+
+        contacts.SetEmail(userId, new EmailContact { Address = cleaned, VerifiedAt = time.GetUtcNow() });
+        await AfterSetAsync(userId, AccountChannel.Email, CodePurpose.VerifyEmail, adminId).ConfigureAwait(false);
         return null;
     }
 
@@ -194,6 +272,16 @@ public sealed class AccountAdmin(
         return target is null
             ? AccountTestCodes.NoContact
             : Outcome(await sender.SendAsync(AccountChannel.Email, target, message, cancellationToken).ConfigureAwait(false));
+    }
+
+    // Il contatto è cambiato: i codici già partiti (al contatto di prima) non valgono più e i promemoria spariscono.
+    private async Task AfterSetAsync(Guid userId, AccountChannel channel, CodePurpose verify, Guid adminId)
+    {
+        codes.Discard(userId, CodePurpose.Recovery);
+        codes.Discard(userId, verify);
+        await inbox.RemoveContactRemindersAsync(userId).ConfigureAwait(false);
+        logger.LogInformation(
+            "{Channel} di {UserId} associato dall'admin {AdminId}", channel, userId.ToString("N"), AdminCaller.Describe(adminId));
     }
 
     private static string Outcome(SendOutcome outcome) => outcome switch

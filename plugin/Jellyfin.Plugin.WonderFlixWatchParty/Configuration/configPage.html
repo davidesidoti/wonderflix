@@ -240,6 +240,12 @@
                             </div>
                         </div>
                         <div class="inputContainer">
+                            <input is="emby-input" type="text" id="WonderFlixDiscordExtraGuildIds" label="Other Discord server IDs" />
+                            <div class="fieldDescription">
+                                Optional. Servers where the bot also looks for members (for example your friends' server), separated by commas. Invite the bot there the same way.
+                            </div>
+                        </div>
+                        <div class="inputContainer">
                             <input is="emby-input" type="text" id="WonderFlixSmtpHost" label="SMTP server" placeholder="smtp.gmail.com" />
                         </div>
                         <div class="inputContainer">
@@ -508,6 +514,7 @@
                 var recoveryFields = {
                     DiscordBotToken: page.querySelector('#WonderFlixDiscordBotToken'),
                     DiscordGuildId: page.querySelector('#WonderFlixDiscordGuildId'),
+                    DiscordExtraGuildIds: page.querySelector('#WonderFlixDiscordExtraGuildIds'),
                     SmtpHost: page.querySelector('#WonderFlixSmtpHost'),
                     SmtpPort: page.querySelector('#WonderFlixSmtpPort'),
                     SmtpUser: page.querySelector('#WonderFlixSmtpUser'),
@@ -586,6 +593,7 @@
                     ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                         config.DiscordBotToken = recoveryFields.DiscordBotToken.value.trim();
                         config.DiscordGuildId = recoveryFields.DiscordGuildId.value.trim();
+                        config.DiscordExtraGuildIds = recoveryFields.DiscordExtraGuildIds.value.trim();
                         config.SmtpHost = recoveryFields.SmtpHost.value.trim();
                         // Un campo numerico vuoto o illeggibile lascia il valore di adesso: niente valori inventati.
                         config.SmtpPort = numberIn(recoveryFields.SmtpPort, config.SmtpPort);

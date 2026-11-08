@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/misc.dart';
 import 'package:wonderflix/core/jellyfin/activity_models.dart';
+import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/admin_api.dart';
 import 'package:wonderflix/core/jellyfin/admin_models.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
@@ -269,6 +270,17 @@ final testAccountStatus = AccountAdminStatus(
   reminderDays: 14,
 );
 
+/// Lo stato del recupero con i canali [discord] ed [email] accesi o spenti.
+AccountAdminStatus testChannelsStatus(
+        {required bool discord, required bool email}) =>
+    AccountAdminStatus(
+      discord: AccountChannelStatus(configured: discord),
+      email: AccountChannelStatus(configured: email),
+      withContacts: 0,
+      users: 0,
+      reminderDays: 14,
+    );
+
 /// Il plugin finto per la scheda WonderFlix.
 class FakePluginAdminApi implements PluginAdminApi {
   NewTitlesStatus newTitlesValue = const NewTitlesStatus(enabled: true, pending: 3);
@@ -299,7 +311,7 @@ class FakePluginAdminApi implements PluginAdminApi {
   Object? actionError;
 
   /// Se c'è, le azioni del recupero (`sendRecoveryCode`, `unlinkContacts`,
-  /// `testAccountChannels`) restano in corso finché il test non lo completa:
+  /// `setUserDiscord`, `setUserEmail`, `testAccountChannels`) restano in corso finché il test non lo completa:
   /// la chiamata si registra in [calls] prima di aspettare, l'effetto e
   /// [actionError] vengono dopo.
   Completer<void>? accountActionGate;
@@ -307,6 +319,7 @@ class FakePluginAdminApi implements PluginAdminApi {
   /// Chiamate in ordine: `announce:<testo>`, `newTitles`, `send`, `seerr`,
   /// `test`, `notify:<true|false>`, `accountUsers`, `accountStatus`,
   /// `recovery:<id>:<lingua>`, `unlink:<id>`, `accountTest:<lingua>`,
+  /// `lookup:<nome>`, `setDiscord:<id>:<discordId>`, `setEmail:<id>:<indirizzo>`,
   /// `comments:<before|->`, `deleteComment:<userId>:<itemId>`.
   final calls = <String>[];
 
@@ -396,6 +409,65 @@ class FakePluginAdminApi implements PluginAdminApi {
               name: user.name,
               isAdmin: user.isAdmin,
               enabled: user.enabled,
+              lastReminderAt: user.lastReminderAt)
+        else
+          user,
+    ];
+  }
+
+  /// Il membro che `lookupDiscordMember` trova; `null`: `MemberNotFound`.
+  AdminDiscordMember? lookupValue;
+
+  /// Errore di `lookupDiscordMember`, prima di [lookupValue].
+  Object? lookupError;
+
+  /// Se c'è, `lookupDiscordMember` resta in corso finché il test non lo
+  /// completa (la chiamata si registra prima).
+  Completer<void>? lookupGate;
+
+  @override
+  Future<AdminDiscordMember> lookupDiscordMember(String name) async {
+    calls.add('lookup:$name');
+    await lookupGate?.future;
+    final error = lookupError;
+    if (error != null) throw error;
+    return lookupValue ??
+        (throw const ServerErrorException(400, {'Code': 'MemberNotFound'}));
+  }
+
+  /// Come il plugin vero: la lettura dopo mostra il nome Discord scritto.
+  @override
+  Future<void> setUserDiscord(String userId, AdminDiscordMember member) async {
+    calls.add('setDiscord:$userId:${member.id}');
+    await accountActionGate?.future;
+    final error = actionError;
+    if (error != null) throw error;
+    _updateUser(userId, discordName: member.username);
+  }
+
+  /// Come il plugin vero: la lettura dopo mostra l'email mascherata.
+  @override
+  Future<void> setUserEmail(String userId, String address) async {
+    calls.add('setEmail:$userId:$address');
+    await accountActionGate?.future;
+    final error = actionError;
+    if (error != null) throw error;
+    final at = address.indexOf('@');
+    _updateUser(userId,
+        maskedEmail: '${address.substring(0, 1)}•••${address.substring(at)}');
+  }
+
+  void _updateUser(String userId, {String? discordName, String? maskedEmail}) {
+    accountUsersValue = [
+      for (final user in accountUsersValue)
+        if (user.id == userId)
+          AdminAccountUser(
+              id: user.id,
+              name: user.name,
+              isAdmin: user.isAdmin,
+              enabled: user.enabled,
+              discordName: discordName ?? user.discordName,
+              maskedEmail: maskedEmail ?? user.maskedEmail,
               lastReminderAt: user.lastReminderAt)
         else
           user,

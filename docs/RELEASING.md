@@ -108,6 +108,8 @@ Prima di ogni release, su un utente di prova:
 - [ ] Sito dal telefono (iPhone, sul sito di prova; vedi "Sito di prova"): barra in basso e "Altro" con tutte le voci; anteprima di una card tenendo premuto; un episodio con i controlli al tocco (tocco mostra/nasconde, doppio tocco ai lati salta di 10 s); salti e tracce; ricerca di un sottotitolo (e scaricamento); una richiesta; ogni scheda dell'Admin; Amici e Notifiche come pagina; un watch party con il sito sul PC; la tastiera sui campi (login, ricerca, chat: il campo resta visibile); rotazione verticale/orizzontale a metà video; tacca e barra home non coprono barre e controlli. Il gesto indietro del telefono su una finestra aperta come pagina (per esempio i sottotitoli) oggi chiude anche la pagina sotto: limite noto, non un errore nuovo.
 - [ ] Aggiornamento da una versione precedente; aggiornamento obbligatorio.
 - [ ] Discord Rich Presence attiva e disattivata.
+- [ ] Admin → Utenti → ⋮ → "Associa Discord": cerca, anteprima, associa; poi il recupero di quell'utente arriva su quel Discord. "Associa email": lo stesso con l'indirizzo.
+- [ ] Dashboard → "Other Discord server IDs" con il server degli amici (bot invitato lì): un utente che è solo in quel server collega Discord da Impostazioni, e "Associa Discord" lo trova.
 - [ ] Pannello media di Windows con il nome "WonderFlix" (app installata).
 - [ ] "Copia diagnostica" e cartella dei log.
 

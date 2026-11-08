@@ -251,6 +251,19 @@ void main() {
     expect(SocialFeatures.none.downloadsSearchJobs, isFalse);
   });
 
+  test('Info con associa contatti: funzione accountAdminLink', () async {
+    api.install(features: const {PluginFeatures.accountAdminLink});
+    final c = container(
+        session: const SessionSignedIn(JellyfinUser(
+            id: 'u1', name: 'Mario', syncPlayAccess: SyncPlayAccess.none)));
+    await pumpEventQueue();
+    expect(c.read(socialAvailabilityProvider),
+        const SocialFeatures(accountAdminLink: true));
+    expect(const SocialFeatures(accountAdminLink: true),
+        isNot(const SocialFeatures()));
+    expect(SocialFeatures.none.accountAdminLink, isFalse);
+  });
+
   test('Info senza il calendario: calendar falso', () async {
     api.install(features: const {PluginFeatures.home});
     final c = container(

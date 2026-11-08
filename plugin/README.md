@@ -117,7 +117,8 @@ uscite in arrivo.
   esiste) e sceglie la password nuova; tutte le sue sessioni si chiudono.
   Gli admin non possono usarlo (possono collegare i contatti, per la
   prova). Nella pagina del plugin: token del bot e id
-  del server Discord, server SMTP (STARTTLS, di solito 587), mittente, ogni
+  del server Discord e, facoltativi, gli id di altri server dove cercare i
+  membri (il bot va invitato anche lì), server SMTP (STARTTLS, di solito 587), mittente, ogni
   quanti giorni il promemoria nella cassetta a chi non ha contatti (0:
   spento) e **Send a test**. Il bot: Discord Developer Portal → l'app →
   Bot (il token, "Server Members Intent" acceso), poi l'invito nel server
@@ -125,7 +126,10 @@ uscite in arrivo.
   `plugins/configurations/WonderFlixWatchParty/contacts.json` (un file
   illeggibile diventa `contacts.json.bad`); i codici solo in memoria (10
   minuti, 5 tentativi). Gli endpoint dell'admin stanno sotto
-  `Account/Admin`.
+  `Account/Admin`; dalla 1.24.0 l'admin può anche associare Discord ed email a
+  un utente senza codici (`POST Account/Admin/Discord/Lookup` cerca il membro,
+  `PUT Account/Admin/Users/{id}/Discord` e `PUT …/Users/{id}/Email` salvano il
+  contatto già verificato).
 - **Home (dalla 1.7.0):** `GET Home/Layout` dà la Home dell'admin (gli id
   delle righe accese, in ordine; `null` se mai impostata), `POST Home/Layout`
   la cambia (solo admin, dall'app; gli id sconosciuti si scartano). Le uscite
@@ -304,7 +308,7 @@ uscite in arrivo.
   inode di `stat` (Jellyfin vede gli stessi percorsi del seedbox).
 - **Funzioni:** `GET Info` annuncia quello che il plugin sa fare; dalla 1.5.0
   ci sono sempre anche `collections` e `avatars`, dalla 1.6.0 anche
-  `account`, dalla 1.7.0 anche `home`, dalla 1.8.0 anche `recommendations`, dalla 1.9.0 anche `friendsActivity`, dalla 1.10.0 anche `match`, dalla 1.11.0 anche `ratings`, dalla 1.12.0 anche `reports`, dalla 1.14.0 anche `downloads` (con almeno uno tra Sonarr e Radarr), dalla 1.16.0 anche `space` (subito dopo `downloads`, con le stesse condizioni), dalla 1.17.0 anche `push`; `upcomingSeries` e `upcomingMovies`
+  `account`, dalla 1.7.0 anche `home`, dalla 1.8.0 anche `recommendations`, dalla 1.9.0 anche `friendsActivity`, dalla 1.10.0 anche `match`, dalla 1.11.0 anche `ratings`, dalla 1.12.0 anche `reports`, dalla 1.14.0 anche `downloads` (con almeno uno tra Sonarr e Radarr), dalla 1.16.0 anche `space` (subito dopo `downloads`, con le stesse condizioni), dalla 1.17.0 anche `push`, dalla 1.24.0 anche `accountAdminLink` (subito dopo `push`); `upcomingSeries` e `upcomingMovies`
   solo con Sonarr e Radarr configurati, e `calendar` con almeno uno dei due. Gli endpoint delle saghe e delle
   immagini sono aperti a ogni utente che ha fatto l'accesso. Quelli di
   `account` dipendono dalla rotta: `Account/Contacts` per ogni utente che ha
