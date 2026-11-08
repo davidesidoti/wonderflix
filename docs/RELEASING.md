@@ -17,6 +17,8 @@ Su GitHub: *Settings → Secrets and variables → Actions → New repository se
 
 `githubRepo` non serve: la pipeline usa il repository stesso.
 
+**APK della TV:** `WONDERFLIX_ANDROID_KEYSTORE` (il `.jks` in base64) e `WONDERFLIX_ANDROID_KEYSTORE_PASSWORD` (obbligatori: senza, il job `android` fallisce e non esce mai un APK firmato con la chiave di debug). Li crea una volta sola `bash app/android/create_release_key.sh` dalla checkout principale: genera `app/android/wonderflix-release.jks` e `app/android/key.properties` (entrambi gitignored), carica i due Secrets con `gh` e non stampa mai la password. Salva i due file nel gestore di password: con una chiave nuova Android rifiuta l'aggiornamento e ogni TV va disinstallata e reinstallata.
+
 Firma del codice (per ora spenta in `release.yml`): `WONDERFLIX_SIGNING_CERT` (certificato `.pfx` in base64) e `WONDERFLIX_SIGNING_PASSWORD`, poi togli `if: ${{ false }}` dai due passaggi di firma.
 
 Prima di accenderla: passare i Secrets via `env:` invece che nello script, usare il percorso completo di `signtool.exe` del Windows Kit, cancellare `cert.pfx` a fine job e firmare anche il disinstallatore (`SignTool=` in `app/installer/wonderflix.iss`).
@@ -31,7 +33,7 @@ Prima di accenderla: passare i Secrets via `env:` invece che nello script, usare
    git push origin v0.1.1
    ```
    Il tag deve essere esattamente `v` + la versione di `app/pubspec.yaml`, altrimenti la pipeline si ferma.
-4. Attendi la fine di **Release** in *Actions*: la pipeline crea una GitHub Release in **bozza** con `WonderFlix-Setup-0.1.1.exe` e il suo `.sha256`. Se la rilanci sullo stesso tag (*Re-run jobs*), la release esiste già: la pipeline sostituisce solo i due file (`gh release upload --clobber`), note e stato restano.
+4. Attendi la fine di **Release** in *Actions*: la pipeline crea una GitHub Release in **bozza** con `WonderFlix-Setup-0.1.1.exe` e il suo `.sha256`; poi il job `android` aggiunge `WonderFlix-TV-0.1.1.apk` (armeabi-v7a + arm64-v8a, firmato con la chiave di rilascio) e il suo `.sha256`. Se la rilanci sullo stesso tag (*Re-run jobs*), la release esiste già: la pipeline sostituisce solo i file (`gh release upload --clobber`), note e stato restano. Se `android` fallisce, la bozza resta senza APK: non pubblicarla finché il job non è verde (le TV non vedrebbero l'aggiornamento), e il sito non esce.
 5. Scrivi le note di rilascio nella bozza (markdown: l'app le mostra così).
 6. **Solo se l'aggiornamento è obbligatorio** (compatibilità col server, bug gravi): aggiungi alle note la riga
    ```
@@ -116,7 +118,9 @@ Prima di ogni release, su un utente di prova:
 
 ## Sito web
 
-Lo stesso tag `vX.Y.Z` fa partire anche il job `web` di **Release**, dopo quello Windows (`needs: release`: se Windows fallisce il sito non esce; il tag lo controlla già quel job): compila il sito (`flutter build web --wasm`, base `/wonderflix/`) con la stessa configurazione dei Secrets e lo copia con `rsync` in `~/wonderflix-web` sul server. Prima i file, poi `index.html`; i file che non esistono più vengono tolti. Il sito è su `https://hashvps.proton.usbx.me/wonderflix/` e non ha bozza: va online appena il job finisce, anche se la release di Windows resta in bozza.
+Lo stesso tag `vX.Y.Z` fa partire anche il job `web` di **Release**, dopo quelli di Windows e della TV (`needs: [release, android]`: se uno dei due fallisce il sito non esce; il tag lo controllano già quei job): compila il sito (`flutter build web --wasm`, base `/wonderflix/`) con la stessa configurazione dei Secrets e lo copia con `rsync` in `~/wonderflix-web` sul server. Prima i file, poi `index.html`; i file che non esistono più vengono tolti. Il sito è su `https://hashvps.proton.usbx.me/wonderflix/` e non ha bozza: va online appena il job finisce, anche se la release di Windows resta in bozza.
+
+Il job `web` copia anche l'APK della TV (artefatto `wonderflix-tv` del job `android`) come `build/web/tv.apk`, prima del primo `rsync`: l'indirizzo fisso `https://hashvps.proton.usbx.me/wonderflix/tv.apk` (quello del codice di Downloader) dà sempre l'ultima versione taggata.
 
 **Secrets del sito** (oltre a quelli sopra):
 
@@ -127,9 +131,11 @@ Lo stesso tag `vX.Y.Z` fa partire anche il job `web` di **Release**, dopo quello
 
 La chiave pubblica sta in `~/.ssh/authorized_keys` dell'utente `hashvps` sul server, vincolata a `command="/usr/bin/rrsync /home/hashvps/wonderflix-web"` (con `restrict`): può solo copiare file in quella cartella. Per rigenerarla: `ssh-keygen -t ed25519 -N "" -f deploy_key`, nella riga di `authorized_keys` sostituisci solo la parte `ssh-ed25519 AAAA…` con il contenuto di `deploy_key.pub`, lasciando il prefisso `restrict,command="/usr/bin/rrsync /home/hashvps/wonderflix-web"`, aggiorna il Secret con la privata (`gh secret set WONDERFLIX_DEPLOY_SSH_KEY < deploy_key`) e cancella i due file locali.
 
-**Rimettere una versione vecchia:** in *Actions* apri il run di **Release** del tag precedente e premi *Re-run* sul solo job `web`. Ricompila e ricopia quella versione.
+**Rimettere una versione vecchia:** in *Actions* apri il run di **Release** del tag precedente e premi *Re-run* sul solo job `web`. Ricompila e ricopia quella versione (con il `tv.apk` dell'artefatto di quel run, finché GitHub lo conserva: 90 giorni).
 
-**nginx:** la conf del sito (file statici, `.wasm` e `.mjs` con il tipo giusto) è in `app/deploy/wonderflix.conf`; va in `~/.apps/nginx/proxy.d/` sul server, poi `app-nginx restart`.
+**nginx:** la conf del sito (file statici, `.wasm` e `.mjs` con il tipo giusto, `tv.apk` come `application/vnd.android.package-archive` senza cache) è in `app/deploy/wonderflix.conf`; va in `~/.apps/nginx/proxy.d/` sul server, poi `app-nginx restart`. La CI copia solo i file del sito, non la conf: quando `wonderflix.conf` cambia (come per `tv.apk`), copiala a mano al rilascio (fine riga LF), controlla con `/usr/sbin/nginx -t -p $HOME/.apps/nginx/ -c nginx.conf` e ricarica.
+
+**Prima release con l'APK (prova):** prima di taggarla, sul Fire Stick deve esserci una build con la chiave di rilascio e una versione più bassa: da `app/`, con `key.properties` e `wonderflix-release.jks` in `app/android/`, metti a mano `version: 0.33.99` in `pubspec.yaml` (non committarlo), `flutter build apk --release --dart-define-from-file=config/wonderflix.json`, installa `build/app/outputs/flutter-apk/app-release.apk` con adb e rimetti `pubspec.yaml`. Dopo la pubblicazione della release, la TV deve vederla e aggiornarsi da Impostazioni (la prima volta chiede il permesso di installare app).
 
 ## Sito di prova
 
