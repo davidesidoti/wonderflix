@@ -65,7 +65,12 @@ class _AuthorizeDeviceDialogState extends ConsumerState<AuthorizeDeviceDialog> {
     } on NotFoundException {
       if (mounted) setState(() => _codeError = l.authorizeDeviceCodeWrong);
     } on Object catch (error) {
-      if (mounted) {
+      if (!mounted) return;
+      // Jellyfin 10.11 risponde 500 a un codice già confermato (per esempio
+      // da jellyfin-web, o una risposta persa e un nuovo tentativo).
+      if (error case ServerErrorException(statusCode: 500)) {
+        setState(() => _codeError = l.authorizeDeviceCodeUsed);
+      } else {
         setState(
           () => _error = switch (error) {
             // nginx mentre Jellyfin si riavvia (502, 503, 504).

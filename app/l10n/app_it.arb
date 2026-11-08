@@ -750,6 +750,7 @@
   "authorizeDeviceCodeEmpty": "Scrivi il codice.",
   "authorizeDeviceCodeWrong": "Codice sbagliato o scaduto: generane uno nuovo sul dispositivo.",
   "authorizeDeviceDone": "Dispositivo autorizzato.",
+  "authorizeDeviceCodeUsed": "Codice già confermato o non valido: se il dispositivo non è entrato, generane uno nuovo.",
   "accountContactsTitle": "Contatti per il recupero",
   "accountContactsHint": "Servono per recuperare la password se la dimentichi.",
   "accountContactsAdminHint": "Gli admin non possono usare il recupero automatico.",

@@ -626,6 +626,7 @@
   "authorizeDeviceCodeEmpty": "Enter the code.",
   "authorizeDeviceCodeWrong": "Wrong or expired code: generate a new one on the device.",
   "authorizeDeviceDone": "Device authorized.",
+  "authorizeDeviceCodeUsed": "Code already confirmed or invalid: if the device didn't sign in, generate a new one.",
   "accountContactsTitle": "Recovery contacts",
   "accountContactsHint": "They let you recover your password if you forget it.",
   "accountContactsAdminHint": "Admins can't use automatic recovery.",

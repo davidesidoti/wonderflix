@@ -148,7 +148,9 @@ void main() {
   test('authorizeQuickConnect: 404 col codice sbagliato, nel log come info',
       () async {
     final records = <LogRecord>[];
+    final previousLevel = Logger.root.level;
     Logger.root.level = Level.ALL;
+    addTearDown(() => Logger.root.level = previousLevel);
     final subscription = Logger.root.onRecord.listen(records.add);
     addTearDown(subscription.cancel);
     adapter.handler = (_) => const FakeResponse(404);
@@ -181,7 +183,9 @@ void main() {
   test('changePassword: 403 con la password sbagliata, nel log come info',
       () async {
     final records = <LogRecord>[];
+    final previousLevel = Logger.root.level;
     Logger.root.level = Level.ALL;
+    addTearDown(() => Logger.root.level = previousLevel);
     final subscription = Logger.root.onRecord.listen(records.add);
     addTearDown(subscription.cancel);
     adapter.handler = (_) => const FakeResponse(403);

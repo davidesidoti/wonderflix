@@ -148,9 +148,24 @@ void main() {
       );
     }
 
-    authorize = () => const FakeResponse(500);
+    authorize = () => const FakeResponse(501);
     await submit(tester, '482913');
     expect(find.text('Qualcosa è andato storto. Riprova.'), findsOneWidget);
+  });
+
+  testWidgets('codice già confermato (500): errore sul campo', (tester) async {
+    authorize = () => const FakeResponse(500);
+    await open(tester);
+
+    await submit(tester, '482913');
+
+    expect(
+      find.text(
+        'Codice già confermato o non valido: se il dispositivo non è entrato, '
+        'generane uno nuovo.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('con la richiesta in volo, Esc e Annulla non chiudono', (
