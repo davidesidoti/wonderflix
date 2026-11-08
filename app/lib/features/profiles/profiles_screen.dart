@@ -194,9 +194,14 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
       ),
     );
     // Sulla TV Indietro non chiude l'app: fa come "Fine" in "Gestisci
-    // profili", altrimenti serve il doppio Indietro.
+    // profili", non fa niente mentre un profilo si apre, altrimenti serve il
+    // doppio Indietro.
     return TvBackGuard(
-      onBack: _managing ? () => _setManaging(false) : null,
+      onBack: () {
+        if (!_managing) return _opening != null;
+        _setManaging(false);
+        return true;
+      },
       child: page,
     );
   }

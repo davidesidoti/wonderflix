@@ -42,8 +42,8 @@ class TvDoubleBackExit {
 
 /// Sulla TV, Indietro in una schermata d'ingresso (fuori dalla shell): la
 /// pagina è l'unica nel navigatore e Indietro chiuderebbe l'app subito.
-/// Fa [onBack] se c'è, altrimenti il doppio Indietro per uscire. Fuori dalla
-/// TV non cambia niente.
+/// Fa [onBack] se c'è e dice di averlo gestito, altrimenti il doppio
+/// Indietro per uscire. Fuori dalla TV non cambia niente.
 class TvBackGuard extends StatefulWidget {
   const TvBackGuard({
     super.key,
@@ -53,7 +53,9 @@ class TvBackGuard extends StatefulWidget {
   });
 
   final Widget child;
-  final VoidCallback? onBack;
+
+  /// `true` se ha gestito Indietro (chiuso un pannello, annullato...).
+  final bool Function()? onBack;
 
   /// Al posto di `SystemNavigator.pop`.
   final VoidCallback? onExit;
@@ -73,11 +75,7 @@ class _TvBackGuardState extends State<TvBackGuard> {
 
   void _onBack(bool didPop, Object? result) {
     if (didPop) return;
-    final onBack = widget.onBack;
-    if (onBack != null) {
-      onBack();
-      return;
-    }
+    if (widget.onBack?.call() ?? false) return;
     _exit.press(context, onExit: widget.onExit);
   }
 

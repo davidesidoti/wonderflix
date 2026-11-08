@@ -177,6 +177,41 @@ void main() {
       expect(DefaultTabController.of(tester.element(find.byType(TabBar))).index,
           0);
     });
+
+    TabController tabs(WidgetTester tester) =>
+        DefaultTabController.of(tester.element(find.byType(TabBar)));
+
+    testWidgets(
+        'TV: Indietro da Quick Connect torna alla password, poi chiede '
+        'l\'uscita', (tester) async {
+      await pumpLogin(tester, tv: true);
+      await tester.pump();
+      await tester.binding.handlePopRoute();
+      await tester.pump(const Duration(seconds: 1));
+      expect(tabs(tester).index, 0);
+      expect(find.text('Premi di nuovo Indietro per uscire'), findsNothing);
+
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+      expect(find.text('Premi di nuovo Indietro per uscire'), findsOneWidget);
+    });
+
+    testWidgets('TV: Indietro chiude il recupero della password',
+        (tester) async {
+      await pumpLogin(tester, tv: true);
+      await tester.pump();
+      tabs(tester).index = 0;
+      await tester.pump(const Duration(seconds: 1));
+      await tester.tap(find.text('Password dimenticata?'));
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byType(TabBar), findsNothing, reason: 'recupero aperto');
+
+      await tester.binding.handlePopRoute();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byType(TabBar), findsOneWidget);
+      expect(tabs(tester).index, 0);
+      expect(find.text('Premi di nuovo Indietro per uscire'), findsNothing);
+    });
   });
 
   testWidgets('Impostazioni: sulla TV solo lingua, player e lingue di '

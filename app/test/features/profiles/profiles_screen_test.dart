@@ -410,4 +410,20 @@ void main() {
     expect(find.text('Gestisci profili'), findsOneWidget);
     expect(find.text('Premi di nuovo Indietro per uscire'), findsNothing);
   });
+
+  testWidgets('TV: Indietro mentre un profilo si apre non arma l\'uscita',
+      (tester) async {
+    final gate = Completer<void>();
+    await pumpProfiles(tester, [mario, luigi],
+        controller: _SlowOpen(gate), tv: true);
+    await tester.tap(find.text('Mario'));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('profile-opening-u1')), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    expect(find.text('Premi di nuovo Indietro per uscire'), findsNothing);
+    gate.complete();
+    await tester.pump();
+  });
 }

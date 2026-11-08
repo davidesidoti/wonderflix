@@ -34,6 +34,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// Il nome scritto nell'accesso o nel recupero: passa da uno all'altro.
   String? _typedUsername;
 
+  /// Le schede Password/Quick Connect, se ci sono (per Indietro sulla TV).
+  TabController? _tabs;
+
+  /// Tornando dal recupero si riparte dalla password (da lì si era aperto),
+  /// anche sulla TV.
+  bool _backToPassword = false;
+
   @override
   void initState() {
     super.initState();
@@ -70,6 +77,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // Nello stretto il logo sta sopra il pannello, che prende tutta la
     // larghezza: affiancati servirebbero 716 punti.
     final compact = FormFactor.of(context).compact;
+    // Lo rimette la scheda qui sotto, se c'è.
+    _tabs = null;
 
     final page = Scaffold(
       body: Center(
@@ -113,6 +122,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             initialUsername: _typedUsername,
                             onBack: (username) => setState(() {
                               _recovering = false;
+                              _backToPassword = true;
                               _typedUsername = username;
                             }),
                           )
@@ -139,7 +149,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               // Sulla TV si parte da Quick Connect: con il
                               // telecomando la password è scomoda.
                               initialIndex:
-                                  FormFactor.of(context).tv ? 1 : 0,
+                                  FormFactor.of(context).tv && !_backToPassword
+                                      ? 1
+                                      : 0,
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -152,7 +164,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       Tab(text: l.loginTabQuickConnect),
                                     ],
                                   ),
-                                  const SizedBox(height: 16),
+                                  // Lo spazio sotto le schede, e intanto il
+                                  // loro controller per Indietro.
+                                  Builder(builder: (context) {
+                                    _tabs = DefaultTabController.of(context);
+                                    return const SizedBox(height: 16);
+                                  }),
                                   if (compact)
                                     // Senza altezza fissa: una scheda alla
                                     // volta, entrambe vive (il nome scritto
@@ -205,12 +222,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
       ),
     );
-    // Sulla TV Indietro non chiude l'app: aggiungendo un account torna a
-    // "Chi guarda?", altrimenti serve il doppio Indietro.
+    // Sulla TV Indietro non chiude l'app: chiude il recupero, da Quick
+    // Connect torna alla password, aggiungendo un account torna a "Chi
+    // guarda?", altrimenti serve il doppio Indietro.
     return TvBackGuard(
-      onBack: canCancel
-          ? ref.read(sessionControllerProvider.notifier).cancelLogin
-          : null,
+      onBack: () {
+        final tabs = _tabs;
+        if (_recovering) {
+          setState(() {
+            _recovering = false;
+            _backToPassword = true;
+          });
+        } else if (tabs != null && tabs.index != 0) {
+          tabs.animateTo(0);
+        } else if (canCancel) {
+          ref.read(sessionControllerProvider.notifier).cancelLogin();
+        } else {
+          return false;
+        }
+        return true;
+      },
       child: page,
     );
   }
