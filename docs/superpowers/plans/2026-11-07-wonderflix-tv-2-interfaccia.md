@@ -238,4 +238,6 @@ Prova sul Fire Stick dell'utente (AFTMA08C15), col telecomando vero, 2026-11-08.
 - dopo il salvaschermo del Fire Stick il focus torna su "Riproduci" del carosello invece che sull'ultimo elemento (un OK distratto fa partire un film);
 - l'intestazione della pagina del titolo è alta 560 dp su uno schermo di 540: la riga delle stagioni non si intravede nella prima schermata come nella bozza;
 - le slide del carosello non si cambiano col telecomando (scorrono da sole quando il focus è altrove);
+- dalla revisione finale: Indietro nei pannelli Quick Connect/recupero del login non chiude il pannello (annulla o chiede l'uscita); in "Chi guarda?" Indietro mentre un profilo si apre arma l'uscita;
+- dopo la revisione finale sono state aggiunte, senza nuovo giro sul dispositivo: Indietro su "Chi guarda?" e sul login non chiude più l'app di colpo (annulla l'aggiunta, oppure doppio Indietro), niente schede admin delle richieste sulla TV, focus nel contenuto dopo Avatar → Impostazioni;
 - durante le prove automatiche "Il corriere - The Mule" è partito per sbaglio ~30 s: non risulta visto né con un punto di ripresa, solo il contatore delle visioni è salito di uno.
