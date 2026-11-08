@@ -129,12 +129,19 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
   @override
   void didUpdateWidget(HeroCarousel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.items.length == widget.items.length) return;
-    final last = widget.items.length - 1;
-    if (last >= 0 && _index > last) _index = last;
-    _previous = null;
-    _progress.value = 0;
-    _syncProgress();
+    final shownId = oldWidget.items.elementAtOrNull(_index)?.id;
+    if (oldWidget.items.length != widget.items.length) {
+      final last = widget.items.length - 1;
+      if (last >= 0 && _index > last) _index = last;
+      _previous = null;
+      _progress.value = 0;
+      _syncProgress();
+    }
+    // La diapositiva col focus è stata sostituita (il carosello si è
+    // riletto): il focus passa ai pulsanti di quella nuova.
+    if (_focusInside && widget.items.elementAtOrNull(_index)?.id != shownId) {
+      _focusCurrentSlide();
+    }
   }
 
   @override
@@ -182,6 +189,12 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
   /// (quelli della diapositiva che esce non sono focalizzabili).
   void _step(int delta) {
     _goTo(_index + delta);
+    _focusCurrentSlide();
+  }
+
+  /// Dopo la prossima costruzione, il focus sul primo pulsante della
+  /// diapositiva attuale.
+  void _focusCurrentSlide() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _tvFocus.traversalDescendants

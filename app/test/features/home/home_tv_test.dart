@@ -301,4 +301,45 @@ void main() {
       expect(find.text('DUNE'), findsOneWidget);
     });
   });
+
+  testWidgets(
+      'TV: se il titolo della diapositiva col focus cambia, il focus va sui '
+      'pulsanti di quella nuova', (tester) async {
+    final shown = ValueNotifier([
+      for (final n in ['Dune', 'Alien']) testItem(id: n, name: n),
+    ]);
+    addTearDown(shown.dispose);
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: FormFactorScope(
+          tv: true,
+          child: ValueListenableBuilder(
+            valueListenable: shown,
+            builder: (context, items, _) => HeroCarousel(items: items),
+          ),
+        ),
+      ),
+      overrides: [
+        libraryApiProvider.overrideWithValue(FakeLibraryApi()),
+        sessionControllerProvider.overrideWith(
+          () => FakeSessionController(const SessionSignedIn(testUser)),
+        ),
+      ],
+    );
+    await tester.pump();
+    final play = find.ancestor(
+      of: find.text('Riproduci'),
+      matching: find.byType(FilledButton),
+    );
+    expect(_focusIn(play), isTrue);
+    // La rilettura porta un altro titolo al posto di quello mostrato.
+    shown.value = [
+      for (final n in ['Heat', 'Alien']) testItem(id: n, name: n),
+    ];
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('HEAT'), findsOneWidget);
+    expect(_focusIn(play), isTrue);
+  });
 }
