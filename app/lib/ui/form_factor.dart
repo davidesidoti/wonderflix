@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
+import 'tv_focusable.dart';
+
 /// Sotto questa larghezza la finestra usa il layout stretto.
 const compactLayoutWidth = 1024.0;
 
@@ -55,7 +57,8 @@ class FormFactor {
 ///
 /// Parte in modo tocco su Android e iOS. Con [touchOverride] il modo tocco è
 /// fisso (nei test, dove `tester.tap` è sempre un tocco). Con [tv] il modo
-/// tocco è spento e i puntatori sono ignorati.
+/// tocco è spento e i puntatori sono ignorati, e ogni elemento che prende il
+/// focus scorre fino a vedersi.
 class FormFactorScope extends StatefulWidget {
   const FormFactorScope({
     super.key,
@@ -76,6 +79,60 @@ class _FormFactorScopeState extends State<FormFactorScope> {
   bool _touch =
       defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.iOS;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.tv) FocusManager.instance.addListener(_revealFocus);
+  }
+
+  @override
+  void didUpdateWidget(FormFactorScope old) {
+    super.didUpdateWidget(old);
+    if (old.tv == widget.tv) return;
+    if (widget.tv) {
+      FocusManager.instance.addListener(_revealFocus);
+    } else {
+      FocusManager.instance.removeListener(_revealFocus);
+    }
+  }
+
+  @override
+  void dispose() {
+    FocusManager.instance.removeListener(_revealFocus);
+    super.dispose();
+  }
+
+  /// Sulla TV l'elemento col focus (anche `autofocus` o `requestFocus`, che
+  /// non passano dalla ricerca del focus) scorre quanto basta per vedersi.
+  /// Le card (`TvFocusable`) si centrano da sole.
+  void _revealFocus() {
+    final context = FocusManager.instance.primaryFocus?.context;
+    if (context == null ||
+        FocusManager.instance.primaryFocus is FocusScopeNode ||
+        context.findAncestorWidgetOfExactType<TvFocusable>() != null) {
+      return;
+    }
+    // Il focus cambia a fine microtask: il layout del fotogramma serve per
+    // sapere dove sta.
+    WidgetsBinding.instance
+      ..addPostFrameCallback((_) async {
+        if (!context.mounted) return;
+        const duration = Duration(milliseconds: 200);
+        await Scrollable.ensureVisible(
+          context,
+          duration: duration,
+          alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+        );
+        if (!context.mounted) return;
+        await Scrollable.ensureVisible(
+          context,
+          duration: duration,
+          alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtStart,
+        );
+      })
+      ..scheduleFrame();
+  }
 
   void _onPointer(PointerEvent event) {
     if (widget.tv) return;

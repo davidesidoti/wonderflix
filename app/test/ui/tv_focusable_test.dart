@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/ui/form_factor.dart';
 import 'package:wonderflix/ui/tv_focusable.dart';
+import 'package:wonderflix/ui/wf_buttons.dart';
 
 Future<void> _pump(WidgetTester tester, Widget child, {bool tv = true}) =>
     tester.pumpWidget(
@@ -156,5 +157,43 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.select);
     await tester.pump();
     expect(pressed, 1);
+  });
+
+  // Una pagina lunga col pulsante in fondo, fuori dallo schermo (600 px).
+  Widget farButton() => SingleChildScrollView(
+    child: Column(
+      children: [
+        const SizedBox(height: 2000),
+        WfButton.primary(
+          key: const Key('far'),
+          label: 'Lontano',
+          icon: Icons.play_arrow,
+          autofocus: true,
+          onPressed: () {},
+        ),
+      ],
+    ),
+  );
+
+  bool onScreen(WidgetTester tester) {
+    // Il margine del bersaglio del tocco può sporgere di qualche pixel.
+    final rect = tester.getRect(find.byKey(const Key('far'))).deflate(4);
+    return rect.top >= 0 && rect.bottom <= 600;
+  }
+
+  testWidgets('sulla TV un pulsante qualsiasi col focus scorre in vista', (
+    tester,
+  ) async {
+    await _pump(tester, farButton());
+    await tester.pumpAndSettle();
+
+    expect(onScreen(tester), isTrue);
+  });
+
+  testWidgets('fuori dalla TV il focus non fa scorrere', (tester) async {
+    await _pump(tester, farButton(), tv: false);
+    await tester.pumpAndSettle();
+
+    expect(onScreen(tester), isFalse);
   });
 }
