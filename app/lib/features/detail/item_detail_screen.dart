@@ -44,8 +44,8 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
   bool _redirected = false;
 
   /// Contenuto mentre una saga passa alla sua pagina.
-  static const (String, Widget) _redirecting =
-      ('loading', DetailSkeleton(headerHeight: detailHeaderHeight));
+  (String, Widget) get _redirecting =>
+      ('loading', DetailSkeleton(headerHeight: detailHeaderHeightOf(context)));
 
   @override
   void dispose() {

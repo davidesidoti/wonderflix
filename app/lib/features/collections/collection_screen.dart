@@ -52,8 +52,8 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   final _header = GlobalKey();
 
   /// Stato di caricamento: la saga o i suoi titoli non sono ancora arrivati.
-  static const (String, Widget) _loading =
-      ('loading', DetailSkeleton(headerHeight: detailHeaderHeight));
+  (String, Widget) get _loading =>
+      ('loading', DetailSkeleton(headerHeight: detailHeaderHeightOf(context)));
 
   @override
   void dispose() {

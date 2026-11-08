@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -38,13 +37,16 @@ const detailHeaderHeight = 560.0;
 /// riga delle stagioni (o il cast) già nella prima schermata.
 const tvDetailPeek = 140.0;
 
+/// Altezza minima della testata sulla TV: all'avvio e alla ripresa lo
+/// schermo può misurare 0 per un attimo.
+const tvDetailHeaderMin = 320.0;
+
 /// Altezza della testata: [detailHeaderHeight]; sulla TV l'altezza dello
-/// schermo meno [tvDetailPeek], al massimo [detailHeaderHeight].
+/// schermo meno [tvDetailPeek], tra [tvDetailHeaderMin] e
+/// [detailHeaderHeight].
 double detailHeaderHeightOf(BuildContext context) => FormFactor.of(context).tv
-    ? math.min(
-        detailHeaderHeight,
-        MediaQuery.sizeOf(context).height - tvDetailPeek,
-      )
+    ? (MediaQuery.sizeOf(context).height - tvDetailPeek)
+          .clamp(tvDetailHeaderMin, detailHeaderHeight)
     : detailHeaderHeight;
 
 /// La scheda usa il layout stretto: mai sulla TV, che pure è larga meno di

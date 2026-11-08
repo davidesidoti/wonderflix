@@ -11,6 +11,7 @@ import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/detail/item_detail_screen.dart';
 import 'package:wonderflix/features/detail/detail_header.dart';
+import 'package:wonderflix/ui/form_factor.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/ratings/friend_ratings_row.dart';
 import 'package:wonderflix/features/ratings/rate_panel.dart';
@@ -425,5 +426,23 @@ void main() {
     );
     expect(tester.getSize(find.byType(DetailHeaderFrame)).height,
         detailHeaderHeight);
+  });
+
+  testWidgets('TV: con lo schermo ancora a 0×0 la testata non va sotto 320',
+      (tester) async {
+    late double height;
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(),
+        child: FormFactorScope(
+          tv: true,
+          child: Builder(builder: (context) {
+            height = detailHeaderHeightOf(context);
+            return const SizedBox();
+          }),
+        ),
+      ),
+    );
+    expect(height, tvDetailHeaderMin);
   });
 }
