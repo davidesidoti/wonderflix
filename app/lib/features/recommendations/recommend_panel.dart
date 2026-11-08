@@ -13,6 +13,7 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/rune_limit.dart';
 import '../../ui/shell_side_panel.dart';
+import '../../ui/tv_focusable.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_image.dart';
 import '../library/library_providers.dart';
@@ -273,7 +274,9 @@ class _RecommendPanelState extends ConsumerState<RecommendPanel> {
                 style: _mutedStyle),
           ),
         for (final target in targets)
-          CheckboxListTile(
+          TvFocusBorder(
+            key: ValueKey('recommend-focus-${target.userId}'),
+            child: CheckboxListTile(
             key: ValueKey('recommend-target-${target.userId}'),
             value: _selected.contains(target.userId),
             onChanged: !target.canSee ||
@@ -311,7 +314,7 @@ class _RecommendPanelState extends ConsumerState<RecommendPanel> {
                 ? null
                 : Text(l.recommendCannotSee,
                     style: const TextStyle(color: WfColors.creamMuted, fontSize: 12)),
-          ),
+          )),
       ],
     );
   }

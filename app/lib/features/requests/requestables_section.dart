@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/shimmer.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/states.dart';
 import '../search/search_controller.dart';
 import 'requestable_poster_card.dart';
@@ -46,6 +47,12 @@ class RequestablesSection extends ConsumerWidget {
           ),
           const SizedBox(width: 12),
           OutlinedButton(
+            // Su oro sottile il bordo oro largo 2 si distingue poco: crema.
+            style: ButtonStyle(
+                side: tvButtonSide(
+                    FormFactor.of(context).tv,
+                    const BorderSide(color: WfColors.gold),
+                    tvFocusSideOnGold)),
             onPressed: () => ref
                 .read(requestablesControllerProvider.notifier)
                 .retry(language: Localizations.localeOf(context).languageCode),

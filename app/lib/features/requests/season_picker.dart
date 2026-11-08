@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/theme.dart';
 import '../../core/requests/requests_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/tv_focusable.dart';
 
 /// L'etichetta dello stato di una stagione (spec I §9.2).
 String seasonStatusLabel(AppLocalizations l, TitleStatus status) =>
@@ -99,34 +100,36 @@ class _SeasonRow extends StatelessWidget {
       child: InkWell(
         onTap: tap,
         canRequestFocus: false,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: WfColors.border)),
-          ),
-          child: Row(
-            children: [
-              Checkbox(
-                value: value,
-                tristate: value == null,
-                onChanged: tap == null ? null : (_) => tap(),
-                activeColor: WfColors.gold,
-                checkColor: WfColors.bg,
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(label,
-                    style: TextStyle(
-                        color:
-                            tap == null ? WfColors.creamMuted : WfColors.cream)),
-              ),
-              if (status != null)
-                Text(status,
-                    style: const TextStyle(
-                        color: WfColors.creamMuted, fontSize: 12.5)),
-              const SizedBox(width: 8),
-            ],
-          ),
+        child: TvFocusBorder(
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: WfColors.border)),
+            ),
+            child: Row(
+              children: [
+                Checkbox(
+                  value: value,
+                  tristate: value == null,
+                  onChanged: tap == null ? null : (_) => tap(),
+                  activeColor: WfColors.gold,
+                  checkColor: WfColors.bg,
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(label,
+                      style: TextStyle(
+                          color:
+                              tap == null ? WfColors.creamMuted : WfColors.cream)),
+                ),
+                if (status != null)
+                  Text(status,
+                      style: const TextStyle(
+                          color: WfColors.creamMuted, fontSize: 12.5)),
+                const SizedBox(width: 8),
+              ],
+            ),
+        ),
         ),
       ),
     );

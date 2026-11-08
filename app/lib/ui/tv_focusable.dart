@@ -94,15 +94,18 @@ class _TvFocusableState extends State<TvFocusable> {
 /// Sulla TV il bordo oro largo 2 attorno a [child] quando il focus è su un
 /// suo discendente (menu dei filtri, schede): per i controlli che non hanno
 /// un `ButtonStyle` da cui prenderlo. Fuori dalla TV restituisce [child].
+/// [color] è crema ([tvFocusSideOnGold]) dove il controllo è pieno d'oro.
 class TvFocusBorder extends StatelessWidget {
   const TvFocusBorder({
     super.key,
     required this.child,
     this.borderRadius = const BorderRadius.all(Radius.circular(6)),
+    this.color = tvFocusColor,
   });
 
   final Widget child;
   final BorderRadius borderRadius;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -116,9 +119,7 @@ class TvFocusBorder extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: borderRadius,
             border: Border.all(
-              color: Focus.of(context).hasFocus
-                  ? tvFocusColor
-                  : Colors.transparent,
+              color: Focus.of(context).hasFocus ? color : Colors.transparent,
               width: 2,
             ),
           ),

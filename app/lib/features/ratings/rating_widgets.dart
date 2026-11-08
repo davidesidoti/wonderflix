@@ -5,6 +5,7 @@ import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/rune_limit.dart';
+import '../../ui/tv_focusable.dart';
 
 /// Lunghezza massima del commento, in punti di codice (spec Q §3).
 const ratingCommentMax = 200;
@@ -32,25 +33,29 @@ class RatingScorePicker extends StatelessWidget {
         for (var n = 1; n <= 10; n++) ...[
           if (n > 1) const SizedBox(width: 4),
           Expanded(
-            child: Material(
-              key: Key('rating-score-$n'),
-              color: n == selected ? WfColors.gold : WfColors.surfaceHigh,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
-                side: const BorderSide(color: WfColors.border),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: enabled ? () => onSelect(n) : null,
-                child: SizedBox(
-                  height: _scoreButtonHeight,
-                  child: Center(
-                    child: Text(
-                      '$n',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: n == selected ? WfColors.bg : WfColors.cream,
+            child: TvFocusBorder(
+              // Il voto scelto è pieno d'oro: il bordo crema.
+              color: n == selected ? tvFocusSideOnGold.color : tvFocusColor,
+              child: Material(
+                key: Key('rating-score-$n'),
+                color: n == selected ? WfColors.gold : WfColors.surfaceHigh,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  side: const BorderSide(color: WfColors.border),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: enabled ? () => onSelect(n) : null,
+                  child: SizedBox(
+                    height: _scoreButtonHeight,
+                    child: Center(
+                      child: Text(
+                        '$n',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: n == selected ? WfColors.bg : WfColors.cream,
+                        ),
                       ),
                     ),
                   ),
