@@ -266,9 +266,16 @@ void main() {
               () => FakeSessionController(const SessionSignedIn(testUser))),
           userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
           ...homeSettingsOverrides(),
+          updateControllerProvider.overrideWith(() => FakeUpdateController(
+              UpdateState(
+                  release: testRelease(),
+                  installer: File('WonderFlix-TV-0.2.0.apk')))),
         ]);
     await tester.pump();
 
+    // Sotto la versione, l'aggiornamento pronto.
+    expect(find.text('WonderFlix 0.2.0 disponibile'), findsOneWidget);
+    expect(find.text('Aggiorna'), findsOneWidget);
     for (final title in ['Lingua', 'Player', 'Lingue di riproduzione']) {
       expect(find.text(title), findsOneWidget, reason: title);
     }

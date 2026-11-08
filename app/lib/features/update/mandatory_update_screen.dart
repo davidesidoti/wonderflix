@@ -3,8 +3,10 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/wf_buttons.dart';
 import 'release_notes.dart';
+import 'tv_update_tile.dart';
 import 'update_controller.dart';
 
 /// Schermata bloccante: la versione installata è sotto `min-version`.
@@ -25,6 +27,8 @@ class MandatoryUpdateScreen extends StatelessWidget {
     final l = AppLocalizations.of(context);
     final release = update.release!;
     final progress = update.progress;
+    final tv = FormFactor.of(context).tv;
+    const muted = TextStyle(color: WfColors.creamMuted);
     return Material(
       color: WfColors.bg,
       child: Center(
@@ -77,6 +81,15 @@ class MandatoryUpdateScreen extends StatelessWidget {
                     autofocus: true,
                     onPressed: update.ready ? onInstall : null,
                   ),
+                if (update.installPermissionNeeded) ...[
+                  const SizedBox(height: 16),
+                  Text(l.tvUpdatePermission, style: muted),
+                ],
+                // Firma diversa o installer che non va: l'uscita c'è sempre.
+                if (tv) ...[
+                  const SizedBox(height: 16),
+                  Text(tvReinstallHint(l), style: muted),
+                ],
               ],
             ),
           ),

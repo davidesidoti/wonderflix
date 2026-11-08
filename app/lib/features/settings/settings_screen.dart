@@ -9,6 +9,7 @@ import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
+import '../update/tv_update_tile.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/staggered_entrance.dart';
 import '../social/social_providers.dart';
@@ -183,6 +184,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               Text(l.settingsVersion(version),
                   style: const TextStyle(
                       color: WfColors.creamMuted, fontSize: 12.5)),
+              const TvUpdateTile(),
             ]),
           ],
         ),

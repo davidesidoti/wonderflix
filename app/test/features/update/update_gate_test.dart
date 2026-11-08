@@ -307,4 +307,66 @@ void main() {
     expect(controller.retries, 1);
     expect(tester.takeException(), isNull);
   });
+
+  group('TV', () {
+    const reinstall = 'Se l\'aggiornamento non va, disinstalla WonderFlix e '
+        'reinstallalo con Downloader dall\'indirizzo '
+        'hashvps.proton.usbx.me/wonderflix/tv.apk.';
+    final mandatory = testRelease(minVersion: '0.2.0');
+
+    /// Il gate sopra un'app che ha già il focus (come la Home della TV).
+    Future<void> pumpTvGate(WidgetTester tester, UpdateState state) async {
+      controller = FakeUpdateController(state);
+      await pumpApp(
+          tester,
+          UpdateGate(
+              child: TextButton(
+                  autofocus: true, onPressed: () {}, child: const Text('app'))),
+          tv: true,
+          overrides: [updateControllerProvider.overrideWith(() => controller)]);
+      await tester.pump();
+    }
+
+    bool focused(WidgetTester tester, String label) =>
+        Focus.of(tester.element(find.text(label))).hasFocus;
+
+    testWidgets('a download finito "Aggiorna ora" prende il focus dall\'app',
+        (tester) async {
+      await pumpTvGate(tester, const UpdateState());
+      expect(focused(tester, 'app'), isTrue);
+      controller.emit(UpdateState(
+          release: mandatory, mandatory: true, installer: installer));
+      await tester.pump();
+      await tester.pump();
+      expect(focused(tester, 'Aggiorna ora'), isTrue);
+      expect(find.text(reinstall), findsOneWidget);
+    });
+
+    testWidgets('download fallito: "Riprova" a fuoco', (tester) async {
+      await pumpTvGate(tester, const UpdateState());
+      controller.emit(
+          UpdateState(release: mandatory, mandatory: true, failed: true));
+      await tester.pump();
+      await tester.pump();
+      expect(focused(tester, 'Riprova'), isTrue);
+    });
+
+    testWidgets('permesso necessario: il testo anche qui', (tester) async {
+      await pumpTvGate(
+          tester,
+          UpdateState(
+              release: mandatory,
+              mandatory: true,
+              installer: installer,
+              installPermissionNeeded: true));
+      expect(find.textContaining('Installa app sconosciute'), findsOneWidget);
+      expect(focused(tester, 'Aggiorna ora'), isTrue);
+    });
+
+    testWidgets('fuori dalla TV niente riga di Downloader', (tester) async {
+      await pumpGate(tester,
+          UpdateState(release: mandatory, mandatory: true, installer: installer));
+      expect(find.textContaining('Downloader'), findsNothing);
+    });
+  });
 }
