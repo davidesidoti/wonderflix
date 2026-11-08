@@ -189,6 +189,8 @@ void main() {
 
       final play = id == 'm1' ? 'Riprendi da 23:14' : 'Riprendi S1:E4 · 23:14';
       expect(inside(find.text(play)), isTrue, reason: play);
+      // Fuori dal bordo che una TV può tagliare (48 dp in basso).
+      expect(tester.getRect(find.text(play)).bottom, lessThan(540 - 48));
       expect(hasFocus(tester, find.text(play)), isTrue);
       for (final tooltip in ['Segna come visto', 'Altre azioni']) {
         expect(inside(find.byTooltip(tooltip)), isTrue, reason: tooltip);

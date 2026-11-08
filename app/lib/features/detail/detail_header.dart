@@ -50,6 +50,10 @@ double detailBackdropHeight(BuildContext context) => detailCompact(context)
 /// della testata.
 const detailHeaderTextBottom = 28.0;
 
+/// Lo stesso margine sulla TV: i pulsanti restano fuori dal bordo che lo
+/// schermo può tagliare (48 dp).
+const tvDetailHeaderTextBottom = 64.0;
+
 /// Elementi della scheda che entrano scaglionati: 5 della testata (logo,
 /// dati, generi, trama, pulsanti) e le righe sotto.
 const detailEntranceCount = 9;
@@ -472,7 +476,9 @@ class DetailHeaderFrame extends StatelessWidget {
           Positioned(
             left: 32,
             right: 32,
-            bottom: detailHeaderTextBottom,
+            bottom: FormFactor.of(context).tv
+                ? tvDetailHeaderTextBottom
+                : detailHeaderTextBottom,
             child: _ScrollFade(controller: controller, child: text),
           ),
         ],
