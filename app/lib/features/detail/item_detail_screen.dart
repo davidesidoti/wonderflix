@@ -78,15 +78,15 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
       loading: () => (
         'loading',
         launch == null
-            ? const DetailSkeleton(headerHeight: detailHeaderHeight)
+            ? DetailSkeleton(headerHeight: detailHeaderHeightOf(context))
             // Senza `_scroll`: durante la dissolvenza verso i dati il
             // controller sta solo sulla lista dei dati.
             : ListView(
                 primary: false,
                 physics: const NeverScrollableScrollPhysics(),
-                children: const [
-                  SizedBox(height: detailHeaderHeight),
-                  WfShimmer(child: DetailRowsSkeleton()),
+                children: [
+                  SizedBox(height: detailHeaderHeightOf(context)),
+                  const WfShimmer(child: DetailRowsSkeleton()),
                 ],
               ),
       ),

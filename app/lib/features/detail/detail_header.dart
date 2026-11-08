@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,6 +34,19 @@ import 'primary_action.dart';
 /// Altezza della testata della scheda (sfondo, logo, dati, azioni).
 const detailHeaderHeight = 560.0;
 
+/// Sulla TV, quanto dello schermo resta sotto la testata: si intravede la
+/// riga delle stagioni (o il cast) già nella prima schermata.
+const tvDetailPeek = 140.0;
+
+/// Altezza della testata: [detailHeaderHeight]; sulla TV l'altezza dello
+/// schermo meno [tvDetailPeek], al massimo [detailHeaderHeight].
+double detailHeaderHeightOf(BuildContext context) => FormFactor.of(context).tv
+    ? math.min(
+        detailHeaderHeight,
+        MediaQuery.sizeOf(context).height - tvDetailPeek,
+      )
+    : detailHeaderHeight;
+
 /// La scheda usa il layout stretto: mai sulla TV, che pure è larga meno di
 /// 1024 (i dati e i pulsanti stanno sopra lo sfondo, nella prima schermata).
 bool detailCompact(BuildContext context) {
@@ -44,15 +58,12 @@ bool detailCompact(BuildContext context) {
 /// 16:9 sopra i testi.
 double detailBackdropHeight(BuildContext context) => detailCompact(context)
     ? MediaQuery.sizeOf(context).width * 9 / 16
-    : detailHeaderHeight;
+    : detailHeaderHeightOf(context);
 
 /// Margine tra il blocco dei testi (fino alla riga dei pulsanti) e il fondo
-/// della testata.
+/// della testata. Sulla TV basta anche lui: sotto la testata resta
+/// [tvDetailPeek], più del bordo che lo schermo può tagliare (48 dp).
 const detailHeaderTextBottom = 28.0;
-
-/// Lo stesso margine sulla TV: i pulsanti restano fuori dal bordo che lo
-/// schermo può tagliare (48 dp).
-const tvDetailHeaderTextBottom = 64.0;
 
 /// Elementi della scheda che entrano scaglionati: 5 della testata (logo,
 /// dati, generi, trama, pulsanti) e le righe sotto.
@@ -451,7 +462,7 @@ class DetailHeaderFrame extends StatelessWidget {
       );
     }
     return SizedBox(
-      height: detailHeaderHeight,
+      height: detailHeaderHeightOf(context),
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -476,9 +487,7 @@ class DetailHeaderFrame extends StatelessWidget {
           Positioned(
             left: 32,
             right: 32,
-            bottom: FormFactor.of(context).tv
-                ? tvDetailHeaderTextBottom
-                : detailHeaderTextBottom,
+            bottom: detailHeaderTextBottom,
             child: _ScrollFade(controller: controller, child: text),
           ),
         ],
@@ -557,6 +566,7 @@ class _ScrollFade extends StatelessWidget {
         final p = headerParallax(
           scroll.hasClients ? scroll.offset : 0,
           reduced: reduced,
+          height: detailHeaderHeightOf(context),
         );
         // Sparito del tutto non riceve più clic (i pulsanti sono invisibili).
         return IgnorePointer(

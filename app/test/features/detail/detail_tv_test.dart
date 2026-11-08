@@ -10,6 +10,7 @@ import 'package:wonderflix/core/social/rating_models.dart';
 import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/detail/item_detail_screen.dart';
+import 'package:wonderflix/features/detail/detail_header.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/ratings/friend_ratings_row.dart';
 import 'package:wonderflix/features/ratings/rate_panel.dart';
@@ -396,5 +397,33 @@ void main() {
       ],
     );
     expect(find.byTooltip('Vota'), findsNothing);
+  });
+
+  testWidgets(
+      'serie a 960×540: la testata lascia intravedere le stagioni, il titolo '
+      'resta dentro il bordo', (tester) async {
+    await pumpDetail(tester, 's1', surfaceSize: const Size(960, 540));
+    await tester.pumpAndSettle();
+    final header = tester.getRect(find.byType(DetailHeaderFrame));
+    expect(header.height, lessThan(540 - 100));
+    // La scheda della stagione si vede senza scorrere.
+    expect(tester.getRect(find.text('Stagione 1').first).bottom,
+        lessThan(540 - 24));
+    // Il titolo sta sotto il bordo alto che la TV può tagliare (5%).
+    expect(tester.getRect(find.byType(HeaderTitle)).top,
+        greaterThanOrEqualTo(540 * 0.05));
+    final play = tester.getRect(find.text('Riprendi S1:E4 · 23:14'));
+    expect(play.bottom, lessThan(header.bottom));
+  });
+
+  testWidgets('fuori dalla TV la testata resta alta 560', (tester) async {
+    await pumpApp(
+      tester,
+      const Column(
+        children: [DetailHeaderFrame(controller: null, children: [Text('t')])],
+      ),
+    );
+    expect(tester.getSize(find.byType(DetailHeaderFrame)).height,
+        detailHeaderHeight);
   });
 }
