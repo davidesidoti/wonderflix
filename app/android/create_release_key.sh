@@ -33,7 +33,18 @@ keyAlias=wonderflix
 keyPassword=$password
 EOF
 
-base64 -w0 "$jks" | gh secret set WONDERFLIX_ANDROID_KEYSTORE
-printf '%s' "$password" | gh secret set WONDERFLIX_ANDROID_KEYSTORE_PASSWORD
+# File già scritti: se gh fallisce, un nuovo lancio rifiuterebbe. Si caricano a mano dai file.
+recovery() {
+  cat >&2 <<'NOTE'
+Caricamento dei Secrets non riuscito. La chiave è già in app/android: non rilanciare lo script.
+Quando gh funziona (gh auth status), da app/android carica i due Secrets dai file:
+  base64 -w0 wonderflix-release.jks | gh secret set WONDERFLIX_ANDROID_KEYSTORE
+  sed -n 's/^storePassword=//p' key.properties | tr -d '\r\n' | gh secret set WONDERFLIX_ANDROID_KEYSTORE_PASSWORD
+(la password passa da key.properties a gh senza comparire a schermo)
+NOTE
+  exit 1
+}
+base64 -w0 "$jks" | gh secret set WONDERFLIX_ANDROID_KEYSTORE || recovery
+printf '%s' "$password" | gh secret set WONDERFLIX_ANDROID_KEYSTORE_PASSWORD || recovery
 
 echo "Salva wonderflix-release.jks e key.properties nel gestore di password: senza, ogni utente dovrà reinstallare."

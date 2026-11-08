@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pub_semver/pub_semver.dart';
 
@@ -25,17 +26,49 @@ final updateBlockedProvider = Provider<bool>((ref) {
 /// aperto. L'app resta montata sotto, così lo stato della navigazione non si
 /// perde.
 class UpdateGate extends ConsumerStatefulWidget {
-  const UpdateGate({super.key, required this.child});
+  const UpdateGate({super.key, required this.child, @visibleForTesting this.onExit});
 
   final Widget child;
+
+  /// Al posto di `SystemNavigator.pop` (Indietro sulla TV).
+  final VoidCallback? onExit;
 
   @override
   ConsumerState<UpdateGate> createState() => _UpdateGateState();
 }
 
-class _UpdateGateState extends ConsumerState<UpdateGate> {
+class _UpdateGateState extends ConsumerState<UpdateGate>
+    with WidgetsBindingObserver {
   /// Versione rimandata con "Più tardi" (fino al prossimo avvio).
   Version? _postponed;
+
+  @override
+  void initState() {
+    super.initState();
+    // Il gate sta sopra il Router (builder di MaterialApp): registrato prima,
+    // vede Indietro prima del router.
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Sulla TV, Indietro sotto la schermata obbligatoria muoverebbe l'app
+  /// nascosta (anche una pagina profonda) e l'avviso del doppio Indietro
+  /// resterebbe coperto: si esce subito.
+  @override
+  Future<bool> didPopRoute() async {
+    if (!mounted ||
+        !FormFactor.of(context).tv ||
+        !ref.read(updateBlockedProvider)) {
+      return false;
+    }
+    (widget.onExit ?? () => unawaited(SystemNavigator.pop()))();
+    return true;
+  }
 
   @override
   Widget build(BuildContext context) {

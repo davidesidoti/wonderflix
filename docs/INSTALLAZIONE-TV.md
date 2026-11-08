@@ -28,7 +28,7 @@ All'apertura WonderFlix mostra un codice. Su WonderFlix per PC o dal sito sul te
 Quando esce una versione nuova, WonderFlix la scarica da solo e in *Impostazioni* (in fondo, sotto la versione) compare "WonderFlix X.Y.Z disponibile" con il pulsante **Aggiorna**.
 
 - La prima volta Android chiede il permesso: si apre *Installa app sconosciute*, attiva **WonderFlix**, torna indietro e premi di nuovo *Aggiorna*.
-- Conferma *Aggiorna* (o *Installa*) nella finestra di Android: WonderFlix si chiude e si riapre aggiornato, senza rifare l'accesso.
+- Conferma *Aggiorna* (o *Installa*) nella finestra di Android. Alla fine Android mostra *Fatto* e *Apri*: premi *Apri* (WonderFlix non si riapre da solo). Non serve rifare l'accesso.
 - Se una versione è obbligatoria, WonderFlix mostra una schermata con *Aggiorna ora* al posto della Home.
 
 **Se l'aggiornamento non va** (per esempio Android dice che l'app non è installata): disinstalla WonderFlix (*Impostazioni → Applicazioni → Gestisci applicazioni installate → WonderFlix → Disinstalla*) e reinstallalo con Downloader dal punto 3. Dovrai rientrare con Quick Connect.

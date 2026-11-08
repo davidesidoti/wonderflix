@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import 'package:wonderflix/features/player/player_active.dart';
 import 'package:wonderflix/features/update/update_controller.dart';
 import 'package:wonderflix/features/update/update_gate.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
+import 'package:wonderflix/ui/form_factor.dart';
 
 import '../../support/pump_app.dart';
 import '../../support/update_fakes.dart';
@@ -309,6 +311,7 @@ void main() {
   });
 
   group('TV', () {
+    var exits = 0;
     const reinstall = 'Se l\'aggiornamento non va, disinstalla WonderFlix e '
         'reinstallalo con Downloader dall\'indirizzo '
         'hashvps.proton.usbx.me/wonderflix/tv.apk.';
@@ -361,6 +364,67 @@ void main() {
               installPermissionNeeded: true));
       expect(find.textContaining('Installa app sconosciute'), findsOneWidget);
       expect(focused(tester, 'Aggiorna ora'), isTrue);
+    });
+
+    /// Come in `app.dart`: il gate nel builder, sopra il router.
+    Future<GoRouter> pumpBackGate(WidgetTester tester, UpdateState state,
+        {bool tv = true}) async {
+      controller = FakeUpdateController(state);
+      exits = 0;
+      final router = GoRouter(initialLocation: '/a', routes: [
+        GoRoute(path: '/a', builder: (c, s) => const Text('a')),
+        GoRoute(path: '/b', builder: (c, s) => const Text('b')),
+      ]);
+      addTearDown(router.dispose);
+      await tester.pumpWidget(ProviderScope(
+        overrides: [updateControllerProvider.overrideWith(() => controller)],
+        child: MaterialApp.router(
+          theme: buildWonderflixTheme(),
+          locale: const Locale('it'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+          builder: (context, child) => FormFactorScope(
+              tv: tv,
+              child: UpdateGate(onExit: () => exits++, child: child!)),
+        ),
+      ));
+      await tester.pump();
+      unawaited(router.push('/b'));
+      await tester.pumpAndSettle();
+      return router;
+    }
+
+    String location(GoRouter r) =>
+        r.routerDelegate.currentConfiguration.last.matchedLocation;
+
+    testWidgets('Indietro sulla schermata obbligatoria esce senza muovere '
+        'l\'app', (tester) async {
+      final r = await pumpBackGate(tester,
+          UpdateState(release: mandatory, mandatory: true, installer: installer));
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(location(r), '/b');
+      expect(exits, 1);
+    });
+
+    testWidgets('senza schermata obbligatoria Indietro torna indietro',
+        (tester) async {
+      final r = await pumpBackGate(tester, const UpdateState());
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(location(r), '/a');
+      expect(exits, 0);
+    });
+
+    testWidgets('fuori dalla TV Indietro non cambia', (tester) async {
+      final r = await pumpBackGate(tester,
+          UpdateState(release: mandatory, mandatory: true, installer: installer),
+          tv: false);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(location(r), '/a');
+      expect(exits, 0);
     });
 
     testWidgets('fuori dalla TV niente riga di Downloader', (tester) async {

@@ -52,7 +52,11 @@ class MainActivity : FlutterActivity() {
                 )
             } catch (e: ActivityNotFoundException) {
                 // Fire OS vecchi: niente pagina per singola app.
-                startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
+                try {
+                    startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
+                } catch (e: ActivityNotFoundException) {
+                    // Nessuna delle due: l'app mostra comunque come fare.
+                }
             }
             return "needsPermission"
         }

@@ -40,10 +40,12 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = versionCodeOf(flutter.versionName)
         versionName = flutter.versionName
-        // Solo ARM (Fire TV). Con --split-per-abi Gradle rifiuta abiFilters (le ABI le sceglie lo split).
-        if (!project.hasProperty("split-per-abi")) {
-            ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
+        // Solo ARM (Fire TV). Niente --split-per-abi: Flutter aggiungerebbe ABI * 1000 al
+        // versionCode (0.33.5 armeabi-v7a = 34005 > 0.34.0 = 34000) e gli aggiornamenti verrebbero rifiutati.
+        if (project.hasProperty("split-per-abi")) {
+            throw GradleException("Un solo APK: niente --split-per-abi, vedi CLAUDE.md")
         }
+        ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
     }
 
     signingConfigs {
