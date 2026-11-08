@@ -312,8 +312,8 @@ class _TvRowSlotState extends State<_TvRowSlot> {
 
   @override
   void dispose() {
-    if (widget.row._tvSlots[widget.index] == _node)
-      widget.row._tvSlots.remove(widget.index);
+    final slots = widget.row._tvSlots;
+    if (slots[widget.index] == _node) slots.remove(widget.index);
     widget.row._slotGone(widget.index, _node, focused: _focused);
     _node.dispose();
     super.dispose();

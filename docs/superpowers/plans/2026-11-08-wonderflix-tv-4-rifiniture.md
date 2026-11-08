@@ -59,3 +59,9 @@ Correzione:
 **Verifiche:** `flutter analyze` senza problemi; `flutter test` 4218 passati. Sul Fire Stick, con l'APK di questo ramo installato: Destra, Destra da "Riproduci" passa alla diapositiva successiva col focus sul suo "Riproduci"; ⏩ (`KEYCODE_MEDIA_FAST_FORWARD`) e ⏪ cambiano diapositiva. Non provati sul dispositivo: la testata della scheda (aprirla richiede OK, non premuto), Indietro nel login e in "Chi guarda?" (servirebbe uscire dal profilo), il caso vero del punto 1 (salvaschermo oltre 20 minuti, poi standby).
 
 **Da fare:** il giro col telecomando dell'utente, soprattutto lasciare la Home sul salvaschermo fino allo standby e controllare dove è il focus al risveglio.
+
+**Dopo la revisione finale:**
+- scheletri di caricamento della saga e del passaggio alla saga all'altezza della testata della TV; sulla TV la testata non scende sotto 320 dp (all'avvio e alla ripresa lo schermo può misurare 0 per un attimo e l'altezza diventava negativa);
+- carosello: se una rilettura mette un altro titolo al posto della diapositiva col focus, il focus va sul primo pulsante della nuova (prima restava invisibile sulla pagina, visto che l'autofocus vale solo all'apertura);
+- login sulla TV: Indietro sulla scheda iniziale (Quick Connect) annulla l'aggiunta o chiede l'uscita, da un'altra scheda torna a quella iniziale, dal recupero torna alla password da cui si era aperto (anche col pulsante del recupero); dopo ogni passaggio il focus va sulla scheda;
+- righe: se si esce dalla pagina (un titolo aperto da una riga, la barra laterale) e intanto la card lasciata sparisce, al ritorno il focus va alla card nello stesso posto invece che all'ultimo nodo rimasto (spesso "Riproduci" del carosello). Probabilmente è il caso più frequente del sintomo del punto 1: si guarda un episodio da "Continua a guardare", la riga cambia, si torna alla Home.
