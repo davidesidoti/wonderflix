@@ -1478,5 +1478,8 @@
   "nextUpHide": "Remove from Next up",
   "nextUpShow": "Put back in Next up",
   "nextUpHidden": "Removed from Next up",
-  "nextUpChangeFailed": "Couldn't update Next up: try again"
+  "nextUpChangeFailed": "Couldn't update Next up: try again",
+  "resumeHide": "Remove from Continue watching",
+  "resumeHidden": "Removed from Continue watching",
+  "resumeChangeFailed": "Couldn't update Continue watching: try again"
 }

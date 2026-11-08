@@ -321,6 +321,35 @@ void main() {
     expect(prefs.nextUpHidden, {'s1': 'e4'});
   });
 
+  testWidgets('serie: il menu Altro toglie da Continua a guardare '
+      'l\'episodio da riprendere', (tester) async {
+    await pumpDetail(
+      tester,
+      's1',
+      extra: [
+        displayPreferencesApiProvider.overrideWithValue(
+          FakeDisplayPreferencesApi(),
+        ),
+      ],
+    );
+    await tester.tap(find.byTooltip('Altre azioni').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Togli da Continua a guardare'));
+    await tester.pumpAndSettle();
+    expect(library.positionCalls, [('e4', 0)]);
+  });
+
+  testWidgets('film: il menu Altro toglie da Continua a guardare', (
+    tester,
+  ) async {
+    await pumpDetail(tester, 'm1');
+    await tester.tap(find.byTooltip('Altre azioni'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Togli da Continua a guardare'));
+    await tester.pumpAndSettle();
+    expect(library.positionCalls, [('m1', 0)]);
+    expect(library.playedCalls, isEmpty);
+  });
 
   testWidgets('film: il menu Altro ha solo Info tecniche e Segnala', (
     tester,

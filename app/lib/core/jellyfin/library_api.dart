@@ -299,6 +299,16 @@ class LibraryApi {
           {required bool played}) =>
       _toggle('/UserPlayedItems/$itemId', userId, played);
 
+  /// Punto di ripresa di [itemId]; a 0 il titolo esce da "Continua a
+  /// guardare". Lo stato "visto" resta.
+  Future<UserItemData> setPlaybackPosition(
+          String userId, String itemId, int ticks) async =>
+      parseJson(
+          await _http.post('/UserItems/$itemId/UserData',
+              query: {'userId': userId},
+              body: {'PlaybackPositionTicks': ticks}),
+          UserItemData.fromJson);
+
   Future<UserItemData> _toggle(String path, String userId, bool on) async {
     final query = {'userId': userId};
     final data = on

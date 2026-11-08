@@ -98,6 +98,29 @@ void main() {
     expect(api.playedCalls, [('m1', true)]);
   });
 
+  testWidgets('menu "⋯": Togli da Continua a guardare, poi Annulla',
+      (tester) async {
+    await pumpDetail(tester);
+    await tester.tap(find.byTooltip('Altre azioni'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Togli da Continua a guardare'));
+    await tester.pumpAndSettle();
+    expect(api.positionCalls, [('m1', 0)]);
+    expect(api.playedCalls, isEmpty);
+    expect(find.text('Riprendi da 23:14'), findsNothing);
+    expect(find.text('Tolto da Continua a guardare'), findsOneWidget);
+    await tester.tap(find.byTooltip('Altre azioni'));
+    await tester.pumpAndSettle();
+    expect(find.text('Togli da Continua a guardare'), findsNothing,
+        reason: 'senza punto di ripresa la voce non c\'è');
+    await tester.tapAt(Offset.zero); // chiude il menu
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Annulla'));
+    await tester.pumpAndSettle();
+    expect(api.positionCalls.last, ('m1', 13940000000));
+    expect(find.text('Riprendi da 23:14'), findsOneWidget);
+  });
+
   testWidgets('elemento inesistente: errore con riprova', (tester) async {
     api.itemsById.clear();
     await pumpDetail(tester);

@@ -1667,5 +1667,8 @@
   "nextUpHide": "Togli da Prossimi episodi",
   "nextUpShow": "Rimetti in Prossimi episodi",
   "nextUpHidden": "Tolto da Prossimi episodi",
-  "nextUpChangeFailed": "Prossimi episodi non aggiornati: riprova"
+  "nextUpChangeFailed": "Prossimi episodi non aggiornati: riprova",
+  "resumeHide": "Togli da Continua a guardare",
+  "resumeHidden": "Tolto da Continua a guardare",
+  "resumeChangeFailed": "Continua a guardare non aggiornato: riprova"
 }

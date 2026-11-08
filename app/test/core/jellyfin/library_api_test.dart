@@ -102,6 +102,17 @@ void main() {
     expect(last().method, 'DELETE');
   });
 
+  test('punto di ripresa: POST dei dati utente con i tick', () async {
+    adapter.handler = (_) => const FakeResponse(200, {'PlaybackPositionTicks': 0, 'Played': true});
+    final data = await api.setPlaybackPosition('u1', 'm1', 0);
+    expect(last().method, 'POST');
+    expect(last().path, '/UserItems/m1/UserData');
+    expect(last().query['userId'], 'u1');
+    expect(adapter.requests.last.data, {'PlaybackPositionTicks': 0});
+    expect(data.playbackPositionTicks, 0);
+    expect(data.played, isTrue);
+  });
+
   test('nextEpisode: l\'episodio dopo quello indicato', () async {
     adapter.handler = (_) => FakeResponse(200, itemsResult(['e4', 'e5']));
     final next = await api.nextEpisode('u1', 's1', 'e4');

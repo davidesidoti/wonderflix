@@ -106,6 +106,7 @@ class FakeLibraryApi implements LibraryApi {
   final nextUpLimits = <int>[];
   final favoriteCalls = <(String, bool)>[];
   final playedCalls = <(String, bool)>[];
+  final positionCalls = <(String, int)>[];
 
   Future<T> _answer<T>(T Function() value) async {
     if (delay > Duration.zero) await Future<void>.delayed(delay);
@@ -292,6 +293,13 @@ class FakeLibraryApi implements LibraryApi {
       {required bool played}) {
     playedCalls.add((itemId, played));
     return _answer(() => UserItemData(played: played));
+  }
+
+  @override
+  Future<UserItemData> setPlaybackPosition(
+      String userId, String itemId, int ticks) {
+    positionCalls.add((itemId, ticks));
+    return _answer(() => UserItemData(playbackPositionTicks: ticks));
   }
 }
 

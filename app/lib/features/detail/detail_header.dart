@@ -16,6 +16,7 @@ import '../../ui/wf_buttons.dart';
 import '../../ui/wf_image.dart';
 import '../friends/friends_controller.dart';
 import '../home/next_up_hidden.dart';
+import '../home/resume_removal.dart';
 import '../library/item_labels.dart';
 import '../library/library_providers.dart';
 import '../library/user_data.dart';
@@ -27,6 +28,7 @@ import '../requests/request_seasons.dart';
 import '../social/social_providers.dart';
 import '../watch_party/party_mode_menu.dart';
 import '../watch_party/watch_party_providers.dart';
+import 'detail_providers.dart';
 import 'header_parallax.dart';
 import 'item_actions_menu.dart';
 import 'primary_action.dart';
@@ -131,6 +133,29 @@ class DetailHeader extends ConsumerWidget {
             label: l.nextUpHide,
             onSelected: () => unawaited(hideFromNextUp(context, ref, episode)),
           );
+  }
+
+  /// "Togli da Continua a guardare" per un film o un episodio con un punto
+  /// di ripresa; per una serie, per l'episodio che "Riprendi" proporrebbe
+  /// (sulla TV le righe degli episodi non hanno il "⋯").
+  ExtraItemAction? _resumeAction(
+    BuildContext context,
+    WidgetRef ref,
+    AppLocalizations l,
+  ) {
+    final target = switch (item.kind) {
+      ItemKind.movie || ItemKind.episode => item,
+      ItemKind.series => ref.watch(seriesNextEpisodeProvider(item.id)).value,
+      _ => null,
+    };
+    if (target == null ||
+        watchUserData(ref, target).playbackPositionTicks <= 0) {
+      return null;
+    }
+    return (
+      label: l.resumeHide,
+      onSelected: () => unawaited(removeFromResume(context, ref, target)),
+    );
   }
 
   @override
@@ -255,6 +280,7 @@ class DetailHeader extends ConsumerWidget {
           unawaited(_toggle(context, () => overrides.togglePlayed(item))),
     );
     final nextUp = _nextUpAction(context, ref, l);
+    final resume = _resumeAction(context, ref, l);
 
     return DetailHeaderFrame(
       controller: controller,
@@ -345,6 +371,7 @@ class DetailHeader extends ConsumerWidget {
                           ItemActionsButton(
                             item: item,
                             extra: [
+                              ?resume,
                               ?nextUp,
                               if (recommend != null)
                                 (
@@ -416,7 +443,7 @@ class DetailHeader extends ConsumerWidget {
                       ItemActionsButton(
                         item: item,
                         tvOnly: tv,
-                        extra: [?nextUp],
+                        extra: [?resume, ?nextUp],
                       ),
                       if (!tv && recommend != null)
                         WfButton.secondary(

@@ -46,6 +46,21 @@ class UserDataOverrides extends Notifier<Map<String, UserItemData>> {
         (api, userId, next) => api.setPlayed(userId, item.id, played: next.played),
       );
 
+  /// Punto di ripresa di [item] a [ticks] (0: fuori da "Continua a
+  /// guardare"); lo stato "visto" resta.
+  Future<void> setPlaybackPosition(JellyfinItem item, int ticks) => _toggle(
+        item,
+        (data) => UserItemData(
+          played: data.played,
+          isFavorite: data.isFavorite,
+          playbackPositionTicks: ticks,
+          // A 0 la barra dell'avanzamento sparisce subito.
+          playedPercentage: ticks == 0 ? null : data.playedPercentage,
+          unplayedItemCount: data.unplayedItemCount,
+        ),
+        (api, userId, next) => api.setPlaybackPosition(userId, item.id, ticks),
+      );
+
   Future<void> _toggle(
     JellyfinItem item,
     UserItemData Function(UserItemData current) change,

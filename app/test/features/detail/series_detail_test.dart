@@ -160,6 +160,33 @@ void main() {
     expect(find.text('Rimetti in Prossimi episodi'), findsNothing);
   });
 
+  testWidgets('menu "⋯" della serie: toglie da Continua a guardare '
+      'l\'episodio da riprendere', (tester) async {
+    await pumpSeries(tester);
+    await tester.tap(find.byTooltip('Altre azioni').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Togli da Continua a guardare'));
+    await tester.pumpAndSettle();
+    expect(api.positionCalls, [('e4', 0)]);
+    expect(api.playedCalls, isEmpty);
+    expect(find.text('Tolto da Continua a guardare'), findsOneWidget);
+  });
+
+  testWidgets('menu "⋯" di un episodio: la voce solo con un punto di ripresa',
+      (tester) async {
+    await pumpSeries(tester);
+    ItemActionsButton button(String id) => tester
+        .widgetList<ItemActionsButton>(find.byType(ItemActionsButton))
+        .singleWhere((button) => button.item.id == id);
+    expect(button('e3').extra, isEmpty);
+    expect(button('e4').extra.single.label, 'Togli da Continua a guardare');
+    button('e4').extra.single.onSelected();
+    await tester.pump();
+    await tester.pump();
+    expect(api.positionCalls, [('e4', 0)]);
+    expect(button('e4').extra, isEmpty);
+  });
+
   testWidgets('menu "⋯": senza episodio in Prossimi episodi nessuna voce',
       (tester) async {
     api.nextUpItems = [];

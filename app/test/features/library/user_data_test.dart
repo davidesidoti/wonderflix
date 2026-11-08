@@ -48,6 +48,29 @@ void main() {
     expect(overrides().effective(item).played, isFalse);
   });
 
+  test('setPlaybackPosition: subito a 0 senza avanzamento, visto intatto',
+      () async {
+    final item = testItem(positionTicks: 500, playedPercentage: 20, played: true);
+    final pending = overrides().setPlaybackPosition(item, 0);
+    final now = overrides().effective(item);
+    expect(now.playbackPositionTicks, 0, reason: 'ottimistico');
+    expect(now.progress, isNull);
+    expect(now.played, isTrue);
+    await pending;
+    expect(api.positionCalls, [('m1', 0)]);
+    expect(api.playedCalls, isEmpty);
+  });
+
+  test('setPlaybackPosition: in caso di errore torna il punto di prima',
+      () async {
+    final item = testItem(positionTicks: 500, playedPercentage: 20);
+    api.error = const ServerUnreachableException();
+    await expectLater(overrides().setPlaybackPosition(item, 0),
+        throwsA(isA<ServerUnreachableException>()));
+    expect(overrides().effective(item).playbackPositionTicks, 500);
+    expect(overrides().effective(item).progress, closeTo(0.2, 1e-9));
+  });
+
   test('secondo tocco mentre il primo è in corso: ignorato', () async {
     final item = testItem(favorite: false);
     final first = overrides().toggleFavorite(item);

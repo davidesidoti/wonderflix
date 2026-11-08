@@ -18,6 +18,7 @@ import '../../ui/states.dart';
 import '../../ui/tv_focusable.dart';
 import '../../ui/wf_image.dart';
 import '../../ui/wf_switcher.dart';
+import '../home/resume_removal.dart';
 import '../library/item_labels.dart';
 import '../library/library_providers.dart';
 import '../library/user_data.dart';
@@ -455,7 +456,18 @@ class EpisodeTile extends ConsumerWidget {
             ),
             // Il bottone sta dentro l'InkWell, ma il tocco non ne attiva
             // l'onTap: vince il riconoscitore del bottone nell'arena.
-            if (!tv) ItemActionsButton(item: episode),
+            if (!tv)
+              ItemActionsButton(
+                item: episode,
+                extra: [
+                  if (userData.playbackPositionTicks > 0)
+                    (
+                      label: l.resumeHide,
+                      onSelected: () =>
+                          unawaited(removeFromResume(context, ref, episode)),
+                    ),
+                ],
+              ),
             if (userData.played)
               const Padding(
                 padding: EdgeInsets.only(left: 12),

@@ -20,6 +20,7 @@ import '../../ui/poster_card.dart';
 import '../../ui/remote_image_card.dart';
 import '../friends/activity_labels.dart';
 import '../library/library_providers.dart';
+import '../library/user_data.dart';
 import '../recommendations/recommendation_dismissals.dart';
 import '../recommendations/recommendation_labels.dart';
 import '../requests/request_labels.dart';
@@ -30,6 +31,7 @@ import 'home_layout.dart';
 import 'home_row_content.dart';
 import 'home_rows_logic.dart';
 import 'next_up_hidden.dart';
+import 'resume_removal.dart';
 
 /// Una riga della Home (spec M §6.1, §8.3): il titolo e le card del suo
 /// tipo.
@@ -54,7 +56,7 @@ class HomeRowView extends ConsumerWidget {
       ItemsRowContent(:final items) => kind == HomeRowKind.nextUp
           ? _nextUp(ref, l, items)
           : kind == HomeRowKind.resume
-              ? _landscapes(_title(l), items)
+              ? _resume(ref, l, items)
               : _posters(_title(l), items),
       BecauseYouWatchedContent(:final sourceName, :final items) =>
         _posters(l.homeBecauseYouWatched(sourceName), items),
@@ -185,11 +187,30 @@ class HomeRowView extends ConsumerWidget {
             heroSource: 'home.${kind.id}.$i',
           ));
 
-  Widget _landscapes(String title, List<JellyfinItem> items) =>
-      _row(title, false, items.length, (context, i) => LandscapeCard(
-          item: items[i],
-          width: rowLandscapeSize(context).width,
-          heroSource: 'home.${kind.id}.$i'));
+  /// "Continua a guardare" senza i titoli tolti (punto di ripresa tornato a
+  /// 0 dopo il caricamento), con la × nell'anteprima.
+  Widget _resume(WidgetRef ref, AppLocalizations l, List<JellyfinItem> items) {
+    // Solo le modifiche: Jellyfin manda qui titoli con un punto di ripresa.
+    final changed = ref.watch(userDataOverridesProvider);
+    final shown = [
+      for (final item in items)
+        if (changed[item.id]?.playbackPositionTicks != 0) item,
+    ];
+    if (shown.isEmpty) return const SizedBox.shrink();
+    return _row(l.homeContinueWatching, false, shown.length, (context, i) {
+      final item = shown[i];
+      return LandscapeCard(
+        key: ValueKey('resume-${item.id}'),
+        item: item,
+        width: rowLandscapeSize(context).width,
+        heroSource: 'home.${kind.id}.$i',
+        previewExtra: CardPreviewExtra(
+          dismissTooltip: l.resumeHide,
+          onDismiss: () => unawaited(removeFromResume(context, ref, item)),
+        ),
+      );
+    });
+  }
 
   /// "Prossimi episodi" senza le serie tolte, con la × nell'anteprima.
   Widget _nextUp(WidgetRef ref, AppLocalizations l, List<JellyfinItem> items) {
