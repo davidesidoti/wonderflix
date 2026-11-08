@@ -41,6 +41,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// anche sulla TV.
   bool _backToPassword = false;
 
+  /// Attorno al pannello: per rimettere il focus su una scheda.
+  final _panelFocus = FocusNode(canRequestFocus: false, skipTraversal: true);
+
+  /// La scheda da cui si parte: sulla TV Quick Connect, con il telecomando
+  /// la password è scomoda.
+  int _firstTab(BuildContext context) => FormFactor.of(context).tv ? 1 : 0;
+
+  /// Dopo la prossima costruzione il focus va alla scheda [index] o, senza
+  /// schede, al primo controllo del pannello che non sia un campo di testo
+  /// (aprirebbe la tastiera): mai invisibile sulla pagina.
+  void _focusTab(int index) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final nodes = _panelFocus.traversalDescendants.toList();
+      bool inside<T extends Widget>(FocusNode node) =>
+          node.context?.findAncestorWidgetOfExactType<T>() != null;
+      final tabs = nodes.where(inside<TabBar>).toList();
+      (tabs.elementAtOrNull(index) ??
+              nodes.where((n) => !inside<EditableText>(n)).firstOrNull ??
+              nodes.firstOrNull)
+          ?.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _panelFocus.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -104,7 +134,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const SizedBox(width: 56, height: 24),
                 StaggerItem(
                   index: 1,
-                  child: Container(
+                  // Il nodo per rimettere il focus nel pannello (`_focusTab`).
+                  child: Focus(
+                    focusNode: _panelFocus,
+                    canRequestFocus: false,
+                    skipTraversal: true,
+                    child: Container(
                     key: const Key('login-panel'),
                     width: compact ? null : 380,
                     padding: const EdgeInsets.all(24),
@@ -120,11 +155,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         if (_recovering)
                           RecoveryPanel(
                             initialUsername: _typedUsername,
-                            onBack: (username) => setState(() {
-                              _recovering = false;
-                              _backToPassword = true;
-                              _typedUsername = username;
-                            }),
+                            onBack: (username) {
+                              setState(() {
+                                _recovering = false;
+                                _backToPassword = true;
+                                _typedUsername = username;
+                              });
+                              if (FormFactor.of(context).tv) _focusTab(0);
+                            },
                           )
                         else ...[
                           if (expired) ...[
@@ -146,12 +184,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           else if (quickConnectAsync.value ?? false)
                             DefaultTabController(
                               length: 2,
-                              // Sulla TV si parte da Quick Connect: con il
-                              // telecomando la password è scomoda.
+                              // La scheda iniziale; tornando dal recupero la
+                              // password, da cui si era aperto.
                               initialIndex:
-                                  FormFactor.of(context).tv && !_backToPassword
-                                      ? 1
-                                      : 0,
+                                  _backToPassword ? 0 : _firstTab(context),
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -215,6 +251,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ],
                     ),
                   ),
+                  ),
                 ),
               ],
             ),
@@ -222,19 +259,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
       ),
     );
-    // Sulla TV Indietro non chiude l'app: chiude il recupero, da Quick
-    // Connect torna alla password, aggiungendo un account torna a "Chi
+    // Sulla TV Indietro non chiude l'app: chiude il recupero, da un'altra
+    // scheda torna a quella iniziale, aggiungendo un account torna a "Chi
     // guarda?", altrimenti serve il doppio Indietro.
     return TvBackGuard(
       onBack: () {
         final tabs = _tabs;
+        final first = _firstTab(context);
         if (_recovering) {
           setState(() {
             _recovering = false;
             _backToPassword = true;
           });
-        } else if (tabs != null && tabs.index != 0) {
-          tabs.animateTo(0);
+          _focusTab(0);
+        } else if (tabs != null && tabs.index != first) {
+          tabs.animateTo(first);
+          _focusTab(first);
         } else if (canCancel) {
           ref.read(sessionControllerProvider.notifier).cancelLogin();
         } else {

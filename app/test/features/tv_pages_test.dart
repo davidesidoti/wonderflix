@@ -181,37 +181,74 @@ void main() {
     TabController tabs(WidgetTester tester) =>
         DefaultTabController.of(tester.element(find.byType(TabBar)));
 
-    testWidgets(
-        'TV: Indietro da Quick Connect torna alla password, poi chiede '
-        'l\'uscita', (tester) async {
+    /// Il focus è sulla scheda [index] delle schede del login.
+    bool tabFocused(WidgetTester tester, int index) {
+      final tab = find.descendant(
+          of: find.byType(TabBar), matching: find.byType(Tab));
+      final focused = FocusManager.instance.primaryFocus?.context;
+      // Dentro le schede: lo scope della pagina sta sopra a tutto.
+      if (focused?.findAncestorWidgetOfExactType<TabBar>() == null) {
+        return false;
+      }
+      final target = tester.element(tab.at(index));
+      var inside = false;
+      target.visitAncestorElements((e) {
+        if (e == focused) inside = true;
+        return !inside;
+      });
+      return inside;
+    }
+
+    const exitHint = 'Premi di nuovo Indietro per uscire';
+
+    testWidgets('TV: Indietro sulla scheda iniziale chiede l\'uscita',
+        (tester) async {
       await pumpLogin(tester, tv: true);
       await tester.pump();
       await tester.binding.handlePopRoute();
-      await tester.pump(const Duration(seconds: 1));
-      expect(tabs(tester).index, 0);
-      expect(find.text('Premi di nuovo Indietro per uscire'), findsNothing);
-
-      await tester.binding.handlePopRoute();
       await tester.pump();
-      expect(find.text('Premi di nuovo Indietro per uscire'), findsOneWidget);
+      expect(tabs(tester).index, 1);
+      expect(find.text(exitHint), findsOneWidget);
     });
 
-    testWidgets('TV: Indietro chiude il recupero della password',
-        (tester) async {
+    testWidgets(
+        'TV: Indietro dalla password torna a Quick Connect, col focus sulla '
+        'scheda', (tester) async {
       await pumpLogin(tester, tv: true);
       await tester.pump();
       tabs(tester).index = 0;
       await tester.pump(const Duration(seconds: 1));
-      await tester.tap(find.text('Password dimenticata?'));
-      await tester.pump(const Duration(seconds: 1));
-      expect(find.byType(TabBar), findsNothing, reason: 'recupero aperto');
-
       await tester.binding.handlePopRoute();
       await tester.pump(const Duration(seconds: 1));
-      expect(find.byType(TabBar), findsOneWidget);
-      expect(tabs(tester).index, 0);
-      expect(find.text('Premi di nuovo Indietro per uscire'), findsNothing);
+      expect(tabs(tester).index, 1);
+      expect(tabFocused(tester, 1), isTrue);
+      expect(find.text(exitHint), findsNothing);
     });
+
+    for (final viaButton in [false, true]) {
+      testWidgets(
+          'TV: chiuso il recupero (${viaButton ? 'pulsante' : 'Indietro'}) '
+          'si torna alla password, col focus sulla scheda', (tester) async {
+        await pumpLogin(tester, tv: true);
+        await tester.pump();
+        tabs(tester).index = 0;
+        await tester.pump(const Duration(seconds: 1));
+        await tester.tap(find.text('Password dimenticata?'));
+        await tester.pump(const Duration(seconds: 1));
+        expect(find.byType(TabBar), findsNothing, reason: 'recupero aperto');
+
+        if (viaButton) {
+          await tester.tap(find.byKey(const Key('recovery-back')));
+        } else {
+          await tester.binding.handlePopRoute();
+        }
+        await tester.pump(const Duration(seconds: 1));
+        expect(find.byType(TabBar), findsOneWidget);
+        expect(tabs(tester).index, 0);
+        expect(tabFocused(tester, 0), isTrue);
+        expect(find.text(exitHint), findsNothing);
+      });
+    }
   });
 
   testWidgets('Impostazioni: sulla TV solo lingua, player e lingue di '
