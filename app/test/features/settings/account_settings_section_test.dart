@@ -207,4 +207,26 @@ void main() {
             'Password cambiata. Gli altri dispositivi dovranno rientrare.'),
         findsOneWidget);
   });
+
+  testWidgets('Quick Connect: avviso dopo il dispositivo autorizzato',
+      (tester) async {
+    // Enabled e Authorize rispondono entrambi `true`.
+    final adapter = FakeAdapter((_) => const FakeResponse(200, true));
+    await pumpSection(tester, available: false, extra: [
+      authApiProvider.overrideWithValue(AuthApi(JellyfinHttp(
+          baseUrl: testServerUrl,
+          clientInfo: testClientInfo,
+          adapter: adapter))),
+    ]);
+
+    await tester.tap(find.byKey(const Key('settings-quick-connect')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('authorize-device-code')), '482913');
+    await tester.tap(find.byKey(const Key('authorize-device-submit')));
+    await tester.pumpAndSettle();
+
+    expect(adapter.requests.last.path, '/QuickConnect/Authorize');
+    expect(find.text('Dispositivo autorizzato.'), findsOneWidget);
+  });
 }

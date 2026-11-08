@@ -134,6 +134,32 @@ void main() {
     expect(result.accessToken, 'tok-qc');
   });
 
+  test('authorizeQuickConnect: POST /QuickConnect/Authorize con il codice',
+      () async {
+    adapter.handler = (_) => const FakeResponse(200, true);
+    await api.authorizeQuickConnect('482913');
+
+    final request = adapter.requests.single;
+    expect(request.method, 'POST');
+    expect(request.path, '/QuickConnect/Authorize');
+    expect(request.queryParameters, {'code': '482913'});
+  });
+
+  test('authorizeQuickConnect: 404 col codice sbagliato, nel log come info',
+      () async {
+    final records = <LogRecord>[];
+    Logger.root.level = Level.ALL;
+    final subscription = Logger.root.onRecord.listen(records.add);
+    addTearDown(subscription.cancel);
+    adapter.handler = (_) => const FakeResponse(404);
+
+    await expectLater(api.authorizeQuickConnect('000000'),
+        throwsA(isA<NotFoundException>()));
+
+    expect(records.where((r) => r.loggerName == 'http').single.level,
+        Level.INFO);
+  });
+
   test('changePassword: POST /Users/Password con la password attuale',
       () async {
     await api.changePassword('u1',

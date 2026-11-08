@@ -9,6 +9,7 @@ import '../../ui/user_avatar.dart';
 import '../../ui/wf_buttons.dart';
 import '../account/account_contacts_block.dart';
 import '../account/account_providers.dart';
+import '../account/authorize_device_dialog.dart';
 import '../account/change_password_dialog.dart';
 import '../auth/session_controller.dart';
 import '../profiles/avatar_dialog.dart';
@@ -31,6 +32,14 @@ class AccountSettingsSection extends ConsumerWidget {
     if (await showChangePasswordDialog(context)) {
       messenger
           ?.showSnackBar(SnackBar(content: Text(l.accountPasswordChanged)));
+    }
+  }
+
+  Future<void> _authorizeDevice(BuildContext context) async {
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (await showAuthorizeDeviceDialog(context)) {
+      messenger?.showSnackBar(SnackBar(content: Text(l.authorizeDeviceDone)));
     }
   }
 
@@ -75,6 +84,12 @@ class AccountSettingsSection extends ConsumerWidget {
                 label: l.settingsChangePassword,
                 icon: LucideIcons.keyRound,
                 onPressed: () => unawaited(_changePassword(context)),
+              ),
+              WfButton.secondary(
+                key: const Key('settings-quick-connect'),
+                label: l.settingsQuickConnect,
+                icon: LucideIcons.monitorSmartphone,
+                onPressed: () => unawaited(_authorizeDevice(context)),
               ),
             ],
             WfButton.secondary(

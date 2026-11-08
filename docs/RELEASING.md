@@ -65,6 +65,7 @@ Prima di ogni release, su un utente di prova:
 - [ ] Ripiego sulla transcodifica (forzato: `--dart-define=wfBreakDirectPlay=true`).
 - [ ] Salta intro, prossimo episodio, trickplay.
 - [ ] Login con password e con Quick Connect; sessione scaduta.
+- [ ] Quick Connect: codice generato sulla TV confermato da Impostazioni → Account su Windows/web; codice sbagliato; Quick Connect spento.
 - [ ] Profili: aggiornamento dalla 0.10 senza rifare l'accesso (la sessione diventa il primo profilo, con il suo nome nel menu).
 - [ ] "Chi guarda?" al riavvio con più profili, nella lingua dell'ultimo usato; un profilo si apre con un clic o con Invio.
 - [ ] Aggiungi profilo con password e con Quick Connect; "Annulla" torna a "Chi guarda?"; con 5 profili "Aggiungi profilo" non c'è più.

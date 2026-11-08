@@ -52,6 +52,17 @@ class AuthApi {
       await _http.get('/QuickConnect/Connect', query: {'secret': secret}),
       QuickConnectState.fromJson);
 
+  /// Conferma il [code] Quick Connect di un altro dispositivo per l'utente
+  /// della sessione (piano TV 3). Codice sbagliato o scaduto: 404. Con Quick
+  /// Connect spento Jellyfin risponde 401, che farebbe scadere la sessione:
+  /// chi chiama controlla prima [quickConnectEnabled].
+  Future<void> authorizeQuickConnect(String code) async {
+    await _http.post('/QuickConnect/Authorize',
+        query: {'code': code},
+        // Il codice sbagliato è un esito atteso.
+        quietStatuses: const {404});
+  }
+
   Future<AuthResult> authenticateWithQuickConnect(String secret) async {
     final data = await _http.post('/Users/AuthenticateWithQuickConnect',
         body: {'Secret': secret});
