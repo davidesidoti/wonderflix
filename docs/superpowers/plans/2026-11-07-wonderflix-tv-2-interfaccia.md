@@ -219,4 +219,23 @@
 
 ## Esito della prova
 
-_Da compilare in Task 9._
+Prova sul Fire Stick dell'utente (AFTMA08C15), col telecomando vero, 2026-11-08.
+
+**Primo giro** (build da `3445654a`):
+- passati: uscita col doppio Indietro, player di film e serie (OK, ±10 s, controlli, Indietro), passaggio automatico all'episodio successivo (punto aperto del piano 1, ora chiuso);
+- non passati: pagina del titolo (solo lo sfondo, pulsanti fuori schermo e pagina che non scorreva), Film e Serie (filtri troppo alti, griglia piccola in basso), barra laterale (Giù oltre "Serie" chiudeva la barra). Il resto non era raggiungibile.
+
+**Correzioni** (decisioni del controller, verificate sul dispositivo coi soli tasti del telecomando):
+- sulla TV pagina del titolo e catalogo usano il layout largo; il testo del titolo sta sopra la fascia di overscan;
+- ogni cambio di focus fa scorrere la pagina fino all'elemento (un solo meccanismo globale sulla TV);
+- nella barra laterale Su/Giù si muovono solo tra le voci, fino all'avatar, senza chiuderla;
+- focus visibile ovunque: bordo oro largo 2 dal tema della TV su pulsanti, icone, filtri, schede, impostazioni, voti, amici e stagioni; crema sui pulsanti già pieni d'oro;
+- tolti sulla TV i margini delle barre del PC e del telefono; foto del cast focalizzabili.
+
+**Secondo giro** (build da `9c198175`): **tutto passato** secondo l'utente (barra, Film/Serie, pagina del titolo, Cerca, Stasera, La mia lista, Richieste, Vota, Consiglia, menu dell'avatar e impostazioni).
+
+**Da riprendere:**
+- dopo il salvaschermo del Fire Stick il focus torna su "Riproduci" del carosello invece che sull'ultimo elemento (un OK distratto fa partire un film);
+- l'intestazione della pagina del titolo è alta 560 dp su uno schermo di 540: la riga delle stagioni non si intravede nella prima schermata come nella bozza;
+- le slide del carosello non si cambiano col telecomando (scorrono da sole quando il focus è altrove);
+- durante le prove automatiche "Il corriere - The Mule" è partito per sbaglio ~30 s: non risulta visto né con un punto di ripresa, solo il contatore delle visioni è salito di uno.
