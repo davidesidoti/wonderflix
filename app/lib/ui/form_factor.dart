@@ -83,24 +83,35 @@ class _FormFactorScopeState extends State<FormFactorScope> {
   @override
   void initState() {
     super.initState();
-    if (widget.tv) FocusManager.instance.addListener(_revealFocus);
+    if (widget.tv) _startTv();
   }
 
   @override
   void didUpdateWidget(FormFactorScope old) {
     super.didUpdateWidget(old);
     if (old.tv == widget.tv) return;
-    if (widget.tv) {
-      FocusManager.instance.addListener(_revealFocus);
-    } else {
-      FocusManager.instance.removeListener(_revealFocus);
-    }
+    widget.tv ? _startTv() : _stopTv();
   }
 
   @override
   void dispose() {
-    FocusManager.instance.removeListener(_revealFocus);
+    if (widget.tv) _stopTv();
     super.dispose();
+  }
+
+  /// Il telecomando non è un tocco: su Android Flutter crederebbe di essere
+  /// in modo tocco e non disegnerebbe i veli del focus (voci di elenco,
+  /// menu, segmenti).
+  void _startTv() {
+    FocusManager.instance
+      ..addListener(_revealFocus)
+      ..highlightStrategy = FocusHighlightStrategy.alwaysTraditional;
+  }
+
+  void _stopTv() {
+    FocusManager.instance
+      ..removeListener(_revealFocus)
+      ..highlightStrategy = FocusHighlightStrategy.automatic;
   }
 
   /// Sulla TV l'elemento col focus (anche `autofocus` o `requestFocus`, che

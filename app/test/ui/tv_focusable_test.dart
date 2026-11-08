@@ -196,4 +196,21 @@ void main() {
 
     expect(onScreen(tester), isFalse);
   });
+
+  testWidgets('sulla TV il focus si disegna sempre come da tastiera', (
+    tester,
+  ) async {
+    await _pump(tester, const SizedBox());
+    // Il telecomando non è un tocco: veli e bordi del focus sempre visibili.
+    expect(
+      FocusManager.instance.highlightStrategy,
+      FocusHighlightStrategy.alwaysTraditional,
+    );
+    await _pump(tester, const SizedBox(), tv: false);
+    await tester.pumpWidget(const SizedBox());
+    expect(
+      FocusManager.instance.highlightStrategy,
+      FocusHighlightStrategy.automatic,
+    );
+  });
 }
