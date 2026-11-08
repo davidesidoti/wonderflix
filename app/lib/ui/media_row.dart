@@ -76,16 +76,59 @@ class _MediaRowState extends State<MediaRow> {
   /// La card col focus è sparita (la riga si è ricaricata): il focus va a
   /// quella che ora sta nello stesso posto, o all'ultima se la riga si è
   /// accorciata, invece di finire altrove nella pagina.
-  void _refocus(int index) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || widget.itemCount == 0) return;
-      final slot = _tvSlots[math.min(index, widget.itemCount - 1)];
-      slot?.traversalDescendants.firstOrNull?.requestFocus();
-    });
+  void _refocus(int index) =>
+      WidgetsBinding.instance.addPostFrameCallback((_) => _focusSlot(index));
+
+  void _focusSlot(int index) {
+    if (!mounted || widget.itemCount == 0) return;
+    final slot = _tvSlots[math.min(index, widget.itemCount - 1)];
+    slot?.traversalDescendants.firstOrNull?.requestFocus();
+  }
+
+  /// Sulla TV, lo scope della pagina: quando il focus ci torna si controlla
+  /// la card lasciata.
+  FocusScopeNode? _scope;
+
+  /// La card che aveva il focus quando è uscito dalla pagina (un'altra
+  /// pagina aperta sopra, la barra laterale), il suo posto e se intanto è
+  /// sparita (la riga si è riletta).
+  FocusNode? _leftNode;
+  int _leftIndex = 0;
+  bool _leftGone = false;
+
+  void _slotBlurred(int index, FocusNode node) {
+    if (_scope?.hasFocus ?? true) return;
+    _leftNode = node;
+    _leftIndex = index;
+    _leftGone = false;
+  }
+
+  void _slotGone(int index, FocusNode node, {required bool focused}) {
+    if (focused) _refocus(index);
+    if (node == _leftNode) _leftGone = true;
+  }
+
+  /// Il focus torna sulla pagina: Flutter lo rimette sull'ultimo nodo
+  /// rimasto (spesso "Riproduci" del carosello). Se la card lasciata è
+  /// sparita, va invece a quella che ora sta nello stesso posto.
+  void _onScopeFocus() {
+    if (!(_scope?.hasFocus ?? false) || _leftNode == null) return;
+    if (_leftGone) _focusSlot(_leftIndex);
+    _leftNode = null;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final scope = FormFactor.of(context).tv ? FocusScope.of(context) : null;
+    if (scope == _scope) return;
+    _scope?.removeListener(_onScopeFocus);
+    _scope = scope?..addListener(_onScopeFocus);
   }
 
   @override
   void dispose() {
+    _scope?.removeListener(_onScopeFocus);
     _controller.dispose();
     super.dispose();
   }
@@ -169,8 +212,7 @@ class _MediaRowState extends State<MediaRow> {
         return _TvRowSlot(
           key: card.key == null ? null : ValueKey(card.key),
           index: i,
-          slots: _tvSlots,
-          onFocusLost: _refocus,
+          row: this,
           child: child,
         );
       },
@@ -227,20 +269,18 @@ class _MediaRowState extends State<MediaRow> {
   }
 }
 
-/// Sulla TV, il posto [index] di una riga: segna il suo nodo in [slots] e,
-/// se viene smontato mentre il focus è dentro, chiama [onFocusLost].
+/// Sulla TV, il posto [index] di una riga: segna il suo nodo nella riga e le
+/// dice quando il focus esce e quando viene smontato.
 class _TvRowSlot extends StatefulWidget {
   const _TvRowSlot({
     super.key,
     required this.index,
-    required this.slots,
-    required this.onFocusLost,
+    required this.row,
     required this.child,
   });
 
   final int index;
-  final Map<int, FocusNode> slots;
-  final ValueChanged<int> onFocusLost;
+  final _MediaRowState row;
   final Widget child;
 
   @override
@@ -257,23 +297,24 @@ class _TvRowSlotState extends State<_TvRowSlot> {
   @override
   void initState() {
     super.initState();
-    widget.slots[widget.index] = _node;
+    widget.row._tvSlots[widget.index] = _node;
   }
 
   @override
   void didUpdateWidget(_TvRowSlot oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.index == widget.index) return;
-    if (widget.slots[oldWidget.index] == _node) {
-      widget.slots.remove(oldWidget.index);
+    if (widget.row._tvSlots[oldWidget.index] == _node) {
+      widget.row._tvSlots.remove(oldWidget.index);
     }
-    widget.slots[widget.index] = _node;
+    widget.row._tvSlots[widget.index] = _node;
   }
 
   @override
   void dispose() {
-    if (widget.slots[widget.index] == _node) widget.slots.remove(widget.index);
-    if (_focused) widget.onFocusLost(widget.index);
+    if (widget.row._tvSlots[widget.index] == _node)
+      widget.row._tvSlots.remove(widget.index);
+    widget.row._slotGone(widget.index, _node, focused: _focused);
     _node.dispose();
     super.dispose();
   }
@@ -281,7 +322,10 @@ class _TvRowSlotState extends State<_TvRowSlot> {
   @override
   Widget build(BuildContext context) => Focus(
     focusNode: _node,
-    onFocusChange: (focused) => _focused = focused,
+    onFocusChange: (focused) {
+      _focused = focused;
+      if (!focused) widget.row._slotBlurred(widget.index, _node);
+    },
     child: widget.child,
   );
 }

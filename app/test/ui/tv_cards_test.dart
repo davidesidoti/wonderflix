@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -166,18 +168,24 @@ void main() {
         FormFactorScope(
           tv: tv,
           child: Scaffold(
-            body: ValueListenableBuilder(
-              valueListenable: shown,
-              builder: (context, titles, _) => MediaRow(
-                title: 'Riga',
-                height: 100,
-                itemCount: titles.length,
-                itemBuilder: (context, i) => TextButton(
-                  key: ValueKey(titles[i]),
-                  onPressed: () {},
-                  child: Text(titles[i]),
+            body: Column(
+              children: [
+                // Come "Riproduci" del carosello, sopra la riga.
+                TextButton(onPressed: () {}, child: const Text('sopra')),
+                ValueListenableBuilder(
+                  valueListenable: shown,
+                  builder: (context, titles, _) => MediaRow(
+                    title: 'Riga',
+                    height: 100,
+                    itemCount: titles.length,
+                    itemBuilder: (context, i) => TextButton(
+                      key: ValueKey(titles[i]),
+                      onPressed: () {},
+                      child: Text(titles[i]),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
@@ -222,6 +230,61 @@ void main() {
       shown.value = ['x', 'y', 'z'];
       await tester.pump();
       await tester.pump();
+      expect(focused(tester, 'y'), isFalse);
+    });
+
+    /// Apre una pagina sopra (come la scheda di un titolo), cambia i titoli
+    /// della riga mentre è aperta e la chiude.
+    Future<void> leaveAndReturn(WidgetTester tester,
+        ValueNotifier<List<String>> shown, List<String> titles) async {
+      unawaited(Navigator.of(tester.element(find.text('sopra'))).push(
+        MaterialPageRoute<void>(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              autofocus: true,
+              onPressed: () {},
+              child: const Text('pagina'),
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      expect(focused(tester, 'pagina'), isTrue);
+      shown.value = titles;
+      await tester.pump();
+      Navigator.of(tester.element(find.text('pagina'))).pop();
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets(
+        'TV: tornando sulla pagina, se la card col focus è cambiata, il focus '
+        'va a quella nello stesso posto', (tester) async {
+      final shown = await pumpTitles(tester, ['a', 'b', 'c'], tv: true);
+      focus(tester, 'sopra');
+      await tester.pump();
+      focus(tester, 'b');
+      await tester.pump();
+      await leaveAndReturn(tester, shown, ['x', 'y', 'z']);
+      expect(focused(tester, 'y'), isTrue);
+    });
+
+    testWidgets('TV: tornando sulla pagina con la stessa card, resta lì',
+        (tester) async {
+      final shown = await pumpTitles(tester, ['a', 'b', 'c'], tv: true);
+      focus(tester, 'b');
+      await tester.pump();
+      await leaveAndReturn(tester, shown, ['a', 'b', 'c', 'd']);
+      expect(focused(tester, 'b'), isTrue);
+    });
+
+    testWidgets('fuori dalla TV, tornando sulla pagina, niente di nuovo',
+        (tester) async {
+      final shown = await pumpTitles(tester, ['a', 'b', 'c'], tv: false);
+      focus(tester, 'sopra');
+      await tester.pump();
+      focus(tester, 'b');
+      await tester.pump();
+      await leaveAndReturn(tester, shown, ['x', 'y', 'z']);
       expect(focused(tester, 'y'), isFalse);
     });
   });
