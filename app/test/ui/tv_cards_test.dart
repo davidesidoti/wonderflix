@@ -152,4 +152,77 @@ void main() {
     await tester.pump();
     expect(taps, [1, 3]);
   });
+
+  group('card col focus ricostruita', () {
+    /// Una riga di pulsanti con chiave per titolo: cambiando i titoli le
+    /// card si ricreano, come quelle di "Consigliati per te".
+    Future<ValueNotifier<List<String>>> pumpTitles(
+        WidgetTester tester, List<String> titles,
+        {required bool tv}) async {
+      final shown = ValueNotifier(titles);
+      addTearDown(shown.dispose);
+      await pumpApp(
+        tester,
+        FormFactorScope(
+          tv: tv,
+          child: Scaffold(
+            body: ValueListenableBuilder(
+              valueListenable: shown,
+              builder: (context, titles, _) => MediaRow(
+                title: 'Riga',
+                height: 100,
+                itemCount: titles.length,
+                itemBuilder: (context, i) => TextButton(
+                  key: ValueKey(titles[i]),
+                  onPressed: () {},
+                  child: Text(titles[i]),
+                ),
+              ),
+            ),
+          ),
+        ),
+        overrides: [signedIn],
+      );
+      return shown;
+    }
+
+    void focus(WidgetTester tester, String title) =>
+        Focus.of(tester.element(find.text(title))).requestFocus();
+
+    bool focused(WidgetTester tester, String title) =>
+        Focus.of(tester.element(find.text(title))).hasPrimaryFocus;
+
+    testWidgets('TV: il focus va alla card nello stesso posto',
+        (tester) async {
+      final shown = await pumpTitles(tester, ['a', 'b', 'c'], tv: true);
+      focus(tester, 'b');
+      await tester.pump();
+      shown.value = ['x', 'y', 'z'];
+      await tester.pump();
+      await tester.pump();
+      expect(focused(tester, 'y'), isTrue);
+    });
+
+    testWidgets('TV: se la riga si accorcia, all\'ultima card',
+        (tester) async {
+      final shown = await pumpTitles(tester, ['a', 'b', 'c'], tv: true);
+      focus(tester, 'c');
+      await tester.pump();
+      shown.value = ['p', 'q'];
+      await tester.pump();
+      await tester.pump();
+      expect(focused(tester, 'q'), isTrue);
+    });
+
+    testWidgets('fuori dalla TV il focus non si sposta da solo',
+        (tester) async {
+      final shown = await pumpTitles(tester, ['a', 'b', 'c'], tv: false);
+      focus(tester, 'b');
+      await tester.pump();
+      shown.value = ['x', 'y', 'z'];
+      await tester.pump();
+      await tester.pump();
+      expect(focused(tester, 'y'), isFalse);
+    });
+  });
 }

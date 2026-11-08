@@ -98,6 +98,11 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
   /// sopra, altrimenti la diapositiva cambierebbe sotto il telecomando.
   bool _focusInside = false;
 
+  /// Sulla TV "Riproduci" chiede il focus solo nella prima diapositiva
+  /// costruita: a ogni cambio lo riprenderebbe quando il focus si è perso
+  /// altrove (una card ricaricata sparisce e il focus resta sulla pagina).
+  bool _autofocusPending = true;
+
   /// Un'anteprima di una card è aperta (spec C §7): conta come il mouse
   /// sopra.
   bool _previewOpen = false;
@@ -217,6 +222,8 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
     final previous = _previous;
     final current = widget.items[_index];
     final corner = widget.corner;
+    final autofocus = form.tv && _autofocusPending;
+    _autofocusPending = false;
     // Diapositive con chiave per titolo: quella che esce conserva il suo
     // elemento (e l'immagine già caricata) passando sotto.
     final carousel = MouseRegion(
@@ -267,7 +274,7 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
                       ),
                       child: _HeroSlide(
                         item: current,
-                        autofocus: form.tv,
+                        autofocus: autofocus,
                         kenBurns: motion.isReduced ? null : _progress,
                         entrance: motion.isReduced
                             ? kAlwaysCompleteAnimation
@@ -422,7 +429,7 @@ class _HeroSlide extends ConsumerWidget {
 
   final JellyfinItem item;
 
-  /// Il pulsante "Riproduci" prende il focus (sulla TV, diapositiva attuale).
+  /// Il pulsante "Riproduci" prende il focus (sulla TV, la prima diapositiva).
   final bool autofocus;
 
   /// Tempo della diapositiva per il Ken Burns; `null` = sfondo fermo.

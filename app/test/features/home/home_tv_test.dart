@@ -158,4 +158,65 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.select);
     expect(opened, 1);
   });
+
+  testWidgets(
+      'TV: il cambio di diapositiva non prende il focus perso da un\'altra '
+      'riga', (tester) async {
+    final items = [
+      for (final n in ['Dune', 'Alien', 'Heat']) testItem(id: n, name: n),
+    ];
+    final other = ValueNotifier(true);
+    addTearDown(other.dispose);
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: FormFactorScope(
+          tv: true,
+          child: Column(
+            children: [
+              HeroCarousel(items: items),
+              ValueListenableBuilder(
+                valueListenable: other,
+                builder: (context, show, _) => show
+                    ? TextButton(onPressed: () {}, child: const Text('altro'))
+                    : const SizedBox(),
+              ),
+            ],
+          ),
+        ),
+      ),
+      overrides: [
+        libraryApiProvider.overrideWithValue(FakeLibraryApi()),
+        sessionControllerProvider.overrideWith(
+          () => FakeSessionController(const SessionSignedIn(testUser)),
+        ),
+      ],
+      surfaceSize: const Size(1440, 900),
+      carouselAutoplay: true,
+    );
+    await tester.pump();
+    final play = find.ancestor(
+      of: find.text('Riproduci'),
+      matching: find.byType(FilledButton),
+    );
+    expect(_focusIn(play), isTrue);
+    Future<void> nextSlide() async {
+      await tester.pump(HeroCarousel.interval);
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(WfMotion.fast);
+      }
+    }
+
+    // Il focus va su un'altra riga; la diapositiva dell'apertura se ne va.
+    Focus.of(tester.element(find.text('altro'))).requestFocus();
+    await tester.pump();
+    await nextSlide();
+    expect(find.text('ALIEN'), findsOneWidget);
+    // L'elemento col focus sparisce (la riga si è ricaricata).
+    other.value = false;
+    await tester.pump();
+    await nextSlide();
+    expect(find.text('HEAT'), findsOneWidget);
+    expect(_focusIn(play), isFalse);
+  });
 }

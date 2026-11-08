@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -67,6 +69,20 @@ class MediaRow extends StatefulWidget {
 
 class _MediaRowState extends State<MediaRow> {
   final _controller = SmoothScrollController();
+
+  /// Sulla TV il nodo di ogni card costruita, per posizione.
+  final _tvSlots = <int, FocusNode>{};
+
+  /// La card col focus è sparita (la riga si è ricaricata): il focus va a
+  /// quella che ora sta nello stesso posto, o all'ultima se la riga si è
+  /// accorciata, invece di finire altrove nella pagina.
+  void _refocus(int index) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || widget.itemCount == 0) return;
+      final slot = _tvSlots[math.min(index, widget.itemCount - 1)];
+      slot?.traversalDescendants.firstOrNull?.requestFocus();
+    });
+  }
 
   @override
   void dispose() {
@@ -140,15 +156,24 @@ class _MediaRowState extends State<MediaRow> {
       ),
       itemCount: widget.itemCount,
       separatorBuilder: (context, index) => const SizedBox(width: 16),
-      // Senza entrata le card non si avvolgono: uno StaggerItem cercherebbe
-      // il gruppo più vicino, che potrebbe essere quello della pagina.
-      itemBuilder: !animate
-          ? widget.itemBuilder
-          : (context, i) => StaggerItem(
-              index: i,
-              effect: EntranceEffect.fly,
-              child: widget.itemBuilder(context, i),
-            ),
+      itemBuilder: (context, i) {
+        final card = widget.itemBuilder(context, i);
+        // Senza entrata le card non si avvolgono: uno StaggerItem cercherebbe
+        // il gruppo più vicino, che potrebbe essere quello della pagina.
+        final child = !animate
+            ? card
+            : StaggerItem(index: i, effect: EntranceEffect.fly, child: card);
+        if (!form.tv) return child;
+        // Chiave dalla card (mai la stessa, se globale): una card nuova al
+        // suo posto ricrea lo slot, che così sa di aver perso il focus.
+        return _TvRowSlot(
+          key: card.key == null ? null : ValueKey(card.key),
+          index: i,
+          slots: _tvSlots,
+          onFocusLost: _refocus,
+          child: child,
+        );
+      },
     );
     if (animate) {
       list = StaggerGroup(
@@ -200,4 +225,63 @@ class _MediaRowState extends State<MediaRow> {
       ),
     );
   }
+}
+
+/// Sulla TV, il posto [index] di una riga: segna il suo nodo in [slots] e,
+/// se viene smontato mentre il focus è dentro, chiama [onFocusLost].
+class _TvRowSlot extends StatefulWidget {
+  const _TvRowSlot({
+    super.key,
+    required this.index,
+    required this.slots,
+    required this.onFocusLost,
+    required this.child,
+  });
+
+  final int index;
+  final Map<int, FocusNode> slots;
+  final ValueChanged<int> onFocusLost;
+  final Widget child;
+
+  @override
+  State<_TvRowSlot> createState() => _TvRowSlotState();
+}
+
+class _TvRowSlotState extends State<_TvRowSlot> {
+  final _node = FocusNode(canRequestFocus: false, skipTraversal: true);
+
+  /// Il focus è dentro. Resta vero se la card col focus viene smontata
+  /// insieme allo slot: il cambio di focus arriva dopo.
+  bool _focused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.slots[widget.index] = _node;
+  }
+
+  @override
+  void didUpdateWidget(_TvRowSlot oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.index == widget.index) return;
+    if (widget.slots[oldWidget.index] == _node) {
+      widget.slots.remove(oldWidget.index);
+    }
+    widget.slots[widget.index] = _node;
+  }
+
+  @override
+  void dispose() {
+    if (widget.slots[widget.index] == _node) widget.slots.remove(widget.index);
+    if (_focused) widget.onFocusLost(widget.index);
+    _node.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Focus(
+    focusNode: _node,
+    onFocusChange: (focused) => _focused = focused,
+    child: widget.child,
+  );
 }
