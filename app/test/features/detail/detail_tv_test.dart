@@ -200,6 +200,54 @@ void main() {
     });
   }
 
+  testWidgets('film: Giù scende fino al cast e ai simili, Su torna su', (
+    tester,
+  ) async {
+    library
+      ..itemsById['m1'] = testItem(
+        id: 'm1',
+        name: 'Dune: Parte Due',
+        people: [
+          {'Id': 'p9', 'Name': 'Zendaya', 'Role': 'Chani', 'Type': 'Actor'},
+        ],
+      )
+      ..similarItems = [testItem(id: 'm2', name: 'Arrival')];
+    await pumpDetail(tester, 'm1', surfaceSize: const Size(960, 540));
+    await tester.pumpAndSettle();
+    Future<void> key(LogicalKeyboardKey k) async {
+      await tester.sendKeyEvent(k);
+      await tester.pumpAndSettle();
+    }
+
+    // Le righe sotto lo schermo non sono ancora costruite; il nome sta
+    // appena sotto la foto o la locandina che ha il focus.
+    bool focused(Finder f) =>
+        f.evaluate().isNotEmpty &&
+        (FocusManager.instance.primaryFocus?.rect
+                .inflate(24)
+                .contains(tester.getCenter(f)) ??
+            false);
+
+    // Tra i pulsanti e il cast c'è la riga dei voti degli amici.
+    Future<void> downTo(Finder f) async {
+      for (var i = 0; i < 3 && !focused(f); i++) {
+        await key(LogicalKeyboardKey.arrowDown);
+      }
+      expect(focused(f), isTrue, reason: '$f');
+      // Chi ha il focus si vede.
+      expect(tester.getCenter(f).dy, inInclusiveRange(0, 540), reason: '$f');
+    }
+
+    await downTo(find.text('Zendaya'));
+    await downTo(find.text('Arrival'));
+    await key(LogicalKeyboardKey.arrowUp);
+    expect(focused(find.text('Zendaya')), isTrue);
+    for (var i = 0; i < 2; i++) {
+      await key(LogicalKeyboardKey.arrowUp);
+    }
+    expect(hasFocus(tester, find.text('Riproduci')), isTrue);
+  });
+
   testWidgets("film: il pulsante principale ha il focus all'apertura", (
     tester,
   ) async {

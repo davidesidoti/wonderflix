@@ -9,6 +9,7 @@ import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/media_row.dart';
 import '../../ui/poster_card.dart';
+import '../../ui/tv_focusable.dart';
 import '../../ui/wf_image.dart';
 import '../library/library_providers.dart';
 import 'detail_providers.dart';
@@ -38,25 +39,31 @@ class CastRow extends ConsumerWidget {
         final role = person.role;
         // Unica per l'istanza della pagina (vedi WfHeroScope).
         final source = WfHeroScope.source(context, 'cast.$i');
+        void open() => openPerson(context, person, heroSource: source);
         return GestureDetector(
-          onTap: () => openPerson(context, person, heroSource: source),
+          onTap: open,
           child: MouseRegion(
             cursor: SystemMouseCursors.click,
             child: SizedBox(
               width: 110,
               child: Column(
                 children: [
-                  WfHero(
-                    tag: WfHeroTag(person.id, source),
-                    // Cerchio (90 px): il volo lo trasforma negli angoli
-                    // della foto della persona.
+                  // Sulla TV la foto si raggiunge col telecomando.
+                  TvFocusable(
+                    onActivate: open,
                     borderRadius: BorderRadius.circular(45),
-                    child: SizedBox(
-                      width: 90,
-                      height: 90,
-                      child: WfImage(
-                          image: urls.person(person),
-                          fallbackIcon: LucideIcons.user),
+                    child: WfHero(
+                      tag: WfHeroTag(person.id, source),
+                      // Cerchio (90 px): il volo lo trasforma negli angoli
+                      // della foto della persona.
+                      borderRadius: BorderRadius.circular(45),
+                      child: SizedBox(
+                        width: 90,
+                        height: 90,
+                        child: WfImage(
+                            image: urls.person(person),
+                            fallbackIcon: LucideIcons.user),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
