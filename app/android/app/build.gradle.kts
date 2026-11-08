@@ -1,7 +1,25 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// Firma di rilascio: key.properties (gitignored, lo crea create_release_key.sh o la CI dai
+// Secrets). Senza, la release si firma con la chiave di debug (solo sviluppo): un APK firmato
+// con una chiave diversa non può aggiornare quello installato.
+val keyProperties = rootProject.file("key.properties").takeIf { it.exists() }?.let { file ->
+    Properties().apply { file.inputStream().use { load(it) } }
+}
+
+// versionCode = major * 1_000_000 + minor * 1_000 + patch (0.33.0 -> 33000), così ogni
+// release supera la precedente e l'installer di Android accetta l'aggiornamento.
+fun versionCodeOf(versionName: String): Int {
+    val match = Regex("""^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$""").matchEntire(versionName)
+        ?: throw GradleException("versionName '$versionName' non è X.Y.Z: impossibile calcolare il versionCode")
+    val (major, minor, patch) = match.destructured
+    return major.toInt() * 1_000_000 + minor.toInt() * 1_000 + patch.toInt()
 }
 
 android {
@@ -20,23 +38,28 @@ android {
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
-        // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
-        // You can force using the value of versionCode by specifying the `-P force-version-code-ignoring-abi=true`
-        // flag during build.
-        versionCode = flutter.versionCode
+        versionCode = versionCodeOf(flutter.versionName)
         versionName = flutter.versionName
-        // Con --split-per-abi Gradle rifiuta abiFilters (le ABI le sceglie lo split).
+        // Solo ARM (Fire TV). Con --split-per-abi Gradle rifiuta abiFilters (le ABI le sceglie lo split).
         if (!project.hasProperty("split-per-abi")) {
             ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
         }
     }
 
+    signingConfigs {
+        if (keyProperties != null) {
+            create("release") {
+                storeFile = file(keyProperties.getProperty("storeFile"))
+                storePassword = keyProperties.getProperty("storePassword")
+                keyAlias = keyProperties.getProperty("keyAlias")
+                keyPassword = keyProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName(if (keyProperties != null) "release" else "debug")
         }
     }
 }
