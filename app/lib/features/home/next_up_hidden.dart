@@ -29,11 +29,13 @@ class NextUpHidden extends AsyncNotifier<Map<String, String>> {
   /// La lettura all'apertura non è riuscita: prima di scrivere si rilegge,
   /// se no si cancellerebbero le serie già tolte.
   bool _stale = false;
+  Future<Map<String, String>>? _reread;
 
   @override
   Future<Map<String, String>> build() async {
     final userId = ref.watch(currentUserIdProvider);
     _stale = false;
+    _reread = null;
     try {
       return await ref
           .watch(displayPreferencesApiProvider)
@@ -58,34 +60,39 @@ class NextUpHidden extends AsyncNotifier<Map<String, String>> {
     final api = ref.read(displayPreferencesApiProvider);
     final userId = ref.read(currentUserIdProvider);
     await future;
-    // Lo stato, non `future`: una modifica appena prima è già lì.
-    var current = state.value ?? const <String, String>{};
     if (_stale) {
+      // Una sola rilettura anche con più modifiche insieme: la seconda trova
+      // nello stato quella della prima.
       try {
-        current = await api.readNextUpHidden(userId);
-        _stale = false;
+        final server = await (_reread ??= api.readNextUpHidden(userId));
+        if (_stale) {
+          state = AsyncData(server);
+          _stale = false;
+        }
       } on Object catch (error) {
+        _reread = null;
         _log.info('Prossimi episodi tolti non letti: ${error.runtimeType}');
         return false;
       }
     }
+    // Lo stato, non `future`: una modifica appena prima è già lì.
+    final current = state.value ?? const <String, String>{};
     final before = current[series];
     state = AsyncData(_with(current, series, episode));
-    // La mappa si prende quando tocca a questa scrittura: la più recente.
-    final write = _writes.then(
-      (_) => api.writeNextUpHidden(userId, state.value ?? const {}),
-    );
-    _writes = write.then<void>((_) {}, onError: (Object _) {});
-    try {
-      await write;
-      return true;
-    } on Object catch (error) {
+    // La mappa si prende quando tocca a questa scrittura: la più recente. Se
+    // fallisce si torna indietro prima della scrittura dopo, che se no la
+    // manderebbe lo stesso.
+    final done = _writes
+        .then((_) => api.writeNextUpHidden(userId, state.value ?? const {}))
+        .then<bool>((_) => true, onError: (Object error) {
       _log.info('Prossimi episodi non salvati: ${error.runtimeType}');
       if (ref.mounted) {
         state = AsyncData(_with(state.value ?? const {}, series, before));
       }
       return false;
-    }
+    });
+    _writes = done;
+    return done;
   }
 
   static Map<String, String> _with(

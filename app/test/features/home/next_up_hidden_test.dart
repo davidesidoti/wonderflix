@@ -146,6 +146,44 @@ void main() {
     },
   );
 
+  test(
+    'prima scrittura fallita: la seconda non manda la serie tornata',
+    () async {
+      final c = container();
+      await hidden(c);
+      prefs
+        ..nextUpWriteGate = Completer()
+        ..nextUpWriteError = Exception('giù');
+      final notifier = c.read(nextUpHiddenProvider.notifier);
+      final first = notifier.hide('s1', 'e1');
+      final second = notifier.hide('s2', 'e2');
+      await pumpEventQueue();
+      prefs.nextUpWriteGate!.complete();
+      expect(await first, isFalse);
+      await second;
+      expect(prefs.nextUpWritten[1].$2, {'s2': 'e2'});
+    },
+  );
+
+  test(
+    'lettura fallita e due modifiche insieme: si rilegge una volta, restano '
+    'tutte e due',
+    () async {
+      prefs
+        ..nextUpHidden = {'s1': 'e1'}
+        ..nextUpReadError = Exception('giù');
+      final c = container();
+      expect(await hidden(c), isEmpty);
+      prefs.nextUpReadError = null;
+      final notifier = c.read(nextUpHiddenProvider.notifier);
+      final first = notifier.hide('s2', 'e2');
+      final second = notifier.hide('s3', 'e3');
+      expect(await first, isTrue);
+      expect(await second, isTrue);
+      expect(prefs.nextUpHidden, {'s1': 'e1', 's2': 'e2', 's3': 'e3'});
+    },
+  );
+
   test('al cambio di utente si rilegge', () async {
     prefs.nextUpHidden = {'s1': 'e1'};
     final c = container();
