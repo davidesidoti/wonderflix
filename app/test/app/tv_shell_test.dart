@@ -203,6 +203,41 @@ void main() {
     }
   });
 
+  testWidgets('Su e Giù si muovono solo tra le voci della barra, aperta', (
+    tester,
+  ) async {
+    await pumpShell(tester);
+    await focusNav(tester, '/series');
+
+    bool focused(Finder f) => Focus.of(tester.element(f)).hasPrimaryFocus;
+    double width() => tester.getSize(find.byType(TvSidebar)).width;
+    final account = find.byKey(const Key('tv-account'));
+    final down = [nav('tonight'), nav('/mylist'), nav('/requests'), account];
+    for (final f in down) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(focused(f), isTrue, reason: '$f');
+      expect(width(), tvSidebarExpandedWidth);
+    }
+    // In fondo resta sull'avatar.
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+    expect(focused(account), isTrue);
+    expect(width(), tvSidebarExpandedWidth);
+
+    for (final f in [
+      nav('/requests'),
+      nav('/mylist'),
+      nav('tonight'),
+      nav('/series'),
+    ]) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pumpAndSettle();
+      expect(focused(f), isTrue, reason: '$f');
+      expect(width(), tvSidebarExpandedWidth);
+    }
+  });
+
   testWidgets('OK su Film porta a /movies e il focus va al contenuto', (
     tester,
   ) async {

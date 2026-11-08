@@ -60,6 +60,26 @@ class TvSidebarState extends ConsumerState<TvSidebar> {
   FocusNode _node(String route) =>
       _nodes.putIfAbsent(route, () => FocusNode(debugLabel: 'tv-nav-$route'));
 
+  /// Le voci dall'alto, avatar compreso: Su e Giù si muovono solo tra queste.
+  var _order = <String>[];
+
+  static const _account = 'account';
+
+  /// Su e Giù: la voce sopra o sotto, fermandosi alla prima e all'ultima.
+  /// La ricerca geometrica uscirebbe dalla barra e la chiuderebbe.
+  bool _move(LogicalKeyboardKey key) {
+    final step = key == LogicalKeyboardKey.arrowDown
+        ? 1
+        : key == LogicalKeyboardKey.arrowUp
+        ? -1
+        : 0;
+    if (step == 0) return false;
+    final i = _order.indexWhere((r) => _node(r).hasPrimaryFocus);
+    if (i < 0) return false;
+    _node(_order[(i + step).clamp(0, _order.length - 1)]).requestFocus();
+    return true;
+  }
+
   @override
   void dispose() {
     for (final node in _nodes.values) {
@@ -103,6 +123,7 @@ class TvSidebarState extends ConsumerState<TvSidebar> {
           icon: LucideIcons.messageSquarePlus,
         ),
     ];
+    _order = [for (final e in entries) e.route, if (user != null) _account];
 
     Widget item({
       required Key key,
@@ -169,8 +190,9 @@ class TvSidebarState extends ConsumerState<TvSidebar> {
       // La barra copre l'inizio del contenuto: la ricerca geometrica lo
       // salterebbe, quindi Destra torna all'elemento che aveva il focus.
       onKeyEvent: (node, event) {
-        if (event is KeyUpEvent ||
-            event.logicalKey != LogicalKeyboardKey.arrowRight) {
+        if (event is KeyUpEvent) return KeyEventResult.ignored;
+        if (_move(event.logicalKey)) return KeyEventResult.handled;
+        if (event.logicalKey != LogicalKeyboardKey.arrowRight) {
           return KeyEventResult.ignored;
         }
         widget.onFocusContent();
@@ -195,7 +217,7 @@ class TvSidebarState extends ConsumerState<TvSidebar> {
               for (final e in entries)
                 item(
                   key: Key('tv-nav-${e.route}'),
-                  focusNode: e.route == tvTonightEntry ? null : _node(e.route),
+                  focusNode: _node(e.route),
                   label: e.label,
                   selected:
                       e.route != tvTonightEntry &&
@@ -207,6 +229,7 @@ class TvSidebarState extends ConsumerState<TvSidebar> {
               if (user != null)
                 item(
                   key: const Key('tv-account'),
+                  focusNode: _node(_account),
                   label: user.name,
                   onActivate: widget.onAccount,
                   icon: (_) => UserAvatar(
