@@ -197,8 +197,6 @@
   "tvUpdatePermission": "Consenti a WonderFlix di installare app (Impostazioni di Android → Installa app sconosciute), poi premi di nuovo Aggiorna.",
   "tvUpdateReinstallCode": "Se l'aggiornamento non va, disinstalla WonderFlix e reinstallalo con Downloader (codice {code}).",
   "@tvUpdateReinstallCode": {"placeholders": {"code": {"type": "String"}}},
-  "tvUpdateReinstallUrl": "Se l'aggiornamento non va, disinstalla WonderFlix e reinstallalo con Downloader dall'indirizzo {url}.",
-  "@tvUpdateReinstallUrl": {"placeholders": {"url": {"type": "String"}}},
   "watchPartyWatchTogether": "Guarda insieme",
   "watchPartyButton": "Watch party · {count}",
   "@watchPartyButton": {"placeholders": {"count": {"type": "int"}}},

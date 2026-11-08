@@ -313,8 +313,7 @@ void main() {
   group('TV', () {
     var exits = 0;
     const reinstall = 'Se l\'aggiornamento non va, disinstalla WonderFlix e '
-        'reinstallalo con Downloader dall\'indirizzo '
-        'hashvps.proton.usbx.me/wonderflix/tv.apk.';
+        'reinstallalo con Downloader (codice 3453481).';
     final mandatory = testRelease(minVersion: '0.2.0');
 
     /// Il gate sopra un'app che ha già il focus (come la Home della TV).

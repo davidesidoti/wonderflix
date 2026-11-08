@@ -173,7 +173,6 @@
   "tvUpdateInstall": "Update",
   "tvUpdatePermission": "Allow WonderFlix to install apps (Android Settings → Install unknown apps), then press Update again.",
   "tvUpdateReinstallCode": "If the update doesn't work, uninstall WonderFlix and reinstall it with Downloader (code {code}).",
-  "tvUpdateReinstallUrl": "If the update doesn't work, uninstall WonderFlix and reinstall it with Downloader from {url}.",
   "watchPartyWatchTogether": "Watch together",
   "watchPartyButton": "Watch party · {count}",
   "watchPartyListTitle": "Active watch parties",

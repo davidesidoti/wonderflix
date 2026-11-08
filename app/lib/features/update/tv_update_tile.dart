@@ -10,20 +10,13 @@ import '../../ui/form_factor.dart';
 import '../../ui/wf_buttons.dart';
 import 'update_controller.dart';
 
-/// Codice di Downloader (aftv.news) che porta a [tvApkAddress]; `null` finché
-/// l'utente non lo crea.
-const String? tvDownloaderCode = null;
-
-/// Da dove si reinstalla l'APK della TV.
-const tvApkAddress = 'hashvps.proton.usbx.me/wonderflix/tv.apk';
+/// Codice di Downloader (aftv.news/3453481): porta al `tv.apk` del sito
+/// (`hashvps.proton.usbx.me/wonderflix/tv.apk`, docs/INSTALLAZIONE-TV.md).
+const tvDownloaderCode = '3453481';
 
 /// "Se l'aggiornamento non va, disinstalla e reinstalla con Downloader".
-String tvReinstallHint(AppLocalizations l) {
-  const code = tvDownloaderCode;
-  return code == null
-      ? l.tvUpdateReinstallUrl(tvApkAddress)
-      : l.tvUpdateReinstallCode(code);
-}
+String tvReinstallHint(AppLocalizations l) =>
+    l.tvUpdateReinstallCode(tvDownloaderCode);
 
 /// Sulla TV, in Impostazioni sotto la versione: l'aggiornamento disponibile
 /// e "Aggiorna" (niente banner, ruberebbe il focus). Fuori dalla TV niente.
