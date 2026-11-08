@@ -17,11 +17,14 @@ void main() {
   late FakeGitHubReleasesApi api;
   late Directory downloads;
   late List<File> installed;
+  // Esiti del lanciatore finto, in ordine; finiti, `started`.
+  late List<InstallOutcome> outcomes;
 
   setUp(() {
     api = FakeGitHubReleasesApi();
     downloads = Directory.systemTemp.createTempSync('wf_update_');
     installed = [];
+    outcomes = [];
   });
 
   tearDown(() {
@@ -38,7 +41,10 @@ void main() {
         githubReleasesApiProvider.overrideWithValue(api),
         updateChecksEnabledProvider.overrideWithValue(enabled),
         updateDownloadDirectoryProvider.overrideWithValue(downloads),
-        installUpdateProvider.overrideWithValue((file) async => installed.add(file)),
+        installUpdateProvider.overrideWithValue((file) async {
+          installed.add(file);
+          return outcomes.isEmpty ? InstallOutcome.started : outcomes.removeAt(0);
+        }),
       ]);
 
   Future<UpdateState> checked(ProviderContainer c) async {
@@ -157,6 +163,56 @@ void main() {
     await checked(container(version: '0.33.0', tv: true));
     expect(oldApk.existsSync(), isFalse);
     expect(newerApk.existsSync(), isTrue);
+  });
+
+  test('sulla TV scarica e verifica l\'APK', () async {
+    api.latest = latestJson('0.2.0', apk: true);
+    final state = await checked(container(tv: true));
+    expect(state.ready, isTrue);
+    expect(state.installer!.path, endsWith('WonderFlix-TV-0.2.0.apk'));
+    expect(state.installPermissionNeeded, isFalse);
+  });
+
+  test('sulla TV una release senza APK non è un aggiornamento, anche obbligatoria',
+      () async {
+    api.latest = latestJson('0.2.0',
+        body: '<!-- wonderflix:min-version=0.2.0 -->');
+    final state = await checked(container(tv: true));
+    expect(api.latestCalls, 1);
+    expect(api.downloads, 0);
+    expect(state.release, isNull);
+    expect(state.mandatory, isFalse);
+  });
+
+  test('sulla TV: permesso mancante, poi l\'installer parte', () async {
+    api.latest = latestJson('0.2.0', apk: true);
+    final c = container(tv: true);
+    await checked(c);
+    final controller = c.read(updateControllerProvider.notifier);
+    outcomes = [InstallOutcome.needsPermission];
+    await controller.install();
+    var state = c.read(updateControllerProvider);
+    expect(state.installPermissionNeeded, isTrue);
+    expect(state.ready, isTrue);
+    // Nessun nuovo controllo né download: si aspetta che l'utente riprema.
+    expect(api.latestCalls, 1);
+
+    await controller.install();
+    state = c.read(updateControllerProvider);
+    expect(installed, hasLength(2));
+    expect(state.installPermissionNeeded, isFalse);
+    expect(state.ready, isTrue);
+  });
+
+  test('permesso mancante: il controllo periodico non perde l\'avviso',
+      () async {
+    api.latest = latestJson('0.2.0', apk: true);
+    final c = container(tv: true);
+    await checked(c);
+    outcomes = [InstallOutcome.needsPermission];
+    await c.read(updateControllerProvider.notifier).install();
+    await c.read(updateControllerProvider.notifier).check();
+    expect(c.read(updateControllerProvider).installPermissionNeeded, isTrue);
   });
 
   test('cartella dei download assente: nessun errore', () async {

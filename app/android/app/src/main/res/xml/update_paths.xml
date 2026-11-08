@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- APK degli aggiornamenti (features/update): Dart li scarica in
+     Directory.systemTemp/WonderFlix, che su Android è getCodeCacheDir()
+     (FlutterLoader: PathUtils.getCacheDirectory diventa la cache-dir-path).
+     FileProvider non ha un tag per code_cache: si risale da files/. -->
+<paths>
+    <files-path name="updates" path="../code_cache/WonderFlix/" />
+</paths>

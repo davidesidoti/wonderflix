@@ -20,8 +20,10 @@ ReleaseInfo testRelease({
       checksumUrl: Uri.parse('https://x/WonderFlix-Setup-$version.exe.sha256'),
     );
 
-/// Il JSON di `releases/latest` per [version].
-Map<String, dynamic> latestJson(String version, {String body = 'Note'}) => {
+/// Il JSON di `releases/latest` per [version]; con [apk] anche l'APK della TV.
+Map<String, dynamic> latestJson(String version,
+        {String body = 'Note', bool apk = false}) =>
+    {
       'tag_name': 'v$version',
       'body': body,
       'draft': false,
@@ -36,6 +38,16 @@ Map<String, dynamic> latestJson(String version, {String body = 'Note'}) => {
           'browser_download_url':
               'https://x/WonderFlix-Setup-$version.exe.sha256',
         },
+        if (apk) ...[
+          {
+            'name': 'WonderFlix-TV-$version.apk',
+            'browser_download_url': 'https://x/WonderFlix-TV-$version.apk',
+          },
+          {
+            'name': 'WonderFlix-TV-$version.apk.sha256',
+            'browser_download_url': 'https://x/WonderFlix-TV-$version.apk.sha256',
+          },
+        ],
       ],
     };
 

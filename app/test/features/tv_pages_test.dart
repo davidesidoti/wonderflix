@@ -296,7 +296,7 @@ void main() {
     expect(find.text('Riavvia ora'), findsNothing);
   });
 
-  test('sulla TV nessun controllo né download, anche con min-version', () async {
+  test('sulla TV una release senza APK: niente download né blocco', () async {
     final api = FakeGitHubReleasesApi()
       ..latest = latestJson('9.0.0',
           body: 'x <!-- wonderflix:min-version=9.0.0 -->');
@@ -314,7 +314,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     await Future<void>.delayed(Duration.zero);
 
-    expect(api.latestCalls, 0);
+    expect(api.latestCalls, 1);
     expect(api.downloads, 0);
     expect(container.read(updateBlockedProvider), isFalse);
   });

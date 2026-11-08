@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:pub_semver/pub_semver.dart';
@@ -21,6 +22,7 @@ class UpdateState {
     this.progress,
     this.installer,
     this.failed = false,
+    this.installPermissionNeeded = false,
   });
 
   /// Versione più nuova trovata; `null` = nessun aggiornamento.
@@ -38,8 +40,15 @@ class UpdateState {
   /// Download non riuscito (lo si mostra solo se obbligatorio).
   final bool failed;
 
+  /// Sulla TV: Android non permette ancora a WonderFlix di installare app;
+  /// le impostazioni si sono aperte, poi si preme di nuovo "Aggiorna".
+  final bool installPermissionNeeded;
+
   bool get ready => installer != null;
 }
+
+/// Esito dell'avvio dell'installer (sulla TV; Windows chiude l'app).
+enum InstallOutcome { started, needsPermission }
 
 final githubReleasesApiProvider = Provider<GitHubReleasesApi>((ref) {
   final api = GitHubReleasesApi(
@@ -53,20 +62,34 @@ final githubReleasesApiProvider = Provider<GitHubReleasesApi>((ref) {
 final updateChecksEnabledProvider = Provider<bool>((ref) =>
     kReleaseMode || const bool.fromEnvironment('wfForceUpdateCheck'));
 
-/// `%TEMP%\WonderFlix`
+/// `%TEMP%\WonderFlix`; su Android `code_cache/WonderFlix` (`systemTemp` è
+/// `getCodeCacheDir()`: lo condivide il FileProvider, `res/xml/update_paths.xml`).
 final updateDownloadDirectoryProvider = Provider<Directory>((ref) => Directory(
     '${Directory.systemTemp.path}${Platform.pathSeparator}WonderFlix'));
 
-/// Avvia l'installer in silenzio e chiude l'app. L'installer aspetta che
-/// l'app sia chiusa (mutex) e la riapre al termine.
+/// Windows: avvia l'installer in silenzio e chiude l'app. L'installer aspetta
+/// che l'app sia chiusa (mutex) e la riapre al termine. TV: passa l'APK
+/// all'installer di Android (`MainActivity.installApk`); l'app resta aperta.
 final installUpdateProvider =
-    Provider<Future<void> Function(File installer)>((ref) => (installer) async {
-          _log.info('avvio dell\'installer e chiusura dell\'app');
-          await Process.start(installer.path,
-              const ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'],
-              mode: ProcessStartMode.detached);
-          exit(0);
-        });
+    Provider<Future<InstallOutcome> Function(File installer)>((ref) {
+  if (ref.watch(androidTvProvider)) {
+    return (installer) async {
+      _log.info('avvio dell\'installer di Android');
+      final outcome = await const MethodChannel('wonderflix/device')
+          .invokeMethod<String>('installApk', {'path': installer.path});
+      return outcome == 'needsPermission'
+          ? InstallOutcome.needsPermission
+          : InstallOutcome.started;
+    };
+  }
+  return (installer) async {
+    _log.info('avvio dell\'installer e chiusura dell\'app');
+    await Process.start(installer.path,
+        const ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'],
+        mode: ProcessStartMode.detached);
+    exit(0);
+  };
+});
 
 final _repoPattern = RegExp(r'^[\w.-]+/[\w.-]+$');
 
@@ -81,12 +104,7 @@ class UpdateController extends Notifier<UpdateState> {
 
   @override
   UpdateState build() {
-    // Sulla TV l'aggiornamento è fuori (l'installer è per Windows): niente
-    // controlli né download.
-    if (!ref.watch(updateChecksEnabledProvider) ||
-        ref.watch(androidTvProvider)) {
-      return const UpdateState();
-    }
+    if (!ref.watch(updateChecksEnabledProvider)) return const UpdateState();
     final timer = Timer.periodic(checkInterval, (_) => unawaited(check()));
     ref.onDispose(timer.cancel);
     scheduleMicrotask(() => unawaited(check()));
@@ -130,7 +148,10 @@ class UpdateController extends Notifier<UpdateState> {
           state.release?.version == release.version &&
           await ready.exists()) {
         _set(UpdateState(
-            release: release, mandatory: mandatory, installer: ready));
+            release: release,
+            mandatory: mandatory,
+            installer: ready,
+            installPermissionNeeded: state.installPermissionNeeded));
         return;
       }
       _set(UpdateState(release: release, mandatory: mandatory, progress: 0));
@@ -169,7 +190,15 @@ class UpdateController extends Notifier<UpdateState> {
     _installing = true;
     try {
       if (await installer.exists()) {
-        await ref.read(installUpdateProvider)(installer);
+        final outcome = await ref.read(installUpdateProvider)(installer);
+        // TV: l'installer di sistema sostituisce l'app; se l'utente annulla
+        // (o la firma non va) l'app resta usabile e "Aggiorna" si ripreme.
+        _set(UpdateState(
+            release: state.release,
+            mandatory: state.mandatory,
+            installer: installer,
+            installPermissionNeeded:
+                outcome == InstallOutcome.needsPermission));
         return;
       }
       _log.warning('installer non più presente: si riscarica');
