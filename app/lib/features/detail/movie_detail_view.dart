@@ -7,7 +7,6 @@ import '../../app/app_shell.dart';
 import '../../app/motion.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
-import '../../ui/form_factor.dart';
 import '../../ui/staggered_entrance.dart';
 import '../collections/collection_rows.dart';
 import '../library/user_data.dart';
@@ -83,7 +82,7 @@ class MovieDetailView extends ConsumerWidget {
     if (scroll == null) return page;
     final l = AppLocalizations.of(context);
     final reduced = WfMotion.of(context).isReduced;
-    final compactHeader = FormFactor.of(context).compact ? headerKey : null;
+    final compactHeader = detailCompact(context) ? headerKey : null;
     return ShellHeaderPublisher(
       controller: scroll,
       visibleAt: (offset) => barTitleVisible(offset,

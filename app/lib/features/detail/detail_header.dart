@@ -33,10 +33,16 @@ import 'primary_action.dart';
 /// Altezza della testata della scheda (sfondo, logo, dati, azioni).
 const detailHeaderHeight = 560.0;
 
+/// La scheda usa il layout stretto: mai sulla TV, che pure è larga meno di
+/// 1024 (i dati e i pulsanti stanno sopra lo sfondo, nella prima schermata).
+bool detailCompact(BuildContext context) {
+  final form = FormFactor.of(context);
+  return form.compact && !form.tv;
+}
+
 /// Altezza dello sfondo dietro la testata: nel layout stretto è l'immagine
 /// 16:9 sopra i testi.
-double detailBackdropHeight(BuildContext context) =>
-    FormFactor.of(context).compact
+double detailBackdropHeight(BuildContext context) => detailCompact(context)
     ? MediaQuery.sizeOf(context).width * 9 / 16
     : detailHeaderHeight;
 
@@ -143,7 +149,7 @@ class DetailHeader extends ConsumerWidget {
         ratingsOn &&
         !ratingsState!.hasError &&
         (ratings == null || ratings.canRate || ratings.mine != null);
-    final compact = FormFactor.of(context).compact && !tv;
+    final compact = detailCompact(context);
     // Le azioni, `null` quando non ci sono: sul PC pulsanti con il testo,
     // nello stretto icone e menu "⋯".
     final play = action == null
@@ -390,7 +396,7 @@ class DetailHeaderFrame extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: children,
     );
-    if (FormFactor.of(context).compact) {
+    if (detailCompact(context)) {
       // Altezza dal contenuto: l'immagine 16:9 (lo sfondo dietro) sfuma nel
       // fondo, i testi e le azioni sotto.
       return Column(
@@ -475,7 +481,7 @@ class HeaderTitle extends ConsumerWidget {
         : Text(
             item.name.toUpperCase(),
             maxLines: 2,
-            style: WfText.display(FormFactor.of(context).compact ? 36 : 56),
+            style: WfText.display(detailCompact(context) ? 36 : 56),
           );
   }
 }

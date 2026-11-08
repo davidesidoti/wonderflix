@@ -200,7 +200,7 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
     if (scroll == null) return page;
     final action = primary;
     final reduced = WfMotion.of(context).isReduced;
-    final compactHeader = FormFactor.of(context).compact
+    final compactHeader = detailCompact(context)
         ? widget.headerKey
         : null;
     return ShellHeaderPublisher(
@@ -385,7 +385,7 @@ class EpisodeTile extends ConsumerWidget {
     ].join(' · ');
     final overview = episode.overview;
     final form = FormFactor.of(context);
-    final compact = form.compact;
+    final compact = detailCompact(context);
     final tv = form.tv;
     void play() => unawaited(playItem(context, ref, episode));
 

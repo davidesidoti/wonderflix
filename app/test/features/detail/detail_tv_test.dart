@@ -97,6 +97,7 @@ void main() {
     WidgetTester tester,
     String id, {
     List<Override> extra = const [],
+    Size surfaceSize = const Size(1440, 900),
   }) async {
     await pumpAppRouter(
       tester,
@@ -115,6 +116,7 @@ void main() {
         ],
       ),
       tv: true,
+      surfaceSize: surfaceSize,
       overrides: [
         ...extra,
         libraryApiProvider.overrideWithValue(library),
@@ -154,6 +156,49 @@ void main() {
         tester.getCenter(finder.first),
       ) ??
       false;
+
+  // Lo schermo del Fire Stick (1080p a densità 2): largo meno di 1024, ma la
+  // scheda è quella larga, con i dati e i pulsanti sopra lo sfondo.
+  for (final id in ['m1', 's1']) {
+    testWidgets('$id a 960×540: dati e pulsanti nella prima schermata', (
+      tester,
+    ) async {
+      final long = 'Una trama lunga che va su più righe. ' * 12;
+      library.itemsById[id] = testItem(
+        id: id,
+        name: library.itemsById[id]!.name,
+        kind: library.itemsById[id]!.kind,
+        childCount: library.itemsById[id]!.childCount,
+        positionTicks: 13940000000,
+        playedPercentage: 20,
+        overview: long,
+        genres: const ['Fantascienza', 'Avventura', 'Dramma'],
+        rating: 8.4,
+      );
+      await pumpDetail(tester, id, surfaceSize: const Size(960, 540));
+      await tester.pumpAndSettle();
+
+      const screen = Rect.fromLTWH(0, 0, 960, 540);
+      bool inside(Finder f) {
+        final r = tester.getRect(f.first);
+        return r.top >= screen.top &&
+            r.bottom <= screen.bottom &&
+            r.left >= screen.left &&
+            r.right <= screen.right;
+      }
+
+      final play = id == 'm1' ? 'Riprendi da 23:14' : 'Riprendi S1:E4 · 23:14';
+      expect(inside(find.text(play)), isTrue, reason: play);
+      expect(hasFocus(tester, find.text(play)), isTrue);
+      for (final tooltip in ['Segna come visto', 'Altre azioni']) {
+        expect(inside(find.byTooltip(tooltip)), isTrue, reason: tooltip);
+      }
+      expect(inside(find.text(long)), isTrue);
+      // Nessuno scroll per arrivarci.
+      final list = tester.widget<Scrollable>(find.byType(Scrollable).first);
+      expect(list.controller?.offset ?? 0, 0);
+    });
+  }
 
   testWidgets("film: il pulsante principale ha il focus all'apertura", (
     tester,

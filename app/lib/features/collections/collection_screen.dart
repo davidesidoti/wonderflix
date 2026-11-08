@@ -9,7 +9,6 @@ import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
-import '../../ui/form_factor.dart';
 import '../../ui/poster_card.dart';
 import '../../ui/skeletons.dart';
 import '../../ui/smooth_scroll.dart';
@@ -214,7 +213,7 @@ class CollectionView extends ConsumerWidget {
     // Senza controller (vista montata da sola) niente titolo nella barra.
     if (scroll == null) return page;
     final reduced = WfMotion.of(context).isReduced;
-    final compactHeader = FormFactor.of(context).compact ? headerKey : null;
+    final compactHeader = detailCompact(context) ? headerKey : null;
     return ShellHeaderPublisher(
       controller: scroll,
       visibleAt: (offset) => barTitleVisible(offset,
