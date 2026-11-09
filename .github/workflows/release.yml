@@ -314,5 +314,5 @@ jobs:
       # così il sito non punta a file non ancora copiati.
       - name: Pubblicazione sul server
         run: |
-          rsync -az --delete --exclude index.html -e "ssh -i ~/.ssh/id_deploy" build/web/ hashvps@46.232.210.229:
-          rsync -az -e "ssh -i ~/.ssh/id_deploy" build/web/index.html hashvps@46.232.210.229:
+          rsync -az --delete --exclude index.html -e "ssh -i ~/.ssh/id_deploy" build/web/ hashvps@149.40.59.140:
+          rsync -az -e "ssh -i ~/.ssh/id_deploy" build/web/index.html hashvps@149.40.59.140:

@@ -34,7 +34,7 @@ I nomi delle voci cambiano un po' da un modello all'altro; cerca quelli più sim
 
 ## 3. Installa WonderFlix
 
-1. Apri Downloader e, nel campo dell'indirizzo, scrivi il codice **`3453481`** oppure l'indirizzo `hashvps.proton.usbx.me/wonderflix/tv.apk`.
+1. Apri Downloader e, nel campo dell'indirizzo, scrivi il codice **`8025402`** oppure l'indirizzo `hashvps.aiko.usbx.me/wonderflix/tv.apk`.
 2. Premi *Go*: al termine del download conferma *Installa*, poi *Fatto* (o *Apri*).
 3. Se Downloader lo propone, cancella il file scaricato: non serve più.
 
