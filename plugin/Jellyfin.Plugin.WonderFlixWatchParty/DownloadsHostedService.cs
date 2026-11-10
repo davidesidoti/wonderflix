@@ -9,7 +9,8 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty;
 /// I timer dei download automatici (spec T §5, §6, decisione 7): carica il file all'avvio, un giro ogni
 /// <see cref="DownloadService.CycleInterval"/>, l'elenco da ripassare ogni <see cref="DownloadService.ReviewInterval"/>
 /// (il primo dopo <see cref="FirstReviewDelay"/>). Un giro alla volta: un tick che ne trova uno in corso salta; un
-/// nudge che ne trova uno in corso lo fa ripartire una volta dopo <see cref="DownloadService.NudgeDelay"/>.
+/// nudge che ne trova uno in corso lo fa ripartire una volta, finito, dopo <see cref="DownloadService.NudgeDelay"/>
+/// (o <see cref="DownloadService.UrgentNudgeDelay"/> se urgente).
 /// </summary>
 public sealed class DownloadsHostedService(
     DownloadService downloads,
@@ -83,7 +84,7 @@ public sealed class DownloadsHostedService(
         {
             try
             {
-                // Change su un timer già armato lo sposta: l'urgente accorcia un nudge normale.
+                // Change su un timer già armato lo sposta: un nudge urgente lo accorcia, e può spostarlo anche a metà attesa.
                 _nudgeTimer?.Change(urgent ? DownloadService.UrgentNudgeDelay : DownloadService.NudgeDelay, Timeout.InfiniteTimeSpan);
             }
             catch (ObjectDisposedException)

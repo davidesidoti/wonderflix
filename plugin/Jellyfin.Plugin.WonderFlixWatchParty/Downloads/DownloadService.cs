@@ -124,7 +124,8 @@ public sealed partial class DownloadService(
     public async Task<CycleReport> RunCycleAsync(CancellationToken cancellationToken)
     {
         // Un Rush arrivato prima di adesso è già nelle voci che questo giro legge: la richiesta di fermarsi vale solo da qui.
-        // Un Refresh arrivato durante le letture resta per il giro dopo.
+        // Un Refresh arrivato durante le letture resta per il giro dopo, a meno che questo non fosse già un Refresh:
+        // a fine giro azzera il flag, e quel Refresh si perde (le sue letture, forse, erano già fatte).
         bool refreshing;
         lock (_lock)
         {
@@ -162,7 +163,7 @@ public sealed partial class DownloadService(
                 _refreshPending = false;
             }
 
-            rushedRows = Book.Entries.Any(e => e.RushAt is not null);
+            rushedRows = Book.Entries.Any(e => e.RushAt is not null && CanRush(e) && IsDue(e, views, now));
         }
 
         var errors = new Dictionary<ArrKind, string?> { [ArrKind.Radarr] = radarr.Error, [ArrKind.Sonarr] = sonarr.Error };

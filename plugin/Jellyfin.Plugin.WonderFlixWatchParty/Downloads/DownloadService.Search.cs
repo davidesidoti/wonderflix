@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
 using Microsoft.Extensions.Logging;
@@ -54,6 +55,15 @@ public sealed partial class DownloadService
     // Solo sotto _lock, solo in memoria. "Aggiorna ora" aspetta un giro che rilegga Sonarr e Radarr: finché non l'ha fatto la panoramica lo dice.
     private bool _refreshPending;
 
+    [GeneratedRegex(@" · (?:S(?<s>[0-9]+)E(?<e>[0-9]+)|Stagione (?<s>[0-9]+))$")]
+    private static partial Regex RushTitleRegex();
+
+    // (stagione, episodio) dal fondo del titolo ("Serie · S03E05", "Serie · Stagione 3" = (3, 0)); gli altri titoli vanno in fondo.
+    private static (int Season, int Episode) RushOrder(string title) =>
+        RushTitleRegex().Match(title) is { Success: true } m
+            ? (int.Parse(m.Groups["s"].Value, CultureInfo.InvariantCulture), m.Groups["e"].Success ? int.Parse(m.Groups["e"].Value, CultureInfo.InvariantCulture) : 0)
+            : (int.MaxValue, 0);
+
     // Le voci con la ricerca scaduta, prima quelle con la precedenza (RushAt), poi dalla più vecchia; al massimo MaxSearchesPerCycle
     // ricerche (non per quelle con la precedenza), una alla volta.
     private async Task<(int Searched, int Grabbed)> SearchDueAsync(
@@ -77,8 +87,9 @@ public sealed partial class DownloadService
                     .OrderBy(e => e.RushAt ?? DateTimeOffset.MaxValue)
                     .ThenBy(e => e.RushAt is null ? e.NextSearchAt : null)
 
-                    // Stessa serie: la lunghezza prima, così "Stagione 2" viene prima di "Stagione 10".
-                    .ThenBy(e => e.RushAt is null ? 0 : e.Title.Length)
+                    // Con la stessa precedenza (una serie intera): stagioni ed episodi in ordine, la serie riparte dall'inizio.
+                    .ThenBy(e => e.RushAt is null ? 0 : RushOrder(e.Title).Season)
+                    .ThenBy(e => e.RushAt is null ? 0 : RushOrder(e.Title).Episode)
                     .ThenBy(e => e.RushAt is null ? "" : e.Title, StringComparer.Ordinal)
                     .Select(e => e.Key),
             ];
@@ -169,8 +180,8 @@ public sealed partial class DownloadService
                 {
                     _searching.Remove(item.Key);
 
-                    // Qualunque esito: la voce riprende il ritmo normale.
-                    if (Book.Get(item.Key) is { } done)
+                    // Qualunque esito: la voce riprende il ritmo normale. Allo spegnimento no: il riavvio non perde RushAt.
+                    if (!cancellationToken.IsCancellationRequested && Book.Get(item.Key) is { } done)
                     {
                         done.RushAt = null;
                     }

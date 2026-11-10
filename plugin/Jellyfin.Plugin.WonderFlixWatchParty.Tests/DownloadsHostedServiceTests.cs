@@ -150,6 +150,26 @@ public sealed class DownloadsHostedServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ARefreshDuringACycleRestartsItAfterTheCycleEndsWithinSeconds()
+    {
+        await _hosted.StartAsync(CancellationToken.None);
+        Hold();
+        await Advance(DownloadService.CycleInterval);
+        Assert.Equal(1, Volatile.Read(ref _cycles));
+
+        // Il timer urgente scatta a giro in corso: nessun giro in parallelo, ma "rifai"; finito il giro, un altro nudge urgente.
+        _downloads.Refresh();
+        await Advance(DownloadService.UrgentNudgeDelay);
+        Assert.Equal(1, Volatile.Read(ref _cycles));
+
+        _gate!.SetResult([]);
+        _gate = null;
+        await Advance(DownloadService.UrgentNudgeDelay);
+
+        Assert.Equal(2, Volatile.Read(ref _cycles));
+    }
+
+    [Fact]
     public async Task AFailingCycleIsLogged()
     {
         // Il file non si può scrivere (la cartella è un file): il giro lancia, il timer no.

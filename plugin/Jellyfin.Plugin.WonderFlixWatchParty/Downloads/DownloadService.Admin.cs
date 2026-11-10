@@ -316,6 +316,7 @@ public sealed partial class DownloadService
 
             entry.State = DownloadStates.Waiting;
             entry.Snoozed = true;
+            entry.RushAt = null;
             entry.NextSearchAt = time.GetUtcNow() + DownloadSchedule.SnoozedPace;
             store.Save(Book);
         }
@@ -808,7 +809,8 @@ public sealed partial class DownloadService
             var touched = false;
             foreach (var row in rows.Where(CanRush))
             {
-                row.RushAt = row.NextSearchAt = now;
+                row.RushAt ??= now;
+                row.NextSearchAt = now;
                 touched = true;
             }
 
@@ -1117,7 +1119,7 @@ public sealed partial class DownloadService
             external,
             e.SeriesId > 0 ? e.SeriesId : null,
             CanRush(e),
-            e.RushAt is not null);
+            e.RushAt is not null && CanRush(e));
     }
 
     /// <summary>

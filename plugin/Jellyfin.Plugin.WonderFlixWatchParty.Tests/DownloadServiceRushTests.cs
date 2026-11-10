@@ -426,6 +426,113 @@ public sealed class DownloadServiceRushTests : IDisposable
     }
 
     [Fact]
+    public async Task RushedRowsOfAMixedSeriesGoFromTheStart()
+    {
+        static SonarrEpisode Ep(int id, int season, int number)
+        {
+            var episode = SeasonEp(id, season);
+            episode.EpisodeNumber = number;
+            return episode;
+        }
+
+        // Stagione 2 intera; la 1 e la 3 hanno un episodio che c'è già (non intere), quindi episodi sciolti.
+        // Per lunghezza del titolo "Stagione 2" e S03E.. verrebbero prima di S01E100.
+        _seriesEpisodes = [Ep(101, 1, 100), Ep(102, 1, 1), Ep(201, 2, 1), Ep(301, 3, 5), Ep(302, 3, 1), Ep(303, 3, 9)];
+        _missing = [_seriesEpisodes[0], _seriesEpisodes[2], _seriesEpisodes[3], _seriesEpisodes[4]];
+        await Seed();
+
+        Assert.True(_service.Rush("episode:301"));
+        _arr.Releases = Failing;
+        await Cycle();
+
+        Assert.Equal(
+            ["episodeId=101", "seriesId=7&seasonNumber=2", "episodeId=302", "episodeId=301"],
+            _arr.SearchReleaseCalls.Select(c => c.Query));
+    }
+
+    [Fact]
+    public async Task ARushedRowThatWentToDownloadingIsNotRushedBeforeAnyCycle()
+    {
+        _movies = [Movie(1)];
+        await Seed();
+        Assert.True(_service.Rush("movie:1"));
+
+        // Spento il giro non cerca e non pulisce RushAt: la voce scarica, e la panoramica non deve dirla in testa alla coda.
+        _settings.Enabled = false;
+        _arr.Queue = kind => Task.FromResult<IReadOnlyList<ArrQueueItem?>>(kind == ArrKind.Radarr ? [MovieQueue(91, 1, 5_000)] : []);
+        await Cycle();
+
+        var item = await Item("movie:1");
+        Assert.Equal(DownloadStates.Downloading, item.State);
+        Assert.False(item.Rush);
+        Assert.False(item.CanRush);
+    }
+
+    [Fact]
+    public async Task AStaleRushAtDoesNotMakeARefreshCycleSearch()
+    {
+        _movies = [Movie(1), Movie(2)];
+        await Seed();
+        Assert.True(_service.Rush("movie:1"));
+
+        // La riga con la precedenza scarica: resta un RushAt vecchio, e il film 2 è da cercare ma non conta come anticipato.
+        _arr.Queue = kind => Task.FromResult<IReadOnlyList<ArrQueueItem?>>(kind == ArrKind.Radarr ? [MovieQueue(91, 1, 5_000)] : []);
+        _service.Refresh();
+        var report = await Cycle();
+
+        Assert.Equal(0, report.Searched);
+        Assert.Empty(_arr.SearchReleaseCalls);
+    }
+
+    [Fact]
+    public async Task SnoozingARushedRowClearsItsRushAt()
+    {
+        var row = Row("episode:34", DownloadStates.NeedsYou, rushAt: T0);
+        row.Reason = DownloadReasons.NothingFound;
+        Inject(row);
+
+        Assert.True(_service.Snooze("episode:34"));
+
+        Assert.Null(Saved("episode:34")!.RushAt);
+        Assert.False((await Item("episode:34")).Rush);
+    }
+
+    [Fact]
+    public void APressedAgainSeriesKeepsItsOriginalRushAt()
+    {
+        Inject(Row("episode:34"));
+        Assert.True(_service.Rush("episode:34"));
+        var first = Saved("episode:34")!.RushAt;
+
+        _time.Advance(TimeSpan.FromMinutes(5));
+        Assert.True(_service.Rush("episode:34"));
+
+        Assert.Equal(first, Saved("episode:34")!.RushAt);
+        Assert.Equal(_time.GetUtcNow(), Saved("episode:34")!.NextSearchAt);
+    }
+
+    [Fact]
+    public async Task AShutdownDuringTheSearchKeepsRushAt()
+    {
+        _movies = [Movie(1)];
+        await Seed();
+        Assert.True(_service.Rush("movie:1"));
+
+        using var cts = new CancellationTokenSource();
+        var cycle = _service.RunCycleAsync(cts.Token).WaitAsync(TimeSpan.FromSeconds(10));
+        await Call(0);
+        cts.Cancel();
+        lock (_gatesLock)
+        {
+            _gates[0].SetException(new OperationCanceledException(cts.Token));
+        }
+
+        await Record.ExceptionAsync(() => cycle);
+
+        Assert.True((await Item("movie:1")).Rush);
+    }
+
+    [Fact]
     public async Task SplittingARushedSeasonKeepsThePrecedence()
     {
         _movies = [Movie(1)];
