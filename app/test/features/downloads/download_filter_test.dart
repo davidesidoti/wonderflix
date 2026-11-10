@@ -111,11 +111,10 @@ void main() {
       expect(groups.single.canPress, isFalse);
     });
 
-    test('a mix of rushed and free rows can still be pressed', () {
+    test('a mix of rushed and free rows is pending and cannot be pressed', () {
       final groups = rushGroups([row('a', rush: true), row('b')], '');
-      expect(groups.single.canPress, isTrue);
-      expect(groups.single.pending, isFalse);
-      expect(groups.single.key, 'b');
+      expect(groups.single.canPress, isFalse);
+      expect(groups.single.pending, isTrue);
     });
 
     test('a rushed row without canRush keeps the group visible', () {
@@ -148,7 +147,6 @@ void main() {
     test('the key is a canRush row of the group', () {
       final groups = rushGroups([
         row('a', canRush: false),
-        row('b', rush: true),
         row('c'),
       ], '');
       expect(groups.single.key, 'c');

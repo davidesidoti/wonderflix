@@ -368,6 +368,7 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
           DownloadRushRow(
             key: ValueKey('rush-${group.key}'),
             group: group,
+            enabled: overview.enabled,
             onRush: overview.enabled && group.canPress
                 ? () => _call(
                     () => ref.read(downloadsApiProvider).rush(group.key),

@@ -71,19 +71,16 @@ List<DownloadRushGroup> rushGroups(List<DownloadItem> waiting, String query) {
 DownloadRushGroup _group(List<DownloadItem> rows) {
   final first = rows.first;
   final cut = first.title.lastIndexOf(' · ');
-  final canPress = rows.any((r) => r.canRush && !r.rush);
+  // Basta una riga ancora davanti nella coda: il gruppo è in attesa e il tasto non c'è.
+  final pending = rows.any((r) => r.rush);
   return DownloadRushGroup(
-    // Senza riga con canRush (tutte già in coda) il tasto non si preme: la prima.
-    key: (rows.where((r) => r.canRush && !r.rush).firstOrNull ??
-            rows.where((r) => r.canRush).firstOrNull ??
-            first)
-        .key,
+    key: (rows.where((r) => r.canRush).firstOrNull ?? first).key,
     title: first.kind == DownloadKind.movie || cut < 0
         ? first.title
         : first.title.substring(0, cut),
     posterUrl: rows.map((r) => r.posterUrl).nonNulls.firstOrNull,
     missing: rows.where((r) => r.canRush || r.rush).length,
-    canPress: canPress,
-    pending: !canPress && rows.any((r) => r.rush),
+    canPress: !pending && rows.any((r) => r.canRush),
+    pending: pending,
   );
 }

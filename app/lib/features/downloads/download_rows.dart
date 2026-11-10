@@ -399,9 +399,17 @@ class ReviewRow extends StatelessWidget {
 /// Una serie o un film che "Scarica subito" può portare davanti: nome, quante
 /// righe mancano e il pulsante.
 class DownloadRushRow extends StatelessWidget {
-  const DownloadRushRow({super.key, required this.group, this.onRush});
+  const DownloadRushRow({
+    super.key,
+    required this.group,
+    this.onRush,
+    this.enabled = true,
+  });
 
   final DownloadRushGroup group;
+
+  /// Download automatici spenti: niente "In testa alla coda", ci pensa la nota.
+  final bool enabled;
 
   /// Senza (download spenti, niente da portare davanti) il pulsante non c'è.
   final VoidCallback? onRush;
@@ -416,7 +424,7 @@ class DownloadRushRow extends StatelessWidget {
         _muted(l.downloadsRushMissing(group.missing)),
       ],
       actions: [
-        if (group.pending)
+        if (enabled && group.pending)
           Text(l.downloadsRushPending, style: _smallMuted)
         else if (onRush case final rush?)
           AdminActionButton(

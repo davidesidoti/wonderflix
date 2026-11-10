@@ -54,8 +54,8 @@ Successo: l'admin scrive il nome, preme un pulsante, e la prossima ricerca che p
 - Le righe di `overview.waiting` (la lista del DTO, qualunque stato) si raggruppano per `SeriesId` (nuovo campo del DTO). Il nome della serie è il titolo fino all'ultimo ` · `. Un film è un gruppo da solo con il suo titolo intero.
 - Con il campo non vuoto, in testa ai risultati, una riga per ogni gruppo in cui almeno una riga corrisponde al filtro e almeno una riga ha `CanRush` o `Rush`. Una serie solo in download o in `UpgradeWatch` non ha la riga; una tutta in "Serve te" sì.
 - Testo della riga: nome, poster, e quante righe mancano (es. "28 mancanti"): le righe del gruppo intero con `CanRush` o `Rush`, anche quelle che il filtro non mostra.
-- Il pulsante c'è solo se almeno una riga del gruppo ha `CanRush` senza `Rush` e i download automatici sono accesi (`overview.enabled`).
-- Se tutte le righe del gruppo che possono averla hanno già la precedenza (`Rush`), al posto del pulsante si legge "In testa alla coda".
+- Il pulsante c'è solo se almeno una riga del gruppo ha `CanRush`, nessuna ha `Rush` e i download automatici sono accesi (`overview.enabled`).
+- Se almeno una riga del gruppo ha `Rush`, al posto del pulsante si legge "In testa alla coda" (solo con i download automatici accesi: da spenti c'è la nota che lo dice).
 
 ### Saltare la coda (plugin)
 

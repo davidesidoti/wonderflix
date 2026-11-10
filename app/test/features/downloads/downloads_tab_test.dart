@@ -1048,6 +1048,19 @@ void main() {
       expect(find.text('Scarica subito'), findsNothing);
     });
 
+    testWidgets('con i download spenti non si legge In testa alla coda',
+        (tester) async {
+      api.overviewValue =
+          DownloadsOverview(enabled: false, waiting: episodes(rush: true));
+      await pumpTab(tester);
+
+      await type(tester, 'serie');
+
+      expect(find.text('2 mancanti'), findsOneWidget);
+      expect(find.text('In testa alla coda'), findsNothing);
+      expect(find.text('Scarica subito'), findsNothing);
+    });
+
     testWidgets('Non è in lista compare anche con righe vecchie trovate',
         (tester) async {
       api.overviewValue = DownloadsOverview(
