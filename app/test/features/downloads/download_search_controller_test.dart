@@ -328,7 +328,12 @@ void main() {
 
         expect(stateOf(c).isLoading, isTrue);
         expect(runningOf(c),
-            (startedAt: startedAt, service: 'Radarr', reconnecting: false));
+            (
+              startedAt: startedAt,
+              service: 'Radarr',
+              reconnecting: false,
+              waitingFor: null,
+            ));
         async.elapse(poll);
         expect(runningOf(c), isNull);
         sub.close();

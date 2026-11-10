@@ -292,6 +292,13 @@ void main() {
 
     expect(backlogEndLabel(it, at(null), now), 'Stima in calcolo…');
     expect(
+        backlogEndLabel(
+            it,
+            const SearchProgress(
+                done: 1, remaining: 1, paused: true, manualSearch: true),
+            now),
+        'In pausa: ricerca manuale in corso');
+    expect(
         backlogEndLabel(it, at(DateTime(2026, 11, 10, 2), paused: true), now),
         'In pausa');
     expect(backlogEndLabel(it, at(DateTime(2026, 11, 10, 1, 40)), now),

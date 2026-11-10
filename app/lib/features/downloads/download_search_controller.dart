@@ -45,11 +45,13 @@ final downloadGrabProgressProvider = NotifierProvider.autoDispose
     );
 
 /// Una ricerca in background in corso: quando è partita (ora del server), su
-/// quale servizio, e se l'ultima richiesta dello stato è fallita per la rete.
+/// quale servizio, se l'ultima richiesta dello stato è fallita per la rete, e
+/// la ricerca automatica che sta ancora aspettando.
 typedef DownloadSearchRunning = ({
   DateTime startedAt,
   String service,
   bool reconnecting,
+  DownloadSearchWaiting? waitingFor,
 });
 
 /// La ricerca in background di un titolo (la chiave) mentre è in corso; null
@@ -129,6 +131,7 @@ class DownloadSearchController extends AsyncNotifier<DownloadSearch> {
               startedAt: status.startedAt ?? clock.now(),
               service: status.service,
               reconnecting: false,
+              waitingFor: status.waitingFor,
             ));
           case DownloadSearchJobState.none:
             break;
@@ -157,6 +160,7 @@ class DownloadSearchController extends AsyncNotifier<DownloadSearch> {
                 startedAt: r.startedAt,
                 service: r.service,
                 reconnecting: true,
+                waitingFor: r.waitingFor,
               ));
             }
           }

@@ -296,6 +296,17 @@ void main() {
       expect(find.textContaining('ricerche/ora'), findsNothing);
     });
 
+    testWidgets('ricerca manuale: in pausa con il motivo', (tester) async {
+      api.overviewValue = const DownloadsOverview(
+        enabled: true,
+        progress: SearchProgress(done: 1, remaining: 2, manualSearch: true),
+      );
+      await pumpTab(tester);
+
+      expect(find.text('In pausa: ricerca manuale in corso'), findsOneWidget);
+      expect(find.text('Stima in calcolo…'), findsNothing);
+    });
+
     testWidgets('senza fine stimata: in calcolo', (tester) async {
       api.overviewValue = const DownloadsOverview(
         enabled: true,

@@ -358,10 +358,21 @@ class _SearchRunningState extends State<_SearchRunning> {
 
   /// m:ss, i minuti oltre 59 senza ore. Un `startedAt` nel futuro (orologio
   /// avanti rispetto al server) dà 0:00.
-  String _elapsed() {
-    final seconds = clock.now().difference(widget.running.startedAt).inSeconds;
+  String _elapsed([DateTime? since]) {
+    final seconds =
+        clock.now().difference(since ?? widget.running.startedAt).inSeconds;
     final s = seconds < 0 ? 0 : seconds;
     return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
+  }
+
+  /// La riga mentre la ricerca aspetta quella automatica in corso.
+  String _waiting(AppLocalizations l, DownloadSearchWaiting w) {
+    final elapsed = _elapsed(w.since);
+    final typical = w.typicalSeconds;
+    if (typical == null) return l.downloadsSearchWaitingFor(w.title, elapsed);
+    final text =
+        typical < 60 ? '~$typical s' : '~${(typical / 60).round()} min';
+    return l.downloadsSearchWaitingForTypical(w.title, elapsed, text);
   }
 
   @override
@@ -376,7 +387,14 @@ class _SearchRunningState extends State<_SearchRunning> {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const LinearProgressIndicator(),
             const SizedBox(height: 16),
-            Text(l.downloadsSearchRunning(widget.running.service, _elapsed())),
+            Text(
+              switch (widget.running.waitingFor) {
+                final w? => _waiting(l, w),
+                null =>
+                  l.downloadsSearchRunning(widget.running.service, _elapsed()),
+              },
+              textAlign: TextAlign.center,
+            ),
             if (widget.running.reconnecting) ...[
               const SizedBox(height: 8),
               Text(l.downloadsSearchReconnecting, style: muted),

@@ -191,6 +191,7 @@ String nextSearchLabel(AppLocalizations l, DateTime? at, DateTime now) {
 /// La riga sotto la barra della coda: "In pausa", "Stima in calcolo…" o
 /// "Fine stimata (domani | il 12/11) verso le 15:10 (~14 h)".
 String backlogEndLabel(AppLocalizations l, SearchProgress p, DateTime now) {
+  if (p.manualSearch) return l.downloadsBacklogManualSearch;
   if (p.paused) return l.downloadsBacklogPaused;
   final end = p.estimatedEnd?.toLocal();
   if (end == null) return l.downloadsBacklogEstimating;

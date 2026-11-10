@@ -710,6 +710,51 @@ void main() {
       });
     });
 
+    DownloadSearchStatus waiting(int? typicalSeconds) => DownloadSearchStatus(
+        key: 'movie:1',
+        state: DownloadSearchJobState.running,
+        startedAt: t0,
+        service: 'Sonarr',
+        waitingFor: DownloadSearchWaiting(
+            title: 'One Piece · S22E40',
+            since: t0.subtract(const Duration(minutes: 1, seconds: 20)),
+            typicalSeconds: typicalSeconds));
+
+    testWidgets('showsTheWaitingLineThenTheRunningOne', (tester) async {
+      var now = t0;
+      await withClock(Clock(() => now), () async {
+        api.searchStatuses
+          ..add(waiting(130))
+          ..add(running(t0.add(const Duration(seconds: 3))));
+        await open(tester, settle: false, features: jobs);
+
+        expect(find.byType(LinearProgressIndicator), findsOneWidget);
+        expect(
+            find.text('In attesa: sta finendo una ricerca automatica '
+                '(One Piece · S22E40, da 1:20, di solito ~2 min)'),
+            findsOneWidget);
+        expect(find.textContaining('Ricerca su'), findsNothing);
+
+        now = now.add(DownloadSearchController.pollInterval);
+        await tester.pump(DownloadSearchController.pollInterval);
+        await tester.pump();
+        expect(find.textContaining('In attesa'), findsNothing);
+        expect(find.text('Ricerca su Sonarr in corso · 0:00'), findsOneWidget);
+      });
+    });
+
+    testWidgets('theWaitingLineOmitsAnUnknownTypicalTime', (tester) async {
+      await withClock(Clock(() => t0), () async {
+        api.searchStatuses.add(waiting(null));
+        await open(tester, settle: false, features: jobs);
+
+        expect(
+            find.text('In attesa: sta finendo una ricerca automatica '
+                '(One Piece · S22E40, da 1:20)'),
+            findsOneWidget);
+      });
+    });
+
     testWidgets('showsReconnecting', (tester) async {
       await withClock(Clock(() => t0), () async {
         api.searchStatuses

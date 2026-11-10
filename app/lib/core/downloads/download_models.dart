@@ -512,6 +512,7 @@ class SearchProgress {
     this.perHour,
     this.estimatedEnd,
     this.paused = false,
+    this.manualSearch = false,
   });
 
   final int done;
@@ -519,6 +520,9 @@ class SearchProgress {
   final double? perHour;
   final DateTime? estimatedEnd;
   final bool paused;
+
+  /// Le ricerche automatiche sono ferme per una ricerca manuale dell'admin.
+  final bool manualSearch;
 
   int get total => done + remaining;
 
@@ -530,6 +534,7 @@ class SearchProgress {
         perHour: (json['PerHour'] as num?)?.toDouble(),
         estimatedEnd: _dateOrNull(json['EstimatedEnd']),
         paused: json['Paused'] as bool? ?? false,
+        manualSearch: json['ManualSearch'] as bool? ?? false,
       );
     } on Object {
       return null;
@@ -817,6 +822,7 @@ class DownloadSearchStatus {
     this.startedAt,
     required this.service,
     this.result,
+    this.waitingFor,
   });
 
   final String key;
@@ -830,6 +836,9 @@ class DownloadSearchStatus {
 
   /// Il risultato, solo con [DownloadSearchJobState.done].
   final DownloadSearch? result;
+
+  /// La ricerca automatica in corso che questa ricerca manuale aspetta.
+  final DownloadSearchWaiting? waitingFor;
 
   /// `null` con uno stato sconosciuto o un `Done` senza risultato valido.
   static DownloadSearchStatus? fromJson(Map<String, dynamic> json) {
@@ -850,6 +859,40 @@ class DownloadSearchStatus {
             startedAt == null ? null : DateTime.parse(startedAt as String),
         service: json['Service'] as String,
         result: result,
+        waitingFor: json['WaitingFor'] is Map
+            ? DownloadSearchWaiting.fromJson(
+                (json['WaitingFor'] as Map).cast<String, dynamic>())
+            : null,
+      );
+    } on Object {
+      return null;
+    }
+  }
+}
+
+/// La ricerca automatica che una ricerca manuale aspetta (`WaitingFor`).
+class DownloadSearchWaiting {
+  const DownloadSearchWaiting({
+    required this.title,
+    required this.since,
+    this.typicalSeconds,
+  });
+
+  /// Es. "One Piece · S22E40".
+  final String title;
+
+  /// Quando è partita la ricerca automatica (ora del server).
+  final DateTime since;
+
+  /// Quanto dura di solito una ricerca automatica; null se non si sa.
+  final int? typicalSeconds;
+
+  static DownloadSearchWaiting? fromJson(Map<String, dynamic> json) {
+    try {
+      return DownloadSearchWaiting(
+        title: json['Title'] as String,
+        since: _date(json['Since']),
+        typicalSeconds: _intOrNull(json['TypicalSeconds']),
       );
     } on Object {
       return null;

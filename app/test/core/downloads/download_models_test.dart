@@ -99,6 +99,34 @@ void main() {
           DownloadSearchJobState.none);
     });
 
+    test('WaitingForParsesTolerantly', () {
+      DownloadSearchStatus? parse(Map<String, dynamic> extra) =>
+          DownloadSearchStatus.fromJson({...statusJson('Running'), ...extra});
+      final w = parse({
+        'WaitingFor': {
+          'Title': 'One Piece · S22E40',
+          'Since': '2026-11-10T01:20:00+00:00',
+          'TypicalSeconds': 130,
+        }
+      })!
+          .waitingFor!;
+      expect((w.title, w.since, w.typicalSeconds),
+          ('One Piece · S22E40', DateTime.utc(2026, 11, 10, 1, 20), 130));
+      expect(
+          parse({
+            'WaitingFor': {
+              'Title': 'X',
+              'Since': '2026-11-10T01:20:00+00:00',
+              'TypicalSeconds': null,
+            }
+          })!
+              .waitingFor!
+              .typicalSeconds,
+          isNull);
+      expect(parse({'WaitingFor': null})!.waitingFor, isNull);
+      expect(parse({})!.waitingFor, isNull);
+    });
+
     test('UnknownStateOrBrokenDoneIsNull', () {
       expect(DownloadSearchStatus.fromJson(statusJson('Boh')), isNull);
       expect(DownloadSearchStatus.fromJson(statusJson('Done')), isNull);
@@ -236,6 +264,16 @@ void main() {
     }))!
         .progress!;
     expect((bare.perHour, bare.estimatedEnd, bare.paused), (null, null, false));
+    expect(bare.manualSearch, isFalse);
+    expect(
+        DownloadsOverview.fromJson(json({
+          'Done': 0,
+          'Remaining': 3,
+          'ManualSearch': true,
+        }))!
+            .progress!
+            .manualSearch,
+        isTrue);
     expect(DownloadsOverview.fromJson(json(null))!.progress, isNull);
     expect(DownloadsOverview.fromJson(json({'Done': 'x'}))!.progress, isNull);
     expect(DownloadsOverview.empty.progress, isNull);
