@@ -191,6 +191,10 @@ uscite in arrivo.
   `StartedAt` l'inizio del job, poi `WaitingFor` null e `StartedAt` l'inizio
   vero; `Progress` ha `ManualSearch`, e con `ManualSearch` `EstimatedEnd` è
   null;
+  `POST Downloads/Rush` `{Key}` "Scarica subito" (dalla 1.27.0) porta la serie o il film in testa
+  alla coda delle ricerche automatiche, e il giro si ferma dopo la ricerca in
+  corso (202, 400); `POST Downloads/Refresh` "Aggiorna ora" (dalla 1.27.0)
+  rilegge Sonarr e Radarr subito, senza avviare ricerche (202);
   `GET Downloads/Profiles` dà i profili di qualità di Radarr e Sonarr con le
   soglie per la pagina del plugin. Le chiavi dei titoli sono `movie:{id}`,
   `episode:{id}` e `season:{idSerie}:{numero}`. Lo stato sta in
