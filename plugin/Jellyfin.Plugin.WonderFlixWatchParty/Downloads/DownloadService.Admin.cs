@@ -66,8 +66,8 @@ public sealed partial class DownloadService
     // Solo sotto _lock. Le chiavi con un download in corso (giro o admin): un secondo si salta (ruling 8).
     private readonly HashSet<string> _grabbing = [];
 
-    // Solo sotto _lock. Le chiavi che il giro sta cercando adesso: la panoramica le mostra come "Searching".
-    private readonly HashSet<string> _searching = [];
+    // Solo sotto _lock. Le chiavi che il giro sta cercando adesso, con l'ora di inizio: la panoramica le mostra come "Searching".
+    private readonly Dictionary<string, DateTimeOffset> _searching = [];
 
     // Il file di adesso; per una stagione il peso di tutti i file, punteggio e qualità del peggiore.
     private sealed record CurrentFile(long SizeBytes, int Score, int? QualityId, string Quality);
@@ -1043,7 +1043,7 @@ public sealed partial class DownloadService
             e.Reason == DownloadReasons.ImportBlocked ? e.BlockedMessage : null,
             e.Snoozed,
             null,
-            _searching.Contains(e.Key) || AdminSearching(e.Key) ? DownloadSearchPhases.Searching
+            _searching.ContainsKey(e.Key) || AdminSearching(e.Key) ? DownloadSearchPhases.Searching
                 : settings.Enabled && e.NextSearchAt <= now && SearchesByState(e) ? DownloadSearchPhases.Queued
                 : null,
             external);
@@ -1072,8 +1072,8 @@ public sealed partial class DownloadService
         return configured > 0 && answered == 0 ? null : result;
     }
 
-    // Fuori dal lock: titolo, file, profilo e release, poi la regola; la ricerca si ricorda per il grab.
-    private async Task<AdminSearch?> RunSearchAsync(DownloadKey key, CancellationToken cancellationToken)
+    // Fuori dal lock: titolo, file, profilo e release, poi la regola; la ricerca si ricorda per il grab. Solo da RunSearchAsync.
+    private async Task<AdminSearch?> SearchForAdminAsync(DownloadKey key, CancellationToken cancellationToken)
     {
         if (await ReadTargetAsync(key, cancellationToken).ConfigureAwait(false) is not { } target)
         {

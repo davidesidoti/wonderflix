@@ -90,14 +90,16 @@ public sealed record DownloadsOverviewDto(
 /// <summary>
 /// L'avanzamento della coda dei download automatici (dalla 1.25.0): Done le ricerche del giro da quando la coda non è
 /// più vuota (solo in memoria, da 0 dopo un riavvio), Remaining le voci da cercare, PerHour le ricerche all'ora delle
-/// ultime 2 ore (null con meno di 3), EstimatedEnd la fine stimata (null in pausa o senza ritmo), Paused il giro spento.
+/// ultime 2 ore (null con meno di 3), EstimatedEnd la fine stimata (null in pausa, senza ritmo o con una ricerca manuale), Paused il giro spento.
+/// Dalla 1.26.0 ManualSearch: una ricerca dell'admin aspetta o è in corso, e il giro non ne avvia di nuove.
 /// </summary>
 public sealed record SearchProgressDto(
     [property: JsonPropertyName("Done")] int Done,
     [property: JsonPropertyName("Remaining")] int Remaining,
     [property: JsonPropertyName("PerHour")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] double? PerHour,
     [property: JsonPropertyName("EstimatedEnd")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] DateTimeOffset? EstimatedEnd,
-    [property: JsonPropertyName("Paused")] bool Paused);
+    [property: JsonPropertyName("Paused")] bool Paused,
+    [property: JsonPropertyName("ManualSearch")] bool ManualSearch = false);
 
 /// <summary>Un download fermo all'import senza serie né film: Service "Sonarr" o "Radarr".</summary>
 public sealed record UnknownDownloadDto(
@@ -159,13 +161,25 @@ public sealed record DownloadSearchDto(
 /// <summary>
 /// Risposta di POST Downloads/SearchStart e GET Downloads/SearchStatus (spec W §4.4). State: uno di DownloadSearchStates.
 /// StartedAt: l'inizio del job, con Done l'ora della ricerca. Service: "Radarr" o "Sonarr". Result solo con Done.
+/// Dalla 1.26.0 WaitingFor: con Running, la ricerca automatica che il job aspetta (StartedAt è allora l'inizio del job,
+/// poi quello vero della ricerca); null negli altri casi.
 /// </summary>
 public sealed record DownloadSearchStatusDto(
     [property: JsonPropertyName("Key")] string Key,
     [property: JsonPropertyName("State")] string State,
     [property: JsonPropertyName("StartedAt")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] DateTimeOffset? StartedAt,
     [property: JsonPropertyName("Service")] string Service,
-    [property: JsonPropertyName("Result")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] DownloadSearchDto? Result);
+    [property: JsonPropertyName("Result")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] DownloadSearchDto? Result,
+    [property: JsonPropertyName("WaitingFor")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] SearchWaitDto? WaitingFor = null);
+
+/// <summary>
+/// La ricerca automatica che una ricerca dell'admin aspetta (dalla 1.26.0): Title la voce, Since quando è partita,
+/// TypicalSeconds la media delle ultime 10 ricerche automatiche (null con meno di 3).
+/// </summary>
+public sealed record SearchWaitDto(
+    [property: JsonPropertyName("Title")] string Title,
+    [property: JsonPropertyName("Since")] DateTimeOffset Since,
+    [property: JsonPropertyName("TypicalSeconds")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] int? TypicalSeconds);
 
 /// <summary>Un profilo di qualità con le sue soglie (spec T §7.1). Service: "Radarr" o "Sonarr".</summary>
 public sealed record DownloadProfileDto(

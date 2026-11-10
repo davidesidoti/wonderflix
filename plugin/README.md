@@ -179,6 +179,18 @@ uscite in arrivo.
   vuota, solo in memoria; `Remaining` le voci da cercare; `PerHour` il ritmo
   delle ultime 2 ore, null con meno di 3 ricerche; `EstimatedEnd` la fine
   stimata, null in pausa o senza ritmo; `Paused`), null con la coda vuota;
+  dalla 1.26.0 le ricerche dell'admin (`SearchStart`, la vecchia ricerca e
+  "scarica il migliore intanto") hanno la precedenza: finché una aspetta o è
+  in corso il giro non avvia ricerche nuove (quella già partita finisce), e
+  una ricerca dell'admin aspetta la fine di quella automatica in corso, poi
+  parte (più ricerche dell'admin vanno insieme); alla fine dell'ultima, se il
+  giro si era fermato, se ne chiede uno subito. Durante l'attesa
+  `SearchStatus` resta `Running` con `WaitingFor` (`Title` della ricerca
+  automatica, `Since` quando è partita, `TypicalSeconds` la media delle
+  ultime 10 ricerche automatiche, null con meno di 3; solo in memoria) e
+  `StartedAt` l'inizio del job, poi `WaitingFor` null e `StartedAt` l'inizio
+  vero; `Progress` ha `ManualSearch`, e con `ManualSearch` `EstimatedEnd` è
+  null;
   `GET Downloads/Profiles` dà i profili di qualità di Radarr e Sonarr con le
   soglie per la pagina del plugin. Le chiavi dei titoli sono `movie:{id}`,
   `episode:{id}` e `season:{idSerie}:{numero}`. Lo stato sta in

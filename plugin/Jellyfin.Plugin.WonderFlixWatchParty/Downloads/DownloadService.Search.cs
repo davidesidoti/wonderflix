@@ -37,6 +37,16 @@ public sealed partial class DownloadService
     private int _autoSearched;
     private readonly List<DateTimeOffset> _searchFinishes = [];
 
+    // Quante durate delle ricerche automatiche finite si tengono, e quante ne servono per una durata tipica.
+    private const int TypicalWindow = 10;
+    private const int TypicalMinimum = 3;
+
+    // Solo sotto _lock, solo in memoria. Le durate in secondi delle ultime TypicalWindow ricerche automatiche.
+    private readonly List<double> _autoDurations = [];
+
+    // Solo sotto _lock. Il giro si è fermato per una ricerca dell'admin: alla fine dell'ultima si chiede un giro (Nudge).
+    private bool _heldForManual;
+
     // Le voci con la ricerca scaduta, dalla più vecchia; al massimo MaxSearchesPerCycle ricerche, una alla volta.
     private async Task<(int Searched, int Grabbed)> SearchDueAsync(
         IReadOnlyDictionary<ArrKind, ArrView> views, Dictionary<ArrKind, string?> errors, CancellationToken cancellationToken)
@@ -96,11 +106,22 @@ public sealed partial class DownloadService
                 break;
             }
 
-            searched++;
+            // Una ricerca dell'admin aspetta o è in corso: niente ricerche nuove, riprende alla sua fine (ManualSearchAsync).
+            // Nello stesso lock dell'aggiunta: una ricerca dell'admin che parte adesso aspetta questa.
+            DateTimeOffset started;
             lock (_lock)
             {
-                _searching.Add(item.Key);
+                if (ManualSearching())
+                {
+                    _heldForManual = true;
+                    break;
+                }
+
+                started = time.GetUtcNow();
+                _searching[item.Key] = started;
             }
+
+            searched++;
 
             try
             {
@@ -118,6 +139,18 @@ public sealed partial class DownloadService
                     _autoSearched++;
                     _searchFinishes.Add(now);
                     _searchFinishes.RemoveAll(t => t < now - RateWindow);
+                    _autoDurations.Add((now - started).TotalSeconds);
+                    if (_autoDurations.Count > TypicalWindow)
+                    {
+                        _autoDurations.RemoveAt(0);
+                    }
+
+                    // Le ricerche dell'admin che aspettavano questa partono.
+                    if (_searching.Count == 0)
+                    {
+                        _autoIdle?.TrySetResult();
+                        _autoIdle = null;
+                    }
                 }
             }
         }
@@ -151,9 +184,10 @@ public sealed partial class DownloadService
 
     // Solo sotto _lock. Le voci da cercare adesso dal giro (anche spento), con quelle che sta cercando; non quelle dell'admin.
     private int Backlog(DateTimeOffset now) =>
-        Book.Entries.Count(e => _searching.Contains(e.Key) || (e.NextSearchAt <= now && SearchesByState(e) && !AdminSearching(e.Key)));
+        Book.Entries.Count(e => _searching.ContainsKey(e.Key) || (e.NextSearchAt <= now && SearchesByState(e) && !AdminSearching(e.Key)));
 
-    // Solo sotto _lock. Null con la coda vuota. Il ritmo con almeno 3 ricerche nella finestra (su almeno 15 minuti), la fine solo se il giro è acceso.
+    // Solo sotto _lock. Null con la coda vuota. Il ritmo con almeno 3 ricerche nella finestra (su almeno 15 minuti), la fine solo se il giro è acceso
+    // e nessuna ricerca dell'admin lo tiene fermo.
     private SearchProgressDto? SearchProgress(DateTimeOffset now)
     {
         var remaining = Backlog(now);
@@ -165,8 +199,9 @@ public sealed partial class DownloadService
         var recent = _searchFinishes.Where(t => t >= now - RateWindow).ToList();
         double? perHour = recent.Count < 3 ? null : recent.Count / Math.Max((now - recent[0]).TotalHours, 0.25);
         var paused = !settings.Enabled;
-        DateTimeOffset? end = paused || perHour is null ? null : now + TimeSpan.FromHours(remaining / perHour.Value);
-        return new SearchProgressDto(_autoSearched, remaining, perHour, end, paused);
+        var manual = ManualSearching();
+        DateTimeOffset? end = paused || manual || perHour is null ? null : now + TimeSpan.FromHours(remaining / perHour.Value);
+        return new SearchProgressDto(_autoSearched, remaining, perHour, end, paused, manual);
     }
 
     // Solo sotto _lock. La parte di IsDue che dipende dallo stato (senza le viste di Radarr/Sonarr): lo usa anche la fase "Queued" della panoramica.
