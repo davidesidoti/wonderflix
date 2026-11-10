@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.26.0.0",
+        "changelog": "Le ricerche manuali dell'admin hanno la precedenza sui download automatici: il giro si ferma e la ricerca manuale gira da sola, poi la coda riparte. Serve l'app 0.37.0 per vedere l'attesa.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.26.0/wonderflix-watch-party_1.26.0.zip",
+        "checksum": "1727a9a7b818eafa1633d69dee98ef26",
+        "timestamp": "2026-11-10T00:00:00Z"
+      },
+      {
         "version": "1.25.0.0",
         "changelog": "La panoramica dei download automatici dice quanto manca alla fine della coda: ricerche fatte, da fare, ritmo e fine stimata. Serve l'app 0.36.0 per vederlo.",
         "targetAbi": "10.11.0.0",
