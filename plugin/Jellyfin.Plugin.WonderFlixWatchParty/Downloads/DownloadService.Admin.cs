@@ -826,6 +826,32 @@ public sealed partial class DownloadService
     }
 
     /// <summary>
+    /// "Aggiorna ora": il giro in corso si ferma dopo la ricerca che sta facendo e ne riparte uno che rilegge Sonarr e Radarr
+    /// senza cercare (salvo righe con la precedenza). <see cref="DownloadsOverviewDto.RefreshPending"/> resta vero finché non l'ha fatto.
+    /// </summary>
+    public void Refresh()
+    {
+        lock (_lock)
+        {
+            _rushRequested = _refreshPending = true;
+        }
+
+        Nudge();
+    }
+
+    /// <summary>Un giro urgente è chiesto e non è ancora partito: il servizio in background non aspetta il minuto normale.</summary>
+    public bool UrgentCycleWanted
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _rushRequested;
+            }
+        }
+    }
+
+    /// <summary>
     /// "Cerca un upgrade" da "Da ripassare": il titolo torna in UpgradeWatch per <see cref="DownloadSchedule.UpgradeWindow"/>,
     /// cercato al prossimo giro, chiesto subito. Con una voce che si cerca già è "Cerca adesso".
     /// </summary>
@@ -920,7 +946,8 @@ public sealed partial class DownloadService
                 _lastErrors.Sonarr,
                 _lastErrors.Radarr,
                 [],
-                SearchProgress(now));
+                SearchProgress(now),
+                _refreshPending);
         }
 
         // Fuori dal lock: la coda solo dei servizi che hanno qualcuno in download.

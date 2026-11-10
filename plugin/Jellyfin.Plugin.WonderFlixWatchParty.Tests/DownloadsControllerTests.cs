@@ -81,6 +81,12 @@ public sealed class DownloadsControllerTests : IDisposable
     }
 
     [Fact]
+    public void RefreshIsAccepted()
+    {
+        Assert.Equal(StatusCodes.Status202Accepted, Status(_controller.Refresh()));
+    }
+
+    [Fact]
     public async Task ExpiredIsConflict()
     {
         var result = await _controller.Grab(Body(guid: "gone"));

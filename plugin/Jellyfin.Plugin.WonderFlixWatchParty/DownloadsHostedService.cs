@@ -78,11 +78,13 @@ public sealed class DownloadsHostedService(
             return;
         }
 
-        if (Interlocked.CompareExchange(ref _nudgeScheduled, 1, 0) == 0)
+        var urgent = downloads.UrgentCycleWanted;
+        if (Interlocked.CompareExchange(ref _nudgeScheduled, 1, 0) == 0 || urgent)
         {
             try
             {
-                _nudgeTimer?.Change(DownloadService.NudgeDelay, Timeout.InfiniteTimeSpan);
+                // Change su un timer già armato lo sposta: l'urgente accorcia un nudge normale.
+                _nudgeTimer?.Change(urgent ? DownloadService.UrgentNudgeDelay : DownloadService.NudgeDelay, Timeout.InfiniteTimeSpan);
             }
             catch (ObjectDisposedException)
             {

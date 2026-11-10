@@ -502,6 +502,75 @@ public sealed class DownloadServiceRushTests : IDisposable
     }
 
     [Fact]
+    public async Task RefreshReadsTheListWithoutSearching()
+    {
+        _movies = [Movie(1)];
+
+        _service.Refresh();
+        var report = await Cycle();
+
+        Assert.Equal(0, report.Searched);
+        Assert.Empty(_arr.SearchReleaseCalls);
+        Assert.NotNull(Saved("movie:1"));
+        Assert.False((await _service.OverviewAsync(CancellationToken.None)).RefreshPending);
+    }
+
+    [Fact]
+    public async Task RefreshPendingIsTrueUntilTheListIsRead()
+    {
+        Assert.False((await _service.OverviewAsync(CancellationToken.None)).RefreshPending);
+
+        _service.Refresh();
+
+        Assert.True((await _service.OverviewAsync(CancellationToken.None)).RefreshPending);
+        Assert.True(_service.UrgentCycleWanted);
+    }
+
+    [Fact]
+    public async Task RefreshDuringACycleStopsItAndReadsNext()
+    {
+        _movies = [Movie(1), Movie(2)];
+        var cycle = Cycle();
+        await Call(0);
+
+        _service.Refresh();
+        Finish(0);
+
+        Assert.Equal(1, (await cycle).Searched);
+        Assert.True((await _service.OverviewAsync(CancellationToken.None)).RefreshPending);
+
+        Assert.Equal(0, (await Cycle()).Searched);
+        Assert.False((await _service.OverviewAsync(CancellationToken.None)).RefreshPending);
+        Assert.Single(_arr.SearchReleaseCalls);
+    }
+
+    [Fact]
+    public async Task ARefreshCycleSearchesIfARowIsRushed()
+    {
+        _movies = [Movie(1), Movie(2)];
+        await Seed();
+        Assert.True(_service.Rush("movie:2"));
+        _service.Refresh();
+
+        _arr.Releases = Failing;
+        var report = await Cycle();
+
+        Assert.Equal((ArrKind.Radarr, "movieId=2"), _arr.SearchReleaseCalls[0]);
+        Assert.True(report.Searched >= 1);
+    }
+
+    [Fact]
+    public async Task TheCycleAfterARefreshSearchesNormally()
+    {
+        _movies = [Movie(1)];
+        _service.Refresh();
+        await Cycle();
+
+        _arr.Releases = Failing;
+        Assert.True((await Cycle()).Searched > 0);
+    }
+
+    [Fact]
     public async Task RushAtSurvivesARestart()
     {
         _movies = [Movie(1), Movie(2)];

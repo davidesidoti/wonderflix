@@ -145,6 +145,14 @@ public class DownloadsController(DownloadService downloads) : ControllerBase
     public ActionResult Rush([FromBody] KeyRequest? request) =>
         request?.Key is { } key && downloads.Rush(key) ? Accepted() : BadRequest();
 
+    /// <summary>"Aggiorna ora": 202, il giro riparte presto e rilegge Sonarr e Radarr senza cercare.</summary>
+    [HttpPost("Refresh")]
+    public ActionResult Refresh()
+    {
+        downloads.Refresh();
+        return Accepted();
+    }
+
     /// <summary>"Cerca un upgrade" da "Da ripassare": 204; 409 Changed se non è più da ripassare né da cercare.</summary>
     [HttpPost("Hunt")]
     public ActionResult Hunt([FromBody] KeyRequest? request) => (request?.Key is { } key ? downloads.Hunt(key) : HuntOutcome.Invalid) switch

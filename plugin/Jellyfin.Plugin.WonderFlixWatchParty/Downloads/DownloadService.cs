@@ -44,6 +44,9 @@ public sealed partial class DownloadService(
     /// <summary>Dopo un'approvazione: il tempo che Seerr aggiunga il titolo a Radarr/Sonarr (decisione 7).</summary>
     public static readonly TimeSpan NudgeDelay = TimeSpan.FromMinutes(1);
 
+    /// <summary>Dopo un "Aggiorna ora" o un "Scarica subito": l'admin aspetta, il giro riparte presto.</summary>
+    public static readonly TimeSpan UrgentNudgeDelay = TimeSpan.FromSeconds(5);
+
     // Lo stato di un elemento della coda che aspetta l'admin (spec T §2).
     private const string ImportBlockedState = "importBlocked";
 
@@ -121,9 +124,12 @@ public sealed partial class DownloadService(
     public async Task<CycleReport> RunCycleAsync(CancellationToken cancellationToken)
     {
         // Un Rush arrivato prima di adesso è già nelle voci che questo giro legge: la richiesta di fermarsi vale solo da qui.
+        // Un Refresh arrivato durante le letture resta per il giro dopo.
+        bool refreshing;
         lock (_lock)
         {
             _rushRequested = false;
+            refreshing = _refreshPending;
         }
 
         var enabled = settings.Enabled;
@@ -135,6 +141,7 @@ public sealed partial class DownloadService(
         var checks = new List<UpgradeCheck>();
         var imports = new List<ManualImport>();
         var views = new Dictionary<ArrKind, ArrView>();
+        bool rushedRows;
         lock (_lock)
         {
             if (radarr.Value is { } movies)
@@ -149,6 +156,13 @@ public sealed partial class DownloadService(
                 Apply(ArrKind.Sonarr, view, now, enabled, stalled, checks, imports);
                 views[ArrKind.Sonarr] = view;
             }
+
+            if (refreshing)
+            {
+                _refreshPending = false;
+            }
+
+            rushedRows = Book.Entries.Any(e => e.RushAt is not null);
         }
 
         var errors = new Dictionary<ArrKind, string?> { [ArrKind.Radarr] = radarr.Error, [ArrKind.Sonarr] = sonarr.Error };
@@ -170,7 +184,8 @@ public sealed partial class DownloadService(
                 await ConfirmUpgradeAsync(check, cancellationToken).ConfigureAwait(false);
             }
 
-            if (enabled)
+            // "Aggiorna ora" rilegge soltanto, salvo una riga con la precedenza.
+            if (enabled && (!refreshing || rushedRows))
             {
                 (searched, grabbed) = await SearchDueAsync(views, errors, cancellationToken).ConfigureAwait(false);
             }

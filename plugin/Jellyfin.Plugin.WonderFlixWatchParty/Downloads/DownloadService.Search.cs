@@ -51,6 +51,9 @@ public sealed partial class DownloadService
     // Un evento una tantum, non una condizione letta dalle voci: si azzera solo all'inizio di RunCycleAsync.
     private bool _rushRequested;
 
+    // Solo sotto _lock, solo in memoria. "Aggiorna ora" aspetta un giro che rilegga Sonarr e Radarr: finché non l'ha fatto la panoramica lo dice.
+    private bool _refreshPending;
+
     // Le voci con la ricerca scaduta, prima quelle con la precedenza (RushAt), poi dalla più vecchia; al massimo MaxSearchesPerCycle
     // ricerche (non per quelle con la precedenza), una alla volta.
     private async Task<(int Searched, int Grabbed)> SearchDueAsync(

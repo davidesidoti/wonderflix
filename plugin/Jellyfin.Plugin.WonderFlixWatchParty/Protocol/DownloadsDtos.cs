@@ -88,7 +88,8 @@ public sealed record DownloadsOverviewDto(
     [property: JsonPropertyName("SonarrError")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? SonarrError,
     [property: JsonPropertyName("RadarrError")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? RadarrError,
     [property: JsonPropertyName("Unknown")] IReadOnlyList<UnknownDownloadDto> Unknown,
-    [property: JsonPropertyName("Progress")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] SearchProgressDto? Progress = null);
+    [property: JsonPropertyName("Progress")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] SearchProgressDto? Progress = null,
+    [property: JsonPropertyName("RefreshPending")] bool RefreshPending = false);
 
 /// <summary>
 /// L'avanzamento della coda dei download automatici (dalla 1.25.0): Done le ricerche del giro da quando la coda non è
