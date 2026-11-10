@@ -43,6 +43,32 @@ void main() {
       expect(groups.single.posterUrl, 'poster-a');
     });
 
+    test('missing leaves out rows that cannot be rushed', () {
+      final groups = rushGroups([
+        row('a'),
+        row('b', rush: true),
+        row('c', state: DownloadState.downloading, canRush: false),
+        row('d', state: DownloadState.upgradeWatch, canRush: false),
+      ], '');
+      expect(groups.single.missing, 2);
+    });
+
+    test('the poster is the first one the group has', () {
+      final group = rushGroups([
+        DownloadItem(
+          key: 'a',
+          kind: DownloadKind.episode,
+          title: 'Serie · S01E01',
+          state: DownloadState.waiting,
+          availableSince: DateTime.utc(2026, 11, 1),
+          seriesId: 7,
+          canRush: true,
+        ),
+        row('b'),
+      ], '').single;
+      expect(group.posterUrl, 'poster-b');
+    });
+
     test('the series name is what comes before the last separator', () {
       final groups = rushGroups([row('a', title: 'A · B · S01E01')], '');
       expect(groups.single.title, 'A · B');

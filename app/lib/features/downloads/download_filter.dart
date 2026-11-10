@@ -40,7 +40,8 @@ class DownloadRushGroup {
   final String title;
   final String? posterUrl;
 
-  /// Tutte le righe del gruppo, non solo quelle che corrispondono al filtro.
+  /// Le righe del gruppo intero con canRush o rush, anche quelle che il filtro
+  /// non mostra; non conta quelle già in download o da ripassare.
   final int missing;
 
   /// C'è almeno una riga da portare davanti.
@@ -80,8 +81,8 @@ DownloadRushGroup _group(List<DownloadItem> rows) {
     title: first.kind == DownloadKind.movie || cut < 0
         ? first.title
         : first.title.substring(0, cut),
-    posterUrl: first.posterUrl,
-    missing: rows.length,
+    posterUrl: rows.map((r) => r.posterUrl).nonNulls.firstOrNull,
+    missing: rows.where((r) => r.canRush || r.rush).length,
     canPress: canPress,
     pending: !canPress && rows.any((r) => r.rush),
   );
