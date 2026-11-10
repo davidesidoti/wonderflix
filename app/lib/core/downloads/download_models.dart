@@ -309,6 +309,9 @@ class DownloadItem {
     this.progress,
     this.searchPhase,
     this.externalSearchUrl,
+    this.seriesId,
+    this.canRush = false,
+    this.rush = false,
   });
 
   final String key;
@@ -339,6 +342,16 @@ class DownloadItem {
   /// (o con un plugin più vecchio).
   final String? externalSearchUrl;
 
+  /// Dal plugin 1.27: la serie di un episodio o di una stagione; `null` per un
+  /// film o con un plugin più vecchio.
+  final int? seriesId;
+
+  /// "Scarica subito" può partire su questa riga; falso con un plugin vecchio.
+  final bool canRush;
+
+  /// La riga è già stata portata davanti e aspetta il suo turno.
+  final bool rush;
+
   static DownloadItem? fromJson(Map<String, dynamic> json) {
     try {
       final reason = json['Reason'] as String?;
@@ -364,6 +377,9 @@ class DownloadItem {
         progress: DownloadProgress.fromJson(json['Progress']),
         searchPhase: DownloadSearchPhase.fromWire(json['SearchPhase']),
         externalSearchUrl: json['ExternalSearchUrl'] as String?,
+        seriesId: _intOrNull(json['SeriesId']),
+        canRush: json['CanRush'] as bool? ?? false,
+        rush: json['Rush'] as bool? ?? false,
       );
     } on Object {
       return null;
@@ -464,6 +480,7 @@ class DownloadsOverview {
     this.radarrError,
     this.unknown = const [],
     this.progress,
+    this.refreshPending,
   });
 
   /// Per chi non è admin: niente da mostrare.
@@ -483,6 +500,9 @@ class DownloadsOverview {
   /// Null a coda vuota o con un plugin che non lo manda.
   final SearchProgress? progress;
 
+  /// "Aggiorna ora" è in corso; null con un plugin che non lo manda.
+  final bool? refreshPending;
+
   static DownloadsOverview? fromJson(Map<String, dynamic> json) {
     try {
       return DownloadsOverview(
@@ -497,6 +517,7 @@ class DownloadsOverview {
         progress: json['Progress'] is Map<String, dynamic>
             ? SearchProgress.fromJson(json['Progress'] as Map<String, dynamic>)
             : null,
+        refreshPending: json['RefreshPending'] as bool?,
       );
     } on Object {
       return null;

@@ -445,6 +445,27 @@ void main() {
     expect(item.externalSearchUrl, isNull);
   });
 
+  test('RushFieldsAreReadAndDefaultOff', () {
+    final base = {
+      'Key': 'episode:1',
+      'Kind': 'Episode',
+      'Title': 'Serie · S01E01',
+      'State': 'Waiting',
+      'AvailableSince': '2026-10-20T00:00:00Z',
+    };
+    final old = DownloadItem.fromJson(base)!;
+    expect((old.seriesId, old.canRush, old.rush), (null, false, false));
+    final item = DownloadItem.fromJson(
+        {...base, 'SeriesId': 7, 'CanRush': true, 'Rush': true})!;
+    expect((item.seriesId, item.canRush, item.rush), (7, true, true));
+    final overview = {'Enabled': true};
+    expect(DownloadsOverview.fromJson(overview)!.refreshPending, isNull);
+    expect(
+        DownloadsOverview.fromJson({...overview, 'RefreshPending': true})!
+            .refreshPending,
+        isTrue);
+  });
+
   group('SearchPhase', () {
     Map<String, dynamic> json([Object? phase = _absent]) => {
           'Key': 'movie:1',

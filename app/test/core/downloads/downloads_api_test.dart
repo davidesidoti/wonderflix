@@ -221,6 +221,19 @@ void main() {
     }
   });
 
+  test('RushAndRefreshPost', () async {
+    await api.rush('k');
+    var request = adapter.requests.single;
+    expect((request.method, request.path),
+        ('POST', '/WonderFlixWatchParty/Downloads/Rush'));
+    expect(request.data, {'Key': 'k'});
+    adapter.requests.clear();
+    await api.refresh();
+    request = adapter.requests.single;
+    expect((request.method, request.path),
+        ('POST', '/WonderFlixWatchParty/Downloads/Refresh'));
+  });
+
   test('RemoveUnknownPostsTheDownload', () async {
     await api.removeUnknown('Sonarr', 'D1');
     final request = adapter.requests.single;

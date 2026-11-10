@@ -170,6 +170,14 @@ class DownloadsApi {
   Future<void> hunt(String key) => _call(() =>
       _http.post('$_base/Hunt', body: {'Key': key}, quietStatuses: _quiet));
 
+  /// "Scarica subito": porta la riga davanti alla coda delle ricerche.
+  Future<void> rush(String key) => _call(() =>
+      _http.post('$_base/Rush', body: {'Key': key}, quietStatuses: _quiet));
+
+  /// "Aggiorna ora": il plugin rilegge Sonarr e Radarr senza cercare.
+  Future<void> refresh() => _call(
+      () => _http.post('$_base/Refresh', quietStatuses: _quiet));
+
   Future<T> _call<T>(Future<T> Function() request) async {
     try {
       return await request();

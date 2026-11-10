@@ -199,4 +199,10 @@ class FakeDownloadsApi implements DownloadsApi {
 
   @override
   Future<void> hunt(String key) => _action('hunt $key');
+
+  @override
+  Future<void> rush(String key) => _action('rush $key');
+
+  @override
+  Future<void> refresh() => _action('refresh');
 }
