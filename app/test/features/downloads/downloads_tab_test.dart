@@ -81,7 +81,8 @@ void main() {
   });
 
   /// [settle] falso con una barra indeterminata: anima per sempre.
-  Future<void> pumpTab(WidgetTester tester, {bool settle = true}) async {
+  Future<void> pumpTab(WidgetTester tester,
+      {bool settle = true, bool tv = false}) async {
     await pumpApp(tester, const Scaffold(body: DownloadsTab()),
         overrides: [
           ...adminTestOverrides(FakeAdminApi(),
@@ -89,7 +90,8 @@ void main() {
               features: const SocialFeatures(inbox: true, downloads: true)),
           sharedPreferencesProvider.overrideWithValue(prefs),
         ],
-        surfaceSize: const Size(1440, 20000));
+        surfaceSize: const Size(1440, 20000),
+        tv: tv);
     if (settle) {
       await tester.pumpAndSettle();
     } else {
@@ -241,6 +243,80 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ReviewRow), findsNWidgets(120));
     expect(find.text('Mostra altre'), findsNothing);
+  });
+
+  group('coda delle ricerche', () {
+    testWidgets('senza Progress non c\'è', (tester) async {
+      api.overviewValue = const DownloadsOverview(enabled: true);
+      await pumpTab(tester);
+
+      expect(find.text('ricerche automatiche'), findsNothing);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+    });
+
+    testWidgets('in cima, con conteggio, barra, fine stimata e ritmo',
+        (tester) async {
+      api.overviewValue = DownloadsOverview(
+        enabled: true,
+        waiting: [_item('movie:2')],
+        progress: SearchProgress(
+          done: 140,
+          remaining: 460,
+          perHour: 32.4,
+          estimatedEnd: DateTime.now().add(const Duration(hours: 2)),
+        ),
+      );
+      await pumpTab(tester);
+
+      expect(find.text('140 / 600'), findsOneWidget);
+      expect(find.text('ricerche automatiche'), findsOneWidget);
+      expect(find.textContaining('Fine stimata'), findsOneWidget);
+      expect(find.textContaining('(~2 h)'), findsOneWidget);
+      expect(find.text('~32 ricerche/ora'), findsOneWidget);
+      final bar = tester.widget<LinearProgressIndicator>(
+          find.byType(LinearProgressIndicator));
+      expect(bar.value, closeTo(140 / 600, 1e-9));
+      expect(y(tester, '140 / 600'), lessThan(y(tester, 'In attesa · 1')));
+    });
+
+    testWidgets('in pausa: niente stima', (tester) async {
+      api.overviewValue = DownloadsOverview(
+        enabled: false,
+        progress: SearchProgress(
+          done: 1,
+          remaining: 2,
+          estimatedEnd: DateTime.now().add(const Duration(hours: 2)),
+          paused: true,
+        ),
+      );
+      await pumpTab(tester);
+
+      expect(find.text('In pausa'), findsOneWidget);
+      expect(find.textContaining('Fine stimata'), findsNothing);
+      expect(find.textContaining('ricerche/ora'), findsNothing);
+    });
+
+    testWidgets('senza fine stimata: in calcolo', (tester) async {
+      api.overviewValue = const DownloadsOverview(
+        enabled: true,
+        progress: SearchProgress(done: 0, remaining: 5),
+      );
+      await pumpTab(tester);
+
+      expect(find.text('0 / 5'), findsOneWidget);
+      expect(find.text('Stima in calcolo…'), findsOneWidget);
+    });
+
+    testWidgets('su TV c\'è uguale', (tester) async {
+      api.overviewValue = const DownloadsOverview(
+        enabled: true,
+        progress: SearchProgress(done: 3, remaining: 7, perHour: 1),
+      );
+      await pumpTab(tester, tv: true);
+
+      expect(find.text('3 / 10'), findsOneWidget);
+      expect(find.text('~1 ricerca/ora'), findsOneWidget);
+    });
   });
 
   testWidgets('con la funzione spenta c\'è la nota', (tester) async {

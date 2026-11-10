@@ -463,6 +463,7 @@ class DownloadsOverview {
     this.sonarrError,
     this.radarrError,
     this.unknown = const [],
+    this.progress,
   });
 
   /// Per chi non è admin: niente da mostrare.
@@ -479,6 +480,9 @@ class DownloadsOverview {
   /// Vuoto con un plugin che non lo manda.
   final List<UnknownDownload> unknown;
 
+  /// Null a coda vuota o con un plugin che non lo manda.
+  final SearchProgress? progress;
+
   static DownloadsOverview? fromJson(Map<String, dynamic> json) {
     try {
       return DownloadsOverview(
@@ -490,6 +494,42 @@ class DownloadsOverview {
         sonarrError: json['SonarrError'] as String?,
         radarrError: json['RadarrError'] as String?,
         unknown: UnknownDownload.listFromJson(json['Unknown']),
+        progress: json['Progress'] is Map<String, dynamic>
+            ? SearchProgress.fromJson(json['Progress'] as Map<String, dynamic>)
+            : null,
+      );
+    } on Object {
+      return null;
+    }
+  }
+}
+
+/// L'avanzamento della coda delle ricerche automatiche.
+class SearchProgress {
+  const SearchProgress({
+    required this.done,
+    required this.remaining,
+    this.perHour,
+    this.estimatedEnd,
+    this.paused = false,
+  });
+
+  final int done;
+  final int remaining;
+  final double? perHour;
+  final DateTime? estimatedEnd;
+  final bool paused;
+
+  int get total => done + remaining;
+
+  static SearchProgress? fromJson(Map<String, dynamic> json) {
+    try {
+      return SearchProgress(
+        done: (json['Done'] as num).toInt(),
+        remaining: (json['Remaining'] as num).toInt(),
+        perHour: (json['PerHour'] as num?)?.toDouble(),
+        estimatedEnd: _dateOrNull(json['EstimatedEnd']),
+        paused: json['Paused'] as bool? ?? false,
       );
     } on Object {
       return null;

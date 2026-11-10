@@ -208,6 +208,39 @@ void main() {
     ]);
   });
 
+  test('TheSearchProgressParses', () {
+    Map<String, dynamic> json(Object? progress) => {
+          'Enabled': true,
+          'Recent': <Object>[],
+          'Waiting': <Object>[],
+          'Review': <Object>[],
+          'Progress': progress,
+        };
+    final full = DownloadsOverview.fromJson(json({
+      'Done': 140,
+      'Remaining': 460,
+      'PerHour': 32.4,
+      'EstimatedEnd': '2026-11-10T14:10:00+00:00',
+      'Paused': true,
+    }))!
+        .progress!;
+    expect((full.done, full.remaining, full.total, full.perHour, full.paused),
+        (140, 460, 600, 32.4, true));
+    expect(full.estimatedEnd, DateTime.utc(2026, 11, 10, 14, 10));
+    final bare = DownloadsOverview.fromJson(json({
+      'Done': 0,
+      'Remaining': 3,
+      'PerHour': null,
+      'EstimatedEnd': null,
+      'Paused': false,
+    }))!
+        .progress!;
+    expect((bare.perHour, bare.estimatedEnd, bare.paused), (null, null, false));
+    expect(DownloadsOverview.fromJson(json(null))!.progress, isNull);
+    expect(DownloadsOverview.fromJson(json({'Done': 'x'}))!.progress, isNull);
+    expect(DownloadsOverview.empty.progress, isNull);
+  });
+
   test('ASearchParses', () {
     final search = DownloadSearch.fromJson({
       'Key': 'movie:1',

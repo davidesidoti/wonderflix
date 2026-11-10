@@ -187,3 +187,31 @@ String nextSearchLabel(AppLocalizations l, DateTime? at, DateTime now) {
   if (days == 1) return l.downloadsNextSearchTomorrow;
   return l.downloadsNextSearchOn(DateFormat.MMMd(l.localeName).format(local));
 }
+
+/// La riga sotto la barra della coda: "In pausa", "Stima in calcolo…" o
+/// "Fine stimata (domani | il 12/11) verso le 15:10 (~14 h)".
+String backlogEndLabel(AppLocalizations l, SearchProgress p, DateTime now) {
+  if (p.paused) return l.downloadsBacklogPaused;
+  final end = p.estimatedEnd?.toLocal();
+  if (end == null) return l.downloadsBacklogEstimating;
+  final left = _atLeastZero(end.difference(now));
+  final duration = left.inMinutes < 60
+      ? l.downloadsDurationMinutes(left.inMinutes)
+      : l.downloadsDurationHours((left.inMinutes / 60).round());
+  final time = DateFormat.Hm(l.localeName).format(end);
+  // Arrotondato: un giorno di cambio dell'ora dura 23 o 25 ore.
+  final days = (DateTime(end.year, end.month, end.day)
+              .difference(DateTime(now.year, now.month, now.day))
+              .inHours /
+          24)
+      .round();
+  return switch (days) {
+    <= 0 => l.downloadsBacklogEndToday(time, duration),
+    1 => l.downloadsBacklogEndTomorrow(time, duration),
+    _ => l.downloadsBacklogEndOn(
+      DateFormat('dd/MM').format(end),
+      time,
+      duration,
+    ),
+  };
+}

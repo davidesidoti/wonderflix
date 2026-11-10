@@ -273,6 +273,8 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
             ),
           ),
         ),
+        if (overview.progress case final progress?)
+          _BacklogCard(progress: progress, now: now),
         if (!overview.enabled)
           _Note(text: l.downloadsDisabledNote, icon: LucideIcons.info),
         for (final text in errors)
@@ -426,6 +428,72 @@ class _SectionHeader extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// L'avanzamento della coda delle ricerche automatiche: "140 / 600", barra e
+/// fine stimata. Stesso aspetto di [AdminCard]; su TV non prende il focus.
+class _BacklogCard extends StatelessWidget {
+  const _BacklogCard({required this.progress, required this.now});
+
+  final SearchProgress progress;
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final total = progress.total;
+    final perHour = progress.perHour;
+    const muted = TextStyle(color: WfColors.creamMuted, fontSize: 13);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: WfColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: WfColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                '${progress.done} / $total',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  l.downloadsBacklogTitle,
+                  textAlign: TextAlign.end,
+                  style: muted,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          RowProgressBar(value: total == 0 ? 0 : progress.done / total),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Text(backlogEndLabel(l, progress, now), style: muted),
+              ),
+              if (perHour != null) ...[
+                const SizedBox(width: 12),
+                Text(l.downloadsBacklogPerHour(perHour.round()), style: muted),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Una nota in cima: funzione spenta o servizio che non risponde.

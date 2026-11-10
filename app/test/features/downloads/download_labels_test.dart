@@ -284,4 +284,26 @@ void main() {
           '62% · 1,92 GB di 3,10 GB');
     });
   });
+
+  test('backlogEndLabel', () {
+    final now = DateTime(2026, 11, 10, 1, 0);
+    SearchProgress at(DateTime? end, {bool paused = false}) => SearchProgress(
+        done: 1, remaining: 1, estimatedEnd: end, paused: paused);
+
+    expect(backlogEndLabel(it, at(null), now), 'Stima in calcolo…');
+    expect(
+        backlogEndLabel(it, at(DateTime(2026, 11, 10, 2), paused: true), now),
+        'In pausa');
+    expect(backlogEndLabel(it, at(DateTime(2026, 11, 10, 1, 40)), now),
+        'Fine stimata verso le 01:40 (~40 min)');
+    expect(backlogEndLabel(it, at(DateTime(2026, 11, 10, 15, 10)), now),
+        'Fine stimata verso le 15:10 (~14 h)');
+    expect(backlogEndLabel(it, at(DateTime(2026, 11, 11, 9, 0)), now),
+        'Fine stimata domani verso le 09:00 (~32 h)');
+    expect(backlogEndLabel(it, at(DateTime(2026, 11, 14, 9, 0)), now),
+        'Fine stimata il 14/11 verso le 09:00 (~104 h)');
+    // Il plugin la manda in UTC: si mostra l'ora locale.
+    final utc = DateTime(2026, 11, 10, 15, 10).toUtc();
+    expect(backlogEndLabel(it, at(utc), now), contains('15:10'));
+  });
 }
