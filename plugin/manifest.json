@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.25.0.0",
+        "changelog": "La panoramica dei download automatici dice quanto manca alla fine della coda: ricerche fatte, da fare, ritmo e fine stimata. Serve l'app 0.36.0 per vederlo.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.25.0/wonderflix-watch-party_1.25.0.zip",
+        "checksum": "62efdf8a038f73f90d9012eadb0a1118",
+        "timestamp": "2026-11-10T00:00:00Z"
+      },
+      {
         "version": "1.24.0.0",
         "changelog": "L'admin associa Discord o email a un utente dalla lista Utenti: valgono subito per il recupero della password. La ricerca dei membri Discord guarda anche negli altri server (\"Other Discord server IDs\"). Serve l'app 0.33.0.",
         "targetAbi": "10.11.0.0",
