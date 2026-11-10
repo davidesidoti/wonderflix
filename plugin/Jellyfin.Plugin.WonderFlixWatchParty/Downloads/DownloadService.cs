@@ -177,6 +177,12 @@ public sealed partial class DownloadService(
                 _lastErrors = (errors[ArrKind.Sonarr], errors[ArrKind.Radarr]);
                 Book.Prune(now);
 
+                // Coda vuota: la prossima ondata riparte da 0.
+                if (Backlog(time.GetUtcNow()) == 0)
+                {
+                    _autoSearched = 0;
+                }
+
                 // Sotto il lock come gli altri store: il libro non è sicuro tra thread e la scrittura è breve.
                 store.Save(Book);
             }

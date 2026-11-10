@@ -84,7 +84,20 @@ public sealed record DownloadsOverviewDto(
     [property: JsonPropertyName("ReviewAt")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  DateTimeOffset? ReviewAt,
     [property: JsonPropertyName("SonarrError")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? SonarrError,
     [property: JsonPropertyName("RadarrError")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? RadarrError,
-    [property: JsonPropertyName("Unknown")] IReadOnlyList<UnknownDownloadDto> Unknown);
+    [property: JsonPropertyName("Unknown")] IReadOnlyList<UnknownDownloadDto> Unknown,
+    [property: JsonPropertyName("Progress")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] SearchProgressDto? Progress = null);
+
+/// <summary>
+/// L'avanzamento della coda dei download automatici (dalla 1.25.0): Done le ricerche del giro da quando la coda non è
+/// più vuota (solo in memoria, da 0 dopo un riavvio), Remaining le voci da cercare, PerHour le ricerche all'ora delle
+/// ultime 2 ore (null con meno di 3), EstimatedEnd la fine stimata (null in pausa o senza ritmo), Paused il giro spento.
+/// </summary>
+public sealed record SearchProgressDto(
+    [property: JsonPropertyName("Done")] int Done,
+    [property: JsonPropertyName("Remaining")] int Remaining,
+    [property: JsonPropertyName("PerHour")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] double? PerHour,
+    [property: JsonPropertyName("EstimatedEnd")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] DateTimeOffset? EstimatedEnd,
+    [property: JsonPropertyName("Paused")] bool Paused);
 
 /// <summary>Un download fermo all'import senza serie né film: Service "Sonarr" o "Radarr".</summary>
 public sealed record UnknownDownloadDto(

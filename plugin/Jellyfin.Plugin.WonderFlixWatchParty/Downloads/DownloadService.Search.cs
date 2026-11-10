@@ -1,5 +1,6 @@
 using System.Globalization;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
+using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
@@ -27,6 +28,14 @@ public sealed partial class DownloadService
 
     // Quante release rifiutate dal client si ricordano per voce.
     private const int MaxRefusedReleases = 20;
+
+    // La finestra delle ricerche finite da cui si stima il ritmo della coda.
+    private static readonly TimeSpan RateWindow = TimeSpan.FromHours(2);
+
+    // Solo sotto _lock, solo in memoria. Le ricerche del giro finite da quando la coda non è più vuota, e quando
+    // è finita ognuna (le ultime RateWindow, non si azzerano con la coda): l'avanzamento della panoramica.
+    private int _autoSearched;
+    private readonly List<DateTimeOffset> _searchFinishes = [];
 
     // Le voci con la ricerca scaduta, dalla più vecchia; al massimo MaxSearchesPerCycle ricerche, una alla volta.
     private async Task<(int Searched, int Grabbed)> SearchDueAsync(
@@ -105,6 +114,10 @@ public sealed partial class DownloadService
                 lock (_lock)
                 {
                     _searching.Remove(item.Key);
+                    var now = time.GetUtcNow();
+                    _autoSearched++;
+                    _searchFinishes.Add(now);
+                    _searchFinishes.RemoveAll(t => t < now - RateWindow);
                 }
             }
         }
@@ -135,6 +148,26 @@ public sealed partial class DownloadService
         && views.TryGetValue(ServiceOf(entry.Kind), out var view)
         && SearchesByState(entry)
         && (entry.State == DownloadStates.UpgradeWatch || view.Titles.GetValueOrDefault(entry.Key)?.Wanted == true);
+
+    // Solo sotto _lock. Le voci da cercare adesso dal giro (anche spento), con quelle che sta cercando; non quelle dell'admin.
+    private int Backlog(DateTimeOffset now) =>
+        Book.Entries.Count(e => _searching.Contains(e.Key) || (e.NextSearchAt <= now && SearchesByState(e) && !AdminSearching(e.Key)));
+
+    // Solo sotto _lock. Null con la coda vuota. Il ritmo con almeno 3 ricerche nella finestra (su almeno 15 minuti), la fine solo se il giro è acceso.
+    private SearchProgressDto? SearchProgress(DateTimeOffset now)
+    {
+        var remaining = Backlog(now);
+        if (remaining == 0)
+        {
+            return null;
+        }
+
+        var recent = _searchFinishes.Where(t => t >= now - RateWindow).ToList();
+        double? perHour = recent.Count < 3 ? null : recent.Count / Math.Max((now - recent[0]).TotalHours, 0.25);
+        var paused = !settings.Enabled;
+        DateTimeOffset? end = paused || perHour is null ? null : now + TimeSpan.FromHours(remaining / perHour.Value);
+        return new SearchProgressDto(_autoSearched, remaining, perHour, end, paused);
+    }
 
     // Solo sotto _lock. La parte di IsDue che dipende dallo stato (senza le viste di Radarr/Sonarr): lo usa anche la fase "Queued" della panoramica.
     private bool SearchesByState(DownloadEntry entry) => entry.State switch

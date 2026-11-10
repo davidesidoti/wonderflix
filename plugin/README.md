@@ -174,6 +174,11 @@ uscite in arrivo.
   l'azione `ExternalSearch` per ultima. Null se il link nelle impostazioni è
   vuoto o senza `{query}`. Il magnet si aggiunge a mano in qBittorrent con
   la categoria di Radarr/Sonarr e la coda lo segue come gli altri;
+  dalla 1.25.0 la panoramica ha `Progress`, l'avanzamento della coda delle
+  ricerche automatiche (`Done` le ricerche fatte da quando la coda non è più
+  vuota, solo in memoria; `Remaining` le voci da cercare; `PerHour` il ritmo
+  delle ultime 2 ore, null con meno di 3 ricerche; `EstimatedEnd` la fine
+  stimata, null in pausa o senza ritmo; `Paused`), null con la coda vuota;
   `GET Downloads/Profiles` dà i profili di qualità di Radarr e Sonarr con le
   soglie per la pagina del plugin. Le chiavi dei titoli sono `movie:{id}`,
   `episode:{id}` e `season:{idSerie}:{numero}`. Lo stato sta in

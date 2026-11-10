@@ -878,7 +878,8 @@ public sealed partial class DownloadService
                 Book.ReviewAt,
                 _lastErrors.Sonarr,
                 _lastErrors.Radarr,
-                []);
+                [],
+                SearchProgress(now));
         }
 
         // Fuori dal lock: la coda solo dei servizi che hanno qualcuno in download.

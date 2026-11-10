@@ -210,6 +210,7 @@ public sealed class DownloadsControllerTests : IDisposable
         Assert.Contains("\"SonarrError\":null", overview);
         Assert.Contains("\"RadarrError\":null", overview);
         Assert.Contains("\"ReviewAt\":null", overview);
+        Assert.Contains("\"Progress\":null", overview);
     }
 
     [Fact]

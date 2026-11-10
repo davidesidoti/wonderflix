@@ -1,5 +1,6 @@
 using Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
+using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Xunit;
@@ -888,5 +889,63 @@ public sealed class DownloadServiceSearchTests : IDisposable
         Assert.Empty(_arr.GrabCalls);
         Assert.Empty(Store().Load().Choices);
         Assert.Equal((DownloadStates.Downloading, (int?)90), (Saved("movie:12")!.State, Saved("movie:12")!.QueueId));
+    }
+
+    private async Task<SearchProgressDto?> Progress() => (await _service.OverviewAsync(CancellationToken.None)).Progress;
+
+    private void Movies(int from, int count) => _movies = [.. _movies, .. Enumerable.Range(from, count).Select(id => (RadarrMovie?)Movie(id))];
+
+    [Fact]
+    public async Task ProgressCountsTheBacklogAndTheRate()
+    {
+        Movies(1, 25);
+        await Cycle();
+
+        // 10 ricerche tutte adesso: il ritmo conta almeno 15 minuti, 40 all'ora; 15 voci da cercare, 22,5 minuti.
+        Assert.Equal(new SearchProgressDto(10, 15, 40, T0 + TimeSpan.FromMinutes(22.5), false), await Progress());
+
+        _time.Advance(TimeSpan.FromHours(1));
+        Assert.Equal(new SearchProgressDto(10, 15, 10, T0 + TimeSpan.FromHours(2.5), false), await Progress());
+    }
+
+    [Fact]
+    public async Task ProgressHasNoRateBeforeThreeSearches()
+    {
+        Movies(1, 5);
+        var gate = new TaskCompletionSource<IReadOnlyList<ArrRelease?>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _arr.Releases = (_, _) => gate.Task;
+
+        var cycle = Cycle();
+
+        // Quella in ricerca conta tra le voci da cercare.
+        Assert.Equal(new SearchProgressDto(0, 5, null, null, false), await Progress());
+        gate.SetResult([]);
+        await cycle;
+        Assert.Null(await Progress());
+    }
+
+    [Fact]
+    public async Task ProgressIsPausedWhenDisabled()
+    {
+        Movies(1, 25);
+        await Cycle();
+        _settings.Enabled = false;
+
+        Assert.Equal(new SearchProgressDto(10, 15, 40, null, true), await Progress());
+    }
+
+    [Fact]
+    public async Task ProgressRestartsWhenTheBacklogEmpties()
+    {
+        Assert.Null(await Progress());
+        Movies(1, 2);
+        await Cycle();
+        Assert.Null(await Progress());
+
+        // Una nuova ondata riparte da 0, non da 2; il ritmo tiene anche le 2 di prima.
+        Movies(3, 15);
+        _time.Advance(DownloadService.CycleInterval);
+        await Cycle();
+        Assert.Equal((10, 5, 48.0), (await Progress()) is { } p ? (p.Done, p.Remaining, p.PerHour!.Value) : default);
     }
 }
