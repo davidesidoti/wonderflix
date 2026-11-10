@@ -47,15 +47,39 @@ public sealed partial class DownloadService
     // Solo sotto _lock. Il giro si è fermato per una ricerca dell'admin: alla fine dell'ultima si chiede un giro (Nudge).
     private bool _heldForManual;
 
-    // Le voci con la ricerca scaduta, dalla più vecchia; al massimo MaxSearchesPerCycle ricerche, una alla volta.
+    // Solo sotto _lock, solo in memoria. Un "Scarica subito" chiede al giro in corso di fermarsi dopo la ricerca che sta facendo.
+    // Un evento una tantum, non una condizione letta dalle voci: si azzera solo all'inizio di RunCycleAsync.
+    private bool _rushRequested;
+
+    // Le voci con la ricerca scaduta, prima quelle con la precedenza (RushAt), poi dalla più vecchia; al massimo MaxSearchesPerCycle
+    // ricerche (non per quelle con la precedenza), una alla volta.
     private async Task<(int Searched, int Grabbed)> SearchDueAsync(
         IReadOnlyDictionary<ArrKind, ArrView> views, Dictionary<ArrKind, string?> errors, CancellationToken cancellationToken)
     {
         List<string> due;
+        HashSet<string> rushed;
         lock (_lock)
         {
             var now = time.GetUtcNow();
-            due = [.. Book.Entries.Where(e => IsDue(e, views, now)).OrderBy(e => e.NextSearchAt).Select(e => e.Key)];
+
+            // La voce non si cerca più (scarica, è passata ad altro): la precedenza non ha più senso.
+            foreach (var entry in Book.Entries.Where(e => e.RushAt is not null && !CanRush(e)))
+            {
+                entry.RushAt = null;
+            }
+
+            due =
+            [
+                .. Book.Entries.Where(e => IsDue(e, views, now))
+                    .OrderBy(e => e.RushAt ?? DateTimeOffset.MaxValue)
+                    .ThenBy(e => e.RushAt is null ? e.NextSearchAt : null)
+
+                    // Stessa serie: la lunghezza prima, così "Stagione 2" viene prima di "Stagione 10".
+                    .ThenBy(e => e.RushAt is null ? 0 : e.Title.Length)
+                    .ThenBy(e => e.RushAt is null ? "" : e.Title, StringComparer.Ordinal)
+                    .Select(e => e.Key),
+            ];
+            rushed = [.. Book.Entries.Where(e => e.RushAt is not null).Select(e => e.Key)];
         }
 
         var contexts = new Dictionary<ArrKind, SearchContext?>();
@@ -63,7 +87,7 @@ public sealed partial class DownloadService
         var grabbed = 0;
         foreach (var key in due)
         {
-            if (searched == MaxSearchesPerCycle)
+            if (searched >= MaxSearchesPerCycle && !rushed.Contains(key))
             {
                 break;
             }
@@ -117,6 +141,12 @@ public sealed partial class DownloadService
                     break;
                 }
 
+                // Un "Scarica subito" (o una stagione con la precedenza che si è divisa) è arrivato: il giro nuovo riparte da quelle righe.
+                if (_rushRequested)
+                {
+                    break;
+                }
+
                 started = time.GetUtcNow();
                 _searching[item.Key] = started;
             }
@@ -135,6 +165,13 @@ public sealed partial class DownloadService
                 lock (_lock)
                 {
                     _searching.Remove(item.Key);
+
+                    // Qualunque esito: la voce riprende il ritmo normale.
+                    if (Book.Get(item.Key) is { } done)
+                    {
+                        done.RushAt = null;
+                    }
+
                     var now = time.GetUtcNow();
                     _autoSearched++;
                     _searchFinishes.Add(now);

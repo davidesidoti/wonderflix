@@ -62,6 +62,9 @@ public sealed class DownloadEntry
 
     public DateTimeOffset? NextSearchAt { get; set; }
 
+    /// <summary>"Scarica subito": da quando la voce ha la precedenza nella coda del giro; null senza. Torna null a fine ricerca o quando la voce non si cerca più.</summary>
+    public DateTimeOffset? RushAt { get; set; }
+
     public DateTimeOffset? UpgradeUntil { get; set; }
 
     public int? QueueId { get; set; }

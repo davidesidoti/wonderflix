@@ -44,7 +44,10 @@ public sealed record DownloadItemDto(
     [property: JsonPropertyName("Snoozed")] bool Snoozed,
     [property: JsonPropertyName("Progress")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  DownloadProgressDto? Progress,
     [property: JsonPropertyName("SearchPhase")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? SearchPhase = null,
-    [property: JsonPropertyName("ExternalSearchUrl")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? ExternalSearchUrl = null);
+    [property: JsonPropertyName("ExternalSearchUrl")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? ExternalSearchUrl = null,
+    [property: JsonPropertyName("SeriesId")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] int? SeriesId = null,
+    [property: JsonPropertyName("CanRush")] bool CanRush = false,
+    [property: JsonPropertyName("Rush")] bool Rush = false);
 
 /// <summary>L'avanzamento di un download dalla coda di Radarr/Sonarr; Status è il codice della coda, in minuscolo come arriva ("downloading", "queued", "paused", ...), o "metadata" se il torrent è fermo sul recupero dei metadati: allora Since è da quando.</summary>
 public sealed record DownloadProgressDto(

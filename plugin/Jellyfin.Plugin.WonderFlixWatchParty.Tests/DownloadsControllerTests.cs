@@ -69,6 +69,18 @@ public sealed class DownloadsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task RushIsAcceptedOnceTheTitleIsFollowed()
+    {
+        Assert.Equal(StatusCodes.Status400BadRequest, Status(_controller.Rush(new KeyRequest { Key = "movie:12" })));
+        Assert.Equal(StatusCodes.Status400BadRequest, Status(_controller.Rush(new KeyRequest())));
+        Assert.Equal(StatusCodes.Status400BadRequest, Status(_controller.Rush(null)));
+
+        Assert.Equal(StatusCodes.Status204NoContent, Status(await _controller.Grab(Body())));
+
+        Assert.Equal(StatusCodes.Status202Accepted, Status(_controller.Rush(new KeyRequest { Key = "movie:12" })));
+    }
+
+    [Fact]
     public async Task ExpiredIsConflict()
     {
         var result = await _controller.Grab(Body(guid: "gone"));

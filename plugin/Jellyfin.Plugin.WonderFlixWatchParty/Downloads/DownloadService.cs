@@ -120,6 +120,12 @@ public sealed partial class DownloadService(
     /// </summary>
     public async Task<CycleReport> RunCycleAsync(CancellationToken cancellationToken)
     {
+        // Un Rush arrivato prima di adesso è già nelle voci che questo giro legge: la richiesta di fermarsi vale solo da qui.
+        lock (_lock)
+        {
+            _rushRequested = false;
+        }
+
         var enabled = settings.Enabled;
         var radarr = await ReadAsync(ArrKind.Radarr, ReadRadarrAsync, cancellationToken).ConfigureAwait(false);
         var sonarr = await ReadAsync(ArrKind.Sonarr, ReadSonarrAsync, cancellationToken).ConfigureAwait(false);

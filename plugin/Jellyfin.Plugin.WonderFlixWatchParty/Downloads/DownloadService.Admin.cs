@@ -784,6 +784,47 @@ public sealed partial class DownloadService
         return true;
     }
 
+    // Solo sotto _lock. Una riga che manca davvero: niente UpgradeWatch (il file c'è già) né import bloccato.
+    private bool CanRush(DownloadEntry entry) => entry.State != DownloadStates.UpgradeWatch && SearchesByState(entry);
+
+    /// <summary>
+    /// "Scarica subito": il film, o tutte le righe della serie che mancano, passano davanti nella coda del giro (RushAt) e il giro
+    /// in corso si ferma dopo la ricerca che sta facendo. Falso se la chiave non ha una voce; vero anche senza righe da anticipare.
+    /// </summary>
+    public bool Rush(string key)
+    {
+        lock (_lock)
+        {
+            if (!DownloadKey.TryParse(key, out var parsed) || Book.Get(parsed.ToString()) is not { } entry)
+            {
+                return false;
+            }
+
+            // Un libro vecchio può avere SeriesId 0: allora solo la voce stessa, non tutte quelle con 0.
+            IEnumerable<DownloadEntry> rows = entry.Kind == DownloadKinds.Movie || entry.SeriesId == 0
+                ? [entry]
+                : Book.Entries.Where(e => e.SeriesId == entry.SeriesId && e.Kind != DownloadKinds.Movie);
+            var now = time.GetUtcNow();
+            var touched = false;
+            foreach (var row in rows.Where(CanRush))
+            {
+                row.RushAt = row.NextSearchAt = now;
+                touched = true;
+            }
+
+            if (!touched)
+            {
+                return true;
+            }
+
+            _rushRequested = true;
+            store.Save(Book);
+        }
+
+        Nudge();
+        return true;
+    }
+
     /// <summary>
     /// "Cerca un upgrade" da "Da ripassare": il titolo torna in UpgradeWatch per <see cref="DownloadSchedule.UpgradeWindow"/>,
     /// cercato al prossimo giro, chiesto subito. Con una voce che si cerca già è "Cerca adesso".
@@ -1046,7 +1087,10 @@ public sealed partial class DownloadService
             _searching.ContainsKey(e.Key) || AdminSearching(e.Key) ? DownloadSearchPhases.Searching
                 : settings.Enabled && e.NextSearchAt <= now && SearchesByState(e) ? DownloadSearchPhases.Queued
                 : null,
-            external);
+            external,
+            e.SeriesId > 0 ? e.SeriesId : null,
+            CanRush(e),
+            e.RushAt is not null);
     }
 
     /// <summary>

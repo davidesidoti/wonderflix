@@ -95,13 +95,14 @@ public sealed partial class DownloadService
                 continue;
             }
 
-            // Restano solo voci in attesa (Waiting o NeedsYou): lasciano il posto alla stagione.
+            // Restano solo voci in attesa (Waiting o NeedsYou): lasciano il posto alla stagione, con la precedenza più vecchia.
+            var rushAt = episodeKeys.Select(k => Book.Get(k)?.RushAt).Min();
             foreach (var episodeKey in episodeKeys)
             {
                 Book.Remove(episodeKey);
             }
 
-            Create(season.Title, now);
+            Create(season.Title, now).RushAt = rushAt;
             grouped.Add(season.Title.Key);
             logger.LogInformation("Download automatici: {Key} è una stagione intera", season.Title.Key);
         }
@@ -189,8 +190,10 @@ public sealed partial class DownloadService
     }
 
     // Il pack non conviene: la voce di stagione esce e ogni episodio mancante ha la sua, da cercare subito (decisione 6).
+    // Con la precedenza (RushAt) la passa agli episodi e ferma il giro: ne riparte uno che li comprende, che l'elenco di questo non ha.
     private void Split(SearchItem item)
     {
+        var rushed = false;
         lock (_lock)
         {
             if (Book.Get(item.Key) is not { } entry || entry.State == DownloadStates.Downloading)
@@ -199,17 +202,25 @@ public sealed partial class DownloadService
             }
 
             var now = time.GetUtcNow();
+            var rushAt = entry.RushAt;
             Book.Remove(item.Key);
             Book.Split(item.Key);
             foreach (var episode in item.SplitInto ?? [])
             {
-                if (Book.Get(episode.Key) is null)
+                var created = Book.Get(episode.Key) ?? Create(episode, now);
+                if (rushAt is not null && CanRush(created))
                 {
-                    Create(episode, now);
+                    (created.RushAt, created.NextSearchAt) = (rushAt, now);
                 }
             }
+
+            rushed = _rushRequested = rushAt is not null;
         }
 
         logger.LogInformation("Download automatici: {Key} diviso in episodi", item.Key);
+        if (rushed)
+        {
+            Nudge();
+        }
     }
 }
