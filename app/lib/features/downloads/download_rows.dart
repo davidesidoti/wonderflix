@@ -10,6 +10,7 @@ import '../../ui/form_factor.dart';
 import '../../ui/wf_image.dart';
 import '../admin/admin_action_button.dart';
 import '../admin/admin_time.dart';
+import 'download_filter.dart';
 import 'download_labels.dart';
 
 /// Da questo punteggio in su una release è "a posto" (spec T §8.1).
@@ -390,6 +391,40 @@ class ReviewRow extends StatelessWidget {
           icon: LucideIcons.search,
           onPressed: () async => onOpen(),
         ),
+      ],
+    );
+  }
+}
+
+/// Una serie o un film che "Scarica subito" può portare davanti: nome, quante
+/// righe mancano e il pulsante.
+class DownloadRushRow extends StatelessWidget {
+  const DownloadRushRow({super.key, required this.group, this.onRush});
+
+  final DownloadRushGroup group;
+
+  /// Senza (download spenti, niente da portare davanti) il pulsante non c'è.
+  final VoidCallback? onRush;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return RowShell(
+      posterUrl: group.posterUrl,
+      lines: [
+        _title(group.title),
+        _muted(l.downloadsRushMissing(group.missing)),
+      ],
+      actions: [
+        if (group.pending)
+          Text(l.downloadsRushPending, style: _smallMuted)
+        else if (onRush case final rush?)
+          AdminActionButton(
+            label: l.downloadsRushNow,
+            icon: LucideIcons.download,
+            primary: true,
+            onPressed: () async => rush(),
+          ),
       ],
     );
   }

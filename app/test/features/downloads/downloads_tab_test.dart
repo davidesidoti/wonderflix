@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:logging/logging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wonderflix/app/providers.dart';
@@ -13,6 +15,7 @@ import 'package:wonderflix/features/admin/admin_action_button.dart';
 import 'package:wonderflix/features/downloads/download_rows.dart';
 import 'package:wonderflix/features/downloads/downloads_tab.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
+import 'package:wonderflix/ui/tv_focusable.dart';
 
 import '../../support/admin_fakes.dart';
 import '../../support/download_fakes.dart';
@@ -44,11 +47,15 @@ DownloadItem _item(
   DownloadProgress? progress,
   DownloadSearchPhase? searchPhase,
   String? externalSearchUrl,
+  String? title,
+  int? seriesId,
+  bool canRush = false,
+  bool rush = false,
 }) =>
     DownloadItem(
       key: key,
       kind: DownloadKind.movie,
-      title: 'Voce $key',
+      title: title ?? 'Voce $key',
       state: state,
       reason: reason,
       availableSince: DateTime.now().subtract(const Duration(days: 3)),
@@ -58,6 +65,9 @@ DownloadItem _item(
       progress: progress,
       searchPhase: searchPhase,
       externalSearchUrl: externalSearchUrl,
+      seriesId: seriesId,
+      canRush: canRush,
+      rush: rush,
     );
 
 ReviewItem _review(int n, {bool canHunt = true}) => ReviewItem(
@@ -876,6 +886,274 @@ void main() {
       expect(find.text('Guarda'), findsNWidgets(2));
       expect(find.text('Cerca ora'), findsOneWidget);
       expect(find.byType(FilledButton), findsNothing);
+    });
+  });
+
+  group('cerca nella lista', () {
+    const field = ValueKey('downloads-filter');
+
+    Future<void> type(WidgetTester tester, String text) async {
+      await tester.enterText(find.byKey(field), text);
+      await tester.pump();
+    }
+
+    List<DownloadItem> episodes({bool rush = false}) => [
+          _item('episode:1',
+              title: 'Serie · S01E01', seriesId: 7, canRush: true, rush: rush),
+          _item('episode:2',
+              title: 'Serie · S01E02', seriesId: 7, canRush: true, rush: rush),
+        ];
+
+    testWidgets('il filtro restringe ogni sezione e nasconde le vuote',
+        (tester) async {
+      api.overviewValue = DownloadsOverview(
+        enabled: true,
+        recent: [_choice('movie:1')],
+        waiting: [
+          _item('movie:2', title: 'Alpha'),
+          _item('movie:3', title: 'Beta'),
+        ],
+        review: [_review(4)],
+      );
+      await pumpTab(tester);
+
+      await type(tester, 'alpha');
+
+      expect(find.text('Alpha'), findsOneWidget);
+      expect(find.text('Beta'), findsNothing);
+      expect(find.text('In attesa · 1'), findsOneWidget);
+      expect(find.textContaining('Da ripassare'), findsNothing);
+      expect(find.textContaining('Scelte automatiche'), findsNothing);
+    });
+
+    testWidgets('il filtro apre le sezioni chiuse senza salvarle',
+        (tester) async {
+      const key = 'downloads.collapsedSections';
+      SharedPreferences.setMockInitialValues({
+        key: ['waiting', 'review'],
+      });
+      prefs = await SharedPreferences.getInstance();
+      api.overviewValue = DownloadsOverview(
+        enabled: true,
+        waiting: [_item('movie:2', title: 'Alpha')],
+        review: [_review(4)],
+      );
+      await pumpTab(tester);
+      expect(find.byType(ReviewRow), findsNothing);
+
+      await type(tester, 'a');
+      expect(find.text('Alpha'), findsOneWidget);
+      expect(find.byType(ReviewRow), findsOneWidget);
+      await tester.tap(find.text('In attesa · 1'));
+      await tester.pumpAndSettle();
+
+      expect(prefs.getStringList(key), ['waiting', 'review']);
+    });
+
+    testWidgets('il filtro ignora i 7 giorni e la paginazione', (tester) async {
+      api.overviewValue = DownloadsOverview(
+        enabled: true,
+        recent: [_choice('movie:9', age: const Duration(days: 30))],
+        review: [for (var i = 0; i < 60; i++) _review(i)],
+      );
+      await pumpTab(tester);
+      expect(find.text('Scelto movie:9'), findsNothing);
+
+      await type(tester, 'movie:9');
+      expect(find.text('Scelto movie:9'), findsOneWidget);
+
+      await type(tester, 'ripassare 55');
+      expect(find.text('Da ripassare 55'), findsOneWidget);
+      expect(find.text('Mostra altre'), findsNothing);
+    });
+
+    testWidgets('il ricaricamento non tocca il testo né il focus',
+        (tester) async {
+      api.overviewValue = DownloadsOverview(
+          enabled: true, waiting: [_item('movie:2', title: 'Alpha')]);
+      await pumpTab(tester);
+      await tester.tap(find.byKey(field));
+      await type(tester, 'alp');
+      api.calls.clear();
+
+      await tester.pump(const Duration(seconds: 60));
+      await tester.pump();
+
+      expect(api.calls, ['overview']);
+      final editable = tester.widget<EditableText>(find.byType(EditableText));
+      expect(editable.controller.text, 'alp');
+      expect(editable.focusNode.hasFocus, isTrue);
+    });
+
+    testWidgets('il campo si svuota con la X', (tester) async {
+      api.overviewValue = DownloadsOverview(enabled: true, waiting: [
+        _item('movie:2', title: 'Alpha'),
+        _item('movie:3', title: 'Beta'),
+      ]);
+      await pumpTab(tester);
+      expect(find.byIcon(LucideIcons.x), findsNothing);
+
+      await type(tester, 'alpha');
+      expect(find.text('Beta'), findsNothing);
+      await tester.tap(find.byIcon(LucideIcons.x));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Alpha'), findsOneWidget);
+      expect(find.text('Beta'), findsOneWidget);
+      expect(find.byIcon(LucideIcons.x), findsNothing);
+    });
+
+    testWidgets('Scarica subito chiama rush e rilegge', (tester) async {
+      api.overviewValue = DownloadsOverview(enabled: true, waiting: episodes());
+      await pumpTab(tester);
+      await type(tester, 'serie');
+      api.calls.clear();
+
+      expect(find.text('2 mancanti'), findsOneWidget);
+      await tester.tap(find.text('Scarica subito'));
+      await tester.pumpAndSettle();
+
+      expect(api.calls, ['rush episode:1', 'overview']);
+    });
+
+    testWidgets('senza testo nel campo non ci sono righe Scarica subito',
+        (tester) async {
+      api.overviewValue = DownloadsOverview(enabled: true, waiting: episodes());
+      await pumpTab(tester);
+
+      expect(find.text('Scarica subito'), findsNothing);
+      expect(find.byType(DownloadRushRow), findsNothing);
+    });
+
+    testWidgets('niente pulsante con i download spenti', (tester) async {
+      api.overviewValue =
+          DownloadsOverview(enabled: false, waiting: episodes());
+      await pumpTab(tester);
+
+      await type(tester, 'serie');
+
+      expect(find.text('2 mancanti'), findsOneWidget);
+      expect(find.text('Scarica subito'), findsNothing);
+    });
+
+    testWidgets('con tutte le righe davanti si legge In testa alla coda',
+        (tester) async {
+      api.overviewValue =
+          DownloadsOverview(enabled: true, waiting: episodes(rush: true));
+      await pumpTab(tester);
+
+      await type(tester, 'serie');
+
+      expect(find.text('In testa alla coda'), findsOneWidget);
+      expect(find.text('Scarica subito'), findsNothing);
+    });
+
+    testWidgets('Non è in lista compare anche con righe vecchie trovate',
+        (tester) async {
+      api.overviewValue = DownloadsOverview(
+          enabled: true, recent: [_choice('movie:1')], refreshPending: false);
+      await pumpTab(tester);
+
+      await type(tester, 'Scelto');
+
+      expect(find.text('Scelto movie:1'), findsOneWidget);
+      expect(find.text('Non è in lista'), findsOneWidget);
+      expect(find.text('Aggiorna ora'), findsOneWidget);
+    });
+
+    testWidgets('Non è in lista non compare se una riga in attesa corrisponde',
+        (tester) async {
+      api.overviewValue = DownloadsOverview(
+          enabled: true,
+          waiting: [_item('movie:2', title: 'Alpha')],
+          refreshPending: false);
+      await pumpTab(tester);
+
+      await type(tester, 'alpha');
+
+      expect(find.text('Non è in lista'), findsNothing);
+    });
+
+    testWidgets('Aggiorna ora chiama refresh', (tester) async {
+      api.overviewValue =
+          DownloadsOverview(enabled: true, refreshPending: false);
+      await pumpTab(tester);
+      await type(tester, 'dune');
+      api.calls.clear();
+
+      await tester.tap(find.text('Aggiorna ora'));
+      await tester.pumpAndSettle();
+
+      expect(api.calls, ['refresh', 'overview']);
+    });
+
+    testWidgets(
+        'con RefreshPending si legge Aggiornamento e si rilegge ogni 5 secondi',
+        (tester) async {
+      api.overviewValue =
+          DownloadsOverview(enabled: true, refreshPending: true);
+      await pumpTab(tester, settle: false);
+      await type(tester, 'dune');
+
+      expect(find.text('Non è in lista'), findsOneWidget);
+      expect(find.text('Aggiornamento…'), findsOneWidget);
+      expect(find.text('Aggiorna ora'), findsNothing);
+
+      // La prima lettura del poller parte subito; il conto riparte da lì.
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump();
+      api.calls.clear();
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pump();
+      expect(api.calls, ['overview']);
+    });
+
+    testWidgets('con un plugin vecchio niente Aggiorna ora', (tester) async {
+      api.overviewValue = DownloadsOverview(enabled: true);
+      await pumpTab(tester);
+
+      await type(tester, 'dune');
+
+      expect(find.text('Non è in lista'), findsNothing);
+      expect(find.text('Aggiorna ora'), findsNothing);
+    });
+
+    testWidgets('con i download spenti niente Aggiorna ora', (tester) async {
+      api.overviewValue =
+          DownloadsOverview(enabled: false, refreshPending: false);
+      await pumpTab(tester);
+
+      await type(tester, 'dune');
+
+      expect(find.text('Aggiorna ora'), findsNothing);
+    });
+
+    testWidgets('su TV il campo è una tappa del telecomando', (tester) async {
+      api.overviewValue = DownloadsOverview(
+          enabled: true, waiting: [_item('movie:2', title: 'Alpha')]);
+      await pumpTab(tester, tv: true);
+      EditableText editable() =>
+          tester.widget<EditableText>(find.byType(EditableText));
+      expect(
+          find.ancestor(
+              of: find.byKey(field), matching: find.byType(TvFocusable)),
+          findsOneWidget);
+      bool onField() =>
+          FocusManager.instance.primaryFocus?.context
+              ?.findAncestorWidgetOfExactType<TvFocusable>() !=
+          null;
+
+      // Aggiorna, poi il campo: raggiunto, non attivo.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(onField(), isTrue);
+      expect(editable().focusNode.hasFocus, isFalse);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(onField(), isFalse);
+      expect(editable().focusNode.hasFocus, isFalse);
     });
   });
 }

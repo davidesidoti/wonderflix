@@ -14,11 +14,13 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
+import '../../ui/tv_focusable.dart';
 import '../admin/admin_action_button.dart';
 import '../admin/admin_confirm_dialog.dart';
 import '../admin/admin_poller.dart';
 import '../admin/admin_time.dart';
 import '../admin/admin_widgets.dart';
+import 'download_filter.dart';
 import 'download_labels.dart';
 import 'download_rows.dart';
 import 'download_search_page.dart';
@@ -55,9 +57,21 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
   static const _collapsedKey = 'downloads.collapsedSections';
   Set<String> _collapsed = {};
 
+  /// Il campo "Cerca nella lista"; non si salva tra una visita e l'altra.
+  final _filter = TextEditingController();
+
+  /// Il campo sulla TV: prende il focus solo con OK (vedi [_filterField]).
+  final _filterFocus = FocusNode(debugLabel: 'downloads-filter');
+
+  /// Sulla TV: OK ha attivato il campo (fino a che perde il focus).
+  bool _typing = false;
+
   @override
   void initState() {
     super.initState();
+    _filterFocus.addListener(() {
+      if (!_filterFocus.hasFocus && _typing) setState(() => _typing = false);
+    });
     try {
       _collapsed = ref
               .read(sharedPreferencesProvider)
@@ -68,7 +82,8 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
       // Valore di un altro tipo sotto la chiave: tutte aperte.
     }
     // Decisione 4: si rilegge ogni minuto finché la scheda è aperta; ogni 5
-    // secondi se una voce è in coda per la ricerca o ci sta cercando.
+    // secondi se una voce è in coda per la ricerca o ci sta cercando, o se
+    // "Aggiorna ora" aspetta il giro.
     _poller = AdminPoller(
       read: () => ref.read(downloadsControllerProvider.notifier).reload(),
       interval: _slowPoll,
@@ -76,7 +91,9 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
     ref.listenManual(downloadsControllerProvider, (_, next) {
       final overview = next.value;
       if (overview == null) return;
-      _poller.interval = overview.waiting.any((i) => i.searchPhase != null)
+      _poller.interval =
+          overview.waiting.any((i) => i.searchPhase != null) ||
+              overview.refreshPending == true
           ? _fastPoll
           : _slowPoll;
     });
@@ -86,10 +103,14 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
   void dispose() {
     _poller.dispose();
     _scroll.dispose();
+    _filter.dispose();
+    _filterFocus.dispose();
     super.dispose();
   }
 
   void _toggle(String id) {
+    // Con il filtro le sezioni sono tutte aperte: un tocco non cambia niente.
+    if (_filter.text.trim().isNotEmpty) return;
     setState(
       () =>
           _collapsed.contains(id) ? _collapsed.remove(id) : _collapsed.add(id),
@@ -110,9 +131,50 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
 
   Widget _header(String id, String title) => _SectionHeader(
     title: title,
-    expanded: !_collapsed.contains(id),
+    expanded: _isOpen(id),
     onToggle: () => _toggle(id),
   );
+
+  /// Con il filtro le sezioni sono tutte aperte, senza toccare quelle salvate.
+  bool _isOpen(String id) =>
+      _filter.text.trim().isNotEmpty || !_collapsed.contains(id);
+
+  /// Il campo. Sulla TV il focus iniziale aprirebbe subito la tastiera: la
+  /// cornice (`TvFocusable`) è l'unica tappa del telecomando e OK lo attiva,
+  /// come nella ricerca.
+  Widget _filterField(AppLocalizations l) {
+    final tv = FormFactor.of(context).tv;
+    final field = TextField(
+      key: const ValueKey('downloads-filter'),
+      controller: _filter,
+      focusNode: tv ? _filterFocus : null,
+      onChanged: (_) => setState(() {}),
+      decoration: InputDecoration(
+        hintText: l.downloadsFilterHint,
+        prefixIcon: const Icon(LucideIcons.search, color: WfColors.creamMuted),
+        suffixIcon: _filter.text.isEmpty
+            ? null
+            : IconButton(
+                icon: const Icon(LucideIcons.x, color: WfColors.creamMuted),
+                onPressed: () => setState(_filter.clear),
+              ),
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: !tv
+          ? field
+          : TvFocusable(
+              onActivate: () {
+                setState(() => _typing = true);
+                WidgetsBinding.instance.addPostFrameCallback(
+                  (_) => _filterFocus.requestFocus(),
+                );
+              },
+              child: ExcludeFocus(excluding: !_typing, child: field),
+            ),
+    );
+  }
 
   Future<void> _reload() =>
       ref.read(downloadsControllerProvider.notifier).reload();
@@ -230,22 +292,50 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
       );
     }
     final now = clock.now();
+    final q = _filter.text.trim();
+    final filtering = q.isNotEmpty;
+    bool shown(String title) => !filtering || titleMatches(title, q);
     final needsYou = [
       for (final i in overview.waiting)
-        if (i.state == DownloadState.needsYou) i,
+        if (i.state == DownloadState.needsYou && shown(i.title)) i,
     ];
     final waiting = [
       for (var rank = 0; rank <= 3; rank++)
         for (final i in overview.waiting)
-          if (i.state != DownloadState.needsYou && _waitingRank(i) == rank) i,
+          if (i.state != DownloadState.needsYou &&
+              _waitingRank(i) == rank &&
+              shown(i.title))
+            i,
     ];
-    final recent = _allRecent
+    // Con il filtro valgono tutte le scelte, anche quelle oltre i 7 giorni.
+    final recent = filtering
+        ? [
+            for (final c in overview.recent)
+              if (shown(c.title)) c,
+          ]
+        : _allRecent
         ? overview.recent
         : [
             for (final c in overview.recent)
               if (now.difference(c.at) <= _recentWindow) c,
           ];
-    final review = overview.review;
+    final unknown = [
+      for (final u in overview.unknown)
+        if (shown(u.title)) u,
+    ];
+    final review = [
+      for (final r in overview.review)
+        if (shown(r.title)) r,
+    ];
+    final rushGroupsShown = filtering
+        ? rushGroups(overview.waiting, q)
+        : const <DownloadRushGroup>[];
+    // Il titolo non è tra le righe in attesa: forse è appena stato aggiunto.
+    final notListed =
+        filtering &&
+        overview.enabled &&
+        overview.refreshPending != null &&
+        !overview.waiting.any((i) => titleMatches(i.title, q));
     final reviewAt = overview.reviewAt;
     final errors = [
       if (overview.sonarrError case final code?) _arrError(l, 'Sonarr', code),
@@ -273,6 +363,23 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
             ),
           ),
         ),
+        _filterField(l),
+        for (final group in rushGroupsShown)
+          DownloadRushRow(
+            key: ValueKey('rush-${group.key}'),
+            group: group,
+            onRush: overview.enabled && group.canPress
+                ? () => _call(
+                    () => ref.read(downloadsApiProvider).rush(group.key),
+                    started: true,
+                  )
+                : null,
+          ),
+        if (notListed)
+          _NotListed(
+            refreshing: overview.refreshPending == true,
+            onRefresh: () => _call(ref.read(downloadsApiProvider).refresh),
+          ),
         if (overview.progress case final progress?)
           _BacklogCard(progress: progress, now: now),
         if (!overview.enabled)
@@ -284,24 +391,25 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
             'needsYou',
             '${l.downloadsSectionNeedsYou} · ${needsYou.length}',
           ),
-          if (!_collapsed.contains('needsYou'))
+          if (_isOpen('needsYou'))
             for (final item in needsYou) _itemRow(item, now),
         ],
-        if (overview.unknown.isNotEmpty) ...[
+        if (unknown.isNotEmpty) ...[
           _header(
             'unknown',
-            '${l.downloadsSectionUnknown} · ${overview.unknown.length}',
+            '${l.downloadsSectionUnknown} · ${unknown.length}',
           ),
-          if (!_collapsed.contains('unknown'))
-            for (final item in overview.unknown)
+          if (_isOpen('unknown'))
+            for (final item in unknown)
               UnknownDownloadRow(
                 key: ValueKey('unknown-${item.service}-${item.downloadId}'),
                 item: item,
                 onRemove: () => _removeUnknown(item),
               ),
         ],
-        _header('chosen', '${l.downloadsSectionChosen} · ${recent.length}'),
-        if (!_collapsed.contains('chosen')) ...[
+        if (!filtering || recent.isNotEmpty)
+          _header('chosen', '${l.downloadsSectionChosen} · ${recent.length}'),
+        if ((!filtering || recent.isNotEmpty) && _isOpen('chosen')) ...[
           if (recent.isEmpty) AdminEmptyText(text: l.downloadsNothingYet),
           for (final choice in recent)
             DownloadChoiceRow(
@@ -312,16 +420,20 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
               now: now,
               onChange: () => unawaited(_open(choice.key, choice.title)),
             ),
-          if (!_allRecent && recent.length < overview.recent.length)
+          if (!filtering &&
+              !_allRecent &&
+              recent.length < overview.recent.length)
             _MoreButton(onPressed: () => setState(() => _allRecent = true)),
         ],
-        _header('waiting', '${l.downloadsSectionWaiting} · ${waiting.length}'),
-        if (!_collapsed.contains('waiting')) ...[
+        if (!filtering || waiting.isNotEmpty)
+          _header('waiting', '${l.downloadsSectionWaiting} · ${waiting.length}'),
+        if ((!filtering || waiting.isNotEmpty) && _isOpen('waiting')) ...[
           if (waiting.isEmpty) AdminEmptyText(text: l.downloadsNothingYet),
           for (final item in waiting) _itemRow(item, now),
         ],
-        _header('review', '${l.downloadsSectionReview} · ${review.length}'),
-        if (!_collapsed.contains('review')) ...[
+        if (!filtering || review.isNotEmpty)
+          _header('review', '${l.downloadsSectionReview} · ${review.length}'),
+        if ((!filtering || review.isNotEmpty) && _isOpen('review')) ...[
           if (reviewAt != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
@@ -334,7 +446,7 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
               ),
             ),
           if (review.isEmpty) AdminEmptyText(text: l.downloadsNothingYet),
-          for (final item in review.take(_reviewShown))
+          for (final item in filtering ? review : review.take(_reviewShown))
             ReviewRow(
               key: ValueKey('review-${item.key}'),
               item: item,
@@ -348,7 +460,7 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
               onOpen: () =>
                   unawaited(_open(item.key, item.title, reviewing: true)),
             ),
-          if (review.length > _reviewShown)
+          if (!filtering && review.length > _reviewShown)
             _MoreButton(
               onPressed: () => setState(() => _reviewShown += _reviewPage),
             ),
@@ -520,6 +632,45 @@ class _Note extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// "Non è in lista": il titolo cercato non ha righe; "Aggiorna ora" fa
+/// rileggere Sonarr e Radarr.
+class _NotListed extends StatelessWidget {
+  const _NotListed({required this.refreshing, required this.onRefresh});
+
+  final bool refreshing;
+  final Future<void> Function() onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(
+            l.downloadsNotListed,
+            style: const TextStyle(color: WfColors.creamMuted),
+          ),
+          if (refreshing)
+            Text(
+              l.downloadsRefreshing,
+              style: const TextStyle(color: WfColors.creamMuted),
+            )
+          else
+            AdminActionButton(
+              label: l.downloadsRefreshNow,
+              icon: LucideIcons.rotateCw,
+              onPressed: onRefresh,
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 class _MoreButton extends StatelessWidget {
