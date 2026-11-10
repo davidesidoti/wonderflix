@@ -214,7 +214,10 @@ public sealed partial class DownloadService
                 }
             }
 
-            rushed = _rushRequested = rushAt is not null;
+            rushed = rushAt is not null;
+
+            // Mai false: una richiesta di fermarsi già arrivata (un altro Rush) resta.
+            _rushRequested |= rushed;
         }
 
         logger.LogInformation("Download automatici: {Key} diviso in episodi", item.Key);

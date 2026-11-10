@@ -70,7 +70,8 @@ public sealed class DownloadServiceRushTests : IDisposable
 
     private DownloadEntry? Saved(string key) => Store().Load().Get(key);
 
-    private Task<CycleReport> Cycle() => _service.RunCycleAsync(CancellationToken.None);
+    // Con un limite: una regressione fa fallire il test invece di bloccarlo.
+    private Task<CycleReport> Cycle() => _service.RunCycleAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
 
     private Task<IReadOnlyList<ArrRelease?>> Gated(ArrKind kind, string query)
     {
@@ -93,6 +94,15 @@ public sealed class DownloadServiceRushTests : IDisposable
         lock (_gatesLock)
         {
             _gates[index].SetResult([]);
+        }
+    }
+
+    // La ricerca numero index finisce per tempo scaduto: una stagione si divide in episodi.
+    private void TimeOut(int index)
+    {
+        lock (_gatesLock)
+        {
+            _gates[index].SetException(new ArrException(ArrError.Unreachable) { TimedOut = true });
         }
     }
 
@@ -223,7 +233,7 @@ public sealed class DownloadServiceRushTests : IDisposable
         Assert.Equal((false, false), (watching.CanRush, watching.Rush));
         Assert.Equal((false, false), (stuck.CanRush, stuck.Rush));
 
-        // "Cerca adesso" resta com'è: il ritmo di prima.
+        // Il ritmo di queste righe non cambia.
         Assert.Equal(T0 + TimeSpan.FromDays(1), watching.NextSearchAt);
         Assert.Equal(T0, stuck.NextSearchAt);
         Assert.True(_service.Rush("episode:35"));
@@ -343,6 +353,7 @@ public sealed class DownloadServiceRushTests : IDisposable
         _movies = [Movie(1), Movie(2)];
         await Seed();
         Assert.True(_service.Rush("movie:1"));
+        Assert.True(_service.Rush("movie:2"));
 
         // Il film 1 senza release, la ricerca del 2 che lancia.
         _arr.Releases = (_, query) => query == "movieId=2" ? Failing(ArrKind.Radarr, query) : Task.FromResult<IReadOnlyList<ArrRelease?>>([]);
@@ -440,6 +451,34 @@ public sealed class DownloadServiceRushTests : IDisposable
         }
 
         Assert.Null(Saved("season:7:2"));
+    }
+
+    [Fact]
+    public async Task ASplitWithoutRushAtKeepsAPendingStopRequest()
+    {
+        // Due serie con la stagione 2 intera da cercare: la 7 per prima, la 8 dopo.
+        var other = new[] { SeasonEp(301, 2), SeasonEp(302, 2), SeasonEp(303, 2) };
+        foreach (var episode in other)
+        {
+            episode.SeriesId = 8;
+        }
+
+        _seriesEpisodes = [SeasonEp(201, 2), SeasonEp(202, 2), SeasonEp(203, 2), .. other];
+        _missing = [.. _seriesEpisodes];
+        _arr.SeriesEpisodes = id => Task.FromResult<IReadOnlyList<SonarrEpisode?>>([.. _seriesEpisodes.Where(e => e?.SeriesId == id)]);
+        await Seed();
+
+        var cycle = Cycle();
+        Assert.Equal("seriesId=7&seasonNumber=2", (await Call(0)).Query);
+
+        // L'admin anticipa l'altra serie mentre la 7 (senza precedenza) cerca; poi la 7 si divide: la richiesta di fermarsi resta.
+        Assert.True(_service.Rush("season:8:2"));
+        TimeOut(0);
+
+        Assert.Equal(1, (await cycle).Searched);
+        Assert.Single(_arr.SearchReleaseCalls);
+        Assert.Null(Saved("season:7:2"));
+        Assert.NotNull(Saved("episode:201"));
     }
 
     [Fact]
