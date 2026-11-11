@@ -1072,6 +1072,37 @@ public sealed class DownloadServiceSearchTests : IDisposable
     }
 
     [Fact]
+    public async Task ADirectAddRefusedByQbitIsGrabRefused()
+    {
+        // qBittorrent risponde "Fails." (il torrent c'è già): riprovare ogni giro la stessa release non serve.
+        UseProwlarr();
+        _finder!.Grab = (_, _, _) => Task.FromException<GrabResult>(new Space.QbitException(Space.QbitError.Refused));
+        _movies = [Movie(12)];
+        _releases = [Release("a", WebRip1080, "WEBRip-1080p", 3, 150)];
+
+        await Cycle();
+
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.NeedsYou, DownloadReasons.GrabRefused), (entry.State, entry.Reason));
+        Assert.Equal(["1|a"], entry.RefusedReleases);
+    }
+
+    [Fact]
+    public async Task AnUnconfirmedPushIsGrabRefused()
+    {
+        UseProwlarr((_, _) => new GrabResult(GrabKind.ClientRefused, null, null));
+        _movies = [Movie(12)];
+        _releases = [Release("a", WebRip1080, "WEBRip-1080p", 3, 150), Release("b", WebRip1080, "WEBRip-1080p", 4, 150)];
+
+        await Cycle();
+
+        Assert.Single(_finder!.GrabCalls);
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.NeedsYou, DownloadReasons.GrabRefused), (entry.State, entry.Reason));
+        Assert.Equal(["1|a"], entry.RefusedReleases);
+    }
+
+    [Fact]
     public async Task StopgapBySizeGoesDirectWhenPushRefuses()
     {
         await SeedStopgap(DownloadStopgaps.Size, 120, 1);

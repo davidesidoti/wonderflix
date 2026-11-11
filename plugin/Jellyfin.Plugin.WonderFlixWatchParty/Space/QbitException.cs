@@ -14,6 +14,9 @@ public enum QbitError
 
     /// <summary>404: il torrent non c'è (più).</summary>
     NotFound,
+
+    /// <summary>qBittorrent ha risposto ma non ha aggiunto il torrent (<c>Fails.</c>, di solito perché c'è già).</summary>
+    Refused,
 }
 
 /// <summary>Errore di qBittorrent già classificato. Il messaggio non contiene mai password, cookie o nomi.</summary>

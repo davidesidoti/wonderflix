@@ -134,7 +134,7 @@ public sealed class QbitClient(
     private static async Task<bool> ReadAddedAsync(HttpResponseMessage response, CancellationToken cancellationToken) =>
         (await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false)).Trim() != "Fails."
             ? true
-            : throw new QbitException(QbitError.Unreachable);
+            : throw new QbitException(QbitError.Refused);
 
     /// <summary>
     /// Scarica il <c>.torrent</c> (da Prowlarr): un redirect a un magnet dà il magnet, altrimenti i byte. Mai il link nel

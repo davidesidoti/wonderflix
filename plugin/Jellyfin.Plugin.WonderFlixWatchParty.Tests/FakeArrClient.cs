@@ -227,6 +227,26 @@ internal sealed class FakeArrClient : IArrClient
         return Push(kind, release);
     }
 
+    /// <summary>Di base la cronologia ha un grab per ogni release spinta, col suo titolo: ogni push approvato risulta preso.</summary>
+    public Func<ArrKind, DateTimeOffset, Task<IReadOnlyList<ArrHistoryRecord?>>>? History { get; set; }
+
+    public List<(ArrKind Kind, DateTimeOffset Since)> HistoryCalls { get; } = [];
+
+    public Task<IReadOnlyList<ArrHistoryRecord?>> GetGrabHistoryAsync(ArrKind kind, DateTimeOffset since, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            HistoryCalls.Add((kind, since));
+            if (History is null)
+            {
+                return Task.FromResult<IReadOnlyList<ArrHistoryRecord?>>(
+                    [.. PushCalls.Where(c => c.Kind == kind).Select(c => (ArrHistoryRecord?)new ArrHistoryRecord { SourceTitle = c.Release.Title, EventType = "grabbed" })]);
+            }
+        }
+
+        return History(kind, since);
+    }
+
     public Task<SonarrSeries> GetSeriesByIdAsync(int seriesId, CancellationToken cancellationToken)
     {
         lock (_lock)

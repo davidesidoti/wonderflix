@@ -875,6 +875,25 @@ public class ArrClientTests
     }
 
     [Fact]
+    public async Task GrabHistoryAsksForGrabsSinceTheDate()
+    {
+        Answer(
+            HttpStatusCode.OK,
+            """
+            [{"sourceTitle":"Show S01 1080p","downloadId":"ABC","date":"2026-11-11T12:00:03Z","eventType":"grabbed","data":{}}]
+            """);
+
+        var records = await Client().GetGrabHistoryAsync(ArrKind.Radarr, new DateTimeOffset(2026, 11, 11, 13, 0, 0, TimeSpan.FromHours(1)), CancellationToken.None);
+
+        Assert.Equal(
+            "https://arr.example/radarr/api/v3/history/since?date=2026-11-11T12%3A00%3A00Z&eventType=grabbed",
+            Assert.Single(_http.Requests).Uri.OriginalString);
+        var record = Assert.Single(records)!;
+        Assert.Equal(("Show S01 1080p", "ABC", "grabbed"), (record.SourceTitle, record.DownloadId, record.EventType));
+        Assert.Equal(new DateTimeOffset(2026, 11, 11, 12, 0, 3, TimeSpan.Zero), record.Date);
+    }
+
+    [Fact]
     public async Task RemovingFromTheQueueCanBlocklistAndKeepTheDownload()
     {
         Answer(HttpStatusCode.OK, "{}");

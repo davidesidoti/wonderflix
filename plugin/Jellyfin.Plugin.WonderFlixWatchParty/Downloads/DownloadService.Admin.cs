@@ -801,11 +801,17 @@ public sealed partial class DownloadService
                 logger.LogWarning("Download automatici: {Key}, {Kind} ha rifiutato la release dell'admin ({Error})", search.Title.Key, service, ErrorOf(ex));
                 return (GrabOutcome.Refused, false);
             }
-            catch (QbitException ex) when (!cancellationToken.IsCancellationRequested)
+            catch (QbitException ex) when (ex.Error == QbitError.Refused && !cancellationToken.IsCancellationRequested)
             {
                 // qBittorrent non ha preso il torrent (spesso perché c'è già): un rifiuto, così si cerca il torrent esistente.
-                logger.LogWarning("Download automatici: {Key}, qBittorrent ha rifiutato la release dell'admin ({Error})", search.Title.Key, ex.Error);
+                logger.LogWarning("Download automatici: {Key}, qBittorrent ha rifiutato la release dell'admin", search.Title.Key);
                 return (GrabOutcome.Refused, false);
+            }
+            catch (QbitException ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                // qBittorrent giù o lento: non è un rifiuto della release ("Scarica il migliore" non la scarta).
+                logger.LogWarning("Download automatici: {Key}, qBittorrent non ha preso la release dell'admin ({Error})", search.Title.Key, ex.Error);
+                return (GrabOutcome.Unavailable, false);
             }
             catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {

@@ -45,6 +45,9 @@ public interface IArrClient
     /// </summary>
     Task<ArrPushResult> PushReleaseAsync(ArrKind kind, ArrPushRelease release, CancellationToken cancellationToken);
 
+    /// <summary>I grab registrati da <paramref name="since"/> in poi (<c>history/since</c> con <c>eventType=grabbed</c>).</summary>
+    Task<IReadOnlyList<ArrHistoryRecord?>> GetGrabHistoryAsync(ArrKind kind, DateTimeOffset since, CancellationToken cancellationToken);
+
     /// <summary>Una serie di Sonarr per id, con titoli alternativi e tag; 404 se non c'è.</summary>
     Task<SonarrSeries> GetSeriesByIdAsync(int seriesId, CancellationToken cancellationToken);
 

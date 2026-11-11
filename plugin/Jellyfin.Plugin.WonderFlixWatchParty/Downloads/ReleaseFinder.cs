@@ -22,10 +22,22 @@ public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient? prowlarr, IAr
         "Release in queue",
         "Series is not monitored",
         "Episode is not monitored",
+        "One or more episodes is not monitored",
         "Movie is not monitored",
         "Not a Custom Format upgrade",
         "Existing file meets cutoff",
     ];
+
+    // Il push dice "approvata" anche quando il client la rifiuta: si cerca il grab nella cronologia per così tanto.
+    internal static readonly TimeSpan ConfirmWindow = TimeSpan.FromSeconds(15);
+
+    private static readonly TimeSpan ConfirmPoll = TimeSpan.FromSeconds(1);
+
+    // Il margine sull'ora del push per la cronologia: gli orologi di plugin e Sonarr/Radarr possono differire un po'.
+    private static readonly TimeSpan ConfirmMargin = TimeSpan.FromSeconds(10);
+
+    /// <summary>L'attesa fra due letture della cronologia; i test la sostituiscono per non aspettare davvero.</summary>
+    internal Func<TimeSpan, CancellationToken, Task> Wait { get; init; } = (delay, token) => Task.Delay(delay, time, token);
 
     public bool UsesProwlarr => prowlarr is not null && settings.Prowlarr.IsConfigured;
 
@@ -60,6 +72,7 @@ public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient? prowlarr, IAr
         }
 
         ArrPushResult decision;
+        var pushedAt = time.GetUtcNow();
         try
         {
             decision = await arr.PushReleaseAsync(
@@ -79,13 +92,17 @@ public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient? prowlarr, IAr
         }
         catch (ArrException ex) when (ex.Status == 400)
         {
-            // "Unable to parse": Sonarr/Radarr non sanno a cosa attribuirla, è un rifiuto di regola.
+            // "Unable to parse": Sonarr/Radarr non sanno a cosa attribuirla, è un rifiuto di regola. Nel log lo stato, così un
+            // errore di validazione del push si vede (mai titolo né chiavi).
+            logger.LogWarning("Push rifiutato da {Kind} con stato {Status}: release scartata per regola", service, ex.Status);
             return new GrabResult(GrabKind.RuleRefused, "Unable to parse", null);
         }
 
         if (decision.Approved)
         {
-            return new GrabResult(GrabKind.Grabbed, null, null);
+            return await ConfirmGrabAsync(service, release.Title ?? string.Empty, pushedAt, cancellationToken).ConfigureAwait(false)
+                ? new GrabResult(GrabKind.Grabbed, null, null)
+                : new GrabResult(GrabKind.ClientRefused, null, null);
         }
 
         if (decision.TemporarilyRejected)
@@ -105,6 +122,37 @@ public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient? prowlarr, IAr
         // Mai il titolo nel log (è quello che l'utente cerca); i motivi sono di Sonarr/Radarr.
         logger.LogInformation("Push rifiutato ({Reason}): torrent aggiunto direttamente a qBittorrent", reasons[0]);
         return new GrabResult(GrabKind.Direct, null, hash);
+    }
+
+    // Sonarr/Radarr rispondono "approvata" anche se il client di download la rifiuta (l'errore resta dentro di loro): il grab
+    // è vero solo se compare nella cronologia. Una cronologia che non risponde non dice niente: il grab resta.
+    private async Task<bool> ConfirmGrabAsync(ArrKind service, string title, DateTimeOffset pushedAt, CancellationToken cancellationToken)
+    {
+        var deadline = pushedAt + ConfirmWindow;
+        while (true)
+        {
+            try
+            {
+                var grabs = await arr.GetGrabHistoryAsync(service, pushedAt - ConfirmMargin, cancellationToken).ConfigureAwait(false);
+                if (grabs.Any(g => string.Equals(g?.SourceTitle, title, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return true;
+                }
+            }
+            catch (ArrException ex)
+            {
+                logger.LogWarning("Cronologia di {Kind} non letta ({Error}): il push approvato vale come preso", service, ex.Error);
+                return true;
+            }
+
+            if (time.GetUtcNow() >= deadline)
+            {
+                logger.LogWarning("Push approvato da {Kind} ma nessun grab nella cronologia: rifiutato dal client", service);
+                return false;
+            }
+
+            await Wait(ConfirmPoll, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     public async Task<string> AddDirectAsync(ArrKind service, ArrRelease release, CancellationToken cancellationToken)

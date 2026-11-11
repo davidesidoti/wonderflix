@@ -47,6 +47,7 @@ public interface IReleaseFinder
     /// <summary>
     /// Scarica la release: per guid come sempre se viene dalla ricerca di Sonarr/Radarr, con il push se viene da Prowlarr. Un
     /// download <paramref name="intentional"/> che il push scarta solo per file, coda o monitoraggio va direttamente in qBittorrent.
+    /// Un push approvato senza il grab nella cronologia di Sonarr/Radarr è <see cref="GrabKind.ClientRefused"/>.
     /// Gli <see cref="ArrException"/> di Sonarr/Radarr (5xx = rifiuto del client) e i <see cref="Space.QbitException"/> passano.
     /// </summary>
     Task<GrabResult> GrabAsync(ArrKind service, ArrRelease release, bool intentional, CancellationToken cancellationToken);

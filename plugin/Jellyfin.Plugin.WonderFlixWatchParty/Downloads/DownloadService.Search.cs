@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
+using Jellyfin.Plugin.WonderFlixWatchParty.Space;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
@@ -531,9 +532,16 @@ public sealed partial class DownloadService
                 ClientRefused(choice);
                 return false;
             }
+            catch (QbitException ex) when (ex.Error == QbitError.Refused && !cancellationToken.IsCancellationRequested)
+            {
+                // qBittorrent ha risposto "Fails." (di solito il torrent c'è già): come un rifiuto del client.
+                logger.LogWarning("Download automatici: {Key}, qBittorrent ha rifiutato la scelta", item.Key);
+                ClientRefused(choice);
+                return false;
+            }
             catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
-                // Anche un torrent che qBittorrent non ha preso (QbitException).
+                // Anche un qBittorrent giù o lento (QbitException).
                 logger.LogWarning("Download automatici: {Key}, {Kind} non ha scaricato la scelta ({Error})", item.Key, item.Service, ErrorOf(ex));
                 Update(item.Key, (entry, now) =>
                 {

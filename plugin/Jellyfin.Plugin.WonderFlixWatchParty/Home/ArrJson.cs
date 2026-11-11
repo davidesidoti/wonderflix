@@ -625,6 +625,18 @@ public sealed class ArrPushResult
     public List<string>? Rejections { get; set; }
 }
 
+/// <summary>Una riga della cronologia di Sonarr/Radarr (<c>history/since</c>): per un grab il titolo della release e l'id del download.</summary>
+public sealed class ArrHistoryRecord
+{
+    public string? SourceTitle { get; set; }
+
+    public string? DownloadId { get; set; }
+
+    public DateTimeOffset? Date { get; set; }
+
+    public string? EventType { get; set; }
+}
+
 /// <summary>Il peso ammesso per una qualità, in MB per minuto; <c>MaxSize</c> null = senza limite.</summary>
 public sealed class ArrQualityDefinition
 {

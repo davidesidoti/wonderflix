@@ -101,6 +101,12 @@ public sealed class ArrClient(
         return decisions.FirstOrDefault() ?? throw new ArrException(ArrError.Unreachable);
     }
 
+    public async Task<IReadOnlyList<ArrHistoryRecord?>> GetGrabHistoryAsync(ArrKind kind, DateTimeOffset since, CancellationToken cancellationToken) =>
+        await GetAsync<List<ArrHistoryRecord?>>(
+            kind,
+            "history/since?date=" + Uri.EscapeDataString(since.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture)) + "&eventType=grabbed",
+            cancellationToken).ConfigureAwait(false);
+
     public Task<SonarrSeries> GetSeriesByIdAsync(int seriesId, CancellationToken cancellationToken) =>
         GetAsync<SonarrSeries>(ArrKind.Sonarr, $"series/{seriesId.ToString(CultureInfo.InvariantCulture)}", cancellationToken);
 

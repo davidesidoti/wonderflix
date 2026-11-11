@@ -378,7 +378,10 @@ public class QbitClientTests
             ["/api/v2/torrents/add"] = Seq(() => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("Fails.") }),
         });
 
-        await Assert.ThrowsAsync<QbitException>(() => Client().AddAsync("magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567", "series", CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<QbitException>(() => Client().AddAsync("magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567", "series", CancellationToken.None));
+
+        // Un rifiuto, non un qBittorrent che non risponde.
+        Assert.Equal(QbitError.Refused, ex.Error);
     }
 
     [Fact]

@@ -498,13 +498,54 @@ public sealed class DownloadServiceExistingTorrentTests : IDisposable
         {
             UsesProwlarr = true,
             Search = (_, engine) => Task.FromResult(new FinderResult([Release("b", WebRip1080, "WEBRip-1080p", 1.89, 150, indexerId: 3)], [], engine)),
-            Grab = (_, _, _) => Task.FromException<GrabResult>(new QbitException(QbitError.Unreachable)),
+            Grab = (_, _, _) => Task.FromException<GrabResult>(new QbitException(QbitError.Refused)),
         };
         var service = new DownloadService(_arr, new FakeArrSettings(), new FakeDownloadSettings(), Store(), _time, NullLogger<DownloadService>.Instance, null, _qbit, finder) { Pause = TimeSpan.Zero };
         _qbit.Log.Add(Line("Pack", Now));
         _qbit.Torrents.Add(Torrent("Pack"));
 
         var (outcome, existing) = await service.GrabOrFindExistingAsync("movie:12", "b", 3, CancellationToken.None, lighten: true);
+
+        Assert.Equal((GrabOutcome.Refused, new ExistingTorrent("ABC123", "Pack")), (outcome, existing));
+    }
+
+    [Theory]
+    [InlineData(QbitError.Unreachable)]
+    [InlineData(QbitError.NotFound)]
+    [InlineData(QbitError.NotConfigured)]
+    public async Task ADirectAddThatFailsForAnOutageIsUnavailable(QbitError error)
+    {
+        // Un qBittorrent giù non è un rifiuto: "Scarica il migliore" non deve mettere la release fra le rifiutate.
+        var finder = new FakeReleaseFinder
+        {
+            UsesProwlarr = true,
+            Search = (_, engine) => Task.FromResult(new FinderResult([Release("b", WebRip1080, "WEBRip-1080p", 1.89, 150, indexerId: 3)], [], engine)),
+            Grab = (_, _, _) => Task.FromException<GrabResult>(new QbitException(error)),
+        };
+        var service = new DownloadService(_arr, new FakeArrSettings(), new FakeDownloadSettings(), Store(), _time, NullLogger<DownloadService>.Instance, null, _qbit, finder) { Pause = TimeSpan.Zero };
+        _qbit.Log.Add(Line("Pack", Now));
+        _qbit.Torrents.Add(Torrent("Pack"));
+
+        var (outcome, existing) = await service.GrabOrFindExistingAsync("movie:12", "b", 3, CancellationToken.None, lighten: true);
+
+        Assert.Equal((GrabOutcome.Unavailable, (ExistingTorrent?)null), (outcome, existing));
+    }
+
+    [Fact]
+    public async Task AnUnconfirmedPushFindsTheExistingTorrent()
+    {
+        // Sonarr/Radarr hanno approvato il push, ma il grab non c'è nella cronologia: il torrent c'era già in qBittorrent.
+        var finder = new FakeReleaseFinder
+        {
+            UsesProwlarr = true,
+            Search = (_, engine) => Task.FromResult(new FinderResult([Release("b", WebRip1080, "WEBRip-1080p", 1.89, 150, indexerId: 3)], [], engine)),
+            Grab = (_, _, _) => Task.FromResult(new GrabResult(GrabKind.ClientRefused, null, null)),
+        };
+        var service = new DownloadService(_arr, new FakeArrSettings(), new FakeDownloadSettings(), Store(), _time, NullLogger<DownloadService>.Instance, null, _qbit, finder) { Pause = TimeSpan.Zero };
+        _qbit.Log.Add(Line("Pack", Now));
+        _qbit.Torrents.Add(Torrent("Pack"));
+
+        var (outcome, existing) = await service.GrabOrFindExistingAsync("movie:12", "b", 3, CancellationToken.None);
 
         Assert.Equal((GrabOutcome.Refused, new ExistingTorrent("ABC123", "Pack")), (outcome, existing));
     }

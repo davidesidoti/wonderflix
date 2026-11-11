@@ -20,7 +20,15 @@ public class ReleaseFinderTests
 
     private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 11, 11, 12, 0, 0, TimeSpan.Zero));
 
-    private ReleaseFinder Finder() => new(_arr, _prowlarr, _settings, _logger, _qbit, _time);
+    // L'attesa fra le letture della cronologia fa solo avanzare l'orologio finto.
+    private ReleaseFinder Finder() => new(_arr, _prowlarr, _settings, _logger, _qbit, _time)
+    {
+        Wait = (delay, _) =>
+        {
+            _time.Advance(delay);
+            return Task.CompletedTask;
+        },
+    };
 
     private static ArrIndexer Indexer(int id, int? prowlarrId, bool interactive = true, int[]? categories = null, int[]? anime = null)
     {
@@ -422,6 +430,85 @@ public class ReleaseFinderTests
 
         var error = await Assert.ThrowsAsync<ArrException>(() => Finder().GrabAsync(ArrKind.Sonarr, Pushed(), true, CancellationToken.None));
         Assert.Equal(500, error.Status);
+    }
+
+    [Fact]
+    public async Task IntentionalUnmonitoredEpisodesGoDirect()
+    {
+        Rejects("One or more episodes is not monitored");
+
+        Assert.Equal(GrabKind.Direct, (await Finder().GrabAsync(ArrKind.Sonarr, Pushed(), true, CancellationToken.None)).Kind);
+    }
+
+    [Fact]
+    public async Task AnApprovedPushIsConfirmedInTheHistory()
+    {
+        _arr.History = (_, _) => Task.FromResult<IReadOnlyList<ArrHistoryRecord?>>(
+            [new ArrHistoryRecord { SourceTitle = "Other", EventType = "grabbed" }, new ArrHistoryRecord { SourceTitle = "show s01 1080P", EventType = "grabbed" }]);
+
+        var result = await Finder().GrabAsync(ArrKind.Radarr, Pushed(), false, CancellationToken.None);
+
+        Assert.Equal(GrabKind.Grabbed, result.Kind);
+        var (kind, since) = Assert.Single(_arr.HistoryCalls);
+        Assert.Equal((ArrKind.Radarr, _time.GetUtcNow() - TimeSpan.FromSeconds(10)), (kind, since));
+    }
+
+    [Fact]
+    public async Task AGrabThatShowsUpLaterIsGrabbed()
+    {
+        var calls = 0;
+        _arr.History = (_, _) => Task.FromResult<IReadOnlyList<ArrHistoryRecord?>>(
+            ++calls < 3 ? [] : [new ArrHistoryRecord { SourceTitle = "Show S01 1080p", EventType = "grabbed" }]);
+
+        var result = await Finder().GrabAsync(ArrKind.Sonarr, Pushed(), false, CancellationToken.None);
+
+        Assert.Equal(GrabKind.Grabbed, result.Kind);
+        Assert.Equal(3, _arr.HistoryCalls.Count);
+    }
+
+    [Fact]
+    public async Task AnApprovedPushWithoutAGrabIsClientRefused()
+    {
+        // Sonarr dice "approvata" anche quando qBittorrent rifiuta il torrent (per esempio perché c'è già).
+        var start = _time.GetUtcNow();
+        _arr.History = (_, _) => Task.FromResult<IReadOnlyList<ArrHistoryRecord?>>([new ArrHistoryRecord { SourceTitle = "Other", EventType = "grabbed" }]);
+
+        var result = await Finder().GrabAsync(ArrKind.Sonarr, Pushed(), false, CancellationToken.None);
+
+        Assert.Equal(GrabKind.ClientRefused, result.Kind);
+        Assert.True(_arr.HistoryCalls.Count > 2);
+        Assert.InRange(_time.GetUtcNow() - start, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(17));
+    }
+
+    [Fact]
+    public async Task AHistoryThatDoesNotAnswerKeepsTheGrab()
+    {
+        _arr.History = (_, _) => Task.FromException<IReadOnlyList<ArrHistoryRecord?>>(new ArrException(ArrError.Unreachable, status: 500));
+
+        Assert.Equal(GrabKind.Grabbed, (await Finder().GrabAsync(ArrKind.Sonarr, Pushed(), false, CancellationToken.None)).Kind);
+    }
+
+    [Fact]
+    public async Task APendingPushIsNotConfirmed()
+    {
+        _arr.Push = (_, _) => Task.FromResult(new ArrPushResult { TemporarilyRejected = true });
+
+        await Finder().GrabAsync(ArrKind.Sonarr, Pushed(), false, CancellationToken.None);
+
+        Assert.Empty(_arr.HistoryCalls);
+    }
+
+    [Fact]
+    public async Task APush400IsLoggedWithItsStatus()
+    {
+        _arr.Push = (_, _) => Task.FromException<ArrPushResult>(new ArrException(ArrError.Unreachable, status: 400));
+
+        await Finder().GrabAsync(ArrKind.Sonarr, Pushed("http://prowlarr/dl?apikey=secret"), true, CancellationToken.None);
+
+        var entry = Assert.Single(_logger.Entries, e => e.Level == LogLevel.Warning);
+        Assert.Contains("400", entry.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Show", entry.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret", entry.Message, StringComparison.Ordinal);
     }
 
     [Fact]
