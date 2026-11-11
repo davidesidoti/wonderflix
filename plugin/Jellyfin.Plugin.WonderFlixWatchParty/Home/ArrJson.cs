@@ -289,6 +289,35 @@ public sealed class ArrRelease
     public List<int>? SeasonEpisodeNumbers => MappedEpisodeNumbers is { Count: > 0 } ? MappedEpisodeNumbers : EpisodeNumbers;
 
     public int SeasonNumber { get; set; }
+
+    /// <summary>Da dove viene: Sonarr/Radarr stessi o Prowlarr (i campi sotto servono solo a quest'ultimo).</summary>
+    [JsonIgnore]
+    public ReleaseSource Source { get; set; }
+
+    /// <summary>Il .torrent da scaricare tramite Prowlarr; null per chi dà solo il magnet.</summary>
+    [JsonIgnore]
+    public string? DownloadUrl { get; set; }
+
+    [JsonIgnore]
+    public string? MagnetUrl { get; set; }
+
+    /// <summary>"torrent" o "usenet".</summary>
+    [JsonIgnore]
+    public string? Protocol { get; set; }
+
+    [JsonIgnore]
+    public DateTimeOffset? PublishDate { get; set; }
+
+    /// <summary>Non null = il parse l'attribuisce ad altro: testo breve per il log.</summary>
+    [JsonIgnore]
+    public string? WrongTitle { get; set; }
+}
+
+/// <summary>Chi ha trovato la release.</summary>
+public enum ReleaseSource
+{
+    Arr,
+    Prowlarr,
 }
 
 /// <summary>Una voce del profilo: una qualità sola (Quality) o un gruppo (Name e Items) (spec T §2).</summary>
