@@ -9,6 +9,8 @@ internal sealed class FakeArrSettings : IArrSettings
 
     public ArrEndpoint Radarr { get; set; } = new("https://arr.example/radarr", "radarr-key");
 
+    public ArrEndpoint Prowlarr { get; set; } = new("https://arr.example/prowlarr", "prowlarr-key");
+
     public int SeriesDays { get; set; } = ArrLimits.DefaultSeriesDays;
 
     public int MovieDays { get; set; } = ArrLimits.DefaultMovieDays;

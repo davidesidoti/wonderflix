@@ -106,6 +106,14 @@
                             <div class="fieldDescription">Radarr → Settings → General → API Key.</div>
                         </div>
                         <div class="inputContainer">
+                            <input is="emby-input" type="url" id="WonderFlixProwlarrUrl" label="Prowlarr address" placeholder="https://example.com/prowlarr" />
+                            <div class="fieldDescription">As seen from the Jellyfin server, with the URL base. Empty: release searches go through Sonarr and Radarr.</div>
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="password" id="WonderFlixProwlarrApiKey" label="Prowlarr API key" autocomplete="new-password" />
+                            <div class="fieldDescription">Prowlarr → Settings → General → API Key.</div>
+                        </div>
+                        <div class="inputContainer">
                             <input is="emby-input" type="number" id="WonderFlixUpcomingSeriesDays" label="Upcoming episodes for (days)" min="1" max="60" required />
                         </div>
                         <div class="inputContainer">
@@ -659,6 +667,8 @@
                     SonarrApiKey: page.querySelector('#WonderFlixSonarrApiKey'),
                     RadarrUrl: page.querySelector('#WonderFlixRadarrUrl'),
                     RadarrApiKey: page.querySelector('#WonderFlixRadarrApiKey'),
+                    ProwlarrUrl: page.querySelector('#WonderFlixProwlarrUrl'),
+                    ProwlarrApiKey: page.querySelector('#WonderFlixProwlarrApiKey'),
                     UpcomingSeriesDays: page.querySelector('#WonderFlixUpcomingSeriesDays'),
                     UpcomingMoviesDays: page.querySelector('#WonderFlixUpcomingMoviesDays')
                 };
@@ -699,6 +709,8 @@
                         config.SonarrApiKey = arrFields.SonarrApiKey.value.trim();
                         config.RadarrUrl = arrFields.RadarrUrl.value.trim();
                         config.RadarrApiKey = arrFields.RadarrApiKey.value.trim();
+                        config.ProwlarrUrl = arrFields.ProwlarrUrl.value.trim();
+                        config.ProwlarrApiKey = arrFields.ProwlarrApiKey.value.trim();
                         config.UpcomingSeriesDays = numberIn(arrFields.UpcomingSeriesDays, config.UpcomingSeriesDays);
                         config.UpcomingMoviesDays = numberIn(arrFields.UpcomingMoviesDays, config.UpcomingMoviesDays);
                         return ApiClient.updatePluginConfiguration(pluginId, config);

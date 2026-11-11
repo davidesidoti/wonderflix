@@ -75,6 +75,15 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Chiave API di Sonarr (Settings → General). Il file lo leggono solo gli admin.</summary>
     public string SonarrApiKey { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Indirizzo di Prowlarr visto dal server Jellyfin, con l'UrlBase. Vuoto (o senza chiave): le ricerche di release
+    /// passano da Sonarr e Radarr come prima.
+    /// </summary>
+    public string ProwlarrUrl { get; set; } = string.Empty;
+
+    /// <summary>Chiave API di Prowlarr (Settings → General). Il file lo leggono solo gli admin.</summary>
+    public string ProwlarrApiKey { get; set; } = string.Empty;
+
     /// <summary>Indirizzo di Radarr, come Sonarr. Vuoto: niente "Film in arrivo".</summary>
     public string RadarrUrl { get; set; } = string.Empty;
 

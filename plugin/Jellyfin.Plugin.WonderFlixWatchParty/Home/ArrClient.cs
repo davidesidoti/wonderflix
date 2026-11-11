@@ -254,8 +254,27 @@ public sealed class ArrClient(
         }
     }
 
-    private async Task<T> SendCoreAsync<T>(
+    private Task<T> SendCoreAsync<T>(
         ArrKind kind,
+        HttpMethod method,
+        string path,
+        object? body,
+        TimeSpan timeout,
+        Func<HttpResponseMessage, CancellationToken, Task<T>> read,
+        CancellationToken cancellationToken) =>
+        SendToServiceAsync(
+            httpClientFactory, logger, kind.ToString(), settings.Endpoint(kind), "v3", method, path, body, timeout, read, cancellationToken);
+
+    /// <summary>
+    /// La chiamata e la classificazione degli errori, in comune con <see cref="ProwlarrClient"/>:
+    /// <paramref name="service"/> è il nome nel registro, <paramref name="apiVersion"/> la parte "v3" o "v1" dell'indirizzo.
+    /// </summary>
+    internal static async Task<T> SendToServiceAsync<T>(
+        IHttpClientFactory httpClientFactory,
+        ILogger logger,
+        string service,
+        ArrEndpoint endpoint,
+        string apiVersion,
         HttpMethod method,
         string path,
         object? body,
@@ -263,7 +282,6 @@ public sealed class ArrClient(
         Func<HttpResponseMessage, CancellationToken, Task<T>> read,
         CancellationToken cancellationToken)
     {
-        var endpoint = settings.Endpoint(kind);
         if (!endpoint.IsConfigured)
         {
             throw new ArrException(ArrError.NotConfigured);
@@ -274,7 +292,7 @@ public sealed class ArrClient(
         timeoutSource.CancelAfter(timeout);
         try
         {
-            using var request = new HttpRequestMessage(method, $"{endpoint.Url}/api/v3/{path}");
+            using var request = new HttpRequestMessage(method, $"{endpoint.Url}/api/{apiVersion}/{path}");
             request.Headers.Add("X-Api-Key", endpoint.ApiKey);
             if (body is not null)
             {
@@ -286,7 +304,7 @@ public sealed class ArrClient(
                 .ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
-                logger.LogInformation("{Service} {Method} {Path}: {Status}", kind, method, logPath, (int)response.StatusCode);
+                logger.LogInformation("{Service} {Method} {Path}: {Status}", service, method, logPath, (int)response.StatusCode);
                 throw new ArrException(Classify((int)response.StatusCode), null, (int)response.StatusCode);
             }
 
@@ -294,7 +312,7 @@ public sealed class ArrClient(
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            logger.LogWarning("{Service} {Method} {Path}: nessuna risposta in {Timeout}", kind, method, logPath, timeout);
+            logger.LogWarning("{Service} {Method} {Path}: nessuna risposta in {Timeout}", service, method, logPath, timeout);
             throw new ArrException(ArrError.Unreachable) { TimedOut = true };
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or NotSupportedException
@@ -303,7 +321,7 @@ public sealed class ArrClient(
             // FormatException copre UriFormatException e Headers.Add con una chiave con a capo.
             // Questi messaggi non contengono né la chiave né la query.
             logger.LogWarning(
-                "{Service} {Method} {Path} non riuscita: {Error} {Message}", kind, method, logPath, ex.GetType().Name, ex.Message);
+                "{Service} {Method} {Path} non riuscita: {Error} {Message}", service, method, logPath, ex.GetType().Name, ex.Message);
             throw new ArrException(ArrError.Unreachable, ex);
         }
     }

@@ -40,6 +40,9 @@ public interface IArrSettings
 
     ArrEndpoint Radarr { get; }
 
+    /// <summary>Prowlarr: non configurato (<see cref="ArrEndpoint.None"/>) finché l'admin non lo imposta.</summary>
+    ArrEndpoint Prowlarr { get; }
+
     /// <summary>Giorni di "Serie in arrivo", già fra 1 e 60.</summary>
     int SeriesDays { get; }
 

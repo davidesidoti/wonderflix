@@ -14,6 +14,8 @@ public sealed class PluginArrSettings : IArrSettings
 
     public ArrEndpoint Radarr => Endpoint(Config?.RadarrUrl, Config?.RadarrApiKey);
 
+    public ArrEndpoint Prowlarr => Endpoint(Config?.ProwlarrUrl, Config?.ProwlarrApiKey);
+
     public int SeriesDays => ClampDays(Config?.UpcomingSeriesDays ?? ArrLimits.DefaultSeriesDays, ArrLimits.MaxSeriesDays);
 
     public int MovieDays => ClampDays(Config?.UpcomingMoviesDays ?? ArrLimits.DefaultMovieDays, ArrLimits.MaxMovieDays);

@@ -85,6 +85,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false })
             .RedactLoggedHeaders(["X-Api-Key"]);
         serviceCollection.AddSingleton<IArrClient, ArrClient>();
+        serviceCollection.AddSingleton<IProwlarrClient, ProwlarrClient>();
         // Spazio (spec U): qBittorrent. Il cookie SID lo gestisce il client: niente CookieContainer, niente redirect,
         // e Cookie/Set-Cookie non vanno nei log del client HTTP.
         serviceCollection.AddSingleton<ISpaceSettings, PluginSpaceSettings>();
