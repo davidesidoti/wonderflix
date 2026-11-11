@@ -14,8 +14,8 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/wf_image.dart';
 import '../library/library_providers.dart';
-import '../player/player_overlay.dart';
 import '../player/player_commands.dart';
+import '../player/player_overlay.dart';
 import '../player/player_providers.dart';
 import '../player/player_volume.dart';
 import '../player/seek_bar.dart';
@@ -125,7 +125,7 @@ class _TrailerScreenState extends ConsumerState<TrailerScreen> {
     if (!mounted) return;
     setState(() {});
     // Il volume ricordato del player; il muto no.
-    await engine.setVolume(ref.read(playerVolumeProvider));
+    await engine.setVolume(_muted ? 0 : ref.read(playerVolumeProvider));
     await engine.play();
   }
 
@@ -203,8 +203,9 @@ class _TrailerScreenState extends ConsumerState<TrailerScreen> {
       if (down) _unavailable ? _close() : _togglePlay();
       return KeyEventResult.handled;
     }
-    // Sulla TV il volume lo regola il telecomando.
-    if (!FormFactor.of(context).tv) {
+    // Sulla TV il volume lo regola il telecomando; senza trailer non c'è nulla
+    // da regolare (e il volume ricordato non va toccato).
+    if (!FormFactor.of(context).tv && _engine != null && !_unavailable) {
       final volume = ref.read(playerVolumeProvider);
       if (key == LogicalKeyboardKey.arrowUp) {
         _setVolume(volume + volumeStep);

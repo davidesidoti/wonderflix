@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:wonderflix/app/navigation.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/trailers/trailers_api.dart';
+import 'package:wonderflix/core/video/video_engine.dart';
 import 'package:wonderflix/features/player/player_commands.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_volume.dart';
@@ -278,6 +279,35 @@ void main() {
     await tester.pump();
     expect(engine.volumes.length, before);
   });
+
+  testWidgets('noVolumeKeysWhenUnavailable', (tester) async {
+    api.startResult = const TrailerStatus('k1', TrailerState.failed);
+    await pumpTrailer(tester, volume: 50);
+    expect(find.text('Trailer non disponibile'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyM);
+    await tester.pump();
+    expect(engine.volumes, isEmpty);
+    expect(
+      ProviderScope.containerOf(tester.element(find.text('Chiudi')))
+          .read(playerVolumeProvider),
+      50,
+    );
+  });
+
+  testWidgets('muteDuringOpenStaysMuted', (tester) async {
+    final slow = _SlowOpenEngine();
+    engine = slow;
+    await pumpTrailer(tester, volume: 60);
+    expect(engine.calls, ['open']);
+    await tester.tap(find.byTooltip('Disattiva audio'));
+    await tester.pump();
+    slow.finishOpen();
+    await tester.pump();
+    await tester.pump();
+    expect(engine.calls, ['open', 'play']);
+    expect(engine.volumes.last, 0);
+  });
 }
 
 /// Ricorda quanti volumi erano già stati impostati quando parte `play()`.
@@ -288,5 +318,18 @@ class _OrderedEngine extends FakeVideoEngine {
   Future<void> play() async {
     volumesAtPlay = volumes.length;
     await super.play();
+  }
+}
+
+/// `open` resta in attesa finché il test non la completa.
+class _SlowOpenEngine extends FakeVideoEngine {
+  final _gate = Completer<void>();
+
+  void finishOpen() => _gate.complete();
+
+  @override
+  Future<void> open(VideoSource source) async {
+    await super.open(source);
+    await _gate.future;
   }
 }
