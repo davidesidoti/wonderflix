@@ -72,6 +72,25 @@ final downloadSearchRunningProvider = NotifierProvider.autoDispose
       DownloadSearchRunningNotifier.new,
     );
 
+/// Vero se l'ultima ricerca di un titolo (la chiave) è stata "Cerca con
+/// Sonarr/Radarr": riprovando o rientrando nella pagina si cerca di nuovo con
+/// loro. Non si smonta con la pagina.
+class DownloadSearchViaArr extends Notifier<bool> {
+  DownloadSearchViaArr(this.key);
+
+  final String key;
+
+  @override
+  bool build() => false;
+
+  void set(bool value) => state = value;
+}
+
+final downloadSearchViaArrProvider =
+    NotifierProvider.family<DownloadSearchViaArr, bool, String>(
+      DownloadSearchViaArr.new,
+    );
+
 /// La ricerca delle release di un titolo (la chiave, opaca) e le scelte
 /// dell'admin (spec T §8.2). Smontando il provider la ricerca in corso viene
 /// annullata. Con `downloadsSearchJobs` la ricerca gira sul plugin e il
@@ -102,8 +121,10 @@ class DownloadSearchController extends AsyncNotifier<DownloadSearch> {
       _token?.cancel();
       _timer?.cancel();
     });
-    return _jobs ? _job() : _search();
+    return _jobs ? _job(viaArr: _viaArr) : _search();
   }
+
+  bool get _viaArr => ref.read(downloadSearchViaArrProvider(key));
 
   bool get _jobs => ref.read(socialAvailabilityProvider).downloadsSearchJobs;
 
@@ -187,22 +208,26 @@ class DownloadSearchController extends AsyncNotifier<DownloadSearch> {
 
   bool get grabbing => ref.read(downloadGrabbingProvider(key));
 
-  /// Rilancia la ricerca (sul plugin: `again`, anche se ha già un risultato).
-  Future<void> searchAgain() => _restart(again: true);
+  /// Rilancia la ricerca (sul plugin: `again`, anche se ha già un risultato),
+  /// con Prowlarr.
+  Future<void> searchAgain() => _restart(again: true, viaArr: false);
 
   /// Come [searchAgain], ma con Sonarr/Radarr invece che con Prowlarr.
   Future<void> searchViaArr() => _restart(again: true, viaArr: true);
 
   /// Dopo un errore: riprende a chiedere lo stato senza rilanciare la ricerca
-  /// sul plugin.
+  /// sul plugin, con il motore dell'ultima ricerca.
   Future<void> retry() => _restart(again: false);
 
-  Future<void> _restart({required bool again, bool viaArr = false}) async {
+  Future<void> _restart({required bool again, bool? viaArr}) async {
     _token?.cancel();
+    if (viaArr != null) {
+      ref.read(downloadSearchViaArrProvider(key).notifier).set(viaArr);
+    }
     state = const AsyncLoading();
     try {
       final search = await (_jobs
-          ? _job(again: again, viaArr: viaArr)
+          ? _job(again: again, viaArr: _viaArr)
           : _search());
       if (ref.mounted) state = AsyncData(search);
     } on Object catch (error, stack) {

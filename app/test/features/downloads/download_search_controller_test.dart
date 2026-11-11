@@ -337,6 +337,67 @@ void main() {
       });
     });
 
+    test('retryAfterAnArrSearchKeepsTheArrEngine', () {
+      fakeAsync((async) {
+        api.searchStatuses.addAll([done, network]);
+        final (c, sub) = open();
+        async.elapse(Duration.zero);
+        final notifier =
+            c.read(downloadSearchControllerProvider(_key).notifier);
+        unawaited(notifier.searchViaArr());
+        async.elapse(Duration.zero);
+        api.calls.clear();
+
+        unawaited(notifier.retry());
+        async.elapse(Duration.zero);
+
+        expect(callsOf(_key), ['start movie:1 arr']);
+        sub.close();
+      });
+    });
+
+    test('reopeningThePageAfterAnArrSearchKeepsTheArrEngine', () {
+      fakeAsync((async) {
+        final (c, sub) = open();
+        async.elapse(Duration.zero);
+        unawaited(c
+            .read(downloadSearchControllerProvider(_key).notifier)
+            .searchViaArr());
+        async.elapse(Duration.zero);
+
+        // Esce dalla pagina (il controller si smonta) e rientra.
+        sub.close();
+        async.elapse(Duration.zero);
+        api.calls.clear();
+        final again =
+            c.listen(downloadSearchControllerProvider(_key), (_, _) {});
+        async.elapse(Duration.zero);
+
+        expect(callsOf(_key), ['start movie:1 arr']);
+        again.close();
+      });
+    });
+
+    test('searchAgainAfterAnArrSearchUsesProwlarr', () {
+      fakeAsync((async) {
+        final (c, sub) = open();
+        async.elapse(Duration.zero);
+        final notifier =
+            c.read(downloadSearchControllerProvider(_key).notifier);
+        unawaited(notifier.searchViaArr());
+        async.elapse(Duration.zero);
+        api.calls.clear();
+
+        unawaited(notifier.searchAgain());
+        async.elapse(Duration.zero);
+        unawaited(notifier.retry());
+        async.elapse(Duration.zero);
+
+        expect(callsOf(_key), ['start movie:1 again', 'start movie:1']);
+        sub.close();
+      });
+    });
+
     test('exposesStartedAtAndServiceWhileRunning', () {
       fakeAsync((async) {
         api.searchStatuses.addAll([running, done]);
