@@ -94,6 +94,7 @@ public class ServiceRegistrationTests
         Assert.IsType<Server.PluginArrSettings>(provider.GetRequiredService<Home.IArrSettings>());
         Assert.IsType<Home.ArrClient>(provider.GetRequiredService<Home.IArrClient>());
         Assert.IsType<Home.ProwlarrClient>(provider.GetRequiredService<Home.IProwlarrClient>());
+        Assert.IsType<Downloads.ReleaseFinder>(provider.GetRequiredService<Downloads.IReleaseFinder>());
         // Il limite di HttpClient (100 s) taglierebbe una ricerca di release prima dei 15 minuti di ArrClient.
         Assert.Equal(Timeout.InfiniteTimeSpan, provider.GetRequiredService<IHttpClientFactory>().CreateClient(Home.ArrClient.HttpClientName).Timeout);
         Assert.IsType<Server.JellyfinSeriesIndex>(provider.GetRequiredService<Home.ISeriesIndex>());

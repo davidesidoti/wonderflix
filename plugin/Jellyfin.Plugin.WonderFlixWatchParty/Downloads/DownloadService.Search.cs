@@ -285,13 +285,8 @@ public sealed partial class DownloadService
         return episodes is { Count: > 0 } ? item with { Episodes = episodes, SplitInto = season?.Episodes } : null;
     }
 
-    // La query di release per la chiave.
-    private static string QueryOf(DownloadKey key) => key.Kind switch
-    {
-        DownloadKinds.Movie => string.Create(CultureInfo.InvariantCulture, $"movieId={key.Id}"),
-        DownloadKinds.Episode => string.Create(CultureInfo.InvariantCulture, $"episodeId={key.Id}"),
-        _ => string.Create(CultureInfo.InvariantCulture, $"seriesId={key.Id}&seasonNumber={key.Season}"),
-    };
+    // La query di release per la chiave: ora sta nel finder (Task 8 sposterà qui anche la chiamata).
+    private static string QueryOf(DownloadKey key) => ReleaseFinder.QueryOf(key);
 
     // Una ricerca e quello che ne segue; true se ha scaricato.
     private async Task<bool> SearchOneAsync(SearchItem item, SearchContext context, CancellationToken cancellationToken)

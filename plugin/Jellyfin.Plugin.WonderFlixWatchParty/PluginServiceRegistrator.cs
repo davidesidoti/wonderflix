@@ -137,6 +137,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             DownloadStore.DefaultPath(provider.GetRequiredService<IApplicationPaths>()),
             provider.GetRequiredService<ILogger<DownloadStore>>()));
         serviceCollection.AddSingleton<IDownloadSettings, PluginDownloadSettings>();
+        serviceCollection.AddSingleton<IReleaseFinder, ReleaseFinder>();
         serviceCollection.AddSingleton<DownloadService>();
         serviceCollection.AddSingleton(provider => new SpaceStore(
             SpaceStore.DefaultPath(provider.GetRequiredService<IApplicationPaths>()),
