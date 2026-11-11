@@ -1694,5 +1694,8 @@
   "nextUpChangeFailed": "Prossimi episodi non aggiornati: riprova",
   "resumeHide": "Togli da Continua a guardare",
   "resumeHidden": "Tolto da Continua a guardare",
-  "resumeChangeFailed": "Continua a guardare non aggiornato: riprova"
+  "resumeChangeFailed": "Continua a guardare non aggiornato: riprova",
+  "trailerPreparing": "Preparo il trailer…",
+  "trailerUnavailable": "Trailer non disponibile",
+  "trailerClose": "Chiudi"
 }

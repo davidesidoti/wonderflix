@@ -1505,5 +1505,8 @@
   "nextUpChangeFailed": "Couldn't update Next up: try again",
   "resumeHide": "Remove from Continue watching",
   "resumeHidden": "Removed from Continue watching",
-  "resumeChangeFailed": "Couldn't update Continue watching: try again"
+  "resumeChangeFailed": "Couldn't update Continue watching: try again",
+  "trailerPreparing": "Preparing the trailer…",
+  "trailerUnavailable": "Trailer not available",
+  "trailerClose": "Close"
 }

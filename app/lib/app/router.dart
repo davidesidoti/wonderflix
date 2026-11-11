@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../core/jellyfin/item_models.dart';
 import '../core/platform/platform_info.dart';
 import '../core/platform/tv_provider.dart';
+import '../core/trailers/trailers_api.dart';
 import '../features/admin/admin_navigation.dart';
 import '../features/admin/admin_screen.dart';
 import '../features/auth/login_screen.dart';
@@ -32,6 +33,7 @@ import '../features/search/search_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/startup/splash_screen.dart';
 import '../features/startup/unreachable_screen.dart';
+import '../features/trailer/trailer_screen.dart';
 import '../ui/form_factor.dart';
 import 'app_shell.dart';
 import 'hero_launch.dart';
@@ -188,6 +190,31 @@ final routerProvider = Provider<GoRouter>((ref) {
               party: state.uri.queryParameters['party'],
             ),
             fullscreen: state.uri.queryParameters['fs'] == '1',
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/trailer/item/:id',
+        pageBuilder: (context, state) => playerPage(
+          context,
+          state,
+          TrailerScreen(
+            subject: LibraryTrailer(state.pathParameters['id']!),
+            title: state.uri.queryParameters['title'],
+            backdropItemId: state.uri.queryParameters['backdrop'],
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/trailer/tmdb/:type/:tmdbId',
+        pageBuilder: (context, state) => playerPage(
+          context,
+          state,
+          TrailerScreen(
+            subject: TmdbTrailer(state.pathParameters['type']!,
+                int.tryParse(state.pathParameters['tmdbId']!) ?? 0),
+            title: state.uri.queryParameters['title'],
+            backdropItemId: state.uri.queryParameters['backdrop'],
           ),
         ),
       ),

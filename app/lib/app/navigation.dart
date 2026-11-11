@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/jellyfin/item_models.dart';
+import '../core/trailers/trailers_api.dart';
 import '../features/library/library_providers.dart';
 import 'hero_launch.dart';
 
@@ -100,6 +101,20 @@ String playerRoute(String itemId,
   };
   return Uri(
     path: '/play/$itemId',
+    queryParameters: query.isEmpty ? null : query,
+  ).toString();
+}
+
+/// Percorso della schermata del trailer; [title] e [backdropItemId] (lo
+/// sfondo mentre si prepara) vanno nella query.
+String trailerRoute(TrailerSubject subject,
+    {String? title, String? backdropItemId}) {
+  final query = {'title': ?title, 'backdrop': ?backdropItemId};
+  return Uri(
+    path: switch (subject) {
+      LibraryTrailer(:final itemId) => '/trailer/item/$itemId',
+      TmdbTrailer(:final type, :final tmdbId) => '/trailer/tmdb/$type/$tmdbId',
+    },
     queryParameters: query.isEmpty ? null : query,
   ).toString();
 }
