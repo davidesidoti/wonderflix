@@ -32,7 +32,7 @@ public sealed class TrailersControllerTests : IDisposable
         };
         var cache = new TrailerCache(_folder, _time);
         var resolver = new TrailerResolver(new FakeTrailerLibrary(), _seerr, new FakeSeerrSettings(), _time);
-        _service = new TrailerService(resolver, _downloader, cache, NullLogger<TrailerService>.Instance);
+        _service = new TrailerService(resolver, _downloader, cache, _time, NullLogger<TrailerService>.Instance);
         var user = new User("mario", "provider", "reset");
         _controller = new TrailersController(
             new FakeAuthorizationContext(new AuthorizationInfo { DeviceId = "d", Client = "WonderFlix", User = user, IsAuthenticated = true }),

@@ -4,8 +4,8 @@ using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty;
 
-/// <summary>Svuota la cache dei trailer all'avvio e toglie i file vecchi ogni <see cref="SweepInterval"/>.</summary>
-public sealed class TrailersHostedService(TrailerCache cache, TimeProvider time, ILogger<TrailersHostedService> logger)
+/// <summary>Svuota la cache dei trailer all'avvio, toglie i file vecchi ogni <see cref="SweepInterval"/> e allo stop annulla i download in corso.</summary>
+public sealed class TrailersHostedService(TrailerCache cache, TrailerService trailers, TimeProvider time, ILogger<TrailersHostedService> logger)
     : IHostedService, IDisposable
 {
     public static readonly TimeSpan SweepInterval = TimeSpan.FromMinutes(5);
@@ -31,6 +31,7 @@ public sealed class TrailersHostedService(TrailerCache cache, TimeProvider time,
 
     public Task StopAsync(CancellationToken cancellationToken)
     {
+        trailers.Stop();
         Dispose();
         return Task.CompletedTask;
     }

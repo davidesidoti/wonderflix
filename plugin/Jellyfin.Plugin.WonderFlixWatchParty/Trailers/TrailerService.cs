@@ -18,11 +18,25 @@ public static class TrailerStates
 /// Il download gira anche se la richiesta si chiude. La chiave è l'id del video, e vale solo se il risolutore l'ha dato di recente.
 /// </summary>
 public sealed class TrailerService(
-    TrailerResolver resolver, ITrailerDownloader downloader, TrailerCache cache, ILogger<TrailerService> logger)
+    TrailerResolver resolver, ITrailerDownloader downloader, TrailerCache cache, TimeProvider time, ILogger<TrailerService> logger)
 {
+    /// <summary>Quanti download (yt-dlp + ffmpeg) girano insieme: gli altri aspettano, così il tetto di 1 GB della cache regge e la CPU del server no.</summary>
+    internal const int MaxConcurrentDownloads = 2;
+
+    /// <summary>Per quanto si ricorda che un video è vietato, troppo lungo o troppo grande, per non riprovarlo a ogni tocco.</summary>
+    internal static readonly TimeSpan UnavailableFor = TimeSpan.FromHours(24);
+
     // Un job fallito resta qui, perché chi interroga veda "Failed"; il prossimo StartAsync lo sostituisce.
     private readonly ConcurrentDictionary<string, Task<TrailerDownloadOutcome>> _jobs = new();
     private readonly object _gate = new();
+    private readonly SemaphoreSlim _slots = new(MaxConcurrentDownloads);
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _unavailableUntil = new();
+
+    // Annullato solo quando il plugin si ferma (le richieste degli utenti non annullano mai un download).
+    private readonly CancellationTokenSource _stop = new();
+
+    /// <summary>Il plugin si ferma: annulla i download in corso, e il downloader uccide l'albero dei suoi processi.</summary>
+    public void Stop() => _stop.Cancel();
 
     public async Task<TrailerInfoDto> InfoAsync(Guid userId, TrailerSubject subject, CancellationToken cancellationToken)
     {
@@ -43,6 +57,11 @@ public sealed class TrailerService(
             return new TrailerStatusDto(id, TrailerStates.Ready);
         }
 
+        if (_unavailableUntil.TryGetValue(id, out var until) && time.GetUtcNow() < until)
+        {
+            return new TrailerStatusDto(id, TrailerStates.Failed);
+        }
+
         lock (_gate)
         {
             if (cache.Has(id))
@@ -52,7 +71,6 @@ public sealed class TrailerService(
 
             if (!_jobs.TryGetValue(id, out var job) || job.IsCompleted)
             {
-                cache.MakeRoom();
                 _jobs[id] = Task.Run(() => DownloadAsync(id), CancellationToken.None);
             }
         }
@@ -107,15 +125,26 @@ public sealed class TrailerService(
 
     private async Task<TrailerDownloadOutcome> DownloadAsync(string id)
     {
+        var acquired = false;
         try
         {
-            var outcome = await downloader.DownloadAsync(id, cache.PathFor(id), CancellationToken.None).ConfigureAwait(false);
+            await _slots.WaitAsync(_stop.Token).ConfigureAwait(false);
+            acquired = true;
+
+            // Il posto si fa ora che il download parte davvero, non quando si mette in coda.
+            cache.MakeRoom();
+            var outcome = await downloader.DownloadAsync(id, cache.PathFor(id), _stop.Token).ConfigureAwait(false);
             if (outcome == TrailerDownloadOutcome.Ok)
             {
                 cache.Touch(id);
             }
             else
             {
+                if (outcome == TrailerDownloadOutcome.Unavailable)
+                {
+                    _unavailableUntil[id] = time.GetUtcNow() + UnavailableFor;
+                }
+
                 logger.LogWarning("Trailer {VideoId} non scaricato: {Outcome}", id, outcome);
             }
 
@@ -125,6 +154,13 @@ public sealed class TrailerService(
         {
             logger.LogWarning(ex, "Trailer {VideoId}: il download è fallito", id);
             return TrailerDownloadOutcome.Failed;
+        }
+        finally
+        {
+            if (acquired)
+            {
+                _slots.Release();
+            }
         }
     }
 }
