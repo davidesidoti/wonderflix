@@ -696,16 +696,20 @@ public sealed partial class DownloadService
     {
         var service = ServiceOf(parsed.Kind);
         AdminSearch? search;
+
+        // La ricerca di nuovo: con il motore del job dell'admin (Prowlarr senza job), o dopo risultati scaduti con Radarr/Sonarr.
+        SearchEngine engine;
         lock (_lock)
         {
             search = _lastSearch.GetValueOrDefault(parsed.ToString());
+            engine = _searchJobs.TryGetValue(parsed.ToString(), out var job) ? job.Engine : SearchEngine.Prowlarr;
         }
 
         var searchedAgain = false;
         var oldRemoved = false;
 
-        // La ricerca di nuovo: con Prowlarr, o dopo risultati scaduti con Radarr/Sonarr (la release era loro).
-        var engine = SearchEngine.Prowlarr;
+        // "cambia": c'era un download di prima, ed è stato tolto.
+        var replaced = false;
         while (true)
         {
             if (search is null || search.Releases.FirstOrDefault(r => r.Guid == guid && r.IndexerId == indexerId) is not { } release)
@@ -747,6 +751,14 @@ public sealed partial class DownloadService
                 guarded.Add(target.Title.Key);
             }
 
+            if (!oldRemoved)
+            {
+                lock (_lock)
+                {
+                    replaced = HasOldDownload(parsed.ToString()) || (target.Title.Key != parsed.ToString() && HasOldDownload(target.Title.Key));
+                }
+            }
+
             if (!oldRemoved
                 && (!await RemoveOldDownloadAsync(parsed, service, cancellationToken).ConfigureAwait(false)
                     || (target.Title.Key != parsed.ToString()
@@ -765,6 +777,12 @@ public sealed partial class DownloadService
             try
             {
                 result = await _finder.GrabAsync(service, release, intentional, cancellationToken).ConfigureAwait(false);
+                if (result.Kind == GrabKind.RuleRefused && replaced)
+                {
+                    // Il download di prima è già tolto: l'admin non resta senza niente, il torrent va direttamente in qBittorrent.
+                    logger.LogInformation("Download automatici: {Key}, {Kind} ha rifiutato per regola la release dell'admin ({Reason}): aggiunta direttamente a qBittorrent", search.Title.Key, service, result.Reason);
+                    result = new GrabResult(GrabKind.Direct, null, await _finder.AddDirectAsync(service, release, cancellationToken).ConfigureAwait(false));
+                }
             }
             catch (ArrException ex) when ((ex.Status is 404 or 400) && release.Source == ReleaseSource.Arr)
             {
@@ -783,9 +801,14 @@ public sealed partial class DownloadService
                 logger.LogWarning("Download automatici: {Key}, {Kind} ha rifiutato la release dell'admin ({Error})", search.Title.Key, service, ErrorOf(ex));
                 return (GrabOutcome.Refused, false);
             }
+            catch (QbitException ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                // qBittorrent non ha preso il torrent (spesso perché c'è già): un rifiuto, così si cerca il torrent esistente.
+                logger.LogWarning("Download automatici: {Key}, qBittorrent ha rifiutato la release dell'admin ({Error})", search.Title.Key, ex.Error);
+                return (GrabOutcome.Refused, false);
+            }
             catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
-                // Anche un torrent che qBittorrent non ha preso (QbitException).
                 logger.LogWarning("Download automatici: {Key}, {Kind} non ha scaricato la release dell'admin ({Error})", search.Title.Key, service, ErrorOf(ex));
                 return (GrabOutcome.Unavailable, false);
             }
@@ -1440,7 +1463,7 @@ public sealed partial class DownloadService
     {
         lock (_lock)
         {
-            if (Book.Get(key.ToString()) is not { } entry || (entry.QueueId is null && entry.State != DownloadStates.Downloading))
+            if (!HasOldDownload(key.ToString()))
             {
                 return true;
             }
@@ -1485,6 +1508,9 @@ public sealed partial class DownloadService
         return true;
     }
 
+    // Solo sotto _lock. La voce ha un download da togliere prima di un altro: in coda, o appena scelto (QueueId non ancora letto).
+    private bool HasOldDownload(string key) => Book.Get(key) is { } entry && (entry.QueueId is not null || entry.State == DownloadStates.Downloading);
+
     // Dopo un grab riuscito: la voce (creata se manca, per esempio da "Da ripassare") scarica la scelta dell'admin.
     // Con un file presente è un upgrade, che il giro conferma dal file (ruling 5-6); se Radarr/Sonarr non lo
     // importerebbero si importa a mano (decisione 9). DirectHash: il torrent messo da noi in qBittorrent, che segue ApplyDirect.
@@ -1508,6 +1534,12 @@ public sealed partial class DownloadService
             entry.LastProgressAt = null;
             entry.ManualImportPending = target.Current is not null && !WouldImport(search.Profile, target.Current, release);
             entry.EpisodeNumbers = target.EpisodeNumbers;
+            // Un torrent nostro di prima non si segue più.
+            if (entry.DirectHash is { } old && old != directHash && Book.DirectGrabs.GetValueOrDefault(old) == entry.Key)
+            {
+                Book.DirectGrabs.Remove(old);
+            }
+
             entry.DirectHash = directHash;
             if (directHash is not null)
             {

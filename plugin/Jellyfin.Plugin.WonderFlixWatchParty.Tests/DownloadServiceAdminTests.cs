@@ -1471,4 +1471,56 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Assert.Equal([SearchEngine.Arr, SearchEngine.Arr], finder.SearchCalls.Select(c => c.Engine));
         Assert.Equal(2, finder.GrabCalls.Count);
     }
+
+    [Fact]
+    public async Task AChangeRefusedByRuleGoesDirect()
+    {
+        // "cambia": il download di prima (un torrent nostro, in coda come 77) si toglie; il push rifiuta per regola la nuova.
+        Animals();
+        _radarrQueue = [MovieQueue(77, 12, 5_000)];
+        var book = new DownloadBook();
+        book.Put(new DownloadEntry { Key = "movie:12", Kind = DownloadKinds.Movie, Title = "Animals (2025)", State = DownloadStates.Downloading, QueueId = 77, AvailableSince = T0, DirectHash = "old" });
+        book.DirectGrabs["old"] = "movie:12";
+        Store().Save(book);
+        var (service, finder) = WithProwlarr();
+        finder.Grab = (_, _, _) => Task.FromResult(new GrabResult(GrabKind.RuleRefused, "Not English", null));
+        await service.SearchAsync("movie:12", CancellationToken.None);
+
+        Assert.Equal(GrabOutcome.Ok, await service.GrabAsync("movie:12", "a", 1, CancellationToken.None));
+
+        Assert.Equal(77, Assert.Single(_arr.RemoveFromQueueCalls).QueueId);
+        Assert.Equal("a", Assert.Single(finder.AddDirectCalls).Release.Guid);
+        var saved = Store().Load();
+        Assert.Equal((DownloadStates.Downloading, "direct-hash"), (saved.Get("movie:12")!.State, saved.Get("movie:12")!.DirectHash));
+        Assert.Equal(["direct-hash"], saved.DirectGrabs.Keys);
+        Assert.Equal("a", saved.Choices[0].Guid);
+    }
+
+    [Fact]
+    public async Task ARuleRefusalWithoutAnOldDownloadStaysRefused()
+    {
+        Animals();
+        var (service, finder) = WithProwlarr();
+        finder.Grab = (_, _, _) => Task.FromResult(new GrabResult(GrabKind.RuleRefused, "Not English", null));
+        await service.SearchAsync("movie:12", CancellationToken.None);
+
+        Assert.Equal(GrabOutcome.Refused, await service.GrabAsync("movie:12", "a", 1, CancellationToken.None));
+        Assert.Empty(finder.AddDirectCalls);
+    }
+
+    [Fact]
+    public async Task AReleaseMissingFromAnArrSearchIsSearchedAgainWithArr()
+    {
+        Animals();
+        var (service, finder) = WithProwlarr();
+        service.StartSearch("movie:12", again: false, SearchEngine.Arr);
+        for (var i = 0; i < 500 && service.SearchStatus("movie:12")!.State == DownloadSearchStates.Running; i++)
+        {
+            await Task.Delay(10);
+        }
+
+        Assert.Equal(GrabOutcome.Expired, await service.GrabAsync("movie:12", "zz", 1, CancellationToken.None));
+
+        Assert.Equal([SearchEngine.Arr, SearchEngine.Arr], finder.SearchCalls.Select(c => c.Engine));
+    }
 }

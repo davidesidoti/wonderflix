@@ -489,4 +489,23 @@ public sealed class DownloadServiceExistingTorrentTests : IDisposable
     [InlineData("episode:301", "  ")]
     public async Task AnInvalidKeyOrAnEmptyHashIsInvalid(string key, string hash) =>
         Assert.Equal(BlockedOutcome.Invalid, (await _service.ImportExistingAsync(key, hash)).Outcome);
+
+    [Fact]
+    public async Task ADirectAddRefusedByQbitFindsTheExistingTorrent()
+    {
+        // Alleggerisci via Prowlarr: il push rifiuta, l'aggiunta diretta fallisce perché il torrent c'è già.
+        var finder = new FakeReleaseFinder
+        {
+            UsesProwlarr = true,
+            Search = (_, engine) => Task.FromResult(new FinderResult([Release("b", WebRip1080, "WEBRip-1080p", 1.89, 150, indexerId: 3)], [], engine)),
+            Grab = (_, _, _) => Task.FromException<GrabResult>(new QbitException(QbitError.Unreachable)),
+        };
+        var service = new DownloadService(_arr, new FakeArrSettings(), new FakeDownloadSettings(), Store(), _time, NullLogger<DownloadService>.Instance, null, _qbit, finder) { Pause = TimeSpan.Zero };
+        _qbit.Log.Add(Line("Pack", Now));
+        _qbit.Torrents.Add(Torrent("Pack"));
+
+        var (outcome, existing) = await service.GrabOrFindExistingAsync("movie:12", "b", 3, CancellationToken.None, lighten: true);
+
+        Assert.Equal((GrabOutcome.Refused, new ExistingTorrent("ABC123", "Pack")), (outcome, existing));
+    }
 }

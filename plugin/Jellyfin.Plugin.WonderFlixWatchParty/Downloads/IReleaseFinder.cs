@@ -50,4 +50,10 @@ public interface IReleaseFinder
     /// Gli <see cref="ArrException"/> di Sonarr/Radarr (5xx = rifiuto del client) e i <see cref="Space.QbitException"/> passano.
     /// </summary>
     Task<GrabResult> GrabAsync(ArrKind service, ArrRelease release, bool intentional, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Mette la release di Prowlarr direttamente in qBittorrent, nella categoria del client di Sonarr/Radarr, senza push; l'hash
+    /// del torrent. Gli errori sono <see cref="Space.QbitException"/> (e <see cref="ArrException"/> leggendo i client).
+    /// </summary>
+    Task<string> AddDirectAsync(ArrKind service, ArrRelease release, CancellationToken cancellationToken);
 }

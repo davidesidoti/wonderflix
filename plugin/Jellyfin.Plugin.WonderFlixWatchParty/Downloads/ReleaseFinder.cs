@@ -100,6 +100,15 @@ public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient? prowlarr, IAr
             return new GrabResult(GrabKind.RuleRefused, reasons.FirstOrDefault(), null);
         }
 
+        var hash = await AddDirectAsync(service, release, cancellationToken).ConfigureAwait(false);
+
+        // Mai il titolo nel log (è quello che l'utente cerca); i motivi sono di Sonarr/Radarr.
+        logger.LogInformation("Push rifiutato ({Reason}): torrent aggiunto direttamente a qBittorrent", reasons[0]);
+        return new GrabResult(GrabKind.Direct, null, hash);
+    }
+
+    public async Task<string> AddDirectAsync(ArrKind service, ArrRelease release, CancellationToken cancellationToken)
+    {
         // La categoria del client di Sonarr/Radarr: così il torrent finisce dove finiscono i loro.
         var category = (await arr.GetDownloadClientsAsync(service, cancellationToken).ConfigureAwait(false))
             .OfType<ArrDownloadClient>()
@@ -108,11 +117,7 @@ public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient? prowlarr, IAr
             .FirstOrDefault(c => !string.IsNullOrEmpty(c))
             ?? throw new QbitException(QbitError.NotConfigured);
         var link = release.MagnetUrl ?? release.DownloadUrl ?? throw new QbitException(QbitError.NotFound);
-        var hash = await (qbit ?? throw new QbitException(QbitError.NotConfigured)).AddAsync(link, category, cancellationToken).ConfigureAwait(false);
-
-        // Mai il titolo nel log (è quello che l'utente cerca); i motivi sono di Sonarr/Radarr.
-        logger.LogInformation("Push rifiutato ({Reason}): torrent aggiunto direttamente a qBittorrent", reasons[0]);
-        return new GrabResult(GrabKind.Direct, null, hash);
+        return await (qbit ?? throw new QbitException(QbitError.NotConfigured)).AddAsync(link, category, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<FinderResult> SearchProwlarrAsync(DownloadKey key, ArrKind service, CancellationToken cancellationToken)

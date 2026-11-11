@@ -39,4 +39,18 @@ internal sealed class FakeReleaseFinder : IReleaseFinder
 
         return Grab(service, release, intentional);
     }
+
+    public Func<ArrKind, ArrRelease, Task<string>> AddDirect { get; set; } = (_, _) => Task.FromResult("direct-hash");
+
+    public List<(ArrKind Service, ArrRelease Release)> AddDirectCalls { get; } = [];
+
+    public Task<string> AddDirectAsync(ArrKind service, ArrRelease release, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            AddDirectCalls.Add((service, release));
+        }
+
+        return AddDirect(service, release);
+    }
 }
