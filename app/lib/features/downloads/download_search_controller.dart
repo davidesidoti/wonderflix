@@ -201,7 +201,9 @@ class DownloadSearchController extends AsyncNotifier<DownloadSearch> {
     _token?.cancel();
     state = const AsyncLoading();
     try {
-      final search = await (_jobs ? _job(again: again, viaArr: viaArr) : _search());
+      final search = await (_jobs
+          ? _job(again: again, viaArr: viaArr)
+          : _search());
       if (ref.mounted) state = AsyncData(search);
     } on Object catch (error, stack) {
       if (ref.mounted) state = AsyncError(error, stack);

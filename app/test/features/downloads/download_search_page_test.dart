@@ -692,6 +692,12 @@ void main() {
       expect(find.text(notice), findsOneWidget);
     });
 
+    testWidgets('anArrResultWithLowResultsShowsNoNotice', (tester) async {
+      api.searchValue = _search(engine: SearchEngine.arr, lowResults: true);
+      await open(tester, features: jobs);
+      expect(find.text(notice), findsNothing);
+    });
+
     testWidgets('theButtonRerunsTheSearchViaArr', (tester) async {
       api.searchValue = _search(lowResults: true);
       await open(tester, features: jobs);

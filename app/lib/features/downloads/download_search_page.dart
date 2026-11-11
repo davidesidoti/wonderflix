@@ -258,7 +258,7 @@ class _SearchPage extends ConsumerWidget {
             lighten: lighten,
           ),
           const SizedBox(height: 16),
-          if (search.lowResults)
+          if (search.engine == SearchEngine.prowlarr && search.lowResults)
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
               child: Text(l.downloadsLowResults(_arrService(search)),
