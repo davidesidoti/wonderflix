@@ -15,7 +15,9 @@ import '../../ui/form_factor.dart';
 import '../../ui/wf_image.dart';
 import '../library/library_providers.dart';
 import '../player/player_overlay.dart';
+import '../player/player_commands.dart';
 import '../player/player_providers.dart';
+import '../player/player_volume.dart';
 import '../player/seek_bar.dart';
 import 'trailer_controller.dart';
 
@@ -49,6 +51,7 @@ class _TrailerScreenState extends ConsumerState<TrailerScreen> {
   bool _openFailed = false;
   bool _playing = false;
   bool _blocked = false;
+  bool _muted = false;
   bool _controlsVisible = true;
   bool _leaving = false;
   Timer? _hideTimer;
@@ -121,7 +124,23 @@ class _TrailerScreenState extends ConsumerState<TrailerScreen> {
     }
     if (!mounted) return;
     setState(() {});
+    // Il volume ricordato del player; il muto no.
+    await engine.setVolume(ref.read(playerVolumeProvider));
     await engine.play();
+  }
+
+  /// 0–100: toglie il muto e diventa il volume ricordato anche per i film.
+  void _setVolume(double volume) {
+    final value = volume.clamp(0.0, 100.0);
+    ref.read(playerVolumeProvider.notifier).set(value);
+    setState(() => _muted = false);
+    unawaited(_engine?.setVolume(value));
+  }
+
+  void _toggleMute() {
+    final muted = !_muted;
+    setState(() => _muted = muted);
+    unawaited(_engine?.setVolume(muted ? 0 : ref.read(playerVolumeProvider)));
   }
 
   /// Mostra i controlli; in riproduzione si nascondono dopo [hideDelay].
@@ -184,6 +203,22 @@ class _TrailerScreenState extends ConsumerState<TrailerScreen> {
       if (down) _unavailable ? _close() : _togglePlay();
       return KeyEventResult.handled;
     }
+    // Sulla TV il volume lo regola il telecomando.
+    if (!FormFactor.of(context).tv) {
+      final volume = ref.read(playerVolumeProvider);
+      if (key == LogicalKeyboardKey.arrowUp) {
+        _setVolume(volume + volumeStep);
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.arrowDown) {
+        _setVolume(volume - volumeStep);
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.keyM) {
+        if (down) _toggleMute();
+        return KeyEventResult.handled;
+      }
+    }
     if (key == LogicalKeyboardKey.arrowRight) {
       _seekBy(TrailerScreen.seekStep);
       return KeyEventResult.handled;
@@ -199,6 +234,8 @@ class _TrailerScreenState extends ConsumerState<TrailerScreen> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final tv = FormFactor.of(context).tv;
+    final touch = FormFactor.of(context).touch;
+    final volume = ref.watch(playerVolumeProvider);
     final engine = _engine;
     final unavailable = _unavailable;
     final playable = engine != null && !unavailable;
@@ -322,6 +359,46 @@ class _TrailerScreenState extends ConsumerState<TrailerScreen> {
                                       ),
                                     ),
                                   ),
+                                  if (!tv) ...[
+                                    PlayerIconButton(
+                                      icon: Icon(_muted || volume == 0
+                                          ? LucideIcons.volumeX
+                                          : LucideIcons.volume2),
+                                      tooltip: _muted
+                                          ? l.playerUnmute
+                                          : l.playerMute,
+                                      onPressed: _toggleMute,
+                                    ),
+                                    // Col dito il volume è quello del telefono.
+                                    if (!touch)
+                                      SizedBox(
+                                        width: 120,
+                                        // Lo Slider vuole un Material sopra di sé.
+                                        child: Material(
+                                          type: MaterialType.transparency,
+                                          child: SliderTheme(
+                                            data: SliderTheme.of(context)
+                                                .copyWith(
+                                              trackHeight: 3,
+                                              activeTrackColor: WfColors.cream,
+                                              inactiveTrackColor: WfColors.cream
+                                                  .withValues(alpha: 0.2),
+                                              thumbColor: WfColors.cream,
+                                              thumbShape:
+                                                  const RoundSliderThumbShape(
+                                                      enabledThumbRadius: 6),
+                                            ),
+                                            child: Slider(
+                                              key: const Key(
+                                                  'trailer-volume-slider'),
+                                              value: _muted ? 0 : volume,
+                                              max: 100,
+                                              onChanged: _setVolume,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ],
                               ),
                             ),

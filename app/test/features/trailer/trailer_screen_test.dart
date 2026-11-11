@@ -2,12 +2,15 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wonderflix/app/navigation.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/trailers/trailers_api.dart';
+import 'package:wonderflix/features/player/player_commands.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
+import 'package:wonderflix/features/player/player_volume.dart';
 import 'package:wonderflix/features/trailer/trailer_screen.dart';
 
 import '../../support/playback_fakes.dart';
@@ -25,7 +28,12 @@ void main() {
     engine = FakeVideoEngine();
   });
 
-  Future<void> pumpTrailer(WidgetTester tester, {bool tv = false}) async {
+  Future<void> pumpTrailer(
+    WidgetTester tester, {
+    bool tv = false,
+    bool touch = false,
+    double volume = 100,
+  }) async {
     router = GoRouter(
       routes: [
         GoRoute(
@@ -46,10 +54,12 @@ void main() {
       tester,
       router,
       tv: tv,
+      touch: touch,
       overrides: [
         trailersApiProvider.overrideWithValue(api),
         videoEngineFactoryProvider.overrideWithValue(() => engine),
         clientInfoProvider.overrideWithValue(testClientInfo),
+        playerVolumeProvider.overrideWith(() => FakePlayerVolume(volume)),
       ],
     );
     unawaited(router.push('/trailer'));
@@ -198,4 +208,85 @@ void main() {
     expect(engine.playing, isTrue);
     expect(button, findsNothing);
   });
+
+  testWidgets('startsAtTheSavedVolume', (tester) async {
+    final order = _OrderedEngine();
+    engine = order;
+    await pumpTrailer(tester, volume: 40);
+    expect(engine.volumes, [40]);
+    expect(order.volumesAtPlay, 1, reason: 'applicato prima di play()');
+  });
+
+  testWidgets('sliderChangesTheVolume', (tester) async {
+    await pumpTrailer(tester);
+    final slider = find.byKey(const Key('trailer-volume-slider'));
+    tester.widget<Slider>(slider).onChanged!(70);
+    await tester.pump();
+    expect(engine.volumes.last, 70);
+    expect(
+      ProviderScope.containerOf(tester.element(slider))
+          .read(playerVolumeProvider),
+      70,
+    );
+  });
+
+  testWidgets('muteToggles', (tester) async {
+    await pumpTrailer(tester, volume: 60);
+    await tester.tap(find.byTooltip('Disattiva audio'));
+    await tester.pump();
+    expect(engine.volumes.last, 0);
+    await tester.tap(find.byTooltip('Riattiva audio'));
+    await tester.pump();
+    expect(engine.volumes.last, 60);
+    final container = ProviderScope.containerOf(
+        tester.element(find.byKey(const Key('trailer-volume-slider'))));
+    expect(container.read(playerVolumeProvider), 60);
+  });
+
+  testWidgets('arrowKeysChangeVolume', (tester) async {
+    await pumpTrailer(tester, volume: 50);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pump();
+    expect(engine.volumes.last, 50 + volumeStep);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    expect(engine.volumes.last, 50 - volumeStep);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyM);
+    await tester.pump();
+    expect(engine.volumes.last, 0);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyM);
+    await tester.pump();
+    expect(engine.volumes.last, 50 - volumeStep);
+  });
+
+  testWidgets('noSliderOnTouch', (tester) async {
+    await pumpTrailer(tester, touch: true);
+    expect(find.byKey(const Key('trailer-volume-slider')), findsNothing);
+    expect(find.byTooltip('Disattiva audio'), findsOneWidget);
+  });
+
+  testWidgets('noVolumeControlsOnTv', (tester) async {
+    await pumpTrailer(tester, tv: true);
+    expect(find.byKey(const Key('trailer-volume-slider')), findsNothing);
+    expect(find.byTooltip('Disattiva audio'), findsNothing);
+
+    // Le frecce su/giù e M restano com'erano: nessun cambio di volume.
+    final before = engine.volumes.length;
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyM);
+    await tester.pump();
+    expect(engine.volumes.length, before);
+  });
+}
+
+/// Ricorda quanti volumi erano già stati impostati quando parte `play()`.
+class _OrderedEngine extends FakeVideoEngine {
+  int volumesAtPlay = -1;
+
+  @override
+  Future<void> play() async {
+    volumesAtPlay = volumes.length;
+    await super.play();
+  }
 }
