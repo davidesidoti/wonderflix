@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.27.0.0",
+        "changelog": "Scarica subito: una serie o un film passa in testa alla coda dei download automatici, e Aggiorna ora fa comparire subito un titolo appena aggiunto. Serve l'app 0.38.0 per usarli.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.27.0/wonderflix-watch-party_1.27.0.zip",
+        "checksum": "1d5d223c7b7f2c9d6a650d7513fee087",
+        "timestamp": "2026-11-11T00:00:00Z"
+      },
+      {
         "version": "1.26.0.0",
         "changelog": "Le ricerche manuali dell'admin hanno la precedenza sui download automatici: il giro si ferma e la ricerca manuale gira da sola, poi la coda riparte. Serve l'app 0.37.0 per vedere l'attesa.",
         "targetAbi": "10.11.0.0",
