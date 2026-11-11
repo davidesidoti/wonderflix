@@ -428,4 +428,72 @@ public class DownloadRuleTests
 
         Assert.Equal("B", DownloadRule.Summarize(rule, 2, 50).TopRejection);
     }
+
+    private static ArrRelease Prowlarr(ArrRelease release, string? title = null)
+    {
+        release.Source = ReleaseSource.Prowlarr;
+        release.Title = title ?? release.Title;
+        return release;
+    }
+
+    private static ChecksContext Banning(string term) => new(
+        null, [], [new ArrReleaseProfile { Enabled = true, Ignored = [term] }], [], new Dictionary<int, int>(), []);
+
+    [Fact]
+    public void AProwlarrReleaseFailingTheChecksIsRejectedWithItsReasonAndDetail()
+    {
+        var input = Input(100) with { Checks = Banning("cam") };
+
+        var result = DownloadRule.Choose([Prowlarr(Release("a", "WEBDL-1080p", 1080, 5, 90), "Film CAM 1080p"), Prowlarr(Release("b", "WEBDL-1080p", 1080, 5, 90))], input);
+
+        Assert.Equal(["b"], result.Candidates.Select(r => r.Guid));
+        var rejected = Assert.Single(result.Rejected);
+        Assert.Equal(("a", "Restricted", "cam"), (rejected.Release.Guid, rejected.Reason, rejected.Detail));
+    }
+
+    [Fact]
+    public void ArrSourceIgnoresChecks()
+    {
+        var input = Input(100) with { Checks = Banning("cam") };
+        var release = Release("a", "WEBDL-1080p", 1080, 5, 90);
+        release.Title = "Film CAM 1080p";
+
+        var result = DownloadRule.Choose([release], input);
+
+        Assert.Equal(["a"], result.Candidates.Select(r => r.Guid));
+        Assert.Empty(result.Rejected);
+    }
+
+    [Fact]
+    public void SummarizeCountsOnlyTooSmall()
+    {
+        var input = Input(100) with { Checks = Banning("cam") };
+        var rule = DownloadRule.Choose(
+        [
+            Prowlarr(Release("restricted", "WEBDL-1080p", 1080, 5, 90), "Film CAM"),
+            Release("small", "WEBDL-1080p", 1080, 0.1, 90),
+            Release("ok", "WEBDL-1080p", 1080, 5, 90),
+        ], input);
+
+        var summary = DownloadRule.Summarize(rule, 3, 50);
+
+        Assert.Equal(1, summary.TooSmall);
+        Assert.Equal(0, summary.ArrRejected);
+    }
+
+    [Fact]
+    public void SeasonPackSkipsRejected()
+    {
+        var checks = Banning("cam");
+        var pack = Prowlarr(Release("pack", "WEBDL-1080p", 1080, 3, 90), "Show S01 CAM");
+        pack.FullSeason = true;
+        var other = Prowlarr(Release("pack2", "WEBDL-1080p", 1080, 4.5, 90), "Show S01 complete");
+        other.FullSeason = true;
+        var single = Prowlarr(Release("e1", "WEBDL-1080p", 1080, 4, 90));
+        single.EpisodeNumbers = [1];
+
+        var chosen = SeasonPackRule.ChoosePack([pack, other, single], [1], Input(40, movie: false) with { Checks = checks });
+
+        Assert.Equal("pack2", chosen?.Guid);
+    }
 }

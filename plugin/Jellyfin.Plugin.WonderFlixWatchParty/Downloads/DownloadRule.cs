@@ -4,9 +4,12 @@ using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 
 /// <summary>I dati della regola per un titolo (spec T §4). <c>RuntimeMinutes</c> 0 vuol dire "durata sconosciuta".</summary>
-public sealed record RuleInput(int RuntimeMinutes, bool IsMovie, double MinGbPerHour, int MinScore, IReadOnlyDictionary<int, int> IndexerPriority);
+public sealed record RuleInput(int RuntimeMinutes, bool IsMovie, double MinGbPerHour, int MinScore, IReadOnlyDictionary<int, int> IndexerPriority, ChecksContext? Checks = null);
 
-/// <summary>Una release scartata. <c>Reason</c>: "Arr" (<c>Detail</c> = il primo rifiuto) o "TooSmall" (<c>Detail</c> = GB all'ora) (spec T §4).</summary>
+/// <summary>
+/// Una release scartata. <c>Reason</c>: "Arr" (<c>Detail</c> = il primo rifiuto), "TooSmall" (<c>Detail</c> = GB all'ora) (spec T §4),
+/// o, per Prowlarr, "Blocklisted", "Restricted" (<c>Detail</c> = il termine), "NotWanted" (<c>Detail</c> = qualità, "Size", "Seeders" o "Score").
+/// </summary>
 public sealed record RuleRejected(ArrRelease Release, string Reason, string? Detail);
 
 /// <summary>L'esito della regola: candidati già ordinati, scartati, scelta e se il migliore è sotto il minimo (spec T §4).</summary>
@@ -54,6 +57,13 @@ public static class DownloadRule
                 continue;
             }
 
+            if (input.Checks is { } checks && release.Source == ReleaseSource.Prowlarr
+                && ReleaseChecks.Check(release, checks, input.RuntimeMinutes) is var (reason, detail))
+            {
+                rejected.Add(new RuleRejected(release, reason, detail));
+                continue;
+            }
+
             var gbPerHour = GbPerHour(release.Size, minutes);
             if (gbPerHour < input.MinGbPerHour)
             {
@@ -85,11 +95,12 @@ public static class DownloadRule
     /// </summary>
     public static bool WouldImport(ArrQualityProfile profile, int newQualityId, int newScore, int? currentQualityId, int? currentScore)
     {
-        var newPosition = PositionOf(profile, newQualityId);
-        if (newPosition < 0 || !profile.Items![newPosition].Allowed)
+        if (!IsAllowed(profile, newQualityId))
         {
             return false;
         }
+
+        var newPosition = PositionOf(profile, newQualityId);
 
         if (currentQualityId is null)
         {
@@ -99,6 +110,13 @@ public static class DownloadRule
         // Un file attuale fuori dal profilo vale -1: qualsiasi qualità ammessa è più in alto. Una non ammessa conta (Spider-Noir).
         var currentPosition = PositionOf(profile, currentQualityId.Value);
         return newPosition > currentPosition || (newPosition == currentPosition && newScore > (currentScore ?? 0));
+    }
+
+    /// <summary>La qualità è nel profilo e ammessa (una dentro un gruppo ammesso lo è).</summary>
+    public static bool IsAllowed(ArrQualityProfile profile, int qualityId)
+    {
+        var position = PositionOf(profile, qualityId);
+        return position >= 0 && profile.Items![position].Allowed;
     }
 
     /// <summary>Il formato in cui una release si ricorda tra una ricerca e l'altra: <c>indexerId|guid</c>.</summary>
@@ -143,12 +161,13 @@ public static class DownloadRule
     public static DownloadSummary Summarize(RuleResult rule, int found, int minScore)
     {
         var arr = rule.Rejected.Where(r => r.Reason == "Arr").ToList();
+        var tooSmall = rule.Rejected.Count(r => r.Reason == "TooSmall");
         return new DownloadSummary
         {
             Found = found,
             BestScore = rule.Candidates.Count > 0 ? rule.Candidates[0].CustomFormatScore : null,
             MinScore = minScore,
-            TooSmall = rule.Rejected.Count - arr.Count,
+            TooSmall = tooSmall,
             ArrRejected = arr.Count,
             // GroupBy tiene l'ordine di comparsa e OrderBy è stabile: a parità vince il primo incontrato.
             TopRejection = arr.Where(r => r.Detail is not null).GroupBy(r => r.Detail).OrderByDescending(g => g.Count()).Select(g => g.Key).FirstOrDefault(),
