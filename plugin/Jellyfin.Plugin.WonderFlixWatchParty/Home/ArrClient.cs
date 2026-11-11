@@ -90,6 +90,32 @@ public sealed class ArrClient(
     public Task GrabReleaseAsync(ArrKind kind, string guid, int indexerId, CancellationToken cancellationToken) =>
         SendWithoutResultAsync(kind, HttpMethod.Post, "release", new { guid, indexerId }, cancellationToken, GrabTimeout);
 
+    public Task<ArrParse> ParseAsync(ArrKind kind, string title, CancellationToken cancellationToken) =>
+        GetAsync<ArrParse>(kind, $"parse?title={Uri.EscapeDataString(title)}", cancellationToken);
+
+    public async Task<ArrPushResult> PushReleaseAsync(ArrKind kind, ArrPushRelease release, CancellationToken cancellationToken)
+    {
+        // Risponde con un elenco di una decisione sola; un elenco vuoto non è una risposta che si sa leggere.
+        var decisions = await SendAsync<List<ArrPushResult?>>(
+            kind, HttpMethod.Post, "release/push", release, GrabTimeout, cancellationToken).ConfigureAwait(false);
+        return decisions.FirstOrDefault() ?? throw new ArrException(ArrError.Unreachable);
+    }
+
+    public Task<SonarrSeries> GetSeriesByIdAsync(int seriesId, CancellationToken cancellationToken) =>
+        GetAsync<SonarrSeries>(ArrKind.Sonarr, $"series/{seriesId.ToString(CultureInfo.InvariantCulture)}", cancellationToken);
+
+    public async Task<IReadOnlyList<ArrQualityDefinition?>> GetQualityDefinitionsAsync(
+        ArrKind kind, CancellationToken cancellationToken) =>
+        await GetAsync<List<ArrQualityDefinition?>>(kind, "qualitydefinition", cancellationToken).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<ArrReleaseProfile?>> GetReleaseProfilesAsync(
+        ArrKind kind, CancellationToken cancellationToken) =>
+        await GetAsync<List<ArrReleaseProfile?>>(kind, "releaseprofile", cancellationToken).ConfigureAwait(false);
+
+    public Task<IReadOnlyList<ArrBlocklistItem?>> GetBlocklistAsync(ArrKind kind, CancellationToken cancellationToken) =>
+        GetAllPagesAsync<ArrBlocklistItem>(
+            kind, page => $"blocklist?page={page.ToString(CultureInfo.InvariantCulture)}&pageSize={PageSize}", cancellationToken);
+
     public Task<RadarrMovie> GetMovieAsync(int movieId, CancellationToken cancellationToken) =>
         GetAsync<RadarrMovie>(ArrKind.Radarr, $"movie/{movieId.ToString(CultureInfo.InvariantCulture)}", cancellationToken);
 

@@ -177,6 +177,96 @@ internal sealed class FakeArrClient : IArrClient
 
     public Func<ArrKind, int, bool, Task> RemoveFromQueue { get; set; } = (_, _, _) => Task.CompletedTask;
 
+    // Prowlarr + parse/push: di base un parse vuoto, un push approvato, elenchi vuoti.
+    public Func<ArrKind, string, Task<ArrParse>> Parse { get; set; } = (_, _) => Task.FromResult(new ArrParse());
+
+    public Func<ArrKind, ArrPushRelease, Task<ArrPushResult>> Push { get; set; } =
+        (_, _) => Task.FromResult(new ArrPushResult { Approved = true });
+
+    public Func<int, Task<SonarrSeries>> SeriesById { get; set; } =
+        _ => Task.FromException<SonarrSeries>(new ArrException(ArrError.Unreachable, status: 404));
+
+    public Func<ArrKind, Task<IReadOnlyList<ArrQualityDefinition?>>> QualityDefinitions { get; set; } =
+        _ => Task.FromResult<IReadOnlyList<ArrQualityDefinition?>>([]);
+
+    public Func<ArrKind, Task<IReadOnlyList<ArrReleaseProfile?>>> ReleaseProfiles { get; set; } =
+        _ => Task.FromResult<IReadOnlyList<ArrReleaseProfile?>>([]);
+
+    public Func<ArrKind, Task<IReadOnlyList<ArrBlocklistItem?>>> Blocklist { get; set; } =
+        _ => Task.FromResult<IReadOnlyList<ArrBlocklistItem?>>([]);
+
+    public List<(ArrKind Kind, string Title)> ParseCalls { get; } = [];
+
+    public List<(ArrKind Kind, ArrPushRelease Release)> PushCalls { get; } = [];
+
+    public List<int> SeriesByIdCalls { get; } = [];
+
+    public List<ArrKind> QualityDefinitionCalls { get; } = [];
+
+    public List<ArrKind> ReleaseProfileCalls { get; } = [];
+
+    public List<ArrKind> BlocklistCalls { get; } = [];
+
+    public Task<ArrParse> ParseAsync(ArrKind kind, string title, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            ParseCalls.Add((kind, title));
+        }
+
+        return Parse(kind, title);
+    }
+
+    public Task<ArrPushResult> PushReleaseAsync(ArrKind kind, ArrPushRelease release, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            PushCalls.Add((kind, release));
+        }
+
+        return Push(kind, release);
+    }
+
+    public Task<SonarrSeries> GetSeriesByIdAsync(int seriesId, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            SeriesByIdCalls.Add(seriesId);
+        }
+
+        return SeriesById(seriesId);
+    }
+
+    public Task<IReadOnlyList<ArrQualityDefinition?>> GetQualityDefinitionsAsync(ArrKind kind, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            QualityDefinitionCalls.Add(kind);
+        }
+
+        return QualityDefinitions(kind);
+    }
+
+    public Task<IReadOnlyList<ArrReleaseProfile?>> GetReleaseProfilesAsync(ArrKind kind, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            ReleaseProfileCalls.Add(kind);
+        }
+
+        return ReleaseProfiles(kind);
+    }
+
+    public Task<IReadOnlyList<ArrBlocklistItem?>> GetBlocklistAsync(ArrKind kind, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            BlocklistCalls.Add(kind);
+        }
+
+        return Blocklist(kind);
+    }
+
     public Func<ArrKind, Task<IReadOnlyList<ArrIndexer?>>> Indexers { get; set; } =
         _ => Task.FromResult<IReadOnlyList<ArrIndexer?>>([]);
 

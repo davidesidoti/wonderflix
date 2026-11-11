@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Home;
 
@@ -71,6 +72,15 @@ public sealed class SonarrSeries
 
     /// <summary>Le stagioni, con monitoraggio e dimensione; gli elementi possono essere null (spec U).</summary>
     public List<SonarrSeason?>? Seasons { get; set; }
+
+    /// <summary>"standard", "anime" o "daily".</summary>
+    public string? SeriesType { get; set; }
+
+    /// <summary>I titoli alternativi, anche di una sola stagione; gli elementi possono essere null.</summary>
+    public List<SonarrAlternateTitle?>? AlternateTitles { get; set; }
+
+    /// <summary>Gli id dei tag, per le regole di release che valgono solo per alcuni.</summary>
+    public List<int>? Tags { get; set; }
 }
 
 /// <summary>Una stagione di una serie di Sonarr (spec U).</summary>
@@ -127,6 +137,15 @@ public sealed class SonarrEpisode
 
     /// <summary>L'id del file dell'episodio; 0 se non c'è (spec T §2).</summary>
     public int EpisodeFileId { get; set; }
+
+    /// <summary>La numerazione assoluta (anime); null se non c'è.</summary>
+    public int? AbsoluteEpisodeNumber { get; set; }
+
+    public int? SceneAbsoluteEpisodeNumber { get; set; }
+
+    public int? SceneSeasonNumber { get; set; }
+
+    public int? SceneEpisodeNumber { get; set; }
 }
 
 /// <summary>Un film del calendario di Radarr.</summary>
@@ -180,6 +199,16 @@ public sealed class RadarrMovie
 
     /// <summary>La collezione del film; null se non ne ha una (spec U).</summary>
     public ArrCollection? Collection { get; set; }
+
+    public string? OriginalTitle { get; set; }
+
+    public ArrLanguage? OriginalLanguage { get; set; }
+
+    /// <summary>I titoli alternativi; gli elementi possono essere null.</summary>
+    public List<RadarrAlternateTitle?>? AlternateTitles { get; set; }
+
+    /// <summary>Gli id dei tag, per le regole di release che valgono solo per alcuni.</summary>
+    public List<int>? Tags { get; set; }
 }
 
 /// <summary>La collezione di un film di Radarr (spec U).</summary>
@@ -282,6 +311,9 @@ public sealed class ArrQualityProfile
     public string? Name { get; set; }
 
     public List<ArrQualityProfileItem>? Items { get; set; }
+
+    /// <summary>Il punteggio minimo dei formati personalizzati: sotto, la release è scartata.</summary>
+    public int MinFormatScore { get; set; }
 }
 
 /// <summary>Una voce della coda di Radarr o Sonarr (spec T §2).</summary>
@@ -411,9 +443,189 @@ public sealed class ArrRejection
 /// <summary>Un indexer; Priority più bassa = preferito (spec T §2).</summary>
 public sealed class ArrIndexer
 {
+    private static readonly Regex ProwlarrPath = new(@"/prowlarr/(\d+)/", RegexOptions.CultureInvariant);
+
     public int Id { get; set; }
 
     public int Priority { get; set; }
+
+    public string? Name { get; set; }
+
+    public bool EnableInteractiveSearch { get; set; }
+
+    /// <summary>I campi dell'indexer (<c>baseUrl</c>, <c>categories</c>, ...); gli elementi possono essere null.</summary>
+    public List<ArrField?>? Fields { get; set; }
+
+    /// <summary>L'id dell'indexer in Prowlarr, dal <c>baseUrl</c> (<c>.../prowlarr/11/</c>); null per un indexer che non viene da lì.</summary>
+    [JsonIgnore]
+    public int? ProwlarrId =>
+        Field("baseUrl") is { ValueKind: JsonValueKind.String } url
+        && ProwlarrPath.Match(url.GetString()!) is { Success: true } match
+        && int.TryParse(match.Groups[1].Value, out var id)
+            ? id
+            : null;
+
+    [JsonIgnore]
+    public IReadOnlyList<int> Categories => Numbers("categories");
+
+    [JsonIgnore]
+    public IReadOnlyList<int> AnimeCategories => Numbers("animeCategories");
+
+    [JsonIgnore]
+    public int? MinimumSeeders =>
+        Field("minimumSeeders") is { ValueKind: JsonValueKind.Number } n && n.TryGetInt32(out var value) ? value : null;
+
+    private JsonElement? Field(string name) => Fields?.OfType<ArrField>().FirstOrDefault(f => f.Name == name)?.Value;
+
+    private IReadOnlyList<int> Numbers(string name) =>
+        Field(name) is { ValueKind: JsonValueKind.Array } array
+            ? array.EnumerateArray().Where(e => e.ValueKind == JsonValueKind.Number && e.TryGetInt32(out _)).Select(e => e.GetInt32()).ToList()
+            : [];
+}
+
+/// <summary>Un campo di un indexer: nome e valore (numero, testo o lista, quindi JSON).</summary>
+public sealed class ArrField
+{
+    public string? Name { get; set; }
+
+    public JsonElement? Value { get; set; }
+}
+
+/// <summary>Un titolo alternativo di una serie di Sonarr; <c>SeasonNumber</c> -1 = vale per tutta la serie.</summary>
+public sealed class SonarrAlternateTitle
+{
+    public string? Title { get; set; }
+
+    public int? SeasonNumber { get; set; }
+
+    public int? SceneSeasonNumber { get; set; }
+}
+
+/// <summary>Una lingua di Radarr (<c>originalLanguage</c>, lingua di un titolo alternativo).</summary>
+public sealed class ArrLanguage
+{
+    public string? Name { get; set; }
+}
+
+/// <summary>Un titolo alternativo di un film di Radarr.</summary>
+public sealed class RadarrAlternateTitle
+{
+    public string? Title { get; set; }
+
+    public ArrLanguage? Language { get; set; }
+}
+
+/// <summary>Il risultato di <c>GET parse</c>: cosa Sonarr (<c>ParsedEpisodeInfo</c>, <c>Series</c>, <c>Episodes</c>) o Radarr (<c>ParsedMovieInfo</c>, <c>Movie</c>) capiscono da un titolo.</summary>
+public sealed class ArrParse
+{
+    public ArrParsedInfo? ParsedEpisodeInfo { get; set; }
+
+    public ArrParsedInfo? ParsedMovieInfo { get; set; }
+
+    public SonarrSeries? Series { get; set; }
+
+    public RadarrMovie? Movie { get; set; }
+
+    public List<SonarrEpisode?>? Episodes { get; set; }
+
+    public int CustomFormatScore { get; set; }
+}
+
+/// <summary>Quello che il parse ha letto dal titolo; i campi di stagione ed episodi solo per Sonarr.</summary>
+public sealed class ArrParsedInfo
+{
+    public ArrQualityModel? Quality { get; set; }
+
+    public bool FullSeason { get; set; }
+
+    public int SeasonNumber { get; set; }
+
+    public List<int>? EpisodeNumbers { get; set; }
+
+    public List<int>? AbsoluteEpisodeNumbers { get; set; }
+}
+
+/// <summary>Una release trovata da Prowlarr, come la si manda a <c>release/push</c>; Protocol è "torrent" o "usenet".</summary>
+public sealed class ArrPushRelease
+{
+    public string Title { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DownloadUrl { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? MagnetUrl { get; set; }
+
+    public string Protocol { get; set; } = string.Empty;
+
+    public DateTimeOffset PublishDate { get; set; }
+
+    public long Size { get; set; }
+
+    public int IndexerId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Seeders { get; set; }
+}
+
+/// <summary>La decisione di Sonarr/Radarr su una release spinta: presa (<c>Approved</c>), scartata (<c>Rejected</c>) o scartata per ora (<c>TemporarilyRejected</c>).</summary>
+public sealed class ArrPushResult
+{
+    public bool Approved { get; set; }
+
+    public bool TemporarilyRejected { get; set; }
+
+    public bool Rejected { get; set; }
+
+    public List<string>? Rejections { get; set; }
+}
+
+/// <summary>Il peso ammesso per una qualità, in MB per minuto; <c>MaxSize</c> null = senza limite.</summary>
+public sealed class ArrQualityDefinition
+{
+    public ArrQuality? Quality { get; set; }
+
+    public double? MinSize { get; set; }
+
+    public double? MaxSize { get; set; }
+}
+
+/// <summary>Una regola di release: termini obbligatori e vietati, valida per le serie/film con questi tag (o per tutti, se senza).</summary>
+public sealed class ArrReleaseProfile
+{
+    public bool Enabled { get; set; }
+
+    [JsonConverter(typeof(StringOrListConverter))]
+    public List<string>? Required { get; set; }
+
+    [JsonConverter(typeof(StringOrListConverter))]
+    public List<string>? Ignored { get; set; }
+
+    public List<int>? Tags { get; set; }
+}
+
+/// <summary>Un elenco di testi che le versioni vecchie scrivono come un testo solo, con le virgole.</summary>
+internal sealed class StringOrListConverter : JsonConverter<List<string>>
+{
+    public override List<string>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        reader.TokenType == JsonTokenType.String
+            ? reader.GetString()!.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList()
+            : JsonSerializer.Deserialize<List<string>>(ref reader, options);
+
+    public override void Write(Utf8JsonWriter writer, List<string> value, JsonSerializerOptions options) =>
+        JsonSerializer.Serialize(writer, value, options);
+}
+
+/// <summary>Una release in blocklist di Sonarr (<c>SeriesId</c>) o Radarr (<c>MovieId</c>).</summary>
+public sealed class ArrBlocklistItem
+{
+    public string? SourceTitle { get; set; }
+
+    public string? Indexer { get; set; }
+
+    public int? SeriesId { get; set; }
+
+    public int? MovieId { get; set; }
 }
 
 /// <summary>Una pagina di una risposta con <c>page</c> e <c>pageSize</c> (<c>queue</c>, <c>wanted/missing</c>).</summary>

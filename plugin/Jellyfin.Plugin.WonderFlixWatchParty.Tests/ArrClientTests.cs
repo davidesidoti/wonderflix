@@ -373,6 +373,207 @@ public class ArrClientTests
     }
 
     [Fact]
+    public async Task ParseSendsTitleAndReadsEpisodes()
+    {
+        // Sonarr 4.0.20, accorciato.
+        Answer(
+            HttpStatusCode.OK,
+            """
+            {"parsedEpisodeInfo":{"quality":{"quality":{"id":7,"name":"Bluray-1080p","resolution":1080}},"fullSeason":true,
+              "seasonNumber":2,"episodeNumbers":[],"absoluteEpisodeNumbers":[25,26]},
+             "series":{"id":12,"title":"Slime","seriesType":"anime","tags":[3],
+               "alternateTitles":[{"title":"Tensei Shitara Slime Datta Ken S2","sceneSeasonNumber":2},{"title":"Vita da Slime","seasonNumber":-1}]},
+             "episodes":[{"id":901,"seasonNumber":2,"episodeNumber":1,"absoluteEpisodeNumber":25,"sceneSeasonNumber":2}],
+             "customFormats":[],"customFormatScore":15}
+            """);
+
+        var parse = await Client().ParseAsync(ArrKind.Sonarr, "Slime S02 [1080p] #1", CancellationToken.None);
+
+        var seen = Assert.Single(_http.Requests);
+        Assert.Equal(HttpMethod.Get, seen.Method);
+        Assert.Equal("https://arr.example/sonarr/api/v3/parse?title=Slime%20S02%20%5B1080p%5D%20%231", seen.Uri.OriginalString);
+        Assert.Equal("sonarr-key", seen.ApiKey);
+        Assert.Equal(12, parse.Series!.Id);
+        Assert.Equal("anime", parse.Series.SeriesType);
+        Assert.Equal([3], parse.Series.Tags);
+        Assert.Equal(("Vita da Slime", -1, null), (parse.Series.AlternateTitles![1]!.Title, parse.Series.AlternateTitles[1]!.SeasonNumber, parse.Series.AlternateTitles[1]!.SceneSeasonNumber));
+        Assert.Equal(2, parse.Series.AlternateTitles[0]!.SceneSeasonNumber);
+        var episode = Assert.Single(parse.Episodes!)!;
+        Assert.Equal((901, 2, 25, 2), (episode.Id, episode.SeasonNumber, episode.AbsoluteEpisodeNumber, episode.SceneSeasonNumber));
+        Assert.True(parse.ParsedEpisodeInfo!.FullSeason);
+        Assert.Equal(1080, parse.ParsedEpisodeInfo.Quality!.Quality!.Resolution);
+        Assert.Equal([25, 26], parse.ParsedEpisodeInfo.AbsoluteEpisodeNumbers);
+        Assert.Equal(15, parse.CustomFormatScore);
+        Assert.Null(parse.Movie);
+    }
+
+    [Fact]
+    public async Task ParseOfAMovieReadsTheMovieAndItsTitles()
+    {
+        Answer(
+            HttpStatusCode.OK,
+            """
+            {"parsedMovieInfo":{"quality":{"quality":{"id":3,"name":"WEBDL-1080p","resolution":1080}}},
+             "movie":{"id":5,"title":"Hope","originalTitle":"Speranza","originalLanguage":{"id":8,"name":"Italian"},"tags":[1,2],
+               "alternateTitles":[{"title":"Hoppe","language":{"id":1,"name":"English"}}]},
+             "customFormatScore":0}
+            """);
+
+        var parse = await Client().ParseAsync(ArrKind.Radarr, "Hope 2026", CancellationToken.None);
+
+        Assert.Equal("https://arr.example/radarr/api/v3/parse?title=Hope%202026", Assert.Single(_http.Requests).Uri.OriginalString);
+        Assert.Equal(("Speranza", "Italian", 5), (parse.Movie!.OriginalTitle, parse.Movie.OriginalLanguage!.Name, parse.Movie.Id));
+        Assert.Equal([1, 2], parse.Movie.Tags);
+        Assert.Equal(("Hoppe", "English"), (parse.Movie.AlternateTitles![0]!.Title, parse.Movie.AlternateTitles[0]!.Language!.Name));
+        Assert.Equal(3, parse.ParsedMovieInfo!.Quality!.Quality!.Id);
+        Assert.Null(parse.Episodes);
+    }
+
+    [Fact]
+    public async Task PushPostsReleaseAndReadsDecision()
+    {
+        Answer(HttpStatusCode.OK, """[{"title":"Show S01","approved":false,"temporarilyRejected":false,"rejected":true,"rejections":["Not an upgrade"]}]""");
+
+        var result = await Client().PushReleaseAsync(
+            ArrKind.Sonarr,
+            new ArrPushRelease
+            {
+                Title = "Show S01 1080p",
+                MagnetUrl = "magnet:?xt=urn:btih:abc",
+                Protocol = "torrent",
+                PublishDate = new DateTimeOffset(2026, 11, 1, 10, 0, 0, TimeSpan.Zero),
+                Size = 123,
+                IndexerId = 4,
+                Seeders = 9,
+            },
+            CancellationToken.None);
+
+        var seen = Assert.Single(_http.Requests);
+        Assert.Equal(HttpMethod.Post, seen.Method);
+        Assert.Equal("https://arr.example/sonarr/api/v3/release/push", seen.Uri.OriginalString);
+        Assert.Equal("sonarr-key", seen.ApiKey);
+        Assert.Equal(
+            """{"title":"Show S01 1080p","magnetUrl":"magnet:?xt=urn:btih:abc","protocol":"torrent","publishDate":"2026-11-01T10:00:00+00:00","size":123,"indexerId":4,"seeders":9}""",
+            seen.Body);
+        Assert.True(result.Rejected);
+        Assert.False(result.Approved);
+        Assert.Equal(["Not an upgrade"], result.Rejections);
+    }
+
+    [Fact]
+    public async Task PushServerErrorThrows500()
+    {
+        Answer(HttpStatusCode.InternalServerError, "{}");
+
+        var error = await Assert.ThrowsAsync<ArrException>(() => Client().PushReleaseAsync(
+            ArrKind.Radarr, new ArrPushRelease { Title = "X", Protocol = "torrent" }, CancellationToken.None));
+
+        Assert.Equal(500, error.Status);
+        Assert.DoesNotContain(_logger.Entries, e => e.Message.Contains("radarr-key", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task PushWithAnEmptyAnswerIsUnreachable()
+    {
+        Answer(HttpStatusCode.OK, "[]");
+
+        var error = await Assert.ThrowsAsync<ArrException>(() => Client().PushReleaseAsync(
+            ArrKind.Radarr, new ArrPushRelease { Title = "X", Protocol = "torrent" }, CancellationToken.None));
+
+        Assert.Equal(ArrError.Unreachable, error.Error);
+    }
+
+    [Fact]
+    public async Task IndexerReadsProwlarrIdAndFields()
+    {
+        Answer(
+            HttpStatusCode.OK,
+            """
+            [{"id":3,"name":"Knaben","priority":25,"enableInteractiveSearch":true,"tags":[],
+              "fields":[{"name":"baseUrl","value":"http://h:20790/prowlarr/11/"},{"name":"apiPath","value":"/api"},
+                {"name":"categories","value":[5000,5070]},{"name":"animeCategories","value":[5070]},
+                {"name":"minimumSeeders","value":1},{"name":"seedCriteria.seedRatio","value":null}]},
+             {"id":4,"name":"Altro","priority":25,"enableInteractiveSearch":false,"fields":null}]
+            """);
+
+        var indexers = await Client().GetIndexersAsync(ArrKind.Sonarr, CancellationToken.None);
+
+        var first = indexers[0]!;
+        Assert.Equal(("Knaben", true, 11, 1), (first.Name, first.EnableInteractiveSearch, first.ProwlarrId, first.MinimumSeeders));
+        Assert.Equal([5000, 5070], first.Categories);
+        Assert.Equal([5070], first.AnimeCategories);
+        var other = indexers[1]!;
+        Assert.Null(other.ProwlarrId);
+        Assert.Null(other.MinimumSeeders);
+        Assert.Empty(other.Categories);
+        Assert.Empty(other.AnimeCategories);
+    }
+
+    [Fact]
+    public async Task ReleaseProfileAcceptsStringOrList()
+    {
+        Answer(
+            HttpStatusCode.OK,
+            """
+            [{"id":1,"enabled":true,"required":["x265","HEVC"],"ignored":"cam, ts","tags":[7]},
+             {"id":2,"enabled":false,"required":null,"ignored":[],"tags":[]}]
+            """);
+
+        var profiles = await Client().GetReleaseProfilesAsync(ArrKind.Sonarr, CancellationToken.None);
+
+        Assert.Equal("https://arr.example/sonarr/api/v3/releaseprofile", Assert.Single(_http.Requests).Uri.OriginalString);
+        Assert.True(profiles[0]!.Enabled);
+        Assert.Equal(["x265", "HEVC"], profiles[0]!.Required);
+        Assert.Equal(["cam", "ts"], profiles[0]!.Ignored);
+        Assert.Equal([7], profiles[0]!.Tags);
+        Assert.False(profiles[1]!.Enabled);
+        Assert.Null(profiles[1]!.Required);
+        Assert.Empty(profiles[1]!.Ignored!);
+    }
+
+    [Fact]
+    public async Task QualityDefinitionsAndProfilesReadTheLimitsAndTheMinimumScore()
+    {
+        Answer(HttpStatusCode.OK, """[{"quality":{"id":7,"name":"Bluray-1080p","resolution":1080},"title":"Bluray-1080p","minSize":15.5,"maxSize":null}]""");
+        var definition = Assert.Single(await Client().GetQualityDefinitionsAsync(ArrKind.Radarr, CancellationToken.None))!;
+        Answer(HttpStatusCode.OK, """[{"id":4,"name":"HD","minFormatScore":20,"items":[]}]""");
+        var profile = Assert.Single(await Client().GetQualityProfilesAsync(ArrKind.Radarr, CancellationToken.None))!;
+
+        Assert.Equal("https://arr.example/radarr/api/v3/qualitydefinition", _http.Requests[0].Uri.OriginalString);
+        Assert.Equal((7, 15.5, null), (definition.Quality!.Id, definition.MinSize, definition.MaxSize));
+        Assert.Equal(20, profile.MinFormatScore);
+    }
+
+    [Fact]
+    public async Task TheBlocklistReadsEveryPage()
+    {
+        _http.Respond = (request, _) => Task.FromResult(FakeSeerrHttp.Json(
+            HttpStatusCode.OK,
+            request.RequestUri!.Query.Contains("page=2", StringComparison.Ordinal)
+                ? """{"totalRecords":251,"records":[{"sourceTitle":"Last","indexer":"Knaben","movieId":5}]}"""
+                : $$"""{"totalRecords":251,"records":[{{string.Join(",", Enumerable.Range(1, 250).Select(id => $$"""{"sourceTitle":"T{{id}}","seriesId":{{id}}}"""))}}]}"""));
+
+        var items = await Client().GetBlocklistAsync(ArrKind.Sonarr, CancellationToken.None);
+
+        Assert.Equal(251, items.Count);
+        Assert.Equal("https://arr.example/sonarr/api/v3/blocklist?page=1&pageSize=250", _http.Requests[0].Uri.OriginalString);
+        Assert.Equal("https://arr.example/sonarr/api/v3/blocklist?page=2&pageSize=250", _http.Requests[1].Uri.OriginalString);
+        Assert.Equal(("Last", "Knaben", 5), (items[250]!.SourceTitle, items[250]!.Indexer, items[250]!.MovieId));
+        Assert.Equal(1, items[0]!.SeriesId);
+    }
+
+    [Fact]
+    public async Task ASeriesIsReadById()
+    {
+        Answer(HttpStatusCode.OK, """{"id":12,"title":"Slime","seriesType":"anime"}""");
+
+        var series = await Client().GetSeriesByIdAsync(12, CancellationToken.None);
+
+        Assert.Equal("https://arr.example/sonarr/api/v3/series/12", Assert.Single(_http.Requests).Uri.OriginalString);
+        Assert.Equal("anime", series.SeriesType);
+    }
+
+    [Fact]
     public async Task ManualImportPostsTheCommand()
     {
         // Come risponde Radarr (campi verificati sul server il 2026-10-28); quality e languages tornano uguali.

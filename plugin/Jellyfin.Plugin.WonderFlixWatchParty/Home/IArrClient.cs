@@ -36,6 +36,27 @@ public interface IArrClient
     /// <summary>Fa scaricare una release trovata da <see cref="SearchReleasesAsync"/> (spec T §2).</summary>
     Task GrabReleaseAsync(ArrKind kind, string guid, int indexerId, CancellationToken cancellationToken);
 
+    /// <summary>Cosa Sonarr/Radarr capiscono da un titolo di release: serie o film, episodi, qualità (<c>GET parse</c>).</summary>
+    Task<ArrParse> ParseAsync(ArrKind kind, string title, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Offre a Sonarr/Radarr una release trovata altrove (<c>POST release/push</c>): la scartano o la scaricano secondo le
+    /// loro regole. Un rifiuto è nella risposta, non un errore.
+    /// </summary>
+    Task<ArrPushResult> PushReleaseAsync(ArrKind kind, ArrPushRelease release, CancellationToken cancellationToken);
+
+    /// <summary>Una serie di Sonarr per id, con titoli alternativi e tag; 404 se non c'è.</summary>
+    Task<SonarrSeries> GetSeriesByIdAsync(int seriesId, CancellationToken cancellationToken);
+
+    /// <summary>I limiti di peso per qualità, in MB per minuto.</summary>
+    Task<IReadOnlyList<ArrQualityDefinition?>> GetQualityDefinitionsAsync(ArrKind kind, CancellationToken cancellationToken);
+
+    /// <summary>Le regole di release (termini obbligatori e vietati).</summary>
+    Task<IReadOnlyList<ArrReleaseProfile?>> GetReleaseProfilesAsync(ArrKind kind, CancellationToken cancellationToken);
+
+    /// <summary>La blocklist; tutte le pagine.</summary>
+    Task<IReadOnlyList<ArrBlocklistItem?>> GetBlocklistAsync(ArrKind kind, CancellationToken cancellationToken);
+
     /// <summary>Un film di Radarr per id, con durata e file; 404 se non c'è (spec T §8.2).</summary>
     Task<RadarrMovie> GetMovieAsync(int movieId, CancellationToken cancellationToken);
 
