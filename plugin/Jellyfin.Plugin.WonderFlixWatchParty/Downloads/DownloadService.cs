@@ -4,6 +4,7 @@ using Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
 using Jellyfin.Plugin.WonderFlixWatchParty.Space;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 
@@ -24,7 +25,8 @@ public sealed partial class DownloadService(
     TimeProvider time,
     ILogger<DownloadService> logger,
     AdminAlerts? alerts = null,
-    IQbitClient? qbit = null)
+    IQbitClient? qbit = null,
+    IReleaseFinder? finder = null)
 {
     /// <summary>Un giro ogni tanto (decisione 7).</summary>
     public static readonly TimeSpan CycleInterval = TimeSpan.FromMinutes(15);
@@ -60,6 +62,9 @@ public sealed partial class DownloadService(
 
     // Lo stato che l'avanzamento mostra a un torrent fermo sui metadati (non esiste nella coda).
     private const string MetadataStatus = "metadata";
+
+    // Senza finder (i test) la ricerca di sempre di Sonarr/Radarr.
+    private readonly IReleaseFinder _finder = finder ?? new ReleaseFinder(arr, null, arrSettings, NullLogger<ReleaseFinder>.Instance, null, time);
 
     private readonly Lock _lock = new();
     private DownloadBook? _book;
@@ -238,7 +243,8 @@ public sealed partial class DownloadService(
         bool HasFile,
         int FileId = 0,
         int SeriesId = 0,
-        int EpisodeNumber = 0);
+        int EpisodeNumber = 0,
+        IReadOnlyList<int>? Tags = null);
 
     // La lettura di un servizio: i suoi titoli per chiave e la coda per chiave.
     // AbsentHasFile: Sonarr toglie dai mancanti un episodio appena ha il file.
@@ -315,7 +321,8 @@ public sealed partial class DownloadService(
         Followed: m.Monitored && !m.HasFile,
         Wanted: m.Monitored && !m.HasFile && m.IsAvailable,
         m.HasFile,
-        FileId: m.MovieFile?.Id ?? 0);
+        FileId: m.MovieFile?.Id ?? 0,
+        Tags: m.Tags);
 
     // Un episodio mancante, con la sua serie in Series.
     private static ArrTitle EpisodeTitleOf(SonarrEpisode e, DateTimeOffset now) => new(
@@ -331,7 +338,8 @@ public sealed partial class DownloadService(
         Wanted: e.Monitored && e.AirDateUtc <= now,
         HasFile: false,
         SeriesId: e.SeriesId,
-        EpisodeNumber: e.EpisodeNumber);
+        EpisodeNumber: e.EpisodeNumber,
+        Tags: e.Series?.Tags);
 
     internal static string SeasonTitleOf(string? series, int season) =>
         string.Create(CultureInfo.InvariantCulture, $"{series} · Stagione {season}");
@@ -378,6 +386,12 @@ public sealed partial class DownloadService(
                     stalled.Add((kind, queueId, key));
                 }
             }
+        }
+
+        // Un torrent nostro che il libro non segue più (o senza qBittorrent) non resta "in download" per sempre: è un download sparito.
+        foreach (var entry in Book.Entries.Where(e => ServiceOf(e.Kind) == kind && e.DirectHash is { } hash && (qbit is null || !Book.DirectGrabs.ContainsKey(hash))))
+        {
+            entry.DirectHash = null;
         }
 
         // 4-5. Download finiti e titoli da non seguire più. Un torrent nostro non è in coda: lo segue ApplyDirect.
@@ -507,6 +521,12 @@ public sealed partial class DownloadService(
             {
                 entry.DirectHash = null;
                 entry.LastSearchAt = time.GetUtcNow();
+
+                // Senza file del titolo la release si ricorda come un rifiuto del client: la ricerca dopo ne sceglie un'altra.
+                if (files is null && LatestChoice(key) is { } chosen)
+                {
+                    RememberRefused(entry, chosen.Guid, chosen.IndexerId);
+                }
             }
         }
 
@@ -749,7 +769,7 @@ public sealed partial class DownloadService(
 
     private static string Key(string kind, int id) => new DownloadKey(kind, id, 0).ToString();
 
-    private static ArrKind ServiceOf(string kind) => kind == DownloadKinds.Movie ? ArrKind.Radarr : ArrKind.Sonarr;
+    private static ArrKind ServiceOf(string kind) => ReleaseFinder.ServiceOf(kind);
 
     // Solo il codice, mai il messaggio: può contenere indirizzi o query.
     private static string ErrorOf(Exception ex) => ex is ArrException arrError ? arrError.Error.ToString() : ex.GetType().Name;

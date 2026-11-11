@@ -36,9 +36,9 @@ public sealed class DownloadServiceSeasonTests : IDisposable
 
     public void Dispose() => _folder.Dispose();
 
-    private DownloadService NewService()
+    private DownloadService NewService(IReleaseFinder? finder = null)
     {
-        var service = new DownloadService(_arr, _arrSettings, _settings, Store(), _time, NullLogger<DownloadService>.Instance) { Pause = TimeSpan.Zero };
+        var service = new DownloadService(_arr, _arrSettings, _settings, Store(), _time, NullLogger<DownloadService>.Instance, finder: finder) { Pause = TimeSpan.Zero };
         service.Load();
         return service;
     }
@@ -717,5 +717,42 @@ public sealed class DownloadServiceSeasonTests : IDisposable
             // All'obiettivo: la voce esce.
             Assert.Null(Saved("season:7:2"));
         }
+    }
+
+    [Fact]
+    public async Task AProwlarrTimeoutKeepsTheSeason()
+    {
+        // Il timeout che divide la stagione è quello della ricerca di Sonarr: con Prowlarr la stagione resta.
+        WholeSeason();
+        var finder = new FakeReleaseFinder
+        {
+            UsesProwlarr = true,
+            Search = (_, _) => Task.FromException<FinderResult>(new ArrException(ArrError.Unreachable) { TimedOut = true }),
+        };
+
+        await NewService(finder).RunCycleAsync(CancellationToken.None);
+
+        Assert.Equal(["season:7:2"], SavedKeys());
+        Assert.Equal(DownloadReasons.SearchFailed, Saved("season:7:2")!.Reason);
+    }
+
+    [Fact]
+    public async Task ARefusedPackTriesTheNextPack()
+    {
+        WholeSeason();
+        var finder = new FakeReleaseFinder
+        {
+            UsesProwlarr = true,
+            Search = (_, engine) => Task.FromResult(new FinderResult([Pack("p1", 3, 60), Pack("p2", 3, 50), Single("e1", 1, 1, 50)], [], engine)),
+            Grab = (_, release, _) => Task.FromResult(release.Guid == "p1" ? new GrabResult(GrabKind.RuleRefused, "Not English", null) : new GrabResult(GrabKind.Grabbed, null, null)),
+        };
+
+        await NewService(finder).RunCycleAsync(CancellationToken.None);
+
+        // Il singolo non è un pack: dopo p1 si prova p2, non e1.
+        Assert.Equal(["p1", "p2"], finder.GrabCalls.Select(c => c.Release.Guid));
+        var entry = Saved("season:7:2")!;
+        Assert.Equal(DownloadStates.Downloading, entry.State);
+        Assert.Equal([1, 2, 3], entry.EpisodeNumbers!);
     }
 }

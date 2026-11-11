@@ -24,6 +24,7 @@ public sealed class DownloadServiceSearchTests : IDisposable
     private List<ArrQueueItem?> _radarrQueue = [];
     private List<ArrRelease?> _releases = [];
     private int _fileScore = 50;
+    private FakeReleaseFinder? _finder;
 
     public DownloadServiceSearchTests()
     {
@@ -40,7 +41,7 @@ public sealed class DownloadServiceSearchTests : IDisposable
     private DownloadService NewService()
     {
         var service = new DownloadService(
-            _arr, _arrSettings, _settings, Store(), _time, NullLogger<DownloadService>.Instance) { Pause = TimeSpan.Zero };
+            _arr, _arrSettings, _settings, Store(), _time, NullLogger<DownloadService>.Instance, finder: _finder) { Pause = TimeSpan.Zero };
         service.Load();
         return service;
     }
@@ -947,5 +948,143 @@ public sealed class DownloadServiceSearchTests : IDisposable
         _time.Advance(DownloadService.CycleInterval);
         await Cycle();
         Assert.Equal((10, 5, 48.0), (await Progress()) is { } p ? (p.Done, p.Remaining, p.PerHour!.Value) : default);
+    }
+
+    // Il ciclo con Prowlarr: il finder finto risponde con _releases (marcate come di Prowlarr) e scarica con grab.
+    private void UseProwlarr(Func<ArrRelease, bool, GrabResult>? grab = null)
+    {
+        _finder = new FakeReleaseFinder
+        {
+            UsesProwlarr = true,
+            Search = (_, _) => Task.FromResult(new FinderResult([.. _releases.Select(r => { r!.Source = ReleaseSource.Prowlarr; return r; })], [], SearchEngine.Prowlarr)),
+        };
+        if (grab is not null)
+        {
+            _finder.Grab = (_, release, intentional) => Task.FromResult(grab(release, intentional));
+        }
+
+        _service = NewService();
+    }
+
+    [Fact]
+    public async Task CycleSearchesWithProwlarrEngine()
+    {
+        UseProwlarr();
+        _movies = [Movie(12)];
+        _releases = [Release("b", WebRip1080, "WEBRip-1080p", 4, 150, indexerId: 3)];
+
+        var report = await Cycle();
+
+        Assert.Equal((1, 1), (report.Searched, report.Grabbed));
+        Assert.Equal((new DownloadKey(DownloadKinds.Movie, 12, 0), SearchEngine.Prowlarr, (TimeSpan?)ArrClient.CycleSearchTimeout), Assert.Single(_finder!.SearchCalls));
+        Assert.Empty(_arr.SearchReleaseCalls);
+        Assert.Empty(_arr.GrabCalls);
+        var grab = Assert.Single(_finder.GrabCalls);
+        Assert.Equal((ArrKind.Radarr, "b", false), (grab.Service, grab.Release.Guid, grab.Intentional));
+        Assert.Equal(DownloadStates.Downloading, Saved("movie:12")!.State);
+        Assert.Equal("b", Assert.Single(Store().Load().Choices).Guid);
+
+        // Blocklist, regole e pesi: una volta per servizio e per giro.
+        Assert.Equal([ArrKind.Radarr], _arr.BlocklistCalls);
+    }
+
+    [Fact]
+    public async Task ProwlarrChecksUseTheBlocklistOfTheTitle()
+    {
+        UseProwlarr();
+        _arr.Blocklist = _ => Task.FromResult<IReadOnlyList<ArrBlocklistItem?>>(
+        [
+            new ArrBlocklistItem { SourceTitle = "t-a", MovieId = 12 },
+            new ArrBlocklistItem { SourceTitle = "t-b", MovieId = 99 },
+        ]);
+        _movies = [Movie(12)];
+        _releases = [Release("a", WebRip1080, "WEBRip-1080p", 4, 200), Release("b", WebRip1080, "WEBRip-1080p", 4, 150)];
+
+        await Cycle();
+
+        Assert.Equal("b", Assert.Single(_finder!.GrabCalls).Release.Guid);
+    }
+
+    [Fact]
+    public async Task RuleRefusedTriesNextCandidate()
+    {
+        UseProwlarr((release, _) => release.Guid == "a" ? new GrabResult(GrabKind.RuleRefused, "Not English", null) : new GrabResult(GrabKind.Grabbed, null, null));
+        _movies = [Movie(12)];
+        _releases = [Release("a", WebRip1080, "WEBRip-1080p", 3, 150), Release("b", WebRip1080, "WEBRip-1080p", 4, 150), Release("c", WebRip1080, "WEBRip-1080p", 5, 150)];
+
+        var report = await Cycle();
+
+        Assert.Equal(1, report.Grabbed);
+        Assert.Equal(["a", "b"], _finder!.GrabCalls.Select(c => c.Release.Guid));
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.Downloading, (string?)null), (entry.State, entry.Reason));
+        Assert.Empty(entry.RefusedReleases ?? []);
+        Assert.Equal("b", Assert.Single(Store().Load().Choices).Guid);
+    }
+
+    [Fact]
+    public async Task ThreeRuleRefusalsAreNothingChosen()
+    {
+        UseProwlarr((_, _) => new GrabResult(GrabKind.RuleRefused, "Not English", null));
+        _movies = [Movie(12)];
+        _releases = [.. new[] { "a", "b", "c", "d" }.Select((g, i) => (ArrRelease?)Release(g, WebRip1080, "WEBRip-1080p", 3 + i, 150))];
+
+        var report = await Cycle();
+
+        Assert.Equal(0, report.Grabbed);
+        Assert.Equal(["a", "b", "c"], _finder!.GrabCalls.Select(c => c.Release.Guid));
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.Waiting, (string?)null), (entry.State, entry.Reason));
+        Assert.Equal((DateTimeOffset?)(T0 + TimeSpan.FromHours(6)), entry.NextSearchAt);
+        Assert.Empty(entry.RefusedReleases ?? []);
+        Assert.Empty(Store().Load().Choices);
+    }
+
+    [Fact]
+    public async Task ClientRefusedIsGrabRefused()
+    {
+        UseProwlarr();
+        _finder!.Grab = (_, _, _) => Task.FromException<GrabResult>(new ArrException(ArrError.Unreachable, status: 500));
+        _movies = [Movie(12)];
+        _releases = [Release("a", WebRip1080, "WEBRip-1080p", 3, 150), Release("b", WebRip1080, "WEBRip-1080p", 4, 150)];
+
+        await Cycle();
+
+        Assert.Single(_finder.GrabCalls);
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.NeedsYou, DownloadReasons.GrabRefused), (entry.State, entry.Reason));
+        Assert.Equal(["1|a"], entry.RefusedReleases);
+    }
+
+    [Fact]
+    public async Task AFailedDirectAddIsRetriedNextCycle()
+    {
+        UseProwlarr();
+        _finder!.Grab = (_, _, _) => Task.FromException<GrabResult>(new Space.QbitException(Space.QbitError.Unreachable));
+        _movies = [Movie(12)];
+        _releases = [Release("a", WebRip1080, "WEBRip-1080p", 3, 150)];
+
+        await Cycle();
+
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.Waiting, DownloadReasons.SearchFailed, (DateTimeOffset?)(T0 + DownloadService.CycleInterval)), (entry.State, entry.Reason, entry.NextSearchAt));
+        Assert.Empty(entry.RefusedReleases ?? []);
+    }
+
+    [Fact]
+    public async Task StopgapBySizeGoesDirectWhenPushRefuses()
+    {
+        await SeedStopgap(DownloadStopgaps.Size, 120, 1);
+        UseProwlarr((_, intentional) => intentional ? new GrabResult(GrabKind.Direct, null, "h1") : new GrabResult(GrabKind.RuleRefused, "Not an upgrade", null));
+        _releases = [Release("heavy", WebRip1080, "WEBRip-1080p", 4, 120)];
+
+        await Cycle();
+
+        Assert.True(Assert.Single(_finder!.GrabCalls).Intentional);
+        var book = Store().Load();
+        var entry = book.Get("movie:12")!;
+        Assert.Equal((DownloadStates.Downloading, "h1"), (entry.State, entry.DirectHash));
+        Assert.Equal("movie:12", book.DirectGrabs["h1"]);
+        Assert.Equal("heavy", Assert.Single(book.Choices).Guid);
     }
 }

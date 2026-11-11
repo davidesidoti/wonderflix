@@ -20,8 +20,7 @@ public static class SeasonPackRule
         }
 
         var all = releases.OfType<ArrRelease>().ToList();
-        var episodeMinutes = perEpisode.RuntimeMinutes > 0 ? perEpisode.RuntimeMinutes : DownloadRule.FallbackEpisodeMinutes;
-        var pack = DownloadRule.Choose(all.Where(r => r.FullSeason), perEpisode with { RuntimeMinutes = episodeMinutes * missingEpisodes.Count }).Choice;
+        var pack = Packs(all, missingEpisodes.Count, perEpisode).Choice;
         if (pack is null)
         {
             return null;
@@ -41,5 +40,12 @@ public static class SeasonPackRule
         }
 
         return pack.Size <= MaxPackRatio * sum ? pack : null;
+    }
+
+    /// <summary>La regola sui soli pack completi, sulla durata di <paramref name="missingCount"/> episodi: i candidati sono i pack validi in ordine.</summary>
+    public static RuleResult Packs(IEnumerable<ArrRelease?> releases, int missingCount, RuleInput perEpisode)
+    {
+        var episodeMinutes = perEpisode.RuntimeMinutes > 0 ? perEpisode.RuntimeMinutes : DownloadRule.FallbackEpisodeMinutes;
+        return DownloadRule.Choose(releases.Where(r => r?.FullSeason == true), perEpisode with { RuntimeMinutes = episodeMinutes * missingCount });
     }
 }

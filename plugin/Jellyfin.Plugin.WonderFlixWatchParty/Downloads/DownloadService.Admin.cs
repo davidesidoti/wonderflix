@@ -276,7 +276,7 @@ public sealed partial class DownloadService
                     // Una release rifiutata dal client si ricorda (spec §5.3): alla pressione dopo si prende un'altra.
                     if (outcome == GrabOutcome.Refused)
                     {
-                        RememberRefused(entry, release);
+                        RememberRefused(entry, release.Guid!, release.IndexerId);
                     }
                     else
                     {

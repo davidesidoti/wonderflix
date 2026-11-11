@@ -2,6 +2,7 @@ using System.Text.Json;
 using Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
@@ -17,7 +18,9 @@ public class ReleaseFinderTests
 
     private readonly FakeQbitClient _qbit = new();
 
-    private ReleaseFinder Finder() => new(_arr, _prowlarr, _settings, _logger, _qbit);
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 11, 11, 12, 0, 0, TimeSpan.Zero));
+
+    private ReleaseFinder Finder() => new(_arr, _prowlarr, _settings, _logger, _qbit, _time);
 
     private static ArrIndexer Indexer(int id, int? prowlarrId, bool interactive = true, int[]? categories = null, int[]? anime = null)
     {
@@ -336,6 +339,17 @@ public class ReleaseFinderTests
             ("Show S01 1080p", "http://prowlarr/dl?apikey=k", Magnet, "torrent", 123L, 4, 9),
             (push.Title, push.DownloadUrl, push.MagnetUrl, push.Protocol, push.Size, push.IndexerId, push.Seeders));
         Assert.Equal(new DateTimeOffset(2026, 11, 1, 10, 0, 0, TimeSpan.Zero), push.PublishDate);
+    }
+
+    [Fact]
+    public async Task PushWithoutPublishDateSendsNow()
+    {
+        var release = Pushed();
+        release.PublishDate = null;
+
+        await Finder().GrabAsync(ArrKind.Sonarr, release, false, CancellationToken.None);
+
+        Assert.Equal(_time.GetUtcNow(), Assert.Single(_arr.PushCalls).Release.PublishDate);
     }
 
     [Fact]

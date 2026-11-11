@@ -5,8 +5,11 @@ using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 
-/// <summary>La ricerca di sempre per l'<see cref="SearchEngine.Arr"/>, e per Prowlarr: query per titolo, parse con Sonarr/Radarr.</summary>
-public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient prowlarr, IArrSettings settings, ILogger<ReleaseFinder> logger, IQbitClient qbit) : IReleaseFinder
+/// <summary>
+/// La ricerca di sempre per l'<see cref="SearchEngine.Arr"/>, e per Prowlarr: query per titolo, parse con Sonarr/Radarr.
+/// Senza <paramref name="prowlarr"/> usa sempre la strada <see cref="SearchEngine.Arr"/>.
+/// </summary>
+public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient? prowlarr, IArrSettings settings, ILogger<ReleaseFinder> logger, IQbitClient? qbit, TimeProvider time) : IReleaseFinder
 {
     // Il parse non mette niente in cache e un parallelismo piccolo basta (1640 release in 6 s in sequenza).
     private const int ParseParallelism = 4;
@@ -24,7 +27,7 @@ public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient prowlarr, IArr
         "Existing file meets cutoff",
     ];
 
-    public bool UsesProwlarr => settings.Prowlarr.IsConfigured;
+    public bool UsesProwlarr => prowlarr is not null && settings.Prowlarr.IsConfigured;
 
     /// <summary>La query di <c>release</c> di Sonarr/Radarr per la chiave.</summary>
     internal static string QueryOf(DownloadKey key) => key.Kind switch
@@ -67,7 +70,7 @@ public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient prowlarr, IArr
                     DownloadUrl = release.DownloadUrl,
                     MagnetUrl = release.MagnetUrl,
                     Protocol = release.Protocol ?? "torrent",
-                    PublishDate = release.PublishDate ?? default,
+                    PublishDate = release.PublishDate ?? time.GetUtcNow(),
                     Size = release.Size,
                     IndexerId = release.IndexerId,
                     Seeders = release.Seeders,
@@ -105,7 +108,7 @@ public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient prowlarr, IArr
             .FirstOrDefault(c => !string.IsNullOrEmpty(c))
             ?? throw new QbitException(QbitError.NotConfigured);
         var link = release.MagnetUrl ?? release.DownloadUrl ?? throw new QbitException(QbitError.NotFound);
-        var hash = await qbit.AddAsync(link, category, cancellationToken).ConfigureAwait(false);
+        var hash = await (qbit ?? throw new QbitException(QbitError.NotConfigured)).AddAsync(link, category, cancellationToken).ConfigureAwait(false);
 
         // Mai il titolo nel log (è quello che l'utente cerca); i motivi sono di Sonarr/Radarr.
         logger.LogInformation("Push rifiutato ({Reason}): torrent aggiunto direttamente a qBittorrent", reasons[0]);
@@ -140,7 +143,7 @@ public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient prowlarr, IArr
                 calls++;
                 try
                 {
-                    foreach (var release in await prowlarr.SearchAsync(new ProwlarrQuery(type, query, season, episode, ids, categories), cancellationToken).ConfigureAwait(false))
+                    foreach (var release in await prowlarr!.SearchAsync(new ProwlarrQuery(type, query, season, episode, ids, categories), cancellationToken).ConfigureAwait(false))
                     {
                         // Un indexer che il servizio non conosce non si potrebbe scaricare.
                         if (indexers.ContainsKey(release.IndexerId))

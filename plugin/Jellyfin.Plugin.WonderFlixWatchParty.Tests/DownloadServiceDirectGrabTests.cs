@@ -131,4 +131,47 @@ public sealed class DownloadServiceDirectGrabTests : IDisposable
         Assert.Equal(BlockedOutcome.Changed, await _service.RemoveUnknownAsync("Radarr", Hash.ToUpperInvariant()));
         Assert.Empty(_arr.RemoveFromQueueCalls);
     }
+
+    [Fact]
+    public async Task ADirectTorrentWithoutFilesIsNotChosenAgain()
+    {
+        // Il torrent finito non ha file del titolo: la release si ricorda, così la ricerca dopo ne sceglie un'altra.
+        var book = Store().Load();
+        book.AddChoice(new DownloadChoice { Key = "movie:12", Kind = DownloadKinds.Movie, At = T0 - TimeSpan.FromHours(1), Guid = "b", IndexerId = 3 });
+        Store().Save(book);
+        _arr.ManualImportFolderItems = (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>([]);
+        Torrent(1);
+
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        var entry = Store().Load().Get("movie:12")!;
+        Assert.Null(entry.DirectHash);
+        Assert.Equal(["3|b"], entry.RefusedReleases);
+    }
+
+    [Fact]
+    public async Task AnUntrackedDirectHashIsAVanishedDownload()
+    {
+        // La voce ha un hash che il libro non segue: non resta "in download" per sempre.
+        var book = Store().Load();
+        book.DirectGrabs.Clear();
+        Store().Save(book);
+
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        var entry = Store().Load().Get("movie:12")!;
+        Assert.Null(entry.DirectHash);
+        Assert.Single(_arr.SearchReleaseCalls);
+    }
+
+    [Fact]
+    public async Task ADirectHashWithoutQbitIsAVanishedDownload()
+    {
+        var service = new DownloadService(_arr, new FakeArrSettings(), new FakeDownloadSettings(), Store(), _time, NullLogger<DownloadService>.Instance) { Pause = TimeSpan.Zero };
+
+        await service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Null(Store().Load().Get("movie:12")!.DirectHash);
+        Assert.Single(_arr.SearchReleaseCalls);
+    }
 }

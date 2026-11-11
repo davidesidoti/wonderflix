@@ -9,14 +9,16 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 /// <summary>Il giro, seconda parte (spec T §5): la ricerca dei titoli che mancano, la scelta con la regola, gli upgrade.</summary>
 public sealed partial class DownloadService
 {
-    // Letti una volta per giro e servizio: i profili per id e la priorità di ogni indexer.
-    private sealed record SearchContext(IReadOnlyDictionary<int, ArrQualityProfile> Profiles, IReadOnlyDictionary<int, int> IndexerPriority);
+    // Letti una volta per giro e servizio: i profili per id e la priorità di ogni indexer. Con Prowlarr anche quello che serve
+    // a scartare le sue release (Checks, senza profilo né tag, con la blocklist di tutti i titoli).
+    private sealed record SearchContext(IReadOnlyDictionary<int, ArrQualityProfile> Profiles, IReadOnlyDictionary<int, int> IndexerPriority, ChecksContext? Checks = null);
 
-    // Una voce da cercare, copiata sotto il lock. Solo stagioni: i numeri degli episodi per il pack e le voci in cui si divide.
+    // Una voce da cercare, copiata sotto il lock. TitleId: la serie (Sonarr) o il film (Radarr), per la blocklist; Tags: i suoi tag.
+    // Solo stagioni: i numeri degli episodi per il pack e le voci in cui si divide.
     private sealed record SearchItem(
         string Key,
         ArrKind Service,
-        string Query,
+        DownloadKey Target,
         bool Upgrade,
         int ProfileId,
         int RuntimeMinutes,
@@ -24,11 +26,16 @@ public sealed partial class DownloadService
         int? CurrentQualityId,
         IReadOnlySet<string> Refused,
         string? Stopgap,
+        int TitleId,
+        IReadOnlyList<int> Tags,
         IReadOnlyList<int>? Episodes = null,
         IReadOnlyList<ArrTitle>? SplitInto = null);
 
     // Quante release rifiutate dal client si ricordano per voce.
     private const int MaxRefusedReleases = 20;
+
+    // Quante release si provano al massimo in una ricerca quando il push le rifiuta per regola.
+    private const int MaxGrabAttempts = 3;
 
     // La finestra delle ricerche finite da cui si stima il ritmo della coda.
     private static readonly TimeSpan RateWindow = TimeSpan.FromHours(2);
@@ -218,10 +225,34 @@ public sealed partial class DownloadService
     private Func<CancellationToken, Task<SearchContext>> ReadContextAsync(ArrKind kind) => async cancellationToken =>
     {
         var profiles = await arr.GetQualityProfilesAsync(kind, cancellationToken).ConfigureAwait(false);
-        var indexers = await arr.GetIndexersAsync(kind, cancellationToken).ConfigureAwait(false);
+        var indexers = ByKey((await arr.GetIndexersAsync(kind, cancellationToken).ConfigureAwait(false)).OfType<ArrIndexer>(), i => i.Id);
+        ChecksContext? checks = null;
+        if (_finder.UsesProwlarr)
+        {
+            var definitions = await arr.GetQualityDefinitionsAsync(kind, cancellationToken).ConfigureAwait(false);
+            var releaseProfiles = await arr.GetReleaseProfilesAsync(kind, cancellationToken).ConfigureAwait(false);
+            var blocklist = await arr.GetBlocklistAsync(kind, cancellationToken).ConfigureAwait(false);
+            checks = new ChecksContext(
+                null,
+                [.. definitions.OfType<ArrQualityDefinition>()],
+                [.. releaseProfiles.OfType<ArrReleaseProfile>()],
+                [.. blocklist.OfType<ArrBlocklistItem>()],
+                indexers.Where(i => i.Value.MinimumSeeders is not null).ToDictionary(i => i.Key, i => i.Value.MinimumSeeders!.Value),
+                []);
+        }
+
         return new SearchContext(
             ByKey(profiles.OfType<ArrQualityProfile>(), p => p.Id),
-            ByKey(indexers.OfType<ArrIndexer>(), i => i.Id).ToDictionary(p => p.Key, p => p.Value.Priority));
+            indexers.ToDictionary(p => p.Key, p => p.Value.Priority),
+            checks);
+    };
+
+    // I controlli per il titolo cercato: il suo profilo, i suoi tag e solo le sue voci di blocklist.
+    private static ChecksContext ChecksFor(ChecksContext checks, SearchItem item, ArrQualityProfile? profile) => checks with
+    {
+        Profile = profile,
+        TitleTags = item.Tags,
+        Blocklist = [.. checks.Blocklist.Where(b => (item.Service == ArrKind.Radarr ? b.MovieId : b.SeriesId) == item.TitleId)],
     };
 
     // Solo sotto _lock. Waiting e NeedsYou (non ImportBlocked) di un titolo ancora da scaricare, o UpgradeWatch;
@@ -271,9 +302,11 @@ public sealed partial class DownloadService
             return null;
         }
 
-        var (service, query) = (ServiceOf(key.Kind), QueryOf(key));
         var upgrade = entry.State == DownloadStates.UpgradeWatch;
-        var item = new SearchItem(entry.Key, service, query, upgrade, entry.ProfileId, entry.RuntimeMinutes, entry.CurrentScore, entry.CurrentQualityId, (entry.RefusedReleases ?? []).ToHashSet(), entry.Stopgap);
+        var titleId = key.Kind == DownloadKinds.Episode ? entry.SeriesId : key.Id;
+        var tags = view.Titles.GetValueOrDefault(entry.Key)?.Tags ?? [];
+        var item = new SearchItem(
+            entry.Key, ServiceOf(key.Kind), key, upgrade, entry.ProfileId, entry.RuntimeMinutes, entry.CurrentScore, entry.CurrentQualityId, (entry.RefusedReleases ?? []).ToHashSet(), entry.Stopgap, titleId, tags);
         if (key.Kind != DownloadKinds.Season)
         {
             return item;
@@ -285,24 +318,25 @@ public sealed partial class DownloadService
         return episodes is { Count: > 0 } ? item with { Episodes = episodes, SplitInto = season?.Episodes } : null;
     }
 
-    // La query di release per la chiave: ora sta nel finder (Task 8 sposterà qui anche la chiamata).
+    // La query di release per la chiave (la ricerca dell'admin): sta nel finder.
     private static string QueryOf(DownloadKey key) => ReleaseFinder.QueryOf(key);
 
     // Una ricerca e quello che ne segue; true se ha scaricato.
     private async Task<bool> SearchOneAsync(SearchItem item, SearchContext context, CancellationToken cancellationToken)
     {
         var profile = context.Profiles.GetValueOrDefault(item.ProfileId);
-        IReadOnlyList<ArrRelease?> releases;
+        FinderResult found;
         try
         {
-            releases = await arr.SearchReleasesAsync(item.Service, item.Query, cancellationToken, ArrClient.CycleSearchTimeout).ConfigureAwait(false);
+            found = await _finder.SearchAsync(item.Target, SearchEngine.Prowlarr, cancellationToken, ArrClient.CycleSearchTimeout).ConfigureAwait(false);
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             logger.LogWarning("Download automatici: ricerca di {Key} su {Kind} non riuscita ({Error})", item.Key, item.Service, ErrorOf(ex));
 
-            // Una stagione troppo lunga per il giro non finirebbe mai: un episodio alla volta ci sta. Un upgrade resta com'è.
-            if (ex is ArrException { TimedOut: true } && item.Episodes is not null && !item.Upgrade)
+            // Una stagione troppo lunga per la ricerca di Sonarr non finirebbe mai: un episodio alla volta ci sta. Un upgrade resta com'è.
+            // Con Prowlarr ogni query è breve: un timeout non dice niente della stagione.
+            if (ex is ArrException { TimedOut: true } && !_finder.UsesProwlarr && item.Episodes is not null && !item.Upgrade)
             {
                 Split(item);
                 return false;
@@ -318,6 +352,8 @@ public sealed partial class DownloadService
             return false;
         }
 
+        var releases = found.Releases;
+
         // Le release che il client di download ha già rifiutato non si scelgono più, per nessuna regola.
         if (item.Refused.Count > 0)
         {
@@ -325,7 +361,13 @@ public sealed partial class DownloadService
         }
 
         var thresholds = settings.For(item.Service, item.ProfileId, profile?.Name);
-        var input = new RuleInput(item.RuntimeMinutes, item.Service == ArrKind.Radarr, settings.MinGbPerHour, thresholds.MinScore, context.IndexerPriority);
+        var input = new RuleInput(
+            item.RuntimeMinutes,
+            item.Service == ArrKind.Radarr,
+            settings.MinGbPerHour,
+            thresholds.MinScore,
+            context.IndexerPriority,
+            context.Checks is { } checks ? ChecksFor(checks, item, profile) : null);
 
         // Un tappabuchi ignora solo il punteggio minimo di WonderFlix: peso e rifiuti di Radarr/Sonarr valgono (spec §5.1).
         var stopgap = item.Upgrade ? item.Stopgap : null;
@@ -334,45 +376,55 @@ public sealed partial class DownloadService
             input = input with { MinScore = int.MinValue };
         }
 
-        ArrRelease? choice;
-        var belowMinScore = false;
+        // I candidati in ordine di regola, il primo è la scelta; vuoto se non c'è una scelta.
+        IReadOnlyList<ArrRelease> ranked;
         RuleResult? rule = null;
         if (item.Episodes is { } episodes)
         {
-            // Una stagione: il pack se conviene (spec T §5.4), altrimenti si divide; un upgrade resta com'è.
-            choice = SeasonPackRule.ChoosePack(releases, episodes, input);
-            if (choice is null && !item.Upgrade)
+            // Una stagione: il pack se conviene (spec T §5.4), poi gli altri pack validi; altrimenti si divide, un upgrade resta com'è.
+            if (SeasonPackRule.ChoosePack(releases, episodes, input) is not null)
             {
+                ranked = SeasonPackRule.Packs(releases, episodes.Count, input).Candidates;
+            }
+            else if (!item.Upgrade)
+            {
+                FoundLittle();
                 Split(item);
                 return false;
+            }
+            else
+            {
+                ranked = [];
             }
         }
         else
         {
             rule = DownloadRule.Choose(releases, input);
-            (choice, belowMinScore) = (rule.Choice, rule.BelowMinScore);
+            ranked = rule.Choice is null ? [] : rule.Candidates;
         }
 
-        var forceImport = false;
-        if (choice is not null && stopgap is not null)
+        // La scelta, se si scarica, poi le successive che si scaricherebbero: si provano solo dopo un rifiuto di regola del push.
+        var attempts = new List<(ArrRelease Release, bool ForceImport)>();
+        if (ranked.Count > 0 && Acceptable(ranked[0]) is { } first)
         {
-            // Per punteggio: più alto e importato da Radarr/Sonarr. Per peso: anche pari, e se non lo importerebbero si importa a mano.
-            var wouldImport = profile is not null
-                && DownloadRule.WouldImport(profile, choice.Quality?.Quality?.Id ?? 0, choice.CustomFormatScore, item.CurrentQualityId, item.CurrentScore);
-            var current = item.CurrentScore ?? 0;
-            var accepted = stopgap == DownloadStopgaps.Size ? choice.CustomFormatScore >= current : choice.CustomFormatScore > current && wouldImport;
-            (choice, forceImport) = accepted ? (choice, !wouldImport) : (null, false);
-        }
-        else if (choice is not null && item.Upgrade && !IsUpgrade(choice, item, profile))
-        {
-            choice = null;
+            attempts.Add((ranked[0], first));
+            foreach (var next in ranked.Skip(1))
+            {
+                if (attempts.Count >= MaxGrabAttempts)
+                {
+                    break;
+                }
+
+                if (Acceptable(next) is { } forceImport)
+                {
+                    attempts.Add((next, forceImport));
+                }
+            }
         }
 
-        if (choice is null)
+        if (attempts.Count == 0)
         {
-            // Il riassunto solo per film ed episodi, e non per un upgrade che non conviene.
-            var found = releases.Count(r => !string.IsNullOrEmpty(r?.Guid));
-            Update(item.Key, (entry, now) => NothingChosen(entry, item.Upgrade ? null : rule, thresholds.MinScore, found, now));
+            NothingValid();
             return false;
         }
 
@@ -385,9 +437,10 @@ public sealed partial class DownloadService
             }
         }
 
+        bool? grabbed;
         try
         {
-            return await GrabChoiceAsync(item, choice, profile, forceImport, cancellationToken).ConfigureAwait(false);
+            grabbed = await GrabChoicesAsync(item, attempts, profile, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -396,65 +449,159 @@ public sealed partial class DownloadService
                 _grabbing.Remove(item.Key);
             }
         }
-    }
 
-    // Il grab della scelta del giro; true se ha scaricato. forceImport: un tappabuchi per peso che Radarr/Sonarr non importerebbero.
-    // Solo sotto _lock. Si ricorda la release rifiutata dal client (al massimo 20, via le più vecchie): la ricerca dopo ne sceglie un'altra.
-    private static void RememberRefused(DownloadEntry entry, ArrRelease release) =>
-        entry.RefusedReleases = [.. (entry.RefusedReleases ?? []).Append(DownloadRule.ReleaseId(release.Guid!, release.IndexerId)).TakeLast(MaxRefusedReleases)];
-
-    private async Task<bool> GrabChoiceAsync(SearchItem item, ArrRelease choice, ArrQualityProfile? profile, bool forceImport, CancellationToken cancellationToken)
-    {
-        try
+        if (grabbed is { } done)
         {
-            await arr.GrabReleaseAsync(item.Service, choice.Guid!, choice.IndexerId, cancellationToken).ConfigureAwait(false);
-        }
-        catch (ArrException ex) when (ex.Status >= 500 && !cancellationToken.IsCancellationRequested)
-        {
-            // Il client di download ha rifiutato la release (per esempio il torrent c'è già): riprovare ogni giro è inutile, si avvisa l'admin e si riprova piano.
-            logger.LogWarning("Download automatici: {Key}, {Kind} ha avuto la scelta rifiutata dal client ({Error}, stato {Status})", item.Key, item.Service, ErrorOf(ex), ex.Status);
-            Update(item.Key, (entry, now) =>
-            {
-                entry.LastSearchAt = now;
-                entry.Reason = DownloadReasons.GrabRefused;
-                entry.NextSearchAt = now + CycleInterval;
-
-                RememberRefused(entry, choice);
-                if (entry.State != DownloadStates.UpgradeWatch)
-                {
-                    entry.State = DownloadStates.NeedsYou;
-                }
-            });
-            return false;
-        }
-        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-        {
-            logger.LogWarning("Download automatici: {Key}, {Kind} non ha scaricato la scelta ({Error})", item.Key, item.Service, ErrorOf(ex));
-            Update(item.Key, (entry, now) =>
-            {
-                // Spesso il client di download giù per poco: si riprova al giro dopo, come per la ricerca.
-                entry.LastSearchAt = now;
-                entry.Reason = DownloadReasons.SearchFailed;
-                entry.NextSearchAt = now + CycleInterval;
-            });
-            return false;
+            return done;
         }
 
-        logger.LogInformation("Download automatici: {Key} scaricato da {Kind}", item.Key, item.Service);
-        lock (_lock)
+        // Tutte rifiutate per regola dal push: come se non ci fosse niente di valido (una stagione si divide).
+        if (item.Episodes is not null && !item.Upgrade)
         {
-            if (Book.Get(item.Key) is { } entry)
+            Split(item);
+        }
+        else
+        {
+            NothingValid();
+        }
+
+        return false;
+
+        // Si scarica? Il valore è ForceImport: un tappabuchi per peso che Radarr/Sonarr non importerebbero. Null se no.
+        bool? Acceptable(ArrRelease choice)
+        {
+            if (choice.CustomFormatScore < input.MinScore)
             {
-                Grabbed(entry, choice, item.Upgrade, profile?.Name, time.GetUtcNow());
-                entry.EpisodeNumbers = item.Episodes?.ToList();
-                entry.ManualImportPending = forceImport;
+                return null;
             }
 
-            // Subito su disco: un riavvio prima della fine del giro non deve perdere il download.
-            store.Save(Book);
+            if (stopgap is not null)
+            {
+                // Per punteggio: più alto e importato da Radarr/Sonarr. Per peso: anche pari, e se non lo importerebbero si importa a mano.
+                var wouldImport = profile is not null
+                    && DownloadRule.WouldImport(profile, choice.Quality?.Quality?.Id ?? 0, choice.CustomFormatScore, item.CurrentQualityId, item.CurrentScore);
+                var current = item.CurrentScore ?? 0;
+                var accepted = stopgap == DownloadStopgaps.Size ? choice.CustomFormatScore >= current : choice.CustomFormatScore > current && wouldImport;
+                return accepted ? !wouldImport : null;
+            }
+
+            return item.Upgrade && !IsUpgrade(choice, item, profile) ? null : false;
         }
 
-        return true;
+        void NothingValid()
+        {
+            if (!item.Upgrade)
+            {
+                FoundLittle();
+            }
+
+            // Il riassunto solo per film ed episodi, e non per un upgrade che non conviene.
+            var count = releases.Count(r => !string.IsNullOrEmpty(r?.Guid));
+            Update(item.Key, (entry, now) => NothingChosen(entry, item.Upgrade ? null : rule, thresholds.MinScore, count, now));
+        }
+
+        // "Trovato poco" nel giro è solo una riga di log (spec ricerche-prowlarr §7).
+        void FoundLittle()
+        {
+            if (found.Engine == SearchEngine.Prowlarr)
+            {
+                logger.LogInformation("Download automatici: {Key}, Prowlarr ha trovato poco ({Found} release, {WrongTitle} di altri titoli)", item.Key, releases.Count, found.WrongTitle.Count);
+            }
+        }
+    }
+
+    // Solo sotto _lock. Si ricorda la release rifiutata dal client (al massimo 20, via le più vecchie): la ricerca dopo ne sceglie un'altra.
+    private static void RememberRefused(DownloadEntry entry, string guid, int indexerId) =>
+        entry.RefusedReleases = [.. (entry.RefusedReleases ?? []).Append(DownloadRule.ReleaseId(guid, indexerId)).TakeLast(MaxRefusedReleases)];
+
+    // Il grab delle scelte del giro, una dopo l'altra finché il push le rifiuta per regola. True se ha scaricato, false se il
+    // client l'ha rifiutata o il grab non è riuscito, null se il push le ha rifiutate tutte per regola.
+    private async Task<bool?> GrabChoicesAsync(
+        SearchItem item, IReadOnlyList<(ArrRelease Release, bool ForceImport)> attempts, ArrQualityProfile? profile, CancellationToken cancellationToken)
+    {
+        string? firstReason = null;
+        foreach (var (choice, forceImport) in attempts)
+        {
+            GrabResult result;
+            try
+            {
+                result = await _finder.GrabAsync(item.Service, choice, forceImport, cancellationToken).ConfigureAwait(false);
+            }
+            catch (ArrException ex) when (ex.Status >= 500 && !cancellationToken.IsCancellationRequested)
+            {
+                logger.LogWarning("Download automatici: {Key}, {Kind} ha avuto la scelta rifiutata dal client ({Error}, stato {Status})", item.Key, item.Service, ErrorOf(ex), ex.Status);
+                ClientRefused(choice);
+                return false;
+            }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Anche un torrent che qBittorrent non ha preso (QbitException).
+                logger.LogWarning("Download automatici: {Key}, {Kind} non ha scaricato la scelta ({Error})", item.Key, item.Service, ErrorOf(ex));
+                Update(item.Key, (entry, now) =>
+                {
+                    // Spesso il client di download giù per poco: si riprova al giro dopo, come per la ricerca.
+                    entry.LastSearchAt = now;
+                    entry.Reason = DownloadReasons.SearchFailed;
+                    entry.NextSearchAt = now + CycleInterval;
+                });
+                return false;
+            }
+
+            if (result.Kind == GrabKind.RuleRefused)
+            {
+                // Un rifiuto di regola non è del client: niente "Serve te" né RefusedReleases, si prova la prossima.
+                firstReason ??= result.Reason;
+                continue;
+            }
+
+            if (result.Kind == GrabKind.ClientRefused)
+            {
+                logger.LogWarning("Download automatici: {Key}, {Kind} ha avuto la scelta rifiutata dal client", item.Key, item.Service);
+                ClientRefused(choice);
+                return false;
+            }
+
+            logger.LogInformation("Download automatici: {Key} scaricato da {Kind}", item.Key, item.Service);
+            lock (_lock)
+            {
+                if (Book.Get(item.Key) is { } entry)
+                {
+                    Grabbed(entry, choice, item.Upgrade, profile?.Name, time.GetUtcNow());
+                    entry.EpisodeNumbers = item.Episodes?.ToList();
+                    entry.ManualImportPending = forceImport;
+
+                    // Un torrent messo da noi in qBittorrent: lo segue ApplyDirect, non la coda.
+                    if (result.Kind == GrabKind.Direct && result.Hash is { } hash)
+                    {
+                        entry.DirectHash = hash;
+                        Book.DirectGrabs[hash] = item.Key;
+                    }
+                }
+
+                // Subito su disco: un riavvio prima della fine del giro non deve perdere il download.
+                store.Save(Book);
+            }
+
+            return true;
+        }
+
+        // Il motivo è di Sonarr/Radarr, mai il titolo.
+        logger.LogInformation("Download automatici: {Key}, {Kind} ha rifiutato per regola {Count} release ({Reason})", item.Key, item.Service, attempts.Count, firstReason);
+        return null;
+
+        void ClientRefused(ArrRelease choice) => Update(item.Key, (entry, now) =>
+        {
+            // Il client di download ha rifiutato la release (per esempio il torrent c'è già): riprovare ogni giro è inutile, si avvisa l'admin e si riprova piano.
+            entry.LastSearchAt = now;
+            entry.Reason = DownloadReasons.GrabRefused;
+            entry.NextSearchAt = now + CycleInterval;
+
+            RememberRefused(entry, choice.Guid!, choice.IndexerId);
+            if (entry.State != DownloadStates.UpgradeWatch)
+            {
+                entry.State = DownloadStates.NeedsYou;
+            }
+        });
     }
 
     // Un upgrade si scarica solo con un punteggio più alto e se Radarr/Sonarr lo importerebbero (spec T §5.3b).

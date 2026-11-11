@@ -55,7 +55,8 @@ public sealed partial class DownloadService
                     Followed: true,
                     Wanted: episodeTitles.Any(t => t.Wanted),
                     HasFile: false,
-                    SeriesId: series.Key);
+                    SeriesId: series.Key,
+                    Tags: show?.Tags);
                 seasons[key] = new ArrSeason(
                     title,
                     whole,
