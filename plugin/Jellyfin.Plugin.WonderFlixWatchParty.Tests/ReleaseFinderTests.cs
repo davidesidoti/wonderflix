@@ -187,6 +187,39 @@ public class ReleaseFinderTests
     }
 
     [Fact]
+    public async Task OneFailedParseIsSkipped()
+    {
+        SeasonSetup();
+        _prowlarr.Search = _ => Task.FromResult<IReadOnlyList<ProwlarrRelease>>([Found(11, "a", "Show S01"), Found(11, "b", "Broken S01")]);
+        _arr.Parse = (_, title) => title == "Broken S01"
+            ? Task.FromException<ArrParse>(new ArrException(ArrError.Unreachable) { TimedOut = true })
+            : Task.FromResult(new ArrParse
+            {
+                Series = new SonarrSeries { Id = 5 },
+                Episodes = [new SonarrEpisode { Id = 1, SeriesId = 5, SeasonNumber = 1, EpisodeNumber = 1 }],
+            });
+
+        var result = await Finder().SearchAsync(Season, SearchEngine.Prowlarr, CancellationToken.None);
+
+        Assert.Equal("Show S01", Assert.Single(result.Releases)!.Title);
+        Assert.Empty(result.WrongTitle);
+        var warning = Assert.Single(_logger.Entries, e => e.Level == LogLevel.Warning);
+        Assert.DoesNotContain("Broken", warning.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AllParsesFailedThrows()
+    {
+        SeasonSetup();
+        _prowlarr.Search = _ => Task.FromResult<IReadOnlyList<ProwlarrRelease>>([Found(11, "a"), Found(11, "b")]);
+        _arr.Parse = (_, _) => Task.FromException<ArrParse>(new ArrException(ArrError.Unauthorized));
+
+        var error = await Assert.ThrowsAsync<ArrException>(() => Finder().SearchAsync(Season, SearchEngine.Prowlarr, CancellationToken.None));
+
+        Assert.Equal(ArrError.Unauthorized, error.Error);
+    }
+
+    [Fact]
     public async Task ReadingFailureThrows()
     {
         SeasonSetup();

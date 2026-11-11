@@ -88,19 +88,40 @@ public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient prowlarr, IArr
         }
 
         var found = unique.Values.ToList();
-        var parsed = new ArrRelease[found.Count];
+        var parsed = new ArrRelease?[found.Count];
+        var (parseFailures, parseError) = (0, (ArrException?)null);
         await Parallel.ForEachAsync(
             Enumerable.Range(0, found.Count),
             new ParallelOptions { MaxDegreeOfParallelism = ParseParallelism, CancellationToken = cancellationToken },
             async (i, token) =>
             {
-                var parse = await arr.ParseAsync(service, found[i].Title ?? string.Empty, token).ConfigureAwait(false);
-                parsed[i] = ParsedRelease.From(found[i], parse, indexers[found[i].IndexerId].Id, key);
+                try
+                {
+                    var parse = await arr.ParseAsync(service, found[i].Title ?? string.Empty, token).ConfigureAwait(false);
+                    parsed[i] = ParsedRelease.From(found[i], parse, indexers[found[i].IndexerId].Id, key);
+                }
+                catch (ArrException ex)
+                {
+                    // Una release che non si legge si scarta; mai il titolo nel log.
+                    Interlocked.Increment(ref parseFailures);
+                    parseError = ex;
+                }
             }).ConfigureAwait(false);
 
+        if (parseFailures > 0)
+        {
+            logger.LogWarning("Parse di Sonarr/Radarr non riuscito per {Failed} release su {Total}: scartate", parseFailures, found.Count);
+
+            // Se non se ne legge nessuna il servizio non risponde: la ricerca è fallita.
+            if (parseFailures == found.Count)
+            {
+                throw parseError!;
+            }
+        }
+
         return new FinderResult(
-            [.. parsed.Where(r => r.WrongTitle is null)],
-            [.. parsed.Where(r => r.WrongTitle is not null)],
+            [.. parsed.OfType<ArrRelease>().Where(r => r.WrongTitle is null)],
+            [.. parsed.OfType<ArrRelease>().Where(r => r.WrongTitle is not null)],
             SearchEngine.Prowlarr);
     }
 
