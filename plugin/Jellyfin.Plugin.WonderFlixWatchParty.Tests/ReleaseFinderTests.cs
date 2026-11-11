@@ -478,6 +478,44 @@ public class ReleaseFinderTests
         Assert.True(GrabKind.Grabbed == (await Finder().GrabAsync(ArrKind.Sonarr, release, false, CancellationToken.None)).Kind, rule);
     }
 
+    // Nyaa: magnetUrl di Prowlarr è un link http. Dalla ricerca al grab deve viaggiare come downloadUrl, mai come magnet.
+    private async Task<ArrRelease> FoundWithHttpMagnet()
+    {
+        const string Link = "http://prowlarr/8/download?file=x";
+        SeasonSetup();
+        _prowlarr.Search = _ => Task.FromResult<IReadOnlyList<ProwlarrRelease>>(
+            [new ProwlarrRelease { IndexerId = 11, Guid = "n", Title = "Show S01", Size = 100, Indexer = "Nyaa.si", MagnetUrl = Link }]);
+        var result = await Finder().SearchAsync(Season, SearchEngine.Prowlarr, CancellationToken.None);
+        return result.Releases.Single()!;
+    }
+
+    [Fact]
+    public async Task AnHttpMagnetUrlIsPushedAsDownloadUrlAndConfirmedByIt()
+    {
+        var release = await FoundWithHttpMagnet();
+        _arr.History = (_, _) => Task.FromResult<IReadOnlyList<ArrHistoryRecord?>>(
+            [new ArrHistoryRecord { Data = new() { ["guid"] = "PUSH-http://prowlarr/8/download?file=x" } }]);
+
+        var result = await Finder().GrabAsync(ArrKind.Sonarr, release, false, CancellationToken.None);
+
+        Assert.Equal(GrabKind.Grabbed, result.Kind);
+        var push = Assert.Single(_arr.PushCalls).Release;
+        Assert.Equal("http://prowlarr/8/download?file=x", push.DownloadUrl);
+        Assert.Null(push.MagnetUrl);
+    }
+
+    [Fact]
+    public async Task AnHttpMagnetUrlGoesToQbittorrentAsALinkToDownload()
+    {
+        var release = await FoundWithHttpMagnet();
+        Rejects("movie is not monitored");
+
+        var result = await Finder().GrabAsync(ArrKind.Sonarr, release, true, CancellationToken.None);
+
+        Assert.Equal(GrabKind.Direct, result.Kind);
+        Assert.Equal(("http://prowlarr/8/download?file=x", "series"), Assert.Single(_qbit.Added));
+    }
+
     [Fact]
     public async Task AMovieGrabIsConfirmedByTheMovieId()
     {

@@ -12,6 +12,10 @@ public static class ParsedRelease
     public static ArrRelease From(ProwlarrRelease found, ArrParse parse, int serviceIndexerId, DownloadKey key)
     {
         var info = key.Kind == DownloadKinds.Movie ? parse.ParsedMovieInfo : parse.ParsedEpisodeInfo;
+
+        // Per Nyaa Prowlarr mette in magnetUrl il suo link http (rimanda a un magnet): non è un magnet, è un link di download.
+        // Qui una volta sola, così push, conferma nella cronologia e aggiunta diretta a qBittorrent vedono lo stesso link.
+        var isMagnet = found.MagnetUrl?.StartsWith("magnet:", StringComparison.OrdinalIgnoreCase) == true;
         var release = new ArrRelease
         {
             Guid = found.Guid,
@@ -24,8 +28,8 @@ public static class ParsedRelease
             CustomFormatScore = parse.CustomFormatScore,
             Rejections = [],
             Source = ReleaseSource.Prowlarr,
-            DownloadUrl = found.DownloadUrl,
-            MagnetUrl = found.MagnetUrl,
+            DownloadUrl = found.DownloadUrl ?? (isMagnet || string.IsNullOrEmpty(found.MagnetUrl) ? null : found.MagnetUrl),
+            MagnetUrl = isMagnet ? found.MagnetUrl : null,
             Protocol = found.Protocol,
             PublishDate = found.PublishDate,
         };

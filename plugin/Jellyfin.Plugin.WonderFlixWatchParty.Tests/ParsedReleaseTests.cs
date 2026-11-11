@@ -78,6 +78,40 @@ public class ParsedReleaseTests
     }
 
     [Fact]
+    public void AnHttpMagnetUrlIsTheDownloadLink()
+    {
+        // Nyaa: Prowlarr dà in magnetUrl il suo link http (che rimanda a un magnet) e nessun downloadUrl.
+        var found = Found();
+        (found.DownloadUrl, found.MagnetUrl) = (null, "http://p/8/download?file=x");
+
+        var release = ParsedRelease.From(found, SeasonParse(265, 2, 1), 77, Season2);
+
+        Assert.Equal("http://p/8/download?file=x", release.DownloadUrl);
+        Assert.Null(release.MagnetUrl);
+    }
+
+    [Fact]
+    public void AnHttpMagnetUrlNeverReplacesTheDownloadUrl()
+    {
+        var found = Found();
+        found.MagnetUrl = "HTTP://p/8/download";
+
+        var release = ParsedRelease.From(found, SeasonParse(265, 2, 1), 77, Season2);
+
+        Assert.Equal("http://p/dl", release.DownloadUrl);
+        Assert.Null(release.MagnetUrl);
+    }
+
+    [Fact]
+    public void ARealMagnetIsKeptWhateverItsCase()
+    {
+        var found = Found();
+        found.MagnetUrl = "MAGNET:?xt=1";
+
+        Assert.Equal("MAGNET:?xt=1", ParsedRelease.From(found, SeasonParse(265, 2, 1), 77, Season2).MagnetUrl);
+    }
+
+    [Fact]
     public void UsesServiceIndexerId() =>
         Assert.Equal(5, ParsedRelease.From(Found(), SeasonParse(265, 2, 1), 5, Season2).IndexerId);
 
